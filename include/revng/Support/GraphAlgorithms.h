@@ -132,6 +132,7 @@ auto graphPredecessorsSize(GraphT Block) {
 
 namespace revng::detail {
 
+/// `EdgeDescriptor` represents a pair of a `Source` and `Target` nodes
 template<class NodeT>
 using EdgeDescriptor = std::pair<NodeT, NodeT>;
 

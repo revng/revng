@@ -26,7 +26,6 @@ getUniqueFunctionWithTag(FunctionTags::Tag &MarkerFunctionTag, ModuleType *M) {
     MarkerCallFunction = &F;
   }
 
-  revng_assert(MarkerCallFunction);
   return MarkerCallFunction;
 }
 

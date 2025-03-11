@@ -13,6 +13,7 @@ revng_add_analyses_library_internal(
   ASTTree.cpp
   BasicBlockNode.cpp
   BeautifyGHAST.cpp
+  DAGifyPass.cpp
   EnforceSingleExitPass.cpp
   ExprNode.cpp
   FallThroughScopeAnalysis.cpp

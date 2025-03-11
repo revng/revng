@@ -184,8 +184,7 @@ static Reg X(Flag, "Enforce the Single Exit Property on the ScopeGraph");
 
 bool EnforceSingleExitPass::runOnFunction(llvm::Function &F) {
 
-  // Instantiate and call the `Impl` class, by passing the `PostDominatorTree`
-  // and the `LoopInfo` analyses to the `Impl` class
+  // Instantiate and call the `Impl` class
   EnforceSingleExitPassImpl ESEImpl(F);
   bool FunctionChanged = ESEImpl.run();
 

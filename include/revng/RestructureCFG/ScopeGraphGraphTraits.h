@@ -77,22 +77,17 @@ inline llvm::SmallVector<BlockType *> getScopeGraphPredecessors(BlockType *BB) {
 
 /// This class is used as a marker class to tell the graph iterator to treat the
 /// underlying graph as a scope graph, i.e., considering also the scope closer
-/// edges as actual edges, and ignoring the goto edges
+/// edges as actual edges, and ignoring the goto edges. We require `GraphType`
+/// to be a pointer, so that we know we can non expensively copy it inside the
+/// `Scope` struct, and avoid using the `const GraphType &` paradigm using,
+/// e.g., in the `Inverse` marker class, which may cause "temporary out of
+/// scope" bugs.
 template<class GraphType>
+  requires std::is_pointer_v<GraphType>
 struct Scope {
+  const GraphType Graph;
 
-  // Special care should be employed when instantiating this class with a `*`
-  // `GraphType` (like we do with `Function *`), because the `const GraphType &`
-  // will be a temporary which can go out of scope as soon as the constructor
-  // terminates. We do it this way in order to mimic what it is done in
-  // `llvm/ADT/GraphTraits.h` for the `Inverse` marker class.
-  const GraphType &Graph;
-
-  inline Scope(const GraphType &G) : Graph(G) {}
-
-  // Delete the constructor accepting a rvalue reference, in order to avoid
-  // ill-formed instances of the class
-  Scope(const GraphType &&) = delete;
+  inline Scope(const GraphType G) : Graph(G) {}
 };
 
 /// Specializes `GraphTraits<Scope<llvm::BasicBlock *>>`
@@ -404,9 +399,8 @@ debug_function inline void dumpScopeGraph(llvm::Function &F) {
   }
 
   // Iteration on the whole graph using a `llvm::depth_first` visit
-  llvm::Function *PF = &F;
   llvm::dbgs() << "Depth first order:\n";
-  for (auto *DFSNode : llvm::depth_first(Scope<llvm::Function *>(PF))) {
+  for (auto *DFSNode : llvm::depth_first(Scope<llvm::Function *>(&F))) {
     llvm::dbgs() << DFSNode->getName().str() << "\n";
   }
 
@@ -423,5 +417,5 @@ debug_function inline void dumpScopeGraph(llvm::Function &F) {
   // We also dump the `.dot` serialization of the `ScopeGraph` for debugging
   // purposes
   llvm::dbgs() << "Serializing the dot file representing the ScopeGraph\n";
-  llvm::WriteGraph<Scope<llvm::Function *>>(PF, "ScopeGraph");
+  llvm::WriteGraph<Scope<llvm::Function *>>(&F, "ScopeGraph");
 }
