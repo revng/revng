@@ -63,7 +63,7 @@ private:
 public:
   NameBuilder(const model::Binary &Binary) : Binary(Binary) {}
 
-private:
+public:
   llvm::Error isNameForbidden(llvm::StringRef Name);
 
 public:

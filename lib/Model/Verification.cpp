@@ -7,67 +7,15 @@
 #include "llvm/ADT/SmallSet.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Support/Error.h"
+
+#include "NamespaceBuilder.h"
 
 using namespace llvm;
 
 namespace model {
-
-[[nodiscard]] bool VerifyHelper::isGlobalSymbol(llvm::StringRef Name) {
-  if (not NameBuilder) {
-    // Global symbols aren't set, which most likely means this verification
-    // didn't start from the binary. As such, let's pretend, global symbols
-    // don't exist.
-    return false;
-  }
-
-  return NameBuilder->isGlobalSymbol(Name);
-}
-
-[[nodiscard]] bool model::VerifyHelper::populateGlobalNamespace() {
-  revng_assert(NameBuilder,
-               "For global namespace checks, you have to pass a binary to the "
-               "verify helper constructor.");
-
-  // Allow multiple calls to `verify` even though the namespace can only be
-  // populated once.
-  if (NameBuilder->isGlobalNamespacePopulated())
-    return true;
-
-  if (llvm::Error Error = NameBuilder->populateGlobalNamespace()) {
-    struct ExtractMessage {
-      std::string &Out;
-
-      llvm::Error operator()(const llvm::StringError &Error) {
-        Out = Error.getMessage();
-        return llvm::Error::success();
-      }
-    };
-    auto CatchAll = [](const llvm::ErrorInfoBase &) -> llvm::Error {
-      revng_abort("Unsupported error type.");
-    };
-
-    std::string Out;
-    llvm::handleAllErrors(std::move(Error), ExtractMessage{ Out }, CatchAll);
-
-    revng_assert(not Out.empty());
-    return fail(std::move(Out));
-  }
-
-  return true;
-}
-
-VerifyHelper::VerifyHelper() = default;
-VerifyHelper::VerifyHelper(bool AssertOnFail) : AssertOnFail(AssertOnFail) {
-}
-VerifyHelper::VerifyHelper(const model::Binary &Binary) : NameBuilder(Binary) {
-}
-VerifyHelper::VerifyHelper(const model::Binary &Binary, bool AssertOnFail) :
-  AssertOnFail(AssertOnFail), NameBuilder(Binary) {
-}
-VerifyHelper::~VerifyHelper() {
-  revng_assert(InProgress.size() == 0);
-}
 
 //
 // Segments
@@ -476,18 +424,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       // size.
       rc_return VH.fail("Last field ends outside the struct", T);
     }
-
-    // Verify CustomName for collisions
-    if (not Field.CustomName().empty()) {
-      if (VH.isGlobalSymbol(Field.CustomName())) {
-        rc_return VH.fail("Field \"" + Field.CustomName()
-                            + "\" collides with global symbol",
-                          T);
-      }
-
-      if (not Names.insert(Field.CustomName()).second)
-        rc_return VH.fail("Collision in struct fields names", T);
-    }
   }
 
   rc_return true;
@@ -533,18 +469,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
     if (not rc_recur Field.verify(VH))
       rc_return VH.fail();
-
-    // Verify CustomName for collisions
-    if (not Field.CustomName().empty()) {
-      if (VH.isGlobalSymbol(Field.CustomName())) {
-        rc_return VH.fail("Field \"" + Field.CustomName()
-                            + "\" collides with global symbol",
-                          T);
-      }
-
-      if (not Names.insert(Field.CustomName()).second)
-        rc_return VH.fail("Collision in union fields names", T);
-    }
   }
 
   rc_return true;
@@ -597,15 +521,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
     if (not rc_recur Argument.verify(VH))
       rc_return VH.fail();
-
-    // Verify CustomName for collisions
-    if (not Argument.CustomName().empty()) {
-      if (VH.isGlobalSymbol(Argument.CustomName()))
-        rc_return VH.fail("Argument name collides with global symbol", T);
-
-      if (not Names.insert(Argument.CustomName()).second)
-        rc_return VH.fail("Collision in argument names", T);
-    }
   }
 
   rc_return true;
@@ -661,15 +576,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       rc_return VH.fail();
     if (not isUsedInArchitecture(Argument.Location(), Architecture))
       rc_return VH.fail();
-
-    // Verify CustomName for collisions
-    if (not Argument.CustomName().empty()) {
-      if (VH.isGlobalSymbol(Argument.CustomName()))
-        rc_return VH.fail("Argument name collides with global symbol", T);
-
-      if (not Names.insert(Argument.CustomName()).second)
-        rc_return VH.fail("Collision in argument names", T);
-    }
   }
 
   for (const NamedTypedRegister &Return : T.ReturnValues()) {
@@ -825,13 +731,50 @@ bool Configuration::verify(VerifyHelper &VH) const {
 // Binary
 //
 
+static std::string buildGlobalNamespaceError(const auto &GlobalNamespace) {
+  std::string Result;
+
+  for (const auto &[Name, List] : GlobalNamespace) {
+    if (List.size() > 1) {
+      Result += "- `" + Name.str() + "`:\n";
+      for (const auto &[_, Path] : List)
+        Result += "    - `" + Path + "`\n";
+    }
+  }
+
+  return Result;
+}
+
+static std::string buildLocalNamespaceError(const auto &Namespaces) {
+  std::string Result;
+
+  for (const auto &CurrentNamespace : Namespaces.Local) {
+    for (const auto &[Name, List] : CurrentNamespace) {
+      const decltype(List) *MaybeGlobalList = nullptr;
+      auto Iterator = Namespaces.Global.find(Name);
+      if (Iterator != Namespaces.Global.end())
+        MaybeGlobalList = &Iterator->second;
+
+      uint64_t TotalEntryCount = List.size();
+      if (MaybeGlobalList)
+        TotalEntryCount += MaybeGlobalList->size();
+
+      if (TotalEntryCount > 1) {
+        Result += "- `" + Name.str() + "`:\n";
+        if (MaybeGlobalList)
+          for (const auto &[_, Path] : *MaybeGlobalList)
+            Result += "    - `" + Path + "`\n";
+        for (const auto &[_, Path] : List)
+          Result += "    - `" + Path + "`\n";
+      }
+    }
+  }
+
+  return Result;
+}
+
 bool Binary::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
-
-  // First of all, verify the global namespace: we need to fully populate it
-  // before we can verify namespaces with smaller scopes
-  if (not VH.populateGlobalNamespace())
-    return VH.fail();
 
   // Build list of executable segments
   SmallVector<const model::Segment *, 4> ExecutableSegments;
@@ -877,9 +820,19 @@ bool Binary::verify(VerifyHelper &VH) const {
   }
 
   // Verify DynamicFunctions
-  for (const DynamicFunction &DF : ImportedDynamicFunctions())
+  model::NameBuilder NameBuilder(*this);
+  for (const DynamicFunction &DF : ImportedDynamicFunctions()) {
     if (not DF.verify(VH))
       return VH.fail();
+
+    // Unlike all the other renamable objects, dynamic functions do not have
+    // a possibility of falling back onto an automatic name. As such, we have to
+    // be a lot stricter with what we allow as their names.
+    if (llvm::Error Error = NameBuilder.isNameForbidden(DF.CustomName()))
+      return VH.fail("Dynamic function name (`" + DF.CustomName()
+                     + "`) is not valid because "
+                     + revng::unwrapError(std::move(Error)));
+  }
 
   // Verify Segments
   for (const Segment &S : Segments())
@@ -896,10 +849,20 @@ bool Binary::verify(VerifyHelper &VH) const {
     }
   }
 
-  //
   // Verify the configuration and the type system
-  //
-  return Configuration().verify(VH) and verifyTypeDefinitions(VH);
+  if (not Configuration().verify(VH) or not verifyTypeDefinitions(VH))
+    return false;
+
+  // And, finally, ensure there are no colliding names.
+  llvm::Expected Namespaces = collectNamespaces(*this);
+  if (not Namespaces)
+    return VH.fail(revng::unwrapError(Namespaces.takeError()));
+  if (auto Err = buildGlobalNamespaceError(Namespaces->Global); !Err.empty())
+    return VH.fail("Global namespace collisions were found:\n" + Err);
+  if (auto Error = buildLocalNamespaceError(*Namespaces); !Error.empty())
+    return VH.fail("Local namespace collisions were found:\n" + Error);
+
+  return true;
 }
 
 //
@@ -1027,7 +990,7 @@ bool Configuration::verify() const {
 }
 
 bool Binary::verify(bool Assert) const {
-  VerifyHelper VH(*this, Assert);
+  VerifyHelper VH(Assert);
   return verify(VH);
 }
 bool Binary::verify() const {

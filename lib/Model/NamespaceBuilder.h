@@ -26,7 +26,7 @@ using ConstIf = std::conditional_t<IsConst, const T, T>;
 
 template<bool IsBinaryConst>
 struct NamespaceEntry {
-  using StoredNameType = ConstIf<IsBinaryConst, std::string>;
+  using StoredNameType = ConstIf<IsBinaryConst, model::Identifier>;
 
   StoredNameType *Name;
 
@@ -56,8 +56,9 @@ collectNamespaces(BinaryType &Binary) {
   Namespaces<std::is_const_v<BinaryType>> Result;
 
   for (ConstOrNot<DynamicFunction> auto &F : Binary.ImportedDynamicFunctions())
-    if (not F.Name().empty())
-      Result.Global[F.Name()].emplace_back(F.Name(), detail::path(F));
+    if (not F.CustomName().empty())
+      Result.Global[F.CustomName()].emplace_back(F.CustomName(),
+                                                 detail::path(F));
 
   // Dynamic functions are a bit special in that we cannot afford to change
   // their names no matter what. As such, if we run into any dynamic function
@@ -80,22 +81,26 @@ collectNamespaces(BinaryType &Binary) {
   }
 
   for (ConstOrNot<Function> auto &F : Binary.Functions())
-    if (not F.Name().empty())
-      Result.Global[F.Name()].emplace_back(F.Name(), detail::path(F));
+    if (not F.CustomName().empty())
+      Result.Global[F.CustomName()].emplace_back(F.CustomName(),
+                                                 detail::path(F));
 
   for (ConstOrNot<Segment> auto &S : Binary.Segments())
-    if (not S.Name().empty())
-      Result.Global[S.Name()].emplace_back(S.Name(), detail::path(S));
+    if (not S.CustomName().empty())
+      Result.Global[S.CustomName()].emplace_back(S.CustomName(),
+                                                 detail::path(S));
 
   for (auto &Def : Binary.TypeDefinitions()) {
-    if (not Def->Name().empty())
-      Result.Global[Def->Name()].emplace_back(Def->Name(), detail::path(*Def));
+    if (not Def->CustomName().empty())
+      Result.Global[Def->CustomName()].emplace_back(Def->CustomName(),
+                                                    detail::path(*Def));
 
     if (auto *Enum = llvm::dyn_cast<model::EnumDefinition>(Def.get()))
       for (auto &Entry : Enum->Entries())
-        if (not Entry.Name().empty())
-          Result.Global[Entry.Name()].emplace_back(Entry.Name(),
-                                                   detail::path(*Enum, Entry));
+        if (not Entry.CustomName().empty())
+          Result.Global[Entry.CustomName()].emplace_back(Entry.CustomName(),
+                                                         detail::path(*Enum,
+                                                                      Entry));
   }
 
   for (auto &Definition : Binary.TypeDefinitions()) {
@@ -109,38 +114,41 @@ collectNamespaces(BinaryType &Binary) {
     } else if (auto *RFT = llvm::dyn_cast<model::RawFunctionDefinition>(D)) {
       auto &Arguments = Result.Local.emplace_back();
       for (auto &Argument : RFT->Arguments())
-        if (not Argument.Name().empty())
-          Arguments[Argument.Name()].emplace_back(Argument.Name(),
-                                                  detail::path(*RFT, Argument));
+        if (not Argument.CustomName().empty())
+          Arguments[Argument.CustomName()].emplace_back(Argument.CustomName(),
+                                                        detail::path(*RFT,
+                                                                     Argument));
 
       auto &RVs = Result.Local.emplace_back();
       for (auto &ReturnValue : RFT->ReturnValues())
-        if (not ReturnValue.Name().empty())
-          RVs[ReturnValue.Name()].emplace_back(ReturnValue.Name(),
-                                               detail::path(*RFT, ReturnValue));
+        if (not ReturnValue.CustomName().empty())
+          RVs[ReturnValue.CustomName()].emplace_back(ReturnValue.CustomName(),
+                                                     detail::path(*RFT,
+                                                                  ReturnValue));
 
     } else if (auto *CFT = llvm::dyn_cast<model::CABIFunctionDefinition>(D)) {
       auto &Arguments = Result.Local.emplace_back();
       for (auto &Argument : CFT->Arguments())
-        if (not Argument.Name().empty())
-          Arguments[Argument.Name()].emplace_back(Argument.Name(),
-                                                  detail::path(*CFT, Argument));
+        if (not Argument.CustomName().empty())
+          Arguments[Argument.CustomName()].emplace_back(Argument.CustomName(),
+                                                        detail::path(*CFT,
+                                                                     Argument));
 
       // TODO: don't forget about local variables once those are in the model.
 
     } else if (auto *S = llvm::dyn_cast<model::StructDefinition>(D)) {
       auto &Fields = Result.Local.emplace_back();
       for (auto &Field : S->Fields())
-        if (not Field.Name().empty())
-          Fields[Field.Name()].emplace_back(Field.Name(),
-                                            detail::path(*S, Field));
+        if (not Field.CustomName().empty())
+          Fields[Field.CustomName()].emplace_back(Field.CustomName(),
+                                                  detail::path(*S, Field));
 
     } else if (auto *U = llvm::dyn_cast<model::UnionDefinition>(D)) {
       auto &Fields = Result.Local.emplace_back();
       for (auto &Field : U->Fields())
-        if (not Field.Name().empty())
-          Fields[Field.Name()].emplace_back(Field.Name(),
-                                            detail::path(*U, Field));
+        if (not Field.CustomName().empty())
+          Fields[Field.CustomName()].emplace_back(Field.CustomName(),
+                                                  detail::path(*U, Field));
 
     } else {
       revng_abort("Unsupported type definition kind.");

@@ -261,7 +261,7 @@ struct ImportFromCAnalysis {
       return revng::createError(Result);
     }
 
-    model::VerifyHelper VH(*OutModel, false);
+    model::VerifyHelper VH;
     if (not OutModel->verify(VH)) {
       return revng::createError("New model does not verify: " + VH.getReason());
     }
