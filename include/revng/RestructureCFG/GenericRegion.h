@@ -33,12 +33,6 @@ public:
   using child_iterator = child_container::iterator;
   using child_range = llvm::iterator_range<child_iterator>;
 
-  using edge = tuple_cat_t<revng::detail::EdgeDescriptor<NodeT>,
-                           make_tuple_t<size_t>>;
-  using edge_container = llvm::SmallSetVector<NodeT, 4>;
-  using edge_iterator = edge_container::iterator;
-  using edge_range = llvm::iterator_range<edge_iterator>;
-
 private:
   block_container Blocks;
 
@@ -48,8 +42,6 @@ private:
   GenericRegion *ParentRegion = nullptr;
 
   child_container Children;
-
-  edge_container RetreatingEdges;
 
 public:
   GenericRegion() {}
@@ -96,13 +88,5 @@ public:
   child_iterator child_end() { return Children.end(); }
   child_range children() {
     return llvm::make_range(child_begin(), child_end());
-  }
-
-  void addRetreating(edge Edge) { RetreatingEdges.insert(Edge); }
-
-  edge_iterator retreating_begin() { return RetreatingEdges.begin(); }
-  edge_iterator retreating_end() { return RetreatingEdges.end(); }
-  edge_range retreatings() {
-    return llvm::make_range(retreating_begin(), retreating_end());
   }
 };

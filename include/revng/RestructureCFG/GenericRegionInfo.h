@@ -55,7 +55,6 @@ public:
 private:
   void initializeRegions(GraphT F);
   void electHead(GraphT F);
-  void electRetreatings();
   std::string print() const;
 };
 

@@ -167,28 +167,10 @@ void GenericRegionInfo<GraphT, GT>::electHead(GraphT F) {
 }
 
 template<class GraphT, class GT>
-void GenericRegionInfo<GraphT, GT>::electRetreatings() {
-  // We perform the discovery of the retreating edges starting from the elected
-  // `Head` at the step before
-  for (auto &CurrentRegion : Regions) {
-    NodeT Head = CurrentRegion->getHead();
-
-    llvm::SmallPtrSet<NodeT, 4> RegionNodes;
-    for (auto &RegionNode : CurrentRegion->blocks()) {
-      RegionNodes.insert(RegionNode);
-    }
-
-    // Perform the exploration and collect the retreating edges
-    auto Retreatings = getBackedgesWhiteList(Head, RegionNodes);
-  }
-}
-
-template<class GraphT, class GT>
 void GenericRegionInfo<GraphT, GT>::compute(GraphT F) {
 
   initializeRegions(F);
   electHead(F);
-  electRetreatings();
 
   // Print the `GenericRegionInfo` results, when the respective Logger is
   // activated. This is used both for debugging purposes and for testing with
