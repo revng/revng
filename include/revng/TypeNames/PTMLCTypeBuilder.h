@@ -186,17 +186,25 @@ public:
 
 public:
   auto getNameTag(const model::TypeDefinition &T) {
+    // TODO: build a warning based on `NameBuilder.warning(T)`
+    //       if it's not `std::nullopt`.
     return tokenTag(NameBuilder.name(T), ptml::c::tokens::Type);
   }
   auto getNameTag(const model::Segment &S) {
+    // TODO: build a warning based on `NameBuilder.warning(S)`
+    //       if it's not `std::nullopt`.
     return tokenTag(NameBuilder.name(Binary, S), ptml::c::tokens::Variable);
   }
   auto getNameTag(const model::EnumDefinition &Enum,
                   const model::EnumEntry &Entry) {
+    // TODO: build a warning based on `NameBuilder.warning(Entry)`
+    //       if it's not `std::nullopt`.
     return tokenTag(NameBuilder.name(Enum, Entry), ptml::c::tokens::Field);
   }
   template<class Aggregate, class Field>
   auto getNameTag(const Aggregate &A, const Field &F) {
+    // TODO: build a warning based on `NameBuilder.warning(F)`
+    //       if it's not `std::nullopt`.
     return tokenTag(NameBuilder.name(A, F), c::tokens::Field);
   }
 

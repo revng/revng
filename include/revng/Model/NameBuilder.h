@@ -164,6 +164,15 @@ public:
       return "local_" + Function.Entry().toString();
   }
 
+  std::optional<std::string> warning(EntityWithName auto const &E) {
+    if (isNameReserved(E.Name(), Configuration))
+      return "Name '" + E.Name()
+             + "' is either invalid or is reserved for internal use, so it was "
+               "replaced with an automatic one.";
+
+    return std::nullopt;
+  }
+
 public:
   [[nodiscard]] std::string paddingFieldName(uint64_t Offset) const {
     std::string Result = Configuration.structPaddingPrefix().str()
