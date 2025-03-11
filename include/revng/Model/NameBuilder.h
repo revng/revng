@@ -31,7 +31,7 @@ public:
     Configuration(Binary.Configuration().Naming()) {}
 
 public:
-  [[nodiscard]] static bool
+  [[nodiscard]] static llvm::Error
   isNameReserved(llvm::StringRef Name,
                  const model::NamingConfiguration &Configuration);
 
@@ -164,11 +164,38 @@ public:
       return "local_" + Function.Entry().toString();
   }
 
-  std::optional<std::string> warning(EntityWithName auto const &E) {
-    if (isNameReserved(E.Name(), Configuration))
-      return "Name '" + E.Name()
-             + "' is either invalid or is reserved for internal use, so it was "
-               "replaced with an automatic one.";
+private:
+  [[nodiscard]] std::optional<std::string>
+  warningImpl(const std::string &Name,
+              const std::string &OriginalName,
+              llvm::Error &&Reason) {
+    if (Name == OriginalName) {
+      // Suppress warnings on appropriately placed automatic names in the model.
+      //
+      // TODO: get rid of this once `import-from-c` is fixed and we no longer
+      //       put such names in.
+      llvm::consumeError(std::move(Reason));
+      return std::nullopt;
+    }
+
+    return "Name '" + OriginalName
+           + "' is not valid, so it was replaced by an automatic one ('" + Name
+           + "') because " + revng::unwrapError(std::move(Reason)) + ".";
+  }
+
+public:
+  [[nodiscard]] std::optional<std::string>
+  warning(EntityWithName auto const &E) {
+    if (auto Reason = isNameReserved(E.Name(), Configuration))
+      return warningImpl(automaticName(E), E.Name(), std::move(Reason));
+
+    return std::nullopt;
+  }
+
+  [[nodiscard]] std::optional<std::string>
+  warning(const auto &Parent, EntityWithName auto const &E) {
+    if (auto Reason = isNameReserved(E.Name(), Configuration))
+      return warningImpl(automaticName(Parent, E), E.Name(), std::move(Reason));
 
     return std::nullopt;
   }

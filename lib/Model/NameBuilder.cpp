@@ -307,27 +307,32 @@ static bool isPrefixAndRegister(llvm::StringRef Name, llvm::StringRef Prefix) {
 }
 
 using NC = model::NamingConfiguration;
-bool model::NameBuilder::isNameReserved(llvm::StringRef Name,
-                                        const NC &Configuration) {
+llvm::Error model::NameBuilder::isNameReserved(llvm::StringRef Name,
+                                               const NC &Configuration) {
   revng_assert(!Name.empty());
 
   // Only alphanumeric characters and '_' are allowed
   auto isCharacterForbidden = [](char Character) -> bool {
     return Character != '_' && !std::isalnum(Character);
   };
-  if (revng::any_of(Name, isCharacterForbidden))
-    return true;
+  auto Iterator = llvm::find_if(Name, isCharacterForbidden);
+  if (Iterator != Name.end()) {
+    using namespace std::string_literals;
+    return revng::createError("it contains a forbidden character: '"s
+                              + *Iterator + "'");
+  }
 
   if (std::isdigit(Name[0]))
-    return true;
+    return revng::createError("it starts with a digit: '"s + Name[0] + "'");
 
   // Filter out primitive names we use - we don't want collisions with those
   if (model::PrimitiveType::isCName(Name))
-    return true;
+    return revng::createError("it is reserved for a primitive type we use");
 
   // Forbid names reserved by the C language and some common extensions.
   if (ReservedKeywords.contains(Name))
-    return true;
+    return revng::createError("it is reserved by the C language or some common "
+                              "extension");
 
   //
   // The following names are reserved based on the configuration
@@ -335,77 +340,88 @@ bool model::NameBuilder::isNameReserved(llvm::StringRef Name,
 
   // Names we emit as macros.
   if (ptml::Attributes.isMacro(Name))
-    return true;
+    return revng::createError("it is reserved for a macro we use in the "
+                              "decompiled code");
 
   if (Configuration.ReserveNamesStartingWithUnderscore())
     if (Name[0] == '_')
-      return true;
+      return revng::createError("it is reserved because it begins with an "
+                                "underscore");
 
   // Prefix + `[0-9]+`
   if (isPrefixAndIndex(Name, Configuration.unnamedSegmentPrefix()))
-    return true;
+    return revng::createError("it is reserved for an automatic segment name");
   if (isPrefixAndIndex(Name, Configuration.unnamedStructFieldPrefix()))
-    return true;
+    return revng::createError("it is reserved for an automatic struct field "
+                              "name");
   if (isPrefixAndIndex(Name, Configuration.unnamedUnionFieldPrefix()))
-    return true;
+    return revng::createError("it is reserved for an automatic struct union "
+                              "name");
   if (isPrefixAndIndex(Name, Configuration.unnamedFunctionArgumentPrefix()))
-    return true;
+    return revng::createError("it is reserved for an automatic function "
+                              "argument name");
   if (isPrefixAndIndex(Name, Configuration.unnamedLocalVariablePrefix()))
-    return true;
+    return revng::createError("it is reserved for an automatic local variable "
+                              "name");
   if (isPrefixAndIndex(Name,
                        Configuration.unnamedBreakFromLoopVariablePrefix()))
-    return true;
+    return revng::createError("it is reserved for a break-from-loop variable "
+                              "name");
 
   // NOTE: This should live in the "Prefix + `[0-9]+`" section, but because we
   //       parse these names when importing from C, let's be extra cautious and
   //       forbid them all.
   if (Name.starts_with(Configuration.structPaddingPrefix()))
-    return true;
+    return revng::createError("it is reserved for a struct padding name");
 
   // Prefix + MetaAddress.toIdentifier()
   if (isPrefixAndAddress(Name, Configuration.unnamedFunctionPrefix()))
-    return true;
+    return revng::createError("it is reserved for an automatic function name");
 
   // Prefix + toString(TypeDefinitionKey)
   if (isPrefixAndTypeDefinitionKey(Name,
                                    Configuration.unnamedTypeDefinitionPrefix()))
-    return true;
+    return revng::createError("it is reserved for an automatic type name");
 
   // NOTE: since automatic enum entry names depend on (potentially unreserved)
   //       enum names, we have no choice but to reserve everything starting with
   //       this prefix that also ends with a number.
   if (Name.starts_with(Configuration.unnamedEnumEntryPrefix())
       and std::isdigit(Name.back()))
-    return true;
+    return revng::createError("it is reserved for an automatic enum entry "
+                              "name");
 
   // NOTE: since we parse these it's safer to reserve all of them.
   if (Name.starts_with(Configuration.maximumEnumValuePrefix()))
-    return true;
+    return revng::createError("it is reserved for a maximum enum value");
 
   // Prefix + model::Register::getRegisterName(Register)
   if (isPrefixAndRegister(Name, Configuration.unnamedFunctionRegisterPrefix()))
-    return true;
+    return revng::createError("it is reserved for an automatic register "
+                              "argument name");
 
   // NOTE: since artificial return value struct name depends on a (potentially
   //       unreserved) function type name, we have no choice but to reserve
   //       everything starting with this prefix.
   if (Name.starts_with(Configuration.artificialReturnValuePrefix()))
-    return true;
+    return revng::createError("it is reserved for an artificial return value "
+                              "struct name");
 
   // NOTE: since these names are kind of complicated to produce (they recur
   //       on the array's element type), forbid them all.
   if (Name.starts_with(Configuration.artificialArrayWrapperPrefix()))
-    return true;
+    return revng::createError("it is reserved for an artificial array wrapper "
+                              "name");
 
   // TODO: more granularity is possible here since this prefix is only ever
   //       followed by a primitive name, but forbid them all for now.
   if (Name.starts_with(Configuration.undefinedValuePrefix()))
-    return true;
+    return revng::createError("it is reserved for an undefined value");
 
   // NOTE: since CSV value names are kind of external, reserve everything just
   //       to be safe.
   if (Name.starts_with(Configuration.opaqueCSVValuePrefix()))
-    return true;
+    return revng::createError("it is reserved for an opaque CSV value");
 
   //
   // Hardcoded prefixes
@@ -414,24 +430,25 @@ bool model::NameBuilder::isNameReserved(llvm::StringRef Name,
   // TODO: We can be more careful with these and only reserve the ones we use,
   //       once `CTargetImplementation` is mature enough to give us the list.
   if (Name.starts_with("__builtin_"))
-    return true;
+    return revng::createError("it is reserved for a builtin intrinsic");
 
   //
   // Exact names
   //
 
   if (Name == Configuration.artificialArrayWrapperFieldName())
-    return true;
+    return revng::createError("it is reserved for an artificial array wrapper "
+                              "field name");
   if (Name == Configuration.stackFrameVariableName())
-    return true;
+    return revng::createError("it is reserved for a stack variable name");
   if (Name == Configuration.rawStackArgumentName())
-    return true;
+    return revng::createError("it is reserved for a stack argument name");
   if (Name == Configuration.loopStateVariableName())
-    return true;
+    return revng::createError("it is reserved for a loop state variable name");
 
   // Anything else to add here?
 
-  return false;
+  return llvm::Error::success();
 }
 
 using T = model::Type;
