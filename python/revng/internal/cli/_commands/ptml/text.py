@@ -3,11 +3,12 @@
 #
 
 import re
-import sys
 from io import TextIOWrapper
-from typing import Dict
+from typing import Any, Dict, List, Union
 from xml.dom import Node
 from xml.dom.minidom import Document, parseString
+
+from revng.internal.cli.support import file_wrapper
 
 from .common import handle_file, log, normalize_filter_extract
 
@@ -84,22 +85,30 @@ def _parse_ptml_node(node: Document, console, indent: str, metadata: Dict[str, s
             _parse_ptml_node(node, console, indent, new_metadata)
 
 
-def cmd_text(args):
-    if args.inplace and args.input == sys.stdin.buffer:
+def cmd_text(args) -> int:
+    if args.inplace and args.input in (None, "-"):
         log("Cannot strip inplace while reading from stdin")
         return 1
 
     filters = normalize_filter_extract(args.filter, args.extract)
-    content = args.input.read()
-
     if args.inplace:
-        args.input.seek(0)
-        args.input.truncate(0)
-        output = TextIOWrapper(args.input, "utf-8")
+        with open(args.input, "rb+") as input_file:
+            content = input_file.read()
+            input_file.seek(0)
+            input_file.truncate(0)
+            return cmd_text_inner(args.color, content, TextIOWrapper(input_file, "utf-8"), filters)
     else:
-        output = args.output
+        with file_wrapper(args.input, "rb") as input_file:
+            content = input_file.read()
+            with file_wrapper(args.output, "w") as output_file:
+                return cmd_text_inner(args.color, content, output_file, filters)
 
-    if not args.color:
+
+def cmd_text_inner(
+    color: bool, content: bytes, output: TextIOWrapper, filters: Union[str, List[str]]
+):
+    console: Any
+    if not color:
         console = PlainConsole(output)
     else:
         try:
@@ -107,13 +116,13 @@ def cmd_text(args):
             from rich.console import Console
 
             console = Console(markup=False, highlight=False, force_terminal=True, file=output)
-            console.options.no_wrap = True
-            color = True
+            console.options.no_wrap = True  # type: ignore
+            color_available = True
         except ImportError:
             console = PlainConsole(output)
-            color = False
+            color_available = False
 
-    if args.color and not color:
+    if color and not color_available:
         log("Module 'rich' not found, please install it to use color mode")
         return 1
 

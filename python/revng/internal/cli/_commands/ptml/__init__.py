@@ -3,7 +3,6 @@
 #
 
 import argparse
-import sys
 from typing import Optional
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
@@ -18,13 +17,7 @@ class PTMLCommand(Command):
 
     def register_arguments(self, parser: argparse.ArgumentParser):
         parser.description = "Tool to manipulate PTML files"
-        parser.add_argument(
-            "input",
-            type=argparse.FileType("rb+"),
-            default=sys.stdin.buffer,
-            nargs="?",
-            help="Input file (stdin if omitted)",
-        )
+        parser.add_argument("input", nargs="?", help="Input file (stdin if omitted)")
 
         parser_format_group = parser.add_argument_group(
             "Output Format",
@@ -56,13 +49,7 @@ class PTMLCommand(Command):
         parser_out = parser_out_group.add_mutually_exclusive_group()
         parser_out.add_argument("-i", "--inplace", action="store_true", help="Strip inplace")
         parser_out.add_argument(
-            "-o",
-            "--output",
-            type=argparse.FileType("w"),
-            default=sys.stdout,
-            nargs="?",
-            metavar="FILE",
-            help="Output file (stdout if omitted)",
+            "-o", "--output", nargs="?", metavar="FILE", help="Output file (stdout if omitted)"
         )
 
     def run(self, options: Options) -> Optional[int]:
