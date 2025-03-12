@@ -489,13 +489,7 @@ public:
     rc_return;
   }
 
-  RecursiveCoroutine<void> emitAggregateExpression(mlir::Value V) {
-    auto E = V.getDefiningOp<AggregateOp>();
-
-    Out << '(';
-    rc_recur emitType(E.getResult().getType());
-    Out << ')';
-
+  RecursiveCoroutine<void> emitAggregateInitializer(AggregateOp E) {
     // The precedence here must be comma, because an initializer list cannot
     // contain an unparenthesized comma expression. It would be parsed as two
     // initializers instead.
@@ -509,6 +503,16 @@ public:
       rc_recur emitExpression(Initializer);
     }
     Out << '}';
+  }
+
+  RecursiveCoroutine<void> emitAggregateExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<AggregateOp>();
+
+    Out << '(';
+    rc_recur emitType(E.getResult().getType());
+    Out << ')';
+
+    rc_recur emitAggregateInitializer(E);
   }
 
   RecursiveCoroutine<void> emitParameterExpression(mlir::Value V) {
@@ -1021,14 +1025,9 @@ public:
   }
 
   RecursiveCoroutine<void> emitExpressionRegion(mlir::Region &R) {
-    revng_assert(R.hasOneBlock());
-    mlir::Block &B = R.front();
-
-    auto End = B.end();
-    revng_assert(End != B.begin());
-
-    auto Yield = mlir::cast<YieldOp>(*--End);
-    return emitExpression(Yield.getValue());
+    mlir::Value Value = getExpressionValue(R);
+    revng_assert(Value);
+    return emitExpression(Value);
   }
 
   //===---------------------------- Statements ----------------------------===//
@@ -1053,7 +1052,12 @@ public:
       // Comma expressions in a variable initialiser must be parenthesized.
       CurrentPrecedence = OperatorPrecedence::Comma;
 
-      rc_recur emitExpressionRegion(S.getInitializer());
+      mlir::Value Expression = getExpressionValue(S.getInitializer());
+
+      if (auto Aggregate = Expression.getDefiningOp<AggregateOp>())
+        rc_recur emitAggregateInitializer(Aggregate);
+      else
+        rc_recur emitExpression(Expression);
     }
 
     Out << ';' << '\n';

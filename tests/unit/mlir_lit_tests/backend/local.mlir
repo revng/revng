@@ -25,6 +25,12 @@
     !int32_t
   }>>
 
+!my_pair = !clift.defined<#clift.struct<
+  "/model-type/2006" : size(8) {
+    offset(0) : !int32_t,
+    offset(4) : !int32_t
+  }>>
+
 clift.module {
   // CHECK: void fun_0x40001001(void) {
   clift.func @f<!f>() attributes {
@@ -45,24 +51,40 @@ clift.module {
       clift.yield %42 : !int32_t
     }
 
-    // _var_0;
+    // CHECK: struct my_pair _var_4 = {
+    // CHECK:   1,
+    // CHECK:   2
+    // CHECK: };
+    %p = clift.local !my_pair "p" = {
+      %1 = clift.imm 1 : !int32_t
+      %2 = clift.imm 2 : !int32_t
+      %r = clift.aggregate(%1, %2) : !my_pair
+      clift.yield %r : !my_pair
+    }
+
+    // CHECK: _var_0;
     clift.expr {
         clift.yield %e : !my_enum
     }
 
-    // _var_1;
+    // CHECK: _var_1;
     clift.expr {
         clift.yield %s : !my_struct
     }
 
-    // _var_2;
+    // CHECK: _var_2;
     clift.expr {
         clift.yield %u : !my_union
     }
 
-    // _var_3;
+    // CHECK: _var_3;
     clift.expr {
         clift.yield %i : !int32_t
+    }
+
+    // CHECK: _var_4;
+    clift.expr {
+        clift.yield %p : !my_pair
     }
   }
   // CHECK: }
