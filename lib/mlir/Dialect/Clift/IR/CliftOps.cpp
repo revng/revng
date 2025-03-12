@@ -51,7 +51,7 @@ void CliftDialect::registerOperations() {
                 /* End of operations list */>();
 }
 
-static YieldOp getExpressionYieldOp(Region &R) {
+YieldOp clift::getExpressionYieldOp(Region &R) {
   if (R.empty())
     return {};
 
@@ -63,10 +63,17 @@ static YieldOp getExpressionYieldOp(Region &R) {
   return mlir::dyn_cast<clift::YieldOp>(B.back());
 }
 
-static ValueType getExpressionType(Region &R) {
-  if (auto Yield = getExpressionYieldOp(R)) {
-    return Yield.getValue().getType();
-  }
+mlir::Value clift::getExpressionValue(Region &R) {
+  if (auto Yield = getExpressionYieldOp(R))
+    return Yield.getValue();
+
+  return {};
+}
+
+ValueType clift::getExpressionType(Region &R) {
+  if (auto Value = getExpressionValue(R))
+    return mlir::cast<ValueType>(Value.getType());
+
   return {};
 }
 

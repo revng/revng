@@ -75,3 +75,19 @@ void printCliftOpOperandTypes(OpAsmPrinter &Printer,
 // This include should stay here for correct build procedure
 #define GET_OP_CLASSES
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h.inc"
+
+namespace mlir::clift {
+
+/// Returns the terminating YieldOp of the expression represented by the region,
+/// or a operation if the region is not a valid expression region.
+YieldOp getExpressionYieldOp(Region &R);
+
+/// Returns the value of the expression represented by the region region, or a
+/// null value if the region is not a valid expression region.
+mlir::Value getExpressionValue(Region &R);
+
+/// Returns the type of the expression represented by the region, or a null type
+/// if region is not a valid expression region.
+clift::ValueType getExpressionType(Region &R);
+
+} // namespace mlir::clift
