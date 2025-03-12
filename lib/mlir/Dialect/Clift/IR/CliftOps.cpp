@@ -14,27 +14,66 @@
 
 namespace mlir {
 
-ParseResult parseCliftPointerArithmeticOpTypes(OpAsmParser &Parser,
-                                               Type &Result,
-                                               Type &Lhs,
-                                               Type &Rhs);
+static ParseResult parseCliftOpTypesImpl(OpAsmParser &Parser,
+                                         Type *Result,
+                                         llvm::ArrayRef<Type *> Arguments);
 
-void printCliftPointerArithmeticOpTypes(OpAsmPrinter &Parser,
-                                        Operation *Op,
-                                        Type Result,
-                                        Type Lhs,
-                                        Type Rhs);
+static void printCliftOpTypesImpl(OpAsmPrinter &Printer,
+                                  Type Result,
+                                  llvm::ArrayRef<Type> Arguments);
 
-ParseResult parseCliftTernaryOpTypes(OpAsmParser &Parser,
-                                     Type &Condition,
-                                     Type &Lhs,
-                                     Type &Rhs);
+template<std::same_as<Type>... Ts>
+static ParseResult
+parseCliftOpTypes(OpAsmParser &Parser, Type &Result, Ts &...Arguments) {
+  static_assert(sizeof...(Ts) > 0);
+  return parseCliftOpTypesImpl(Parser, &Result, { &Arguments... });
+}
 
-void printCliftTernaryOpTypes(OpAsmPrinter &Printer,
+template<std::same_as<Type>... Ts>
+static ParseResult
+parseCliftOpOperandTypes(OpAsmParser &Parser, Ts &...Arguments) {
+  static_assert(sizeof...(Ts) > 0);
+  return parseCliftOpTypesImpl(Parser, nullptr, { &Arguments... });
+}
+
+template<std::same_as<Type>... Ts>
+static void printCliftOpTypes(OpAsmPrinter &Printer,
                               Operation *Op,
-                              Type Condition,
-                              Type Lhs,
-                              Type Rhs);
+                              Type Result,
+                              Ts... Arguments) {
+  static_assert(sizeof...(Ts) > 0);
+  printCliftOpTypesImpl(Printer, Result, { Arguments... });
+}
+
+template<std::same_as<Type>... Ts>
+static void printCliftOpOperandTypes(OpAsmPrinter &Printer,
+                                     Operation *Op,
+                                     Ts... Arguments) {
+  static_assert(sizeof...(Ts) > 0);
+  printCliftOpTypesImpl(Printer, nullptr, { Arguments... });
+}
+
+static ParseResult parseCliftPointerArithmeticOpTypes(OpAsmParser &Parser,
+                                                      Type &Result,
+                                                      Type &Lhs,
+                                                      Type &Rhs);
+
+static void printCliftPointerArithmeticOpTypes(OpAsmPrinter &Parser,
+                                               Operation *Op,
+                                               Type Result,
+                                               Type Lhs,
+                                               Type Rhs);
+
+static ParseResult parseCliftTernaryOpTypes(OpAsmParser &Parser,
+                                            Type &Condition,
+                                            Type &Lhs,
+                                            Type &Rhs);
+
+static void printCliftTernaryOpTypes(OpAsmPrinter &Printer,
+                                     Operation *Op,
+                                     Type Condition,
+                                     Type Lhs,
+                                     Type Rhs);
 
 } // namespace mlir
 
@@ -157,10 +196,9 @@ static Type deduceResultType(llvm::ArrayRef<TypeOrPointer> Arguments) {
 ///   - !a -> !c
 ///   - (!a, !b)
 ///   - (!a, !b) -> !c
-ParseResult
-mlir::clift::impl::parseCliftOpTypes(OpAsmParser &Parser,
-                                     Type *Result,
-                                     llvm::ArrayRef<Type *> Arguments) {
+ParseResult mlir::parseCliftOpTypesImpl(OpAsmParser &Parser,
+                                        Type *Result,
+                                        llvm::ArrayRef<Type *> Arguments) {
   Type &FirstArgument = *Arguments.front();
   if (Parser.parseOptionalLParen().succeeded()) {
     if (Parser.parseType(FirstArgument).failed())
@@ -205,9 +243,9 @@ mlir::clift::impl::parseCliftOpTypes(OpAsmParser &Parser,
 ///
 /// If @p Result is not null and it cannot be deduced from the argument types,
 /// a trailing type is printed.
-void mlir::clift::impl::printCliftOpTypes(OpAsmPrinter &Printer,
-                                          Type Result,
-                                          llvm::ArrayRef<Type> Arguments) {
+void mlir::printCliftOpTypesImpl(OpAsmPrinter &Printer,
+                                 Type Result,
+                                 llvm::ArrayRef<Type> Arguments) {
   bool ArgumentsEqual = llvm::all_equal(Arguments);
   Type FirstArgument = Arguments.front();
 
