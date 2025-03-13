@@ -120,14 +120,14 @@ struct BufferLocation {
 
 struct RunTraceOptions {
 public:
-  // If true some assertions will result in a warning rather than aborting
+  /// If true some assertions will result in a warning rather than aborting
   bool SoftAsserts = false;
-  // List of Command Indexes to break at when debugging
+  /// List of Command Indexes to break at when debugging
   std::set<uint64_t> BreakAt;
-  // If set, all temporary directories will be created within this directory
+  /// If set, all temporary directories will be created within this directory
   std::string TemporaryRoot;
-  // Instead of using a temporary directory, the first invocation will use
-  // these directory instead and subsequent ones will abort
+  /// Instead of using a temporary directory, the first invocation will use
+  /// these directory instead and subsequent ones will abort
   std::string ResumeDirectory;
 };
 
