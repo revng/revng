@@ -493,5 +493,6 @@ llvm::Error Trace::run(const revng::tracing::RunTraceOptions Options) const {
   }
 
   return llvm::Error::success();
-};
+}
+
 } // namespace revng::tracing
