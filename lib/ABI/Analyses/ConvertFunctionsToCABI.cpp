@@ -249,14 +249,40 @@ public:
     if (auto &DefaultPrototype = Model->DefaultPrototype())
       if (auto *Definition = DefaultPrototype->tryGetAsDefinition())
         TypesToIgnore.push_back(Definition);
-    auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions(),
-                                        TypesToIgnore);
+
+    struct Comparator {
+      using is_transparent = std::true_type;
+
+      [[nodiscard]] bool
+      operator()(const model::RawFunctionDefinition *LHS,
+                 const model::RawFunctionDefinition *RHS) const {
+        return LHS->key() < RHS->key();
+      }
+    };
+    using ToConvertMap = std::map<model::RawFunctionDefinition *,
+                                  std::vector<model::Function *>,
+                                  Comparator>;
+    using ToConvertPair = std::pair<model::RawFunctionDefinition *,
+                                    std::vector<model::Function *>>;
+    constexpr auto Adaptor = [](model::RawFunctionDefinition *Value) {
+      return ToConvertPair{ Value, {} };
+    };
+
+    auto ToConvert = filterTypes<RawFD, ToConvertMap>(Model->TypeDefinitions(),
+                                                      TypesToIgnore,
+                                                      Adaptor);
+
+    for (model::Function &Function : Model->Functions())
+      if (model::RawFunctionDefinition *MaybeRFT = Function.rawPrototype())
+        if (auto It = ToConvert.find(MaybeRFT); It != ToConvert.end())
+          It->second.emplace_back(&Function);
 
     using NB = model::NameBuilder;
     auto NameBuilder = Log.isEnabled() ? std::make_optional<NB>(*Model) :
                                          std::nullopt;
 
-    auto LogFunctionName = [&NameBuilder, &Model](const auto &Prototype) {
+    auto LogFunctionName = [&NameBuilder, &Model](const auto &Prototype,
+                                                  const auto &Functions) {
       if (not Log.isEnabled())
         return;
 
@@ -266,9 +292,8 @@ public:
                   << toString(Model->getDefinitionReference(Key)));
 
       std::string Names = "";
-      for (model::Function &Function : Model->Functions())
-        if (Function.prototype() && Function.prototype()->key() == Key)
-          Names += "\"" + NameBuilder->name(Function).str().str() + "\", ";
+      for (const model::Function *Function : Functions)
+        Names += "\"" + NameBuilder->name(*Function).str().str() + "\", ";
 
       if (Names.empty()) {
         revng_log(Log, "There are no functions using it as a prototype.");
@@ -282,8 +307,8 @@ public:
     };
 
     // And convert them.
-    for (model::RawFunctionDefinition *Prototype : ToConvert) {
-      LogFunctionName(*Prototype);
+    for (auto &[Prototype, Functions] : ToConvert) {
+      LogFunctionName(*Prototype, Functions);
 
       const abi::Definition &ABIDef = abi::Definition::get(ABI);
       if (!usesFloat(VectorVH, *Prototype) && !ABIDef.FloatsUseGPRs()) {
@@ -292,6 +317,21 @@ public:
                   "Do not touch this function because it requires vector "
                   "register support.");
         continue;
+      }
+
+      std::optional<model::StructDefinition> Stack2;
+      if (ABIDef.UnusedStackArgumentBytes() != 0 && !Functions.empty()) {
+        if (auto *Stack = Prototype->stackArgumentsType()) {
+          if (auto SubS = Stack->substruct(ABIDef.UnusedStackArgumentBytes())) {
+            Stack2 = std::move(SubS);
+
+          } else {
+            revng_log(Log,
+                      "Converting this function type would require slicing "
+                      "a struct field in half.");
+            continue;
+          }
+        }
       }
 
       namespace FT = abi::FunctionType;
@@ -305,6 +345,15 @@ public:
           New->get()->verify(true);
 
         revng_log(Log, "Function Conversion Successful: " << toString(*New));
+
+        if (Stack2) {
+          // If the conversion of the prototype is successful, write `Stack2`
+          // to all the functions that use it.
+          auto &&[_, StructType] = Model->recordNewType(std::move(*Stack2));
+          for (model::Function *Function : Functions)
+            Function->StackFrameType2() = StructType;
+        }
+
       } else {
         // Do nothing if the conversion failed (the model is not modified).
         // `RawFunctionDefinition` is still used for those functions.
