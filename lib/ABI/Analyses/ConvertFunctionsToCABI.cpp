@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Conversion.h"
 #include "revng/ABI/FunctionType/Support.h"
 #include "revng/ADT/UpcastablePointer.h"
@@ -183,6 +184,10 @@ public:
       ABI = Model->DefaultABI();
     }
 
+    revng_log(Log,
+              "ABI Used for the conversion is: "
+                << model::ABI::getName(ABI).str());
+
     // Minimize the negative impact on binaries with ABI that is not fully
     // supported by disabling the conversion by default.
     //
@@ -251,13 +256,13 @@ public:
     auto NameBuilder = Log.isEnabled() ? std::make_optional<NB>(*Model) :
                                          std::nullopt;
 
-    auto LogFunctionName = [&NameBuilder,
-                            &Model](const model::TypeDefinition::Key &Key) {
+    auto LogFunctionName = [&NameBuilder, &Model](const auto &Prototype) {
       if (not Log.isEnabled())
         return;
 
+      const model::TypeDefinition::Key &Key = Prototype.key();
       revng_log(Log,
-                "Converting a function: "
+                "Converting a function type: "
                   << toString(Model->getDefinitionReference(Key)));
 
       std::string Names = "";
@@ -271,13 +276,17 @@ public:
         Names.resize(Names.size() - 2);
         revng_log(Log, "It's a prototype of " << Names);
       }
+
+      if (auto *StackType = Prototype.stackArgumentsType())
+        revng_log(Log, "Stack is:\n" << toString(*StackType));
     };
 
     // And convert them.
-    for (model::RawFunctionDefinition *Old : ToConvert) {
-      LogFunctionName(Old->key());
+    for (model::RawFunctionDefinition *Prototype : ToConvert) {
+      LogFunctionName(*Prototype);
 
-      if (!usesFloat(VectorVH, *Old)) {
+      const abi::Definition &ABIDef = abi::Definition::get(ABI);
+      if (!usesFloat(VectorVH, *Prototype)) {
         // TODO: remove this check after `abi::FunctionType` supports vectors.
         revng_log(Log,
                   "Do not touch this function because it requires vector "
@@ -286,7 +295,8 @@ public:
       }
 
       namespace FT = abi::FunctionType;
-      if (auto New = FT::tryConvertToCABI(*Old, Model, ABI, SoftDeductions)) {
+      const model::RawFunctionDefinition &Old = *Prototype;
+      if (auto New = FT::tryConvertToCABI(Old, Model, ABIDef, SoftDeductions)) {
         // If the conversion succeeds, make sure the returned type is valid,
         revng_assert(!New->isEmpty());
 

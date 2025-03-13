@@ -6,6 +6,10 @@
 
 #include "revng/Model/Binary.h"
 
+namespace abi {
+class Definition;
+}
+
 namespace abi::FunctionType {
 
 /// Best effort `CABIFunctionDefinition` to `RawFunctionDefinition` conversion.
@@ -18,7 +22,7 @@ namespace abi::FunctionType {
 std::optional<model::UpcastableType>
 tryConvertToCABI(const model::RawFunctionDefinition &Function,
                  TupleTree<model::Binary> &Binary,
-                 std::optional<model::ABI::Values> ABI = std::nullopt,
+                 const abi::Definition &ABI,
                  bool UseSoftRegisterStateDeductions = true);
 
 } // namespace abi::FunctionType
