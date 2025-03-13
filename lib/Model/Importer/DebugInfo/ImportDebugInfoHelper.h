@@ -12,10 +12,14 @@
 
 namespace {
 
-inline int runFetchDebugInfo(llvm::StringRef InputFileName) {
+inline int runFetchDebugInfo(llvm::StringRef InputFileName, bool Verbose) {
   revng_assert(::Runner.isProgramAvailable("revng"));
-  return ::Runner.run("revng",
-                      { "model", "fetch-debuginfo", InputFileName.str() });
+  std::vector<std::string> Args{ "model",
+                                 "fetch-debuginfo",
+                                 InputFileName.str() };
+  if (Verbose)
+    Args.insert(Args.begin(), "--verbose");
+  return ::Runner.run("revng", Args);
 }
 
 } // namespace
