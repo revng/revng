@@ -445,7 +445,10 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   unsigned MaximumRecursionDepth = 1;
 
   LDDTree Dependencies;
-  lddtree(Dependencies, InputPath, MaximumRecursionDepth);
+  const std::string &BinaryPath = not InputPath.empty() ?
+                                    InputPath :
+                                    TheBinary.getFileName().str();
+  lddtree(Dependencies, BinaryPath, MaximumRecursionDepth);
   for (auto &Library : Dependencies) {
     revng_log(ELFImporterLog,
               "Importing Models for dependencies of " << Library.first << ":");
