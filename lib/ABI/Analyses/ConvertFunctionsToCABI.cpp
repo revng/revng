@@ -286,7 +286,7 @@ public:
       LogFunctionName(*Prototype);
 
       const abi::Definition &ABIDef = abi::Definition::get(ABI);
-      if (!usesFloat(VectorVH, *Prototype)) {
+      if (!usesFloat(VectorVH, *Prototype) && !ABIDef.FloatsUseGPRs()) {
         // TODO: remove this check after `abi::FunctionType` supports vectors.
         revng_log(Log,
                   "Do not touch this function because it requires vector "
