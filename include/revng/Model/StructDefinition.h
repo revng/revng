@@ -69,6 +69,12 @@ public:
 
     return Result;
   }
+
+public:
+  std::optional<model::StructDefinition> substruct(uint64_t From, uint64_t To);
+  std::optional<model::StructDefinition> substruct(uint64_t To) {
+    return substruct(0, To);
+  }
 };
 
 #include "revng/Model/Generated/Late/StructDefinition.h"

@@ -69,3 +69,35 @@ llvm::SmallVector<model::Type *, 4> model::TypeDefinition::edges() {
   auto GetEdges = [](auto &Upcasted) { return Upcasted.edges(); };
   return upcast(PtrCopy, GetEdges, llvm::SmallVector<model::Type *, 4>());
 }
+
+std::optional<model::StructDefinition>
+model::StructDefinition::substruct(uint64_t From, uint64_t To) {
+  if (From >= To or To > Size())
+    return std::nullopt;
+
+  model::StructDefinition Result(To - From);
+  Result.CanContainCode() = CanContainCode();
+
+  for (const model::StructField &Field : Fields()) {
+    uint64_t FieldFrom = Field.Offset();
+    uint64_t FieldTo = Field.Offset() + *Field.Type()->size();
+
+    // Field is fully outside of the window, skip it.
+    if (FieldTo <= From || FieldFrom >= To)
+      continue;
+
+    // Field is fully inside the slice, add it
+    if (FieldFrom >= From && FieldTo <= To) {
+      auto [Iterator, Success] = Result.Fields().emplace(Field);
+      revng_assert(Success);
+      Iterator->Offset() -= From;
+
+    } else {
+      // Field is partially inside, we'd have to separate it somehow.
+      // Abort instead.
+      return std::nullopt;
+    }
+  }
+
+  return Result;
+}
