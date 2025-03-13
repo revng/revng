@@ -180,11 +180,6 @@ public:
               pipeline::TargetInStepSet &InvalidationsMap,
               const llvm::StringMap<std::string> &Options = {});
 
-  llvm::Expected<DiffMap>
-  runAnalyses(const AnalysesList &List,
-              pipeline::TargetInStepSet &InvalidationsMap,
-              const llvm::StringMap<std::string> &Options = {});
-
   void addContainerFactory(llvm::StringRef Name, ContainerFactory Entry) {
     ContainerFactoriesRegistry.registerContainerFactory(Name, std::move(Entry));
   }

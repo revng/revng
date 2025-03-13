@@ -38,6 +38,12 @@ static cl::opt<bool> CheckComponentsVersion("check-components-version",
                                                      "don't match"),
                                             cl::init(false));
 
+static cl::opt<bool> SaveAfterEveryAnalysis("save-after-every-analysis",
+                                            cl::desc("Save to disk the context "
+                                                     "after every analysis is "
+                                                     "run"),
+                                            cl::init(false));
+
 class LoadModelPipePass {
 private:
   ModelWrapper Wrapper;
@@ -493,21 +499,53 @@ PipelineManager::getAnalysis(const AnalysisReference &Reference) const {
 
 llvm::Expected<DiffMap>
 PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
-                             TargetInStepSet &Map,
+                             TargetInStepSet &InvalidationsMap,
                              const llvm::StringMap<std::string> &Options,
                              llvm::raw_ostream *DiagnosticLog) {
-  auto Result = Runner->runAnalyses(List, Map, Options);
+  GlobalsMap Before = PipelineContext->getGlobals();
 
-  if (not Result)
-    return Result.takeError();
+  Task T(List.size() + 1, "Analysis list " + List.getName());
+  for (const AnalysisReference &Ref : List) {
+    T.advance(Ref.getAnalysisName(), true);
+    const Step &Step = Runner->getStep(Ref.getStepName());
+    const AnalysisWrapper &Analysis = Step.getAnalysis(Ref.getAnalysisName());
+    ContainerToTargetsMap Map;
+    const std::vector<std::string>
+      &Containers = Analysis->getRunningContainersNames();
+    for (size_t I = 0; I < Containers.size(); I++) {
+      for (const Kind *K : Analysis->getAcceptedKinds(I)) {
+        Map.add(Containers[I], TargetsList::allTargets(*PipelineContext, *K));
+      }
+    }
+
+    TargetInStepSet NewInvalidationsMap;
+    auto Result = Runner->runAnalysis(Ref.getAnalysisName(),
+                                      Step.getName(),
+                                      Map,
+                                      NewInvalidationsMap,
+                                      Options);
+    if (not Result)
+      return Result.takeError();
+
+    if (SaveAfterEveryAnalysis) {
+      if (auto Error = storeContext())
+        return Error;
+    }
+
+    for (auto &NewEntry : NewInvalidationsMap)
+      InvalidationsMap[NewEntry.first()].merge(NewEntry.second);
+  }
+
+  T.advance("Computing analysis list diff", true);
 
   recalculateAllPossibleTargets();
+  DiffMap Diff = Before.diff(PipelineContext->getGlobals());
 
   PipelineContext->bumpCommitIndex();
   if (auto Error = storeContext())
     return Error;
 
-  return Result;
+  return Diff;
 }
 
 llvm::Expected<DiffMap>
