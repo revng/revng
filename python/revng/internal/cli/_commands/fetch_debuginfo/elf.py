@@ -47,7 +47,7 @@ def fetch_dwarf(file: ELFFile, file_path, urls):
 
     log("Trying to find the debug info on the web")
     for url in urls:
-        debug_info_url = url + "/buildid/" + build_id + "/debuginfo"
+        debug_info_url = f"{url}/buildid/{build_id}/debuginfo"
         log(f"Trying to download from {debug_info_url}")
         if download_file(debug_info_url, str(debug_file_to_download)):
             return debug_file_to_download

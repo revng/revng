@@ -484,9 +484,23 @@ llvm::Error Trace::run(const revng::tracing::RunTraceOptions Options) const {
     if (Options.BreakAt.contains(CommandI))
       raise(SIGTRAP);
 
+    if (Command.Name == "rp_manager_set_storage_credentials") {
+      // The storage has been overridden by the runner, do not run this function
+      continue;
+    }
+
+    if (TraceRunnerLogger.isEnabled()) {
+      TraceRunnerLogger << "Running #" << Command.ID << ": " << Command.Name;
+      for (const revng::tracing::Argument &Argument : Arguments) {
+        TraceRunnerLogger << ", " << Argument.toString();
+      }
+      TraceRunnerLogger << DoLog;
+    }
+
     CommandHandler[Command.Name](Context, Arguments, Command.Result);
   }
 
   return llvm::Error::success();
-};
+}
+
 } // namespace revng::tracing

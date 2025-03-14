@@ -386,10 +386,8 @@ function(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-typescript.py" --namespace
       "${NAMESPACE}" --root-type "${ROOT_TYPE}" --output "${OUTPUT_PATH}"
-      --global-name "${GLOBAL_NAME}" --prettier
-      "${CMAKE_BINARY_DIR}/node_build/node_modules/.bin/prettier"
-      ${INCLUDE_FILE_ARGS} ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS}
-      ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
+      --global-name "${GLOBAL_NAME}" ${INCLUDE_FILE_ARGS} ${STRING_TYPE_ARGS}
+      ${EXTERNAL_TYPE_ARGS} ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${TYPESCRIPT_TEMPLATES}
             "${CMAKE_SOURCE_DIR}/typescript/model.ts"

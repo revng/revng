@@ -11,6 +11,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
 
 #include "revng/Support/Assert.h"
@@ -18,63 +19,55 @@
 #include "revng/Support/PathList.h"
 #include "revng/Support/ProgramRunner.h"
 
-using namespace llvm;
-
 static Logger<> Log("program-runner");
 
 ProgramRunner Runner;
 
 ProgramRunner::ProgramRunner() {
-  using namespace llvm::sys::path;
   llvm::SmallString<128> BinPath;
-  append(BinPath, getCurrentRoot(), "bin");
+  llvm::sys::path::append(BinPath, getCurrentRoot(), "bin");
   Paths = { BinPath.str().str() };
 
   // Append PATH
-  char *Path = getenv("PATH");
-  if (Path == nullptr)
+  std::optional<std::string> Path = llvm::sys::Process::GetEnv("PATH");
+  if (not Path.has_value())
     return;
+
   llvm::SmallVector<llvm::StringRef, 64> BasePaths;
-  StringRef(Path).split(BasePaths, ":");
-  for (llvm::StringRef BasePath : BasePaths)
+  llvm::StringRef(*Path).split(BasePaths, llvm::sys::EnvPathSeparator);
+  for (const llvm::StringRef &BasePath : BasePaths)
     Paths.push_back(BasePath.str());
+
+  PathsRef = { Paths.begin(), Paths.end() };
 }
 
 bool ProgramRunner::isProgramAvailable(llvm::StringRef ProgramName) {
-  llvm::SmallVector<llvm::StringRef, 64> PathsRef;
-  for (const std::string &Path : Paths)
-    PathsRef.push_back(llvm::StringRef(Path));
-
-  auto MaybeProgramPath = llvm::sys::findProgramByName(ProgramName, PathsRef);
-  if (!MaybeProgramPath)
-    return false;
-  return true;
+  return static_cast<bool>(llvm::sys::findProgramByName(ProgramName, PathsRef));
 }
 
 int ProgramRunner::run(llvm::StringRef ProgramName,
-                       ArrayRef<std::string> Args) {
-  llvm::SmallVector<llvm::StringRef, 64> PathsRef;
-  for (const std::string &Path : Paths)
-    PathsRef.push_back(llvm::StringRef(Path));
-
+                       llvm::ArrayRef<std::string> Args) {
   auto MaybeProgramPath = llvm::sys::findProgramByName(ProgramName, PathsRef);
-  revng_assert(not Paths.empty());
   revng_assert(MaybeProgramPath,
-               (ProgramName + " was not found in " + getenv("PATH"))
-                 .str()
+               (ProgramName.str() + " was not found in "
+                + llvm::join(Paths,
+                             llvm::StringRef(&llvm::sys::EnvPathSeparator, 1)))
                  .c_str());
 
   // Prepare actual arguments
-  std::vector<StringRef> StringRefs{ *MaybeProgramPath };
-  Log << "Running " << StringRefs[0].str()
-      << " with the following arguments:\n";
-  for (const std::string &Arg : Args) {
+  std::vector<llvm::StringRef> StringRefs{ *MaybeProgramPath };
+  for (const std::string &Arg : Args)
     StringRefs.push_back(Arg);
-    Log << "  " << Arg << "\n";
+
+  if (Log.isEnabled()) {
+    Log << "Running " << StringRefs[0] << " with the following arguments:\n";
+    for (const std::string &Arg : Args)
+      Log << "  " << Arg << "\n";
+    Log << DoLog;
   }
-  Log << DoLog;
 
   int ExitCode = llvm::sys::ExecuteAndWait(StringRefs[0], StringRefs);
+  revng_log(Log, "Program exited with code " << ExitCode);
 
   return ExitCode;
 }

@@ -27,15 +27,16 @@ inline T toInt(const llvm::StringRef StrInt) {
 
 namespace revng::tracing {
 
-enum ArgumentState {
-  Invalid,
-  Scalar,
-  Sequence
-};
-
 struct Argument {
 private:
-  ArgumentState State = Invalid;
+  enum class ArgumentState {
+    Invalid,
+    Scalar,
+    Sequence
+  };
+
+private:
+  ArgumentState State = ArgumentState::Invalid;
   std::string Scalar;
   std::vector<std::string> Sequence;
 
@@ -64,6 +65,15 @@ public:
     return Sequence;
   }
 
+  const std::string toString() const {
+    revng_assert(isValid());
+    if (isScalar()) {
+      return Scalar;
+    } else {
+      return "[" + llvm::join(Sequence, ", ") + "]";
+    }
+  }
+
 public:
   template<typename T>
   T asInt() const {
@@ -88,7 +98,7 @@ public:
 
 private:
   void setState(const ArgumentState NewState) {
-    revng_assert(State == Invalid || State == NewState);
+    revng_assert(State == ArgumentState::Invalid || State == NewState);
     State = NewState;
   }
 };
@@ -119,14 +129,14 @@ struct BufferLocation {
 
 struct RunTraceOptions {
 public:
-  // If true some assertions will result in a warning rather than aborting
+  /// If true some assertions will result in a warning rather than aborting
   bool SoftAsserts = false;
-  // List of Command Indexes to break at when debugging
+  /// List of Command Indexes to break at when debugging
   std::set<uint64_t> BreakAt;
-  // If set, all temporary directories will be created within this directory
+  /// If set, all temporary directories will be created within this directory
   std::string TemporaryRoot;
-  // Instead of using a temporary directory, the first invocation will use
-  // these directory instead and subsequent ones will abort
+  /// Instead of using a temporary directory, the first invocation will use
+  /// these directory instead and subsequent ones will abort
   std::string ResumeDirectory;
 };
 

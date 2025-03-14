@@ -303,44 +303,6 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
   return std::move(Map);
 }
 
-/// Run all analysis in reverse post order (that is: parents first),
-llvm::Expected<DiffMap>
-Runner::runAnalyses(const AnalysesList &List,
-                    TargetInStepSet &InvalidationsMap,
-                    const llvm::StringMap<std::string> &Options) {
-  GlobalsMap Before = getContext().getGlobals();
-
-  Task T(List.size() + 1, "Analysis list " + List.getName());
-  for (const AnalysisReference &Ref : List) {
-    T.advance(Ref.getAnalysisName(), true);
-    const Step &Step = getStep(Ref.getStepName());
-    const AnalysisWrapper &Analysis = Step.getAnalysis(Ref.getAnalysisName());
-    ContainerToTargetsMap Map;
-    const std::vector<std::string>
-      &Containers = Analysis->getRunningContainersNames();
-    for (size_t I = 0; I < Containers.size(); I++) {
-      for (const Kind *K : Analysis->getAcceptedKinds(I)) {
-        Map.add(Containers[I], TargetsList::allTargets(getContext(), *K));
-      }
-    }
-
-    TargetInStepSet NewInvalidationsMap;
-    auto Result = runAnalysis(Ref.getAnalysisName(),
-                              Step.getName(),
-                              Map,
-                              NewInvalidationsMap,
-                              Options);
-    if (not Result)
-      return Result.takeError();
-    for (auto &NewEntry : NewInvalidationsMap)
-      InvalidationsMap[NewEntry.first()].merge(NewEntry.second);
-  }
-
-  T.advance("Computing analysis list diff", true);
-  const GlobalsMap &After = getContext().getGlobals();
-  return Before.diff(After);
-}
-
 Error Runner::run(const State &ToProduce) {
   Task T(ToProduce.size(), "Multi-step pipeline run");
   for (const auto &Request : ToProduce) {

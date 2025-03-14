@@ -505,7 +505,7 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
 
   // Let's try finding it on web with the `fetch-debuginfo` tool.
   // If the `revng` cannot be found, avoid finding debug info.
-  int ExitCode = runFetchDebugInfo(TheBinary.getFileName());
+  int ExitCode = runFetchDebugInfo(TheBinary.getFileName(), Log.isEnabled());
   if (ExitCode != 0) {
     revng_log(Log,
               "Failed to find debug info with `revng model "

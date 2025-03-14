@@ -13,6 +13,7 @@
 class ProgramRunner {
 private:
   llvm::SmallVector<std::string, 64> Paths;
+  llvm::SmallVector<llvm::StringRef, 64> PathsRef;
 
 public:
   ProgramRunner();
