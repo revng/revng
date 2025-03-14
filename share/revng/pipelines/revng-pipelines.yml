@@ -446,6 +446,7 @@ Branches:
               - strip-dead-prototypes
               - split-overflow-intrinsics
               - dce
+              - remove-llvmassume-calls
       - Name: make-segment-ref
         Pipes:
           - Type: make-segment-ref

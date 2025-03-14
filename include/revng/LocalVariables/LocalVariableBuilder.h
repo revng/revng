@@ -71,7 +71,11 @@ private:
 
   /// An LLVM integer type whose size matches the size of a pointer in the
   /// Binary we're decompiling.
-  llvm::IntegerType *PtrSizedInteger = nullptr;
+  llvm::IntegerType *InputPointerSizedInteger = nullptr;
+
+  /// An LLVM integer type whose size matches the size of a pointer in the
+  /// target architecture
+  llvm::IntegerType *TargetPointerSizedInteger = nullptr;
 
   /// An LLVM 8-bits integer
   llvm::IntegerType *Int8Ty = nullptr;
@@ -102,10 +106,6 @@ private:
   /// need to have a shared pool of AddressOf, in order not to go out of sync.
   OpaqueFunctionsPool<TypePair> &AddressOfPool;
 
-  /// An LLVM integer type whose size matches the size of a pointer in the
-  /// Binary we're decompiling.
-  llvm::IntegerType *StackPointerType = nullptr;
-
   /// LLVM Function used to represent the allocation of the stack frame.
   llvm::Function *StackFrameAllocator = nullptr;
 
@@ -118,14 +118,11 @@ private:
 private:
   LocalVariableBuilder(const model::Binary &TheBinary,
                        llvm::Module &TheModule,
-                       // TODO: drop the following 2 arguments can go away when
-                       // we drop the Legacy mode.
-                       llvm::IntegerType *StackPointerType,
                        OpaqueFunctionsPool<TypePair> *TheAddressOfPool);
 
   LocalVariableBuilder(const model::Binary &TheBinary,
                        llvm::Module &TheModule) :
-    LocalVariableBuilder(TheBinary, TheModule, nullptr, nullptr) {}
+    LocalVariableBuilder(TheBinary, TheModule, nullptr) {}
 
 public:
   ~LocalVariableBuilder() = default;
@@ -147,14 +144,11 @@ public:
   static LocalVariableBuilder
   makeLegacyStackBuilder(const model::Binary &TheBinary,
                          llvm::Module &TheModule,
-                         llvm::IntegerType *StackPointerType,
                          OpaqueFunctionsPool<TypePair> &TheAddressOfPool)
     requires IsLegacy
   {
-    revng_assert(StackPointerType != nullptr);
     return LocalVariableBuilder<IsLegacy>(TheBinary,
                                           TheModule,
-                                          StackPointerType,
                                           &TheAddressOfPool);
   }
 
@@ -284,6 +278,13 @@ public:
   AssignType *createAssignmentBefore(llvm::Value *LocationToAssign,
                                      llvm::Value *ValueToAssign,
                                      llvm::Instruction *InsertBefore);
+
+  /// Creates an alloca in \a F with type \a T.
+  /// Allocas created with this method are intended to be inserted temporarily,
+  /// and subsequently optimized away from LLVM optimizations.
+  /// There's no need to tag them with model::Types in any way.
+  std::pair<llvm::AllocaInst *, llvm::Value *>
+  createAllocaWithPtrToInt(llvm::Function *F, llvm::Type *T) const;
 
 private:
   /// Takes an assignment instruction and returns its operand that represents
