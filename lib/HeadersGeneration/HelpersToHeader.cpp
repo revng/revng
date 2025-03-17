@@ -42,7 +42,7 @@ static void printLLVMTypeDeclaration(const llvm::StructType *S,
            + ptml::AttributeRegistry::getAttribute<"_PACKED">() + " ");
 
   {
-    auto Scope = B.getIndentedScope(ptml::CBuilder::Scopes::StructBody);
+    auto Scope = B.getCurvedBracketScope(ptml::c::scopes::StructBody.str());
 
     for (const auto &Field : llvm::enumerate(S->elements())) {
       B.append(getReturnStructFieldTypeReferenceTag(&F, Field.index(), B) + " "
