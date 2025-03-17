@@ -481,12 +481,8 @@ uint64_t DefinedType::getByteSize() const {
 }
 
 bool DefinedType::getAlias(llvm::raw_ostream &OS) const {
-  const llvm::StringRef Name = getElementType().name();
-
-  if (Name.empty())
+  if (not getElementType().getTypeDefinitionAlias(OS))
     return false;
-
-  OS << Name;
   if (isConst())
     OS << "$const";
   return true;

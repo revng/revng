@@ -73,6 +73,8 @@ public:
 
   bool isDefinition() const;
   uint64_t getByteSize() const;
+
+  bool getTypeDefinitionAlias(llvm::raw_ostream &OS) const;
   bool getAlias(llvm::raw_ostream &OS) const;
 
   static Attribute parse(AsmParser &Parser);
@@ -133,6 +135,8 @@ public:
 
   bool isDefinition() const;
   uint64_t getByteSize() const;
+
+  bool getTypeDefinitionAlias(llvm::raw_ostream &OS) const;
   bool getAlias(llvm::raw_ostream &OS) const;
 
   static Attribute parse(AsmParser &Parser);

@@ -122,6 +122,20 @@ def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
       }]
     >,
     InterfaceMethod<
+      "Writes the alias to OS and returns true if it is non-empty.",
+      "bool", "getAlias", (ins "llvm::raw_ostream &":$OS),
+      /*methodBody=*/[{
+        if (not $_attr.getTypeDefinitionAlias(OS))
+          return false;
+        OS << "$$def";
+        return true;
+      }]
+    >,
+    InterfaceMethod<
+      "Writes the alias to OS and returns true if it is non-empty.",
+      "bool", "getTypeDefinitionAlias", (ins "llvm::raw_ostream &":$OS)
+    >,
+    InterfaceMethod<
       "returns the size of the type.",
       "uint64_t", "getByteSize", (ins),
       /*methodBody=*/[{}],

@@ -168,6 +168,40 @@ mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
 
 //===---------------------------- EnumTypeAttr ----------------------------===//
 
+static bool getTypeDefinitionAliasImpl(TypeDefinitionAttr Type,
+                                       llvm::StringRef Kind,
+                                       llvm::raw_ostream &OS) {
+  auto IsIdentifierChar = [](char const X) {
+    if (X == '_')
+      return true;
+    if ('a' <= X and X <= 'z')
+      return true;
+    if ('A' <= X and X <= 'Z')
+      return true;
+    if ('0' <= X and X <= '9')
+      return true;
+    return false;
+  };
+
+  if (not Type.name().empty()) {
+    OS << Type.name();
+  } else if (not Type.getHandle().empty()) {
+    for (char C : Type.getHandle())
+      OS << (IsIdentifierChar(C) ? C : '_');
+  } else {
+    OS << Kind;
+  }
+
+  return true;
+}
+
+static bool getAliasImpl(TypeDefinitionAttr Type, llvm::raw_ostream &OS) {
+  if (not Type.getTypeDefinitionAlias(OS))
+    return false;
+  OS << "$def";
+  return true;
+}
+
 mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType EmitError,
                                          llvm::StringRef Handle,
                                          llvm::StringRef Name,
@@ -254,11 +288,12 @@ uint64_t EnumTypeAttr::getByteSize() const {
   return mlir::cast<PrimitiveType>(getUnderlyingType()).getSize();
 }
 
+bool EnumTypeAttr::getTypeDefinitionAlias(llvm::raw_ostream &OS) const {
+  return getTypeDefinitionAliasImpl(*this, "enum", OS);
+}
+
 bool EnumTypeAttr::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$def";
-  return true;
+  return getAliasImpl(*this, OS);
 }
 
 //===--------------------------- TypedefTypeAttr --------------------------===//
@@ -274,11 +309,12 @@ uint64_t TypedefTypeAttr::getByteSize() const {
   return getUnderlyingType().getByteSize();
 }
 
+bool TypedefTypeAttr::getTypeDefinitionAlias(llvm::raw_ostream &OS) const {
+  return getTypeDefinitionAliasImpl(*this, "typedef", OS);
+}
+
 bool TypedefTypeAttr::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$def";
-  return true;
+  return getAliasImpl(*this, OS);
 }
 
 //===-------------------------- FunctionTypeAttr --------------------------===//
@@ -327,11 +363,12 @@ uint64_t FunctionTypeAttr::getByteSize() const {
   return 0;
 }
 
+bool FunctionTypeAttr::getTypeDefinitionAlias(llvm::raw_ostream &OS) const {
+  return getTypeDefinitionAliasImpl(*this, "function", OS);
+}
+
 bool FunctionTypeAttr::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$def";
-  return true;
+  return getAliasImpl(*this, OS);
 }
 
 llvm::ArrayRef<mlir::Type> FunctionTypeAttr::getResultTypes() {
@@ -445,11 +482,12 @@ uint64_t StructTypeAttr::getByteSize() const {
   return getImpl()->getSize();
 }
 
+bool StructTypeAttr::getTypeDefinitionAlias(llvm::raw_ostream &OS) const {
+  return getTypeDefinitionAliasImpl(*this, "struct", OS);
+}
+
 bool StructTypeAttr::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$def";
-  return true;
+  return getAliasImpl(*this, OS);
 }
 
 mlir::Attribute StructTypeAttr::parse(AsmParser &Parser) {
@@ -570,11 +608,12 @@ uint64_t UnionTypeAttr::getByteSize() const {
   return Max;
 }
 
+bool UnionTypeAttr::getTypeDefinitionAlias(llvm::raw_ostream &OS) const {
+  return getTypeDefinitionAliasImpl(*this, "union", OS);
+}
+
 bool UnionTypeAttr::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$def";
-  return true;
+  return getAliasImpl(*this, OS);
 }
 
 mlir::Attribute UnionTypeAttr::parse(AsmParser &Parser) {
