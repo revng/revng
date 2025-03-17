@@ -869,6 +869,9 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
   OnceQueue<BasicBlock *> Queue;
   Queue.insert(Start);
 
+  revng_log(RegisterJTLog,
+            "Purging " << getName(Start) << " so it can be translated again");
+
   // Collect all the descendants, except if we meet a jump target
   while (!Queue.empty()) {
     BasicBlock *BB = Queue.pop();
@@ -905,7 +908,7 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
   for (BasicBlock *BB : Visited) {
     // We might have some predecessorless basic blocks jumping to us, purge them
     // TODO: why this?
-    while (pred_begin(BB) != pred_end(BB)) {
+    while (not pred_empty(BB)) {
       BasicBlock *Predecessor = *pred_begin(BB);
       revng_assert(pred_empty(Predecessor));
       eraseFromParent(Predecessor);
@@ -927,11 +930,13 @@ BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
   revng_log(RegisterJTLog,
             "Registering bb." << nameForAddress(PC) << " for "
                               << JTReason::getName(Reason));
+  LoggerIndent<> Indent(RegisterJTLog);
 
   // Do we already have a BasicBlock for this PC?
   BlockMap::iterator TargetIt = JumpTargets.find(PC);
   if (TargetIt != JumpTargets.end()) {
     // Case 1: there's already a BasicBlock for that address, return it
+    revng_log(RegisterJTLog, "We already translated this block");
     BasicBlock *BB = TargetIt->second.head();
     TargetIt->second.setReason(Reason);
     return BB;
@@ -942,6 +947,8 @@ BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
   BasicBlock *NewBlock = nullptr;
   InstructionMap::iterator InstrIt = OriginalInstructionAddresses.find(PC);
   if (InstrIt != OriginalInstructionAddresses.end()) {
+    revng_log(RegisterJTLog,
+              "We already met this PC, but not as a jump target");
     // Case 2: the address has already been met, but needs to be promoted to
     //         BasicBlock level.
     Instruction *I = InstrIt->second;
@@ -949,6 +956,7 @@ BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
     if (isFirst(I)) {
       NewBlock = ContainingBlock;
     } else {
+      revng_log(RegisterJTLog, "Splitting the basic block it was in");
       revng_assert(I != nullptr && I->getIterator() != ContainingBlock->end());
       NewBlock = ContainingBlock->splitBasicBlock(I);
     }
@@ -957,11 +965,13 @@ BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
     // we can retranslate this PC
     // TODO: this might create a problem if QEMU generates control flow that
     //       crosses an instruction boundary
+    revng_log(RegisterJTLog, "Registering the block for re-translation");
     ToPurge.insert(NewBlock);
 
   } else {
     // Case 3: the address has never been met, create a temporary one, register
     // it for future exploration and return it
+    revng_log(RegisterJTLog, "Registering the block for translation");
     NewBlock = BasicBlock::Create(Context, "", TheFunction);
   }
 

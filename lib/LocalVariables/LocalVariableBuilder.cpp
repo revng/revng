@@ -8,6 +8,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/MathExtras.h"
 
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/LocalVariables/LocalVariableBuilder.h"
@@ -48,11 +49,11 @@ Function *VarBuilder<IsLegacy>::getStackFrameAllocator() {
                 "allocator");
 
   if (nullptr == StackFrameAllocator) {
-    auto *StackFrameAllocatorType = FunctionType::get(StackPointerType,
-                                                      { StackPointerType },
-                                                      false);
+    auto *AllocatorType = FunctionType::get(InputPointerSizedInteger,
+                                            { InputPointerSizedInteger },
+                                            false);
 
-    StackFrameAllocator = Function::Create(StackFrameAllocatorType,
+    StackFrameAllocator = Function::Create(AllocatorType,
                                            GlobalValue::ExternalLinkage,
                                            "revng_stack_frame",
                                            &M);
@@ -72,12 +73,12 @@ Function *VarBuilder<IsLegacy>::getCallStackArgumentsAllocator() {
 
   if (nullptr == CallStackArgumentsAllocator) {
     llvm::Type *StringPtrType = getStringPtrType(M.getContext());
-    auto *StackArgsAllocatorType = FunctionType::get(StackPointerType,
-                                                     { StringPtrType,
-                                                       StackPointerType },
-                                                     false);
+    auto *AllocatorType = FunctionType::get(InputPointerSizedInteger,
+                                            { StringPtrType,
+                                              InputPointerSizedInteger },
+                                            false);
 
-    CallStackArgumentsAllocator = Function::Create(StackArgsAllocatorType,
+    CallStackArgumentsAllocator = Function::Create(AllocatorType,
                                                    GlobalValue::ExternalLinkage,
                                                    "revng_call_stack_arguments",
                                                    &M);
@@ -90,23 +91,21 @@ Function *VarBuilder<IsLegacy>::getCallStackArgumentsAllocator() {
 template<bool IsLegacy>
 VarBuilder<IsLegacy>::LocalVariableBuilder(const model::Binary &TheBinary,
                                            Module &TheModule,
-                                           IntegerType *TheStackPointerType,
                                            OpaqueFunctionsPool<TypePair>
                                              *TheAddressOfPool) :
   Binary(TheBinary),
   M(TheModule),
-  PtrSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
+  InputPointerSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
+  TargetPointerSizedInteger(M.getDataLayout().getIntPtrType(M.getContext())),
   Int8Ty(llvm::Type::getInt8Ty(M.getContext())),
   F(nullptr),
   LocalVarPool(FunctionTags::LocalVariable.getPool(M)),
   AssignPool(FunctionTags::Assign.getPool(M)),
   CopyPool(FunctionTags::Copy.getPool(M)),
-  AddressOfPool(*TheAddressOfPool),
-  StackPointerType(TheStackPointerType) {
+  AddressOfPool(*TheAddressOfPool) {
 
-  // AddressOfPool and StackPointerType should only be used when in Legacy mode.
+  // AddressOfPool and PtrSizedInteger should only be used when in Legacy mode.
   revng_assert(IsLegacy or (nullptr == TheAddressOfPool));
-  revng_assert(IsLegacy or (nullptr == StackPointerType));
 }
 
 static const model::Function &getModelFunction(Function *F,
@@ -126,8 +125,8 @@ template<>
 LegacyVB::LocalVarType *
 LegacyVB::createLocalVariable(const model::Type &VariableType) {
 
-  auto *LocalVarFunctionType = getLocalVarType(PtrSizedInteger);
-  auto *LocalVarFunction = LocalVarPool.get(PtrSizedInteger,
+  auto *LocalVarFunctionType = getLocalVarType(InputPointerSizedInteger);
+  auto *LocalVarFunction = LocalVarPool.get(InputPointerSizedInteger,
                                             LocalVarFunctionType,
                                             "LocalVariable");
 
@@ -169,10 +168,10 @@ LegacyVB::createCallStackArgumentVariable(const model::Type &VariableType) {
   IRBuilder<> B(F->getContext());
   setInsertPointToFirstNonAlloca(B, *F);
 
+  Value *Size = ConstantInt::get(InputPointerSizedInteger, VariableSize);
   Instruction *Reference = B.CreateCall(getCallStackArgumentsAllocator(),
-                                        { VarTypeString,
-                                          ConstantInt::get(StackPointerType,
-                                                           VariableSize) });
+                                        { VarTypeString, Size });
+
   // Take the address
   llvm::Type *T = Reference->getType();
   auto *AddressOfFunctionType = getAddressOfType(T, T);
@@ -195,9 +194,10 @@ Instruction *LegacyVB::createStackFrameVariable() {
   IRBuilder<> B(F->getContext());
   setInsertPointToFirstNonAlloca(B, *F);
 
-  Instruction *Reference = B.CreateCall(getStackFrameAllocator(),
-                                        { ConstantInt::get(StackPointerType,
-                                                           StackSize) });
+  Instruction
+    *Reference = B.CreateCall(getStackFrameAllocator(),
+                              { ConstantInt::get(InputPointerSizedInteger,
+                                                 StackSize) });
   // Take the address
   llvm::Type *T = Reference->getType();
   auto *AddressOfFunctionType = getAddressOfType(T, T);
@@ -280,7 +280,8 @@ VB::createLocalVariableAndTakeIntAddress(const model::Type &VariableType) {
   setInsertPointToFirstNonAlloca(B, *F);
   auto *Variable = createLocalVariable(VariableType);
   return { Variable,
-           cast<Instruction>(B.CreatePtrToInt(Variable, PtrSizedInteger)) };
+           cast<Instruction>(B.CreatePtrToInt(Variable,
+                                              InputPointerSizedInteger)) };
 }
 
 template<>
@@ -297,13 +298,10 @@ Instruction *VB::createStackFrameVariable() {
   size_t StackSize = StackFrameType->size().value_or(0);
   revng_assert(StackSize);
 
-  IRBuilder<> B(F->getContext());
-  setInsertPointToFirstNonAlloca(B, *F);
-
-  auto *AllocaStackFrame = B.CreateAlloca(Int8Ty, B.getInt64(StackSize));
+  auto *ArrayType = ArrayType::get(Int8Ty, StackSize);
+  auto [AllocaStackFrame, PtrToInt] = createAllocaWithPtrToInt(F, ArrayType);
   setStackTypeMetadata(AllocaStackFrame, *StackFrameType.get());
-
-  return cast<Instruction>(B.CreatePtrToInt(AllocaStackFrame, PtrSizedInteger));
+  return cast<Instruction>(PtrToInt);
 }
 
 template<>
@@ -332,6 +330,29 @@ VB::AssignType *VB::createAssignmentBefore(Value *LocationToAssign,
   // Create a copy from the assigned location at the proper insertion point.
   IRBuilder<> B(InsertBefore);
   return B.CreateStore(ValueToAssign, LocationToAssign);
+}
+
+template<bool IsLegacy>
+std::pair<llvm::AllocaInst *, llvm::Value *>
+LocalVariableBuilder<IsLegacy>::createAllocaWithPtrToInt(llvm::Function *F,
+                                                         llvm::Type *T) const {
+  IRBuilder<> B(M.getContext());
+  B.SetInsertPointPastAllocas(F);
+  auto *Alloca = B.CreateAlloca(T);
+  Value *PtrToInt = B.CreatePtrToInt(Alloca, TargetPointerSizedInteger);
+
+  if (TargetPointerSizedInteger != InputPointerSizedInteger) {
+    // The target has a different bitsize than the input binary.
+    // Inject an assumption about the pointer we built being representable in
+    // the input bitsize to avoid LLVM emitting masks.
+    auto InputBits = InputPointerSizedInteger->getIntegerBitWidth();
+    auto InputBitMask = maskTrailingOnes<uint64_t>(InputBits);
+    B.CreateAssumption(B.CreateICmpEQ(B.CreateAnd(PtrToInt, InputBitMask),
+                                      PtrToInt));
+  }
+
+  PtrToInt = B.CreateZExtOrTrunc(PtrToInt, InputPointerSizedInteger);
+  return { Alloca, PtrToInt };
 }
 
 ///@}
