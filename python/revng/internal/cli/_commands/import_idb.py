@@ -55,55 +55,7 @@ class ImportIDBCommand(Command):
                 [
                     "model",
                     "opt",
-                    "-purge-invalid-types",
-                    model_file.name,
-                    "-o",
-                    model_file.name,
-                ],
-                options,
-            )
-
-            run_revng_command(
-                [
-                    "model",
-                    "opt",
-                    "-deduplicate-equivalent-types",
-                    model_file.name,
-                    "-o",
-                    model_file.name,
-                ],
-                options,
-            )
-
-            run_revng_command(
-                [
-                    "model",
-                    "opt",
-                    "-flatten-primitive-typedefs",
-                    model_file.name,
-                    "-o",
-                    model_file.name,
-                ],
-                options,
-            )
-
-            run_revng_command(
-                [
-                    "model",
-                    "opt",
-                    "-deduplicate-colliding-names",
-                    model_file.name,
-                    "-o",
-                    model_file.name,
-                ],
-                options,
-            )
-
-            run_revng_command(
-                [
-                    "model",
-                    "opt",
-                    "-purge-unnamed-and-unreachable-types",
+                    "-fix-model",
                     model_file.name,
                     "-o",
                     output_path,
