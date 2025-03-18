@@ -13,13 +13,29 @@ from .struct import StructDefinition
 
 
 class Schema:
-    def __init__(self, raw_schema, base_namespace: str, scalar_types: List[str]):
+    def __init__(self, raw_schema, root_type: str, base_namespace: str, scalar_types: List[str]):
         self._raw_schema = raw_schema
 
+        self.version = self._raw_schema["version"]
+        self.root_type = root_type
         self.base_namespace = base_namespace
         self.generated_namespace = f"{base_namespace}::generated"
 
-        # fully qualified name -> object
+        # Add implicit Version field to the root type
+        for definition in self._raw_schema["definitions"]:
+            if definition["name"] == root_type:
+                assert definition["type"] == "struct", "The root type must be a struct"
+                definition["fields"].insert(
+                    0,
+                    {
+                        "name": "Version",
+                        "type": "uint64_t",
+                        "doc": "The input's version, must match revng's schema version",
+                        "optional": True,
+                    },
+                )
+
+        # Fully qualified name -> object
         self.definitions: Dict[str, Definition] = self._parse_definitions()
         self.definitions["bool"] = ScalarDefinition("bool")
         self.definitions["uint64_t"] = ScalarDefinition("uint64_t")

@@ -69,6 +69,7 @@ class TypeScriptGenerator:
             global_name=self.global_name,
             string_types=self.string_types,
             external_types=self.external_types,
+            version=self.schema.version,
         )
 
     def load_file(self, name: str):

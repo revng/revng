@@ -134,6 +134,8 @@ class CppHeadersGenerator:
                     user_include_path=self.user_include_path,
                     includes=includes,
                     emit_tracking=self.emit_tracking,
+                    root_type=self.schema.root_type,
+                    version=self.schema.version,
                 )
             elif isinstance(type_to_emit, EnumDefinition):
                 definition = self.enum_template.render(enum=type_to_emit)

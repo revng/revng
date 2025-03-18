@@ -75,6 +75,10 @@ private:
   mutable revng::AccessTracker /*= field.name =*/Tracker = revng::AccessTracker(false);
   /**- endfor **/
   /**- endif **/
+  /**- if struct.name == root_type **/
+public:
+  static constexpr uint64_t SchemaVersion = /*=version=*/;
+  /**- endif **/
 
 public:
   //
@@ -116,7 +120,11 @@ public:
   /*= struct.name =*/() :
     /**- if struct.inherits **//*= struct.inherits.name =*/()/** endif **/
     /**- for field in struct.fields **/
-    /**- if not loop.first or struct.inherits **/, /** endif **/The/*= field.name =*/()
+    /**- if not loop.first or struct.inherits **/, /** endif **/The/*= field.name =*/(
+      /**- if struct.name == root_type and field.name == "Version" -**/
+        SchemaVersion
+      /**- endif -**/
+    )
     /**- endfor **/ {
       /**- if struct.inherits -**/
       Kind() = AssociatedKind;
@@ -175,7 +183,8 @@ public:
     /**- endfor **/
 
     /*#- Own fields #*/
-    /**- for field in struct.fields **/
+    /*#- Generate for all fields except the implicitly-defined "Version" field of the root type. -#*/
+    /**- for field in (struct.fields if struct.name != root_type else struct.fields | rejectattr("name", "equalto", "Version")) | list **/
     /*=- field | field_type =*/ /*= field.name =*/
     /**- if not loop.last **/, /** endif -**/
     /**- endfor **/
@@ -198,7 +207,13 @@ public:
 
     /*#- Initialize own fields #*/
     /**- for field in struct.fields **/
-    The/*=- field.name =*/(/*= field.name =*/)/** if not loop.last **/, /** endif **/
+    The/*=- field.name =*/(
+      /**- if struct.name == root_type and field.name == "Version" -**/
+        SchemaVersion
+      /**- else -**/
+        /*= field.name =*/
+      /**- endif -**/
+    ) /** if not loop.last **/, /** endif **/
     /**- endfor **/ {}
   /** endif **/
 

@@ -54,8 +54,8 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
 
   TupleTreePath Zero;
   Zero.push_back(size_t(0));
-  auto *FirstField = getByPath<model::Architecture::Values>(Zero, Binary);
-  revng_check(FirstField == &Binary.Architecture());
+  auto *FirstField = getByPath<uint64_t>(Zero, Binary);
+  revng_check(FirstField == &Binary.Version());
 
   using FunctionsType = std::decay_t<decltype(Binary.Functions())>;
   auto *FunctionsField = getByPath<FunctionsType>("/Functions", Binary);
@@ -98,10 +98,10 @@ BOOST_AUTO_TEST_CASE(TestStringPathConversion) {
   revng_check(stringAsPath<Binary>("/").value() == TupleTreePath{});
   TupleTreePath Zero;
   Zero.push_back(size_t(0));
-  revng_check(stringAsPath<Binary>("/Architecture").value() == Zero);
+  revng_check(stringAsPath<Binary>("/Version").value() == Zero);
 
   TupleTreePath InvalidFunctionPath;
-  InvalidFunctionPath.push_back(size_t(9));
+  InvalidFunctionPath.push_back(size_t(10));
   InvalidFunctionPath.push_back(MetaAddress::invalid());
   auto MaybeInvalidFunctionPath = stringAsPath<Binary>("/Functions/:Invalid");
   revng_check(MaybeInvalidFunctionPath.value() == InvalidFunctionPath);
