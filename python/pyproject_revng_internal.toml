@@ -44,7 +44,8 @@ revng = [
   "internal/py.typed",
   "internal/daemon/schema.graphql",
   "internal/cli/_commands/generate_migrations/metaschema.yml",
-  "internal/cli/_commands/generate_migrations/migration.py.tpl"
+  "internal/cli/_commands/generate_migrations/migration.py.tpl",
+  "internal/cli/_commands/llm_rename/prompt.tpl",
 ]
 
 [project.entry-points.console_scripts]
