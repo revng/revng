@@ -7,4 +7,6 @@
 !void = !clift.primitive<void 0>
 
 // CHECK: parameter type must be an object type
-!f = !clift.defined<#clift.func<"/model-type/1000" as "f" : !void(!void)>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1000-CABIFunctionDefinition" as "f" : !void(!void)
+>>

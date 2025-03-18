@@ -7,7 +7,8 @@
 !void = !clift.primitive<void 0>
 
 !f = !clift.defined<#clift.func<
-  "/model-type/1001" : !void()>>
+  "/type-definition/1001-CABIFunctionDefinition" : !void()
+>>
 
 !int32_t = !clift.primitive<signed 4>
 !int32_t$const = !clift.primitive<const signed 4>

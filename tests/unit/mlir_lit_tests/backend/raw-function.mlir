@@ -6,11 +6,15 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-!f_args = !clift.defined<#clift.struct<"/model-type/2004" : size(4) {
+!f_args = !clift.defined<#clift.struct<
+  "/type-definition/2004-StructDefinition" : size(4) {
     offset(0) : !int32_t
-  }>>
+  }
+>>
 
-!f = !clift.defined<#clift.func<"/model-type/1003" : !int32_t(!int32_t, !f_args)>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1003-CABIFunctionDefinition" : !int32_t(!int32_t, !f_args)
+>>
 
 clift.module {
   // CHECK: int32_t fun_0x40001003(int32_t rcx _REG(rcx_x86_64), args_1003 _stack_arguments _STACK) {

@@ -8,9 +8,17 @@
 !int32_t = !clift.primitive<signed 4>
 !int32_t$const = !clift.primitive<const signed 4>
 
-!f = !clift.defined<#clift.func<"/model-type/1" : !void()>>
-!g = !clift.defined<#clift.func<"/model-type/2" : !void(!int32_t)>>
-!h = !clift.defined<#clift.func<"/model-type/3" : !void(!int32_t$const)>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1-CABIFunctionDefinition" : !void()
+>>
+
+!g = !clift.defined<#clift.func<
+  "/type-definition/2-CABIFunctionDefinition" : !void(!int32_t)
+>>
+
+!h = !clift.defined<#clift.func<
+  "/type-definition/3-CABIFunctionDefinition" : !void(!int32_t$const)
+>>
 
 %mi = clift.undef : !int32_t
 %ci = clift.undef : !int32_t$const

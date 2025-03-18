@@ -134,69 +134,23 @@ public:
     revng_abort("Expected isolated model function.");
   }
 
-  std::optional<uint64_t> parseModelTypeHandle(llvm::StringRef Handle) {
-    if (not Handle.consume_front("/model-type/"))
-      return std::nullopt;
-
-    uint64_t ID;
-    if (Handle.consumeInteger(/*Radix=*/10, ID))
-      return std::nullopt;
-
-    if (not Handle.empty())
-      return std::nullopt;
-
-    return ID;
-  }
-
-  const model::TypeDefinition *
-  getModelTypeDefinition(uint64_t ID, model::TypeDefinitionKind::Values Kind) {
-    auto It = C.Binary.TypeDefinitions().find({ ID, Kind });
-    if (It == C.Binary.TypeDefinitions().end())
-      return nullptr;
-    return It->get();
-  }
-
   const model::TypeDefinition &getModelTypeDefinition(TypeDefinitionAttr Type) {
-    using TypeKind = model::TypeDefinitionKind::Values;
+    auto GetType = [&](const auto &Rank) -> const model::TypeDefinition * {
+      if (auto L = pipeline::locationFromString(Rank, Type.getHandle())) {
+        auto It = C.Binary.TypeDefinitions().find(L->at(Rank));
+        if (It != C.Binary.TypeDefinitions().end())
+          return It->get();
+      }
+      return nullptr;
+    };
 
-    auto MaybeID = parseModelTypeHandle(Type.getHandle());
-    if (not MaybeID)
-      revng_abort("Unrecognized type unique handle");
+    if (const auto *T = GetType(revng::ranks::TypeDefinition))
+      return *T;
 
-    if (mlir::isa<FunctionTypeAttr>(Type)) {
-      auto CF = getModelTypeDefinition(*MaybeID,
-                                       TypeKind::CABIFunctionDefinition);
-      auto RF = getModelTypeDefinition(*MaybeID,
-                                       TypeKind::RawFunctionDefinition);
+    if (const auto *T = GetType(revng::ranks::ArtificialStruct))
+      return *T;
 
-      if (CF != nullptr and RF != nullptr)
-        revng_abort("Ambiguous model function type definition");
-
-      if (CF != nullptr)
-        return *CF;
-
-      if (RF != nullptr)
-        return *RF;
-
-      revng_abort("No matching model function type definition.");
-    }
-
-    model::TypeDefinitionKind::Values Kind;
-    if (mlir::isa<TypedefTypeAttr>(Type))
-      Kind = model::TypeDefinitionKind::TypedefDefinition;
-    else if (mlir::isa<EnumTypeAttr>(Type))
-      Kind = model::TypeDefinitionKind::EnumDefinition;
-    else if (mlir::isa<StructTypeAttr>(Type))
-      Kind = model::TypeDefinitionKind::StructDefinition;
-    else if (mlir::isa<UnionTypeAttr>(Type))
-      Kind = model::TypeDefinitionKind::UnionDefinition;
-    else
-      revng_abort("Unsupported type definition");
-
-    auto ModelType = getModelTypeDefinition(*MaybeID, Kind);
-    if (ModelType == nullptr)
-      revng_abort("No matching model type definition.");
-    return *ModelType;
+    revng_abort("Unrecognized type unique handle");
   }
 
   void emitPrimitiveType(PrimitiveType Type) {

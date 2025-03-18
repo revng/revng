@@ -6,7 +6,9 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.func<"/model-type/1" : !void()>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1-CABIFunctionDefinition" : !void()
+>>
 
 clift.func @f<!f>() {
   // CHECK: clift.make_label with a use by clift.goto must have an assignment

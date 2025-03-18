@@ -6,7 +6,7 @@
 Architecture: x86_64
 TypeDefinitions:
   # CHECK: #my_function1$def = #clift.func<
-  # CHECK:   "/model-type/1001"
+  # CHECK:   "/type-definition/1001-CABIFunctionDefinition"
   # CHECK:   as "my_function1"
   # CHECK:   : !void()
   # CHECK: >

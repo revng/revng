@@ -7,6 +7,8 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
@@ -20,9 +22,6 @@ template<typename Attribute>
 using AttributeVector = llvm::SmallVector<Attribute, 16>;
 
 class CliftConverter {
-  static constexpr llvm::StringRef ModelNamespace = "/model-type";
-  static constexpr llvm::StringRef RegisterSetNamespace = "/register-set-type";
-
   mlir::MLIRContext *Context;
   model::NameBuilder NameBuilder;
   llvm::function_ref<mlir::InFlightDiagnostic()> EmitError;
@@ -125,17 +124,12 @@ private:
     }
   }
 
-  std::string getHandle(llvm::StringRef Namespace, uint64_t ID) {
-    std::string Handle;
-    {
-      llvm::raw_string_ostream Out(Handle);
-      Out << Namespace << '/' << ID;
-    }
-    return Handle;
+  std::string getHandle(const model::TypeDefinition &T) {
+    return pipeline::locationString(revng::ranks::TypeDefinition, T.key());
   }
 
-  std::string getHandle(const model::TypeDefinition &ModelType) {
-    return getHandle(ModelNamespace, ModelType.ID());
+  std::string getRegisterSetLocation(const model::RawFunctionDefinition &T) {
+    return pipeline::locationString(revng::ranks::ArtificialStruct, T.key());
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
@@ -234,8 +228,7 @@ private:
       Out << "register_set_" << ModelType.ID();
     }
 
-    auto Attr = make<clift::StructTypeAttr>(getHandle(RegisterSetNamespace,
-                                                      ModelType.ID()),
+    auto Attr = make<clift::StructTypeAttr>(getRegisterSetLocation(ModelType),
                                             TypeName,
                                             Offset,
                                             Elements);
@@ -298,8 +291,9 @@ private:
       break;
 
     default: {
-      auto Attr = make<clift::StructTypeAttr>(getHandle(RegisterSetNamespace,
-                                                        ModelType.ID()));
+      auto
+        Attr = make<clift::StructTypeAttr>(getRegisterSetLocation(ModelType));
+
       ReturnType = make<clift::DefinedType>(Attr, getBool(false));
 
       const auto R = IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);

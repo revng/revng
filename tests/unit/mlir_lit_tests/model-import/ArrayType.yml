@@ -5,7 +5,7 @@
 
 TypeDefinitions:
   # CHECK: #my_struct$def = #clift.struct<
-  # CHECK:   "/model-type/1001"
+  # CHECK:   "/type-definition/1001-StructDefinition"
   # CHECK:   as "my_struct"
   # CHECK:   : size(1024)
   # CHECK:   {

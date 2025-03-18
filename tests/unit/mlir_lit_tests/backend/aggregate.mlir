@@ -7,13 +7,15 @@
 !void = !clift.primitive<void 0>
 !int32_t = !clift.primitive<signed 4>
 
-!s = !clift.defined<#clift.struct<"/model-type/2002" : size(8) {
+!s = !clift.defined<#clift.struct<
+  "/type-definition/2002-StructDefinition" : size(8) {
     offset(0) : !int32_t,
     offset(4) : !int32_t
   }>>
 
-!f = !clift.defined<
-  #clift.func<"/model-type/1001" : !void()>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1001-CABIFunctionDefinition" : !void()
+>>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

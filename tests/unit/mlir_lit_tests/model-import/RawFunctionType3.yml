@@ -17,7 +17,7 @@ TypeDefinitions:
           Size: 8
 
     # CHECK: #register_set_1002$def = #clift.struct<
-    # CHECK:   "/register-set-type/1002"
+    # CHECK:   "/artificial-struct/1002-RawFunctionDefinition"
     # CHECK:   as "register_set_1002"
     # CHECK:   : size(16)
     # CHECK:   {
@@ -38,7 +38,7 @@ TypeDefinitions:
     # CHECK: >
 
     # CHECK: #my_function3$def = #clift.func<
-    # CHECK:   "/model-type/1002"
+    # CHECK:   "/type-definition/1002-RawFunctionDefinition"
     # CHECK:   as "my_function3"
     # CHECK:   : !register_set_1002_(
     # CHECK:     !uint64_t,

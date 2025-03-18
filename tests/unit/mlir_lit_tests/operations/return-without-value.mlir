@@ -6,7 +6,9 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.func<"/model-type/1" as "f" : !int32_t()>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1-CABIFunctionDefinition" as "f" : !int32_t()
+>>
 
 clift.module {
   clift.func @f<!f>() {

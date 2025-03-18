@@ -6,7 +6,11 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-!enum = !clift.defined<#clift.enum<"/model-type/1" : !int32_t { 0 }>>
+!enum = !clift.defined<#clift.enum<
+  "/type-definition/1-CABIFunctionDefinition" : !int32_t {
+    0
+  }
+>>
 
 clift.switch {
   %0 = clift.undef : !int32_t

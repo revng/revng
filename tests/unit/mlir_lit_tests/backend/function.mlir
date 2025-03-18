@@ -7,7 +7,8 @@
 !void = !clift.primitive<void 0>
 
 !f = !clift.defined<#clift.func<
-  "/model-type/1001" : !void()>>
+  "/type-definition/1001-CABIFunctionDefinition" : !void()
+>>
 
 !f$ptr = !clift.ptr<8 to !f>
 

@@ -8,28 +8,33 @@
 !int32_t = !clift.primitive<signed 4>
 
 !f = !clift.defined<#clift.func<
-  "/model-type/1001" : !void()>>
+  "/type-definition/1001-CABIFunctionDefinition" : !void()
+>>
 
 !my_enum = !clift.defined<#clift.enum<
-  "/model-type/2001" : !int32_t {
+  "/type-definition/2001-EnumDefinition" : !int32_t {
     0
-  }>>
+  }
+>>
 
 !my_struct = !clift.defined<#clift.struct<
-  "/model-type/2002" : size(4) {
+  "/type-definition/2002-StructDefinition" : size(4) {
     offset(0) : !int32_t
-  }>>
+  }
+>>
 
 !my_union = !clift.defined<#clift.union<
-  "/model-type/2003" : {
+  "/type-definition/2003-UnionDefinition" : {
     !int32_t
-  }>>
+  }
+>>
 
 !my_pair = !clift.defined<#clift.struct<
-  "/model-type/2006" : size(8) {
+  "/type-definition/2006-StructDefinition" : size(8) {
     offset(0) : !int32_t,
     offset(4) : !int32_t
-  }>>
+  }
+>>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

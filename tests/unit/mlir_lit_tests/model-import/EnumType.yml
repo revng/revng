@@ -10,7 +10,7 @@
 
 TypeDefinitions:
   # CHECK: #my_enum1$def = #clift.enum<
-  # CHECK:   "/model-type/1104"
+  # CHECK:   "/type-definition/1104-EnumDefinition"
   # CHECK:   as "my_enum1"
   # CHECK:   : !int32_t
   # CHECK:   {
@@ -36,7 +36,7 @@ TypeDefinitions:
       - Value: 0xffffffffffffffff # 2^64 - 1
 
     # CHECK: #my_enum2$def = #clift.enum<
-    # CHECK:   "/model-type/1108"
+    # CHECK:   "/type-definition/1108-EnumDefinition"
     # CHECK:   as "my_enum2"
     # CHECK:   : !int64_t
     # CHECK:   {
@@ -62,7 +62,7 @@ TypeDefinitions:
       - Value: 0xffffffffffffffff # 2^64 - 1
 
     # CHECK: #my_enum3$def = #clift.enum<
-    # CHECK:   "/model-type/1204"
+    # CHECK:   "/type-definition/1204-EnumDefinition"
     # CHECK:   as "my_enum3"
     # CHECK:   : !uint32_t
     # CHECK:   {
@@ -84,7 +84,7 @@ TypeDefinitions:
       - Value: 0x00000000ffffffff # 2^32 - 1
 
     # CHECK: #my_enum4$def = #clift.enum<
-    # CHECK:   "/model-type/1208"
+    # CHECK:   "/type-definition/1208-EnumDefinition"
     # CHECK:   as "my_enum4"
     # CHECK:   : !uint64_t
     # CHECK:   {

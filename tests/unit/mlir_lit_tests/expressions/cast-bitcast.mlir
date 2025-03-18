@@ -12,13 +12,15 @@
 !uint32_t = !clift.primitive<unsigned 4>
 !uint32_t$ptr = !clift.ptr<8 to !uint32_t>
 
-!my_uint32 = !clift.defined<
-  #clift.typedef<"/model-type/1" as "my_uint32" : !uint32_t>>
+!my_uint32 = !clift.defined<#clift.typedef<
+  "/type-definition/1-TypedefDefinition" as "my_uint32" : !uint32_t
+>>
 
 !my_enum = !clift.defined<#clift.enum<
-  "/model-type/2" as "my_enum" : !uint32_t {
+  "/type-definition/2-EnumDefinition" as "my_enum" : !uint32_t {
     1 as "enumerator"
-  }>>
+  }
+>>
 
 %i = clift.undef : !int32_t
 clift.cast<bitcast> %i : !int32_t -> !uint32_t

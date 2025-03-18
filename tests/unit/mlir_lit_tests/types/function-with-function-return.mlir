@@ -6,7 +6,11 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.func<"/model-type/1001" as "f" : !void()>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1001-CABIFunctionDefinition" as "f" : !void()
+>>
 
 // CHECK: return type must be void or a non-array object type
-!g = !clift.defined<#clift.func<"/model-type/1002" as "g" : !f()>>
+!g = !clift.defined<#clift.func<
+  "/type-definition/1002-CABIFunctionDefinition" as "g" : !f()
+>>

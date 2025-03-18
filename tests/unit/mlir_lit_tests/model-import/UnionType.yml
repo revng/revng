@@ -5,7 +5,7 @@
 
 TypeDefinitions:
   # CHECK: #my_union$def = #clift.union<
-  # CHECK:   "/model-type/1001"
+  # CHECK:   "/type-definition/1001-UnionDefinition"
   # CHECK:   as "my_union"
   # CHECK:   {
   # CHECK:     !clift.primitive<

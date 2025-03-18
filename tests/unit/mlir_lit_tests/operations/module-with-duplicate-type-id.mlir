@@ -6,10 +6,15 @@
 
 !b = !clift.primitive<unsigned 1>
 
-!s = !clift.defined<#clift.struct<"/model-type/1" : size(1) {}>>
-!u = !clift.defined<#clift.union<"/model-type/1" : { !b }>>
+!s = !clift.defined<#clift.struct<
+  "/type-definition/1-StructDefinition" : size(1) {}
+>>
 
-// CHECK: two distinct type definitions with the same unique handle: '/model-type/1'
+!u = !clift.defined<#clift.union<
+  "/type-definition/1-StructDefinition" : { !b }
+>>
+
+// CHECK: two distinct type definitions with the same unique handle: '/type-definition/1-StructDefinition'
 clift.module {
 } {
   s = !s,

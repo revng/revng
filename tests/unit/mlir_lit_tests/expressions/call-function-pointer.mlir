@@ -7,8 +7,13 @@
 !int32_t = !clift.primitive<signed 4>
 !int64_t = !clift.primitive<signed 8>
 
-!f = !clift.defined<#clift.func<"/model-type/1" : !int32_t()>>
-!g = !clift.defined<#clift.func<"/model-type/2" : !int32_t(!int32_t)>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1-CABIFunctionDefinition" : !int32_t()
+>>
+
+!g = !clift.defined<#clift.func<
+  "/type-definition/2-CABIFunctionDefinition" : !int32_t(!int32_t)
+>>
 
 !g$ptr = !clift.ptr<8 to !g>
 

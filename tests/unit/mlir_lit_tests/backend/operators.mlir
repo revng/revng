@@ -9,7 +9,8 @@
 !int32_t$p = !clift.ptr<8 to !int32_t>
 
 !f = !clift.defined<#clift.func<
-  "/model-type/1001" : !void()>>
+  "/type-definition/1001-CABIFunctionDefinition" : !void()
+>>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

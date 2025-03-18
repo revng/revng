@@ -4,9 +4,11 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!s = !clift.defined<#clift.struct<"/model-type/1" : size(1) {
-    offset(0) : !clift.defined<#clift.struct<"/model-type/2" : size(1) {
-        offset(0) : !clift.defined<#clift.struct<"/model-type/1">>
+!s = !clift.defined<#clift.struct<
+  "/type-definition/1-StructDefinition" : size(1) {
+    offset(0) : !clift.defined<#clift.struct<
+      "/type-definition/2-StructDefinition" : size(1) {
+        offset(0) : !clift.defined<#clift.struct<"/type-definition/1-StructDefinition">>
       }
     >>
   }

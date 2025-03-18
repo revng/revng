@@ -8,7 +8,8 @@
 !int32_t = !clift.primitive<signed 4>
 
 !f = !clift.defined<#clift.func<
-  "/model-type/1001" : !void()>>
+  "/type-definition/1001-CABIFunctionDefinition" : !void()
+>>
 
 clift.module {
   clift.global !int32_t @g {

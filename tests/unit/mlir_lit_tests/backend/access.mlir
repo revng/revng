@@ -9,20 +9,21 @@
 !int32_t = !clift.primitive<signed 4>
 
 !s = !clift.defined<#clift.struct<
-  "/model-type/2002" : size(8) {
+  "/type-definition/2002-StructDefinition" : size(8) {
     offset(0) : !int32_t,
     offset(4) : !int32_t
   }>>
 !s$p = !clift.ptr<8 to !s>
 
-!u = !clift.defined<#clift.union<"/model-type/2003" : {
+!u = !clift.defined<#clift.union<
+  "/type-definition/2003-UnionDefinition" : {
     !int32_t,
     !int32_t
   }>>
 !u$p = !clift.ptr<8 to !u>
 
 !f = !clift.defined<#clift.func<
-  "/model-type/1001" : !void()>>
+  "/type-definition/1001-CABIFunctionDefinition" : !void()>>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

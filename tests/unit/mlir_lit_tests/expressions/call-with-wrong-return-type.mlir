@@ -7,7 +7,9 @@
 !int32_t = !clift.primitive<signed 4>
 !uint32_t = !clift.primitive<unsigned 4>
 
-!f = !clift.defined<#clift.func<"/model-type/1" : !int32_t()>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1-CABIFunctionDefinition" : !int32_t()
+>>
 
 %f = clift.undef : !f
 

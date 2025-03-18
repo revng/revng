@@ -8,7 +8,7 @@
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
 
 !s = !clift.defined<#clift.struct<
-  "/model-type/1" : size(4) {
+  "/type-definition/1-StructDefinition" : size(4) {
     offset(0) as "x" : !int32_t
   }
 >>
