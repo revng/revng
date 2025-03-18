@@ -44,7 +44,7 @@ def main(args):
     with open(args.schema, encoding="utf-8") as f:
         raw_schema = yaml.safe_load(f)
 
-    schema = Schema(raw_schema, args.namespace, args.scalar_type)
+    schema = Schema(raw_schema, args.root_type, args.namespace, args.scalar_type)
     sources = generate_cpp_headers(schema, args.root_type, args.include_path_prefix, args.tracking)
 
     if is_clang_format_available():

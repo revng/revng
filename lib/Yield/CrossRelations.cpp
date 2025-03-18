@@ -37,7 +37,7 @@ CR::CrossRelations::CrossRelations(const MetadataContainer &Metadata,
     Inserter.insert(CR::RelationDescription(std::move(Location), {}));
   }
 
-  for (const auto &[EntryAddress, _, ControlFlowGraph] : Metadata) {
+  for (const auto &[_1, EntryAddress, _2, ControlFlowGraph] : Metadata) {
     for (const auto &BasicBlock : ControlFlowGraph) {
       auto CallLocation = locationString(ranks::BasicBlock,
                                          EntryAddress,
