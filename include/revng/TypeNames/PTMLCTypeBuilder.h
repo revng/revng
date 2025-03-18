@@ -165,21 +165,24 @@ public:
   }
 
 public:
-  ScopeTag getIndentedTag(const llvm::StringRef AttributeName,
-                          bool NewLine = false) {
+  ScopeTag getScopeTag(const llvm::StringRef AttributeName,
+                       bool NewLine = false) {
     return getTag(AttributeName).scope(*Out, NewLine);
   }
-  ScopeTag getIndentedScope(const Scopes Scope, bool NewLine = false) {
+
+  ScopeTag getScopeTag(const Scopes Scope, bool NewLine = false) {
     return getScope(Scope).scope(*Out, NewLine);
   }
-  ptml::IndentedOstream::Scope getSimpleScope() { return Out->scope(); }
+
   Scope getCurvedBracketScope(std::string &&Attribute =
                                 ptml::c::scopes::Scope.str()) {
     return Scope(*Out, Attribute);
   }
+
   helpers::BlockComment getBlockCommentScope() {
     return helpers::BlockComment(*Out, *this);
   }
+
   helpers::LineComment getLineCommentScope() {
     return helpers::LineComment(*Out, *this);
   }

@@ -1819,11 +1819,8 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
       B.append(B.getKeyword(ptml::CBuilder::Keyword::If) + " ("
                + SwitchStateVars.back() + ")");
       {
-        // Double scope is necessary, otherwise the `break` gets printed at the
-        // `if`'s offset.
-        auto Scope = B.getIndentedScope(ptml::CBuilder::Scopes::Scope,
-                                        /* NewLine = */ true);
-        auto IndentScope = B.getSimpleScope();
+
+        Scope ThenScope = B.getCurvedBracketScope();
         B.append(B.getKeyword(ptml::CBuilder::Keyword::Break) + ";");
       }
       B.append("\n");
@@ -1895,7 +1892,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   revng_log(VisitLog, "========= Function " << LLVMFunction.getName());
   LoggerIndent Indent{ VisitLog };
 
-  auto FTagScope = B.getIndentedScope(ptml::CBuilder::Scopes::FunctionBody);
+  auto FTagScope = B.getScopeTag(ptml::CBuilder::Scopes::Function);
 
   // Extract user comments from the model and emit them as PTML just before
   // the prototype.

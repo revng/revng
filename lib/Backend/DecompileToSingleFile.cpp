@@ -12,7 +12,7 @@ using namespace revng::pipes;
 void printSingleCFile(ptml::CTypeBuilder &B,
                       const DecompileStringMap &Functions,
                       const std::set<MetaAddress> &Targets) {
-  auto Scope = B.getIndentedTag(ptml::tags::Div);
+  auto Scope = B.getScopeTag(ptml::tags::Div);
   // Print headers
   B.append(B.getIncludeQuote("types-and-globals.h")
            + B.getIncludeQuote("helpers.h") + "\n");

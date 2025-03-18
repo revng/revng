@@ -89,7 +89,7 @@ static bool hasUnprintableArgsOrRetTypes(const llvm::Function &F) {
 }
 
 bool ptml::HeaderBuilder::printHelpersHeader(const llvm::Module &M) {
-  auto Scope = B.getIndentedTag(ptml::tags::Div);
+  auto Scope = B.getScopeTag(ptml::tags::Div);
   std::string Includes = B.getPragmaOnce() + B.getIncludeAngle("stdint.h")
                          + B.getIncludeAngle("stdbool.h")
                          + B.getIncludeQuote("primitive-types.h") + "\n";
