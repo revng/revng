@@ -186,6 +186,15 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
 python_module(TARGET_NAME revng-python-cli-commands WHEEL revng_internal
               MODULE_FILES ${REVNG_CLI_COMMANDS_MODULE_FILES})
 
+set(REVNG_CLI_COMMANDS_GENERATE_MIGRATION_MODULE_FILES
+    revng/internal/cli/_commands/generate_migrations/__init__.py
+    revng/internal/cli/_commands/generate_migrations/metaschema.yml
+    revng/internal/cli/_commands/generate_migrations/migration.py.tpl)
+python_module(
+  TARGET_NAME revng-python-cli-commands-generate-migrations WHEEL
+  revng_internal MODULE_FILES
+  ${REVNG_CLI_COMMANDS_GENERATE_MIGRATION_MODULE_FILES})
+
 set(REVNG_CLI_COMMANDS_PTML_MODULE_FILES
     revng/internal/cli/_commands/ptml/text.py
     revng/internal/cli/_commands/ptml/common.py
