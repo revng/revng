@@ -249,7 +249,9 @@ void TypeSystemPrinter::dumpFunctionType(llvm::raw_ostream &Out,
       Arguments.push_back(RawFunc->StackArgumentsType().get());
 
   } else if (auto *CABIFunc = dyn_cast<CABIFunctionDefinition>(T)) {
-    ReturnTypes.push_back(CABIFunc->ReturnType().get());
+
+    if (not CABIFunc->ReturnType().isEmpty())
+      ReturnTypes.push_back(CABIFunc->ReturnType().get());
 
     for (auto &ArgTy : CABIFunc->Arguments())
       Arguments.push_back(ArgTy.Type().get());
