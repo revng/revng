@@ -178,7 +178,7 @@ public:
 
 char EnforceSingleExitPass::ID = 0;
 
-static constexpr const char *Flag = "ese";
+static constexpr const char *Flag = "enforce-single-exit";
 using Reg = llvm::RegisterPass<EnforceSingleExitPass>;
 static Reg X(Flag, "Enforce the Single Exit Property on the ScopeGraph");
 

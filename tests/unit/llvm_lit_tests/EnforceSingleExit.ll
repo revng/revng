@@ -2,7 +2,7 @@
 ; This file is distributed under the MIT License. See LICENSE.md for details.
 ;
 
-; RUN: %revngopt %s -ese -S -o - | FileCheck %s
+; RUN: %revngopt %s -enforce-single-exit -S -o - | FileCheck %s
 
 ; function tags metadata needed for all the tests
 declare !revng.tags !0 void @scope-closer(ptr)
