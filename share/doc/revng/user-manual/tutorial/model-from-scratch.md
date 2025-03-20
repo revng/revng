@@ -84,7 +84,7 @@ Let's produce the [`disassemble` artifact](../../references/artifacts.md#disasse
 
 ```bash
 $ revng artifact disassemble sum --model model.yml | revng ptml
-0x400000:Code_x86_64.asm.tar.gz: |-
+0x400000:Code_x86_64: |-
   function_0x400000_Code_x86_64:
     400000:    48 01 f7    add rdi, rsi
     400003:    48 89 f8    mov rax, rdi
@@ -230,7 +230,7 @@ Here's what we get now if we try to decompile again:
 
 ```bash
 $ revng artifact decompile sum --model model.yml | revng ptml
-0x400000:Code_x86_64.c.ptml: |-
+0x400000:Code_x86_64: |-
   _ABI(SystemV_x86_64)
   uint64_t Sum(uint64_t FirstAddend, uint64_t SecondAddend) {
     return FirstAddend + SecondAddend;

@@ -1,11 +1,13 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
+import mmap
 import os
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from shutil import which
-from typing import Generator, Iterable, List, Optional, TypeVar, Union
+from typing import IO, Generator, Iterable, List, Optional, TypeVar, Union, cast
 
 from llvmcpy import LLVMCPy
 
@@ -87,3 +89,32 @@ def get_command(command: str, search_prefixes: Iterable[str]) -> str:
 
 def get_llvmcpy():
     return LLVMCPy(_get_command("llvm-config", [get_root()]))
+
+
+ToBytesInput = Union[str, bytes, IO[str], IO[bytes], mmap.mmap]
+
+
+@contextmanager
+def to_bytes(input_: ToBytesInput) -> Generator[bytes, None, None]:
+    """Wrapper that allows to seamlessly treat strings, bytes and files as raw
+    bytes. Strings will be encoded in utf-8. Files will be mmap-ed if possible
+    otherwise their contents will be read in memory"""
+    if isinstance(input_, mmap.mmap):
+        yield cast(bytes, input_)
+    elif not isinstance(input_, (str, bytes)):
+        # Test to exclude things like stdin
+        if input_.seekable():
+            offset = input_.tell()
+            with mmap.mmap(input_.fileno(), 0, access=mmap.ACCESS_READ, offset=offset) as mm:
+                yield cast(bytes, mm)
+        else:
+            result = input_.read()
+            if isinstance(result, str):
+                yield result.encode("utf-8")
+            else:
+                yield result
+    else:
+        if isinstance(input_, str):
+            yield input_.encode("utf-8")
+        else:
+            yield input_
