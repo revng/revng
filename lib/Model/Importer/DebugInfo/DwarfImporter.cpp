@@ -621,7 +621,6 @@ private:
         rc_return;
       }
 
-      revng_assert(UnderlyingType->isPrimitive());
       Enum.UnderlyingType() = std::move(UnderlyingType);
 
       uint64_t Index = 0;
