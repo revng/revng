@@ -812,7 +812,7 @@ void IT::registerDirectJumps() {
   ExitBlocks.clear();
 }
 
-ErrorOr<std::vector<Value *>>
+llvm::Expected<std::vector<Value *>>
 IT::translateOpcode(PTCOpcode Opcode,
                     std::vector<uint64_t> ConstArguments,
                     std::vector<Value *> InArguments) {
@@ -950,7 +950,8 @@ IT::translateOpcode(PTCOpcode Opcode,
     Value *Base = dyn_cast<LoadInst>(InArguments[0])->getPointerOperand();
     if (Base == nullptr || !Variables.isEnv(Base)) {
       // TODO: emit warning
-      return std::errc::invalid_argument;
+      return llvm::createStringError(std::errc::invalid_argument,
+                                     "Invalid argument");
     }
 
     bool Signed;
@@ -1044,7 +1045,8 @@ IT::translateOpcode(PTCOpcode Opcode,
     Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
     if (Base == nullptr || !Variables.isEnv(Base)) {
       // TODO: emit warning
-      return std::errc::invalid_argument;
+      return llvm::createStringError(std::errc::invalid_argument,
+                                     "Invalid argument");
     }
 
     auto Result = Variables.storeToEnvOffset(Builder,
