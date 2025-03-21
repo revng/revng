@@ -41,6 +41,9 @@ public:
 
   TemporaryFile(TemporaryFile &&Other) { *this = std::move(Other); }
   TemporaryFile &operator=(TemporaryFile &&Other) {
+    if (this == &Other)
+      return *this;
+
     if (not Path.empty()) {
       revng::cantFail(llvm::sys::fs::remove(Path));
       llvm::sys::DontRemoveFileOnSignal(Path);
