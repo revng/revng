@@ -104,7 +104,7 @@ public:
         // edges during the processing of nested `GenericRegion`s.
         // We collect the retreating edges, performing an exploration that
         // starts from the elected `Head` of each identified `GenericRegion`.
-        llvm::SmallPtrSet<BasicBlock *, 4> RegionNodes;
+        SmallPtrSet<BasicBlock *, 4> RegionNodes;
         for (auto &RegionNode : Region->blocks()) {
           RegionNodes.insert(RegionNode);
         }
