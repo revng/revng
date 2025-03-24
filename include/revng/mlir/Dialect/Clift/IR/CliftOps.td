@@ -26,61 +26,63 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 
 def Clift_AnyLabelType
   : Type<CPred<"mlir::isa<mlir::clift::LabelType>($_self)">,
-         "a Clift label type",
+         "Clift label type",
          "mlir::clift::LabelType">,
     BuildableType<"$_builder.getType<mlir::clift::LabelType>()">;
 
 def Clift_AnyValueType
   : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
-         "a Clift value type",
+         "Clift value type",
          "mlir::clift::ValueType">;
 
 class Clift_AnyPrimitiveTypeOf<string Kind>
   : Type<CPred<"mlir::clift::impl::verifyPrimitiveTypeOf($_self," #
                                                          "mlir::clift::PrimitiveKind::" # Kind # ")">,
-         "a Clift primitive type of " # Kind,
-         "mlir::clift::PrimitiveType">;
+         "Clift primitive type of " # Kind,
+         "mlir::clift::ValueType">;
 
 def Clift_AnyScalarType
   : Type<CPred<"mlir::clift::isScalarType($_self)">,
-         "a Clift scalar type",
+         "Clift scalar type",
          "mlir::clift::ValueType">;
 
 def Clift_AnyIntegerType
   : Type<CPred<"mlir::clift::isIntegerType($_self)">,
-         "a Clift integer type",
+         "Clift integer type",
          "mlir::clift::ValueType">;
 
 def Clift_AnyPrimitiveIntegerType
   : Type<CPred<"mlir::clift::isPrimitiveIntegerType($_self)">,
-         "a primitive Clift integer type",
-         "mlir::clift::PrimitiveType">;
+         "primitive Clift integer type",
+         "mlir::clift::ValueType">;
 
 def Clift_AnyPointerType
   : Type<CPred<"mlir::clift::isPointerType($_self)">,
-         "a Clift pointer type",
-         "mlir::clift::PointerType">;
+         "Clift pointer type",
+         "mlir::clift::ValueType">;
 
 def Clift_AnyFunctionType
   : Type<CPred<"mlir::clift::isFunctionType($_self)">,
-         "a Clift function type",
+         "Clift function type",
          "mlir::clift::ValueType">;
 
 class Clift_AnyNonConstType<Type type>
   : Type<And<[type.predicate,
               CPred<"not mlir::cast<mlir::clift::ValueType>($_self).isConst()">]>,
-         "non-const",
+         // TODO: Figure out why the string concatenation isn't working here.
+         "non-const " # type.description,
          "mlir::clift::ValueType">;
 
 class Clift_AnyModifiableType<Type type>
   : Type<And<[type.predicate,
               CPred<"mlir::clift::isModifiableType($_self)">]>,
-         "modifiable",
+         // TODO: Figure out why the string concatenation isn't working here.
+         "modifiable " # type.description,
          "mlir::clift::ValueType">;
 
 class Clift_AllTypesMatch<list<string> names>
   : AllMatchSameOperatorTrait<names,
-                              "mlir::clift::impl::removeCliftConst($_self.getType())",
+                              "mlir::clift::removeConst($_self.getType())",
                               "type, ignoring qualifiers">;
 
 //===---------------------------- Region types ----------------------------===//
@@ -119,7 +121,8 @@ def Clift_ModuleOp : Clift_Op<"module",
 }
 
 def Clift_FunctionOp : Clift_Op<"func",
-                                [Symbol,
+                                [Clift_GlobalOpInterface,
+                                 Symbol,
                                  CallableOpInterface,
                                  FunctionOpInterface,
                                  AutomaticAllocationScope,
@@ -128,7 +131,7 @@ def Clift_FunctionOp : Clift_Op<"func",
                        TypeAttrOf<Clift_AnyFunctionType>:$function_type,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs,
-                       DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
+                       DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let description = [{
     expression.
@@ -137,6 +140,11 @@ def Clift_FunctionOp : Clift_Op<"func",
   let regions = (region Clift_StatementRegion:$body);
 
   let hasCustomAssemblyFormat = 1;
+
+  let builders = [
+    OpBuilder<(ins "llvm::StringRef":$name,
+                   "mlir::Type":$function_type)>
+  ];
 
   code extraClassDeclaration = [{
     mlir::Region::BlockListType& getBlocks() {
@@ -149,6 +157,13 @@ def Clift_FunctionOp : Clift_Op<"func",
 
     Block::args_iterator args_end() {
         return getBody().front().args_end();
+    }
+
+
+    // Implementation of Clift_GlobalOpInterface
+
+    clift::ValueType getType() {
+      return getFunctionType();
     }
 
 
@@ -174,12 +189,13 @@ def Clift_FunctionOp : Clift_Op<"func",
 }
 
 def Clift_GlobalVariableOp : Clift_Op<"global",
-                                      [Symbol,
+                                      [Clift_GlobalOpInterface,
+                                       Symbol,
                                        NoRegionArguments,
                                        IsolatedFromAbove]> {
   let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<Clift_ValueType>:$type,
-                       DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
+                       DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let description = [{
     global variable
@@ -437,12 +453,23 @@ def Clift_ImmediateOp : Clift_ExpressionOp<"imm"> {
   }];
 }
 
+def Clift_StringOp : Clift_ExpressionOp<"str"> {
+  let arguments = (ins StrAttr:$value);
+  let results = (outs Clift_AnyValueType:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
 class Clift_UnaryArithmeticOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
                        [TypesMatchWith<"result type must match the value type, ignoring qualifiers",
                                        "value",
                                        "result",
-                                       "mlir::clift::impl::removeCliftConst($_self)">]> {
+                                       "mlir::clift::removeConst($_self)">]> {
 
   let arguments = (ins Clift_AnyPrimitiveIntegerType:$value);
   let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveIntegerType>:$result);
@@ -467,9 +494,24 @@ class Clift_BinaryArithmeticOp<string mnemonic>
   }];
 }
 
+class Clift_PointerArithmeticOp<string mnemonic>
+  : Clift_ExpressionOp<mnemonic> {
+
+  let arguments = (ins Clift_AnyValueType:$lhs, Clift_AnyValueType:$rhs);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:` `(`
+    custom<CliftPointerArithmeticOpTypes>(type($result), type($lhs), type($rhs))
+    `)`
+  }];
+
+  let hasVerifier = 1;
+}
+
 class Clift_BinaryLogicalOp<string mnemonic> : Clift_ExpressionOp<mnemonic> {
-  let arguments = (ins Clift_AnyPrimitiveIntegerType:$lhs,
-                       Clift_AnyPrimitiveIntegerType:$rhs);
+  let arguments = (ins Clift_AnyScalarType:$lhs,
+                       Clift_AnyScalarType:$rhs);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveTypeOf<"SignedKind">>:$result);
 
@@ -484,7 +526,7 @@ class Clift_ShiftOp<string mnemonic>
                        [TypesMatchWith<"result type must match the lhs type, ignoring qualifiers",
                                        "lhs",
                                        "result",
-                                       "mlir::clift::impl::removeCliftConst($_self)">]> {
+                                       "mlir::clift::removeConst($_self)">]> {
 
   let arguments = (ins Clift_AnyPrimitiveIntegerType:$lhs,
                        Clift_AnyPrimitiveIntegerType:$rhs);
@@ -540,6 +582,24 @@ def Clift_MulOp : Clift_BinaryArithmeticOp<"mul">;
 def Clift_DivOp : Clift_BinaryArithmeticOp<"div">;
 def Clift_RemOp : Clift_BinaryArithmeticOp<"rem">;
 
+def Clift_PtrAddOp : Clift_PointerArithmeticOp<"ptr_add">;
+def Clift_PtrSubOp : Clift_PointerArithmeticOp<"ptr_sub">;
+
+def Clift_PtrDiffOp
+  : Clift_ExpressionOp<"ptr_diff",
+                       [Clift_AllTypesMatch<["lhs", "rhs"]>]> {
+
+  let arguments = (ins Clift_AnyValueType:$lhs, Clift_AnyValueType:$rhs);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+
+  let assemblyFormat = [{
+    $lhs `,` $rhs attr-dict `:`
+    custom<CliftOpOperandTypes>(type($lhs), type($rhs)) `->` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
 def Clift_LogicalNotOp : Clift_ExpressionOp<"not"> {
   let arguments = (ins Clift_AnyIntegerType:$value);
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
@@ -560,12 +620,12 @@ def Clift_BitwiseXorOp : Clift_BinaryArithmeticOp<"bitxor">;
 def Clift_ShiftLeftOp : Clift_ShiftOp<"shl">;
 def Clift_ShiftRightOp : Clift_ShiftOp<"shr">;
 
-def Clift_EqualOp : Clift_ComparisonOp<"eq">;
-def Clift_NotEqualOp : Clift_ComparisonOp<"ne">;
-def Clift_LessThanOp : Clift_ComparisonOp<"lt">;
-def Clift_GreaterThanOp : Clift_ComparisonOp<"gt">;
-def Clift_LessThanOrEqualOp : Clift_ComparisonOp<"le">;
-def Clift_GreaterThanOrEqualOp : Clift_ComparisonOp<"ge">;
+def Clift_CmpEqOp : Clift_ComparisonOp<"eq">;
+def Clift_CmpNeOp : Clift_ComparisonOp<"ne">;
+def Clift_CmpLtOp : Clift_ComparisonOp<"lt">;
+def Clift_CmpGtOp : Clift_ComparisonOp<"gt">;
+def Clift_CmpLeOp : Clift_ComparisonOp<"le">;
+def Clift_CmpGeOp : Clift_ComparisonOp<"ge">;
 
 def Clift_IncrementOp : Clift_UnaryIntegerMutationOp<"inc">;
 def Clift_DecrementOp : Clift_UnaryIntegerMutationOp<"dec">;
@@ -742,6 +802,34 @@ def Clift_CallOp : Clift_ExpressionOp<"call"> {
   let arguments = (ins Clift_AnyValueType:$function,
                        Variadic<Clift_AnyValueType>:$arguments);
 
+  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
+}
+
+def Clift_TernaryOp
+  : Clift_ExpressionOp<"ternary",
+                       [Clift_AllTypesMatch<["lhs", "rhs"]>,
+                        TypesMatchWith<"result type must match the value type, ignoring qualifiers",
+                                       "lhs",
+                                       "result",
+                                       "mlir::clift::removeConst($_self)">]> {
+
+  let arguments = (ins Clift_AnyScalarType:$condition,
+                       Clift_AnyValueType:$lhs,
+                       Clift_AnyValueType:$rhs);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+
+  let assemblyFormat = [{
+    $condition `,` $lhs `,` $rhs attr-dict `:` `(`
+    custom<CliftTernaryOpTypes>(type($condition), type($lhs), type($rhs)) `)`
+  }];
+}
+
+def Clift_AggregateOp : Clift_ExpressionOp<"aggregate"> {
+  let arguments = (ins Variadic<Clift_AnyValueType>:$initializers);
   let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
 
   let hasCustomAssemblyFormat = 1;

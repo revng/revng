@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!float = !clift.primitive<FloatKind 4>
+!float = !clift.primitive<float 4>
 
 // CHECK: condition requires an integer type
 clift.switch {

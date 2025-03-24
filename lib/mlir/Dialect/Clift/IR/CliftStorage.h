@@ -47,20 +47,20 @@ class ClassTypeStorage : public BaseT {
   // and then override operators to pretend they don't know about the non key
   // fields. That way when it is needed one can access everything.
   struct Key {
-    uint64_t ID;
+    llvm::StringRef Handle;
     std::optional<KeyDefinition> Definition;
 
-    Key(const uint64_t ID) : ID(ID) {}
+    Key(const llvm::StringRef Handle) : Handle(Handle) {}
 
     // struct storages are never exposed to the user, they are only used
     // internally to figure out how to create unique objects. only operator== is
     // every used, everything else is handled by hasValue
     friend bool operator==(const Key &LHS, const Key &RHS) {
-      return LHS.ID == RHS.ID;
+      return LHS.Handle == RHS.Handle;
     }
 
     [[nodiscard]] llvm::hash_code hashValue() const {
-      return llvm::hash_value(ID);
+      return llvm::hash_value(Handle);
     }
   };
 
@@ -77,12 +77,13 @@ public:
 
   bool operator==(const Key &Other) const { return TheKey == Other; }
 
-  template<typename... ArgsT>
-  ClassTypeStorage(const uint64_t ID) : TheKey(ID) {}
+  ClassTypeStorage(const llvm::StringRef Handle) : TheKey(Handle) {}
 
   static StorageT *construct(mlir::StorageUniquer::StorageAllocator &Allocator,
                              const KeyTy &Key) {
-    StorageT *const S = new (Allocator.allocate<StorageT>()) StorageT(Key.ID);
+    void *const Storage = Allocator.allocate<StorageT>();
+    llvm::StringRef Handle = Allocator.copyInto(Key.Handle);
+    StorageT *const S = new (Storage) StorageT(Handle);
     if (Key.Definition)
       S->TheKey.Definition.emplace(Allocator, *Key.Definition);
     return S;
@@ -118,7 +119,7 @@ public:
     return mlir::success();
   }
 
-  [[nodiscard]] uint64_t getID() const { return TheKey.ID; }
+  [[nodiscard]] llvm::StringRef getHandle() const { return TheKey.Handle; }
 
   [[nodiscard]] bool isInitialized() const {
     return TheKey.Definition.has_value();
@@ -153,12 +154,6 @@ struct StructTypeAttrStorage : ClassTypeStorage<StructTypeAttrStorage,
 
 struct UnionTypeAttrStorage
   : ClassTypeStorage<UnionTypeAttrStorage, mlir::AttributeStorage, FieldAttr> {
-  using ClassTypeStorage::ClassTypeStorage;
-};
-
-struct ScalarTupleTypeStorage : ClassTypeStorage<ScalarTupleTypeStorage,
-                                                 mlir::TypeStorage,
-                                                 ScalarTupleElementAttr> {
   using ClassTypeStorage::ClassTypeStorage;
 };
 

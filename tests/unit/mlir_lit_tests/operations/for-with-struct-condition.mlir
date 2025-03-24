@@ -4,9 +4,11 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
-!s = !clift.defined<#clift.struct<id = 1, name = "", size = 1, fields = []>>
+!s = !clift.defined<#clift.struct<
+  "/type-definition/1-StructDefinition" : size(1) {}
+>>
 
 // CHECK: condition requires a scalar type
 clift.for {} {

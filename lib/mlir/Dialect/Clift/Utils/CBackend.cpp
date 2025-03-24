@@ -76,6 +76,8 @@ enum class OperatorPrecedence {
   UnaryPrefix,
   UnaryPostfix,
   Primary,
+
+  Ternary = Assignment,
 };
 
 class CEmitter {
@@ -89,7 +91,7 @@ public:
 
   const model::Segment &getModelSegment(GlobalVariableOp Op) {
     auto L = pipeline::locationFromString(revng::ranks::Segment,
-                                          Op.getUniqueHandle());
+                                          Op.getHandle());
     if (not L)
       revng_abort("Unrecognizable global variable unique handle.");
 
@@ -105,7 +107,7 @@ public:
 
   ModelFunctionVariant getModelFunctionVariant(FunctionOp Op) {
     if (auto L = pipeline::locationFromString(revng::ranks::Function,
-                                              Op.getUniqueHandle())) {
+                                              Op.getHandle())) {
       auto [Key] = L->at(revng::ranks::Function);
       auto It = C.Binary.Functions().find(Key);
       if (It == C.Binary.Functions().end())
@@ -114,7 +116,7 @@ public:
     }
 
     if (auto L = pipeline::locationFromString(revng::ranks::DynamicFunction,
-                                              Op.getUniqueHandle())) {
+                                              Op.getHandle())) {
       auto [Key] = L->at(revng::ranks::DynamicFunction);
       auto It = C.Binary.ImportedDynamicFunctions().find(Key);
       if (It == C.Binary.ImportedDynamicFunctions().end())
@@ -132,51 +134,23 @@ public:
     revng_abort("Expected isolated model function.");
   }
 
-  const model::TypeDefinition *
-  getModelTypeDefinition(uint64_t ID, model::TypeDefinitionKind::Values Kind) {
-    auto It = C.Binary.TypeDefinitions().find({ ID, Kind });
-    if (It == C.Binary.TypeDefinitions().end())
-      return nullptr;
-    return It->get();
-  }
-
   const model::TypeDefinition &getModelTypeDefinition(TypeDefinitionAttr Type) {
-    using TypeKind = model::TypeDefinitionKind::Values;
+    auto GetType = [&](const auto &Rank) -> const model::TypeDefinition * {
+      if (auto L = pipeline::locationFromString(Rank, Type.getHandle())) {
+        auto It = C.Binary.TypeDefinitions().find(L->at(Rank));
+        if (It != C.Binary.TypeDefinitions().end())
+          return It->get();
+      }
+      return nullptr;
+    };
 
-    if (mlir::isa<FunctionTypeAttr>(Type)) {
-      auto CF = getModelTypeDefinition(Type.id(),
-                                       TypeKind::CABIFunctionDefinition);
-      auto RF = getModelTypeDefinition(Type.id(),
-                                       TypeKind::RawFunctionDefinition);
+    if (const auto *T = GetType(revng::ranks::TypeDefinition))
+      return *T;
 
-      if (CF != nullptr and RF != nullptr)
-        revng_abort("Ambiguous model function type definition");
+    if (const auto *T = GetType(revng::ranks::ArtificialStruct))
+      return *T;
 
-      if (CF != nullptr)
-        return *CF;
-
-      if (RF != nullptr)
-        return *RF;
-
-      revng_abort("No matching model function type definition.");
-    }
-
-    model::TypeDefinitionKind::Values Kind;
-    if (mlir::isa<TypedefTypeAttr>(Type))
-      Kind = model::TypeDefinitionKind::TypedefDefinition;
-    else if (mlir::isa<EnumTypeAttr>(Type))
-      Kind = model::TypeDefinitionKind::EnumDefinition;
-    else if (mlir::isa<StructTypeAttr>(Type))
-      Kind = model::TypeDefinitionKind::StructDefinition;
-    else if (mlir::isa<UnionTypeAttr>(Type))
-      Kind = model::TypeDefinitionKind::UnionDefinition;
-    else
-      revng_abort("Unsupported type definition");
-
-    auto ModelType = getModelTypeDefinition(Type.id(), Kind);
-    if (ModelType == nullptr)
-      revng_abort("No matching model type definition.");
-    return *ModelType;
+    revng_abort("Unrecognized type unique handle");
   }
 
   void emitPrimitiveType(PrimitiveType Type) {
@@ -439,10 +413,59 @@ public:
 
   //===---------------------------- Expressions ---------------------------===//
 
+  RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<UndefOp>();
+    Out << "/* undef */ (";
+    rc_recur emitType(E.getResult().getType());
+    Out << "){0}";
+    rc_return;
+  }
+
   RecursiveCoroutine<void> emitImmediateExpression(mlir::Value V) {
     auto E = V.getDefiningOp<ImmediateOp>();
     emitIntegerImmediate(E.getValue(), E.getResult().getType());
     rc_return;
+  }
+
+  RecursiveCoroutine<void> emitStringLiteralExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<StringOp>();
+
+    std::string Literal;
+    {
+      llvm::raw_string_ostream Out(Literal);
+      Out << '"';
+      Out.write_escaped(E.getValue(), /*UseHexEscapes=*/true);
+      Out << '"';
+    }
+    Out << C.getStringLiteral(Literal);
+
+    rc_return;
+  }
+
+  RecursiveCoroutine<void> emitAggregateInitializer(AggregateOp E) {
+    // The precedence here must be comma, because an initializer list cannot
+    // contain an unparenthesized comma expression. It would be parsed as two
+    // initializers instead.
+    CurrentPrecedence = OperatorPrecedence::Comma;
+
+    Out << '{';
+    for (auto [I, Initializer] : llvm::enumerate(E.getInitializers())) {
+      if (I != 0)
+        Out << ',' << ' ';
+
+      rc_recur emitExpression(Initializer);
+    }
+    Out << '}';
+  }
+
+  RecursiveCoroutine<void> emitAggregateExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<AggregateOp>();
+
+    Out << '(';
+    rc_recur emitType(E.getResult().getType());
+    Out << ')';
+
+    rc_recur emitAggregateInitializer(E);
   }
 
   RecursiveCoroutine<void> emitParameterExpression(mlir::Value V) {
@@ -557,27 +580,59 @@ public:
     Out << ')';
   }
 
+  static bool isHiddenCast(CastOp Cast) {
+    return Cast.getKind() == CastKind::Decay;
+  }
+
+  static mlir::Value unwrapHiddenCasts(CastOp Cast) {
+    revng_assert(isHiddenCast(Cast));
+
+    while (true) {
+      auto InnerCast = Cast.getValue().getDefiningOp<CastOp>();
+      if (not InnerCast or not isHiddenCast(InnerCast))
+        break;
+    }
+
+    return Cast.getValue();
+  }
+
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOp>();
 
-    if (E.getKind() != CastKind::Decay) {
-      Out << '(';
-      rc_recur emitType(E.getResult().getType());
-      Out << ')';
-    }
+    Out << '(';
+    rc_recur emitType(E.getResult().getType());
+    Out << ')';
 
-    // Parenthesizing a nested unary postfix expression is not necessary.
-    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPostfix);
+    // Parenthesizing a nested unary prefix expression is not necessary.
+    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
 
     rc_recur emitExpression(E.getValue());
+  }
+
+  RecursiveCoroutine<void> emitHiddenCastExpression(mlir::Value V) {
+    return emitExpression(unwrapHiddenCasts(V.getDefiningOp<CastOp>()));
+  }
+
+  RecursiveCoroutine<void> emitTernaryExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<TernaryOp>();
+
+    rc_recur emitExpression(E.getCondition());
+    Out << " ? ";
+    rc_recur emitExpression(E.getLhs());
+    Out << " : ";
+
+    // The right hand expression does not need parentheses.
+    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::Ternary);
+
+    rc_recur emitExpression(E.getRhs());
   }
 
   static ptml::CBuilder::Operator getOperator(mlir::Operation *Op) {
     if (mlir::isa<NegOp>(Op))
       return Operator::UnaryMinus;
-    if (mlir::isa<AddOp>(Op))
+    if (mlir::isa<AddOp, PtrAddOp>(Op))
       return Operator::Add;
-    if (mlir::isa<SubOp>(Op))
+    if (mlir::isa<SubOp, PtrSubOp, PtrDiffOp>(Op))
       return Operator::Sub;
     if (mlir::isa<MulOp>(Op))
       return Operator::Mul;
@@ -603,17 +658,17 @@ public:
       return Operator::LShift;
     if (mlir::isa<ShiftRightOp>(Op))
       return Operator::RShift;
-    if (mlir::isa<EqualOp>(Op))
+    if (mlir::isa<CmpEqOp>(Op))
       return Operator::CmpEq;
-    if (mlir::isa<NotEqualOp>(Op))
+    if (mlir::isa<CmpNeOp>(Op))
       return Operator::CmpNeq;
-    if (mlir::isa<LessThanOp>(Op))
+    if (mlir::isa<CmpLtOp>(Op))
       return Operator::CmpLt;
-    if (mlir::isa<GreaterThanOp>(Op))
+    if (mlir::isa<CmpGtOp>(Op))
       return Operator::CmpGt;
-    if (mlir::isa<LessThanOrEqualOp>(Op))
+    if (mlir::isa<CmpLeOp>(Op))
       return Operator::CmpLte;
-    if (mlir::isa<GreaterThanOrEqualOp>(Op))
+    if (mlir::isa<CmpGeOp>(Op))
       return Operator::CmpGte;
     if (mlir::isa<IncrementOp, PostIncrementOp>(Op))
       return Operator::Increment;
@@ -632,12 +687,19 @@ public:
 
   RecursiveCoroutine<void> emitPrefixExpression(mlir::Value V) {
     mlir::Operation *Op = V.getDefiningOp();
+    mlir::Value Operand = Op->getOperand(0);
+
     Out << C.getOperator(getOperator(Op));
+
+    // Double negation requires a space in between to avoid being confused as
+    // decrement. (- -x) vs (--x)
+    if (V.getDefiningOp<NegOp>() and Operand.getDefiningOp<NegOp>())
+      Out << ' ';
 
     // Parenthesizing a nested unary prefix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
 
-    return emitExpression(Op->getOperand(0));
+    return emitExpression(Operand);
   }
 
   RecursiveCoroutine<void> emitPostfixExpression(mlir::Value V) {
@@ -703,10 +765,31 @@ public:
       revng_abort("This operation is not supported.");
     }
 
+    if (mlir::isa<UndefOp>(E)) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CEmitter::emitUndefExpression,
+      };
+    }
+
     if (mlir::isa<ImmediateOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Primary,
         .Emit = &CEmitter::emitImmediateExpression,
+      };
+    }
+
+    if (mlir::isa<StringOp>(E)) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CEmitter::emitStringLiteralExpression,
+      };
+    }
+
+    if (mlir::isa<AggregateOp>(E)) {
+      return {
+        .Precedence = OperatorPrecedence::Primary,
+        .Emit = &CEmitter::emitAggregateExpression,
       };
     }
 
@@ -746,10 +829,12 @@ public:
     }
 
     if (auto Cast = mlir::dyn_cast<CastOp>(E.getOperation())) {
-      if (Cast.getKind() == CastKind::Decay) {
+      if (isHiddenCast(Cast)) {
+        auto Info = getExpressionEmitInfo(unwrapHiddenCasts(Cast));
+
         return {
-          .Precedence = OperatorPrecedence::Primary,
-          .Emit = &CEmitter::emitCastExpression,
+          .Precedence = decrementPrecedence(Info.Precedence),
+          .Emit = &CEmitter::emitHiddenCastExpression,
         };
       }
 
@@ -779,7 +864,7 @@ public:
       };
     }
 
-    if (mlir::isa<AddOp, SubOp>(E)) {
+    if (mlir::isa<AddOp, SubOp, PtrAddOp, PtrSubOp, PtrDiffOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Additive,
         .Emit = &CEmitter::emitInfixExpression,
@@ -793,17 +878,14 @@ public:
       };
     }
 
-    if (mlir::isa<LessThanOp,
-                  GreaterThanOp,
-                  LessThanOrEqualOp,
-                  GreaterThanOrEqualOp>(E)) {
+    if (mlir::isa<CmpLtOp, CmpGtOp, CmpLeOp, CmpGeOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Relational,
         .Emit = &CEmitter::emitInfixExpression,
       };
     }
 
-    if (mlir::isa<EqualOp, NotEqualOp>(E)) {
+    if (mlir::isa<CmpEqOp, CmpNeOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Equality,
         .Emit = &CEmitter::emitInfixExpression,
@@ -859,6 +941,13 @@ public:
       };
     }
 
+    if (mlir::isa<TernaryOp>(E)) {
+      return {
+        .Precedence = OperatorPrecedence::Ternary,
+        .Emit = &CEmitter::emitTernaryExpression,
+      };
+    }
+
     revng_abort("This operation is not supported.");
   }
 
@@ -889,14 +978,9 @@ public:
   }
 
   RecursiveCoroutine<void> emitExpressionRegion(mlir::Region &R) {
-    revng_assert(R.hasOneBlock());
-    mlir::Block &B = R.front();
-
-    auto End = B.end();
-    revng_assert(End != B.begin());
-
-    auto Yield = mlir::cast<YieldOp>(*--End);
-    return emitExpression(Yield.getValue());
+    mlir::Value Value = getExpressionValue(R);
+    revng_assert(Value);
+    return emitExpression(Value);
   }
 
   //===---------------------------- Statements ----------------------------===//
@@ -921,7 +1005,12 @@ public:
       // Comma expressions in a variable initialiser must be parenthesized.
       CurrentPrecedence = OperatorPrecedence::Comma;
 
-      rc_recur emitExpressionRegion(S.getInitializer());
+      mlir::Value Expression = getExpressionValue(S.getInitializer());
+
+      if (auto Aggregate = Expression.getDefiningOp<AggregateOp>())
+        rc_recur emitAggregateInitializer(Aggregate);
+      else
+        rc_recur emitExpression(Expression);
     }
 
     Out << ';' << '\n';
@@ -963,10 +1052,12 @@ public:
   }
 
   RecursiveCoroutine<void> emitReturnStatement(ReturnOp S) {
-    Out << C.getKeyword(Keyword::Return) << ' ';
+    Out << C.getKeyword(Keyword::Return);
 
-    if (not S.getResult().empty())
+    if (not S.getResult().empty()) {
+      Out << ' ';
       rc_recur emitExpressionRegion(S.getResult());
+    }
 
     Out << ';' << '\n';
   }

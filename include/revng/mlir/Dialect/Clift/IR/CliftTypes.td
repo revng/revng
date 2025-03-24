@@ -38,25 +38,19 @@ def Clift_PrimitiveType
 
   let genVerifyDecl = 1;
 
-  let extraClassDeclaration = [{
-    static mlir::clift::PrimitiveType getVoid(mlir::MLIRContext* Context, uint64_t Size, bool IsConst = false) {
-      return get(Context, PrimitiveKind::VoidKind, Size, BoolAttr::get(Context, IsConst));
-    }
-  }];
-
   let description = [{
     Primitive type.
   }];
 
   let assemblyFormat = [{
-    `<`( `is_const` `=` $is_const^ `,` ` `)? $kind $size `>`
+    `<` custom<CliftConst>($is_const) $kind $size `>`
   }];
 }
 
 
 def Clift_PointerType
   : Clift_Type<"Pointer",
-               "pointer",
+               "ptr",
                [DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize",
                                                               "addConst",
                                                               "removeConst"]>,
@@ -74,7 +68,7 @@ def Clift_PointerType
   let genVerifyDecl = 1;
 
   let assemblyFormat = [{
-    `<` ( `is_const` `=` $is_const^ `,` ` ` )? struct($pointee_type, $pointer_size) `>`
+    `<` custom<CliftConst>($is_const) $pointer_size `to` $pointee_type `>`
   }];
 }
 
@@ -82,7 +76,7 @@ def Clift_DefinedType
   : Clift_Type<"Defined",
                "defined",
                [DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize",
-                                                              "id",
+                                                              "getHandle",
                                                               "addConst",
                                                               "removeConst"]>,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>,
@@ -101,7 +95,7 @@ def Clift_DefinedType
   }];
 
   let extraClassDeclaration = [{
-    uint64_t id() const;
+    llvm::StringRef getHandle() const;
     llvm::StringRef name() const;
   }];
 
@@ -109,7 +103,7 @@ def Clift_DefinedType
 
 
   let assemblyFormat = [{
-    `<` ( `is_const` `=` $is_const^ `,` ` ` )? $element_type `>`
+    `<` custom<CliftConst>($is_const) $element_type `>`
   }];
 }
 
@@ -138,6 +132,6 @@ def Clift_ArrayType
   }];
 
   let assemblyFormat = [{
-    `<` struct($element_type, $elements_count) `>`
+    `<` $elements_count `x` $element_type `>`
   }];
 }

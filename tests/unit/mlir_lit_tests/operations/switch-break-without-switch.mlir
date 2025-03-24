@@ -4,13 +4,11 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.function<
-  id = 1000,
-  name = "f",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1000-CABIFunctionDefinition" as "f" : !void()
+>>
 
 // CHECK: must be nested within a switch operation
 clift.module {

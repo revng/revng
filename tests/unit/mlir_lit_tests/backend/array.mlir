@@ -4,24 +4,22 @@
 
 // RUN: %revngcliftopt %s --emit-c="tagless model=%S/model.yml" -o /dev/null | FileCheck %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
-!int32_t = !clift.primitive<SignedKind 4>
-!int32_t$p = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
+!int32_t = !clift.primitive<signed 4>
+!int32_t$p = !clift.ptr<8 to !int32_t>
 
-!int32_t$1 = !clift.array<element_type = !int32_t, elements_count = 1>
-!int32_t$1$p = !clift.pointer<pointer_size = 8, pointee_type = !int32_t$1>
+!int32_t$1 = !clift.array<1 x !int32_t>
+!int32_t$1$p = !clift.ptr<8 to !int32_t$1>
 
-!f = !clift.defined<#clift.function<
-  id = 1001,
-  name = "",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1001-CABIFunctionDefinition" : !void()
+>>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {
   clift.func @f<!f>() attributes {
-    unique_handle = "/function/0x40001001:Code_x86_64"
+    handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: int32_t _var_0[1];
     %array = clift.local !int32_t$1 "array"

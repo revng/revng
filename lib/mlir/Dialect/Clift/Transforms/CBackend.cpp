@@ -71,7 +71,7 @@ struct EmitCPass : clift::impl::CliftEmitCBase<EmitCPass> {
   void writeToOutputFile(llvm::StringRef Content) {
     OutputFile->use([&](const auto &File) {
       revng_assert(File != nullptr);
-      File->os() << Content;
+      File->os() << Content << '\n';
     });
   }
 

@@ -5,15 +5,14 @@
 
 Architecture: x86_64
 TypeDefinitions:
-  # CHECK: #my_function2$def = #clift.function<
-  # CHECK:   id = 1001
-  # CHECK:   name = "my_function2"
-  # CHECK:   return_type = !uint64_t
-  # CHECK:   argument_types = [
-  # CHECK:     !uint64_t
-  # CHECK:   ]
+  # CHECK: #my_function2$def = #clift.func<
+  # CHECK:   "/type-definition/1001-RawFunctionDefinition"
+  # CHECK:   as "my_function2"
+  # CHECK:   !uint64_t(!uint64_t)
   # CHECK: >
-  # CHECK: !my_function2_ = !clift.defined<#my_function2$def>
+  # CHECK: !my_function2_ = !clift.defined<
+  # CHECK:   #my_function2$def
+  # CHECK: >
   - ID: 1001
     Kind: RawFunctionDefinition
     CustomName: "my_function2"

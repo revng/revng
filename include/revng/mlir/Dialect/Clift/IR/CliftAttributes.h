@@ -41,15 +41,15 @@ class StructTypeAttr
 public:
   using Base::Base;
 
-  static StructTypeAttr get(MLIRContext *Context, uint64_t ID);
+  static StructTypeAttr get(MLIRContext *Context, llvm::StringRef Handle);
 
   static StructTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
-             uint64_t ID);
+             llvm::StringRef Handle);
 
   static StructTypeAttr get(MLIRContext *Context,
-                            uint64_t ID,
+                            llvm::StringRef Handle,
                             llvm::StringRef Name,
                             uint64_t Size,
                             llvm::ArrayRef<FieldAttr> Fields);
@@ -57,7 +57,7 @@ public:
   static StructTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
-             uint64_t ID,
+             llvm::StringRef Handle,
              llvm::StringRef Name,
              uint64_t Size,
              llvm::ArrayRef<FieldAttr> Fields);
@@ -67,21 +67,23 @@ public:
   void
   define(llvm::StringRef Name, uint64_t Size, llvm::ArrayRef<FieldAttr> Fields);
 
-  uint64_t getId() const;
+  llvm::StringRef getHandle() const;
   llvm::StringRef getName() const;
   llvm::ArrayRef<FieldAttr> getFields() const;
 
   bool isDefinition() const;
   uint64_t getByteSize() const;
+
+  bool getTypeDefinitionAlias(llvm::raw_ostream &OS) const;
   bool getAlias(llvm::raw_ostream &OS) const;
 
   static Attribute parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;
 
   static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              uint64_t ID);
+                              llvm::StringRef Handle);
   static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              uint64_t ID,
+                              llvm::StringRef Handle,
                               llvm::StringRef Name,
                               uint64_t Size,
                               llvm::ArrayRef<FieldAttr> Fields);
@@ -104,22 +106,22 @@ class UnionTypeAttr : public Attribute::AttrBase<UnionTypeAttr,
 public:
   using Base::Base;
 
-  static UnionTypeAttr get(MLIRContext *Context, uint64_t ID);
+  static UnionTypeAttr get(MLIRContext *Context, llvm::StringRef Handle);
 
   static UnionTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
-             uint64_t ID);
+             llvm::StringRef Handle);
 
   static UnionTypeAttr get(MLIRContext *Context,
-                           uint64_t ID,
+                           llvm::StringRef Handle,
                            llvm::StringRef Name,
                            llvm::ArrayRef<FieldAttr> Fields);
 
   static UnionTypeAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
-             uint64_t ID,
+             llvm::StringRef Handle,
              llvm::StringRef Name,
              llvm::ArrayRef<FieldAttr> Fields);
 
@@ -127,21 +129,23 @@ public:
 
   void define(llvm::StringRef Name, llvm::ArrayRef<FieldAttr> Fields);
 
-  uint64_t getId() const;
+  llvm::StringRef getHandle() const;
   llvm::StringRef getName() const;
   llvm::ArrayRef<FieldAttr> getFields() const;
 
   bool isDefinition() const;
   uint64_t getByteSize() const;
+
+  bool getTypeDefinitionAlias(llvm::raw_ostream &OS) const;
   bool getAlias(llvm::raw_ostream &OS) const;
 
   static Attribute parse(AsmParser &Parser);
   void print(AsmPrinter &Printer) const;
 
   static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              uint64_t ID);
+                              llvm::StringRef Handle);
   static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              uint64_t ID,
+                              llvm::StringRef Handle,
                               llvm::StringRef Name,
                               llvm::ArrayRef<FieldAttr> Fields);
 

@@ -10,26 +10,16 @@
 
 TypeDefinitions:
   # CHECK: #my_enum1$def = #clift.enum<
-  # CHECK:   id = 1104
-  # CHECK:   name = "my_enum1"
-  # CHECK:   underlying_type = !int32_t
-  # CHECK:   fields = [
-  # CHECK:     <
-  # CHECK:       raw_value = 0
-  # CHECK:     >
-  # CHECK:     <
-  # CHECK:       raw_value = 1
-  # CHECK:     >
-  # CHECK:     <
-  # CHECK:       raw_value = 2147483647
-  # CHECK:     >
-  # CHECK:     <
-  # CHECK:       raw_value = 18446744071562067968
-  # CHECK:     >
-  # CHECK:     <
-  # CHECK:       raw_value = 18446744073709551615
-  # CHECK:     >
-  # CHECK:   ]
+  # CHECK:   "/type-definition/1104-EnumDefinition"
+  # CHECK:   as "my_enum1"
+  # CHECK:   : !int32_t
+  # CHECK:   {
+  # CHECK:     0
+  # CHECK:     1
+  # CHECK:     2147483647
+  # CHECK:     18446744071562067968
+  # CHECK:     18446744073709551615
+  # CHECK:   }
   # CHECK: >
   - ID: 1104
     Kind: EnumDefinition
@@ -46,26 +36,16 @@ TypeDefinitions:
       - Value: 0xffffffffffffffff # 2^64 - 1
 
     # CHECK: #my_enum2$def = #clift.enum<
-    # CHECK:   id = 1108
-    # CHECK:   name = "my_enum2"
-    # CHECK:   underlying_type = !int64_t
-    # CHECK:   fields = [
-    # CHECK:     <
-    # CHECK:       raw_value = 0
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 1
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 9223372036854775807
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 9223372036854775808
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 18446744073709551615
-    # CHECK:     >
-    # CHECK:   ]
+    # CHECK:   "/type-definition/1108-EnumDefinition"
+    # CHECK:   as "my_enum2"
+    # CHECK:   : !int64_t
+    # CHECK:   {
+    # CHECK:     0
+    # CHECK:     1
+    # CHECK:     9223372036854775807
+    # CHECK:     9223372036854775808
+    # CHECK:     18446744073709551615
+    # CHECK:   }
     # CHECK: >
   - ID: 1108
     Kind: EnumDefinition
@@ -82,20 +62,14 @@ TypeDefinitions:
       - Value: 0xffffffffffffffff # 2^64 - 1
 
     # CHECK: #my_enum3$def = #clift.enum<
-    # CHECK:   id = 1204
-    # CHECK:   name = "my_enum3"
-    # CHECK:   underlying_type = !uint32_t
-    # CHECK:   fields = [
-    # CHECK:     <
-    # CHECK:       raw_value = 0
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 1
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 4294967295
-    # CHECK:     >
-    # CHECK:   ]
+    # CHECK:   "/type-definition/1204-EnumDefinition"
+    # CHECK:   as "my_enum3"
+    # CHECK:   : !uint32_t
+    # CHECK:   {
+    # CHECK:     0
+    # CHECK:     1
+    # CHECK:     4294967295
+    # CHECK:   }
     # CHECK: >
   - ID: 1204
     Kind: EnumDefinition
@@ -110,20 +84,14 @@ TypeDefinitions:
       - Value: 0x00000000ffffffff # 2^32 - 1
 
     # CHECK: #my_enum4$def = #clift.enum<
-    # CHECK:   id = 1208
-    # CHECK:   name = "my_enum4"
-    # CHECK:   underlying_type = !uint64_t
-    # CHECK:   fields = [
-    # CHECK:     <
-    # CHECK:       raw_value = 0
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 1
-    # CHECK:     >
-    # CHECK:     <
-    # CHECK:       raw_value = 18446744073709551615
-    # CHECK:     >
-    # CHECK:   ]
+    # CHECK:   "/type-definition/1208-EnumDefinition"
+    # CHECK:   as "my_enum4"
+    # CHECK:   : !uint64_t
+    # CHECK:   {
+    # CHECK:     0
+    # CHECK:     1
+    # CHECK:     18446744073709551615
+    # CHECK:   }
     # CHECK: >
   - ID: 1208
     Kind: EnumDefinition
@@ -138,7 +106,15 @@ TypeDefinitions:
       - Value: 0xffffffffffffffff # 2^64 - 1
 
 
-    # CHECK: !my_enum1_ = !clift.defined<#my_enum1$def>
-    # CHECK: !my_enum2_ = !clift.defined<#my_enum2$def>
-    # CHECK: !my_enum3_ = !clift.defined<#my_enum3$def>
-    # CHECK: !my_enum4_ = !clift.defined<#my_enum4$def>
+    # CHECK: !my_enum1_ = !clift.defined<
+    # CHECK:   #my_enum1$def
+    # CHECK: >
+    # CHECK: !my_enum2_ = !clift.defined<
+    # CHECK:   #my_enum2$def
+    # CHECK: >
+    # CHECK: !my_enum3_ = !clift.defined<
+    # CHECK:   #my_enum3$def
+    # CHECK: >
+    # CHECK: !my_enum4_ = !clift.defined<
+    # CHECK:   #my_enum4$def
+    # CHECK: >

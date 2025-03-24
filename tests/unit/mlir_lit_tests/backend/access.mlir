@@ -4,55 +4,31 @@
 
 // RUN: %revngcliftopt %s --emit-c="tagless model=%S/model.yml" -o /dev/null | FileCheck %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
-!int32_t = !clift.primitive<SignedKind 4>
+!int32_t = !clift.primitive<signed 4>
 
 !s = !clift.defined<#clift.struct<
-  id = 2002,
-  name = "",
-  size = 4,
-  fields = [
-    <
-      name = "",
-      offset = 0,
-      type = !int32_t
-    >,
-    <
-      name = "",
-      offset = 4,
-      type = !int32_t
-    >
-  ]>>
-!s$p = !clift.pointer<pointer_size = 8, pointee_type = !s>
+  "/type-definition/2002-StructDefinition" : size(8) {
+    offset(0) : !int32_t,
+    offset(4) : !int32_t
+  }>>
+!s$p = !clift.ptr<8 to !s>
 
 !u = !clift.defined<#clift.union<
-  id = 2003,
-  name = "",
-  fields = [
-    <
-      name = "",
-      offset = 0,
-      type = !int32_t
-    >,
-    <
-      name = "",
-      offset = 0,
-      type = !int32_t
-    >
-  ]>>
-!u$p = !clift.pointer<pointer_size = 8, pointee_type = !u>
+  "/type-definition/2003-UnionDefinition" : {
+    !int32_t,
+    !int32_t
+  }>>
+!u$p = !clift.ptr<8 to !u>
 
-!f = !clift.defined<#clift.function<
-  id = 1001,
-  name = "",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1001-CABIFunctionDefinition" : !void()>>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {
   clift.func @f<!f>() attributes {
-    unique_handle = "/function/0x40001001:Code_x86_64"
+    handle = "/function/0x40001001:Code_x86_64"
   } {
     %s = clift.local !s$p "s"
     %u = clift.local !u$p "u"

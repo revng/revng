@@ -4,18 +4,12 @@
 
 // RUN: %revngcliftopt %s
 
-!int32_t = !clift.primitive<SignedKind 4>
+!int32_t = !clift.primitive<signed 4>
 
 !enum = !clift.defined<#clift.enum<
-  id = 1,
-  name = "",
-  underlying_type = !int32_t,
-  fields = [
-    <
-      raw_value = 0,
-      name = ""
-    >
-  ]
+  "/type-definition/1-CABIFunctionDefinition" : !int32_t {
+    0
+  }
 >>
 
 clift.switch {

@@ -7,6 +7,8 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
@@ -122,6 +124,14 @@ private:
     }
   }
 
+  std::string getHandle(const model::TypeDefinition &T) {
+    return pipeline::locationString(revng::ranks::TypeDefinition, T.key());
+  }
+
+  std::string getRegisterSetLocation(const model::RawFunctionDefinition &T) {
+    return pipeline::locationString(revng::ranks::ArtificialStruct, T.key());
+  }
+
   RecursiveCoroutine<clift::TypeDefinitionAttr>
   getTypeAttribute(const model::CABIFunctionDefinition &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
@@ -150,7 +160,7 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
-    rc_return make<clift::FunctionTypeAttr>(ModelType.ID(),
+    rc_return make<clift::FunctionTypeAttr>(getHandle(ModelType),
                                             NameBuilder.name(ModelType),
                                             ReturnType,
                                             ArgumentTypes);
@@ -181,25 +191,27 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::EnumTypeAttr>(ModelType.ID(),
+    rc_return make<clift::EnumTypeAttr>(getHandle(ModelType),
                                         NameBuilder.name(ModelType),
                                         UnderlyingType,
                                         Fields);
   }
 
   RecursiveCoroutine<clift::ValueType>
-  getScalarTupleType(const model::RawFunctionDefinition &ModelType) {
-    using ElementAttr = clift::ScalarTupleElementAttr;
+  getRegisterSetType(const model::RawFunctionDefinition &ModelType) {
+    using ElementAttr = clift::FieldAttr;
 
     AttributeVector<ElementAttr> Elements;
     Elements.reserve(ModelType.ReturnValues().size());
 
+    uint64_t Offset = 0;
     for (const model::NamedTypedRegister &Register : ModelType.ReturnValues()) {
       const auto RegisterType = rc_recur fromType(*Register.Type());
       if (not RegisterType)
         rc_return nullptr;
 
-      const auto Attribute = make<ElementAttr>(RegisterType,
+      const auto Attribute = make<ElementAttr>(Offset,
+                                               RegisterType,
                                                NameBuilder
                                                  .returnValueName(ModelType,
                                                                   Register));
@@ -207,9 +219,21 @@ private:
         rc_return nullptr;
 
       Elements.push_back(Attribute);
+      Offset += RegisterType.getByteSize();
     }
 
-    rc_return make<clift::ScalarTupleType>(ModelType.ID(), "", Elements);
+    std::string TypeName;
+    {
+      llvm::raw_string_ostream Out(TypeName);
+      Out << "register_set_" << ModelType.ID();
+    }
+
+    auto Attr = make<clift::StructTypeAttr>(getRegisterSetLocation(ModelType),
+                                            TypeName,
+                                            Offset,
+                                            Elements);
+
+    rc_return make<clift::DefinedType>(Attr, getBool(false));
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
@@ -266,18 +290,20 @@ private:
       ReturnType = rc_recur fromType(*ModelType.ReturnValues().begin()->Type());
       break;
 
-    default:
-      ReturnType = make<clift::ScalarTupleType>(ModelType.ID());
-      {
-        const auto R = IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
-        revng_assert(R.second && "Scalar tuple types are only visited once.");
-      }
-      break;
+    default: {
+      auto
+        Attr = make<clift::StructTypeAttr>(getRegisterSetLocation(ModelType));
+
+      ReturnType = make<clift::DefinedType>(Attr, getBool(false));
+
+      const auto R = IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
+      revng_assert(R.second && "Register set types are only visited once.");
+    } break;
     }
     if (not ReturnType)
       rc_return nullptr;
 
-    rc_return make<clift::FunctionTypeAttr>(ModelType.ID(),
+    rc_return make<clift::FunctionTypeAttr>(getHandle(ModelType),
                                             NameBuilder.name(ModelType),
                                             ReturnType,
                                             ArgumentTypes);
@@ -287,7 +313,7 @@ private:
   getTypeAttribute(const model::StructDefinition &ModelType,
                    const bool RequireComplete) {
     if (not RequireComplete) {
-      const auto T = clift::StructTypeAttr::get(Context, ModelType.ID());
+      const auto T = clift::StructTypeAttr::get(Context, getHandle(ModelType));
       if (not T.isDefinition())
         IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       rc_return T;
@@ -318,7 +344,7 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::StructTypeAttr>(ModelType.ID(),
+    rc_return make<clift::StructTypeAttr>(getHandle(ModelType),
                                           NameBuilder.name(ModelType),
                                           ModelType.Size(),
                                           Fields);
@@ -343,7 +369,7 @@ private:
                                                   RequireComplete);
     if (not UnderlyingType)
       rc_return nullptr;
-    rc_return make<clift::TypedefTypeAttr>(ModelType.ID(),
+    rc_return make<clift::TypedefTypeAttr>(getHandle(ModelType),
                                            NameBuilder.name(ModelType),
                                            UnderlyingType);
   }
@@ -352,7 +378,7 @@ private:
   getTypeAttribute(const model::UnionDefinition &ModelType,
                    const bool RequireComplete) {
     if (not RequireComplete) {
-      const auto T = clift::UnionTypeAttr::get(Context, ModelType.ID());
+      const auto T = clift::UnionTypeAttr::get(Context, getHandle(ModelType));
       if (not T.isDefinition())
         IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       rc_return T;
@@ -383,7 +409,7 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::UnionTypeAttr>(ModelType.ID(),
+    rc_return make<clift::UnionTypeAttr>(getHandle(ModelType),
                                          NameBuilder.name(ModelType),
                                          Fields);
   }
@@ -488,7 +514,7 @@ private:
       clift::ValueType CompleteType;
       if (const auto
             RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&ModelType)) {
-        CompleteType = getScalarTupleType(*RFT);
+        CompleteType = getRegisterSetType(*RFT);
       } else {
         CompleteType = fromTypeDefinition(ModelType,
                                           /* RequireComplete = */ true);

@@ -4,12 +4,11 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!int32_t = !clift.primitive<SignedKind 4>
+!int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.function<id = 1,
-                                    name = "",
-                                    return_type = !int32_t,
-                                    argument_types = []>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1-CABIFunctionDefinition" : !int32_t()
+>>
 
 clift.module {
   clift.func @f<!f>() {

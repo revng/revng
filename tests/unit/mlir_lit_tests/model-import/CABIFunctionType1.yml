@@ -5,13 +5,14 @@
 
 Architecture: x86_64
 TypeDefinitions:
-  # CHECK: #my_function1$def = #clift.function<
-  # CHECK:   id = 1001
-  # CHECK:   name = "my_function1"
-  # CHECK:   return_type = !void
-  # CHECK:   argument_types = []
+  # CHECK: #my_function1$def = #clift.func<
+  # CHECK:   "/type-definition/1001-CABIFunctionDefinition"
+  # CHECK:   as "my_function1"
+  # CHECK:   : !void()
   # CHECK: >
-  # CHECK: !my_function1_ = !clift.defined<#my_function1$def>
+  # CHECK: !my_function1_ = !clift.defined<
+  # CHECK:   #my_function1$def
+  # CHECK: >
   - ID: 1001
     Kind: CABIFunctionDefinition
     CustomName: "my_function1"

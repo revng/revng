@@ -138,6 +138,24 @@ TypeDefinitions:
           PrimitiveKind: Signed
           Size: 4
 
+  - ID: 2006
+    Kind: StructDefinition
+    CustomName: "my_pair"
+    Size: 8
+    Fields:
+      - Offset: 0
+        CustomName: "a"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+      - Offset: 4
+        CustomName: "b"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+
 Functions:
   - Entry: "0x40001001:Code_x86_64"
     CustomName: "fun_0x40001001"

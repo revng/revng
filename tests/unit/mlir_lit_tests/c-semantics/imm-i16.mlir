@@ -4,13 +4,12 @@
 
 // RUN: not %revngcliftopt --verify-c %s 2>&1 | FileCheck %s
 
-!int16_t = !clift.primitive<SignedKind 2>
+!void = !clift.primitive<void 0>
+!int16_t = !clift.primitive<signed 2>
 
-!f = !clift.defined<#clift.function<
-  id = 1001,
-  name = "",
-  return_type = !clift.primitive<VoidKind 0>,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1001-CABIFunctionDefinition" : !void()
+>>
 
 clift.module {
   clift.func @f<!f>() {

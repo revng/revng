@@ -7,7 +7,9 @@
 #include <map>
 
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 
 #include "mlir/IR/OpImplementation.h"
 
@@ -16,7 +18,7 @@
 
 namespace mlir::clift {
 
-std::map<uint64_t, void *> &getAsmRecursionMap();
+llvm::SmallPtrSet<void *, 8> &getAsmRecursionMap();
 
 template<typename ObjectT>
 concept hasExplicitSize = requires(const typename ObjectT::ImplType::KeyTy
@@ -24,14 +26,13 @@ concept hasExplicitSize = requires(const typename ObjectT::ImplType::KeyTy
 
 template<typename ObjectT>
 void printCompositeType(AsmPrinter &Printer, ObjectT Object) {
-  const uint64_t ID = Object.getImpl()->getID();
-
   Printer << Object.getMnemonic();
-  Printer << "<id = ";
-  Printer << ID;
+  Printer << '<' << '\"';
+  llvm::printEscapedString(Object.getImpl()->getHandle(), Printer.getStream());
+  Printer << '\"';
 
   auto &RecursionMap = getAsmRecursionMap();
-  const auto [Iterator, Inserted] = RecursionMap.try_emplace(ID);
+  const auto [Iterator, Inserted] = RecursionMap.insert(Object.getImpl());
 
   if (not Inserted) {
     Printer << ">";
@@ -39,144 +40,176 @@ void printCompositeType(AsmPrinter &Printer, ObjectT Object) {
   }
 
   const auto EraseGuard = llvm::make_scope_exit([&]() {
-    RecursionMap.erase(Iterator);
+    RecursionMap.erase(Object.getImpl());
   });
 
-  Printer << ", name = ";
-  Printer << "\"" << Object.getName() << "\"";
-
-  if constexpr (hasExplicitSize<ObjectT>) {
-    Printer << ", ";
-    Printer.printKeywordOrString("size");
-    Printer << " = ";
-    Printer << Object.getByteSize();
+  if (llvm::StringRef Name = Object.getName(); not Name.empty()) {
+    Printer << " as \"";
+    llvm::printEscapedString(Name, Printer.getStream());
+    Printer << "\"";
   }
 
-  Printer << ", fields = [";
-  Printer.printStrippedAttrOrType(Object.getImpl()->getSubobjects());
-  Printer << "]>";
+  Printer << " : ";
+  if constexpr (hasExplicitSize<ObjectT>) {
+    Printer << "size(" << Object.getByteSize() << ") ";
+  }
+
+  Printer << '{';
+  for (auto [I, S] : llvm::enumerate(Object.getImpl()->getSubobjects())) {
+    bool PrintColon = false;
+
+    if (I != 0)
+      Printer << ", ";
+
+    if constexpr (hasExplicitSize<ObjectT>) {
+      Printer << "offset(" << S.getOffset() << ") ";
+      PrintColon = true;
+    }
+
+    if (llvm::StringRef Name = S.getName(); not Name.empty()) {
+      if constexpr (hasExplicitSize<ObjectT>) {
+        Printer << " as ";
+      }
+
+      Printer << "\"";
+      llvm::printEscapedString(Name, Printer.getStream());
+      Printer << "\" ";
+      PrintColon = true;
+    }
+
+    if (PrintColon)
+      Printer << ": ";
+
+    Printer << S.getType();
+  }
+  Printer << '}' << '>';
 }
 
 template<typename ObjectT>
 ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
-  const auto OnUnexpectedToken = [&](const llvm::StringRef Name) -> ObjectT {
-    Parser.emitError(Parser.getCurrentLocation(),
-                     "Expected " + Name + " while parsing mlir "
-                       + ObjectT::getMnemonic() + "type");
+  auto ObjectLoc = Parser.getCurrentLocation();
+
+  if (Parser.parseLess().failed())
     return {};
-  };
 
-  if (Parser.parseLess())
-    return OnUnexpectedToken("<");
+  std::string Handle;
+  if (Parser.parseString(&Handle).failed())
+    return {};
 
-  if (Parser.parseKeyword("id").failed())
-    return OnUnexpectedToken("keyword 'id'");
-
-  if (Parser.parseEqual().failed())
-    return OnUnexpectedToken("=");
-
-  uint64_t ID;
-  if (Parser.parseInteger(ID).failed())
-    return OnUnexpectedToken("<integer>");
+  ObjectT Object = ObjectT::get(Parser.getContext(), Handle);
 
   auto &RecursionMap = getAsmRecursionMap();
-  const auto [Iterator, Inserted] = RecursionMap.try_emplace(ID);
+  const auto [Iterator, Inserted] = RecursionMap.insert(Object.getImpl());
 
   if (not Inserted) {
-    revng_assert(Iterator->second != nullptr);
-
     if (Parser.parseGreater().failed())
-      return OnUnexpectedToken(">");
+      return {};
 
-    return ObjectT(static_cast<typename ObjectT::ImplType *>(Iterator->second));
+    return Object;
   }
 
   const auto EraseGuard = llvm::make_scope_exit([&]() {
-    RecursionMap.erase(Iterator);
+    RecursionMap.erase(Object.getImpl());
   });
 
-  if (Parser.parseComma().failed())
-    return OnUnexpectedToken(",");
+  std::string Name;
+  if (Parser.parseOptionalKeyword("as").succeeded()) {
+    if (Parser.parseString(&Name).failed())
+      return {};
+  }
 
-  if (Parser.parseKeyword("name").failed())
-    return OnUnexpectedToken("keyword 'name'");
-
-  if (Parser.parseEqual().failed())
-    return OnUnexpectedToken("=");
-
-  std::string OptionalName = "";
-  if (Parser.parseOptionalString(&OptionalName).failed())
-    return OnUnexpectedToken("<string>");
+  if (Parser.parseColon().failed())
+    return {};
 
   uint64_t Size;
   if constexpr (hasExplicitSize<ObjectT>) {
-    if (Parser.parseComma().failed())
-      return OnUnexpectedToken(",");
-
     if (Parser.parseKeyword("size").failed())
-      return OnUnexpectedToken("keyword 'size'");
+      return {};
 
-    if (Parser.parseEqual().failed())
-      return OnUnexpectedToken("=");
+    if (Parser.parseLParen().failed())
+      return {};
 
     if (Parser.parseInteger(Size).failed())
-      return OnUnexpectedToken("<uint64_t>");
+      return {};
+
+    if (Parser.parseRParen().failed())
+      return {};
   }
 
-  if (Parser.parseComma().failed())
-    return OnUnexpectedToken(",");
+  llvm::SmallVector<FieldAttr> Fields;
+  auto ParseField = [&]() -> ParseResult {
+    auto FieldLoc = Parser.getCurrentLocation();
+    bool ParseColon = false;
 
-  if (Parser.parseKeyword("fields").failed())
-    return OnUnexpectedToken("keyword 'fields'");
+    uint64_t Offset = 0;
+    std::string Name;
 
-  if (Parser.parseEqual().failed())
-    return OnUnexpectedToken("=");
+    if constexpr (hasExplicitSize<ObjectT>) {
+      if (Parser.parseKeyword("offset").failed())
+        return {};
 
-  if (Parser.parseLSquare().failed())
-    return OnUnexpectedToken("[");
+      if (Parser.parseLParen().failed())
+        return {};
 
-  revng_assert(Iterator->second == nullptr);
-  ObjectT Object = ObjectT::get(Parser.getContext(), ID);
-  Iterator->second = Object.getImpl();
+      if (Parser.parseInteger(Offset).failed())
+        return mlir::failure();
 
-  using SubobjectType = typename ObjectT::ImplType::SubobjectTy;
-  using SubobjectVectorType = llvm::SmallVector<SubobjectType>;
-  using SubobjectParserType = mlir::FieldParser<SubobjectVectorType>;
-  mlir::FailureOr<SubobjectVectorType> Subobjects(SubobjectVectorType{});
+      if (Parser.parseRParen().failed())
+        return {};
 
-  if (MinSubobjects > 0 or Parser.parseOptionalRSquare().failed()) {
-    Subobjects = SubobjectParserType::parse(Parser);
+      if (Parser.parseOptionalKeyword("as").succeeded()) {
+        if (Parser.parseString(&Name).failed())
+          return {};
+      }
 
-    if (mlir::failed(Subobjects)) {
-      Parser.emitError(Parser.getCurrentLocation(),
-                       "in type with ID " + std::to_string(ID)
-                         + ": failed to parse class type parameter 'fields' "
-                           "which is to be a "
-                           "`llvm::ArrayRef<mlir::clift::FieldAttr>`");
-      return {};
+      ParseColon = true;
+    } else {
+      if (Parser.parseOptionalString(&Name).succeeded())
+        ParseColon = true;
     }
 
-    if (Subobjects->size() < MinSubobjects) {
-      Parser.emitError(Parser.getCurrentLocation(),
-                       llvm::Twine(ObjectT::getMnemonic())
-                         + " requires at least " + llvm::Twine(MinSubobjects)
-                         + " fields");
-      return {};
-    }
+    if (ParseColon and Parser.parseColon().failed())
+      return mlir::failure();
 
-    if (Parser.parseRSquare().failed())
-      return OnUnexpectedToken("]");
-  }
+    clift::ValueType Type;
+    if (Parser.parseType(Type).failed())
+      return mlir::failure();
+
+    auto EmitError = [&] { return Parser.emitError(FieldLoc); };
+    if (FieldAttr::verify(EmitError, Offset, Type, Name).failed())
+      return mlir::failure();
+
+    Fields.push_back(FieldAttr::get(Parser.getContext(),
+                                    Offset,
+                                    Type,
+                                    std::move(Name)));
+
+    return mlir::success();
+  };
+
+  if (Parser
+        .parseCommaSeparatedList(OpAsmParser::Delimiter::Braces,
+                                 ParseField,
+                                 " in field list")
+        .failed())
+    return {};
 
   if (Parser.parseGreater().failed())
-    return OnUnexpectedToken(">");
+    return {};
+
+  auto DefineObject = [&](auto &&...Args) -> ObjectT {
+    auto EmitError = [&] { return Parser.emitError(ObjectLoc); };
+    if (ObjectT::verify(EmitError, Handle, std::as_const(Args)...).failed())
+      return {};
+
+    Object.define(std::forward<decltype(Args)>(Args)...);
+    return Object;
+  };
 
   if constexpr (hasExplicitSize<ObjectT>)
-    Object.define(OptionalName, Size, *Subobjects);
+    return DefineObject(std::move(Name), Size, std::move(Fields));
   else
-    Object.define(OptionalName, *Subobjects);
-
-  return Object;
+    return DefineObject(std::move(Name), std::move(Fields));
 }
 
 } // namespace mlir::clift

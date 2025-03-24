@@ -4,8 +4,8 @@
 
 // RUN: %revngcliftopt %s
 
-!int32_t = !clift.primitive<SignedKind 4>
-!int32_t$ptr = !clift.pointer<pointee_type = !int32_t, pointer_size = 8>
+!int32_t = !clift.primitive<signed 4>
+!int32_t$ptr = !clift.ptr<8 to !int32_t>
 
 %0 = clift.undef : !int32_t$ptr
 %1 = clift.indirection %0 : !int32_t$ptr

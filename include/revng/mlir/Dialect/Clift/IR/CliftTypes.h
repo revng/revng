@@ -38,6 +38,20 @@ TypedefDecomposition decomposeTypedef(ValueType Type);
 /// to the returned type. Otherwise such qualifiers are ignored.
 ValueType dealias(ValueType Type, bool IgnoreQualifiers = false);
 
+/// Remove top-level qualification from the given type, if it is a Clift value
+/// type. Otherwise returns the type unchanged.
+mlir::Type removeConst(mlir::Type Type);
+
+/// Remove top-level qualification from the given type, if it is a Clift value
+/// type. Otherwise returns the type unchanged.
+template<typename TypeT>
+TypeT removeConst(TypeT Type) {
+  return mlir::cast<TypeT>(removeConst(static_cast<mlir::Type>(Type)));
+}
+
+/// Determine if the two types are equivalent, ignoring Clift qualifiers.
+bool equivalent(mlir::Type Lhs, mlir::Type Rhs);
+
 /// Determine if the type is non-const. This is different from
 /// `not Type.isConst()` in that the latter returns false for a typedef naming
 /// a const-qualified type.
@@ -79,6 +93,10 @@ bool isPrimitiveIntegerType(ValueType Type);
 /// Determine if the type is an integer type. @see getUnderlyingIntegerType for
 /// a breakdown of the set of integer types.
 bool isIntegerType(ValueType Type);
+
+/// Determine if the type is a floating point type, or a typedef naming such a
+/// type, ignoring qualifiers.
+bool isFloatType(ValueType Type);
 
 /// Determine if the type is a pointer type. This includes pointers to objects
 /// as well as pointers to functions. Qualifiers are ignored.
@@ -130,77 +148,24 @@ bool isCallableType(ValueType Type);
 /// Qualifiers are ignored.
 bool isReturnableType(ValueType Type);
 
-struct ScalarTupleTypeStorage;
+/// Get the underlying non-typedef type definition attribute, if any.
+TypeDefinitionAttr getTypeDefinitionAttr(mlir::Type Type);
 
-/// Scalar tuples are used to represent the multiple register return values of
-/// raw function types. They are much like structs, but permit only scalar
-/// element types and have no explicit offsets for their elements.
-///
-/// The scalar tuple type is intended as a temporary solution to be replaced in
-/// the future by auto-generated struct types.
-class ScalarTupleType : public Type::TypeBase<ScalarTupleType,
-                                              Type,
-                                              ScalarTupleTypeStorage,
-                                              ValueType::Trait,
-                                              SubElementTypeInterface::Trait,
-                                              AliasableType::Trait,
-                                              TypeTrait::IsMutable> {
-public:
-  static constexpr llvm::StringLiteral getMnemonic() { return { "tuple" }; }
+/// Get the underlying non-typedef type definition attribute of the specified
+/// type, if any.
+template<typename AttrT>
+AttrT getTypeDefinitionAttr(mlir::Type Type) {
+  return mlir::dyn_cast_or_null<AttrT>(getTypeDefinitionAttr(Type));
+}
 
-  using Base::Base;
+/// Get the underlying function type definition attribute, if any.
+inline FunctionTypeAttr getFunctionTypeAttr(mlir::Type Type) {
+  return getTypeDefinitionAttr<FunctionTypeAttr>(Type);
+}
 
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              uint64_t ID);
-
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              uint64_t ID,
-                              llvm::StringRef Name,
-                              llvm::ArrayRef<ScalarTupleElementAttr> Elements);
-
-  static ScalarTupleType get(MLIRContext *Context, uint64_t ID);
-
-  static ScalarTupleType
-  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *Context,
-             uint64_t ID);
-
-  static ScalarTupleType get(MLIRContext *Context,
-                             uint64_t ID,
-                             llvm::StringRef Name,
-                             llvm::ArrayRef<ScalarTupleElementAttr> Elements);
-
-  static ScalarTupleType
-  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *Context,
-             uint64_t ID,
-             llvm::StringRef Name,
-             llvm::ArrayRef<ScalarTupleElementAttr> Elements);
-
-  void define(llvm::StringRef Name,
-              llvm::ArrayRef<ScalarTupleElementAttr> Elements);
-
-  [[nodiscard]] uint64_t getId() const;
-  [[nodiscard]] llvm::StringRef getName() const;
-  [[nodiscard]] llvm::ArrayRef<ScalarTupleElementAttr> getElements() const;
-
-  [[nodiscard]] bool isComplete() const;
-  [[nodiscard]] uint64_t getByteSize() const;
-  [[nodiscard]] bool getAlias(llvm::raw_ostream &OS) const;
-  [[nodiscard]] BoolAttr getIsConst() const;
-
-  // ScalarTupleType does not support const. That is because it is only used as
-  // a return type, and const return types do not make sense.
-  [[nodiscard]] clift::ValueType addConst() const { return *this; }
-  [[nodiscard]] clift::ValueType removeConst() const { return *this; }
-
-  static Type parse(AsmParser &Parser);
-  void print(AsmPrinter &Printer) const;
-
-  void walkImmediateSubElements(function_ref<void(Attribute)> WalkAttr,
-                                function_ref<void(Type)> WalkType) const;
-  Type replaceImmediateSubElements(ArrayRef<Attribute> NewAttrs,
-                                   ArrayRef<Type> NewTypes) const;
-};
+/// If the type, after unwrapping typedefs, is a function type or a pointer to a
+/// function type, returns the underlying function definition attribute of that
+/// function type.
+FunctionTypeAttr getFunctionOrFunctionPointerTypeAttr(mlir::Type Type);
 
 } // namespace mlir::clift

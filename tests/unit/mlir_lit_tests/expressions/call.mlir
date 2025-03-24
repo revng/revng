@@ -4,24 +4,21 @@
 
 // RUN: %revngcliftopt %s
 
-!void = !clift.primitive<VoidKind 0>
-!int32_t = !clift.primitive<SignedKind 4>
-!int32_t$const = !clift.primitive<is_const = true, SignedKind 4>
+!void = !clift.primitive<void 0>
+!int32_t = !clift.primitive<signed 4>
+!int32_t$const = !clift.primitive<const signed 4>
 
-!f = !clift.defined<#clift.function<id = 1,
-                                    name = "",
-                                    return_type = !void,
-                                    argument_types = []>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1-CABIFunctionDefinition" : !void()
+>>
 
-!g = !clift.defined<#clift.function<id = 2,
-                                    name = "",
-                                    return_type = !void,
-                                    argument_types = [!int32_t]>>
+!g = !clift.defined<#clift.func<
+  "/type-definition/2-CABIFunctionDefinition" : !void(!int32_t)
+>>
 
-!h = !clift.defined<#clift.function<id = 3,
-                                    name = "",
-                                    return_type = !void,
-                                    argument_types = [!int32_t$const]>>
+!h = !clift.defined<#clift.func<
+  "/type-definition/3-CABIFunctionDefinition" : !void(!int32_t$const)
+>>
 
 %mi = clift.undef : !int32_t
 %ci = clift.undef : !int32_t$const
@@ -30,9 +27,9 @@
 %h = clift.undef : !h
 
 clift.call %g(%mi) : !g
-clift.call %g(%mi) : !g as (!int32_t)
-clift.call %g(%ci) : !g as (!int32_t$const)
+clift.call %g(%mi : !int32_t) : !g
+clift.call %g(%ci : !int32_t$const) : !g
 
 clift.call %h(%mi) : !h
-clift.call %h(%mi) : !h as (!int32_t)
-clift.call %h(%ci) : !h as (!int32_t$const)
+clift.call %h(%mi : !int32_t) : !h
+clift.call %h(%ci : !int32_t$const) : !h

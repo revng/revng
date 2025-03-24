@@ -4,22 +4,16 @@
 
 // RUN: %revngcliftopt %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
-!int32_t = !clift.primitive<SignedKind 4>
-!float = !clift.primitive<FloatKind 4>
-!pointer = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
+!int32_t = !clift.primitive<signed 4>
+!float = !clift.primitive<float 4>
+!pointer = !clift.ptr<8 to !int32_t>
 
 !enum = !clift.defined<#clift.enum<
-  id = 1,
-  name = "",
-  underlying_type = !int32_t,
-  fields = [
-    <
-      raw_value = 0,
-      name = ""
-    >
-  ]
+  "/type-definition/1-EnumDefinition" : !int32_t {
+    0
+  }
 >>
 
 clift.for {} {

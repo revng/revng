@@ -6,6 +6,9 @@
 
 #include "mlir/IR/OpDefinition.h"
 
+#include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
+
+// This comment prevents reordering this include before the others.
 #include "revng/mlir/Dialect/Clift/IR/CliftOpInterfaces.h.inc"
 
 namespace mlir::clift {

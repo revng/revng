@@ -4,8 +4,8 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!int32_t = !clift.primitive<SignedKind 4>
-!array = !clift.array<element_type = !int32_t, elements_count = 1>
+!int32_t = !clift.primitive<signed 4>
+!array = !clift.array<1 x !int32_t>
 
 // CHECK: requires void or non-array object type
 clift.return {

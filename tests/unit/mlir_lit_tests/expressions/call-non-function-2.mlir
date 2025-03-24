@@ -4,8 +4,8 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!void = !clift.primitive<VoidKind 0>
-!int32_t = !clift.primitive<SignedKind 4>
+!void = !clift.primitive<void 0>
+!int32_t = !clift.primitive<signed 4>
 
 %i = clift.undef : !int32_t
 

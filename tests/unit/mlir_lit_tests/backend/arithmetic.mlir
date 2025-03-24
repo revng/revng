@@ -4,21 +4,25 @@
 
 // RUN: %revngcliftopt %s --emit-c="tagless model=%S/model.yml" -o /dev/null | FileCheck %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
-!int32_t = !clift.primitive<SignedKind 4>
+!int32_t = !clift.primitive<signed 4>
+!int32_t$ptr = !clift.ptr<8 to !int32_t>
 
-!f = !clift.defined<#clift.function<
-  id = 1001,
-  name = "",
-  return_type = !void,
-  argument_types = []>>
+!ptrdiff_t = !clift.primitive<signed 8>
+
+!f = !clift.defined<#clift.func<
+  "/type-definition/1001-CABIFunctionDefinition" : !void()
+>>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {
   clift.func @f<!f>() attributes {
-    unique_handle = "/function/0x40001001:Code_x86_64"
+    handle = "/function/0x40001001:Code_x86_64"
   } {
+    %v0 = clift.local !int32_t "a"
+    %v1 = clift.local !int32_t "b"
+
     // (0 + 1 - 2) * 3 / 4 % 5;
     clift.expr {
       %0 = clift.imm 0 : !int32_t
@@ -71,6 +75,26 @@ clift.module {
       %e = clift.add %d, %5 : !int32_t
 
       clift.yield %e : !int32_t
+    }
+
+    // CHECK: &_var_0 + (&_var_1 - &_var_0);
+    clift.expr {
+      %0 = clift.addressof %v0 : !int32_t$ptr
+      %1 = clift.addressof %v1 : !int32_t$ptr
+      %2 = clift.ptr_diff %1, %0 : !int32_t$ptr -> !ptrdiff_t
+      %4 = clift.addressof %v0 : !int32_t$ptr
+      %3 = clift.ptr_add %4, %2 : (!int32_t$ptr, !ptrdiff_t)
+      clift.yield %3 : !int32_t$ptr
+    }
+
+    // CHECK: &_var_1 - (&_var_1 - &_var_0);
+    clift.expr {
+      %0 = clift.addressof %v0 : !int32_t$ptr
+      %1 = clift.addressof %v1 : !int32_t$ptr
+      %2 = clift.ptr_diff %1, %0 : !int32_t$ptr -> !ptrdiff_t
+      %4 = clift.addressof %v1 : !int32_t$ptr
+      %3 = clift.ptr_sub %4, %2 : (!int32_t$ptr, !ptrdiff_t)
+      clift.yield %3 : !int32_t$ptr
     }
   }
   // CHECK: }

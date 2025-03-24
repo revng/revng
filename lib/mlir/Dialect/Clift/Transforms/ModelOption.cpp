@@ -15,9 +15,11 @@ bool ParserType::parse(llvm::cl::Option &O,
                        ModelOptionType &Value) {
   auto MaybeModel = TupleTreeType::fromFile(ArgValue);
 
-  if (not MaybeModel) {
+  if (not MaybeModel)
     return O.error("Failed to parse model: " + consumeToString(MaybeModel));
-  }
+
+  if (not MaybeModel->verify())
+    return O.error("Failed to verify model");
 
   auto Shared = std::make_shared<TupleTreeType>(std::move(*MaybeModel));
   Value = ModelOptionType(std::move(Shared), Shared->get());

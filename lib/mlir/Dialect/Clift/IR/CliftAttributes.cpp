@@ -21,6 +21,71 @@
 #include "CliftParser.h"
 #include "CliftStorage.h"
 
+namespace mlir {
+
+static ParseResult parseCliftDebugName(AsmParser &Parser, std::string &Name) {
+  if (Parser.parseOptionalKeyword("as").succeeded()) {
+    if (Parser.parseString(&Name).failed())
+      return mlir::failure();
+  }
+  return mlir::success();
+}
+
+static void printCliftDebugName(AsmPrinter &Printer, llvm::StringRef Name) {
+  if (not Name.empty()) {
+    Printer << "as \"";
+    llvm::printEscapedString(Name, Printer.getStream());
+    Printer << "\"";
+  }
+}
+
+static ParseResult
+parseCliftEnumerators(AsmParser &Parser,
+                      llvm::SmallVector<clift::EnumFieldAttr> &Enumerators) {
+  auto ParseEnumerator = [&]() -> ParseResult {
+    uint64_t Value;
+    if (Parser.parseInteger(Value).failed())
+      return mlir::failure();
+
+    std::string Name;
+    if (Parser.parseOptionalKeyword("as").succeeded()) {
+      if (Parser.parseString(&Name).failed())
+        return mlir::failure();
+    }
+
+    Enumerators.push_back(clift::EnumFieldAttr::get(Parser.getContext(),
+                                                    Value,
+                                                    std::move(Name)));
+
+    return mlir::success();
+  };
+
+  return Parser.parseCommaSeparatedList(mlir::AsmParser::Delimiter::Braces,
+                                        ParseEnumerator,
+                                        " in enumerator list");
+}
+
+static void
+printCliftEnumerators(AsmPrinter &Printer,
+                      llvm::ArrayRef<clift::EnumFieldAttr> Enumerators) {
+  Printer << '{';
+  for (auto [I, E] : llvm::enumerate(Enumerators)) {
+    if (I != 0)
+      Printer << ", ";
+
+    Printer << E.getRawValue();
+
+    if (llvm::StringRef Name = E.getName(); not Name.empty()) {
+      Printer << " as \"";
+      llvm::printEscapedString(Name, Printer.getStream());
+      Printer << "\"";
+    }
+  }
+  Printer << '}';
+}
+
+} // namespace mlir
+
 // This include should stay here for correct build procedure
 //
 #define GET_ATTRDEF_CLASSES
@@ -103,16 +168,51 @@ mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
 
 //===---------------------------- EnumTypeAttr ----------------------------===//
 
+static bool getTypeDefinitionAliasImpl(TypeDefinitionAttr Type,
+                                       llvm::StringRef Kind,
+                                       llvm::raw_ostream &OS) {
+  auto IsIdentifierChar = [](char const X) {
+    if (X == '_')
+      return true;
+    if ('a' <= X and X <= 'z')
+      return true;
+    if ('A' <= X and X <= 'Z')
+      return true;
+    if ('0' <= X and X <= '9')
+      return true;
+    return false;
+  };
+
+  if (not Type.name().empty()) {
+    OS << Type.name();
+  } else if (not Type.getHandle().empty()) {
+    for (char C : Type.getHandle())
+      OS << (IsIdentifierChar(C) ? C : '_');
+  } else {
+    OS << Kind;
+  }
+
+  return true;
+}
+
+static bool getAliasImpl(TypeDefinitionAttr Type, llvm::raw_ostream &OS) {
+  if (not Type.getTypeDefinitionAlias(OS))
+    return false;
+  OS << "$def";
+  return true;
+}
+
 mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType EmitError,
-                                         uint64_t ID,
+                                         llvm::StringRef Handle,
                                          llvm::StringRef Name,
                                          clift::ValueType UnderlyingType,
                                          llvm::ArrayRef<EnumFieldAttr> Fields) {
-  UnderlyingType = dealias(UnderlyingType);
+  auto [DealiasedType, HasConst] = decomposeTypedef(UnderlyingType);
 
-  auto PrimitiveType = mlir::dyn_cast<clift::PrimitiveType>(UnderlyingType);
-  if (not PrimitiveType)
-    return EmitError() << "Underlying type of enum must be a primitive type";
+  auto PrimitiveType = mlir::dyn_cast<clift::PrimitiveType>(DealiasedType);
+  if (not PrimitiveType or HasConst or PrimitiveType.isConst())
+    return EmitError() << "Underlying type of enum must be a non-const "
+                          "primitive type";
 
   const uint64_t BitWidth = PrimitiveType.getSize() * 8;
 
@@ -188,17 +288,18 @@ uint64_t EnumTypeAttr::getByteSize() const {
   return mlir::cast<PrimitiveType>(getUnderlyingType()).getSize();
 }
 
+bool EnumTypeAttr::getTypeDefinitionAlias(llvm::raw_ostream &OS) const {
+  return getTypeDefinitionAliasImpl(*this, "enum", OS);
+}
+
 bool EnumTypeAttr::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$def";
-  return true;
+  return getAliasImpl(*this, OS);
 }
 
 //===--------------------------- TypedefTypeAttr --------------------------===//
 
 mlir::LogicalResult TypedefTypeAttr::verify(EmitErrorType EmitError,
-                                            uint64_t ID,
+                                            llvm::StringRef Handle,
                                             llvm::StringRef Name,
                                             clift::ValueType UnderlyingType) {
   return mlir::success();
@@ -208,17 +309,18 @@ uint64_t TypedefTypeAttr::getByteSize() const {
   return getUnderlyingType().getByteSize();
 }
 
+bool TypedefTypeAttr::getTypeDefinitionAlias(llvm::raw_ostream &OS) const {
+  return getTypeDefinitionAliasImpl(*this, "typedef", OS);
+}
+
 bool TypedefTypeAttr::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$def";
-  return true;
+  return getAliasImpl(*this, OS);
 }
 
 //===-------------------------- FunctionTypeAttr --------------------------===//
 
 mlir::LogicalResult FunctionTypeAttr::verify(EmitErrorType EmitError,
-                                             uint64_t ID,
+                                             llvm::StringRef Handle,
                                              llvm::StringRef Name,
                                              mlir::Type ReturnType,
                                              llvm::ArrayRef<mlir::Type> Args) {
@@ -246,7 +348,7 @@ mlir::LogicalResult FunctionTypeAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult
 FunctionTypeAttr::verify(EmitErrorType EmitError,
-                         uint64_t ID,
+                         llvm::StringRef Handle,
                          llvm::StringRef Name,
                          clift::ValueType ReturnType,
                          llvm::ArrayRef<clift::ValueType> Args) {
@@ -261,39 +363,28 @@ uint64_t FunctionTypeAttr::getByteSize() const {
   return 0;
 }
 
+bool FunctionTypeAttr::getTypeDefinitionAlias(llvm::raw_ostream &OS) const {
+  return getTypeDefinitionAliasImpl(*this, "function", OS);
+}
+
 bool FunctionTypeAttr::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$def";
-  return true;
+  return getAliasImpl(*this, OS);
 }
 
 llvm::ArrayRef<mlir::Type> FunctionTypeAttr::getResultTypes() {
   return ArrayRef<Type>(getImpl()->return_type);
 }
 
-//===----------------------- ScalarTupleElementAttr -----------------------===//
-
-mlir::LogicalResult
-ScalarTupleElementAttr::verify(const EmitErrorType EmitError,
-                               clift::ValueType Type,
-                               const llvm::StringRef Name) {
-  if (not isScalarType(Type))
-    return EmitError() << "Scalar tuple element types must be scalar types.";
-
-  return mlir::success();
-}
-
 //===--------------------------- StructTypeAttr ---------------------------===//
 
 mlir::LogicalResult StructTypeAttr::verify(EmitErrorType EmitError,
-                                           uint64_t ID) {
+                                           llvm::StringRef Handle) {
   return mlir::success();
 }
 
 mlir::LogicalResult
 StructTypeAttr::verify(const EmitErrorType EmitError,
-                       const uint64_t ID,
+                       const llvm::StringRef Handle,
                        const llvm::StringRef Name,
                        const uint64_t Size,
                        const llvm::ArrayRef<FieldAttr> Fields) {
@@ -326,35 +417,36 @@ StructTypeAttr::verify(const EmitErrorType EmitError,
   return mlir::success();
 }
 
-StructTypeAttr StructTypeAttr::get(MLIRContext *Context, uint64_t ID) {
-  return Base::get(Context, ID);
+StructTypeAttr StructTypeAttr::get(MLIRContext *Context,
+                                   llvm::StringRef Handle) {
+  return Base::get(Context, Handle);
 }
 
 StructTypeAttr StructTypeAttr::getChecked(EmitErrorType EmitError,
                                           MLIRContext *Context,
-                                          uint64_t ID) {
-  return Base::get(Context, ID);
+                                          llvm::StringRef Handle) {
+  return Base::get(Context, Handle);
 }
 
 StructTypeAttr StructTypeAttr::get(MLIRContext *Context,
-                                   uint64_t ID,
+                                   llvm::StringRef Handle,
                                    llvm::StringRef Name,
                                    uint64_t Size,
                                    llvm::ArrayRef<FieldAttr> Fields) {
-  auto Result = Base::get(Context, ID);
+  auto Result = Base::get(Context, Handle);
   Result.define(Name, Size, Fields);
   return Result;
 }
 
 StructTypeAttr StructTypeAttr::getChecked(EmitErrorType EmitError,
                                           MLIRContext *Context,
-                                          uint64_t ID,
+                                          llvm::StringRef Handle,
                                           llvm::StringRef Name,
                                           uint64_t Size,
                                           llvm::ArrayRef<FieldAttr> Fields) {
-  if (failed(verify(EmitError, ID, Name, Size, Fields)))
+  if (failed(verify(EmitError, Handle, Name, Size, Fields)))
     return {};
-  return get(Context, ID, Name, Size, Fields);
+  return get(Context, Handle, Name, Size, Fields);
 }
 
 void StructTypeAttr::define(const llvm::StringRef Name,
@@ -370,8 +462,8 @@ void StructTypeAttr::define(const llvm::StringRef Name,
                   "type");
 }
 
-uint64_t StructTypeAttr::getId() const {
-  return getImpl()->getID();
+llvm::StringRef StructTypeAttr::getHandle() const {
+  return getImpl()->getHandle();
 }
 
 llvm::StringRef StructTypeAttr::getName() const {
@@ -390,11 +482,12 @@ uint64_t StructTypeAttr::getByteSize() const {
   return getImpl()->getSize();
 }
 
+bool StructTypeAttr::getTypeDefinitionAlias(llvm::raw_ostream &OS) const {
+  return getTypeDefinitionAliasImpl(*this, "struct", OS);
+}
+
 bool StructTypeAttr::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$def";
-  return true;
+  return getAliasImpl(*this, OS);
 }
 
 mlir::Attribute StructTypeAttr::parse(AsmParser &Parser) {
@@ -426,12 +519,12 @@ StructTypeAttr::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>,
 //===---------------------------- UnionTypeAttr ---------------------------===//
 
 mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
-                                          uint64_t ID) {
+                                          llvm::StringRef Handle) {
   return mlir::success();
 }
 
 mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
-                                          uint64_t ID,
+                                          llvm::StringRef Handle,
                                           llvm::StringRef Name,
                                           llvm::ArrayRef<FieldAttr> Fields) {
   if (Fields.empty())
@@ -451,33 +544,33 @@ mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context, uint64_t ID) {
-  return Base::get(Context, ID);
+UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context, llvm::StringRef Handle) {
+  return Base::get(Context, Handle);
 }
 
 UnionTypeAttr UnionTypeAttr::getChecked(EmitErrorType EmitError,
                                         MLIRContext *Context,
-                                        uint64_t ID) {
-  return Base::get(Context, ID);
+                                        llvm::StringRef Handle) {
+  return Base::get(Context, Handle);
 }
 
 UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context,
-                                 uint64_t ID,
+                                 llvm::StringRef Handle,
                                  llvm::StringRef Name,
                                  llvm::ArrayRef<FieldAttr> Fields) {
-  auto Result = Base::get(Context, ID);
+  auto Result = Base::get(Context, Handle);
   Result.define(Name, Fields);
   return Result;
 }
 
 UnionTypeAttr UnionTypeAttr::getChecked(EmitErrorType EmitError,
                                         MLIRContext *Context,
-                                        uint64_t ID,
+                                        llvm::StringRef Handle,
                                         llvm::StringRef Name,
                                         llvm::ArrayRef<FieldAttr> Fields) {
-  if (failed(verify(EmitError, ID, Name, Fields)))
+  if (failed(verify(EmitError, Handle, Name, Fields)))
     return {};
-  return get(Context, ID, Name, Fields);
+  return get(Context, Handle, Name, Fields);
 }
 
 void UnionTypeAttr::define(const llvm::StringRef Name,
@@ -492,8 +585,8 @@ void UnionTypeAttr::define(const llvm::StringRef Name,
                   "type");
 }
 
-uint64_t UnionTypeAttr::getId() const {
-  return getImpl()->getID();
+llvm::StringRef UnionTypeAttr::getHandle() const {
+  return getImpl()->getHandle();
 }
 
 llvm::StringRef UnionTypeAttr::getName() const {
@@ -515,11 +608,12 @@ uint64_t UnionTypeAttr::getByteSize() const {
   return Max;
 }
 
+bool UnionTypeAttr::getTypeDefinitionAlias(llvm::raw_ostream &OS) const {
+  return getTypeDefinitionAliasImpl(*this, "union", OS);
+}
+
 bool UnionTypeAttr::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$def";
-  return true;
+  return getAliasImpl(*this, OS);
 }
 
 mlir::Attribute UnionTypeAttr::parse(AsmParser &Parser) {

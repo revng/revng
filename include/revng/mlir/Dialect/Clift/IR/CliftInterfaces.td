@@ -106,11 +106,11 @@ def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
 
   let methods = [
     InterfaceMethod<
-      "the the unique id of the type",
-      "uint64_t", "id", (ins),
+      "The unique handle of the type",
+      "llvm::StringRef", "getHandle", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return $_attr.getId();
+        return $_attr.getHandle();
       }]
     >,
     InterfaceMethod<
@@ -120,6 +120,20 @@ def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
       /*defaultImplemetation=*/[{
         return $_attr.getName();
       }]
+    >,
+    InterfaceMethod<
+      "Writes the alias to OS and returns true if it is non-empty.",
+      "bool", "getAlias", (ins "llvm::raw_ostream &":$OS),
+      /*methodBody=*/[{
+        if (not $_attr.getTypeDefinitionAlias(OS))
+          return false;
+        OS << "$$def";
+        return true;
+      }]
+    >,
+    InterfaceMethod<
+      "Writes the alias to OS and returns true if it is non-empty.",
+      "bool", "getTypeDefinitionAlias", (ins "llvm::raw_ostream &":$OS)
     >,
     InterfaceMethod<
       "returns the size of the type.",

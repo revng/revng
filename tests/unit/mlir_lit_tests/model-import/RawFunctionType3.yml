@@ -16,27 +16,43 @@ TypeDefinitions:
           PrimitiveKind: Unsigned
           Size: 8
 
-    # CHECK: #my_function3$def = #clift.function<
-    # CHECK:   id = 1002
-    # CHECK:   name = "my_function3"
-    # CHECK:   return_type = !clift.tuple<
-    # CHECK:     id = 1002
-    # CHECK:     fields = [
-    # CHECK:       <
-    # CHECK:         type = !uint64_t
+    # CHECK: #register_set_1002$def = #clift.struct<
+    # CHECK:   "/artificial-struct/1002-RawFunctionDefinition"
+    # CHECK:   as "register_set_1002"
+    # CHECK:   : size(16)
+    # CHECK:   {
+    # CHECK:     offset(0)
+    # CHECK:     : !clift.primitive<
+    # CHECK:       unsigned 8
+    # CHECK.     >
+    # CHECK:     offset(8)
+    # CHECK.     : !clift.ptr<
+    # CHECK:       8 to !clift.primitive<
+    # CHECK:         unsigned 8
     # CHECK:       >
-    # CHECK:       <
-    # CHECK:         type = !clift.pointer<pointee_type = !uint64_t, pointer_size = 8>
-    # CHECK:       >
-    # CHECK:     ]
-    # CHECK:   >
-    # CHECK:   argument_types = [
-    # CHECK:     !uint64_t
-    # CHECK:     !clift.pointer<pointee_type = !uint64_t, pointer_size = 8>
-    # CHECK:     !clift.pointer<pointee_type = !my_struct, pointer_size = 8>
-    # CHECK:   ]
+    # CHECK.     >
+    # CHECK:   }
     # CHECK: >
-    # CHECK: !my_function3_ = !clift.defined<#my_function3$def>
+    # CHECK: !register_set_1002_ = !clift.defined<
+    # CHECK:   #register_set_1002$def
+    # CHECK: >
+
+    # CHECK: #my_function3$def = #clift.func<
+    # CHECK:   "/type-definition/1002-RawFunctionDefinition"
+    # CHECK:   as "my_function3"
+    # CHECK:   : !register_set_1002_(
+    # CHECK:     !uint64_t,
+    # CHECK:     !clift.ptr<
+    # CHECK:       8 to !uint64_t
+    # CHECK:     >,
+    # CHECK:     !clift.ptr<
+    # CHECK:       8 to !my_struct
+    # CHECK:     >
+    # CHECK:   )
+    # CHECK: >
+    # CHECK: !my_function3_ = !clift.defined<
+    # CHECK:   #my_function3$def
+    # CHECK: >
   - ID: 1002
     Kind: RawFunctionDefinition
     CustomName: "my_function3"

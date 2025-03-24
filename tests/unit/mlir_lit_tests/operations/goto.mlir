@@ -4,13 +4,11 @@
 
 // RUN: %revngcliftopt %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.function<
-  id = 1,
-  name = "",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1-CABIFunctionDefinition" : !void()
+>>
 
 clift.func @f<!f>() {
   %label = clift.make_label "label"

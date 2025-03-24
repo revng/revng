@@ -4,14 +4,13 @@
 
 // RUN: %revngcliftopt %s
 
-!void = !clift.primitive<VoidKind 0>
-!function = !clift.defined<#clift.function<
-  id = 1000,
-  name = "f",
-  return_type = !void,
-  argument_types = []>>
+!void = !clift.primitive<void 0>
 
-!function$ptr = !clift.pointer<pointee_type = !function, pointer_size = 8>
+!function = !clift.defined<#clift.func<
+  "/type-definition/1000-CABIFunctionDefinition" as "f" : !void()
+>>
+
+!function$ptr = !clift.ptr<8 to !function>
 
 %function = clift.undef : !function
 clift.cast<decay> %function : !function -> !function$ptr

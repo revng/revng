@@ -4,18 +4,17 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!b = !clift.primitive<UnsignedKind 1>
+!b = !clift.primitive<unsigned 1>
 
-!s = !clift.defined<#clift.struct<id = 1,
-                                  name = "",
-                                  size = 1,
-                                  fields = []>>
+!s = !clift.defined<#clift.struct<
+  "/type-definition/1-StructDefinition" : size(1) {}
+>>
 
-!u = !clift.defined<#clift.union<id = 1,
-                                 name = "",
-                                 fields = [<offset = 0, name = "", type = !b>]>>
+!u = !clift.defined<#clift.union<
+  "/type-definition/1-StructDefinition" : { !b }
+>>
 
-// CHECK: two distinct type definitions with the same ID
+// CHECK: two distinct type definitions with the same unique handle: '/type-definition/1-StructDefinition'
 clift.module {
 } {
   s = !s,

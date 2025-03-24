@@ -11,6 +11,19 @@ class Clift_OpInterface<string name> : OpInterface<name> {
   let cppNamespace = "mlir::clift";
 }
 
+def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface"> {
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Returns the type of the global entity.",
+      /*retTy=*/"mlir::clift::ValueType",
+      /*methodName=*/"getType",
+      /*args=*/(ins),
+      /*methodBody*/[{}],
+      /*defaultImplementation=*/ [{}]
+    >,
+  ];
+}
+
 def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
 }
 

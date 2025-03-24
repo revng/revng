@@ -5,20 +5,22 @@
 
 TypeDefinitions:
   # CHECK: #my_struct$def = #clift.struct<
-  # CHECK:   id = 1001
-  # CHECK:   name = "my_struct"
-  # CHECK:   size = 1024
-  # CHECK:   fields = [
-  # CHECK:     <
-  # CHECK:       offset = 0
-  # CHECK:       type = !clift.array<
-  # CHECK:         element_type = !clift.primitive<GenericKind 1>
-  # CHECK:         elements_count = 1024
+  # CHECK:   "/type-definition/1001-StructDefinition"
+  # CHECK:   as "my_struct"
+  # CHECK:   : size(1024)
+  # CHECK:   {
+  # CHECK:     offset(0)
+  # CHECK:     : !clift.array<
+  # CHECK:       1024 x
+  # CHECK:       !clift.primitive<
+  # CHECK:         generic 1
   # CHECK:       >
   # CHECK:     >
-  # CHECK:   ]
+  # CHECK:   }
   # CHECK: >
-  # CHECK: !my_struct = !clift.defined<#my_struct$def>
+  # CHECK: !my_struct = !clift.defined<
+  # CHECK:   #my_struct$def
+  # CHECK: >
   - ID: 1001
     Kind: StructDefinition
     CustomName: "my_struct"

@@ -5,24 +5,23 @@
 
 TypeDefinitions:
   # CHECK: #my_union$def = #clift.union<
-  # CHECK:   id = 1001
-  # CHECK:   name = "my_union"
-  # CHECK:   fields = [
-  # CHECK:     <
-  # CHECK:       offset = 0
-  # CHECK:       type = !clift.primitive<UnsignedKind 1>
+  # CHECK:   "/type-definition/1001-UnionDefinition"
+  # CHECK:   as "my_union"
+  # CHECK:   {
+  # CHECK:     !clift.primitive<
+  # CHECK:       unsigned 1
   # CHECK:     >
-  # CHECK:     <
-  # CHECK:       offset = 0
-  # CHECK:       type = !clift.primitive<UnsignedKind 2>
+  # CHECK:     !clift.primitive<
+  # CHECK:       unsigned 2
   # CHECK:     >
-  # CHECK:     <
-  # CHECK:       offset = 0
-  # CHECK:       type = !clift.primitive<UnsignedKind 4>
+  # CHECK:     !clift.primitive<
+  # CHECK:       unsigned 4
   # CHECK:     >
-  # CHECK:   ]
+  # CHECK:   }
   # CHECK: >
-  # CHECK: !my_union = !clift.defined<#my_union$def>
+  # CHECK: !my_union = !clift.defined<
+  # CHECK:   #my_union$def
+  # CHECK: >
   - ID: 1001
     Kind: UnionDefinition
     CustomName: "my_union"

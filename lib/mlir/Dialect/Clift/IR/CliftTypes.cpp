@@ -14,6 +14,22 @@
 #include "CliftParser.h"
 #include "CliftStorage.h"
 
+namespace mlir {
+
+static ParseResult parseCliftConst(AsmParser &Parser, BoolAttr &IsConst) {
+  IsConst = BoolAttr::get(Parser.getContext(),
+                          Parser.parseOptionalKeyword("const").succeeded());
+
+  return mlir::success();
+}
+
+static void printCliftConst(AsmPrinter &Printer, BoolAttr IsConst) {
+  if (IsConst.getValue())
+    Printer << "const";
+}
+
+} // namespace mlir
+
 #define GET_TYPEDEF_CLASSES
 #include "revng/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
 
@@ -50,6 +66,31 @@ ValueType clift::dealias(ValueType Type, bool IgnoreQualifiers) {
     UnderlyingType = UnderlyingType.addConst();
 
   return UnderlyingType;
+}
+
+mlir::Type clift::removeConst(mlir::Type Type) {
+  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(Type))
+    Type = ValueT.removeConst();
+
+  return Type;
+}
+
+bool clift::equivalent(mlir::Type Lhs, mlir::Type Rhs) {
+  if (Lhs == Rhs)
+    return true;
+
+  if (not Lhs or not Rhs)
+    return false;
+
+  auto LhsVT = mlir::dyn_cast<clift::ValueType>(Lhs);
+  if (not LhsVT)
+    return false;
+
+  auto RhsVT = mlir::dyn_cast<clift::ValueType>(Rhs);
+  if (not RhsVT)
+    return false;
+
+  return LhsVT.removeConst() == RhsVT.removeConst();
 }
 
 bool clift::isModifiableType(ValueType Type) {
@@ -99,9 +140,6 @@ bool clift::isCompleteType(ValueType Type) {
     return true;
   }
 
-  if (auto T = mlir::dyn_cast<ScalarTupleType>(Type))
-    return T.isComplete();
-
   if (auto T = mlir::dyn_cast<ArrayType>(Type))
     return isCompleteType(T.getElementType());
 
@@ -148,6 +186,13 @@ bool clift::isIntegerType(ValueType Type) {
   return false;
 }
 
+bool clift::isFloatType(ValueType Type) {
+  if (auto T = mlir::dyn_cast<PrimitiveType>(dealias(Type, true)))
+    return T.getKind() == PrimitiveKind::FloatKind;
+
+  return false;
+}
+
 bool clift::isPointerType(ValueType Type) {
   return mlir::isa<PointerType>(dealias(Type));
 }
@@ -164,9 +209,6 @@ bool clift::isObjectType(ValueType Type) {
     if (mlir::isa<FunctionTypeAttr>(T.getElementType()))
       return false;
   }
-
-  if (mlir::isa<ScalarTupleType>(Type))
-    return false;
 
   return true;
 }
@@ -205,13 +247,26 @@ bool clift::isReturnableType(ValueType ReturnType) {
   if (isObjectType(ReturnType))
     return not isArrayType(ReturnType);
 
-  return isVoid(ReturnType) or mlir::isa<ScalarTupleType>(ReturnType);
+  return isVoid(ReturnType);
+}
+
+TypeDefinitionAttr clift::getTypeDefinitionAttr(mlir::Type Type) {
+  if (auto T = mlir::dyn_cast<DefinedType>(dealias(Type, true)))
+    return T.getElementType();
+  return {};
+}
+
+FunctionTypeAttr clift::getFunctionOrFunctionPointerTypeAttr(mlir::Type Type) {
+  ValueType ValueT = dealias(Type, true);
+  if (auto P = mlir::dyn_cast<PointerType>(ValueT))
+    ValueT = dealias(P.getPointeeType(), true);
+  return getFunctionTypeAttr(ValueT);
 }
 
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerTypes() {
-  addTypes<ScalarTupleType, /* Include the auto-generated clift types */
+  addTypes</* Include the auto-generated clift types */
 #define GET_TYPEDEF_LIST
 #include "revng/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
            /* End of auto-generated list */>();
@@ -226,9 +281,6 @@ mlir::Type CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
       generatedTypeParser(Parser, &Mnemonic, GenType).has_value())
     return GenType;
 
-  if (Mnemonic == ScalarTupleType::getMnemonic())
-    return ScalarTupleType::parse(Parser);
-
   Parser.emitError(TypeLoc) << "unknown type `" << Mnemonic << "` in dialect `"
                             << getNamespace() << "`";
   return {};
@@ -239,10 +291,6 @@ void CliftDialect::printType(mlir::Type Type,
                              mlir::DialectAsmPrinter &Printer) const {
   if (mlir::succeeded(generatedTypePrinter(Type, Printer)))
     return;
-  if (auto T = mlir::dyn_cast<ScalarTupleType>(Type)) {
-    T.print(Printer);
-    return;
-  }
   revng_abort("cannot print type");
 }
 
@@ -420,8 +468,8 @@ mlir::LogicalResult DefinedType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-uint64_t DefinedType::id() const {
-  return getElementType().id();
+llvm::StringRef DefinedType::getHandle() const {
+  return getElementType().getHandle();
 }
 
 llvm::StringRef DefinedType::name() const {
@@ -433,12 +481,8 @@ uint64_t DefinedType::getByteSize() const {
 }
 
 bool DefinedType::getAlias(llvm::raw_ostream &OS) const {
-  const llvm::StringRef Name = getElementType().name();
-
-  if (Name.empty())
+  if (not getElementType().getTypeDefinitionAlias(OS))
     return false;
-
-  OS << Name;
   if (isConst())
     OS << "$const";
   return true;
@@ -458,132 +502,4 @@ ValueType DefinedType::removeConst() const {
   return get(getContext(),
              getElementType(),
              BoolAttr::get(getContext(), false));
-}
-
-//===--------------------------- ScalarTupleType --------------------------===//
-
-mlir::LogicalResult ScalarTupleType::verify(const EmitErrorType EmitError,
-                                            const uint64_t ID) {
-  return mlir::success();
-}
-
-mlir::LogicalResult
-ScalarTupleType::verify(const EmitErrorType EmitError,
-                        const uint64_t ID,
-                        const llvm::StringRef Name,
-                        const llvm::ArrayRef<ScalarTupleElementAttr> Elements) {
-  if (Elements.size() < 2)
-    return EmitError() << "Scalar tuple types must have at least two elements";
-
-  llvm::SmallSet<llvm::StringRef, 16> NameSet;
-  for (auto Element : Elements) {
-    if (not Element.getName().empty()) {
-      if (not NameSet.insert(Element.getName()).second)
-        return EmitError() << "Scalar tuple element names must be empty or "
-                              "unique";
-    }
-  }
-
-  return mlir::success();
-}
-
-ScalarTupleType ScalarTupleType::get(MLIRContext *const Context,
-                                     const uint64_t ID) {
-  return Base::get(Context, ID);
-}
-
-ScalarTupleType ScalarTupleType::getChecked(const EmitErrorType EmitError,
-                                            MLIRContext *const Context,
-                                            const uint64_t ID) {
-  return get(Context, ID);
-}
-
-ScalarTupleType
-ScalarTupleType::get(MLIRContext *const Context,
-                     const uint64_t ID,
-                     const llvm::StringRef Name,
-                     const llvm::ArrayRef<ScalarTupleElementAttr> Elements) {
-  auto Result = Base::get(Context, ID);
-  Result.define(Name, Elements);
-  return Result;
-}
-
-ScalarTupleType
-ScalarTupleType::getChecked(const EmitErrorType EmitError,
-                            MLIRContext *const Context,
-                            const uint64_t ID,
-                            const llvm::StringRef Name,
-                            const llvm::ArrayRef<ScalarTupleElementAttr>
-                              Elements) {
-  if (failed(verify(EmitError, ID, Name, Elements)))
-    return {};
-  return get(Context, ID, Name, Elements);
-}
-
-void ScalarTupleType::define(const llvm::StringRef Name,
-                             const llvm::ArrayRef<ScalarTupleElementAttr>
-                               Elements) {
-  LogicalResult Result = Base::mutate(Name, Elements);
-
-  revng_assert(succeeded(Result)
-               && "attempting to change the body of an already-initialized "
-                  "type");
-}
-
-uint64_t ScalarTupleType::getId() const {
-  return getImpl()->getID();
-}
-
-llvm::StringRef ScalarTupleType::getName() const {
-  return getImpl()->getName();
-}
-
-llvm::ArrayRef<ScalarTupleElementAttr> ScalarTupleType::getElements() const {
-  return getImpl()->getSubobjects();
-}
-
-bool ScalarTupleType::isComplete() const {
-  return getImpl()->isInitialized();
-}
-
-uint64_t ScalarTupleType::getByteSize() const {
-  uint64_t Size = 0;
-  for (ScalarTupleElementAttr Element : getElements())
-    Size += Element.getType().getByteSize();
-  return Size;
-}
-
-bool ScalarTupleType::getAlias(llvm::raw_ostream &OS) const {
-  if (getName().empty())
-    return false;
-  OS << getName() << "$tuple";
-  return true;
-}
-
-mlir::BoolAttr ScalarTupleType::getIsConst() const {
-  return BoolAttr::get(getContext(), false);
-}
-
-mlir::Type ScalarTupleType::parse(AsmParser &Parser) {
-  return parseCompositeType<ScalarTupleType>(Parser, /*MinSubobjects=*/2);
-}
-
-void ScalarTupleType::print(AsmPrinter &Printer) const {
-  return printCompositeType(Printer, *this);
-}
-
-void ScalarTupleType::walkImmediateSubElements(function_ref<void(Attribute)>
-                                                 WalkAttr,
-                                               function_ref<void(Type)>
-                                                 WalkType) const {
-  if (getImpl()->isInitialized()) {
-    for (auto Element : getElements())
-      WalkAttr(Element);
-  }
-}
-
-mlir::Type ScalarTupleType::replaceImmediateSubElements(ArrayRef<Attribute>,
-                                                        ArrayRef<Type>) const {
-  revng_abort("it does not make any sense to replace the elements of a "
-              "scalar tuple");
 }

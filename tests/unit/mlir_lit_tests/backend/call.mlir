@@ -4,18 +4,16 @@
 
 // RUN: %revngcliftopt %s --emit-c="tagless model=%S/model.yml" -o /dev/null | FileCheck %s
 
-!int32_t = !clift.primitive<SignedKind 4>
+!int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.function<
-  id = 1002,
-  name = "",
-  return_type = !int32_t,
-  argument_types = [!int32_t, !int32_t]>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1002-CABIFunctionDefinition" : !int32_t(!int32_t, !int32_t)
+>>
 
 clift.module {
   // CHECK: int32_t fun_0x40001002(int32_t x, int32_t y) {
   clift.func @f<!f>(%arg0 : !int32_t, %arg1 : !int32_t) attributes {
-    unique_handle = "/function/0x40001002:Code_x86_64"
+    handle = "/function/0x40001002:Code_x86_64"
   } {
     // CHECK: return
     clift.return {

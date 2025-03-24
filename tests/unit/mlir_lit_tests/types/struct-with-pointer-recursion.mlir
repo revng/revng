@@ -5,18 +5,9 @@
 // RUN: %revngcliftopt %s
 
 !s = !clift.defined<#clift.struct<
-  id = 1,
-  name = "",
-  size = 1,
-  fields = [<
-      offset = 0,
-      name = "",
-      type = !clift.pointer<
-        pointer_size = 8,
-        pointee_type = !clift.defined<#clift.struct<id = 1>>
-      >
-    >
-  ]
+  "/type-definition/1-StructDefinition" : size(8) {
+    offset(0) : !clift.ptr<8 to !clift.defined<#clift.struct<"/type-definition/1-StructDefinition">>>
+  }
 >>
 
 clift.module {

@@ -4,14 +4,12 @@
 
 // RUN: %revngcliftopt %s
 
-!void = !clift.primitive<VoidKind 0>
-!int32_t = !clift.primitive<SignedKind 4>
+!void = !clift.primitive<void 0>
+!int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.function<
-  id = 1000,
-  name = "f",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<
+  "/type-definition/1000-CABIFunctionDefinition" as "f" : !void()
+>>
 
 clift.module {
   clift.func @f<!f>() {

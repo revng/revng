@@ -4,16 +4,25 @@
 
 // RUN: %revngcliftopt %s
 
-!void = !clift.primitive<VoidKind 0>
-!int32_t = !clift.primitive<SignedKind 4>
+!void = !clift.primitive<void 0>
+!int32_t = !clift.primitive<signed 4>
 
-clift.return {
-  %0 = clift.undef : !void
-  clift.yield %0 : !void
+!f = !clift.defined<#clift.func<
+  "/type-definition/1-CABIFunctionDefinition" as "f" : !void()
+>>
+
+!g = !clift.defined<#clift.func<
+  "/type-definition/2-CABIFunctionDefinition" : !int32_t(!int32_t)
+>>
+
+clift.module {
+  clift.func @f<!f>() {
+    clift.return {}
+  }
+
+  clift.func @g<!g>(%arg0 : !int32_t) {
+    clift.return {
+      clift.yield %arg0 : !int32_t
+    }
+  }
 }
-
-// TODO: This is currently invalid. Add support for it.
-//  clift.return {
-//    %0 = clift.undef : !int32_t
-//    clift.yield %0 : !int32_t
-//  }
