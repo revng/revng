@@ -16,7 +16,7 @@
 clift.module {
   // CHECK: void fun_0x40001001(void) {
   clift.func @f<!f>() attributes {
-    unique_handle = "/function/0x40001001:Code_x86_64"
+    handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: 0;
     clift.expr {

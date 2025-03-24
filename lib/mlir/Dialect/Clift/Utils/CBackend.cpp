@@ -91,7 +91,7 @@ public:
 
   const model::Segment &getModelSegment(GlobalVariableOp Op) {
     auto L = pipeline::locationFromString(revng::ranks::Segment,
-                                          Op.getUniqueHandle());
+                                          Op.getHandle());
     if (not L)
       revng_abort("Unrecognizable global variable unique handle.");
 
@@ -107,7 +107,7 @@ public:
 
   ModelFunctionVariant getModelFunctionVariant(FunctionOp Op) {
     if (auto L = pipeline::locationFromString(revng::ranks::Function,
-                                              Op.getUniqueHandle())) {
+                                              Op.getHandle())) {
       auto [Key] = L->at(revng::ranks::Function);
       auto It = C.Binary.Functions().find(Key);
       if (It == C.Binary.Functions().end())
@@ -116,7 +116,7 @@ public:
     }
 
     if (auto L = pipeline::locationFromString(revng::ranks::DynamicFunction,
-                                              Op.getUniqueHandle())) {
+                                              Op.getHandle())) {
       auto [Key] = L->at(revng::ranks::DynamicFunction);
       auto It = C.Binary.ImportedDynamicFunctions().find(Key);
       if (It == C.Binary.ImportedDynamicFunctions().end())
@@ -134,16 +134,15 @@ public:
     revng_abort("Expected isolated model function.");
   }
 
-  std::optional<uint64_t>
-  parseModelTypeUniqueHandle(llvm::StringRef UniqueHandle) {
-    if (not UniqueHandle.consume_front("/model-type/"))
+  std::optional<uint64_t> parseModelTypeHandle(llvm::StringRef Handle) {
+    if (not Handle.consume_front("/model-type/"))
       return std::nullopt;
 
     uint64_t ID;
-    if (UniqueHandle.consumeInteger(/*Radix=*/10, ID))
+    if (Handle.consumeInteger(/*Radix=*/10, ID))
       return std::nullopt;
 
-    if (not UniqueHandle.empty())
+    if (not Handle.empty())
       return std::nullopt;
 
     return ID;
@@ -160,7 +159,7 @@ public:
   const model::TypeDefinition &getModelTypeDefinition(TypeDefinitionAttr Type) {
     using TypeKind = model::TypeDefinitionKind::Values;
 
-    auto MaybeID = parseModelTypeUniqueHandle(Type.getUniqueHandle());
+    auto MaybeID = parseModelTypeHandle(Type.getHandle());
     if (not MaybeID)
       revng_abort("Unrecognized type unique handle");
 

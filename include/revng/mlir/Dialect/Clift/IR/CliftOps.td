@@ -131,7 +131,7 @@ def Clift_FunctionOp : Clift_Op<"func",
                        TypeAttrOf<Clift_AnyFunctionType>:$function_type,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs,
-                       DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
+                       DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let description = [{
     expression.
@@ -195,7 +195,7 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
                                        IsolatedFromAbove]> {
   let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<Clift_ValueType>:$type,
-                       DefaultValuedStrAttr<StrAttr, "">:$unique_handle);
+                       DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let description = [{
     global variable

@@ -12,7 +12,7 @@
 clift.module {
   // CHECK: int32_t fun_0x40001002(int32_t x, int32_t y) {
   clift.func @f<!f>(%arg0 : !int32_t, %arg1 : !int32_t) attributes {
-    unique_handle = "/function/0x40001002:Code_x86_64"
+    handle = "/function/0x40001002:Code_x86_64"
   } {
     // CHECK: return
     clift.return {

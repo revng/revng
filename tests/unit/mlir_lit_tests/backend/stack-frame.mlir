@@ -11,7 +11,7 @@
 clift.module {
   // CHECK: void fun_0x40001005(void) {
   clift.func @f<!f>() attributes {
-    unique_handle = "/function/0x40001005:Code_x86_64"
+    handle = "/function/0x40001005:Code_x86_64"
   } {
     // CHECK: struct {{.*}}frame_1005 {
     // CHECK: int32_t a;

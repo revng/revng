@@ -71,18 +71,18 @@ def Clift_EnumTypeAttr
 
   let summary = "Clift enum type";
 
-  let parameters = (ins StringRefParameter<>:$unique_handle,
+  let parameters = (ins StringRefParameter<>:$handle,
                         StringRefParameter<>:$name,
                         "mlir::clift::ValueType":$underlying_type,
                         ArrayRefParameter<"mlir::clift::EnumFieldAttr">:$fields);
 
   let builders = [
-    TypeBuilderWithInferredContext<(ins "llvm::StringRef":$UniqueHandle,
+    TypeBuilderWithInferredContext<(ins "llvm::StringRef":$Handle,
                                         "llvm::StringRef":$Name,
                                         "mlir::clift::ValueType":$ElementType,
                                         "llvm::ArrayRef<mlir::clift::EnumFieldAttr>":$Fields), [{
       return EnumTypeAttr::get(ElementType.getContext(),
-                               UniqueHandle,
+                               Handle,
                                Name,
                                ElementType,
                                Fields);
@@ -96,7 +96,7 @@ def Clift_EnumTypeAttr
 
   let assemblyFormat = [{
     `<`
-    $unique_handle custom<CliftDebugName>($name) `:` $underlying_type
+    $handle custom<CliftDebugName>($name) `:` $underlying_type
     custom<CliftEnumerators>($fields)
     `>`
   }];
@@ -112,16 +112,16 @@ def Clift_TypedefTypeAttr
 
   let summary = "Clift typedef type";
 
-  let parameters = (ins StringRefParameter<>:$unique_handle,
+  let parameters = (ins StringRefParameter<>:$handle,
                         StringRefParameter<>:$name,
                         "mlir::clift::ValueType":$underlying_type);
 
   let builders = [
-    TypeBuilderWithInferredContext<(ins "llvm::StringRef":$UniqueHandle,
+    TypeBuilderWithInferredContext<(ins "llvm::StringRef":$Handle,
                                         "llvm::StringRef":$Name,
                                         "mlir::clift::ValueType":$ElementType), [{
       return TypedefTypeAttr::get(ElementType.getContext(),
-                                  UniqueHandle,
+                                  Handle,
                                   Name,
                                   ElementType);
     }]>,
@@ -133,7 +133,7 @@ def Clift_TypedefTypeAttr
   let genVerifyDecl = 1;
 
   let assemblyFormat = [{
-    `<` $unique_handle custom<CliftDebugName>($name) `:` $underlying_type `>`
+    `<` $handle custom<CliftDebugName>($name) `:` $underlying_type `>`
   }];
 }
 
@@ -147,29 +147,29 @@ def Clift_FunctionTypeAttr
 
   let summary = "Clift function type";
 
-  let parameters = (ins StringRefParameter<>:$unique_handle,
+  let parameters = (ins StringRefParameter<>:$handle,
                         StringRefParameter<>:$name,
                         "mlir::Type":$return_type,
                         OptionalArrayRefParameter<"mlir::Type">:$argument_types);
 
   let builders = [
-    TypeBuilder<(ins "llvm::StringRef":$UniqueHandle,
+    TypeBuilder<(ins "llvm::StringRef":$Handle,
                      "llvm::StringRef":$Name,
                      "mlir::clift::ValueType":$ReturnType,
                      "llvm::ArrayRef<mlir::clift::ValueType>":$ArgumentTypes), [{
       return $_get($_ctxt,
-                   UniqueHandle,
+                   Handle,
                    Name,
                    ReturnType,
                    llvm::SmallVector<mlir::Type, 16>(ArgumentTypes));
     }]>,
 
-    TypeBuilderWithInferredContext<(ins "llvm::StringRef":$UniqueHandle,
+    TypeBuilderWithInferredContext<(ins "llvm::StringRef":$Handle,
                                         "llvm::StringRef":$Name,
                                         "mlir::clift::ValueType":$ReturnType,
                                         "llvm::ArrayRef<mlir::clift::ValueType>":$ArgumentTypes), [{
       return $_get(ReturnType.getContext(),
-                   UniqueHandle,
+                   Handle,
                    Name,
                    ReturnType,
                    llvm::SmallVector<mlir::Type, 16>(ArgumentTypes));
@@ -180,7 +180,7 @@ def Clift_FunctionTypeAttr
     llvm::ArrayRef<mlir::Type> getResultTypes();
 
     mlir::LogicalResult verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                               llvm::StringRef UniqueHandle,
+                               llvm::StringRef Handle,
                                llvm::StringRef Name,
                                clift::ValueType ReturnType,
                                llvm::ArrayRef<clift::ValueType> ArgumentTypes);
@@ -193,7 +193,7 @@ def Clift_FunctionTypeAttr
 
   let assemblyFormat = [{
     `<`
-    $unique_handle custom<CliftDebugName>($name)
+    $handle custom<CliftDebugName>($name)
     `:` $return_type `(` (`)`) : ($argument_types^ `)`)?
     `>`
   }];

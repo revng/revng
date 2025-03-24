@@ -12,12 +12,12 @@
 
 clift.module {
   clift.global !int32_t @g {
-    unique_handle = "/segment/0x40002001:Generic64-4"
+    handle = "/segment/0x40002001:Generic64-4"
   }
 
   // CHECK: void fun_0x40001001(void) {
   clift.func @f<!f>() attributes {
-    unique_handle = "/function/0x40001001:Code_x86_64"
+    handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: seg_0x40002001;
     clift.expr {

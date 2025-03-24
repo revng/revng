@@ -107,10 +107,10 @@ def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
   let methods = [
     InterfaceMethod<
       "The unique handle of the type",
-      "llvm::StringRef", "getUniqueHandle", (ins),
+      "llvm::StringRef", "getHandle", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return $_attr.getUniqueHandle();
+        return $_attr.getHandle();
       }]
     >,
     InterfaceMethod<

@@ -468,8 +468,8 @@ mlir::LogicalResult DefinedType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-llvm::StringRef DefinedType::getUniqueHandle() const {
-  return getElementType().getUniqueHandle();
+llvm::StringRef DefinedType::getHandle() const {
+  return getElementType().getHandle();
 }
 
 llvm::StringRef DefinedType::name() const {

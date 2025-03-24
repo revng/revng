@@ -169,7 +169,7 @@ mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
 //===---------------------------- EnumTypeAttr ----------------------------===//
 
 mlir::LogicalResult EnumTypeAttr::verify(EmitErrorType EmitError,
-                                         llvm::StringRef UniqueHandle,
+                                         llvm::StringRef Handle,
                                          llvm::StringRef Name,
                                          clift::ValueType UnderlyingType,
                                          llvm::ArrayRef<EnumFieldAttr> Fields) {
@@ -264,7 +264,7 @@ bool EnumTypeAttr::getAlias(llvm::raw_ostream &OS) const {
 //===--------------------------- TypedefTypeAttr --------------------------===//
 
 mlir::LogicalResult TypedefTypeAttr::verify(EmitErrorType EmitError,
-                                            llvm::StringRef UniqueHandle,
+                                            llvm::StringRef Handle,
                                             llvm::StringRef Name,
                                             clift::ValueType UnderlyingType) {
   return mlir::success();
@@ -284,7 +284,7 @@ bool TypedefTypeAttr::getAlias(llvm::raw_ostream &OS) const {
 //===-------------------------- FunctionTypeAttr --------------------------===//
 
 mlir::LogicalResult FunctionTypeAttr::verify(EmitErrorType EmitError,
-                                             llvm::StringRef UniqueHandle,
+                                             llvm::StringRef Handle,
                                              llvm::StringRef Name,
                                              mlir::Type ReturnType,
                                              llvm::ArrayRef<mlir::Type> Args) {
@@ -312,7 +312,7 @@ mlir::LogicalResult FunctionTypeAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult
 FunctionTypeAttr::verify(EmitErrorType EmitError,
-                         llvm::StringRef UniqueHandle,
+                         llvm::StringRef Handle,
                          llvm::StringRef Name,
                          clift::ValueType ReturnType,
                          llvm::ArrayRef<clift::ValueType> Args) {
@@ -341,13 +341,13 @@ llvm::ArrayRef<mlir::Type> FunctionTypeAttr::getResultTypes() {
 //===--------------------------- StructTypeAttr ---------------------------===//
 
 mlir::LogicalResult StructTypeAttr::verify(EmitErrorType EmitError,
-                                           llvm::StringRef UniqueHandle) {
+                                           llvm::StringRef Handle) {
   return mlir::success();
 }
 
 mlir::LogicalResult
 StructTypeAttr::verify(const EmitErrorType EmitError,
-                       const llvm::StringRef UniqueHandle,
+                       const llvm::StringRef Handle,
                        const llvm::StringRef Name,
                        const uint64_t Size,
                        const llvm::ArrayRef<FieldAttr> Fields) {
@@ -381,35 +381,35 @@ StructTypeAttr::verify(const EmitErrorType EmitError,
 }
 
 StructTypeAttr StructTypeAttr::get(MLIRContext *Context,
-                                   llvm::StringRef UniqueHandle) {
-  return Base::get(Context, UniqueHandle);
+                                   llvm::StringRef Handle) {
+  return Base::get(Context, Handle);
 }
 
 StructTypeAttr StructTypeAttr::getChecked(EmitErrorType EmitError,
                                           MLIRContext *Context,
-                                          llvm::StringRef UniqueHandle) {
-  return Base::get(Context, UniqueHandle);
+                                          llvm::StringRef Handle) {
+  return Base::get(Context, Handle);
 }
 
 StructTypeAttr StructTypeAttr::get(MLIRContext *Context,
-                                   llvm::StringRef UniqueHandle,
+                                   llvm::StringRef Handle,
                                    llvm::StringRef Name,
                                    uint64_t Size,
                                    llvm::ArrayRef<FieldAttr> Fields) {
-  auto Result = Base::get(Context, UniqueHandle);
+  auto Result = Base::get(Context, Handle);
   Result.define(Name, Size, Fields);
   return Result;
 }
 
 StructTypeAttr StructTypeAttr::getChecked(EmitErrorType EmitError,
                                           MLIRContext *Context,
-                                          llvm::StringRef UniqueHandle,
+                                          llvm::StringRef Handle,
                                           llvm::StringRef Name,
                                           uint64_t Size,
                                           llvm::ArrayRef<FieldAttr> Fields) {
-  if (failed(verify(EmitError, UniqueHandle, Name, Size, Fields)))
+  if (failed(verify(EmitError, Handle, Name, Size, Fields)))
     return {};
-  return get(Context, UniqueHandle, Name, Size, Fields);
+  return get(Context, Handle, Name, Size, Fields);
 }
 
 void StructTypeAttr::define(const llvm::StringRef Name,
@@ -425,8 +425,8 @@ void StructTypeAttr::define(const llvm::StringRef Name,
                   "type");
 }
 
-llvm::StringRef StructTypeAttr::getUniqueHandle() const {
-  return getImpl()->getUniqueHandle();
+llvm::StringRef StructTypeAttr::getHandle() const {
+  return getImpl()->getHandle();
 }
 
 llvm::StringRef StructTypeAttr::getName() const {
@@ -481,12 +481,12 @@ StructTypeAttr::replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute>,
 //===---------------------------- UnionTypeAttr ---------------------------===//
 
 mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
-                                          llvm::StringRef UniqueHandle) {
+                                          llvm::StringRef Handle) {
   return mlir::success();
 }
 
 mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
-                                          llvm::StringRef UniqueHandle,
+                                          llvm::StringRef Handle,
                                           llvm::StringRef Name,
                                           llvm::ArrayRef<FieldAttr> Fields) {
   if (Fields.empty())
@@ -506,34 +506,33 @@ mlir::LogicalResult UnionTypeAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context,
-                                 llvm::StringRef UniqueHandle) {
-  return Base::get(Context, UniqueHandle);
+UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context, llvm::StringRef Handle) {
+  return Base::get(Context, Handle);
 }
 
 UnionTypeAttr UnionTypeAttr::getChecked(EmitErrorType EmitError,
                                         MLIRContext *Context,
-                                        llvm::StringRef UniqueHandle) {
-  return Base::get(Context, UniqueHandle);
+                                        llvm::StringRef Handle) {
+  return Base::get(Context, Handle);
 }
 
 UnionTypeAttr UnionTypeAttr::get(MLIRContext *Context,
-                                 llvm::StringRef UniqueHandle,
+                                 llvm::StringRef Handle,
                                  llvm::StringRef Name,
                                  llvm::ArrayRef<FieldAttr> Fields) {
-  auto Result = Base::get(Context, UniqueHandle);
+  auto Result = Base::get(Context, Handle);
   Result.define(Name, Fields);
   return Result;
 }
 
 UnionTypeAttr UnionTypeAttr::getChecked(EmitErrorType EmitError,
                                         MLIRContext *Context,
-                                        llvm::StringRef UniqueHandle,
+                                        llvm::StringRef Handle,
                                         llvm::StringRef Name,
                                         llvm::ArrayRef<FieldAttr> Fields) {
-  if (failed(verify(EmitError, UniqueHandle, Name, Fields)))
+  if (failed(verify(EmitError, Handle, Name, Fields)))
     return {};
-  return get(Context, UniqueHandle, Name, Fields);
+  return get(Context, Handle, Name, Fields);
 }
 
 void UnionTypeAttr::define(const llvm::StringRef Name,
@@ -548,8 +547,8 @@ void UnionTypeAttr::define(const llvm::StringRef Name,
                   "type");
 }
 
-llvm::StringRef UnionTypeAttr::getUniqueHandle() const {
-  return getImpl()->getUniqueHandle();
+llvm::StringRef UnionTypeAttr::getHandle() const {
+  return getImpl()->getHandle();
 }
 
 llvm::StringRef UnionTypeAttr::getName() const {

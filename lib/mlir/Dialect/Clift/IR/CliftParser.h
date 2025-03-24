@@ -28,8 +28,7 @@ template<typename ObjectT>
 void printCompositeType(AsmPrinter &Printer, ObjectT Object) {
   Printer << Object.getMnemonic();
   Printer << '<' << '\"';
-  llvm::printEscapedString(Object.getImpl()->getUniqueHandle(),
-                           Printer.getStream());
+  llvm::printEscapedString(Object.getImpl()->getHandle(), Printer.getStream());
   Printer << '\"';
 
   auto &RecursionMap = getAsmRecursionMap();
@@ -93,11 +92,11 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
   if (Parser.parseLess().failed())
     return {};
 
-  std::string UniqueHandle;
-  if (Parser.parseString(&UniqueHandle).failed())
+  std::string Handle;
+  if (Parser.parseString(&Handle).failed())
     return {};
 
-  ObjectT Object = ObjectT::get(Parser.getContext(), UniqueHandle);
+  ObjectT Object = ObjectT::get(Parser.getContext(), Handle);
 
   auto &RecursionMap = getAsmRecursionMap();
   const auto [Iterator, Inserted] = RecursionMap.insert(Object.getImpl());
@@ -200,8 +199,7 @@ ObjectT parseCompositeType(AsmParser &Parser, const size_t MinSubobjects) {
 
   auto DefineObject = [&](auto &&...Args) -> ObjectT {
     auto EmitError = [&] { return Parser.emitError(ObjectLoc); };
-    if (ObjectT::verify(EmitError, UniqueHandle, std::as_const(Args)...)
-          .failed())
+    if (ObjectT::verify(EmitError, Handle, std::as_const(Args)...).failed())
       return {};
 
     Object.define(std::forward<decltype(Args)>(Args)...);

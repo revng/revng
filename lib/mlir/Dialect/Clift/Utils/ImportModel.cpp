@@ -125,17 +125,17 @@ private:
     }
   }
 
-  std::string getUniqueHandle(llvm::StringRef Namespace, uint64_t ID) {
-    std::string UniqueHandle;
+  std::string getHandle(llvm::StringRef Namespace, uint64_t ID) {
+    std::string Handle;
     {
-      llvm::raw_string_ostream Out(UniqueHandle);
+      llvm::raw_string_ostream Out(Handle);
       Out << Namespace << '/' << ID;
     }
-    return UniqueHandle;
+    return Handle;
   }
 
-  std::string getUniqueHandle(const model::TypeDefinition &ModelType) {
-    return getUniqueHandle(ModelNamespace, ModelType.ID());
+  std::string getHandle(const model::TypeDefinition &ModelType) {
+    return getHandle(ModelNamespace, ModelType.ID());
   }
 
   RecursiveCoroutine<clift::TypeDefinitionAttr>
@@ -166,7 +166,7 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
-    rc_return make<clift::FunctionTypeAttr>(getUniqueHandle(ModelType),
+    rc_return make<clift::FunctionTypeAttr>(getHandle(ModelType),
                                             NameBuilder.name(ModelType),
                                             ReturnType,
                                             ArgumentTypes);
@@ -197,7 +197,7 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::EnumTypeAttr>(getUniqueHandle(ModelType),
+    rc_return make<clift::EnumTypeAttr>(getHandle(ModelType),
                                         NameBuilder.name(ModelType),
                                         UnderlyingType,
                                         Fields);
@@ -234,12 +234,11 @@ private:
       Out << "register_set_" << ModelType.ID();
     }
 
-    auto
-      Attr = make<clift::StructTypeAttr>(getUniqueHandle(RegisterSetNamespace,
-                                                         ModelType.ID()),
-                                         TypeName,
-                                         Offset,
-                                         Elements);
+    auto Attr = make<clift::StructTypeAttr>(getHandle(RegisterSetNamespace,
+                                                      ModelType.ID()),
+                                            TypeName,
+                                            Offset,
+                                            Elements);
 
     rc_return make<clift::DefinedType>(Attr, getBool(false));
   }
@@ -299,9 +298,8 @@ private:
       break;
 
     default: {
-      auto
-        Attr = make<clift::StructTypeAttr>(getUniqueHandle(RegisterSetNamespace,
-                                                           ModelType.ID()));
+      auto Attr = make<clift::StructTypeAttr>(getHandle(RegisterSetNamespace,
+                                                        ModelType.ID()));
       ReturnType = make<clift::DefinedType>(Attr, getBool(false));
 
       const auto R = IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
@@ -311,7 +309,7 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
-    rc_return make<clift::FunctionTypeAttr>(getUniqueHandle(ModelType),
+    rc_return make<clift::FunctionTypeAttr>(getHandle(ModelType),
                                             NameBuilder.name(ModelType),
                                             ReturnType,
                                             ArgumentTypes);
@@ -321,8 +319,7 @@ private:
   getTypeAttribute(const model::StructDefinition &ModelType,
                    const bool RequireComplete) {
     if (not RequireComplete) {
-      const auto T = clift::StructTypeAttr::get(Context,
-                                                getUniqueHandle(ModelType));
+      const auto T = clift::StructTypeAttr::get(Context, getHandle(ModelType));
       if (not T.isDefinition())
         IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       rc_return T;
@@ -353,7 +350,7 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::StructTypeAttr>(getUniqueHandle(ModelType),
+    rc_return make<clift::StructTypeAttr>(getHandle(ModelType),
                                           NameBuilder.name(ModelType),
                                           ModelType.Size(),
                                           Fields);
@@ -378,7 +375,7 @@ private:
                                                   RequireComplete);
     if (not UnderlyingType)
       rc_return nullptr;
-    rc_return make<clift::TypedefTypeAttr>(getUniqueHandle(ModelType),
+    rc_return make<clift::TypedefTypeAttr>(getHandle(ModelType),
                                            NameBuilder.name(ModelType),
                                            UnderlyingType);
   }
@@ -387,8 +384,7 @@ private:
   getTypeAttribute(const model::UnionDefinition &ModelType,
                    const bool RequireComplete) {
     if (not RequireComplete) {
-      const auto T = clift::UnionTypeAttr::get(Context,
-                                               getUniqueHandle(ModelType));
+      const auto T = clift::UnionTypeAttr::get(Context, getHandle(ModelType));
       if (not T.isDefinition())
         IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       rc_return T;
@@ -419,7 +415,7 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::UnionTypeAttr>(getUniqueHandle(ModelType),
+    rc_return make<clift::UnionTypeAttr>(getHandle(ModelType),
                                          NameBuilder.name(ModelType),
                                          Fields);
   }

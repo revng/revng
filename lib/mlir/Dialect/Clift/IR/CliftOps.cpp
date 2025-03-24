@@ -335,15 +335,14 @@ public:
   }
 
   mlir::LogicalResult visitTypeAttr(TypeDefinitionAttr Attr) {
-    auto const [Iterator,
-                Inserted] = Definitions.try_emplace(Attr.getUniqueHandle(),
-                                                    Attr);
+    auto const [Iterator, Inserted] = Definitions.try_emplace(Attr.getHandle(),
+                                                              Attr);
 
     if (not Inserted and Iterator->second != Attr)
       return getCurrentOp()->emitError() << "Found two distinct type "
                                             "definitions with the same unique "
                                             "handle: '"
-                                         << Attr.getUniqueHandle() << '\'';
+                                         << Attr.getHandle() << '\'';
 
     if (maybeVisitClassTypeAttr(Attr, Attr).failed())
       return mlir::failure();
