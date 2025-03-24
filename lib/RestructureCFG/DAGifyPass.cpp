@@ -52,12 +52,6 @@ static void processRetreating(const revng::detail::EdgeDescriptor<BasicBlock *>
   SGBuilder.makeGotoEdge(Source, Target);
 }
 
-char DAGifyPass::ID = 0;
-
-static constexpr const char *Flag = "dagify";
-using Reg = llvm::RegisterPass<DAGifyPass>;
-static Reg X(Flag, "Perform the DAGify pass on the ScopeGrapgh");
-
 class DAGifyPassImpl {
   Function &F;
 
@@ -138,6 +132,11 @@ public:
     return ModuleModified;
   }
 };
+
+char DAGifyPass::ID = 0;
+static constexpr const char *Flag = "dagify";
+using Reg = llvm::RegisterPass<DAGifyPass>;
+static Reg X(Flag, "Perform the DAGify pass on the ScopeGrapgh");
 
 bool DAGifyPass::runOnFunction(llvm::Function &F) {
   // Log the function name
