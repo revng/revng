@@ -5,14 +5,10 @@
 
 Architecture: x86_64
 TypeDefinitions:
-  # CHECK: #my_function2$def = #clift.function<
-  # CHECK:   unique_handle = "/model-type/1002"
-  # CHECK:   name = "my_function2"
-  # CHECK:   return_type = !uint8_t
-  # CHECK:   argument_types = [
-  # CHECK:     !uint16_t
-  # CHECK:     !uint32_t
-  # CHECK:   ]
+  # CHECK: #my_function2$def = #clift.func<
+  # CHECK:   "/model-type/1002"
+  # CHECK:   as "my_function2"
+  # CHECK:   : !uint8_t(!uint16_t, !uint32_t)
   # CHECK: >
   # CHECK: !my_function2_ = !clift.defined<
   # CHECK:   #my_function2$def

@@ -6,15 +6,8 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.function<unique_handle = "/model-type/1",
-                                    name = "",
-                                    return_type = !int32_t,
-                                    argument_types = []>>
-
-!g = !clift.defined<#clift.function<unique_handle = "/model-type/2",
-                                    name = "",
-                                    return_type = !int32_t,
-                                    argument_types = [!int32_t]>>
+!f = !clift.defined<#clift.func<"/model-type/1" : !int32_t()>>
+!g = !clift.defined<#clift.func<"/model-type/2" : !int32_t(!int32_t)>>
 
 clift.module {
   clift.func @f<!f>() -> !int32_t {

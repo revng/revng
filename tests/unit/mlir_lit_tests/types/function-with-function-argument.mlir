@@ -6,15 +6,7 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1000",
-  name = "f",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<"/model-type/1001" as "f" : !void()>>
 
 // CHECK: parameter type must be an object type
-!g = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1001",
-  name = "g",
-  return_type = !void,
-  argument_types = [!f]>>
+!g = !clift.defined<#clift.func<"/model-type/1002" as "g" : !void(!f)>>

@@ -6,11 +6,8 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1001",
-  name = "",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<
+  "/model-type/1001" : !void()>>
 
 !f$ptr = !clift.ptr<8 to !f>
 

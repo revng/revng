@@ -141,7 +141,7 @@ def Clift_TypedefTypeAttr
 
 def Clift_FunctionTypeAttr
   : Clift_Attr<"FunctionType",
-               "function",
+               "func",
                [DeclareAttrInterfaceMethods<Clift_AliasableAttr>,
                 DeclareAttrInterfaceMethods<Clift_TypeDefinitionAttr,
                                             ["getByteSize"]>,
@@ -194,7 +194,10 @@ def Clift_FunctionTypeAttr
   let genVerifyDecl = 1;
 
   let assemblyFormat = [{
-    `<` struct($unique_handle, $name, $return_type) `,` `argument_types` `=` `[` (`]`) : ($argument_types^ `]`)?`>`
+    `<`
+    $unique_handle custom<CliftDebugName>($name)
+    `:` $return_type `(` (`)`) : ($argument_types^ `)`)?
+    `>`
   }];
 }
 

@@ -8,10 +8,7 @@
 !int32_t = !clift.primitive<signed 4>
 !uint32_t = !clift.primitive<unsigned 4>
 
-!f = !clift.defined<#clift.function<unique_handle = "/model-type/1",
-                                    name = "",
-                                    return_type = !void,
-                                    argument_types = [!int32_t]>>
+!f = !clift.defined<#clift.func<"/model-type/1" : !void(!int32_t)>>
 
 %f = clift.undef : !f
 %u = clift.undef : !uint32_t

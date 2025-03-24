@@ -7,11 +7,7 @@
 !void = !clift.primitive<void 0>
 !int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1000",
-  name = "f",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<"/model-type/1000" as "f" : !void()>>
 
 // CHECK: cannot return expression in function returning void
 clift.module {

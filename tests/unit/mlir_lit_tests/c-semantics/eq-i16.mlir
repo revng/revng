@@ -4,14 +4,11 @@
 
 // RUN: not %revngcliftopt --verify-c %s 2>&1 | FileCheck %s
 
+!void = !clift.primitive<void 0>
 !int16_t = !clift.primitive<signed 2>
 !int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1001",
-  name = "",
-  return_type = !clift.primitive<void 0>,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<"/model-type/1001" : !void()>>
 
 clift.module {
   clift.func @f<!f>() {

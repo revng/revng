@@ -6,11 +6,7 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1005",
-  name = "",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<"/model-type/1005" : !void()>>
 
 clift.module {
   // CHECK: void fun_0x40001005(void) {

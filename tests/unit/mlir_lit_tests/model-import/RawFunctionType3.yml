@@ -41,19 +41,18 @@ TypeDefinitions:
     # CHECK:   #register_set_1002$def
     # CHECK: >
 
-    # CHECK: #my_function3$def = #clift.function<
-    # CHECK:   unique_handle = "/model-type/1002"
-    # CHECK:   name = "my_function3"
-    # CHECK:   return_type = !register_set_1002_,
-    # CHECK:   argument_types = [
-    # CHECK:     !uint64_t
+    # CHECK: #my_function3$def = #clift.func<
+    # CHECK:   "/model-type/1002"
+    # CHECK:   as "my_function3"
+    # CHECK:   : !register_set_1002_(
+    # CHECK:     !uint64_t,
     # CHECK:     !clift.ptr<
     # CHECK:       8 to !uint64_t
-    # CHECK:     >
+    # CHECK:     >,
     # CHECK:     !clift.ptr<
     # CHECK:       8 to !my_struct
     # CHECK:     >
-    # CHECK:   ]
+    # CHECK:   )
     # CHECK: >
     # CHECK: !my_function3_ = !clift.defined<
     # CHECK:   #my_function3$def

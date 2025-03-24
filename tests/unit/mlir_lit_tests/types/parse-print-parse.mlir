@@ -53,11 +53,8 @@
       >
     ]>>
 
-!my_function = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1005",
-  name = "my_function",
-  return_type = !my_struct$const,
-  argument_types = [!int32_t$const]>>
+!my_function = !clift.defined<#clift.func<
+  "/model-type/1005" as "my_function" : !my_struct$const(!int32_t$const)>>
 
 !my_recursive_union = !clift.defined<
   const #clift.union<

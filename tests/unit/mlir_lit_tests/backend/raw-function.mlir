@@ -18,11 +18,7 @@
     >
   ]>>
 
-!f = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1003",
-  name = "",
-  return_type = !int32_t,
-  argument_types = [!int32_t, !f_args]>>
+!f = !clift.defined<#clift.func<"/model-type/1003" : !int32_t(!int32_t, !f_args)>>
 
 clift.module {
   // CHECK: int32_t fun_0x40001003(int32_t rcx _REG(rcx_x86_64), args_1003 _stack_arguments _STACK) {

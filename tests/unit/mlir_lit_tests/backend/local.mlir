@@ -7,11 +7,8 @@
 !void = !clift.primitive<void 0>
 !int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1001",
-  name = "",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<
+  "/model-type/1001" : !void()>>
 
 !my_enum = !clift.defined<#clift.enum<
   "/model-type/2001" : !int32_t {

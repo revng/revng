@@ -6,11 +6,7 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1",
-  name = "",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<"/model-type/1" : !void()>>
 
 clift.func @f<!f>() {
   %label = clift.make_label "label"

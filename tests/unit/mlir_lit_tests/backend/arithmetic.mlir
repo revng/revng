@@ -11,11 +11,7 @@
 
 !ptrdiff_t = !clift.primitive<signed 8>
 
-!f = !clift.defined<#clift.function<
-  unique_handle = "/model-type/1001",
-  name = "",
-  return_type = !void,
-  argument_types = []>>
+!f = !clift.defined<#clift.func<"/model-type/1001" : !void()>>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

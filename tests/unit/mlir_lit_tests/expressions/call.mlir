@@ -8,20 +8,9 @@
 !int32_t = !clift.primitive<signed 4>
 !int32_t$const = !clift.primitive<const signed 4>
 
-!f = !clift.defined<#clift.function<unique_handle = "/model-type/1",
-                                    name = "",
-                                    return_type = !void,
-                                    argument_types = []>>
-
-!g = !clift.defined<#clift.function<unique_handle = "/model-type/2",
-                                    name = "",
-                                    return_type = !void,
-                                    argument_types = [!int32_t]>>
-
-!h = !clift.defined<#clift.function<unique_handle = "/model-type/3",
-                                    name = "",
-                                    return_type = !void,
-                                    argument_types = [!int32_t$const]>>
+!f = !clift.defined<#clift.func<"/model-type/1" : !void()>>
+!g = !clift.defined<#clift.func<"/model-type/2" : !void(!int32_t)>>
+!h = !clift.defined<#clift.func<"/model-type/3" : !void(!int32_t$const)>>
 
 %mi = clift.undef : !int32_t
 %ci = clift.undef : !int32_t$const
