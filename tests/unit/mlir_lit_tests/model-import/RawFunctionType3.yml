@@ -23,12 +23,16 @@ TypeDefinitions:
     # CHECK:   fields = [
     # CHECK:     <
     # CHECK:       offset = 0
-    # CHECK:       type = !clift.primitive<UnsignedKind 8>
+    # CHECK:       type = !clift.primitive<
+    # CHECK:         unsigned 8
+    # CHECK:       >
     # CHECK:     >
     # CHECK:     <
     # CHECK:       offset = 8
     # CHECK:       type = !clift.pointer<
-    # CHECK:         pointee_type = !clift.primitive<UnsignedKind 8>
+    # CHECK:         pointee_type = !clift.primitive<
+    # CHECK:           unsigned 8
+    # CHECK:         >
     # CHECK:         pointer_size = 8
     # CHECK:       >
     # CHECK:     >

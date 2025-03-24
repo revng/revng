@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
 // CHECK: union field offsets must be zero
 !s = !clift.defined<#clift.union<
@@ -14,7 +14,7 @@
     <
       offset = 10,
       name = "",
-      type = !clift.primitive<UnsignedKind 4>
+      type = !clift.primitive<unsigned 4>
     >
   ]
 >>

@@ -4,12 +4,12 @@
 
 // RUN: %revngcliftopt %s
 
-!int32_t = !clift.primitive<SignedKind 4>
+!int32_t = !clift.primitive<signed 4>
 !int32_t$ptr = !clift.pointer<pointee_type = !int32_t, pointer_size = 8>
-!int32_t$const = !clift.primitive<is_const = true, SignedKind 4>
+!int32_t$const = !clift.primitive<const signed 4>
 !int32_t$const$ptr = !clift.pointer<pointee_type = !int32_t$const, pointer_size = 8>
 
-!uint32_t = !clift.primitive<UnsignedKind 4>
+!uint32_t = !clift.primitive<unsigned 4>
 !uint32_t$ptr = !clift.pointer<pointee_type = !uint32_t, pointer_size = 8>
 
 !my_uint32 = !clift.defined<#clift.typedef<unique_handle = "/model-type/1",

@@ -4,10 +4,10 @@
 
 // RUN: %revngcliftopt %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
-!int32_t = !clift.primitive<SignedKind 4>
-!float = !clift.primitive<FloatKind 4>
+!int32_t = !clift.primitive<signed 4>
+!float = !clift.primitive<float 4>
 !pointer = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
 
 !enum = !clift.defined<#clift.enum<

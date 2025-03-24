@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!char$const = !clift.primitive<is_const = true, NumberKind 1>
+!char$const = !clift.primitive<const number 1>
 
 // CHECK: result type length must match string length
 clift.str "hello" : !clift.array<element_type = !char$const, elements_count = 5>

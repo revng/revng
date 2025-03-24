@@ -4,8 +4,8 @@
 
 // RUN: %revngcliftopt %s --emit-c="tagless model=%S/model.yml" -o /dev/null | FileCheck %s
 
-!void = !clift.primitive<VoidKind 0>
-!char$const = !clift.primitive<is_const = true, NumberKind 1>
+!void = !clift.primitive<void 0>
+!char$const = !clift.primitive<const number 1>
 
 !f = !clift.defined<#clift.function<
   unique_handle = "/model-type/1001",

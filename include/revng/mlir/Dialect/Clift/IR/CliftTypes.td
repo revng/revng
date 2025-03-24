@@ -38,18 +38,12 @@ def Clift_PrimitiveType
 
   let genVerifyDecl = 1;
 
-  let extraClassDeclaration = [{
-    static mlir::clift::PrimitiveType getVoid(mlir::MLIRContext* Context, uint64_t Size, bool IsConst = false) {
-      return get(Context, PrimitiveKind::VoidKind, Size, BoolAttr::get(Context, IsConst));
-    }
-  }];
-
   let description = [{
     Primitive type.
   }];
 
   let assemblyFormat = [{
-    `<`( `is_const` `=` $is_const^ `,` ` `)? $kind $size `>`
+    `<` custom<CliftConst>($is_const) $kind $size `>`
   }];
 }
 

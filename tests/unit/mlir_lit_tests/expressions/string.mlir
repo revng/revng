@@ -4,5 +4,5 @@
 
 // RUN: %revngcliftopt %s
 
-!char$const = !clift.primitive<is_const = true, NumberKind 1>
+!char$const = !clift.primitive<const number 1>
 clift.str "hello" : !clift.array<element_type = !char$const, elements_count = 6>

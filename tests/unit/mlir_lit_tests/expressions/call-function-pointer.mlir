@@ -4,8 +4,8 @@
 
 // RUN: %revngcliftopt %s
 
-!int32_t = !clift.primitive<SignedKind 4>
-!int64_t = !clift.primitive<SignedKind 8>
+!int32_t = !clift.primitive<signed 4>
+!int64_t = !clift.primitive<signed 8>
 
 !f = !clift.defined<#clift.function<unique_handle = "/model-type/1",
                                     name = "",

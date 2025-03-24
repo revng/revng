@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s
 
-!void = !clift.primitive<VoidKind 0>
-!int32_t = !clift.primitive<SignedKind 4>
-!int32_t$const = !clift.primitive<is_const = true, SignedKind 4>
+!void = !clift.primitive<void 0>
+!int32_t = !clift.primitive<signed 4>
+!int32_t$const = !clift.primitive<const signed 4>
 
 !f = !clift.defined<#clift.function<unique_handle = "/model-type/1",
                                     name = "",

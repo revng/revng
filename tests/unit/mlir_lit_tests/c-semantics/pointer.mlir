@@ -14,7 +14,7 @@
       name = "",
       type = !clift.pointer<
         pointer_size = 4,
-        pointee_type = !clift.primitive<VoidKind 0>>
+        pointee_type = !clift.primitive<void 0>>
     >
   ]>>
 

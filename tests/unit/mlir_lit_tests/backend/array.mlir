@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s --emit-c="tagless model=%S/model.yml" -o /dev/null | FileCheck %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
-!int32_t = !clift.primitive<SignedKind 4>
+!int32_t = !clift.primitive<signed 4>
 !int32_t$p = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
 
 !int32_t$1 = !clift.array<element_type = !int32_t, elements_count = 1>

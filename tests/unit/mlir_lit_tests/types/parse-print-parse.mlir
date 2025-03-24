@@ -3,8 +3,8 @@
 //
 // RUN: %revngcliftopt %s | %revngcliftopt
 
-!int32_t$const = !clift.primitive<is_const = true, SignedKind 4>
-!uint32_t$const = !clift.primitive<is_const = true, UnsignedKind 8>
+!int32_t$const = !clift.primitive<const signed 4>
+!uint32_t$const = !clift.primitive<const unsigned 8>
 
 !my_enum = !clift.defined<#clift.enum<
   unique_handle = "/model-type/1001",
@@ -36,14 +36,12 @@
       <
         offset = 10,
         name = "my_struct_10",
-        type = !clift.primitive<
-          is_const = true,
-          SignedKind 4>
+        type = !clift.primitive<const signed 4>
       >,
       <
         offset = 20,
         name = "my_struct_20",
-        type = !clift.primitive<SignedKind 4>
+        type = !clift.primitive<signed 4>
       >
     ]>>
 
@@ -56,14 +54,12 @@
       <
         offset = 0,
         name = "my_union_10",
-        type = !clift.primitive<
-          is_const = true,
-          SignedKind 4>
+        type = !clift.primitive<const signed 4>
       >,
       <
         offset = 0,
         name = "my_union_20",
-        type = !clift.primitive<SignedKind 4>
+        type = !clift.primitive<signed 4>
       >
     ]>>
 
@@ -82,9 +78,7 @@
       <
         offset = 0,
         name = "my_recursive_union_10",
-        type = !clift.primitive<
-          is_const = true,
-          SignedKind 4>
+        type = !clift.primitive<const signed 4>
       >,
       <
         offset = 0,

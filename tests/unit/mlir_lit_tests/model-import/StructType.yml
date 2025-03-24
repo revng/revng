@@ -11,15 +11,21 @@ TypeDefinitions:
   # CHECK:   fields = [
   # CHECK:     <
   # CHECK:       offset = 0
-  # CHECK:       type = !clift.primitive<UnsignedKind 1>
+  # CHECK:       type = !clift.primitive<
+  # CHECK:         unsigned 1
+  # CHECK:       >
   # CHECK:     >
   # CHECK:     <
   # CHECK:       offset = 2
-  # CHECK:       type = !clift.primitive<UnsignedKind 2>
+  # CHECK:       type = !clift.primitive<
+  # CHECK:         unsigned 2
+  # CHECK:       >
   # CHECK:     >
   # CHECK:     <
   # CHECK:       offset = 4
-  # CHECK:       type = !clift.primitive<UnsignedKind 4>
+  # CHECK:       type = !clift.primitive<
+  # CHECK:         unsigned 4
+  # CHECK:       >
   # CHECK:     >
   # CHECK:   ]
   # CHECK: >

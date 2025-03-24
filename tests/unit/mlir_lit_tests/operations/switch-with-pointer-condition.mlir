@@ -6,7 +6,7 @@
 
 !pointer = !clift.pointer<
   pointer_size = 8,
-  pointee_type = !clift.primitive<FloatKind 4>>
+  pointee_type = !clift.primitive<float 4>>
 
 // CHECK: condition requires an integer type
 clift.switch {

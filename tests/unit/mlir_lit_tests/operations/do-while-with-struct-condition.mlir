@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!void = !clift.primitive<VoidKind 0>
+!void = !clift.primitive<void 0>
 
 !s = !clift.defined<#clift.struct<unique_handle = "/model-type/1", name = "", size = 1, fields = []>>
 

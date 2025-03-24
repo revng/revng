@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!b = !clift.primitive<UnsignedKind 1>
+!b = !clift.primitive<unsigned 1>
 
 !s = !clift.defined<#clift.struct<unique_handle = "/model-type/1",
                                   name = "",

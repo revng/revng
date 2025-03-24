@@ -4,12 +4,12 @@
 
 // RUN: %revngcliftopt %s --emit-c="tagless model=%S/model.yml" -o /dev/null | FileCheck %s
 
-!int32_t = !clift.primitive<SignedKind 4>
+!int32_t = !clift.primitive<signed 4>
 
 !f = !clift.defined<#clift.function<
   unique_handle = "/model-type/1001",
   name = "",
-  return_type = !clift.primitive<VoidKind 0>,
+  return_type = !clift.primitive<void 0>,
   argument_types = []>>
 
 clift.module {

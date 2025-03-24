@@ -4,9 +4,9 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!int32_t = !clift.primitive<SignedKind 4>
+!int32_t = !clift.primitive<signed 4>
 !int32_t$ptr = !clift.pointer<pointer_size = 8, pointee_type = !int32_t>
-!ptrdiff_t = !clift.primitive<SignedKind 8>
+!ptrdiff_t = !clift.primitive<signed 8>
 
 %p = clift.undef : !int32_t$ptr
 %i = clift.imm 0 : !ptrdiff_t

@@ -14,6 +14,22 @@
 #include "CliftParser.h"
 #include "CliftStorage.h"
 
+namespace mlir {
+
+static ParseResult parseCliftConst(AsmParser &Parser, BoolAttr &IsConst) {
+  IsConst = BoolAttr::get(Parser.getContext(),
+                          Parser.parseOptionalKeyword("const").succeeded());
+
+  return mlir::success();
+}
+
+static void printCliftConst(AsmPrinter &Printer, BoolAttr IsConst) {
+  if (IsConst.getValue())
+    Printer << "const";
+}
+
+} // namespace mlir
+
 #define GET_TYPEDEF_CLASSES
 #include "revng/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
 
