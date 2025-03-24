@@ -43,6 +43,12 @@ public:
 public:
   void makeGoto(llvm::BasicBlock *GotoBlock);
   void addScopeCloser(llvm::BasicBlock *Source, llvm::BasicBlock *Target);
+
+  /// With the usage of this helper,  all the successor in the `Terminator` of
+  /// the `Source` block pointing to `Target` will be redirected to the newly
+  /// inserted `goto` block
+  llvm::BasicBlock *makeGotoEdge(llvm::BasicBlock *Source,
+                                 llvm::BasicBlock *Target);
 };
 
 llvm::SmallVector<const llvm::Instruction *, 2>
