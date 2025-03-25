@@ -226,6 +226,7 @@ set(REVNG_API_MODULE_FILES
     revng/internal/api/invalidations.py
     revng/internal/api/manager.py
     revng/internal/api/string_map.py
+    revng/internal/api/synchronizer.py
     revng/internal/api/target.py
     revng/internal/api/utils.py)
 python_module(TARGET_NAME revng-python-api WHEEL revng_internal MODULE_FILES

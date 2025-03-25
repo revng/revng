@@ -32,7 +32,11 @@ class Invalidation:
     invalidations: str
 
 
-executor = ThreadPoolExecutor(1)
+# This executor is used to offload most of the work from the GraphQL handler.
+# One might wonder why this is needed since the `Manager` API has a global
+# lock; the reason is that, without offloading the work to another thread the
+# asyncio loop does not release, so the uvicorn request handler hangs.
+executor = ThreadPoolExecutor(4)
 invalidation_queue: MultiQueue[Invalidation] = MultiQueue()
 
 T = TypeVar("T")
