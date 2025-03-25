@@ -2,7 +2,10 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import os
+from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Lock
 from typing import Dict, Iterable, List, Mapping, Optional
 
 import yaml
@@ -14,6 +17,7 @@ from .errors import Error, Expected
 from .exceptions import RevngException
 from .invalidations import Invalidations, ResultWithInvalidations
 from .string_map import StringMap
+from .synchronizer import NoopSynchronizer, S3Synchronizer, Synchronizer
 from .target import ContainerToTargetsMap, Target, TargetsList
 from .utils import make_c_string, make_python_string
 
@@ -24,14 +28,29 @@ class Manager:
         workdir: Optional[str] = None,
         flags: Iterable[str] = (),
     ):
+        self.synchronizer: Synchronizer = NoopSynchronizer()
         if workdir is None:
             self.temporary_workdir = TemporaryDirectory(prefix="revng-manager-workdir-")
-            self.workdir = self.temporary_workdir.name
+            self.workdir = Path(self.temporary_workdir.name)
+        elif workdir.startswith("s3://") or workdir.startswith("s3s://"):
+            self.temporary_workdir = TemporaryDirectory(prefix="revng-manager-workdir-")
+            self.workdir = Path(self.temporary_workdir.name)
+            self.synchronizer = S3Synchronizer(workdir)
         else:
-            self.workdir = workdir
+            self.workdir = Path(workdir)
+
+        # Load from the save handler
+        if not self.synchronizer.load(self.workdir):
+            raise ValueError("Failed to load")
 
         _flags = [make_c_string(s) for s in flags]
-        _workdir = make_c_string(self.workdir)
+        _workdir = make_c_string(str(self.workdir))
+
+        # Initialize the save lock, this needs to be acquired when either
+        # saving or running analyses. This is only needed because the workdir
+        # needs to be moved to a temporary directory before it is safe for
+        # another thread to save again
+        self.save_lock = Lock()
 
         # Ensures that the _manager property is always defined even if the API call fails
         self._manager = None
@@ -43,6 +62,11 @@ class Manager:
         )
 
         assert self._manager, "Failed to instantiate manager"
+        # After instantiating the manager some file might have been written,
+        # call the synchronizer to save
+        with self.save_lock:
+            temp_dir = self._move_workdir_for_save()
+        self._save_hook(temp_dir)
 
         _description = _api.rp_manager_get_pipeline_description(self._manager)
         self._description_str = make_python_string(_description)
@@ -52,8 +76,41 @@ class Manager:
     def uid(self) -> int:
         return int(ffi.cast("uintptr_t", self._manager))
 
+    def _move_workdir_for_save(self) -> TemporaryDirectory:
+        assert self.save_lock.locked()
+        # Replace the supplied directory, using a temporary directory in the
+        # same parent directory. The temporary directory is created in the
+        # parent directory to mitigate crossing filesystem boundaries as
+        # much as possible (otherwise the `os.replace` call below will
+        # fail).
+        temp_dir = TemporaryDirectory(prefix="manager-synchronizer-", dir=self.workdir.parent)
+
+        # Moves the directory to the temporary directory, atomically (if the
+        # filesystem is POSIX compliant). Will fail if it cannot do so. After
+        # this call files in `path` will be in the same place in the temporary
+        # directory, e.g.
+        # `<path.parent>/<path.name>/context/model.yml` ->
+        # `<path.parent>/<temp_dir_path.name>/context/model.yml`
+        os.replace(self.workdir, temp_dir.name)
+        # Remake the workdir directory
+        self.workdir.mkdir()
+
+        return temp_dir
+
+    def _save_hook(self, temp_dir: TemporaryDirectory | None):
+        if temp_dir is None:
+            return
+        result = self.synchronizer.save(Path(temp_dir.name))
+        assert result, "Failed to save manager"
+
     def save(self) -> bool:
-        return _api.rp_manager_save(self._manager)
+        """Save the manager's contents to the workdir. This method is
+        thread-safe and can be called by multiple threads in parallel."""
+        with self.save_lock:
+            if not _api.rp_manager_save(self._manager):
+                return False
+            temp_dir = self._move_workdir_for_save()
+        return self.synchronizer.save(Path(temp_dir.name))
 
     # description utilities
 
@@ -277,15 +334,20 @@ class Manager:
 
         invalidations = Invalidations()
         error = Error()
-        result = _api.rp_manager_run_analysis(
-            self._manager,
-            make_c_string(step_name),
-            make_c_string(analysis_name),
-            target_map._map,
-            options._string_map,
-            invalidations._invalidations,
-            error._error,
-        )
+        temp_dir = None
+        with self.save_lock:
+            result = _api.rp_manager_run_analysis(
+                self._manager,
+                make_c_string(step_name),
+                make_c_string(analysis_name),
+                target_map._map,
+                options._string_map,
+                invalidations._invalidations,
+                error._error,
+            )
+            if result != ffi.NULL:
+                temp_dir = self._move_workdir_for_save()
+        self._save_hook(temp_dir)
 
         return Expected(
             ResultWithInvalidations(
@@ -303,13 +365,18 @@ class Manager:
         options_map = StringMap(options)
         invalidations = Invalidations()
         error = Error()
-        result = _api.rp_manager_run_analyses_list(
-            self._manager,
-            make_c_string(analyses_list_name),
-            options_map._string_map,
-            invalidations._invalidations,
-            error._error,
-        )
+        temp_dir = None
+        with self.save_lock:
+            result = _api.rp_manager_run_analyses_list(
+                self._manager,
+                make_c_string(analyses_list_name),
+                options_map._string_map,
+                invalidations._invalidations,
+                error._error,
+            )
+            if result != ffi.NULL:
+                temp_dir = self._move_workdir_for_save()
+        self._save_hook(temp_dir)
 
         return Expected(
             ResultWithInvalidations(
@@ -358,8 +425,7 @@ class Manager:
         return self._description_str
 
     def set_storage_credentials(self, credentials: str):
-        _credentials = make_c_string(credentials)
-        assert _api.rp_manager_set_storage_credentials(self._manager, _credentials)
+        self.synchronizer.set_credentials(credentials)
 
     def get_context_commit_index(self) -> int:
         return _api.rp_manager_get_context_commit_index(self._manager)

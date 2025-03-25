@@ -135,7 +135,7 @@ def make_startlette() -> Starlette:
     startup_done = False
 
     if DEBUG:
-        print(f"Manager workdir is: {manager.workdir}", file=sys.stderr)
+        print(f"Manager workdir is: {manager.workdir!s}", file=sys.stderr)
         signal.signal(signal.SIGUSR2, lambda s, f: event_manager.save())
 
     async def index_page(request):
