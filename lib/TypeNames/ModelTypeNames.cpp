@@ -411,20 +411,23 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
     for (const model::NamedTypedRegister &Arg : RF.Arguments()) {
       std::string ArgName = B.NameBuilder.name(RF, Arg);
       std::string ArgString;
-      if (Function != nullptr)
-        ArgString = getArgumentLocationDefinition(ArgName, *Function, B);
+      if (Function != nullptr) {
+        std::string ArgStringName = getArgumentLocationDefinition(ArgName,
+                                                                  *Function,
+                                                                  B);
+        Tag ArgStringTag = B.getTag(ptml::tags::Span, ArgStringName);
+        ArgStringTag.addAttribute(attributes::ActionContextLocation,
+                                  locationString(ranks::RawArgument,
+                                                 RF.key(),
+                                                 Arg.key()));
+        ArgString = ArgStringTag.toString();
+      }
 
       std::string
         MarkedType = B.getNamedCInstance(*Arg.Type(), ArgString).str().str();
       auto Name = model::Register::getName(Arg.Location());
       std::string Reg = ptml::AttributeRegistry::getAnnotation<"_REG">(Name);
-      Tag ArgTag = B.getTag(ptml::tags::Span, MarkedType + " " + Reg);
-      ArgTag.addAttribute(attributes::ActionContextLocation,
-                          locationString(ranks::RawArgument,
-                                         RF.key(),
-                                         Arg.key()));
-
-      Result += Separator.str() + ArgTag.toString();
+      Result += Separator.str() + MarkedType + " " + Reg;
       Separator = Comma;
     }
 
@@ -477,8 +480,17 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
     for (const auto &Arg : CF.Arguments()) {
       std::string ArgName = B.NameBuilder.name(CF, Arg);
       std::string ArgString;
-      if (Function != nullptr)
-        ArgString = getArgumentLocationDefinition(ArgName, *Function, B);
+      if (Function != nullptr) {
+        std::string ArgStringName = getArgumentLocationDefinition(ArgName,
+                                                                  *Function,
+                                                                  B);
+        Tag ArgStringTag = B.getTag(ptml::tags::Span, ArgStringName);
+        ArgStringTag.addAttribute(attributes::ActionContextLocation,
+                                  locationString(ranks::CABIArgument,
+                                                 CF.key(),
+                                                 Arg.key()));
+        ArgString = ArgStringTag.toString();
+      }
 
       TypeString ArgDeclaration;
       if (const model::ArrayType *Array = Arg.Type()->getArray()) {
@@ -491,12 +503,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
         ArgDeclaration = B.getNamedCInstance(*Arg.Type(), ArgString);
       }
 
-      Tag ArgTag = B.getTag(ptml::tags::Span, ArgDeclaration);
-      ArgTag.addAttribute(attributes::ActionContextLocation,
-                          locationString(ranks::CABIArgument,
-                                         CF.key(),
-                                         Arg.key()));
-      Result += Separator.str() + ArgTag.toString();
+      Result += Separator.str() + ArgDeclaration.str().str();
       Separator = Comma;
     }
     Result += ")";
