@@ -27,9 +27,9 @@ concept hasExplicitSize = requires(const typename ObjectT::ImplType::KeyTy
 template<typename ObjectT>
 void printCompositeType(AsmPrinter &Printer, ObjectT Object) {
   Printer << Object.getMnemonic();
-  Printer << '<' << '\"';
+  Printer << '<' << '"';
   llvm::printEscapedString(Object.getImpl()->getHandle(), Printer.getStream());
-  Printer << '\"';
+  Printer << '"';
 
   auto &RecursionMap = getAsmRecursionMap();
   const auto [Iterator, Inserted] = RecursionMap.insert(Object.getImpl());

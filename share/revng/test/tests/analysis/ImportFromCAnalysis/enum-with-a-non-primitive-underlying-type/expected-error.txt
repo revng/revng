@@ -2,5 +2,5 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import-from-c failed: unknown primitive type: 'struct some_struct'.
+import-from-c failed: unknown primitive type: `struct some_struct`.
 

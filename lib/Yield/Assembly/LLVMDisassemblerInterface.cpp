@@ -160,7 +160,7 @@ static yield::TagType::Values parseMarkupTag(llvm::StringRef Input) {
   else if (Input == "absolute")
     return yield::TagType::AbsoluteAddress;
   else
-    revng_abort(("Unknown llvm markup tag: '" + Input.str() + "'").c_str());
+    revng_abort(("Unknown llvm markup tag: `" + Input.str() + '`').c_str());
 }
 
 /// Counts the number of consecutive characters satisfying \p Lambda predicate

@@ -3,5 +3,5 @@
 #
 
 import-from-c: While parsing argument #0:
-import-from-c failed: Unknown register: 'r_typo_cx'.
+import-from-c failed: Unknown register: `r_typo_cx`.
 

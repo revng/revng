@@ -425,12 +425,12 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   auto Iterator = llvm::find_if(Name, IsCharacterForbidden);
   if (Iterator != Name.end()) {
     using namespace std::string_literals;
-    return revng::createError("it contains a forbidden character: '"s
-                              + *Iterator + "'");
+    return revng::createError("it contains a forbidden character: `"s
+                              + *Iterator + '`');
   }
 
   if (std::isdigit(Name[0]))
-    return revng::createError("it starts with a digit: '"s + Name[0] + "'");
+    return revng::createError("it starts with a digit: `"s + Name[0] + '`');
 
   // Filter out primitive names we use - we don't want collisions with those
   if (model::PrimitiveType::isCName(Name))
@@ -578,12 +578,12 @@ model::AssemblyNameBuilder::isNameReserved(llvm::StringRef Name) const {
   auto Iterator = llvm::find_if(Name, IsCharacterForbidden);
   if (Iterator != Name.end()) {
     using namespace std::string_literals;
-    return revng::createError("it contains a forbidden character: '"s
-                              + *Iterator + "'");
+    return revng::createError("it contains a forbidden character: `"s
+                              + *Iterator + '`');
   }
 
   if (std::isdigit(Name[0]))
-    return revng::createError("it starts with a digit: '"s + Name[0] + "'");
+    return revng::createError("it starts with a digit: `"s + Name[0] + '`');
 
   if (Configuration.ReserveNamesStartingWithUnderscore())
     if (Name[0] == '_')

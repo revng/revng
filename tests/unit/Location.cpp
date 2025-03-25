@@ -141,7 +141,7 @@ BOOST_AUTO_TEST_CASE(Serialization) {
 
     using namespace std::string_literals;
     revng_check(ParsedOnce,
-                ("Parsing of '"s + TestCase.data() + "' failed").c_str());
+                ("Parsing of `"s + TestCase.data() + "` failed").c_str());
   }
 }
 

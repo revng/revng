@@ -328,17 +328,17 @@ ImplicitModelCastPass::getOperandsToPromote(llvm::Instruction *I,
 
     if (not IsImplicit) {
       revng_log(Log,
-                " '" << GetPlainTypeName(*PromotedTypeForCastedValue) << "' ('"
+                " `" << GetPlainTypeName(*PromotedTypeForCastedValue) << "` (`"
                      << GetPlainTypeName(CastedValueType)
-                     << "') CANNOT be implicitly cast to '"
-                     << GetPlainTypeName(ExpectedType) << "'.");
+                     << "`) CANNOT be implicitly cast to `"
+                     << GetPlainTypeName(ExpectedType) << "`.");
       continue;
     } else {
       revng_log(Log,
-                " '" << GetPlainTypeName(*PromotedTypeForCastedValue) << "' ('"
-                     << GetPlainTypeName(CastedValueType)
-                     << "') can be implicitly cast to '"
-                     << GetPlainTypeName(ExpectedType) << "'.");
+                " '`" << GetPlainTypeName(*PromotedTypeForCastedValue) << "` (`"
+                      << GetPlainTypeName(CastedValueType)
+                      << "`) can be implicitly cast to `"
+                      << GetPlainTypeName(ExpectedType) << "`.");
     }
 
     Result.insert(&Op);

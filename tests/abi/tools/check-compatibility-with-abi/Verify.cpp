@@ -62,7 +62,7 @@ private:
 using VH = VerificationHelper;
 
 void VH::fail(std::string &&Message) const {
-  dbg << "Verification of '" << FunctionName.str() << "' failed.\n"
+  dbg << "Verification of `" << FunctionName.str() << "` failed.\n"
       << "The layout is:\n";
   FunctionLayout.dump();
   revng_abort(Message.c_str());
@@ -414,9 +414,9 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
       const auto &Registers = Test.StateBeforeTheCall.Registers;
       llvm::ArrayRef RegisterBytes = Registers.at(SPTAR.Registers[0]).Bytes;
       if (RegisterBytes != llvm::ArrayRef(Test.ReturnValue.AddressBytes)) {
-        fail("Verification of the return value location register ('"
+        fail("Verification of the return value location register (`"
              + model::Register::getName(SPTAR.Registers[0]).str()
-             + "') failed.");
+             + "`) failed.");
       }
 
       // Save the location to be used further up.
@@ -432,8 +432,8 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
                                           SPTAR.Stack->Size);
       ReturnValueLocationValue = valueFromBytes(ReturnValueLocationBytes);
     } else {
-      fail("ABI definition for '" + std::string(ABI.getName())
-           + "' does not define a return value location. Does the ABI support "
+      fail("ABI definition for `" + std::string(ABI.getName())
+           + "` does not define a return value location. Does the ABI support "
              "returning big values?");
     }
 
@@ -450,8 +450,8 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
       const auto &RVReg = FunctionLayout.ReturnValues[0].Registers[0];
       llvm::ArrayRef Bytes = Test.StateAfterTheReturn.Registers.at(RVReg).Bytes;
       if (ReturnValueLocationBytes != Bytes) {
-        fail("Returned pointer ('" + model::Register::getName(RVReg).str()
-             + "') doesn't match SPTAR value.");
+        fail("Returned pointer (`" + model::Register::getName(RVReg).str()
+             + "`) doesn't match SPTAR value.");
       }
     }
 
@@ -477,9 +477,9 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
         revng_assert(Bytes.size() <= PointerSize);
         Bytes = Bytes.take_front(ReturnValueBytes.size());
         if (!ReturnValueBytes.take_front(Bytes.size()).equals(Bytes)) {
-          fail("A piece of the return value found in the '"
+          fail("A piece of the return value found in the `"
                + model::Register::getName(Register).str()
-               + "' register doesn't match the expected value.");
+               + "` register doesn't match the expected value.");
         }
 
         ReturnValueBytes = ReturnValueBytes.drop_front(Bytes.size());
@@ -488,8 +488,8 @@ void VH::returnValue(const abi::runtime_test::ReturnValueTest &Test) const {
 
     if (!ReturnValueBytes.empty()) {
       fail("Unable to find some parts of the return value. Should some "
-           "additional registers be mentioned in the definition of '"
-           + std::string(ABI.getName()) + "' abi?");
+           "additional registers be mentioned in the definition of `"
+           + std::string(ABI.getName()) + "` abi?");
     }
   }
 }
@@ -500,8 +500,8 @@ getPrototypeLayout(const model::Function &Function,
   if (const auto *CABI = Function.cabiPrototype()) {
     if (ABI != CABI->ABI()) {
       std::string Error = "ABI mismatch. Passed argument indicates that "
-                          "the intended ABI is '"
-                          + toString(ABI.ABI()) + "' but the function is\n"
+                          "the intended ABI is `"
+                          + toString(ABI.ABI()) + "` but the function is\n"
                           + toString(Function) + "\nWith prototype:\n"
                           + toString(*CABI);
       revng_abort(Error.c_str());

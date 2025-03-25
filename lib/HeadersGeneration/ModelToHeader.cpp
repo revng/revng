@@ -82,7 +82,7 @@ bool ptml::HeaderBuilder::printModelHeader() {
 
       if (Log.isEnabled()) {
         helpers::BlockComment CommentScope = B.getBlockCommentScope();
-        B.append("Emitting a model function '" + B.NameBuilder.name(MF) + "':\n"
+        B.append("Emitting a model function `" + B.NameBuilder.name(MF) + "`:\n"
                  + MF.toString() + "Its prototype is:\n" + FT.toString());
       }
 
@@ -109,8 +109,8 @@ bool ptml::HeaderBuilder::printModelHeader() {
 
       if (Log.isEnabled()) {
         helpers::BlockComment CommentScope = B.getBlockCommentScope();
-        B.append("Emitting a dynamic function '" + B.NameBuilder.name(MF)
-                 + "':\n" + MF.toString() + "Its prototype is:\n"
+        B.append("Emitting a dynamic function `" + B.NameBuilder.name(MF)
+                 + "`:\n" + MF.toString() + "Its prototype is:\n"
                  + FT.toString());
       }
 

@@ -43,8 +43,8 @@ private:
       llvm::consumeError(std::move(Error));
 
     } else {
-      std::string ActualError = "An automatic name '" + Name.str()
-                                + "' is reserved and should therefore be "
+      std::string ActualError = "An automatic name `" + Name.str()
+                                + "` is reserved and should therefore be "
                                   "banned in order to avoid collisions.";
       revng_abort(ActualError.c_str());
     }
@@ -215,9 +215,9 @@ private:
       return std::nullopt;
     }
 
-    return "Name '" + OriginalName
-           + "' is not valid, so it was replaced by an automatic one ('" + Name
-           + "') because " + revng::unwrapError(std::move(Reason)) + ".";
+    return "Name `" + OriginalName
+           + "` is not valid, so it was replaced by an automatic one (`" + Name
+           + "`) because " + revng::unwrapError(std::move(Reason)) + ".";
   }
 
 public:
