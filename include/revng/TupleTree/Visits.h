@@ -39,8 +39,11 @@ void visitTuple(Visitor &V, T &Obj) {
 // UpcastablePointerLike-like
 template<typename Visitor, UpcastablePointerLike T>
 void visitTupleTree(Visitor &V, T &Obj) {
-  if (Obj != nullptr)
+  if (Obj != nullptr) {
+    V.PreVisit(Obj);
     upcast(Obj, [&V](auto &Upcasted) { visitTupleTree(V, Upcasted); });
+    V.PostVisit(Obj);
+  }
 }
 
 // Tuple-like
