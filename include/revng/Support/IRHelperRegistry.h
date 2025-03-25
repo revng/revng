@@ -23,8 +23,8 @@ using RegisterIRHelper = RegisterManagedStaticImpl<IRHelper>;
 namespace detail {
 inline void assertIRHelperWasRegistered(llvm::StringRef Name) {
   if (not RegisterIRHelper::get(Name)) {
-    std::string Error = "'" + Name.str()
-                        + "' is not a known helper.\n"
+    std::string Error = "`" + Name.str()
+                        + "` is not a known helper.\n"
                           "Did you forget to register it?";
     revng_abort(Error.c_str());
   }

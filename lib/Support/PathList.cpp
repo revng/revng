@@ -123,7 +123,7 @@ findFileInPaths(llvm::StringRef FileName,
   }
 
   revng_assert(FoundFileName,
-               ("failed to find '" + FileName + "'.").str().c_str());
+               ("failed to find `" + FileName + "`.").str().c_str());
 
   return FoundFileName;
 }

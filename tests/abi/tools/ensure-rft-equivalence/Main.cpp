@@ -80,9 +80,9 @@ ensureIDMatch(const model::TypeDefinition::Key &Left,
 
       std::string Error = "Key in use already: "
                           + toString(LeftIterator->get()->key())
-                          + "\nLHS name is '" + ExpectedName.str()
-                          + "' while RHS name is '"
-                          + LeftIterator->get()->Name() + "'.";
+                          + "\nLHS name is `" + ExpectedName.str()
+                          + "` while RHS name is `"
+                          + LeftIterator->get()->Name() + "`.";
       revng_abort(Error.c_str());
     }
 

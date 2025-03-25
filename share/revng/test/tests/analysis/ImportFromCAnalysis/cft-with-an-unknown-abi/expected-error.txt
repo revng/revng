@@ -2,5 +2,5 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import-from-c failed: Unknown ABI: 'SystemV_typo_x86_64'.
+import-from-c failed: Unknown ABI: `SystemV_typo_x86_64`.
 

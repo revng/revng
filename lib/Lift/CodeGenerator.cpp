@@ -656,7 +656,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
         DLocation = OldFunction->getEntryBlock().getTerminator()->getDebugLoc();
 
       emitAbort(replaceFunction(OldFunction),
-                llvm::Twine("Abort instead a calling '") + Name + "'",
+                llvm::Twine("Abort instead a calling `") + Name + "`",
                 std::move(DLocation));
     }
   }

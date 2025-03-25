@@ -221,9 +221,9 @@ public:
         revng_log(Log,
                   "Analysis was aborted because the `safe` (default) mode of "
                   "the conversion was selected and the conversion for the "
-                  "current ABI ('"
+                  "current ABI (`"
                     << model::ABI::getName(ABI).str()
-                    << "') is not considered stable.");
+                    << "`) is not considered stable.");
         return;
       }
     }

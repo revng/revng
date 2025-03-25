@@ -3,6 +3,6 @@
 #
 
 import-from-c: While parsing return value #0:
-import-from-c failed: Unknown register: 'r_typo_ax'.
+import-from-c failed: Unknown register: `r_typo_ax`.
 import-from-c failed: Unable to parse the type of the return value.
 

@@ -33,8 +33,8 @@ struct RawState {
         return Raw.Name == getRegisterName(Register);
       });
       if (Iterator == Registers.end()) {
-        std::string Error = "Unable to find '" + getRegisterName(Register).str()
-                            + "' in the artifact.\n";
+        std::string Error = "Unable to find `" + getRegisterName(Register).str()
+                            + "` in the artifact.\n";
         revng_abort(Error.c_str());
       }
       Result.Registers.try_emplace(Register, Iterator->Value, Iterator->Bytes);
@@ -187,10 +187,10 @@ abi::runtime_test::parse(llvm::StringRef RuntimeArtifact,
 
   llvm::StringRef ArchitectureName = model::Architecture::getName(Architecture);
   if (ArchitectureName != Deserialized.TargetArchitecture) {
-    std::string Error = "Target architecture ('"
+    std::string Error = "Target architecture (`"
                         + Deserialized.TargetArchitecture.str()
-                        + "') does not match the expected one: '"
-                        + ArchitectureName.str() + "'\n";
+                        + "`) does not match the expected one: `"
+                        + ArchitectureName.str() + "`\n";
     revng_abort(Error.c_str());
   }
 

@@ -718,7 +718,7 @@ bool Configuration::verify(VerifyHelper &VH) const {
   if (Configuration().Naming().unnamedLocalVariablePrefix().empty())
     return VH.fail("Local variable prefix must not be empty.");
   if (Configuration().Naming().unnamedBreakFromLoopVariablePrefix().empty())
-    return VH.fail("'Break from loop' variable prefix must not be empty.");
+    return VH.fail("\"Break from loop\" variable prefix must not be empty.");
 
   if (Configuration().Naming().structPaddingPrefix().empty())
     return VH.fail("Padding prefix must not be empty.");

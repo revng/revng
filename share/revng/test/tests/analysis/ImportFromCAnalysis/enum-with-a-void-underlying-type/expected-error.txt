@@ -3,5 +3,5 @@
 #
 
 import-from-c failed: Underlying type of an enum can only be signed or unsigned.
-                      'void' was found instead.
+                      `void` was found instead.
 
