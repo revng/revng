@@ -307,6 +307,12 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "asm",
 };
 
+/// Returns `true` iff the identifier is exactly the given prefix + a decimal
+/// number. For example (Prefix = `argument_` ):
+/// * `argument_4` - `true`
+/// * `argument_4a` - `false`
+/// * `argument_4_` - `false`
+/// * `argument_` - `false`
 static bool isPrefixAndIndex(llvm::StringRef Name, llvm::StringRef Prefix) {
   if (not Name.starts_with(Prefix))
     return false;
@@ -315,6 +321,13 @@ static bool isPrefixAndIndex(llvm::StringRef Name, llvm::StringRef Prefix) {
   return DigitCount != 0 && Name.size() - Prefix.size() == DigitCount;
 }
 
+/// Returns `true` iff the identifier is exactly the given prefix +
+/// a serialized (flattened) `MetaAddress`. For example (Prefix = `function_`):
+/// * `function_0x1004_Code_arm` - `true`
+/// * `function_0x1004_Code_arma` - `false`
+/// * `function_0x1004_Code_arm_` - `false`
+/// * `function_0x1004_Co_de_arm` - `false`
+/// * `function_` - `false`
 static bool isPrefixAndAddress(llvm::StringRef Name, llvm::StringRef Prefix) {
   if (not Name.starts_with(Prefix))
     return false;
@@ -352,6 +365,18 @@ static bool isPrefixAndAddress(llvm::StringRef Name, llvm::StringRef Prefix) {
   return MetaAddress::fromString(RehydratedAddress).isValid();
 }
 
+/// Returns `true` iff the identifier is exactly the given prefix +
+/// a serialized model type key.
+///
+/// Note that unlike other similar functions, the prefix is allowed (and even
+/// expected) to be empty here.
+///
+/// For example (Prefix = ``):
+/// * `struct_42` - `true`
+/// * `struct_42a` - `false`
+/// * `struct_42_` - `false`
+/// * `struct_4_2` - `false`
+/// * `struct_` - `false`
 static bool isPrefixAndTypeDefinitionKey(llvm::StringRef Name,
                                          llvm::StringRef Prefix) {
   if (not Name.starts_with(Prefix))
@@ -367,6 +392,15 @@ static bool isPrefixAndTypeDefinitionKey(llvm::StringRef Name,
   return isPrefixAndIndex(WithoutKind, "");
 }
 
+/// Returns `true` iff the identifier is exactly the given prefix +
+/// a serialized register name *without* the architecture.
+///
+/// For example (Prefix = `register_`):
+/// * `register_r4` - `true`
+/// * `register_r4a` - `false`
+/// * `register_r4_` - `false`
+/// * `register_r_4` - `false`
+/// * `register_` - `false`
 static bool isPrefixAndRegister(llvm::StringRef Name, llvm::StringRef Prefix) {
   if (not Name.starts_with(Prefix))
     return false;

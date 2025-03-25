@@ -119,6 +119,35 @@ private:
   }
 
 public:
+  /// These method (and its overloads) should be the only way you obtain any
+  /// name you embed into an artifact (be it decompiled c, disassembly, or
+  /// anything else).
+  ///
+  /// That ensures that the names always comply with our policy for names.
+  /// Which is as follows:
+  ///
+  /// Users can give _any_ names to the objects they are allowed to rename
+  /// in the model and as long as such names are unique, the model will be
+  /// valid (*).
+  /// BUT, such names can sometimes be suppressed and replaced by their
+  /// corresponding automatic names (every user-renamable object always has
+  /// one). That happens if:
+  /// 1. The name contains symbols not allowed to be emitted by underlying
+  ///    language, for example anything outside of `[A-Za-z0-9_]` for C.
+  /// 2. It collides with something underlying language reserves, for example
+  ///    we will not emit a function named `if` in C, or `rax` in assembly.
+  /// 3. It collides with something we reserve, which includes:
+  ///      1. automatic names for every renamable object, for example, struct
+  ///         names: `struct_42`.
+  ///      2. names for static stuff that cannot be renamed, for example,
+  ///         primitive names: `uint64_t`.
+  ///      3. names for dynamic stuff that cannot be renamed, for example,
+  ///         helper names: `page_dump`.
+  ///      4. some extra prefixes, like everything starting with `__builtin_`.
+  ///
+  /// ------------------------
+  /// (*) Temporarily, there are further restrictions, namely you are not
+  /// allowed to use `/`. But these will eventually be lifted.
   [[nodiscard]] std::string name(EntityWithName auto const &E) const {
     if (E.Name().empty()) {
       return automaticName(E);
