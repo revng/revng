@@ -8,14 +8,9 @@
 #include "revng/Storage/StorageClient.h"
 
 #include "LocalStorageClient.h"
-#include "S3StorageClient.h"
 
 llvm::Expected<std::unique_ptr<revng::StorageClient>>
 revng::StorageClient::fromPathOrURL(llvm::StringRef URL) {
   revng_assert(not URL.empty());
-  if (S3StorageClient::isS3URL(URL)) {
-    return S3StorageClient::fromURL(URL);
-  } else {
-    return std::make_unique<revng::LocalStorageClient>(URL);
-  }
+  return std::make_unique<revng::LocalStorageClient>(URL);
 }
