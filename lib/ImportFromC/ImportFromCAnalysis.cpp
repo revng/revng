@@ -143,7 +143,7 @@ struct ImportFromCAnalysis {
     }
 
     ptml::CTypeBuilder::ConfigurationOptions Configuration = {
-      .EnableTypeInlining = false, .EnableStackFrameInlining = false
+      .EnableStackFrameInlining = false
     };
     ptml::HeaderBuilder::ConfigurationOptions HeaderConfiguration = {};
     if (TheOption == ImportFromCOption::EditType) {

@@ -26,14 +26,15 @@ protected:
 
 public:
   struct ConfigurationOptions {
-    /// When set to true, the types that are only ever depended on by a single
-    /// other type (for example, a nested struct), are printed inside the parent
-    /// type definition instead of separately.
-    bool EnableTypeInlining = true;
-
-    /// When set to true, function stack frame types are printed inside the
-    /// struct body as opposed to the type header.
-    bool EnableStackFrameInlining = true;
+    /// When set to true, function stack frame types are printed also inside the
+    /// struct body, and not just in the header.
+    /// This may break the property that we emit syntactically valid C code,
+    /// because including the header will cause the definition of the stack
+    /// frame type to be duplicated in the header and inside the function body.
+    /// For this reason it's disabled by default. And it should only be turned
+    /// on when printing artifacts that only show the body of the function, for
+    /// which emitting recompilable C code is not a strict requirement.
+    bool EnableStackFrameInlining = false;
 
     /// Because we are emitting C11, we cannot specify underlying enum type
     /// (the feature was only backported from C++ in C23), which means that
@@ -61,53 +62,9 @@ public:
   const ConfigurationOptions Configuration;
 
 private:
-  /// This is the cache containing the names of artificial types (like array
-  /// wrappers).
-  std::map<model::UpcastableType, std::string> ArtificialNameCache = {};
-
   /// This is the cache containing the dependency data for the types.
   /// It is here so that we don't have to recompute it with multiple invocations
   std::optional<DependencyGraph> DependencyCache = std::nullopt;
-
-  /// This is the cache containing the keys of the types that should be inlined
-  /// into their only user.
-  std::set<model::TypeDefinition::Key> TypesToInlineCache = {};
-
-  /// This is the cache containing the keys of the stack frame types that
-  /// should be inlined into the functions they belong to.
-  std::set<model::TypeDefinition::Key> StackFrameTypeCache = {};
-
-  /// Is only set to true if \ref collectInlinableTypes was invoked.
-  bool InlinableCacheIsReady = false;
-
-public:
-  /// Gather (and store internally) the list of types that can (and should)
-  /// be inlined. This list is then later used by the invocations of
-  /// \ref printDefinition.
-  void collectInlinableTypes();
-
-  bool shouldInline(model::TypeDefinition::Key Key) const {
-    revng_assert(InlinableCacheIsReady,
-                 "`shouldInline` must not be called before "
-                 "`collectInlinableTypes`.");
-
-    if (not TypesToInlineCache.contains(Key)) {
-      // This type is not allowed be inlined.
-      return false;
-    }
-
-    if (StackFrameTypeCache.contains(Key)) {
-      // This is a stack frame.
-      return Configuration.EnableStackFrameInlining;
-
-    } else {
-      return Configuration.EnableTypeInlining;
-    }
-  }
-
-  bool shouldInline(const model::TypeDefinition &Type) const {
-    return shouldInline(Type.key());
-  }
 
 public:
   CTypeBuilder(llvm::raw_ostream &OutputStream,

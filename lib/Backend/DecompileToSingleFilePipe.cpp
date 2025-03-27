@@ -26,13 +26,16 @@ void DecompileToSingleFile::run(pipeline::ExecutionContext &EC,
   llvm::raw_string_ostream Out = OutCFile.asStream();
 
   namespace options = revng::options;
-  ptml::CTypeBuilder
-    B(Out,
-      *getModelFromContext(EC),
-      /* EnableTaglessMode = */ false,
-      { .EnableTypeInlining = options::EnableTypeInlining,
-        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
-  B.collectInlinableTypes();
+  ptml::CTypeBuilder B(Out,
+                       *getModelFromContext(EC),
+                       /* EnableTaglessMode = */ false,
+                       // Disable stack frame inlining because enabling it could
+                       // break the property that we emit syntactically valid C
+                       // code, due to the stack frame type definition being
+                       // duplicated in the global header and in the function's
+                       // body. In the single file artifact recompilability is
+                       // still important.
+                       { .EnableStackFrameInlining = false });
 
   // Make a single C file with an empty set of targets, which means all the
   // functions in DecompiledFunctions

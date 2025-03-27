@@ -106,16 +106,10 @@ void ptml::CTypeBuilder::printDefinition(const model::StructDefinition &S,
     for (const auto &Field : S.Fields()) {
       printPadding(PreviousOffset, Field.Offset());
 
-      auto *Definition = Field.Type()->skipToDefinition();
-      if (not Definition or not shouldInline(*Definition)) {
-        auto F = getDefinitionTag(S, Field);
-        std::string Result = getModelComment(Field)
-                             + getNamedCInstance(*Field.Type(), F) + ';';
-        *Out << getCommentableTag(std::move(Result), S, Field) << '\n';
-
-      } else {
-        printInlineDefinition(NameBuilder.name(S, Field), *Field.Type());
-      }
+      auto F = getDefinitionTag(S, Field);
+      std::string Result = getModelComment(Field)
+                           + getNamedCInstance(*Field.Type(), F) + ';';
+      *Out << getCommentableTag(std::move(Result), S, Field) << '\n';
 
       PreviousOffset = Field.Offset() + Field.Type()->size().value();
     }
@@ -137,16 +131,10 @@ void ptml::CTypeBuilder::printDefinition(const model::UnionDefinition &U,
   {
     Scope Scope(*Out, ptml::c::scopes::UnionBody);
     for (const auto &Field : U.Fields()) {
-      auto *Definition = Field.Type()->skipToDefinition();
-      if (not Definition or not shouldInline(*Definition)) {
-        auto F = getDefinitionTag(U, Field);
-        std::string Result = getModelComment(Field)
-                             + getNamedCInstance(*Field.Type(), F) + ';';
-        *Out << getCommentableTag(std::move(Result), U, Field) << '\n';
-
-      } else {
-        printInlineDefinition(NameBuilder.name(U, Field), *Field.Type());
-      }
+      auto F = getDefinitionTag(U, Field);
+      std::string Result = getModelComment(Field)
+                           + getNamedCInstance(*Field.Type(), F) + ';';
+      *Out << getCommentableTag(std::move(Result), U, Field) << '\n';
     }
   }
 
@@ -296,88 +284,6 @@ void ptml::CTypeBuilder::printInlineDefinition(llvm::StringRef Name,
   }
 }
 
-static Logger<> InlineTypeLog{ "inline-type-selection" };
-
-void ptml::CTypeBuilder::collectInlinableTypes() {
-  if (not DependencyCache.has_value())
-    DependencyCache = DependencyGraph::make(Binary.TypeDefinitions());
-
-  StackFrameTypeCache = {};
-  for (const model::Function &Function : Binary.Functions())
-    if (auto *StackFrame = Function.stackFrameType())
-      StackFrameTypeCache.insert(StackFrame->key());
-
-  if (Configuration.EnableTypeInlining
-      || Configuration.EnableStackFrameInlining) {
-    std::map<model::TypeDefinition::Key, uint64_t> DependentTypeCount;
-    for (const auto *Node : DependencyCache->nodes()) {
-      if (isDeclarationTheSameAsDefinition(*Node->T)) {
-        // Skip types that never produce a definition since there's no point
-        // inlining them.
-        continue;
-      }
-
-      auto &&[Iterator, _] = DependentTypeCount.try_emplace(Node->T->key(), 0);
-      Iterator->second += Node->predecessorCount();
-      if (Node->K == TypeNode::Kind::Declaration) {
-        // Ignore a reference from a type definition to its own declaration.
-        // But only do so if there is exactly one. If there are more, keep it in
-        // order to ensure it is never marked for inlining.
-        auto SelfEdgeCounter = [Key = Node->T->key()](auto *N) {
-          return N->T->key() == Key;
-        };
-        if (llvm::count_if(Node->predecessors(), SelfEdgeCounter) == 1)
-          --Iterator->second;
-
-        // Since dependency graph does not take functions into account,
-        // explicitly add one "use" to each struct that appears as a function
-        // stack frame.
-        if (StackFrameTypeCache.contains(Node->T->key()))
-          ++Iterator->second;
-      }
-
-      if (InlineTypeLog.isEnabled()) {
-        InlineTypeLog << getNodeLabel(Node) << "' is depended on by: {\n";
-
-        for (auto *Predecessor : Node->predecessors())
-          InlineTypeLog << "- " << getNodeLabel(Predecessor) << '\n';
-
-        InlineTypeLog << "}\n" << DoLog;
-      }
-    }
-
-    auto SingleDependencyFilter = std::views::filter([](const auto &Pair) {
-      return Pair.second == 1;
-    });
-    TypesToInlineCache = DependentTypeCount | SingleDependencyFilter
-                         | std::views::keys
-                         | revng::to<std::set<model::TypeDefinition::Key>>();
-
-    if (InlineTypeLog.isEnabled()) {
-      revng_log(InlineTypeLog, "Final list of types that can be inlined: {");
-      {
-        LoggerIndent Indent{ InlineTypeLog };
-        for (const model::TypeDefinition::Key &T : TypesToInlineCache)
-          revng_log(InlineTypeLog, ::toString(T));
-      }
-      revng_log(InlineTypeLog, "}");
-    }
-  }
-
-  if (Configuration.EnableStackFrameInlining && InlineTypeLog.isEnabled()) {
-    revng_log(InlineTypeLog, "Which also includes stack frames: {");
-    {
-      LoggerIndent Indent{ InlineTypeLog };
-      for (const model::TypeDefinition::Key &T : StackFrameTypeCache)
-        if (TypesToInlineCache.contains(T))
-          revng_log(InlineTypeLog, ::toString(T));
-    }
-    revng_log(InlineTypeLog, "}");
-  }
-
-  InlinableCacheIsReady = true;
-}
-
 static Logger<> TypePrinterLog{ "type-definition-printer" };
 
 void ptml::CTypeBuilder::printTypeDefinitions() {
@@ -415,7 +321,7 @@ void ptml::CTypeBuilder::printTypeDefinitions() {
         revng_log(TypePrinterLog, "Definition");
 
         revng_assert(Defined.contains(DependencyCache->getDeclaration(NodeT)));
-        if (isDeclarationTheSameAsDefinition(*NodeT) or shouldInline(*NodeT)) {
+        if (isDeclarationTheSameAsDefinition(*NodeT)) {
           continue;
         }
 

@@ -12,12 +12,6 @@ sources:
       - primitive-types.h.model.yml
       - union.h.model.yml
       - pointer-to-struct.h.model.yml
-      - inline-struct.h.model.yml
-      - do-not-inline-types-pointing-to-itself.h.model.yml
-      - do-not-generate-struct-for-stack-type.h.model.yml
-      - do-not-inline-used-stack-type.h.model.yml
-      - inline-enum.h.model.yml
-      - inline-union.h.model.yml
       - annotate-attibutes.model.yml
 commands:
   - type: revng.model-to-header-unit-test
@@ -26,7 +20,7 @@ commands:
         filter: model-to-header
     suffix: .h
     command: |-
-      revng artifact --enable-type-inlining emit-model-header /dev/null --model "$INPUT"
+      revng artifact emit-model-header /dev/null --model "$INPUT"
         | revng ptml > "$OUTPUT";
       revng check-decompiled-c "$OUTPUT";
       FileCheck --input-file="$OUTPUT" "${SOURCE}.filecheck";

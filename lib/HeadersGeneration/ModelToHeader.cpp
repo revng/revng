@@ -28,7 +28,6 @@
 static Logger<> Log{ "model-to-header" };
 
 bool ptml::HeaderBuilder::printModelHeader() {
-  B.collectInlinableTypes();
 
   auto Scope = B.getScopeTag(ptml::tags::Div);
 
