@@ -11,4 +11,4 @@ commands:
       - type: revng-qa.compiled
         filter: example-executable-1 and with-debug-info
     command: |-
-      "${SOURCES_ROOT}/share/revng/test/tests/storage.sh" "$INPUT" "$$(temp -d)"
+      "${SOURCES_ROOT}/share/revng/test/tests/s3_storage.py" "$INPUT" "$$(temp -d)"
