@@ -530,6 +530,11 @@ Branches:
               This analysis, given a snippet of C code representing an
               individual type, parses it and imports into the model, possibly
               replacing an existing type.
+          - Name: llm-rename
+            Type: llm-rename
+            UsedContainers: [decompiled.tar.gz]
+            Docs: |-
+              Rename the specified function(s) bodies using an LLM
       - Name: decompile-to-single-file
         Pipes:
           - Type: decompile-to-single-file
