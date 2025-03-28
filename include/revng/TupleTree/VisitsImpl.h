@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/TupleTree/TupleTreeDiff.h"
 #include "revng/TupleTree/Visits.h"
 
 //
@@ -55,6 +56,23 @@ getByPath(const TupleTreePath &Path, RootT &M) {
   }
 
   return GBPV.Result;
+}
+
+//
+// setByPath
+//
+template<typename RootT>
+bool setByPath(const TupleTreePath &Path,
+               RootT &M,
+               const AllowedTupleTreeTypes<RootT> &Value) {
+  auto Visitor = [&Path, &M]<typename T>(const T &ActualValue) {
+    T *ValueInM = getByPath<T>(Path, M);
+    if (ValueInM == nullptr)
+      return false;
+    *ValueInM = ActualValue;
+    return true;
+  };
+  return std::visit(Visitor, Value);
 }
 
 //
