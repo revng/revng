@@ -6,9 +6,10 @@
 // types
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/SubElementInterfaces.td"
-include "Clift.td"
-include "CliftAttributes.td"
-include "CliftInterfaces.td"
+
+include "revng/mlir/Dialect/Clift/IR/Clift.td"
+include "revng/mlir/Dialect/Clift/IR/CliftAttributes.td"
+include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.td"
 
 class Clift_Type<string name, string typeMnemonic, list<Trait> traits = []>
     : TypeDef<Clift_Dialect, name, traits> {
