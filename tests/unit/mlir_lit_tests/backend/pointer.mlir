@@ -6,16 +6,16 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()
->>
+>
 
 !int32_t = !clift.primitive<signed 4>
-!int32_t$const = !clift.primitive<const signed 4>
+!int32_t$const = !clift.const<!clift.primitive<signed 4>>
 !int32_t$const$ptr = !clift.ptr<8 to !int32_t$const>
-!int32_t$const$ptr$const = !clift.ptr<const 8 to !int32_t$const>
+!int32_t$const$ptr$const = !clift.const<!clift.ptr<8 to !int32_t$const>>
 !int32_t$const$ptr$const$ptr = !clift.ptr<8 to !int32_t$const$ptr$const>
-!int32_t$const$ptr$const$ptr$const = !clift.ptr<const 8 to !int32_t$const$ptr$const>
+!int32_t$const$ptr$const$ptr$const = !clift.const<!clift.ptr<8 to !int32_t$const$ptr$const>>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

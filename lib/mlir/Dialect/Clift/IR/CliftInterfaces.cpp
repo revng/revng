@@ -8,4 +8,9 @@
 #include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.h"
 //
 #include "revng/mlir/Dialect/Clift/IR/CliftAttrInterfaces.cpp.inc"
-#include "revng/mlir/Dialect/Clift/IR/CliftTypeInterfaces.cpp.inc"
+//
+#include "revng/mlir/Dialect/Clift/IR/CliftTypeInterfacesBasic.cpp.inc"
+//
+#include "revng/mlir/Dialect/Clift/IR/CliftTypeInterfacesDefined.cpp.inc"
+//
+#include "revng/mlir/Dialect/Clift/IR/CliftTypeInterfacesClass.cpp.inc"

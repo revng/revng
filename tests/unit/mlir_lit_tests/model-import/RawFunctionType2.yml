@@ -5,13 +5,10 @@
 
 Architecture: x86_64
 TypeDefinitions:
-  # CHECK: #my_function2$def = #clift.func<
+  # CHECK: !my_function2_ = !clift.func<
   # CHECK:   "/type-definition/1001-RawFunctionDefinition"
   # CHECK:   as "my_function2"
   # CHECK:   !uint64_t(!uint64_t)
-  # CHECK: >
-  # CHECK: !my_function2_ = !clift.defined<
-  # CHECK:   #my_function2$def
   # CHECK: >
   - ID: 1001
     Kind: RawFunctionDefinition

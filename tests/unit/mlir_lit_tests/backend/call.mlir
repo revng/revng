@@ -6,9 +6,9 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1002-CABIFunctionDefinition" : !int32_t(!int32_t, !int32_t)
->>
+>
 
 clift.module {
   // CHECK: int32_t fun_0x40001002(int32_t x, int32_t y) {

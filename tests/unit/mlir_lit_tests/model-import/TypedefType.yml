@@ -6,7 +6,7 @@
 Architecture: x86_64
 
 TypeDefinitions:
-  # CHECK: #my_float$def = #clift.typedef<
+  # CHECK: !my_float = !clift.typedef<
   # CHECK:   "/type-definition/0-TypedefDefinition"
   # CHECK:   as "my_float"
   # CHECK:   : !float96_t
@@ -19,7 +19,7 @@ TypeDefinitions:
       PrimitiveKind: Float
       Size: 12
 
-  # CHECK: #my_generic$def = #clift.typedef<
+  # CHECK: !my_generic = !clift.typedef<
   # CHECK:   "/type-definition/1-TypedefDefinition"
   # CHECK:   as "my_generic"
   # CHECK:   : !generic8_t
@@ -32,7 +32,7 @@ TypeDefinitions:
       PrimitiveKind: Generic
       Size: 1
 
-  # CHECK: #my_int$def = #clift.typedef<
+  # CHECK: !my_int = !clift.typedef<
   # CHECK:   "/type-definition/2-TypedefDefinition"
   # CHECK:   as "my_int"
   # CHECK:   : !int64_t
@@ -45,7 +45,7 @@ TypeDefinitions:
       PrimitiveKind: Signed
       Size: 8
 
-  # CHECK: #my_number$def = #clift.typedef<
+  # CHECK: !my_number = !clift.typedef<
   # CHECK:   "/type-definition/3-TypedefDefinition"
   # CHECK:   as "my_number"
   # CHECK:   : !number32_t
@@ -58,7 +58,7 @@ TypeDefinitions:
       PrimitiveKind: Number
       Size: 4
 
-  # CHECK: #my_pon$def = #clift.typedef<
+  # CHECK: !my_pon = !clift.typedef<
   # CHECK:   "/type-definition/4-TypedefDefinition"
   # CHECK:   as "my_pon"
   # CHECK:   : !pointer_or_number16_t
@@ -71,7 +71,7 @@ TypeDefinitions:
       PrimitiveKind: PointerOrNumber
       Size: 2
 
-  # CHECK: #my_uint$def = #clift.typedef<
+  # CHECK: !my_uint = !clift.typedef<
   # CHECK:   "/type-definition/5-TypedefDefinition"
   # CHECK:   as "my_uint"
   # CHECK:   : !uint64_t
@@ -84,7 +84,7 @@ TypeDefinitions:
       PrimitiveKind: Unsigned
       Size: 8
 
-  # CHECK: #my_void$def = #clift.typedef<
+  # CHECK: !my_void = !clift.typedef<
   # CHECK:   "/type-definition/6-TypedefDefinition"
   # CHECK:   as "my_void"
   # CHECK:   : !void
@@ -95,25 +95,3 @@ TypeDefinitions:
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Void
-
-  # CHECK: !my_float = !clift.defined<
-  # CHECK:   #my_float$def
-  # CHECK: >
-  # CHECK: !my_generic = !clift.defined<
-  # CHECK:   #my_generic$def
-  # CHECK: >
-  # CHECK: !my_int = !clift.defined<
-  # CHECK:   #my_int$def
-  # CHECK: >
-  # CHECK: !my_number = !clift.defined<
-  # CHECK:   #my_number$def
-  # CHECK: >
-  # CHECK: !my_pon = !clift.defined<
-  # CHECK:   #my_pon$def
-  # CHECK: >
-  # CHECK: !my_uint = !clift.defined<
-  # CHECK:   #my_uint$def
-  # CHECK: >
-  # CHECK: !my_void = !clift.defined<
-  # CHECK:   #my_void$def
-  # CHECK: >

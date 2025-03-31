@@ -6,9 +6,9 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1005-CABIFunctionDefinition" : !void()
->>
+>
 
 clift.module {
   // CHECK: void fun_0x40001005(void) {

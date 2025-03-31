@@ -11,9 +11,9 @@
 
 !ptrdiff_t = !clift.primitive<signed 8>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()
->>
+>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

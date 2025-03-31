@@ -6,13 +6,13 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1-CABIFunctionDefinition" : !int32_t()
->>
+>
 
-!g = !clift.defined<#clift.func<
+!g = !clift.func<
   "/type-definition/2-CABIFunctionDefinition" : !int32_t(!int32_t)
->>
+>
 
 clift.module {
   clift.func @f<!f>() -> !int32_t {

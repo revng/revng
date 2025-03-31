@@ -5,11 +5,11 @@
 // RUN: %revngcliftopt %s --emit-c="tagless model=%S/model.yml" -o /dev/null | FileCheck %s
 
 !void = !clift.primitive<void 0>
-!char$const = !clift.primitive<const number 1>
+!char$const = !clift.const<!clift.primitive<number 1>>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()
->>
+>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

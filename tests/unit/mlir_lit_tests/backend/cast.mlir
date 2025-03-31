@@ -11,9 +11,9 @@
 
 !uint32_t$ptr = !clift.ptr<4 to !uint32_t>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()
->>
+>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

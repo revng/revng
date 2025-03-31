@@ -9,15 +9,15 @@
 !int32_t = !clift.primitive<signed 4>
 !uint32_t = !clift.primitive<unsigned 4>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()
->>
+>
 
-!my_enum = !clift.defined<#clift.enum<
+!my_enum = !clift.enum<
   "/type-definition/2001-EnumDefinition" : !int32_t {
     0
   }
->>
+>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {

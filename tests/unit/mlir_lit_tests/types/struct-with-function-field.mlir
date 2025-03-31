@@ -6,13 +6,13 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1000-CABIFunctionDefinition" as "f" : !void()
->>
+>
 
 // CHECK: field types must be object types
-!s = !clift.defined<#clift.struct<
+!s = !clift.struct<
   "/type-definition/1-StructDefinition" : size(1) {
     offset(0) : !f
   }
->>
+>

@@ -6,21 +6,16 @@
 Architecture: x86_64
 
 TypeDefinitions:
-  # CHECK: #my_struct$def = #clift.struct<
+  # CHECK: !my_struct = !clift.struct<
   # CHECK:   "/type-definition/1001-StructDefinition"
   # CHECK:   as "my_struct"
   # CHECK:   : size(4)
   # CHECK:   {
   # CHECK:     offset(0)
-  # CHECK:     : !clift.ptr<
-  # CHECK:       4 to !clift.defined<
-  # CHECK:         #clift.struct<"/type-definition/1001-StructDefinition">
-  # CHECK:       >
+  # CHECK:     : !clift.ptr<4 to
+  # CHECK:       !clift.struct<"/type-definition/1001-StructDefinition">
   # CHECK:     >
   # CHECK:   }
-  # CHECK: >
-  # CHECK: !my_struct = !clift.defined<
-  # CHECK:   #my_struct$def
   # CHECK: >
   - ID: 1001
     Kind: StructDefinition
