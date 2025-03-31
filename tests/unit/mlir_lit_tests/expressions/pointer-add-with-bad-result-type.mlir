@@ -7,7 +7,7 @@
 !int32_t = !clift.primitive<signed 4>
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
 
-!int32_t$const = !clift.primitive<const signed 4>
+!int32_t$const = !clift.const<!clift.primitive<signed 4>>
 !int32_t$const$ptr = !clift.ptr<8 to !int32_t$const>
 
 !ptrdiff_t = !clift.primitive<signed 8>

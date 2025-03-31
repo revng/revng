@@ -6,21 +6,21 @@
 
 !int32_t = !clift.primitive<signed 4>
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
-!int32_t$const = !clift.primitive<const signed 4>
+!int32_t$const = !clift.const<!clift.primitive<signed 4>>
 !int32_t$const$ptr = !clift.ptr<8 to !int32_t$const>
 
 !uint32_t = !clift.primitive<unsigned 4>
 !uint32_t$ptr = !clift.ptr<8 to !uint32_t>
 
-!my_uint32 = !clift.defined<#clift.typedef<
+!my_uint32 = !clift.typedef<
   "/type-definition/1-TypedefDefinition" as "my_uint32" : !uint32_t
->>
+>
 
-!my_enum = !clift.defined<#clift.enum<
+!my_enum = !clift.enum<
   "/type-definition/2-EnumDefinition" as "my_enum" : !uint32_t {
     1 as "enumerator"
   }
->>
+>
 
 %i = clift.undef : !int32_t
 clift.cast<bitcast> %i : !int32_t -> !uint32_t

@@ -4,11 +4,11 @@
 
 // RUN: %revngcliftopt %s
 
-!s = !clift.defined<#clift.struct<
+!s = !clift.struct<
   "/type-definition/1-StructDefinition" : size(8) {
-    offset(0) : !clift.ptr<8 to !clift.defined<#clift.struct<"/type-definition/1-StructDefinition">>>
+    offset(0) : !clift.ptr<8 to !clift.struct<"/type-definition/1-StructDefinition">>
   }
->>
+>
 
 clift.module {
 } {

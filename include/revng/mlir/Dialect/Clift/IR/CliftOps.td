@@ -139,14 +139,19 @@ def Clift_FunctionOp : Clift_Op<"func",
 
   let regions = (region Clift_StatementRegion:$body);
 
-  let hasCustomAssemblyFormat = 1;
-
   let builders = [
-    OpBuilder<(ins "llvm::StringRef":$name,
-                   "mlir::Type":$function_type)>
+    OpBuilder<(ins "llvm::StringRef":$Name,
+                   "mlir::clift::FunctionType":$FunctionType)>
   ];
 
+  let hasCustomAssemblyFormat = 1;
+
   code extraClassDeclaration = [{
+    clift::FunctionType getCliftFunctionType() {
+      return mlir::cast<clift::FunctionType>(getFunctionType());
+    }
+
+
     mlir::Region::BlockListType& getBlocks() {
         return getBody().getBlocks();
     }
@@ -728,11 +733,8 @@ def Clift_AccessOp : Clift_ExpressionOp<"access"> {
     }
 
     [[nodiscard]] bool isLvalueExpression();
-
-    [[nodiscard]] DefinedType getClassType();
-    [[nodiscard]] TypeDefinitionAttr getClassTypeAttr();
-
-    [[nodiscard]] FieldAttr getFieldAttr();
+    [[nodiscard]] clift::ClassType getClassType();
+    [[nodiscard]] clift::FieldAttr getFieldAttr();
   }];
 
   let hasVerifier = 1;

@@ -12,9 +12,9 @@
 !int32_t$1 = !clift.array<1 x !int32_t>
 !int32_t$1$p = !clift.ptr<8 to !int32_t$1>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()
->>
+>
 
 clift.module {
   // CHECK: void fun_0x40001001(void) {
