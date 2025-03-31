@@ -13,9 +13,9 @@ include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/RegionKindInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 
-include "CliftOpInterfaces.td"
-include "CliftOpTraits.td"
-include "CliftTypes.td"
+include "revng/mlir/Dialect/Clift/IR/CliftOpInterfaces.td"
+include "revng/mlir/Dialect/Clift/IR/CliftOpTraits.td"
+include "revng/mlir/Dialect/Clift/IR/CliftTypes.td"
 
 class Clift_Op<string mnemonic, list<Trait> traits = []>
   : Op<Clift_Dialect,
