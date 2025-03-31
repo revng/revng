@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 1
+version: 3
 definitions:
   - name: Binary
     doc: |-
@@ -1161,7 +1161,7 @@ definitions:
         type: bool
         optional: true
 
-      - name: UseATTSyntax
+      - name: UseX86ATTSyntax
         doc: x86-only.
         type: bool
         optional: true
