@@ -178,9 +178,7 @@ function(tuple_tree_generator_compute_generated_cpp_files SCHEMA_PATH
       PARENT_SCOPE)
 endfunction()
 
-set(TEMPLATES_DIR
-    "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator/tuple_tree_generator/templates"
-)
+set(TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator/templates")
 
 set(CPP_TEMPLATES
     "${TEMPLATES_DIR}/class_forward_decls.h.tpl"
@@ -194,7 +192,7 @@ set(PYTHON_TEMPLATES "${TEMPLATES_DIR}/tuple_tree_gen.py.tpl")
 
 set(TYPESCRIPT_TEMPLATES "${TEMPLATES_DIR}/tuple_tree_gen.ts.tpl")
 
-set(SCRIPTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator")
+set(SCRIPTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/scripts")
 # The list of Python scripts is build as follows:
 #
 # find scripts/tuple_tree_generator -name "*.py" | sort | sed
@@ -202,11 +200,7 @@ set(SCRIPTS_ROOT_DIR "${CMAKE_SOURCE_DIR}/scripts/tuple_tree_generator")
 #
 # TODO: detect and warn about extra files in those directories
 set(TUPLE_TREE_GENERATOR_SOURCES
-    "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp.py"
-    "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp-paths.py"
-    "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-jsonschema.py"
-    "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-python.py"
-    "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-typescript.py"
+    "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/cpp.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/__init__.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jinja_utils.py"
@@ -240,7 +234,7 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-docs.py" --namespace
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" docs --namespace
       "${NAMESPACE}" --root-type \""${ROOT_TYPE}"\" ${SCALAR_TYPE_ARGS}
       "${YAML_DEFINITIONS}" > "${EXPECTED_GENERATED_MARKDOWN}"
     OUTPUT "${EXPECTED_GENERATED_MARKDOWN}"
@@ -281,7 +275,7 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-cpp.py" --namespace
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" cpp --namespace
       "${NAMESPACE}" --include-path-prefix "${INCLUDE_PATH_PREFIX}" --root-type
       \""${ROOT_TYPE}"\" ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
       "${OUTPUT_DIR}" ${TRACKING} ${TRACKING_DEBUG}
@@ -319,7 +313,7 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-jsonschema.py" --namespace
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" jsonschema --namespace
       "${NAMESPACE}" --root-type "${ROOT_TYPE}" --output "${OUTPUT_PATH}"
       ${STRING_TYPE_ARGS} ${SEPARATE_STRING_TYPE_ARGS} ${SCALAR_TYPE_ARGS}
       "${YAML_DEFINITIONS}"
@@ -370,7 +364,7 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-typescript.py" --namespace
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" typescript --namespace
       "${NAMESPACE}" --root-type "${ROOT_TYPE}" --output "${OUTPUT_PATH}"
       --global-name "${GLOBAL_NAME}" ${INCLUDE_FILE_ARGS} ${STRING_TYPE_ARGS}
       ${EXTERNAL_TYPE_ARGS} ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
@@ -420,7 +414,7 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-python.py" --namespace
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" python --namespace
       "${NAMESPACE}" --root-type "${ROOT_TYPE}" --output "${OUTPUT_PATH}"
       ${PYTHON_MIXINS_ARGS} ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS}
       ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
