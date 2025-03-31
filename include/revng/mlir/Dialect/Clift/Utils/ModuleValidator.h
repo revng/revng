@@ -200,6 +200,11 @@ private:
       }
     }
 
+    if constexpr (requires { getValidator().finish(); }) {
+      if (getValidator().finish().failed())
+        return mlir::failure();
+    }
+
     return mlir::success();
   }
 

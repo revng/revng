@@ -6,9 +6,9 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1000-CABIFunctionDefinition" as "f" : !void()
->>
+>
 
 // CHECK: must be nested within a loop operation
 clift.module {

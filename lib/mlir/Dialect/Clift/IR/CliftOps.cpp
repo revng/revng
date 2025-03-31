@@ -297,54 +297,53 @@ class ModuleVerifier : public ModuleValidator<ModuleVerifier> {
 
 public:
   // Visit a field type of a class type attribute.
-  // RootAttr is the root class type attribute and is used to detect recursion.
+  // RootType is the root class type attribute and is used to detect recursion.
   mlir::LogicalResult visitFieldType(clift::ValueType FieldType,
-                                     TypeDefinitionAttr RootAttr) {
+                                     DefinedType RootType) {
     FieldType = dealias(FieldType);
 
     if (auto T = mlir::dyn_cast<DefinedType>(FieldType)) {
-      if (T.getElementType() == RootAttr)
+      if (T == RootType)
         return getCurrentOp()->emitError() << "Clift ModuleOp contains a "
                                               "recursive class type.";
 
-      return maybeVisitClassTypeAttr(T.getElementType(), RootAttr);
+      return maybeVisitClassType(T, RootType);
     }
 
     return mlir::success();
   }
 
-  template<typename ClassTypeAttr>
-  mlir::LogicalResult
-  visitClassTypeAttr(ClassTypeAttr Attr, TypeDefinitionAttr RootAttr) {
-    for (FieldAttr Field : Attr.getFields()) {
-      if (visitFieldType(Field.getType(), RootAttr).failed())
+  template<typename ClassTypeT>
+  mlir::LogicalResult visitClassType(ClassTypeT Type, DefinedType RootType) {
+    for (FieldAttr Field : Type.getFields()) {
+      if (visitFieldType(Field.getType(), RootType).failed())
         return mlir::failure();
     }
     return mlir::success();
   }
 
-  // Call visitClassTypeAttr if Attr is a class type attribute.
-  // RootAttr is the root class type attribute and is used to detect recursion.
-  mlir::LogicalResult maybeVisitClassTypeAttr(TypeDefinitionAttr Attr,
-                                              TypeDefinitionAttr RootAttr) {
-    if (auto T = mlir::dyn_cast<StructTypeAttr>(Attr))
-      return visitClassTypeAttr(T, RootAttr);
-    if (auto T = mlir::dyn_cast<UnionTypeAttr>(Attr))
-      return visitClassTypeAttr(T, RootAttr);
+  // Call visitClassType if Type is a class type. RootType is the root class
+  // type and is used to detect recursion.
+  mlir::LogicalResult maybeVisitClassType(DefinedType Type,
+                                          DefinedType RootType) {
+    if (auto T = mlir::dyn_cast<StructType>(Type))
+      return visitClassType(T, RootType);
+    if (auto T = mlir::dyn_cast<UnionType>(Type))
+      return visitClassType(T, RootType);
     return mlir::success();
   }
 
-  mlir::LogicalResult visitTypeAttr(TypeDefinitionAttr Attr) {
-    auto const [Iterator, Inserted] = Definitions.try_emplace(Attr.getHandle(),
-                                                              Attr);
+  mlir::LogicalResult visitDefinedType(DefinedType Type) {
+    auto const [Iterator, Inserted] = Definitions.try_emplace(Type.getHandle(),
+                                                              Type);
 
-    if (not Inserted and Iterator->second != Attr)
+    if (not Inserted and Iterator->second != Type)
       return getCurrentOp()->emitError() << "Found two distinct type "
                                             "definitions with the same unique "
                                             "handle: '"
-                                         << Attr.getHandle() << '\'';
+                                         << Type.getHandle() << '\'';
 
-    if (maybeVisitClassTypeAttr(Attr, Attr).failed())
+    if (maybeVisitClassType(Type, Type).failed())
       return mlir::failure();
 
     return mlir::success();
@@ -358,7 +357,7 @@ public:
                                             "incomplete type";
 
     if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
-      if (visitTypeAttr(T.getElementType()).failed())
+      if (visitDefinedType(T).failed())
         return mlir::failure();
     }
 
@@ -374,6 +373,9 @@ public:
       if (visitValueType(Type).failed())
         return mlir::failure();
     }
+
+    if (auto T = mlir::dyn_cast<ClassType>(Type))
+      ClassTypes.insert(T);
 
     return mlir::success();
   }
@@ -442,8 +444,8 @@ public:
                                   " ModuleOp.";
 
     if (auto F = mlir::dyn_cast<FunctionOp>(Op)) {
-      auto TypeAttr = getFunctionTypeAttr(F.getFunctionType());
-      FunctionReturnType = mlir::cast<ValueType>(TypeAttr.getReturnType());
+      FunctionReturnType = mlir::cast<ValueType>(F.getCliftFunctionType()
+                                                   .getReturnType());
 
       LocalNames.clear();
       LabelNames.clear();
@@ -452,9 +454,29 @@ public:
     return mlir::success();
   }
 
+  mlir::LogicalResult finish() {
+    auto EmitError = [&]() -> mlir::InFlightDiagnostic {
+      return getCurrentModule()->emitError();
+    };
+
+    for (ClassType Class : ClassTypes) {
+      if (auto T = mlir::dyn_cast<StructType>(Class)) {
+        if (T.getDefinition().verifyDefinition(EmitError).failed())
+          return mlir::failure();
+      }
+
+      if (auto T = mlir::dyn_cast<UnionType>(Class)) {
+        if (T.getDefinition().verifyDefinition(EmitError).failed())
+          return mlir::failure();
+      }
+    }
+    return mlir::success();
+  }
+
 private:
   clift::ValueType FunctionReturnType;
-  llvm::DenseMap<llvm::StringRef, TypeDefinitionAttr> Definitions;
+  llvm::DenseMap<llvm::StringRef, DefinedType> Definitions;
+  llvm::DenseSet<ClassType> ClassTypes;
 
   llvm::DenseSet<llvm::StringRef> LocalNames;
   llvm::DenseSet<llvm::StringRef> LabelNames;
@@ -504,23 +526,24 @@ mlir::LogicalResult clift::ModuleOp::verify() {
 void FunctionOp::build(OpBuilder &Builder,
                        OperationState &State,
                        llvm::StringRef Name,
-                       mlir::Type FunctionType) {
-  size_t ArgumentCount = 0;
-  if (auto TypeAttr = clift::getFunctionTypeAttr(FunctionType))
-    ArgumentCount = TypeAttr.getArgumentTypes().size();
+                       clift::FunctionType FunctionType) {
+  size_t ArgumentCount = FunctionType.getArgumentTypes().size();
 
-  llvm::SmallVector<mlir::Attribute> DictionaryArray;
-  DictionaryArray.resize(std::max<size_t>(ArgumentCount, 1),
-                         mlir::DictionaryAttr::get(Builder.getContext()));
+  llvm::SmallVector<mlir::Attribute> Array;
+  Array.resize(std::max<size_t>(ArgumentCount, 1),
+               mlir::DictionaryAttr::get(Builder.getContext()));
 
-  llvm::ArrayRef Attrs(DictionaryArray);
+  auto GetArrayAttr = [&](unsigned Count) {
+    return mlir::ArrayAttr::get(Builder.getContext(),
+                                llvm::ArrayRef(Array).take_front(Count));
+  };
+
   build(Builder,
         State,
         Name,
         FunctionType,
-        mlir::ArrayAttr::get(Builder.getContext(),
-                             Attrs.take_front(ArgumentCount)),
-        mlir::ArrayAttr::get(Builder.getContext(), Attrs.take_front(1)));
+        /*arg_attrs=*/GetArrayAttr(ArgumentCount),
+        /*res_attrs=*/GetArrayAttr(1));
 }
 
 mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
@@ -537,12 +560,12 @@ mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
     return mlir::failure();
 
   auto FunctionTypeLoc = Parser.getCurrentLocation();
-  clift::ValueType FunctionType;
-  if (Parser.parseType(FunctionType).failed())
+  clift::ValueType Type;
+  if (Parser.parseType(Type).failed())
     return mlir::failure();
 
-  auto FunctionTypeAttr = clift::getFunctionTypeAttr(FunctionType);
-  if (not FunctionTypeAttr)
+  auto FunctionType = mlir::dyn_cast<clift::FunctionType>(Type);
+  if (not FunctionType)
     return Parser.emitError(FunctionTypeLoc) << "expected Clift function or "
                                                 "pointer-to-function type.";
 
@@ -568,13 +591,11 @@ mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
     return Parser.emitError(RoughResultTypeLocation) << "expected no more than "
                                                         "one result";
 
-  auto False = BoolAttr::get(Parser.getContext(), false);
-
   if (ResultTypes.empty()) {
     ResultTypes.push_back(PrimitiveType::get(Parser.getContext(),
                                              PrimitiveKind::VoidKind,
                                              0,
-                                             False));
+                                             false));
     ResultAttrs.push_back(DictionaryAttr::get(Parser.getContext()));
   }
 
@@ -609,17 +630,17 @@ void FunctionOp::print(OpAsmPrinter &Printer) {
   Printer << ' ';
   Printer.printSymbolName(getSymName());
   Printer << '<';
-  Printer.printType(getFunctionType());
+  Printer.printType(getCliftFunctionType());
   Printer << '>';
 
-  auto FunctionTypeAttr = clift::getFunctionTypeAttr(getFunctionType());
+  auto FunctionType = getCliftFunctionType();
 
   function_interface_impl::printFunctionSignature(Printer,
                                                   *this,
-                                                  FunctionTypeAttr
+                                                  FunctionType
                                                     .getArgumentTypes(),
                                                   /*isVariadic=*/false,
-                                                  FunctionTypeAttr
+                                                  FunctionType
                                                     .getResultTypes());
 
   function_interface_impl::printFunctionAttributes(Printer,
@@ -637,11 +658,11 @@ void FunctionOp::print(OpAsmPrinter &Printer) {
 }
 
 ArrayRef<Type> FunctionOp::getArgumentTypes() {
-  return clift::getFunctionTypeAttr(getFunctionType()).getArgumentTypes();
+  return getCliftFunctionType().getArgumentTypes();
 }
 
 ArrayRef<Type> FunctionOp::getResultTypes() {
-  return clift::getFunctionTypeAttr(getFunctionType()).getResultTypes();
+  return getCliftFunctionType().getResultTypes();
 }
 
 Type FunctionOp::cloneTypeWith(TypeRange inputs, TypeRange results) {
@@ -1110,15 +1131,8 @@ mlir::LogicalResult CastOp::verify() {
                              << " the pointee type of the result type must be"
                                 " equal to the element type of the argument"
                                 " type.";
-    } else if (auto DefinedT = mlir::dyn_cast<DefinedType>(ArgT)) {
-      auto const
-        FunctionT = mlir::dyn_cast<FunctionTypeAttr>(DefinedT.getElementType());
-
-      if (not FunctionT)
-        return emitOpError() << getOperationName()
-                             << " argument must have array or function type.";
-
-      if (PtrT.getPointeeType() != DefinedT)
+    } else if (auto FunctionT = mlir::dyn_cast<FunctionType>(ArgT)) {
+      if (PtrT.getPointeeType() != FunctionT)
         return emitOpError() << getOperationName()
                              << " the pointee type of the result type must be"
                                 " equal to the argument type.";
@@ -1190,7 +1204,7 @@ bool AccessOp::isLvalueExpression() {
   return isIndirect() or clift::isLvalueExpression(getValue());
 }
 
-DefinedType AccessOp::getClassType() {
+ClassType AccessOp::getClassType() {
   auto ObjectT = dealias(getValue().getType(), /*IgnoreQualifiers=*/true);
 
   if (isIndirect()) {
@@ -1198,16 +1212,11 @@ DefinedType AccessOp::getClassType() {
     ObjectT = dealias(ObjectT, /*IgnoreQualifiers=*/true);
   }
 
-  return mlir::cast<DefinedType>(ObjectT);
-}
-
-TypeDefinitionAttr AccessOp::getClassTypeAttr() {
-  return getClassType().getElementType();
+  return mlir::cast<ClassType>(ObjectT.removeConst());
 }
 
 FieldAttr AccessOp::getFieldAttr() {
-  auto C = mlir::cast<ClassTypeAttr>(getClassTypeAttr());
-  return C.getFields()[getMemberIndex()];
+  return getClassType().getFields()[getMemberIndex()];
 }
 
 mlir::LogicalResult AccessOp::verify() {
@@ -1221,13 +1230,7 @@ mlir::LogicalResult AccessOp::verify() {
     ObjectT = dealias(PointerT.getPointeeType(), /*IgnoreQualifiers=*/true);
   }
 
-  auto DefinedT = mlir::dyn_cast<DefinedType>(ObjectT);
-  if (not DefinedT)
-    return emitOpError() << getOperationName()
-                         << " operand must have (pointer to) struct or union"
-                         << " type.";
-
-  auto Class = mlir::dyn_cast<ClassTypeAttr>(DefinedT.getElementType());
+  auto Class = mlir::dyn_cast<ClassType>(ObjectT);
   if (not Class)
     return emitOpError() << getOperationName()
                          << " operand must have (pointer to) struct or union"
@@ -1384,7 +1387,7 @@ static void printArgumentList(OpAsmPrinter &Printer,
   Printer << ')';
 }
 
-static auto makeCallArgumentTypeAccessor(FunctionTypeAttr Function) {
+static auto makeCallArgumentTypeAccessor(clift::FunctionType Function) {
   return [Function](unsigned I) -> clift::ValueType {
     auto ParameterTypes = Function.getArgumentTypes();
     return I < ParameterTypes.size() ?
@@ -1409,25 +1412,27 @@ mlir::ParseResult CallOp::parse(OpAsmParser &Parser, OperationState &Result) {
     return mlir::failure();
 
   mlir::SMLoc FunctionTypeLoc = Parser.getCurrentLocation();
-  clift::ValueType FunctionType;
-  if (Parser.parseType(FunctionType).failed())
+  clift::ValueType FunctionValueType;
+  if (Parser.parseType(FunctionValueType).failed())
     return mlir::failure();
 
-  auto FunctionTypeAttr = getFunctionOrFunctionPointerTypeAttr(FunctionType);
-  if (not FunctionTypeAttr)
+  auto
+    FunctionType = getFunctionOrFunctionPointerFunctionType(FunctionValueType);
+
+  if (not FunctionType)
     return Parser.emitError(FunctionTypeLoc) << "expected Clift function or "
                                                 "pointer-to-function type";
 
-  Result.addTypes(FunctionTypeAttr.getResultTypes());
+  Result.addTypes(FunctionType.getResultTypes());
 
-  if (Parser.resolveOperand(FunctionOperand, FunctionType, Result.operands)
+  if (Parser.resolveOperand(FunctionOperand, FunctionValueType, Result.operands)
         .failed())
     return mlir::failure();
 
   if (Arguments
         .resolveOperands(Parser,
                          Result,
-                         makeCallArgumentTypeAccessor(FunctionTypeAttr))
+                         makeCallArgumentTypeAccessor(FunctionType))
         .failed())
     return mlir::failure();
 
@@ -1435,30 +1440,33 @@ mlir::ParseResult CallOp::parse(OpAsmParser &Parser, OperationState &Result) {
 }
 
 void CallOp::print(OpAsmPrinter &Printer) {
-  auto FunctionType = getFunction().getType();
-  auto FunctionTypeAttr = getFunctionOrFunctionPointerTypeAttr(FunctionType);
-  revng_assert(FunctionTypeAttr); // Checked by verify.
+  auto FunctionValueType = getFunction().getType();
+  auto
+    FunctionType = getFunctionOrFunctionPointerFunctionType(FunctionValueType);
+  revng_assert(FunctionType); // Checked by verify.
 
   Printer << ' ';
   Printer << getFunction();
   printArgumentList(Printer,
                     getArguments(),
-                    makeCallArgumentTypeAccessor(FunctionTypeAttr));
+                    makeCallArgumentTypeAccessor(FunctionType));
 
   Printer.printOptionalAttrDict(getOperation()->getAttrs(), {});
   Printer << ' ' << ':' << ' ' << FunctionType;
 }
 
 mlir::LogicalResult CallOp::verify() {
-  auto FunctionType = mlir::cast<clift::ValueType>(getFunction().getType());
-  auto FunctionTypeAttr = getFunctionOrFunctionPointerTypeAttr(FunctionType);
-  if (not FunctionTypeAttr)
+  auto FunctionValueType = mlir::cast<clift::ValueType>(getFunction()
+                                                          .getType());
+  auto
+    FunctionType = getFunctionOrFunctionPointerFunctionType(FunctionValueType);
+  if (not FunctionType)
     return emitOpError() << getOperationName()
                          << " function argument must have function or pointer"
                          << "-to-function type.";
 
   auto ArgumentTypes = getArguments().getTypes();
-  auto ParameterTypes = FunctionTypeAttr.getArgumentTypes();
+  auto ParameterTypes = FunctionType.getArgumentTypes();
 
   if (ArgumentTypes.size() != ParameterTypes.size())
     return emitOpError() << getOperationName()
@@ -1476,7 +1484,7 @@ mlir::LogicalResult CallOp::verify() {
                               " of the function, ignoring qualifiers.";
   }
 
-  auto ReturnT = mlir::cast<clift::ValueType>(FunctionTypeAttr.getReturnType());
+  auto ReturnT = mlir::cast<clift::ValueType>(FunctionType.getReturnType());
   auto ResultT = mlir::cast<clift::ValueType>(getResult().getType());
 
   if (ResultT != ReturnT.removeConst())
@@ -1535,7 +1543,7 @@ static auto makeAggregateArgumentTypeAccessor(clift::ValueType Type) {
     if (auto Array = mlir::dyn_cast<ArrayType>(UnderlyingType))
       return Array.getElementType();
 
-    if (auto Struct = getTypeDefinitionAttr<StructTypeAttr>(UnderlyingType)) {
+    if (auto Struct = mlir::dyn_cast<StructType>(UnderlyingType)) {
       auto Fields = Struct.getFields();
       return I < Fields.size() ? Fields[I].getType() : clift::ValueType();
     }
@@ -1587,9 +1595,9 @@ void AggregateOp::print(OpAsmPrinter &Printer) {
 
 mlir::LogicalResult AggregateOp::verify() {
   auto InitializerTypes = getInitializers().getTypes();
-  auto AT = dealias(getResult().getType(), true);
+  auto AT = dealias(getResult().getType(), /*IgnoreQualifiers=*/true);
 
-  if (auto T = mlir::dyn_cast<StructTypeAttr>(getTypeDefinitionAttr(AT))) {
+  if (auto T = mlir::dyn_cast<StructType>(AT)) {
     auto Fields = T.getFields();
 
     if (InitializerTypes.size() != Fields.size())

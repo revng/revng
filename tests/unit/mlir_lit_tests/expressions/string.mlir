@@ -4,5 +4,5 @@
 
 // RUN: %revngcliftopt %s
 
-!char$const = !clift.primitive<const number 1>
+!char$const = !clift.const<!clift.primitive<number 1>>
 clift.str "hello" : !clift.array<6 x !char$const>

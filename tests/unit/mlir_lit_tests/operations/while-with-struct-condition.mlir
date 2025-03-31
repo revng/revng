@@ -6,9 +6,9 @@
 
 !void = !clift.primitive<void 0>
 
-!s = !clift.defined<#clift.struct<
+!s = !clift.struct<
   "/type-definition/1-StructDefinition" : size(1) {}
->>
+>
 
 // CHECK: condition requires a scalar type
 clift.while {

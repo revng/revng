@@ -5,13 +5,10 @@
 
 Architecture: x86_64
 TypeDefinitions:
-  # CHECK: #my_function2$def = #clift.func<
+  # CHECK: !my_function2_ = !clift.func<
   # CHECK:   "/type-definition/1002-CABIFunctionDefinition"
   # CHECK:   as "my_function2"
   # CHECK:   : !uint8_t(!uint16_t, !uint32_t)
-  # CHECK: >
-  # CHECK: !my_function2_ = !clift.defined<
-  # CHECK:   #my_function2$def
   # CHECK: >
   - ID: 1002
     Kind: CABIFunctionDefinition

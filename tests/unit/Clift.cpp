@@ -62,12 +62,9 @@ BOOST_AUTO_TEST_CASE(CanWalkPointerTypes) {
   auto Type = PrimitiveType::get(&context,
                                  PrimitiveKind::GenericKind,
                                  4,
-                                 mlir::BoolAttr::get(&context, false));
+                                 false);
 
-  auto Ptr = PointerType::get(&context,
-                              Type,
-                              8,
-                              mlir::BoolAttr::get(&context, false));
+  auto Ptr = PointerType::get(&context, Type, 8, false);
   size_t Count = 0;
   Ptr.walkSubTypes([&](mlir::Type Underlying) {
     BOOST_TEST((Underlying == Type));
