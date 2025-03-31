@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 # mypy cannot see the generated code, so this "type: ignore" is necessary
 from revng.model import Binary  # type: ignore
 
-__all__ = ["migrate", "MigrationException"]
+__all__ = ["migrate", "MigrationException", "MigrationBase"]
 
 
 class MigrationException(Exception):
