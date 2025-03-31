@@ -6,9 +6,10 @@
 #define MLIR_CLIFT_ATTRIBUTE
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/SubElementInterfaces.td"
-include "Clift.td"
-include "CliftEnums.td"
-include "CliftInterfaces.td"
+
+include "revng/mlir/Dialect/Clift/IR/Clift.td"
+include "revng/mlir/Dialect/Clift/IR/CliftEnums.td"
+include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.td"
 
 class Clift_Attr<string name, string attrMnemonic, list<Trait> traits = []>
   : AttrDef<Clift_Dialect, name, traits> {
