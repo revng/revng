@@ -6,6 +6,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Model/TypePathHelpers.h"
 
 const model::NamingConfiguration &model::NameBuilder::configuration() const {
   return Binary.Configuration().Naming();
@@ -22,33 +23,6 @@ static llvm::Error makeDuplicateSymbolError(const std::string &Name,
   Result += "  " + FirstPath + "\n";
   Result += "  " + SecondPath + "\n";
   return revng::createError(std::move(Result));
-}
-
-template<typename T>
-static std::string key(const T &Object) {
-  return getNameFromYAMLScalar(KeyedObjectTraits<T>::key(Object));
-}
-
-static std::string path(const model::Function &F) {
-  return "/Functions/" + key(F);
-}
-
-static std::string path(const model::DynamicFunction &F) {
-  return "/ImportedDynamicFunctions/" + key(F);
-}
-
-static std::string path(const model::TypeDefinition &T) {
-  return "/TypeDefinitions/" + key(T);
-}
-
-static std::string path(const model::EnumDefinition &D,
-                        const model::EnumEntry &Entry) {
-  return path(static_cast<const model::TypeDefinition &>(D))
-         + "/EnumDefinition/Entries/" + key(Entry);
-}
-
-static std::string path(const model::Segment &Segment) {
-  return "/Segments/" + key(Segment);
 }
 
 llvm::Error model::NameBuilder::isNameForbidden(llvm::StringRef Name) {
@@ -120,6 +94,7 @@ llvm::Error model::NameBuilder::populateGlobalNamespace() {
   // Also, the global namespace clashes with everything.
   //
   // TODO: find a way to add all the helper names to the Result.
+  using namespace model::detail;
   for (const Function &F : Binary.Functions())
     if (auto Error = RegisterGlobalSymbol(F.CustomName().str().str(), path(F)))
       return Error;
