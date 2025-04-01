@@ -226,6 +226,7 @@ set(REVNG_API_MODULE_FILES
     revng/internal/api/invalidations.py
     revng/internal/api/manager.py
     revng/internal/api/string_map.py
+    revng/internal/api/syncing_manager.py
     revng/internal/api/synchronizer.py
     revng/internal/api/target.py
     revng/internal/api/utils.py)
@@ -248,8 +249,8 @@ endforeach()
 #
 set(REVNG_DAEMON_MODULE_FILES
     revng/internal/daemon/__init__.py revng/internal/daemon/multiqueue.py
-    revng/internal/daemon/event_manager.py revng/internal/daemon/schema.graphql
-    revng/internal/daemon/graphql.py revng/internal/daemon/util.py)
+    revng/internal/daemon/schema.graphql revng/internal/daemon/graphql.py
+    revng/internal/daemon/util.py)
 python_module(TARGET_NAME revng-python-daemon WHEEL revng_internal MODULE_FILES
               ${REVNG_DAEMON_MODULE_FILES})
 
