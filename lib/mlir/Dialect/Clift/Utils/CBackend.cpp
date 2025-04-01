@@ -518,6 +518,13 @@ public:
     Out << C.getReferenceTag(TheClass, *It);
   }
 
+  void emitRawFunctionRegisterReference(const model::RawFunctionDefinition &RFT,
+                                        uint64_t Index) {
+    revng_assert(Index < RFT.ReturnValues().size());
+    auto It = std::next(RFT.ReturnValues().begin(), Index);
+    Out << C.NameBuilder.name(RFT, *It);
+  }
+
   RecursiveCoroutine<void> emitAccessExpression(mlir::Value V) {
     auto E = V.getDefiningOp<AccessOp>();
 
@@ -535,6 +542,10 @@ public:
       emitClassMemberReference(*T, E.getFieldAttr().getOffset());
     else if (auto *T = llvm::dyn_cast<model::UnionDefinition>(&ModelType))
       emitClassMemberReference(*T, E.getMemberIndex());
+    else if (auto *T = llvm::dyn_cast<model::RawFunctionDefinition>(&ModelType))
+      emitRawFunctionRegisterReference(*T, E.getMemberIndex());
+    else
+      revng_abort("Unexpected model type in access expression.");
   }
 
   RecursiveCoroutine<void> emitSubscriptExpression(mlir::Value V) {
