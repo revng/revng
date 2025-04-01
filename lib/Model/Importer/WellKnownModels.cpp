@@ -6,6 +6,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/Importer/TypeCopier.h"
+#include "revng/Model/Pass/DeduplicateCollidingNames.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/ResourceFinder.h"
@@ -101,6 +102,8 @@ public:
 
     for (auto &WLF : WellKnownModels)
       WLF->Copier.finalize();
+
+    model::deduplicateCollidingNames(Model);
 
     return llvm::Error::success();
   }

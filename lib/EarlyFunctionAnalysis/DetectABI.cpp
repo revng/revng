@@ -34,6 +34,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Model/Pass/DeduplicateCollidingNames.h"
 #include "revng/Model/Register.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
@@ -850,6 +851,9 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
       }
     }
   }
+
+  // TODO: should this be done at a higher abstraction level?
+  model::deduplicateCollidingNames(Binary);
 }
 
 model::UpcastableType

@@ -3,7 +3,7 @@
 #
 
 ---
-- Name: "strlen_1"
+- Name: "strlen_2"
   Blocks:
     - Successors:
         - "-Destination": ""

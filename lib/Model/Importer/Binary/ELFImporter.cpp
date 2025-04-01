@@ -425,6 +425,9 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     findMissingTypes(TheELF, AdjustedOptions);
   }
 
+  Task.advance("Deduplicate colliding names", true);
+  model::deduplicateCollidingNames(Model);
+
   return Error::success();
 }
 
@@ -536,6 +539,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   Model.initializeReferences();
 
   deduplicateEquivalentTypes(Model);
+  model::deduplicateCollidingNames(Model);
 }
 
 using Libs = SmallVectorImpl<uint64_t>;

@@ -937,6 +937,8 @@ public:
     purgeInvalidTypes(Model);
     T.advance("Deduplicate equivalent types", true);
     deduplicateEquivalentTypes(Model);
+    T.advance("Deduplicate colliding names", true);
+    model::deduplicateCollidingNames(Model);
     T.advance("Purge unnamed unreachable types", true);
     purgeUnnamedAndUnreachableTypes(Model);
     T.advance("Verify the model", true);

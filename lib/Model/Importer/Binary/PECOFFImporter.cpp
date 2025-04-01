@@ -499,6 +499,7 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
   Model.initializeReferences();
 
   deduplicateEquivalentTypes(Model);
+  model::deduplicateCollidingNames(Model);
 }
 
 Error PECOFFImporter::import(const ImporterOptions &Options) {
@@ -538,6 +539,7 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
     findMissingTypes(Options);
   }
 
+  model::deduplicateCollidingNames(Model);
   return Error::success();
 }
 

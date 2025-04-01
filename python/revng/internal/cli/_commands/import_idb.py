@@ -79,7 +79,7 @@ class ImportIDBCommand(Command):
                 [
                     "model",
                     "opt",
-                    "-promote-original-name",
+                    "-deduplicate-colliding-names",
                     model_file.name,
                     "-o",
                     model_file.name,
