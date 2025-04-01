@@ -520,6 +520,10 @@ MakeLabelOp GoToOp::getLabelOp() {
   return getLabel().getDefiningOp<MakeLabelOp>();
 }
 
+AssignLabelOp GoToOp::getAssignLabelOp() {
+  return getLabelOp().getAssignLabelOp();
+}
+
 //===-------------------------------- IfOp --------------------------------===//
 
 mlir::LogicalResult IfOp::verify() {
@@ -585,6 +589,14 @@ mlir::LogicalResult MakeLabelOp::verify() {
                          << " must have an assignment.";
 
   return mlir::success();
+}
+
+AssignLabelOp MakeLabelOp::getAssignLabelOp() {
+  for (mlir::Operation *User : getOperation()->getUsers()) {
+    if (auto AssignLabel = mlir::dyn_cast<AssignLabelOp>(User))
+      return AssignLabel;
+  }
+  return {};
 }
 
 //===------------------------------ ReturnOp ------------------------------===//

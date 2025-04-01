@@ -227,6 +227,10 @@ def Clift_MakeLabelOp
             mlir::clift::LabelType::get($_builder.getContext()));
     }]>
   ];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] AssignLabelOp getAssignLabelOp();
+  }];
 }
 
 def Clift_AssignLabelOp : Clift_StatementOp<"assign_label"> {
@@ -282,6 +286,7 @@ def Clift_GoToOp : Clift_StatementOp<"goto", [Clift_NoFallthrough]> {
 
   let extraClassDeclaration = [{
     [[nodiscard]] MakeLabelOp getLabelOp();
+    [[nodiscard]] AssignLabelOp getAssignLabelOp();
   }];
 }
 
