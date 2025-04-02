@@ -94,9 +94,6 @@ public:
   /// each of them.
   llvm::Error store(llvm::ArrayRef<std::string> StoresOverrides);
 
-  /// Triggers only the serialization of the context directory to the execution
-  /// directory
-  llvm::Error storeContext();
   /// Triggers the full serialization of every step and every container to the
   /// Execution directory.
   llvm::Error store();
