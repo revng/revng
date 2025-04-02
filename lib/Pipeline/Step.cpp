@@ -373,10 +373,9 @@ Error Step::invalidate(const ContainerToTargetsMap &ToRemove) {
 }
 
 Error Step::store(const revng::DirectoryPath &DirPath) const {
-  if (auto Error = Containers.store(DirPath))
+  if (auto Error = storeInvalidationMetadata(DirPath))
     return Error;
-
-  return storeInvalidationMetadata(DirPath);
+  return Containers.store(DirPath);
 }
 
 Error Step::checkPrecondition() const {
@@ -461,6 +460,9 @@ llvm::Error
 Step::storeInvalidationMetadata(const revng::DirectoryPath &Path) const {
   for (auto &Container : Containers) {
     if (Container.second == nullptr)
+      continue;
+
+    if (not Container.second->isDirty())
       continue;
 
     using Type = llvm::SmallVector<NamedPathTargetBimapVector, 2>;

@@ -68,9 +68,9 @@ public:
 public:
   llvm::Error serialize(llvm::raw_ostream &OS) const final;
 
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final;
+  llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) final;
 
-  void clear() final {
+  void clearImpl() final {
     Module = std::make_unique<llvm::Module>("revng.module",
                                             Module->getContext());
   }

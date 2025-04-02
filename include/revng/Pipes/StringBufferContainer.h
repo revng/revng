@@ -51,19 +51,19 @@ public:
     return pipeline::TargetsList({ getOnlyPossibleTarget() });
   }
 
-  bool remove(const pipeline::TargetsList &Target) final {
+  bool removeImpl(const pipeline::TargetsList &Target) final {
     auto NotFound = llvm::find(Target, getOnlyPossibleTarget()) == Target.end();
     if (NotFound)
       return false;
 
-    clear();
+    this->clear();
 
     return true;
   }
 
   void setContent(std::string NewString) { Content = std::move(NewString); }
 
-  void clear() override { *this = StringBufferContainer(this->name()); }
+  void clearImpl() override { *this = StringBufferContainer(this->name()); }
 
   llvm::Error serialize(llvm::raw_ostream &OS) const override {
     OS << Content;
@@ -71,7 +71,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override {
+  llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) override {
     Content = Buffer.getBuffer().str();
     return llvm::Error::success();
   }

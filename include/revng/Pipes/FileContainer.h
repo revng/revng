@@ -88,12 +88,12 @@ public:
     return pipeline::TargetsList({ getOnlyPossibleTarget() });
   }
 
-  bool remove(const pipeline::TargetsList &Target) final {
+  bool removeImpl(const pipeline::TargetsList &Target) final {
     auto NotFound = llvm::find(Target, getOnlyPossibleTarget()) == Target.end();
     if (NotFound)
       return false;
 
-    clear();
+    this->clear();
 
     return true;
   }
@@ -120,13 +120,13 @@ public:
     return revng::FilePath::fromLocalStorage(this->Path).copyTo(Path);
   }
 
-  llvm::Error load(const revng::FilePath &Path) override {
+  llvm::Error loadImpl(const revng::FilePath &Path) override {
     auto MaybeExists = Path.exists();
     if (not MaybeExists)
       return MaybeExists.takeError();
 
     if (not MaybeExists.get()) {
-      clear();
+      this->clear();
       return llvm::Error::success();
     }
 
@@ -134,7 +134,7 @@ public:
     return Path.copyTo(revng::FilePath::fromLocalStorage(this->Path));
   }
 
-  void clear() override { *this = FileContainer(this->name()); }
+  void clearImpl() override { *this = FileContainer(this->name()); }
 
   llvm::Error serialize(llvm::raw_ostream &OS) const override {
     if (Path.empty())
@@ -149,7 +149,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override {
+  llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) override {
     std::error_code EC;
     llvm::raw_fd_ostream OS(getOrCreatePath(), EC, llvm::sys::fs::OF_None);
     if (EC)

@@ -181,6 +181,7 @@ setUpPipeline(pipeline::Context &PipelineContext,
       return std::move(Error);
   }
 
+  MaybePipeline->resetDirtyness();
   return MaybePipeline;
 }
 
