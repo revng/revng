@@ -676,6 +676,12 @@ Branches:
               - dce
               - exit-ssa
               - switch-to-statements
+              - dagify
+              - inline-divergent-scopes
+              - enforce-single-exit
+              - select-scope
+              - inline-divergent-scopes
+              - enforce-single-exit
         Artifacts:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated

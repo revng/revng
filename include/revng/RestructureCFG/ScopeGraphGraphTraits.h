@@ -417,5 +417,5 @@ debug_function inline void dumpScopeGraph(llvm::Function &F) {
   // We also dump the `.dot` serialization of the `ScopeGraph` for debugging
   // purposes
   llvm::dbgs() << "Serializing the dot file representing the ScopeGraph\n";
-  llvm::WriteGraph<Scope<llvm::Function *>>(&F, "ScopeGraph");
+  llvm::WriteGraph<Scope<llvm::Function *>>(&F, "ScopeGraph-" + F.getName());
 }

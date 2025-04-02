@@ -94,6 +94,30 @@ void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source, BasicBlock *Target) {
   Builder.CreateCall(ScopeCloserFunction, BasicBlockAddressTarget);
 }
 
+BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
+                                            BasicBlock *Target) {
+  Function *F = Source->getParent();
+
+  // Create the `goto` block, and connect it with the `Target`
+  LLVMContext &Context = getContext(Source);
+  BasicBlock *GotoBlock = BasicBlock::Create(Context,
+                                             "goto_" + Target->getName().str(),
+                                             F);
+  IRBuilder<> Builder(Context);
+  Builder.SetInsertPoint(GotoBlock);
+  Builder.CreateBr(Target);
+
+  // Insert the `goto_block` marker in the `ScopeGraph`
+  ScopeGraphBuilder SGBuilder(F);
+  SGBuilder.makeGoto(GotoBlock);
+
+  // Redirect all the edges `Source` -> `Target` to `Source` -> `GotoBlock`
+  auto SourceTerminator = Source->getTerminator();
+  SourceTerminator->replaceSuccessorWith(Target, GotoBlock);
+
+  return GotoBlock;
+}
+
 SmallVector<const Instruction *, 2>
 getLast2InstructionsBeforeTerminator(const BasicBlock *BB) {
   SmallVector<const Instruction *, 2> Result;

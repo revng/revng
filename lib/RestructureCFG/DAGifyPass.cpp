@@ -48,36 +48,9 @@ static void processRetreating(const revng::detail::EdgeDescriptor<BasicBlock *>
                               return Elem == Target;
                             }));
 
-  // We create a new block which contains only the `goto`, this is an
-  // invariant needed in the `ScopeGraph`
-  LLVMContext &Context = getContext(F);
-  BasicBlock *GotoBlock = BasicBlock::Create(Context,
-                                             "goto_" + Target->getName().str(),
-                                             F);
-
-  // Connect the `goto` block with the original target
-  IRBuilder<> Builder(Context);
-  Builder.SetInsertPoint(GotoBlock);
-  Builder.CreateBr(Target);
-
-  // Redirect the `Source`->`Target` (may be multiple) edge/s to
-  // `Source`->`GotoBlock`. This means that if multiple edges, which are
-  // retreating, exist, we will connect them to a single `goto` block,
-  // representing the removed retreating. This means that we will need explicit
-  // support in the `clifter` pass in order to match this specific topology.
-  Instruction *SourceTerminator = Source->getTerminator();
-  SourceTerminator->replaceSuccessorWith(Target, GotoBlock);
-
-  // Insert the `goto_block` marker in the `ScopeGraph`
   ScopeGraphBuilder SGBuilder(F);
-  SGBuilder.makeGoto(GotoBlock);
+  SGBuilder.makeGotoEdge(Source, Target);
 }
-
-char DAGifyPass::ID = 0;
-
-static constexpr const char *Flag = "dagify";
-using Reg = llvm::RegisterPass<DAGifyPass>;
-static Reg X(Flag, "Perform the DAGify pass on the ScopeGrapgh");
 
 class DAGifyPassImpl {
   Function &F;
@@ -125,7 +98,7 @@ public:
         // edges during the processing of nested `GenericRegion`s.
         // We collect the retreating edges, performing an exploration that
         // starts from the elected `Head` of each identified `GenericRegion`.
-        llvm::SmallPtrSet<BasicBlock *, 4> RegionNodes;
+        SmallPtrSet<BasicBlock *, 4> RegionNodes;
         for (auto &RegionNode : Region->blocks()) {
           RegionNodes.insert(RegionNode);
         }
@@ -159,6 +132,11 @@ public:
     return ModuleModified;
   }
 };
+
+char DAGifyPass::ID = 0;
+static constexpr const char *Flag = "dagify";
+using Reg = llvm::RegisterPass<DAGifyPass>;
+static Reg X(Flag, "Perform the DAGify pass on the ScopeGrapgh");
 
 bool DAGifyPass::runOnFunction(llvm::Function &F) {
   // Log the function name
