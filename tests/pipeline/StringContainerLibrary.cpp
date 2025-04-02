@@ -58,7 +58,7 @@ public:
     return ContainedStrings.contains(Target.getPathComponents().back());
   }
 
-  bool remove(const TargetsList &Targets) override {
+  bool removeImpl(const TargetsList &Targets) override {
     bool RemovedAll = true;
     for (const auto &Target : Targets)
       RemovedAll = remove(Target) && RemovedAll;
@@ -83,7 +83,7 @@ public:
     return ToReturn;
   }
 
-  void clear() final { ContainedStrings.clear(); }
+  void clearImpl() final { ContainedStrings.clear(); }
 
   llvm::Error serialize(llvm::raw_ostream &OS) const final {
     for (const auto &S : ContainedStrings) {
@@ -92,7 +92,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final {
+  llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) final {
     clear();
     SmallVector<llvm::StringRef, 0> Strings;
     Buffer.getBuffer().split(Strings, '\n');

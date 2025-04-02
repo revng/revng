@@ -109,7 +109,7 @@ public:
   }
 
   /// \return true if all targets to remove have been removed
-  bool remove(const TargetsList &Targets) override {
+  bool removeImpl(const TargetsList &Targets) override {
     bool RemovedAll = true;
     for (const auto *Inspector : getRegisteredInspectors()) {
       RemovedAll = Inspector->remove(Targets.filter(Inspector->getKind()),

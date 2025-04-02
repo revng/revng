@@ -300,7 +300,7 @@ llvm::Error LLVMContainer::serialize(llvm::raw_ostream &OS) const {
   return llvm::Error::success();
 }
 
-llvm::Error LLVMContainer::deserialize(const llvm::MemoryBuffer &Buffer) {
+llvm::Error LLVMContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   llvm::SmallVector<char> DecompressedData = zstdDecompress(Buffer.getBuffer());
   llvm::MemoryBufferRef Ref{
     { DecompressedData.data(), DecompressedData.size() }, "input"

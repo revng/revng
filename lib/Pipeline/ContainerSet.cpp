@@ -83,8 +83,13 @@ llvm::Error ContainerSet::store(const revng::DirectoryPath &Directory) const {
     if (Container == nullptr)
       continue;
 
+    if (not Container->isDirty())
+      continue;
+
     if (auto Error = Container->store(Filename); !!Error)
       return Error;
+
+    Container->resetDirtiness();
   }
   return Error::success();
 }
@@ -155,7 +160,7 @@ llvm::Error ContainerBase::store(const revng::FilePath &Path) const {
   return MaybeWritableFile.get()->commit();
 }
 
-llvm::Error ContainerBase::load(const revng::FilePath &Path) {
+llvm::Error ContainerBase::loadImpl(const revng::FilePath &Path) {
   auto MaybeExists = Path.exists();
   if (not MaybeExists)
     return MaybeExists.takeError();

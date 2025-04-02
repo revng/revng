@@ -297,7 +297,7 @@ pipeline::TargetsList MLIRContainer::enumerate() const {
   return pipeline::TargetsList(std::move(List));
 }
 
-bool MLIRContainer::remove(const pipeline::TargetsList &List) {
+bool MLIRContainer::removeImpl(const pipeline::TargetsList &List) {
   if (getModuleBlock(*Module).empty())
     return false;
 
@@ -329,7 +329,7 @@ bool MLIRContainer::remove(const pipeline::TargetsList &List) {
   return RemovedSome;
 }
 
-void MLIRContainer::clear() {
+void MLIRContainer::clearImpl() {
   auto NewContext = makeContext();
 
   Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
@@ -341,7 +341,7 @@ llvm::Error MLIRContainer::serialize(llvm::raw_ostream &OS) const {
   return llvm::Error::success();
 }
 
-llvm::Error MLIRContainer::deserialize(const llvm::MemoryBuffer &Buffer) {
+llvm::Error MLIRContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   auto NewContext = makeContext();
 
   const mlir::ParserConfig Config(NewContext.get());

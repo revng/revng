@@ -118,7 +118,7 @@ public:
   ~GenericStringMap() override = default;
 
 public:
-  void clear() override { Map.clear(); }
+  void clearImpl() override { Map.clear(); }
 
   std::unique_ptr<pipeline::ContainerBase>
   cloneFiltered(const pipeline::TargetsList &Targets) const override {
@@ -160,7 +160,7 @@ public:
     return Result;
   }
 
-  bool remove(const pipeline::TargetsList &Targets) override {
+  bool removeImpl(const pipeline::TargetsList &Targets) override {
     bool Changed = false;
 
     auto End = Map.end();
@@ -183,7 +183,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override {
+  llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) override {
     GzipTarReader Reader(Buffer);
     deserializeImpl(Reader);
     return llvm::Error::success();
@@ -214,13 +214,13 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error load(const revng::FilePath &Path) override {
+  llvm::Error loadImpl(const revng::FilePath &Path) override {
     auto MaybeExists = Path.exists();
     if (not MaybeExists)
       return MaybeExists.takeError();
 
     if (not MaybeExists.get()) {
-      clear();
+      this->clear();
       return llvm::Error::success();
     }
 

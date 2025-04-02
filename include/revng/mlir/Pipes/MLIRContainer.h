@@ -29,7 +29,7 @@ private:
 public:
   explicit MLIRContainer(const llvm::StringRef Name) :
     pipeline::Container<MLIRContainer>(Name) {
-    clear();
+    clearImpl();
   }
 
   mlir::MLIRContext *getContext() { return Context.get(); }
@@ -43,12 +43,12 @@ public:
 
   pipeline::TargetsList enumerate() const override;
 
-  bool remove(const pipeline::TargetsList &Targets) override;
+  bool removeImpl(const pipeline::TargetsList &Targets) override;
 
-  void clear() override;
+  void clearImpl() override;
 
   llvm::Error serialize(llvm::raw_ostream &OS) const override;
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override;
+  llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) override;
 
   llvm::Error extractOne(llvm::raw_ostream &OS,
                          const pipeline::Target &Target) const override;
