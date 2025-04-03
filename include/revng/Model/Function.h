@@ -42,6 +42,11 @@ fields:
     type: Type
     upcastable: true
     optional: true
+  - name: StackFrameType2
+    doc: The type of the stack frame.
+    type: Type
+    upcastable: true
+    optional: true
   - name: Prototype
     doc: The prototype of the function.
     type: Type

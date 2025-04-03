@@ -157,21 +157,8 @@ private:
 std::optional<model::UpcastableType>
 tryConvertToCABI(const model::RawFunctionDefinition &FunctionType,
                  TupleTree<model::Binary> &Binary,
-                 std::optional<model::ABI::Values> MaybeABI,
+                 const abi::Definition &ABI,
                  bool UseSoftRegisterStateDeductions) {
-  if (!MaybeABI.has_value())
-    MaybeABI = Binary->DefaultABI();
-
-  revng_log(Log,
-            "Converting a `RawFunctionDefinition` to "
-            "`CABIFunctionDefinition`.");
-  revng_log(Log, "ABI: " << model::ABI::getName(MaybeABI.value()).str());
-  revng_log(Log, "Original Type:\n" << toString(FunctionType));
-  if (auto *StackType = FunctionType.stackArgumentsType())
-    revng_log(Log, "Stack is:\n" << toString(*StackType));
-  LoggerIndent Indentation(Log);
-
-  const abi::Definition &ABI = abi::Definition::get(*MaybeABI);
   if (!ABI.isPreliminarilyCompatibleWith(FunctionType)) {
     revng_log(Log,
               "FAIL: the function is not compatible with `"

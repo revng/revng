@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Conversion.h"
 #include "revng/ABI/FunctionType/Support.h"
 #include "revng/ADT/UpcastablePointer.h"
@@ -183,6 +184,10 @@ public:
       ABI = Model->DefaultABI();
     }
 
+    revng_log(Log,
+              "ABI Used for the conversion is: "
+                << model::ABI::getName(ABI).str());
+
     // Minimize the negative impact on binaries with ABI that is not fully
     // supported by disabling the conversion by default.
     //
@@ -244,26 +249,51 @@ public:
     if (auto &DefaultPrototype = Model->DefaultPrototype())
       if (auto *Definition = DefaultPrototype->tryGetAsDefinition())
         TypesToIgnore.push_back(Definition);
-    auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions(),
-                                        TypesToIgnore);
+
+    struct Comparator {
+      using is_transparent = std::true_type;
+
+      [[nodiscard]] bool
+      operator()(const model::RawFunctionDefinition *LHS,
+                 const model::RawFunctionDefinition *RHS) const {
+        return LHS->key() < RHS->key();
+      }
+    };
+    using ToConvertMap = std::map<model::RawFunctionDefinition *,
+                                  std::vector<model::Function *>,
+                                  Comparator>;
+    using ToConvertPair = std::pair<model::RawFunctionDefinition *,
+                                    std::vector<model::Function *>>;
+    constexpr auto Adaptor = [](model::RawFunctionDefinition *Value) {
+      return ToConvertPair{ Value, {} };
+    };
+
+    auto ToConvert = filterTypes<RawFD, ToConvertMap>(Model->TypeDefinitions(),
+                                                      TypesToIgnore,
+                                                      Adaptor);
+
+    for (model::Function &Function : Model->Functions())
+      if (model::RawFunctionDefinition *MaybeRFT = Function.rawPrototype())
+        if (auto It = ToConvert.find(MaybeRFT); It != ToConvert.end())
+          It->second.emplace_back(&Function);
 
     using NB = model::NameBuilder;
     auto NameBuilder = Log.isEnabled() ? std::make_optional<NB>(*Model) :
                                          std::nullopt;
 
-    auto LogFunctionName = [&NameBuilder,
-                            &Model](const model::TypeDefinition::Key &Key) {
+    auto LogFunctionName = [&NameBuilder, &Model](const auto &Prototype,
+                                                  const auto &Functions) {
       if (not Log.isEnabled())
         return;
 
+      const model::TypeDefinition::Key &Key = Prototype.key();
       revng_log(Log,
-                "Converting a function: "
+                "Converting a function type: "
                   << toString(Model->getDefinitionReference(Key)));
 
       std::string Names = "";
-      for (model::Function &Function : Model->Functions())
-        if (Function.prototype() && Function.prototype()->key() == Key)
-          Names += "\"" + NameBuilder->name(Function).str().str() + "\", ";
+      for (const model::Function *Function : Functions)
+        Names += "\"" + NameBuilder->name(*Function).str().str() + "\", ";
 
       if (Names.empty()) {
         revng_log(Log, "There are no functions using it as a prototype.");
@@ -271,13 +301,17 @@ public:
         Names.resize(Names.size() - 2);
         revng_log(Log, "It's a prototype of " << Names);
       }
+
+      if (auto *StackType = Prototype.stackArgumentsType())
+        revng_log(Log, "Stack is:\n" << toString(*StackType));
     };
 
     // And convert them.
-    for (model::RawFunctionDefinition *Old : ToConvert) {
-      LogFunctionName(Old->key());
+    for (auto &[Prototype, Functions] : ToConvert) {
+      LogFunctionName(*Prototype, Functions);
 
-      if (!usesFloat(VectorVH, *Old)) {
+      const abi::Definition &ABIDef = abi::Definition::get(ABI);
+      if (!usesFloat(VectorVH, *Prototype) && !ABIDef.FloatsUseGPRs()) {
         // TODO: remove this check after `abi::FunctionType` supports vectors.
         revng_log(Log,
                   "Do not touch this function because it requires vector "
@@ -285,8 +319,24 @@ public:
         continue;
       }
 
+      std::optional<model::StructDefinition> Stack2;
+      if (ABIDef.UnusedStackArgumentBytes() != 0 && !Functions.empty()) {
+        if (auto *Stack = Prototype->stackArgumentsType()) {
+          if (auto SubS = Stack->substruct(ABIDef.UnusedStackArgumentBytes())) {
+            Stack2 = std::move(SubS);
+
+          } else {
+            revng_log(Log,
+                      "Converting this function type would require slicing "
+                      "a struct field in half.");
+            continue;
+          }
+        }
+      }
+
       namespace FT = abi::FunctionType;
-      if (auto New = FT::tryConvertToCABI(*Old, Model, ABI, SoftDeductions)) {
+      const model::RawFunctionDefinition &Old = *Prototype;
+      if (auto New = FT::tryConvertToCABI(Old, Model, ABIDef, SoftDeductions)) {
         // If the conversion succeeds, make sure the returned type is valid,
         revng_assert(!New->isEmpty());
 
@@ -295,6 +345,15 @@ public:
           New->get()->verify(true);
 
         revng_log(Log, "Function Conversion Successful: " << toString(*New));
+
+        if (Stack2) {
+          // If the conversion of the prototype is successful, write `Stack2`
+          // to all the functions that use it.
+          auto &&[_, StructType] = Model->recordNewType(std::move(*Stack2));
+          for (model::Function *Function : Functions)
+            Function->StackFrameType2() = StructType;
+        }
+
       } else {
         // Do nothing if the conversion failed (the model is not modified).
         // `RawFunctionDefinition` is still used for those functions.

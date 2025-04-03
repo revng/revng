@@ -65,22 +65,33 @@ inline constexpr uint64_t paddedSizeOnStack(uint64_t RealSize,
   return RealSize;
 }
 
+namespace detail {
+inline constexpr auto DefaultAdaptor = []<typename Type>(Type &&Value) {
+  return std::forward<Type>(Value);
+};
+}
+
 /// Filters a list of upcastable types.
 ///
 /// \tparam DerivedType The desired type to filter based on
 /// \param Types The list of types to filter
 /// \return filtered list
 template<derived_from<model::TypeDefinition> DerivedType,
-         RangeOf<model::UpcastableTypeDefinition> OwningRange,
+         std::ranges::range ResultType = std::vector<DerivedType *>,
+         RangeOf<model::UpcastableTypeDefinition> OwningRange =
+           std::vector<model::UpcastableTypeDefinition>,
          RangeOf<model::TypeDefinition *> ViewRange =
-           std::vector<model::TypeDefinition *>>
-std::vector<DerivedType *>
-filterTypes(OwningRange &FilterFrom, const ViewRange &Ignored = {}) {
-  std::vector<DerivedType *> Result;
+           std::vector<model::TypeDefinition *>,
+         typename AdaptorType =
+           std::function<typename ResultType::value_type(DerivedType *)>>
+ResultType filterTypes(OwningRange &FilterFrom,
+                       const ViewRange &Ignored = {},
+                       AdaptorType &&Adaptor = detail::DefaultAdaptor) {
+  ResultType Result;
   for (model::UpcastableTypeDefinition &Type : FilterFrom)
     if (Type && !llvm::is_contained(Ignored, &*Type))
       if (auto *Cast = llvm::dyn_cast<DerivedType>(Type.get()))
-        Result.emplace_back(Cast);
+        Result.insert(Result.end(), Adaptor(Cast));
   return Result;
 }
 
