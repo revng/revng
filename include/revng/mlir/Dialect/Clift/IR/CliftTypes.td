@@ -39,6 +39,13 @@ def Clift_PrimitiveType
                         "uint64_t":$size,
                         DefaultValuedParameter<"bool", "false">:$is_const);
 
+  let builders = [
+    TypeBuilder<(ins "PrimitiveKind":$Kind,
+                     "uint64_t":$Size), [{
+      return $_get($_ctxt, Kind, Size, false);
+    }]>,
+  ];
+
   let genVerifyDecl = 1;
 
   let assemblyFormat = [{
@@ -60,7 +67,6 @@ def Clift_PointerType
   let parameters = (ins "mlir::clift::ValueType":$pointee_type,
                         "uint64_t":$pointer_size,
                         DefaultValuedParameter<"bool", "false">:$is_const);
-
 
   let builders = [
     TypeBuilderWithInferredContext<(ins "mlir::clift::ValueType":$PointeeType,
