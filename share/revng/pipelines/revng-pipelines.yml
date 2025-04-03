@@ -681,6 +681,7 @@ Branches:
               - dce
               - exit-ssa
               - switch-to-statements
+              - remove-constant-array-returns
               - dagify
               - inline-divergent-scopes
               - enforce-single-exit
