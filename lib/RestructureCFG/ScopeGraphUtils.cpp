@@ -11,6 +11,7 @@
 #include "llvm/IR/LLVMContext.h"
 
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
+#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -105,6 +106,24 @@ void ScopeGraphBuilder::makeGoto(BasicBlock *GotoBlock) {
   Builder.CreateCall(GotoBlockFunction, {});
 }
 
+void ScopeGraphBuilder::eraseGoto(BasicBlock *GotoBlock) {
+  // We must have a `GotoBlock`
+  revng_assert(GotoBlock);
+
+  // We assume that when we try to remove the `goto_block` annotation, the
+  // containing block must have a single successor on the CFG, which corresponds
+  // to the semantics successor of the `goto`
+  Instruction *Terminator = GotoBlock->getTerminator();
+  revng_assert(Terminator->getNumSuccessors() == 1);
+
+  for (Instruction *I : getLast2InstructionsBeforeTerminator(GotoBlock)) {
+    if (CallInst *MarkerCall = getCallToTagged(I,
+                                               FunctionTags::GotoBlockMarker)) {
+      MarkerCall->eraseFromParent();
+    }
+  }
+}
+
 void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source, BasicBlock *Target) {
   // We must have an insertion point
   revng_assert(Source);
@@ -116,6 +135,23 @@ void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source, BasicBlock *Target) {
   auto *BasicBlockAddressTarget = BlockAddress::get(Target);
   revng_assert(BasicBlockAddressTarget);
   Builder.CreateCall(ScopeCloserFunction, BasicBlockAddressTarget);
+}
+
+BasicBlock *ScopeGraphBuilder::eraseScopeCloser(BasicBlock *Source) {
+
+  // We save the `Target` of the `scope_closer`, which will be returned by the
+  // method, for eventual later restoring
+  BasicBlock *ScopeCloserTarget = getScopeCloserTarget(Source);
+  revng_assert(ScopeCloserTarget);
+
+  for (Instruction *I : getLast2InstructionsBeforeTerminator(Source)) {
+    if (CallInst
+          *MarkerCall = getCallToTagged(I, FunctionTags::ScopeCloserMarker)) {
+      MarkerCall->eraseFromParent();
+    }
+  }
+
+  return ScopeCloserTarget;
 }
 
 BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
@@ -142,14 +178,21 @@ BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
   return GotoBlock;
 }
 
-SmallVector<const Instruction *, 2>
-getLast2InstructionsBeforeTerminator(const BasicBlock *BB) {
-  SmallVector<const Instruction *, 2> Result;
+template<ConstOrNot<BasicBlock> BasicBlockType>
+SmallVector<std::conditional_t<std::is_const_v<BasicBlockType>,
+                               const Instruction,
+                               Instruction> *,
+            2>
+getLast2InstructionsBeforeTerminator(BasicBlockType *BB) {
+  using InstructionType = std::conditional_t<std::is_const_v<BasicBlockType>,
+                                             const Instruction,
+                                             Instruction>;
+  SmallVector<InstructionType *, 2> Result;
   for (const auto &Group : enumerate(reverse(*BB))) {
     if (Group.index() > 2) {
       return Result;
     }
-    const Instruction &I = Group.value();
+    InstructionType &I = Group.value();
     if (not I.isTerminator())
       Result.push_back(&I);
   }
@@ -174,6 +217,10 @@ BasicBlock *getScopeCloserTarget(const BasicBlock *BB) {
   }
 
   return nullptr;
+}
+
+bool isScopeCloserBlock(const BasicBlock *BB) {
+  return getScopeCloserTarget(BB) != nullptr;
 }
 
 bool isGotoBlock(const BasicBlock *BB) {
