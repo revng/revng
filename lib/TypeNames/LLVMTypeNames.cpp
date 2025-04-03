@@ -15,6 +15,7 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/Identifier.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 
@@ -121,7 +122,7 @@ static std::string getReturnedStructName(const llvm::Function *F,
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   revng_assert(llvm::isa<llvm::StructType>(F->getReturnType()));
   return B.NameBuilder.Configuration.artificialReturnValuePrefix().str()
-         + model::sanitizeHelperName(F->getName());
+         + sanitizeIdentifier(F->getName());
 }
 
 template<bool IsDefinition>

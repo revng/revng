@@ -10,6 +10,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/StringMap.h"
+#include "revng/Support/Identifier.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 
 static llvm::cl::opt<std::string> ProblemNameFile("naming-collisions-report",
@@ -89,7 +90,7 @@ gatherNonReservedHelperNames(const llvm::Module &Module,
                              const model::CNameBuilder &B) {
   std::string Error = "";
   for (const llvm::Function &Function : Module.functions()) {
-    std::string SanitizedName = model::sanitizeHelperName(Function.getName());
+    std::string SanitizedName = sanitizeIdentifier(Function.getName());
 
     if (llvm::Error Error = B.isNameReserved(SanitizedName)) {
       // If we get an error here, then the identifier is reserved, which is

@@ -8,6 +8,7 @@
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
 
+#include "revng/Support/Identifier.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
 
 // keep this order
@@ -34,23 +35,10 @@ using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 static bool getDefinedTypeAliasImpl(DefinedType Type,
                                     llvm::StringRef Kind,
                                     llvm::raw_ostream &OS) {
-  auto IsIdentifierChar = [](char const X) {
-    if (X == '_')
-      return true;
-    if ('a' <= X and X <= 'z')
-      return true;
-    if ('A' <= X and X <= 'Z')
-      return true;
-    if ('0' <= X and X <= '9')
-      return true;
-    return false;
-  };
-
   if (not Type.getName().empty()) {
     OS << Type.getName();
   } else if (not Type.getHandle().empty()) {
-    for (char C : Type.getHandle())
-      OS << (IsIdentifierChar(C) ? C : '_');
+    OS << sanitizeIdentifier(Type.getHandle());
   } else {
     OS << Kind;
   }
