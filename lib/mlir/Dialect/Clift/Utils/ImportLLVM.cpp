@@ -456,7 +456,7 @@ private:
 
   // Used for emitting operations acting on integer operands (arithmetic,
   // comparison, etc.) of a specific kind. Before applying the operation, the
-  // operands are automatically converted to the requested kind, if necessary.
+  // operands are automatically converted to the requeste.d kind, if necessary.
   // After the operation, the result is automaticlaly converted to generic kind.
   mlir::Value emitIntegerOp(mlir::Location Loc,
                             PrimitiveKind Kind,
@@ -786,7 +786,6 @@ private:
       llvm::Instruction *I = E->getAsInstruction();
       mlir::Value Value = emitExpression(I, SurroundingLocation);
       I->deleteValue();
-
       rc_return Value;
     }
 
