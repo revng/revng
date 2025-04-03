@@ -689,6 +689,7 @@ Branches:
               - inline-divergent-scopes
               - enforce-single-exit
               - materialize-trivial-goto
+              - remove-constant-array-returns
         Artifacts:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated
