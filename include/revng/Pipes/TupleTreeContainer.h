@@ -102,9 +102,9 @@ public:
     return {};
   }
 
-  bool remove(const pipeline::TargetsList &Target) final {
+  bool removeImpl(const pipeline::TargetsList &Target) final {
     if (enumerate().contains(Target)) {
-      clear();
+      this->clear();
       return true;
     }
     return false;
@@ -122,7 +122,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) override {
+  llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) override {
     if (Buffer.getBufferSize() == 0) {
       *this = TupleTreeContainer(this->name());
       return llvm::Error::success();
@@ -156,7 +156,7 @@ public:
     return Base::store(Path);
   }
 
-  llvm::Error load(const revng::FilePath &Path) override {
+  llvm::Error loadImpl(const revng::FilePath &Path) override {
     auto MaybeExists = Path.exists();
     if (not MaybeExists)
       return MaybeExists.takeError();
@@ -168,7 +168,7 @@ public:
     return Base::load(Path);
   }
 
-  void clear() override { Content = TupleTree<T>(); }
+  void clearImpl() override { Content = TupleTree<T>(); }
 
   llvm::Error extractOne(llvm::raw_ostream &OS,
                          const pipeline::Target &Target) const override {

@@ -181,6 +181,7 @@ setUpPipeline(pipeline::Context &PipelineContext,
       return std::move(Error);
   }
 
+  MaybePipeline->resetDirtyness();
   return MaybePipeline;
 }
 
@@ -328,20 +329,6 @@ void PipelineManager::writeAllPossibleTargets(llvm::raw_ostream &OS) const {
         ExpandedTarget.dump(OS, 2);
     }
   }
-}
-
-llvm::Error PipelineManager::storeContext() {
-  // If we are in ephemeral mode (resume was "") then we don't store anything
-  if (StorageClient == nullptr)
-    return llvm::Error::success();
-
-  // Run store on the runner, this will serialize all step/containers
-  // inside the resume directory
-  if (auto Error = Runner->storeContext(ExecutionDirectory))
-    return Error;
-
-  // Commit all the changes to storage
-  return StorageClient->commit();
 }
 
 llvm::Error PipelineManager::store() {
@@ -527,7 +514,7 @@ PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
       return Result.takeError();
 
     if (SaveAfterEveryAnalysis) {
-      if (auto Error = storeContext())
+      if (auto Error = store())
         return Error;
     }
 
@@ -541,7 +528,7 @@ PipelineManager::runAnalyses(const pipeline::AnalysesList &List,
   DiffMap Diff = Before.diff(PipelineContext->getGlobals());
 
   PipelineContext->bumpCommitIndex();
-  if (auto Error = storeContext())
+  if (auto Error = store())
     return Error;
 
   return Diff;
@@ -565,7 +552,7 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
   recalculateAllPossibleTargets();
 
   PipelineContext->bumpCommitIndex();
-  if (auto Error = storeContext())
+  if (auto Error = store())
     return Error;
 
   return Result;

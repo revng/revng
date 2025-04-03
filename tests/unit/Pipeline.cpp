@@ -131,7 +131,7 @@ public:
     return ToReturn;
   }
 
-  bool remove(const TargetsList &Targets) override {
+  bool removeImpl(const TargetsList &Targets) override {
     bool RemovedAll = true;
     for (const auto &Target : Targets)
       RemovedAll = remove(Target) && RemovedAll;
@@ -167,7 +167,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error load(const revng::FilePath &Path) override {
+  llvm::Error loadImpl(const revng::FilePath &Path) override {
     Map = SavedData;
     return llvm::Error::success();
   }
@@ -177,13 +177,13 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final {
+  llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) final {
 
     return llvm::Error::success();
   }
 
   /// Must reset the state of the container to the just built state
-  void clear() final {}
+  void clearImpl() final {}
 
 private:
   std::map<Target, int> Map;
@@ -1100,7 +1100,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error load(const revng::FilePath &Path) override {
+  llvm::Error loadImpl(const revng::FilePath &Path) override {
     return llvm::Error::success();
   }
 
@@ -1108,7 +1108,7 @@ public:
     return llvm::Error::success();
   }
 
-  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) final {
+  llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) final {
     return llvm::Error::success();
   }
 
@@ -1119,7 +1119,7 @@ public:
   }
 
   /// Must reset the state of the container to the just built state
-  void clear() final {}
+  void clearImpl() final {}
 
   std::set<Target> Targets;
 

@@ -35,7 +35,7 @@ run "$@"
 diff "$OUTPUT" "$REFERENCE_OUTPUT"
 
 # Drop an intermediate results and recompute
-rm "$WORKING_DIRECTORY/second-step/strings-1"
+rm "$WORKING_DIRECTORY/first-step/strings-2"{,.cache.zst}
 run "$@"
 diff "$OUTPUT" "$REFERENCE_OUTPUT"
 

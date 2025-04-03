@@ -29,8 +29,8 @@ from ariadne.contrib.tracing.apollotracing import ApolloTracingExtension
 from revng.internal.api import Manager
 from revng.internal.api._capi import initialize as capi_initialize
 from revng.internal.api._capi import shutdown as capi_shutdown
+from revng.internal.api.syncing_manager import SyncingManager
 
-from .event_manager import EventManager
 from .graphql import get_schema
 from .util import project_workdir
 
@@ -39,9 +39,9 @@ DEBUG = config("STARLETTE_DEBUG", cast=bool, default=False)
 
 
 class ManagerCredentialsMiddleware:
-    def __init__(self, app: ASGIApp, event_manager: EventManager):
+    def __init__(self, app: ASGIApp, manager: Manager):
         self.app = app
-        self.event_manager = event_manager
+        self.manager = manager
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -49,7 +49,7 @@ class ManagerCredentialsMiddleware:
 
         credentials = Headers(scope=scope).get("x-revng-set-credentials")
         if credentials is not None:
-            self.event_manager.set_credentials(credentials)
+            self.manager.set_storage_credentials(credentials)
 
         return await self.app(scope, receive, send)
 
@@ -87,7 +87,7 @@ def load_plugins() -> PluginHooks:
     return hooks
 
 
-def get_middlewares(event_manager: EventManager, hooks: PluginHooks) -> List[Middleware]:
+def get_middlewares(manager: Manager, hooks: PluginHooks) -> List[Middleware]:
     origins: List[str] = []
     if "REVNG_ORIGINS" in os.environ:
         origins = os.environ["REVNG_ORIGINS"].split(",")
@@ -107,7 +107,7 @@ def get_middlewares(event_manager: EventManager, hooks: PluginHooks) -> List[Mid
         ),
         Middleware(GZipMiddleware, minimum_size=1024),
         *hooks.middlewares_late,
-        Middleware(ManagerCredentialsMiddleware, event_manager=event_manager),
+        Middleware(ManagerCredentialsMiddleware, manager=manager),
     ]
 
 
@@ -127,16 +127,14 @@ def make_startlette() -> Starlette:
             signal.SIGQUIT,
         )
     )
-    manager = Manager(project_workdir())
 
     hooks = load_plugins()
-    event_manager = EventManager(manager, hooks.save_hooks)
-    event_manager.start()
+    manager = SyncingManager(project_workdir(), save_hooks=hooks.save_hooks)
     startup_done = False
 
     if DEBUG:
-        print(f"Manager workdir is: {manager.workdir!s}", file=sys.stderr)
-        signal.signal(signal.SIGUSR2, lambda s, f: event_manager.save())
+        print(f"Manager workdir is: {manager.workdir}", file=sys.stderr)
+        signal.signal(signal.SIGUSR2, lambda s, f: manager.save())
 
     async def index_page(request):
         return PlainTextResponse("")
@@ -150,7 +148,6 @@ def make_startlette() -> Starlette:
     def generate_context(request: Request):
         return {
             "manager": manager,
-            "event_manager": event_manager,
             # Lock for operations that have an `index` parameter. This is
             # needed because otherwise there's a TOCTOU between when the index
             # is checked and when the analysis actually bumps the index.
@@ -180,16 +177,15 @@ def make_startlette() -> Starlette:
         startup_done = True
 
     def shutdown():
-        event_manager.running = False
-        store_result = event_manager.save()
-        if not store_result:
+        if not manager.save():
             logging.warning("Failed to store manager's containers")
+        manager.stop()
         manager._manager = None
         capi_shutdown()
 
     return Starlette(
         debug=DEBUG,
-        middleware=get_middlewares(event_manager, hooks),
+        middleware=get_middlewares(manager, hooks),
         routes=routes,
         on_startup=[startup],
         on_shutdown=[shutdown],

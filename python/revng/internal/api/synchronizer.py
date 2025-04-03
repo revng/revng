@@ -7,11 +7,9 @@ import re
 import sys
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from threading import Event, Lock
 from typing import ParamSpec, Protocol, Sequence, TypeVar, cast
 from uuid import uuid4
 
@@ -22,29 +20,19 @@ import yaml
 
 class Synchronizer(Protocol):
     """A Synchronizer is a class that takes care of saving the manager's
-    workdir somewhere other than the local disk. This class needs to be
-    thread-safe, especially for the `save` method, since it is expected that
-    multiple threads will call it."""
+    workdir somewhere other than the local disk."""
 
     def load(self, path: Path) -> bool:
         ...
 
-    def save(self, path: Path) -> bool:
+    def save(self, path: Path, old_directories: list[Path]) -> bool:
+        ...
+
+    def save_exceptions(self) -> tuple[type[Exception], ...]:
         ...
 
     def set_credentials(self, credentials: str):
         ...
-
-
-class NoopSynchronizer(Synchronizer):
-    def load(self, path: Path) -> bool:
-        return True
-
-    def save(self, path: Path) -> bool:
-        return True
-
-    def set_credentials(self, credentials: str):
-        pass
 
 
 executor = ThreadPoolExecutor(8)
@@ -71,14 +59,6 @@ class FileData:
     s3_filename: str
     index: int = field(default=0)
     encoding: str = field(default="None")
-
-
-@contextmanager
-def with_event(ev: Event):
-    """Exception/return-safe way of set()-ing an Event. When the __exit__
-    method of the context manager is called the event will be set"""
-    yield None
-    ev.set()
 
 
 def gather_bools(future_list: Sequence[Future[bool]], exception_message: str) -> bool:
@@ -150,11 +130,6 @@ class S3Synchronizer(Synchronizer):
         else:
             self.path = ""
 
-        self.lock = Lock()
-        # The following properties are mutated when calling load or save,
-        # because of that they require the above lock to be acquired.
-        self.last_index: int = 0
-        self.last_save_event: Event | None = None
         self.last_file_list: dict[str, FileData] = {}
 
     def load(self, path: Path) -> bool:
@@ -181,7 +156,19 @@ class S3Synchronizer(Synchronizer):
         # Actually wait for all the downloads to finish
         return gather_bools(queue, "Failed to load")
 
-    def save(self, path: Path) -> bool:
+    def save_exceptions(self):
+        return (
+            # File-read related errors
+            OSError,
+            # Errors related to S3 facilities (e.g. S3Transfer)
+            boto3.exceptions.Boto3Error,
+            # Errors related to the connection (e.g. connection timeout)
+            botocore.exceptions.BotoCoreError,
+            # Error related to S3 (e.g. wrong permissions)
+            botocore.exceptions.ClientError,
+        )
+
+    def save(self, path: Path, old_directories: list[Path]) -> bool:
         # Check that the provided path is not a file
         assert not path.exists() or path.is_dir()
 
@@ -193,88 +180,60 @@ class S3Synchronizer(Synchronizer):
         with open(path / "file-list.yml") as f:
             file_list = yaml.safe_load(f)
 
-        with self.lock:
-            # Make an early exit if the index is "behind". That means that
-            # either:
-            # * We've been called twice
-            # * We've been beaten to the punch by another thread
-            if file_list["Index"] <= self.last_index:
-                return True
-
-            # Acquire a position in the queue of committing `index.yml`:
-            # 1. Steal `last_save_event`: we will wait on it before committing
-            #    our `index.yml`
-            # 2. Create a new event on which the next save will wait on (before
-            #    committing their `index.yml`)
-            # 3. Push all the required files to S3, fail in case an error
-            #    happens
-            # 4. Wait on the stolen `last_save_event`
-            # 5. Push our `index.yml`
-            # 6. Notify that we are done and the next save can proceed
-            #    committing a new `index.yml`. This is done automatically by
-            #    the `with_event` context manager
-            last_save_event = self.last_save_event
-            finish_event = Event()
-            self.last_save_event = finish_event
-
-            # Also save the previous_last_index, this accounts for situations
-            # where an index was skipped
-            previous_last_index = self.last_index
-            self.last_index = file_list["Index"]
-
-        with with_event(finish_event):
-            to_upload = set()
-            new_file_list = {}
-            for file_path, attributes in file_list["Files"].items():
-                # The if below decides if a file needs to be uploaded, which
-                # happens in one of two conditions:
-                # * The path was not seen in the last upload
-                # * The path has an index higher than last time
-                if attributes["Index"] > previous_last_index:
-                    # Create a new filename string, this prepends a UUID to the
-                    # filename, which preserving the path.
-                    new_filename = self._generate_filename(file_path)
-                    to_upload.add(file_path)
-                    # Generate a new FileData entry with the index and encoding
-                    # from file-list.yml
-                    new_file_list[file_path] = FileData(
-                        new_filename, attributes["Index"], attributes["Encoding"]
-                    )
-
-            queue = []
-            for key in to_upload:
-                data = new_file_list[key]
-                queue.append(
-                    executor.submit(self._upload_file, path / key, data.s3_filename, data.encoding)
+        to_upload = set()
+        new_file_list = {}
+        for file_path, attributes in file_list["Files"].items():
+            # The if below decides if a file needs to be uploaded, which
+            # happens in one of two conditions:
+            # * The path was not seen in the last upload
+            # * The path has an index higher than last time
+            if (
+                file_path not in self.last_file_list
+                or self.last_file_list[file_path].index < attributes["Index"]
+            ):
+                # Create a new filename string, this prepends a UUID to the
+                # filename, which preserving the path.
+                new_filename = self._generate_filename(file_path)
+                to_upload.add(file_path)
+                # Generate a new FileData entry with the index and encoding
+                # from file-list.yml
+                new_file_list[file_path] = FileData(
+                    new_filename, attributes["Index"], attributes["Encoding"]
                 )
+            else:
+                new_file_list[file_path] = self.last_file_list[file_path]
 
-            if not gather_bools(queue, "Failed to save"):
+        queue = []
+        for key in to_upload:
+            data = new_file_list[key]
+            key_path = self.find_file(key, path, old_directories)
+            queue.append(
+                executor.submit(self._upload_file, key_path, data.s3_filename, data.encoding)
+            )
+
+        if not gather_bools(queue, "Failed to save"):
+            return False
+
+        # Generate the `index.yml` file and upload it to S3
+        new_index = {k: v.s3_filename for k, v in new_file_list.items()}
+        with NamedTemporaryFile("w") as temp_index_file:
+            yaml.safe_dump(new_index, temp_index_file)
+            result = self._upload_file(Path(temp_index_file.name), "index.yml", "None")
+            if not result:
                 return False
 
-            # Before writing the index file proper, wait for the previous event
-            # to finish
-            if last_save_event is not None:
-                last_save_event.wait()
+        # Replace last_file_list with the new one
+        self.last_file_list = new_file_list
 
-            with self.lock:
-                # Grab the entries in `file_list` which were saved in previous
-                # iterations.
-                for file_path, attributes in file_list["Files"].items():
-                    if file_path not in new_file_list:
-                        new_file_list[file_path] = self.last_file_list[file_path]
+        return True
 
-                # Generate the `index.yml` file and upload it to S3
-                new_index = {k: v.s3_filename for k, v in new_file_list.items()}
-                with NamedTemporaryFile("w") as temp_index_file:
-                    yaml.safe_dump(new_index, temp_index_file)
-                    result = self._upload_file(Path(temp_index_file.name), "index.yml", "None")
-                    if not result:
-                        return False
-
-                # Replace last_file_list with the new one
-                self.last_file_list = new_file_list
-
-            return True
+    @staticmethod
+    def find_file(key: str, path: Path, old_directories: list[Path]) -> Path:
+        for base_path in [path, *old_directories]:
+            candidate_path = base_path / key
+            if candidate_path.is_file():
+                return candidate_path
+        raise ValueError(f"Could not find key: {key}")
 
     @staticmethod
     def _generate_filename(filename: str) -> str:

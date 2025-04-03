@@ -54,6 +54,13 @@ private:
 
   const char *ID;
   std::string Name;
+  /// Boolean indicating if the container has mutated from the last time it has
+  /// been serialized to permanent storage. Note that this class automatically
+  /// sets this to `true` when executing any mutating operation (e.g.
+  /// `mergeBack`, `remove`) but *does not* reset it when running e.g.
+  /// serialize. Downstream users must signal that it is so by calling
+  /// resetDirtyness.
+  bool Dirty = true;
 
   using RegistryType = std::vector<std::unique_ptr<ContainerTypeInfoBase>>;
   static RegistryType &getTypeRegistryImpl() {
@@ -92,7 +99,12 @@ public:
   /// this->enumerate() == before(Other).enumerate().merge(this->enumerate())
   ///
   /// In other words the whole content of Other must be transferred to this.
-  virtual void mergeBack(ContainerBase &&Other) = 0;
+  virtual void mergeBackBaseImpl(ContainerBase &&Other) = 0;
+
+  void mergeBack(ContainerBase &&Other) {
+    Dirty = true;
+    mergeBackBaseImpl(std::move(Other));
+  }
 
   /// This method is the method used the pipeline system to understand which
   /// targets are currently available inside the current container.
@@ -102,7 +114,12 @@ public:
   /// not after(this)->enumerate().contains(Targets);
   ///
   /// returns false if nothing was removed
-  virtual bool remove(const TargetsList &Targets) = 0;
+  virtual bool removeImpl(const TargetsList &Targets) = 0;
+
+  bool remove(const TargetsList &Targets) {
+    Dirty = true;
+    return removeImpl(Targets);
+  }
 
   /// The implementation for a Type T that extends ContainerBase must ensure
   /// that a new instance of T, on which deserialize has been invoked with the
@@ -110,10 +127,20 @@ public:
   virtual llvm::Error serialize(llvm::raw_ostream &OS) const = 0;
 
   /// same as serialize
-  virtual llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) = 0;
+  virtual llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) = 0;
+
+  llvm::Error deserialize(const llvm::MemoryBuffer &Buffer) {
+    Dirty = true;
+    return deserializeImpl(Buffer);
+  }
 
   /// Must reset the state of the container to the just built state
-  virtual void clear() = 0;
+  virtual void clearImpl() = 0;
+
+  void clear() {
+    Dirty = true;
+    clearImpl();
+  }
 
   /// The implementation must ensure that there exists a file at the provided
   /// path that contains the serialized version of this object.
@@ -121,7 +148,12 @@ public:
 
   /// The implementation must ensure that the content of this file will be
   /// loaded from the provided path.
-  virtual llvm::Error load(const revng::FilePath &Path);
+  virtual llvm::Error loadImpl(const revng::FilePath &Path);
+
+  llvm::Error load(const revng::FilePath &Path) {
+    Dirty = true;
+    return loadImpl(Path);
+  }
 
   /// Checks that the content of the this container is valid.
   virtual llvm::Error verify() const { return enumerate().verify(*this); }
@@ -129,6 +161,10 @@ public:
   /// Return the serialized content of the specified non * target
   virtual llvm::Error extractOne(llvm::raw_ostream &OS,
                                  const Target &Target) const = 0;
+
+public:
+  bool isDirty() const { return Dirty; }
+  void resetDirtiness() { Dirty = false; }
 
 public:
   void dump() const debug_function { cantFail(serialize(llvm::dbgs())); }
@@ -178,7 +214,7 @@ public:
   }
 
 public:
-  void mergeBack(ContainerBase &&Container) final {
+  void mergeBackBaseImpl(ContainerBase &&Container) final {
     mergeBackImpl(std::move(llvm::cast<Derived>(Container)));
   }
 

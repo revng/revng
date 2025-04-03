@@ -9,13 +9,17 @@ import hashlib
 import json
 import socket
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from subprocess import DEVNULL, Popen
+from threading import Event
 from uuid import uuid4
 
 import yaml
 
-from revng.internal.api import make_manager
+from revng.internal.api import initialize as capi_initialize
+from revng.internal.api import shutdown as capi_shutdown
+from revng.internal.api.syncing_manager import SyncingManager
 
 
 def get_free_port():
@@ -66,12 +70,25 @@ def main():
 
     workdir = f"s3://S3RVER:S3RVER@region+127.0.0.1:{server_port}/test/project-test-dir"
     s3_root = temporary_dir_path / "test/project-test-dir"
-    manager = make_manager(workdir)
+    capi_initialize()
+    atexit.register(capi_shutdown)
+
+    save_event = Event()
+
+    @contextmanager
+    def wait_save():
+        yield None
+        save_event.wait()
+        save_event.clear()
+
+    with wait_save():
+        manager = SyncingManager(workdir, save_hooks=(lambda x, y: save_event.set(),))
 
     with open(input_binary, "rb") as f:
         manager.set_input("input", f.read())
 
-    manager.run_analyses_list("revng-initial-auto-analysis").unwrap()
+    with wait_save():
+        manager.run_analyses_list("revng-initial-auto-analysis").unwrap()
 
     # Simple file check, this looks into the persistence directory of s3rver and
     # checks that the input file and the file in 'begin/input' have the same
@@ -85,7 +102,8 @@ def main():
     container_name = "assembly.ptml.tar.gz"
     targets = manager.get_targets(step_name, container_name)
     manager.produce_target(step_name, [t.serialize() for t in targets], container_name)
-    assert manager.save()
+    with wait_save():
+        assert manager.save()
 
     s3_decompiled_path = resolve_path(s3_root, "disassemble/assembly.ptml.tar.gz")
     assert s3_decompiled_path.is_file() and s3_decompiled_path.stat().st_size > 0
@@ -110,16 +128,21 @@ def main():
         diff["Remove"] = first_function["CustomName"]
 
     diff_content = yaml.safe_dump({"Changes": [diff]})
-    manager.run_analysis(
-        "initial",
-        "apply-diff",
-        {},
-        {"apply-diff-global-name": "model.yml", "apply-diff-diff-content": diff_content},
-    ).unwrap()
+    with wait_save():
+        manager.run_analysis(
+            "initial",
+            "apply-diff",
+            {},
+            {"apply-diff-global-name": "model.yml", "apply-diff-diff-content": diff_content},
+        ).unwrap()
+
     model_path = resolve_path(s3_root, "context/model.yml")
     assert unique_id in model_path.read_text()
     # Also check that the partial save did not delete some file
     assert s3_decompiled_path.is_file() and s3_decompiled_path.stat().st_size > 0
+
+    # Wait for the manager to stop its threads
+    manager.stop()
 
 
 if __name__ == "__main__":

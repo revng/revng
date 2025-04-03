@@ -21,7 +21,6 @@ from revng.internal.api.errors import DocumentError, Error, SimpleError
 from revng.internal.api.manager import Manager
 from revng.internal.api.target import Target
 
-from .event_manager import EventManager, EventType, emit_event
 from .multiqueue import MultiQueue
 from .util import produce_serializer
 
@@ -87,7 +86,6 @@ bigint_scalar = ScalarType("BigInt", serializer=str, value_parser=int)
 
 
 @query.field("produce")
-@emit_event(EventType.PRODUCE)
 async def resolve_produce(
     obj,
     info,
@@ -116,7 +114,6 @@ async def resolve_produce(
 
 
 @query.field("produceArtifacts")
-@emit_event(EventType.PRODUCE)
 async def resolve_produce_artifacts(
     obj,
     info,
@@ -177,12 +174,11 @@ async def resolve_context_commit_index(_, info) -> int:
 
 @mutation.field("save")
 async def resolve_save(_, info) -> bool:
-    event_manager: EventManager = info.context["event_manager"]
-    return await run_in_executor(event_manager.save)
+    manager: Manager = info.context["manager"]
+    return await run_in_executor(manager.save)
 
 
 @mutation.field("uploadB64")
-@emit_event(EventType.BEGIN)
 async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A002
     manager: Manager = info.context["manager"]
     index_lock: asyncio.Lock = info.context["index_lock"]
@@ -195,7 +191,6 @@ async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A
 
 
 @mutation.field("uploadFile")
-@emit_event(EventType.BEGIN)
 async def resolve_upload_file(_, info, *, file: UploadFile, container: str):
     manager: Manager = info.context["manager"]
     index_lock: asyncio.Lock = info.context["index_lock"]
@@ -209,7 +204,6 @@ async def resolve_upload_file(_, info, *, file: UploadFile, container: str):
 
 
 @mutation.field("runAnalysis")
-@emit_event(EventType.CONTEXT)
 async def resolve_run_analysis(
     _,
     info,
@@ -243,7 +237,6 @@ async def resolve_run_analysis(
 
 
 @mutation.field("runAnalysesList")
-@emit_event(EventType.CONTEXT)
 async def resolve_run_analyses_list(_, info, *, name: str, options: str | None = None, index: int):
     manager: Manager = info.context["manager"]
     index_lock: asyncio.Lock = info.context["index_lock"]

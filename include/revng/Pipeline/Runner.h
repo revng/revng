@@ -217,6 +217,8 @@ public:
   std::vector<revng::FilePath>
   getWrittenFiles(const revng::DirectoryPath &DirPath) const;
 
+  void resetDirtyness();
+
 public:
   void deduceAllPossibleTargets(State &State) const;
 

@@ -264,6 +264,16 @@ Runner::getWrittenFiles(const revng::DirectoryPath &DirPath) const {
   return Result;
 }
 
+void Runner::resetDirtyness() {
+  for (auto &Step : Steps) {
+    for (auto &Container : Step.second.containers()) {
+      if (Container.second == nullptr)
+        continue;
+      Container.second->resetDirtiness();
+    }
+  }
+}
+
 llvm::Expected<DiffMap>
 Runner::runAnalysis(llvm::StringRef AnalysisName,
                     llvm::StringRef StepName,
