@@ -111,9 +111,8 @@ class ResettableTimer(Thread):
     def run(self):
         while self.running:
             if self.next_trigger_time is not None and time.time() > self.next_trigger_time:
-                with self.lock:
-                    self.function()
-                    self.next_trigger_time = None
+                self.reset_countdown()
+                self.function()
             time.sleep(10)
 
     def reset_countdown(self):
