@@ -165,7 +165,7 @@ public:
       *this = TupleTreeContainer(this->name());
       return llvm::Error::success();
     }
-    return Base::load(Path);
+    return Base::loadImpl(Path);
   }
 
   void clearImpl() override { Content = TupleTree<T>(); }
