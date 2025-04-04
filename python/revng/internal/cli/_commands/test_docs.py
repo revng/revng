@@ -22,7 +22,6 @@ verbose = False
 
 
 def log(message):
-    global verbose
     if verbose:
         sys.stderr.write(message + "\n")
 
