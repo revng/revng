@@ -34,7 +34,10 @@ function(typescript_module)
       "${CMAKE_CURRENT_SOURCE_DIR}"
       "${CMAKE_BINARY_DIR}/node_build/node_modules" "${TARGET_NAME}"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
-    DEPENDS "${CMAKE_BINARY_DIR}/lib/typescript/${TARGET_NAME}.ts")
+    DEPENDS "${CMAKE_BINARY_DIR}/lib/typescript/${TARGET_NAME}.ts"
+            "${CMAKE_CURRENT_SOURCE_DIR}/package-${TARGET_NAME}.json"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tsconfig.json"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tuple_tree.ts")
 
   add_custom_target("generate-${TARGET_NAME}.ts.tgz" ALL
                     DEPENDS "${CMAKE_BINARY_DIR}/${TARGET_NAME}.ts.tgz")
