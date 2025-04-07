@@ -6,7 +6,7 @@
 import * as yaml from "yaml";
 import { deepEqual } from "fast-equals";
 import { yamlParseOptions, yamlOutParseOptions, yamlToStringOptions } from "./tuple_tree";
-import { _getElementByPath, _setElementByPath, _getTypeInfo, _makeDiff, _validateDiff, _applyDiff, BigIntBuilder, DiffSet, TypeInfo, TypeHints, IReference, Reference } from "./tuple_tree";
+import { _getElementByPath, _setElementByPath, _getTypeInfo, _makeDiff, _validateDiff, _applyDiff, BigIntBuilder, DiffSet, TypeInfo, TypesMetadata, IReference, Reference } from "./tuple_tree";
 export { DiffSet, IReference, Reference };
 
 /** for file_name in external_files **/
@@ -214,11 +214,11 @@ export /** if class_.abstract **/abstract/** endif **/ class /*= class_.name =*/
 }
 /** endfor **/
 
-export const TYPE_HINTS: TypeHints = new Map();
+export const TYPES_METADATA: TypesMetadata = new Map();
 /** for class_ in structs **/
-TYPE_HINTS.set(/*= class_.name =*/, {
+TYPES_METADATA.set(/*= class_.name =*/, {
 /**- for field in class_.fields **/
-    /*= field.name =*/: /*= field | type_hint =*//** if not loop.last **/,/** endif **/
+    /*= field.name =*/: /*= field | type_metadata =*//** if not loop.last **/,/** endif **/
 /**- endfor **/
 });
 /** endfor **/
@@ -227,11 +227,11 @@ export function getTypeInfo(
   path: string | string[],
   root: any = /*= metadata.root =*/
 ): TypeInfo | undefined {
-  return _getTypeInfo(path, root, TYPE_HINTS);
+  return _getTypeInfo(path, root, TYPES_METADATA);
 }
 
 export function makeDiff(tuple_tree_old: /*= global_name =*/, tuple_tree_new: /*= global_name =*/): DiffSet {
-  return _makeDiff(tuple_tree_old, tuple_tree_new, TYPE_HINTS, /*= metadata.root =*/);
+  return _makeDiff(tuple_tree_old, tuple_tree_new, TYPES_METADATA, /*= metadata.root =*/);
 }
 
 export function validateDiff(obj: /*= global_name =*/, diffs: DiffSet): boolean {

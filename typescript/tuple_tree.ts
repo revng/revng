@@ -292,7 +292,7 @@ function keyableObject(obj: any): obj is { key: () => string } {
 export function _makeDiff<T>(
     tuple_tree_old: T,
     tuple_tree_new: T,
-    typeHints: TypeHints,
+    typesMetadata: TypesMetadata,
     rootType: Constructor
 ): DiffSet {
     const rootTypeInfo: ConstructorType = {
@@ -303,7 +303,7 @@ export function _makeDiff<T>(
         isAbstract: false,
     };
     return new DiffSet(
-        makeDiffSubtree(tuple_tree_old, tuple_tree_new, "", typeHints, rootTypeInfo, false)
+        makeDiffSubtree(tuple_tree_old, tuple_tree_new, "", typesMetadata, rootTypeInfo, false)
     );
 }
 
@@ -311,7 +311,7 @@ export function makeDiffSubtree(
     obj_old: any,
     obj_new: any,
     prefix: string,
-    typeHints: TypeHints,
+    typesMetadata: TypesMetadata,
     typeInfo: TypeInfo,
     inArray: boolean
 ): Diff[] {
@@ -326,16 +326,16 @@ export function makeDiffSubtree(
         const derivedClass = (
             typeInfo.type as unknown as { parseClass: (obj) => Constructor | undefined }
         ).parseClass(obj_old);
-        const baseInfoObject = typeHints.get(typeInfo.type as Constructor | Parsable);
+        const baseInfoObject = typesMetadata.get(typeInfo.type as Constructor | Parsable);
         if (derivedClass !== undefined) {
-            const derivedClassObject = typeHints.get(derivedClass);
+            const derivedClassObject = typesMetadata.get(derivedClass);
             infoObject = { ...baseInfoObject, ...derivedClassObject };
             upcast = true;
         } else {
             infoObject = { ...baseInfoObject };
         }
     } else {
-        infoObject = typeHints.get(typeInfo.type as Constructor | Parsable);
+        infoObject = typesMetadata.get(typeInfo.type as Constructor | Parsable);
     }
 
     if (typeInfo.isArray && !inArray) {
@@ -352,7 +352,7 @@ export function makeDiffSubtree(
                             value,
                             map_new.get(key),
                             `${prefix}/${key}`,
-                            typeHints,
+                            typesMetadata,
                             typeInfo,
                             true
                         )
@@ -410,7 +410,7 @@ export function makeDiffSubtree(
                         obj_old[key],
                         obj_new[key],
                         key_prefix,
-                        typeHints,
+                        typesMetadata,
                         infoObject[key],
                         false
                     )
@@ -437,7 +437,7 @@ type getTypeInfoType = (path: string | string[], root?: any) => TypeInfo;
 export function _getTypeInfo(
     path: string | string[],
     root: any,
-    TYPE_HINTS: TypeHints
+    typesMetadata: TypesMetadata
 ): TypeInfo | undefined {
     if (typeof path === "string") {
         path = path.split("/").slice(1);
@@ -449,7 +449,7 @@ export function _getTypeInfo(
         component = parts[1];
     }
 
-    const root_hint = TYPE_HINTS.get(root);
+    const root_hint = typesMetadata.get(root);
     if (root_hint !== undefined && component in root_hint) {
         const type_info = root_hint[component];
         if (path.length === 1) {
@@ -459,17 +459,17 @@ export function _getTypeInfo(
                 const key = path[1];
                 const key_parsed = type_info.type.parseKey(key);
                 if ("Kind" in key_parsed) {
-                    const specialized_type = Array.from(TYPE_HINTS.keys()).find(
+                    const specialized_type = Array.from(typesMetadata.keys()).find(
                         (e) => "name" in e && e["name"] === key_parsed.Kind
                     );
-                    return _getTypeInfo(path.slice(2), specialized_type, TYPE_HINTS);
+                    return _getTypeInfo(path.slice(2), specialized_type, typesMetadata);
                 }
-                return _getTypeInfo(path.slice(2), type_info.type, TYPE_HINTS);
+                return _getTypeInfo(path.slice(2), type_info.type, typesMetadata);
             } else {
                 return _getTypeInfo(
                     path.slice(type_info.isArray ? 2 : 1),
                     type_info.type,
-                    TYPE_HINTS
+                    typesMetadata
                 );
             }
         }
@@ -605,7 +605,7 @@ interface EnumDefinition extends CommonTypeInfo {
 
 export type TypeInfo = ConstructorType | ParsableType | NativeType | EnumDefinition;
 export type TypeInfoObject = { [key: string]: TypeInfo };
-export type TypeHints = Map<TupleTreeType, TypeInfoObject>;
+export type TypesMetadata = Map<TupleTreeType, TypeInfoObject>;
 
 export function BigIntBuilder(rawObject: any): bigint {
     return BigInt(rawObject);
