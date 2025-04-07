@@ -3,6 +3,7 @@
 #
 import mmap
 import os
+import re
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -118,3 +119,13 @@ def to_bytes(input_: ToBytesInput) -> Generator[bytes, None, None]:
             yield input_.encode("utf-8")
         else:
             yield input_
+
+
+def get_example_binary() -> str:
+    runtime_dir = get_root() / "share/revng/test/tests/runtime"
+    for entry in runtime_dir.iterdir():
+        if not entry.is_file():
+            continue
+        if re.match(r"^calc-x86-64-static-revng-qa\.compiled-[0-9a-f]{8}$", entry.name):
+            return str(entry.resolve())
+    raise ValueError("Could not find calc binary")
