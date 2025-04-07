@@ -6,8 +6,8 @@ from pathlib import PureWindowsPath
 
 import pefile
 
-from revng.internal.cli.support import log_error
 from revng.internal.support import cache_directory
+from revng.support import log_error
 
 from .common import download_file, log
 

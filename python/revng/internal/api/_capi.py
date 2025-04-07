@@ -12,8 +12,9 @@ from typing import Any, Callable, Dict, Iterable, Optional
 from cffi import FFI
 from cffi.backend_ctypes import CTypesBackend
 
-from revng.internal.support import AnyPaths, get_root, to_iterable
-from revng.internal.support.collect import collect_libraries, collect_one, collect_pipelines
+from revng.internal.support import to_iterable
+from revng.internal.support.collect import collect_libraries, collect_pipelines
+from revng.support import AnyPaths, collect_one, get_root
 
 
 # This counter is used to count the pointers released by PipelineC, since

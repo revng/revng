@@ -5,7 +5,7 @@
 import atexit
 from typing import Optional
 
-from revng.internal.support import AnyPath
+from revng.support import AnyPath
 
 from ._capi import initialize, shutdown
 from .manager import Manager

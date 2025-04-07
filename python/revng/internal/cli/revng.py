@@ -9,9 +9,10 @@ from inspect import isfunction
 from pathlib import Path
 
 from revng.internal.support.collect import collect_files_recursive
+from revng.support import get_root, read_lines
 
 from .commands_registry import CommandsRegistry, Options
-from .support import executable_name, get_root, is_file_executable, read_lines
+from .support import executable_name, is_file_executable
 
 _commands_registry = CommandsRegistry()
 _commands_registry.define_namespace(

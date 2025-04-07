@@ -11,7 +11,7 @@ from subprocess import run
 import yaml
 
 from revng.internal.cli.commands_registry import Command, Options
-from revng.internal.cli.support import get_root
+from revng.support import get_root
 
 
 class MassTestingRunCommand(Command):

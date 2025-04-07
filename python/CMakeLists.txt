@@ -274,13 +274,20 @@ python_module(TARGET_NAME revng-python-daemon WHEEL revng_internal MODULE_FILES
               ${REVNG_DAEMON_MODULE_FILES})
 
 #
-# Install revng.support
+# Install revng.internal.support
 #
-set(REVNG_SUPPORT_MODULE_FILES
+set(REVNG_INTERNAL_SUPPORT_MODULE_FILES
     revng/internal/support/__init__.py revng/internal/support/elf.py
     revng/internal/support/collect.py)
-python_module(TARGET_NAME revng-python-support WHEEL revng_internal
-              MODULE_FILES ${REVNG_SUPPORT_MODULE_FILES})
+python_module(TARGET_NAME revng-python-internal-support WHEEL revng_internal
+              MODULE_FILES ${REVNG_INTERNAL_SUPPORT_MODULE_FILES})
+
+#
+# Install revng.support
+#
+set(REVNG_SUPPORT_MODULE_FILES revng/support.py)
+python_module(TARGET_NAME revng-python-support WHEEL revng MODULE_FILES
+              ${REVNG_SUPPORT_MODULE_FILES})
 
 #
 # Install revng.pipeline_description

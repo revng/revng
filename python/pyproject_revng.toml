@@ -5,7 +5,10 @@ name = "revng"
 description = "Redistributable revng python package"
 version = "1.0.0"
 
-dependencies = ["PyYAML>=6.0.1,<7.0", ]
+dependencies = [
+    "PyYAML>=6.0.1,<7.0",
+    "llvmcpy>=0.2.1,<1.0",
+]
 
 [build-system]
 requires = ["setuptools", "wheel"]

@@ -9,7 +9,8 @@ import yaml
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.internal.cli.revng import run_revng_command
-from revng.internal.cli.support import log_error, temporary_file_gen
+from revng.internal.cli.support import temporary_file_gen
+from revng.support import log_error
 
 
 class ModelOverrideByName(Command):

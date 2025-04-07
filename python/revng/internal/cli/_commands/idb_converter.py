@@ -13,8 +13,8 @@ import idb.typeinf
 import idb.typeinf_flags
 
 import revng.model as m
-from revng.internal.cli.support import log_error
 from revng.model.metaaddress import MetaAddressType
+from revng.support import log_error
 
 RevngTypeDefinitions = Union[
     m.UnionDefinition,
