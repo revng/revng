@@ -134,6 +134,7 @@ class PythonGenerator:
     def type_metadata(self, field: StructField) -> str:
         real_type = self._real_type(field)
         possible_values = None
+        external = False
         if real_type in {"str", "bool", "int"}:
             hint_type = real_type
             ctor = "native"
@@ -150,9 +151,13 @@ class PythonGenerator:
         ]:
             hint_type = real_type
             ctor = "parse"
+            if real_type in self.string_types:
+                external = True
         else:
             hint_type = real_type
             ctor = "class"
+            if real_type in self.external_types:
+                external = True
 
         assert hint_type
 
@@ -168,7 +173,8 @@ class PythonGenerator:
             + f'"ctor": "{ctor}", '
             + f'"optional": {self.to_bool(field.optional)}, '
             + f'"is_array": {self.to_bool(is_sequence)}, '
-            + f'"is_abstract": {self.to_bool(is_abstract)}}}'
+            + f'"is_abstract": {self.to_bool(is_abstract)},'
+            + f'"external": {self.to_bool(external)}}}'
         )
 
     @staticmethod

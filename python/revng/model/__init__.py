@@ -11,8 +11,8 @@ import yaml
 
 from revng.model.metaaddress import MetaAddress, MetaAddressType, init_metaaddress_yaml_classes
 from revng.tupletree import DiffSet as TTDiffSet
-from revng.tupletree import Reference, StructBase, TypesMetadata, _get_element_by_path
-from revng.tupletree import enum_value_to_index, init_reference_yaml_classes
+from revng.tupletree import Reference, StructBase, TypesMetadata, _FieldVisitor
+from revng.tupletree import _get_element_by_path, enum_value_to_index, init_reference_yaml_classes
 
 from . import _generated
 from ._generated import *
@@ -69,6 +69,10 @@ class DiffSet(TTDiffSet[Binary]):
 
 def get_element_by_path(path: str, obj: StructBase) -> StructBase:
     return _get_element_by_path(path, obj)
+
+
+def iterate_fields(obj: Binary):
+    return _FieldVisitor(_generated.types_metadata, _generated.Binary).visit(obj)
 
 
 # Since we subclassed them we need to re-register their constructors and representers

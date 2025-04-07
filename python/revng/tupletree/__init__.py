@@ -9,9 +9,9 @@ from copy import deepcopy
 from dataclasses import dataclass, fields
 from enum import Enum, EnumType
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Callable, Dict, Generic, List, NotRequired, Optional, Tuple
-from typing import Type, TypeAlias, TypedDict, TypeVar, Union, get_args, get_origin
-from typing import get_type_hints
+from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Generic, List, NotRequired
+from typing import Optional, Tuple, Type, TypeAlias, TypedDict, TypeVar, Union, get_args
+from typing import get_origin, get_type_hints
 
 import yaml
 
@@ -73,6 +73,7 @@ class TypeMetadata(TypedDict):
     optional: bool
     is_array: bool
     is_abstract: bool
+    external: bool
 
 
 TypesMetadata: TypeAlias = Dict[Type[Any], Dict[str, TypeMetadata]]
@@ -685,6 +686,7 @@ def _make_diff(
         "is_array": False,
         "optional": False,
         "is_abstract": False,
+        "external": False,
     }
     return _make_diff_subtree(obj_old, obj_new, "", types_metadata, root_type_info, False)
 
@@ -853,3 +855,50 @@ def _apply_diff(obj: StructBase, diffs: DiffSet) -> Tuple[bool, Optional[StructB
                 setattr(parent, element, diff.Add)
 
     return True, new_obj
+
+
+VisitorEntry = Tuple[str, Any]
+VisitorEntryGenerator = Generator[VisitorEntry, None, None]
+
+
+class _FieldVisitor(Generic[StructBaseT]):
+    def __init__(self, types_metadata: TypesMetadata, root):
+        self.types_metadata = types_metadata
+        self.root = root
+
+    def visit_object(
+        self, path: str, type_info: Dict[str, TypeMetadata], obj, obj_is_abstract=False
+    ) -> VisitorEntryGenerator:
+        if obj_is_abstract:
+            new_path_prefix = f"{path}/{obj.Kind}::"
+        else:
+            new_path_prefix = f"{path}/"
+
+        for key, info in type_info.items():
+            new_path = f"{new_path_prefix}{key}"
+            new_obj = getattr(obj, key)
+            is_abc = info["ctor"] == "parse" and info["is_abstract"]
+            is_class = info["ctor"] == "class" and not info["external"]
+            is_complex = is_class or is_abc
+
+            if is_complex:
+                new_type_info = self.types_metadata[info["type"]]
+
+            if info["is_array"]:
+                for element in new_obj:
+                    if is_complex:
+                        element_path = f"{new_path}/{element.key()}"
+                        yield (element_path, element)
+                        yield from self.visit_object(element_path, new_type_info, element, is_abc)
+                    else:
+                        yield (new_path, element)
+            else:
+                yield (new_path, new_obj)
+                if new_obj is None:
+                    continue
+                if is_complex:
+                    yield from self.visit_object(new_path, new_type_info, new_obj, is_abc)
+
+    def visit(self, obj) -> VisitorEntryGenerator:
+        yield ("/", obj)
+        yield from self.visit_object("", self.types_metadata[self.root], obj)
