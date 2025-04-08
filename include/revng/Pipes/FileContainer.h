@@ -14,6 +14,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/TemporaryFile.h"
 
 namespace revng::pipes {
 
@@ -29,7 +30,7 @@ template<pipeline::SingleElementKind *K,
 class FileContainer
   : public pipeline::Container<FileContainer<K, TypeName, MIME, Suffix>> {
 private:
-  llvm::SmallString<32> Path;
+  std::optional<TemporaryFile> File;
 
 public:
   inline static char ID = '0';
@@ -37,33 +38,29 @@ public:
   inline static const char *Name = TypeName;
 
   FileContainer(llvm::StringRef Name) :
-    pipeline::Container<FileContainer>(Name), Path() {}
-
-  FileContainer(FileContainer &&);
+    pipeline::Container<FileContainer>(Name), File() {}
   ~FileContainer() override { remove(); }
 
-  FileContainer(const FileContainer &);
+  FileContainer(const FileContainer &Other) { *this = Other; }
   FileContainer &operator=(const FileContainer &Other) noexcept {
     if (this == &Other)
       return *this;
 
-    if (Path.empty()) {
-      using llvm::sys::fs::createTemporaryFile;
-      cantFail(createTemporaryFile(llvm::Twine("revng-") + this->name(),
-                                   Other.Suffix,
-                                   Path));
-      llvm::sys::RemoveFileOnSignal(Path);
-    }
-    cantFail(llvm::sys::fs::copy_file(Other.Path, Path));
+    if (Other.empty())
+      remove();
+    else
+      cantFail(llvm::sys::fs::copy_file(Other.File->path(), getOrCreatePath()));
+
     return *this;
   }
 
+  FileContainer(FileContainer &&Other) { *this = std::move(Other); }
   FileContainer &operator=(FileContainer &&Other) noexcept {
     if (this == &Other)
       return *this;
 
     remove();
-    Path = std::move(Other.Path);
+    File = std::move(Other.File);
     return *this;
   }
 
@@ -73,16 +70,15 @@ public:
 
     // Return an empty FileContainer if we are empty or our target has not been
     // requested
-    if (Path.empty() or not Container.contains(getOnlyPossibleTarget()))
+    if (empty() or not Container.contains(getOnlyPossibleTarget()))
       return Result;
 
-    Result->getOrCreatePath();
-    cantFail(llvm::sys::fs::copy_file(Path, Result->Path));
+    *Result = *this;
     return Result;
   }
 
   pipeline::TargetsList enumerate() const final {
-    if (Path.empty())
+    if (empty())
       return {};
 
     return pipeline::TargetsList({ getOnlyPossibleTarget() });
@@ -106,7 +102,7 @@ public:
     // Other containers do not need this because they determine their content by
     // looking inside the stored file, instead of only checking if the file
     // exists.
-    if (this->Path.empty()) {
+    if (empty()) {
       auto MaybeExists = Path.exists();
       if (not MaybeExists)
         return MaybeExists.takeError();
@@ -117,7 +113,7 @@ public:
       return llvm::Error::success();
     }
 
-    return revng::FilePath::fromLocalStorage(this->Path).copyTo(Path);
+    return revng::FilePath::fromLocalStorage(File->path()).copyTo(Path);
   }
 
   llvm::Error loadImpl(const revng::FilePath &Path) override {
@@ -130,17 +126,17 @@ public:
       return llvm::Error::success();
     }
 
-    getOrCreatePath();
-    return Path.copyTo(revng::FilePath::fromLocalStorage(this->Path));
+    return Path.copyTo(revng::FilePath::fromLocalStorage(getOrCreatePath()));
   }
 
   void clearImpl() override { *this = FileContainer(this->name()); }
 
   llvm::Error serialize(llvm::raw_ostream &OS) const override {
-    if (Path.empty())
+    if (empty())
       return llvm::Error::success();
 
-    if (auto MaybeBuffer = llvm::MemoryBuffer::getFile(Path); !MaybeBuffer)
+    if (auto MaybeBuffer = llvm::MemoryBuffer::getFile(File->path());
+        !MaybeBuffer)
       return llvm::createStringError(MaybeBuffer.getError(),
                                      "could not read file");
     else
@@ -155,7 +151,7 @@ public:
     if (EC)
       return llvm::createStringError(EC,
                                      "could not write file at %s",
-                                     Path.str().str().c_str());
+                                     File->path().str().c_str());
 
     OS << Buffer.getBuffer();
     return llvm::Error::success();
@@ -171,41 +167,29 @@ public:
 
 public:
   std::optional<llvm::StringRef> path() const {
-    if (Path.empty())
+    if (empty())
       return std::nullopt;
-    return llvm::StringRef(Path);
+    return File->path();
   }
 
   llvm::StringRef getOrCreatePath() {
-    if (Path.empty()) {
-      using llvm::sys::fs::createTemporaryFile;
-      cantFail(createTemporaryFile(llvm::Twine("revng-") + this->name(),
-                                   Suffix,
-                                   Path));
-      llvm::sys::RemoveFileOnSignal(Path);
-    }
-
-    return llvm::StringRef(Path);
+    if (empty())
+      File.emplace(llvm::Twine("revng-") + this->name(), Suffix);
+    return File->path();
   }
 
-  bool exists() const { return not Path.empty(); }
+  bool empty() const { return not File.has_value(); }
+  bool exists() const { return File.has_value(); }
 
-  void dump() const debug_function { dbg << Path.data() << "\n"; }
+  void dump() const debug_function { dbg << File->path().str() << "\n"; }
 
 private:
   void mergeBackImpl(FileContainer &&Container) override {
-    if (not Container.exists())
-      return;
-    cantFail(llvm::sys::fs::rename(*Container.path(), getOrCreatePath()));
-    Container.Path = "";
+    if (Container.exists())
+      *this = std::move(Container);
   }
 
-  void remove() {
-    if (not Path.empty()) {
-      llvm::sys::DontRemoveFileOnSignal(Path);
-      cantFail(llvm::sys::fs::remove(Path));
-    }
-  }
+  void remove() { File.reset(); }
 
   pipeline::Target getOnlyPossibleTarget() const {
     return pipeline::Target({}, *K);
