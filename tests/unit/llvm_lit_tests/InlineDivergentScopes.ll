@@ -5,10 +5,10 @@
 ; RUN: %revngopt %s -inline-divergent-scopes -S -o - | FileCheck %s
 
 ; function tags metadata needed for all the tests
-declare !revng.tags !0 void @scope-closer(ptr)
-declare !revng.tags !1 void @goto-block()
-!0 = !{!"scope-closer"}
-!1 = !{!"goto-block"}
+declare !revng.tags !0 void @scope_closer(ptr)
+declare !revng.tags !1 void @goto_block()
+!0 = !{!"marker", !"scope-closer"}
+!1 = !{!"marker", !"goto-block"}
 
 ; IDS on if test
 
@@ -35,7 +35,7 @@ block_e:
 ; CHECK: block_b:
 ; CHECK-NEXT:   ret void
 ; CHECK: block_e:
-; CHECK-NEXT:   call void @scope-closer(ptr blockaddress(@f, %block_c_ids))
+; CHECK-NEXT:   call void @scope_closer(ptr blockaddress(@f, %block_c_ids))
 ; CHECK-NEXT:   ret void
 ; CHECK: block_c_ids:
 ; CHECK-NEXT:   br label %block_b
@@ -72,10 +72,10 @@ block_f:
 ; CHECK: block_b:
 ; CHECK:   ret void
 ; CHECK: block_e:
-; CHECK:   call void @scope-closer(ptr blockaddress(@g, %block_c_ids))
+; CHECK:   call void @scope_closer(ptr blockaddress(@g, %block_c_ids))
 ; CHECK:   ret void
 ; CHECK: block_f:
-; CHECK:   call void @scope-closer(ptr blockaddress(@g, %block_c_ids_ids))
+; CHECK:   call void @scope_closer(ptr blockaddress(@g, %block_c_ids_ids))
 ; CHECK:   ret void
 ; CHECK: block_c_ids:
 ; CHECK:   switch i32 %b, label %block_c_ids_ids [

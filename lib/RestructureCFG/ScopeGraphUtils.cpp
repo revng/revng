@@ -13,12 +13,21 @@
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/Support/IRHelpers.h"
 
-inline RegisterIRHelper
-  ScopeCloserMarker(FunctionTags::ScopeCloserMarker.name().str(), "");
-inline RegisterIRHelper
-  GotoBlockMarker(FunctionTags::GotoBlockMarker.name().str(), "");
-
 using namespace llvm;
+
+/// Helper function which converts `kebab-case` to `snake_case`, which we use to
+/// convert the `FunctionTag` name to the actual name of the marker function
+static std::string kebabToSnake(llvm::StringRef KebabString) {
+  std::string Result(KebabString);
+  std::replace(Result.begin(), Result.end(), '-', '_');
+  return Result;
+}
+
+inline RegisterIRHelper
+  ScopeCloserMarker(kebabToSnake(FunctionTags::ScopeCloserMarker.name().str()),
+                    "");
+inline RegisterIRHelper
+  GotoBlockMarker(kebabToSnake(FunctionTags::GotoBlockMarker.name().str()), "");
 
 // Helper function which set the attributes for the created function
 // prototypes
@@ -31,8 +40,12 @@ static void setFunctionAttributes(Function *F, FunctionTags::Tag &Tag) {
   F->addFnAttr(Attribute::WillReturn);
   F->setMemoryEffects(MemoryEffects::inaccessibleMemOnly());
 
-  // Add the tag to the `Function`
+  // Add the custom tag to the `Function`
   Tag.addTo(F);
+
+  // Add the `Marker` tag to the function, which signals that a function is a
+  // marker for the `BasicBlock`/`TerminatorInst`
+  FunctionTags::Marker.addTo(F);
 }
 
 static Function *getOrCreateScopeCloserFunction(Module *M) {
@@ -45,7 +58,9 @@ static Function *getOrCreateScopeCloserFunction(Module *M) {
     auto *FT = FunctionType::get(Type::getVoidTy(getContext(M)),
                                  { BlockAddressTy },
                                  false);
-    Result = cast<Function>(getOrInsertIRHelper(Tag.name(), *M, FT)
+    Result = cast<Function>(getOrInsertIRHelper(kebabToSnake(Tag.name()),
+                                                *M,
+                                                FT)
                               .getCallee());
     setFunctionAttributes(Result, Tag);
   }
@@ -57,10 +72,12 @@ static Function *getOrCreateGotoBlockFunction(Module *M) {
   FunctionTags::Tag &Tag = FunctionTags::GotoBlockMarker;
   Function *Result = getUniqueFunctionWithTag(Tag, M);
 
-  // Create the `ScopeCloserMarker` function if it doesn't exists
+  // Create the `GotoBlockMarker` function if it doesn't exists
   if (not Result) {
     auto *FT = FunctionType::get(Type::getVoidTy(getContext(M)), {}, false);
-    Result = cast<Function>(getOrInsertIRHelper(Tag.name(), *M, FT)
+    Result = cast<Function>(getOrInsertIRHelper(kebabToSnake(Tag.name()),
+                                                *M,
+                                                FT)
                               .getCallee());
     setFunctionAttributes(Result, Tag);
   }

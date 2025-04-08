@@ -5,10 +5,10 @@
 ; RUN: %revngopt %s -select-scope -S -o - | FileCheck %s
 
 ; function tags metadata needed for all the tests
-declare !revng.tags !0 void @scope-closer(ptr)
-declare !revng.tags !1 void @goto-block()
-!0 = !{!"scope-closer"}
-!1 = !{!"goto-block"}
+declare !revng.tags !0 void @scope_closer(ptr)
+declare !revng.tags !1 void @goto_block()
+!0 = !{!"marker", !"scope-closer"}
+!1 = !{!"marker", !"goto-block"}
 
 ; decided diamond test
 
@@ -82,10 +82,10 @@ block_f:
 ; CHECK: block_f:
 ; CHECK-NEXT:   ret void
 ; CHECK: goto_block_e:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_e
 ; CHECK: goto_block_d:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_d
 
 ; double edge if test
@@ -177,7 +177,7 @@ block_f:
 ; CHECK: block_f:
 ; CHECK-NEXT:   ret void
 ; CHECK: goto_block_e:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_e
 
 ; short-circuit with decided tail
@@ -236,5 +236,5 @@ block_l:
 ; CHECK: block_l:
 ; CHECK-NEXT:   ret void
 ; CHECK: goto_block_e:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_e

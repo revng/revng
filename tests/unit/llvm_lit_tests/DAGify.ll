@@ -5,10 +5,10 @@
 ; RUN: %revngopt %s -dagify -S -o - | FileCheck %s
 
 ; function tags metadata needed for all the tests
-declare !revng.tags !0 void @scope-closer(ptr)
-declare !revng.tags !1 void @goto-block()
-!0 = !{!"scope-closer"}
-!1 = !{!"goto-block"}
+declare !revng.tags !0 void @scope_closer(ptr)
+declare !revng.tags !1 void @goto_block()
+!0 = !{!"marker", !"scope-closer"}
+!1 = !{!"marker", !"goto-block"}
 
 ; simple loop test
 
@@ -41,7 +41,7 @@ block_e:
 ; CHECK: block_e:
 ; CHECK-NEXT:   ret void
 ; CHECK: goto_block_b:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_b
 
 ; nested loops test
@@ -85,10 +85,10 @@ block_e:
 ; CHECK: block_e:
 ; CHECK-NEXT:   ret void
 ; CHECK: goto_block_f:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_f
 ; CHECK: goto_block_b:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_b
 
 ; late entry loop test
@@ -122,7 +122,7 @@ block_e:
 ; CHECK: block_e:
 ; CHECK-NEXT:   ret void
 ; CHECK: goto_block_c:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_c
 
 ; nested loops same head test
@@ -166,10 +166,10 @@ block_e:
 ; CHECK: block_e:
 ; CHECK-NEXT:   ret void
 ; CHECK: goto_block_b:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_b
 ; CHECK: goto_block_b1:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_b
 
 ; nested loops same tail test
@@ -219,10 +219,10 @@ block_e:
 ; CHECK: block_e:
 ; CHECK-NEXT:   ret void
 ; CHECK: goto_block_f:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_f
 ; CHECK: goto_block_b:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_b
 
 ; simple loop double retreating test
@@ -264,5 +264,5 @@ block_e:
 ; CHECK: block_e:
 ; CHECK-NEXT:   ret void
 ; CHECK: goto_block_b:
-; CHECK-NEXT:   call void @goto-block()
+; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_b
