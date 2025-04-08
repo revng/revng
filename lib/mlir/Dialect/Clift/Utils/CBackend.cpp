@@ -22,43 +22,8 @@ static RecursiveCoroutine<void> noopCoroutine() {
   rc_return;
 }
 
-template<typename Operation = mlir::Operation *>
-static Operation getOnlyOperation(mlir::Region &R) {
-  if (R.empty())
-    return {};
-
-  revng_assert(R.hasOneBlock());
-  mlir::Block &B = R.front();
-  auto Beg = B.begin();
-  auto End = B.end();
-
-  if (Beg == End)
-    return {};
-
-  mlir::Operation *Op = &*Beg;
-
-  if (++Beg != End)
-    return {};
-
-  if constexpr (std::is_same_v<Operation, mlir::Operation *>) {
-    return Op;
-  } else {
-    return mlir::dyn_cast<Operation>(Op);
-  }
-}
-
 static bool hasFallthrough(mlir::Region &R) {
-  // TODO: Refactor the logic of getting the last statement operation in a
-  // region into a separate getTrailingStatement helper function.
-
-  if (R.empty())
-    return true;
-
-  mlir::Block &B = R.front();
-  if (B.empty())
-    return true;
-
-  return not B.back().hasTrait<mlir::OpTrait::clift::NoFallthrough>();
+  return not clift::getTrailingJumpOp(R);
 }
 
 static llvm::StringRef getCIntegerLiteralSuffix(const CIntegerKind Integer,
@@ -1145,7 +1110,7 @@ public:
       if (If.getElse().empty())
         return true;
 
-      auto ElseIf = getOnlyOperation<IfOp>(If.getElse());
+      auto ElseIf = clift::getOnlyOperation<IfOp>(If.getElse());
 
       if (not ElseIf)
         return mayElideBraces(If.getElse());
@@ -1175,7 +1140,7 @@ public:
 
       Out << C.getKeyword(Keyword::Else);
 
-      if (auto ElseIf = getOnlyOperation<IfOp>(S.getElse())) {
+      if (auto ElseIf = clift::getOnlyOperation<IfOp>(S.getElse())) {
         S = ElseIf;
         Out << ' ';
       } else {
@@ -1312,7 +1277,7 @@ public:
   }
 
   static bool mayElideBraces(mlir::Region &R) {
-    mlir::Operation *OnlyOp = getOnlyOperation(R);
+    mlir::Operation *OnlyOp = clift::getOnlyOperation(R);
     return OnlyOp != nullptr and mayElideBraces(OnlyOp);
   }
 
