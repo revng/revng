@@ -771,7 +771,7 @@ mlir::LogicalResult MakeLabelOp::canonicalize(MakeLabelOp Op,
   const auto [Assignments, GoTos] = getNumLabelUsers(Op);
 
   if (GoTos != 0)
-    return mlir::success();
+    return mlir::failure();
 
   for (mlir::OpOperand &Operand : Op.getResult().getUses()) {
     if (auto AssignOp = mlir::dyn_cast<AssignLabelOp>(Operand.getOwner()))
