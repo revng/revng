@@ -15,11 +15,7 @@ def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface"> {
   let methods = [
     InterfaceMethod<
       /*desc=*/"Returns the type of the global entity.",
-      /*retTy=*/"mlir::clift::ValueType",
-      /*methodName=*/"getType",
-      /*args=*/(ins),
-      /*methodBody*/[{}],
-      /*defaultImplementation=*/ [{}]
+      "mlir::clift::ValueType", "getType", (ins)
     >,
   ];
 }
@@ -31,10 +27,8 @@ def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
   let methods = [
     InterfaceMethod<
       /*desc=*/"Returns true if the operation represents an lvalue expression.",
-      /*retTy=*/"bool",
-      /*methodName=*/"isLvalueExpression",
-      /*args=*/(ins),
-      /*methodBody*/[{}],
+      "bool", "isLvalueExpression", (ins),
+      /*methodBody=*/[{}],
       /*defaultImplementation=*/ [{
         return false;
       }]
