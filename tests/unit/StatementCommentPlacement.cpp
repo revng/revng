@@ -129,7 +129,7 @@ static void checkResult(llvm::StringRef Result, llvm::StringRef Expected) {
   }
 }
 
-using CommentVector = std::vector<model::StatementComment>;
+using CommentVector = model::Function::TypeOfComments;
 static CommentVector deserialize(llvm::StringRef Serialized) {
   return llvm::cantFail(fromString<CommentVector>(Serialized));
 }
@@ -140,7 +140,7 @@ BOOST_AUTO_TEST_CASE(NoComments) {
   TestStatementGraph Graph = buildTheTestGraph();
 
   model::Function Function;
-  Function.Comments() = {};
+  Function.Comments() = deserialize("[]\n");
 
   CommentPlacementHelper CM(Function, Graph);
 
@@ -156,7 +156,8 @@ BOOST_AUTO_TEST_CASE(SimpleComment) {
   Graph.addresses("C") = { "0x1:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: SimpleComment\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: SimpleComment\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n");
 
@@ -178,7 +179,8 @@ BOOST_AUTO_TEST_CASE(MultiAddressComment) {
                            "0x3:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: MultiAddressComment\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: MultiAddressComment\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x2:Generic64\n"
@@ -201,7 +203,8 @@ BOOST_AUTO_TEST_CASE(ImperfectlyMatchedComment) {
                            "0x3:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: ImperfectlyMatchedComment\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: ImperfectlyMatchedComment\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n");
@@ -223,7 +226,8 @@ BOOST_AUTO_TEST_CASE(CommentWithMultipleMatches) {
   Graph.addresses("I") = { "0x1:Generic64"_ma, "0x2:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: CommentWithMultipleMatches\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: CommentWithMultipleMatches\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n");
@@ -250,7 +254,8 @@ BOOST_AUTO_TEST_CASE(CommentWithDominatedMatches) {
   Graph.addresses("I") = { "0x1:Generic64"_ma, "0x2:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: CommentWithDominatedMatches\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: CommentWithDominatedMatches\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n");
@@ -273,7 +278,8 @@ BOOST_AUTO_TEST_CASE(CommentWithSequentialMatches) {
   Graph.addresses("F") = { "0x1:Generic64"_ma, "0x2:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: CommentWithSequentialMatches\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: CommentWithSequentialMatches\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n");
@@ -295,7 +301,8 @@ BOOST_AUTO_TEST_CASE(CommentWithMatchesWithinABlock) {
   Graph.addresses("B") = { "0x1:Generic64"_ma, "0x2:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: CommentWithMatchesWithinABlock\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: CommentWithMatchesWithinABlock\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n");
@@ -318,7 +325,8 @@ BOOST_AUTO_TEST_CASE(CommentWithinALoop) {
   Graph.addresses("J") = { "0x1:Generic64"_ma, "0x2:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: CommentWithinALoop\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: CommentWithinALoop\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n");
@@ -340,7 +348,8 @@ BOOST_AUTO_TEST_CASE(CommentInABackedge) {
   Graph.addresses("H") = { "0x1:Generic64"_ma, "0x2:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: CommentInABackedge\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: CommentInABackedge\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n");
@@ -364,7 +373,8 @@ BOOST_AUTO_TEST_CASE(CommentInADominatedLoop) {
   Graph.addresses("D") = { "0x1:Generic64"_ma, "0x2:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: CommentInADominatedLoop\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: CommentInADominatedLoop\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n");
@@ -383,7 +393,8 @@ BOOST_AUTO_TEST_CASE(HomelessComment) {
   TestStatementGraph Graph = buildTheTestGraph();
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: HomelessComment\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: HomelessComment\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n");
@@ -405,7 +416,8 @@ BOOST_AUTO_TEST_CASE(LexicographicallyPlacedComment) {
   Graph.addresses("I") = { "0x1:Generic64"_ma, "0x2:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: LexicographicallyPlacedComment\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: LexicographicallyPlacedComment\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n");
@@ -429,11 +441,13 @@ BOOST_AUTO_TEST_CASE(MultipleCommentsOnTheSameLocation) {
   Graph.addresses("I") = { "0x3:Generic64"_ma };
 
   model::Function Function;
-  Function.Comments() = deserialize("- Body: FirstComment\n"
+  Function.Comments() = deserialize("- Index: 0\n"
+                                    "  Body: FirstComment\n"
                                     "  Location:\n"
                                     "    - 0x1:Generic64\n"
                                     "    - 0x3:Generic64\n"
-                                    "- Body: SecondComment\n"
+                                    "- Index: 1\n"
+                                    "  Body: SecondComment\n"
                                     "  Location:\n"
                                     "    - 0x2:Generic64\n"
                                     "    - 0x3:Generic64\n");

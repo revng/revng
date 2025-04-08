@@ -70,7 +70,7 @@ fields:
     optional: true
   - name: Comments
     sequence:
-      type: vector
+      type: SortedVector
       elementType: StatementComment
     optional: true
 key:

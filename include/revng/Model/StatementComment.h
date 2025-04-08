@@ -12,6 +12,10 @@ name: StatementComment
 type: struct
 
 fields:
+  - name: Index
+    doc: The index of the comment
+    type: uint64_t
+
   - name: Location
     doc: |
       The point this comment is attached to, encoded as a set of addresses.
@@ -33,6 +37,9 @@ fields:
 
   - name: Body
     type: string
+
+key:
+  - Index
 
 TUPLE-TREE-YAML */
 
