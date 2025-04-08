@@ -26,6 +26,7 @@ revng_add_analyses_library_internal(
   RegionCFGTree.cpp
   RemoveDeadCode.cpp
   RestructureCFG.cpp
+  ScopeGraphAlgorithms.cpp
   SelectScopePass.cpp
   SimplifyCompareNode.cpp
   SimplifyDualSwitch.cpp

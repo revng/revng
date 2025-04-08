@@ -13,7 +13,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/GenericDomTree.h"
 
-#include "revng/ADT/ReversePostOrderTraversal.h"
+#include "revng/RestructureCFG/ScopeGraphAlgorithms.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/RestructureCFG/SelectScopePass.h"
@@ -26,58 +26,8 @@ using namespace llvm;
 // Debug logger
 static Logger<> Log("select-scope");
 
-static SetVector<BasicBlock *> getConditionalSuccessors(BasicBlock *N) {
-  // We employ a `SetVector` so that we do not take into account
-  // multiplicity for edges out of a conditional
-  SetVector<BasicBlock *> ConditionalSuccessors;
-  for (BasicBlock *Successor : children<Scope<BasicBlock *>>(N)) {
-    ConditionalSuccessors.insert(Successor);
-  }
-
-  return ConditionalSuccessors;
-}
-
-static SetVector<BasicBlock *> getPredecessors(BasicBlock *N) {
-  // It is important that we use a `SetVector` here in order to
-  // deduplicate the successors outputted by the `llvm::children` range
-  // iterator
-  SetVector<BasicBlock *> Predecessors;
-  for (auto *Predecessor : children<Inverse<Scope<BasicBlock *>>>(N)) {
-    revng_log(Log, "  Predecessor: " + Predecessor->getName().str());
-    Predecessors.insert(Predecessor);
-  }
-
-  return Predecessors;
-}
-
-static SmallVector<BasicBlock *> getNodesToProcess(BasicBlock *Conditional,
-                                                   BasicBlock *PostDominator) {
-  // We exploit the `Visited` set, by passing it to
-  // `ReversePostOrderTraversalExt`, in order to stop the visit at the
-  // `PostDominator`
-  std::set<BasicBlock *> Visited;
-  Visited.insert(PostDominator);
-
-  // We collect all the nodes between the `Conditional` and its
-  // immediate postdominator, by using the `ReversePostOrderTraversalExt`
-  SmallVector<BasicBlock *> NodesToProcess;
-  for (BasicBlock *RPONode :
-       ReversePostOrderTraversalExt<Scope<BasicBlock *>>(Conditional,
-                                                         Visited)) {
-    NodesToProcess.push_back(RPONode);
-  }
-
-  // From the collected nodes, we need to remove the first node, which
-  // corresponds to the `Conditional`, which should not be processed in this
-  // round
-  revng_assert(NodesToProcess.front() == Conditional);
-  NodesToProcess.erase(NodesToProcess.begin());
-
-  return NodesToProcess;
-}
-
 static std::map<BasicBlock *, size_t>
-initializeScopeMap(SetVector<BasicBlock *> &ConditionalSuccessors) {
+initializeScopeMap(SmallSetVector<BasicBlock *, 2> &ConditionalSuccessors) {
   std::map<BasicBlock *, size_t> ScopeMap;
 
   // We initialize the `ScopeMap` for each `ConditionalSuccessor`
@@ -93,7 +43,7 @@ initializeScopeMap(SetVector<BasicBlock *> &ConditionalSuccessors) {
 /// Helper function used to elect the `ScopeID` for a node, electing the
 /// `ScopeID` for which we have the highest number of predecessors having such
 /// `ScopeID`
-static size_t electMaxScopeID(SetVector<BasicBlock *> &Predecessors,
+static size_t electMaxScopeID(SmallSetVector<BasicBlock *, 2> &Predecessors,
                               std::map<BasicBlock *, size_t> &ScopeMap) {
   // In the map, we store the how frequent a `ScopeID` is in the
   // predecessors of `Candidate`, in order to elect the one with the most
@@ -136,8 +86,8 @@ public:
 
 public:
   void processConditionalNode(BasicBlock *ConditionalNode) {
-    SetVector<BasicBlock *>
-      ConditionalSuccessors = getConditionalSuccessors(ConditionalNode);
+    SmallSetVector<BasicBlock *, 2>
+      ConditionalSuccessors = getScopeGraphSuccessors(ConditionalNode);
 
     // We skip all the nodes which are not conditional
     if (ConditionalSuccessors.size() <= 1) {
@@ -154,8 +104,8 @@ public:
               "The identified postdominator is "
                 << PostDominator->getName().str() << "\n");
 
-    SmallVector<BasicBlock *>
-      NodesToProcess = getNodesToProcess(ConditionalNode, PostDominator);
+    SmallVector<BasicBlock *> NodesToProcess = getNodesInScope(ConditionalNode,
+                                                               PostDominator);
     revng_log(Log,
               "Nodes between conditional and its postdominator, in reverse "
               "post order:\n");
@@ -177,7 +127,8 @@ public:
       // view of the CFG, or we may end up with some inconsistencies in terms
       // of the visited nodes.
       revng_log(Log, "The candidate predecessors are:\n");
-      SetVector<BasicBlock *> Predecessors = getPredecessors(Candidate);
+      SmallSetVector<BasicBlock *, 2>
+        Predecessors = getScopeGraphPredecessors(Candidate);
 
       // `Candidate`, could be itself a immediate successor of a conditional
       // node, and therefore correspond to a `ScopeID`. We therefore need to
