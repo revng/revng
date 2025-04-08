@@ -9,6 +9,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/LLVMIR/Transforms/Passes.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
+#include "mlir/Transforms/Passes.h"
 
 #include "revng/Clift/Clift.h"
 #include "revng/CliftTransforms/Passes.h"
@@ -26,6 +27,7 @@ int main(int Argc, char *Argv[]) {
   Registry.insert<mlir::LLVM::LLVMDialect>();
   Registry.insert<mlir::clift::CliftDialect>();
 
+  mlir::registerTransformsPasses();
   mlir::LLVM::registerLLVMPasses();
   mlir::clift::registerCliftPasses();
 
