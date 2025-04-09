@@ -4,32 +4,37 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/StringRef.h"
+
 namespace ptml {
 
 namespace tags {
 
-inline constexpr auto Div = "div";
-inline constexpr auto Span = "span";
+inline constexpr llvm::StringRef Div = "div";
+inline constexpr llvm::StringRef Span = "span";
 
 } // namespace tags
 
 namespace attributes {
 
-inline constexpr auto Scope = "data-scope";
-inline constexpr auto Token = "data-token";
-inline constexpr auto LocationDefinition = "data-location-definition";
-inline constexpr auto LocationReferences = "data-location-references";
-inline constexpr auto ActionContextLocation = "data-action-context-location";
-inline constexpr auto AllowedActions = "data-allowed-actions";
+inline constexpr llvm::StringRef Scope = "data-scope";
+inline constexpr llvm::StringRef Token = "data-token";
+inline constexpr llvm::StringRef LocationDefinition = "data-location-"
+                                                      "definition";
+inline constexpr llvm::StringRef LocationReferences = "data-location-"
+                                                      "references";
+inline constexpr llvm::StringRef ActionContextLocation = "data-action-context-"
+                                                         "location";
+inline constexpr llvm::StringRef AllowedActions = "data-allowed-actions";
 
 } // namespace attributes
 
 namespace actions {
 
-inline constexpr auto Rename = "rename";
-inline constexpr auto Comment = "comment";
-inline constexpr auto CodeSwitch = "codeSwitch";
-inline constexpr auto EditType = "editType";
+inline constexpr llvm::StringRef Rename = "rename";
+inline constexpr llvm::StringRef Comment = "comment";
+inline constexpr llvm::StringRef CodeSwitch = "codeSwitch";
+inline constexpr llvm::StringRef EditType = "editType";
 
 } // namespace actions
 
@@ -37,8 +42,8 @@ namespace scopes {} // namespace scopes
 
 namespace tokens {
 
-inline constexpr auto Indentation = "indentation";
-inline constexpr auto Comment = "comment";
+inline constexpr llvm::StringRef Indentation = "indentation";
+inline constexpr llvm::StringRef Comment = "comment";
 
 } // namespace tokens
 

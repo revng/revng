@@ -172,8 +172,8 @@ public:
     return getScope(Scope).scope(*Out, NewLine);
   }
   ptml::IndentedOstream::Scope getSimpleScope() { return Out->scope(); }
-  Scope
-  getCurvedBracketScope(std::string &&Attribute = ptml::c::scopes::Scope) {
+  Scope getCurvedBracketScope(std::string &&Attribute =
+                                ptml::c::scopes::Scope.str()) {
     return Scope(*Out, Attribute);
   }
   helpers::BlockComment getBlockCommentScope() {
@@ -240,14 +240,15 @@ public:
   }
 
 public:
-  constexpr const char *getLocationAttribute(bool IsDefinition) const {
+  constexpr llvm::StringRef getLocationAttribute(bool IsDefinition) const {
     return IsDefinition ? ptml::attributes::LocationDefinition :
                           ptml::attributes::LocationReferences;
   }
 
-  std::string getLocation(bool IsDefinition,
-                          const model::TypeDefinition &T,
-                          llvm::ArrayRef<std::string> AllowedActions) const {
+  std::string
+  getLocation(bool IsDefinition,
+              const model::TypeDefinition &T,
+              llvm::ArrayRef<llvm::StringRef> AllowedActions) const {
     auto Result = getNameTag(T);
     if (IsInTaglessMode)
       return Result.toString();
@@ -293,7 +294,8 @@ public:
 public:
   std::string
   getLocationDefinition(const model::TypeDefinition &T,
-                        llvm::ArrayRef<std::string> AllowedActions = {}) const {
+                        llvm::ArrayRef<llvm::StringRef> AllowedActions = {})
+    const {
     return getLocation(true, T, AllowedActions);
   }
 
@@ -328,7 +330,8 @@ public:
 public:
   std::string
   getLocationReference(const model::TypeDefinition &T,
-                       llvm::ArrayRef<std::string> AllowedActions = {}) const {
+                       llvm::ArrayRef<llvm::StringRef> AllowedActions = {})
+    const {
     return getLocation(false, T, AllowedActions);
   }
 
@@ -435,7 +438,7 @@ public:
   tokenDefinition::types::TypeString
   getNamedCInstance(const model::Type &Type,
                     llvm::StringRef InstanceName,
-                    llvm::ArrayRef<std::string> AllowedActions = {},
+                    llvm::ArrayRef<llvm::StringRef> AllowedActions = {},
                     bool OmitInnerTypeName = false) const;
 
   tokenDefinition::types::TypeString getTypeName(const model::Type &T) const {

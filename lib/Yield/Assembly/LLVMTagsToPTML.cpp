@@ -306,7 +306,7 @@ static bool tryToTurnIntoALabel(yield::TaggedString &Input,
 
       Input.Type() = yield::TagType::Label;
       Input.Content() = std::move(Name);
-      Input.Attributes().emplace(ptml::attributes::LocationReferences,
+      Input.Attributes().emplace(ptml::attributes::LocationReferences.str(),
                                  std::move(Loc));
       return true;
     }
@@ -452,7 +452,7 @@ void yield::BasicBlock::setLabel(const yield::Function &Function,
   auto &&[N, Location] = labelImpl(ID(), Function, Binary, NameBuilder);
 
   SortedVector<TagAttribute> Attributes;
-  Attributes.emplace(ptml::attributes::LocationDefinition, Location);
-  Attributes.emplace(ptml::attributes::ActionContextLocation, Location);
+  Attributes.emplace(ptml::attributes::LocationDefinition.str(), Location);
+  Attributes.emplace(ptml::attributes::ActionContextLocation.str(), Location);
   Label() = { 0, yield::TagType::Label, std::move(N), std::move(Attributes) };
 }

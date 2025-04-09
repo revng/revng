@@ -161,7 +161,7 @@ std::string PCTB::getLocationReference(const model::DynamicFunction &F) const {
 
 struct NamedCInstanceImpl {
   const ptml::CTypeBuilder &B;
-  llvm::ArrayRef<std::string> AllowedActions;
+  llvm::ArrayRef<llvm::StringRef> AllowedActions;
   bool OmitInnerTypeName;
 
 public:
@@ -263,10 +263,11 @@ private:
   }
 };
 
-TypeString PCTB::getNamedCInstance(const model::Type &Type,
-                                   StringRef InstanceName,
-                                   llvm::ArrayRef<std::string> AllowedActions,
-                                   bool OmitInnerTypeName) const {
+TypeString
+PCTB::getNamedCInstance(const model::Type &Type,
+                        StringRef InstanceName,
+                        llvm::ArrayRef<llvm::StringRef> AllowedActions,
+                        bool OmitInnerTypeName) const {
   NamedCInstanceImpl Helper(*this, AllowedActions, OmitInnerTypeName);
 
   std::string Result = InstanceName.str();
@@ -285,7 +286,7 @@ PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
                                    llvm::StringRef InstanceName,
                                    bool IsDefinition) const {
   TypeString Result;
-  std::vector<std::string> AllowedActions = { ptml::actions::Rename };
+  static constexpr std::array AllowedActions = { ptml::actions::Rename };
 
   using namespace abi::FunctionType;
   const auto Layout = Layout::make(Function);

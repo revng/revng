@@ -1932,7 +1932,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   // Print the function body
   B.append(" ");
   {
-    Scope BodyScope = B.getCurvedBracketScope(ptml::c::scopes::FunctionBody);
+    Scope Body = B.getCurvedBracketScope(ptml::c::scopes::FunctionBody.str());
 
     // We expect just one stack type definition.
     bool IsStackDefined = false;
