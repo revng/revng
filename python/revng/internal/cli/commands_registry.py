@@ -17,7 +17,7 @@ from .support import Options, executable_name, try_run
 
 
 class Command(ABC):
-    def __init__(self, command: Tuple[str], help_text: str, add_help=True):
+    def __init__(self, command: Tuple[str, ...], help_text: str, add_help=True):
         self.namespace = command[:-1]
         self.name = command[-1]
         self.help = help_text
