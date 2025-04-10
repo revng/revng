@@ -13,6 +13,7 @@
 
 #include "revng/RestructureCFG/InlineDivergentScopesPass.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
+#include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/IRHelpers.h"
@@ -54,10 +55,20 @@ static bool isExit(BasicBlock *Node) {
   return std::ranges::empty(Successors);
 }
 
+/// Helper function to retrieve the target BasicBlock of a `GotoBlock`
+static BasicBlock *getGotoTarget(const BasicBlock *BB) {
+  revng_assert(isGotoBlock(BB));
+  const Instruction *Terminator = BB->getTerminator();
+  const BranchInst *Branch = llvm::cast<BranchInst>(Terminator);
+  revng_assert(Branch->isUnconditional());
+  return Branch->getSuccessor(0);
+}
+
 /// Helper function to collect all the exit nodes on the `ScopeGraph`
 static SmallVector<BasicBlock *> getExits(Function &F,
                                           BasicBlock *PlaceHolderTarget) {
-  SmallVector<BasicBlock *> Exits;
+  SmallVector<BasicBlock *> TrueExits;
+  SmallVector<BasicBlock *> GotoExits;
   Scope<Function *> ScopeGraph(&F);
   for (BasicBlock *BB : nodes(ScopeGraph)) {
 
@@ -65,11 +76,39 @@ static SmallVector<BasicBlock *> getExits(Function &F,
     // which incidentally happens to be an exit, but will be removed before the
     // end of the pass
     if (BB != PlaceHolderTarget and isExit(BB)) {
-      Exits.push_back(BB);
+      if (not isGotoBlock(BB)) {
+        TrueExits.push_back(BB);
+      } else {
+        GotoExits.push_back(BB);
+      }
     }
   }
 
-  return Exits;
+  // We now order the `GotoExits` by placing first the ones whose `goto` target
+  // comes first in `post_order` in the graph. This criterion should maximize
+  // the opportunities of performing `MaterializeTrivialGoto` transformations.
+
+  // Create a map to store the `post_order` indexes, that we can later reuse
+  // when performing the comparison
+  llvm::DenseMap<const BasicBlock *, unsigned> POIndexes;
+
+  // Fill the map
+  unsigned Index = 0;
+  for (BasicBlock *BB : post_order(ScopeGraph)) {
+    POIndexes[BB] = Index;
+    Index++;
+  }
+
+  // Sort the `GotoExits` according to the above criterion
+  std::sort(GotoExits.begin(),
+            GotoExits.end(),
+            [&POIndexes](const BasicBlock *A, const BasicBlock *B) {
+              return POIndexes[getGotoTarget(A)] < POIndexes[getGotoTarget(B)];
+            });
+
+  // Merge the `TrueExits` with the `GotoExits`
+  GotoExits.append(TrueExits);
+  return GotoExits;
 }
 
 /// Helper to obtain the immediate dominator `BasicBlock`, if present
