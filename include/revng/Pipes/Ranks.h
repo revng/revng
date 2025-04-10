@@ -50,6 +50,9 @@ inline auto CABIArgument = defineRank<"cabi-argument",
 inline auto RawArgument = defineRank<"raw-argument",
                                      detail::NRK,
                                      "Arguments">(TypeDefinition);
+inline auto RawStackArguments = defineRank<"raw-stack-arguments",
+                                           detail::TDK,
+                                           "StackArgumentsType">(Binary);
 inline auto ReturnValue = defineRank<"return-value", detail::TDK>(Binary);
 inline auto ReturnRegister = defineRank<"return-register",
                                         detail::NRK,
@@ -98,4 +101,5 @@ inline auto
 inline auto
   ArtificialStruct = defineRank<"artificial-struct",
                                 model::RawFunctionDefinition::Key>(Binary);
+
 } // namespace revng::ranks

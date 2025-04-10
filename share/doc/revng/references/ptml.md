@@ -218,6 +218,7 @@ We currently implemented the following locations:
     * `/union-field/<Type_Kind>-<Type_ID>/<Index_uint64>`
     * `/enum-entry/<Type_Kind>-<Type_ID>/<Index_uint64>`
     * `/raw-argument/<Type_Kind>-<Type_ID>/<Register>`
+    * `/raw-stack-arguments/<Type_Kind>-<Type_ID>`
     * `/cabi-argument/<Type_Kind>-<Type_ID>/<Index_uint64>`
     * `/return-value/<Type_Kind>-<Type_ID>`
     * `/return-register/<Type_Kind>-<Type_ID>/<Register>`
