@@ -679,9 +679,11 @@ Branches:
               - dagify
               - inline-divergent-scopes
               - enforce-single-exit
+              - materialize-trivial-goto
               - select-scope
               - inline-divergent-scopes
               - enforce-single-exit
+              - materialize-trivial-goto
         Artifacts:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated
