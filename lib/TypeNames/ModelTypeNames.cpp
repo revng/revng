@@ -408,6 +408,8 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition
 }
 
 void ptml::CTypeBuilder::printSegmentType(const model::Segment &Segment) {
+  *Out << getModelComment(Segment);
+
   std::string Result;
   if (not Segment.Type().isEmpty()) {
     Result = getNamedCInstance(*Segment.Type(), getDefinitionTag(Segment));
