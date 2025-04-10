@@ -23,6 +23,9 @@ static RecursiveCoroutine<void> noopCoroutine() {
 
 template<typename Operation = mlir::Operation *>
 static Operation getOnlyOperation(mlir::Region &R) {
+  if (R.empty())
+    return {};
+
   revng_assert(R.hasOneBlock());
   mlir::Block &B = R.front();
   auto Beg = B.begin();
