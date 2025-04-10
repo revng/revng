@@ -46,6 +46,20 @@ static Operation getOnlyOperation(mlir::Region &R) {
   }
 }
 
+static bool hasFallthrough(mlir::Region &R) {
+  // TODO: Refactor the logic of getting the last statement operation in a
+  // region into a separate getTrailingStatement helper function.
+
+  if (R.empty())
+    return true;
+
+  mlir::Block &B = R.front();
+  if (B.empty())
+    return true;
+
+  return not B.back().hasTrait<mlir::OpTrait::clift::NoFallthrough>();
+}
+
 static llvm::StringRef getCIntegerLiteralSuffix(const CIntegerKind Integer,
                                                 const bool Signed) {
   switch (Integer) {
@@ -1123,6 +1137,16 @@ public:
       Out << '\n';
   }
 
+  RecursiveCoroutine<void> emitCaseRegion(mlir::Region &R) {
+    bool Break = hasFallthrough(R);
+
+    if (rc_recur emitImplicitBlockStatement(R))
+      Out << (Break ? ' ' : '\n');
+
+    if (Break)
+      Out << C.getKeyword(Keyword::Break) << ";\n";
+  }
+
   RecursiveCoroutine<void> emitSwitchStatement(SwitchOp S) {
     Out << C.getKeyword(Keyword::Switch) << ' ' << '(';
     rc_recur emitExpressionRegion(S.getCondition());
@@ -1137,14 +1161,12 @@ public:
         Out << C.getKeyword(Keyword::Case) << ' ';
         emitIntegerImmediate(S.getCaseValue(I), Type);
         Out << ':';
-        if (rc_recur emitImplicitBlockStatement(S.getCaseRegion(I)))
-          Out << '\n';
+        rc_recur emitCaseRegion(S.getCaseRegion(I));
       }
 
       if (S.hasDefaultCase()) {
         Out << C.getKeyword(Keyword::Default) << ':';
-        if (rc_recur emitImplicitBlockStatement(S.getDefaultCaseRegion()))
-          Out << '\n';
+        rc_recur emitCaseRegion(S.getDefaultCaseRegion());
       }
     }
 
