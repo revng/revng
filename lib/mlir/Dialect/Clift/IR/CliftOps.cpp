@@ -8,6 +8,7 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/RegionGraphTraits.h"
 
+#include "revng/mlir/Dialect/Clift/IR/CliftOpHelpers.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 
 namespace mlir {
@@ -526,6 +527,18 @@ AssignLabelOp GoToOp::getAssignLabelOp() {
 
 //===-------------------------------- IfOp --------------------------------===//
 
+static bool hasIndirectFallthroughImpl(BranchOpInterface Branch) {
+  for (mlir::Region &R : Branch.getBranchRegions()) {
+    if (clift::hasIndirectFallthrough(R))
+      return true;
+  }
+  return false;
+}
+
+bool IfOp::hasIndirectFallthrough() const {
+  return hasIndirectFallthroughImpl(*this);
+}
+
 mlir::LogicalResult IfOp::verify() {
   if (not isScalarType(getExpressionType(getCondition())))
     return emitOpError() << getOperationName()
@@ -615,6 +628,10 @@ mlir::LogicalResult ReturnOp::verify() {
 }
 
 //===------------------------------ SwitchOp ------------------------------===//
+
+bool SwitchOp::hasIndirectFallthrough() const {
+  return hasIndirectFallthroughImpl(*this);
+}
 
 ValueType SwitchOp::getConditionType() {
   return getExpressionType(getConditionRegion());

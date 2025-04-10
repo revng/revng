@@ -31,6 +31,20 @@ def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface", [Symbol]> {
 }
 
 def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Returns true if the operation is indirectly fallthrough. This "
+               "is as opposed to being directly not marked with the "
+               "NoFallthrough trait. For example, an if-else operation whose "
+               "both branches end in non-fallthrough operations is considered "
+               "indirectly non-fallthrough.",
+      "bool", "hasIndirectFallthrough", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return not ConcreteOp::template hasTrait<mlir::OpTrait::clift::NoFallthrough>();
+      }]
+    >,
+  ];
 }
 
 def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {

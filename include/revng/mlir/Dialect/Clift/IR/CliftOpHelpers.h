@@ -159,4 +159,10 @@ inline StatementOpInterface getTrailingJumpOp(mlir::Region &R) {
   });
 }
 
+
+inline bool hasIndirectFallthrough(mlir::Region &R) {
+  auto Op = getTrailingStatement(R);
+  return not Op or Op.hasIndirectFallthrough();
+}
+
 } // namespace mlir::clift
