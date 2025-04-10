@@ -12,6 +12,7 @@
 #include "revng/Model/Function.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/NamingConfiguration.h"
+#include "revng/Model/PrimitiveType.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/StructDefinition.h"
 #include "revng/Model/UnionDefinition.h"
@@ -188,6 +189,14 @@ public:
     } else {
       return E.Name();
     }
+  }
+
+  // This is just here for compatibility: it's nice to be able to pass anything
+  // into the name builder and get the name back.
+  std::string name(const model::PrimitiveType &Primitive) const {
+    std::string Result = Primitive.getCName();
+    assertNameIsReserved(Result);
+    return Result;
   }
 
   [[nodiscard]] std::string llvmName(const model::Function &Function) const {
