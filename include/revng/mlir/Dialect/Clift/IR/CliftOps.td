@@ -122,7 +122,6 @@ def Clift_ModuleOp : Clift_Op<"module",
 
 def Clift_FunctionOp : Clift_Op<"func",
                                 [Clift_GlobalOpInterface,
-                                 Symbol,
                                  CallableOpInterface,
                                  FunctionOpInterface,
                                  AutomaticAllocationScope,
@@ -195,7 +194,6 @@ def Clift_FunctionOp : Clift_Op<"func",
 
 def Clift_GlobalVariableOp : Clift_Op<"global",
                                       [Clift_GlobalOpInterface,
-                                       Symbol,
                                        NoRegionArguments,
                                        IsolatedFromAbove]> {
   let arguments = (ins SymbolNameAttr:$sym_name,

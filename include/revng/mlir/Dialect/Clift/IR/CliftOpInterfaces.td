@@ -6,12 +6,14 @@
 #define MLIR_CLIFT_OP_INTERFACES
 
 include "mlir/IR/OpBase.td"
+include "mlir/IR/SymbolInterfaces.td"
 
-class Clift_OpInterface<string name> : OpInterface<name> {
+class Clift_OpInterface<string name, list<Interface> baseInterfaces = []>
+  : OpInterface<name, baseInterfaces> {
   let cppNamespace = "mlir::clift";
 }
 
-def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface"> {
+def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface", [Symbol]> {
   let methods = [
     InterfaceMethod<
       /*desc=*/"Returns the type of the global entity.",
