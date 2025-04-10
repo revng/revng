@@ -7,8 +7,10 @@
 //
 #include "revng/mlir/Dialect/Clift/IR/CliftOpInterfaces.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
-//
+
+namespace mlir {
 #include "revng/mlir/Dialect/Clift/IR/CliftOpInterfaces.cpp.inc"
+} // namespace mlir
 
 bool mlir::clift::isLvalueExpression(mlir::Value Value) {
   if (auto Argument = mlir::dyn_cast<mlir::BlockArgument>(Value)) {
