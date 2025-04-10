@@ -11,7 +11,7 @@ using T = model::TypeDefinition;
 void ptml::CTypeBuilder::printForwardTypeDeclaration(const T &Type) {
   revng_assert(not isDeclarationTheSameAsDefinition(Type));
 
-  auto TypeNameReference = getLocationReference(Type);
+  auto TypeNameReference = getReferenceTag(Type);
   *Out << getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
        << getTypeKeyword(Type) << " "
        << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
@@ -32,14 +32,14 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::EnumDefinition &E,
   *Out << getModelComment(E) << getKeyword(ptml::CBuilder::Keyword::Enum) << " "
        << ptml::AttributeRegistry::getAnnotation<"_ENUM_UNDERLYING">(Underlying)
        << " " << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
-       << getLocationDefinition(E) << " ";
+       << getDefinitionTag(E) << " ";
 
   {
     Scope Scope(*Out);
 
     using COperator = ptml::CBuilder::Operator;
     for (const auto &Entry : E.Entries()) {
-      *Out << getModelComment(Entry) << getLocationDefinition(E, Entry) << " "
+      *Out << getModelComment(Entry) << getDefinitionTag(E, Entry) << " "
            << getOperator(COperator::Assign) << " " << getHex(Entry.Value())
            << ",\n";
     }
@@ -87,7 +87,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
   if (Configuration.EnableStructSizeAnnotation)
     *Out << ptml::AttributeRegistry::getAnnotation<"_SIZE">(S.Size()) << " ";
 
-  *Out << getLocationDefinition(S) << " ";
+  *Out << getDefinitionTag(S) << " ";
 
   {
     Scope Scope(*Out, ptml::c::scopes::StructBody);
@@ -98,7 +98,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
 
       auto *Definition = Field.Type()->skipToDefinition();
       if (not Definition or not shouldInline(*Definition)) {
-        auto F = getLocationDefinition(S, Field);
+        auto F = getDefinitionTag(S, Field);
         *Out << getModelComment(Field) << getNamedCInstance(*Field.Type(), F)
              << ";\n";
       } else {
@@ -119,14 +119,14 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::UnionDefinition &U,
                                              std::string &&Suffix) {
   *Out << getModelComment(U) << getKeyword(ptml::CBuilder::Keyword::Union)
        << " " << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
-  *Out << getLocationDefinition(U) << " ";
+  *Out << getDefinitionTag(U) << " ";
 
   {
     Scope Scope(*Out, ptml::c::scopes::UnionBody);
     for (const auto &Field : U.Fields()) {
       auto *Definition = Field.Type()->skipToDefinition();
       if (not Definition or not shouldInline(*Definition)) {
-        auto F = getLocationDefinition(U, Field);
+        auto F = getDefinitionTag(U, Field);
         *Out << getModelComment(Field) << getNamedCInstance(*Field.Type(), F)
              << ";\n";
       } else {
@@ -143,7 +143,7 @@ void ptml::CTypeBuilder::printTypeDeclaration(const TD &Typedef) {
   if (isDeclarationTheSameAsDefinition(Typedef))
     *Out << getModelComment(Typedef);
 
-  auto Type = getLocationDefinition(Typedef);
+  auto Type = getDefinitionTag(Typedef);
   *Out << getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
        << getNamedCInstance(*Typedef.UnderlyingType(), Type) << ";\n";
 }
@@ -160,17 +160,7 @@ void ptml::CTypeBuilder::generateReturnValueWrapper(const RFT &F) {
   {
     Scope Scope(*Out, ptml::c::scopes::StructBody);
     for (auto &[Index, ReturnValue] : llvm::enumerate(F.ReturnValues())) {
-      std::string
-        ActionLocation = pipeline::locationString(revng::ranks::ReturnRegister,
-                                                  F.key(),
-                                                  ReturnValue.key());
-
-      std::string
-        FieldString = tokenTag(NameBuilder.name(F, ReturnValue),
-                               ptml::c::tokens::Field)
-                        .addAttribute(ptml::attributes::ActionContextLocation,
-                                      ActionLocation)
-                        .toString();
+      auto FieldString = getReturnValueDefinitionTag(F, ReturnValue);
       *Out << getNamedCInstance(*ReturnValue.Type(), FieldString) << ";\n";
     }
   }
@@ -207,8 +197,8 @@ void ptml::CTypeBuilder::printTypeDeclaration(const RFT &F) {
 void ptml::CTypeBuilder::generateArrayWrapper(const model::ArrayType
                                                 &ArrayType) {
   // Check if the wrapper was already added
-  auto &&[It, IsNew] = ArtificialNameCache.emplace(ArrayType,
-                                                   getArrayWrapper(ArrayType));
+  std::string Tag = getArrayWrapperTag<true>(ArrayType);
+  auto &&[It, IsNew] = ArtificialNameCache.emplace(ArrayType, Tag);
   if (not IsNew)
     return;
 
@@ -296,7 +286,7 @@ void ptml::CTypeBuilder::printInlineDefinition(llvm::StringRef Name,
   const model::TypeDefinition *Definition = T.skipToDefinition();
   revng_assert(Definition, "Primitives cannot be printed inline.");
 
-  auto Suffix = getNamedCInstance(T, Name, {}, true).str().str();
+  auto Suffix = getNamedCInstance(T, Name, true);
   if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(Definition)) {
     printTypeDefinition(*Struct, std::move(Suffix));
 

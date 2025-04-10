@@ -319,10 +319,9 @@ public:
     // TODO: don't use a global loop state variable
     const auto &Configuration = B.NameBuilder.Configuration;
     llvm::StringRef LoopStateVariable = Configuration.loopStateVariableName();
-    LoopStateVar = B.getVariableLocationReference(LoopStateVariable,
-                                                  ModelFunction);
-    LoopStateVarDeclaration = B.getVariableLocationDefinition(LoopStateVariable,
-                                                              ModelFunction);
+    LoopStateVar = B.getVariableReferenceTag(ModelFunction, LoopStateVariable);
+    LoopStateVarDeclaration = B.getVariableDefinitionTag(ModelFunction,
+                                                         LoopStateVariable);
 
     if (LLVMFunction.getMetadata(ExplicitParenthesesMDName))
       IsOperatorPrecedenceResolutionPassEnabled = true;
@@ -404,8 +403,8 @@ private:
 
     const auto &Configuration = Model.Configuration().Naming();
     std::string VarName = Configuration.stackFrameVariableName().str();
-    TokenMap[I] = B.getVariableLocationReference(VarName, ModelFunction);
-    return B.getVariableLocationDefinition(VarName, ModelFunction);
+    TokenMap[I] = B.getVariableReferenceTag(ModelFunction, VarName);
+    return B.getVariableDefinitionTag(ModelFunction, VarName);
   }
 
   std::string createLocalVarDeclName(const llvm::Instruction *I) {
@@ -414,8 +413,8 @@ private:
     std::string VarName = NameGenerator.nextVarName();
     // This may override the entry for I, if I belongs to a "duplicated"
     // BasicBlock that is reachable from many paths on the GHAST.
-    TokenMap[I] = B.getVariableLocationReference(VarName, ModelFunction);
-    return B.getVariableLocationDefinition(VarName, ModelFunction);
+    TokenMap[I] = B.getVariableReferenceTag(ModelFunction, VarName);
+    return B.getVariableDefinitionTag(ModelFunction, VarName);
   }
 
   std::string getVarName(const llvm::Instruction *I) const {
@@ -521,7 +520,9 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
   }
 
   if (auto *Function = dyn_cast<llvm::Function>(C)) {
-    rc_return getIsolatedFunctionToken(Function);
+    const model::Function *ModelFunc = llvmToModelFunction(Model, *Function);
+    revng_assert(ModelFunc);
+    rc_return B.getReferenceTag(*ModelFunc);
   }
 
   if (auto *Global = dyn_cast<llvm::GlobalVariable>(C)) {
@@ -726,12 +727,12 @@ CCodeGenerator::getModelGEPToken(const llvm::CallInst *Call) const {
       const model::TypeDefinition &Definition = D->unwrap();
       if (auto *S = dyn_cast<model::StructDefinition>(&Definition)) {
         const model::StructField &Field = S->Fields().at(FieldIdx);
-        CurExpr += B.getLocationReference(*S, Field);
+        CurExpr += B.getReferenceTag(*S, Field);
         CurType = std::move(S->Fields().at(FieldIdx).Type());
 
       } else if (auto *U = dyn_cast<model::UnionDefinition>(&Definition)) {
         const model::UnionField &Field = U->Fields().at(FieldIdx);
-        CurExpr += B.getLocationReference(*U, Field);
+        CurExpr += B.getReferenceTag(*U, Field);
         CurType = std::move(U->Fields().at(FieldIdx).Type());
 
       } else {
@@ -854,9 +855,9 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
       // The call returning a struct is a call to a helper function.
       // It must be a direct call.
       revng_assert(Callee);
-      StructFieldRef = getReturnStructFieldLocationReference(Callee,
-                                                             I->getZExtValue(),
-                                                             B);
+      StructFieldRef = getReturnStructFieldReferenceTag(Callee,
+                                                        I->getZExtValue(),
+                                                        B);
     } else {
       auto RF = llvm::cast<const model::RawFunctionDefinition>(CalleePrototype);
       uint64_t Idx = I->getZExtValue();
@@ -872,7 +873,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     const auto &[StartAddress,
                  VirtualSize] = extractSegmentKeyFromMetadata(*Callee);
     model::Segment Segment = Model.Segments().at({ StartAddress, VirtualSize });
-    rc_return B.getLocationReference(Segment);
+    rc_return B.getReferenceTag(Segment);
   }
 
   if (isCallToTagged(Call, FunctionTags::Copy))
@@ -880,7 +881,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
 
   if (isCallToTagged(Call, FunctionTags::OpaqueCSVValue)) {
     auto *Callee = getCalledFunction(Call);
-    std::string HelperRef = getHelperFunctionLocationReference(Callee, B);
+    std::string HelperRef = getHelperFunctionReferenceTag(Callee, B);
     rc_return rc_recur getCallToken(Call, HelperRef, /*prototype=*/nullptr);
   }
 
@@ -944,19 +945,6 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   rc_return "";
 }
 
-std::string
-CCodeGenerator::getIsolatedFunctionToken(const llvm::Function *Called) const {
-  revng_assert(Called);
-  const model::Function *ModelFunc = llvmToModelFunction(Model, *Called);
-  revng_assert(ModelFunc);
-  std::string Location = locationString(ranks::Function, ModelFunc->key());
-  return B.getTag(ptml::tags::Span, B.NameBuilder.name(*ModelFunc))
-    .addAttribute(attributes::Token, tokens::Function)
-    .addAttribute(attributes::ActionContextLocation, Location)
-    .addAttribute(attributes::LocationReferences, Location)
-    .toString();
-}
-
 RecursiveCoroutine<std::string>
 CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
 
@@ -975,18 +963,15 @@ CCodeGenerator::getIsolatedCallToken(const llvm::CallInst *Call) const {
       // Dynamic Function
       auto &DynFuncID = CallEdge->DynamicFunction();
       auto &DynamicFunc = Model.ImportedDynamicFunctions().at(DynFuncID);
-      std::string Location = locationString(ranks::DynamicFunction,
-                                            DynamicFunc.key());
-      CalleeToken = B.getTag(ptml::tags::Span, B.NameBuilder.name(DynamicFunc))
-                      .addAttribute(attributes::Token, tokens::Function)
-                      .addAttribute(attributes::ActionContextLocation, Location)
-                      .addAttribute(attributes::LocationReferences, Location)
-                      .toString();
+      CalleeToken = B.getReferenceTag(DynamicFunc);
     } else {
       // Isolated function
       llvm::Function *CalledFunc = getCalledFunction(Call);
       revng_assert(CalledFunc);
-      CalleeToken = getIsolatedFunctionToken(CalledFunc);
+      const model::Function *ModelFunc = llvmToModelFunction(Model,
+                                                             *CalledFunc);
+      revng_assert(ModelFunc);
+      CalleeToken = B.getReferenceTag(*ModelFunc);
     }
   }
 
@@ -1002,7 +987,7 @@ CCodeGenerator::getNonIsolatedCallToken(const llvm::CallInst *Call) const {
   revng_assert(CalledFunc and CalledFunc->hasName(),
                "Special functions should all have a name");
 
-  std::string HelperRef = getHelperFunctionLocationReference(CalledFunc, B);
+  std::string HelperRef = getHelperFunctionReferenceTag(CalledFunc, B);
   rc_return rc_recur getCallToken(Call, HelperRef, /*prototype=*/nullptr);
 }
 
@@ -1020,16 +1005,15 @@ static bool shouldGenerateDebugInfoAsPTML(const llvm::Instruction &I) {
 }
 
 static std::string addDebugInfo(const llvm::Instruction *I,
-                                const std::string &Str,
-                                const ptml::CBuilder &B) {
+                                std::string &&Str,
+                                const ptml::CTypeBuilder &B) {
   if (shouldGenerateDebugInfoAsPTML(*I)) {
     std::string Location = I->getDebugLoc()->getScope()->getName().str();
-    return B.getTag(ptml::tags::Span, Str)
-      .addAttribute(ptml::attributes::LocationReferences, Location)
-      .addAttribute(ptml::attributes::ActionContextLocation, Location)
-      .toString();
+    return B.getDebugInfoTag(std::move(Str), std::move(Location));
+
+  } else {
+    return std::move(Str);
   }
-  return Str;
 }
 
 /// Return the string that represents the given binary operator in C
@@ -1164,8 +1148,7 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
   if (isa<llvm::CastInst>(I) or isa<llvm::FreezeInst>(I)) {
     // Those are usually noops on the LLVM IR.
     const llvm::Value *Op = I->getOperand(0);
-    std::string Token = rc_recur getToken(Op);
-    rc_return addDebugInfo(I, Token, B);
+    rc_return addDebugInfo(I, rc_recur getToken(Op), B);
   }
 
   switch (I->getOpcode()) {
@@ -1199,7 +1182,7 @@ CCodeGenerator::getInstructionToken(const llvm::Instruction *I) const {
         llvm::Value *ReturnedVal = Ret->getReturnValue())
       Result += " " + rc_recur getToken(ReturnedVal);
 
-    rc_return addDebugInfo(I, Result, B);
+    rc_return addDebugInfo(I, std::move(Result), B);
   }
 
   case llvm::Instruction::Unreachable:
@@ -1496,8 +1479,7 @@ CCodeGenerator::buildGHASTCondition(const ExprNode *E, bool EmitBB) {
           and cast<llvm::Constant>(Op1)->isZeroValue()) {
 
         const llvm::Value *Op0 = I->getOperand(0);
-        std::string Op0String = rc_recur getToken(Op0);
-        rc_return addDebugInfo(I, Op0String, B);
+        rc_return addDebugInfo(I, rc_recur getToken(Op0), B);
       }
     }
     rc_return rc_recur getToken(Br->getCondition());
@@ -1567,7 +1549,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         // constness.
         auto NonConst = model::getNonConst(*TypeMap.at(VarDeclCall));
 
-        B.append(B.getNamedCInstance(*NonConst, VarName).str().str() + ";\n");
+        B.append(B.getNamedCInstance(*NonConst, VarName) + ";\n");
       } else if (isHelperAggregateLocalVarDecl(VarDeclCall)
                  or isArtificialAggregateLocalVarDecl(VarDeclCall)) {
         // Create missing local variable declarations
@@ -1577,7 +1559,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         revng_assert(Prototype != nullptr);
 
         auto Named = B.getNamedInstanceOfReturnType(*Prototype, VarName, false);
-        B.append(Named.str().str() + ";\n");
+        B.append(Named + ";\n");
       } else {
         revng_assert(not VarDeclCall->getType()->isAggregateType());
       }
@@ -1740,14 +1722,13 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
       std::string NewVarName = NameGenerator.nextSwitchStateVar();
-      std::string
-        SwitchStateVar = B.getVariableLocationReference(NewVarName,
-                                                        ModelFunction);
+      std::string SwitchStateVar = B.getVariableReferenceTag(ModelFunction,
+                                                             NewVarName);
       SwitchStateVars.push_back(std::move(SwitchStateVar));
       using COperator = ptml::CBuilder::Operator;
       B.append(B.tokenTag("bool", ptml::c::tokens::Type) + " "
-               + B.getVariableLocationDefinition(NewVarName, ModelFunction)
-               + " " + B.getOperator(COperator::Assign) + " " + B.getFalseTag()
+               + B.getVariableDefinitionTag(ModelFunction, NewVarName) + " "
+               + B.getOperator(COperator::Assign) + " " + B.getFalseTag()
                + ";\n");
     }
 
@@ -1878,10 +1859,9 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
   rc_return;
 }
 
-static std::string
-getModelArgIdentifier(const model::TypeDefinition &ModelFT,
-                      const llvm::Argument &Argument,
-                      const model::CNameBuilder &NameBuilder) {
+static std::string getModelArgIdentifier(const model::TypeDefinition &ModelFT,
+                                         const llvm::Argument &Argument,
+                                         const ptml::CTypeBuilder &B) {
   const llvm::Function *LLVMFunction = Argument.getParent();
   unsigned ArgNo = Argument.getArgNo();
 
@@ -1891,20 +1871,23 @@ getModelArgIdentifier(const model::TypeDefinition &ModelFT,
     revng_assert(LLVMFunction->arg_size() == NumModelArguments
                  or (not RFT->StackArgumentsType().isEmpty()
                      and (LLVMFunction->arg_size() == NumModelArguments + 1)));
+
     if (ArgNo < NumModelArguments) {
-      const auto &Argument = std::next(RFT->Arguments().begin(), ArgNo);
-      return NameBuilder.name(*RFT, *Argument);
+      const auto &Argument = *std::next(RFT->Arguments().begin(), ArgNo);
+      return B.getReferenceTag(*RFT, Argument);
+
     } else {
-      return NameBuilder.Configuration.rawStackArgumentName().str();
+      return B.getStackArgumentReferenceTag(*RFT);
     }
+
   } else if (auto *CFT = dyn_cast<model::CABIFunctionDefinition>(&ModelFT)) {
     revng_assert(LLVMFunction->arg_size() == CFT->Arguments().size());
     revng_assert(ArgNo < CFT->Arguments().size());
-    return NameBuilder.name(*CFT, CFT->Arguments().at(ArgNo));
-  }
-  revng_abort("Unexpected function type");
+    return B.getReferenceTag(*CFT, CFT->Arguments().at(ArgNo));
 
-  return "";
+  } else {
+    revng_abort("Unexpected function type");
+  }
 }
 
 void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
@@ -1922,12 +1905,8 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
   B.printFunctionPrototype(Prototype, ModelFunction, false);
 
   // Set up the argument identifiers to be used in the function's body.
-  for (const auto &Arg : LLVMFunction.args()) {
-    std::string ArgString = getModelArgIdentifier(Prototype,
-                                                  Arg,
-                                                  B.NameBuilder);
-    TokenMap[&Arg] = B.getArgumentLocationReference(ArgString, ModelFunction);
-  }
+  for (const auto &Argument : LLVMFunction.args())
+    TokenMap[&Argument] = getModelArgIdentifier(Prototype, Argument, B);
 
   // Print the function body
   B.append(" ");
@@ -1957,7 +1936,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
         } else {
           auto Named = B.getNamedCInstance(*ModelFunction.StackFrameType(),
                                            std::move(VarName));
-          B.append(Named.str().str() + ";\n");
+          B.append(Named + ";\n");
         }
 
         IsStackDefined = true;
