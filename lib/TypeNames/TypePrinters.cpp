@@ -178,6 +178,8 @@ void ptml::CTypeBuilder::generateReturnValueWrapper(const RFT &F) {
   {
     Scope Scope(*Out, ptml::c::scopes::StructBody);
     for (auto &[Index, ReturnValue] : llvm::enumerate(F.ReturnValues())) {
+      *Out << getModelComment(ReturnValue);
+
       auto FieldString = getReturnValueDefinitionTag(F, ReturnValue);
       auto Line = getNamedCInstance(*ReturnValue.Type(), FieldString) + ';';
       *Out << getReturnValueRegisterTag(std::move(Line), F, ReturnValue)
