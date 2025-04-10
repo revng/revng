@@ -507,9 +507,6 @@ gatherReturnValueComments(const model::Binary &Binary,
       model::Register::Values Register = ReturnValue.Location();
 
       if (!ReturnValue.Comment().empty()) {
-        if (Result.empty())
-          Result.emplace_back();
-
         auto &Line = Result.emplace_back();
         Line.InternalIndentation = Keyword.size();
 
