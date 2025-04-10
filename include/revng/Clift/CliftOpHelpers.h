@@ -233,6 +233,15 @@ inline StatementOpInterface getLastNoFallthroughStatement(mlir::Region &R) {
   });
 }
 
+inline bool isIndirectlyNoFallthrough(mlir::Region &R) {
+  StatementOpInterface Op = getLastStatement(R);
+  if (not Op)
+    return false;
+  if (Op->template hasTrait<mlir::OpTrait::clift::NoFallthrough>())
+    return true;
+  return Op.isIndirectlyNoFallthrough();
+}
+
 //===----------------------------- Expressions ----------------------------===//
 
 inline YieldOp getYieldOp(mlir::Region &R) {
