@@ -286,7 +286,7 @@ ImplicitModelCastPass::getOperandsToPromote(llvm::Instruction *I,
 
   auto GetPlainTypeName = [](const model::Type &Type) {
     ptml::CTypeBuilder B(llvm::nulls(), {}, /* TaglessMode = */ true);
-    return B.getTypeName(Type).str().str();
+    return B.getTypeName(Type);
   };
 
   for (unsigned Index = 0; Index < I->getNumOperands(); ++Index) {

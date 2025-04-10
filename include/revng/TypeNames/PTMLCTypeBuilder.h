@@ -6,6 +6,7 @@
 
 #include "revng/Backend/DecompiledCCodeIndentation.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Model/PrimitiveType.h"
 #include "revng/Support/PTMLC.h"
 #include "revng/TypeNames/DependencyGraph.h"
 
@@ -183,191 +184,438 @@ public:
     return helpers::LineComment(*Out, *this);
   }
 
-public:
-  auto getNameTag(const model::TypeDefinition &T) const {
-    // TODO: build a warning based on `NameBuilder.warning(T)`
-    //       if it's not `std::nullopt`.
-    return tokenTag(NameBuilder.name(T), ptml::c::tokens::Type);
+private:
+  static constexpr llvm::StringRef tokenType(const model::TypeDefinition &) {
+    return ptml::c::tokens::Type;
   }
-  auto getNameTag(const model::Segment &S) const {
-    // TODO: build a warning based on `NameBuilder.warning(S)`
-    //       if it's not `std::nullopt`.
-    return tokenTag(NameBuilder.name(Binary, S), ptml::c::tokens::Variable);
+  static constexpr llvm::StringRef tokenType(const model::PrimitiveType &) {
+    return ptml::c::tokens::Type;
   }
-  auto getNameTag(const model::EnumDefinition &Enum,
-                  const model::EnumEntry &Entry) const {
-    // TODO: build a warning based on `NameBuilder.warning(Entry)`
-    //       if it's not `std::nullopt`.
-    return tokenTag(NameBuilder.name(Enum, Entry), ptml::c::tokens::Field);
+  static constexpr llvm::StringRef tokenType(const model::Segment &) {
+    return ptml::c::tokens::Variable;
+  }
+  static constexpr llvm::StringRef tokenType(const model::Function &) {
+    return ptml::c::tokens::Function;
+  }
+  static constexpr llvm::StringRef tokenType(const model::DynamicFunction &) {
+    return ptml::c::tokens::Function;
   }
   template<class Aggregate, class Field>
-  auto getNameTag(const Aggregate &A, const Field &F) const {
-    // TODO: build a warning based on `NameBuilder.warning(F)`
-    //       if it's not `std::nullopt`.
-    return tokenTag(NameBuilder.name(A, F), c::tokens::Field);
+  static constexpr llvm::StringRef tokenType(const Aggregate &, const Field &) {
+    return ptml::c::tokens::Field;
+  }
+  static constexpr llvm::StringRef
+  tokenType(const model::CABIFunctionDefinition &, const model::Argument &) {
+    return ptml::c::tokens::FunctionParameter;
+  }
+  static constexpr llvm::StringRef
+  tokenType(const model::RawFunctionDefinition &,
+            const model::NamedTypedRegister &) {
+    return ptml::c::tokens::FunctionParameter;
   }
 
 private:
-  template<typename... Ts>
-  std::string locationStringImpl(Ts &&...Vs) const {
-    if (IsInTaglessMode)
-      return "";
-    return pipeline::locationString(std::forward<Ts>(Vs)...);
-  }
-
-public:
   std::string locationString(const model::TypeDefinition &T) const {
-    return locationStringImpl(revng::ranks::TypeDefinition, T.key());
+    return pipeline::locationString(revng::ranks::TypeDefinition, T.key());
   }
-  std::string locationString(const model::Segment &T) const {
-    return locationStringImpl(revng::ranks::Segment, T.key());
+  std::string locationString(const model::PrimitiveType &Primitive) const {
+    return pipeline::locationString(revng::ranks::PrimitiveType,
+                                    Primitive.getCName());
+  }
+  std::string locationString(const model::Binary &,
+                             const model::Segment &T) const {
+    return pipeline::locationString(revng::ranks::Segment, T.key());
+  }
+  std::string locationString(const model::Function &Function) const {
+    return pipeline::locationString(revng::ranks::Function, Function.key());
+  }
+  std::string locationString(const model::DynamicFunction &Function) const {
+    return pipeline::locationString(revng::ranks::DynamicFunction,
+                                    Function.key());
   }
   std::string locationString(const model::EnumDefinition &Enum,
                              const model::EnumEntry &Entry) const {
-    return locationStringImpl(revng::ranks::EnumEntry, Enum.key(), Entry.key());
+    return pipeline::locationString(revng::ranks::EnumEntry,
+                                    Enum.key(),
+                                    Entry.key());
   }
   std::string locationString(const model::StructDefinition &Struct,
                              const model::StructField &Field) const {
-    return locationStringImpl(revng::ranks::StructField,
-                              Struct.key(),
-                              Field.key());
+    return pipeline::locationString(revng::ranks::StructField,
+                                    Struct.key(),
+                                    Field.key());
   }
   std::string locationString(const model::UnionDefinition &Union,
                              const model::UnionField &Field) const {
-    return locationStringImpl(revng::ranks::UnionField,
-                              Union.key(),
-                              Field.key());
+    return pipeline::locationString(revng::ranks::UnionField,
+                                    Union.key(),
+                                    Field.key());
+  }
+  std::string locationString(const model::DynamicFunction &Function,
+                             llvm::StringRef Name) const {
+    return pipeline::locationString(revng::ranks::DynamicFunctionArgument,
+                                    Function.key(),
+                                    Name.str());
+  }
+  std::string locationString(const model::CABIFunctionDefinition &Function,
+                             const model::Argument &Argument) const {
+    return pipeline::locationString(revng::ranks::CABIArgument,
+                                    Function.key(),
+                                    Argument.key());
+  }
+  std::string locationString(const model::RawFunctionDefinition &Function,
+                             const model::NamedTypedRegister &Argument) const {
+    return pipeline::locationString(revng::ranks::RawArgument,
+                                    Function.key(),
+                                    Argument.key());
+  }
+
+private:
+  std::string variableLocationString(const model::Function &Function,
+                                     llvm::StringRef Variable) const {
+    return pipeline::locationString(revng::ranks::LocalVariable,
+                                    Function.key(),
+                                    Variable.str());
+  }
+  std::string
+  returnValueLocationString(const model::RawFunctionDefinition &Function,
+                            const model::NamedTypedRegister &Argument) const {
+    return pipeline::locationString(revng::ranks::ReturnRegister,
+                                    Function.key(),
+                                    Argument.key());
+  }
+
+private:
+  template<bool IsDefinition>
+  std::string
+  getNameTagImpl(ptml::Tag &&Tag,
+                 llvm::StringRef Location,
+                 llvm::StringRef ActionLocation,
+                 RangeOf<llvm::StringRef> auto const &Actions) const {
+    if (IsInTaglessMode)
+      return Tag.toString();
+
+    llvm::StringRef LocationAttribute = IsDefinition ?
+                                          ptml::attributes::LocationDefinition :
+                                          ptml::attributes::LocationReferences;
+    Tag.addAttribute(LocationAttribute, Location.str());
+
+    if (not std::ranges::empty(Actions)) {
+      Tag.addAttribute(attributes::ActionContextLocation, ActionLocation.str());
+      Tag.addListAttribute(attributes::AllowedActions, Actions);
+    }
+
+    return std::move(Tag).toString();
+  }
+
+  template<bool IsDefinition>
+  std::string
+  getNameTagImpl(ptml::Tag &&Tag,
+                 llvm::StringRef /* Location */ L,
+                 RangeOf<llvm::StringRef> auto const &Actions) const {
+    return getNameTagImpl<IsDefinition>(std::move(Tag), L, L, Actions);
+  }
+
+  template<bool IsDefinition, typename AnyType>
+  std::string getNameTag(const AnyType &Value,
+                         RangeOf<llvm::StringRef> auto const &Actions) const {
+    // TODO: build a warning based on `NameBuilder.warning(T)`
+    //       if it's not `std::nullopt`.
+    return getNameTagImpl<IsDefinition>(tokenTag(NameBuilder.name(Value),
+                                                 tokenType(Value)),
+                                        locationString(Value),
+                                        Actions);
+  }
+  template<bool IsDefinition, typename ParentType, typename AnyType>
+  std::string getNameTag(const ParentType &Parent,
+                         const AnyType &Value,
+                         RangeOf<llvm::StringRef> auto const &Actions) const {
+    // TODO: build a warning based on `NameBuilder.warning(T)`
+    //       if it's not `std::nullopt`.
+    return getNameTagImpl<IsDefinition>(tokenTag(NameBuilder.name(Parent,
+                                                                  Value),
+                                                 tokenType(Parent, Value)),
+                                        locationString(Parent, Value),
+                                        Actions);
   }
 
 public:
-  constexpr llvm::StringRef getLocationAttribute(bool IsDefinition) const {
-    return IsDefinition ? ptml::attributes::LocationDefinition :
-                          ptml::attributes::LocationReferences;
+  std::string getDefinitionTag(const model::TypeDefinition &T) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::Comment,
+                                     ptml::actions::EditType };
+    return getNameTag<true>(T, Actions);
+  }
+  std::string getReferenceTag(const model::TypeDefinition &T) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::EditType };
+    return getNameTag<false>(T, Actions);
   }
 
-  std::string
-  getLocation(bool IsDefinition,
-              const model::TypeDefinition &T,
-              llvm::ArrayRef<llvm::StringRef> AllowedActions) const {
-    auto Result = getNameTag(T);
-    if (IsInTaglessMode)
-      return Result.toString();
-
-    std::string Location = locationString(T);
-    Result.addAttribute(getLocationAttribute(IsDefinition), Location);
-    Result.addAttribute(attributes::ActionContextLocation, Location);
-
-    if (not AllowedActions.empty())
-      Result.addListAttribute(attributes::AllowedActions, AllowedActions);
-
-    return Result.toString();
+  std::string getDefinitionTag(const model::Function &F) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::Comment,
+                                     ptml::actions::EditType };
+    return getNameTag<true>(F, Actions);
+  }
+  std::string getReferenceTag(const model::Function &F) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::EditType };
+    return getNameTag<false>(F, Actions);
   }
 
-  std::string getLocation(bool IsDefinition, const model::Segment &S) const {
-    std::string Location = locationString(S);
-    return getNameTag(S)
-      .addAttribute(getLocationAttribute(IsDefinition), Location)
-      .addAttribute(ptml::attributes::ActionContextLocation, Location)
-      .toString();
+  std::string getDefinitionTag(const model::DynamicFunction &F) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::Comment,
+                                     ptml::actions::EditType };
+    return getNameTag<true>(F, Actions);
+  }
+  std::string getReferenceTag(const model::DynamicFunction &F) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::EditType };
+    return getNameTag<false>(F, Actions);
   }
 
-  std::string getLocation(bool IsDefinition,
-                          const model::EnumDefinition &Enum,
-                          const model::EnumEntry &Entry) const {
-    std::string Location = locationString(Enum, Entry);
-    return getNameTag(Enum, Entry)
-      .addAttribute(getLocationAttribute(IsDefinition), Location)
-      .addAttribute(ptml::attributes::ActionContextLocation, Location)
-      .toString();
+  std::string getDefinitionTag(const model::Segment &S) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::Comment,
+                                     ptml::actions::EditType };
+    return getNameTag<true>(Binary, S, Actions);
+  }
+  std::string getReferenceTag(const model::Segment &S) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::EditType };
+    return getNameTag<false>(Binary, S, Actions);
   }
 
   template<typename Aggregate, typename Field>
+  std::string getDefinitionTag(const Aggregate &A, const Field &F) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::Comment };
+    return getNameTag<true>(A, F, Actions);
+  }
+  template<typename Aggregate, typename Field>
+  std::string getReferenceTag(const Aggregate &A, const Field &F) const {
+    constexpr std::array Actions = { ptml::actions::Rename };
+    return getNameTag<false>(A, F, Actions);
+  }
+
+  std::string getDefinitionTag(const model::PrimitiveType &P) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    return getNameTag<true>(P, Actions);
+  }
+  std::string getReferenceTag(const model::PrimitiveType &P) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    return getNameTag<false>(P, Actions);
+  }
+
   std::string
-  getLocation(bool IsDefinition, const Aggregate &A, const Field &F) const {
-    std::string Location = locationString(A, F);
-    return getNameTag(A, F)
-      .addAttribute(getLocationAttribute(IsDefinition), Location)
-      .addAttribute(attributes::ActionContextLocation, Location)
-      .toString();
+  getStackArgumentDefinitionTag(const model::RawFunctionDefinition &RFT) const {
+    constexpr std::array Actions = { ptml::actions::Comment,
+                                     ptml::actions::EditType };
+
+    // For control-clicking the variable
+    auto VarLoc = pipeline::locationString(revng::ranks::RawStackArguments,
+                                           RFT.key());
+
+    // For commenting on the struct
+    revng_assert(RFT.stackArgumentsType());
+    auto TypeLoc = pipeline::locationString(revng::ranks::TypeDefinition,
+                                            RFT.stackArgumentsType()->key());
+
+    llvm::StringRef Name = NameBuilder.Configuration.rawStackArgumentName();
+    return getNameTagImpl<true>(tokenTag(Name, ptml::c::tokens::Variable),
+                                VarLoc,
+                                TypeLoc,
+                                Actions);
+  }
+
+  std::string
+  getStackArgumentReferenceTag(const model::RawFunctionDefinition &RFT) const {
+    constexpr std::array Actions = { ptml::actions::EditType };
+    auto VarLoc = pipeline::locationString(revng::ranks::RawStackArguments,
+                                           RFT.key());
+
+    llvm::StringRef Name = NameBuilder.Configuration.rawStackArgumentName();
+    return getNameTagImpl<false>(tokenTag(Name, ptml::c::tokens::Variable),
+                                 VarLoc,
+                                 Actions);
+  }
+
+  std::string
+  getReturnValueDefinitionTag(const model::RawFunctionDefinition &RFT,
+                              const model::NamedTypedRegister Register) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::Comment,
+                                     ptml::actions::EditType };
+    std::string Location = returnValueLocationString(RFT, Register);
+
+    return getNameTagImpl<true>(tokenTag(NameBuilder.name(RFT, Register),
+                                         ptml::c::tokens::Field),
+                                Location,
+                                Actions);
+  }
+
+  std::string
+  getReturnValueReferenceTag(const model::RawFunctionDefinition &RFT,
+                             const model::NamedTypedRegister Register) const {
+    constexpr std::array Actions = { ptml::actions::Rename,
+                                     ptml::actions::EditType };
+    std::string Location = returnValueLocationString(RFT, Register);
+
+    return getNameTagImpl<false>(tokenTag(NameBuilder.name(RFT, Register),
+                                          ptml::c::tokens::Field),
+                                 Location,
+                                 Actions);
+  }
+
+  std::string getVariableDefinitionTag(const model::Function &F,
+                                       llvm::StringRef VariableName) const {
+    // TODO: add the actions, at least rename!
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+
+    std::string Location = variableLocationString(F, VariableName);
+    return getNameTagImpl<true>(tokenTag(VariableName,
+                                         ptml::c::tokens::Variable),
+                                Location,
+                                Actions);
+  }
+
+  std::string getVariableReferenceTag(const model::Function &F,
+                                      llvm::StringRef VariableName) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+
+    std::string Location = variableLocationString(F, VariableName);
+    return getNameTagImpl<false>(tokenTag(VariableName,
+                                          ptml::c::tokens::Variable),
+                                 Location,
+                                 Actions);
+  }
+
+  std::string getGotoLabelDefinitionTag(const model::Function &F,
+                                        llvm::StringRef GotoLabelName) const {
+    // TODO: add the actions, at least rename!
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    std::string Location = pipeline::locationString(revng::ranks::GotoLabel,
+                                                    F.key(),
+                                                    GotoLabelName.str());
+    return getNameTagImpl<true>(tokenTag(GotoLabelName,
+                                         ptml::c::tokens::Variable),
+                                Location,
+                                Actions);
+  }
+
+  std::string getGotoLabelReferenceTag(const model::Function &F,
+                                       llvm::StringRef GotoLabelName) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    std::string Location = pipeline::locationString(revng::ranks::GotoLabel,
+                                                    F.key(),
+                                                    GotoLabelName.str());
+    return getNameTagImpl<false>(tokenTag(GotoLabelName,
+                                          ptml::c::tokens::Variable),
+                                 Location,
+                                 Actions);
   }
 
 public:
-  std::string
-  getLocationDefinition(const model::TypeDefinition &T,
-                        llvm::ArrayRef<llvm::StringRef> AllowedActions = {})
-    const {
-    return getLocation(true, T, AllowedActions);
+  std::string getPrimitiveTag(model::PrimitiveKind::Values Kind,
+                              uint64_t Size) const {
+    return getReferenceTag(model::PrimitiveType(/* IsConst = */ false,
+                                                Kind,
+                                                Size));
   }
-
-  std::string getLocationDefinition(const model::PrimitiveType &P) const {
-    std::string CName = P.getCName();
-    auto Result = tokenTag(CName, ptml::c::tokens::Type);
-    if (IsInTaglessMode)
-      return Result.toString();
-
-    std::string L = pipeline::locationString(revng::ranks::PrimitiveType,
-                                             P.getCName());
-    Result.addAttribute(getLocationAttribute(true), L);
-    Result.addAttribute(attributes::ActionContextLocation, L);
-
-    return Result.toString();
-  }
-
-  std::string getLocationDefinition(const model::Segment &S) const {
-    return getLocation(true, S);
-  }
-
-  std::string getLocationDefinition(const model::EnumDefinition &Enum,
-                                    const model::EnumEntry &Entry) const {
-    return getLocation(true, Enum, Entry);
-  }
-
-  template<typename Aggregate, typename Field>
-  std::string getLocationDefinition(const Aggregate &A, const Field &F) const {
-    return getLocation(true, A, F);
+  std::string getVoidTag() const {
+    return getReferenceTag(model::PrimitiveType(/* IsConst = */ false,
+                                                model::PrimitiveKind::Void,
+                                                0));
   }
 
 public:
+  template<bool IsDefinition>
   std::string
-  getLocationReference(const model::TypeDefinition &T,
-                       llvm::ArrayRef<llvm::StringRef> AllowedActions = {})
-    const {
-    return getLocation(false, T, AllowedActions);
+  getArtificialStructTag(const model::RawFunctionDefinition &RFT) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    auto Location = pipeline::locationString(revng::ranks::ArtificialStruct,
+                                             RFT.key());
+
+    std::string Name = NameBuilder.artificialReturnValueWrapperName(RFT);
+    return getNameTagImpl<IsDefinition>(tokenTag(Name, ptml::c::tokens::Type),
+                                        Location,
+                                        Actions);
   }
 
-  std::string getPrimitiveTypeLocationReference(llvm::StringRef CName) const {
-    auto Result = tokenTag(CName, ptml::c::tokens::Type);
-    if (IsInTaglessMode)
-      return Result.toString();
+  template<bool IsDefinition>
+  std::string getArrayWrapperTag(const model::ArrayType &Array) const {
+    // TODO: currently there's no location dedicated to these, as such no action
+    //       is possible.
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    auto Location = "";
 
-    std::string L = pipeline::locationString(revng::ranks::PrimitiveType,
-                                             CName.str());
-    Result.addAttribute(getLocationAttribute(false), L);
-    Result.addAttribute(attributes::ActionContextLocation, L);
-
-    return Result.toString();
+    auto Name = NameBuilder.artificialArrayWrapperName(Array);
+    return getNameTagImpl<IsDefinition>(tokenTag(std::move(Name),
+                                                 ptml::c::tokens::Type),
+                                        Location,
+                                        Actions);
   }
 
-  std::string getLocationReference(const model::PrimitiveType &P) const {
-    return getPrimitiveTypeLocationReference(P.getCName());
+  template<bool IsDefinition>
+  std::string getHelperFunctionTag(llvm::StringRef Name) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    auto Location = pipeline::locationString(revng::ranks::HelperFunction,
+                                             Name.str());
+
+    std::string Sanitized = model::sanitizeHelperName(Name);
+    return getNameTagImpl<IsDefinition>(tokenTag(std::move(Sanitized),
+                                                 ptml::c::tokens::Function),
+                                        Location,
+                                        Actions);
   }
 
-  std::string getLocationReference(const model::Segment &S) const {
-    return getLocation(false, S);
+  template<bool IsDefinition>
+  std::string getHelperStructTag(llvm::StringRef Name) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    auto Location = pipeline::locationString(revng::ranks::HelperStructType,
+                                             Name.str());
+    return getNameTagImpl<IsDefinition>(tokenTag(Name, ptml::c::tokens::Type),
+                                        Location,
+                                        Actions);
   }
 
-  std::string getLocationReference(const model::EnumDefinition &Enum,
-                                   const model::EnumEntry &Entry) const {
-    return getLocation(false, Enum, Entry);
+  template<bool IsDefinition>
+  std::string getHelperStructFieldTag(llvm::StringRef StructName,
+                                      llvm::StringRef FieldName) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    auto Location = pipeline::locationString(revng::ranks::HelperStructField,
+                                             StructName.str(),
+                                             FieldName.str());
+    return getNameTagImpl<IsDefinition>(tokenTag(FieldName,
+                                                 ptml::c::tokens::Field),
+                                        Location,
+                                        Actions);
   }
 
-  template<typename Aggregate, typename Field>
-  std::string getLocationReference(const Aggregate &A, const Field &F) const {
-    return getLocation(false, A, F);
+  std::string
+  getReturnValueTag(std::string &&Wrapped,
+                    const model::TypeDefinition &FunctionType) const {
+    constexpr std::array Actions = { ptml::actions::Comment };
+    auto Location = pipeline::locationString(revng::ranks::ReturnValue,
+                                             FunctionType.key());
+
+    return getNameTagImpl<false>(getTag(ptml::tags::Span, std::move(Wrapped)),
+                                 std::move(Location),
+                                 Actions);
   }
 
-  std::string getLocationReference(const model::Function &F) const;
-  std::string getLocationReference(const model::DynamicFunction &F) const;
+  std::string getDebugInfoTag(std::string &&Wrapped,
+                              std::string &&Location) const {
+    constexpr std::array Actions = { ptml::actions::CodeSwitch,
+                                     ptml::actions::Comment };
+
+    return getNameTagImpl<false>(getTag(ptml::tags::Span, std::move(Wrapped)),
+                                 "",
+                                 std::move(Location),
+                                 Actions);
+  }
 
 public:
   template<model::EntityWithComment Type>
@@ -435,33 +683,25 @@ public:
   ///        // OmitInnerTypeName = true
   ///         *my_variable
   ///        ```
-  tokenDefinition::types::TypeString
-  getNamedCInstance(const model::Type &Type,
-                    llvm::StringRef InstanceName,
-                    llvm::ArrayRef<llvm::StringRef> AllowedActions = {},
-                    bool OmitInnerTypeName = false) const;
+  std::string getNamedCInstance(const model::Type &Type,
+                                llvm::StringRef InstanceName = "",
+                                bool OmitInnerTypeName = false) const;
 
-  tokenDefinition::types::TypeString getTypeName(const model::Type &T) const {
-    return getNamedCInstance(T, "");
+  std::string getTypeName(const model::Type &Type) const {
+    return getNamedCInstance(Type, "");
   }
-
-public:
-  /// Return the name of the array wrapper that wraps \a ArrayType
-  tokenDefinition::types::TypeString
-  getArrayWrapper(const model::ArrayType &ArrayType) const;
 
   /// Return a string containing the C Type name of the return type of
   /// \a FunctionType, and a (possibly empty) \a InstanceName.
   /// \note If F returns more than one value, the name of the wrapping struct
   ///       will be returned instead.
-  tokenDefinition::types::TypeString
+  std::string
   getNamedInstanceOfReturnType(const model::TypeDefinition &FunctionType,
                                llvm::StringRef InstanceName,
                                bool IsDefinition) const;
 
-  tokenDefinition::types::TypeString
-  getReturnTypeName(const model::TypeDefinition &FunctionType,
-                    bool IsDefinition) const {
+  std::string getReturnTypeName(const model::TypeDefinition &FunctionType,
+                                bool IsDefinition) const {
     return getNamedInstanceOfReturnType(FunctionType, "", IsDefinition);
   }
 
@@ -480,18 +720,6 @@ public:
   void printFunctionPrototype(const model::TypeDefinition &FunctionType);
 
   void printSegmentType(const model::Segment &Segment);
-
-public:
-  std::string getArgumentLocationReference(llvm::StringRef ArgumentName,
-                                           const model::Function &F) const;
-  std::string getVariableLocationDefinition(llvm::StringRef VariableName,
-                                            const model::Function &F) const;
-  std::string getVariableLocationReference(llvm::StringRef VariableName,
-                                           const model::Function &F) const;
-  std::string getGotoLabelLocationDefinition(llvm::StringRef GotoLabelName,
-                                             const model::Function &F) const;
-  std::string getGotoLabelLocationReference(llvm::StringRef GotoLabelName,
-                                            const model::Function &F) const;
 
 public:
   /// Returns true for types we never print definitions for a give type
