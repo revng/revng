@@ -408,7 +408,7 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition
 }
 
 void ptml::CTypeBuilder::printSegmentType(const model::Segment &Segment) {
-  *Out << getModelComment(Segment);
+  *Out << "\n" << getModelCommentWithoutLeadingNewline(Segment);
 
   std::string Result;
   if (not Segment.Type().isEmpty()) {

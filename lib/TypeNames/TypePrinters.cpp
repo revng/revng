@@ -34,7 +34,8 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::EnumDefinition &E,
                          + " "
                          + ptml::AttributeRegistry::getAttribute<"_PACKED">()
                          + " " + getDefinitionTag(E) + " ";
-  *Out << getModelComment(E) << getCommentableTag(std::move(EnumLine), E);
+  *Out << getModelCommentWithoutLeadingNewline(E)
+       << getCommentableTag(std::move(EnumLine), E);
 
   {
     Scope Scope(*Out);
@@ -96,7 +97,8 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
 
   StructLine += getDefinitionTag(S) + " ";
 
-  *Out << getModelComment(S) << getCommentableTag(std::move(StructLine), S);
+  *Out << getModelCommentWithoutLeadingNewline(S)
+       << getCommentableTag(std::move(StructLine), S);
 
   {
     Scope Scope(*Out, ptml::c::scopes::StructBody);
@@ -131,7 +133,8 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::UnionDefinition &U,
   std::string UnionLine = getKeyword(ptml::CBuilder::Keyword::Union) + " "
                           + ptml::AttributeRegistry::getAttribute<"_PACKED">()
                           + " " + getDefinitionTag(U) + " ";
-  *Out << getModelComment(U) << getCommentableTag(std::move(UnionLine), U);
+  *Out << getModelCommentWithoutLeadingNewline(U)
+       << getCommentableTag(std::move(UnionLine), U);
 
   {
     Scope Scope(*Out, ptml::c::scopes::UnionBody);
@@ -155,7 +158,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::UnionDefinition &U,
 using TD = model::TypedefDefinition;
 void ptml::CTypeBuilder::printTypeDeclaration(const TD &Typedef) {
   if (isDeclarationTheSameAsDefinition(Typedef))
-    *Out << getModelComment(Typedef);
+    *Out << getModelCommentWithoutLeadingNewline(Typedef);
 
   auto Type = getDefinitionTag(Typedef);
   std::string TypedefString = getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
@@ -205,8 +208,8 @@ void ptml::CTypeBuilder::printFunctionWrappers(const RFT &F) {
 void ptml::CTypeBuilder::printTypeDeclaration(const RFT &F) {
   printFunctionWrappers(F);
 
-  *Out << getModelComment(F) << getKeyword(ptml::CBuilder::Keyword::Typedef)
-       << " ";
+  *Out << getModelCommentWithoutLeadingNewline(F)
+       << getKeyword(ptml::CBuilder::Keyword::Typedef) << " ";
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
   printFunctionPrototype(F);
@@ -254,8 +257,8 @@ void ptml::CTypeBuilder::printFunctionWrappers(const CFT &F) {
 void ptml::CTypeBuilder::printTypeDeclaration(const CFT &F) {
   printFunctionWrappers(F);
 
-  *Out << getModelComment(F) << getKeyword(ptml::CBuilder::Keyword::Typedef)
-       << " ";
+  *Out << getModelCommentWithoutLeadingNewline(F)
+       << getKeyword(ptml::CBuilder::Keyword::Typedef) << " ";
 
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
