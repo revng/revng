@@ -290,7 +290,7 @@ def Clift_GoToOp : Clift_StatementOp<"goto", [Clift_NoFallthrough]> {
   }];
 }
 
-def Clift_IfOp : Clift_StatementOp<"if"> {
+def Clift_IfOp : Clift_StatementOp<"if", [Clift_BranchOpInterface]> {
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$then,
                         Clift_StatementRegion:$else);
@@ -331,7 +331,7 @@ def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
   let hasVerifier = 1;
 }
 
-def Clift_SwitchOp : Clift_StatementOp<"switch"> {
+def Clift_SwitchOp : Clift_StatementOp<"switch", [Clift_BranchOpInterface]> {
   let arguments = (ins DenseI64ArrayAttr:$case_values);
 
   let regions = (region Clift_ExpressionRegion:$condition,

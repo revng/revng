@@ -17,6 +17,7 @@
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftEnums.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftOpInterfaces.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOpTraits.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
 

@@ -8,10 +8,13 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/SymbolTable.h"
 
+#include "revng/mlir/Dialect/Clift/IR/CliftOpTraits.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
 
-// This comment prevents reordering this include before the others.
-#include "revng/mlir/Dialect/Clift/IR/CliftOpInterfaces.h.inc"
+//
+#include "revng/mlir/Dialect/Clift/IR/CliftOpInterfacesBasic.h.inc"
+//
+#include "revng/mlir/Dialect/Clift/IR/CliftOpInterfacesStatement.h.inc"
 
 namespace mlir::clift {
 

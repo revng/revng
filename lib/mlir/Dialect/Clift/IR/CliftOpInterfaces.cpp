@@ -5,14 +5,19 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 //
+#include "revng/mlir/Dialect/Clift/IR/CliftOpHelpers.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOpInterfaces.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 
 namespace mlir {
-#include "revng/mlir/Dialect/Clift/IR/CliftOpInterfaces.cpp.inc"
+#include "revng/mlir/Dialect/Clift/IR/CliftOpInterfacesBasic.cpp.inc"
+//
+#include "revng/mlir/Dialect/Clift/IR/CliftOpInterfacesStatement.cpp.inc"
 } // namespace mlir
 
-bool mlir::clift::isLvalueExpression(mlir::Value Value) {
+namespace clift = mlir::clift;
+
+bool clift::isLvalueExpression(mlir::Value Value) {
   if (auto Argument = mlir::dyn_cast<mlir::BlockArgument>(Value)) {
     Block *B = Argument.getOwner();
     if (B == nullptr)
