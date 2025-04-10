@@ -386,7 +386,7 @@ gatherArgumentComments(const model::Binary &Binary,
         Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
         Line->emplace_back(DoxygenToken::Types::Identifier,
                            model::Register::getRegisterName(Register).str());
-        Line->emplace_back(DoxygenToken::Types::Untagged, ")");
+        Line->emplace_back(DoxygenToken::Types::Untagged, ") ");
         auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
                                        Argument.Comment());
         Tag.ExtraAttributes
