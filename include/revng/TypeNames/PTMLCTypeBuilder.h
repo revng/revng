@@ -295,12 +295,16 @@ private:
     if (IsInTaglessMode)
       return Tag.toString();
 
-    llvm::StringRef LocationAttribute = IsDefinition ?
-                                          ptml::attributes::LocationDefinition :
-                                          ptml::attributes::LocationReferences;
-    Tag.addAttribute(LocationAttribute, Location.str());
+    if (not Location.empty()) {
+      llvm::StringRef
+        LocationAttribute = IsDefinition ?
+                              ptml::attributes::LocationDefinition :
+                              ptml::attributes::LocationReferences;
+      Tag.addAttribute(LocationAttribute, Location.str());
+    }
 
     if (not std::ranges::empty(Actions)) {
+      revng_assert(not ActionLocation.empty());
       Tag.addAttribute(attributes::ActionContextLocation, ActionLocation.str());
       Tag.addListAttribute(attributes::AllowedActions, Actions);
     }
@@ -342,7 +346,6 @@ private:
 public:
   std::string getDefinitionTag(const model::TypeDefinition &T) const {
     constexpr std::array Actions = { ptml::actions::Rename,
-                                     ptml::actions::Comment,
                                      ptml::actions::EditType };
     return getNameTag<true>(T, Actions);
   }
@@ -354,7 +357,6 @@ public:
 
   std::string getDefinitionTag(const model::Function &F) const {
     constexpr std::array Actions = { ptml::actions::Rename,
-                                     ptml::actions::Comment,
                                      ptml::actions::EditType };
     return getNameTag<true>(F, Actions);
   }
@@ -366,7 +368,6 @@ public:
 
   std::string getDefinitionTag(const model::DynamicFunction &F) const {
     constexpr std::array Actions = { ptml::actions::Rename,
-                                     ptml::actions::Comment,
                                      ptml::actions::EditType };
     return getNameTag<true>(F, Actions);
   }
@@ -378,7 +379,6 @@ public:
 
   std::string getDefinitionTag(const model::Segment &S) const {
     constexpr std::array Actions = { ptml::actions::Rename,
-                                     ptml::actions::Comment,
                                      ptml::actions::EditType };
     return getNameTag<true>(Binary, S, Actions);
   }
@@ -390,8 +390,7 @@ public:
 
   template<typename Aggregate, typename Field>
   std::string getDefinitionTag(const Aggregate &A, const Field &F) const {
-    constexpr std::array Actions = { ptml::actions::Rename,
-                                     ptml::actions::Comment };
+    constexpr std::array Actions = { ptml::actions::Rename };
     return getNameTag<true>(A, F, Actions);
   }
   template<typename Aggregate, typename Field>
@@ -411,8 +410,7 @@ public:
 
   std::string
   getStackArgumentDefinitionTag(const model::RawFunctionDefinition &RFT) const {
-    constexpr std::array Actions = { ptml::actions::Comment,
-                                     ptml::actions::EditType };
+    constexpr std::array Actions = { ptml::actions::EditType };
 
     // For control-clicking the variable
     auto VarLoc = pipeline::locationString(revng::ranks::RawStackArguments,
@@ -446,7 +444,6 @@ public:
   getReturnValueDefinitionTag(const model::RawFunctionDefinition &RFT,
                               const model::NamedTypedRegister Register) const {
     constexpr std::array Actions = { ptml::actions::Rename,
-                                     ptml::actions::Comment,
                                      ptml::actions::EditType };
     std::string Location = returnValueLocationString(RFT, Register);
 
@@ -594,18 +591,6 @@ public:
                                         Actions);
   }
 
-  std::string
-  getReturnValueTag(std::string &&Wrapped,
-                    const model::TypeDefinition &FunctionType) const {
-    constexpr std::array Actions = { ptml::actions::Comment };
-    auto Location = pipeline::locationString(revng::ranks::ReturnValue,
-                                             FunctionType.key());
-
-    return getNameTagImpl<false>(getTag(ptml::tags::Span, std::move(Wrapped)),
-                                 std::move(Location),
-                                 Actions);
-  }
-
   std::string getDebugInfoTag(std::string &&Wrapped,
                               std::string &&Location) const {
     constexpr std::array Actions = { ptml::actions::CodeSwitch,
@@ -615,6 +600,46 @@ public:
                                  "",
                                  std::move(Location),
                                  Actions);
+  }
+
+private:
+  std::string getCommentableTagImpl(std::string &&Wrapped,
+                                    std::string &&Location) const {
+    constexpr std::array Actions = { ptml::actions::Comment };
+    return getNameTagImpl<false>(getTag(ptml::tags::Span, std::move(Wrapped)),
+                                 "",
+                                 std::move(Location),
+                                 Actions);
+  }
+
+public:
+  template<typename AnyType>
+  std::string
+  getCommentableTag(std::string &&Wrapped, const AnyType &Anything) const {
+    return getCommentableTagImpl(std::move(Wrapped), locationString(Anything));
+  }
+  template<typename ParentType, typename AnyType>
+  std::string getCommentableTag(std::string &&Wrapped,
+                                const ParentType &Parent,
+                                const AnyType &Anything) const {
+    return getCommentableTagImpl(std::move(Wrapped),
+                                 locationString(Parent, Anything));
+  }
+
+  std::string
+  getReturnValueTag(std::string &&Wrapped,
+                    const model::TypeDefinition &FunctionType) const {
+    auto Location = pipeline::locationString(revng::ranks::ReturnValue,
+                                             FunctionType.key());
+    return getCommentableTagImpl(std::move(Wrapped), std::move(Location));
+  }
+
+  std::string
+  getReturnValueRegisterTag(std::string &&Wrapped,
+                            const model::RawFunctionDefinition &RFT,
+                            const model::NamedTypedRegister Register) const {
+    return getCommentableTagImpl(std::move(Wrapped),
+                                 returnValueLocationString(RFT, Register));
   }
 
 public:
