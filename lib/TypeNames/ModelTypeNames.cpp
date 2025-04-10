@@ -266,7 +266,8 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                                    ArgumentName);
       auto RegName = model::Register::getName(Argument.Location());
       std::string Reg = ptml::AttributeRegistry::getAnnotation<"_REG">(RegName);
-      Result += Separator.str() + MarkedType + " " + Reg;
+      Result += Separator.str()
+                + B.getCommentableTag(MarkedType + " " + Reg, RF, Argument);
       Separator = Comma;
     }
 
@@ -277,8 +278,10 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
         StackArgName = B.getStackArgumentDefinitionTag(RF);
 
       auto N = B.getNamedCInstance(*RF.StackArgumentsType(), StackArgName);
-      Result += Separator.str() + N + " "
-                + ptml::AttributeRegistry::getAttribute<"_STACK">();
+      static auto Attribute = ptml::AttributeRegistry::getAttribute<"_STACK">();
+      Result += Separator.str()
+                + B.getCommentableTag(N + " " + Attribute,
+                                      *RF.stackArgumentsType());
     }
     Result += ")";
   }
@@ -320,12 +323,19 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
 
       Result += Separator.str();
       if (const model::ArrayType *Array = Argument.Type()->getArray()) {
-        Result += B.getArrayWrapperTag<false>(*Array);
-        if (ArgumentName.empty())
-          Result += " " + ArgumentName;
+        if (not ArgumentName.empty())
+          ArgumentName = " " + std::move(ArgumentName);
+
+        Result += B.getCommentableTag(B.getArrayWrapperTag<false>(*Array)
+                                        + ArgumentName,
+                                      CF,
+                                      Argument);
 
       } else {
-        Result += B.getNamedCInstance(*Argument.Type(), ArgumentName);
+        Result += B.getCommentableTag(B.getNamedCInstance(*Argument.Type(),
+                                                          ArgumentName),
+                                      CF,
+                                      Argument);
       }
 
       Separator = Comma;
@@ -342,23 +352,29 @@ std::string printFunctionPrototypeImpl(const model::TypeDefinition &FT,
                                        const llvm::StringRef &FunctionName,
                                        const ptml::CTypeBuilder &B,
                                        bool SingleLine) {
+  std::string Result;
   if (auto *RF = dyn_cast<model::RawFunctionDefinition>(&FT)) {
-    return printFunctionPrototypeImpl(Function,
-                                      *RF,
-                                      FunctionName,
-                                      B,
-                                      SingleLine);
+    Result = printFunctionPrototypeImpl(Function,
+                                        *RF,
+                                        FunctionName,
+                                        B,
+                                        SingleLine);
 
   } else if (auto *CF = dyn_cast<model::CABIFunctionDefinition>(&FT)) {
-    return printFunctionPrototypeImpl(Function,
-                                      *CF,
-                                      FunctionName,
-                                      B,
-                                      SingleLine);
+    Result = printFunctionPrototypeImpl(Function,
+                                        *CF,
+                                        FunctionName,
+                                        B,
+                                        SingleLine);
 
   } else {
     revng_abort();
   }
+
+  if (Function)
+    return B.getCommentableTag(std::move(Result), *Function);
+  else
+    return B.getCommentableTag(std::move(Result), FT);
 }
 
 void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
@@ -392,14 +408,16 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition
 }
 
 void ptml::CTypeBuilder::printSegmentType(const model::Segment &Segment) {
+  std::string Result;
   if (not Segment.Type().isEmpty()) {
-    *Out << getNamedCInstance(*Segment.Type(), getDefinitionTag(Segment))
-         << ";\n";
+    Result = getNamedCInstance(*Segment.Type(), getDefinitionTag(Segment));
 
   } else {
     // If the segment has no type, emit it as an array of bytes.
     auto Array = model::ArrayType::make(model::PrimitiveType::makeGeneric(1),
                                         Segment.VirtualSize());
-    *Out << getNamedCInstance(*Array, getDefinitionTag(Segment)) << ";\n";
+    Result = getNamedCInstance(*Array, getDefinitionTag(Segment));
   }
+
+  *Out << getCommentableTag(std::move(Result) + ";\n", Binary, Segment);
 }
