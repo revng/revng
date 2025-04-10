@@ -248,10 +248,11 @@ std::string ptml::freeFormComment(const ::ptml::MarkupBuilder &PTML,
                                   llvm::StringRef Text,
                                   llvm::StringRef CommentIndicator,
                                   size_t Indentation,
-                                  size_t WrapAt) {
+                                  size_t WrapAt,
+                                  bool LeadingNewline) {
   CommentBuilder Builder(PTML, CommentIndicator, Indentation, WrapAt);
   auto Result = Builder.emit(Text.str());
-  return Result.empty() ? Result : '\n' + Result;
+  return Result.empty() or not LeadingNewline ? Result : '\n' + Result;
 }
 
 using pipeline::locationString;
