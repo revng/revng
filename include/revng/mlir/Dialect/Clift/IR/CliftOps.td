@@ -245,7 +245,7 @@ def Clift_AssignLabelOp : Clift_StatementOp<"assign_label"> {
   }];
 }
 
-def Clift_DoWhileOp : Clift_StatementOp<"do_while"> {
+def Clift_DoWhileOp : Clift_StatementOp<"do_while", [Clift_LoopOpInterface]> {
   let regions = (region Clift_StatementRegion:$body,
                         Clift_ExpressionRegion:$condition);
 
@@ -264,7 +264,7 @@ def Clift_ExpressionStatementOp : Clift_StatementOp<"expr"> {
   }];
 }
 
-def Clift_ForOp : Clift_StatementOp<"for"> {
+def Clift_ForOp : Clift_StatementOp<"for", [Clift_LoopOpInterface]> {
   let regions = (region Clift_StatementRegion:$initializer,
                         Clift_OptionalExpressionRegion:$condition,
                         Clift_OptionalExpressionRegion:$expression,
@@ -380,7 +380,7 @@ def Clift_SwitchOp : Clift_StatementOp<"switch", [Clift_BranchOpInterface]> {
   }];
 }
 
-def Clift_WhileOp : Clift_StatementOp<"while"> {
+def Clift_WhileOp : Clift_StatementOp<"while", [Clift_LoopOpInterface]> {
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$body);
 
