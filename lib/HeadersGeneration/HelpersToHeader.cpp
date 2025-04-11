@@ -54,7 +54,7 @@ static void printLLVMTypeDeclaration(const llvm::StructType *S,
   B.append(" " + getReturnTypeDefinitionTag(&F, B) + ";\n");
 }
 
-/// Print the prototype of a helper .
+/// Print the prototype of a helper.
 static void printHelperPrototype(const llvm::Function *Func,
                                  ptml::CTypeBuilder &B) {
   B.append(getReturnTypeReferenceTag(Func, B) + " "
