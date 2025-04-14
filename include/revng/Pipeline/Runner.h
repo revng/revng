@@ -212,6 +212,8 @@ public:
   }
   llvm::Error storeStepToDisk(llvm::StringRef StepName,
                               const revng::DirectoryPath &DirPath) const;
+  llvm::Error loadContextDirectory(const revng::DirectoryPath &);
+  llvm::Error loadContainers(const revng::DirectoryPath &);
   llvm::Error load(const revng::DirectoryPath &DirPath);
 
   std::vector<revng::FilePath>

@@ -232,16 +232,28 @@ Error Runner::storeStepToDisk(llvm::StringRef StepName,
   return Error::success();
 }
 
-Error Runner::load(const revng::DirectoryPath &DirPath) {
+Error Runner::loadContextDirectory(const revng::DirectoryPath &DirPath) {
   revng::DirectoryPath ContextDir = DirPath.getDirectory("context");
   if (auto Error = TheContext->load(ContextDir); !!Error)
     return Error;
+  return llvm::Error::success();
+}
 
+Error Runner::loadContainers(const revng::DirectoryPath &DirPath) {
   for (auto &Step : Steps) {
     revng::DirectoryPath StepDir = DirPath.getDirectory(Step.first());
     if (auto Error = Step.second.load(StepDir); !!Error)
       return Error;
   }
+  return llvm::Error::success();
+}
+
+Error Runner::load(const revng::DirectoryPath &DirPath) {
+  if (auto Error = loadContextDirectory(DirPath); !!Error)
+    return Error;
+
+  if (auto Error = loadContainers(DirPath); !!Error)
+    return Error;
 
   return Error::success();
 }
