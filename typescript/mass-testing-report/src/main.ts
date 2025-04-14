@@ -80,6 +80,11 @@ function percent(num: any, total: any): string {
     return `${truncate((num * 100) / total, 2)}%`;
 }
 
+// Given a number, pad it with the desired leading zeros
+function padNumber(num: number, amount: number): string {
+    return `${num}`.padStart(amount, "0");
+}
+
 // Helper function that creates an element and adds it as a child to a parent
 function createAndAppend<T = HTMLElement>(elem: Element, type: string): T {
     return elem.appendChild(document.createElement(type)) as T;
@@ -234,12 +239,9 @@ function formatTime(elapsedSeconds: number, showHours: boolean): string {
     } else {
         minutes = Math.floor(elapsedSeconds / 60);
     }
-    let res = `${truncate(seconds, 3)}`;
-    if (minutes > 0) {
-        res = `${minutes}:${res}`;
-    }
-    if (hours > 0) {
-        res = `${hours}:${res}`;
+    let res = padNumber(minutes, 2) + ":" + padNumber(truncate(seconds, 3), 2);
+    if (showHours) {
+        res = padNumber(hours, 2) + ":" + res;
     }
     return res;
 }
