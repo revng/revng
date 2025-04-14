@@ -15,6 +15,7 @@
 #include "revng/PipelineC/PipelineC.h"
 #include "revng/PipelineC/Tracing/Common.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/Chrono.h"
 
 #include "Types.h"
 
@@ -73,7 +74,7 @@ public:
 public:
   void functionPrelude(const llvm::StringRef Name) {
     OS << "- ID: " << ID++ << "\n";
-    OS << "  StartTime: " << getUnixMillis() << "\n";
+    OS << "  StartTime: " << revng::getEpochInMilliseconds() << "\n";
     OS << "  Name: " << Name << "\n";
     OS << "  Arguments:\n";
     OutputtingArguments = true;
@@ -187,7 +188,7 @@ public:
     } else {
       printValue(ReturnValue...);
     }
-    OS << "  EndTime: " << getUnixMillis() << "\n";
+    OS << "  EndTime: " << revng::getEpochInMilliseconds() << "\n";
     OS.flush();
   }
 
@@ -200,13 +201,6 @@ private:
 
   std::string reprString(const char *String) {
     return '"' + llvm::yaml::escape(String) + '"';
-  }
-
-  // Returns the number of milliseconds since epoch
-  static uint64_t getUnixMillis() {
-    namespace sc = std::chrono;
-    auto Now = sc::system_clock::now().time_since_epoch();
-    return sc::duration_cast<std::chrono::milliseconds>(Now).count();
   }
 };
 

@@ -60,4 +60,13 @@ inline std::string unwrapError(llvm::Error &&Error) {
   return Result;
 }
 
+template<std::same_as<llvm::Error>... T>
+inline llvm::Error joinErrors(llvm::Error &&Error, T &&...Errors) {
+  static_assert(sizeof...(Errors) > 0);
+  if constexpr (sizeof...(Errors) == 1)
+    return llvm::joinErrors(std::move(Error), std::move(Errors)...);
+  else
+    return llvm::joinErrors(std::move(Error), joinErrors(std::move(Errors)...));
+}
+
 } // namespace revng
