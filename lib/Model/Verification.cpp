@@ -518,6 +518,22 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                         "wrap it in a `struct` type instead.",
                         T);
 
+    // Only check for pointers without unwrapping typedefs, because there
+    // isn't any valid syntax to return pointers to arrays in C without using
+    // typedefs.
+    if (const auto *Pointer = dyn_cast<model::PointerType>(&*T.ReturnType())) {
+      while (Pointer) {
+        const model::Type &Pointee = *Pointer->PointeeType();
+        if (isa<model::ArrayType>(Pointee)) {
+          rc_return VH.fail("Pointer-to-array return value is not allowed in "
+                            "CABI functions, wrap the array in a `struct` "
+                            "type instead.",
+                            T);
+        }
+        Pointer = dyn_cast<model::PointerType>(&Pointee);
+      }
+    }
+
     if (not rc_recur T.ReturnType()->size(VH))
       rc_return VH.fail("Return value has no size", T);
   }
