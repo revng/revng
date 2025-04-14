@@ -31,6 +31,9 @@ class Synchronizer(Protocol):
     def save_exceptions(self) -> tuple[type[Exception], ...]:
         ...
 
+    def get_initial_credentials(self) -> str:
+        ...
+
     def set_credentials(self, credentials: str):
         ...
 
@@ -108,11 +111,11 @@ S3_URL = re.compile(
 
 class S3Synchronizer(Synchronizer):
     def __init__(self, url: str):
-        self.credentials: str | None = None
         match_obj = S3_URL.match(url)
         if match_obj is None:
             raise ValueError("S3 endpoint invalid")
 
+        self.initial_credentials: str = f'{match_obj["username"]}:{match_obj["password"]}'
         self.botocore_session = BotocoreSession()
         self.botocore_session.set_credentials(match_obj["username"], match_obj["password"])
         config = botocore.config.Config(s3={"addressing_style": "path"})
@@ -239,6 +242,9 @@ class S3Synchronizer(Synchronizer):
     def _generate_filename(filename: str) -> str:
         filename_path = Path(filename)
         return str(filename_path.parent / f"{uuid4()}-{filename_path.name}")
+
+    def get_initial_credentials(self) -> str:
+        return self.initial_credentials
 
     def set_credentials(self, credentials: str):
         access_key, secret_key = credentials.split(":", 1)

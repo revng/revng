@@ -46,7 +46,7 @@ class StorageSaver(Thread):
         self.directory_list: list[str] = []
         # Credentials captured by `set_credentials`, will be passed to
         # `save_hooks` when calling them
-        self.credentials = ""
+        self.credentials = synchronizer.get_initial_credentials()
 
     def more_work(self) -> bool:
         with self.lock:
