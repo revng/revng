@@ -79,21 +79,6 @@ public:
   static DependencyGraph make(const TypeVector &TV);
 
 public:
-  /// Get the declaration node associated to \p Definition.
-  /// Asserts if \p Definition is not a definition node.
-  const TypeDependencyNode *
-  getDeclaration(const model::TypeDefinition *TD) const {
-    return TypeToNodes.at(TD).Declaration;
-  }
-
-  /// Get the definition node associated to \p Declaration.
-  /// Asserts if \p Declaration is not a declaration node.
-  const TypeDependencyNode *
-  getDefinition(const model::TypeDefinition *TD) const {
-    return TypeToNodes.at(TD).Definition;
-  }
-
-public:
   /// Helper debug method. It visualizes the DependencyGraph, invoking xdot.
   void viewGraph() const debug_function;
 };
