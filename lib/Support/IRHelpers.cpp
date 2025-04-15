@@ -7,6 +7,8 @@
 
 #include <fstream>
 
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -602,4 +604,70 @@ bool deleteOnlyBody(llvm::Function &F) {
     Result = true;
   }
   return Result;
+}
+
+void sortModule(llvm::Module &M) {
+  auto CompareByName = [](const auto *LHS, const auto *RHS) {
+    return LHS->getName() < RHS->getName();
+  };
+
+  //
+  // Reorder global variables
+  //
+  std::vector<llvm::GlobalVariable *> Globals;
+  for (auto &Global : M.globals())
+    Globals.push_back(&Global);
+
+  for (auto *Global : Globals)
+    Global->removeFromParent();
+
+  llvm::sort(Globals, CompareByName);
+
+  for (auto *Global : Globals)
+    M.getGlobalList().push_back(Global);
+
+  //
+  // Reorder functions
+  //
+  std::vector<llvm::Function *> Functions;
+  for (llvm::Function &F : M.functions())
+    Functions.push_back(&F);
+
+  for (llvm::Function *F : Functions)
+    F->removeFromParent();
+
+  std::sort(Functions.begin(), Functions.end(), CompareByName);
+
+  for (llvm::Function *F : Functions)
+    M.getFunctionList().push_back(F);
+
+  //
+  // Reorder basic blocks
+  //
+  for (llvm::Function *F : Functions) {
+    if (F->isDeclaration() || F->empty())
+      continue;
+
+    llvm::BasicBlock *EntryBlock = &F->getEntryBlock();
+    auto RPOT = llvm::ReversePostOrderTraversal(EntryBlock);
+
+    llvm::SetVector<llvm::BasicBlock *> SortedBlocks;
+
+    // Collect blocks in reverse port-order
+    for (auto *BB : RPOT)
+      SortedBlocks.insert(BB);
+
+    // Collect blocks left out
+    for (auto &BB : *F)
+      if (not SortedBlocks.contains(&BB))
+        SortedBlocks.insert(&BB);
+
+    // Purge all the blocks from the function
+    while (!F->empty())
+      F->begin()->removeFromParent();
+
+    // Re-add blocks in the correct order
+    for (auto *BB : SortedBlocks)
+      BB->insertInto(F);
+  }
 }

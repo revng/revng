@@ -6,6 +6,7 @@
 
 #include "revng/Lift/Lift.h"
 #include "revng/Support/CommandLine.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/ResourceFinder.h"
 
 #include "CodeGenerator.h"
@@ -142,6 +143,8 @@ bool LiftPass::runOnModule(llvm::Module &M) {
     EntryPointAddressOptional = EntryPointAddress;
   T.advance("Translate", true);
   Generator.translate(EntryPointAddressOptional);
+
+  sortModule(M);
 
   return false;
 }

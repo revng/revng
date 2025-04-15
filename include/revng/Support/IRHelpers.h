@@ -1502,3 +1502,5 @@ public:
     }
   }
 };
+
+void sortModule(llvm::Module &M);

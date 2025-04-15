@@ -2610,7 +2610,7 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
   LLVMContext &Context = M.getContext();
   Function *F = LoadToFix->getFunction();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
-  BasicBlock *CaseBlock = BasicBlock::Create(Context, "CaseInLoad", F);
+  BasicBlock *CaseBlock = BasicBlock::Create(Context, {}, F);
   Builder.SetInsertPoint(CaseBlock);
   BranchInst *Break = Builder.CreateBr(NextBB);
 
@@ -2670,7 +2670,7 @@ void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
   LLVMContext &Context = M.getContext();
   Function *F = StoreToFix->getFunction();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
-  BasicBlock *CaseBlock = BasicBlock::Create(Context, "CaseInStore");
+  BasicBlock *CaseBlock = BasicBlock::Create(Context, {});
   CaseBlock->insertInto(F);
   Builder.SetInsertPoint(CaseBlock);
   BranchInst *Break = Builder.CreateBr(NextBB);
@@ -2938,7 +2938,7 @@ void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
     }
 
     // Create the default BB for the switch, calling revng_abort()
-    BasicBlock *Default = BasicBlock::Create(Context, "DefaultInAccess", F);
+    BasicBlock *Default = BasicBlock::Create(Context, {}, F);
     Builder.SetInsertPoint(Default);
     CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
     auto UnexpectedInMDKind = Context.getMDKindID("revng.csaa.unexpected.in."
