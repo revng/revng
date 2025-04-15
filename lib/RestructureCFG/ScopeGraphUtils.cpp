@@ -169,8 +169,7 @@ BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
   Builder.CreateBr(Target);
 
   // Insert the `goto_block` marker in the `ScopeGraph`
-  ScopeGraphBuilder SGBuilder(F);
-  SGBuilder.makeGoto(GotoBlock);
+  makeGoto(GotoBlock);
 
   // Redirect all the edges `Source` -> `Target` to `Source` -> `GotoBlock`
   auto SourceTerminator = Source->getTerminator();
