@@ -4,6 +4,7 @@
 
 #include "llvm/ADT/PostOrderIterator.h"
 
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Support/Annotations.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 
@@ -157,15 +158,21 @@ void ptml::CTypeBuilder::printDeclaration(const TD &Typedef) {
 /// Generate the definition of a new struct type that wraps all the return
 /// values of \a F. The name of the struct type is provided by the caller.
 using RFT = model::RawFunctionDefinition;
-void ptml::CTypeBuilder::generateReturnValueWrapper(const RFT &F) {
-  revng_assert(F.ReturnValues().size() > 1);
+void ptml::CTypeBuilder::printReturnTypeWrapperDefinition(const RFT &F) {
 
-  std::string Result = getWrapperStructComment(F)
-                       + getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
-                       + getKeyword(ptml::CBuilder::Keyword::Struct) + " "
-                       + ptml::AttributeRegistry::getAttribute<"_PACKED">()
-                       + " ";
-  *Out << getReturnValueTag(std::move(Result), F);
+  using abi::FunctionType::Layout;
+  auto TheLayout = Layout::make(F);
+  using namespace abi::FunctionType::ReturnMethod;
+  revng_assert(TheLayout.returnMethod() == RegisterSet);
+
+  std::string StructLine = getWrapperStructComment(F)
+                           + getKeyword(ptml::CBuilder::Keyword::Struct) + " "
+                           + ptml::AttributeRegistry::getAttribute<"_PACKED">()
+                           + " ";
+
+  StructLine += getArtificialStructTag</*IsDefinition*/ true>(F) + " ";
+
+  *Out << getReturnValueTag(std::move(StructLine), F);
 
   {
     Scope Scope(*Out, ptml::c::scopes::StructBody);
@@ -179,24 +186,30 @@ void ptml::CTypeBuilder::generateReturnValueWrapper(const RFT &F) {
     }
   }
 
-  *Out << " " << getReturnValueTag(getArtificialStructTag<true>(F), F) << ";\n";
+  *Out << ";\n";
 }
 
-/// If the function has more than one return value, generate a wrapper struct
-/// that contains them.
-void ptml::CTypeBuilder::printFunctionWrappers(const RFT &F) {
-  if (F.ReturnValues().size() > 1)
-    generateReturnValueWrapper(F);
+/// Generate the definition of a new struct type that wraps all the return
+/// values of \a F. The name of the struct type is provided by the caller.
+using RFT = model::RawFunctionDefinition;
+void ptml::CTypeBuilder::printReturnTypeWrapperDeclaration(const RFT &F) {
 
-  for (auto &Arg : F.Arguments())
-    revng_assert(Arg.Type()->isScalar());
+  using abi::FunctionType::Layout;
+  auto TheLayout = Layout::make(F);
+  using namespace abi::FunctionType::ReturnMethod;
+  revng_assert(TheLayout.returnMethod() == RegisterSet);
+
+  auto TypeNameReference = getArtificialStructTag</*IsDefinition*/ false>(F);
+
+  *Out << getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
+       << getKeyword(ptml::CBuilder::Keyword::Struct) + " "
+       << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
+       << TypeNameReference << " " << TypeNameReference << ";\n";
 }
 
 /// Print a typedef for a RawFunctionDefinition, that can be used when you have
 /// a variable that is a pointer to a function.
 void ptml::CTypeBuilder::printDeclaration(const RFT &F) {
-  printFunctionWrappers(F);
-
   *Out << getCommentableTag(getModelCommentWithoutLeadingNewline(F)
                               + getKeyword(ptml::CBuilder::Keyword::Typedef)
                               + " ",
@@ -299,34 +312,31 @@ void ptml::CTypeBuilder::printTypeDefinitions() {
       LoggerIndent PostOrderIndent{ TypePrinterLog };
       revng_log(TypePrinterLog, "post_order visiting: " << getNodeLabel(Node));
 
-      const model::TypeDefinition *NodeT = Node->T;
-      const auto DeclKind = Node->K;
-
-      if (Configuration.TypesToOmit.contains(NodeT->key())) {
+      const model::TypeDefinition *TypeDefinition = Node->T;
+      if (Configuration.TypesToOmit.contains(TypeDefinition->key())) {
         revng_log(TypePrinterLog, "Omitted");
         continue;
       }
 
-      constexpr auto Declaration = TypeNode::Kind::Declaration;
-
-      if (DeclKind == Declaration) {
-        revng_log(TypePrinterLog, "Declaration");
-
-        // Print the declaration. Notice that the forward declarations are
-        // emitted even for inlined types, because it's only the full definition
-        // that will be inlined.
-        printDeclaration(*NodeT);
-
-      } else {
-        revng_log(TypePrinterLog, "Definition");
-
-        revng_assert(Defined.contains(DependencyCache->getDeclaration(NodeT)));
-        if (isDeclarationTheSameAsDefinition(*NodeT)) {
-          continue;
+      if (Node->isArtificial()) {
+        auto *RF = llvm::cast<model::RawFunctionDefinition>(TypeDefinition);
+        if (Node->isDeclaration()) {
+          revng_log(TypePrinterLog, "ArtificialDeclaration");
+          printReturnTypeWrapperDeclaration(*RF);
+        } else {
+          revng_log(TypePrinterLog, "ArtificialDefinition");
+          printReturnTypeWrapperDefinition(*RF);
         }
-
-        revng_log(TypePrinterLog, "printDefinition");
-        printDefinition(*NodeT);
+      } else {
+        if (Node->isDeclaration()) {
+          revng_log(TypePrinterLog, "Declaration");
+          printDeclaration(*TypeDefinition);
+        } else {
+          revng_log(TypePrinterLog, "Definition");
+          revng_assert(Node->isDefinition());
+          revng_assert(not isDeclarationTheSameAsDefinition(*TypeDefinition));
+          printDefinition(*TypeDefinition);
+        }
       }
 
       *Out << "\n";

@@ -789,8 +789,12 @@ public:
   }
 
   /// Generates the definition of a new struct type that wraps all the return
-  /// values of \a F.
-  void generateReturnValueWrapper(const model::RawFunctionDefinition &F);
+  /// values of \a F. F must return a set of registers.
+  void printReturnTypeWrapperDefinition(const model::RawFunctionDefinition &F);
+
+  /// Generates the forward declaration of a struct type that wraps all the
+  /// return values of \a F. F must return a set of registers.
+  void printReturnTypeWrapperDeclaration(const model::RawFunctionDefinition &F);
 
   void printFunctionWrappers(const model::RawFunctionDefinition &F);
 
