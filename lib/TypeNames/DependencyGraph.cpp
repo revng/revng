@@ -115,9 +115,16 @@ private:
   /// represent the declaration and definition of \p T.
   void addDependencies(const model::TypeDefinition &T) const;
 
+  /// Add all the necessary dependencies edges from the \p Dependent to the
+  /// nodes associated with the \p DependedOn type.
   void addDependenciesFrom(const AssociatedNodes Dependent,
                            const model::Type &DependedOn) const;
 
+  /// Given a model::RawFunctionDefinition \p RFD returning a RegisterSet
+  /// declaration, adds a definition node for an artificial struct wrapper
+  /// whose fields are all the return register types, along with all the
+  /// necessary dependency edges to the wrapped types.
+  /// \returns the AssociatedNodes of the wrapper.
   AssociatedNodes
   addRFTReturnWrapper(const model::RawFunctionDefinition &RFD) const;
 };
