@@ -427,7 +427,8 @@ end:
                                aI64(6),
                                aI64(7),
                                aI64(8),
-                               aI64(9) } } });
+                               aI64(9),
+                               aI64(10) } } });
 }
 
 BOOST_AUTO_TEST_CASE(TestMemory) {
