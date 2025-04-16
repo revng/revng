@@ -338,7 +338,7 @@ DistributedValue ReturnValueDistributor::returnValue(const model::Type &Type) {
 
   uint64_t Limit = 0;
   std::span<const model::Register::Values> RegisterList;
-  if (Type.isFloatPrimitive() && ABI.FloatsUseGPRs()) {
+  if (Type.isFloatPrimitive() and not ABI.FloatsUseGPRs()) {
     RegisterList = ABI.VectorReturnValueRegisters();
 
     // For now replace unsupported floating point return values with `void`
