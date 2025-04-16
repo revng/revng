@@ -826,7 +826,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     auto *StructTy = cast<llvm::StructType>(Call->getType());
     revng_assert(Call->getFunction()->getReturnType() == StructTy);
     revng_assert(LLVMFunction.getReturnType() == StructTy);
-    auto StrucTypeName = B.getNamedInstanceOfReturnType(Prototype, "", false);
+    auto StrucTypeName = B.getNamedInstanceOfReturnType(Prototype, "");
     std::string StructInit = addAlwaysParentheses(StrucTypeName);
 
     // Emit RHS
@@ -1558,7 +1558,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         const auto *Prototype = getCallSitePrototype(Model, VarDeclCall);
         revng_assert(Prototype != nullptr);
 
-        auto Named = B.getNamedInstanceOfReturnType(*Prototype, VarName, false);
+        auto Named = B.getNamedInstanceOfReturnType(*Prototype, VarName);
         B.append(Named + ";\n");
       } else {
         revng_assert(not VarDeclCall->getType()->isAggregateType());

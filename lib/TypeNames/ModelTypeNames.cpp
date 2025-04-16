@@ -152,8 +152,7 @@ std::string PCTB::getNamedCInstance(const model::Type &Type,
 
 std::string
 PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
-                                   llvm::StringRef InstanceName,
-                                   bool IsDefinition) const {
+                                   llvm::StringRef InstanceName) const {
   std::string Suffix = "";
   if (not InstanceName.empty())
     Suffix.append(" " + InstanceName.str());
@@ -249,7 +248,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
   if (Function and not Function->Attributes().empty())
     Result += getFunctionAttributesString(Function->Attributes());
   Result += (SingleLine ? " " : "\n");
-  Result += B.getNamedInstanceOfReturnType(RF, FunctionName, false);
+  Result += B.getNamedInstanceOfReturnType(RF, FunctionName);
 
   if (RF.Arguments().empty() and RF.StackArgumentsType().isEmpty()) {
     Result += "(" + B.getVoidTag() + ")";
@@ -307,7 +306,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
   if (Function and not Function->Attributes().empty())
     Result += getFunctionAttributesString(Function->Attributes());
   Result += (SingleLine ? " " : "\n");
-  Result += B.getNamedInstanceOfReturnType(CF, FunctionName, false);
+  Result += B.getNamedInstanceOfReturnType(CF, FunctionName);
 
   if (CF.Arguments().empty()) {
     Result += "(" + B.getVoidTag() + ")";

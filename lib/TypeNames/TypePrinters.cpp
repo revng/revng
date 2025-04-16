@@ -190,7 +190,7 @@ void ptml::CTypeBuilder::generateReturnValueWrapper(const RFT &F) {
     }
   }
 
-  *Out << " " << getReturnTypeName(F, true) << ";\n";
+  *Out << " " << getReturnValueTag(getArtificialStructTag<true>(F), F) << ";\n";
 }
 
 /// If the function has more than one return value, generate a wrapper struct
