@@ -20,45 +20,45 @@ using namespace llvm;
 // Debug logger
 Logger<> DAGifyPassLogger("dagify");
 
-/// Helper function which transform a retreating edge into a `goto` edge
-static void processRetreating(const revng::detail::EdgeDescriptor<BasicBlock *>
-                                &RetreatingEdge) {
-  BasicBlock *Source = RetreatingEdge.first;
-  BasicBlock *Target = RetreatingEdge.second;
-  revng_log(DAGifyPassLogger,
-            "Found retreating " << Source->getName().str() << " -> "
-                                << Target->getName().str() << "\n");
-
-  Function *F = Source->getParent();
-
-  // We should not insert a `goto` in a block already containing a
-  // `goto_block` marker
-  revng_assert(not isGotoBlock(Source));
-
-  // It must be that `Target` is a successor in the `Terminator` of `Source,`
-  // and should not be the additional, optional and unique successor
-  // representing the `scope_closer` edge, since we are not able to handle it
-  // with the following code. In principle we may support this situation, but we
-  // have now an invariant of the `ScopeGraph` which states that
-  // `scope_closer` edges should not happen to be retreating edges. This
-  // is due to the guarantee we have in how we insert such edges in all
-  // the passes of our pipeline.
-  revng_assert(llvm::any_of(graph_successors(Source),
-                            [&Target](const auto &Elem) {
-                              return Elem == Target;
-                            }));
-
-  ScopeGraphBuilder SGBuilder(F);
-  SGBuilder.makeGotoEdge(Source, Target);
-}
-
 class DAGifyPassImpl {
   Function &F;
+  const ScopeGraphBuilder SGBuilder;
 
 public:
-  DAGifyPassImpl(Function &F) : F(F) {}
+  DAGifyPassImpl(Function &F) : F(F), SGBuilder(&F) {}
 
 public:
+  /// Helper function which transform a retreating edge into a `goto` edge
+  void processRetreating(const revng::detail::EdgeDescriptor<BasicBlock *>
+                           &RetreatingEdge) {
+    BasicBlock *Source = RetreatingEdge.first;
+    BasicBlock *Target = RetreatingEdge.second;
+    revng_log(DAGifyPassLogger,
+              "Found retreating " << Source->getName().str() << " -> "
+                                  << Target->getName().str() << "\n");
+
+    Function *F = Source->getParent();
+
+    // We should not insert a `goto` in a block already containing a
+    // `goto_block` marker
+    revng_assert(not isGotoBlock(Source));
+
+    // It must be that `Target` is a successor in the `Terminator` of `Source,`
+    // and should not be the additional, optional and unique successor
+    // representing the `scope_closer` edge, since we are not able to handle it
+    // with the following code. In principle we may support this situation, but
+    // we have now an invariant of the `ScopeGraph` which states that
+    // `scope_closer` edges should not happen to be retreating edges. This
+    // is due to the guarantee we have in how we insert such edges in all
+    // the passes of our pipeline.
+    revng_assert(llvm::any_of(graph_successors(Source),
+                              [&Target](const auto &Elem) {
+                                return Elem == Target;
+                              }));
+
+    SGBuilder.makeGotoEdge(Source, Target);
+  }
+
   bool run() {
 
     // Build the `ScopeGraph` on which the `GenericRegionInfo` analysis should
