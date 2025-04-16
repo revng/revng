@@ -11,9 +11,9 @@
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/HeadersGeneration/Options.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
+#include "revng/PTML/CBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Support/GzipTarFile.h"
-#include "revng/Support/PTMLC.h"
 #include "revng/Support/ResourceFinder.h"
 
 namespace revng::pipes {

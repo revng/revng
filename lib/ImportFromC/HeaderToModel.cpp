@@ -8,10 +8,10 @@
 
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/Model/Processing.h"
+#include "revng/PTML/CBuilder.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/Annotations.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/PTMLC.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 
 #include "HeaderToModel.h"

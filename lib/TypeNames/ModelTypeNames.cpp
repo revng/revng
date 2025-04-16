@@ -19,6 +19,7 @@
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/RawFunctionDefinition.h"
+#include "revng/PTML/CBuilder.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
@@ -26,7 +27,6 @@
 #include "revng/Support/Annotations.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
-#include "revng/Support/PTMLC.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 

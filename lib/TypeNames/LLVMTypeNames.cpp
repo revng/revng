@@ -10,11 +10,11 @@
 #include "llvm/IR/Type.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/PTML/CBuilder.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
-#include "revng/Support/PTMLC.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 
