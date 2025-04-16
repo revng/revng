@@ -747,6 +747,23 @@ public:
     return ptml::commentWithoutLeadingNewline(*this, T, "///", 0, Width);
   }
 
+  std::string
+  getWrapperStructComment(const model::RawFunctionDefinition &Function) const {
+    const model::Configuration &Configuration = Binary.Configuration();
+    uint64_t LineWidth = Configuration.commentLineWidth();
+
+    // TODO: do not rely on `Out`'s indentation, since there's no guarantee it's
+    //       the same stream (even if it usually is).
+    uint64_t Width = LineWidth - Out->currentIndentation();
+
+    return ptml::freeFormComment(*this,
+                                 Function.ReturnValueComment(),
+                                 "///",
+                                 0,
+                                 Width,
+                                 false);
+  }
+
   std::string getFunctionComment(const model::Function &Function) const {
     const model::Configuration &Configuration = Binary.Configuration();
     uint64_t LineWidth = Configuration.commentLineWidth();
