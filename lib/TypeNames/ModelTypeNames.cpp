@@ -407,17 +407,15 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition
 }
 
 void ptml::CTypeBuilder::printSegmentType(const model::Segment &Segment) {
-  *Out << "\n" << getModelCommentWithoutLeadingNewline(Segment);
-
-  std::string Result;
+  std::string Result = "\n" + getModelCommentWithoutLeadingNewline(Segment);
   if (not Segment.Type().isEmpty()) {
-    Result = getNamedCInstance(*Segment.Type(), getDefinitionTag(Segment));
+    Result += getNamedCInstance(*Segment.Type(), getDefinitionTag(Segment));
 
   } else {
     // If the segment has no type, emit it as an array of bytes.
     auto Array = model::ArrayType::make(model::PrimitiveType::makeGeneric(1),
                                         Segment.VirtualSize());
-    Result = getNamedCInstance(*Array, getDefinitionTag(Segment));
+    Result += getNamedCInstance(*Array, getDefinitionTag(Segment));
   }
 
   *Out << getCommentableTag(std::move(Result) + ";\n", Binary, Segment);
