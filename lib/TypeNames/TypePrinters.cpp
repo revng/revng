@@ -30,23 +30,22 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::EnumDefinition &E,
 
   std::string UndTag = getReferenceTag(E.underlyingType());
   auto U = ptml::AttributeRegistry::getAnnotation<"_ENUM_UNDERLYING">(UndTag);
-  std::string EnumLine = getKeyword(ptml::CBuilder::Keyword::Enum) + " " + U
+  std::string EnumLine = getModelCommentWithoutLeadingNewline(E)
+                         + getKeyword(ptml::CBuilder::Keyword::Enum) + " " + U
                          + " "
                          + ptml::AttributeRegistry::getAttribute<"_PACKED">()
                          + " " + getDefinitionTag(E) + " ";
-  *Out << getModelCommentWithoutLeadingNewline(E)
-       << getCommentableTag(std::move(EnumLine), E);
+  *Out << getCommentableTag(std::move(EnumLine), E);
 
   {
     Scope Scope(*Out);
 
     using COperator = ptml::CBuilder::Operator;
     for (const auto &Entry : E.Entries()) {
-      std::string Result = getDefinitionTag(E, Entry) + " "
-                           + getOperator(COperator::Assign) + " "
+      std::string Result = getModelComment(Entry) + getDefinitionTag(E, Entry)
+                           + " " + getOperator(COperator::Assign) + " "
                            + getHex(Entry.Value()) + ',';
-      *Out << getModelComment(Entry)
-           << getCommentableTag(std::move(Result), E, Entry) << '\n';
+      *Out << getCommentableTag(std::move(Result), E, Entry) << '\n';
     }
 
     if (Configuration.EnablePrintingOfTheMaximumEnumValue) {
@@ -83,7 +82,8 @@ void ptml::CTypeBuilder::printPadding(uint64_t FieldOffset,
 void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
                                              std::string &&Suffix) {
 
-  std::string StructLine = getKeyword(ptml::CBuilder::Keyword::Struct) + " "
+  std::string StructLine = getModelCommentWithoutLeadingNewline(S)
+                           + getKeyword(ptml::CBuilder::Keyword::Struct) + " "
                            + ptml::AttributeRegistry::getAttribute<"_PACKED">()
                            + " ";
 
@@ -97,8 +97,7 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
 
   StructLine += getDefinitionTag(S) + " ";
 
-  *Out << getModelCommentWithoutLeadingNewline(S)
-       << getCommentableTag(std::move(StructLine), S);
+  *Out << getCommentableTag(std::move(StructLine), S);
 
   {
     Scope Scope(*Out, ptml::c::scopes::StructBody);
@@ -110,9 +109,9 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
       auto *Definition = Field.Type()->skipToDefinition();
       if (not Definition or not shouldInline(*Definition)) {
         auto F = getDefinitionTag(S, Field);
-        std::string Result = getNamedCInstance(*Field.Type(), F) + ';';
-        *Out << getModelComment(Field)
-             << getCommentableTag(std::move(Result), S, Field) << '\n';
+        std::string Result = getModelComment(Field)
+                             + getNamedCInstance(*Field.Type(), F) + ';';
+        *Out << getCommentableTag(std::move(Result), S, Field) << '\n';
 
       } else {
         printInlineDefinition(NameBuilder.name(S, Field), *Field.Type());
@@ -130,11 +129,11 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::StructDefinition &S,
 
 void ptml::CTypeBuilder::printTypeDefinition(const model::UnionDefinition &U,
                                              std::string &&Suffix) {
-  std::string UnionLine = getKeyword(ptml::CBuilder::Keyword::Union) + " "
+  std::string UnionLine = getModelCommentWithoutLeadingNewline(U)
+                          + getKeyword(ptml::CBuilder::Keyword::Union) + " "
                           + ptml::AttributeRegistry::getAttribute<"_PACKED">()
                           + " " + getDefinitionTag(U) + " ";
-  *Out << getModelCommentWithoutLeadingNewline(U)
-       << getCommentableTag(std::move(UnionLine), U);
+  *Out << getCommentableTag(std::move(UnionLine), U);
 
   {
     Scope Scope(*Out, ptml::c::scopes::UnionBody);
@@ -142,9 +141,9 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::UnionDefinition &U,
       auto *Definition = Field.Type()->skipToDefinition();
       if (not Definition or not shouldInline(*Definition)) {
         auto F = getDefinitionTag(U, Field);
-        std::string Result = getNamedCInstance(*Field.Type(), F) + ';';
-        *Out << getModelComment(Field)
-             << getCommentableTag(std::move(Result), U, Field) << '\n';
+        std::string Result = getModelComment(Field)
+                             + getNamedCInstance(*Field.Type(), F) + ';';
+        *Out << getCommentableTag(std::move(Result), U, Field) << '\n';
 
       } else {
         printInlineDefinition(NameBuilder.name(U, Field), *Field.Type());
@@ -157,14 +156,13 @@ void ptml::CTypeBuilder::printTypeDefinition(const model::UnionDefinition &U,
 
 using TD = model::TypedefDefinition;
 void ptml::CTypeBuilder::printTypeDeclaration(const TD &Typedef) {
+  std::string TypedefString;
   if (isDeclarationTheSameAsDefinition(Typedef))
-    *Out << getModelCommentWithoutLeadingNewline(Typedef);
+    TypedefString = getModelCommentWithoutLeadingNewline(Typedef);
 
   auto Type = getDefinitionTag(Typedef);
-  std::string TypedefString = getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
-                              + getNamedCInstance(*Typedef.UnderlyingType(),
-                                                  Type)
-                              + ';';
+  TypedefString += getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
+                   + getNamedCInstance(*Typedef.UnderlyingType(), Type) + ';';
 
   *Out << getCommentableTag(std::move(TypedefString), Typedef) << '\n';
 }
@@ -174,9 +172,12 @@ void ptml::CTypeBuilder::printTypeDeclaration(const TD &Typedef) {
 using RFT = model::RawFunctionDefinition;
 void ptml::CTypeBuilder::generateReturnValueWrapper(const RFT &F) {
   revng_assert(F.ReturnValues().size() > 1);
-  *Out << getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
-       << getKeyword(ptml::CBuilder::Keyword::Struct) << " "
-       << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " ";
+
+  std::string Result = getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
+                       + getKeyword(ptml::CBuilder::Keyword::Struct) + " "
+                       + ptml::AttributeRegistry::getAttribute<"_PACKED">()
+                       + " ";
+  *Out << getReturnValueTag(std::move(Result), F);
 
   {
     Scope Scope(*Out, ptml::c::scopes::StructBody);
@@ -208,8 +209,10 @@ void ptml::CTypeBuilder::printFunctionWrappers(const RFT &F) {
 void ptml::CTypeBuilder::printTypeDeclaration(const RFT &F) {
   printFunctionWrappers(F);
 
-  *Out << getModelCommentWithoutLeadingNewline(F)
-       << getKeyword(ptml::CBuilder::Keyword::Typedef) << " ";
+  *Out << getCommentableTag(getModelCommentWithoutLeadingNewline(F)
+                              + getKeyword(ptml::CBuilder::Keyword::Typedef)
+                              + " ",
+                            F);
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
   printFunctionPrototype(F);
@@ -257,8 +260,10 @@ void ptml::CTypeBuilder::printFunctionWrappers(const CFT &F) {
 void ptml::CTypeBuilder::printTypeDeclaration(const CFT &F) {
   printFunctionWrappers(F);
 
-  *Out << getModelCommentWithoutLeadingNewline(F)
-       << getKeyword(ptml::CBuilder::Keyword::Typedef) << " ";
+  *Out << getCommentableTag(getModelCommentWithoutLeadingNewline(F)
+                              + getKeyword(ptml::CBuilder::Keyword::Typedef)
+                              + " ",
+                            F);
 
   // In this case, we are defining a type for the function, not the function
   // itself, so the token right before the parenthesis is the name of the type.
