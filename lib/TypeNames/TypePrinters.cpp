@@ -173,7 +173,8 @@ using RFT = model::RawFunctionDefinition;
 void ptml::CTypeBuilder::generateReturnValueWrapper(const RFT &F) {
   revng_assert(F.ReturnValues().size() > 1);
 
-  std::string Result = getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
+  std::string Result = getWrapperStructComment(F)
+                       + getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
                        + getKeyword(ptml::CBuilder::Keyword::Struct) + " "
                        + ptml::AttributeRegistry::getAttribute<"_PACKED">()
                        + " ";
