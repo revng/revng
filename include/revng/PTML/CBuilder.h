@@ -16,10 +16,9 @@
 #include "revng/PTML/Doxygen.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/PTML/Tag.h"
+#include "revng/PTML/TokenDefinitions.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
-#include "revng/Support/PTML.h"
-#include "revng/Support/TokenDefinitions.h"
 
 namespace ptml {
 

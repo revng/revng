@@ -7,7 +7,7 @@
 #include "llvm/ADT/ScopeExit.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Support/PTMLC.h"
+#include "revng/PTML/CBuilder.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
 

@@ -7,7 +7,7 @@
 #include "revng/Backend/DecompiledCCodeIndentation.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/PrimitiveType.h"
-#include "revng/Support/PTMLC.h"
+#include "revng/PTML/CBuilder.h"
 #include "revng/TypeNames/DependencyGraph.h"
 
 namespace ptml {
