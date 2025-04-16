@@ -392,7 +392,10 @@ export function makeDiffSubtree(
                 result.push(new Diff(`${prefix}/${key}`, undefined, obj_old[key].toJSON()));
             } else if (obj_old[key] === undefined && obj_new[key] === undefined) {
                 // No changes, do nothing
-            } else if (infoObject[key].ctor == "native" && !infoObject[key].isArray) {
+            } else if (
+                (infoObject[key].ctor == "native" || infoObject[key].ctor == "enum") &&
+                !infoObject[key].isArray
+            ) {
                 if (obj_old[key] !== obj_new[key]) {
                     result.push(
                         new Diff(key_prefix, obj_new[key].toString(), obj_old[key].toString())
