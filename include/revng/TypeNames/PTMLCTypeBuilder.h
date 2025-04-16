@@ -814,13 +814,7 @@ public:
   ///       will be returned instead.
   std::string
   getNamedInstanceOfReturnType(const model::TypeDefinition &FunctionType,
-                               llvm::StringRef InstanceName,
-                               bool IsDefinition) const;
-
-  std::string getReturnTypeName(const model::TypeDefinition &FunctionType,
-                                bool IsDefinition) const {
-    return getNamedInstanceOfReturnType(FunctionType, "", IsDefinition);
-  }
+                               llvm::StringRef InstanceName) const;
 
 public:
   /// Print the function prototype (without any trailing ';') of \a Function.
