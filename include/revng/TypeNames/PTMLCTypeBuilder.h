@@ -286,6 +286,25 @@ private:
   }
 
 private:
+  /// Every actionable tag should go through this helper.
+  ///
+  /// But that doesn't mean that this should ever be used directly. There are
+  /// already quite a few wrappers for different things this could possibly
+  /// emit, if you find yourself in a situation when you want to use this,
+  /// consider using (or even adding) one of those instead!
+  ///
+  /// \param Tag The PTML tag to add locations and actions to.
+  /// \param Location The location used for definition lookup (ctrl + clicking)
+  /// \param ActionLocation The location used for actions (like renames and
+  ///        commenting). Note that this argument can be omitted (see
+  ///        the overload), in which case it will be set equal to \ref Location.
+  /// \param Actions An explicit list of action permitted on this tag. Not that
+  ///        if this list is empty, \ref ActionLocation is not going to be
+  ///        emitted at all (as there should be nothing that can be done with it
+  ///        anyway).
+  ///
+  /// \return Serialized form of \ref Tag with action and location attributes
+  ///         attached.
   template<bool IsDefinition>
   std::string
   getNameTagImpl(ptml::Tag &&Tag,
@@ -309,6 +328,8 @@ private:
       Tag.addListAttribute(attributes::AllowedActions, Actions);
     }
 
+    // TODO: if any users ever want to add more attributes to this tag after
+    //       this call, `Tag` should be returned directly instead.
     return std::move(Tag).toString();
   }
 
@@ -320,10 +341,20 @@ private:
     return getNameTagImpl<IsDefinition>(std::move(Tag), L, L, Actions);
   }
 
+  /// An automatic wrapper for \ref getNameTagImpl that works in all
+  /// the general cases.
+  ///
+  /// The general case is the one for which:
+  /// - `NameBuilder.name(Value)` returns a valid name.
+  /// - `this->tokenType(Value)` returns a valid token type.
+  /// - `this->locationString(Value)` returns a valid location.
+  ///
+  /// \note that there is a similar overload below for `Parent` + `Value` pair
+  ///       that works in the exact same way.
   template<bool IsDefinition, typename AnyType>
   std::string getNameTag(const AnyType &Value,
                          RangeOf<llvm::StringRef> auto const &Actions) const {
-    // TODO: build a warning based on `NameBuilder.warning(T)`
+    // TODO: build a warning based on `NameBuilder.warning(Value)`
     //       if it's not `std::nullopt`.
     return getNameTagImpl<IsDefinition>(tokenTag(NameBuilder.name(Value),
                                                  tokenType(Value)),
@@ -334,7 +365,7 @@ private:
   std::string getNameTag(const ParentType &Parent,
                          const AnyType &Value,
                          RangeOf<llvm::StringRef> auto const &Actions) const {
-    // TODO: build a warning based on `NameBuilder.warning(T)`
+    // TODO: build a warning based on `NameBuilder.warning(Parent, Value)`
     //       if it's not `std::nullopt`.
     return getNameTagImpl<IsDefinition>(tokenTag(NameBuilder.name(Parent,
                                                                   Value),
@@ -344,6 +375,11 @@ private:
   }
 
 public:
+  /// \defgroup Wrappers for the general case tags. Main reason behind them
+  ///           existing is the `Action` member explicitly specifying what can
+  ///           be done to this specific entity in the decompiled code.
+  /// \{
+
   std::string getDefinitionTag(const model::TypeDefinition &T) const {
     constexpr std::array Actions = { ptml::actions::Rename,
                                      ptml::actions::EditType };
@@ -408,6 +444,9 @@ public:
     return getNameTag<false>(P, Actions);
   }
 
+  /// \}
+
+  /// Special case handling for RFT's `stack_arguments` argument.
   std::string
   getStackArgumentDefinitionTag(const model::RawFunctionDefinition &RFT) const {
     constexpr std::array Actions = { ptml::actions::EditType };
@@ -416,7 +455,7 @@ public:
     auto VarLoc = pipeline::locationString(revng::ranks::RawStackArguments,
                                            RFT.key());
 
-    // For commenting on the struct
+    // For editing the type
     revng_assert(RFT.stackArgumentsType());
     auto TypeLoc = pipeline::locationString(revng::ranks::TypeDefinition,
                                             RFT.stackArgumentsType()->key());
@@ -440,6 +479,7 @@ public:
                                  Actions);
   }
 
+  /// Special case handling for the function return value.
   std::string
   getReturnValueDefinitionTag(const model::RawFunctionDefinition &RFT,
                               const model::NamedTypedRegister Register) const {
@@ -466,6 +506,10 @@ public:
                                  Actions);
   }
 
+  /// Special case handling for the variables.
+  ///
+  /// \note this will be merged into the general case once `NameBuilder`
+  ///       supports them (as soon as they can be renamed).
   std::string getVariableDefinitionTag(const model::Function &F,
                                        llvm::StringRef VariableName) const {
     // TODO: add the actions, at least rename!
@@ -489,6 +533,10 @@ public:
                                  Actions);
   }
 
+  /// Special case handling for the goto labels.
+  ///
+  /// \note this will be merged into the general case once `NameBuilder`
+  ///       supports them (as soon as they can be renamed).
   std::string getGotoLabelDefinitionTag(const model::Function &F,
                                         llvm::StringRef GotoLabelName) const {
     // TODO: add the actions, at least rename!
@@ -528,6 +576,7 @@ public:
   }
 
 public:
+  /// Special case handling for the artificial structs.
   template<bool IsDefinition>
   std::string
   getArtificialStructTag(const model::RawFunctionDefinition &RFT) const {
@@ -541,6 +590,9 @@ public:
                                         Actions);
   }
 
+  /// Special case handling for the array wrapper structs.
+  ///
+  /// \note this will go away sooner rather than later.
   template<bool IsDefinition>
   std::string getArrayWrapperTag(const model::ArrayType &Array) const {
     // TODO: currently there's no location dedicated to these, as such no action
@@ -555,6 +607,7 @@ public:
                                         Actions);
   }
 
+  /// Special case handling for helper functions.
   template<bool IsDefinition>
   std::string getHelperFunctionTag(llvm::StringRef Name) const {
     constexpr std::array<llvm::StringRef, 0> Actions = {};
@@ -568,6 +621,7 @@ public:
                                         Actions);
   }
 
+  /// Special case handling for helper structs.
   template<bool IsDefinition>
   std::string getHelperStructTag(llvm::StringRef Name) const {
     constexpr std::array<llvm::StringRef, 0> Actions = {};
@@ -578,6 +632,7 @@ public:
                                         Actions);
   }
 
+  /// Special case handling for helper struct fields.
   template<bool IsDefinition>
   std::string getHelperStructFieldTag(llvm::StringRef StructName,
                                       llvm::StringRef FieldName) const {
@@ -591,6 +646,12 @@ public:
                                         Actions);
   }
 
+  /// A simple wrapper for the wide application tags (mainly code switching
+  /// and comments).
+  ///
+  /// This should be applied to as wide of an area as possible (an entire line
+  /// or even multiple if applicable). Because of that it accepts the internal
+  /// text in a serialized form to allow it to wrap multiple tags.
   std::string getDebugInfoTag(std::string &&Wrapped,
                               std::string &&Location) const {
     constexpr std::array Actions = { ptml::actions::CodeSwitch,
@@ -603,6 +664,14 @@ public:
   }
 
 private:
+  /// A comment-only version of \ref getDebugInfoTag.
+  ///
+  /// This should wrap the entirety of an entity for which comment action would
+  /// lead to the same result: an entire field definition, one of the function
+  /// arguments, etc.
+  ///
+  /// Note that this should never be called directly: use one of the wrappers
+  /// below instead.
   std::string getCommentableTagImpl(std::string &&Wrapped,
                                     std::string &&Location) const {
     constexpr std::array Actions = { ptml::actions::Comment };
@@ -613,6 +682,11 @@ private:
   }
 
 public:
+  /// \defgroup General case wrappers for the comment tags. Note that these
+  ///           use \ref locationString member to figure out the location.
+  ///           If you need to call this as is on a new type, you should provide
+  ///           an overload to that instead.
+  /// \{
   template<typename AnyType>
   std::string
   getCommentableTag(std::string &&Wrapped, const AnyType &Anything) const {
@@ -625,7 +699,12 @@ public:
     return getCommentableTagImpl(std::move(Wrapped),
                                  locationString(Parent, Anything));
   }
+  /// \}
 
+  /// Special case handling for the return value comments.
+  ///
+  /// Using this will correctly direct the comment to
+  /// `${Prototype}::ReturnValueComment` instead of attaching it to the type.
   std::string
   getReturnValueTag(std::string &&Wrapped,
                     const model::TypeDefinition &FunctionType) const {
@@ -634,6 +713,7 @@ public:
     return getCommentableTagImpl(std::move(Wrapped), std::move(Location));
   }
 
+  /// Special case comment handling for the registers RFT returns.
   std::string
   getReturnValueRegisterTag(std::string &&Wrapped,
                             const model::RawFunctionDefinition &RFT,
