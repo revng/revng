@@ -20,3 +20,7 @@ getScopeGraphPredecessors(llvm::BasicBlock *N);
 llvm::SmallVector<llvm::BasicBlock *>
 getNodesInScope(llvm::BasicBlock *ScopeEntryBlock,
                 llvm::BasicBlock *PostDominator);
+
+/// Helper function which verifies the decidedness of the `ScopeGraph`
+/// employing the _absolute decidedness_ definition
+bool isScopeGraphDecided(llvm::Function &F);

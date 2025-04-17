@@ -63,3 +63,52 @@ SmallVector<BasicBlock *> getNodesInScope(BasicBlock *ScopeEntryBlock,
 
   return NodesToProcess;
 }
+
+bool isScopeGraphDecided(Function &F) {
+  Scope<Function *> ScopeGraph(&F);
+
+  // We compute the `DominatorTree` and the `PostDominatorTree` on the
+  // `ScopeGraph`
+  DomTreeOnView<BasicBlock, Scope> DT;
+  PostDomTreeOnView<BasicBlock, Scope> PDT;
+  DT.recalculate(F);
+  PDT.recalculate(F);
+
+  // We iterate over the conditional nodes in the `ScopeGraph` in post order,
+  // and we check for the decidedness
+  for (BasicBlock *ConditionalNode : post_order(ScopeGraph)) {
+    SmallSetVector<BasicBlock *, 2>
+      ConditionalSuccessors = getScopeGraphSuccessors(ConditionalNode);
+
+    // We skip all the nodes which are not conditional
+    if (ConditionalSuccessors.size() <= 1) {
+      continue;
+    }
+
+    // Collect all the nodes in the zone of interest of each `Successor` of a
+    // `ConditionalNode`, i.e., all the nodes between the `Successor` and the
+    // immediate `PostDominator` of `ConditionalNode`
+    BasicBlock *PostDominator = PDT[ConditionalNode]->getIDom()->getBlock();
+    for (auto *Successor : ConditionalSuccessors) {
+
+      // If the `Successor` coincides with the `PostDominator`, we do not have
+      // to check anything
+      if (Successor == PostDominator) {
+        continue;
+      }
+
+      SmallVector<BasicBlock *> NodesToProcess = getNodesInScope(Successor,
+                                                                 PostDominator);
+
+      // If we find a `Candidate` which is not dominated by the `Successor`,
+      // it means the `ScopeGraph` has become undecided
+      for (BasicBlock *Candidate : NodesToProcess) {
+        if (not DT.dominates(Successor, Candidate)) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
