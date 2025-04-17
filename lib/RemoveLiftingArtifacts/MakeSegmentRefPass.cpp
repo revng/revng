@@ -128,7 +128,7 @@ getStringLiteral(RawBinaryView &BinaryView,
 
 bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
                                            llvm::Function &F) {
-  model::NameBuilder NameBuilder(Binary);
+  model::CNameBuilder NameBuilder(Binary);
   RawBinaryView &BinaryView = getAnalysis<LoadBinaryWrapperPass>().get();
 
   std::map<MetaAddress, MetaAddress> FunctionEntries;

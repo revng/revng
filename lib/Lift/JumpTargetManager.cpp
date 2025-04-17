@@ -21,6 +21,9 @@
 #include "RootAnalyzer.h"
 #include "SubGraph.h"
 
+RegisterIRHelper JumpToSymbolMarker("jump_to_symbol", "absent after lift");
+RegisterIRHelper ExitTBMarker("exitTB", "absent after lift");
+
 using namespace llvm;
 
 namespace {
@@ -117,17 +120,17 @@ bool TDBP::pinMaterializedValues(Function &F) {
   Module *M = F.getParent();
 
   // Lazily create the `jump_to_symbol` marker
-  auto *JumpToSymbolMarker = M->getFunction("jump_to_symbol");
-  if (JumpToSymbolMarker == nullptr) {
+  auto *Marker = getIRHelper("jump_to_symbol", *M);
+  if (Marker == nullptr) {
     LLVMContext &C = M->getContext();
     auto *FT = FunctionType::get(Type::getVoidTy(C),
                                  { Type::getInt8PtrTy(C) },
                                  false);
-    JumpToSymbolMarker = Function::Create(FT,
-                                          GlobalValue::ExternalLinkage,
-                                          "jump_to_symbol",
-                                          M);
-    FunctionTags::Marker.addTo(JumpToSymbolMarker);
+    Marker = createIRHelper("jump_to_symbol",
+                            *M,
+                            FT,
+                            GlobalValue::ExternalLinkage);
+    FunctionTags::Marker.addTo(Marker);
   }
 
   Function *ExitTB = JTM->exitTB();
@@ -175,14 +178,14 @@ bool TDBP::pinMaterializedValues(Function &F) {
           revng_assert(hasMarker(T, getCalledFunction(Call)));
 
           // Purge existing marker, if any
-          if (CallInst *Marker = getMarker(T, JumpToSymbolMarker))
-            Marker->eraseFromParent();
+          if (CallInst *MarkerInstruction = getMarker(T, Marker))
+            MarkerInstruction->eraseFromParent();
 
           // Create the marker
           StringRef SymbolName = SymbolDestinations[0];
           // TODO: in theory we could insert this before T, not Call, but it's
           //       violating some assumption somewhere
-          CallInst::Create({ JumpToSymbolMarker },
+          CallInst::Create({ Marker },
                            { getUniqueString(M, SymbolName) },
                            {},
                            "",
@@ -416,8 +419,8 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
       auto RelocationSize = model::RelocationType::getSize(Relocation.Type());
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         // TODO: add this to model verify
-        revng_assert(not StringRef(Function.OriginalName()).contains('\0'));
-        Result = MaterializedValue::fromSymbol(Function.OriginalName(),
+        revng_assert(not StringRef(Function.Name()).contains('\0'));
+        Result = MaterializedValue::fromSymbol(Function.Name(),
                                                NewAPInt(Addend));
         ++MatchCount;
       }
@@ -480,7 +483,10 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   FunctionType *ExitTBTy = FunctionType::get(Type::getVoidTy(Context),
                                              { Type::getInt32Ty(Context) },
                                              false);
-  FunctionCallee ExitCallee = TheModule.getOrInsertFunction("exitTB", ExitTBTy);
+
+  FunctionCallee ExitCallee = getOrInsertIRHelper("exitTB",
+                                                  TheModule,
+                                                  ExitTBTy);
   ExitTB = cast<Function>(ExitCallee.getCallee());
   FunctionTags::Marker.addTo(ExitTB);
 
@@ -676,7 +682,7 @@ JumpTargetManager::getPC(Instruction *TheInstruction) const {
       if (auto Marker = dyn_cast<CallInst>(&*I)) {
         // TODO: comparing strings is not very elegant
         auto *Callee = getCalledFunction(Marker);
-        if (Callee != nullptr && Callee->getName() == "newpc") {
+        if (Callee != nullptr and Callee->getName() == "newpc") {
 
           // We found two distinct newpc leading to the requested instruction
           if (NewPCCall != nullptr)
@@ -780,6 +786,10 @@ void JumpTargetManager::fixPostHelperPC() {
   for (BasicBlock &BB : *TheFunction) {
     for (Instruction &I : BB) {
       if (auto *Call = getCallToHelper(&I)) {
+        auto *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
+        if (Callee->getName() == AbortFunctionName)
+          continue;
+
         auto Written = std::move(getCSVUsedByHelperCall(Call).Written);
         auto WritesPC = [this](GlobalVariable *CSV) {
           return PCH->affectsPC(CSV);
@@ -1111,7 +1121,7 @@ void JumpTargetManager::setCFGForm(CFGForm::Values NewForm,
   // * otherwise: the successor is the callee
   if (NewForm == CFGForm::NoFunctionCalls
       || OldForm == CFGForm::NoFunctionCalls) {
-    if (auto *FunctionCall = TheModule.getFunction("function_call")) {
+    if (auto *FunctionCall = getIRHelper("function_call", TheModule)) {
       for (User *U : FunctionCall->users()) {
         auto *Call = cast<CallInst>(U);
 
@@ -1267,7 +1277,7 @@ void JumpTargetManager::harvest() {
     // Update the third argument of newpc calls (isJT, i.e., is this instruction
     // a jump target?)
     IRBuilder<> Builder(Context);
-    Function *NewPCFunction = TheModule.getFunction("newpc");
+    Function *NewPCFunction = getIRHelper("newpc", TheModule);
     if (NewPCFunction != nullptr) {
       for (User *U : NewPCFunction->users()) {
         auto *Call = cast<CallInst>(U);

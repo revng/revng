@@ -19,8 +19,7 @@ TypeDefinitions:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
-        CustomName: "argc"
-        OriginalName: argc
+        Name: argc
       - Index: 1
         Type:
           Kind: PointerType
@@ -32,5 +31,4 @@ TypeDefinitions:
               Kind: PrimitiveType
               PrimitiveKind: Signed
               Size: 1
-        CustomName: "argv"
-        OriginalName: argv
+        Name: argv

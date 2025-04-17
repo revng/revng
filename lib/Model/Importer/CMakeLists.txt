@@ -4,8 +4,8 @@
 
 revng_add_analyses_library_internal(revngModelImporter WellKnownModels.cpp)
 
-target_link_libraries(revngModelImporter revngModel revngPipeline
-                      ${LLVM_LIBRARIES})
+target_link_libraries(revngModelImporter revngModel revngModelPasses
+                      revngPipeline ${LLVM_LIBRARIES})
 
 add_subdirectory(Binary)
 add_subdirectory(DebugInfo)

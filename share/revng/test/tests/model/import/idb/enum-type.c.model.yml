@@ -5,22 +5,16 @@
 TypeDefinitions:
   - Kind: EnumDefinition
     ID: 8119090305649570066
-    OriginalName: A
+    Name: A
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Unsigned
       Size: 4
     Entries:
       - Value: 0
-        OriginalName: x
+        Name: x
       - Value: 1
-        OriginalName: "y"
-  - Kind: TypedefDefinition
-    ID: 1687222338895130802
-    OriginalName: A
-    UnderlyingType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/8119090305649570066-EnumDefinition"
+        Name: "y"
   - Kind: CABIFunctionDefinition
     ID: 5232257417303549612
     ABI: SystemV_x86_64
@@ -28,5 +22,5 @@ TypeDefinitions:
       - Index: 0
         Type:
           Kind: DefinedType
-          Definition: "/TypeDefinitions/1687222338895130802-TypedefDefinition"
-        OriginalName: x
+          Definition: "/TypeDefinitions/8119090305649570066-EnumDefinition"
+        Name: x_2

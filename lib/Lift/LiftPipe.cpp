@@ -62,7 +62,7 @@ Lift::invalidate(const BinaryFileContainer &SourceBinary,
                                                                 kinds::Root));
 
   Function *Root = ModuleContainer.getModule().getFunction("root");
-  Function *NewPC = ModuleContainer.getModule().getFunction("newpc");
+  const Function *NewPC = getIRHelper("newpc", ModuleContainer.getModule());
 
   if (Root == nullptr or NewPC == nullptr)
     return InvalidateResult;
@@ -70,7 +70,7 @@ Lift::invalidate(const BinaryFileContainer &SourceBinary,
   // Collect all jump targets by inspecting calls to newpc and record whether it
   // was found after adding entry addresses of functions
   std::map<MetaAddress, bool> JumpTargets;
-  for (CallBase *Call : callers(NewPC)) {
+  for (const CallBase *Call : callers(NewPC)) {
     bool IsJumpTarget = getLimitedValue(Call->getArgOperand(2)) == 1;
 
     if (IsJumpTarget) {
@@ -81,7 +81,7 @@ Lift::invalidate(const BinaryFileContainer &SourceBinary,
 
       // Be conservative and assume it is, in absence of information
       bool DependsOnModelFunction = true;
-      Instruction *Terminator = Call->getParent()->getTerminator();
+      const Instruction *Terminator = Call->getParent()->getTerminator();
       if (Terminator->hasMetadata(JTReasonMDName)) {
         uint32_t Reasons = GeneratedCodeBasicInfo::getJTReasons(Terminator);
         DependsOnModelFunction = hasReason(Reasons,

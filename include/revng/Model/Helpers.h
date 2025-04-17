@@ -10,14 +10,14 @@
 #include "revng/ADT/Concepts.h"
 #include "revng/Model/DynamicFunction.h"
 #include "revng/Model/Function.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/Segment.h"
 
 //
 // The following helpers are designed to help with handling metadata.
 //
-// Metadata are some common fields appearing in different (sometime unrelated)
-// types within the model. These allow to work with those in a generic manner.
+// Metadata are some common fields appearing in different (sometimes unrelated)
+// types within the model. These helpers allow to work with such fields in
+// a generic manner.
 
 namespace model {
 
@@ -30,13 +30,8 @@ concept EntityWithKey = requires(const Type &Value) {
 };
 
 template<typename Type>
-concept EntityWithCustomName = requires(const Type &Value) {
-  { Value.CustomName() } -> std::convertible_to<const model::Identifier &>;
-};
-
-template<typename Type>
-concept EntityWithOriginalName = requires(const Type &Value) {
-  { Value.OriginalName() } -> std::convertible_to<const std::string &>;
+concept EntityWithName = requires(const Type &Value) {
+  { Value.Name() } -> std::convertible_to<const std::string &>;
 };
 
 template<typename Type>
@@ -51,8 +46,7 @@ concept EntityWithReturnValueComment = requires(const Type &Value) {
 
 template<typename Type>
 void ensureCompatibility() {
-  static_assert(EntityWithCustomName<Type> || EntityWithOriginalName<Type>
-                  || EntityWithComment<Type>
+  static_assert(EntityWithName<Type> || EntityWithComment<Type>
                   || EntityWithReturnValueComment<Type>,
                 "This would be a no-op.");
 }
@@ -62,11 +56,8 @@ LHS &copyMetadata(LHS &To, const RHS &From) {
   ensureCompatibility<LHS>();
   ensureCompatibility<RHS>();
 
-  if constexpr (EntityWithCustomName<LHS> && EntityWithCustomName<RHS>)
-    To.CustomName() = From.CustomName();
-
-  if constexpr (EntityWithOriginalName<LHS> && EntityWithOriginalName<RHS>)
-    To.OriginalName() = From.OriginalName();
+  if constexpr (EntityWithName<LHS> && EntityWithName<RHS>)
+    To.Name() = From.Name();
 
   if constexpr (EntityWithComment<LHS> && EntityWithComment<RHS>)
     To.Comment() = From.Comment();
@@ -84,11 +75,8 @@ LHS &moveMetadata(LHS &To, const RHS &From) {
   ensureCompatibility<LHS>();
   ensureCompatibility<RHS>();
 
-  if constexpr (EntityWithCustomName<LHS> && EntityWithCustomName<RHS>)
-    To.CustomName() = std::move(From.CustomName());
-
-  if constexpr (EntityWithOriginalName<LHS> && EntityWithOriginalName<RHS>)
-    To.OriginalName() = std::move(From.OriginalName());
+  if constexpr (EntityWithName<LHS> && EntityWithName<RHS>)
+    To.Name() = std::move(From.Name());
 
   if constexpr (EntityWithComment<LHS> && EntityWithComment<RHS>)
     To.Comment() = std::move(From.Comment());
@@ -105,12 +93,8 @@ template<typename Type>
 bool hasMetadata(const Type &Value) {
   ensureCompatibility<Type>();
 
-  if constexpr (EntityWithCustomName<Type>)
-    if (!Value.CustomName().empty())
-      return true;
-
-  if constexpr (EntityWithOriginalName<Type>)
-    if (!Value.OriginalName().empty())
+  if constexpr (EntityWithName<Type>)
+    if (!Value.Name().empty())
       return true;
 
   if constexpr (EntityWithComment<Type>)

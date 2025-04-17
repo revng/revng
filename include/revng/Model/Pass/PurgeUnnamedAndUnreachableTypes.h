@@ -12,7 +12,7 @@ namespace model {
 void purgeInvalidTypes(TupleTree<model::Binary> &Model);
 
 /// Remove all the types that cannot be reached from outside Binary::Types and
-/// have no OriginalName or CustomName
+/// have no name
 void purgeUnnamedAndUnreachableTypes(TupleTree<model::Binary> &Model);
 
 /// Remove all the types that cannot be reached from outside Binary::Types

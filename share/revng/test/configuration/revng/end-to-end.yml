@@ -114,7 +114,15 @@ commands:
     command: |-
       WORKDIR="$OUTPUT/check-decompiled-c";
       mkdir -p "$$WORKDIR";
-      revng artifact --model "$INPUT2" --resume "$OUTPUT" decompile-to-single-file "$INPUT1" | revng ptml > "$$WORKDIR/decompiled.c";
+
+      revng artifact
+        --model "$INPUT2"
+        --resume "$OUTPUT"
+        decompile-to-single-file
+        "$INPUT1"
+        --naming-collisions-report="$$WORKDIR/name-collisions.txt"
+      | revng ptml > "$$WORKDIR/decompiled.c";
+
       revng artifact --resume "$OUTPUT" emit-model-header "$INPUT1" | revng ptml > "$$WORKDIR/types-and-globals.h";
       revng artifact --resume "$OUTPUT" emit-helpers-header "$INPUT1" | revng ptml > "$$WORKDIR/helpers.h";
       # TODO: re-enable the following after fixing the bug in ModelToHeader that caused it to fail

@@ -13,6 +13,11 @@
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/Support/IRHelpers.h"
 
+inline RegisterIRHelper
+  ScopeCloserMarker(FunctionTags::ScopeCloserMarker.name().str(), "");
+inline RegisterIRHelper
+  GotoBlockMarker(FunctionTags::GotoBlockMarker.name().str(), "");
+
 using namespace llvm;
 
 // Helper function which set the attributes for the created function
@@ -40,7 +45,8 @@ static Function *getOrCreateScopeCloserFunction(Module *M) {
     auto *FT = FunctionType::get(Type::getVoidTy(getContext(M)),
                                  { BlockAddressTy },
                                  false);
-    Result = cast<Function>(M->getOrInsertFunction(Tag.name(), FT).getCallee());
+    Result = cast<Function>(getOrInsertIRHelper(Tag.name(), *M, FT)
+                              .getCallee());
     setFunctionAttributes(Result, Tag);
   }
   revng_assert(Result != nullptr);
@@ -54,7 +60,8 @@ static Function *getOrCreateGotoBlockFunction(Module *M) {
   // Create the `ScopeCloserMarker` function if it doesn't exists
   if (not Result) {
     auto *FT = FunctionType::get(Type::getVoidTy(getContext(M)), {}, false);
-    Result = cast<Function>(M->getOrInsertFunction(Tag.name(), FT).getCallee());
+    Result = cast<Function>(getOrInsertIRHelper(Tag.name(), *M, FT)
+                              .getCallee());
     setFunctionAttributes(Result, Tag);
   }
   revng_assert(Result != nullptr);

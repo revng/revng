@@ -4,7 +4,7 @@
 
 ---
 Functions:
-  - OriginalName: caller
+  - Name: caller
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1815-RawFunctionDefinition"

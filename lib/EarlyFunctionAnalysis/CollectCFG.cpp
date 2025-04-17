@@ -66,7 +66,7 @@ public:
 
       if (DebugNames) {
         auto Function = Binary->Functions().at(EntryAddress);
-        New.OriginalName() = Function.OriginalName();
+        New.Name() = Function.Name();
       }
 
       if (New.Blocks().size() > 0)

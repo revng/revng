@@ -120,12 +120,12 @@ def main():
     first_function = model["Functions"][0]
     unique_id = str(uuid4()).replace("-", "")
     diff = {
-        "Path": f"/Functions/{first_function['Entry']}/CustomName",
+        "Path": f"/Functions/{first_function['Entry']}/Name",
         "Add": unique_id,
         "Remove": "",
     }
-    if "CustomName" in first_function:
-        diff["Remove"] = first_function["CustomName"]
+    if "Name" in first_function:
+        diff["Remove"] = first_function["Name"]
 
     diff_content = yaml.safe_dump({"Changes": [diff]})
     with wait_save():

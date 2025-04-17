@@ -23,6 +23,7 @@
 
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "CPUStateAccessAnalysisPass.h"
@@ -658,10 +659,10 @@ forwardTaintAnalysis(const Module *M,
   if (not Lazy) {
     QuickMetadata QMD(M->getContext());
     for (CallInst *Call : Results.IllegalCalls) {
-      CallInst *Abort = CallInst::Create(M->getFunction("abort"), {}, Call);
+      CallInst &Abort = emitMessage(Call, "", Call->getDebugLoc());
       auto IllegalCallsMDKind = M->getContext().getMDKindID("revng.csaa."
                                                             "illegal.calls");
-      Abort->setMetadata(IllegalCallsMDKind, QMD.tuple((uint32_t) 0));
+      Abort.setMetadata(IllegalCallsMDKind, QMD.tuple((uint32_t) 0));
     }
   }
   return Results;
@@ -1526,7 +1527,7 @@ public:
     AddSubFolder(M),
     NumericFolder(M),
     GEPFolder(M),
-    CpuLoop(M.getFunction("cpu_loop")) {}
+    CpuLoop(getIRHelper("cpu_loop", M)) {}
 
 public:
   bool run();
@@ -2610,7 +2611,7 @@ void CPUStateAccessFixer::setupLoadInEnv(Instruction *LoadToFix,
   LLVMContext &Context = M.getContext();
   Function *F = LoadToFix->getFunction();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
-  BasicBlock *CaseBlock = BasicBlock::Create(Context, "CaseInLoad", F);
+  BasicBlock *CaseBlock = BasicBlock::Create(Context, {}, F);
   Builder.SetInsertPoint(CaseBlock);
   BranchInst *Break = Builder.CreateBr(NextBB);
 
@@ -2670,7 +2671,7 @@ void CPUStateAccessFixer::setupStoreInEnv(Instruction *StoreToFix,
   LLVMContext &Context = M.getContext();
   Function *F = StoreToFix->getFunction();
   auto *OffsetConstInt = getConstantOffset(Int64Ty, EnvOffset);
-  BasicBlock *CaseBlock = BasicBlock::Create(Context, "CaseInStore");
+  BasicBlock *CaseBlock = BasicBlock::Create(Context, {});
   CaseBlock->insertInto(F);
   Builder.SetInsertPoint(CaseBlock);
   BranchInst *Break = Builder.CreateBr(NextBB);
@@ -2906,10 +2907,10 @@ void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
 
       if (not Ok) {
         Builder.SetInsertPoint(Clone);
-        CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
+        CallInst &CallAbort = emitAbort(Builder, "");
         auto InvalidMDKind = Context.getMDKindID("revng.csaa.invalid.unique.in."
                                                  "access");
-        CallAbort->setMetadata(InvalidMDKind, QMD.tuple((uint32_t) 0));
+        CallAbort.setMetadata(InvalidMDKind, QMD.tuple((uint32_t) 0));
       } else {
         InstructionsToRemove.push_back(Clone);
       }
@@ -2938,13 +2939,12 @@ void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
     }
 
     // Create the default BB for the switch, calling revng_abort()
-    BasicBlock *Default = BasicBlock::Create(Context, "DefaultInAccess", F);
+    BasicBlock *Default = BasicBlock::Create(Context, {}, F);
     Builder.SetInsertPoint(Default);
-    CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
+    CallInst &CallAbort = emitAbort(Builder, "");
     auto UnexpectedInMDKind = Context.getMDKindID("revng.csaa.unexpected.in."
                                                   "access");
-    CallAbort->setMetadata(UnexpectedInMDKind, QMD.tuple((uint32_t) 0));
-    Builder.CreateUnreachable();
+    CallAbort.setMetadata(UnexpectedInMDKind, QMD.tuple((uint32_t) 0));
 
     // Create the offset value to use as a variable for the switch if
     // necessary
@@ -2991,10 +2991,10 @@ void CPUStateAccessFixer::fixAccess(const Pair &IOff) {
       if (Phi != nullptr and Phi->getNumIncomingValues() == 0) {
         Builder.SetInsertPoint(Phi);
 
-        CallInst *CallAbort = Builder.CreateCall(M.getFunction("abort"));
+        CallInst &CallAbort = emitAbort(Builder, "");
         auto NeverValidInMDKind = Context.getMDKindID("revng.csaa.never.valid."
                                                       "in.load");
-        CallAbort->setMetadata(NeverValidInMDKind, QMD.tuple((uint32_t) 0));
+        CallAbort.setMetadata(NeverValidInMDKind, QMD.tuple((uint32_t) 0));
 
         Instruction *DisabledInLoad = AccessToFix->clone();
         DisabledInLoad->insertBefore(Phi);
@@ -3057,7 +3057,7 @@ class CPUStateAccessAnalysis {
 private:
   const bool Lazy;
   // A reference to the analyzed Module
-  const Module &M;
+  Module &M;
 
   // A reference to the associated VariableManager
   VariableManager *Variables = nullptr;
@@ -3080,9 +3080,7 @@ private:
   Value *CPUStatePtr = nullptr;
 
 public:
-  CPUStateAccessAnalysis(const Module &Mod,
-                         VariableManager *V,
-                         const bool IsLazy) :
+  CPUStateAccessAnalysis(Module &Mod, VariableManager *V, const bool IsLazy) :
     Lazy(IsLazy),
     M(Mod),
     Variables(V),

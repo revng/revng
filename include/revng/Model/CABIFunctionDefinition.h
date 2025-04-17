@@ -6,7 +6,6 @@
 
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/Argument.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
 #include "revng/Model/TypeDefinition.h"
 

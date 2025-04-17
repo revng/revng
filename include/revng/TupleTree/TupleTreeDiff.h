@@ -507,18 +507,18 @@ public:
     if (not C->Old.has_value()) {
       if constexpr (SpecializationOf<S, UpcastablePointer>) {
         if (M != nullptr) {
-          generateError("'Remove' does not match the contents of the pointer "
+          generateError("`Remove` does not match the contents of the pointer "
                         "within the Tree",
                         revng::DiffLocation::KindType::Old);
           return;
         }
       } else {
-        generateError("Missing 'Remove' key",
+        generateError("Missing `Remove` key",
                       revng::DiffLocation::KindType::Old);
         return;
       }
     } else if (std::get<S>(*C->Old) != M) {
-      generateError("'Remove' does not match the contents of the Tuple Tree",
+      generateError("`Remove` does not match the contents of the Tuple Tree",
                     revng::DiffLocation::KindType::Old);
       return;
     }

@@ -56,6 +56,10 @@
 #include "PTCInterface.h"
 #include "VariableManager.h"
 
+RegisterIRHelper CPULoopHelper("cpu_loop", "in libtinycode");
+RegisterIRHelper RevngAbortHelper("cpu_loop_exit", "in libtinycode");
+RegisterIRHelper InitializeEnv("initialize_env", "absent after drop-root");
+
 using namespace llvm;
 
 using std::make_pair;
@@ -70,7 +74,7 @@ static Logger<> PTCLog("ptc");
 static Logger<> Log("lift");
 
 template<typename T, typename... ArgTypes>
-inline std::array<T, sizeof...(ArgTypes)> make_array(ArgTypes &&...Args) {
+constexpr std::array<T, sizeof...(ArgTypes)> make_array(ArgTypes &&...Args) {
   return { { std::forward<ArgTypes>(Args)... } };
 }
 
@@ -329,12 +333,10 @@ auto findUnique(Range &&TheRange) -> decltype(*TheRange.begin()) {
 }
 
 bool CpuLoopFunctionPass::runOnModule(Module &M) {
-  Function &F = *M.getFunction("cpu_loop");
+  Function &F = *getIRHelper("cpu_loop", M);
 
   // cpu_loop must return void
   revng_assert(F.getReturnType()->isVoidTy());
-
-  Module *TheModule = F.getParent();
 
   // Part 1: remove the backedge of the main infinite loop
   const LoopInfo &LI = getAnalysis<LoopInfoWrapperPass>(F).getLoopInfo();
@@ -379,7 +381,7 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   Type *TargetType = CpuExec.getReturnType();
 
   IRBuilder<> Builder(Call);
-  Type *IntPtrTy = Builder.getIntPtrTy(TheModule->getDataLayout());
+  Type *IntPtrTy = Builder.getIntPtrTy(M.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
   using CI = ConstantInt;
   auto Offset = CI::get(IntPtrTy, ExceptionIndexOffset);
@@ -456,7 +458,7 @@ static ReturnInst *createRet(Instruction *Position) {
 /// the call.
 bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
   LLVMContext &Context = M.getContext();
-  Function *CpuLoopExit = M.getFunction("cpu_loop_exit");
+  Function *CpuLoopExit = getIRHelper("cpu_loop_exit", M);
 
   // Nothing to do here
   if (CpuLoopExit == nullptr)
@@ -466,7 +468,7 @@ bool CpuLoopExitPass::runOnModule(llvm::Module &M) {
 
   purgeNoReturn(CpuLoopExit);
 
-  Function *CpuLoop = M.getFunction("cpu_loop");
+  Function *CpuLoop = getIRHelper("cpu_loop", M);
   IntegerType *BoolType = Type::getInt1Ty(Context);
   std::set<Function *> FixedCallers;
   GlobalVariable *CpuLoopExitingVariable = nullptr;
@@ -585,15 +587,6 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
   Task T(12, "Translation");
 
-  // Declare the abort function
-  auto *AbortTy = FunctionType::get(Type::getVoidTy(Context), false);
-  FunctionCallee AbortFunction = TheModule->getOrInsertFunction("abort",
-                                                                AbortTy);
-  {
-    auto *Abort = cast<Function>(skipCasts(AbortFunction.getCallee()));
-    FunctionTags::Exceptional.addTo(Abort);
-  }
-
   // Prepare the helper modules by transforming the cpu_loop function and
   // running SROA
   T.advance("Prepare helpers module", true);
@@ -619,7 +612,8 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   //
 
   // Transform in no op
-  auto NoOpFunctionNames = make_array<const char *>("cpu_dump_state",
+  static constexpr auto
+    NoOpFunctionNames = make_array<llvm::StringRef>("cpu_dump_state",
                                                     "cpu_exit",
                                                     "end_exclusive"
                                                     "fprintf",
@@ -641,7 +635,8 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
   // do_arm_semihosting: we don't care about semihosting
   // EmulateAll: requires access to the opcode
-  auto AbortFunctionNames = make_array<const char *>("cpu_restore_state",
+  static constexpr auto
+    AbortFunctionNames = make_array<llvm::StringRef>("cpu_restore_state",
                                                      "cpu_mips_exec",
                                                      "gdb_handlesig",
                                                      "queue_signal",
@@ -654,12 +649,15 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
                                                      "do_arm_semihosting",
                                                      "EmulateAll");
   for (auto Name : AbortFunctionNames) {
-    Function *TheFunction = HelpersModule->getFunction(Name);
-    if (TheFunction != nullptr) {
-      revng_assert(HelpersModule->getFunction("abort") != nullptr);
-      BasicBlock *NewBody = replaceFunction(TheFunction);
-      CallInst::Create(HelpersModule->getFunction("abort"), {}, NewBody);
-      new UnreachableInst(Context, NewBody);
+    Function *OldFunction = HelpersModule->getFunction(Name);
+    if (OldFunction != nullptr) {
+      llvm::DebugLoc DLocation;
+      if (not OldFunction->empty())
+        DLocation = OldFunction->getEntryBlock().getTerminator()->getDebugLoc();
+
+      emitAbort(replaceFunction(OldFunction),
+                llvm::Twine("Abort instead a calling `") + Name + "`",
+                std::move(DLocation));
     }
   }
 
@@ -905,8 +903,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
     if (ConsumedSize == 0) {
       Translator.emitNewPCCall(Builder, VirtualAddress, 1, nullptr);
-      Builder.CreateCall(AbortFunction);
-      Builder.CreateUnreachable();
+      emitAbort(Builder, "", Entry->getTerminator()->getDebugLoc());
 
       // Obtain a new program counter to translate
       TranslateTask.complete();
@@ -976,8 +973,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
 
       if (Result == InstructionTranslator::Abort) {
         StopTranslation = true;
-        Builder.CreateCall(AbortFunction);
-        Builder.CreateUnreachable();
+        emitAbort(Builder, "", Entry->getTerminator()->getDebugLoc());
       }
 
       J++;
@@ -1045,8 +1041,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
         // No-op
         break;
       case IT::Abort:
-        Builder.CreateCall(AbortFunction);
-        Builder.CreateUnreachable();
+        emitAbort(Builder, "");
         StopTranslation = true;
         break;
       case IT::Stop:
@@ -1164,7 +1159,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
   // initialize_env function from the helpers, because the declaration
   // imported before with importHelperFunctionDeclaration() only has
   // stub types and injecting the CallInst earlier would break
-  if (Function *InitEnv = TheModule->getFunction("initialize_env")) {
+  if (Function *InitEnv = getIRHelper("initialize_env", *TheModule)) {
     revng_assert(not InitEnv->getFunctionType()->isVarArg());
     revng_assert(InitEnv->getFunctionType()->getNumParams() == 1);
     auto *CPUStateType = InitEnv->getFunctionType()->getParamType(0);

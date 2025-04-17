@@ -102,7 +102,7 @@ bool LoopRewriteIV::run(Loop &L,
     Value *NewVal = Rewriter.expandCodeFor(AR, UseTy, InsertPt);
 
     revng_log(Log,
-              "INDVARS: Rewrote IV '" << dumpToString(AR) << "' "
+              "INDVARS: Rewrote IV `" << dumpToString(AR) << "` "
                                       << dumpToString(Op) << '\n'
                                       << "   into = " << dumpToString(NewVal));
 

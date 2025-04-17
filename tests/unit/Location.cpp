@@ -52,9 +52,9 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
 
   // Define a new union
   auto &&[Definition, _] = NewModel->makeUnionDefinition();
-  Definition.CustomName() = "my_cool_union";
+  Definition.Name() = "my_cool_union";
   auto &ThirdField = Definition.Fields()[2];
-  ThirdField.CustomName() = "third_field";
+  ThirdField.Name() = "third_field";
 
   // Introduce a location of a field by embedding the type definition key and
   // the field index.
@@ -68,7 +68,7 @@ BOOST_AUTO_TEST_CASE(TypeIDAsTheKey) {
   auto Type = NewModel->makeType(FieldLocation.at(ranks::TypeDefinition));
 
   // Ensure the type we got is the same type we started with.
-  revng_check(Type->tryGetAsDefinition()->CustomName() == "my_cool_union");
+  revng_check(Type->tryGetAsDefinition()->Name() == "my_cool_union");
 
   // Ensure the key is encoded in the serialized form of the location.
   std::string Key = toString(Definition.key());
@@ -141,7 +141,7 @@ BOOST_AUTO_TEST_CASE(Serialization) {
 
     using namespace std::string_literals;
     revng_check(ParsedOnce,
-                ("Parsing of '"s + TestCase.data() + "' failed").c_str());
+                ("Parsing of `"s + TestCase.data() + "` failed").c_str());
   }
 }
 

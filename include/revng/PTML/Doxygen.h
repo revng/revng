@@ -6,11 +6,16 @@
 
 #include <string>
 
+#include "revng/Model/CABIFunctionDefinition.h"
+#include "revng/Model/Function.h"
 #include "revng/Model/Helpers.h"
+#include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/StatementComment.h"
+#include "revng/Model/StructDefinition.h"
 #include "revng/PTML/Tag.h"
 
 namespace model {
+template<typename T>
 class NameBuilder;
 }
 
@@ -35,6 +40,16 @@ std::string comment(const ::ptml::MarkupBuilder &Builder,
   return freeFormComment(Builder, V.Comment(), Indicator, Indent, WrapAt);
 }
 
+namespace detail {
+std::string functionCommentImpl(const ::ptml::MarkupBuilder &B,
+                                const model::Function &Function,
+                                const model::Binary &Binary,
+                                llvm::StringRef CommentIndicator,
+                                size_t Indentation,
+                                size_t WrapAt,
+                                std::vector<std::string> &&ArgumentNames);
+}
+
 /// Emits PTML containing a comment for a function constructed based on
 /// the model representation of both the function and its type.
 ///
@@ -52,18 +67,43 @@ std::string comment(const ::ptml::MarkupBuilder &Builder,
 ///        is made using the \ref Binary.
 ///
 /// \returns a serialized PTML string containing the comment.
+template<typename T>
 std::string functionComment(const ::ptml::MarkupBuilder &B,
                             const model::Function &Function,
                             const model::Binary &Binary,
                             llvm::StringRef CommentIndicator,
                             size_t Indentation,
                             size_t WrapAt,
-                            model::NameBuilder *NameBuilder = nullptr);
+                            const model::NameBuilder<T> &NameBuilder) {
+  std::vector<std::string> ArgumentNames;
+  if (const auto *FT = Function.cabiPrototype()) {
+    for (const model::Argument &Argument : FT->Arguments())
+      ArgumentNames.emplace_back(NameBuilder.name(*FT, Argument));
+
+  } else if (auto *FT = Function.rawPrototype()) {
+    for (const model::NamedTypedRegister &Argument : FT->Arguments())
+      ArgumentNames.emplace_back(NameBuilder.name(*FT, Argument));
+
+    if (const model::StructDefinition *Stack = FT->stackArgumentsType())
+      for (const model::StructField &Field : Stack->Fields())
+        ArgumentNames.emplace_back(NameBuilder.name(*Stack, Field));
+
+  } else {
+    // If there is no prototype, just act as if there are no arguments.
+  }
+
+  return detail::functionCommentImpl(B,
+                                     Function,
+                                     Binary,
+                                     CommentIndicator,
+                                     Indentation,
+                                     WrapAt,
+                                     std::move(ArgumentNames));
+}
 
 /// Emits PTML containing a statement comment.
 ///
 /// \param Comment the contents of the comment.
-/// \param ShouldBeEmittedAt the point where this comment should be emitted at.
 /// \param IsBeingEmittedAt the point where this comment is being emitted at.
 ///
 /// \note for the remaining arguments see \ref functionComment documentation.

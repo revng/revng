@@ -9,7 +9,7 @@
           Type: FunctionCall
           DynamicFunction: strlen
           IsTailCall: true
-- OriginalName: use_plt
+- Name: use_plt
   Blocks:
     - Successors:
         - Type: FunctionCall
@@ -17,7 +17,7 @@
         - Type: FunctionCall
     - Successors:
         - Type: Return
-- OriginalName: __x86.get_pc_thunk.bx
+- Name: __x86.get_pc_thunk.bx
   Blocks:
     - Successors:
         - Type: Return

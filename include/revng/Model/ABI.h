@@ -326,7 +326,7 @@ inline constexpr llvm::StringRef getDescription(model::ABI::Values V) {
     return "32-bit Microsoft x86 abi, it extends `stdcall` by "
            "allowing `this` pointer in method-style calls to "
            "be passed using a register. It is never used for "
-           "'free' functions";
+           "`free` functions";
 
   case model::ABI::AAPCS64:
     return "64-bit ARM abi";

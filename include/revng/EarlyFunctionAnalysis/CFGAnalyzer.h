@@ -53,7 +53,8 @@ public:
                   bool IsTailCall,
                   llvm::Value *SymbolNamePointer) final;
 
-  void handlePostNoReturn(llvm::IRBuilder<> &Builder) final;
+  void handlePostNoReturn(llvm::IRBuilder<> &Builder,
+                          const llvm::DebugLoc &DbgLocation) final;
 
   void handleIndirectJump(llvm::IRBuilder<> &Builder,
                           MetaAddress Block,

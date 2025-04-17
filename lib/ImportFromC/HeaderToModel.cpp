@@ -56,7 +56,6 @@ private:
 class DeclVisitor : public clang::RecursiveASTVisitor<DeclVisitor> {
 private:
   TupleTree<model::Binary> &Model;
-  model::NameBuilder NameBuilder;
   ASTContext &Context;
   std::optional<model::TypeDefinition::Key> Type;
   MetaAddress FunctionEntry;
@@ -140,7 +139,6 @@ DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
                          ImportingErrorList &Errors,
                          enum ImportFromCOption AnalysisOption) :
   Model(Model),
-  NameBuilder(*Model),
   Context(Context),
   Type(Type),
   FunctionEntry(FunctionEntry),
@@ -172,10 +170,10 @@ DeclVisitor::parseStringAnnotation(const Type &Declaration,
             ErrorPrefix += std::to_string(Loc.getLine()) + ":"
                            + std::to_string(Loc.getColumn()) + ":";
 
-          Errors.emplace_back(ErrorPrefix + " Multiple conflicting values ('"
-                              + Result.value().str() + "' and '" + Value.str()
-                              + "') were found for the '" + std::string(Macro)
-                              + "' annotation.\n");
+          Errors.emplace_back(ErrorPrefix + " Multiple conflicting values (`"
+                              + Result.value().str() + "` and `" + Value.str()
+                              + "`) were found for the `" + std::string(Macro)
+                              + "` annotation.\n");
           return std::nullopt;
         }
 
@@ -197,9 +195,9 @@ DeclVisitor::parseIntegerAnnotation(const Type &Declaration,
 
   uint64_t IntegerResult;
   if (Result->getAsInteger(0, IntegerResult)) {
-    Errors.emplace_back("import-from-c: Ignoring a non-integer value ('"
-                        + Result->str() + "') of an integer annotation: '"
-                        + std::string(Macro) + "'.\n");
+    Errors.emplace_back("import-from-c: Ignoring a non-integer value (`"
+                        + Result->str() + "`) of an integer annotation: `"
+                        + std::string(Macro) + "`.\n");
     return std::nullopt;
   }
 
@@ -320,7 +318,7 @@ model::UpcastableType DeclVisitor::makeTypeByNameOrID(llvm::StringRef Name) {
   // Try to find by name first.
   for (auto &Type : Model->TypeDefinitions())
     if (llvm::isa<T>(Type.get()))
-      if (Type->CustomName() == Name)
+      if (Type->Name() == Name)
         return Model->makeType(Type->key());
 
   // Getting here means we didn't manage to find it,
@@ -377,8 +375,8 @@ DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
       return Union;
   }
 
-  Errors.emplace_back("import-from-c: Unknown struct or union: '" + Name.str()
-                      + "'.\n");
+  Errors.emplace_back("import-from-c: Unknown struct or union: `" + Name.str()
+                      + "`.\n");
   return model::UpcastableType::empty();
 }
 
@@ -398,8 +396,8 @@ DeclVisitor::getTypeForEnumType(const clang::EnumType *EnumType) {
   if (auto Enum = makeTypeByNameOrID<model::EnumDefinition>(EnumName))
     return Enum;
 
-  Errors.emplace_back("import-from-c: Unknown enum: '" + EnumName.str()
-                      + "'.\n");
+  Errors.emplace_back("import-from-c: Unknown enum: `" + EnumName.str()
+                      + "`.\n");
   return model::UpcastableType::empty();
 }
 
@@ -478,8 +476,8 @@ DeclVisitor::getModelTypeForClangType(const QualType &QT) {
       else if (auto Rw = makeTypeByNameOrID<model::RawFunctionDefinition>(Name))
         R = std::move(Rw);
       else
-        Errors.emplace_back("import-from-c: Unknown typedef: '" + Name.str()
-                            + "'.\n");
+        Errors.emplace_back("import-from-c: Unknown typedef: `" + Name.str()
+                            + "`.\n");
     } else {
       Errors.emplace_back("import-from-c: Model has to contain a typedef for "
                           "the function prototype.\n");
@@ -519,8 +517,8 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   if (not IsRawFunctionType) {
     auto TheModelABI = model::ABI::fromName(*ABI);
     if (TheModelABI == model::ABI::Invalid) {
-      Errors.emplace_back("import-from-c failed: Unknown ABI: '" + ABI->str()
-                          + "'.\n");
+      Errors.emplace_back("import-from-c failed: Unknown ABI: `" + ABI->str()
+                          + "`.\n");
       return false;
     }
 
@@ -551,7 +549,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
       model::Argument &NewArgument = FunctionType.Arguments()[Index];
 
       // TODO: we shouldn't write generated names into the model.
-      NewArgument.CustomName() = FD->getParamDecl(I)->getName();
+      NewArgument.Name() = FD->getParamDecl(I)->getName();
 
       NewArgument.Type() = std::move(ParamType);
       ++Index;
@@ -562,8 +560,8 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
     auto Architecture = getRawABIArchitecture(*ABI);
     if (Architecture == model::Architecture::Invalid) {
-      Errors.emplace_back("import-from-c failed: Unknown architecture: '"
-                          + ABI->substr(RawABIPrefix.size()).str() + "'.\n");
+      Errors.emplace_back("import-from-c failed: Unknown architecture: `"
+                          + ABI->substr(RawABIPrefix.size()).str() + "`.\n");
       return false;
     }
     TheRawFunctionType.Architecture() = Architecture;
@@ -612,8 +610,8 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
                                                    Model->Architecture());
       if (Location == model::Register::Invalid) {
         Errors.emplace_back("import-from-c: While parsing the return value:\n");
-        Errors.emplace_back("import-from-c failed: Unknown register: '"
-                            + Register->str() + "'.\n");
+        Errors.emplace_back("import-from-c failed: Unknown register: `"
+                            + Register->str() + "`.\n");
         return false;
       }
 
@@ -669,9 +667,9 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
           TheRawFunctionType.StackArgumentsType() = std::move(ParamType);
           if (ParamDecl->getName() != "stack") {
-            Errors.emplace_back("import-from-c: stack argument name ('"
+            Errors.emplace_back("import-from-c: stack argument name (`"
                                 + ParamDecl->getName().str()
-                                + "') was ignored, as model stores the struct "
+                                + "`) was ignored, as model stores the struct "
                                   "as is.\n");
           }
         }
@@ -689,15 +687,15 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         if (Location == model::Register::Invalid) {
           Errors.emplace_back("import-from-c: While parsing argument #"
                               + std::to_string(I) + ":\n");
-          Errors.emplace_back("import-from-c failed: Unknown register: '"
-                              + Register->str() + "'.\n");
+          Errors.emplace_back("import-from-c failed: Unknown register: `"
+                              + Register->str() + "`.\n");
           return false;
         }
 
         NamedTypedRegister &ParamReg = ArgumentsInserter.emplace(Location);
         ParamReg.Type() = std::move(ParamType);
         if (not ParamDecl->getName().empty())
-          ParamReg.CustomName() = ParamDecl->getName();
+          ParamReg.Name() = ParamDecl->getName();
       }
     }
   }
@@ -706,7 +704,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   auto &ModelFunction = Model->Functions()[FunctionEntry];
 
   // TODO: we shouldn't write generated names into the model.
-  ModelFunction.CustomName() = FD->getName();
+  ModelFunction.Name() = FD->getName();
 
   // TODO: remember/clone StackFrameType as well.
 
@@ -765,7 +763,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
   TheTypeTypeDef->UnderlyingType() = std::move(ModelTypedefType);
 
   // TODO: we shouldn't write generated names into the model.
-  TheTypeTypeDef->CustomName() = D->getName();
+  TheTypeTypeDef->Name() = D->getName();
 
   if (AnalysisOption == ImportFromCOption::EditType) {
     revng_assert(*Type == NewTypedef->key());
@@ -796,8 +794,8 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     auto &FunctionType = llvm::cast<CABIFunctionDefinition>(*NewType);
     auto TheModelABI = model::ABI::fromName(ABI);
     if (TheModelABI == model::ABI::Invalid) {
-      Errors.emplace_back("import-from-c failed: Unknown ABI: '" + ABI.str()
-                          + "'.\n");
+      Errors.emplace_back("import-from-c failed: Unknown ABI: `" + ABI.str()
+                          + "`.\n");
       return false;
     }
 
@@ -819,8 +817,8 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
       model::UpcastableType ParamType = getModelTypeForClangType(QT);
       if (not ParamType) {
         Errors.emplace_back("import-from-c failed: Unable to parse the type of "
-                            "argument #'"
-                            + std::to_string(Index) + "'.\n");
+                            "argument #`"
+                            + std::to_string(Index) + "`.\n");
         return false;
       }
 
@@ -831,8 +829,8 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
   } else {
     auto Architecture = getRawABIArchitecture(ABI);
     if (Architecture == model::Architecture::Invalid) {
-      Errors.emplace_back("import-from-c failed: Unknown architecture: '"
-                          + ABI.substr(RawABIPrefix.size()).str() + "'.\n");
+      Errors.emplace_back("import-from-c failed: Unknown architecture: `"
+                          + ABI.substr(RawABIPrefix.size()).str() + "`.\n");
       return false;
     }
 
@@ -872,7 +870,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     NewType->ID() = ID;
 
   // TODO: we shouldn't write generated names into the model.
-  NewType->CustomName() = RD->getName();
+  NewType->Name() = RD->getName();
 
   auto *Struct = cast<model::StructDefinition>(NewType.get());
   uint64_t CurrentOffset = 0;
@@ -884,9 +882,9 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   for (const FieldDecl *Field : Definition->fields()) {
     if (Field->isInvalidDecl()) {
       Errors.emplace_back("import-from-c failed: The declaration of the struct "
-                          "field #'"
+                          "field #`"
                           + std::to_string(Struct->Fields().size())
-                          + "' is not valid.\n");
+                          + "` is not valid.\n");
       return false;
     }
 
@@ -912,8 +910,8 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       if (Location == model::Register::Invalid) {
         Errors.emplace_back("import-from-c: While parsing return value #"
                             + std::to_string(Struct->Fields().size()) + ":\n");
-        Errors.emplace_back("import-from-c failed: Unknown register: '"
-                            + Register->str() + "'.\n");
+        Errors.emplace_back("import-from-c failed: Unknown register: `"
+                            + Register->str() + "`.\n");
         return false;
       }
     }
@@ -951,8 +949,8 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       Size = *ModelField->size();
     }
 
-    auto PaddingPrefix = NameBuilder.configuration().structPaddingPrefix();
-    bool IsPadding = Field->getName().starts_with(PaddingPrefix);
+    const auto &Config = Model->Configuration().Naming();
+    bool IsPadding = Field->getName().starts_with(Config.structPaddingPrefix());
     auto ExplicitOffset = parseIntegerAnnotation<"_START_AT">(*Field, Errors);
     if (ExplicitOffset.has_value()) {
       if (IsPadding) {
@@ -979,7 +977,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       auto &FieldModelType = Struct->Fields()[CurrentOffset];
 
       // TODO: we shouldn't write generated names into the model.
-      FieldModelType.CustomName() = Field->getName();
+      FieldModelType.Name() = Field->getName();
 
       FieldModelType.Type() = std::move(ModelField);
     } else {
@@ -1044,7 +1042,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     NewType->ID() = ID;
 
   // TODO: we shouldn't write generated names into the model.
-  NewType->CustomName() = RD->getName();
+  NewType->Name() = RD->getName();
 
   auto Union = cast<model::UnionDefinition>(NewType.get());
 
@@ -1052,9 +1050,9 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
   for (const FieldDecl *Field : Definition->fields()) {
     if (Field->isInvalidDecl()) {
       Errors.emplace_back("import-from-c failed: The declaration of the union "
-                          "field #'"
+                          "field #`"
                           + std::to_string(Union->Fields().size())
-                          + "' is not valid.\n");
+                          + "` is not valid.\n");
       return false;
     }
 
@@ -1071,7 +1069,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     auto &FieldModelType = Union->Fields()[CurrentIndex];
 
     // TODO: we shouldn't write generated names into the model.
-    FieldModelType.CustomName() = Field->getName();
+    FieldModelType.Name() = Field->getName();
 
     FieldModelType.Type() = std::move(TheFieldType);
 
@@ -1145,17 +1143,16 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   revng_assert(UnderlyingTypeName.has_value());
   auto UnderlyingType = model::PrimitiveType::fromCName(*UnderlyingTypeName);
   if (not UnderlyingType) {
-    Errors.emplace_back("import-from-c failed: unknown primitive type: '"
-                        + UnderlyingTypeName->str() + "'.\n");
+    Errors.emplace_back("import-from-c failed: unknown primitive type: `"
+                        + UnderlyingTypeName->str() + "`.\n");
     return false;
 
   } else if (not UnderlyingType->isSignedPrimitive()
              and not UnderlyingType->isUnsignedPrimitive()) {
     Errors.emplace_back("import-from-c failed: Underlying type of an enum can "
-                        "only be "
-                        "signed or unsigned.\n");
-    Errors.emplace_back("                      '" + UnderlyingTypeName->str()
-                        + "' was found instead.\n");
+                        "only be signed or unsigned.\n");
+    Errors.emplace_back("                      `" + UnderlyingTypeName->str()
+                        + "` was found instead.\n");
 
     return false;
   }
@@ -1179,12 +1176,12 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   auto *Definition = D->getDefinition();
 
   // TODO: we shouldn't write generated names into the model.
-  NewType->CustomName() = Definition->getName();
+  NewType->Name() = Definition->getName();
 
   for (const auto *Enum : Definition->enumerators()) {
     auto Value = Enum->getInitVal().getExtValue();
     auto NewIterator = NewType->Entries().insert(Value).first;
-    NewIterator->CustomName() = Enum->getName().str();
+    NewIterator->Name() = Enum->getName().str();
   }
 
   return true;

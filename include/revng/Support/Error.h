@@ -41,4 +41,23 @@ inline llvm::Error joinErrors(T &Container) {
   return Result;
 }
 
+inline std::string unwrapError(llvm::Error &&Error) {
+  revng_assert(Error);
+
+  std::string Result;
+  auto Extractor = [&Result](const llvm::StringError &Error) -> llvm::Error {
+    revng_assert(Result.empty());
+    Result = Error.getMessage();
+    return llvm::Error::success();
+  };
+  auto CatchAll = [](const llvm::ErrorInfoBase &) -> llvm::Error {
+    revng_abort("Unsupported error type.");
+  };
+
+  llvm::handleAllErrors(std::move(Error), Extractor, CatchAll);
+
+  revng_assert(not Result.empty());
+  return Result;
+}
+
 } // namespace revng

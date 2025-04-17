@@ -14,16 +14,13 @@ TypeDefinitions:
       Size: 4
     Entries:
       - Value: 0
-        CustomName: "none"
-        OriginalName: none
+        Name: none
       - Value: 1
-        CustomName: "positive"
-        OriginalName: positive
+        Name: positive
       - Value: 2
-        CustomName: "negative"
-        OriginalName: negative
+        Name: negative
   - Kind: StructDefinition
     ID: 3001
-    CustomName: "some_struct"
+    Name: "some_struct"
     Fields: []
     Size: 8

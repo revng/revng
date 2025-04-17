@@ -236,9 +236,11 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
                                SymbolNamePointer);
 
     if (IsNoReturn) {
+      llvm::DebugLoc DebugLocation = Term->getDebugLoc();
       Term->eraseFromParent();
+
       Builder.SetInsertPoint(BB);
-      TheCallHandler->handlePostNoReturn(Builder);
+      TheCallHandler->handlePostNoReturn(Builder, DebugLocation);
     }
   }
 
@@ -393,12 +395,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
 
   if (not HasEntryBlock) {
     auto *EntryBlock = BasicBlock::Create(Root->getContext(), "", Root);
-    Function *AbortFunction = notNull(Root->getParent()->getFunction("_abort"));
-    IRBuilder<> Builder(EntryBlock);
-    emitCall(Builder,
-             AbortFunction,
-             "This starts at non-executable address",
-             DebugLoc());
+    emitAbort(EntryBlock, "This starts at non-executable address");
     BlocksToExtract.insert(BlocksToExtract.begin(), EntryBlock);
   }
 

@@ -19,6 +19,7 @@
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/FunctionPass.h"
@@ -309,8 +310,8 @@ public:
     pipeline::FunctionPassImpl(Pass),
     Binary(Binary),
     M(M),
-    SSACS(M.getFunction("stack_size_at_call_site")),
-    InitLocalSP(M.getFunction("_init_local_sp")),
+    SSACS(getIRHelper("stack_size_at_call_site", M)),
+    InitLocalSP(getIRHelper("revng_undefined_local_sp", M)),
     CallInstructionPushSize(getCallPushSize(Binary)),
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
@@ -320,7 +321,7 @@ public:
     revng_assert(SSACS != nullptr);
 
     // After segregate, we should not introduce new calls to
-    // `_init_local_sp`: enable to DCE it away
+    // `revng_undefined_local_sp`: enable to DCE it away
     InitLocalSP->setOnlyReadsMemory();
   }
 
@@ -332,8 +333,8 @@ public:
     pipeline::FunctionPassImpl(Pass),
     Binary(Binary),
     M(M),
-    SSACS(M.getFunction("stack_size_at_call_site")),
-    InitLocalSP(M.getFunction("_init_local_sp")),
+    SSACS(getIRHelper("stack_size_at_call_site", M)),
+    InitLocalSP(getIRHelper("revng_undefined_local_sp", M)),
     CallInstructionPushSize(getCallPushSize(Binary)),
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
@@ -345,7 +346,7 @@ public:
     revng_assert(SSACS != nullptr);
 
     // After segregate, we should not introduce new calls to
-    // `_init_local_sp`: enable to DCE it away
+    // `revng_undefined_local_sp`: enable to DCE it away
     InitLocalSP->setOnlyReadsMemory();
   }
 
@@ -790,7 +791,7 @@ private:
 
     revng_log(Log,
               "Segregating "
-                << model::NameBuilder(Binary).name(ModelFunction).str());
+                << model::CNameBuilder(Binary).name(ModelFunction));
 
     LoggerIndent<> Indent(Log);
 
@@ -873,7 +874,7 @@ private:
     LoggerIndent<> Indent(Log);
 
     //
-    // Find call to _init_local_sp
+    // Find call to revng_undefined_local_sp
     //
     Function *Caller = SSACSCall->getParent()->getParent();
 
@@ -1005,8 +1006,9 @@ private:
           if (not MessageEmitted) {
             MessageEmitted = true;
             emitMessage(OldCall,
-                        "Ignoring stack arguments for this call site: stack "
-                        "size at call site unknown");
+                        "Ignoring stack arguments for this call site: "
+                        "stack size at call site unknown",
+                        OldCall->getDebugLoc());
           }
         } else if (ModelArgument.Stack) {
           unsigned OldSize = ModelArgument.Stack->Size;
@@ -1351,7 +1353,7 @@ private:
 
   void adjustStackFrame(const model::Function &ModelFunction, Function &F) {
     //
-    // Find call to _init_local_sp
+    // Find call to revng_undefined_local_sp
     //
     CallInst *InitLocalSPCall = findCallTo(&F, InitLocalSP);
     if (InitLocalSPCall == nullptr or ModelFunction.StackFrameType().isEmpty())
@@ -1377,7 +1379,7 @@ private:
                                     getSPConstant(StackFrameSize));
       InitLocalSPCall->replaceAllUsesWith(SP0);
 
-      // Cleanup _init_local_sp
+      // Cleanup revng_undefined_local_sp
       eraseFromParent(InitLocalSPCall);
     }
   }

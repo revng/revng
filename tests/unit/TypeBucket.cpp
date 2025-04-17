@@ -41,21 +41,21 @@ BOOST_AUTO_TEST_CASE(Multiple) {
   {
     model::TypeBucket Bucket = *Binary;
     auto &&[Type, Path] = Bucket.makeStructDefinition();
-    Type.OriginalName() = "First";
+    Type.Name() = "First";
     Bucket.commit();
   }
 
   {
     model::TypeBucket Bucket = *Binary;
     auto &&[Type, Path] = Bucket.makeStructDefinition();
-    Type.OriginalName() = "Second";
+    Type.Name() = "Second";
     Bucket.commit();
   }
 
   revng_check(Binary->TypeDefinitions().size() == 2);
   auto FirstIterator = Binary->TypeDefinitions().begin();
-  revng_check((*FirstIterator)->OriginalName() == "First");
-  revng_check((*std::next(FirstIterator))->OriginalName() == "Second");
+  revng_check((*FirstIterator)->Name() == "First");
+  revng_check((*std::next(FirstIterator))->Name() == "Second");
 }
 
 BOOST_AUTO_TEST_CASE(Reused) {
@@ -63,27 +63,27 @@ BOOST_AUTO_TEST_CASE(Reused) {
 
   model::TypeBucket Bucket = *Binary;
   auto &&[Type, Path] = Bucket.makeStructDefinition();
-  Type.OriginalName() = "First";
+  Type.Name() = "First";
   Bucket.commit();
 
   revng_check(Binary->TypeDefinitions().size() == 1);
-  revng_check((*Binary->TypeDefinitions().begin())->OriginalName() == "First");
+  revng_check((*Binary->TypeDefinitions().begin())->Name() == "First");
 
   auto &&[AnotherType, AP] = Bucket.makeStructDefinition();
-  AnotherType.OriginalName() = "Second";
+  AnotherType.Name() = "Second";
   Bucket.drop();
 
   revng_check(Binary->TypeDefinitions().size() == 1);
-  revng_check((*Binary->TypeDefinitions().begin())->OriginalName() == "First");
+  revng_check((*Binary->TypeDefinitions().begin())->Name() == "First");
 
   auto &&[OneMoreType, _] = Bucket.makeStructDefinition();
-  OneMoreType.OriginalName() = "Third";
+  OneMoreType.Name() = "Third";
   Bucket.commit();
 
   revng_check(Binary->TypeDefinitions().size() == 2);
   auto FirstIterator = Binary->TypeDefinitions().begin();
-  revng_check((*FirstIterator)->OriginalName() == "First");
-  revng_check((*std::next(FirstIterator))->OriginalName() == "Third");
+  revng_check((*FirstIterator)->Name() == "First");
+  revng_check((*std::next(FirstIterator))->Name() == "Third");
 }
 
 BOOST_AUTO_TEST_CASE(Paths) {
@@ -93,18 +93,18 @@ BOOST_AUTO_TEST_CASE(Paths) {
   {
     model::TypeBucket Bucket = *Binary;
     auto &&[Definition, Type] = Bucket.makeStructDefinition();
-    Definition.OriginalName() = "Valid";
+    Definition.Name() = "Valid";
 
     revng_check(Binary->TypeDefinitions().size() == 0);
     // Not valid yet.
-    // revng_check(Type->tryGetAsDefinition()->OriginalName() == "Valid");
+    // revng_check(Type->tryGetAsDefinition()->Name() == "Valid");
     Bucket.commit();
     revng_check(Binary->TypeDefinitions().size() == 1);
     // Becomes valid after the commit.
-    revng_check(Type->tryGetAsDefinition()->OriginalName() == "Valid");
+    revng_check(Type->tryGetAsDefinition()->Name() == "Valid");
 
     Saved = Type.copy();
-    revng_check(Saved->tryGetAsDefinition()->OriginalName() == "Valid");
+    revng_check(Saved->tryGetAsDefinition()->Name() == "Valid");
 
     //`Type` gets destroyed here,
   }
@@ -113,6 +113,6 @@ BOOST_AUTO_TEST_CASE(Paths) {
   revng_check(Binary->TypeDefinitions().size() == 1);
   auto TD = Binary->TypeDefinitions().begin();
   model::TypeDefinition &SavedDef = *Saved->tryGetAsDefinition();
-  revng_check(SavedDef.OriginalName() == (*TD)->OriginalName());
-  revng_check(SavedDef.OriginalName() == "Valid");
+  revng_check(SavedDef.Name() == (*TD)->Name());
+  revng_check(SavedDef.Name() == "Valid");
 }

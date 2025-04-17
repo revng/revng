@@ -1243,6 +1243,27 @@ inline cppcoro::generator<llvm::CallBase *> callers(llvm::Function *F) {
   }
 }
 
+inline cppcoro::generator<const llvm::CallBase *>
+callers(const llvm::Function *F) {
+  using namespace llvm;
+  SmallVector<const Value *, 8> Queue;
+  Queue.push_back(F);
+
+  while (not Queue.empty()) {
+    const Value *V = Queue.back();
+    Queue.pop_back();
+
+    for (const User *U : V->users()) {
+      if (const auto *Call = dyn_cast<CallBase>(U)) {
+        co_yield Call;
+      } else if (const auto *CE = dyn_cast<ConstantExpr>(U)) {
+        if (CE->isCast())
+          Queue.push_back(CE);
+      }
+    }
+  }
+}
+
 inline cppcoro::generator<llvm::CallBase *>
 callersIn(llvm::Function *F, llvm::Function *ContainingFunction) {
   for (llvm::CallBase *Call : callers(F))
@@ -1436,16 +1457,6 @@ void forceVerify(const llvm::Function *F);
 
 void collectTypes(llvm::Type *Root, std::set<llvm::Type *> &Set);
 
-/// Emit a call to a function passing as argument a string
-///
-/// \p PCH if not nullptr, the function will force the program counter CSVs to
-///    a sensible value for better debugging.
-void emitCall(llvm::IRBuilderBase &Builder,
-              llvm::Function *Callee,
-              const llvm::Twine &Reason,
-              const llvm::DebugLoc &DbgLocation,
-              const ProgramCounterHandler *PCH = nullptr);
-
 namespace llvm {
 class DominatorTree;
 }
@@ -1502,3 +1513,5 @@ public:
     }
   }
 };
+
+void sortModule(llvm::Module &M);

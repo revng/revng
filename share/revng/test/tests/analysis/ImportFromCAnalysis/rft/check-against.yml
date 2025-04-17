@@ -5,7 +5,7 @@
 Architecture: x86_64
 
 Functions:
-  - CustomName: "new_function_name"
+  - Name: new_function_name
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3000-RawFunctionDefinition"

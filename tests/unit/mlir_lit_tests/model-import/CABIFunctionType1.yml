@@ -15,6 +15,6 @@ TypeDefinitions:
   # CHECK: >
   - ID: 1001
     Kind: CABIFunctionDefinition
-    CustomName: "my_function1"
+    Name: "my_function1"
     ABI: SystemV_x86_64
     Arguments: []

@@ -551,9 +551,10 @@ static constexpr auto ShallowNodeLabel = "call-graph.shallow-node-label";
 
 } // namespace callGraphTokens
 
-static model::Identifier functionNameHelper(llvm::StringRef Location,
-                                            const model::Binary &Binary,
-                                            model::NameBuilder &NameBuilder) {
+static std::string
+functionNameHelper(llvm::StringRef Location,
+                   const model::Binary &Binary,
+                   const model::AssemblyNameBuilder &NameBuilder) {
   if (auto L = pipeline::locationFromString(revng::ranks::DynamicFunction,
                                             Location)) {
     auto Key = std::get<0>(L->at(revng::ranks::DynamicFunction));
@@ -571,11 +572,11 @@ static model::Identifier functionNameHelper(llvm::StringRef Location,
   }
 }
 
-std::string
-yield::ptml::functionNameDefinition(const ::ptml::MarkupBuilder &B,
-                                    llvm::StringRef Location,
-                                    const model::Binary &Binary,
-                                    model::NameBuilder &NameBuilder) {
+std::string yield::ptml::functionNameDefinition(const ::ptml::MarkupBuilder &B,
+                                                llvm::StringRef Location,
+                                                const model::Binary &Binary,
+                                                const model::AssemblyNameBuilder
+                                                  &NameBuilder) {
   if (Location.empty())
     return "";
 
@@ -588,10 +589,11 @@ yield::ptml::functionNameDefinition(const ::ptml::MarkupBuilder &B,
   return Result.toString();
 }
 
-std::string yield::ptml::functionLink(const ::ptml::MarkupBuilder &B,
-                                      llvm::StringRef Location,
-                                      const model::Binary &Binary,
-                                      model::NameBuilder &NameBuilder) {
+std::string
+yield::ptml::functionLink(const ::ptml::MarkupBuilder &B,
+                          llvm::StringRef Location,
+                          const model::Binary &Binary,
+                          const model::AssemblyNameBuilder &NameBuilder) {
   if (Location.empty())
     return "";
 
@@ -607,7 +609,8 @@ std::string yield::ptml::functionLink(const ::ptml::MarkupBuilder &B,
 std::string yield::ptml::shallowFunctionLink(const ::ptml::MarkupBuilder &B,
                                              llvm::StringRef Location,
                                              const model::Binary &Binary,
-                                             model::NameBuilder &NameBuilder) {
+                                             const model::AssemblyNameBuilder
+                                               &NameBuilder) {
   if (Location.empty())
     return "";
 

@@ -30,6 +30,8 @@
 #include "PTCInterface.h"
 #include "VariableManager.h"
 
+RegisterIRHelper SetRegisterMarker("set_register", "in early-linked");
+
 using namespace llvm;
 
 // TODO: rename
@@ -369,8 +371,9 @@ void VariableManager::finalize() {
                                           { Builder.getInt32Ty(),
                                             Builder.getInt64Ty() },
                                           false);
-  FunctionCallee SetRegisterC = TheModule.getOrInsertFunction("set_register",
-                                                              SetRegisterTy);
+  FunctionCallee SetRegisterC = getOrInsertIRHelper("set_register",
+                                                    TheModule,
+                                                    SetRegisterTy);
   auto *SetRegister = cast<Function>(SetRegisterC.getCallee());
   SetRegister->setLinkage(GlobalValue::ExternalLinkage);
 
@@ -393,8 +396,7 @@ void VariableManager::finalize() {
 
   // Populate the default case of the switch
   Builder.SetInsertPoint(DefaultBB);
-  Builder.CreateCall(TheModule.getFunction("abort"));
-  Builder.CreateUnreachable();
+  emitAbort(Builder, "");
 
   // Create the switch statement
   Builder.SetInsertPoint(EntryBB);

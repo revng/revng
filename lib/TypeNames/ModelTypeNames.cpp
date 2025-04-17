@@ -18,7 +18,6 @@
 #include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Helpers.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Tag.h"
@@ -141,19 +140,19 @@ PCTB::getGotoLabelLocationReference(llvm::StringRef Name,
   return getGotoLabelLocation<false>(Name, F, *this);
 }
 
-std::string PCTB::getLocationReference(const model::Function &F) {
+std::string PCTB::getLocationReference(const model::Function &F) const {
   std::string Location = pipeline::locationString(ranks::Function, F.key());
-  return getTag(ptml::tags::Span, NameBuilder.name(F).str())
+  return getTag(ptml::tags::Span, NameBuilder.name(F))
     .addAttribute(attributes::Token, ptml::c::tokens::Function)
     .addAttribute(attributes::ActionContextLocation, Location)
     .addAttribute(attributes::LocationReferences, Location)
     .toString();
 }
 
-std::string PCTB::getLocationReference(const model::DynamicFunction &F) {
+std::string PCTB::getLocationReference(const model::DynamicFunction &F) const {
   std::string Location = pipeline::locationString(ranks::DynamicFunction,
                                                   F.key());
-  return getTag(ptml::tags::Span, NameBuilder.name(F).str())
+  return getTag(ptml::tags::Span, NameBuilder.name(F))
     .addAttribute(attributes::Token, ptml::c::tokens::Function)
     .addAttribute(attributes::ActionContextLocation, Location)
     .addAttribute(attributes::LocationReferences, Location)
@@ -161,7 +160,7 @@ std::string PCTB::getLocationReference(const model::DynamicFunction &F) {
 }
 
 struct NamedCInstanceImpl {
-  ptml::CTypeBuilder &B;
+  const ptml::CTypeBuilder &B;
   llvm::ArrayRef<std::string> AllowedActions;
   bool OmitInnerTypeName;
 
@@ -267,7 +266,7 @@ private:
 TypeString PCTB::getNamedCInstance(const model::Type &Type,
                                    StringRef InstanceName,
                                    llvm::ArrayRef<std::string> AllowedActions,
-                                   bool OmitInnerTypeName) {
+                                   bool OmitInnerTypeName) const {
   NamedCInstanceImpl Helper(*this, AllowedActions, OmitInnerTypeName);
 
   std::string Result = InstanceName.str();
@@ -276,7 +275,7 @@ TypeString PCTB::getNamedCInstance(const model::Type &Type,
   return TypeString(std::move(Result));
 }
 
-TypeString PCTB::getArrayWrapper(const model::ArrayType &ArrayType) {
+TypeString PCTB::getArrayWrapper(const model::ArrayType &ArrayType) const {
   auto Name = NameBuilder.artificialArrayWrapperName(ArrayType);
   return TypeString(getTag(ptml::tags::Span, std::move(Name)).toString());
 }
@@ -284,7 +283,7 @@ TypeString PCTB::getArrayWrapper(const model::ArrayType &ArrayType) {
 TypeString
 PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
                                    llvm::StringRef InstanceName,
-                                   bool IsDefinition) {
+                                   bool IsDefinition) const {
   TypeString Result;
   std::vector<std::string> AllowedActions = { ptml::actions::Rename };
 
@@ -388,7 +387,7 @@ template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::RawFunctionDefinition &RF,
                                        const llvm::StringRef &FunctionName,
-                                       ptml::CTypeBuilder &B,
+                                       const ptml::CTypeBuilder &B,
                                        bool SingleLine) {
   using namespace abi::FunctionType;
   auto Layout = Layout::make(RF);
@@ -410,7 +409,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
     const StringRef Comma = ", ";
     StringRef Separator = Open;
     for (const model::NamedTypedRegister &Arg : RF.Arguments()) {
-      std::string ArgName = B.NameBuilder.argumentName(RF, Arg).str().str();
+      std::string ArgName = B.NameBuilder.name(RF, Arg);
       std::string ArgString;
       if (Function != nullptr)
         ArgString = getArgumentLocationDefinition(ArgName, *Function, B);
@@ -432,10 +431,12 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
     if (not RF.StackArgumentsType().isEmpty()) {
       // Add last argument representing a pointer to the stack arguments
       std::string StackArgName;
-      if (Function != nullptr)
-        StackArgName = getArgumentLocationDefinition("_stack_arguments",
+      if (Function != nullptr) {
+        StackArgName = B.NameBuilder.Configuration.rawStackArgumentName();
+        StackArgName = getArgumentLocationDefinition(StackArgName,
                                                      *Function,
                                                      B);
+      }
       auto N = B.getNamedCInstance(*RF.StackArgumentsType(), StackArgName);
       Result += Separator.str() + N.str().str() + " "
                 + ptml::AttributeRegistry::getAttribute<"_STACK">();
@@ -450,7 +451,7 @@ template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::CABIFunctionDefinition &CF,
                                        const llvm::StringRef &FunctionName,
-                                       ptml::CTypeBuilder &B,
+                                       const ptml::CTypeBuilder &B,
                                        bool SingleLine) {
 
   using namespace abi::FunctionType;
@@ -474,7 +475,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
     StringRef Separator = Open;
 
     for (const auto &Arg : CF.Arguments()) {
-      std::string ArgName = B.NameBuilder.argumentName(CF, Arg).str().str();
+      std::string ArgName = B.NameBuilder.name(CF, Arg);
       std::string ArgString;
       if (Function != nullptr)
         ArgString = getArgumentLocationDefinition(ArgName, *Function, B);

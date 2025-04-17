@@ -218,13 +218,14 @@ struct LabelDescription {
   std::string Location;
 };
 
-static LabelDescription labelImpl(const BasicBlockID &BasicBlock,
-                                  const yield::Function &Function,
-                                  const model::Binary &Binary,
-                                  model::NameBuilder &NameBuilder) {
+static LabelDescription
+labelImpl(const BasicBlockID &BasicBlock,
+          const yield::Function &Function,
+          const model::Binary &Binary,
+          const model::AssemblyNameBuilder &NameBuilder) {
   if (auto *ModelFunction = yield::tryGetFunction(Binary, BasicBlock)) {
     return LabelDescription{
-      .Name = NameBuilder.name(*ModelFunction).str().str(),
+      .Name = NameBuilder.name(*ModelFunction),
       .Location = locationString(revng::ranks::Function, ModelFunction->key()),
     };
   } else if (Function.Blocks().contains(BasicBlock)) {
@@ -287,7 +288,7 @@ static bool tryToTurnIntoALabel(yield::TaggedString &Input,
                                 const yield::BasicBlock &BasicBlock,
                                 const yield::Function &Function,
                                 const model::Binary &Binary,
-                                model::NameBuilder &NameBuilder) {
+                                const model::AssemblyNameBuilder &NameBuilder) {
   if (Address.isInvalid())
     return false;
 
@@ -314,12 +315,13 @@ static bool tryToTurnIntoALabel(yield::TaggedString &Input,
   return false;
 }
 
-static yield::TaggedString emitAddress(yield::TaggedString &&Input,
-                                       const MetaAddress &Address,
-                                       const yield::BasicBlock &BasicBlock,
-                                       const yield::Function &Function,
-                                       const model::Binary &Binary,
-                                       model::NameBuilder &NameBuilder) {
+static yield::TaggedString
+emitAddress(yield::TaggedString &&Input,
+            const MetaAddress &Address,
+            const yield::BasicBlock &BasicBlock,
+            const yield::Function &Function,
+            const model::Binary &Binary,
+            const model::AssemblyNameBuilder &NameBuilder) {
   namespace Style = model::DisassemblyConfigurationAddressStyle;
   const auto &Configuration = Binary.Configuration().Disassembly();
   Style::Values AddressStyle = Configuration.AddressStyle();
@@ -381,7 +383,7 @@ handleSpecialCases(SortedVector<yield::TaggedString> &&Input,
                    const yield::BasicBlock &BasicBlock,
                    const yield::Function &Function,
                    const model::Binary &Binary,
-                   model::NameBuilder &NameBuilder) {
+                   const model::AssemblyNameBuilder &NameBuilder) {
   SortedVector<yield::TaggedString> Result;
 
   uint64_t IndexOffset = 0;
@@ -430,10 +432,11 @@ handleSpecialCases(SortedVector<yield::TaggedString> &&Input,
   return Result;
 }
 
+using ANB = model::AssemblyNameBuilder;
 void yield::Instruction::handleSpecialTags(const yield::BasicBlock &BasicBlock,
                                            const yield::Function &Function,
                                            const model::Binary &Binary,
-                                           model::NameBuilder &NameBuilder) {
+                                           const ANB &NameBuilder) {
   Disassembled() = handleSpecialCases(std::move(Disassembled()),
                                       *this,
                                       BasicBlock,
@@ -444,7 +447,8 @@ void yield::Instruction::handleSpecialTags(const yield::BasicBlock &BasicBlock,
 
 void yield::BasicBlock::setLabel(const yield::Function &Function,
                                  const model::Binary &Binary,
-                                 model::NameBuilder &NameBuilder) {
+                                 const model::AssemblyNameBuilder
+                                   &NameBuilder) {
   auto &&[N, Location] = labelImpl(ID(), Function, Binary, NameBuilder);
 
   SortedVector<TagAttribute> Attributes;

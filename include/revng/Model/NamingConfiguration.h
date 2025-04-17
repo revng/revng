@@ -5,6 +5,7 @@
 //
 
 /* TUPLE-TREE-YAML
+
 name: NamingConfiguration
 type: struct
 fields:
@@ -21,13 +22,6 @@ fields:
       The prefix for a local function without a name.
 
       The default value is `function_`.
-    type: string
-    optional: true
-  - name: UnnamedDynamicFunctionPrefix
-    doc: |
-      The prefix for a dynamic function without a name.
-
-      The default value is `dynamic_`.
     type: string
     optional: true
 
@@ -79,6 +73,64 @@ fields:
     type: string
     optional: true
 
+  - name: UnnamedLocalVariablePrefix
+    doc: |
+      The prefix for a local variable without a name.
+
+      The default value is `var_`.
+    type: string
+    optional: true
+  - name: UnnamedBreakFromLoopVariablePrefix
+    doc: |
+      The prefix for a local variable without a name.
+
+      The default value is `break_from_loop_`.
+    type: string
+    optional: true
+  - name: UndefinedValuePrefix
+    doc: |
+      The prefix for an undefined value.
+
+      The default value is `undef_`.
+    type: string
+    optional: true
+  - name: OpaqueCSVValuePrefix
+    doc: |
+      The prefix for accessing an opaque CSV Value.
+
+      The default value is `undef_`.
+    type: string
+    optional: true
+  - name: MaximumEnumValuePrefix
+    doc: |
+      The prefix for the maximum enum value.
+
+      The default value is `enum_max_value_`.
+    type: string
+    optional: true
+
+  - name: StackFrameVariableName
+    doc: |
+      The name of the variable representing stack.
+
+      The default value is `stack`.
+    type: string
+    optional: true
+  - name: RawStackArgumentName
+    doc: |
+      The name of the variable representing stack.
+
+      The default value is `stack_arguments`.
+    type: string
+    optional: true
+  - name: LoopStateVariableName
+    doc: |
+      The name of the variable representing stack.
+
+      The default value is `loop_state_var`.
+    type: string
+    optional: true
+
   - name: StructPaddingPrefix
     doc: |
       The prefix for a padding struct field.
@@ -109,12 +161,11 @@ fields:
     type: string
     optional: true
 
-  - name: CollisionResolutionSuffix
+  - name: ReserveNamesStartingWithUnderscore
     doc: |
-      The suffix attached to colliding names in order to disambiguate them.
-
-      The default value is `_`.
-    type: string
+      When this is set to `true`, all the names starting with underscores will
+      have a \ref ReservedNamePrefix prefix attached.
+    type: bool
     optional: true
 
 TUPLE-TREE-YAML */
@@ -140,12 +191,6 @@ public:
       return "function_";
     else
       return UnnamedFunctionPrefix();
-  }
-  llvm::StringRef unnamedDynamicFunctionPrefix() const {
-    if (UnnamedDynamicFunctionPrefix().empty())
-      return "dynamic_";
-    else
-      return UnnamedDynamicFunctionPrefix();
   }
 
   llvm::StringRef unnamedTypeDefinitionPrefix() const {
@@ -187,6 +232,57 @@ public:
       return UnnamedFunctionRegisterPrefix();
   }
 
+  llvm::StringRef unnamedLocalVariablePrefix() const {
+    if (UnnamedLocalVariablePrefix().empty())
+      return "var_";
+    else
+      return UnnamedLocalVariablePrefix();
+  }
+  llvm::StringRef unnamedBreakFromLoopVariablePrefix() const {
+    if (UnnamedBreakFromLoopVariablePrefix().empty())
+      return "break_from_loop_";
+    else
+      return UnnamedBreakFromLoopVariablePrefix();
+  }
+
+  llvm::StringRef undefinedValuePrefix() const {
+    if (UndefinedValuePrefix().empty())
+      return "undef_";
+    else
+      return UndefinedValuePrefix();
+  }
+  llvm::StringRef opaqueCSVValuePrefix() const {
+    if (OpaqueCSVValuePrefix().empty())
+      return "revng_undefined_";
+    else
+      return OpaqueCSVValuePrefix();
+  }
+  llvm::StringRef maximumEnumValuePrefix() const {
+    if (MaximumEnumValuePrefix().empty())
+      return "enum_max_value_";
+    else
+      return MaximumEnumValuePrefix();
+  }
+
+  llvm::StringRef stackFrameVariableName() const {
+    if (StackFrameVariableName().empty())
+      return "stack";
+    else
+      return StackFrameVariableName();
+  }
+  llvm::StringRef rawStackArgumentName() const {
+    if (RawStackArgumentName().empty())
+      return "stack_arguments";
+    else
+      return RawStackArgumentName();
+  }
+  llvm::StringRef loopStateVariableName() const {
+    if (LoopStateVariableName().empty())
+      return "loop_state_var";
+    else
+      return LoopStateVariableName();
+  }
+
   llvm::StringRef structPaddingPrefix() const {
     if (StructPaddingPrefix().empty())
       return "padding_at_";
@@ -210,13 +306,6 @@ public:
       return "the_array";
     else
       return ArtificialArrayWrapperFieldName();
-  }
-
-  llvm::StringRef collisionResolutionSuffix() const {
-    if (CollisionResolutionSuffix().empty())
-      return "_";
-    else
-      return CollisionResolutionSuffix();
   }
 };
 

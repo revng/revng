@@ -60,7 +60,7 @@ inline void importSymbolsInto(model::Binary &Binary,
 
       model::StructField &Field = Struct.addField(*Offset, {});
       Field.Offset() = *Offset;
-      Field.OriginalName() = SymbolName.str();
+      Field.Name() = SymbolName.str();
       if (SymbolSize == 1 || SymbolSize == 2 || SymbolSize == 4
           || SymbolSize == 8) {
         Field.Type() = model::PrimitiveType::makeGeneric(SymbolSize);
@@ -115,7 +115,19 @@ populateSegmentTypeStruct(model::Binary &Binary,
 
     // Insert the field the segment struct
     auto &SectionField = SegmentStruct.addField(*Offset, std::move(Type));
-    SectionField.OriginalName() = Section.Name;
+
+    // TODO: This is the only place where we automatically change names coming
+    //       from the binary (aside from the deduplication, but that's
+    //       a separate issue). Are we happy with this?
+
+    llvm::StringRef Name = Section.Name;
+    if (Name.starts_with("."))
+      Name = Name.drop_front();
+
+    constexpr auto ReplaceDots = std::views::transform([](char Character) {
+      return Character != '.' ? Character : '_';
+    });
+    SectionField.Name() = Name | ReplaceDots | revng::to<std::string>();
   }
 
   // Pour the remaining symbols into the segment struct

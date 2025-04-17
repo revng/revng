@@ -72,7 +72,7 @@ ensureIDMatch(const model::TypeDefinition::Key &Left,
 
     // Make sure the replacement ID is not in use already.
     if (LeftIterator != Model.TypeDefinitions().end()) {
-      if (ExpectedName == LeftIterator->get()->OriginalName()) {
+      if (ExpectedName == LeftIterator->get()->Name()) {
         // Original names match: assume the types are the same and skip
         // the replacement.
         return std::nullopt;
@@ -80,9 +80,9 @@ ensureIDMatch(const model::TypeDefinition::Key &Left,
 
       std::string Error = "Key in use already: "
                           + toString(LeftIterator->get()->key())
-                          + "\nLHS name is '" + ExpectedName.str()
-                          + "' while RHS name is '"
-                          + LeftIterator->get()->OriginalName() + "'.";
+                          + "\nLHS name is `" + ExpectedName.str()
+                          + "` while RHS name is `"
+                          + LeftIterator->get()->Name() + "`.";
       revng_abort(Error.c_str());
     }
 
@@ -131,7 +131,7 @@ int main(int Argc, char *Argv[]) {
     ExitOnError(llvm::createStringError(EC, EC.message()));
 
   // Introduce a function pair container to allow grouping them based on their
-  // `CustomName`.
+  // name.
   struct KeyPair {
     std::optional<model::TypeDefinition::Key> Left = std::nullopt;
     std::optional<model::TypeDefinition::Key> Right = std::nullopt;
@@ -146,17 +146,17 @@ int main(int Argc, char *Argv[]) {
       return LHS < RHS;
     }
   };
-  std::map<model::Identifier, KeyPair, TransparentComparator> Functions;
+  std::map<std::string, KeyPair, TransparentComparator> Functions;
   std::unordered_set<uint64_t> FunctionIDLookup;
 
   // Gather all the `RawFunctionDefinition` prototypes present in the first
   // model.
-  model::NameBuilder LeftNameBuilder = *LeftModel;
+  model::CNameBuilder LeftNameBuilder = *LeftModel;
   for (model::Function &F : LeftModel->Functions()) {
     if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
 
-    revng_assert(LeftNameBuilder.name(F) != "",
+    revng_assert(F.Name() != "",
                  "This test uses names to differentiate functions, as such "
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
@@ -173,12 +173,12 @@ int main(int Argc, char *Argv[]) {
 
   // Gather all the `RawFunctionDefinition` prototypes present in the second
   // model.
-  model::NameBuilder RightNameBuilder = *RightModel;
+  model::CNameBuilder RightNameBuilder = *RightModel;
   for (model::Function &F : RightModel->Functions()) {
     if (F.Prototype().isEmpty())
       continue; // Skip functions without prototypes.
 
-    revng_assert(RightNameBuilder.name(F) != "",
+    revng_assert(F.Name() != "",
                  "This test uses names to differentiate functions, as such "
                  "having unnamed functions in the model would break it, "
                  "hence it's not allowed.");
@@ -191,7 +191,7 @@ int main(int Argc, char *Argv[]) {
       if (Iterator == Functions.end()) {
         std::string Error = "A function present in the right model is missing "
                             "in the left one: "
-                            + RightNameBuilder.name(F).str().str();
+                            + RightNameBuilder.name(F);
         revng_abort(Error.c_str());
       }
       revng_assert(Iterator->second.Right == std::nullopt);
@@ -208,12 +208,12 @@ int main(int Argc, char *Argv[]) {
     if (Iterator->second.Left == std::nullopt) {
       std::string Error = "This should never happen, something is VERY wrong. "
                           "A function is missing in the left model: "
-                          + Iterator->first.str().str() + "?";
+                          + Iterator->first;
     }
     if (Iterator->second.Right == std::nullopt) {
       std::string Error = "A function present in the left model is missing in "
                           "the right one: "
-                          + Iterator->first.str().str();
+                          + Iterator->first;
       revng_abort(Error.c_str());
     }
 
@@ -252,12 +252,12 @@ int main(int Argc, char *Argv[]) {
     if (LeftStack != nullptr) {
       const model::TypeDefinition::Key &LSK = LeftStack->key();
       const model::TypeDefinition::Key &RSK = RightStack->key();
-      llvm::StringRef N = LeftModel->TypeDefinitions().at(LSK)->OriginalName();
+      llvm::StringRef N = LeftModel->TypeDefinitions().at(LSK)->Name();
       if (auto Replacement = ensureIDMatch(LSK, RSK, N, *RightModel))
         Replacements.emplace(std::move(Replacement.value()));
     }
 
-    llvm::StringRef N = LeftModel->TypeDefinitions().at(*LKey)->OriginalName();
+    llvm::StringRef N = LeftModel->TypeDefinitions().at(*LKey)->Name();
     if (auto Replacement = ensureIDMatch(*LKey, *RKey, N, *RightModel))
       Replacements.emplace(std::move(Replacement.value()));
   }

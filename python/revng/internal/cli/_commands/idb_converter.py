@@ -140,7 +140,7 @@ class IDBConverter:
             if idb_function_type is not None:
                 prototype = self._convert_idb_type_to_revng_type(idb_function_type)
                 revng_function = m.Function(
-                    OriginalName=function_name,
+                    Name=function_name,
                     Entry=m.MetaAddress(Address=function_start_addr, Type=metaaddr_type),
                     Attributes=function_attributes,
                     Prototype=prototype,
@@ -148,7 +148,7 @@ class IDBConverter:
             else:
                 self.log(f"warning: Function {function_name} without a signature.")
                 revng_function = m.Function(
-                    OriginalName=function_name,
+                    Name=function_name,
                     Entry=m.MetaAddress(Address=function_start_addr, Type=metaaddr_type),
                     Attributes=function_attributes,
                 )
@@ -196,7 +196,7 @@ class IDBConverter:
             self.revng_types_by_id[prototype_definition.ID] = prototype_definition
             prototype = self._type_for_definition(prototype_definition)
         dynamic_function = m.DynamicFunction(
-            OriginalName=function_name,
+            Name=function_name,
             Prototype=prototype,
         )
         self.dynamic_functions.append(dynamic_function)
@@ -246,7 +246,7 @@ class IDBConverter:
             )
 
             placeholder_definition.Fields = real_definition.Fields
-            placeholder_definition.OriginalName = real_definition.OriginalName
+            placeholder_definition.Name = real_definition.Name
             placeholder_definition.Size = real_definition.Size
 
     def _fixup_structs(self):
@@ -265,15 +265,14 @@ class IDBConverter:
             for member in idb_type.type_details.members:
                 if member.type.is_decl_bitfield():
                     self.log(
-                        f"warning: Ignoring {revng_type.OriginalName} struct that contains a "
-                        "bitfield."
+                        f"warning: Ignoring {revng_type.Name} struct that contains a " "bitfield."
                     )
                     return
 
             for member in idb_type.type_details.members:
                 underlying_type = self._convert_idb_type_to_revng_type(member.type)
                 revng_member = m.StructField(
-                    OriginalName=member.name,
+                    Name=member.name,
                     Type=underlying_type,
                     Offset=committed_size,
                 )
@@ -281,7 +280,7 @@ class IDBConverter:
                 if member_size == 0:
                     self.log(
                         f"warning: Dropping zero-sized field {member.name} of struct "
-                        f"{revng_type.OriginalName}."
+                        f"{revng_type.Name}."
                     )
                 else:
                     fields.append(revng_member)
@@ -301,7 +300,7 @@ class IDBConverter:
             for idx, member in enumerate(idb_type.type_details.members):
                 qualified_type = self._convert_idb_type_to_revng_type(member.type)
                 revng_member = m.UnionField(
-                    OriginalName=member.name,
+                    Name=member.name,
                     Type=qualified_type,
                     Index=idx,
                 )
@@ -348,9 +347,27 @@ class IDBConverter:
                 aliased_type, ordinal=aliased_type_ordinal
             )
 
-            resulting_definition = m.TypedefDefinition(
-                OriginalName=type_name, UnderlyingType=underlying
-            )
+            # IDA uses c-like type system in that for each struct/union a corresponding typedef
+            # is introduced. In our model type system, such typedefs are already included
+            # in the struct/union definitions (we emit them automatically for each aggregate, with
+            # no need for an explicit typedef - de facto, always introducing their names into
+            # the global namespace).
+            #
+            # As such, when importing from IDA, unless a typedef carries any extra information,
+            # there's no point of importing it (it's harmful, actually, as it introduces multiple
+            # types sharing the same name) - so we just skip it here.
+
+            if (
+                aliased_type.get_name() == type_name
+                and type.is_decl_const() == aliased_type.is_decl_const()
+                and isinstance(underlying, m.DefinedType)
+            ):
+                # skip unnecessary typedefs
+                resulting_definition = self.unwrap_definition(underlying)
+            else:
+                resulting_definition = m.TypedefDefinition(
+                    Name=type_name, UnderlyingType=underlying
+                )
 
         elif type.is_decl_enum():
             underlying = m.PrimitiveType(
@@ -366,7 +383,7 @@ class IDBConverter:
                     continue
                 # TODO: We should keep the user comment which might exist in member.cmt.
                 enum_entry = m.EnumEntry(
-                    OriginalName=member.name,
+                    Name=member.name,
                     Value=member.value,
                 )
                 entries.append(enum_entry)
@@ -374,11 +391,11 @@ class IDBConverter:
             if len(entries) == 0:
                 self.log(f"warning: An empty enum type: {type_name}, emitting a typedef instead.")
                 resulting_definition = m.TypedefDefinition(
-                    OriginalName=type_name, UnderlyingType=underlying
+                    Name=type_name, UnderlyingType=underlying
                 )
             else:
                 resulting_definition = m.EnumDefinition(
-                    OriginalName=type_name,
+                    Name=type_name,
                     Entries=entries,
                     UnderlyingType=underlying,
                 )
@@ -387,7 +404,7 @@ class IDBConverter:
             if type.type_details.ref is not None and type.type_details.ref.type_details.is_ordref:
                 if type.type_details.ref.type_details.ordinal not in self.idb_types_to_revng_types:
                     # This is just a forward declaration. Make a placeholder for now.
-                    resulting_definition = m.StructDefinition(OriginalName="", Size=0, Fields=[])
+                    resulting_definition = m.StructDefinition(Name="", Size=0, Fields=[])
                     self.revng_types_by_id[resulting_definition.ID] = resulting_definition
 
                     wrapped = self._type_for_definition(resulting_definition, type.is_decl_const())
@@ -404,23 +421,21 @@ class IDBConverter:
                 if len(type.type_details.members) == 0:
                     self.log(f"warning: Ignoring empty struct {type_name}, typedef it to `void`")
                     typedef = m.TypedefDefinition(
-                        OriginalName=type_name,
+                        Name=type_name,
                         UnderlyingType=m.PrimitiveType(m.PrimitiveKind.Void, 0),
                     )
                     self.revng_types_by_id[typedef.ID] = typedef
                     return self._type_for_definition(typedef, type.is_decl_const())
                 else:
                     # Struct members and size will be computed later.
-                    resulting_definition = m.StructDefinition(
-                        OriginalName=type_name, Size=0, Fields=[]
-                    )
+                    resulting_definition = m.StructDefinition(Name=type_name, Size=0, Fields=[])
                     self._structs_to_fixup.add((resulting_definition, type))
 
         elif type.is_decl_union():
             if type.type_details.ref is not None and type.type_details.ref.type_details.is_ordref:
                 if type.type_details.ref.type_details.ordinal not in self.idb_types_to_revng_types:
                     # This is just a forward declaration. Make a placeholder for now.
-                    resulting_definition = m.UnionDefinition(OriginalName="", Fields=[])
+                    resulting_definition = m.UnionDefinition(Name="", Fields=[])
                     self.revng_types_by_id[resulting_definition.ID] = resulting_definition
 
                     wrapped = self._type_for_definition(resulting_definition, type.is_decl_const())
@@ -436,14 +451,14 @@ class IDBConverter:
                 if len(type.type_details.members) == 0:
                     self.log(f"warning: Ignoring empty union {type_name}, typedef it to `void`")
                     typedef = m.TypedefDefinition(
-                        OriginalName=type_name,
+                        Name=type_name,
                         UnderlyingType=m.PrimitiveType(m.PrimitiveKind.Void, 0),
                     )
                     self.revng_types_by_id[typedef.ID] = typedef
                     return self._type_for_definition(typedef, type.is_decl_const())
                 else:
                     # Union members will be computed later.
-                    resulting_definition = m.UnionDefinition(OriginalName=type_name, Fields=[])
+                    resulting_definition = m.UnionDefinition(Name=type_name, Fields=[])
                     self._unions_to_fixup.add((resulting_definition, type))
 
         elif type.is_decl_ptr():
@@ -501,7 +516,7 @@ class IDBConverter:
             if type.get_name() != "":
                 # Treat this as `typedef void someothername`.
                 result = m.TypedefDefinition(
-                    OriginalName=type_name, UnderlyingType=result, IsConst=type.is_decl_const()
+                    Name=type_name, UnderlyingType=result, IsConst=type.is_decl_const()
                 )
 
             if ordinal is not None:
@@ -520,7 +535,7 @@ class IDBConverter:
                     m.Argument(
                         Index=idx,
                         Type=self._convert_idb_type_to_revng_type(argument.type),
-                        OriginalName=argument.name,
+                        Name=argument.name,
                     )
                 )
 
@@ -578,12 +593,14 @@ class IDBConverter:
                     self.idb_types_to_revng_types[ordinal] = result
                 return result
 
-        assert not self.revng_types_by_id.get(resulting_definition.ID)
+        assert resulting_definition is not None
 
         result = self._type_for_definition(resulting_definition, type.is_decl_const())
         if ordinal is not None:
             self.idb_types_to_revng_types[ordinal] = result
-        self.revng_types_by_id[resulting_definition.ID] = resulting_definition
+
+        if not self.revng_types_by_id.get(resulting_definition.ID):
+            self.revng_types_by_id[resulting_definition.ID] = resulting_definition
 
         return result
 
@@ -605,13 +622,13 @@ class IDBConverter:
 
     def get_revng_type_by_name(self, name):
         for revng_type in self.revng_types_by_id.values():
-            if revng_type.OriginalName == name:
+            if revng_type.Name == name:
                 return revng_type
         return None
 
     def unwrap_definition(self, defined_type: m.Type) -> Optional[RevngTypeDefinitions]:
-        if not isinstance(defined_type, m.TypeDefinition):
-            raise ValueError("Trying to unwrap a nested definition!")
+        if not isinstance(defined_type, m.DefinedType):
+            raise ValueError("Trying to unwrap a nested definition:\n" + str(defined_type))
 
         return self.revng_types_by_id.get(defined_type.Definition.id)
 

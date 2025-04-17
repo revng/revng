@@ -35,7 +35,7 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
 
   // Access the model
   const auto &Model = getModelFromContext(Context);
-  model::NameBuilder NameBuilder = *Model;
+  model::AssemblyNameBuilder NameBuilder = *Model;
 
   // Access the binary
   revng_assert(SourceBinary.path().has_value());
@@ -67,7 +67,7 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
                         FunctionAssemblyPTMLStringMap &Output) {
   // Access the model
   const auto &Model = getModelFromContext(Context);
-  model::NameBuilder NameBuilder = *Model;
+  model::CNameBuilder NameBuilder = *Model;
 
   ptml::MarkupBuilder B;
   for (const model::Function &Function :
@@ -91,7 +91,7 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
                                           CommentIndicator,
                                           0,
                                           LineWidth,
-                                          &NameBuilder);
+                                          NameBuilder);
     R += yield::ptml::functionAssembly(B, **MaybeFunction, *Model);
     R = B.getTag(ptml::tags::Div, std::move(R)).toString();
     Output.insert_or_assign((*MaybeFunction)->Entry(), std::move(R));

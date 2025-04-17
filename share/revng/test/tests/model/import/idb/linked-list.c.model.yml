@@ -5,15 +5,15 @@
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 17825711661244524544
-    OriginalName: Node
+    Name: Node
     Fields:
       - Offset: 0
-        OriginalName: content_uint32
+        Name: content_uint32
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/16313795245817021241-TypedefDefinition"
       - Offset: 4
-        OriginalName: prev
+        Name: prev
         Type:
           Kind: PointerType
           PointerSize: 8
@@ -21,7 +21,7 @@ TypeDefinitions:
             Kind: DefinedType
             Definition: "/TypeDefinitions/14968854803921815239-TypedefDefinition"
       - Offset: 12
-        OriginalName: next
+        Name: next
         Type:
           Kind: PointerType
           PointerSize: 8

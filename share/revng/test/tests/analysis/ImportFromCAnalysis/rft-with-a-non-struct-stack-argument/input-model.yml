@@ -7,7 +7,7 @@ Architecture: x86_64
 DefaultABI: SystemV_x86_64
 Functions:
   - Entry: "0x400000:Code_x86_64"
-    CustomName: "old_function_name"
+    Name: "old_function_name"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3000-CABIFunctionDefinition"
@@ -27,13 +27,12 @@ TypeDefinitions:
           Kind: PrimitiveType
           PrimitiveKind: Generic
           Size: 8
-        CustomName: "fd"
-        OriginalName: fd
+        Name: fd
   - Kind: StructDefinition
     ID: 3001
     Fields: []
     Size: 16
-    CustomName: "my_stack_struct"
+    Name: "my_stack_struct"
 
 Segments:
   - StartAddress: "0x400000:Generic64"

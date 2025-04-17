@@ -5,9 +5,11 @@
 revng_add_library_internal(
   revngModelPasses
   SHARED
+  DeduplicateCollidingNames.cpp
   DeduplicateEquivalentTypes.cpp
+  FixModel.cpp
+  FlattenPrimitiveTypedefs.cpp
   OptionCategory.cpp
-  PromoteOriginalName.cpp
   PurgeUnnamedAndUnreachableTypes.cpp
   Verify.cpp)
 

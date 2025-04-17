@@ -6,20 +6,19 @@ New model does not verify: Field at offset 1024 is out of struct boundaries (fie
 ---
 ID:              0
 Kind:            StructDefinition
-CustomName:      "my_struct"
+Name:            my_struct
 Size:            24
 Fields:
   - Offset:          16
-    CustomName:      "normal_field"
+    Name:            normal_field
     Type:
       Kind:            PrimitiveType
       PrimitiveKind:   Unsigned
       Size:            8
   - Offset:          1024
-    CustomName:      "broken_field"
+    Name:            broken_field
     Type:
       Kind:            PrimitiveType
       PrimitiveKind:   Unsigned
       Size:            8
 ...
-

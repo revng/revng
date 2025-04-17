@@ -10,7 +10,6 @@
 #include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/Model/CallSitePrototype.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"
@@ -52,7 +51,7 @@ public:
   using generated::BasicBlock::BasicBlock;
 
 public:
-  model::Identifier name() const;
+  std::string name() const;
   BasicBlockID nextBlock() const {
     return BasicBlockID(End(), ID().inliningIndex());
   }

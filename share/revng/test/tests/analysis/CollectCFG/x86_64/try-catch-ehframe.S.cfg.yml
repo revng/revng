@@ -3,14 +3,14 @@
 #
 
 ---
-- OriginalName: function_call
+- Name: function_call
   Blocks:
     - ID: "1"
       End: "2"
       Successors:
         - "-Destination": ""
           Type: Return
-- OriginalName: _start
+- Name: _start
   Blocks:
     - End: "3"
       ID: "2"

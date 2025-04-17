@@ -5,12 +5,12 @@
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 0
-    CustomName: "my_struct"
+    Name: "my_struct"
     Size: 24
     # The leading $ means that the size of the Fields list must match
     $Fields:
       - Offset: 16
-        CustomName: "field"
+        Name: "field"
         Type:
           Kind: PointerType
           PointerSize: 8

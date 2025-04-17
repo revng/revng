@@ -57,7 +57,7 @@ static cl::list<PassName> PassesList(cl::desc("Optimizations available:"),
                                      cl::cat(ThisToolCategory));
 
 static void loadPassesList() {
-  for (const auto &[Name, Description, _] : RegisterModelPass::passes())
+  for (const auto &[Name, Description, _] : RegisterModelPass::values())
     PassesList.getParser().addLiteralOption(Name, PassName(Name), Description);
 }
 
@@ -72,13 +72,13 @@ int main(int Argc, char *Argv[]) {
   auto MaybeModel = ExitOnError(std::move(ParsedModel));
 
   for (const PassName &PassName : PassesList) {
-    const RegisterModelPass::ModelPass *Pass = RegisterModelPass::get(PassName);
-    if (Pass == nullptr) {
+    const RegisteredModelPass *Registered = RegisterModelPass::get(PassName);
+    if (Registered == nullptr) {
       ExitOnError(revng::createError("Pass not found: " + PassName));
     }
 
     // Run pass
-    (*Pass)(MaybeModel);
+    Registered->Pass(MaybeModel);
   }
 
   // Serialize

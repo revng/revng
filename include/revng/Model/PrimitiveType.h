@@ -172,6 +172,10 @@ public:
     return Result;
   }
 
+  static bool isCName(llvm::StringRef Name) {
+    return not fromCName(Name).isEmpty();
+  }
+
   /// @}
 };
 

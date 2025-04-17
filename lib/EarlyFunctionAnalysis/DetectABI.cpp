@@ -34,7 +34,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
-#include "revng/Model/Pass/PromoteOriginalName.h"
+#include "revng/Model/Pass/DeduplicateCollidingNames.h"
 #include "revng/Model/Register.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
@@ -482,7 +482,7 @@ void DetectABI::analyzeABI() {
   }
 
   unsigned Runs = 0;
-  model::NameBuilder NameBuilder = *Binary;
+  model::CNameBuilder NameBuilder = *Binary;
   while (not ToAnalyze.empty()) {
     model::Function &Function = *ToAnalyze.pop();
     revng_log(Log, "Analyzing " << Function.Entry().toString());
@@ -650,7 +650,7 @@ void DetectABI::applyABIDeductions() {
     Summary.ABIResults.ReturnValuesRegisters = std::move(ResultingReturnValues);
 
     if (Log.isEnabled()) {
-      Log << "Summary for " << Function.OriginalName() << ":\n";
+      Log << "Summary for " << Function.Name() << ":\n";
       Summary.dump(Log);
       Log << DoLog;
     }
@@ -835,24 +835,25 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
 
       Function.Prototype() = Binary->makeType(Prototype->key());
 
-      if (Function.CustomName().empty() and Function.OriginalName().empty()) {
+      if (Function.Name().empty()) {
         if (not Call->DynamicFunction().empty()) {
-          Function.OriginalName() = Call->DynamicFunction();
+          Function.Name() = Call->DynamicFunction();
+
         } else if (Call->Destination().isValid()) {
           const model::Function &Callee = Binary->Functions()
                                             .at(Call->Destination()
                                                   .notInlinedAddress());
-          if (not Callee.CustomName().empty())
-            Function.OriginalName() = Callee.CustomName().str();
-          else if (not Callee.OriginalName().empty())
-            Function.OriginalName() = Callee.OriginalName();
+          if (not Callee.Name().empty())
+            Function.Name() = Callee.Name();
+          else if (not Callee.Name().empty())
+            Function.Name() = Callee.Name();
         }
       }
     }
   }
 
-  // TODO: should this be done at an higher abstraction level?
-  model::promoteOriginalName(Binary);
+  // TODO: should this be done at a higher abstraction level?
+  model::deduplicateCollidingNames(Binary);
 }
 
 model::UpcastableType

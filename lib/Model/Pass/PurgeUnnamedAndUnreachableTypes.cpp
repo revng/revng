@@ -153,7 +153,7 @@ static void model::purgeTypesImpl(TupleTree<model::Binary> &Model,
   // Remember those types we want to preserve.
   for (const model::UpcastableTypeDefinition &T : Model->TypeDefinitions()) {
     if (KeepTypesWithName)
-      if (not T->CustomName().empty() or not T->OriginalName().empty())
+      if (not T->Name().empty())
         ToKeep.insert(T.get());
 
     TypeToNode[T.get()] = TypeGraph.addNode(NodeData{ T.get() });

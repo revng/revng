@@ -90,7 +90,7 @@ struct EmitCPass : clift::impl::CliftEmitCBase<EmitCPass> {
       return;
 
     llvm::raw_null_ostream NullStream;
-    ptml::CTypeBuilder B(NullStream, *Model, ptml::CBuilder(Tagless));
+    ptml::CTypeBuilder B(NullStream, *Model, /* EnableTaglessMode = */ Tagless);
     B.collectInlinableTypes();
 
     getOperation()->walk([&](clift::FunctionOp Function) {

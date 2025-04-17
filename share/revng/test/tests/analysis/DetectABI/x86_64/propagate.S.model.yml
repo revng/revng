@@ -29,5 +29,4 @@ TypeDefinitions:
             IsConst: true
             PrimitiveKind: Signed
             Size: 1
-        CustomName: "str"
-        OriginalName: str
+        Name: str

@@ -417,13 +417,14 @@ constexpr bool is_contained(R &&Range, const T &Value) {
   return revng::find(std::forward<R>(Range), Value) != std::end(Range);
 }
 
-template<typename Range, typename C>
-constexpr bool is_contained_if(Range &&R, C &&L) {
-  return find_if(std::forward<Range>(R), std::forward<C>(L)) != std::end(R);
-}
-
 static_assert(is_contained(std::array{ 1, 2, 3 }, 2) == true);
 static_assert(is_contained(std::array{ 1, 2, 3 }, 4) == false);
+
+template<typename Range, typename C>
+constexpr bool any_of(Range &&R, C &&L) {
+  auto Iterator = revng::find_if(std::forward<Range>(R), std::forward<C>(L));
+  return Iterator != std::end(R);
+}
 
 } // namespace revng
 

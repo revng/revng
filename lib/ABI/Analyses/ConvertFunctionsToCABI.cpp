@@ -8,6 +8,7 @@
 #include "revng/ABI/FunctionType/Support.h"
 #include "revng/ADT/UpcastablePointer.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/TypeDefinition.h"
@@ -220,9 +221,9 @@ public:
         revng_log(Log,
                   "Analysis was aborted because the `safe` (default) mode of "
                   "the conversion was selected and the conversion for the "
-                  "current ABI ('"
+                  "current ABI (`"
                     << model::ABI::getName(ABI).str()
-                    << "') is not considered stable.");
+                    << "`) is not considered stable.");
         return;
       }
     }
@@ -247,7 +248,7 @@ public:
     auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions(),
                                         TypesToIgnore);
 
-    using NB = model::NameBuilder;
+    using NB = model::CNameBuilder;
     auto NameBuilder = Log.isEnabled() ? std::make_optional<NB>(*Model) :
                                          std::nullopt;
 
@@ -263,7 +264,7 @@ public:
       std::string Names = "";
       for (model::Function &Function : Model->Functions())
         if (Function.prototype() && Function.prototype()->key() == Key)
-          Names += "\"" + NameBuilder->name(Function).str().str() + "\", ";
+          Names += "\"" + NameBuilder->name(Function) + "\", ";
 
       if (Names.empty()) {
         revng_log(Log, "There are no functions using it as a prototype.");

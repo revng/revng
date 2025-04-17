@@ -14,6 +14,8 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/DecompilationHelpers.h"
 
+RegisterIRHelper CommentHelper("comment", "absent in emitted c");
+
 static std::optional<MetaAddress>
 tryExtractAddress(const llvm::Instruction &I) {
   if (!I.getDebugLoc() || !I.getDebugLoc()->getScope())
@@ -83,7 +85,7 @@ private:
                                                  bool,
                                                  StringLiteral,
                                                  StringLiteral>(M.getContext());
-    llvm::FunctionCallee Result = M.getOrInsertFunction("comment", &FT);
+    auto Result = getOrInsertIRHelper("comment", M, &FT);
     auto &Callee = *llvm::cast<llvm::Function>(Result.getCallee());
     Callee.addFnAttr(llvm::Attribute::NoUnwind);
     Callee.addFnAttr(llvm::Attribute::WillReturn);

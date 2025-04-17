@@ -12,7 +12,8 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/Binary/Options.h"
-#include "revng/Model/Pass/PromoteOriginalName.h"
+#include "revng/Model/Pass/DeduplicateCollidingNames.h"
+#include "revng/Model/Pass/FlattenPrimitiveTypedefs.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
@@ -298,7 +299,8 @@ Error MachOImporter::import() {
   if (TheError)
     revng_log(Log, "Error while decoding weakBindTable: " << TheError);
 
-  promoteOriginalName(Model);
+  model::flattenPrimitiveTypedefs(Model);
+  model::deduplicateCollidingNames(Model);
   return Error::success();
 }
 
@@ -317,7 +319,7 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
     return;
   }
 
-  Segment.OriginalName() = SegmentCommand.segname;
+  Segment.Name() = SegmentCommand.segname;
   Segment.FileSize() = SegmentCommand.filesize;
 
   Segment.IsReadable() = SegmentCommand.initprot & VM_PROT_READ;

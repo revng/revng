@@ -67,21 +67,21 @@ int main(int argc, char *argv[]) {
 
   auto InputOrError = llvm::MemoryBuffer::getFileOrSTDIN(Options::Filename);
   if (!InputOrError) {
-    std::string Error = "Unable to open an input file: '" + Options::Filename
-                        + "'.";
+    std::string Error = "Unable to open an input file: `" + Options::Filename
+                        + "`.";
     revng_abort(Error.c_str());
   }
   llvm::StringRef InputText = (*InputOrError)->getBuffer();
 
   auto ArtifactOrError = llvm::MemoryBuffer::getFileOrSTDIN(Options::Artifact);
   if (!ArtifactOrError) {
-    std::string Error = "Unable to open the artifact file: '"
-                        + Options::Artifact + "'.";
+    std::string Error = "Unable to open the artifact file: `"
+                        + Options::Artifact + "`.";
     revng_abort(Error.c_str());
   }
   llvm::StringRef Artifact = (*ArtifactOrError)->getBuffer();
   if (Artifact.empty()) {
-    std::string Error = "The artifact is empty: '" + Options::Artifact + "'.";
+    std::string Error = "The artifact is empty: `" + Options::Artifact + "`.";
     revng_abort(Error.c_str());
   }
 
@@ -94,8 +94,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (!Deserialized->verify() || !(*Deserialized)->verify()) {
-    std::string Error = "Unable to verify the model: '" + Options::Filename
-                        + "'.";
+    std::string Error = "Unable to verify the model: `" + Options::Filename
+                        + "`.";
     revng_abort(Error.c_str());
   }
 

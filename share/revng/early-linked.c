@@ -13,12 +13,11 @@ PlainMetaAddress current_pc;
 
 // The only purpose of this function is keeping alive the references to some
 // symbols that are needed by revng
-intptr_t ignore(void);
-intptr_t ignore(void) {
+intptr_t _ugly_name_ignore(void);
+intptr_t _ugly_name_ignore(void) {
   return (intptr_t) &saved_registers + (intptr_t) &setjmp
          + (intptr_t) &jmp_buffer + (intptr_t) &is_executable
-         + (intptr_t) &unknown_pc + (intptr_t) &_abort
-         + (intptr_t) &_unreachable;
+         + (intptr_t) &unknown_pc + (intptr_t) &revng_abort;
 }
 
 void set_PlainMetaAddress(PlainMetaAddress *This,

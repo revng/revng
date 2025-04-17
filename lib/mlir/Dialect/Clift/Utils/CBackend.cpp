@@ -515,7 +515,7 @@ public:
     if (It == TheClass.Fields().end())
       revng_abort("Class member not found.");
 
-    Out << C.getLocation(/*IsDefinition=*/false, TheClass, *It);
+    Out << C.getLocationReference(TheClass, *It);
   }
 
   RecursiveCoroutine<void> emitAccessExpression(mlir::Value V) {
@@ -1286,13 +1286,13 @@ public:
 
     if (auto F = llvm::dyn_cast<model::CABIFunctionDefinition>(MFD)) {
       for (const model::Argument &Parameter : F->Arguments())
-        PushParameterName(C.NameBuilder.argumentName(*F, Parameter));
+        PushParameterName(C.NameBuilder.name(*F, Parameter));
     } else if (auto F = llvm::dyn_cast<model::RawFunctionDefinition>(MFD)) {
       for (const model::NamedTypedRegister &Register : F->Arguments())
-        PushParameterName(C.NameBuilder.argumentName(*F, Register));
+        PushParameterName(C.NameBuilder.name(*F, Register));
 
       if (not F->StackArgumentsType().isEmpty())
-        PushParameterName("_stack_arguments");
+        PushParameterName(C.NameBuilder.Configuration.rawStackArgumentName());
     } else {
       revng_abort("Unsupported model function type definition");
     }

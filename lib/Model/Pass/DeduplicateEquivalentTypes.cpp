@@ -79,7 +79,7 @@ private:
     LoggerIndent Indent(Log);
 
     auto ComputeKey = [](model::TypeDefinition *T) {
-      return std::pair{ T->OriginalName(), T->Kind() };
+      return std::pair{ T->Name(), T->Kind() };
     };
 
     // Sort types by the key (the name)
@@ -189,10 +189,10 @@ private:
     LoggerIndent Indent(Log);
 
     for (model::TypeDefinition *Leader : VisitOrder) {
-      revng_log(Log, "Considering " << Leader->OriginalName());
+      revng_log(Log, "Considering " << Leader->Name());
       LoggerIndent Indent2(Log);
 
-      revng_assert(not Leader->OriginalName().empty());
+      revng_assert(not Leader->Name().empty());
       auto LeaderIt = WeakEquivalence.findValue(Leader);
       revng_assert(LeaderIt->isLeader());
 
@@ -321,8 +321,7 @@ private:
       Visited.insert(Left);
       return true;
     } else if (WeakEquivalence.isEquivalent(Right->T, Left->T)
-               or (Left->T->OriginalName().empty()
-                   and Right->T->OriginalName().empty()
+               or (Left->T->Name().empty() and Right->T->Name().empty()
                    and Left->T->localCompare(*Right->T))) {
       // Weak equivalence
       return true;

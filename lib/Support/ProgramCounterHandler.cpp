@@ -12,6 +12,9 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/ProgramCounterHandler.h"
 
+RegisterIRHelper SetMetaAddressHelper("set_PlainMetaAddress",
+                                      "in early-linked");
+
 using namespace llvm;
 using PCH = ProgramCounterHandler;
 
@@ -378,13 +381,13 @@ static void setPlainMetaAddressImpl(IRBuilderBase &Builder,
   GlobalVariable *Global = M->getGlobalVariable(GlobalName);
   revng_assert(Global != nullptr);
 
-  Function *MetaAddressConstuctor = M->getFunction("set_PlainMetaAddress");
+  Function *MAConstuctor = getIRHelper("set_PlainMetaAddress", *M);
   auto WriteArguments = MemoryEffects::argMemOnly(ModRefInfo::Mod);
-  MetaAddressConstuctor->setMemoryEffects(WriteArguments);
-  MetaAddressConstuctor->addFnAttr(Attribute::WillReturn);
-  MetaAddressConstuctor->addFnAttr(Attribute::NoUnwind);
-  auto *FT = MetaAddressConstuctor->getFunctionType();
-  Builder.CreateCall(MetaAddressConstuctor,
+  MAConstuctor->setMemoryEffects(WriteArguments);
+  MAConstuctor->addFnAttr(Attribute::WillReturn);
+  MAConstuctor->addFnAttr(Attribute::NoUnwind);
+  auto *FT = MAConstuctor->getFunctionType();
+  Builder.CreateCall(MAConstuctor,
                      { Global,
                        Builder.CreateZExt(Epoch, FT->getParamType(1)),
                        Builder.CreateZExt(AddressSpace, FT->getParamType(2)),

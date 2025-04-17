@@ -10,6 +10,8 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
+RegisterIRHelper IBIMarker("function_call", "absent after isolate");
+
 using namespace llvm;
 
 char FunctionCallIdentification::ID = 0;
@@ -40,8 +42,8 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   };
   using FT = FunctionType;
   auto *Ty = FT::get(Type::getVoidTy(C), FunctionArgsTy, false);
-  FunctionCallee CalleeObject = M.getOrInsertFunction("function_call", Ty);
-  FunctionCall = cast<Function>(CalleeObject.getCallee());
+  FunctionCallee Callee = getOrInsertIRHelper("function_call", M, Ty);
+  FunctionCall = cast<Function>(Callee.getCallee());
   FunctionTags::Marker.addTo(FunctionCall);
 
   // Initialize the function, if necessary

@@ -178,7 +178,7 @@ FunctionSummaryOracle::getDynamicFunction(llvm::StringRef Name) {
     for (auto &ToCopy : DynamicFunction.Attributes())
       Attributes.insert(ToCopy);
 
-    registerDynamicFunction(DynamicFunction.OriginalName(),
+    registerDynamicFunction(DynamicFunction.Name(),
                             Importer.prototype(Attributes, Prototype));
   }
   return DynamicFunctions.at(Name.str());

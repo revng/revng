@@ -15,7 +15,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 1001
     Kind: RawFunctionDefinition
-    CustomName: "my_function2"
+    Name: "my_function2"
     Architecture: x86_64
     Arguments:
       - Location: rax_x86_64

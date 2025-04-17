@@ -4,15 +4,15 @@
 
 ---
 Functions:
-  - OriginalName: func1
+  - Name: func1
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1-RawFunctionDefinition"
-  - OriginalName: func2
+  - Name: func2
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/2-RawFunctionDefinition"
-  - OriginalName: callee
+  - Name: callee
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3-RawFunctionDefinition"

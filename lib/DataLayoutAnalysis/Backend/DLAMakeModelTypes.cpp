@@ -204,7 +204,7 @@ makeStructFromNode(const LTSN *N,
                                  PointerFieldsToUpdate,
                                  Model);
 
-    model::StructField Field{ FieldOffset, {}, {}, {}, std::move(FieldType) };
+    model::StructField Field{ FieldOffset, {}, {}, std::move(FieldType) };
     bool Inserted = Fields.insert({ std::move(Field), SuccNode }).second;
     revng_assert(Inserted);
   }
@@ -283,7 +283,7 @@ makeUnionFromNode(const LTSN *N,
                                       Model,
                                       FieldOffset);
 
-    UnionField Field{ FieldIndex, {}, {}, {}, FieldType };
+    UnionField Field{ FieldIndex, {}, {}, FieldType };
     bool Inserted = Fields.insert({ std::move(Field), SuccNode }).second;
     revng_assert(Inserted);
   }

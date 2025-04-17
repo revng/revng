@@ -8,6 +8,9 @@
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSitesPass.h"
 #include "revng/Support/FunctionTags.h"
 
+RegisterIRHelper StackSizeAtCallSite("stack_size_at_call_site",
+                                     "absent after CleanupStackSizeMarkers");
+
 using namespace llvm;
 
 bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
@@ -21,7 +24,7 @@ bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
 
   // Create marker for recording stack height at each call site
   auto *SSACSType = llvm::FunctionType::get(B.getVoidTy(), { SPType }, false);
-  auto SSACS = M.getOrInsertFunction("stack_size_at_call_site", SSACSType);
+  auto SSACS = getOrInsertIRHelper("stack_size_at_call_site", M, SSACSType);
   auto *F = cast<Function>(SSACS.getCallee());
   F->addFnAttr(Attribute::NoUnwind);
   F->addFnAttr(Attribute::WillReturn);

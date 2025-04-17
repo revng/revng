@@ -9,7 +9,6 @@
 #include "revng/Model/CallSitePrototype.h"
 #include "revng/Model/CommonFunctionMethods.h"
 #include "revng/Model/FunctionAttribute.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/StatementComment.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Support/MetaAddress.h"
@@ -28,10 +27,7 @@ fields:
       Note: this does not necessarily correspond to the address of the basic
       block with the lowest address.
     type: MetaAddress
-  - name: CustomName
-    type: Identifier
-    optional: true
-  - name: OriginalName
+  - name: Name
     type: string
     optional: true
   - name: Comment

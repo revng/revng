@@ -4,11 +4,11 @@
 
 ---
 Functions:
-  - OriginalName: urvofc
+  - Name: urvofc
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1-RawFunctionDefinition"
-  - OriginalName: callee
+  - Name: callee
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/2-RawFunctionDefinition"

@@ -196,7 +196,7 @@ private:
 
 public:
   AnalysisRegistry(Module *M) : QMD(getContext(M)), Builder(getContext(M)) {
-    ValueMaterializerMarker = ValueMaterializerPass::createMarker(M);
+    ValueMaterializerMarker = ValueMaterializerPass::createMarker(*M);
   }
 
   llvm::Function *aviMarker() const { return ValueMaterializerMarker; }
@@ -288,7 +288,7 @@ RootAnalyzer::MetaAddressSet RootAnalyzer::inflateValueMaterializerWhitelist() {
   VisitSet.insert(JTM.dispatcher());
 
   // TODO: OriginalInstructionAddresses is not reliable, we should drop it
-  for (User *NewPCUser : TheModule.getFunction("newpc")->users()) {
+  for (User *NewPCUser : getIRHelper("newpc", TheModule)->users()) {
     auto *I = cast<Instruction>(NewPCUser);
     auto WhitelistedMA = addressFromNewPC(I);
     if (WhitelistedMA.isValid()) {
@@ -335,7 +335,7 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
   // purposes.
   llvm::DenseSet<BasicBlock *> Callees;
   llvm::DenseMap<Use *, BasicBlock *> Undo;
-  auto *FunctionCall = TheModule.getFunction("function_call");
+  auto *FunctionCall = getIRHelper("function_call", TheModule);
   revng_assert(FunctionCall != nullptr);
   for (CallBase *Call : callers(FunctionCall)) {
     auto *T = Call->getParent()->getTerminator();
@@ -802,7 +802,7 @@ static MetaAddress::Features findCommonFeatures(Function *F) {
   bool First = true;
   MetaAddress::Features Result;
   for (CallBase *NewPCCall :
-       callersIn(F->getParent()->getFunction("newpc"), F)) {
+       callersIn(getIRHelper("newpc", *F->getParent()), F)) {
     MetaAddress Address = addressFromNewPC(NewPCCall);
 
     if (First) {
@@ -848,7 +848,7 @@ void RootAnalyzer::cloneOptimizeAndHarvest(Function *TheFunction) {
   // Replace calls to newpc with stores to the PC
   SmallVector<CallBase *, 16> ToErase;
   for (CallBase *Call :
-       callersIn(TheModule.getFunction("newpc"), OptimizedFunction)) {
+       callersIn(getIRHelper("newpc", TheModule), OptimizedFunction)) {
     JTM.programCounterHandler()->expandNewPC(Call);
     ToErase.push_back(Call);
   }

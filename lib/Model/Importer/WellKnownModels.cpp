@@ -6,6 +6,8 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/Importer/TypeCopier.h"
+#include "revng/Model/Pass/DeduplicateCollidingNames.h"
+#include "revng/Model/Pass/FlattenPrimitiveTypedefs.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/ResourceFinder.h"
@@ -81,7 +83,7 @@ public:
       // Compose the key
       WellKnownFunctionKey Key = { Model->Architecture(),
                                    Model->DefaultABI(),
-                                   F.OriginalName() };
+                                   F.Name() };
 
       // See if it's a well-known function
       auto It = WellKnownFunctions.find(Key);
@@ -101,6 +103,9 @@ public:
 
     for (auto &WLF : WellKnownModels)
       WLF->Copier.finalize();
+
+    model::flattenPrimitiveTypedefs(Model);
+    model::deduplicateCollidingNames(Model);
 
     return llvm::Error::success();
   }

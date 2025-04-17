@@ -110,7 +110,7 @@ yield::Function DH::disassemble(const model::Function &Function,
                                 const efa::ControlFlowGraph &Metadata,
                                 const RawBinaryView &BinaryView,
                                 const model::Binary &Binary,
-                                model::NameBuilder &NameBuilder) {
+                                const model::AssemblyNameBuilder &NameBuilder) {
   yield::Function ResultFunction;
   ResultFunction.Entry() = Function.Entry();
   for (auto BasicBlockInserter = ResultFunction.Blocks().batch_insert();

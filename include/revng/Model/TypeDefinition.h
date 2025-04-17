@@ -12,7 +12,6 @@
 #include "revng/ADT/UpcastablePointer/YAMLTraits.h"
 #include "revng/Model/ABI.h"
 #include "revng/Model/CommonTypeMethods.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/Register.h"
 #include "revng/Model/TypeDefinitionKind.h"
 #include "revng/Support/Assert.h"
@@ -41,20 +40,11 @@ fields:
       A unique identifier for this type.
   - name: Kind
     type: TypeDefinitionKind
-    doc: |-
-      A discriminator field to identify the concrete type.
-  - name: CustomName
-    type: Identifier
-    optional: true
+  - name: Name
     doc: |-
       A user-chosen `Identifier` for this type.
-  - name: OriginalName
     type: string
     optional: true
-    doc: |-
-      The name this type had upon import.
-      This value can differ from `CustomName`, since `CustomName` needs to
-      respect the constraints of an `Identifier`.
   - name: Comment
     type: string
     optional: true

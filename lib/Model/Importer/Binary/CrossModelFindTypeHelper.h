@@ -43,8 +43,7 @@ findPrototypeInLocalFunctions(T &Functions,
       if (!FoundAlias)
         continue;
     } else {
-      // Rely on OriginalName only.
-      if (Function.OriginalName() != FunctionName)
+      if (Function.Name() != FunctionName)
         continue;
     }
 
@@ -63,8 +62,7 @@ findPrototypeInDynamicFunctions(T &Functions,
                                 llvm::StringRef FunctionName,
                                 llvm::StringRef ModuleName) {
   for (auto &DynamicFunction : Functions) {
-    // Rely on OriginalName only.
-    if (DynamicFunction.OriginalName() != FunctionName)
+    if (DynamicFunction.Name() != FunctionName)
       continue;
 
     if (const model::TypeDefinition *Prototype = DynamicFunction.prototype())

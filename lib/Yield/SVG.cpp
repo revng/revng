@@ -375,7 +375,7 @@ yield::svg::controlFlowGraph(const ::ptml::MarkupBuilder &B,
   using Pre = cfg::PreLayoutGraph;
   Pre Graph = cfg::extractFromInternal(InternalFunction, Binary, Configuration);
 
-  model::NameBuilder NB = Binary;
+  model::CNameBuilder NB = Binary;
 
   // This is somewhat crude, as it forces each node's text to be manifested
   // twice: once without any ptml tags and once containing them.
@@ -415,7 +415,7 @@ yield::svg::controlFlowGraph(const ::ptml::MarkupBuilder &B,
 struct LabelNodeHelper {
   const ptml::MarkupBuilder &B;
   const model::Binary &Binary;
-  model::NameBuilder &NameBuilder;
+  const model::AssemblyNameBuilder &NameBuilder;
   const yield::cfg::Configuration Configuration;
   std::optional<llvm::StringRef> RootNodeLocation = std::nullopt;
 
@@ -477,7 +477,7 @@ std::string yield::svg::callGraph(const ::ptml::MarkupBuilder &B,
   constexpr auto LeftToRight = layout::sugiyama::Orientation::LeftToRight;
   constexpr auto BFS = layout::sugiyama::RankingStrategy::BreadthFirstSearch;
 
-  model::NameBuilder NameBuilder = Binary;
+  model::AssemblyNameBuilder NameBuilder = Binary;
   LabelNodeHelper Helper{ B, Binary, NameBuilder, Configuration };
 
   yield::calls::PreLayoutGraph Result = Relations.toYieldGraph();
@@ -596,7 +596,7 @@ std::string yield::svg::callGraphSlice(const ::ptml::MarkupBuilder &B,
   constexpr auto LeftToRight = layout::sugiyama::Orientation::LeftToRight;
   constexpr auto BFS = layout::sugiyama::RankingStrategy::BreadthFirstSearch;
 
-  model::NameBuilder NameBuilder = Binary;
+  model::AssemblyNameBuilder NameBuilder = Binary;
   LabelNodeHelper Helper{ B, Binary, NameBuilder, Configuration, SlicePoint };
 
   // Ready the forwards facing part of the slice

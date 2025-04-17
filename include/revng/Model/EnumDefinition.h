@@ -5,7 +5,6 @@
 //
 
 #include "revng/Model/EnumEntry.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/TypeDefinition.h"
 
 /* TUPLE-TREE-YAML

@@ -183,7 +183,7 @@ void PECOFFImporter::parseSymbols() {
       continue;
 
     if (auto *Function = registerFunctionEntry(Address))
-      Function->OriginalName() = *MaybeName;
+      Function->Name() = *MaybeName;
   }
 }
 
@@ -468,19 +468,18 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
   };
 
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (not Fn.Prototype().isEmpty() or Fn.OriginalName().size() == 0)
+    if (not Fn.Prototype().isEmpty() or Fn.Name().size() == 0)
       continue;
 
-    revng_log(Log, "Searching for prototype for " << Fn.OriginalName());
-    if (auto Found = findPrototype(Fn.OriginalName(), ModelsOfLibraries)) {
+    revng_log(Log, "Searching for prototype for " << Fn.Name());
+    if (auto Found = findPrototype(Fn.Name(), ModelsOfLibraries)) {
       revng_assert(!Found->ModuleName.empty());
       revng_assert(Found->Prototype.verify(true));
 
       model::UpcastableTypeDefinition SerializablePrototype = Found->Prototype;
       revng_log(Log,
-                "Found type for " << Fn.OriginalName() << " in "
-                                  << Found->ModuleName << ": "
-                                  << toString(SerializablePrototype));
+                "Found type for " << Fn.Name() << " in " << Found->ModuleName
+                                  << ": " << toString(SerializablePrototype));
       TypeCopier &TheTypeCopier = GetOrMakeACopier(Found->ModuleName);
       Fn.Prototype() = TheTypeCopier.copyTypeInto(Found->Prototype);
 
@@ -499,8 +498,9 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
   Model.evictCachedReferences();
   Model.initializeReferences();
 
+  model::flattenPrimitiveTypedefs(Model);
   deduplicateEquivalentTypes(Model);
-  promoteOriginalName(Model);
+  model::deduplicateCollidingNames(Model);
 }
 
 Error PECOFFImporter::import(const ImporterOptions &Options) {
@@ -540,7 +540,8 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
     findMissingTypes(Options);
   }
 
-  model::promoteOriginalName(Model);
+  model::flattenPrimitiveTypedefs(Model);
+  model::deduplicateCollidingNames(Model);
   return Error::success();
 }
 

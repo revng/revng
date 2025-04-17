@@ -4,7 +4,7 @@
 
 ---
 Functions:
-  - OriginalName: indirect_caller
+  - Name: indirect_caller
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1-RawFunctionDefinition"

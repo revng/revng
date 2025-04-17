@@ -12,7 +12,6 @@
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/Model/NameBuilder.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -20,9 +19,7 @@
 inline Logger<> ModelVerifyLogger("model-verify");
 
 namespace model {
-class Binary;
 class TypeDefinition;
-class Identifier;
 class VerifyHelper {
 private:
   template<typename TrackableTupleTree>
@@ -76,12 +73,6 @@ private:
   std::map<const model::TypeDefinition *, uint64_t> SizeCache;
   std::set<const model::TypeDefinition *> InProgress;
   bool AssertOnFail = false;
-
-  // This field a only gets populated if this object was created with a binary,
-  // as such, no name-space related checks will take place, say, inside
-  // a `model::Function::verify`.
-  std::optional<model::NameBuilder> NameBuilder = std::nullopt;
-
   bool HasPushedTracking = false;
 
   // TODO: This is a hack for now, but the methods, when the Model does not
@@ -89,11 +80,9 @@ private:
   std::string ReasonBuffer;
 
 public:
-  VerifyHelper();
-  VerifyHelper(bool AssertOnFail);
-  VerifyHelper(const model::Binary &Binary);
-  VerifyHelper(const model::Binary &Binary, bool AssertOnFail);
-  ~VerifyHelper();
+  VerifyHelper() = default;
+  VerifyHelper(bool AssertOnFail) : AssertOnFail(AssertOnFail) {}
+  ~VerifyHelper() { revng_assert(InProgress.size() == 0); }
 
 private:
   bool hasPushedTracking() const { return HasPushedTracking; }
@@ -152,11 +141,10 @@ public:
   }
 
 public:
-  // NOTE: Be careful when using this, if this helper was created without
-  //       the binary, this will always return false (as if global namespace
-  //       collisions never happen).
-  [[nodiscard]] bool isGlobalSymbol(llvm::StringRef Name);
-  [[nodiscard]] bool populateGlobalNamespace();
+  bool isNameAllowed(llvm::StringRef Name) {
+    // TODO: find a way to escape '/' so we can allow it.
+    return maybeFail(!Name.contains('/'), "Name is not supported", Name);
+  }
 
 public:
   bool maybeFail(bool Result) { return maybeFail(Result, {}); }

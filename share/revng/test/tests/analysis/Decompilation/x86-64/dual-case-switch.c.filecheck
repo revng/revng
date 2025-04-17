@@ -4,4 +4,4 @@ We should have correctly promoted the exit dispatcher switch to an if (switch
 with two cases). The condition of the if should be the `loop_state_var` (we are
 relying on the promotion of an exit dispatcher, which uses such variable as the
 condition).
-CHECK: if ({{.*}}_loop_state_var{{.*}})
+CHECK: if ({{.*}}loop_state_var{{.*}})

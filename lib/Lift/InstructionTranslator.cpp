@@ -30,6 +30,8 @@
 #include "PTCInterface.h"
 #include "VariableManager.h"
 
+RegisterIRHelper NewPCHelper("newpc", "absent after remove-newpc-calls");
+
 using namespace llvm;
 
 static cl::opt<bool> RecordASM("record-asm",
@@ -499,10 +501,10 @@ IT::InstructionTranslator(IRBuilder<> &Builder,
                                   Type::getInt8PtrTy(Context),
                                   Type::getInt8PtrTy(Context) },
                                 true);
-  NewPCMarker = Function::Create(NewPCMarkerTy,
-                                 GlobalValue::ExternalLinkage,
-                                 "newpc",
-                                 &TheModule);
+  NewPCMarker = createIRHelper("newpc",
+                               TheModule,
+                               NewPCMarkerTy,
+                               GlobalValue::ExternalLinkage);
   FunctionTags::Marker.addTo(NewPCMarker);
   NewPCMarker->addFnAttr(Attribute::WillReturn);
   NewPCMarker->addFnAttr(Attribute::NoUnwind);

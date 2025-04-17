@@ -28,7 +28,8 @@ public:
                           llvm::Value *SymbolNamePointer) = 0;
 
   /// \note Implementers are responsible for terminator emissions
-  virtual void handlePostNoReturn(llvm::IRBuilder<> &Builder) = 0;
+  virtual void handlePostNoReturn(llvm::IRBuilder<> &Builder,
+                                  const llvm::DebugLoc &DbgLocation) = 0;
 
   /// \note Implementers should not emit a terminator
   virtual void handleIndirectJump(llvm::IRBuilder<> &Builder,

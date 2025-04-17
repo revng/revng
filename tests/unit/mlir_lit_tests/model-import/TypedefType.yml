@@ -3,6 +3,8 @@
 #
 # RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
 
+Architecture: x86_64
+
 TypeDefinitions:
   # CHECK: #my_float$def = #clift.typedef<
   # CHECK:   "/type-definition/0-TypedefDefinition"
@@ -11,7 +13,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 0
     Kind: TypedefDefinition
-    CustomName: "my_float"
+    Name: "my_float"
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Float
@@ -24,7 +26,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 1
     Kind: TypedefDefinition
-    CustomName: "my_generic"
+    Name: "my_generic"
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Generic
@@ -37,7 +39,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 2
     Kind: TypedefDefinition
-    CustomName: "my_int"
+    Name: "my_int"
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Signed
@@ -50,7 +52,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 3
     Kind: TypedefDefinition
-    CustomName: "my_number"
+    Name: "my_number"
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Number
@@ -63,7 +65,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 4
     Kind: TypedefDefinition
-    CustomName: "my_pon"
+    Name: "my_pon"
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: PointerOrNumber
@@ -76,7 +78,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 5
     Kind: TypedefDefinition
-    CustomName: "my_uint"
+    Name: "my_uint"
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Unsigned
@@ -89,7 +91,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 6
     Kind: TypedefDefinition
-    CustomName: "my_void"
+    Name: "my_void"
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Void

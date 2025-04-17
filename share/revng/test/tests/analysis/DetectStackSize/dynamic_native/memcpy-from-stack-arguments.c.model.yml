@@ -4,11 +4,11 @@
 
 ---
 Functions:
-  - OriginalName: memcpy_from_stack_arguments
+  - Name: memcpy_from_stack_arguments
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/38-RawFunctionDefinition"
-  - OriginalName: backward_memcpy_from_stack_arguments
+  - Name: backward_memcpy_from_stack_arguments
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100-RawFunctionDefinition"

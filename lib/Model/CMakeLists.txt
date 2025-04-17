@@ -7,7 +7,6 @@ revng_add_analyses_library_internal(
   revngModel
   Binary.cpp
   CommonTypeMethods.cpp
-  Identifier.cpp
   LoadModelPass.cpp
   NameBuilder.cpp
   TypeSystemPrinter.cpp
@@ -49,12 +48,9 @@ target_tuple_tree_generator(
   EMIT_TRACKING
   GLOBAL_NAME
   Model
-  STRING_TYPES
-  "Identifier"
   SEPARATE_STRING_TYPES
   "MetaAddress"
   SCALAR_TYPES
-  "Identifier"
   "MetaAddress"
   HEADERS
   "${MODEL_HEADERS_DIR}/ABI.h"

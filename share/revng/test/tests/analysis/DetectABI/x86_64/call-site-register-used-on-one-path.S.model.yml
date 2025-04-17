@@ -4,7 +4,7 @@
 
 ---
 Functions:
-  - OriginalName: function
+  - Name: function
     CallSitePrototypes:
       - Prototype:
           Kind: DefinedType

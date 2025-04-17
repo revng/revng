@@ -7,7 +7,7 @@ Architecture: x86_64
 TypeDefinitions:
   - ID: 1001
     Kind: CABIFunctionDefinition
-    CustomName: "fun_0x40001001_t"
+    Name: "fun_0x40001001_t"
     ABI: SystemV_x86_64
     Arguments: []
 
@@ -20,13 +20,13 @@ TypeDefinitions:
       Size: 4
     Arguments:
       - Index: 0
-        CustomName: "x"
+        Name: "x"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
       - Index: 1
-        CustomName: "y"
+        Name: "y"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
@@ -41,7 +41,7 @@ TypeDefinitions:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
-        CustomName: "rcx"
+        Name: "rcx"
     ReturnValues:
       - Location: rax_x86_64
         Type:
@@ -57,7 +57,7 @@ TypeDefinitions:
     ABI: SystemV_x86_64
     Arguments:
       - Index: 0
-        CustomName: "x"
+        Name: "x"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
@@ -70,28 +70,28 @@ TypeDefinitions:
 
   - ID: 2001
     Kind: EnumDefinition
-    CustomName: "my_enum"
+    Name: "my_enum"
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Signed
       Size: 4
     Entries:
       - Value: 0
-        CustomName: "my_enum_0"
+        Name: "my_enum_0"
 
   - ID: 2002
     Kind: StructDefinition
-    CustomName: "my_struct"
+    Name: "my_struct"
     Size: 4
     Fields:
       - Offset: 0
-        CustomName: "x"
+        Name: "x"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
       - Offset: 4
-        CustomName: "y"
+        Name: "y"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
@@ -99,16 +99,16 @@ TypeDefinitions:
 
   - ID: 2003
     Kind: UnionDefinition
-    CustomName: "my_union"
+    Name: "my_union"
     Fields:
       - Index: 0
-        CustomName: "x"
+        Name: "x"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
       - Index: 1
-        CustomName: "y"
+        Name: "y"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
@@ -116,11 +116,11 @@ TypeDefinitions:
 
   - ID: 2004
     Kind: StructDefinition
-    CustomName: "args_1003"
+    Name: "args_1003"
     Size: 4
     Fields:
       - Offset: 0
-        CustomName: "a"
+        Name: "a"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
@@ -128,11 +128,11 @@ TypeDefinitions:
 
   - ID: 2005
     Kind: StructDefinition
-    CustomName: "frame_1005"
+    Name: "frame_1005"
     Size: 4
     Fields:
       - Offset: 0
-        CustomName: "a"
+        Name: "a"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
@@ -140,17 +140,17 @@ TypeDefinitions:
 
   - ID: 2006
     Kind: StructDefinition
-    CustomName: "my_pair"
+    Name: "my_pair"
     Size: 8
     Fields:
       - Offset: 0
-        CustomName: "a"
+        Name: "a"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
           Size: 4
       - Offset: 4
-        CustomName: "b"
+        Name: "b"
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Signed
@@ -158,31 +158,31 @@ TypeDefinitions:
 
 Functions:
   - Entry: "0x40001001:Code_x86_64"
-    CustomName: "fun_0x40001001"
+    Name: "fun_0x40001001"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1001-CABIFunctionDefinition"
 
   - Entry: "0x40001002:Code_x86_64"
-    CustomName: "fun_0x40001002"
+    Name: "fun_0x40001002"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1002-CABIFunctionDefinition"
 
   - Entry: "0x40001003:Code_x86_64"
-    CustomName: "fun_0x40001003"
+    Name: "fun_0x40001003"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1003-RawFunctionDefinition"
 
   - Entry: "0x40001004:Code_x86_64"
-    CustomName: "fun_0x40001004"
+    Name: "fun_0x40001004"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1004-CABIFunctionDefinition"
 
   - Entry: "0x40001005:Code_x86_64"
-    CustomName: "fun_0x40001005"
+    Name: "fun_0x40001005"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1005-CABIFunctionDefinition"
@@ -191,8 +191,7 @@ Functions:
       Definition: "/TypeDefinitions/2005-StructDefinition"
 
 ImportedDynamicFunctions:
-  - OriginalName: "imported"
-    CustomName: "imported"
+  - Name: "imported"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1001-CABIFunctionDefinition"
@@ -200,7 +199,7 @@ ImportedDynamicFunctions:
 Segments:
   - StartAddress: "0x40002001:Generic64"
     VirtualSize: 4
-    CustomName: "seg_0x40002001"
+    Name: "seg_0x40002001"
     StartOffset: 0
     FileSize: 4
     IsReadable: true

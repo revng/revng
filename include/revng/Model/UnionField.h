@@ -5,7 +5,6 @@
 //
 
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/Type.h"
 
 /* TUPLE-TREE-YAML
@@ -18,11 +17,7 @@ type: struct
 fields:
   - name: Index
     type: uint64_t
-    doc: The index of the alternative within the `union`.
-  - name: CustomName
-    type: Identifier
-    optional: true
-  - name: OriginalName
+  - name: Name
     type: string
     optional: true
   - name: Comment

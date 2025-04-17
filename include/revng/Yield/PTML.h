@@ -45,7 +45,7 @@ std::string controlFlowNode(const ::ptml::MarkupBuilder &B,
 std::string functionNameDefinition(const ::ptml::MarkupBuilder &B,
                                    llvm::StringRef Location,
                                    const model::Binary &Binary,
-                                   model::NameBuilder &NameBuilder);
+                                   const model::AssemblyNameBuilder &Builder);
 
 /// Emits a PTML containing a function name marked as a reference
 /// (it can be used to jump to any definition of the same function).
@@ -60,7 +60,7 @@ std::string functionNameDefinition(const ::ptml::MarkupBuilder &B,
 std::string functionLink(const ::ptml::MarkupBuilder &B,
                          llvm::StringRef Location,
                          const model::Binary &Binary,
-                         model::NameBuilder &NameBuilder);
+                         const model::AssemblyNameBuilder &NameBuilder);
 
 /// Emits a PTML containing a function name marked as a reference
 /// \see functionLink
@@ -78,6 +78,6 @@ std::string functionLink(const ::ptml::MarkupBuilder &B,
 std::string shallowFunctionLink(const ::ptml::MarkupBuilder &B,
                                 llvm::StringRef Location,
                                 const model::Binary &Binary,
-                                model::NameBuilder &NameBuilder);
+                                const model::AssemblyNameBuilder &NameBuilder);
 
 } // namespace yield::ptml

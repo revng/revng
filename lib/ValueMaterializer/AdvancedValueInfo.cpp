@@ -251,11 +251,17 @@ runAVI(const DataFlowGraph &DFG,
 
   // Run MFP
   AdvancedValueInfoMFI AVIMFI(LVI, DT, Context, Targets, ZeroExtendConstraints);
+
+  AdvancedValueInfoMFI::LatticeElement ExtremalValue;
+  for (Instruction *I : Targets)
+    ExtremalValue[I] = ConstantRangeSet(I->getType()->getIntegerBitWidth(),
+                                        true);
+
   auto AllResults = MFP::getMaximalFixedPoint(AVIMFI,
                                               &CFEG,
                                               {},
-                                              {},
-                                              {},
+                                              ExtremalValue,
+                                              InitialNodes,
                                               InitialNodes);
 
   if (AVILogger.isEnabled()) {

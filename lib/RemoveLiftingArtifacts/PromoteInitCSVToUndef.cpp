@@ -88,4 +88,5 @@ char PromoteInitCSVToUndefPass::ID = 0;
 static constexpr const char *Flag = "promote-init-csv-to-undef";
 
 using Reg = RegisterPass<PromoteInitCSVToUndefPass>;
-static Reg X(Flag, "Promotes calls to init_* functions for CSV to undefs");
+static Reg X(Flag,
+             "Promotes calls to revng_undefined_* functions for CSV to undefs");

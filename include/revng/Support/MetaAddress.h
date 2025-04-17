@@ -62,7 +62,9 @@ enum Values : uint16_t {
   Code_aarch64,
 
   /// The address of a z/Architecture (s390x) basic block
-  Code_systemz
+  Code_systemz,
+
+  Count
 };
 
 inline constexpr bool isValid(Values V) {
@@ -79,6 +81,7 @@ inline constexpr bool isValid(Values V) {
   case Code_aarch64:
   case Code_systemz:
     return true;
+  case Count:
   default:
     return false;
   }
@@ -108,9 +111,10 @@ inline constexpr const char *toString(Values V) {
     return "Code_aarch64";
   case Code_systemz:
     return "Code_systemz";
+  case Count:
+  default:
+    revng_abort();
   }
-
-  revng_abort();
 }
 
 inline constexpr Values fromString(llvm::StringRef String) {
@@ -137,8 +141,19 @@ inline constexpr Values fromString(llvm::StringRef String) {
   } else {
     return Invalid;
   }
+}
 
-  revng_abort();
+inline llvm::StringRef consumeFromString(llvm::StringRef String) {
+  for (Values Index = Invalid; Index < Count;) {
+
+    llvm::StringRef Serialized = MetaAddressType::toString(Index);
+    if (String.starts_with(Serialized))
+      return String.substr(Serialized.size());
+
+    Index = static_cast<Values>(static_cast<uint16_t>(Index) + 1);
+  }
+
+  return String;
 }
 
 inline constexpr const std::optional<llvm::Triple::ArchType> arch(Values V) {
@@ -162,6 +177,7 @@ inline constexpr const std::optional<llvm::Triple::ArchType> arch(Values V) {
   case Generic32:
   case Generic64:
     return {};
+  case Count:
   default:
     revng_abort();
   }
@@ -182,8 +198,6 @@ inline constexpr Values genericFromArch(llvm::Triple::ArchType Arch) {
   default:
     revng_abort("Unsupported architecture");
   }
-
-  revng_abort("Unsupported architecture");
 }
 
 /// Convert \p Type to the corresponding generic type
@@ -207,9 +221,11 @@ inline constexpr Values toGeneric(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return Generic64;
-  }
 
-  revng_abort("Unsupported architecture");
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 /// Get the default type for code of the given architecture
@@ -254,9 +270,11 @@ inline constexpr unsigned alignment(Values Type) {
   case Code_arm:
   case Code_aarch64:
     return 4;
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 /// Get the size in bit of an address of the given type
@@ -276,9 +294,11 @@ inline constexpr unsigned bitSize(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return 64;
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 /// Get a 64-bits mask representing the relevant bits for the given type
@@ -306,9 +326,11 @@ inline constexpr bool isCode(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return true;
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 /// Does \p Type represent an address pointing to \p Arch code?
@@ -331,8 +353,6 @@ inline constexpr bool isCode(Values Type, llvm::Triple::ArchType Arch) {
   default:
     revng_abort("Unsupported architecture");
   }
-
-  revng_abort();
 }
 
 /// Is \p Type a generic address?
@@ -352,9 +372,11 @@ inline constexpr bool isGeneric(Values Type) {
   case Generic32:
   case Generic64:
     return true;
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 inline constexpr bool isDefaultCode(Values Type) {
@@ -373,9 +395,11 @@ inline constexpr bool isDefaultCode(Values Type) {
   case Generic64:
   case Code_arm_thumb:
     return false;
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 inline constexpr llvm::StringRef getLLVMCPUFeatures(Values Type) {
@@ -393,9 +417,11 @@ inline constexpr llvm::StringRef getLLVMCPUFeatures(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return "";
-  }
 
-  revng_abort();
+  case Count:
+  default:
+    revng_abort("Unknown MetaAddressType value");
+  }
 }
 
 } // namespace MetaAddressType
@@ -786,9 +812,11 @@ public:
     case MetaAddressType::Generic32:
     case MetaAddressType::Generic64:
       revng_abort();
-    }
 
-    revng_abort();
+    case MetaAddressType::Count:
+    default:
+      revng_abort("Unknown MetaAddressType value");
+    }
   }
 
   constexpr uint16_t addressSpace() const {
@@ -939,6 +967,8 @@ public:
   ///        the serialized string. But it also leads to inability
   ///        to deserialize it! So only use if you know what you're doing.
   std::string toString(std::optional<llvm::Triple::ArchType> Arch = {}) const;
+  std::string
+  toIdentifier(std::optional<llvm::Triple::ArchType> Arch = {}) const;
   static MetaAddress fromString(llvm::StringRef Text);
 
 private:

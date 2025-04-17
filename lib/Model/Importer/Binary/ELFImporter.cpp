@@ -167,7 +167,7 @@ uint64_t symbolsCount(const FilePortion &Relocations) {
 template<typename T, bool HasAddend>
 Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   revng_log(ELFImporterLog, "Starting ELF import");
-  llvm::Task Task(12, "Import ELF");
+  llvm::Task Task(13, "Import ELF");
   Task.advance("Parse ELF", true);
 
   // Parse the ELF file
@@ -425,8 +425,11 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     findMissingTypes(TheELF, AdjustedOptions);
   }
 
-  Task.advance("Promote original name", true);
-  model::promoteOriginalName(Model);
+  Task.advance("Flatten primitive typedefs", true);
+  model::flattenPrimitiveTypedefs(Model);
+
+  Task.advance("Deduplicate colliding names", true);
+  model::deduplicateCollidingNames(Model);
 
   return Error::success();
 }
@@ -507,18 +510,17 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   };
 
   for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (not Fn.Prototype().isEmpty() or Fn.OriginalName().size() == 0)
+    if (not Fn.Prototype().isEmpty() or Fn.Name().size() == 0)
       continue;
 
-    if (auto Found = findPrototype(Fn.OriginalName(), ModelsOfLibraries)) {
+    if (auto Found = findPrototype(Fn.Name(), ModelsOfLibraries)) {
       revng_assert(!Found->ModuleName.empty());
       revng_assert(Found->Prototype.verify(true));
 
       model::UpcastableTypeDefinition SerializablePrototype = Found->Prototype;
       revng_log(ELFImporterLog,
-                "Found type for " << Fn.OriginalName() << " in "
-                                  << Found->ModuleName << ": "
-                                  << toString(SerializablePrototype));
+                "Found type for " << Fn.Name() << " in " << Found->ModuleName
+                                  << ": " << toString(SerializablePrototype));
       TypeCopier &TheTypeCopier = GetOrMakeACopier(Found->ModuleName);
       Fn.Prototype() = TheTypeCopier.copyTypeInto(Found->Prototype);
 
@@ -527,8 +529,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
         if (Attribute != model::FunctionAttribute::Inline)
           Fn.Attributes().insert(Attribute);
     } else {
-      revng_log(ELFImporterLog,
-                "Prototype for " << Fn.OriginalName() << " not found");
+      revng_log(ELFImporterLog, "Prototype for " << Fn.Name() << " not found");
     }
   }
 
@@ -540,8 +541,9 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   Model.evictCachedReferences();
   Model.initializeReferences();
 
+  model::flattenPrimitiveTypedefs(Model);
   deduplicateEquivalentTypes(Model);
-  promoteOriginalName(Model);
+  model::deduplicateCollidingNames(Model);
 }
 
 using Libs = SmallVectorImpl<uint64_t>;
@@ -670,7 +672,7 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
       if (Model->Functions().tryGet(Address) == nullptr) {
         auto *Function = registerFunctionEntry(Address);
         if (Function != nullptr and MaybeName and MaybeName->size() > 0) {
-          Function->OriginalName() = *MaybeName;
+          Function->Name() = *MaybeName;
           // Insert Original name into exported ones, since it is by default
           // true.
           Function->ExportedNames().insert((*MaybeName).str());
@@ -843,7 +845,7 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
       } else {
         Function = registerFunctionEntry(Address);
         if (Function != nullptr)
-          Function->OriginalName() = Name;
+          Function->Name() = Name;
       }
 
       if (Function != nullptr and Name.size() > 0)

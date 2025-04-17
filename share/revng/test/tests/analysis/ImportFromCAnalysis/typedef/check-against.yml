@@ -5,7 +5,7 @@
 TypeDefinitions:
   - Kind: TypedefDefinition
     ID: 3000
-    CustomName: my_typedef
+    Name: my_typedef
     UnderlyingType:
       Kind: PrimitiveType
       PrimitiveKind: Signed

@@ -15,7 +15,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 1000
     Kind: RawFunctionDefinition
-    CustomName: "my_function1"
+    Name: "my_function1"
     Architecture: x86_64
     Arguments: []
     ReturnValues: []

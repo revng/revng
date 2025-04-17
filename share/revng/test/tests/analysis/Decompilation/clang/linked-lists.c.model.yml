@@ -6,7 +6,7 @@
 Architecture: x86_64
 
 Functions:
-  - OriginalName: init_list
+  - Name: init_list
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1867-CABIFunctionDefinition"
@@ -14,15 +14,15 @@ Functions:
   # memory release in general, so for now we disabled the test on the prototype of
   # release_list. We might think to re-enable this in the future when we support
   # `free` or tweak the input program, but for now this is just disabled.
-  # - OriginalName: release_list
+  # - Name: release_list
   #   Prototype:
   #     Kind: DefinedType
   #     Definition: "/TypeDefinitions/1868-CABIFunctionDefinition"
-  - OriginalName: sum
+  - Name: sum
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1869-CABIFunctionDefinition"
-  - OriginalName: compute
+  - Name: compute
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1870-CABIFunctionDefinition"

@@ -16,7 +16,7 @@ private:
   /// Where to print the `.dot` graph
   llvm::raw_ostream &Out;
   const model::Binary &Binary;
-  model::NameBuilder NameBuilder;
+  model::CNameBuilder NameBuilder;
 
   /// Visited == all the edges have already been emitted
   llvm::SmallPtrSet<const model::TypeDefinition *, 16> Visited;

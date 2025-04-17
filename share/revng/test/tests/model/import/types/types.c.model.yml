@@ -13,8 +13,7 @@ TypeDefinitions:
     Size: 92
     Fields:
       - Offset: 0
-        CustomName: "unreserved__custom_data"
-        OriginalName: .custom_data
+        Name: custom_data
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/1816-StructDefinition"
@@ -23,18 +22,18 @@ TypeDefinitions:
     Size: 92
     Fields:
       - Offset: 0
-        OriginalName: char_80_global
+        Name: char_80_global
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/1817-StructDefinition"
       - Offset: 80
-        OriginalName: uint64_global
+        Name: uint64_global
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Generic
           Size: 8
       - Offset: 88
-        OriginalName: uint32_global
+        Name: uint32_global
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Generic

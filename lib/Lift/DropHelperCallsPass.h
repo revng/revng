@@ -138,6 +138,8 @@ DropHelperCallsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
 
       if (auto *Call = getCallToHelper(&I)) {
         auto *Callee = cast<Function>(skipCasts(Call->getCalledOperand()));
+        if (Callee->getName() == AbortFunctionName)
+          continue;
 
         Builder.SetInsertPoint(Call);
 

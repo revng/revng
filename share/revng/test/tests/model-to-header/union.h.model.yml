@@ -3,40 +3,36 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+Architecture: x86_64
+
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 3001
-    CustomName: "B"
-    OriginalName: B
+    Name: B
     Fields:
       - Offset: 0
-        CustomName: "a1"
-        OriginalName: a1
+        Name: a1
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/3002-UnionDefinition"
       - Offset: 4
-        CustomName: "a2"
-        OriginalName: a2
+        Name: a2
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/3002-UnionDefinition"
     Size: 8
   - Kind: UnionDefinition
     ID: 3002
-    CustomName: "A"
-    OriginalName: A
+    Name: A
     Fields:
       - Index: 0
-        CustomName: "a"
-        OriginalName: a
+        Name: a
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Unsigned
           Size: 4
       - Index: 1
-        CustomName: "b"
-        OriginalName: b
+        Name: b
         Type:
           Kind: PrimitiveType
           PrimitiveKind: Unsigned

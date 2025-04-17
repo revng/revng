@@ -5,7 +5,6 @@
 //
 
 #include "revng/ADT/SortedVector.h"
-#include "revng/Model/Identifier.h"
 
 /* TUPLE-TREE-YAML
 name: EnumEntry
@@ -18,19 +17,11 @@ fields:
 
       Has to be unique within the `enum`.
     type: uint64_t
-  - name: CustomName
-    type: Identifier
-    optional: true
-    doc: |-
-      A user-chosen `Identifier` for this `enum` entry.
-  - name: OriginalName
+  - name: Name
     type: string
     optional: true
     doc: |-
-      The name this `enum` entry had upon import.
-
-      This value can differ from `CustomName`, since `CustomName` needs to
-      respect the constraints of an `Identifier`.
+      A user-chosen `Identifier` for this `enum` entry.
   - name: Comment
     type: string
     optional: true

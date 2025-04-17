@@ -3,14 +3,14 @@
 #
 
 ---
-- OriginalName: _start
+- Name: _start
   Blocks:
     - ID: "1"
       End: "2"
       Successors:
         - Destination: "3"
           Type: FunctionCall
-- OriginalName: tailcall
+- Name: tailcall
   Blocks:
     - ID: "3"
       End: "4"

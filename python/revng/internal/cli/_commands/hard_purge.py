@@ -56,13 +56,13 @@ class HardPurgeCommand(Command):
 
             if "Functions" in reference_model:
                 for function in reference_model["Functions"]:
-                    function_name = function["OriginalName"]
+                    function_name = function["Name"]
                     self.log(" Function to be preserved: " + function_name)
                     functions_to_preserve.add(function_name)
 
             if "ImportedDynamicFunctions" in reference_model:
                 for dynamic_function in reference_model["ImportedDynamicFunctions"]:
-                    function_name = dynamic_function["OriginalName"]
+                    function_name = dynamic_function["Name"]
                     self.log(" Dynamic function to be preserved: " + function_name)
                     functions_to_preserve.add(function_name)
 
@@ -74,16 +74,14 @@ class HardPurgeCommand(Command):
 
             # Delete functions.
             patched_model["Functions"] = [
-                f
-                for f in patched_model["Functions"]
-                if f.get("OriginalName", "") in functions_to_preserve
+                f for f in patched_model["Functions"] if f.get("Name", "") in functions_to_preserve
             ]
 
             # Delete dynamic functions.
             patched_model["ImportedDynamicFunctions"] = [
                 f
                 for f in patched_model["ImportedDynamicFunctions"]
-                if f["OriginalName"] in functions_to_preserve
+                if f["Name"] in functions_to_preserve
             ]
 
         temporary_file = temporary_file_gen("revng-hard-purge-", options)

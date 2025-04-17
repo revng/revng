@@ -51,29 +51,29 @@ TypeDefinitions:
     # TODO: this should be 24, see source file for explanation
     Size: 20
 Functions:
-  - CustomName: "stack_frame"
+  - Name: "stack_frame"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/7412439904038490792-RawFunctionDefinition"
     StackFrameType:
       Kind: DefinedType
       Definition: "/TypeDefinitions/17773669446801075323-StructDefinition"
-  - CustomName: "stack_frame_array"
+  - Name: "stack_frame_array"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/13776914522867493387-RawFunctionDefinition"
     StackFrameType:
       Kind: DefinedType
       Definition: "/TypeDefinitions/10059356012972557344-StructDefinition"
-  - CustomName: "stack_arguments_64"
+  - Name: "stack_arguments_64"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/962527246414399901-RawFunctionDefinition"
-  - CustomName: "call_stack_arguments_64"
+  - Name: "call_stack_arguments_64"
     -StackFrameType: ""
     # TODO: once we have references in the CFG we can test the relationship with
     #       the callee.
-  - CustomName: "stack_arguments_32"
+  - Name: "stack_arguments_32"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/15643449473528100124-RawFunctionDefinition"

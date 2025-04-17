@@ -4,440 +4,602 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Intrinsics.h"
+
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Support/Annotations.h"
+#include "revng/Support/ResourceFinder.h"
+#include "revng/Support/YAMLTraits.h"
 
-const model::NamingConfiguration &model::NameBuilder::configuration() const {
-  return Binary.Configuration().Naming();
+static size_t trailingDigitCount(llvm::StringRef Name) {
+  size_t Result = 0;
+  for (auto Character : std::views::reverse(Name)) {
+    if (not std::isdigit(Character))
+      return Result;
+    else
+      ++Result;
+  }
+
+  revng_assert(Result == Name.size());
+  return Result;
 }
 
-static llvm::Error makeDuplicateSymbolError(const std::string &Name,
-                                            const std::string &FirstPath,
-                                            const std::string &SecondPath) {
-  std::string Result;
-  Result += "Duplicate global symbol \"";
-  Result += Name;
-  Result += "\":\n\n";
+static llvm::StringRef dropWrapperSuffix(llvm::StringRef Name) {
+  size_t Position = Name.find("_wrapper");
+  if (Position != llvm::StringRef::npos)
+    return Name.substr(0, Position);
 
-  Result += "  " + FirstPath + "\n";
-  Result += "  " + SecondPath + "\n";
-  return revng::createError(std::move(Result));
+  return Name;
 }
 
-template<typename T>
-static std::string key(const T &Object) {
-  return getNameFromYAMLScalar(KeyedObjectTraits<T>::key(Object));
+static bool isLLVMIntrinsic(llvm::StringRef Name) {
+  // Since intrinsics are all guaranteed to start with `llvm_`,
+  // we can skip the check for most of the identifiers.
+  if (not Name.starts_with("llvm_"))
+    return false;
+
+  // Start iteration from 1 because 0 is reserved for `not_intrinsic`.
+  for (llvm::Intrinsic::ID I = 1; I < llvm::Intrinsic::num_intrinsics; ++I) {
+    auto Sanitized = model::sanitizeHelperName(llvm::Intrinsic::getBaseName(I));
+    if (Name.starts_with(Sanitized))
+      return true;
+  }
+
+  return false;
 }
 
-static std::string path(const model::Function &F) {
-  return "/Functions/" + key(F);
+static const SortedVector<std::string> &loadHelperNameList() {
+  static std::optional<SortedVector<std::string>> Cache = std::nullopt;
+  if (not Cache.has_value()) {
+    auto MaybePath = revng::ResourceFinder.findFile("share/revng/"
+                                                    "helper-list.csv");
+    revng_assert(MaybePath.has_value(),
+                 ("Helper list is missing: " + *MaybePath).c_str());
+
+    auto MaybeBuffer = llvm::MemoryBuffer::getFile(*MaybePath, true);
+    revng_assert(MaybeBuffer, ("Can't open " + *MaybePath).c_str());
+
+    llvm::SmallVector<llvm::StringRef, 8> Names;
+    llvm::StringRef(MaybeBuffer->get()->getBuffer()).split(Names, "\n");
+
+    revng_assert(!Names.empty());
+    revng_assert(Names[0] == "Name");
+    revng_assert(Names.back().empty());
+    Names.pop_back();
+
+    Cache = SortedVector<std::string>();
+    auto Inserter = Cache->batch_insert();
+    for (llvm::StringRef Name : Names | std::views::drop(1)) {
+      revng_assert(not Name.empty());
+      revng_assert(Name == Name.trim());
+
+      // We don't want to ban `main`, even if it's is in the helper module.
+      if (Name == "main")
+        continue;
+
+      // We don't care about llvm debug information.
+      if (Name.starts_with("llvm.dbg"))
+        continue;
+
+      // No reason to double-ban intrinsics.
+      if (isLLVMIntrinsic(Name))
+        continue;
+
+      // TODO: other names we don't want to ban?
+
+      Inserter.insert(model::sanitizeHelperName(Name));
+    }
+  }
+
+  return *Cache;
 }
 
-static std::string path(const model::DynamicFunction &F) {
-  return "/ImportedDynamicFunctions/" + key(F);
+const std::set<llvm::StringRef> ReservedKeywords = {
+  // Reserved keywords for primitive types.
+  // Note that the primitive types we emit are checked separately.
+  "int_fast8_t",
+  "int_fast16_t",
+  "int_fast32_t",
+  "int_fast64_t",
+  "int_fast128_t",
+  "int_least8_t",
+  "int_least16_t",
+  "int_least32_t",
+  "int_least64_t",
+  "int_least128_t",
+  "intmax_t",
+  "intptr_t",
+  "uint_fast8_t",
+  "uint_fast16_t",
+  "uint_fast32_t",
+  "uint_fast64_t",
+  "uint_fast128_t",
+  "uint_least8_t",
+  "uint_least16_t",
+  "uint_least32_t",
+  "uint_least64_t",
+  "uint_least128_t",
+  "uintmax_t",
+  "uintptr_t",
+
+  // Integer macros from stdint.h, reserved to prevent clashes.
+  "INT8_WIDTH",
+  "INT16_WIDTH",
+  "INT32_WIDTH",
+  "INT64_WIDTH",
+  "INT_FAST8_WIDTH",
+  "INT_FAST16_WIDTH",
+  "INT_FAST32_WIDTH",
+  "INT_FAST64_WIDTH",
+  "INT_LEAST8_WIDTH",
+  "INT_LEAST16_WIDTH",
+  "INT_LEAST32_WIDTH",
+  "INT_LEAST64_WIDTH",
+  "INTPTR_WIDTH",
+  "INTMAX_WIDTH",
+  "INT8_MIN",
+  "INT16_MIN",
+  "INT32_MIN",
+  "INT64_MIN",
+  "INT_FAST8_MIN",
+  "INT_FAST16_MIN",
+  "INT_FAST32_MIN",
+  "INT_FAST64_MIN",
+  "INT_LEAST8_MIN",
+  "INT_LEAST16_MIN",
+  "INT_LEAST32_MIN",
+  "INT_LEAST64_MIN",
+  "INTPTR_MIN",
+  "INTMAX_MIN",
+  "INT8_MAX",
+  "INT16_MAX",
+  "INT32_MAX",
+  "INT64_MAX",
+  "INT_FAST8_MAX",
+  "INT_FAST16_MAX",
+  "INT_FAST32_MAX",
+  "INT_FAST64_MAX",
+  "INT_LEAST8_MAX",
+  "INT_LEAST16_MAX",
+  "INT_LEAST32_MAX",
+  "INT_LEAST64_MAX",
+  "INTPTR_MAX",
+  "INTMAX_MAX",
+  "UINT8_WIDTH",
+  "UINT16_WIDTH",
+  "UINT32_WIDTH",
+  "UINT64_WIDTH",
+  "UINT_FAST8_WIDTH",
+  "UINT_FAST16_WIDTH",
+  "UINT_FAST32_WIDTH",
+  "UINT_FAST64_WIDTH",
+  "UINT_LEAST8_WIDTH",
+  "UINT_LEAST16_WIDTH",
+  "UINT_LEAST32_WIDTH",
+  "UINT_LEAST64_WIDTH",
+  "UINTPTR_WIDTH",
+  "UINTMAX_WIDTH",
+  "UINT8_MAX",
+  "UINT16_MAX",
+  "UINT32_MAX",
+  "UINT64_MAX",
+  "UINT_FAST8_MAX",
+  "UINT_FAST16_MAX",
+  "UINT_FAST32_MAX",
+  "UINT_FAST64_MAX",
+  "UINT_LEAST8_MAX",
+  "UINT_LEAST16_MAX",
+  "UINT_LEAST32_MAX",
+  "UINT_LEAST64_MAX",
+  "UINTPTR_MAX",
+  "UINTMAX_MAX",
+  "INT8_C",
+  "INT16_C",
+  "INT32_C",
+  "INT64_C",
+  "INTMAX_C",
+  "UINT8_C",
+  "UINT16_C",
+  "UINT32_C",
+  "UINT64_C",
+  "UINTMAX_C",
+
+  // C reserved keywords
+  "auto",
+  "break",
+  "case",
+  "char",
+  "const",
+  "continue",
+  "default",
+  "do",
+  "double",
+  "else",
+  "enum",
+  "extern",
+  "float",
+  "for",
+  "goto",
+  "if",
+  "inline", // Since C99
+  "int",
+  "long",
+  "register",
+  "restrict", // Since C99
+  "return",
+  "short",
+  "signed",
+  "sizeof",
+  "static",
+  "struct",
+  "switch",
+  "typedef",
+  "union",
+  "unsigned",
+  "volatile",
+  "while",
+  "_Alignas", // Since C11
+  "_Alignof", // Since C11
+  "_Atomic", // Since C11
+  "_Bool", // Since C99
+  "_Complex", // Since C99
+  "_Decimal128", // Since C23
+  "_Decimal32", // Since C23
+  "_Decimal64", // Since C23
+  "_Generic", // Since C11
+  "_Imaginary", // Since C99
+  "_Noreturn", // Since C11
+  "_Static_assert", // Since C11
+  "_Thread_local", // Since C11
+
+  // Convenience macros
+  "alignas",
+  "alignof",
+  "bool",
+  "complex",
+  "imaginary",
+  "noreturn",
+  "static_assert",
+  "thread_local",
+
+  // Convenience macros for atomic types
+  "atomic_bool",
+  "atomic_char",
+  "atomic_schar",
+  "atomic_uchar",
+  "atomic_short",
+  "atomic_ushort",
+  "atomic_int",
+  "atomic_uint",
+  "atomic_long",
+  "atomic_ulong",
+  "atomic_llong",
+  "atomic_ullong",
+  "atomic_char16_t",
+  "atomic_char32_t",
+  "atomic_wchar_t",
+  "atomic_int_least8_t",
+  "atomic_uint_least8_t",
+  "atomic_int_least16_t",
+  "atomic_uint_least16_t",
+  "atomic_int_least32_t",
+  "atomic_uint_least32_t",
+  "atomic_int_least64_t",
+  "atomic_uint_least64_t",
+  "atomic_int_fast8_t",
+  "atomic_uint_fast8_t",
+  "atomic_int_fast16_t",
+  "atomic_uint_fast16_t",
+  "atomic_int_fast32_t",
+  "atomic_uint_fast32_t",
+  "atomic_int_fast64_t",
+  "atomic_uint_fast64_t",
+  "atomic_intptr_t",
+  "atomic_uintptr_t",
+  "atomic_size_t",
+  "atomic_ptrdiff_t",
+  "atomic_intmax_t",
+  "atomic_uintmax_t",
+
+  // C Extensions
+  "_Pragma",
+  "asm",
+};
+
+/// Returns `true` iff the identifier is exactly the given prefix + a decimal
+/// number. For example (Prefix = `argument_` ):
+/// * `argument_4` - `true`
+/// * `argument_4a` - `false`
+/// * `argument_4_` - `false`
+/// * `argument_` - `false`
+static bool isPrefixAndIndex(llvm::StringRef Name, llvm::StringRef Prefix) {
+  if (not Name.starts_with(Prefix))
+    return false;
+
+  size_t DigitCount = trailingDigitCount(Name);
+  return DigitCount != 0 && Name.size() - Prefix.size() == DigitCount;
 }
 
-static std::string path(const model::TypeDefinition &T) {
-  return "/TypeDefinitions/" + key(T);
-}
+/// Returns `true` iff the identifier is exactly the given prefix +
+/// a serialized (flattened) `MetaAddress`. For example (Prefix = `function_`):
+/// * `function_0x1004_Code_arm` - `true`
+/// * `function_0x1004_Code_arma` - `false`
+/// * `function_0x1004_Code_arm_` - `false`
+/// * `function_0x1004_Co_de_arm` - `false`
+/// * `function_` - `false`
+static bool isPrefixAndAddress(llvm::StringRef Name, llvm::StringRef Prefix) {
+  if (not Name.starts_with(Prefix))
+    return false;
 
-static std::string path(const model::EnumDefinition &D,
-                        const model::EnumEntry &Entry) {
-  return path(static_cast<const model::TypeDefinition &>(D))
-         + "/EnumDefinition/Entries/" + key(Entry);
-}
+  // This is a hack to let us reuse meta-address parsing.
+  //
+  // We want this because this would allow keeping names like
+  // `function_<valid_address>_anything` while still banning
+  // `function_<valid_address>`.
+  //
+  // TODO: find a cleaner solution for detecting dehydrated (`:` -> `_`)
+  //       addresses.
+  std::string RehydratedAddress = Name.substr(Prefix.size()).str();
+  for (size_t Index = 0; Index < RehydratedAddress.size(); ++Index) {
+    if (RehydratedAddress[Index] != '_')
+      continue;
 
-static std::string path(const model::Segment &Segment) {
-  return "/Segments/" + key(Segment);
-}
-
-llvm::Error model::NameBuilder::isNameForbidden(llvm::StringRef Name) {
-  // Do these strictly for now, then soften them if needed.
-
-  if (Name.starts_with(configuration().structPaddingPrefix()))
-    return revng::createError("it is reserved for struct padding");
-
-  if (Name.starts_with(configuration().artificialReturnValuePrefix()))
-    return revng::createError("it is reserved for artificial return value "
-                              "structs");
-
-  if (Name.starts_with(configuration().artificialArrayWrapperPrefix()))
-    return revng::createError("it is reserved for artificial array wrappers");
-
-  // TODO: more of these?
-
-  return llvm::Error::success();
-}
-
-llvm::Error model::NameBuilder::populateGlobalNamespace() {
-  revng_assert(not GlobalNamespace.has_value());
-  GlobalNamespace = GlobalNamespaceMap();
-
-  auto RegisterGlobalSymbol = [this](std::string Name,
-                                     std::string Path) -> llvm::Error {
-    if (not Name.empty()) {
-      if (llvm::Error Error = isNameForbidden(Name)) {
-        struct ExtractMessage {
-          std::string &Out;
-
-          llvm::Error operator()(const llvm::StringError &Error) {
-            Out = Error.getMessage();
-            return llvm::Error::success();
-          }
-        };
-        auto CatchAll = [](const llvm::ErrorInfoBase &) -> llvm::Error {
-          revng_abort("Unsupported error type.");
-        };
-
-        std::string Out;
-        llvm::handleAllErrors(std::move(Error),
-                              ExtractMessage{ Out },
-                              CatchAll);
-
-        revng_assert(not Out.empty());
-        return revng::createError("The name \"" + Name + "\" of \"" + Path
-                                  + "\" is not allowed: " + std::move(Out)
-                                  + ".\n");
+    if (Index > 5) {
+      // Note that this specifies "Code_" because currently that's the only
+      // place where `MetaAddressType` can contain a `_`.
+      if (RehydratedAddress.substr(Index - 4, 5) == "Code_") {
+        auto Remainder = llvm::StringRef(RehydratedAddress).substr(Index - 4);
+        size_t S = MetaAddressType::consumeFromString(Remainder).size();
+        if (S != RehydratedAddress.size()) {
+          revng_assert(RehydratedAddress.size() >= S);
+          Index += RehydratedAddress.size() - S - 1;
+          continue;
+        }
       }
-
-      auto &&[Iterator, Success] = GlobalNamespace->try_emplace(Name, Path);
-      if (not Success)
-        return makeDuplicateSymbolError(Name, Iterator->second, Path);
     }
 
-    return llvm::Error::success();
-  };
-
-  // Namespacing rules:
-  //
-  // 1. each struct/union induces a namespace for its field names;
-  // 2. each prototype induces a namespace for its arguments (and local
-  //    variables, but those are not part of the model yet);
-  // 3. the global namespace includes segment names, function names, dynamic
-  //    function names, type names, entries of `enum`s and helper names;
-  //
-  // Verify needs to verify that each namespace has no internal clashes.
-  // Also, the global namespace clashes with everything.
-  //
-  // TODO: find a way to add all the helper names to the Result.
-  for (const Function &F : Binary.Functions())
-    if (auto Error = RegisterGlobalSymbol(F.CustomName().str().str(), path(F)))
-      return Error;
-
-  for (const DynamicFunction &DF : Binary.ImportedDynamicFunctions())
-    if (auto Error = RegisterGlobalSymbol(DF.CustomName().str().str(),
-                                          path(DF)))
-      return Error;
-
-  for (const model::UpcastableTypeDefinition &D : Binary.TypeDefinitions()) {
-    if (auto Error = RegisterGlobalSymbol(D->CustomName().str().str(),
-                                          path(*D)))
-      return Error;
-
-    if (auto *Enum = llvm::dyn_cast<model::EnumDefinition>(D.get()))
-      for (auto &Entry : Enum->Entries())
-        if (auto Error = RegisterGlobalSymbol(Entry.CustomName().str().str(),
-                                              path(*Enum, Entry)))
-          return Error;
+    RehydratedAddress[Index] = ':';
   }
 
-  for (const Segment &S : Binary.Segments())
-    if (auto Error = RegisterGlobalSymbol(S.CustomName().str().str(), path(S)))
-      return Error;
+  return MetaAddress::fromString(RehydratedAddress).isValid();
+}
+
+/// Returns `true` iff the identifier is exactly the given prefix +
+/// a serialized model type key.
+///
+/// Note that unlike other similar functions, the prefix is allowed (and even
+/// expected) to be empty here.
+///
+/// For example (Prefix = ``):
+/// * `struct_42` - `true`
+/// * `struct_42a` - `false`
+/// * `struct_42_` - `false`
+/// * `struct_4_2` - `false`
+/// * `struct_` - `false`
+static bool isPrefixAndTypeDefinitionKey(llvm::StringRef Name,
+                                         llvm::StringRef Prefix) {
+  if (not Name.starts_with(Prefix))
+    return false;
+
+  llvm::StringRef WithoutPrefix = Name.substr(Prefix.size());
+
+  namespace TDK = model::TypeDefinitionKind;
+  llvm::StringRef WithoutKind = TDK::consumeNamePrefix(WithoutPrefix);
+  if (WithoutPrefix.size() == WithoutKind.size())
+    return false;
+
+  return isPrefixAndIndex(WithoutKind, "");
+}
+
+/// Returns `true` iff the identifier is exactly the given prefix +
+/// a serialized register name *without* the architecture.
+///
+/// For example (Prefix = `register_`):
+/// * `register_r4` - `true`
+/// * `register_r4a` - `false`
+/// * `register_r4_` - `false`
+/// * `register_r_4` - `false`
+/// * `register_` - `false`
+static bool isPrefixAndRegister(llvm::StringRef Name, llvm::StringRef Prefix) {
+  if (not Name.starts_with(Prefix))
+    return false;
+
+  llvm::StringRef WithoutPrefix = Name.substr(Prefix.size());
+
+  for (model::Register::Values R : model::Register::allRegisters())
+    if (WithoutPrefix == model::Register::getRegisterName(R))
+      return true;
+
+  return false;
+}
+
+llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
+  revng_assert(!Name.empty());
+
+  // Only alphanumeric characters and '_' are allowed
+  // TODO: handle unicode
+  auto IsCharacterForbidden = [](char Character) -> bool {
+    return Character != '_' && !std::isalnum(Character);
+  };
+  auto Iterator = llvm::find_if(Name, IsCharacterForbidden);
+  if (Iterator != Name.end()) {
+    using namespace std::string_literals;
+    return revng::createError("it contains a forbidden character: `"s
+                              + *Iterator + '`');
+  }
+
+  if (std::isdigit(Name[0]))
+    return revng::createError("it starts with a digit: `"s + Name[0] + '`');
+
+  // Filter out primitive names we use - we don't want collisions with those
+  if (model::PrimitiveType::isCName(Name))
+    return revng::createError("it is reserved for a primitive type we use");
+
+  // Forbid names reserved by the C language and some common extensions.
+  if (ReservedKeywords.contains(Name))
+    return revng::createError("it is reserved by the C language or some common "
+                              "extension");
+
+  llvm::StringRef Unwrapped = dropWrapperSuffix(Name);
+  if (loadHelperNameList().contains(Unwrapped.str()))
+    return revng::createError("it collides with a helper (`" + Unwrapped.str()
+                              + "`)");
+
+  if (isLLVMIntrinsic(Name))
+    return revng::createError("it collides with one of the LLVM intrinsics");
+
+  //
+  // The following names are reserved based on the configuration
+  //
+
+  // Names we emit as macros.
+  if (ptml::Attributes.isMacro(Name))
+    return revng::createError("it is reserved for a macro we use in the "
+                              "decompiled code");
+
+  if (Configuration.ReserveNamesStartingWithUnderscore())
+    if (Name[0] == '_')
+      return revng::createError("it is reserved because it begins with an "
+                                "underscore");
+
+  // Prefix + `[0-9]+`
+  if (isPrefixAndIndex(Name, Configuration.unnamedSegmentPrefix()))
+    return revng::createError("it is reserved for an automatic segment name");
+  if (isPrefixAndIndex(Name, Configuration.unnamedStructFieldPrefix()))
+    return revng::createError("it is reserved for an automatic struct field "
+                              "name");
+  if (isPrefixAndIndex(Name, Configuration.unnamedUnionFieldPrefix()))
+    return revng::createError("it is reserved for an automatic struct union "
+                              "name");
+  if (isPrefixAndIndex(Name, Configuration.unnamedFunctionArgumentPrefix()))
+    return revng::createError("it is reserved for an automatic function "
+                              "argument name");
+  if (isPrefixAndIndex(Name, Configuration.unnamedLocalVariablePrefix()))
+    return revng::createError("it is reserved for an automatic local variable "
+                              "name");
+  if (isPrefixAndIndex(Name,
+                       Configuration.unnamedBreakFromLoopVariablePrefix()))
+    return revng::createError("it is reserved for a break-from-loop variable "
+                              "name");
+
+  // NOTE: This should live in the "Prefix + `[0-9]+`" section, but because we
+  //       parse these names when importing from C, let's be extra cautious and
+  //       forbid them all.
+  if (Name.starts_with(Configuration.structPaddingPrefix()))
+    return revng::createError("it is reserved for a struct padding name");
+
+  // Prefix + MetaAddress.toIdentifier()
+  if (isPrefixAndAddress(Name, Configuration.unnamedFunctionPrefix()))
+    return revng::createError("it is reserved for an automatic function name");
+
+  // Prefix + toString(TypeDefinitionKey)
+  if (isPrefixAndTypeDefinitionKey(Name,
+                                   Configuration.unnamedTypeDefinitionPrefix()))
+    return revng::createError("it is reserved for an automatic type name");
+
+  // NOTE: since automatic enum entry names depend on (potentially unreserved)
+  //       enum names, we have no choice but to reserve everything starting with
+  //       this prefix that also ends with a number.
+  if (Name.starts_with(Configuration.unnamedEnumEntryPrefix())
+      and std::isdigit(Name.back()))
+    return revng::createError("it is reserved for an automatic enum entry "
+                              "name");
+
+  // NOTE: since we parse these it's safer to reserve all of them.
+  if (Name.starts_with(Configuration.maximumEnumValuePrefix()))
+    return revng::createError("it is reserved for a maximum enum value");
+
+  // Prefix + model::Register::getRegisterName(Register)
+  if (isPrefixAndRegister(Name, Configuration.unnamedFunctionRegisterPrefix()))
+    return revng::createError("it is reserved for an automatic register "
+                              "argument name");
+
+  // NOTE: since artificial return value struct name depends on a (potentially
+  //       unreserved) function type name, we have no choice but to reserve
+  //       everything starting with this prefix.
+  if (Name.starts_with(Configuration.artificialReturnValuePrefix()))
+    return revng::createError("it is reserved for an artificial return value "
+                              "struct name");
+
+  // NOTE: since these names are kind of complicated to produce (they recur
+  //       on the array's element type), forbid them all.
+  if (Name.starts_with(Configuration.artificialArrayWrapperPrefix()))
+    return revng::createError("it is reserved for an artificial array wrapper "
+                              "name");
+
+  // TODO: more granularity is possible here since this prefix is only ever
+  //       followed by a primitive name, but forbid them all for now.
+  if (Name.starts_with(Configuration.undefinedValuePrefix()))
+    return revng::createError("it is reserved for an undefined value");
+
+  // NOTE: since CSV value names are kind of external, reserve everything just
+  //       to be safe.
+  if (Name.starts_with(Configuration.opaqueCSVValuePrefix()))
+    return revng::createError("it is reserved for an opaque CSV value");
+
+  //
+  // Hardcoded prefixes
+  //
+
+  // TODO: We can be more careful with these and only reserve the ones we use,
+  //       once `CTargetImplementation` is mature enough to give us the list.
+  if (Name.starts_with("__builtin_"))
+    return revng::createError("it is reserved for a builtin intrinsic");
+
+  //
+  // Exact names
+  //
+
+  if (Name == Configuration.artificialArrayWrapperFieldName())
+    return revng::createError("it is reserved for an artificial array wrapper "
+                              "field name");
+  if (Name == Configuration.stackFrameVariableName())
+    return revng::createError("it is reserved for a stack variable name");
+  if (Name == Configuration.rawStackArgumentName())
+    return revng::createError("it is reserved for a stack argument name");
+  if (Name == Configuration.loopStateVariableName())
+    return revng::createError("it is reserved for a loop state variable name");
+
+  // Anything else to add here?
 
   return llvm::Error::success();
 }
 
-static std::string toIdentifier(const MetaAddress &Address) {
-  return model::Identifier::sanitize(Address.toString()).str().str();
-}
+llvm::Error
+model::AssemblyNameBuilder::isNameReserved(llvm::StringRef Name) const {
+  revng_assert(!Name.empty());
 
-model::Identifier model::NameBuilder::name(const model::Segment &Segment) {
-  if (not Segment.CustomName().empty()) {
-    revng_assert(globalNamespace().contains(Segment.CustomName()),
-                 "Cache is outdated.");
-    return Segment.CustomName();
-
-  } else {
-    auto Result = std::string(configuration().unnamedSegmentPrefix())
-                  + toIdentifier(Segment.StartAddress()) + "_"
-                  + std::to_string(Segment.VirtualSize());
-    while (globalNamespace().contains(Result))
-      Result += configuration().collisionResolutionSuffix();
-
-    return Identifier(Result);
-  }
-}
-
-model::Identifier model::NameBuilder::name(const model::Function &Function) {
-  if (not Function.CustomName().empty()) {
-    revng_assert(globalNamespace().contains(Function.CustomName()),
-                 "Cache is outdated.");
-    return Function.CustomName();
-
-  } else {
-    auto Result = std::string(configuration().unnamedFunctionPrefix())
-                  + toIdentifier(Function.Entry());
-    while (globalNamespace().contains(Result))
-      Result += configuration().collisionResolutionSuffix();
-
-    return Identifier(Result);
-  }
-}
-
-model::Identifier
-model::NameBuilder::name(const model::DynamicFunction &Function) {
-  if (not Function.CustomName().empty()) {
-    revng_assert(globalNamespace().contains(Function.CustomName()),
-                 "Cache is outdated.");
-    return Function.CustomName();
-
-  } else {
-    auto Result = std::string(configuration().unnamedDynamicFunctionPrefix())
-                  + Function.OriginalName();
-    while (globalNamespace().contains(Result))
-      Result += configuration().collisionResolutionSuffix();
-
-    return Identifier(Result);
-  }
-}
-
-model::Identifier
-model::NameBuilder::name(const model::TypeDefinition &Definition) {
-  if (not Definition.CustomName().empty()) {
-    revng_assert(globalNamespace().contains(Definition.CustomName()),
-                 "Cache is outdated.");
-    return Definition.CustomName();
-
-  } else {
-    auto K = model::TypeDefinitionKind::automaticNamePrefix(Definition.Kind());
-    auto Result = std::string(configuration().unnamedTypeDefinitionPrefix())
-                  + K.str() + std::to_string(Definition.ID());
-    while (globalNamespace().contains(Result))
-      Result += configuration().collisionResolutionSuffix();
-
-    return Identifier(Result);
-  }
-}
-
-model::Identifier
-model::NameBuilder::name(const model::EnumDefinition &Definition,
-                         const model::EnumEntry &Entry) {
-  revng_assert(Definition.Entries().count(Entry.Value()) != 0);
-
-  model::Identifier Result;
-
-  // Decide on a name
-  if (Entry.CustomName().empty()) {
-    llvm::StringRef Prefix{ configuration().unnamedEnumEntryPrefix() };
-    (Prefix + name(Definition) + llvm::Twine(Entry.Value())).toVector(Result);
-
-  } else {
-    Result = Entry.CustomName();
-    revng_assert(globalNamespace().contains(Result), "Cache is outdated.");
-    return Result;
-  }
-
-  // Ensure it doesn't collide with anything
-  // TODO: factor these out?
-  auto NameCollides = [this, &Entry, &Definition](const auto &Name) {
-    for (const auto &AnotherEntry : Definition.Entries())
-      if (Entry.key() != AnotherEntry.key())
-        if (not AnotherEntry.CustomName().empty())
-          if (AnotherEntry.CustomName() == Name)
-            return true;
-    return globalNamespace().contains(Name);
+  // Only alphanumeric characters and '_' are allowed
+  // TODO: handle unicode
+  auto IsCharacterForbidden = [](char Character) -> bool {
+    return Character != '_' && !std::isalnum(Character);
   };
-  while (NameCollides(Result))
-    Result += configuration().collisionResolutionSuffix();
-
-  return Result;
-}
-
-model::Identifier
-model::NameBuilder::name(const model::StructDefinition &Definition,
-                         const model::StructField &Field) {
-  model::Identifier Result;
-
-  // Decide on a name
-  if (Field.CustomName().empty()) {
-    llvm::StringRef Prefix{ configuration().unnamedStructFieldPrefix() };
-    (Prefix + llvm::Twine(Field.Offset())).toVector(Result);
-
-  } else {
-    Result = Field.CustomName();
+  auto Iterator = llvm::find_if(Name, IsCharacterForbidden);
+  if (Iterator != Name.end()) {
+    using namespace std::string_literals;
+    return revng::createError("it contains a forbidden character: `"s
+                              + *Iterator + '`');
   }
 
-  // Ensure it doesn't collide with anything
-  // TODO: factor these out?
-  auto NameCollides = [this, &Field, &Definition](const auto &Name) {
-    for (const auto &AnotherField : Definition.Fields())
-      if (Field.key() != AnotherField.key())
-        if (not AnotherField.CustomName().empty())
-          if (AnotherField.CustomName() == Name)
-            return true;
-    return globalNamespace().contains(Name);
-  };
-  while (NameCollides(Result))
-    Result += configuration().collisionResolutionSuffix();
+  if (std::isdigit(Name[0]))
+    return revng::createError("it starts with a digit: `"s + Name[0] + '`');
 
-  return Result;
-}
+  if (Configuration.ReserveNamesStartingWithUnderscore())
+    if (Name[0] == '_')
+      return revng::createError("it is reserved because it begins with an "
+                                "underscore");
 
-model::Identifier
-model::NameBuilder::name(const model::UnionDefinition &Definition,
-                         const model::UnionField &Field) {
-  model::Identifier Result;
+  // Prefix + MetaAddress.toIdentifier()
+  if (isPrefixAndAddress(Name, Configuration.unnamedFunctionPrefix()))
+    return revng::createError("it is reserved for an automatic function name");
 
-  // Decide on a name
-  if (Field.CustomName().empty()) {
-    llvm::StringRef Prefix{ configuration().unnamedUnionFieldPrefix() };
-    (Prefix + llvm::Twine(Field.Index())).toVector(Result);
+  // Register names
+  for (model::Register::Values Register : registers(Architecture))
+    if (Name == model::Register::getRegisterName(Register))
+      return revng::createError("it collides with a register name");
 
-  } else {
-    Result = Field.CustomName();
-  }
+  // Anything else to add here?
 
-  // Ensure it doesn't collide with anything
-  // TODO: factor these out?
-  auto NameCollides = [this, &Field, &Definition](const auto &Name) {
-    for (const auto &AnotherField : Definition.Fields())
-      if (Field.key() != AnotherField.key())
-        if (not AnotherField.CustomName().empty())
-          if (AnotherField.CustomName() == Name)
-            return true;
-    return globalNamespace().contains(Name);
-  };
-  while (NameCollides(Result))
-    Result += configuration().collisionResolutionSuffix();
-
-  return Result;
-}
-
-using CFT = model::CABIFunctionDefinition;
-model::Identifier
-model::NameBuilder::argumentName(const CFT &Function,
-                                 const model::Argument &Argument) {
-  model::Identifier Result;
-
-  // Decide on a name
-  if (Argument.CustomName().empty()) {
-    llvm::StringRef Prefix{ configuration().unnamedFunctionArgumentPrefix() };
-    (Prefix + llvm::Twine(Argument.Index())).toVector(Result);
-
-  } else {
-    Result = Argument.CustomName();
-  }
-
-  // Ensure it doesn't collide with anything
-  // TODO: factor these out?
-  auto NameCollides = [this, &Argument, &Function](const auto &Name) {
-    for (const auto &AnotherArgument : Function.Arguments())
-      if (Argument.key() != AnotherArgument.key())
-        if (not AnotherArgument.CustomName().empty())
-          if (AnotherArgument.CustomName() == Name)
-            return true;
-    return globalNamespace().contains(Name);
-  };
-  while (NameCollides(Result))
-    Result += configuration().collisionResolutionSuffix();
-
-  return Result;
-}
-
-using NTR = model::NamedTypedRegister;
-using RFT = model::RawFunctionDefinition;
-model::Identifier model::NameBuilder::argumentName(const RFT &Function,
-                                                   const NTR &Argument) {
-  model::Identifier Result;
-
-  // Decide on a name
-  if (Argument.CustomName().empty()) {
-    llvm::StringRef Prefix = configuration().unnamedFunctionRegisterPrefix();
-    (Prefix + getRegisterName(Argument.Location())).toVector(Result);
-
-  } else {
-    Result = Argument.CustomName();
-  }
-
-  // Ensure it doesn't collide with anything
-  // TODO: factor these out?
-  auto NameCollides = [this, &Argument, &Function](const auto &Name) {
-    for (const auto &AnotherArgument : Function.Arguments())
-      if (Argument.key() != AnotherArgument.key())
-        if (not AnotherArgument.CustomName().empty())
-          if (AnotherArgument.CustomName() == Name)
-            return true;
-    return globalNamespace().contains(Name);
-  };
-  while (NameCollides(Result))
-    Result += configuration().collisionResolutionSuffix();
-
-  return Result;
-}
-
-using NTR = model::NamedTypedRegister;
-using RFT = model::RawFunctionDefinition;
-model::Identifier model::NameBuilder::returnValueName(const RFT &Function,
-                                                      const NTR &ReturnValue) {
-  model::Identifier Result;
-
-  // Decide on a name
-  if (ReturnValue.CustomName().empty()) {
-    llvm::StringRef Prefix = configuration().unnamedFunctionRegisterPrefix();
-    (Prefix + getRegisterName(ReturnValue.Location())).toVector(Result);
-
-  } else {
-    Result = ReturnValue.CustomName();
-  }
-
-  // Ensure it doesn't collide with anything
-  // TODO: factor these out?
-  auto NameCollides = [this, &ReturnValue, &Function](const auto &Name) {
-    for (const auto &AnotherReturnValue : Function.ReturnValues())
-      if (ReturnValue.key() != AnotherReturnValue.key())
-        if (not AnotherReturnValue.CustomName().empty())
-          if (AnotherReturnValue.CustomName() == Name)
-            return true;
-    return globalNamespace().contains(Name);
-  };
-  while (NameCollides(Result))
-    Result += configuration().collisionResolutionSuffix();
-
-  return Result;
-}
-
-using T = model::Type;
-RecursiveCoroutine<std::string>
-model::NameBuilder::artificialArrayWrapperNameImpl(const T &Type) {
-  if (auto *Array = llvm::dyn_cast<model::ArrayType>(&Type)) {
-    std::string Result = "array_" + std::to_string(Array->ElementCount())
-                         + "_of_";
-    Result += rc_recur artificialArrayWrapperNameImpl(*Array->ElementType());
-    rc_return Result;
-
-  } else if (auto *D = llvm::dyn_cast<model::DefinedType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_" : "");
-    rc_return Result += this->name(D->unwrap()).str().str();
-
-  } else if (auto *Pointer = llvm::dyn_cast<model::PointerType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_ptr_to_" : "ptr_to_");
-    Result += rc_recur artificialArrayWrapperNameImpl(*Pointer->PointeeType());
-    rc_return Result;
-
-  } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
-    std::string Result = (D->IsConst() ? "const_" : "");
-    rc_return Result += Primitive->getCName();
-
-  } else {
-    revng_abort("Unsupported model::Type.");
-  }
-}
-
-model::Identifier model::NameBuilder::artificialArrayWrapperFieldName() {
-  std::string Result{ configuration().artificialArrayWrapperFieldName() };
-  while (globalNamespace().contains(Result))
-    Result += configuration().collisionResolutionSuffix();
-
-  return Identifier(Result);
+  return llvm::Error::success();
 }

@@ -1,5 +1,0 @@
-#
-# This file is distributed under the MIT License. See LICENSE.md for details.
-#
-
-CHECK: int32_t function_0x400000_Code_x86_64_(int32_t argument_0, int32_t argument_1);

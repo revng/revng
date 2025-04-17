@@ -343,9 +343,8 @@ bool FunctionEdgeBase::verify(model::VerifyHelper &VH) const {
   return true;
 }
 
-model::Identifier BasicBlock::name() const {
-  using llvm::Twine;
-  return model::Identifier(std::string("bb_") + ID().toString());
+std::string BasicBlock::name() const {
+  return "bb_" + ID().toString();
 }
 
 bool BasicBlock::verify() const {

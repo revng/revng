@@ -6,7 +6,7 @@ Architecture: x86_64
 
 Functions:
   - Entry: "0x400000:Code_x86_64"
-    CustomName: new_function_name
+    Name: new_function_name
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3000-RawFunctionDefinition"

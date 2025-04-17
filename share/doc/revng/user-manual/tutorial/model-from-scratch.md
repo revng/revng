@@ -192,7 +192,7 @@ One of the main activities of a reverse engineer is giving things a name, just l
      Prototype:
        Kind: DefinedType
        Definition: "/TypeDefinitions/0-CABIFunctionDefinition"
-+    CustomName: Sum
++    Name: Sum
  TypeDefinitions:
    - Kind: CABIFunctionDefinition
      ABI: SystemV_x86_64
@@ -213,13 +213,13 @@ Almost everything in the model can have a name. Let's add a name to the function
            Kind: PrimitiveType
            PrimitiveKind: Unsigned
            Size: 8
-+        CustomName: FirstAddend
++        Name: FirstAddend
        - Index: 1
          Type:
            Kind: PrimitiveType
            PrimitiveKind: Unsigned
            Size: 8
-+        CustomName: SecondAddend
++        Name: SecondAddend
      ReturnType:
        Kind: PrimitiveType
        PrimitiveKind: Unsigned

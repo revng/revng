@@ -4,7 +4,7 @@
 
 ---
 Functions:
-  - OriginalName: func
+  - Name: func
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1-RawFunctionDefinition"

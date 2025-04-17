@@ -7,6 +7,8 @@
 
 #include <fstream>
 
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
@@ -72,7 +74,7 @@ static std::string mangleName(StringRef String) {
 
   constexpr auto SHA1HexLength = 40;
   if (String.size() > SHA1HexLength or not IsPrintable(String)
-      or ContainsSpaces(String)) {
+      or ContainsSpaces(String) or String.empty()) {
     ArrayRef Data(reinterpret_cast<const uint8_t *>(String.data()),
                   String.size());
     return llvm::toHex(SHA1::hash(Data), true);
@@ -497,43 +499,6 @@ void collectTypes(Type *Root, std::set<Type *> &Set) {
   }
 }
 
-void emitCall(llvm::IRBuilderBase &Builder,
-              Function *Callee,
-              const Twine &Reason,
-              const DebugLoc &DbgLocation,
-              const ProgramCounterHandler *PCH) {
-  revng_assert(Callee != nullptr);
-  llvm::Module *M = Callee->getParent();
-
-  SmallVector<llvm::Value *, 4> Arguments;
-
-  // Create the message string
-  Arguments.push_back(getUniqueString(M, Reason.str()));
-
-  // Populate the source PC
-  MetaAddress SourcePC = MetaAddress::invalid();
-
-  if (Instruction *T = Builder.GetInsertBlock()->getTerminator())
-    SourcePC = getPC(T).first;
-
-  if (PCH != nullptr) {
-    PCH->setLastPCPlainMetaAddress(Builder, SourcePC);
-    PCH->setCurrentPCPlainMetaAddress(Builder);
-  }
-
-  auto *NewCall = Builder.CreateCall(Callee, Arguments);
-  NewCall->setDebugLoc(DbgLocation);
-  Builder.CreateUnreachable();
-
-  // Assert there's one and only one terminator
-  auto *BB = Builder.GetInsertBlock();
-  unsigned Terminators = 0;
-  for (Instruction &I : *BB)
-    if (I.isTerminator())
-      ++Terminators;
-  revng_assert(Terminators == 1);
-}
-
 void pushInstructionALAP(llvm::DominatorTree &DT, llvm::Instruction *ToMove) {
   using namespace llvm;
 
@@ -602,4 +567,70 @@ bool deleteOnlyBody(llvm::Function &F) {
     Result = true;
   }
   return Result;
+}
+
+void sortModule(llvm::Module &M) {
+  auto CompareByName = [](const auto *LHS, const auto *RHS) {
+    return LHS->getName() < RHS->getName();
+  };
+
+  //
+  // Reorder global variables
+  //
+  std::vector<llvm::GlobalVariable *> Globals;
+  for (auto &Global : M.globals())
+    Globals.push_back(&Global);
+
+  for (auto *Global : Globals)
+    Global->removeFromParent();
+
+  llvm::sort(Globals, CompareByName);
+
+  for (auto *Global : Globals)
+    M.getGlobalList().push_back(Global);
+
+  //
+  // Reorder functions
+  //
+  std::vector<llvm::Function *> Functions;
+  for (llvm::Function &F : M.functions())
+    Functions.push_back(&F);
+
+  for (llvm::Function *F : Functions)
+    F->removeFromParent();
+
+  std::sort(Functions.begin(), Functions.end(), CompareByName);
+
+  for (llvm::Function *F : Functions)
+    M.getFunctionList().push_back(F);
+
+  //
+  // Reorder basic blocks
+  //
+  for (llvm::Function *F : Functions) {
+    if (F->isDeclaration() || F->empty())
+      continue;
+
+    llvm::BasicBlock *EntryBlock = &F->getEntryBlock();
+    auto RPOT = llvm::ReversePostOrderTraversal(EntryBlock);
+
+    llvm::SetVector<llvm::BasicBlock *> SortedBlocks;
+
+    // Collect blocks in reverse port-order
+    for (auto *BB : RPOT)
+      SortedBlocks.insert(BB);
+
+    // Collect blocks left out
+    for (auto &BB : *F)
+      if (not SortedBlocks.contains(&BB))
+        SortedBlocks.insert(&BB);
+
+    // Purge all the blocks from the function
+    while (!F->empty())
+      F->begin()->removeFromParent();
+
+    // Re-add blocks in the correct order
+    for (auto *BB : SortedBlocks)
+      BB->insertInto(F);
+  }
 }

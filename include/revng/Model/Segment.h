@@ -5,7 +5,6 @@
 //
 
 #include "revng/ADT/SortedVector.h"
-#include "revng/Model/Identifier.h"
 #include "revng/Model/Relocation.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Support/MetaAddress.h"
@@ -41,11 +40,7 @@ fields:
     doc: Is this segment writable?
   - name: IsExecutable
     type: bool
-    doc: Is this segment executable?
-  - name: CustomName
-    type: Identifier
-    optional: true
-  - name: OriginalName
+  - name: Name
     type: string
     optional: true
   - name: Comment

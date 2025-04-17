@@ -4,11 +4,11 @@
 
 ---
 Functions:
-  - OriginalName: callee
+  - Name: callee
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1814-RawFunctionDefinition"
-  - OriginalName: caller
+  - Name: caller
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1815-RawFunctionDefinition"

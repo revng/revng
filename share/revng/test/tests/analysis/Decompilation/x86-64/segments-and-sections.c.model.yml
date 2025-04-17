@@ -17,7 +17,7 @@ TypeDefinitions:
   - ID: 1812
     Kind: StructDefinition
     Fields:
-      - OriginalName: .rodata
+      - Name: rodata
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/1813-StructDefinition"
@@ -27,14 +27,14 @@ TypeDefinitions:
   - ID: 1815
     Kind: StructDefinition
     Fields:
-      - OriginalName: .data
+      - Name: data
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/1816-StructDefinition"
   - ID: 1816
     Kind: StructDefinition
     Fields:
-      - OriginalName: TheData
+      - Name: TheData
         Type:
           Kind: DefinedType
           Definition: "/TypeDefinitions/1817-StructDefinition"

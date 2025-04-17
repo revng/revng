@@ -15,7 +15,7 @@ TypeDefinitions:
   # CHECK: >
   - ID: 1002
     Kind: CABIFunctionDefinition
-    CustomName: "my_function2"
+    Name: "my_function2"
     ABI: SystemV_x86_64
     ReturnType:
       Kind: PrimitiveType

@@ -6,7 +6,6 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/NameBuilder.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Doxygen.h"
 #include "revng/Pipeline/Location.h"
@@ -259,7 +258,7 @@ namespace ranks = revng::ranks;
 static llvm::SmallVector<DoxygenLine, 16>
 gatherArgumentComments(const model::Binary &Binary,
                        const model::Function &Function,
-                       model::NameBuilder &NameBuilder) {
+                       std::vector<std::string> &&ArgumentNames) {
   if (Function.Prototype().isEmpty())
     return {};
 
@@ -309,9 +308,7 @@ gatherArgumentComments(const model::Binary &Binary,
 
         const model::Argument &Argument = FT->Arguments().at(Index);
         auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
-                                     NameBuilder.argumentName(*FT, Argument)
-                                       .str()
-                                       .str());
+                                     ArgumentNames.at(Index));
         std::string Location = locationString(ranks::CABIArgument,
                                               FT->key(),
                                               Argument.key());
@@ -363,7 +360,7 @@ gatherArgumentComments(const model::Binary &Binary,
       }
     }
   } else if (auto *FT = Function.rawPrototype()) {
-    for (const model::NamedTypedRegister &Argument : FT->Arguments()) {
+    for (const auto &[Index, Argument] : llvm::enumerate(FT->Arguments())) {
       if (!Argument.Comment().empty()) {
         model::Register::Values Register = Argument.Location();
 
@@ -372,9 +369,7 @@ gatherArgumentComments(const model::Binary &Binary,
         Line.InternalIndentation = Keyword.size();
 
         auto &N = Line->emplace_back(DoxygenToken::Types::Identifier,
-                                     NameBuilder.argumentName(*FT, Argument)
-                                       .str()
-                                       .str());
+                                     ArgumentNames.at(Index));
         std::string Location = locationString(ranks::RawArgument,
                                               FT->key(),
                                               Argument.key());
@@ -400,6 +395,8 @@ gatherArgumentComments(const model::Binary &Binary,
       }
     }
 
+    uint64_t RegisterArgumentCount = FT->Arguments().size();
+
     if (const model::StructDefinition *Stack = FT->stackArgumentsType()) {
       struct FieldMapEntry {
         std::string Name;
@@ -407,9 +404,9 @@ gatherArgumentComments(const model::Binary &Binary,
         const model::StructField &Field;
       };
       llvm::SmallVector<FieldMapEntry> Comments;
-      for (const model::StructField &Field : Stack->Fields())
+      for (const auto &[Index, Field] : llvm::enumerate(Stack->Fields()))
         if (!Field.Comment().empty())
-          Comments.emplace_back(NameBuilder.name(*Stack, Field).str().str(),
+          Comments.emplace_back(ArgumentNames.at(RegisterArgumentCount + Index),
                                 Field.Comment(),
                                 Field);
 
@@ -539,13 +536,14 @@ gatherReturnValueComments(const model::Binary &Binary,
   return Result;
 }
 
-std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
+std::string
+ptml::detail::functionCommentImpl(const ::ptml::MarkupBuilder &PTML,
                                   const model::Function &Function,
                                   const model::Binary &Binary,
                                   llvm::StringRef CommentIndicator,
                                   size_t Indentation,
                                   size_t WrapAt,
-                                  model::NameBuilder *NB) {
+                                  std::vector<std::string> &&ArgumentNames) {
   llvm::SmallVector<DoxygenLine, 16> Result;
   if (!Function.Comment().empty()) {
     DoxygenToken Tag{ .Type = DoxygenToken::Types::Untagged,
@@ -558,12 +556,9 @@ std::string ptml::functionComment(const ::ptml::MarkupBuilder &PTML,
     Result.emplace_back(DoxygenLine{ .Tags = { std::move(Tag) } });
   }
 
-  using NHT = model::NameBuilder;
-  auto OwnedNameBuilder = NB ? std::nullopt : std::make_optional<NHT>(Binary);
-  if (OwnedNameBuilder)
-    NB = &*OwnedNameBuilder;
-
-  auto ArgumentComments = gatherArgumentComments(Binary, Function, *NB);
+  auto ArgumentComments = gatherArgumentComments(Binary,
+                                                 Function,
+                                                 std::move(ArgumentNames));
   if (!ArgumentComments.empty()) {
     if (!Result.empty())
       Result.emplace_back();
