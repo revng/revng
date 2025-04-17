@@ -4,21 +4,39 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <memory>
-
-#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
+#include "llvm/Support/YAMLTraits.h"
 
-#include "revng/Storage/ReadableFile.h"
-#include "revng/Storage/WritableFile.h"
-#include "revng/Support/Assert.h"
+#include "revng/Storage/StorageClient.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/Error.h"
 
 namespace revng {
+
+class ReadableFile {
+private:
+  std::unique_ptr<llvm::MemoryBuffer> Buffer;
+
+public:
+  ReadableFile(std::unique_ptr<llvm::MemoryBuffer> &&Buffer) :
+    Buffer(std::move(Buffer)) {}
+  ~ReadableFile() = default;
+
+  llvm::MemoryBuffer &buffer() { return *Buffer; };
+};
+
+class WritableFile {
+private:
+  std::unique_ptr<llvm::raw_fd_ostream> OS;
+
+public:
+  WritableFile(std::unique_ptr<llvm::raw_fd_ostream> &&OS) :
+    OS(std::move(OS)) {}
+  ~WritableFile() = default;
+  llvm::raw_pwrite_stream &os() { return *OS; }
+  llvm::Error commit() { return llvm::Error::success(); }
+};
 
 enum class ContentEncoding {
   None,
@@ -31,56 +49,48 @@ enum class PathType {
   Directory
 };
 
-/// Class that abstracts storage from its users.
-/// This allows scoped access to a specific "directory", in the sense that no
-/// file parent of the root directory can be accessed. This has been done
-/// deliberately since it synergises well with PipelineManager's work directory.
-///
-/// All methods are failable since the storage might not be on the local
-/// filesystem and, as such, is subject to network errors. Moreover, it is not
-/// guaranteed that the buffers/streams returned by ::getWritableFile or
-/// ::getReadableFile are actually backed by a file in the filesystem.
-///
-/// Currently the following backends are supported:
-/// * Local filesystem via ordinary unix paths
-///
-/// Writing files happens in 3 steps:
-/// * A writable file is requested via ::getWritableFile
-/// * The writable file is committed via WritableFile::commit
-/// * Once all writes are done, a final ::commit must be
-///   issued, otherwise all changes might be lost
-///
-/// Example:
-/// \code{.cpp}
-/// llvm::Error serialize() {
-///   for (auto &Path : pathsToSave()) {
-///     auto MaybeFile = Client.getWritableFile(Path);
-///     if (not MaybeFile)
-///       return MaybeFile.takeError();
-///
-///     serialize(Path, MaybeFile.get()->os());
-///
-///     if (auto Error = MaybeFile->commit())
-///       return Error;
-///   }
-///
-///   return Client.commit();
-/// }
-/// \endcode
 class StorageClient {
-protected:
-  StorageClient() = default;
+public:
+  struct File {
+    /// TransactionIndex when the file was last written by the Client, if the
+    /// value is '0' then the file existed before the Client was created.
+    uint64_t Index = 0;
+    /// Content Encoding of the file, this is used downstream.
+    ContentEncoding Encoding = ContentEncoding::None;
+  };
+
+  struct FileMetadata {
+    /// Index of the commit that will be written when calling the `commit`
+    /// method of this class. Increases by one every time `commit()` is called.
+    uint64_t TransactionIndex = 1;
+    /// Map that stores the state of the files managed by this StorageClient. It
+    /// records the last TransactionIndex the files were written and the
+    /// encoding used.
+    llvm::StringMap<File> Files;
+  };
+
+private:
+  std::string Root;
+  FileMetadata Metadata;
 
 public:
-  virtual ~StorageClient() = default;
-  StorageClient(const StorageClient &Other) = delete;
-  StorageClient &operator=(const StorageClient &Other) = delete;
-  StorageClient(const StorageClient &&Other) = delete;
-  StorageClient &operator=(StorageClient &&Other) = delete;
+  StorageClient(llvm::StringRef Root);
+  ~StorageClient() = default;
 
-public:
-  static llvm::Expected<std::unique_ptr<StorageClient>>
-  fromPathOrURL(llvm::StringRef URL);
+  llvm::Expected<PathType> type(llvm::StringRef Path);
+  llvm::Error createDirectory(llvm::StringRef Path);
+  llvm::Error remove(llvm::StringRef Path);
+  llvm::sys::path::Style getStyle() const;
+
+  llvm::Error copy(llvm::StringRef Source, llvm::StringRef Destination);
+
+  llvm::Expected<std::unique_ptr<ReadableFile>>
+  getReadableFile(llvm::StringRef Path);
+
+  llvm::Expected<std::unique_ptr<WritableFile>>
+  getWritableFile(llvm::StringRef Path, ContentEncoding Encoding);
+
+  llvm::Error commit();
 
   void dump() const debug_function { dump(dbg); }
 
@@ -89,28 +99,9 @@ public:
     OS << dumpString();
   }
 
-  virtual llvm::Expected<PathType> type(llvm::StringRef Path) = 0;
-  virtual llvm::Error createDirectory(llvm::StringRef Path) = 0;
-  virtual llvm::Error remove(llvm::StringRef Path) = 0;
-  virtual llvm::sys::path::Style getStyle() const = 0;
-
-  virtual llvm::Error copy(llvm::StringRef Source,
-                           llvm::StringRef Destination) = 0;
-
-  virtual llvm::Expected<std::unique_ptr<ReadableFile>>
-  getReadableFile(llvm::StringRef Path) = 0;
-
-  virtual llvm::Expected<std::unique_ptr<WritableFile>>
-  getWritableFile(llvm::StringRef Path, ContentEncoding Encoding) = 0;
-
-  virtual llvm::Error commit() { return llvm::Error::success(); };
-
-  virtual llvm::Error setCredentials(llvm::StringRef Credentials) {
-    return revng::createError("Not Supported");
-  }
-
 private:
-  virtual std::string dumpString() const = 0;
+  std::string dumpString() const;
+  std::string resolvePath(llvm::StringRef Path);
 };
 
 } // namespace revng
