@@ -426,6 +426,32 @@ void FunctionOp::print(OpAsmPrinter &Printer) {
   }
 }
 
+mlir::LogicalResult FunctionOp::verify() {
+  auto ReturnType = mlir::cast<ValueType>(getCliftFunctionType()
+                                            .getReturnType());
+
+  bool IsVoid = isVoid(ReturnType);
+  auto Result = (*this)->walk([&](ReturnOp Op) -> mlir::WalkResult {
+    clift::ValueType Type = getExpressionType(Op.getResult());
+
+    if (IsVoid) {
+      if (Type)
+        return Op->emitOpError() << "cannot return expression in function "
+                                    "returning void.";
+    } else if (not Type) {
+      return Op->emitOpError() << "must return a value in function not "
+                                  "returning void.";
+    } else if (Type != ReturnType) {
+      return Op->emitOpError() << "type does not match the function return "
+                                  "type";
+    }
+
+    return mlir::success();
+  });
+
+  return mlir::failure(Result.wasInterrupted());
+}
+
 ArrayRef<Type> FunctionOp::getArgumentTypes() {
   return getCliftFunctionType().getArgumentTypes();
 }
