@@ -124,6 +124,7 @@ def Clift_FunctionOp : Clift_Op<"func",
                    "mlir::clift::FunctionType":$FunctionType)>
   ];
 
+  let hasVerifier = 1;
   let hasCustomAssemblyFormat = 1;
 
   code extraClassDeclaration = [{

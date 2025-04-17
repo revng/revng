@@ -135,27 +135,7 @@ public:
                                << " must be directly nested within a"
                                   " ModuleOp.";
 
-    if (auto Return = mlir::dyn_cast<ReturnOp>(Op)) {
-      ValueType ReturnType = {};
-
-      if (mlir::Region &R = Return.getResult(); not R.empty())
-        ReturnType = getExpressionType(R);
-
-      if (isVoid(FunctionReturnType)) {
-        if (ReturnType)
-          return Op->emitOpError() << Op->getName()
-                                   << " cannot return expression in function"
-                                      " returning void.";
-      } else if (not ReturnType) {
-        return Op->emitOpError() << Op->getName()
-                                 << " must return a value in function not"
-                                    " returning void.";
-      } else if (ReturnType != FunctionReturnType) {
-        return Op->emitOpError() << Op->getName()
-                                 << " type does not match the function return"
-                                    " type";
-      }
-    } else if (mlir::isa<SwitchBreakOp>(Op)) {
+    if (mlir::isa<SwitchBreakOp>(Op)) {
       if (not hasLoopOrSwitchParent(Op,
                                     LoopOrSwitch::Switch,
                                     /*DirectlyNested=*/true))
@@ -193,9 +173,6 @@ public:
                                   " ModuleOp.";
 
     if (auto F = mlir::dyn_cast<FunctionOp>(Op)) {
-      FunctionReturnType = mlir::cast<ValueType>(F.getCliftFunctionType()
-                                                   .getReturnType());
-
       LocalNames.clear();
       LabelNames.clear();
     }
@@ -223,7 +200,6 @@ public:
   }
 
 private:
-  ValueType FunctionReturnType;
   llvm::DenseMap<llvm::StringRef, DefinedType> Definitions;
   llvm::DenseSet<ClassType> ClassTypes;
 
