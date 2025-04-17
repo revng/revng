@@ -11,7 +11,7 @@
   "/type-definition/1001-CABIFunctionDefinition" : !void()
 >
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     %1 = clift.local !int16_t "x"
 

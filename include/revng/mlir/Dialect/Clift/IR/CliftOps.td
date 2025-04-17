@@ -101,25 +101,6 @@ def Clift_OptionalExpressionRegion
 
 //===------------------------ Top level operations ------------------------===//
 
-def Clift_ModuleOp : Clift_Op<"module",
-                              [SymbolTable,
-                               HasOnlyGraphRegion,
-                               NoRegionArguments,
-                               SingleBlock,
-                               RegionKindInterface,
-                               IsolatedFromAbove]> {
-  let regions = (region AnyRegion:$body);
-
-  let skipDefaultBuilders = 1;
-  let builders = [OpBuilder<(ins)>];
-
-  let assemblyFormat = [{
-    $body attr-dict
-  }];
-
-  let hasVerifier = 1;
-}
-
 def Clift_FunctionOp : Clift_Op<"func",
                                 [Clift_GlobalOpInterface,
                                  CallableOpInterface,

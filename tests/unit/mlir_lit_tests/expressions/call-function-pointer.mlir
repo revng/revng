@@ -17,7 +17,7 @@
 
 !g$ptr = !clift.ptr<8 to !g>
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     clift.return {
       %0 = clift.imm 0 : !int64_t

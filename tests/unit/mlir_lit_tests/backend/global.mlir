@@ -11,7 +11,7 @@
   "/type-definition/1001-CABIFunctionDefinition" : !void()
 >
 
-clift.module {
+module attributes {clift.module} {
   clift.global !int32_t @g {
     handle = "/segment/0x40002001:Generic64-4"
   }

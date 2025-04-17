@@ -10,7 +10,7 @@
   "/type-definition/1-CABIFunctionDefinition" : !int32_t(!int32_t)
 >
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>(%arg : !int32_t) -> !int32_t {
     clift.return {
       %f = clift.use @f : !f

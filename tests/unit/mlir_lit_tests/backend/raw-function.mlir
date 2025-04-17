@@ -16,7 +16,7 @@
   "/type-definition/1003-CABIFunctionDefinition" : !int32_t(!int32_t, !f_args)
 >
 
-clift.module {
+module attributes {clift.module} {
   // CHECK: int32_t fun_0x40001003(int32_t rcx _REG(rcx_x86_64), args_1003 stack_arguments _STACK) {
   clift.func @f<!f>(%arg0 : !int32_t, %arg1 : !f_args) attributes {
     handle = "/function/0x40001003:Code_x86_64"

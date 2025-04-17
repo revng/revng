@@ -37,6 +37,12 @@ mlir::LogicalResult verifyUnaryIntegerMutationOp(Operation *Op);
 
 namespace mlir::clift {
 
+/// Returns true if the module has a Clift module attribute.
+bool hasModuleAttr(mlir::ModuleOp Module);
+
+/// Sets the Clift module attribute on the specified module.
+void setModuleAttr(mlir::ModuleOp Module);
+
 /// Returns the terminating YieldOp of the expression represented by the region,
 /// or a operation if the region is not a valid expression region.
 YieldOp getExpressionYieldOp(Region &R);

@@ -12,7 +12,7 @@
   }
 >
 
-clift.module {
+module attributes {clift.module} {
   // CHECK: Pointer type is not representable in the target implementation.
   clift.global !s @x
 }

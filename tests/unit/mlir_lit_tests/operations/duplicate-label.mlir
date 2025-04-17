@@ -10,7 +10,7 @@
   "/type-definition/1000-CABIFunctionDefinition" as "f" : !void()
 >
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     clift.make_label "x"
     // CHECK: conflicts with another label

@@ -11,7 +11,7 @@
   "/type-definition/1000-CABIFunctionDefinition" as "f" : !void()
 >
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     clift.while {
       %0 = clift.undef : !int32_t

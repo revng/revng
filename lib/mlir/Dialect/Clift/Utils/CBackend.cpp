@@ -501,7 +501,7 @@ public:
   RecursiveCoroutine<void> emitUseExpression(mlir::Value V) {
     auto E = V.getDefiningOp<UseOp>();
 
-    auto Module = E->getParentOfType<clift::ModuleOp>();
+    auto Module = E->getParentOfType<mlir::ModuleOp>();
     revng_assert(Module);
 
     mlir::Operation

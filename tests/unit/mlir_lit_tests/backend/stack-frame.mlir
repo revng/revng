@@ -10,7 +10,7 @@
   "/type-definition/1005-CABIFunctionDefinition" : !void()
 >
 
-clift.module {
+module attributes {clift.module} {
   // CHECK: void fun_0x40001005(void) {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001005:Code_x86_64"
