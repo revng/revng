@@ -8,10 +8,8 @@ target_link_libraries(
          MLIRTransforms
          MLIRDialect
          MLIRIR
-         MLIRLLVMDialect
-         MLIRDLTIDialect
-         MLIRLLVMIRToLLVMTranslation
          MLIRBytecodeReader
          MLIRBytecodeWriter
+         MLIRParser
          MLIRCliftDialect
          MLIRCliftUtils)
