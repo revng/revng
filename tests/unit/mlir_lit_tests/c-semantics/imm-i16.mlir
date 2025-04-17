@@ -11,7 +11,7 @@
   "/type-definition/1001-CABIFunctionDefinition" : !void()
 >
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     // CHECK: is not representable in the target implementation
     clift.expr {

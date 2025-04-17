@@ -12,7 +12,7 @@
 >
 
 // CHECK: cannot return expression in function returning void
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     clift.return {
       %0 = clift.undef : !int32_t

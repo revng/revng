@@ -10,7 +10,7 @@
   "/type-definition/1-CABIFunctionDefinition" as "f" : !int32_t()
 >
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     // CHECK: must return a value in function not returning void
     clift.return {}

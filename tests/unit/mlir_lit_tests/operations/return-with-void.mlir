@@ -10,7 +10,7 @@
   "/type-definition/1-CABIFunctionDefinition" as "f" : !void()
 >
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     // CHECK: cannot return expression in function returning void
     clift.return {
