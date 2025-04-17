@@ -1440,9 +1440,8 @@ mlir::ParseResult CallOp::parse(OpAsmParser &Parser, OperationState &Result) {
 }
 
 void CallOp::print(OpAsmPrinter &Printer) {
-  auto FunctionValueType = getFunction().getType();
-  auto
-    FunctionType = getFunctionOrFunctionPointerFunctionType(FunctionValueType);
+  auto Type = getFunction().getType();
+  auto FunctionType = getFunctionOrFunctionPointerFunctionType(Type);
   revng_assert(FunctionType); // Checked by verify.
 
   Printer << ' ';
@@ -1452,7 +1451,7 @@ void CallOp::print(OpAsmPrinter &Printer) {
                     makeCallArgumentTypeAccessor(FunctionType));
 
   Printer.printOptionalAttrDict(getOperation()->getAttrs(), {});
-  Printer << ' ' << ':' << ' ' << FunctionType;
+  Printer << ' ' << ':' << ' ' << Type;
 }
 
 mlir::LogicalResult CallOp::verify() {
