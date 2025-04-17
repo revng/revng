@@ -6,13 +6,10 @@
 
 #include "mlir/Bytecode/BytecodeReader.h"
 #include "mlir/Bytecode/BytecodeWriter.h"
-#include "mlir/Dialect/DLTI/DLTI.h"
-#include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Parser/Parser.h"
-#include "mlir/Target/LLVMIR/Dialect/All.h"
 
 #include "revng/Pipeline/RegisterContainerFactory.h"
 #include "revng/mlir/Dialect/Clift/IR/Clift.h"
@@ -81,10 +78,6 @@ static void visit(ModuleOp Module, Visitor visitor) {
 static const mlir::DialectRegistry &getDialectRegistry() {
   static const mlir::DialectRegistry Registry = []() -> mlir::DialectRegistry {
     mlir::DialectRegistry Registry;
-    // The DLTI dialect is used to express the data layout.
-    Registry.insert<mlir::DLTIDialect>();
-    // All dialects that implement the LLVMImportDialectInterface.
-    mlir::registerAllFromLLVMIRTranslations(Registry);
     Registry.insert<mlir::clift::CliftDialect>();
     return Registry;
   }();
