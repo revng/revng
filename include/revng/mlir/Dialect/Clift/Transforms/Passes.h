@@ -12,8 +12,8 @@ namespace mlir::clift {
 #define GEN_PASS_DECL
 #include "revng/mlir/Dialect/Clift/Transforms/Passes.h.inc"
 
-std::unique_ptr<OperationPass<clift::ModuleOp>> createVerifyCPass();
-std::unique_ptr<OperationPass<clift::ModuleOp>> createEmitCPass();
+std::unique_ptr<OperationPass<mlir::ModuleOp>> createVerifyCPass();
+std::unique_ptr<OperationPass<mlir::ModuleOp>> createEmitCPass();
 
 #define GEN_PASS_REGISTRATION
 #include "revng/mlir/Dialect/Clift/Transforms/Passes.h.inc"

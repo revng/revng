@@ -11,7 +11,7 @@
 >
 
 // CHECK: must be nested within a loop operation
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     clift.loop_continue
   }

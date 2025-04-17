@@ -15,7 +15,4 @@
 >
 
 // CHECK: recursive class type
-clift.module {
-} {
-  s = !s
-}
+module attributes {clift.module, clift.test = !s} {}

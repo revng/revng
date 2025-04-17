@@ -12,7 +12,7 @@
 >
 
 // CHECK: must be nested within a loop operation
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     clift.while {
       %0 = clift.undef : !int32_t

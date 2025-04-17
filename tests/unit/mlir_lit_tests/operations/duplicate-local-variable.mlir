@@ -11,7 +11,7 @@
   "/type-definition/1000-CABIFunctionDefinition" as "f" : !void()
 >
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     clift.local !int32_t "x"
     // CHECK: conflicts with another local variable

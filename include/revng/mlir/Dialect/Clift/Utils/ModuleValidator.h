@@ -41,7 +41,7 @@ public:
   template<typename... Args>
     requires std::derived_from<ValidatorT, ModuleValidator>
              and std::constructible_from<ValidatorT, Args...>
-  static mlir::LogicalResult validate(clift::ModuleOp Module, Args &&...args) {
+  static mlir::LogicalResult validate(mlir::ModuleOp Module, Args &&...args) {
     ValidatorT Validator(std::forward<Args>(args)...);
     auto &Self = static_cast<ModuleValidator &>(Validator);
     return Self.internalVisitModuleOp(Module);
@@ -63,7 +63,7 @@ protected:
   }
 
   /// Always returns the root module operation.
-  clift::ModuleOp getCurrentModule() const { return CurrentModule; }
+  mlir::ModuleOp getCurrentModule() const { return CurrentModule; }
 
 private:
   ValidatorT &getValidator() { return static_cast<ValidatorT &>(*this); }
@@ -186,7 +186,7 @@ private:
     return mlir::success();
   }
 
-  mlir::LogicalResult internalVisitModuleOp(clift::ModuleOp Module) {
+  mlir::LogicalResult internalVisitModuleOp(mlir::ModuleOp Module) {
     ScopedExchange SetCurrentModule(CurrentModule, Module);
     ScopedExchange SetCurrentOp(CurrentOp, Module.getOperation());
 
@@ -208,7 +208,7 @@ private:
     return mlir::success();
   }
 
-  clift::ModuleOp CurrentModule = {};
+  mlir::ModuleOp CurrentModule = {};
   mlir::Operation *CurrentModuleLevelOp = nullptr;
   mlir::Operation *CurrentOp = nullptr;
 

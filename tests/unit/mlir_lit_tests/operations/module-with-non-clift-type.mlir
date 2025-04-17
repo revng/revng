@@ -5,7 +5,4 @@
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
 // CHECK: non-Clift type
-clift.module {
-} {
-  t = i32
-}
+module attributes {clift.module, clift.test = i32} {}
