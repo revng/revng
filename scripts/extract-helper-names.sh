@@ -12,7 +12,7 @@ printf "Name\\n"
   for FILE in "$@"; do
     (
       if [[ "${FILE}" =~ ^.+\.bc$ ]]; then
-        cat ${FILE}
+        cat "${FILE}"
 
       elif [[ "${FILE}" =~ ^.+\.ll$ ]]; then
         llvm-as "${FILE}" -o -
