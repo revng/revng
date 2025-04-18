@@ -300,6 +300,46 @@ electDivergence(BasicBlock *Candidate,
   return std::nullopt;
 }
 
+/// Helper function which create a single entry point block where a divergence
+/// is entered into by multiple successors of a `Conditional`
+static void createHead(BasicBlock *Conditional,
+                       DivergenceDescriptor &Divergence,
+                       BasicBlock *PlaceHolderTarget) {
+  LLVMContext &Context = getContext(Conditional);
+  Function *F = Conditional->getParent();
+  Instruction *ConditionalTerminator = Conditional->getTerminator();
+  BasicBlock *Head = BasicBlock::Create(Context,
+                                        Conditional->getName() + "_head_ids",
+                                        F);
+  Instruction *HeadTerminator = ConditionalTerminator->clone();
+  IRBuilder<> HeadBuilder(Head);
+  HeadBuilder.Insert(HeadTerminator);
+
+  // Collect the `Successor`s composing the local `Divergence`
+  SmallSet<BasicBlock *, 4> LocalDivergentSuccessors = Divergence
+                                                         .DivergentSuccessors;
+
+  // And collect all the `Successor`s that do not make up the local
+  // `Divergence`
+  SmallVector<BasicBlock *> LocalNonDivergentSuccessors;
+  for (BasicBlock *Successor : children<Scope<BasicBlock *>>(Head)) {
+    if (not LocalDivergentSuccessors.contains(Successor)) {
+      LocalNonDivergentSuccessors.push_back(Successor);
+    }
+  }
+
+  // The `Head` only connects the `LocalDivergentSuccessors`, we simplify
+  // away the other successors
+  replaceSuccessors(HeadTerminator,
+                    LocalNonDivergentSuccessors,
+                    PlaceHolderTarget);
+  simplifyTerminator(Head, PlaceHolderTarget);
+
+  // If we insert the `Head`, we replace all the edges going to the
+  // `DivergentSuccessors` in the conditional so that they go to `Head`
+  replaceSuccessors(ConditionalTerminator, LocalDivergentSuccessors, Head);
+}
+
 /// Helper function that performs the IDS transformation
 static void
 performMultipleIDS(const ScopeGraphBuilder &SGBuilder,
@@ -377,6 +417,18 @@ performMultipleIDS(const ScopeGraphBuilder &SGBuilder,
 
     // We erase the first `DivergenceDescriptor` from the `MultipleDivergences`
     MultipleDivergences.erase(MultipleDivergences.begin() + LastElementIndex);
+  }
+
+  // Decide if we need a new `Head` that collects the entry of the divergent
+  // scope. This is needed if one `Divergence` is composed by multiple
+  // `Successor`s, since in that case there is no clear entry to the inlined
+  // divergent scope. We therefore add a `Head` block that collects the entry
+  // point, so that this new node will dominate the eventual postdominator
+  // common to the multiple `Successor`s.
+  for (auto Divergence : MultipleDivergences) {
+    if (Divergence.DivergentSuccessors.size() > 1) {
+      createHead(Conditional, Divergence, PlaceHolderTarget);
+    }
   }
 
   // Move the `NonDivergentSuccessors` outgoing edges from `Conditional` so that
