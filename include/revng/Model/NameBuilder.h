@@ -279,12 +279,12 @@ private:
       rc_return Result += this->name(D->unwrap());
 
     } else if (auto *Ptr = llvm::dyn_cast<model::PointerType>(&Type)) {
-      std::string Result = (D->IsConst() ? "const_ptr_to_" : "ptr_to_");
+      std::string Result = (Ptr->IsConst() ? "const_ptr_to_" : "ptr_to_");
       Result += rc_recur artificialArrayWrapperNameImpl(*Ptr->PointeeType());
       rc_return Result;
 
     } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
-      std::string Result = (D->IsConst() ? "const_" : "");
+      std::string Result = (Primitive->IsConst() ? "const_" : "");
       rc_return Result += Primitive->getCName();
 
     } else {
