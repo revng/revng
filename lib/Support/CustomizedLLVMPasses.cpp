@@ -3,6 +3,7 @@
 //
 
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
 
 using namespace llvm;
@@ -40,3 +41,45 @@ char SimplifyCFGWithHoistAndSinkPass::ID;
 using RegisterCustomSimplifyCFG = RegisterPass<SimplifyCFGWithHoistAndSinkPass>;
 static RegisterCustomSimplifyCFG
   RSCG("simplify-cfg-with-hoist-and-sink", "", false, false);
+
+//
+// Customized version of SROA, to disable flattening of arrays
+//
+
+class SROANoArraysPass : public FunctionPass {
+public:
+  static char ID;
+
+  SROANoArraysPass() : FunctionPass(ID) {}
+
+  void getAnalysisUsage(AnalysisUsage &AU) const override {}
+
+  bool runOnFunction(Function &F) override {
+    // Temporarily swap out the SROANoArray cl::opt and force it to true, so
+    // that when the SROAPass runs and reads it it doesn't replace loads and
+    // stores to array-typed allocas.
+    // This is a pattern we need to prevent SROA to optimize away, because it
+    // replaces multi-byte memory accesses with many single-byte accesses,
+    // which is detrimental for information we need to recover about
+    // memory accesses in the analyzed binary program.
+    bool OriginalSROANoArrays = SROANoArrays;
+    SROANoArrays = true;
+
+    FunctionPassManager FPM;
+    FPM.addPass(SROAPass(SROAOptions::PreserveCFG));
+
+    FunctionAnalysisManager FAM;
+
+    PassBuilder PB;
+    PB.registerFunctionAnalyses(FAM);
+
+    FPM.run(F, FAM);
+
+    SROANoArrays = OriginalSROANoArrays;
+    return true;
+  }
+};
+
+char SROANoArraysPass::ID = 0;
+
+static RegisterPass<SROANoArraysPass> RSROA("sroa-noarrays", "", false, false);
