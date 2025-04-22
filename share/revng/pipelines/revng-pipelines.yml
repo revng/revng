@@ -647,7 +647,7 @@ Branches:
               - cleanup-stack-size-markers
               - dce
               - sroa-noarrays
-              - instcombine
+              - instcombine-noarrays
               - remove-extractvalues
               - sroa-noarrays
               - simplify-cfg-with-hoist-and-sink
@@ -660,7 +660,7 @@ Branches:
               # loop-simplify because it kills the loop-simplify form causing
               # DLA not to identify arrays properly
               - loop-simplify
-              - instcombine
+              - instcombine-noarrays
               - remove-extractvalues
               - early-cse
               - dce

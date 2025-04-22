@@ -3,6 +3,8 @@
 //
 
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/Transforms/InstCombine/InstCombine.h"
+#include "llvm/Transforms/InstCombine/InstCombiner.h"
 #include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Scalar/SimplifyCFG.h"
 
@@ -83,3 +85,36 @@ public:
 char SROANoArraysPass::ID = 0;
 
 static RegisterPass<SROANoArraysPass> RSROA("sroa-noarrays", "", false, false);
+
+//
+// Customized InstructionCombiningPass, to disable flattening of arrays
+//
+
+class InstCombineNoArrays : public InstructionCombiningPass {
+public:
+  static char ID;
+
+  InstCombineNoArrays() : InstructionCombiningPass() {}
+
+  bool runOnFunction(Function &F) override {
+    // Temporarily swap out the MaxArraySize cl::opt and force it to 0, so that
+    // when the InstCombinePass runs and reads it it doesn't replace loads and
+    // stores to array-typed allocas.
+    // This is a pattern we need to prevent instcombine to optimize away,
+    // because it replaces multi-byte memory accesses with many single-byte
+    // accesses, which is detrimental for information we need to recover about
+    // memory accesses in the analyzed binary program.
+    unsigned OriginalMaxArraySize = MaxArraySize;
+    MaxArraySize = 0;
+
+    InstructionCombiningPass::runOnFunction(F);
+
+    MaxArraySize = OriginalMaxArraySize;
+    return true;
+  }
+};
+
+char InstCombineNoArrays::ID;
+
+using RegisterInstCombine = RegisterPass<InstCombineNoArrays>;
+static RegisterInstCombine RIC("instcombine-noarrays", "", false, false);
