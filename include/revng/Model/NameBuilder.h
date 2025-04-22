@@ -16,6 +16,7 @@
 #include "revng/Model/StructDefinition.h"
 #include "revng/Model/UnionDefinition.h"
 #include "revng/Support/CommonOptions.h"
+#include "revng/Support/StringOperations.h"
 
 namespace model {
 
@@ -56,6 +57,14 @@ private:
     auto Result = std::string(Configuration.unnamedSegmentPrefix())
                   + std::to_string(std::distance(Binary.Segments().begin(),
                                                  Iterator));
+    assertNameIsReserved(Result);
+    return Result;
+  }
+  [[nodiscard]] std::string
+  automaticName(const model::DynamicFunction &Function) const {
+    // TODO: use something nicer to look at than hash, maybe punycode.
+    std::string Result = Configuration.unnamedDynamicFunctionPrefix().str()
+                         + revng::nameHash(Function.Name());
     assertNameIsReserved(Result);
     return Result;
   }
@@ -179,19 +188,6 @@ public:
     } else {
       return E.Name();
     }
-  }
-
-  // Dynamic functions are special - we never introduce automatic names for them
-  [[nodiscard]] std::string name(const model::DynamicFunction &Function) const {
-    llvm::Error Error = isNameReserved(Function.Name());
-    if (Error) {
-      std::string ErrorMessage = "Dynamic function name `" + Function.Name()
-                                 + "` is not allowed: "
-                                 + revng::unwrapError(std::move(Error));
-      revng_abort(ErrorMessage.c_str());
-    }
-
-    return Function.Name();
   }
 
   [[nodiscard]] std::string llvmName(const model::Function &Function) const {

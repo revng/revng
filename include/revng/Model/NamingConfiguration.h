@@ -17,6 +17,14 @@ fields:
     type: string
     optional: true
 
+  - name: UnnamedDynamicFunctionPrefix
+    doc: |
+      The prefix for a dynamic function with an invalid name.
+
+      The default value is `dynamic_function_`.
+    type: string
+    optional: true
+
   - name: UnnamedFunctionPrefix
     doc: |
       The prefix for a local function without a name.
@@ -184,6 +192,13 @@ public:
       return "segment_";
     else
       return UnnamedSegmentPrefix();
+  }
+
+  llvm::StringRef unnamedDynamicFunctionPrefix() const {
+    if (UnnamedDynamicFunctionPrefix().empty())
+      return "dynamic_function_";
+    else
+      return UnnamedDynamicFunctionPrefix();
   }
 
   llvm::StringRef unnamedFunctionPrefix() const {
