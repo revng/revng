@@ -9,7 +9,7 @@
 #include "llvm/IR/Instructions.h"
 
 inline constexpr const char *StackTypeMDName = "revng.stack_type";
-inline const char *VariableTypeMDName = "revng.stack_type";
+inline const char *VariableTypeMDName = "revng.variable_type";
 
 inline bool hasNamedMetadata(const llvm::AllocaInst *I,
                              llvm::StringRef MDName) {

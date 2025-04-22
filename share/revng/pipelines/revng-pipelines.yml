@@ -646,10 +646,10 @@ Branches:
               - segregate-stack-accesses
               - cleanup-stack-size-markers
               - dce
-              - sroa
-              - instcombine
+              - sroa-noarrays
+              - instcombine-noarrays
               - remove-extractvalues
-              - sroa
+              - sroa-noarrays
               - simplify-cfg-with-hoist-and-sink
               # loop-rotate rearranges loops in a way that should make it
               # easier to match do-while loops
@@ -660,7 +660,7 @@ Branches:
               # loop-simplify because it kills the loop-simplify form causing
               # DLA not to identify arrays properly
               - loop-simplify
-              - instcombine
+              - instcombine-noarrays
               - remove-extractvalues
               - early-cse
               - dce
