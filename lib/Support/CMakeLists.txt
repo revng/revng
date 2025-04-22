@@ -10,6 +10,7 @@ revng_add_library_internal(
   BasicBlockID.cpp
   CommandLine.cpp
   CommonOptions.cpp
+  CustomizedLLVMPasses.cpp
   Debug.cpp
   ExplicitSpecializations.cpp
   IRAnnotators.cpp
@@ -25,7 +26,6 @@ revng_add_library_internal(
   ProgramCounterHandler.cpp
   ResourceFinder.cpp
   SelfReferencingDbgAnnotationWriter.cpp
-  SimplifyCFGWithHoistAndSinkPass.cpp
   Statistics.cpp
   Tag.cpp
   GzipTarFile.cpp

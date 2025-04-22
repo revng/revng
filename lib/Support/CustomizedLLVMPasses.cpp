@@ -7,6 +7,10 @@
 
 using namespace llvm;
 
+//
+// Customized version of SimplifyCFG, with a different set of default options.
+//
+
 class SimplifyCFGWithHoistAndSinkPass : public FunctionPass {
 public:
   static char ID;
@@ -33,5 +37,6 @@ public:
 
 char SimplifyCFGWithHoistAndSinkPass::ID;
 
-using Register = RegisterPass<SimplifyCFGWithHoistAndSinkPass>;
-static Register R("simplify-cfg-with-hoist-and-sink", "", false, false);
+using RegisterCustomSimplifyCFG = RegisterPass<SimplifyCFGWithHoistAndSinkPass>;
+static RegisterCustomSimplifyCFG
+  RSCG("simplify-cfg-with-hoist-and-sink", "", false, false);
