@@ -538,6 +538,11 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   if (Name.starts_with(Configuration.opaqueCSVValuePrefix()))
     return revng::createError("it is reserved for an opaque CSV value");
 
+  // NOTE: since these use a hash suffix, let's be on the safe side and reserve
+  //       the entire prefix.
+  if (Name.starts_with(Configuration.unnamedDynamicFunctionPrefix()))
+    return revng::createError("it is reserved for a dynamic function name");
+
   //
   // Hardcoded prefixes
   //
@@ -593,6 +598,11 @@ model::AssemblyNameBuilder::isNameReserved(llvm::StringRef Name) const {
   // Prefix + MetaAddress.toIdentifier()
   if (isPrefixAndAddress(Name, Configuration.unnamedFunctionPrefix()))
     return revng::createError("it is reserved for an automatic function name");
+
+  // NOTE: since these use a hash suffix, let's be on the safe side and reserve
+  //       the entire prefix.
+  if (Name.starts_with(Configuration.unnamedDynamicFunctionPrefix()))
+    return revng::createError("it is reserved for a dynamic function name");
 
   // Register names
   for (model::Register::Values Register : registers(Architecture))
