@@ -28,7 +28,8 @@ target_link_libraries(revngPipeline revngStorage revngSupport ${LLVM_LIBRARIES})
 set(PIPELINEDESCRIPTION_HEADERS_DIR
     "${CMAKE_SOURCE_DIR}/include/revng/Pipeline/Description")
 set(PIPELINEDESCRIPTION_SCHEMA_PATH
-    "${CMAKE_BINARY_DIR}/pipelineDescription-schema.yml")
+    "${CMAKE_SOURCE_DIR}/include/revng/Pipeline/Description/pipelineDescription-schema.yml"
+)
 set(PIPELINEDESCRIPTION_JSONSCHEMA_PATH
     "${CMAKE_BINARY_DIR}/pipelineDescription-jsonschema.yml")
 set(PIPELINEDESCRIPTION_TYPESCRIPT_PATH

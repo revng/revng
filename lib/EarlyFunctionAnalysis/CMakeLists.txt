@@ -44,7 +44,8 @@ target_link_libraries(
 set(EFA_HEADERS_DIR "${CMAKE_SOURCE_DIR}/include/revng/EarlyFunctionAnalysis")
 set(OUTPUT_DIR
     "${CMAKE_BINARY_DIR}/include/revng/EarlyFunctionAnalysis/Generated")
-set(SCHEMA_PATH "${CMAKE_BINARY_DIR}/efa-schema.yml")
+set(SCHEMA_PATH
+    "${CMAKE_SOURCE_DIR}/include/revng/EarlyFunctionAnalysis/efa-schema.yml")
 target_tuple_tree_generator(
   revngEarlyFunctionAnalysis
   INSTALL

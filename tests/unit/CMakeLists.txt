@@ -292,7 +292,7 @@ target_tuple_tree_generator(
   ROOT_TYPE
   TestClass
   SCHEMA_PATH
-  "${OUTPUT_DIR}/schema.yml"
+  "${CMAKE_SOURCE_DIR}/tests/unit/TupleTreeGenerator/schema.yml"
   HEADERS_PATH
   "${HEADERS_DIR}/Generated"
   INCLUDE_PATH_PREFIX

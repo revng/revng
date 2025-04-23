@@ -44,15 +44,12 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
                             .OptionalCallAddress = MetaAddress::invalid() };
 
   case FunctionEdgeType::FunctionCall: {
-    // Note: we assume that the first concrete type is the CallEdge. This hack
-    //       is necessary to be able to handle identical data structures under
-    //       different namespaces.
-    using CallEdge = std::tuple_element_t<0, concrete_types_traits_t<T>>;
-    auto *CE = llvm::cast<CallEdge>(&Edge);
+    auto CastEdge = Edge.getCallEdge();
+    revng_assert(CastEdge);
 
     auto NextInstructionAddress = BasicBlockID::invalid();
-    if (not CE->hasAttribute(Binary, model::FunctionAttribute::NoReturn)
-        and not CE->IsTailCall()) {
+    if (not CastEdge->hasAttribute(Binary, model::FunctionAttribute::NoReturn)
+        and not CastEdge->IsTailCall()) {
       NextInstructionAddress = FallthroughAddress;
     }
     return ParsedSuccessor{ .NextInstructionAddress = NextInstructionAddress,

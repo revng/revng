@@ -42,6 +42,10 @@ namespace model {
 class VerifyHelper;
 }
 
+namespace efa {
+class CallEdge;
+}
+
 class efa::FunctionEdgeBase : public efa::generated::FunctionEdgeBase {
 public:
   using generated::FunctionEdgeBase::FunctionEdgeBase;
@@ -49,6 +53,9 @@ public:
 public:
   bool isDirect() const { return Destination().isValid(); }
   bool isIndirect() const { return not isDirect(); }
+
+  /// \return nullptr if this is not a call edge.
+  const efa::CallEdge *getCallEdge() const;
 
 public:
   bool verify() const debug_function;

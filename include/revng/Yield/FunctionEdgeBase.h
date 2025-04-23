@@ -42,6 +42,10 @@ namespace model {
 class VerifyHelper;
 }
 
+namespace yield {
+class CallEdge;
+}
+
 class yield::FunctionEdgeBase : public yield::generated::FunctionEdgeBase {
 public:
   using generated::FunctionEdgeBase::FunctionEdgeBase;
@@ -49,6 +53,9 @@ public:
 public:
   bool isDirect() const { return Destination().isValid(); }
   bool isIndirect() const { return not isDirect(); }
+
+  // Returns nullptr if this is not a call edge.
+  const yield::CallEdge *getCallEdge() const;
 
 public:
   bool verify() const debug_function;
