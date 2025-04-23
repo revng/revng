@@ -722,81 +722,64 @@ public:
                                  returnValueLocationString(RFT, Register));
   }
 
+private:
+  uint64_t availableCommentLineWidth() const {
+    const model::Configuration &Configuration = Binary.Configuration();
+    uint64_t TotalLineWidth = Configuration.commentLineWidth();
+
+    // TODO: Come up with something more robust here, because:
+    //       1. there is no guarantee that the string is going to be written to
+    //          the `Out` stream (this is only relevant for the methods that
+    //          return strings).
+    //       2. `currentIndentation()` does not take into account the fact that
+    //          `Out` could be wrapping another indented stream.
+    uint64_t CurrentIndentation = Out->currentIndentation();
+
+    return TotalLineWidth - CurrentIndentation;
+  }
+
 public:
   template<model::EntityWithComment Type>
   std::string getModelComment(const Type &T) const {
-    const model::Configuration &Configuration = Binary.Configuration();
-    uint64_t LineWidth = Configuration.commentLineWidth();
-
-    // TODO: do not rely on `Out`'s indentation, since there's no guarantee it's
-    //       the same stream (even if it usually is).
-    uint64_t Width = LineWidth - Out->currentIndentation();
-
-    return ptml::comment(*this, T, "///", 0, Width);
+    return ptml::comment(*this, T, "///", 0, availableCommentLineWidth());
   }
 
   template<model::EntityWithComment Type>
   std::string getModelCommentWithoutLeadingNewline(const Type &T) const {
-    const model::Configuration &Configuration = Binary.Configuration();
-    uint64_t LineWidth = Configuration.commentLineWidth();
-
-    // TODO: do not rely on `Out`'s indentation, since there's no guarantee it's
-    //       the same stream (even if it usually is).
-    uint64_t Width = LineWidth - Out->currentIndentation();
-
-    return ptml::commentWithoutLeadingNewline(*this, T, "///", 0, Width);
+    uint64_t LineWidth = availableCommentLineWidth();
+    return ptml::commentWithoutLeadingNewline(*this, T, "///", 0, LineWidth);
   }
 
   std::string
   getWrapperStructComment(const model::RawFunctionDefinition &Function) const {
-    const model::Configuration &Configuration = Binary.Configuration();
-    uint64_t LineWidth = Configuration.commentLineWidth();
-
-    // TODO: do not rely on `Out`'s indentation, since there's no guarantee it's
-    //       the same stream (even if it usually is).
-    uint64_t Width = LineWidth - Out->currentIndentation();
-
     return ptml::freeFormComment(*this,
                                  Function.ReturnValueComment(),
                                  "///",
                                  0,
-                                 Width,
+                                 availableCommentLineWidth(),
                                  false);
   }
 
   std::string getFunctionComment(const model::Function &Function) const {
-    const model::Configuration &Configuration = Binary.Configuration();
-    uint64_t LineWidth = Configuration.commentLineWidth();
-
-    // TODO: do not rely on `Out`'s indentation, since there's no guarantee it's
-    //       the same stream (even if it usually is).
-    uint64_t Width = LineWidth - Out->currentIndentation();
-
     return ptml::functionComment(*this,
                                  Function,
                                  Binary,
                                  "///",
                                  0,
-                                 Width,
+                                 availableCommentLineWidth(),
                                  NameBuilder);
   }
 
   std::string getStatementComment(const model::StatementComment &Text,
                                   const std::string &CommentLocation,
                                   llvm::StringRef EmittedAt) const {
-    const model::Configuration &Configuration = Binary.Configuration();
-    uint64_t LineWidth = Configuration.commentLineWidth();
-
-    // TODO: do not rely on `Out`'s indentation, since there's no guarantee it's
-    //       the same stream (even if it usually is).
-    uint64_t Width = LineWidth - Out->currentIndentation();
     return ptml::statementComment(*this,
                                   Text,
                                   CommentLocation,
                                   EmittedAt,
                                   "//",
                                   0,
-                                  Width);
+                                  availableCommentLineWidth());
   }
 
 public:
