@@ -11,6 +11,7 @@
 #include "llvm/Support/Progress.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/Lift/Lift.h"
 #include "revng/Support/FunctionTags.h"
@@ -849,6 +850,9 @@ JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
     purgeTranslation(BB);
   ToPurge.clear();
 
+  // Puring leaves some unreachable blocks behind: collect them
+  EliminateUnreachableBlocks(*TheFunction);
+
   if (Unexplored.empty()) {
     revng_log(JTCountLog, "We're done looking for jump targets");
     return NoMoreTargets;
@@ -915,18 +919,8 @@ void JumpTargetManager::purgeTranslation(BasicBlock *Start) {
   // Remove Start, since we want to keep it (even if empty)
   Visited.erase(Start);
 
-  for (BasicBlock *BB : Visited) {
-    // We might have some predecessorless basic blocks jumping to us, purge them
-    // TODO: why this?
-    while (not pred_empty(BB)) {
-      BasicBlock *Predecessor = *pred_begin(BB);
-      revng_assert(pred_empty(Predecessor));
-      eraseFromParent(Predecessor);
-    }
-
-    revng_assert(BB->use_empty());
+  for (BasicBlock *BB : Visited)
     eraseFromParent(BB);
-  }
 }
 
 // TODO: register Reason
