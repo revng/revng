@@ -10,31 +10,6 @@
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 
-/* TUPLE-TREE-YAML
-name: CallSitePrototype
-doc: Information about the prototype of a specific callsite within a `Function`.
-type: struct
-fields:
-  - name: CallerBlockAddress
-    doc: Address of the basic block of the call.
-    type: MetaAddress
-  - name: Prototype
-    type: Type
-    upcastable: true
-  - name: IsTailCall
-    doc: Whether this call site is a tail call or not.
-    type: bool
-    optional: true
-  - name: Attributes
-    doc: Attributes for this call site.
-    sequence:
-      type: MutableSet
-      elementType: FunctionAttribute
-    optional: true
-key:
-  - CallerBlockAddress
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/CallSitePrototype.h"
 
 class model::CallSitePrototype

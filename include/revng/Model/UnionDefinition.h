@@ -7,20 +7,6 @@
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Model/UnionField.h"
 
-/* TUPLE-TREE-YAML
-name: UnionDefinition
-doc: |
-  A `union` type.
-type: struct
-inherits: TypeDefinition
-fields:
-  - name: Fields
-    doc: The list of alternative types in this `union`.
-    sequence:
-      type: SortedVector
-      elementType: UnionField
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/UnionDefinition.h"
 
 class model::UnionDefinition : public model::generated::UnionDefinition {

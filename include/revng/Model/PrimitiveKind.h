@@ -6,34 +6,6 @@
 
 #include "llvm/ADT/StringRef.h"
 
-/* TUPLE-TREE-YAML
-name: PrimitiveKind
-type: enum
-members:
-  - name: Void
-    doc: The `void` type.
-  - name: Generic
-    doc: |-
-      The most generic primitive kind: it can be any of the other primitive
-      kinds, except for `Void`.
-  - name: PointerOrNumber
-    doc: |-
-      A kind representing either a `Number` kind or a pointer.
-      This can also be seen as not-a-`Float`.
-  - name: Number
-    doc: |-
-      A two's complement integer number, either `Signed` or `Unsigned`.
-  - name: Unsigned
-    doc: |-
-      An `unsigned` two's complement integer number.
-  - name: Signed
-    doc: |-
-      An `signed` two's complement integer number.
-  - name: Float
-    doc: |-
-      A IEEE 754 floating point number.
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/PrimitiveKind.h"
 
 namespace model::PrimitiveKind {

@@ -6,24 +6,6 @@
 
 #include "revng/Yield/TaggedString.h"
 
-/* TUPLE-TREE-YAML
-
-name: TaggedLine
-type: struct
-fields:
-  - name: Index
-    type: uint64_t
-
-  - name: Tags
-    sequence:
-      type: SortedVector
-      elementType: TaggedString
-
-key:
-  - Index
-
-TUPLE-TREE-YAML */
-
 #include "revng/Yield/Generated/Early/TaggedLine.h"
 
 namespace model {
