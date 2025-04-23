@@ -212,16 +212,18 @@ We currently implemented the following locations:
     * `/binary`
     * `/function/<Function_MetaAddress>`
     * `/dynamic-function/<Name_string>`
-    * `/type/<Type_Kind>-<Type_ID>`
+    * `/type-definition/<Type_Kind>-<Type_ID>`
     * `/segment/<StartAddress_MetaAddress>-<VirtualSize_uint64>`
     * `/struct-field/<Type_Kind>-<Type_ID>/<Offset_uint64>`
     * `/union-field/<Type_Kind>-<Type_ID>/<Index_uint64>`
     * `/enum-entry/<Type_Kind>-<Type_ID>/<Index_uint64>`
+    * `/primitive-type/<Type_Kind>-<Type_ID>/<Index_uint64>`
     * `/raw-argument/<Type_Kind>-<Type_ID>/<Register>`
     * `/raw-stack-arguments/<Type_Kind>-<Type_ID>`
     * `/cabi-argument/<Type_Kind>-<Type_ID>/<Index_uint64>`
     * `/return-value/<Type_Kind>-<Type_ID>`
     * `/return-register/<Type_Kind>-<Type_ID>/<Register>`
+    * `/statement-comment/<Function_MetaAddress>/<Index_uint64>`
 * Byte-ranges related
     * `/raw-byte/<Start_MetaAddress>`
     * `/raw-byte-range/<Start_MetaAddress>/<End_MetaAddress>`
@@ -230,6 +232,7 @@ We currently implemented the following locations:
     * `/instruction/<Function_MetaAddress>/<BasicBlock_MetaAddress>/<Instruction_MetaAddress>`
 * C-related:
     * `/local-variable/<Function_MetaAddress>/<Name_string>`
+    * `/goto-label/<Function_MetaAddress>/<Name_string>`
     * `/helper-function/<Name_string>`
     * `/helper-struct-type/<Name_string>`
     * `/helper-structs-field/<Name_string>/<FieldName_string>`
