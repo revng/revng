@@ -62,9 +62,14 @@ public:
     if (not Manager)
       return Manager;
 
-    if (ModelOverride.hasValue())
-      if (auto Error = overrideModel(*ModelOverride, *Manager))
+    auto MaybeModelOverride = ModelOverride.get();
+    if (not MaybeModelOverride)
+      return MaybeModelOverride.takeError();
+
+    if (MaybeModelOverride->has_value()) {
+      if (auto Error = overrideModel(**MaybeModelOverride, *Manager))
         return Error;
+    }
 
     return Manager;
   }

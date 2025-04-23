@@ -11,6 +11,7 @@
 
 #include "revng/Storage/StorageClient.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/Error.h"
 #include "revng/Support/PathList.h"
 
 namespace revng {
@@ -66,6 +67,20 @@ public:
     revng_assert(Extension.find('.') == llvm::StringRef::npos);
     revng_assert(Extension.find(Separator) == llvm::StringRef::npos);
     return FilePath(Client, SubPath + '.' + Extension.str());
+  }
+
+  llvm::Error check() const {
+    if (Client == nullptr)
+      return llvm::Error::success();
+
+    auto MaybeResult = Client->type(SubPath);
+    if (!MaybeResult)
+      return MaybeResult.takeError();
+
+    if (MaybeResult.get() == PathType::Directory)
+      return revng::createError("Provided path is a directory");
+
+    return llvm::Error::success();
   }
 
   llvm::Expected<bool> exists() const {
