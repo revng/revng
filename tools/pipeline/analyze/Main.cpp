@@ -125,7 +125,9 @@ int main(int argc, char *argv[]) {
 
   auto &InputContainer = Manager.getRunner().begin()->containers()["input"];
   InputPath = Arguments[1];
-  AbortOnError(InputContainer.load(FilePath::fromLocalStorage(Arguments[1])));
+  FilePath InputFilePath = FilePath::fromLocalStorage(Arguments[1]);
+  AbortOnError(InputFilePath.check());
+  AbortOnError(InputContainer.load(InputFilePath));
 
   auto InvMap = revng::pipes::runAnalysisOrAnalysesList(Manager,
                                                         Arguments[0],
@@ -150,7 +152,10 @@ int main(int argc, char *argv[]) {
   AbortOnError(Manager.store());
 
   auto &FinalModel = getModel(Manager);
-  AbortOnError(FinalModel.store(*Output));
+
+  auto MaybeOutput = AbortOnError(Output.get());
+  revng_assert(MaybeOutput.has_value());
+  AbortOnError(FinalModel.store(*MaybeOutput));
 
   return EXIT_SUCCESS;
 }

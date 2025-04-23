@@ -135,7 +135,9 @@ int main(int argc, char *argv[]) {
 
   auto &InputContainer = Runner.begin()->containers()["input"];
   InputPath = Arguments[1];
-  AbortOnError(InputContainer.load(FilePath::fromLocalStorage(Arguments[1])));
+  FilePath InputFilePath = FilePath::fromLocalStorage(Arguments[1]);
+  AbortOnError(InputFilePath.check());
+  AbortOnError(InputContainer.load(InputFilePath));
 
   SmallVector<StringRef> AnalysesToRun;
   if (Analyses.getNumOccurrences() > 0) {
@@ -211,13 +213,17 @@ int main(int argc, char *argv[]) {
                                  Map.at(ContainerName) :
                                  TargetsList();
   auto Produced = MaybeContainer->second->cloneFiltered(Targets);
-  AbortOnError(Produced->store(*Output));
 
-  if (SaveModel.hasValue()) {
+  auto MaybeOutput = AbortOnError(Output.get());
+  revng_assert(MaybeOutput.has_value());
+  AbortOnError(Produced->store(*MaybeOutput));
+
+  auto MaybeSaveModel = AbortOnError(SaveModel.get());
+  if (MaybeSaveModel.has_value()) {
     auto Context = Manager.context();
     const auto &ModelName = revng::ModelGlobalName;
     auto FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
-    AbortOnError(FinalModel->store(*SaveModel));
+    AbortOnError(FinalModel->store(*MaybeSaveModel));
   }
 
   return EXIT_SUCCESS;
