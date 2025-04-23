@@ -1,0 +1,207 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+- name: PipelineDescription
+  doc: Data structure representing the structure of the pipeline
+  type: struct
+  fields:
+    - name: AnalysesLists
+      doc: AnalysesLists available in the pipeline
+      sequence:
+        type: SortedVector
+        elementType: AnalysesList
+    - name: Globals
+      doc: List of Globals
+      sequence:
+        type: SortedVector
+        elementType: string
+    - name: Kinds
+      doc: Kinds
+      sequence:
+        type: SortedVector
+        elementType: Kind
+    - name: Ranks
+      doc: Ranks
+      sequence:
+        type: SortedVector
+        elementType: Rank
+    - name: Containers
+      sequence:
+        type: SortedVector
+        elementType: Container
+    - name: Steps
+      sequence:
+        type: SortedVector
+        elementType: Step
+- name: Step
+  doc: Data structure representing a Step
+  type: struct
+  fields:
+    - name: Name
+      doc: Step's name
+      type: string
+    - name: Component
+      doc: Step's component
+      type: string
+      optional: true
+    - name: Parent
+      doc: The Step's parent (if present)
+      type: string
+      optional: true
+    - name: Analyses
+      doc: List of Analyses that the Step provides
+      sequence:
+        type: SortedVector
+        elementType: Analysis
+    - name: Artifacts
+      doc: The artifacts that this step provides
+      type: Artifacts
+      optional: true
+  key:
+    - Name
+
+- name: Rank
+  doc: Data structure representing a Rank
+  type: struct
+  fields:
+    - name: Name
+      doc: Rank's name
+      type: string
+    - name: Depth
+      doc: Rank's depth
+      type: uint64_t
+    - name: Parent
+      doc: The Rank's parent (if present)
+      type: string
+      optional: true
+  key:
+    - Name
+- name: Kind
+  doc: Data structure representing a Kind
+  type: struct
+  fields:
+    - name: Name
+      doc: Kind's name
+      type: string
+    - name: Rank
+      doc: Kind's rank
+      type: string
+    - name: Parent
+      doc: The Kind's parent (if present)
+      type: string
+      optional: true
+    - name: DefinedLocations
+      doc: List of locations that the Kind provides
+      sequence:
+        type: SortedVector
+        elementType: string
+    - name: PreferredKinds
+      doc: >
+        These are the kinds that should be looked into in order to find
+        definitions to locations that are not present in the current document
+      sequence:
+        type: SortedVector
+        elementType: string
+  key:
+    - Name
+- name: Container
+  doc: Data structure representing a Container
+  type: struct
+  fields:
+    - name: Name
+      doc: Container's name
+      type: string
+    - name: MIMEType
+      doc: Container's mime type
+      type: string
+  key:
+    - Name
+- name: Artifacts
+  doc: Data structure representing a Artifacts
+  type: struct
+  fields:
+    - name: Kind
+      doc: Artifacts's kind
+      type: string
+      optional: true
+    - name: Container
+      doc: Artifacts's container
+      type: string
+      optional: true
+    - name: SingleTargetFilename
+      doc: The Artifacts's filename to use for a single element
+      type: string
+      optional: true
+- name: Analysis
+  doc: Data structure representing an analysis
+  type: struct
+  fields:
+    - name: Name
+      doc: Analysis' name
+      type: string
+    - name: ContainerInputs
+      doc: Analysis' container inputs
+      sequence:
+        type: SortedVector
+        elementType: AnalysisContainerInput
+    - name: Options
+      doc: Analysis' options
+      sequence:
+        type: SortedVector
+        elementType: AnalysisOption
+  key:
+    - Name
+- name: AnalysisOption
+  doc: Data structure representing an analysis' container input
+  type: struct
+  fields:
+    - name: Name
+      doc: AnalysisOption' name
+      type: string
+    - name: Type
+      doc: Type of the option
+      type: string
+  key:
+    - Name
+- name: AnalysisContainerInput
+  doc: Data structure representing an analysis' container input
+  type: struct
+  fields:
+    - name: Name
+      doc: AnalysisContainerInput' name
+      type: string
+    - name: AcceptableKinds
+      doc: Kinds accepted by the analysis
+      sequence:
+        type: SortedVector
+        elementType: string
+  key:
+    - Name
+- name: AnalysesList
+  doc: Data structure representing a list of analyses
+  type: struct
+  fields:
+    - name: Name
+      doc: AnalysesList's name
+      type: string
+    - name: Analyses
+      doc: AnalysesList's list of analyses
+      sequence:
+        type: SortedVector
+        elementType: AnalysisReference
+  key:
+    - Name
+- name: AnalysisReference
+  doc: A reference to an analysis
+  type: struct
+  fields:
+    - name: Step
+      doc: The step where the analysis belongs to
+      type: string
+    - name: Name
+      doc: The name of the analysis
+      type: string
+  key:
+    - Step
+    - Name

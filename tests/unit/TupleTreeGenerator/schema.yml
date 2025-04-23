@@ -1,0 +1,29 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+- fields:
+    - name: RequiredField
+      type: uint64_t
+    - name: OptionalField
+      optional: true
+      type: uint64_t
+    - name: EnumField
+      type: TestEnum
+    - name: SequenceField
+      sequence:
+        elementType: uint64_t
+        type: SortedVector
+    - name: ReferenceField
+      reference:
+        pointeeType: uint64_t
+        rootType: TestClass
+  key:
+    - RequiredField
+  name: TestClass
+  type: struct
+- members:
+    - name: MemberOne
+    - name: MemberTwo
+  name: TestEnum
+  type: enum

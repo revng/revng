@@ -1,0 +1,121 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+- name: ControlFlowGraph
+  doc: |-
+    Metadata attached to a function. As of now, it includes a list of basic
+    blocks, representing the control-flow graph.
+  type: struct
+  fields:
+    - name: Entry
+      doc: Start address of the basic block
+      type: MetaAddress
+    - name: Name
+      type: string
+      doc: Optional name for debugging purposes
+      optional: true
+    - name: Blocks
+      sequence:
+        type: SortedVector
+        elementType: BasicBlock
+      optional: true
+  key:
+    - Entry
+- name: BasicBlock
+  doc: The basic block of a function
+  type: struct
+  fields:
+    - name: ID
+      type: BasicBlockID
+    - name: End
+      doc: |
+        End address of the basic block, i.e., the address where the last
+        instruction ends
+      type: MetaAddress
+    - name: InlinedFrom
+      type: MetaAddress
+      optional: true
+      doc: Address of the function this basic block has been inlined from
+    - name: Successors
+      doc: List of successor edges
+      sequence:
+        type: SortedVector
+        upcastable: true
+        elementType: FunctionEdgeBase
+  key:
+    - ID
+- name: FunctionEdgeBase
+  doc: An edge on the CFG
+  type: struct
+  fields:
+    - name: Destination
+      optional: true
+      doc: |
+        Target of the CFG edge
+
+        If invalid, it's an indirect edge such as a return instruction or an
+        indirect function call.
+        If valid, it's either the address of the basic block in case of a direct
+        branch, or, in case of a function call, the address of the callee.
+        TODO: switch to TupleTreeReference
+      type: BasicBlockID
+    - name: Kind
+      type: FunctionEdgeBaseKind
+    - name: Type
+      doc: Type of the CFG edge
+      type: FunctionEdgeType
+  key:
+    - Destination
+    - Kind
+  abstract: true
+- name: FunctionEdge
+  doc: An edge on the CFG
+  type: struct
+  inherits: FunctionEdgeBase
+  fields: []
+- name: CallEdge
+  doc: A CFG edge to represent function calls (direct, indirect and tail calls)
+  type: struct
+  inherits: FunctionEdgeBase
+  fields:
+    - name: DynamicFunction
+      doc: |
+        Name of the dynamic function being called, or empty if not a dynamic call
+      type: string
+      optional: true
+    - name: IsTailCall
+      doc: Is this a tail call?
+      type: bool
+      optional: true
+    - name: Attributes
+      doc: |
+        Attributes for this function
+
+        Note: To have the effective list of attributes for this call site, you
+        have to add attributes on the called function.
+        TODO: switch to std::set
+      sequence:
+        type: MutableSet
+        elementType: model::FunctionAttribute::Values
+      optional: true
+- name: FunctionEdgeType
+  doc: Type of edge on the CFG
+  type: enum
+  members:
+    - name: DirectBranch
+      doc: Branch due to function-local CFG (a regular branch)
+    - name: FunctionCall
+      doc: A function call for which the cache was able to produce a summary
+    - name: Return
+      doc: A proper function return
+    - name: BrokenReturn
+      doc: |
+        A branch returning to the return address, but leaving the stack in an
+        unexpected situation
+    - name: LongJmp
+      doc: A branch representing a longjmp or similar constructs
+    - name: Killer
+      doc: A killer basic block (killer syscall or endless loop)
+    - name: Unreachable
+      doc: The basic block ends with an unreachable instruction
