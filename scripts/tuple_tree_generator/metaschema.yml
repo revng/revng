@@ -6,12 +6,19 @@
 "$ref": "#/definitions/Schema"
 definitions:
   Schema:
-    type: array
-    additionalItems: false
-    items:
-      oneOf:
-        - "$ref": "#/definitions/Enum"
-        - "$ref": "#/definitions/Struct"
+    type: object
+    additionalProperties: false
+    properties:
+      version:
+        type: integer
+        minimum: 1
+      definitions:
+        type: array
+        additionalItems: false
+        items:
+          oneOf:
+            - "$ref": "#/definitions/Enum"
+            - "$ref": "#/definitions/Struct"
     title: Schema
 
   # Enums

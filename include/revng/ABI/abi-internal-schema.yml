@@ -2,115 +2,117 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-- name: Definition
-  type: struct
-  doc: for the documentation see `references/abi-definition.md`
-  fields:
-    - name: ABI
-      type: model::ABI::Values
+version: 1
+definitions:
+  - name: Definition
+    type: struct
+    doc: for the documentation see `references/abi-definition.md`
+    fields:
+      - name: ABI
+        type: model::ABI::Values
 
-    - name: ArgumentsArePositionBased
-      type: bool
+      - name: ArgumentsArePositionBased
+        type: bool
 
-    - name: OnlyStartDoubleArgumentsFromAnEvenRegister
-      type: bool
-    - name: ArgumentsCanBeSplitBetweenRegistersAndStack
-      type: bool
-    - name: BigArgumentsUsePointersToCopy
-      type: bool
-    - name: NoRegisterArgumentsCanComeAfterStackOnes
-      type: bool
-    - name: AllowPackedTypesInRegisters
-      type: bool
-    - name: CalleeIsResponsibleForStackCleanup
-      type: bool
-    - name: FloatsUseGPRs
-      type: bool
-    - name: PackStackArguments
-      type: bool
-    - name: TreatAllAggregatesAsPacked
-      type: bool
+      - name: OnlyStartDoubleArgumentsFromAnEvenRegister
+        type: bool
+      - name: ArgumentsCanBeSplitBetweenRegistersAndStack
+        type: bool
+      - name: BigArgumentsUsePointersToCopy
+        type: bool
+      - name: NoRegisterArgumentsCanComeAfterStackOnes
+        type: bool
+      - name: AllowPackedTypesInRegisters
+        type: bool
+      - name: CalleeIsResponsibleForStackCleanup
+        type: bool
+      - name: FloatsUseGPRs
+        type: bool
+      - name: PackStackArguments
+        type: bool
+      - name: TreatAllAggregatesAsPacked
+        type: bool
 
-    - name: StackAlignment
-      type: uint64_t
-    - name: MinimumStackArgumentSize
-      type: uint64_t
-    - name: UnusedStackArgumentBytes
-      type: uint64_t
-      optional: true
+      - name: StackAlignment
+        type: uint64_t
+      - name: MinimumStackArgumentSize
+        type: uint64_t
+      - name: UnusedStackArgumentBytes
+        type: uint64_t
+        optional: true
 
-    - name: MaximumGPRsPerAggregateArgument
-      type: uint64_t
-    - name: MaximumGPRsPerAggregateReturnValue
-      type: uint64_t
-    - name: MaximumGPRsPerScalarArgument
-      type: uint64_t
-    - name: MaximumGPRsPerScalarReturnValue
-      type: uint64_t
+      - name: MaximumGPRsPerAggregateArgument
+        type: uint64_t
+      - name: MaximumGPRsPerAggregateReturnValue
+        type: uint64_t
+      - name: MaximumGPRsPerScalarArgument
+        type: uint64_t
+      - name: MaximumGPRsPerScalarReturnValue
+        type: uint64_t
 
-    - name: GeneralPurposeArgumentRegisters
-      sequence:
-        type: std::vector
-        elementType: model::Register::Values
-      optional: true
-    - name: GeneralPurposeReturnValueRegisters
-      sequence:
-        type: std::vector
-        elementType: model::Register::Values
-      optional: true
-    - name: VectorArgumentRegisters
-      sequence:
-        type: std::vector
-        elementType: model::Register::Values
-      optional: true
-    - name: VectorReturnValueRegisters
-      sequence:
-        type: std::vector
-        elementType: model::Register::Values
-      optional: true
-    - name: CalleeSavedRegisters
-      sequence:
-        type: std::vector
-        elementType: model::Register::Values
-      optional: true
+      - name: GeneralPurposeArgumentRegisters
+        sequence:
+          type: std::vector
+          elementType: model::Register::Values
+        optional: true
+      - name: GeneralPurposeReturnValueRegisters
+        sequence:
+          type: std::vector
+          elementType: model::Register::Values
+        optional: true
+      - name: VectorArgumentRegisters
+        sequence:
+          type: std::vector
+          elementType: model::Register::Values
+        optional: true
+      - name: VectorReturnValueRegisters
+        sequence:
+          type: std::vector
+          elementType: model::Register::Values
+        optional: true
+      - name: CalleeSavedRegisters
+        sequence:
+          type: std::vector
+          elementType: model::Register::Values
+        optional: true
 
-    - name: ReturnValueLocationRegister
-      type: model::Register::Values
-      optional: true
-    - name: ReturnValueLocationOnStack
-      type: bool
-      optional: true
-    - name: ReturnValueLocationIsReturned
-      type: bool
-      optional: true
+      - name: ReturnValueLocationRegister
+        type: model::Register::Values
+        optional: true
+      - name: ReturnValueLocationOnStack
+        type: bool
+        optional: true
+      - name: ReturnValueLocationIsReturned
+        type: bool
+        optional: true
 
-    - name: ScalarTypes
-      sequence:
-        type: SortedVector
-        elementType: ScalarType
+      - name: ScalarTypes
+        sequence:
+          type: SortedVector
+          elementType: ScalarType
 
-    - name: FloatingPointScalarTypes
-      sequence:
-        type: SortedVector
-        elementType: ScalarType
+      - name: FloatingPointScalarTypes
+        sequence:
+          type: SortedVector
+          elementType: ScalarType
 
-  key:
-    - ABI
+    key:
+      - ABI
 
-- name: ScalarType
-  type: struct
-  doc: |
-    Represents type specific information ABI needs to be aware of,
-    for example, alignment.
-  fields:
-    - name: Size
-      type: uint64_t
+  - name: ScalarType
+    type: struct
+    doc: |
+      Represents type specific information ABI needs to be aware of,
+      for example, alignment.
+    fields:
+      - name: Size
+        type: uint64_t
 
-    - name: AlignedAt
-      doc: |
-        When set to `0` (default), the alignment of this type matches its size
-      type: uint64_t
-      optional: true
+      - name: AlignedAt
+        doc: |
+          When set to `0` (default), the alignment of this type matches its size
+        type: uint64_t
+        optional: true
 
-  key:
-    - Size
+    key:
+      - Size
