@@ -45,11 +45,11 @@ def main():
         paths.append(f"{args.output_dir}/ForwardDecls.h")
 
     if args.early:
-        for definition in raw_schema:
+        for definition in raw_schema["definitions"]:
             paths.append(f"{args.output_dir}/Early/{definition['name']}.h")
 
     if args.late:
-        for definition in raw_schema:
+        for definition in raw_schema["definitions"]:
             paths.append(f"{args.output_dir}/Late/{definition['name']}.h")
 
     if args.impl:

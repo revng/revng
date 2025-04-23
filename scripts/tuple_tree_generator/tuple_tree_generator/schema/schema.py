@@ -71,7 +71,7 @@ class Schema:
 
     def _parse_definitions(self):
         definitions = {}
-        for type_schema in self._raw_schema:
+        for type_schema in self._raw_schema["definitions"]:
             type_name = type_schema["type"]
             if type_name == "enum":
                 cls = EnumDefinition
