@@ -10,30 +10,6 @@
 
 #include "revng/Yield/TagType.h"
 
-/* TUPLE-TREE-YAML
-
-name: TaggedString
-type: struct
-fields:
-  - name: Index
-    type: uint64_t
-
-  - name: Type
-    type: TagType
-
-  - name: Content
-    type: string
-
-  - name: Attributes
-    sequence:
-      type: SortedVector
-      elementType: TagAttribute
-    optional: true
-key:
-  - Index
-
-TUPLE-TREE-YAML */
-
 #include "revng/Yield/Generated/Early/TaggedString.h"
 
 namespace model {

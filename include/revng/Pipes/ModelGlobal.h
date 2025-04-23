@@ -8,8 +8,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Model/Binary.h"
-#include "revng/Model/Generated/Early/TypeDefinition.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/Model/TypeDefinition.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"

@@ -9,20 +9,6 @@
 #include "revng/Model/CommonTypeMethods.h"
 #include "revng/Model/TypeDefinition.h"
 
-/* TUPLE-TREE-YAML
-name: Type
-doc: |-
-  A type such as an array, a pointer, a primitive or a defined type.
-type: struct
-fields:
-  - name: Kind
-    type: TypeKind
-  - name: IsConst
-    type: bool
-    optional: true
-abstract: true
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/Type.h"
 
 class model::Type : public model::generated::Type,

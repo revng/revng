@@ -6,14 +6,6 @@
 
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 
-/* TUPLE-TREE-YAML
-name: FunctionEdge
-doc: An edge on the CFG
-type: struct
-inherits: FunctionEdgeBase
-fields: []
-TUPLE-TREE-YAML */
-
 #include "revng/EarlyFunctionAnalysis/Generated/Early/FunctionEdge.h"
 
 namespace model {

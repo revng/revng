@@ -7,29 +7,6 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Type.h"
 
-/* TUPLE-TREE-YAML
-name: Argument
-doc: |
-  The argument of a `CABIFunctionType`.
-type: struct
-fields:
-  - name: Index
-    type: uint64_t
-    doc: The argument index.
-  - name: Type
-    type: Type
-    doc: The type of the argument.
-    upcastable: true
-  - name: Name
-    type: string
-    optional: true
-  - name: Comment
-    type: string
-    optional: true
-key:
-  - Index
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/Argument.h"
 
 namespace model {
