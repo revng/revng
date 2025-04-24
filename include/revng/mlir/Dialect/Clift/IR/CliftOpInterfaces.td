@@ -19,6 +19,14 @@ def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface", [Symbol]> {
       /*desc=*/"Returns the type of the global entity.",
       "mlir::clift::ValueType", "getType", (ins)
     >,
+    InterfaceMethod<
+      /*desc=*/"Returns the user-defined handle of the entity.",
+      "llvm::StringRef", "getHandle", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        return $_op.getHandle();
+      }]
+    >,
   ];
 }
 
