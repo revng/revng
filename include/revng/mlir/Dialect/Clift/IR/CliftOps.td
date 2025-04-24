@@ -365,7 +365,7 @@ def Clift_SwitchOp : Clift_StatementOp<"switch"> {
       return not getDefaultCaseRegion().empty();
     }
 
-    [[nodiscard]] Region &getDefaultCaseRegion() {
+    [[nodiscard]] mlir::Region &getDefaultCaseRegion() {
       return getRegion(1);
     }
 
@@ -377,11 +377,15 @@ def Clift_SwitchOp : Clift_StatementOp<"switch"> {
       return static_cast<uint64_t>(getCaseValues()[index]);
     }
 
-    [[nodiscard]] Region &getCaseRegion(const unsigned index) {
-      return getRegion(index + 2u);
+    [[nodiscard]] llvm::MutableArrayRef<mlir::Region> getCaseRegions() {
+      return getOperation()->getRegions().drop_front(2);
     }
 
-    [[nodiscard]] Region *findCaseRegion(const uint64_t value);
+    [[nodiscard]] mlir::Region &getCaseRegion(const unsigned index) {
+      return getCaseRegions()[index];
+    }
+
+    [[nodiscard]] mlir::Region *findCaseRegion(const uint64_t value);
   }];
 }
 
