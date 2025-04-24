@@ -70,8 +70,8 @@ public:
     RegionInfo.clear();
     RegionInfo.compute(ScopeGraph);
 
-    // We keep a boolean variable to track whether the `Module` was modified
-    bool ModuleModified = false;
+    // We keep a boolean variable to track whether the `Function` was modified
+    bool FunctionModified = false;
 
     // We need to perform the DAGify process for each `GenericRegion` that we
     // have identified. We start from the top level `GenericRegion`s, and then
@@ -111,9 +111,9 @@ public:
         // Insert a `goto` in place of each retreating edge
         for (auto &Retreating : Retreatings) {
 
-          // As soon as we find a retreating edge, we mark the `Module` as
+          // As soon as we find a retreating edge, we mark the `Function` as
           // modified
-          ModuleModified = true;
+          FunctionModified = true;
 
           // Process each retreating edge
           processRetreating(Retreating);
@@ -129,7 +129,7 @@ public:
       revng_assert(isDAG(ScopeGraph));
     }
 
-    return ModuleModified;
+    return FunctionModified;
   }
 };
 
