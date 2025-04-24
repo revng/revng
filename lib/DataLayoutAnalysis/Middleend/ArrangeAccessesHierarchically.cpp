@@ -408,7 +408,7 @@ bool ArrangeAccessesHierarchically::runOnTypeSystem(LayoutTypeSystem &TS) {
   // that could be pre-computed and guaranteed to be stable during the mutation,
   // or could be updated cheaply.
   // So we precompute some kind of global topological ordering, and use it as a
-  // hard-coded ordering for analysys throughout the dla::Step.
+  // hard-coded ordering for analysis throughout the dla::Step.
   // Then we go fixed-point until we don't have anything left to recompute, but
   // we always follow this order because it's still better than iterating
   // randomly, or with some other ordering that is not stable.

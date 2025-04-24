@@ -698,6 +698,9 @@ bool Configuration::verify(VerifyHelper &VH) const {
   if (Configuration().Naming().unnamedFunctionPrefix().empty())
     return VH.fail("Function prefix must not be empty.");
 
+  if (Configuration().Naming().unnamedDynamicFunctionPrefix().empty())
+    return VH.fail("Dynamic function prefix must not be empty.");
+
   // `unnamedTypeDefinitionPrefix` can be empty.
 
   if (Configuration().Naming().unnamedEnumEntryPrefix().empty())
@@ -843,18 +846,9 @@ bool Binary::verify(VerifyHelper &VH) const {
 
   // Verify DynamicFunctions
   model::CNameBuilder NameBuilder(*this);
-  for (const DynamicFunction &DF : ImportedDynamicFunctions()) {
+  for (const DynamicFunction &DF : ImportedDynamicFunctions())
     if (not DF.verify(VH))
       return VH.fail();
-
-    // Unlike all the other renamable objects, dynamic functions do not have
-    // a possibility of falling back onto an automatic name. As such, we have to
-    // be a lot stricter with what we allow as their names.
-    if (llvm::Error Error = NameBuilder.isNameReserved(DF.Name()))
-      return VH.fail("Dynamic function name (`" + DF.Name()
-                     + "`) is not valid because "
-                     + revng::unwrapError(std::move(Error)));
-  }
 
   // Verify Segments
   for (const Segment &S : Segments())

@@ -16,7 +16,6 @@
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/FileSystem.h"
-#include "llvm/Support/SHA1.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/ADT/Queue.h"
@@ -24,6 +23,7 @@
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ProgramCounterHandler.h"
+#include "revng/Support/StringOperations.h"
 #include "revng/Support/Tag.h"
 
 // TODO: including GeneratedCodeBasicInfo.h is not very nice
@@ -65,29 +65,11 @@ StringRef extractFromConstantStringPtr(Value *V) {
   return Initializer->getAsCString();
 }
 
-static std::string mangleName(StringRef String) {
-  auto IsPrintable = [](StringRef String) { return all_of(String, isPrint); };
-
-  auto ContainsSpaces = [](StringRef String) {
-    return any_of(String, isSpace);
-  };
-
-  constexpr auto SHA1HexLength = 40;
-  if (String.size() > SHA1HexLength or not IsPrintable(String)
-      or ContainsSpaces(String) or String.empty()) {
-    ArrayRef Data(reinterpret_cast<const uint8_t *>(String.data()),
-                  String.size());
-    return llvm::toHex(SHA1::hash(Data), true);
-  } else {
-    return String.str();
-  }
-}
-
 Constant *getUniqueString(Module *M, StringRef String, StringRef Namespace) {
   revng_assert(not Namespace.empty());
 
   LLVMContext &Context = M->getContext();
-  std::string GlobalName = (Twine(Namespace) + mangleName(String)).str();
+  std::string GlobalName = (Twine(Namespace) + revng::mangleName(String)).str();
   auto *Global = M->getGlobalVariable(GlobalName);
 
   if (Global != nullptr) {

@@ -124,7 +124,7 @@ inline constexpr bool DepthCheck<void, ExpectedDepth> = (ExpectedDepth == 0);
 
 /// A helper struct that incapsulates reachability logic for connected ranks.
 /// the `value` member is set to `true` if and only if the `To` rank can be
-/// reached from `From` rank by concecutive `From = From::Parent` operations.
+/// reached from `From` rank by consecutive `From = From::Parent` operations.
 template<typename From, typename To>
 struct ReachabilityHelper {
 private:
