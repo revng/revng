@@ -42,16 +42,16 @@ module attributes {clift.module} {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: enum my_enum _var_0;
-    %e = clift.local !my_enum "e"
+    %e = clift.local !my_enum
 
     // CHECK: struct my_struct _var_1;
-    %s = clift.local !my_struct "s"
+    %s = clift.local !my_struct
 
     // CHECK: union my_union _var_2;
-    %u = clift.local !my_union "u"
+    %u = clift.local !my_union
 
     // CHECK: int32_t _var_3 = 42;
-    %i = clift.local !int32_t "i" = {
+    %i = clift.local !int32_t = {
       %42 = clift.imm 42 : !int32_t
       clift.yield %42 : !int32_t
     }
@@ -60,7 +60,7 @@ module attributes {clift.module} {
     // CHECK:   1,
     // CHECK:   2
     // CHECK: };
-    %p = clift.local !my_pair "p" = {
+    %p = clift.local !my_pair = {
       %1 = clift.imm 1 : !int32_t
       %2 = clift.imm 2 : !int32_t
       %r = clift.aggregate(%1, %2) : !my_pair

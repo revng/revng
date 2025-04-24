@@ -534,10 +534,6 @@ mlir::LogicalResult IfOp::verify() {
 //===--------------------------- LocalVariableOp --------------------------===//
 
 mlir::LogicalResult LocalVariableOp::verify() {
-  if (getSymName().empty())
-    return emitOpError() << getOperationName()
-                         << " must have a non-empty name.";
-
   if (Region &R = getInitializer(); not R.empty()) {
     if (getExpressionType(R) != getType().removeConst())
       return emitOpError() << getOperationName()
@@ -578,10 +574,6 @@ mlir::LogicalResult MakeLabelOp::canonicalize(MakeLabelOp Op,
 }
 
 mlir::LogicalResult MakeLabelOp::verify() {
-  if (getName().empty())
-    return emitOpError() << getOperationName()
-                         << " must have a non-empty name.";
-
   const auto [Assignments, GoTos] = getNumLabelUsers(*this);
 
   if (Assignments > 1)

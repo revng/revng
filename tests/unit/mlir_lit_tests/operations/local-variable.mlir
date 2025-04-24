@@ -6,9 +6,9 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-clift.local !int32_t "x"
+clift.local !int32_t
 
-clift.local !int32_t "y" = {
+clift.local !int32_t = {
   %0 = clift.undef : !int32_t
   clift.yield %0 : !int32_t
 }

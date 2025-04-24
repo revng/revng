@@ -33,8 +33,8 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    %s = clift.local !s$p "s"
-    %u = clift.local !u$p "u"
+    %s = clift.local !s$p
+    %u = clift.local !u$p
 
     // CHECK: _var_0->x;
     clift.expr {
