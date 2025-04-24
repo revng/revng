@@ -6,7 +6,7 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-%1 = clift.local !int32_t "x"
+%1 = clift.local !int32_t
 
 clift.neg %1 : !int32_t
 clift.add %1, %1 : !int32_t

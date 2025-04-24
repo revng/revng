@@ -16,7 +16,7 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    %exit = clift.make_label "exit"
+    %exit = clift.make_label
     // CHECK: 0;
     clift.expr {
         %0 = clift.imm 0 : !int32_t

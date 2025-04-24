@@ -13,7 +13,7 @@
 
 module attributes {clift.module} {
   clift.func @f<!f>() {
-    %1 = clift.local !int16_t "x"
+    %1 = clift.local !int16_t
 
     // CHECK: causes integer promotion in the target implementation
     clift.expr {

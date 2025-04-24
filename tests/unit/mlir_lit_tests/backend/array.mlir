@@ -22,7 +22,7 @@ module attributes {clift.module} {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: int32_t _var_0[1];
-    %array = clift.local !int32_t$1 "array"
+    %array = clift.local !int32_t$1
 
     // CHECK: _var_0[0];
     clift.expr {
@@ -33,7 +33,7 @@ module attributes {clift.module} {
     }
 
     // CHECK: int32_t(*_var_1)[1]
-    %p_array = clift.local !int32_t$1$p "p_array" = {
+    %p_array = clift.local !int32_t$1$p = {
       %r = clift.addressof %array : !int32_t$1$p
       clift.yield %r : !int32_t$1$p
     }

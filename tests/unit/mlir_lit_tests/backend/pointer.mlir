@@ -23,17 +23,17 @@ module attributes {clift.module} {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: const int32_t _var_0 = 0;
-    %x = clift.local !int32_t$const "x" = {
+    %x = clift.local !int32_t$const = {
       %0 = clift.imm 0 : !int32_t
       clift.yield %0 : !int32_t
     }
     // CHECK: const int32_t *const _var_1 = &_var_0;
-    %p = clift.local !int32_t$const$ptr$const "p" = {
+    %p = clift.local !int32_t$const$ptr$const = {
       %0 = clift.addressof %x : !int32_t$const$ptr
       clift.yield %0 : !int32_t$const$ptr
     }
     // CHECK: const int32_t *const *const _var_2 = &_var_1;
-    %q = clift.local !int32_t$const$ptr$const$ptr$const "q" = {
+    %q = clift.local !int32_t$const$ptr$const$ptr$const = {
       %0 = clift.addressof %p : !int32_t$const$ptr$const$ptr
       clift.yield %0 : !int32_t$const$ptr$const$ptr
     }
