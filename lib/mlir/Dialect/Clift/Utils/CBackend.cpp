@@ -242,6 +242,9 @@ public:
         emitPrimitiveType(T);
         NeedSpace = true;
       } else if (auto T = mlir::dyn_cast<PointerType>(Type)) {
+        if (T.getPointerSize() != Target.PointerSize)
+          Out << "pointer" << (T.getPointerSize() * 8) << "_t(";
+
         Item.Kind = StackItemKind::Pointer;
         Type = T.getPointeeType();
       } else if (auto T = mlir::dyn_cast<ArrayType>(Type)) {
@@ -294,10 +297,14 @@ public:
       } break;
       case StackItemKind::Pointer: {
         auto T = mlir::dyn_cast<PointerType>(SI.Type);
-        if (T.getPointerSize() != Target.PointerSize)
-          revng_abort("Pointer is not representable on the target platform.");
-        EmitSpace();
-        Out << '*';
+
+        if (T.getPointerSize() == Target.PointerSize) {
+          EmitSpace();
+          Out << '*';
+        } else {
+          Out << ')';
+          NeedSpace = false;
+        }
       } break;
       case StackItemKind::Array: {
         if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array) {
