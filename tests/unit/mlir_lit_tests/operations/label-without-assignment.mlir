@@ -12,6 +12,6 @@
 
 clift.func @f<!f>() {
   // CHECK: clift.make_label with a use by clift.goto must have an assignment
-  %label = clift.make_label "label"
+  %label = clift.make_label
   clift.goto %label
 }

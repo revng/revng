@@ -153,14 +153,6 @@ public:
                                     /*DirectlyNested=*/false))
         return Op->emitOpError()
                << Op->getName() << " must be nested within a loop operation.";
-    } else if (auto Sym = mlir::dyn_cast<MakeLabelOp>(Op)) {
-      if (not LabelNames.insert(Sym.getName()).second)
-        return Op->emitOpError()
-               << Op->getName() << " conflicts with another label.";
-    } else if (auto Sym = mlir::dyn_cast<LocalVariableOp>(Op)) {
-      if (not LocalNames.insert(Sym.getSymName()).second)
-        return Op->emitOpError()
-               << Op->getName() << " conflicts with another local variable.";
     }
 
     return mlir::success();
@@ -171,11 +163,6 @@ public:
       return Op->emitOpError() << Op->getName()
                                << " cannot be directly nested within a"
                                   " ModuleOp.";
-
-    if (auto F = mlir::dyn_cast<FunctionOp>(Op)) {
-      LocalNames.clear();
-      LabelNames.clear();
-    }
 
     return mlir::success();
   }
@@ -202,9 +189,6 @@ public:
 private:
   llvm::DenseMap<llvm::StringRef, DefinedType> Definitions;
   llvm::DenseSet<ClassType> ClassTypes;
-
-  llvm::DenseSet<llvm::StringRef> LocalNames;
-  llvm::DenseSet<llvm::StringRef> LabelNames;
 
   static std::optional<LoopOrSwitch> isLoopOrSwitch(mlir::Operation *Op) {
     if (mlir::isa<ForOp, DoWhileOp, WhileOp>(Op))

@@ -18,10 +18,10 @@ module attributes {clift.module} {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: int32_t _var_0;
-    %x = clift.local !int32_t "x"
+    %x = clift.local !int32_t
 
     // CHECK: int32_t *_var_1;
-    %p = clift.local !int32_t$p "p"
+    %p = clift.local !int32_t$p
 
     // CHECK: -_var_0;
     clift.expr {

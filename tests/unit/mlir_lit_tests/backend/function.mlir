@@ -18,7 +18,7 @@ module attributes {clift.module} {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: fun_0x40001001_t *_var_0 = fun_0x40001001;
-    clift.local !f$ptr "p" = {
+    clift.local !f$ptr = {
       %f = clift.use @f : !f
       %r = clift.cast<decay> %f : !f -> !f$ptr
       clift.yield %r : !f$ptr

@@ -207,11 +207,10 @@ def Clift_MakeLabelOp
   : Clift_StatementOp<"make_label",
                       [Clift_OneUseOfType<"mlir::clift::AssignLabelOp">]> {
 
-  let arguments = (ins StrAttr:$name);
   let results = (outs Clift_LabelType:$result);
 
   let assemblyFormat = [{
-    $name attr-dict
+    attr-dict
   }];
 
   let hasCanonicalizeMethod = 1;
@@ -221,8 +220,7 @@ def Clift_MakeLabelOp
     OpBuilder<(ins), [{
       build($_builder,
             $_state,
-            mlir::clift::LabelType::get($_builder.getContext()),
-            mlir::StringAttr::get($_builder.getContext(), ""));
+            mlir::clift::LabelType::get($_builder.getContext()));
     }]>
   ];
 }
@@ -296,14 +294,12 @@ def Clift_IfOp : Clift_StatementOp<"if"> {
 }
 
 def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
-  let arguments = (ins StrAttr:$sym_name);
-
   let results = (outs Clift_AnyValueType:$result);
 
   let regions = (region Clift_OptionalExpressionRegion:$initializer);
 
   let assemblyFormat = [{
-    type($result) $sym_name (`=` $initializer^)? attr-dict
+    type($result) (`=` $initializer^)? attr-dict
   }];
 
   let extraClassDeclaration = [{

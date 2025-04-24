@@ -11,7 +11,7 @@
 >
 
 clift.func @f<!f>() {
-  %label = clift.make_label "label"
+  %label = clift.make_label
   clift.goto %label
   clift.assign_label %label
 }
