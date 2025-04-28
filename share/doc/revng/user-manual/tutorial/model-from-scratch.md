@@ -43,7 +43,7 @@ Architecture: x86_64
 DefaultABI: SystemV_x86_64
 ```
 
-::: tip
+!!! tip
 
     You can check out the [model reference](../../reference/model.md) to see what each field exactly means.
 
