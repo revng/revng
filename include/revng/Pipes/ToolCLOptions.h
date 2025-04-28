@@ -56,6 +56,9 @@ public:
   }
 
   llvm::Expected<revng::pipes::PipelineManager> makeManager() {
+    if (llvm::sys::fs::is_regular_file(ExecutionDirectory))
+      return revng::createError("--resume points to a file");
+
     auto Manager = revng::pipes::PipelineManager::create(InputPipeline,
                                                          EnablingFlags,
                                                          ExecutionDirectory);
