@@ -61,14 +61,11 @@ public:
 
   bool run() {
 
-    // Build the `ScopeGraph` on which the `GenericRegionInfo` analysis should
-    // be run
-    Scope<Function *> ScopeGraph(&F);
-
-    // Build and run the `GenericRegionInfo` analysis on the `ScopeGraph`
-    GenericRegionInfo<Scope<Function *>> RegionInfo;
+    // We instantiate and run the `GenericRegionInfo` analysis on the raw CFG,
+    // and not on the `ScopeGraph`
+    GenericRegionInfo<Function *> RegionInfo;
     RegionInfo.clear();
-    RegionInfo.compute(ScopeGraph);
+    RegionInfo.compute(&F);
 
     // We keep a boolean variable to track whether the `Function` was modified
     bool FunctionModified = false;
@@ -104,9 +101,9 @@ public:
         }
 
         BasicBlock *Head = Region->getHead();
-        using ScopeGT = GraphTraits<Scope<BasicBlock *>>;
-        auto Retreatings = getBackedgesWhiteList<BasicBlock *,
-                                                 ScopeGT>(Head, RegionNodes);
+        using GT = GraphTraits<BasicBlock *>;
+        auto Retreatings = getBackedgesWhiteList<BasicBlock *, GT>(Head,
+                                                                   RegionNodes);
 
         // Insert a `goto` in place of each retreating edge
         for (auto &Retreating : Retreatings) {
@@ -126,6 +123,7 @@ public:
     // Verify that the output `ScopeGraph` is acyclic, after `DAGify` has
     // processed the input, but only when the `VerifyLog` is enabled
     if (VerifyLog.isEnabled()) {
+      Scope<Function *> ScopeGraph(&F);
       revng_assert(isDAG(ScopeGraph));
     }
 
