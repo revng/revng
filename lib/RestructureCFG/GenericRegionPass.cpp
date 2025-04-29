@@ -28,6 +28,7 @@ void GenericRegionPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-const GenericRegionInfo<llvm::Function *> &GenericRegionPass::getResult() {
+const GenericRegionInfo<Scope<llvm::Function *>> &
+GenericRegionPass::getResult() {
   return GRI;
 }
