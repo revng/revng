@@ -8,10 +8,11 @@
 #include "llvm/Pass.h"
 
 #include "revng/RestructureCFG/GenericRegionInfo.h"
+#include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 
 class GenericRegionPass : public llvm::FunctionPass {
 private:
-  GenericRegionInfo<llvm::Function *> GRI;
+  GenericRegionInfo<Scope<llvm::Function *>> GRI;
 
 public:
   static char ID;
@@ -23,5 +24,5 @@ public:
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
 
-  const GenericRegionInfo<llvm::Function *> &getResult();
+  const GenericRegionInfo<Scope<llvm::Function *>> &getResult();
 };
