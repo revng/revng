@@ -1,7 +1,7 @@
 #pragma once
 
 //
-// Copyright rev.ng Labs Srl. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
 #include "revng/ADT/Concepts.h"
@@ -42,7 +42,12 @@ public:
 
 public:
   void makeGoto(llvm::BasicBlock *GotoBlock);
+  void eraseGoto(llvm::BasicBlock *GotoBlock);
   void addScopeCloser(llvm::BasicBlock *Source, llvm::BasicBlock *Target);
+
+  /// Helper method which erase a `scope_closer`, and returns the block which
+  /// was target of the `scope_closer`
+  llvm::BasicBlock *eraseScopeCloser(llvm::BasicBlock *Source);
 
   /// With the usage of this helper,  all the successor in the `Terminator` of
   /// the `Source` block pointing to `Target` will be redirected to the newly
@@ -51,11 +56,18 @@ public:
                                  llvm::BasicBlock *Target);
 };
 
-llvm::SmallVector<const llvm::Instruction *, 2>
-getLast2InstructionsBeforeTerminator(const llvm::BasicBlock *BB);
+template<ConstOrNot<llvm::BasicBlock> BasicBlockType>
+llvm::SmallVector<std::conditional_t<std::is_const_v<BasicBlockType>,
+                                     const llvm::Instruction,
+                                     llvm::Instruction> *,
+                  2>
+getLast2InstructionsBeforeTerminator(BasicBlockType *BB);
 
 /// Helper function to retrieve the `BasicBlock` target of the marker
 llvm::BasicBlock *getScopeCloserTarget(const llvm::BasicBlock *BB);
+
+/// Helper function to determine if `BB` contains a `scope_closer` marker
+bool isScopeCloserBlock(const llvm::BasicBlock *BB);
 
 /// Helper function to determine if `BB` contains a `goto_block` marker
 bool isGotoBlock(const llvm::BasicBlock *BB);

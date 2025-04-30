@@ -21,11 +21,13 @@ revng_add_analyses_library_internal(
   GenericRegionPass.cpp
   InlineDispatcherSwitch.cpp
   InlineDivergentScopesPass.cpp
+  MaterializeTrivialGotoPass.cpp
   MetaRegion.cpp
   PromoteCallNoReturn.cpp
   RegionCFGTree.cpp
   RemoveDeadCode.cpp
   RestructureCFG.cpp
+  ScopeGraphAlgorithms.cpp
   SelectScopePass.cpp
   SimplifyCompareNode.cpp
   SimplifyDualSwitch.cpp

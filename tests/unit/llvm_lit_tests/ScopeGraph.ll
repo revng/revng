@@ -5,10 +5,10 @@
 ; RUN: %revngopt -load tests/unit/libtest_scopegraph.so %s -scope-graph-logger -o /dev/null |& FileCheck %s
 
 ; function tags metadata needed for all the tests
-declare !revng.tags !0 void @scope-closer(ptr)
-declare !revng.tags !1 void @goto-block()
-!0 = !{!"scope-closer"}
-!1 = !{!"goto-block"}
+declare !revng.tags !0 void @scope_closer(ptr)
+declare !revng.tags !1 void @goto_block()
+!0 = !{!"marker", !"scope-closer"}
+!1 = !{!"marker", !"goto-block"}
 
 ; no dashed edge test
 
@@ -64,7 +64,7 @@ block_a:
   br i1 undef, label %block_b, label %block_c
 
 block_b:
-  call void @scope-closer(ptr blockaddress(@g, %block_b))
+  call void @scope_closer(ptr blockaddress(@g, %block_b))
   ret void
 
 block_c:
@@ -112,7 +112,7 @@ block_a:
   br i1 undef, label %block_b, label %block_c
 
 block_b:
-  call void @goto-block()
+  call void @goto_block()
   br label %block_c
 
 block_c:
@@ -160,8 +160,8 @@ block_a:
   br i1 undef, label %block_b, label %block_c
 
 block_b:
-  call void @goto-block()
-  call void @scope-closer(ptr blockaddress(@i, %block_b))
+  call void @goto_block()
+  call void @scope_closer(ptr blockaddress(@i, %block_b))
   br label %block_c
 
 block_c:
@@ -210,7 +210,7 @@ block_a:
   br i1 undef, label %block_b, label %block_c
 
 block_b:
-  call void @scope-closer(ptr blockaddress(@l, %block_e))
+  call void @scope_closer(ptr blockaddress(@l, %block_e))
   ret void
 
 block_c:
@@ -260,12 +260,12 @@ block_a:
   br i1 %a, label %goto_c, label %block_b
 
 goto_c:
-  call void @goto-block()
-  call void @scope-closer(ptr blockaddress(@m, %block_b))
+  call void @goto_block()
+  call void @scope_closer(ptr blockaddress(@m, %block_b))
   br label %block_c
 
 block_b:
-  call void @scope-closer(ptr blockaddress(@m, %block_e))
+  call void @scope_closer(ptr blockaddress(@m, %block_e))
   br label %block_c
 
 block_c:
@@ -275,8 +275,8 @@ block_d:
   br i1 %b, label %goto_b, label %block_e
 
 goto_b:
-  call void @goto-block()
-  call void @scope-closer(ptr blockaddress(@m, %block_e))
+  call void @goto_block()
+  call void @scope_closer(ptr blockaddress(@m, %block_e))
   br label %block_b
 
 block_e:

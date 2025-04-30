@@ -1,7 +1,7 @@
 #pragma once
 
 //
-// Copyright rev.ng Labs Srl. See LICENSE.md for details.
+// This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
 #include "llvm/ADT/DepthFirstIterator.h"
@@ -19,6 +19,8 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/Tag.h"
 #include "revng/Yield/FunctionEdgeType.h"
+
+namespace detail {
 
 // We use a template here in order to instantiate `BlockType` both as
 // `BasicBlock *` and `const BasicBlock *`
@@ -75,6 +77,8 @@ inline llvm::SmallVector<BlockType *> getScopeGraphPredecessors(BlockType *BB) {
   return Predecessors;
 }
 
+} // namespace detail
+
 /// This class is used as a marker class to tell the graph iterator to treat the
 /// underlying graph as a scope graph, i.e., considering also the scope closer
 /// edges as actual edges, and ignoring the goto edges. We require `GraphType`
@@ -101,7 +105,7 @@ public:
 public:
   static ChildIteratorType child_begin(NodeRef N) {
     return EagerMaterializationRangeIterator<
-      llvm::BasicBlock *>(getScopeGraphSuccessors(N));
+      llvm::BasicBlock *>(::detail::getScopeGraphSuccessors(N));
   }
 
   static ChildIteratorType child_end(NodeRef N) {
@@ -127,7 +131,7 @@ public:
 public:
   static ChildIteratorType child_begin(NodeRef N) {
     return EagerMaterializationRangeIterator<
-      const llvm::BasicBlock *>(getScopeGraphSuccessors(N));
+      const llvm::BasicBlock *>(::detail::getScopeGraphSuccessors(N));
   }
 
   static ChildIteratorType child_end(NodeRef N) {
@@ -155,7 +159,7 @@ public:
 public:
   static ChildIteratorType child_begin(NodeRef N) {
     return EagerMaterializationRangeIterator<
-      llvm::BasicBlock *>(getScopeGraphPredecessors(N));
+      llvm::BasicBlock *>(::detail::getScopeGraphPredecessors(N));
   }
 
   static ChildIteratorType child_end(NodeRef N) {
@@ -183,7 +187,7 @@ public:
 public:
   static ChildIteratorType child_begin(NodeRef N) {
     return EagerMaterializationRangeIterator<
-      const llvm::BasicBlock *>(getScopeGraphPredecessors(N));
+      const llvm::BasicBlock *>(::detail::getScopeGraphPredecessors(N));
   }
 
   static ChildIteratorType child_end(NodeRef N) {
