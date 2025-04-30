@@ -6,18 +6,6 @@
 
 #include "revng/Model/Type.h"
 
-/* TUPLE-TREE-YAML
-name: DefinedType
-type: struct
-inherits: Type
-doc: A reference to a `TypeDefinition`.
-fields:
-  - name: Definition
-    reference:
-      pointeeType: TypeDefinition
-      rootType: Binary
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/DefinedType.h"
 
 class model::DefinedType : public model::generated::DefinedType {

@@ -801,6 +801,12 @@ static std::string buildLocalNamespaceError(const auto &Namespaces) {
 bool Binary::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
+  // Version == 0 is considered an alias to Version == SchemaVersion
+  // Any other Version value is rejected; if you need to load such a model, you
+  // need to migrate first
+  if (Version() != SchemaVersion and Version() != 0)
+    return VH.fail("Model version not supported");
+
   // Build list of executable segments
   SmallVector<const model::Segment *, 4> ExecutableSegments;
   for (const model::Segment &Segment : Segments())

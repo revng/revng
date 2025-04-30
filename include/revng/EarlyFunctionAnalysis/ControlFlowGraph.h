@@ -15,28 +15,6 @@ class BasicBlock;
 }
 class GeneratedCodeBasicInfo;
 
-/* TUPLE-TREE-YAML
-name: ControlFlowGraph
-doc: "Metadata attached to a function. As of now, it includes a list of basic
-blocks, representing the control-flow graph."
-type: struct
-fields:
-  - name: Entry
-    doc: Start address of the basic block
-    type: MetaAddress
-  - name: Name
-    type: string
-    doc: Optional name for debugging purposes
-    optional: true
-  - name: Blocks
-    sequence:
-      type: SortedVector
-      elementType: BasicBlock
-    optional: true
-key:
-  - Entry
-TUPLE-TREE-YAML */
-
 #include "revng/EarlyFunctionAnalysis/Generated/Early/ControlFlowGraph.h"
 
 namespace model {

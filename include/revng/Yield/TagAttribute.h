@@ -6,22 +6,6 @@
 
 #include <string>
 
-/* TUPLE-TREE-YAML
-
-name: TagAttribute
-type: struct
-fields:
-  - name: Name
-    type: string
-
-  - name: Value
-    type: string
-
-key:
-  - Name
-
-TUPLE-TREE-YAML */
-
 #include "revng/Yield/Generated/Early/TagAttribute.h"
 
 namespace yield {

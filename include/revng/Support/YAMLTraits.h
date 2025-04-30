@@ -6,13 +6,14 @@
 
 #include <bit>
 
+#include "llvm/IR/DiagnosticHandler.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
-#include "revng/Support/Assert.h"
+#include "revng/Support/Error.h"
 #include "revng/TupleTree/TupleTreeCompatible.h"
 
 template<typename T>
@@ -57,10 +58,10 @@ inline std::string getNameFromYAMLScalar(T V) {
   }
 }
 
-template<typename T>
+template<HasScalarEnumTraits T>
 T getInvalidValueFromYAMLScalar() {
-  // Default action: abort. Users can override this behavior.
-  revng_abort();
+  // Default action: return Invalid. Users can override this behavior.
+  return T::Invalid;
 }
 
 template<HasScalarOrEnumTraits T>
@@ -239,6 +240,12 @@ std::string toString(const T &ToDump) {
 }
 
 namespace revng::detail {
+
+inline void yamlDignosticHandler(const llvm::SMDiagnostic &Diagnostic,
+                                 void *Context) {
+  *static_cast<std::string *>(Context) = Diagnostic.getMessage();
+}
+
 template<typename T>
 llvm::Expected<T>
 fromStringImpl(llvm::StringRef YAMLString, void *Context = nullptr) {
@@ -247,12 +254,19 @@ fromStringImpl(llvm::StringRef YAMLString, void *Context = nullptr) {
   } else {
     T Result;
 
-    llvm::yaml::Input YAMLInput(YAMLString, Context);
+    // YAMLInput takes liberty to print to the stderr upon parsing errors, we
+    // instead prefer to wrap the error string in the returned error. This
+    // DiagnosticHandler takes care of that.
+    std::string ErrorMessage;
+    llvm::yaml::Input YAMLInput(YAMLString,
+                                Context,
+                                yamlDignosticHandler,
+                                &ErrorMessage);
     YAMLInput >> Result;
 
     std::error_code EC = YAMLInput.error();
     if (EC)
-      return llvm::errorCodeToError(EC);
+      return llvm::createStringError(EC, ErrorMessage);
 
     return Result;
   }

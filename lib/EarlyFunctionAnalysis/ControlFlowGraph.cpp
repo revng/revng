@@ -298,6 +298,10 @@ void ControlFlowGraph::dumpCFG(const model::Binary &Binary) const {
   WriteGraph(&G, "function-metadata");
 }
 
+const CallEdge *FunctionEdgeBase::getCallEdge() const {
+  return llvm::dyn_cast<CallEdge>(this);
+}
+
 bool FunctionEdgeBase::verify() const {
   return verify(false);
 }

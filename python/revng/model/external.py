@@ -2,8 +2,4 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-- name: RootType
-  type: struct
-  fields:
-    - name: propertyA
-      type: string
+from .metaaddress import MetaAddress  # noqa: F401

@@ -7,31 +7,6 @@
 #include "revng/Model/DisassemblyConfiguration.h"
 #include "revng/Model/NamingConfiguration.h"
 
-/* TUPLE-TREE-YAML
-name: Configuration
-type: struct
-fields:
-  - name: Disassembly
-    type: DisassemblyConfiguration
-    optional: true
-
-  - name: Naming
-    type: NamingConfiguration
-    optional: true
-
-  # Configuration options that don't belong anywhere else find themselves here.
-  # As this list grows, they should be split into their own sub-sections.
-  - name: CommentLineWidth
-    doc: |
-      Sets a recommended comment line width to improve their readability.
-
-      The default value is `80`.
-
-      Set to `-1` for unlimited line size.
-    type: uint64_t
-    optional: true
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/Configuration.h"
 
 namespace model {

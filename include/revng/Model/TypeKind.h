@@ -5,4 +5,5 @@
 //
 
 #include "revng/Model/Generated/Early/TypeKind.h"
+
 #include "revng/Model/Generated/Late/TypeKind.h"

@@ -7,30 +7,6 @@
 #include "revng/Model/Register.h"
 #include "revng/Model/Type.h"
 
-/* TUPLE-TREE-YAML
-name: PrimitiveType
-type: struct
-inherits: Type
-fields:
-  - name: PrimitiveKind
-    type: PrimitiveKind
-  - name: Size
-    doc: |
-      As of now, for floating point primitives, supported sizes include:
-      ```
-      { 2, 4, 8, 10, 12, 16 }
-      ```
-      For non-floating point, they are:
-      ```
-      { 1, 2, 4, 8, 16 }
-      ```
-
-      Note that `Void` *must* have size of 0 while `Generic` can use all the
-      supported sizes, floating point or not.
-    type: uint64_t
-    optional: true
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/PrimitiveType.h"
 
 class model::PrimitiveType : public model::generated::PrimitiveType {

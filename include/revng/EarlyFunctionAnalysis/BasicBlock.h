@@ -14,32 +14,6 @@
 #include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"
 
-/* TUPLE-TREE-YAML
-name: BasicBlock
-doc: The basic block of a function
-type: struct
-fields:
-  - name: ID
-    type: BasicBlockID
-  - name: End
-    doc: |
-      End address of the basic block, i.e., the address where the last
-      instruction ends
-    type: MetaAddress
-  - name: InlinedFrom
-    type: MetaAddress
-    optional: true
-    doc: Address of the function this basic block has been inlined from
-  - name: Successors
-    doc: List of successor edges
-    sequence:
-      type: SortedVector
-      upcastable: true
-      elementType: FunctionEdgeBase
-key:
-  - ID
-TUPLE-TREE-YAML */
-
 #include "revng/EarlyFunctionAnalysis/Generated/Early/BasicBlock.h"
 
 namespace model {

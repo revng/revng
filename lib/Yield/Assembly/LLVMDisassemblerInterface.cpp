@@ -86,7 +86,7 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType,
   unsigned AssemblyDialect = 0;
   if (*LLVMArchitecture == llvm::Triple::ArchType::x86
       || *LLVMArchitecture == llvm::Triple::ArchType::x86_64) {
-    if (not Config.UseATTSyntax())
+    if (not Config.UseX86ATTSyntax())
       AssemblyDialect = 1;
   }
 

@@ -7,31 +7,6 @@
 #include "revng/Model/EnumEntry.h"
 #include "revng/Model/TypeDefinition.h"
 
-/* TUPLE-TREE-YAML
-name: EnumDefinition
-doc: |
-  An `enum` type definition.
-type: struct
-inherits: TypeDefinition
-fields:
-  - name: UnderlyingType
-    type: Type
-    upcastable: true
-    doc: |-
-      The underlying type of the `enum`.
-
-      This can only be a `PrimitiveType` with either a `Unsigned` or a `Signed`
-      kind.
-  - name: Entries
-    doc: |-
-      The entries of the `enum`.
-
-      There can be no two entries associated to the same value.
-    sequence:
-      type: SortedVector
-      elementType: EnumEntry
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/EnumDefinition.h"
 
 class model::EnumDefinition : public model::generated::EnumDefinition {

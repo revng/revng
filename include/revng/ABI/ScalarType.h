@@ -6,28 +6,6 @@
 
 #include <cstdint>
 
-/* TUPLE-TREE-YAML
-
-name: ScalarType
-type: struct
-doc: |
-  Represents type specific information ABI needs to be aware of,
-  for example, alignment.
-fields:
-  - name: Size
-    type: uint64_t
-
-  - name: AlignedAt
-    doc: |
-      When set to `0` (default), the alignment of this type matches its size
-    type: uint64_t
-    optional: true
-
-key:
-  - Size
-
-TUPLE-TREE-YAML */
-
 #include "revng/ABI/Generated/Early/ScalarType.h"
 
 namespace abi {

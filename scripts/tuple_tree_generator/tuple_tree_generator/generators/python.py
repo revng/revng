@@ -43,6 +43,8 @@ class PythonGenerator:
             structs=self.schema.struct_definitions(),
             generator=self,
             schema=self.schema,
+            root_type=self.schema.root_type,
+            version=self.schema.version,
         )
         formatted_rendered_template = black.format_str(
             rendered_template,

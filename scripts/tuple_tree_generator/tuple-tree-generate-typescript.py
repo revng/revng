@@ -36,7 +36,7 @@ def main(args):
     with open(args.schema) as f:
         raw_schema = yaml.safe_load(f)
 
-    schema = Schema(raw_schema, args.namespace, args.scalar_type)
+    schema = Schema(raw_schema, args.root_type, args.namespace, args.scalar_type)
     source = generate_typescript(
         schema,
         args.root_type,

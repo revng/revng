@@ -14,6 +14,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -26,11 +27,16 @@
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Support/Assert.h"
+#include "revng/Support/Chrono.h"
+#include "revng/Support/ProgramRunner.h"
 #include "revng/Support/ResourceFinder.h"
+#include "revng/Support/TemporaryFile.h"
 
 using namespace pipeline;
 using namespace llvm;
 using namespace ::revng::pipes;
+using revng::FilePath;
 
 static cl::opt<bool> CheckComponentsVersion("check-components-version",
                                             cl::desc("Delete container caches "
@@ -100,10 +106,25 @@ PipelineManager::overrideContainer(llvm::StringRef PipelineFileMapping) {
   return MaybeMapping->load(*Runner);
 }
 
-static llvm::Error
-checkComponentsVersion(const revng::DirectoryPath &ExecutionDirectory,
-                       const Runner &TheRunner) {
-  revng::FilePath HashFile = ExecutionDirectory.getFile("components-hash");
+llvm::Error
+PipelineManager::purge(const revng::DirectoryPath &ExecutionDirectory) {
+  std::vector<FilePath> FilePaths = Runner->getWrittenFiles(ExecutionDirectory);
+  for (FilePath &Path : FilePaths) {
+    auto MaybeExists = Path.exists();
+    if (not MaybeExists)
+      return MaybeExists.takeError();
+
+    if (MaybeExists.get()) {
+      if (llvm::Error Error = Path.remove())
+        return Error;
+    }
+  }
+  return llvm::Error::success();
+}
+
+llvm::Error PipelineManager::checkComponentsVersion(const revng::DirectoryPath
+                                                      &ExecutionDirectory) {
+  FilePath HashFile = ExecutionDirectory.getFile("components-hash");
 
   // check that the if the saved hash file exists
   auto MaybeExists = HashFile.exists();
@@ -138,19 +159,8 @@ checkComponentsVersion(const revng::DirectoryPath &ExecutionDirectory,
       return Error;
   }
 
-  std::vector<revng::FilePath>
-    FilePaths = TheRunner.getWrittenFiles(ExecutionDirectory);
-  // Remove all the files that can be re-created by the pipeline
-  for (revng::FilePath &Path : FilePaths) {
-    auto MaybeExists = Path.exists();
-    if (not MaybeExists)
-      return MaybeExists.takeError();
-
-    if (MaybeExists.get()) {
-      if (llvm::Error Error = Path.remove())
-        return Error;
-    }
-  }
+  if (auto Error = purge(ExecutionDirectory))
+    return Error;
 
   // Re-write the components-hash file, to avoid re-deleting files on
   // the next run
@@ -162,27 +172,158 @@ checkComponentsVersion(const revng::DirectoryPath &ExecutionDirectory,
   return MaybeWritableFile.get()->commit();
 }
 
-static llvm::Expected<Runner>
-setUpPipeline(pipeline::Context &PipelineContext,
-              Loader &Loader,
-              llvm::ArrayRef<std::string> TextPipelines,
-              const revng::DirectoryPath &ExecutionDirectory) {
-  auto MaybePipeline = Loader.load(TextPipelines);
+static llvm::Expected<FilePath> getBackupFilePath(const FilePath &Path) {
+  // Keep trying to get a non-occupied backup file path. The timestamp is
+  // precise down to milliseconds, so it is low probability this takes
+  // more than one iteration.
+  while (true) {
+    const uint64_t UnixTime = revng::getEpochInMilliseconds();
+    auto BackupFilePath = Path.addExtension(std::to_string(UnixTime));
+    auto MaybeExists = BackupFilePath.exists();
+
+    if (not MaybeExists)
+      return MaybeExists.takeError();
+
+    if (not MaybeExists.get())
+      return BackupFilePath;
+  }
+}
+
+static llvm::Error migrateModelFile(const FilePath &ModelFile) {
+  TemporaryFile InputTemporaryFile("revng-model-migration-input", "yml");
+  TemporaryFile OutputTemporaryFile("revng-model-migration-output", "yml");
+
+  auto InputFile = FilePath::fromLocalStorage(InputTemporaryFile.path());
+  if (auto Error = ModelFile.copyTo(InputFile); !!Error)
+    return Error;
+
+  {
+    int ReturnCode = ::Runner.run("revng",
+                                  { "model",
+                                    "migrate",
+                                    InputTemporaryFile.path().str(),
+                                    "--output",
+                                    OutputTemporaryFile.path().str() });
+
+    if (ReturnCode != 0)
+      return revng::createError("Error encountered while running migrations, "
+                                "process returned: %d",
+                                ReturnCode);
+  }
+
+  auto OutputFile = FilePath::fromLocalStorage(OutputTemporaryFile.path());
+  if (auto Error = OutputFile.copyTo(ModelFile); !!Error)
+    return Error;
+
+  return llvm::Error::success();
+}
+
+/// Creates a backup for the model file and runs migrations on it.
+/// \return On success returns the backup path. On failure returns the error and
+/// leaves the model unchanged
+static llvm::Expected<FilePath> migrateModel(const FilePath &ModelFile) {
+  llvm::Expected<bool> ModelFileExists = ModelFile.exists();
+  if (not ModelFileExists)
+    return ModelFileExists.takeError();
+
+  if (not ModelFileExists.get())
+    revng_abort("Attempting to run migrations on a model file that does not "
+                "exist");
+
+  llvm::Expected<FilePath> ModelBackupFile = getBackupFilePath(ModelFile);
+  if (not ModelBackupFile)
+    return ModelBackupFile.takeError();
+
+  if (auto Error = ModelFile.copyTo(ModelBackupFile.get()); !!Error)
+    return Error;
+
+  if (not ModelBackupFile)
+    return ModelBackupFile.takeError();
+
+  if (auto MigrationError = migrateModelFile(ModelFile); !!MigrationError) {
+    // Migration failed, that's okay though, as the original model has not been
+    // written (see migrateModelFile). Just return the error.
+    return MigrationError;
+  }
+
+  return ModelBackupFile;
+}
+
+llvm::Error
+PipelineManager::setUpPipeline(llvm::ArrayRef<std::string> TextPipelines) {
+  auto MaybePipeline = Loader->load(TextPipelines);
   if (not MaybePipeline)
     return MaybePipeline.takeError();
 
-  if (ExecutionDirectory.isValid()) {
-    llvm::Error Error = checkComponentsVersion(ExecutionDirectory,
-                                               MaybePipeline.get());
-    if (Error)
-      return std::move(Error);
+  Runner = std::make_unique<pipeline::Runner>(std::move(MaybePipeline.get()));
 
-    if (auto Error = MaybePipeline->load(ExecutionDirectory))
-      return std::move(Error);
+  if (ExecutionDirectory.isValid()) {
+    llvm::Error Error = checkComponentsVersion(ExecutionDirectory);
+    if (Error)
+      return Error;
+
+    if (auto FirstLoadError = Runner
+                                ->loadContextDirectory(ExecutionDirectory)) {
+      // Loading failed, it could be due to an outdated model version, so we
+      // perform model migrations and re-attempt to load. First check if there
+      // is a model file.
+      auto ModelFile = ExecutionDirectory.getDirectory("context")
+                         .getFile(revng::ModelGlobalName);
+
+      llvm::Expected<bool> ModelFileExists = ModelFile.exists();
+      if (not ModelFileExists)
+        return revng::joinErrors(ModelFileExists.takeError(),
+                                 std::move(FirstLoadError));
+
+      if (not ModelFileExists.get())
+        // Model file does not exist, so nothing to migrate. Stop here and
+        // return the first load error.
+        return FirstLoadError;
+
+      llvm::Expected<FilePath> BackupFilePath = migrateModel(ModelFile);
+
+      if (not BackupFilePath)
+        return llvm::joinErrors(BackupFilePath.takeError(),
+                                std::move(FirstLoadError));
+
+      if (auto SecondLoadError = Runner
+                                   ->loadContextDirectory(ExecutionDirectory)) {
+        // Doesn't load even after migration, restore and report the errors.
+        if (auto Error = BackupFilePath.get().copyTo(ModelFile)) {
+          return revng::joinErrors(std::move(Error),
+                                   std::move(SecondLoadError),
+                                   std::move(FirstLoadError));
+        }
+
+        return llvm::joinErrors(std::move(SecondLoadError),
+                                std::move(FirstLoadError));
+      }
+
+      // Load works after migration, so keep the migration result. Only thing
+      // remaining is purging old containers.
+      if (auto Error = purge(ExecutionDirectory))
+        return Error;
+
+      if (auto Error = StorageClient->commit())
+        return Error;
+
+      // All good, consume and log the FirstLoadError.
+      {
+        std::string Message = llvm::toString(std::move(FirstLoadError));
+        revng_log(ExplanationLogger,
+                  "First attempt at loading the context directory failed, but "
+                  "it worked after migrations. Error: "
+                    << Message);
+      }
+    }
+
+    if (auto Error = Runner->loadContainers(ExecutionDirectory); !!Error)
+      return Error;
   }
 
-  MaybePipeline->resetDirtyness();
-  return MaybePipeline;
+  Runner->resetDirtyness();
+
+  return llvm::Error::success();
 }
 
 llvm::Expected<PipelineManager>
@@ -240,15 +381,8 @@ PipelineManager::createFromMemory(llvm::ArrayRef<std::string> PipelineContent,
                                   std::unique_ptr<revng::StorageClient>
                                     &&Client) {
   PipelineManager Manager(EnablingFlags, std::move(Client));
-
-  auto MaybePipeline = setUpPipeline(*Manager.PipelineContext,
-                                     *Manager.Loader,
-                                     PipelineContent,
-                                     Manager.executionDirectory());
-  if (auto Error = MaybePipeline.takeError())
+  if (auto Error = Manager.setUpPipeline(PipelineContent))
     return Error;
-
-  Manager.Runner = make_unique<pipeline::Runner>(std::move(*MaybePipeline));
 
   Manager.recalculateAllPossibleTargets();
 
@@ -282,18 +416,18 @@ void PipelineManager::recalculateCache() {
 }
 
 void PipelineManager::recalculateAllPossibleTargets(bool ExpandTargets) {
-  CurrentState = Runner::State();
+  CurrentState = pipeline::Runner::State();
   getAllPossibleTargets(CurrentState, ExpandTargets);
   recalculateCache();
 }
 
 void PipelineManager::recalculateCurrentState() {
-  CurrentState = Runner::State();
+  CurrentState = pipeline::Runner::State();
   getCurrentState(CurrentState);
   recalculateCache();
 }
 
-void PipelineManager::getCurrentState(Runner::State &State) const {
+void PipelineManager::getCurrentState(pipeline::Runner::State &State) const {
   Runner->getCurrentState(State);
   for (auto &Step : State) {
     for (auto &Container : Step.second) {
@@ -302,7 +436,7 @@ void PipelineManager::getCurrentState(Runner::State &State) const {
   }
 }
 
-void PipelineManager::getAllPossibleTargets(Runner::State &State,
+void PipelineManager::getAllPossibleTargets(pipeline::Runner::State &State,
                                             bool ExpandTargets) const {
   Runner->deduceAllPossibleTargets(State);
   for (auto &Step : State) {
@@ -317,7 +451,7 @@ void PipelineManager::getAllPossibleTargets(Runner::State &State,
 }
 
 void PipelineManager::writeAllPossibleTargets(llvm::raw_ostream &OS) const {
-  Runner::State AvailableTargets;
+  pipeline::Runner::State AvailableTargets;
   getAllPossibleTargets(AvailableTargets);
   for (const auto &Step : AvailableTargets) {
 

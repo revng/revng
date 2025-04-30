@@ -56,26 +56,14 @@ target_tuple_tree_generator(
   ROOT_TYPE
   Function
   SCHEMA_PATH
-  "${CMAKE_BINARY_DIR}/yield-internal-schema.yml"
+  "${CMAKE_SOURCE_DIR}/include/revng/Yield/yield-internal-schema.yml"
   SEPARATE_STRING_TYPES
   "MetaAddress"
   SCALAR_TYPES
   "BasicBlockID"
   "MetaAddress"
   "yield::ByteContainer"
-  "model::FunctionAttribute::Values"
-  HEADERS
-  "${INTERNAL_ASSEMBLY_HEADERS}/CallEdge.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/FunctionEdge.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/FunctionEdgeBase.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/FunctionEdgeType.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/BasicBlock.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/Function.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/Instruction.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/TagAttribute.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/TaggedLine.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/TaggedString.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/TagType.h")
+  "model::FunctionAttribute::Values")
 
 set(INTERNAL_ASSEMBLY_HEADERS
     "${CMAKE_SOURCE_DIR}/include/revng/Yield/CrossRelations")
@@ -89,16 +77,13 @@ target_tuple_tree_generator(
   ROOT_TYPE
   CrossRelations
   SCHEMA_PATH
-  "${CMAKE_BINARY_DIR}/yield-cross-relations.yml"
+  "${CMAKE_SOURCE_DIR}/include/revng/Yield/CrossRelations/yield-cross-relations.yml"
   SEPARATE_STRING_TYPES
   "MetaAddress"
   SCALAR_TYPES
   "BasicBlockID"
   "MetaAddress"
-  "yield::ByteContainer"
-  HEADERS
-  "${INTERNAL_ASSEMBLY_HEADERS}/CrossRelations.h"
-  "${INTERNAL_ASSEMBLY_HEADERS}/RelationDescription.h")
+  "yield::ByteContainer")
 
 revng_add_analyses_library_internal(
   revngYieldPipes SHARED Pipes/AssemblyPipes.cpp Pipes/CallGraphPipes.cpp
