@@ -1,0 +1,25 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+version: 1
+definitions:
+  - name: CrossRelations
+    type: struct
+    fields:
+      - name: Relations
+        sequence:
+          type: SortedVector
+          elementType: RelationDescription
+  - name: RelationDescription
+    type: struct
+    fields:
+      - name: Location
+        type: string
+      - name: IsCalledFrom
+        sequence:
+          type: SortedVector
+          elementType: string
+        optional: true
+    key:
+      - Location

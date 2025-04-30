@@ -7,29 +7,6 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Type.h"
 
-/* TUPLE-TREE-YAML
-name: NamedTypedRegister
-type: struct
-doc: |-
-  An argument or return values in a `RawFunctionDefinition`.
-
-  It is basically a pair of a register and a `Type`.
-fields:
-  - name: Location
-    type: Register
-  - name: Type
-    type: Type
-    upcastable: true
-  - name: Name
-    type: string
-    optional: true
-  - name: Comment
-    type: string
-    optional: true
-key:
-  - Location
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/NamedTypedRegister.h"
 
 namespace model {

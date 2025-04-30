@@ -9,34 +9,6 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionAttribute.h"
 
-/* TUPLE-TREE-YAML
-name: CallEdge
-doc: A CFG edge to represent function calls (direct, indirect and tail calls)
-type: struct
-inherits: FunctionEdgeBase
-fields:
-  - name: DynamicFunction
-    doc: |
-      Name of the dynamic function being called, or empty if not a dynamic call
-    type: string
-    optional: true
-  - name: IsTailCall
-    doc: Is this a tail call?
-    type: bool
-    optional: true
-  - name: Attributes
-    doc: |
-      Attributes for this function
-
-      Note: To have the effective list of attributes for this call site, you
-      have to add attributes on the called function.
-      TODO: switch to std::set
-    sequence:
-      type: MutableSet
-      elementType: model::FunctionAttribute::Values
-    optional: true
-TUPLE-TREE-YAML */
-
 #include "revng/EarlyFunctionAnalysis/Generated/Early/CallEdge.h"
 
 namespace model {

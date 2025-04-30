@@ -17,57 +17,6 @@ namespace yield {
 using ByteContainer = llvm::SmallVector<uint8_t, 16>;
 }
 
-/* TUPLE-TREE-YAML
-
-name: Instruction
-type: struct
-fields:
-  - name: Address
-    doc: >
-      Indicates the address of the first byte of the instruction.
-    type: MetaAddress
-
-  - name: RawBytes
-    type: yield::ByteContainer
-
-  - name: Disassembled
-    sequence:
-      type: SortedVector
-      elementType: TaggedString
-
-  - name: PrecedingDirectives
-    sequence:
-      type: SortedVector
-      elementType: TaggedLine
-
-  - name: FollowingDirectives
-    sequence:
-      type: SortedVector
-      elementType: TaggedLine
-
-  - name: OpcodeIdentifier
-    type: string
-    optional: true
-
-  - name: Comment
-    doc: >
-      Contains any extra information deduced based on the disassembly of this
-      instruction that could be relevant for the user.
-    type: string
-    optional: true
-
-  - name: Error
-    doc: >
-      Contains any extra extra warning/error style information deduced based on
-      the disassembly of this instruction that could be relevant for the user.
-    type: string
-    optional: true
-
-key:
-  - Address
-
-TUPLE-TREE-YAML */
-
 #include "revng/Yield/Generated/Early/Instruction.h"
 
 namespace model {

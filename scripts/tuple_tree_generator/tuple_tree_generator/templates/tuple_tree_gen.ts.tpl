@@ -95,6 +95,9 @@ export function isI/*= class_.name =*/(obj: I/*= class_.inherits.name =*/): obj 
 /**- endif **/
 
 export /** if class_.abstract **/abstract/** endif **/ class /*= class_.name =*/ /** if class_.inherits **/ extends /*= class_.inherits.name =*/ /** endif **/ {
+    /**- if class_.name == metadata["root"] **/
+    static SchemaVersion: bigint = /*=version=*/n;
+    /**- endif **/
     /**- for field in class_.fields **/
     /**- if field.doc **/
     /*= field.doc | ts_doc =*/
@@ -116,6 +119,11 @@ export /** if class_.abstract **/abstract/** endif **/ class /*= class_.name =*/
         if (rawObject === undefined) {
             rawObject = {};
         }
+        /** if class_.name == metadata["root"] **/
+        this.Version = rawObject.Version || /*=metadata["root"]=*/.SchemaVersion;
+        if (this.Version != /*=metadata["root"]=*/.SchemaVersion)
+            throw new Error(`Schema version is not supported, version = ${this.Version}, supported version = ${/*=metadata["root"]=*/.SchemaVersion}`)
+        /** endif **/
         /**- endif **/
         /**- if class_.inherits **/
         /**- if class_.inherits | get_guid **/
@@ -124,7 +132,7 @@ export /** if class_.abstract **/abstract/** endif **/ class /*= class_.name =*/
         super(rawObject)
         /**- endif **/
         /**- endif **/
-        /**- for field in class_.fields **/
+        /**- for field in class_.fields if not (class_.name == metadata["root"] and field.name == "Version") **/
             /*= field | gen_assignment =*/
         /**- endfor **/
     }

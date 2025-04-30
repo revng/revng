@@ -40,7 +40,12 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-data]
-revng = ["internal/py.typed", "internal/daemon/schema.graphql"]
+revng = [
+  "internal/py.typed",
+  "internal/daemon/schema.graphql",
+  "internal/cli/_commands/generate_migrations/metaschema.yml",
+  "internal/cli/_commands/generate_migrations/migration.py.tpl"
+]
 
 [project.entry-points.console_scripts]
 revng = "revng.internal.cli.revng:main"

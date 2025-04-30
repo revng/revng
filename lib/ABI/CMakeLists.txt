@@ -34,10 +34,7 @@ target_tuple_tree_generator(
   ROOT_TYPE
   Definition
   SCHEMA_PATH
-  "${CMAKE_BINARY_DIR}/abi-internal-schema.yml"
+  "${CMAKE_SOURCE_DIR}/include/revng/ABI/abi-internal-schema.yml"
   SCALAR_TYPES
   "model::ABI::Values"
-  "model::Register::Values"
-  HEADERS
-  "${HEADERS_REQUIRING_TTG}/Definition.h"
-  "${HEADERS_REQUIRING_TTG}/ScalarType.h")
+  "model::Register::Values")

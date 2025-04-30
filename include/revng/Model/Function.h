@@ -15,64 +15,6 @@
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 
-/* TUPLE-TREE-YAML
-name: Function
-doc: A function defined within this binary.
-type: struct
-fields:
-  - name: Entry
-    doc: |
-      The address of the entry point.
-
-      Note: this does not necessarily correspond to the address of the basic
-      block with the lowest address.
-    type: MetaAddress
-  - name: Name
-    type: string
-    optional: true
-  - name: Comment
-    type: string
-    optional: true
-  - name: StackFrameType
-    doc: The type of the stack frame.
-    type: Type
-    upcastable: true
-    optional: true
-  - name: Prototype
-    doc: The prototype of the function.
-    type: Type
-    upcastable: true
-    optional: true
-  - name: Attributes
-    doc: Attributes for this call site.
-    sequence:
-      type: MutableSet
-      elementType: FunctionAttribute
-    optional: true
-  - name: CallSitePrototypes
-    doc: |-
-      Information about specific call sites within this function.
-    sequence:
-      type: SortedVector
-      elementType: CallSitePrototype
-    optional: true
-  - name: ExportedNames
-    doc: |-
-      The list of names used to make this function available as a dynamic
-      symbol.
-    sequence:
-      type: SortedVector
-      elementType: string
-    optional: true
-  - name: Comments
-    sequence:
-      type: vector
-      elementType: StatementComment
-    optional: true
-key:
-  - Entry
-TUPLE-TREE-YAML */
-
 #include "revng/Model/Generated/Early/Function.h"
 
 namespace model {

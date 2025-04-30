@@ -270,7 +270,13 @@ struct llvm::yaml::MappingTraits<T> {
 
     ::detail::MapDiffVisitor<Model> Visitor{ &IO, &*Entry, Name };
     bool Result = callByPath<Model>(Visitor, Info.Path);
-    revng_assert(Result == true);
+    if (not Result) {
+      const auto InfoPathString = pathAsString<Model>(Info.Path);
+      if (InfoPathString)
+        IO.setError("Could not write diff, path: " + InfoPathString.value());
+      else
+        IO.setError("Could not write diff");
+    }
   }
 
   static void readEntry(IO &IO, T &Info, const char *Name, EntryType &Entry) {
@@ -282,7 +288,13 @@ struct llvm::yaml::MappingTraits<T> {
     revng_assert(Entry.has_value());
     ::detail::MapDiffVisitor<Model> Visitor{ &IO, &*Entry, Name };
     bool Result = callByPath<Model>(Visitor, Info.Path);
-    revng_assert(Result == true);
+    if (not Result) {
+      const auto InfoPathString = pathAsString<Model>(Info.Path);
+      if (InfoPathString)
+        IO.setError("Could not parse diff, path: " + InfoPathString.value());
+      else
+        IO.setError("Could not parse diff");
+    }
   }
 
   static void

@@ -6,14 +6,6 @@
 
 #include "revng/Yield/FunctionEdgeBase.h"
 
-/* TUPLE-TREE-YAML
-name: FunctionEdge
-doc: An edge on the CFG
-type: struct
-inherits: FunctionEdgeBase
-fields: []
-TUPLE-TREE-YAML */
-
 namespace efa {
 class FunctionEdge;
 }

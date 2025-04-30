@@ -25,3 +25,7 @@ yield::FunctionEdge::FunctionEdge(const efa::FunctionEdge &Source) {
   Destination() = Source.Destination();
   Type() = yield::FunctionEdgeType::from(Source.Type());
 }
+
+const yield::CallEdge *yield::FunctionEdgeBase::getCallEdge() const {
+  return llvm::dyn_cast<CallEdge>(this);
+}

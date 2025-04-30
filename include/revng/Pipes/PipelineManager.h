@@ -203,5 +203,12 @@ public:
 private:
   llvm::Error produceAllPossibleTargets(bool ExpandTargets);
   llvm::Error computeDescription();
+  llvm::Error setUpPipeline(llvm::ArrayRef<std::string> TextPipelines);
+
+  /// removes all the files that can be re-created by the pipeline
+  llvm::Error purge(const revng::DirectoryPath &ExecutionDirectory);
+
+  llvm::Error
+  checkComponentsVersion(const revng::DirectoryPath &ExecutionDirectory);
 };
 } // namespace revng::pipes
