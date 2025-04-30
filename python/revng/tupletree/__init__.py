@@ -191,8 +191,8 @@ class EnumBase(Enum, metaclass=DefaultEnumType):
         return dumper.represent_str(instance.name)
 
 
-_PointedType = TypeVar("_PointedType")
-_RootType = TypeVar("_RootType")
+_PointedType = TypeVar("_PointedType")  # noqa: N808
+_RootType = TypeVar("_RootType")  # noqa: N808
 
 
 class Reference(Generic[_PointedType, _RootType]):
