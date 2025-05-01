@@ -16,24 +16,6 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: while (0)
-    clift.while {
-      %0 = clift.imm 0 : !int32_t
-      clift.yield %0 : !int32_t
-    } {
-      // CHECK: break;
-      clift.loop_break
-    }
-
-    // CHECK: while (1)
-    clift.while {
-      %1 = clift.imm 1 : !int32_t
-      clift.yield %1 : !int32_t
-    } {
-      // CHECK: continue;
-      clift.loop_continue
-    }
-
     // CHECK: while (2) {
     clift.while {
       %2 = clift.imm 2 : !int32_t

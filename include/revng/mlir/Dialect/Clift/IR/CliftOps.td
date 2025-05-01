@@ -311,20 +311,6 @@ def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
   let hasVerifier = 1;
 }
 
-def Clift_LoopBreakOp : Clift_StatementOp<"loop_break", [Clift_NoFallthrough]> {
-  let assemblyFormat = [{
-    attr-dict
-  }];
-}
-
-def Clift_LoopContinueOp : Clift_StatementOp<"loop_continue",
-                                             [Clift_NoFallthrough]> {
-
-  let assemblyFormat = [{
-    attr-dict
-  }];
-}
-
 def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
 
   let regions = (region Clift_OptionalExpressionRegion:$result);
@@ -382,14 +368,6 @@ def Clift_SwitchOp : Clift_StatementOp<"switch"> {
     }
 
     [[nodiscard]] mlir::Region *findCaseRegion(const uint64_t value);
-  }];
-}
-
-def Clift_SwitchBreakOp : Clift_StatementOp<"switch_break",
-                                            [Clift_NoFallthrough]> {
-
-  let assemblyFormat = [{
-    attr-dict
   }];
 }
 
