@@ -1010,11 +1010,6 @@ public:
 
   //===---------------------------- Statements ----------------------------===//
 
-  RecursiveCoroutine<void> emitKeywordStatement(Keyword K) {
-    Out << C.getKeyword(K) << ';' << '\n';
-    rc_return;
-  }
-
   RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S) {
     // TODO: Emit variable name from the model once the model is extended to
     //       provide this information.
@@ -1230,12 +1225,6 @@ public:
     if (auto S = mlir::dyn_cast<GoToOp>(Op))
       return emitGotoStatement(S);
 
-    if (mlir::isa<LoopBreakOp, SwitchBreakOp>(Op))
-      return emitKeywordStatement(Keyword::Break);
-
-    if (mlir::isa<LoopContinueOp>(Op))
-      return emitKeywordStatement(Keyword::Continue);
-
     if (auto S = mlir::dyn_cast<ReturnOp>(Op))
       return emitReturnStatement(S);
 
@@ -1263,12 +1252,7 @@ public:
   }
 
   static bool mayElideBraces(mlir::Operation *Op) {
-    return mlir::isa<ExpressionStatementOp,
-                     GoToOp,
-                     ReturnOp,
-                     SwitchBreakOp,
-                     LoopBreakOp,
-                     LoopContinueOp>(Op);
+    return mlir::isa<ExpressionStatementOp, GoToOp, ReturnOp>(Op);
   }
 
   static bool mayElideBraces(mlir::Region &R) {
