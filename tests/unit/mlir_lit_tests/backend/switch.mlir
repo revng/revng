@@ -20,16 +20,14 @@ module attributes {clift.module} {
     clift.switch {
       %0 = clift.imm 0 : !int32_t
       clift.yield %0 : !int32_t
-    // CHECK: case 0: {
+    // CHECK: case 0:
     } case 0 {
       // CHECK: 1;
       clift.expr {
         %1 = clift.imm 1 : !int32_t
         clift.yield %1 : !int32_t
       }
-      // CHECK: break;
-      clift.switch_break
-    // CHECK: }
+    // CHECK: break;
     // CHECK: default:
     } default {
       // CHECK: 2;
@@ -38,7 +36,7 @@ module attributes {clift.module} {
         clift.yield %2 : !int32_t
       }
     }
-    // CHECK: }
+    // CHECK: break;
   }
   // CHECK: }
 }

@@ -135,26 +135,6 @@ public:
                                << " must be directly nested within a"
                                   " ModuleOp.";
 
-    if (mlir::isa<SwitchBreakOp>(Op)) {
-      if (not hasLoopOrSwitchParent(Op,
-                                    LoopOrSwitch::Switch,
-                                    /*DirectlyNested=*/true))
-        return Op->emitOpError()
-               << Op->getName() << " must be nested within a switch operation.";
-    } else if (mlir::isa<LoopBreakOp>(Op)) {
-      if (not hasLoopOrSwitchParent(Op,
-                                    LoopOrSwitch::Loop,
-                                    /*DirectlyNested=*/true))
-        return Op->emitOpError()
-               << Op->getName() << " must be nested within a loop operation.";
-    } else if (mlir::isa<LoopContinueOp>(Op)) {
-      if (not hasLoopOrSwitchParent(Op,
-                                    LoopOrSwitch::Loop,
-                                    /*DirectlyNested=*/false))
-        return Op->emitOpError()
-               << Op->getName() << " must be nested within a loop operation.";
-    }
-
     return mlir::success();
   }
 
@@ -189,36 +169,6 @@ public:
 private:
   llvm::DenseMap<llvm::StringRef, DefinedType> Definitions;
   llvm::DenseSet<ClassType> ClassTypes;
-
-  static std::optional<LoopOrSwitch> isLoopOrSwitch(mlir::Operation *Op) {
-    if (mlir::isa<ForOp, DoWhileOp, WhileOp>(Op))
-      return LoopOrSwitch::Loop;
-
-    if (mlir::isa<SwitchOp>(Op))
-      return LoopOrSwitch::Switch;
-
-    return std::nullopt;
-  }
-
-  // Finds a loop or switch operation ancestor of the specified op. If
-  // DirectlyNested is true, stops at the first such parent found, regardless of
-  // its kind. Does not consider other statements, such as if-statements at all.
-  bool hasLoopOrSwitchParent(mlir::Operation *Op,
-                             LoopOrSwitch Kind,
-                             bool DirectlyNested) {
-    while (Op != getCurrentModuleLevelOp()) {
-      Op = Op->getParentOp();
-
-      if (auto OpKind = isLoopOrSwitch(Op)) {
-        if (*OpKind == Kind)
-          return true;
-
-        if (DirectlyNested)
-          return false;
-      }
-    }
-    return false;
-  }
 };
 
 static mlir::LogicalResult verifyModuleAttr(mlir::Operation *Op,
