@@ -26,7 +26,7 @@ Configuration:
    UseATTSyntax: true
 EOF
 
-./bin/revng artifact --resume "${TEST_DIR}"/resume-dir decompile-to-single-file /dev/null
+./bin/revng artifact --resume "${TEST_DIR}"/resume-dir emit-model-header /dev/null
 
 USE_ATT_SYNTAX=$(yq '.Configuration.Disassembly.UseATTSyntax' "${TEST_DIR}"/resume-dir/context/model.yml)
 USE_X86_ATT_SYNTAX=$(yq '.Configuration.Disassembly.UseX86ATTSyntax' "${TEST_DIR}"/resume-dir/context/model.yml)
