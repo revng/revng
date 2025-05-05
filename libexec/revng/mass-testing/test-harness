@@ -125,11 +125,16 @@ def kill_and_reap_children(exclude_pids: Collection[int]):
 def pid_has_signal(pid: int, signalno: int) -> bool:
     # This checks that the specified process has registered a handler for the
     # specified signal. It uses the `SigCgt` field of `/proc/<pid>/status`.
+    try:
+        with open(f"/proc/{pid}/status") as file:
+            lines = file.read()
+    except FileNotFoundError:
+        return False
+
     signal_bits = 0
-    with open(f"/proc/{pid}/status") as file:
-        for line in file:
-            if line.startswith("SigCgt:"):
-                signal_bits = int(line.removeprefix("SigCgt:"), 16)
+    for line in lines.split("\n"):
+        if line.startswith("SigCgt:"):
+            signal_bits = int(line.removeprefix("SigCgt:"), 16)
     return signal_bits & (2 ** (signalno - 1)) > 0
 
 
