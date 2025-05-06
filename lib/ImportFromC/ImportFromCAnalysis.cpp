@@ -129,12 +129,8 @@ struct ImportFromCAnalysis {
     auto MaybeFilterModelPath = TemporaryFile::make("filtered-model-header-"
                                                     "ptml",
                                                     "h");
-    if (!MaybeFilterModelPath) {
-      std::error_code EC = MaybeFilterModelPath.getError();
-      return llvm::createStringError(EC,
-                                     "Couldn't create temporary file: "
-                                       + EC.message());
-    }
+    if (not MaybeFilterModelPath)
+      return MaybeFilterModelPath.takeError();
 
     TemporaryFile &FilterModelPath = MaybeFilterModelPath.get();
     std::error_code ErrorCode;

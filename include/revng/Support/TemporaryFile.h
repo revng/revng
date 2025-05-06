@@ -25,19 +25,25 @@ public:
     llvm::sys::RemoveFileOnSignal(Path);
   }
 
-  static llvm::ErrorOr<TemporaryFile> make(const llvm::Twine &Prefix,
-                                           llvm::StringRef Suffix = "") {
+  static llvm::Expected<TemporaryFile> make(const llvm::Twine &Prefix,
+                                            llvm::StringRef Suffix = "") {
     using llvm::sys::fs::createTemporaryFile;
     llvm::SmallString<32> TempPath;
     int FD;
-    if (auto EC = createTemporaryFile(Prefix, Suffix, FD, TempPath); EC)
-      return EC;
+    if (auto EC = createTemporaryFile(Prefix, Suffix, FD, TempPath); EC) {
+      return llvm::createStringError(EC,
+                                     "Could not create temporary file: "
+                                       + EC.message());
+    }
 
     return TemporaryFile(TempPath, 0);
   }
 
   TemporaryFile(TemporaryFile &&Other) { *this = std::move(Other); }
   TemporaryFile &operator=(TemporaryFile &&Other) {
+    if (this == &Other)
+      return *this;
+
     if (not Path.empty()) {
       revng::cantFail(llvm::sys::fs::remove(Path));
       llvm::sys::DontRemoveFileOnSignal(Path);

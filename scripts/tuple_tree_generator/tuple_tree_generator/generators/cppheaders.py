@@ -8,9 +8,11 @@ from typing import Dict, Optional
 
 from jinja2 import Environment
 
-from ..schema import Definition, EnumDefinition, ReferenceDefinition, ScalarDefinition, Schema
-from ..schema import SequenceDefinition, SequenceStructField, StructDefinition, StructField
-from ..schema import UpcastableDefinition
+from tuple_tree_generator.schema import Definition, EnumDefinition, ReferenceDefinition
+from tuple_tree_generator.schema import ScalarDefinition, Schema, SequenceDefinition
+from tuple_tree_generator.schema import SequenceStructField, StructDefinition, StructField
+from tuple_tree_generator.schema import UpcastableDefinition
+
 from .jinja_utils import loader
 
 

@@ -6,7 +6,7 @@ It's an XML format aimed at enriching a plain text file with meta information us
 When dealing with PTML on the terminal you either want to strip all the markup:
 
 ```bash
-$ echo '<span data-token="asm.register">rax</span>' | orc shell revng ptml
+$ echo -e '<span data-token="asm.register">rax\n</span>' | orc shell revng ptml
 rax
 ```
 

@@ -150,6 +150,14 @@ python_module(TARGET_NAME revng-merge-dynamic WHEEL revng_internal MODULE_FILES
               ${MERGE_DYNAMIC_MODULE_FILES})
 
 #
+# Install revng.ptml
+#
+set(REVNG_PTML_MODULE_FILES revng/ptml/__init__.py revng/ptml/actions.py
+                            revng/ptml/parser.py revng/ptml/printer.py)
+python_module(TARGET_NAME revng-ptml WHEEL revng MODULE_FILES
+              ${REVNG_PTML_MODULE_FILES})
+
+#
 # Install revng.model_dump
 #
 set(DUMP_MODEL_MODULE_FILES
@@ -177,6 +185,8 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/pipeline_tools.py
     revng/internal/cli/_commands/override_by_name.py
     revng/internal/cli/_commands/daemon.py
+    revng/internal/cli/_commands/llm_rename/__init__.py
+    revng/internal/cli/_commands/llm_rename/prompt.tpl
     revng/internal/cli/_commands/hard_purge.py
     revng/internal/cli/_commands/process_docs_yaml/__init__.py
     revng/internal/cli/_commands/import_idb.py
@@ -184,7 +194,8 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/test_docs.py
     revng/internal/cli/_commands/trace_run.py
     revng/internal/cli/_commands/model_compare.py
-    revng/internal/cli/_commands/model_migrate.py)
+    revng/internal/cli/_commands/model_migrate.py
+    revng/internal/cli/_commands/ptml.py)
 python_module(TARGET_NAME revng-python-cli-commands WHEEL revng_internal
               MODULE_FILES ${REVNG_CLI_COMMANDS_MODULE_FILES})
 
@@ -196,13 +207,6 @@ python_module(
   TARGET_NAME revng-python-cli-commands-generate-migrations WHEEL
   revng_internal MODULE_FILES
   ${REVNG_CLI_COMMANDS_GENERATE_MIGRATION_MODULE_FILES})
-
-set(REVNG_CLI_COMMANDS_PTML_MODULE_FILES
-    revng/internal/cli/_commands/ptml/text.py
-    revng/internal/cli/_commands/ptml/common.py
-    revng/internal/cli/_commands/ptml/__init__.py)
-python_module(TARGET_NAME revng-python-cli-commands-ptml WHEEL revng_internal
-              MODULE_FILES ${REVNG_CLI_COMMANDS_PTML_MODULE_FILES})
 
 set(REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES
     revng/internal/cli/_commands/fetch_debuginfo/pe.py
@@ -274,13 +278,22 @@ python_module(TARGET_NAME revng-python-daemon WHEEL revng_internal MODULE_FILES
               ${REVNG_DAEMON_MODULE_FILES})
 
 #
+# Install revng.internal.support
+#
+set(REVNG_INTERNAL_SUPPORT_MODULE_FILES
+    revng/internal/support/__init__.py revng/internal/support/elf.py
+    revng/internal/support/collect.py)
+python_module(TARGET_NAME revng-python-internal-support WHEEL revng_internal
+              MODULE_FILES ${REVNG_INTERNAL_SUPPORT_MODULE_FILES})
+
+#
 # Install revng.support
 #
 set(REVNG_SUPPORT_MODULE_FILES
-    revng/internal/support/__init__.py revng/internal/support/elf.py
-    revng/internal/support/collect.py)
-python_module(TARGET_NAME revng-python-support WHEEL revng_internal
-              MODULE_FILES ${REVNG_SUPPORT_MODULE_FILES})
+    revng/support/__init__.py revng/support/artifacts.py
+    revng/support/location.py)
+python_module(TARGET_NAME revng-python-support WHEEL revng MODULE_FILES
+              ${REVNG_SUPPORT_MODULE_FILES})
 
 #
 # Install revng.pipeline_description

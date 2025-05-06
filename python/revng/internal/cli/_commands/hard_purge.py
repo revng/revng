@@ -3,13 +3,12 @@
 #
 
 import sys
-from argparse import FileType
 
 import yaml
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
 from revng.internal.cli.revng import run_revng_command
-from revng.internal.cli.support import temporary_file_gen
+from revng.internal.cli.support import file_wrapper, temporary_file_gen
 
 
 class HardPurgeCommand(Command):
@@ -21,15 +20,9 @@ class HardPurgeCommand(Command):
         )
 
     def register_arguments(self, parser):
+        parser.add_argument("reference_model_path", help="The reference model in form of YAML.")
         parser.add_argument(
-            "reference_model_path", type=FileType("rb"), help="The reference model in form of YAML."
-        )
-        parser.add_argument(
-            "original_model_path",
-            type=FileType("r"),
-            default=sys.stdin,
-            nargs="?",
-            help="The original model in form of YAML.",
+            "original_model_path", nargs="?", help="The original model in form of YAML."
         )
         parser.add_argument(
             "-o",
@@ -50,7 +43,7 @@ class HardPurgeCommand(Command):
         functions_to_preserve = set()
 
         # Collect functions to be preserved.
-        with args.reference_model_path as reference_model_file:
+        with open(args.reference_model_path, "rb") as reference_model_file:
             self.log("Loading the reference model...")
             reference_model = yaml.load(reference_model_file, Loader=yaml.SafeLoader)
 
@@ -69,7 +62,7 @@ class HardPurgeCommand(Command):
         # Remove the functions.
         self.log("Removing functions from original mode...")
         patched_model = {}
-        with args.original_model_path as patched_file:
+        with file_wrapper(args.original_model_path, "r") as patched_file:
             patched_model = yaml.load(patched_file, Loader=yaml.SafeLoader)
 
             # Delete functions.

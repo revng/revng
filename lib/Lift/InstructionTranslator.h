@@ -11,7 +11,6 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/ErrorOr.h"
 
 #include "revng/Support/ProgramCounterHandler.h"
 
@@ -121,7 +120,7 @@ public:
   void registerDirectJumps();
 
 private:
-  llvm::ErrorOr<std::vector<llvm::Value *>>
+  llvm::Expected<std::vector<llvm::Value *>>
   translateOpcode(PTCOpcode Opcode,
                   std::vector<uint64_t> ConstArguments,
                   std::vector<llvm::Value *> InArguments);

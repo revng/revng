@@ -12,7 +12,7 @@ from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
-from revng.internal.cli.support import log_error
+from revng.support import log_error
 
 from .common import log, logger
 from .elf import fetch_dwarf

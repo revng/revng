@@ -3,9 +3,9 @@
 #
 
 import argparse
-import sys
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.support import file_wrapper
 
 from .log import set_verbose
 from .merge_dynamic import merge_dynamic
@@ -30,12 +30,7 @@ class MergeDynamicCommand(Command):
             help="The original ELF.",
         )
         parser.add_argument(
-            "output",
-            metavar="OUTPUT",
-            nargs="?",
-            type=argparse.FileType("wb"),
-            default=sys.stdout,
-            help="The output ELF (stdout if omitted)",
+            "output", metavar="OUTPUT", nargs="?", help="The output ELF (stdout if omitted)"
         )
         parser.add_argument(
             "--verbose",
@@ -60,16 +55,18 @@ class MergeDynamicCommand(Command):
 
         base = int(args.base, base=0)
 
-        with open(args.source, "rb") as source_file, open(args.to_extend, "rb") as to_extend_file:
+        with open(args.source, "rb") as source_file, open(
+            args.to_extend, "rb"
+        ) as to_extend_file, file_wrapper(args.output, "wb") as output_file:
             retcode = merge_dynamic(
                 to_extend_file,
                 source_file,
-                args.output,
+                output_file,
                 base=base,
                 merge_load_segments=args.merge_load_segments,
             )
+            output_file.flush()
 
-        args.output.flush()
         return retcode
 
 

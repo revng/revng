@@ -25,6 +25,12 @@ inline void cantFail(std::error_code EC) {
   revng_assert(not EC);
 }
 
+template<typename T>
+inline T cantFail(llvm::ErrorOr<T> Obj) {
+  revng_assert(Obj);
+  return std::move(Obj.get());
+}
+
 template<RangeOf<llvm::Error> T>
 inline llvm::Error joinErrors(T &Container) {
   auto Size = std::ranges::distance(Container);

@@ -11,7 +11,7 @@ from tempfile import NamedTemporaryFile
 
 import yaml
 
-from ...commands_registry import Command, Options
+from revng.internal.cli.commands_registry import Command, Options
 
 
 class MassTestingConfigureCommand(Command):

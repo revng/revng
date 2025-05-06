@@ -98,14 +98,14 @@ def get_middlewares(manager: Manager, hooks: PluginHooks) -> List[Middleware]:
 
     return [
         *hooks.middlewares_early,
-        Middleware(
-            CORSMiddleware,
+        Middleware(  # type: ignore
+            CORSMiddleware,  # type: ignore
             allow_origins=origins,
             expose_headers=expose_headers,
             allow_methods=["*"],
             allow_headers=["*"],
         ),
-        Middleware(GZipMiddleware, minimum_size=1024),
+        Middleware(GZipMiddleware, minimum_size=1024),  # type: ignore
         *hooks.middlewares_late,
         Middleware(ManagerCredentialsMiddleware, manager=manager),
     ]

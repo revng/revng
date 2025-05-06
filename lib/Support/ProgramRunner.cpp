@@ -10,6 +10,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Program.h"
@@ -18,6 +19,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/PathList.h"
 #include "revng/Support/ProgramRunner.h"
+#include "revng/Support/TemporaryFile.h"
 
 static Logger<> Log("program-runner");
 
@@ -47,6 +49,12 @@ bool ProgramRunner::isProgramAvailable(llvm::StringRef ProgramName) {
 
 int ProgramRunner::run(llvm::StringRef ProgramName,
                        llvm::ArrayRef<std::string> Args) {
+  return run(ProgramName, Args, {}).ExitCode;
+}
+
+ProgramRunner::Result ProgramRunner::run(llvm::StringRef ProgramName,
+                                         llvm::ArrayRef<std::string> Args,
+                                         RunOptions Options) {
   auto MaybeProgramPath = llvm::sys::findProgramByName(ProgramName, PathsRef);
   revng_assert(MaybeProgramPath,
                (ProgramName.str() + " was not found in "
@@ -66,8 +74,56 @@ int ProgramRunner::run(llvm::StringRef ProgramName,
     Log << DoLog;
   }
 
-  int ExitCode = llvm::sys::ExecuteAndWait(StringRefs[0], StringRefs);
+  // Prepare redirects
+  std::optional<TemporaryFile> Stdin;
+  std::optional<TemporaryFile> Stdout;
+  std::optional<TemporaryFile> Stderr;
+  std::vector<std::optional<llvm::StringRef>> Redirects = { std::nullopt,
+                                                            std::nullopt,
+                                                            std::nullopt };
+  if (Options.Stdin.has_value()) {
+    Stdin.emplace("ProgramRunner-stdin");
+    Redirects[0] = Stdin->path();
+
+    std::error_code EC;
+    llvm::raw_fd_stream Stream(Stdin->path(), EC);
+    revng_assert(not EC);
+    Stream << *(Options.Stdin);
+    Stream.flush();
+  }
+
+  if (Options.Capture == CaptureOption::StdoutOnly
+      || Options.Capture == CaptureOption::StdoutAndStderrSeparately
+      || Options.Capture == CaptureOption::StdoutAndStderrJoined) {
+    Stdout.emplace("ProgramRunner-stdout");
+    Redirects[1] = Stdout->path();
+    if (Options.Capture == CaptureOption::StdoutAndStderrJoined)
+      Redirects[2] = Stdout->path();
+  }
+
+  if (Options.Capture == CaptureOption::StderrOnly
+      || Options.Capture == CaptureOption::StdoutAndStderrSeparately) {
+    Stderr.emplace("ProgramRunner-stderr");
+    Redirects[2] = Stderr->path();
+  }
+
+  int ExitCode = llvm::sys::ExecuteAndWait(StringRefs[0],
+                                           StringRefs,
+                                           /* Env */ std::nullopt,
+                                           Redirects);
   revng_log(Log, "Program exited with code " << ExitCode);
 
-  return ExitCode;
+  std::string StdoutString;
+  std::string StderrString;
+  if (Stdout.has_value()) {
+    auto Buffer = revng::cantFail(llvm::MemoryBuffer::getFile(Stdout->path()));
+    StdoutString = Buffer->getBuffer().str();
+  }
+
+  if (Stderr.has_value()) {
+    auto Buffer = revng::cantFail(llvm::MemoryBuffer::getFile(Stderr->path()));
+    StderrString = Buffer->getBuffer().str();
+  }
+
+  return { ExitCode, StdoutString, StderrString };
 }

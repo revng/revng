@@ -15,7 +15,7 @@ from typing import Dict, List
 import yaml
 
 from revng.internal.cli.commands_registry import Command, Options
-from revng.internal.cli.support import get_root
+from revng.support import get_root
 
 from .db import create_and_populate
 from .meta import GlobalMeta

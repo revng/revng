@@ -6,31 +6,11 @@ import os
 from fnmatch import fnmatch
 from itertools import chain
 from pathlib import Path
-from typing import Generator, Iterable, List, Optional, Set, Tuple
+from typing import Generator, Iterable, List, Set, Tuple
 
-from . import AnyPath, AnyPaths
+from revng.support import AnyPath, AnyPaths, collect_files
+
 from .elf import get_elf_needed
-
-
-def collect_files_gen(
-    search_prefixes: AnyPaths, path_components: Iterable[AnyPath], pattern: str
-) -> Generator[str, None, None]:
-    if isinstance(search_prefixes, (str, Path)):
-        prefixes: Iterable[AnyPath] = (search_prefixes,)
-    else:
-        prefixes = search_prefixes
-
-    already_found = set()
-    for prefix in prefixes:
-        analyses_path = Path(prefix).joinpath(*path_components)
-        if not analyses_path.is_dir():
-            continue
-
-        # Enumerate all the libraries containing analyses
-        for library in analyses_path.glob(pattern):
-            if library.is_file() and library.name not in already_found:
-                already_found.add(library.name)
-                yield str(library.resolve())
 
 
 def collect_files_recursive(
@@ -67,18 +47,6 @@ def collect_files_recursive(
 
                 already_found.add(file_path_relative)
                 yield (str(file_path_relative), str(file_path.resolve()))
-
-
-def collect_files(
-    search_prefixes: AnyPaths, path_components: Iterable[AnyPath], pattern: str
-) -> List[str]:
-    return list(collect_files_gen(search_prefixes, path_components, pattern))
-
-
-def collect_one(
-    search_prefixes: AnyPaths, path_components: Iterable[AnyPath], pattern: str
-) -> Optional[str]:
-    return next(collect_files_gen(search_prefixes, path_components, pattern), None)
 
 
 def collect_libraries(search_prefixes: AnyPaths) -> Tuple[List[str], Set[str]]:

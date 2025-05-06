@@ -11,7 +11,9 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional, Sequence, Tuple
 
-from .support import Options, collect_files, executable_name, try_run
+from revng.support import collect_files
+
+from .support import Options, executable_name, try_run
 
 
 class Command(ABC):

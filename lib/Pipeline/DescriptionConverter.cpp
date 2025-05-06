@@ -15,6 +15,7 @@ describe(const pipeline::AnalysisWrapper &Analysis) {
   pipeline::description::Analysis Result;
 
   Result.Name() = Analysis->getUserBoundName();
+  Result.Available() = Analysis->isAvailable();
 
   auto ContainerInputs = Analysis->getRunningContainersNames();
   for (size_t I = 0; I < ContainerInputs.size(); I++) {

@@ -302,18 +302,26 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
                               StepName.str().c_str());
   }
 
+  pipeline::Step &TheStep = MaybeStep->second;
+  if (not TheStep.hasAnalysis(AnalysisName)) {
+    return revng::createError("Step %s does not have an analysis named %s",
+                              StepName.str().c_str(),
+                              AnalysisName.str().c_str());
+  }
+
+  if (not TheStep.getAnalysis(AnalysisName)->isAvailable()) {
+    return revng::createError("Analysis %s is not available",
+                              AnalysisName.str().c_str());
+  }
+
   Task T(3, "Analysis execution");
   T.advance("Produce step " + StepName, true);
   if (llvm::Error Error = run(StepName, Targets))
     return std::move(Error);
 
   T.advance("Run analysis", true);
-  if (llvm::Error Error = MaybeStep->second.runAnalysis(AnalysisName,
-                                                        Targets,
-                                                        Options);
-      Error) {
+  if (llvm::Error Error = TheStep.runAnalysis(AnalysisName, Targets, Options))
     return std::move(Error);
-  }
 
   T.advance("Apply diff produced by the analysis", true);
   const GlobalsMap &After = getContext().getGlobals();

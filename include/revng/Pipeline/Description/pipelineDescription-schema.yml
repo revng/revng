@@ -152,6 +152,9 @@ definitions:
         sequence:
           type: SortedVector
           elementType: AnalysisOption
+      - name: Available
+        doc: If the analysis is available for execution
+        type: bool
     key:
       - Name
   - name: AnalysisOption

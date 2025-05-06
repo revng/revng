@@ -406,10 +406,8 @@ S3StorageClient::getReadableFile(llvm::StringRef Path) {
     return toError(Result);
 
   auto MaybeTemporary = TemporaryFile::make("revng-s3-storage");
-  if (!MaybeTemporary) {
-    return llvm::createStringError(MaybeTemporary.getError(),
-                                   "Could not create temporary file");
-  }
+  if (not MaybeTemporary)
+    return MaybeTemporary.takeError();
 
   std::ofstream OS(MaybeTemporary->path().str(), std::ios::binary);
   if (OS.fail()) {
@@ -443,10 +441,8 @@ llvm::Expected<std::unique_ptr<WritableFile>>
 S3StorageClient::getWritableFile(llvm::StringRef Path,
                                  ContentEncoding Encoding) {
   auto MaybeTemporary = TemporaryFile::make("revng-s3-storage");
-  if (!MaybeTemporary) {
-    return llvm::createStringError(MaybeTemporary.getError(),
-                                   "Could not create temporary file");
-  }
+  if (not MaybeTemporary)
+    return MaybeTemporary.takeError();
 
   std::error_code EC;
   auto OS = std::make_unique<llvm::raw_fd_ostream>(MaybeTemporary->path(), EC);

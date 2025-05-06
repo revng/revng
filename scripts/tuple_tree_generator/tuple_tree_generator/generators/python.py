@@ -5,9 +5,12 @@
 import black
 from jinja2 import Environment
 
-from ..schema import Definition, EnumDefinition, ReferenceDefinition, ScalarDefinition, Schema
-from ..schema import SequenceDefinition, StructDefinition, StructField, UpcastableDefinition
-from ..schema.struct import ReferenceStructField, SequenceStructField, SimpleStructField
+from tuple_tree_generator.schema import Definition, EnumDefinition, ReferenceDefinition
+from tuple_tree_generator.schema import ScalarDefinition, Schema, SequenceDefinition
+from tuple_tree_generator.schema import StructDefinition, StructField, UpcastableDefinition
+from tuple_tree_generator.schema.struct import ReferenceStructField, SequenceStructField
+from tuple_tree_generator.schema.struct import SimpleStructField
+
 from .jinja_utils import int_re, is_reference_struct_field, is_sequence_struct_field
 from .jinja_utils import is_simple_struct_field, loader
 

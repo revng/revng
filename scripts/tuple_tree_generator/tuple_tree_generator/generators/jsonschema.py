@@ -6,8 +6,10 @@ from typing import Any, Dict, MutableMapping
 
 import yaml
 
-from ..schema import EnumDefinition, ReferenceStructField, ScalarDefinition, Schema
-from ..schema import SequenceStructField, SimpleStructField, StructDefinition, StructField
+from tuple_tree_generator.schema import EnumDefinition, ReferenceStructField, ScalarDefinition
+from tuple_tree_generator.schema import Schema, SequenceStructField, SimpleStructField
+from tuple_tree_generator.schema import StructDefinition, StructField
+
 from .jinja_utils import int_re
 
 

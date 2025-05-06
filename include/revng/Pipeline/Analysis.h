@@ -28,6 +28,8 @@ public:
   virtual llvm::ArrayRef<Kind *>
   getAcceptedKinds(size_t ContainerIndex) const = 0;
 
+  virtual bool isAvailable() const = 0;
+
   virtual std::unique_ptr<AnalysisWrapperBase>
   clone(std::vector<std::string> NewRunningContainersNames = {}) const = 0;
 
@@ -40,6 +42,11 @@ public:
   const std::string &getUserBoundName() const { return BoundName; }
 
   void setUserBoundName(std::string NewName) { BoundName = std::move(NewName); }
+};
+
+template<typename T>
+concept HasIsAvailable = requires(T V) {
+  { T::isAvailable() } -> std::same_as<bool>;
 };
 
 template<typename Analysis>
@@ -71,6 +78,13 @@ public:
   llvm::ArrayRef<Kind *>
   getAcceptedKinds(size_t ContainerIndex) const override {
     return Invokable.getPipe().AcceptedKinds.at(ContainerIndex);
+  }
+
+  bool isAvailable() const override {
+    if constexpr (HasIsAvailable<Analysis>)
+      return Analysis::isAvailable();
+    else
+      return true;
   }
 
   void dump(std::ostream &OS, size_t Indentation) const override {

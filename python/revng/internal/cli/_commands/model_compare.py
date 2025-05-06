@@ -22,6 +22,7 @@ from networkx import DiGraph
 from networkx.algorithms.shortest_paths.unweighted import all_pairs_shortest_path_length
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.cli.support import file_wrapper
 
 args = None
 
@@ -359,12 +360,6 @@ def selftest():
     return 0
 
 
-def open_argument(path):
-    if path == "-":
-        return sys.stdin
-    return open(path, encoding="utf-8")  # noqa: SIM115
-
-
 class ModelCompareCommand(Command):
     def __init__(self):
         super().__init__(("model", "compare"), "Compare a YAML file against a reference")
@@ -392,8 +387,12 @@ class ModelCompareCommand(Command):
         if args.selftest:
             return selftest()
 
-        with open_argument(args.reference) as reference_file, open_argument(
-            args.input
+        if args.reference in (None, "-") and args.input in (None, "-"):
+            sys.stderr.write("Either reference or input can be stdin, not both\n")
+            return 1
+
+        with file_wrapper(args.reference, "r") as reference_file, file_wrapper(
+            args.input, "r"
         ) as input_file:
             reference = yaml.safe_load(reference_file)
             input_ = yaml.safe_load(input_file)

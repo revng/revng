@@ -6,21 +6,21 @@ import os
 import shlex
 import signal
 import sys
+from contextlib import contextmanager
 from dataclasses import dataclass
 from io import BytesIO
-from shutil import which
 from subprocess import Popen
 from tarfile import open as tar_open
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, Iterable, List, Mapping, NoReturn, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Literal, Mapping, NoReturn, Optional
+from typing import Tuple, Union
 
 import yaml
 
-from revng.internal.support import get_root, read_lines
-from revng.internal.support.collect import collect_files, collect_libraries
+from revng.internal.support.collect import collect_libraries
 from revng.internal.support.elf import is_executable
+from revng.support import get_command
 
-additional_bin_paths = read_lines(get_root() / "share/revng/additional-bin-paths")
 OptionalEnv = Optional[Mapping[str, str]]
 
 
@@ -37,10 +37,6 @@ class Options:
 
 def shlex_join(split_command: Iterable[str]) -> str:
     return " ".join(shlex.quote(arg) for arg in split_command)
-
-
-def log_error(msg: str):
-    sys.stderr.write(msg + "\n")
 
 
 def wrap(args: List[str], command_prefix: List[str]):
@@ -121,18 +117,6 @@ def exec_run(command, options: Options, environment: OptionalEnv) -> Union[int, 
         return 0
 
     return os.execvpe(command[0], command, environment)
-
-
-def get_command(command: str, search_prefixes: Iterable[str]) -> str:
-    for additional_bin_path in additional_bin_paths:
-        for executable in collect_files(search_prefixes, [additional_bin_path], command):
-            return executable
-
-    path = which(command)
-    if not path:
-        log_error(f'Couldn\'t find "{command}".')
-        assert False
-    return os.path.abspath(path)
 
 
 def interleave(base: List[str], repeat: str):
@@ -222,3 +206,20 @@ def temporary_file_gen(prefix: str, options: Options):
         )
 
     return temporary_file
+
+
+@contextmanager
+def file_wrapper(path: str | None, mode: Literal["r", "rb", "w", "wb"]):
+    """Automatic wrapper for `open` for command-line arguments, to be used in
+    a `with` statement. Will automatically return stdin/stdout based on `mode`
+    in case the provided path is None or "-".
+    """
+    assert mode in ("r", "rb", "w", "wb")
+    if path is None or path == "-":
+        if "r" in mode:
+            yield sys.stdin.buffer if "b" in mode else sys.stdin
+        else:
+            yield sys.stdout.buffer if "b" in mode else sys.stdout
+    else:
+        with open(path, mode) as f:
+            yield f
