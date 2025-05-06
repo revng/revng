@@ -21,7 +21,8 @@ using namespace std;
 
 void Contract::deduceResults(const Context &Context,
                              ContainerToTargetsMap &StepStatus,
-                             ArrayRef<string> Names) const {
+                             ArrayRef<string> Names,
+                             bool ForInvalidation) const {
   auto &OutputContainerTarget = StepStatus[Names[PipeArgumentTargetIndex]];
 
   TargetsList Tmp;
@@ -243,9 +244,15 @@ void Contract::insertDefaultInput(const Context &Context,
 }
 
 bool ContractGroup::forwardMatches(const BCS &Status,
-                                   llvm::ArrayRef<std::string> Names) const {
-  return all_of(Content,
-                [&](const auto &C) { return C.forwardMatches(Status, Names); });
+                                   llvm::ArrayRef<std::string> Names,
+                                   bool ForInvalidation) const {
+  auto InnerForwardMatches = [&](const auto &C) {
+    return C.forwardMatches(Status, Names);
+  };
+  if (ForInvalidation)
+    return any_of(Content, InnerForwardMatches);
+  else
+    return all_of(Content, InnerForwardMatches);
 }
 
 bool ContractGroup::backwardMatches(const BCS &Status,
@@ -292,8 +299,9 @@ ContractGroup::deduceRequirements(const Context &Context,
 
 void ContractGroup::deduceResults(const Context &Context,
                                   ContainerToTargetsMap &StepStatus,
-                                  ArrayRef<string> Names) const {
-  if (not forwardMatches(StepStatus, Names))
+                                  ArrayRef<string> Names,
+                                  bool ForInvalidation) const {
+  if (not forwardMatches(StepStatus, Names, ForInvalidation))
     return;
 
   ContainerToTargetsMap Results;

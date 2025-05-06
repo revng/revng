@@ -109,7 +109,8 @@ public:
 
   virtual ContainerToTargetsMap
   deduceResults(const Context &Context,
-                ContainerToTargetsMap &Target) const = 0;
+                ContainerToTargetsMap &Target,
+                bool ForInvalidation = false) const = 0;
 
   virtual bool areRequirementsMet(const Context &Context,
                                   const ContainerToTargetsMap &Input) const = 0;
@@ -242,13 +243,15 @@ public:
 
   ContainerToTargetsMap
   deduceResults(const Context &Context,
-                ContainerToTargetsMap &Target) const override {
+                ContainerToTargetsMap &Target,
+                bool ForInvalidation = false) const override {
     const auto &Contracts = Invokable.getPipe().getContract();
 
     for (const auto &Contract : Contracts) {
       Contract.deduceResults(Context,
                              Target,
-                             Invokable.getRunningContainersNames());
+                             Invokable.getRunningContainersNames(),
+                             ForInvalidation);
     }
 
     return Target;
@@ -324,37 +327,9 @@ public:
                                   llvm::StringRef GlobalName,
                                   const TupleTreePath &Path,
                                   ContainerToTargetsMap &Out,
-                                  Logger<> &Log) const {
-    if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end()) {
+                                  Logger<> &Log) const;
 
-      auto &Bimap = Iter->second;
-      auto It = Bimap.find(Path);
-      if (It == Bimap.end())
-        return;
-
-      if (Log.isEnabled()) {
-        Log << "Registering: ";
-        for (const auto &Entry : It->second) {
-          Log << Entry.getTarget().toString() << " in "
-              << Entry.getContainerName() << "\n";
-        }
-        Log << DoLog;
-      }
-
-      for (const auto &Entry : It->second)
-        Out.add(Entry.getContainerName(), Entry.getTarget());
-    }
-  }
-
-  void remove(const ContainerToTargetsMap &Map) {
-    for (auto &Pair : Map) {
-      auto Iter = PathCache.find(Pair.first());
-      if (Iter == PathCache.end())
-        continue;
-
-      Iter->second.remove(Pair.second, Pair.first());
-    }
-  }
+  void remove(const ContainerToTargetsMap &Map);
 
   const llvm::StringMap<PathTargetBimap> &getPathCache() const {
     return PathCache;
@@ -371,25 +346,7 @@ public:
     return PathCache[GlobalName];
   }
 
-  void dump(const pipeline::Context &Context, unsigned Indentation = 0) const {
-    for (const auto &[GlobalName, InvalidationData] : PathCache) {
-      indent(dbg, Indentation);
-      dbg << "Global " << GlobalName.str() << ":\n";
-
-      for (const auto &[Path, Targets] : PathCache.find(GlobalName)->second) {
-        indent(dbg, Indentation + 1);
-
-        dbg << llvm::cantFail(Context.getGlobals().get(GlobalName))
-                 ->serializePath(Path)
-                 .value_or("(unavailable)")
-            << ":\n";
-
-        for (const TargetInContainer &Target : Targets) {
-          Target.dump(dbg, Indentation + 2);
-        }
-      }
-    }
-  }
+  void dump(const pipeline::Context &Context, unsigned Indentation = 0) const;
 };
 
 // Due to invokable wrapper not being controllable by this file we need to have

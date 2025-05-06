@@ -118,7 +118,8 @@ Error Runner::getInvalidations(TargetInStepSet &Invalidated) const {
 
     ContainerToTargetsMap &Outputs = Invalidated[NextS.getName()];
 
-    ContainerToTargetsMap Deduced = NextS.deduceResults(Inputs);
+    ContainerToTargetsMap Deduced = NextS.deduceResults(Inputs, true);
+
     NextS.containers().intersect(Deduced);
     Outputs.merge(Deduced);
   }

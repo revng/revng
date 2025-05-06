@@ -106,30 +106,7 @@ public:
   void registerTargetsDependingOn(llvm::StringRef GlobalName,
                                   const TupleTreePath &Path,
                                   TargetInStepSet &Out,
-                                  Logger<> &Log) const {
-    ContainerToTargetsMap ToInvalidateMap;
-
-    for (const PipeWrapper &Pipe : Pipes) {
-      revng_log(Log, "Handling the " << Pipe.Pipe->getName() << " pipe");
-      LoggerIndent<> Indent(Log);
-      Pipe.InvalidationMetadata.registerTargetsDependingOn(*TheContext,
-                                                           GlobalName,
-                                                           Path,
-                                                           ToInvalidateMap,
-                                                           Log);
-      Pipe.Pipe->deduceResults(*TheContext, ToInvalidateMap);
-    }
-
-    for (auto &Container : ToInvalidateMap) {
-      if (Containers.contains(Container.first())) {
-        Container.second = Container.second.intersect(Containers
-                                                        .at(Container.first())
-                                                        .enumerate());
-      }
-    }
-
-    Out[getName()].merge(ToInvalidateMap);
-  }
+                                  Logger<> &Log) const;
 
 private:
   llvm::Error loadInvalidationMetadataImpl(const revng::DirectoryPath &Path,
@@ -278,7 +255,8 @@ public:
 
   /// Returns the predicted state of the Input containers status after the
   /// execution of all the pipes in this step.
-  ContainerToTargetsMap deduceResults(ContainerToTargetsMap Input) const;
+  ContainerToTargetsMap deduceResults(ContainerToTargetsMap Input,
+                                      bool ForInvalidation = false) const;
 
 public:
   void addPipe(PipeWrapper Wrapper) { Pipes.push_back(std::move(Wrapper)); }
