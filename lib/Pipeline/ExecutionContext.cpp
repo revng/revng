@@ -6,6 +6,7 @@
 //
 
 #include "revng/Pipeline/ExecutionContext.h"
+#include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Step.h"
 #include "revng/Pipeline/Target.h"
 

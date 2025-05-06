@@ -102,7 +102,8 @@ public:
 public:
   void deduceResults(const Context &Context,
                      ContainerToTargetsMap &StepStatus,
-                     llvm::ArrayRef<std::string> ContainerNames) const;
+                     llvm::ArrayRef<std::string> ContainerNames,
+                     bool ForInvalidation = false) const;
 
   void deduceResults(const Context &Context,
                      ContainerToTargetsMap &StepStatus,
@@ -197,10 +198,12 @@ public:
                      llvm::ArrayRef<std::string> ContainerNames) const;
   void deduceResults(const Context &Context,
                      ContainerToTargetsMap &StepStatus,
-                     llvm::ArrayRef<std::string> ContainerNames) const;
+                     llvm::ArrayRef<std::string> ContainerNames,
+                     bool ForInvalidation = false) const;
 
   bool forwardMatches(const ContainerToTargetsMap &Status,
-                      llvm::ArrayRef<std::string> ContainerNames) const;
+                      llvm::ArrayRef<std::string> ContainerNames,
+                      bool ForInvalidation = false) const;
   bool backwardMatches(const ContainerToTargetsMap &Status,
                        llvm::ArrayRef<std::string> ContainerNames) const;
 

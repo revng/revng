@@ -359,9 +359,10 @@ void Step::removeSatisfiedGoals(ContainerToTargetsMap &Targets,
   }
 }
 
-ContainerToTargetsMap Step::deduceResults(ContainerToTargetsMap Input) const {
+ContainerToTargetsMap Step::deduceResults(ContainerToTargetsMap Input,
+                                          bool ForInvalidation) const {
   for (const PipeWrapper &Pipe : Pipes)
-    Input = Pipe.Pipe->deduceResults(*TheContext, Input);
+    Input = Pipe.Pipe->deduceResults(*TheContext, Input, ForInvalidation);
   return Input;
 }
 
@@ -401,6 +402,34 @@ Error Step::load(const revng::DirectoryPath &DirPath) {
     return Error;
 
   return loadInvalidationMetadata(DirPath);
+}
+
+void Step::registerTargetsDependingOn(llvm::StringRef GlobalName,
+                                      const TupleTreePath &Path,
+                                      TargetInStepSet &Out,
+                                      Logger<> &Log) const {
+  ContainerToTargetsMap ToInvalidateMap;
+
+  for (const PipeWrapper &Pipe : Pipes) {
+    revng_log(Log, "Handling the " << Pipe.Pipe->getName() << " pipe");
+    LoggerIndent<> Indent(Log);
+    Pipe.InvalidationMetadata.registerTargetsDependingOn(*TheContext,
+                                                         GlobalName,
+                                                         Path,
+                                                         ToInvalidateMap,
+                                                         Log);
+    Pipe.Pipe->deduceResults(*TheContext, ToInvalidateMap);
+  }
+
+  for (auto &Container : ToInvalidateMap) {
+    if (Containers.contains(Container.first())) {
+      Container.second = Container.second.intersect(Containers
+                                                      .at(Container.first())
+                                                      .enumerate());
+    }
+  }
+
+  Out[getName()].merge(ToInvalidateMap);
 }
 
 llvm::Error
