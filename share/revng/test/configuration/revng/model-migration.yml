@@ -1,0 +1,44 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+tags:
+  - name: for-model-migration
+
+# To add an instance of this test for the future model version you need to add
+# a directory to the `members` list below that contains:
+#   1. a minimal `model.yml` file of the *previous* version that uses
+#      the changed fields.
+#   2. a `checks.csv` file containing a set of checks to do *after*
+#      the migration happens. They should be added in such a way that
+#      `yq $FIRST_COLUMN $MODEL_FILE` returns `$SECOND_COLUMN`.
+sources:
+  - tags: [for-model-migration]
+    prefix: share/revng/test/tests/model-migration/
+    members:
+      - v3/
+      - v4/
+
+commands:
+  - type: revng.model-migration
+    from:
+      - type: source
+        filter: for-model-migration
+    command: |-
+      RESUME=$$(mktemp -d);
+      trap 'rm --recursive --force "$${RESUME}"' EXIT;
+
+      mkdir --parents "$${RESUME}/context";
+      cp "${INPUT}/model.yml" "$${RESUME}/context/model.yml";
+
+      revng artifact --resume "$${RESUME}" emit-model-header /dev/null > /dev/null;
+
+      while IFS=',' read -r MODEL_FIELD EXPECTED_VALUE; do
+        FOUND_VALUE=$$(yq "$${MODEL_FIELD}" "$${RESUME}/context/model.yml");
+        if [[ "$${FOUND_VALUE}" != "$${EXPECTED_VALUE}" ]]; then
+          echo "Value of '$${MODEL_FIELD}' is '$${FOUND_VALUE}' instead of the expected '$${EXPECTED_VALUE}'";
+          echo "Here's the post-migration model:";
+          cat "$${RESUME}/context/model.yml";
+          exit 1;
+        fi;
+      done < <(tail -n +6 "${INPUT}/checks.csv")

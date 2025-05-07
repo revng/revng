@@ -254,16 +254,3 @@ add_crash_test(crash_test_sigtrap 5 134)
 add_crash_test(crash_test_sigbus 7 134)
 
 add_crash_test(crash_test_sigfpe 8 134)
-
-#
-# Automatic migration tests
-#
-
-revng_add_test(
-  NAME
-  automatic_migration_test
-  COMMAND
-  bash
-  ${CMAKE_CURRENT_SOURCE_DIR}/run_migration_test.sh
-  WORKING_DIRECTORY
-  ${CMAKE_BINARY_DIR})
