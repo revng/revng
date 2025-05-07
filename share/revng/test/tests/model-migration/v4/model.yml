@@ -1,0 +1,36 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Version: 3
+
+Functions:
+  - Entry: "0x1000:Code_aarch64"
+    Comments:
+      - Location:
+          - "0x1000:Code_aarch64"
+        Body: test_0
+      - Location:
+          - "0x1000:Code_aarch64"
+        Body: test_1
+      - Location:
+          - "0x1004:Code_aarch64"
+        Body: test_2
+
+# All of the following is just here to ensure the basic model above verifies
+Segments:
+  - StartAddress: "0x1000:Generic64"
+    VirtualSize: 256
+    StartOffset: 0
+    FileSize: 256
+    IsReadable: false
+    IsWriteable: false
+    IsExecutable: true
+DefaultPrototype:
+  Kind: DefinedType
+  Definition: "/TypeDefinitions/0-RawFunctionDefinition"
+TypeDefinitions:
+  - ID: 0
+    Kind: RawFunctionDefinition
+    Architecture: aarch64
+Architecture: aarch64
