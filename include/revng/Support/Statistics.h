@@ -38,10 +38,11 @@ private:
 
 public:
   CounterMap(const llvm::StringRef Name) : Name(Name.str()) {
-    OnQuit->add([this] {
+    auto Handler = [this] {
       if (Statistics)
         dump();
-    });
+    };
+    OnQuit->add(Handler, AdditionalSignals::USR1);
   }
 
   void push(K Key) { Map[Key]++; }
@@ -107,10 +108,11 @@ public:
   RunningStatistics() = default;
 
   RunningStatistics(const llvm::StringRef Name) : Name(Name.str()) {
-    OnQuit->add([this] {
+    auto Handler = [this] {
       if (Statistics)
         dump();
-    });
+    };
+    OnQuit->add(Handler, AdditionalSignals::USR1);
   }
 
   void clear() { N = 0; }

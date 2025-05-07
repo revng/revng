@@ -37,10 +37,13 @@ public:
       Path = FilePath::fromLocalStorage(Value);
   }
 
-  bool hasValue() const { return Path.has_value(); }
+  llvm::Expected<std::optional<const revng::FilePath>> get() const {
+    if (not Path.has_value())
+      return std::nullopt;
 
-  const FilePath &operator*() const {
-    revng_assert(Path.has_value());
+    if (llvm::Error Error = Path->check())
+      return Error;
+
     return *Path;
   }
 };

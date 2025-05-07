@@ -4,18 +4,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/FileSystem.h"
+
 #include "revng/Storage/Path.h"
 #include "revng/Storage/StorageClient.h"
-
-#include "LocalStorageClient.h"
-#include "StdStorageClient.h"
+#include "revng/Support/Error.h"
 
 namespace {
 
 // TODO: unix-specific, will not work on Windows
-revng::LocalStorageClient LocalClient("/");
-revng::StdinStorageClient StdinClient;
-revng::StdoutStorageClient StdoutClient;
+revng::StorageClient LocalClient("/");
 
 std::string normalizeLocalPath(llvm::StringRef Path) {
   llvm::SmallString<256> PathCopy(Path);
@@ -31,14 +29,6 @@ namespace revng {
 
 DirectoryPath DirectoryPath::fromLocalStorage(llvm::StringRef Path) {
   return revng::DirectoryPath{ &LocalClient, normalizeLocalPath(Path) };
-}
-
-FilePath FilePath::stdin() {
-  return revng::FilePath{ &StdinClient, "" };
-}
-
-FilePath FilePath::stdout() {
-  return revng::FilePath{ &StdoutClient, "" };
 }
 
 FilePath FilePath::fromLocalStorage(llvm::StringRef Path) {

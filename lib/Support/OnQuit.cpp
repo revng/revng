@@ -13,52 +13,62 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/OnQuit.h"
 
+using SignalHandlerT = decltype(signal(0, nullptr));
 struct Handler {
   int Signal;
   bool Restore;
-  struct sigaction OldHandler;
-  struct sigaction NewHandler;
+  SignalHandlerT OldHandler;
 };
 
 // Print statistics on SIGINT (Ctrl + C), SIGABRT (assertions) and SIGUSR1.
 // For SIGUSR1, don't terminate program execution.
-static std::array<Handler, 4> Handlers = { { { SIGINT, true, {}, {} },
-                                             { SIGTERM, true, {}, {} },
-                                             { SIGABRT, true, {}, {} },
-                                             { SIGUSR1, false, {}, {} } } };
+static std::array<Handler, 5> Handlers = { { { SIGINT, true, {} },
+                                             { SIGTERM, true, {} },
+                                             { SIGABRT, true, {} },
+                                             { SIGUSR1, false, {} },
+                                             { SIGUSR2, false, {} } } };
 
 llvm::ManagedStatic<OnQuitRegistry> OnQuit;
 
-static void onQuitSignalHandler(int Signal) {
-  Handler *SignalHandler = nullptr;
-  for (Handler &H : Handlers)
-    if (H.Signal == Signal)
-      SignalHandler = &H;
-
+void OnQuitRegistry::signalHandler(int Signal) {
+  auto SignalHandler = llvm::find_if(Handlers, [&Signal](const Handler &H) {
+    return H.Signal == Signal;
+  });
   // Assert we were notified of the signal we expected
-  revng_assert(SignalHandler != nullptr);
+  revng_assert(SignalHandler != Handlers.end());
 
-  OnQuit->quit();
-
+  OnQuit->callHandlersFor(Signal);
   if (not SignalHandler->Restore)
     return;
 
-  int Result = sigaction(Signal, &SignalHandler->OldHandler, nullptr);
-  revng_assert(Result == 0);
+  // If here the signal needs to be propagated to the old handler
+  SignalHandlerT Result = std::signal(Signal, SignalHandler->OldHandler);
+  revng_assert(Result != SIG_ERR);
   raise(Signal);
 }
 
 void OnQuitRegistry::install() {
   // Register signal handlers
   for (Handler &H : Handlers) {
-    H.NewHandler.sa_handler = &onQuitSignalHandler;
+    H.OldHandler = std::signal(H.Signal, &this->signalHandler);
+    revng_assert(H.OldHandler != SIG_ERR);
+  }
+}
 
-    int Result = sigaction(H.Signal, &H.NewHandler, &H.OldHandler);
-    revng_assert(Result == 0);
+void OnQuitRegistry::callHandlersFor(int Signal) {
+  if (Signal == SIGUSR1 or Signal == SIGUSR2) {
+    for (RegistryEntry &Entry : Registry) {
+      if ((Signal == SIGUSR1 and Entry.Signals == AdditionalSignals::USR1)
+          or (Signal == SIGUSR2 and Entry.Signals == AdditionalSignals::USR2)
+          or (Entry.Signals == AdditionalSignals::USR1AndUSR2))
+        Entry.Handler();
+    }
+  } else {
+    for (RegistryEntry &Entry : Registry)
+      Entry.Handler();
   }
 }
 
 void OnQuitRegistry::quit() {
-  for (std::function<void()> &Handler : Registry)
-    Handler();
+  callHandlersFor(SIGINT);
 }

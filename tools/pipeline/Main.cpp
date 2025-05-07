@@ -198,11 +198,12 @@ int main(int argc, char *argv[]) {
   AbortOnError(Manager.store(StoresOverrides));
   AbortOnError(Manager.store());
 
-  if (SaveModel.hasValue()) {
+  auto MaybeSaveModel = AbortOnError(SaveModel.get());
+  if (MaybeSaveModel.has_value()) {
     auto Context = Manager.context();
     const auto &ModelName = revng::ModelGlobalName;
     auto FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
-    AbortOnError(FinalModel->store(*SaveModel));
+    AbortOnError(FinalModel->store(*MaybeSaveModel));
   }
 
   return EXIT_SUCCESS;

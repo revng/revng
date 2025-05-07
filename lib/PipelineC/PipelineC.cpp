@@ -705,16 +705,6 @@ static const char *_rp_manager_get_pipeline_description(rp_manager *manager) {
   return manager->getPipelineDescription().data();
 }
 
-static bool _rp_manager_set_storage_credentials(rp_manager *manager,
-                                                const char *credentials) {
-  revng_check(manager != nullptr);
-  if (auto Error = manager->setStorageCredentials(credentials)) {
-    llvm::consumeError(std::move(Error));
-    return false;
-  }
-  return true;
-}
-
 static uint64_t _rp_manager_get_context_commit_index(rp_manager *manager) {
   revng_check(manager != nullptr);
   return manager->context().getCommitIndex();

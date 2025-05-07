@@ -56,15 +56,23 @@ public:
   }
 
   llvm::Expected<revng::pipes::PipelineManager> makeManager() {
+    if (llvm::sys::fs::is_regular_file(ExecutionDirectory))
+      return revng::createError("--resume points to a file");
+
     auto Manager = revng::pipes::PipelineManager::create(InputPipeline,
                                                          EnablingFlags,
                                                          ExecutionDirectory);
     if (not Manager)
       return Manager;
 
-    if (ModelOverride.hasValue())
-      if (auto Error = overrideModel(*ModelOverride, *Manager))
+    auto MaybeModelOverride = ModelOverride.get();
+    if (not MaybeModelOverride)
+      return MaybeModelOverride.takeError();
+
+    if (MaybeModelOverride->has_value()) {
+      if (auto Error = overrideModel(**MaybeModelOverride, *Manager))
         return Error;
+    }
 
     return Manager;
   }

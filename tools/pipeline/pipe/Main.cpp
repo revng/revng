@@ -89,8 +89,9 @@ int main(int argc, char *argv[]) {
 
   const auto &Name = ModelGlobalName;
   auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));
-  InputPath = Arguments[1];
-  AbortOnError(Model->load(FilePath::fromLocalStorage(Arguments[1])));
+  FilePath InputFilePath = FilePath::fromLocalStorage(Arguments[1]);
+  AbortOnError(InputFilePath.check());
+  AbortOnError(Model->load(InputFilePath));
 
   const auto &Pipe = PipesMap.find(Arguments[0])->second.Pipe;
   std::vector<std::string> DefaultNames;
@@ -110,8 +111,9 @@ int main(int argc, char *argv[]) {
     llvm::StringRef Name = ClonedPipe.Pipe->getContainerName(I);
     auto &Factory = Loader.getContainerFactory(Name);
     Set.add(DefaultNames[I], Factory, Factory(DefaultNames[I]));
-    AbortOnError(Set.at(DefaultNames[I])
-                   .load(FilePath::fromLocalStorage(Arguments[I + 2])));
+    FilePath Path = FilePath::fromLocalStorage(Arguments[I + 2]);
+    AbortOnError(Path.check());
+    AbortOnError(Set.at(DefaultNames[I]).load(Path));
   }
   auto Enumeration = Set.enumerate();
   ExecutionContext ExecutionContext(Manager.context(),
@@ -121,9 +123,11 @@ int main(int argc, char *argv[]) {
   AbortOnError(ClonedPipe.Pipe->run(ExecutionContext, Set));
 
   for (size_t I = 0; I < Pipe->getContainerArgumentsCount(); I++) {
-    if (not Pipe->isContainerArgumentConst(I))
-      AbortOnError(Set.at(DefaultNames[I])
-                     .store(FilePath::fromLocalStorage(Arguments[I + 2])));
+    if (not Pipe->isContainerArgumentConst(I)) {
+      FilePath Path = FilePath::fromLocalStorage(Arguments[I + 2]);
+      AbortOnError(Path.check());
+      AbortOnError(Set.at(DefaultNames[I]).store(Path));
+    }
   }
 
   return EXIT_SUCCESS;

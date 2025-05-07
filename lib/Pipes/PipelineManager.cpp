@@ -365,13 +365,8 @@ PipelineManager::createFromMemory(llvm::ArrayRef<std::string> PipelineContent,
                                   llvm::ArrayRef<std::string> EnablingFlags,
                                   llvm::StringRef ExecutionDirectory) {
   std::unique_ptr<revng::StorageClient> Client;
-  if (not ExecutionDirectory.empty()) {
-    auto MaybeClient = revng::StorageClient::fromPathOrURL(ExecutionDirectory);
-    if (!MaybeClient)
-      return MaybeClient.takeError();
-    Client = std::move(MaybeClient.get());
-  }
-
+  if (not ExecutionDirectory.empty())
+    Client = std::make_unique<revng::StorageClient>(ExecutionDirectory);
   return createFromMemory(PipelineContent, EnablingFlags, std::move(Client));
 }
 
@@ -770,13 +765,4 @@ llvm::Error PipelineManager::computeDescription() {
   MaybeWritableFile.get()->os() << this->Description;
 
   return MaybeWritableFile.get()->commit();
-}
-
-llvm::Error
-PipelineManager::setStorageCredentials(llvm::StringRef Credentials) {
-  if (StorageClient == nullptr) {
-    return revng::createError("Client missing");
-  }
-
-  return StorageClient->setCredentials(Credentials);
 }
