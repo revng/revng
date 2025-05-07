@@ -1,0 +1,24 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  #
+  # Test python scripting cli
+  #
+  - type: revng.scripting-cli
+    from:
+      - type: revng-qa.compiled
+        filter: example-executable-1 and with-debug-info
+    command: |-
+      "${SOURCES_ROOT}/share/revng/test/tests/scripting.py" --cli --resume "$$(temp -d)" --binary "$INPUT"
+
+  #
+  # Test python scripting daemon
+  #
+  - type: revng.scripting-daemon
+    from:
+      - type: revng-qa.compiled
+        filter: example-executable-1 and with-debug-info
+    command: |-
+      "${SOURCES_ROOT}/share/revng/test/tests/scripting.py" --daemon --resume "$$(temp -d)" --binary "$INPUT"

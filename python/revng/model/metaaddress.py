@@ -66,7 +66,7 @@ class MetaAddress:
     def is_invalid(self):
         return self.Type == MetaAddressType.Invalid
 
-    def __repr__(self):
+    def to_string(self) -> str:
         if self.Address == 0:
             addr = ""
         else:
@@ -82,9 +82,12 @@ class MetaAddress:
             components.append(str(self.AddressSpace))
         return ":".join(components)
 
+    def __repr__(self) -> str:
+        return self.to_string()
+
     @classmethod
     def yaml_representer(cls, dumper: yaml.dumper.Dumper, instance: "MetaAddress"):
-        return dumper.represent_str(repr(instance))
+        return dumper.represent_str(instance.to_string())
 
     @staticmethod
     def _parse_int(i):

@@ -58,7 +58,7 @@ class TypeScriptGenerator:
         self.jinja_environment.filters["gen_assignment"] = self.gen_assignment
         self.jinja_environment.filters["gen_key"] = self.gen_key
         self.jinja_environment.filters["key_parser"] = self.key_parser
-        self.jinja_environment.filters["type_hint"] = self.type_hint
+        self.jinja_environment.filters["type_metadata"] = self.type_metadata
 
     def emit_typescript(self) -> str:
         """Returns typescript definitions as a string"""
@@ -249,7 +249,7 @@ class TypeScriptGenerator:
         else:
             raise ValueError()
 
-    def type_hint(self, field: StructField) -> str:
+    def type_metadata(self, field: StructField) -> str:
         real_type = self._real_type(field)
         possible_values = None
         if real_type in BUILTINS:

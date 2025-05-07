@@ -78,21 +78,12 @@ int Target::operator<=>(const Target &Other) const {
   return 0;
 }
 
+std::string Target::path() const {
+  return llvm::join(Components, "/");
+}
+
 std::string Target::toString() const {
-  std::string ToReturn;
-
-  if (Components.size() == 0) {
-    return ":" + K->name().str();
-  }
-
-  for (size_t I = 0; I < Components.size() - 1; I++)
-    ToReturn += Components[I] + "/";
-
-  ToReturn += Components.back();
-  ToReturn += ":";
-  ToReturn += K->name();
-
-  return ToReturn;
+  return path() + ":" + K->name().str();
 }
 
 llvm::Expected<Target> Target::deserialize(Context &Context,
