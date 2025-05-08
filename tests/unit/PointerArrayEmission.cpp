@@ -134,7 +134,7 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
   std::string FailureLog;
   ptml::CTypeBuilder B(llvm::nulls(), *Binary, /* EnableTaglessMode = */ true);
   for (auto &&[Type, ExpectedOutput] : Tests) {
-    std::string ActualOutput = B.getNamedCInstance(*Type, "test").str().str();
+    std::string ActualOutput = B.getNamedCInstance(*Type, "test");
     if (ActualOutput != ExpectedOutput) {
       FailureLog += "Output of `getNamedCInstance` (\"" + ActualOutput
                     + "\")\n";

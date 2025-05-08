@@ -162,9 +162,13 @@ bool Function::verify(VerifyHelper &VH) const {
     if (not CallSitePrototype.verify(VH))
       return VH.fail();
 
-  for (const auto &Comment : Comments())
+  for (const auto &[Index, Comment] : llvm::enumerate(Comments())) {
+    if (Index != Comment.Index())
+      return VH.fail("A function comment has an invalid index", *this);
+
     if (not Comment.verify())
       return VH.fail();
+  }
 
   return true;
 }

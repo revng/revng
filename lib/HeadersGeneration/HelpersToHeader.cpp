@@ -18,6 +18,7 @@
 
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Model/Binary.h"
+#include "revng/PTML/CBuilder.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
@@ -25,7 +26,6 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
-#include "revng/Support/PTMLC.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 
 using llvm::dyn_cast;
@@ -45,29 +45,30 @@ static void printLLVMTypeDeclaration(const llvm::StructType *S,
     auto Scope = B.getIndentedScope(ptml::CBuilder::Scopes::StructBody);
 
     for (const auto &Field : llvm::enumerate(S->elements())) {
-      B.append(getReturnStructFieldType(&F, Field.index(), B) + " "
-               + getReturnStructFieldLocationDefinition(&F, Field.index(), B)
+      B.append(getReturnStructFieldTypeReferenceTag(&F, Field.index(), B) + " "
+               + getReturnStructFieldDefinitionTag(&F, Field.index(), B)
                + ";\n");
     }
   }
 
-  B.append(" " + getReturnTypeLocationDefinition(&F, B) + ";\n");
+  B.append(" " + getReturnTypeDefinitionTag(&F, B) + ";\n");
 }
 
-/// Print the prototype of a helper .
+/// Print the prototype of a helper.
 static void printHelperPrototype(const llvm::Function *Func,
                                  ptml::CTypeBuilder &B) {
-  B.append(getReturnTypeLocationReference(Func, B) + " "
-           + getHelperFunctionLocationDefinition(Func, B));
+  B.append(getReturnTypeReferenceTag(Func, B) + " "
+           + getHelperFunctionDefinitionTag(Func, B));
 
   if (Func->arg_empty()) {
-    B.append("(" + B.tokenTag("void", ptml::c::tokens::Type) + ");\n");
+    B.append("(" + B.getVoidTag() + ");\n");
+
   } else {
     const llvm::StringRef Open = "(";
     const llvm::StringRef Comma = ", ";
     llvm::StringRef Separator = Open;
     for (const auto &Arg : Func->args()) {
-      B.append(Separator.str() + getScalarCType(Arg.getType(), B));
+      B.append(Separator.str() + getScalarTypeTag(Arg.getType(), B));
       Separator = Comma;
     }
     B.append(");\n");

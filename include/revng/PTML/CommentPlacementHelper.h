@@ -221,7 +221,7 @@ public:
       for (const auto &Statement : Trait::getStatements(Node->getBlock())) {
         StatementLocationType Location = Trait::getAddresses(Statement);
 
-        for (auto &&[Index, Comment] : llvm::enumerate(Function.Comments())) {
+        for (auto &&Comment : Function.Comments()) {
 
           // Use the Tversky Index as the scoring function.
           // Note the parameters controlling the weights of the sets: the higher
@@ -234,8 +234,8 @@ public:
           // them.
           auto Score = tverskyIndex<1, 2>(Comment.Location(), Location);
           if (Score.has_value())
-            if (shouldReplace(Scores[Index], { *Score, Location }))
-              Scores[Index] = { *Score, Location };
+            if (shouldReplace(Scores[Comment.Index()], { *Score, Location }))
+              Scores[Comment.Index()] = { *Score, Location };
         }
       }
     }
@@ -266,8 +266,9 @@ private:
                               llvm::SmallBitVector AssignedInThisBranch) {
       for (const auto &Statement : Trait::getStatements(Node->getBlock())) {
         StatementLocationType Location = Trait::getAddresses(Statement);
-        for (auto &&[Index, Comment] : llvm::enumerate(Function.Comments())) {
-          if (AssignedInThisBranch.test(Index))
+        for (auto &&Comment : Function.Comments()) {
+
+          if (AssignedInThisBranch.test(Comment.Index()))
             continue;
 
           if (Location.empty()) {
@@ -276,21 +277,22 @@ private:
             continue;
           }
 
-          if (Location == Scores[Index].second) {
+          if (Location == Scores[Comment.Index()].second) {
             // A node with a non-empty location matched the selected score,
             // mark the node as a target for the emission.
             //
-            // Note that comments with empty `Scores[Index].second` are
-            // homeless.
+            // Note that comments with empty `Scores[Comment.Index()].second`
+            // are homeless.
             bool IsLocationExact = std::ranges::equal(Comment.Location(),
-                                                      Scores[Index].second);
-            ResultMap[Statement].emplace_back(Index,
+                                                      Scores[Comment.Index()]
+                                                        .second);
+            ResultMap[Statement].emplace_back(Comment.Index(),
                                               IsLocationExact,
-                                              Scores[Index].first,
+                                              Scores[Comment.Index()].first,
                                               &Comment.Location());
 
             // Mark this comment as 'skipped' for all the dominated statements.
-            AssignedInThisBranch.set(Index);
+            AssignedInThisBranch.set(Comment.Index());
           }
         }
       }

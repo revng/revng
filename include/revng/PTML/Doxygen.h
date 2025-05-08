@@ -27,7 +27,8 @@ std::string freeFormComment(const ::ptml::MarkupBuilder &B,
                             llvm::StringRef Text,
                             llvm::StringRef CommentIndicator,
                             size_t Indentation,
-                            size_t WrapAt);
+                            size_t WrapAt,
+                            bool LeadingNewline);
 
 /// Emits PTML containing the comment for the specified entity with a comment
 /// field.
@@ -37,7 +38,21 @@ std::string comment(const ::ptml::MarkupBuilder &Builder,
                     llvm::StringRef Indicator,
                     size_t Indent,
                     size_t WrapAt) {
-  return freeFormComment(Builder, V.Comment(), Indicator, Indent, WrapAt);
+  return freeFormComment(Builder, V.Comment(), Indicator, Indent, WrapAt, true);
+}
+
+template<model::EntityWithComment Type>
+std::string commentWithoutLeadingNewline(const ::ptml::MarkupBuilder &Builder,
+                                         const Type &V,
+                                         llvm::StringRef Indicator,
+                                         size_t Indent,
+                                         size_t WrapAt) {
+  return freeFormComment(Builder,
+                         V.Comment(),
+                         Indicator,
+                         Indent,
+                         WrapAt,
+                         false);
 }
 
 namespace detail {
@@ -111,6 +126,7 @@ std::string functionComment(const ::ptml::MarkupBuilder &B,
 /// \returns a serialized PTML string containing the comment.
 std::string statementComment(const ::ptml::MarkupBuilder &B,
                              const model::StatementComment &Comment,
+                             const std::string &CommentLocation,
                              llvm::StringRef IsBeingEmittedAt,
                              llvm::StringRef CommentIndicator,
                              size_t Indentation,

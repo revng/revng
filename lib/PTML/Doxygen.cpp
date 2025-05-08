@@ -113,12 +113,14 @@ public:
     return Result;
   }
 
+  std::string emit(DoxygenToken Token) {
+    DoxygenLine Line{ .Tags = { std::move(Token) }, .InternalIndentation = 0 };
+    return emit({ std::move(Line) });
+  }
+
   std::string emit(llvm::StringRef Text) {
-    DoxygenLine Argument{ .Tags = { DoxygenToken{
-                            .Type = DoxygenToken::Types::Untagged,
-                            .Value = Text.str() } },
-                          .InternalIndentation = 0 };
-    return emit({ std::move(Argument) });
+    return emit(DoxygenToken{ .Type = DoxygenToken::Types::Untagged,
+                              .Value = Text.str() });
   }
 
 private:
@@ -246,10 +248,11 @@ std::string ptml::freeFormComment(const ::ptml::MarkupBuilder &PTML,
                                   llvm::StringRef Text,
                                   llvm::StringRef CommentIndicator,
                                   size_t Indentation,
-                                  size_t WrapAt) {
+                                  size_t WrapAt,
+                                  bool LeadingNewline) {
   CommentBuilder Builder(PTML, CommentIndicator, Indentation, WrapAt);
   auto Result = Builder.emit(Text.str());
-  return Result.empty() ? Result : '\n' + Result;
+  return Result.empty() or not LeadingNewline ? Result : '\n' + Result;
 }
 
 using pipeline::locationString;
@@ -312,11 +315,12 @@ gatherArgumentComments(const model::Binary &Binary,
         std::string Location = locationString(ranks::CABIArgument,
                                               FT->key(),
                                               Argument.key());
-        N.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
+        namespace Attribute = ptml::attributes;
+        N.ExtraAttributes.emplace_back(Attribute::ActionContextLocation.str(),
                                        Location);
-        N.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
-                                       ptml::actions::Comment);
-        N.ExtraAttributes.emplace_back(ptml::attributes::LocationReferences,
+        N.ExtraAttributes.emplace_back(Attribute::AllowedActions.str(),
+                                       ptml::actions::Comment.str());
+        N.ExtraAttributes.emplace_back(Attribute::LocationReferences.str(),
                                        Location);
 
         const auto CurrentArgument = Layout.Arguments[Index + IndOffset];
@@ -351,12 +355,12 @@ gatherArgumentComments(const model::Binary &Binary,
         Line->emplace_back(DoxygenToken::Types::Untagged, " ");
         auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged, Comment);
         Tag.ExtraAttributes
-          .emplace_back(ptml::attributes::ActionContextLocation,
+          .emplace_back(ptml::attributes::ActionContextLocation.str(),
                         locationString(ranks::CABIArgument,
                                        FT->key(),
                                        Argument.key()));
-        Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
-                                         ptml::actions::Comment);
+        Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions.str(),
+                                         ptml::actions::Comment.str());
       }
     }
   } else if (auto *FT = Function.rawPrototype()) {
@@ -373,25 +377,26 @@ gatherArgumentComments(const model::Binary &Binary,
         std::string Location = locationString(ranks::RawArgument,
                                               FT->key(),
                                               Argument.key());
-        N.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
+        namespace Attribute = ptml::attributes;
+        N.ExtraAttributes.emplace_back(Attribute::ActionContextLocation.str(),
                                        Location);
-        N.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
-                                       ptml::actions::Comment);
-        N.ExtraAttributes.emplace_back(ptml::attributes::LocationReferences,
+        N.ExtraAttributes.emplace_back(Attribute::AllowedActions.str(),
+                                       ptml::actions::Comment.str());
+        N.ExtraAttributes.emplace_back(Attribute::LocationReferences.str(),
                                        Location);
         Line->emplace_back(DoxygenToken::Types::Untagged, " (in ");
         Line->emplace_back(DoxygenToken::Types::Identifier,
                            model::Register::getRegisterName(Register).str());
-        Line->emplace_back(DoxygenToken::Types::Untagged, ")");
+        Line->emplace_back(DoxygenToken::Types::Untagged, ") ");
         auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
                                        Argument.Comment());
         Tag.ExtraAttributes
-          .emplace_back(ptml::attributes::ActionContextLocation,
+          .emplace_back(ptml::attributes::ActionContextLocation.str(),
                         locationString(ranks::RawArgument,
                                        FT->key(),
                                        Argument.key()));
-        Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
-                                         ptml::actions::Comment);
+        Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions.str(),
+                                         ptml::actions::Comment.str());
       }
     }
 
@@ -436,19 +441,20 @@ gatherArgumentComments(const model::Binary &Binary,
           std::string Location = locationString(ranks::StructField,
                                                 Stack->key(),
                                                 Field.key());
-          L.ExtraAttributes
-            .emplace_back(ptml::attributes::ActionContextLocation, Location);
-          L.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
-                                         ptml::actions::Comment);
-          L.ExtraAttributes.emplace_back(ptml::attributes::LocationReferences,
+          namespace Attribute = ptml::attributes;
+          L.ExtraAttributes.emplace_back(Attribute::ActionContextLocation.str(),
+                                         Location);
+          L.ExtraAttributes.emplace_back(Attribute::AllowedActions.str(),
+                                         ptml::actions::Comment.str());
+          L.ExtraAttributes.emplace_back(Attribute::LocationReferences.str(),
                                          Location);
 
           auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
                                          ": " + Comment.str());
           Tag.ExtraAttributes
-            .emplace_back(ptml::attributes::ActionContextLocation, Location);
-          Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
-                                           ptml::actions::Comment);
+            .emplace_back(Attribute::ActionContextLocation.str(), Location);
+          Tag.ExtraAttributes.emplace_back(Attribute::AllowedActions.str(),
+                                           ptml::actions::Comment.str());
         }
       }
     }
@@ -467,6 +473,7 @@ gatherReturnValueComments(const model::Binary &Binary,
 
   static constexpr llvm::StringRef Keyword = "\\returns ";
 
+  namespace Attribute = ptml::attributes;
   llvm::SmallVector<DoxygenLine, 16> Result;
   if (auto *FT = Function.cabiPrototype()) {
     if (!FT->ReturnValueComment().empty()) {
@@ -476,11 +483,11 @@ gatherReturnValueComments(const model::Binary &Binary,
 
       DoxygenToken &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
                                              FT->ReturnValueComment());
-      Tag.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
+      Tag.ExtraAttributes.emplace_back(Attribute::ActionContextLocation.str(),
                                        locationString(ranks::ReturnValue,
                                                       FT->key()));
-      Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
-                                       ptml::actions::Comment);
+      Tag.ExtraAttributes.emplace_back(Attribute::AllowedActions.str(),
+                                       ptml::actions::Comment.str());
     }
   } else if (auto *FT = Function.rawPrototype()) {
     if (!FT->ReturnValueComment().empty()) {
@@ -490,20 +497,17 @@ gatherReturnValueComments(const model::Binary &Binary,
 
       DoxygenToken &T = Line->emplace_back(DoxygenToken::Types::Untagged,
                                            FT->ReturnValueComment());
-      T.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
+      T.ExtraAttributes.emplace_back(Attribute::ActionContextLocation.str(),
                                      locationString(ranks::ReturnValue,
                                                     FT->key()));
-      T.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
-                                     ptml::actions::Comment);
+      T.ExtraAttributes.emplace_back(Attribute::AllowedActions.str(),
+                                     ptml::actions::Comment.str());
     }
 
     for (const model::NamedTypedRegister &ReturnValue : FT->ReturnValues()) {
       model::Register::Values Register = ReturnValue.Location();
 
       if (!ReturnValue.Comment().empty()) {
-        if (Result.empty())
-          Result.emplace_back();
-
         auto &Line = Result.emplace_back();
         Line.InternalIndentation = Keyword.size();
 
@@ -519,13 +523,12 @@ gatherReturnValueComments(const model::Binary &Binary,
                            model::Register::getRegisterName(Register).str());
         auto &Tag = Line->emplace_back(DoxygenToken::Types::Untagged,
                                        ": " + ReturnValue.Comment());
-        Tag.ExtraAttributes
-          .emplace_back(ptml::attributes::ActionContextLocation,
-                        locationString(ranks::ReturnRegister,
-                                       FT->key(),
-                                       ReturnValue.key()));
-        Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
-                                         ptml::actions::Comment);
+        Tag.ExtraAttributes.emplace_back(Attribute::ActionContextLocation.str(),
+                                         locationString(ranks::ReturnRegister,
+                                                        FT->key(),
+                                                        ReturnValue.key()));
+        Tag.ExtraAttributes.emplace_back(Attribute::AllowedActions.str(),
+                                         ptml::actions::Comment.str());
       }
     }
 
@@ -548,11 +551,12 @@ ptml::detail::functionCommentImpl(const ::ptml::MarkupBuilder &PTML,
   if (!Function.Comment().empty()) {
     DoxygenToken Tag{ .Type = DoxygenToken::Types::Untagged,
                       .Value = Function.Comment() };
-    Tag.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation,
+    namespace Attribute = ptml::attributes;
+    Tag.ExtraAttributes.emplace_back(Attribute::ActionContextLocation.str(),
                                      locationString(ranks::Function,
                                                     Function.key()));
-    Tag.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions,
-                                     ptml::actions::Comment);
+    Tag.ExtraAttributes.emplace_back(Attribute::AllowedActions.str(),
+                                     ptml::actions::Comment.str());
     Result.emplace_back(DoxygenLine{ .Tags = { std::move(Tag) } });
   }
 
@@ -584,6 +588,7 @@ static Logger ImprecisePositionWarning("statement-comment-emission");
 
 std::string ptml::statementComment(const ::ptml::MarkupBuilder &B,
                                    const model::StatementComment &Comment,
+                                   const std::string &CommentLocation,
                                    llvm::StringRef IsBeingEmittedAt,
                                    llvm::StringRef CommentIndicator,
                                    size_t Indentation,
@@ -618,5 +623,13 @@ std::string ptml::statementComment(const ::ptml::MarkupBuilder &B,
   Result += Comment.Body();
 
   CommentBuilder Builder(B, CommentIndicator, Indentation, WrapAt);
-  return Builder.emit(Result);
+
+  DoxygenToken T{ .Type = DoxygenToken::Types::Untagged,
+                  .Value = std::move(Result) };
+  T.ExtraAttributes.emplace_back(ptml::attributes::ActionContextLocation.str(),
+                                 CommentLocation);
+  T.ExtraAttributes.emplace_back(ptml::attributes::AllowedActions.str(),
+                                 ptml::actions::Comment.str());
+
+  return Builder.emit(std::move(T));
 }

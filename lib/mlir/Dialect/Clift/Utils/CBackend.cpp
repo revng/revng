@@ -7,7 +7,7 @@
 #include "llvm/ADT/ScopeExit.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Support/PTMLC.h"
+#include "revng/PTML/CBuilder.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
 
@@ -155,8 +155,7 @@ public:
 
   void emitPrimitiveType(PrimitiveType Type) {
     auto Kind = static_cast<model::PrimitiveKind::Values>(Type.getKind());
-    auto ModelType = model::PrimitiveType::make(Kind, Type.getSize());
-    Out << C.getLocationReference(llvm::cast<model::PrimitiveType>(*ModelType));
+    Out << C.getPrimitiveTag(Kind, Type.getSize());
   }
 
   RecursiveCoroutine<void>
@@ -226,7 +225,7 @@ public:
             Out << C.getKeyword(Keyword::Union) << ' ';
 
           EmitConst(T);
-          Out << C.getLocationReference(getModelTypeDefinition(D));
+          Out << C.getReferenceTag(getModelTypeDefinition(D));
           NeedSpace = true;
         }
       }
@@ -308,7 +307,7 @@ public:
 
         Out << '(';
         if (F.getArgumentTypes().empty()) {
-          Out << C.tokenTag("void", ptml::c::tokens::Type);
+          Out << C.getVoidTag();
         } else {
           for (auto [J, PT] : llvm::enumerate(F.getArgumentTypes())) {
             if (J != 0)
@@ -378,7 +377,7 @@ public:
       if (It == ModelEnum.Entries().end())
         revng_abort("Model enum entry not found.");
 
-      Out << C.getLocation(/*IsDefinition=*/false, ModelEnum, *It);
+      Out << C.getReferenceTag(ModelEnum, *It);
     }
   }
 
@@ -479,7 +478,7 @@ public:
     //       provide this information.
 
     auto Symbol = getLocalSymbolName(V.getDefiningOp<LocalVariableOp>());
-    Out << C.getVariableLocationReference(Symbol, *CurrentFunction);
+    Out << C.getVariableReferenceTag(*CurrentFunction, Symbol);
 
     rc_return;
   }
@@ -496,10 +495,10 @@ public:
     revng_assert(SymbolOp);
 
     if (auto G = mlir::dyn_cast<GlobalVariableOp>(SymbolOp)) {
-      Out << C.getLocationReference(getModelSegment(G));
+      Out << C.getReferenceTag(getModelSegment(G));
     } else if (auto F = mlir::dyn_cast<FunctionOp>(SymbolOp)) {
       auto Visitor = [&](const auto *ModelFunction) {
-        Out << C.getLocationReference(*ModelFunction);
+        Out << C.getReferenceTag(*ModelFunction);
       };
       std::visit(Visitor, getModelFunctionVariant(F));
     } else {
@@ -515,7 +514,7 @@ public:
     if (It == TheClass.Fields().end())
       revng_abort("Class member not found.");
 
-    Out << C.getLocationReference(TheClass, *It);
+    Out << C.getReferenceTag(TheClass, *It);
   }
 
   RecursiveCoroutine<void> emitAccessExpression(mlir::Value V) {
@@ -996,8 +995,8 @@ public:
 
     auto Symbol = getLocalSymbolName(S);
     rc_recur emitDeclaration(S.getResult().getType(),
-                             C.getVariableLocationDefinition(Symbol,
-                                                             *CurrentFunction));
+                             C.getVariableDefinitionTag(*CurrentFunction,
+                                                        Symbol));
 
     if (not S.getInitializer().empty()) {
       Out << ' ' << '=' << ' ';
@@ -1022,7 +1021,7 @@ public:
     // TODO: Emit the label name from the model once the model is extended to
     //       provide this information.
     auto Symbol = getLocalSymbolName(S.getLabelOp());
-    Out << C.getGotoLabelLocationDefinition(Symbol, *CurrentFunction) << ':';
+    Out << C.getGotoLabelDefinitionTag(*CurrentFunction, Symbol) << ':';
 
     // Until C23, labels cannot be placed at the end of a block.
     if (S.getOperation() == &S->getBlock()->back())
@@ -1045,8 +1044,7 @@ public:
 
     auto Symbol = getLocalSymbolName(S.getLabelOp());
     Out << C.getKeyword(Keyword::Goto) << ' '
-        << C.getGotoLabelLocationReference(Symbol, *CurrentFunction) << ';'
-        << '\n';
+        << C.getGotoLabelReferenceTag(*CurrentFunction, Symbol) << ';' << '\n';
 
     rc_return;
   }
@@ -1272,27 +1270,21 @@ public:
     const model::Function &ModelFunction = getModelFunction(Op);
     CurrentFunction = &ModelFunction;
 
-    auto *MFT = llvm::cast<model::DefinedType>(ModelFunction.Prototype().get());
-    const model::TypeDefinition *MFD = MFT->Definition().get();
-
     auto ClearParameterNames = llvm::make_scope_exit([&]() {
       ParameterNames.clear();
     });
 
-    auto PushParameterName = [&](llvm::StringRef ParameterName) {
-      ParameterNames.push_back(C.getArgumentLocationReference(ParameterName,
-                                                              ModelFunction));
-    };
-
-    if (auto F = llvm::dyn_cast<model::CABIFunctionDefinition>(MFD)) {
+    if (auto F = ModelFunction.cabiPrototype()) {
       for (const model::Argument &Parameter : F->Arguments())
-        PushParameterName(C.NameBuilder.name(*F, Parameter));
-    } else if (auto F = llvm::dyn_cast<model::RawFunctionDefinition>(MFD)) {
+        ParameterNames.push_back(C.getReferenceTag(*F, Parameter));
+
+    } else if (auto F = ModelFunction.rawPrototype()) {
       for (const model::NamedTypedRegister &Register : F->Arguments())
-        PushParameterName(C.NameBuilder.name(*F, Register));
+        ParameterNames.push_back(C.getReferenceTag(*F, Register));
 
       if (not F->StackArgumentsType().isEmpty())
-        PushParameterName(C.NameBuilder.Configuration.rawStackArgumentName());
+        ParameterNames.push_back(C.getStackArgumentReferenceTag(*F));
+
     } else {
       revng_abort("Unsupported model function type definition");
     }
@@ -1307,7 +1299,8 @@ public:
     // Scope tags are applied within this scope:
     {
       auto OuterScope = C.scopeTag(ptml::c::scopes::Function).scope(Out);
-      C.printFunctionPrototype(*MFD, ModelFunction, /*SingleLine=*/false);
+      const auto &MFD = *C.Binary.prototypeOrDefault(ModelFunction.prototype());
+      C.printFunctionPrototype(MFD, ModelFunction, /*SingleLine=*/false);
 
       Out << ' ';
       Scope InnerScope(Out, ptml::c::scopes::FunctionBody);

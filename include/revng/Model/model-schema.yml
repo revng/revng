@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 3
+version: 4
 definitions:
   - name: Binary
     doc: |-
@@ -542,7 +542,7 @@ definitions:
         optional: true
       - name: Comments
         sequence:
-          type: vector
+          type: SortedVector
           elementType: StatementComment
         optional: true
     key:
@@ -960,6 +960,10 @@ definitions:
     type: struct
 
     fields:
+      - name: Index
+        doc: The index of the comment
+        type: uint64_t
+
       - name: Location
         doc: |
           The point this comment is attached to, encoded as a set of addresses.
@@ -981,6 +985,9 @@ definitions:
 
       - name: Body
         type: string
+
+    key:
+      - Index
   - name: NamingConfiguration
     type: struct
     fields:

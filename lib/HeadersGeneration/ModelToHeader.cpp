@@ -128,7 +128,6 @@ bool ptml::HeaderBuilder::printModelHeader() {
 
     B.appendLineComment("/// \\defgroup Segments");
     B.appendLineComment("/// \\{");
-    B.append("\n");
 
     for (const model::Segment &Segment : B.Binary.Segments())
       B.printSegmentType(Segment);

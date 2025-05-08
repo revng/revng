@@ -10,8 +10,8 @@ class Migration(MigrationBase):
         pass
 
     def migrate(self, model):
-        {%- for comment in comments %}
-        {{ comment }}
-        {%- endfor %}
-        pass
+        for function in model.get("Functions", {}):
+            for index, comment in enumerate(function.get("Comments", [])):
+                comment["Index"] = index
 
+        model["Version"] = 4
