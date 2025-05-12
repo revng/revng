@@ -592,9 +592,12 @@ mlir::LogicalResult MakeLabelOp::verify() {
 
 mlir::LogicalResult ReturnOp::verify() {
   if (mlir::Region &R = getResult(); not R.empty()) {
-    if (not isReturnableType(getExpressionType(R)))
-      return emitOpError() << getOperationName()
-                           << " requires void or non-array object type.";
+    auto EmitError = [&]() -> mlir::InFlightDiagnostic {
+      return emitOpError() << getOperationName() << " type ";
+    };
+
+    if (verifyReturnType(EmitError, getExpressionType(R)).failed())
+      return mlir::failure();
   }
 
   return mlir::success();
