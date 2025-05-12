@@ -139,15 +139,6 @@ bool isFunctionType(ValueType Type);
 /// Qualifiers are ignored.
 bool isCallableType(ValueType Type);
 
-/// Determine if the type can be from a function. This means either
-/// * void, or
-/// * any object type except array types, or
-/// * a scalar tuple type, or
-/// * a typedef naming any such type.
-///
-/// Qualifiers are ignored.
-bool isReturnableType(ValueType Type);
-
 /// If the type, after unwrapping typedefs, is a function type or a pointer to a
 /// function type, returns that function type.
 FunctionType getFunctionOrFunctionPointerFunctionType(ValueType Type);
@@ -157,5 +148,17 @@ inline FunctionType getFunctionOrFunctionPointerFunctionType(mlir::Type Type) {
     return getFunctionOrFunctionPointerFunctionType(T);
   return {};
 }
+
+/// Verify that the type is a valid function return type, meaning:
+/// * void, or
+/// * any object type except an array type, or
+/// * a typedef naming any such type, and
+/// * is not a type composed of any non-zero number of pointer indirections to
+///   an array or function (not involving any typedefs).
+///
+/// Qualifiers are ignored.
+mlir::LogicalResult
+verifyReturnType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+                 ValueType Type);
 
 } // namespace mlir::clift

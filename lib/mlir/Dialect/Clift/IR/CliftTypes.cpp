@@ -395,9 +395,12 @@ mlir::LogicalResult FunctionType::verify(EmitErrorType EmitError,
       return EmitError() << "Function parameter type may not be an array type";
   }
 
-  if (not isReturnableType(R))
-    return EmitError() << "Function return type must be void or a non-array "
-                          "object type.";
+  auto EmitReturnError = [&]() -> mlir::InFlightDiagnostic {
+    return EmitError() << "Function return type ";
+  };
+
+  if (verifyReturnType(EmitReturnError, R).failed())
+    return mlir::failure();
 
   return mlir::success();
 }
@@ -408,9 +411,12 @@ FunctionType::verify(EmitErrorType EmitError,
                      llvm::StringRef Name,
                      clift::ValueType ReturnType,
                      llvm::ArrayRef<clift::ValueType> Args) {
-  if (not isReturnableType(ReturnType))
-    return EmitError() << "Function return type must be void or a non-array "
-                          "object type.";
+  auto EmitReturnError = [&]() -> mlir::InFlightDiagnostic {
+    return EmitError() << "Function return type ";
+  };
+
+  if (verifyReturnType(EmitReturnError, ReturnType).failed())
+    return mlir::failure();
 
   return mlir::success();
 }
@@ -864,15 +870,6 @@ bool clift::isFunctionType(ValueType Type) {
   return mlir::isa<clift::FunctionType>(Type);
 }
 
-bool clift::isReturnableType(ValueType ReturnType) {
-  ReturnType = dealias(ReturnType);
-
-  if (isObjectType(ReturnType))
-    return not isArrayType(ReturnType);
-
-  return isVoid(ReturnType);
-}
-
 clift::FunctionType
 clift::getFunctionOrFunctionPointerFunctionType(ValueType Type) {
   Type = dealias(Type, /*IgnoreQualifiers=*/true);
@@ -881,6 +878,34 @@ clift::getFunctionOrFunctionPointerFunctionType(ValueType Type) {
     Type = dealias(P.getPointeeType(), /*IgnoreQualifiers=*/true);
 
   return mlir::dyn_cast<clift::FunctionType>(Type);
+}
+
+mlir::LogicalResult clift::verifyReturnType(EmitErrorType EmitError,
+                                            ValueType ReturnType) {
+  ValueType UnderlyingType = dealias(ReturnType, /*IgnoreQualifiers=*/true);
+
+  if (isVoid(UnderlyingType))
+    return mlir::success();
+
+  if (isObjectType(UnderlyingType)) {
+    if (isArrayType(UnderlyingType))
+      return EmitError() << "cannot be an array type.";
+
+    // Check for pointers to array or function types. Function types returning
+    // pointers to arrays or functions cannot be represented in C.
+    {
+      ValueType T = ReturnType;
+      while (auto P = mlir::dyn_cast<PointerType>(T))
+        T = P.getPointeeType();
+
+      if (mlir::isa<ArrayType, FunctionType>(T))
+        return EmitError() << "cannot be pointer to array or function type.";
+    }
+
+    return mlir::success();
+  }
+
+  return EmitError() << "must be an object type or void.";
 }
 
 //===---------------------------- CliftDialect ----------------------------===//
