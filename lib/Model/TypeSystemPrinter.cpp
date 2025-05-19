@@ -85,7 +85,8 @@ static FieldList collectFields(const model::TypeDefinition *T) {
       Fields.push_back(Field.Type().get());
 
   } else if (auto *CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(T)) {
-    Fields.push_back(CABI->ReturnType().get());
+    if (not CABI->ReturnType().isEmpty())
+      Fields.push_back(CABI->ReturnType().get());
     for (auto &Field : CABI->Arguments())
       Fields.push_back(Field.Type().get());
 
