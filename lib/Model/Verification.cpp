@@ -184,6 +184,18 @@ bool Function::verify(VerifyHelper &VH) const {
       return VH.fail();
   }
 
+  {
+    std::set<TrackingSortedVector<MetaAddress>> Deduplicator;
+    for (const auto &Variable : LocalVariables()) {
+      if (not Variable.verify())
+        return VH.fail();
+
+      if (!Deduplicator.insert(Variable.Location()).second)
+        return VH.fail("Multiple variables with the same address set: '"
+                       + addressesToString(Variable.Location()) + "'");
+    }
+  }
+
   return true;
 }
 
