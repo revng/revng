@@ -151,11 +151,8 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
 char MakeLocalVariables::ID = 0;
 
 static llvm::RegisterPass<MakeLocalVariables> X("make-local-variables",
-                                                "Replace all opcodes "
-                                                "that "
-                                                "declare local "
-                                                "variables with "
-                                                "a call to "
-                                                "LocalVariable.",
+                                                "Replace all opcodes that "
+                                                "declare local variables with "
+                                                "a call to LocalVariable.",
                                                 false,
                                                 false);
