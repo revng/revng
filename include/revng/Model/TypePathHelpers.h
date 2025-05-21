@@ -59,4 +59,14 @@ inline std::string path(const model::Segment &Segment) {
   return "/Segments/" + key(Segment);
 }
 
+inline std::string variablePath(const model::Function &Function,
+                                const model::LocalVariable &Variable) {
+  return path(Function) + "/Variables/" + key(Variable);
+}
+
+inline std::string gotoLabelPath(const model::Function &Function,
+                                 const model::LocalVariable &Label) {
+  return path(Function) + "/GotoLabels/" + key(Label);
+}
+
 } // namespace model::detail
