@@ -575,6 +575,11 @@ definitions:
           type: SortedVector
           elementType: LocalIdentifier
         optional: true
+      - name: GotoLabels
+        sequence:
+          type: SortedVector
+          elementType: LocalIdentifier
+        optional: true
     key:
       - Entry
   - name: EnumEntry
