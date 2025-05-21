@@ -185,6 +185,18 @@ bool Function::verify(VerifyHelper &VH) const {
       return VH.fail();
   }
 
+  {
+    std::set<std::string> Deduplicator;
+    for (const auto &Variable : Variables()) {
+      if (not Variable.verify())
+        return VH.fail();
+
+      if (!Deduplicator.insert(addressesToString(Variable.Location())).second)
+        return VH.fail("Multiple variables with the same address set: '"
+                       + addressesToString(Variable.Location()) + "'");
+    }
+  }
+
   return true;
 }
 

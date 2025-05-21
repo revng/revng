@@ -592,6 +592,11 @@ definitions:
           type: SortedVector
           elementType: StatementComment
         optional: true
+      - name: Variables
+        sequence:
+          type: SortedVector
+          elementType: LocalVariable
+        optional: true
     key:
       - Entry
   - name: EnumEntry
