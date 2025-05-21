@@ -29,7 +29,7 @@ module attributes {clift.module} {
       clift.yield %1 : !uint64_t
     }
 
-    // CHECK: (uint64_t)&_var_0;
+    // CHECK: (uint64_t)&var_0;
     clift.expr {
       %0 = clift.addressof %x : !uint64_t$ptr
       %1 = clift.cast<bitcast> %0 : !uint64_t$ptr -> !uint64_t
