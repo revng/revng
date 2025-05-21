@@ -243,6 +243,8 @@ Tag BinaryOperationOverflows("binary-operation-overflow");
 
 Tag Comment("comment");
 
+Tag RenamableVariable("renamable-variable");
+
 } // namespace FunctionTags
 
 template<typename T>

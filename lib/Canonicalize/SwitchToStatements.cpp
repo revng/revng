@@ -166,6 +166,7 @@ static bool isProgramPoint(const Instruction *I) {
     // them.
     if (isCallToTagged(I, FunctionTags::AllocatesLocalVariable)
         or isCallToTagged(I, FunctionTags::LocalVariable)
+        or isCallToTagged(I, FunctionTags::RenamableVariable)
         or isCallToTagged(I, FunctionTags::Copy)
         or isCallToTagged(I, FunctionTags::Assign)
         or isCallToTagged(I, FunctionTags::AddressOf)
