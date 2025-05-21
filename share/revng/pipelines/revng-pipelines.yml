@@ -547,7 +547,7 @@ Branches:
             This artifact is a single PTML file representing the decompiled C
             code of the whole program, including the body of all of program's
             functions.
-  - From: canonicalize
+  - From: embed-statement-comments
     Steps:
       - Name: emit-recompilable-archive
         Pipes:
