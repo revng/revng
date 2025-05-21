@@ -493,6 +493,30 @@ definitions:
         optional: true
     key:
       - Location
+
+  - name: LocalIdentifier
+    type: struct
+
+    fields:
+      - name: Name
+        type: string
+
+      - name: Location
+        doc: |
+          The set of `MetaAddresses` of the instructions using this variable (or label).
+
+        sequence:
+          type: SortedVector
+          elementType: MetaAddress
+
+    key:
+      # Using the name as the key might not be the best from the invalidation
+      # standpoint, as renaming any variable would invalidate the entire set.
+      #
+      # On the other hand, this reduces potential duplication friction.
+      # As well as allows us to avoid an artificial key (like index).
+      - Name
+
   - name: Function
     doc: A function defined within this binary.
     type: struct
