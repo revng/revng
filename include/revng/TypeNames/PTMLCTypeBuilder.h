@@ -730,6 +730,15 @@ public:
                                   availableCommentLineWidth());
   }
 
+  std::string getFreeFormComment(llvm::StringRef Body) {
+    return ptml::freeFormComment(*this,
+                                 Body,
+                                 "///",
+                                 0,
+                                 availableCommentLineWidth(),
+                                 false);
+  }
+
 public:
   /// Obtain a line representing a typical usage of a type (how it appears
   /// when used to declare a struct field or a local variable)
