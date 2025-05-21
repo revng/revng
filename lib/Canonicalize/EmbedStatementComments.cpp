@@ -10,31 +10,17 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/Pipe.h"
 #include "revng/Pipeline/RegisterPipe.h"
+#include "revng/Pipes/DebugInfoHelpers.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/DecompilationHelpers.h"
 
 RegisterIRHelper CommentHelper("comment", "absent in emitted c");
 
-static std::optional<MetaAddress>
-tryExtractAddress(const llvm::Instruction &I) {
-  if (!I.getDebugLoc() || !I.getDebugLoc()->getScope())
-    return std::nullopt;
-
-  auto DebugLocation = I.getDebugLoc()->getScope()->getName().str();
-  auto Parsed = pipeline::locationFromString(revng::ranks::Instruction,
-                                             DebugLocation);
-  revng_assert(Parsed.has_value());
-
-  MetaAddress Extracted = Parsed->at(revng::ranks::Instruction);
-  revng_assert(Extracted.isValid());
-  return Extracted;
-}
-
 template<typename ResultSet>
 static ResultSet gatherNonStatementAddresses(const llvm::Instruction &I,
                                              ResultSet &&Result = {}) {
-  if (std::optional MaybeAddress = tryExtractAddress(I))
+  if (std::optional MaybeAddress = revng::tryExtractAddress(I))
     Result.emplace(*MaybeAddress);
 
   for (const llvm::Use &V : I.operands())
