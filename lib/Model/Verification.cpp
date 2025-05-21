@@ -196,6 +196,18 @@ bool Function::verify(VerifyHelper &VH) const {
     }
   }
 
+  {
+    std::set<TrackingSortedVector<MetaAddress>> Deduplicator;
+    for (const auto &GotoLabel : GotoLabels()) {
+      if (not GotoLabel.verify())
+        return VH.fail();
+
+      if (!Deduplicator.insert(GotoLabel.Location()).second)
+        return VH.fail("Multiple goto labels with the same address set: '"
+                       + addressesToString(GotoLabel.Location()) + "'");
+    }
+  }
+
   return true;
 }
 
