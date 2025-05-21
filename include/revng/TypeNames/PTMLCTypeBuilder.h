@@ -149,6 +149,18 @@ public:
     return helpers::LineComment(*Out, *this);
   }
 
+  using VariableNameBuilder = model::CNameBuilder::VariableNameBuilder;
+  VariableNameBuilder
+  makeLocalVariableNameBuilder(const model::Function &Function) const {
+    return NameBuilder.localVariables(Function);
+  }
+
+  using GotoLabelNameBuilder = model::CNameBuilder::GotoLabelNameBuilder;
+  GotoLabelNameBuilder
+  makeGotoLabelNameBuilder(const model::Function &Function) const {
+    return NameBuilder.gotoLabels(Function);
+  }
+
 private:
   static constexpr llvm::StringRef tokenType(const model::TypeDefinition &) {
     return ptml::c::tokens::Type;
