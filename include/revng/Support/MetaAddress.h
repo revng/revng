@@ -1011,3 +1011,21 @@ template<>
 struct hash<std::set<MetaAddress>> : hash<const std::set<MetaAddress>> {};
 
 } // namespace std
+
+/// This returns a human-readable string containing the addresses in
+/// the provided container.
+///
+/// It should be mostly used for reporting these in logs and other
+/// debugging-related contexts.
+inline std::string
+addressesToString(RangeOf<MetaAddress> auto const &Addresses) {
+  std::string Result = "";
+
+  if (not Addresses.empty()) {
+    for (const MetaAddress &Address : Addresses)
+      Result += Address.toString() + " + ";
+    Result.resize(Result.size() - 3);
+  }
+
+  return Result;
+}
