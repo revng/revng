@@ -591,6 +591,91 @@ public:
                                  Actions);
   }
 
+  struct TagPair {
+    std::string Definition;
+    std::string Reference;
+  };
+
+  /// Special case handling for local variables.
+  ///
+  /// \note that both tags are acquired at once, this removes the need to keep
+  ///       track of already emitted automated names.
+  TagPair getVariableTags(VariableNameBuilder &SubNameBuilder,
+                          const SortedVector<MetaAddress> &UserLocationSet,
+                          llvm::StringRef TypeTag = "") const {
+    constexpr std::array Actions = { ptml::actions::Rename };
+
+    constexpr std::array<llvm::StringRef, 0> EmptyActions = {};
+    llvm::ArrayRef<llvm::StringRef> CurrentActions = Actions;
+    if (UserLocationSet.empty())
+      CurrentActions = EmptyActions;
+
+    std::string Name = SubNameBuilder.name(UserLocationSet, TypeTag);
+    std::string Location = variableLocationString(*SubNameBuilder.Function,
+                                                  Name,
+                                                  TypeTag);
+    return TagPair{
+      .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         CurrentActions),
+      .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         CurrentActions)
+    };
+  }
+
+  /// This as a modified version of `getVariableTags` that allows
+  /// setting any name for a given variable, as long as NameBuilder consider
+  /// that name to already be reserved.
+  ///
+  /// \note variables created this way cannot be renamed.
+  /// \note These variables require `TypeTag` to prevent location collisions
+  ///       with normal variables.
+  TagPair getReservedVariableTags(const model::Function &Function,
+                                  llvm::StringRef Name,
+                                  llvm::StringRef TypeTag) const {
+    NameBuilder.assertNameIsReserved(Name);
+
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+
+    std::string Location = variableLocationString(Function, Name, TypeTag);
+    return TagPair{
+      .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         Actions),
+      .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         Actions)
+    };
+  }
+
+  /// Special case handling for goto labels.
+  ///
+  /// \note that both tags are acquired at once, this removes the need to keep
+  ///       track of already emitted automated names.
+  TagPair getGotoLabelTags(GotoLabelNameBuilder &SubNameBuilder,
+                           const MetaAddress &UserLocation) const {
+    constexpr std::array Actions = { ptml::actions::Rename };
+
+    std::string Name = SubNameBuilder.name({ UserLocation });
+    std::string Location = gotoLabelLocationString(*SubNameBuilder.Function,
+                                                   Name);
+    return TagPair{
+      .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         Actions),
+      .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         Actions)
+    };
+  }
+
 public:
   std::string getPrimitiveTag(model::PrimitiveKind::Values Kind,
                               uint64_t Size) const {
