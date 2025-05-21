@@ -98,6 +98,44 @@ collectNamespaces(BinaryType &Binary) {
                                                    detail::path(*Enum, Entry));
   }
 
+  std::unordered_set<const model::TypeDefinition *> ProcessedPrototypes;
+  for (ConstOrNot<Function> auto &Function : Binary.Functions()) {
+    auto &Variables = Result.Local.emplace_back();
+    for (ConstOrNot<LocalVariable> auto &Variable : Function.Variables()) {
+      revng_assert(not Variable.Name().empty());
+      Variables[Variable.Name()].emplace_back(Variable.Name(),
+                                              detail::variablePath(Function,
+                                                                   Variable));
+    }
+
+    for (ConstOrNot<LocalVariable> auto &Label : Function.GotoLabels()) {
+      revng_assert(not Label.Name().empty());
+      Variables[Label.Name()].emplace_back(Label.Name(),
+                                           detail::gotoLabelPath(Function,
+                                                                 Label));
+    }
+
+    if (auto *RFT = Function.rawPrototype()) {
+      for (auto &Arg : RFT->Arguments())
+        if (not Arg.Name().empty())
+          Variables[Arg.Name()].emplace_back(Arg.Name(),
+                                             detail::argumentPath(*RFT, Arg));
+
+      ProcessedPrototypes.emplace(RFT);
+
+    } else if (auto *CFT = Function.cabiPrototype()) {
+      for (auto &Arg : CFT->Arguments())
+        if (not Arg.Name().empty())
+          Variables[Arg.Name()].emplace_back(Arg.Name(),
+                                             detail::argumentPath(*CFT, Arg));
+
+      ProcessedPrototypes.emplace(CFT);
+
+    } else {
+      revng_assert(Function.Prototype().isEmpty());
+    }
+  }
+
   for (auto &Definition : Binary.TypeDefinitions()) {
     ConstOrNot<TypeDefinition> auto *D = Definition.get();
     if (llvm::isa<model::EnumDefinition>(D)) {
@@ -107,11 +145,13 @@ collectNamespaces(BinaryType &Binary) {
       // Skip typedefs since they don't spawn a new namespace
 
     } else if (auto *RFT = llvm::dyn_cast<model::RawFunctionDefinition>(D)) {
-      auto &Arguments = Result.Local.emplace_back();
-      for (auto &Arg : RFT->Arguments())
-        if (not Arg.Name().empty())
-          Arguments[Arg.Name()].emplace_back(Arg.Name(),
-                                             detail::argumentPath(*RFT, Arg));
+      if (not ProcessedPrototypes.contains(RFT)) {
+        auto &Arguments = Result.Local.emplace_back();
+        for (auto &Arg : RFT->Arguments())
+          if (not Arg.Name().empty())
+            Arguments[Arg.Name()].emplace_back(Arg.Name(),
+                                               detail::argumentPath(*RFT, Arg));
+      }
 
       auto &RVs = Result.Local.emplace_back();
       for (auto &ReturnV : RFT->ReturnValues())
@@ -121,13 +161,13 @@ collectNamespaces(BinaryType &Binary) {
                                                                    ReturnV));
 
     } else if (auto *CFT = llvm::dyn_cast<model::CABIFunctionDefinition>(D)) {
-      auto &Arguments = Result.Local.emplace_back();
-      for (auto &Arg : CFT->Arguments())
-        if (not Arg.Name().empty())
-          Arguments[Arg.Name()].emplace_back(Arg.Name(),
-                                             detail::argumentPath(*CFT, Arg));
-
-      // TODO: don't forget about local variables once those are in the model.
+      if (not ProcessedPrototypes.contains(CFT)) {
+        auto &Arguments = Result.Local.emplace_back();
+        for (auto &Arg : CFT->Arguments())
+          if (not Arg.Name().empty())
+            Arguments[Arg.Name()].emplace_back(Arg.Name(),
+                                               detail::argumentPath(*CFT, Arg));
+      }
 
     } else if (auto *S = llvm::dyn_cast<model::StructDefinition>(D)) {
       auto &Fields = Result.Local.emplace_back();
