@@ -546,6 +546,35 @@ public:
                                  Actions);
   }
 
+  struct TagPair {
+    std::string Definition;
+    std::string Reference;
+  };
+
+  /// Special case handling for local variables.
+  ///
+  /// \note that both tags are acquired at once, this removes the need to keep
+  ///       track of already emitted automated names.
+  TagPair
+  getVariableTags(VariableNameBuilder &VariableNameBuilder,
+                  const SortedVector<MetaAddress> &UserLocationSet) const;
+
+  /// This as a modified version of `getVariableTags` that allows
+  /// setting any name for a given variable, as long as NameBuilder considers
+  /// that name to already be reserved.
+  ///
+  /// \note variables created this way cannot be renamed.
+  TagPair getReservedVariableTags(const model::Function &Function,
+                                  llvm::StringRef Name) const;
+
+  /// Special case handling for goto labels.
+  ///
+  /// \note that both tags are acquired at once, this removes the need to keep
+  ///       track of already emitted automated names.
+  TagPair
+  getGotoLabelTags(GotoLabelNameBuilder &LabelNameBuilder,
+                   const SortedVector<MetaAddress> &UserLocationSet) const;
+
 public:
   std::string getPrimitiveTag(model::PrimitiveKind::Values Kind,
                               uint64_t Size) const {
