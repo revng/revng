@@ -272,10 +272,31 @@ private:
 
 private:
   std::string variableLocationString(const model::Function &Function,
-                                     llvm::StringRef Variable) const {
+                                     llvm::StringRef VariableName,
+                                     llvm::StringRef TypeTag = "") const {
     return pipeline::locationString(revng::ranks::LocalVariable,
                                     Function.key(),
-                                    Variable.str());
+                                    model::LocalVariable::Key{ VariableName,
+                                                               TypeTag });
+  }
+  std::string
+  variableLocationString(const model::Function &Function,
+                         const model::LocalVariable &Variable) const {
+    return variableLocationString(Function,
+                                  Variable.Name(),
+                                  Variable.TypeTag());
+  }
+  std::string gotoLabelLocationString(const model::Function &Function,
+                                      llvm::StringRef VariableName) const {
+    return pipeline::locationString(revng::ranks::GotoLabel,
+                                    Function.key(),
+                                    model::LocalVariable::Key{ VariableName,
+                                                               "" });
+  }
+  std::string
+  gotoLabelLocationString(const model::Function &Function,
+                          const model::LocalVariable &Variable) const {
+    return gotoLabelLocationString(Function, Variable.Name());
   }
   std::string
   returnValueLocationString(const model::RawFunctionDefinition &Function,
@@ -541,9 +562,7 @@ public:
                                         llvm::StringRef GotoLabelName) const {
     // TODO: add the actions, at least rename!
     constexpr std::array<llvm::StringRef, 0> Actions = {};
-    std::string Location = pipeline::locationString(revng::ranks::GotoLabel,
-                                                    F.key(),
-                                                    GotoLabelName.str());
+    std::string Location = gotoLabelLocationString(F, GotoLabelName);
     return getNameTagImpl<true>(tokenTag(GotoLabelName,
                                          ptml::c::tokens::Variable),
                                 Location,
@@ -553,9 +572,7 @@ public:
   std::string getGotoLabelReferenceTag(const model::Function &F,
                                        llvm::StringRef GotoLabelName) const {
     constexpr std::array<llvm::StringRef, 0> Actions = {};
-    std::string Location = pipeline::locationString(revng::ranks::GotoLabel,
-                                                    F.key(),
-                                                    GotoLabelName.str());
+    std::string Location = gotoLabelLocationString(F, GotoLabelName);
     return getNameTagImpl<false>(tokenTag(GotoLabelName,
                                           ptml::c::tokens::Variable),
                                  Location,

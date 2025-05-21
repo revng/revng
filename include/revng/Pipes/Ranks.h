@@ -19,6 +19,7 @@ using SFK = model::StructField::Key;
 using UFK = model::UnionField::Key;
 using CAK = model::Argument::Key;
 using NRK = model::NamedTypedRegister::Key;
+using LVK = model::LocalVariable::Key;
 
 } // namespace detail
 
@@ -88,10 +89,13 @@ inline auto DynamicFunctionArgument = defineRank<"dynamic-function-argument",
                                                  std::string>(DynamicFunction);
 
 /// Rank for locations associated to function arguments and local variables.
-inline auto LocalVariable = defineRank<"local-variable", std::string>(Function);
+inline auto LocalVariable = defineRank<"local-variable",
+                                       detail::LVK,
+                                       "Variables">(Function);
 
 /// Rank for locations associated to goto-labels within functions.
-inline auto GotoLabel = defineRank<"goto-label", std::string>(Function);
+inline auto
+  GotoLabel = defineRank<"goto-label", detail::LVK, "GotoLabels">(Function);
 
 /// Rank for locations associated to comments within function bodies.
 inline auto
