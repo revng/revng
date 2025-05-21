@@ -21,6 +21,12 @@
 
 using namespace llvm;
 
+RegisterIRHelper StackFrameMarker("revng_stack_frame",
+                                  "absent in decompiled code");
+
+RegisterIRHelper StackArgumentMarker("revng_call_stack_arguments",
+                                     "absent in decompiled code");
+
 template<bool IsLegacy>
 using VarBuilder = LocalVariableBuilder<IsLegacy>;
 
@@ -53,10 +59,10 @@ Function *VarBuilder<IsLegacy>::getStackFrameAllocator() {
                                             { InputPointerSizedInteger },
                                             false);
 
-    StackFrameAllocator = Function::Create(AllocatorType,
-                                           GlobalValue::ExternalLinkage,
-                                           "revng_stack_frame",
-                                           &M);
+    StackFrameAllocator = createIRHelper("revng_stack_frame",
+                                         M,
+                                         AllocatorType,
+                                         GlobalValue::ExternalLinkage);
     addCommonAttributesAndTags(StackFrameAllocator);
   }
 
@@ -78,10 +84,10 @@ Function *VarBuilder<IsLegacy>::getCallStackArgumentsAllocator() {
                                               InputPointerSizedInteger },
                                             false);
 
-    CallStackArgumentsAllocator = Function::Create(AllocatorType,
-                                                   GlobalValue::ExternalLinkage,
-                                                   "revng_call_stack_arguments",
-                                                   &M);
+    CallStackArgumentsAllocator = createIRHelper("revng_call_stack_arguments",
+                                                 M,
+                                                 AllocatorType,
+                                                 GlobalValue::ExternalLinkage);
     addCommonAttributesAndTags(CallStackArgumentsAllocator);
   }
 
