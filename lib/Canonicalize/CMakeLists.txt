@@ -5,6 +5,7 @@
 revng_add_analyses_library_internal(
   revngCanonicalize
   EmbedStatementComments.cpp
+  EmbedVariableNames.cpp
   ExitSSAPass.cpp
   FoldModelGEP.cpp
   HoistStructPhis.cpp
