@@ -747,6 +747,7 @@ public:
   ///
   ///        // OmitInnerTypeName = true
   ///         *my_variable
+  ///        // (notice the leading space)
   ///        ```
   std::string getNamedCInstance(const model::Type &Type,
                                 llvm::StringRef InstanceName = "",
@@ -765,7 +766,7 @@ public:
                                llvm::StringRef InstanceName) const;
 
 public:
-  /// Print the function prototype (without any trailing ';') of \a Function.
+  /// Print the function prototype (without any trailing ';'s) of \a Function.
   /// \note If the return value or any of the arguments needs a wrapper, print
   ///       it with the corresponding wrapper type. The definition of such
   ///       wrappers should have already been printed before this function is

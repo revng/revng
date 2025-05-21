@@ -88,7 +88,7 @@ static void reportProblemNames(const model::Binary &Binary) {
 static std::optional<std::string>
 gatherNonReservedHelperNames(const llvm::Module &Module,
                              const model::CNameBuilder &B) {
-  std::string Error = "";
+  std::string ErrorMessage;
   for (const llvm::Function &Function : Module.functions()) {
     std::string SanitizedName = sanitizeIdentifier(Function.getName());
 
@@ -100,27 +100,27 @@ gatherNonReservedHelperNames(const llvm::Module &Module,
     }
 
     if (FunctionTags::QEMU.isTagOf(&Function))
-      Error += "- QEMU: " + SanitizedName + "\n";
+      ErrorMessage += "- QEMU: " + SanitizedName + "\n";
 
     if (FunctionTags::Helper.isTagOf(&Function)
         and not FunctionTags::BinaryOperationOverflows.isTagOf(&Function)) {
-      Error += "- Helper: " + SanitizedName + "\n";
+      ErrorMessage += "- Helper: " + SanitizedName + "\n";
     }
 
     if (FunctionTags::OpaqueCSVValue.isTagOf(&Function))
-      Error += "- OpaqueCSVValue: " + SanitizedName + "\n";
+      ErrorMessage += "- OpaqueCSVValue: " + SanitizedName + "\n";
 
     if (FunctionTags::Exceptional.isTagOf(&Function))
-      Error += "- Exceptional: " + SanitizedName + "\n";
+      ErrorMessage += "- Exceptional: " + SanitizedName + "\n";
 
     if (Function.isIntrinsic())
-      Error += "- Intrinsic: " + SanitizedName + "\n";
+      ErrorMessage += "- Intrinsic: " + SanitizedName + "\n";
   }
 
-  if (Error.empty())
+  if (ErrorMessage.empty())
     return std::nullopt;
 
-  return std::move(Error);
+  return std::move(ErrorMessage);
 }
 
 void Decompile::run(pipeline::ExecutionContext &EC,
