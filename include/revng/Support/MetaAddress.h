@@ -1039,3 +1039,21 @@ struct llvm::DenseMapInfo<MetaAddress> {
     return LHS == RHS;
   }
 };
+
+/// This returns a human-readable string containing the addresses in
+/// the provided container.
+///
+/// It should only be used for reporting these in error messages, logs and other
+/// debugging-related contexts.
+inline std::string
+addressesToString(RangeOf<MetaAddress> auto const &Addresses) {
+  std::string Result = "";
+
+  if (not Addresses.empty()) {
+    for (const MetaAddress &Address : Addresses)
+      Result += Address.toString() + " + ";
+    Result.resize(Result.size() - 3);
+  }
+
+  return Result;
+}
