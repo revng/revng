@@ -197,6 +197,24 @@ bool Function::verify(VerifyHelper &VH) const {
     }
   }
 
+  {
+    std::set<std::string> Deduplicator;
+    for (const auto &GotoLabel : GotoLabels()) {
+      if (not GotoLabel.verify())
+        return VH.fail();
+
+      if (GotoLabel.Location().size() != 1)
+        return VH.fail("Goto labels only support single address locations.");
+
+      if (not GotoLabel.TypeTag().empty())
+        return VH.fail("Goto labels shouldn't use type tags.");
+
+      if (!Deduplicator.insert(addressesToString(GotoLabel.Location())).second)
+        return VH.fail("Multiple goto labels with the same address set: '"
+                       + addressesToString(GotoLabel.Location()) + "'");
+    }
+  }
+
   return true;
 }
 
