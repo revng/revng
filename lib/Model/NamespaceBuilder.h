@@ -108,23 +108,24 @@ collectNamespaces(BinaryType &Binary) {
 
     } else if (auto *RFT = llvm::dyn_cast<model::RawFunctionDefinition>(D)) {
       auto &Arguments = Result.Local.emplace_back();
-      for (auto &Argument : RFT->Arguments())
-        if (not Argument.Name().empty())
-          Arguments[Argument.Name()].emplace_back(Argument.Name(),
-                                                  detail::path(*RFT, Argument));
+      for (auto &Arg : RFT->Arguments())
+        if (not Arg.Name().empty())
+          Arguments[Arg.Name()].emplace_back(Arg.Name(),
+                                             detail::argumentPath(*RFT, Arg));
 
       auto &RVs = Result.Local.emplace_back();
-      for (auto &ReturnValue : RFT->ReturnValues())
-        if (not ReturnValue.Name().empty())
-          RVs[ReturnValue.Name()].emplace_back(ReturnValue.Name(),
-                                               detail::path(*RFT, ReturnValue));
+      for (auto &ReturnV : RFT->ReturnValues())
+        if (not ReturnV.Name().empty())
+          RVs[ReturnV.Name()].emplace_back(ReturnV.Name(),
+                                           detail::returnValuePath(*RFT,
+                                                                   ReturnV));
 
     } else if (auto *CFT = llvm::dyn_cast<model::CABIFunctionDefinition>(D)) {
       auto &Arguments = Result.Local.emplace_back();
-      for (auto &Argument : CFT->Arguments())
-        if (not Argument.Name().empty())
-          Arguments[Argument.Name()].emplace_back(Argument.Name(),
-                                                  detail::path(*CFT, Argument));
+      for (auto &Arg : CFT->Arguments())
+        if (not Arg.Name().empty())
+          Arguments[Arg.Name()].emplace_back(Arg.Name(),
+                                             detail::argumentPath(*CFT, Arg));
 
       // TODO: don't forget about local variables once those are in the model.
 
