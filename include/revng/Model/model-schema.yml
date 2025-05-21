@@ -570,6 +570,11 @@ definitions:
           type: SortedVector
           elementType: StatementComment
         optional: true
+      - name: LocalVariables
+        sequence:
+          type: SortedVector
+          elementType: LocalIdentifier
+        optional: true
     key:
       - Entry
   - name: EnumEntry
