@@ -419,3 +419,118 @@ void ptml::CTypeBuilder::printSegmentType(const model::Segment &Segment) {
 
   *Out << getCommentableTag(std::move(Result) + ";\n", Binary, Segment);
 }
+
+Logger<> VariableNamingLog("variable-naming");
+
+ptml::CTypeBuilder::TagPair
+ptml::CTypeBuilder::getVariableTags(VariableNameBuilder &VariableNameBuilder,
+                                    const SortedVector<MetaAddress>
+                                      &UserLocationSet) const {
+  constexpr std::array Actions = { ptml::actions::Rename };
+  llvm::ArrayRef<llvm::StringRef> CurrentActions = Actions;
+
+  auto [Name, I, HasA, Warning] = VariableNameBuilder.name(UserLocationSet);
+  if (not HasA) {
+    // The variable is not locatable, ensure `rename` action is not allowed.
+    constexpr std::array<llvm::StringRef, 0> EmptyActions = {};
+    CurrentActions = EmptyActions;
+  }
+
+  if (VariableNamingLog.isEnabled()) {
+    if (HasA)
+      VariableNamingLog << "A locatable ";
+    else
+      VariableNamingLog << "A non-locatable ";
+
+    VariableNamingLog << "variable (" << I << ") at '"
+                      << addressesToString(UserLocationSet)
+                      << "' received the name: '" << Name << "'" << DoLog;
+
+    if (not Warning.empty())
+      VariableNamingLog << "WARNING (in "
+                        << ::toString(VariableNameBuilder.function().key())
+                        << "): " << Warning << '\n';
+  }
+
+  // TODO: emit warning to users (comment, vscode squiggle, etc), instead of
+  //       just logging it.
+
+  auto Location = variableLocationString(VariableNameBuilder.function(), I);
+  return TagPair{
+    .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       CurrentActions),
+    .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       CurrentActions)
+  };
+}
+
+ptml::CTypeBuilder::TagPair
+ptml::CTypeBuilder::getReservedVariableTags(const model::Function &Function,
+                                            llvm::StringRef Name) const {
+  NameBuilder.assertNameIsReserved(Name);
+
+  constexpr std::array<llvm::StringRef, 0> Actions = {};
+
+  std::string Location = reservedVariableLocationString(Function, Name);
+  // NOTE: these should never be used as a context for any actions.
+
+  revng_log(VariableNamingLog,
+            "A non-renamable variable received the name: '" << Name << "'");
+
+  return TagPair{
+    .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       Actions),
+    .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       Actions)
+  };
+}
+
+ptml::CTypeBuilder::TagPair
+ptml::CTypeBuilder::getGotoLabelTags(GotoLabelNameBuilder &LabelNameBuilder,
+                                     const SortedVector<MetaAddress>
+                                       &UserLocationSet) const {
+  constexpr std::array Actions = { ptml::actions::Rename };
+  llvm::ArrayRef<llvm::StringRef> CurrentActions = Actions;
+
+  auto [Name, I, HasAddr, Warning] = LabelNameBuilder.name(UserLocationSet);
+  if (not HasAddr) {
+    // The label is not locatable, ensure `rename` action is not allowed.
+    constexpr std::array<llvm::StringRef, 0> EmptyActions = {};
+    CurrentActions = EmptyActions;
+  }
+
+  if (VariableNamingLog.isEnabled()) {
+    if (HasAddr)
+      VariableNamingLog << "A locatable ";
+    else
+      VariableNamingLog << "A non-locatable ";
+
+    if (not Warning.empty())
+      VariableNamingLog << "WARNING (in "
+                        << ::toString(LabelNameBuilder.function().key())
+                        << "): " << Warning << '\n';
+  }
+
+  // TODO: emit warning to users (comment, vscode squiggle, etc), instead of
+  //       just logging it.
+
+  auto Location = gotoLabelLocationString(LabelNameBuilder.function(), I);
+  return TagPair{
+    .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       CurrentActions),
+    .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       CurrentActions)
+  };
+}

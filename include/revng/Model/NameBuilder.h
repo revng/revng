@@ -45,7 +45,6 @@ public:
     return static_cast<const Inheritor &>(*this).isNameReserved(Name);
   }
 
-private:
   void assertNameIsReserved(llvm::StringRef Name) const {
     if (llvm::Error Error = isNameReserved(Name)) {
       // All good, we want an error here.
@@ -59,6 +58,7 @@ private:
     }
   }
 
+private:
   [[nodiscard]] std::string automaticName(const model::Binary &Binary,
                                           const model::Segment &Segment) const {
     auto Iterator = Binary.Segments().find(Segment.key());
