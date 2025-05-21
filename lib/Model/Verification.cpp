@@ -140,6 +140,12 @@ bool StatementComment::verify(VerifyHelper &VH) const {
   return verifyAddressSet(VH, Location(), *this);
 }
 
+bool LocalVariable::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  return verifyAddressSet(VH, Location(), *this);
+}
+
 bool Function::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
@@ -935,6 +941,14 @@ bool StatementComment::verify(bool Assert) const {
   return verify(VH);
 }
 bool StatementComment::verify() const {
+  return verify(false);
+}
+
+bool LocalVariable::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool LocalVariable::verify() const {
   return verify(false);
 }
 
