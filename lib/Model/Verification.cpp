@@ -109,26 +109,34 @@ bool CallSitePrototype::verify(VerifyHelper &VH) const {
   return true;
 }
 
+bool verifyAddressSet(VerifyHelper &VH,
+                      const TrackingSortedVector<MetaAddress> &MAs,
+                      const auto &ToLog) {
+  if (MAs.empty())
+    return VH.fail("Empty locations are not allowed.", ToLog);
+
+  std::set<MetaAddress> Deduplicator;
+  for (const MetaAddress &Address : MAs) {
+    if (Address.isInvalid())
+      return VH.fail("Only valid addresses can be a part of a location.",
+                     ToLog);
+
+    if (not Deduplicator.insert(Address).second)
+      return VH.fail("Duplicated addresses are not allowed as a part of "
+                     "a location.",
+                     ToLog);
+  }
+
+  return true;
+}
+
 bool StatementComment::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
   if (Body().empty())
     return VH.fail("Comment body must not be empty.", *this);
 
-  std::set<MetaAddress> Deduplicator;
-  for (const MetaAddress &Address : Location()) {
-    if (Address.isInvalid())
-      return VH.fail("Only valid addresses can be a part of the comment "
-                     "location.",
-                     *this);
-
-    if (not Deduplicator.insert(Address).second)
-      return VH.fail("Duplicated addresses are not allowed as a part of the "
-                     "comment location.",
-                     *this);
-  }
-
-  return true;
+  return verifyAddressSet(VH, Location(), *this);
 }
 
 bool Function::verify(VerifyHelper &VH) const {
