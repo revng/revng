@@ -1078,6 +1078,14 @@ definitions:
           The default value is `break_from_loop_`.
         type: string
         optional: true
+      - name: UnnamedGotoLabelPrefix
+        doc: |
+          The prefix for a goto label without a name.
+
+          The default value is `label_`.
+        type: string
+        optional: true
+
       - name: UndefinedValuePrefix
         doc: |
           The prefix for an undefined value.
