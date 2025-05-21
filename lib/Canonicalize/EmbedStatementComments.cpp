@@ -60,19 +60,6 @@ struct yield::StatementTraits<llvm::BasicBlock *> {
   }
 };
 
-static std::string
-addressesToString(RangeOf<MetaAddress> auto const &Addresses) {
-  std::string Result = "";
-
-  if (not Addresses.empty()) {
-    for (const MetaAddress &Address : Addresses)
-      Result += Address.toString() + " + ";
-    Result.resize(Result.size() - 3);
-  }
-
-  return Result;
-}
-
 struct EmbedStatementComments {
 public:
   static constexpr auto Name = "embed-statement-comments";
