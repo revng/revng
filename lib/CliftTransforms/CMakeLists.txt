@@ -20,6 +20,7 @@ revng_add_library_internal(
   RewriteHelpers.cpp
   Statements.cpp
   TerminalBranchComplementHoisting.cpp
+  TightenVariableScopes.cpp
   TrivialReturnElimination.cpp)
 
 target_link_libraries(revngCliftTransforms MLIRTransformUtils revngClift)

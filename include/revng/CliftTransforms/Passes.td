@@ -56,6 +56,13 @@ def CliftTerminalBranchComplementHoisting
   let constructor = "clift::createTerminalBranchComplementHoistingPass()";
 }
 
+def CliftTightenVariableScopes : Clift_Pass<"tighten-variable-scopes",
+                                            "clift::FunctionOp"> {
+
+  let summary = "Tighten variable scopes";
+  let constructor = "clift::createVariableScopeTighteningPass()";
+}
+
 def CliftCLegalization : Clift_Pass<"c-legalization", "clift::FunctionOp"> {
   let summary = "Legalize the input for emitting C code.";
   let constructor = "clift::createCLegalizationPass()";
