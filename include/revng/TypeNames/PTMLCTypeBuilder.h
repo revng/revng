@@ -12,6 +12,10 @@
 
 namespace ptml {
 
+namespace detail {
+extern Logger<> VariableNamingLog;
+};
+
 class CTypeBuilder : public CBuilder {
 public:
   using OutStream = ptml::IndentedOstream;
@@ -614,6 +618,16 @@ public:
     std::string Location = variableLocationString(*SubNameBuilder.Function,
                                                   Name,
                                                   TypeTag);
+
+    if (detail::VariableNamingLog.isEnabled()) {
+      detail::VariableNamingLog << "A variable ";
+      if (not TypeTag.empty())
+        detail::VariableNamingLog << "(tagged as " << TypeTag.str() << ") ";
+      detail::VariableNamingLog << "at '" << addressesToString(UserLocationSet)
+                                << "' received the name: '" << Name << "'"
+                                << DoLog;
+    }
+
     return TagPair{
       .Definition = getNameTagImpl<true>(tokenTag(Name,
                                                   ptml::c::tokens::Variable),
@@ -641,6 +655,11 @@ public:
     constexpr std::array<llvm::StringRef, 0> Actions = {};
 
     std::string Location = variableLocationString(Function, Name, TypeTag);
+
+    revng_log(detail::VariableNamingLog,
+              "A non-renamable variable (tagged as "
+                << TypeTag.str() << ") received the name: '" << Name << "'");
+
     return TagPair{
       .Definition = getNameTagImpl<true>(tokenTag(Name,
                                                   ptml::c::tokens::Variable),
@@ -664,6 +683,11 @@ public:
     std::string Name = SubNameBuilder.name({ UserLocation });
     std::string Location = gotoLabelLocationString(*SubNameBuilder.Function,
                                                    Name);
+
+    revng_log(detail::VariableNamingLog,
+              "A goto label at " << UserLocation.toString()
+                                 << " received the name: '" << Name << "'");
+
     return TagPair{
       .Definition = getNameTagImpl<true>(tokenTag(Name,
                                                   ptml::c::tokens::Variable),
