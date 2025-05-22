@@ -1,0 +1,28 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+tags:
+  - name: for-llvm-lit-tests
+  - name: for-mlir-lit-tests
+sources:
+  - tags: [for-llvm-lit-tests]
+    members:
+      - share/revng/test/tests/lit/llvm/
+  - tags: [for-mlir-lit-tests]
+    members:
+      - share/revng/test/tests/lit/mlir/
+
+commands:
+  - type: revng.llvm-lit-tests
+    from:
+      - type: source
+        filter: for-llvm-lit-tests
+    command: |-
+      lit --succinct --verbose --no-progress-bar ${INPUT}
+  - type: revng.mlir-lit-tests
+    from:
+      - type: source
+        filter: for-mlir-lit-tests
+    command: |-
+      lit --succinct --verbose --no-progress-bar ${INPUT}

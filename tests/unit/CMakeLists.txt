@@ -6,9 +6,6 @@ cmake_policy(SET CMP0060 NEW)
 
 set(SRC "${CMAKE_SOURCE_DIR}/tests/unit")
 
-add_subdirectory(llvm_lit_tests)
-add_subdirectory(mlir_lit_tests)
-
 find_package(Boost REQUIRED COMPONENTS unit_test_framework)
 
 #
@@ -596,13 +593,13 @@ target_link_libraries(
 add_test(NAME test_pointer_array_emission COMMAND test_pointer_array_emission)
 
 #
-# compile a pass
+# Prepare the support binary for the scopegraph lit test
 #
 
-# We use the plain `add_library` and not the revng version
-# (revng_add_library_internal) in order to not get this installed into `lib`
-add_library(test_scopegraph SHARED "${SRC}/ScopeGraphLoggerPass.cpp")
-target_link_libraries(test_scopegraph revngScopeGraphUtils revngSupport
+# TODO: find a better way to put this library near the test that expects it
+revng_add_library_internal(scopegraph_test_support SHARED
+                           "${SRC}/ScopeGraphLoggerPass.cpp")
+target_link_libraries(scopegraph_test_support revngScopeGraphUtils revngSupport
                       ${LLVM_LIBRARIES})
 
 #
