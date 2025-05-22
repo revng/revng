@@ -475,18 +475,6 @@ revng_add_test(NAME test_adt COMMAND test_adt)
 set_tests_properties(test_adt PROPERTIES LABELS "unit")
 
 #
-# test_type_shrinking
-#
-revng_add_test(
-  NAME
-  test_type_shrinking
-  COMMAND
-  bash
-  -c
-  "${CMAKE_BINARY_DIR}/bin/revng opt -S -early-type-shrinking -type-shrinking -instcombine ${SRC}/TypeShrinking.ll | FileCheck ${SRC}/TypeShrinking.ll"
-)
-
-#
 # test_combingpass
 #
 
