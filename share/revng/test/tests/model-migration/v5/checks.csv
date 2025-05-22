@@ -1,0 +1,8 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+ModelField,ExpectedValue
+.Functions[0].Variables,null
+.Functions[0].GotoLabels,null
+.Configuration.Naming.UnnamedGotoLabelPrefix,null
