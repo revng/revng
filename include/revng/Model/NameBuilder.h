@@ -11,6 +11,7 @@
 #include "revng/Model/EnumDefinition.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/Helpers.h"
+#include "revng/Model/LocalVariable.h"
 #include "revng/Model/NamingConfiguration.h"
 #include "revng/Model/PrimitiveType.h"
 #include "revng/Model/RawFunctionDefinition.h"
@@ -38,7 +39,6 @@ public:
     return static_cast<const Inheritor &>(*this).isNameReserved(Name);
   }
 
-private:
   void assertNameIsReserved(llvm::StringRef Name) const {
     if (llvm::Error Error = isNameReserved(Name)) {
       // All good, we want an error here.
@@ -52,6 +52,7 @@ private:
     }
   }
 
+private:
   [[nodiscard]] std::string automaticName(const model::Binary &Binary,
                                           const model::Segment &Segment) const {
     auto Iterator = Binary.Segments().find(Segment.key());
@@ -197,6 +198,160 @@ public:
     std::string Result = Primitive.getCName();
     assertNameIsReserved(Result);
     return Result;
+  }
+
+  struct CountingNameBuilder {
+  protected:
+    const NameBuilder *Parent = nullptr;
+
+    // This is used to keep track of the names that were already emitted,
+    // because, as you can probably imagine, emitting the same variable
+    // name twice is _really_ bad.
+    //
+    // This is also used for the sanity "hey, names X and Y from the model
+    // no longer have a corresponding variable" comment.
+    std::set<llvm::StringRef> EmittedNames = {};
+
+  private:
+    uint64_t NextIndex = 0;
+
+  public:
+    CountingNameBuilder() = default;
+    CountingNameBuilder(const NameBuilder &Parent) : Parent(&Parent) {}
+
+  private:
+    [[nodiscard]] std::string automaticNameImpl(llvm::StringRef Prefix,
+                                                uint64_t CurrentIndex) const {
+      std::string Result = Prefix.str() + std::to_string(CurrentIndex);
+      Parent->assertNameIsReserved(Result);
+      return Result;
+    }
+
+  public:
+    [[nodiscard]] std::string automaticName(llvm::StringRef Prefix) {
+      return automaticNameImpl(Prefix, NextIndex++);
+    }
+
+  protected:
+    [[nodiscard]] std::string name(llvm::StringRef Name,
+                                   llvm::StringRef AutomaticPrefix) {
+      uint64_t CurrentIndex = NextIndex++;
+
+      auto [_, Inserted] = EmittedNames.emplace(Name);
+      if (not Inserted) {
+        // This name was already emitted, fall back on the automatic name.
+        // TODO: come up with a better solution.
+
+        return automaticNameImpl(AutomaticPrefix, CurrentIndex);
+      }
+      if (llvm::Error Error = Parent->isNameReserved(Name)) {
+        // We don't care what the specific error is - if there is one,
+        // just fall back on the automatic name.
+        llvm::consumeError(std::move(Error));
+
+        return automaticNameImpl(AutomaticPrefix, CurrentIndex);
+
+      } else {
+        return Name.str();
+      }
+    }
+  };
+
+  struct VariableNameBuilder : public CountingNameBuilder {
+    const model::Function *Function = nullptr;
+
+    VariableNameBuilder() = default;
+    VariableNameBuilder(const NameBuilder &Parent,
+                        const model::Function &Function) :
+      CountingNameBuilder(Parent), Function(&Function) {}
+
+    llvm::StringRef getTypeTagPrefix(llvm::StringRef TypeTag) {
+      if (TypeTag.empty()) {
+        return this->Parent->Configuration.unnamedLocalVariablePrefix();
+
+      } else if (TypeTag == "artificial-aggregate") {
+        // If this somehow makes it to the new backend,
+        // introduce a different prefix.
+        return this->Parent->Configuration.unnamedLocalVariablePrefix();
+
+      } else if (TypeTag == "call-stack") {
+        // If this somehow makes it to the new backend,
+        // introduce a different prefix.
+        return this->Parent->Configuration.unnamedLocalVariablePrefix();
+
+      } else if (TypeTag == "break-from-loop") {
+        return this->Parent->Configuration.unnamedBreakFromLoopVariablePrefix();
+
+      } else {
+        revng_abort(("Unsupported variable type: " + TypeTag.str()).c_str());
+      }
+    }
+
+    std::string name(const SortedVector<MetaAddress> &UserLocationSet,
+                     llvm::StringRef TypeTag = "") {
+      llvm::StringRef Prefix = getTypeTagPrefix(TypeTag);
+
+      auto Comparator = [&](const model::LocalVariable &Variable) {
+        return Variable.Location() == UserLocationSet
+               && Variable.TypeTag() == TypeTag;
+      };
+
+      auto Iterator = std::ranges::find_if(Function->Variables(), Comparator);
+      if (Iterator != Function->Variables().end())
+        return CountingNameBuilder::name(Iterator->Name(), Prefix);
+      else
+        return CountingNameBuilder::automaticName(Prefix);
+    }
+
+    // TODO: add `warning()` methods.
+
+    std::set<llvm::StringRef> homelessNames() const {
+      return Function->Variables() | std::views::filter([this](const auto &V) {
+               return not CountingNameBuilder::EmittedNames.contains(V.Name());
+             })
+             | std::views::transform([](const auto &V) { return V.Name(); })
+             | revng::to<std::set<llvm::StringRef>>();
+    }
+  };
+  VariableNameBuilder variables(const model::Function &Function) const {
+    return VariableNameBuilder(*this, Function);
+  }
+
+  struct GotoLabelNameBuilder : public CountingNameBuilder {
+    const model::Function *Function;
+
+    GotoLabelNameBuilder() = default;
+    GotoLabelNameBuilder(const NameBuilder &Parent,
+                         const model::Function &Function) :
+      CountingNameBuilder(Parent), Function(&Function) {}
+
+    std::string name(const SortedVector<MetaAddress> &UserLocationSet) {
+      auto Prefix = this->Parent->Configuration.unnamedGotoLabelPrefix();
+
+      auto Comparator = [&](const model::LocalVariable &Variable) {
+        return Variable.Location() == UserLocationSet
+               && Variable.TypeTag() == "";
+      };
+
+      auto Iterator = std::ranges::find_if(Function->GotoLabels(), Comparator);
+      if (Iterator != Function->GotoLabels().end())
+        return CountingNameBuilder::name(Iterator->Name(), Prefix);
+      else
+        return CountingNameBuilder::automaticName(Prefix);
+    }
+
+    // TODO: add `warning()` methods.
+
+    std::set<llvm::StringRef> homelessNames() const {
+      return Function->GotoLabels() | std::views::filter([this](const auto &V) {
+               return not CountingNameBuilder::EmittedNames.contains(V.Name());
+             })
+             | std::views::transform([](const auto &V) { return V.Name(); })
+             | revng::to<std::set<llvm::StringRef>>();
+    }
+  };
+  GotoLabelNameBuilder gotoLabels(const model::Function &Function) const {
+    return GotoLabelNameBuilder(*this, Function);
   }
 
   [[nodiscard]] std::string llvmName(const model::Function &Function) const {

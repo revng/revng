@@ -503,9 +503,11 @@ Branches:
               - operatorprecedence-resolution
               - pretty-int-formatting
               - remove-broken-debug-information
-      - Name: embed-statement-comments
+      - Name: embed-comments-and-names
         Pipes:
           - Type: embed-statement-comments
+            UsedContainers: [module.bc.zstd]
+          - Type: embed-variable-names
             UsedContainers: [module.bc.zstd]
       - Name: decompile
         Pipes:
@@ -547,7 +549,7 @@ Branches:
             This artifact is a single PTML file representing the decompiled C
             code of the whole program, including the body of all of program's
             functions.
-  - From: canonicalize
+  - From: embed-comments-and-names
     Steps:
       - Name: emit-recompilable-archive
         Pipes:

@@ -48,6 +48,7 @@
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/Pipeline/Location.h"
+#include "revng/Pipes/DebugInfoHelpers.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/RestructureCFG/ASTNode.h"
 #include "revng/RestructureCFG/ASTNodeUtils.h"
@@ -256,29 +257,8 @@ private:
   ///       getCallEdge.
   ControlFlowGraphCache &Cache;
 
-private:
-  class VarNameGenerator {
-  private:
-    uint64_t CurrentVariableID = 0;
-    const model::NamingConfiguration &Configuration;
-
-  public:
-    VarNameGenerator(const model::Binary &Binary) :
-      Configuration(Binary.Configuration().Naming()) {}
-
-    std::string nextVarName() {
-      return Configuration.unnamedLocalVariablePrefix().str()
-             + std::to_string(CurrentVariableID++);
-    }
-
-    std::string nextSwitchStateVar() {
-      return Configuration.unnamedBreakFromLoopVariablePrefix().str()
-             + std::to_string(CurrentVariableID++);
-    }
-  };
-
-  /// Stateful generator for variable names
-  VarNameGenerator NameGenerator;
+  /// Helper for finalizing variable names
+  ptml::CTypeBuilder::VariableNameBuilder VariableNameBuilder;
 
   /// Keep track of the names associated with function arguments, and local
   /// variables. In the past it also kept track of intermediate expressions, but
@@ -315,13 +295,17 @@ public:
     B(B),
     SwitchStateVars(),
     Cache(Cache),
-    NameGenerator(Model) {
+    VariableNameBuilder(B.makeVariableNameBuilder(ModelFunction)) {
     // TODO: don't use a global loop state variable
     const auto &Configuration = B.NameBuilder.Configuration;
-    llvm::StringRef LoopStateVariable = Configuration.loopStateVariableName();
-    LoopStateVar = B.getVariableReferenceTag(ModelFunction, LoopStateVariable);
-    LoopStateVarDeclaration = B.getVariableDefinitionTag(ModelFunction,
-                                                         LoopStateVariable);
+    llvm::StringRef LoopStateVariableName = Configuration
+                                              .loopStateVariableName();
+    auto [Definition,
+          Reference] = B.getReservedVariableTags(ModelFunction,
+                                                 LoopStateVariableName,
+                                                 "reserved");
+    LoopStateVarDeclaration = std::move(Definition);
+    LoopStateVar = std::move(Reference);
 
     if (LLVMFunction.getMetadata(ExplicitParenthesesMDName))
       IsOperatorPrecedenceResolutionPassEnabled = true;
@@ -402,19 +386,60 @@ private:
     revng_assert(not TokenMap.contains(I));
 
     const auto &Configuration = Model.Configuration().Naming();
-    std::string VarName = Configuration.stackFrameVariableName().str();
-    TokenMap[I] = B.getVariableReferenceTag(ModelFunction, VarName);
-    return B.getVariableDefinitionTag(ModelFunction, VarName);
+    llvm::StringRef VarName = Configuration.stackFrameVariableName();
+    auto [Definition, Reference] = B.getReservedVariableTags(ModelFunction,
+                                                             VarName,
+                                                             "reserved");
+    TokenMap[I] = std::move(Reference);
+    return std::move(Definition);
   }
 
   std::string createLocalVarDeclName(const llvm::Instruction *I) {
-    revng_assert(isLocalVarDecl(I) or isArtificialAggregateLocalVarDecl(I)
-                 or isCallStackArgumentDecl(I));
-    std::string VarName = NameGenerator.nextVarName();
+    SortedVector<MetaAddress> Location;
+    llvm::StringRef TypeTag = "";
+
+    if (isCallToTagged(I, FunctionTags::RenamableVariable)) {
+      const llvm::CallInst &Call = llvm::cast<llvm::CallInst>(*I);
+      revng_assert(Call.getNumOperands() == 3);
+      auto EncodedLocation = extractFromConstantStringPtr(Call.getOperand(1));
+      if (not EncodedLocation.empty()) {
+        auto Decoded = fromString<SortedVector<MetaAddress>>(EncodedLocation);
+        if (not Decoded) {
+          std::string Error = "Could not deserialize the address list from "
+                              "LLVM constant string \""
+                              + EncodedLocation.str()
+                              + "\2: " + consumeToString(Decoded) + ".";
+          revng_abort(Error.c_str());
+        }
+
+        Location = std::move(*Decoded);
+      }
+
+    } else if (isCallToTagged(I, FunctionTags::LocalVariable)) {
+      // There's no location for this variable (most likely, debug information
+      // was lost). There's nothing to do but emit the automatic name.
+
+    } else if (isArtificialAggregateLocalVarDecl(I)) {
+      TypeTag = "artificial-aggregate";
+      if (std::optional MaybeAddress = revng::tryExtractAddress(*I))
+        Location.emplace(std::move(*MaybeAddress));
+
+    } else if (isCallStackArgumentDecl(I)) {
+      TypeTag = "call-stack";
+      if (std::optional MaybeAddress = revng::tryExtractAddress(*I))
+        Location.emplace(std::move(*MaybeAddress));
+
+    } else {
+      revng_abort("This instruction is not a local variable!");
+    }
+
     // This may override the entry for I, if I belongs to a "duplicated"
     // BasicBlock that is reachable from many paths on the GHAST.
-    TokenMap[I] = B.getVariableReferenceTag(ModelFunction, VarName);
-    return B.getVariableDefinitionTag(ModelFunction, VarName);
+    auto [Definition, Reference] = B.getVariableTags(VariableNameBuilder,
+                                                     Location,
+                                                     TypeTag);
+    TokenMap[I] = std::move(Reference);
+    return std::move(Definition);
   }
 
   std::string getVarName(const llvm::Instruction *I) const {
@@ -1721,15 +1746,21 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // is used by nested switches inside loops to break out of the loop
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
-      std::string NewVarName = NameGenerator.nextSwitchStateVar();
-      std::string SwitchStateVar = B.getVariableReferenceTag(ModelFunction,
-                                                             NewVarName);
-      SwitchStateVars.push_back(std::move(SwitchStateVar));
+
+      SortedVector<MetaAddress> Location;
+      if (const llvm::BasicBlock *BasicBlock = Switch->getBB())
+        if (not BasicBlock->empty())
+          if (std::optional MA = revng::tryExtractAddress(BasicBlock->back()))
+            Location.emplace(*MA);
+
+      auto [Definition, Reference] = B.getVariableTags(VariableNameBuilder,
+                                                       Location,
+                                                       "break-from-loop");
+      SwitchStateVars.push_back(std::move(Reference));
       using COperator = ptml::CBuilder::Operator;
       B.append(B.tokenTag("bool", ptml::c::tokens::Type) + " "
-               + B.getVariableDefinitionTag(ModelFunction, NewVarName) + " "
-               + B.getOperator(COperator::Assign) + " " + B.getFalseTag()
-               + ";\n");
+               + std::move(Definition) + " " + B.getOperator(COperator::Assign)
+               + " " + B.getFalseTag() + ";\n");
     }
 
     // Generate the condition of the switch
@@ -1958,6 +1989,19 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
 
     // Recursively print the body of this function
     emitGHASTNode(GHAST.getRoot());
+
+    // Mention unused variables by name, to reduce confusion when they suddenly
+    // disappear.
+    std::set<llvm::StringRef> Homeless = VariableNameBuilder.homelessNames();
+    if (not Homeless.empty()) {
+      std::string Message = "The following variables are no longer present "
+                            "in this function: ";
+      for (llvm::StringRef Name : Homeless)
+        Message += '`' + Name.str() + "`, ";
+      Message.resize(Message.size() - 2);
+
+      B.append('\n' + B.getFreeFormComment(std::move(Message)));
+    }
   }
 
   B.append("\n");

@@ -109,26 +109,41 @@ bool CallSitePrototype::verify(VerifyHelper &VH) const {
   return true;
 }
 
+template<typename ToLogType>
+bool verifyAddressSet(VerifyHelper &VH,
+                      RangeOf<MetaAddress> auto const &MAs,
+                      const ToLogType &ToLog) {
+  if (MAs.empty())
+    return VH.fail("Empty locations are not allowed.", ToLog);
+
+  std::set<MetaAddress> Deduplicator;
+  for (const MetaAddress &Address : MAs) {
+    if (Address.isInvalid())
+      return VH.fail("Only valid addresses can be a part of a location.",
+                     ToLog);
+
+    if (not Deduplicator.insert(Address).second)
+      return VH.fail("Duplicated addresses are not allowed as a part of "
+                     "a location.",
+                     ToLog);
+  }
+
+  return true;
+}
+
 bool StatementComment::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
   if (Body().empty())
     return VH.fail("Comment body must not be empty.", *this);
 
-  std::set<MetaAddress> Deduplicator;
-  for (const MetaAddress &Address : Location()) {
-    if (Address.isInvalid())
-      return VH.fail("Only valid addresses can be a part of the comment "
-                     "location.",
-                     *this);
+  return verifyAddressSet(VH, Location(), *this);
+}
 
-    if (not Deduplicator.insert(Address).second)
-      return VH.fail("Duplicated addresses are not allowed as a part of the "
-                     "comment location.",
-                     *this);
-  }
+bool LocalVariable::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
 
-  return true;
+  return verifyAddressSet(VH, Location(), *this);
 }
 
 bool Function::verify(VerifyHelper &VH) const {
@@ -168,6 +183,36 @@ bool Function::verify(VerifyHelper &VH) const {
 
     if (not Comment.verify())
       return VH.fail();
+  }
+
+  {
+    std::set<std::string> Deduplicator;
+    for (const auto &Variable : Variables()) {
+      if (not Variable.verify())
+        return VH.fail();
+
+      if (!Deduplicator.insert(addressesToString(Variable.Location())).second)
+        return VH.fail("Multiple variables with the same address set: '"
+                       + addressesToString(Variable.Location()) + "'");
+    }
+  }
+
+  {
+    std::set<std::string> Deduplicator;
+    for (const auto &GotoLabel : GotoLabels()) {
+      if (not GotoLabel.verify())
+        return VH.fail();
+
+      if (GotoLabel.Location().size() != 1)
+        return VH.fail("Goto labels only support single address locations.");
+
+      if (not GotoLabel.TypeTag().empty())
+        return VH.fail("Goto labels shouldn't use type tags.");
+
+      if (!Deduplicator.insert(addressesToString(GotoLabel.Location())).second)
+        return VH.fail("Multiple goto labels with the same address set: '"
+                       + addressesToString(GotoLabel.Location()) + "'");
+    }
   }
 
   return true;
@@ -726,6 +771,8 @@ bool Configuration::verify(VerifyHelper &VH) const {
     return VH.fail("Local variable prefix must not be empty.");
   if (Configuration().Naming().unnamedBreakFromLoopVariablePrefix().empty())
     return VH.fail("\"Break from loop\" variable prefix must not be empty.");
+  if (Configuration().Naming().unnamedGotoLabelPrefix().empty())
+    return VH.fail("Goto label prefix must not be empty.");
 
   if (Configuration().Naming().structPaddingPrefix().empty())
     return VH.fail("Padding prefix must not be empty.");
@@ -924,6 +971,14 @@ bool StatementComment::verify(bool Assert) const {
   return verify(VH);
 }
 bool StatementComment::verify() const {
+  return verify(false);
+}
+
+bool LocalVariable::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool LocalVariable::verify() const {
   return verify(false);
 }
 

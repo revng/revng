@@ -492,6 +492,53 @@ definitions:
         optional: true
     key:
       - Location
+
+  - name: LocalVariable
+    type: struct
+
+    fields:
+      - name: Name
+        type: string
+
+      - name: Location
+        doc: |
+          The combined set of all the locations (encoded as sets of addresses) of
+          all the users of this variable.
+
+        sequence:
+          type: SortedVector
+          elementType: MetaAddress
+
+      - name: TypeTag
+        # TODO: consider using an enum
+        type: string
+        optional: true
+        doc: |
+          This is used to allow different variable types to reuse the same map, even
+          if their locations could potentially collide.
+
+          For example, this lets us have a switch break variable with the same
+          address as a "normal" variable (think: only ever used in that same switch)
+          without them interfering with each other - as in with unique names.
+
+          This should be empty for a "normal" (as in, untagged) variable.
+
+          Note that variable typing is a feature of the old backend, so the need
+          for this will likely go away when we drop it (see `LocalVariableBuilder`
+          for more information on that front).
+
+    key:
+      # Using the name as the key might not be the best from the invalidation stand
+      # point, as renaming any variable would invalidate the entire set.
+      #
+      # On the other hand, this reduces potential duplication friction.
+      # As well as allows us to avoid an artificial key (like index).
+      - Name
+
+      # Adopt tag as a sub-key so that it's present in the location as well as to
+      # simplify using it for lookup.
+      - TypeTag
+
   - name: Function
     doc: A function defined within this binary.
     type: struct
@@ -544,6 +591,16 @@ definitions:
         sequence:
           type: SortedVector
           elementType: StatementComment
+        optional: true
+      - name: Variables
+        sequence:
+          type: SortedVector
+          elementType: LocalVariable
+        optional: true
+      - name: GotoLabels
+        sequence:
+          type: SortedVector
+          elementType: LocalVariable
         optional: true
     key:
       - Entry
@@ -1077,6 +1134,14 @@ definitions:
           The default value is `break_from_loop_`.
         type: string
         optional: true
+      - name: UnnamedGotoLabelPrefix
+        doc: |
+          The prefix for a goto label without a name.
+
+          The default value is `label_`.
+        type: string
+        optional: true
+
       - name: UndefinedValuePrefix
         doc: |
           The prefix for an undefined value.

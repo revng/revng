@@ -30,6 +30,8 @@
 #include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 
+Logger<> ptml::detail::VariableNamingLog("variable-naming");
+
 using llvm::dyn_cast;
 using llvm::StringRef;
 using llvm::Twine;

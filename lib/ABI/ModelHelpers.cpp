@@ -297,7 +297,8 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
                                             Model.Architecture()) };
 
       } else if (FTags.contains(FunctionTags::ModelCast)
-                 or FTags.contains(FunctionTags::LocalVariable)) {
+                 or FTags.contains(FunctionTags::LocalVariable)
+                 or FTags.contains(FunctionTags::RenamableVariable)) {
         // The first argument is the returned type
         auto Type = fromLLVMString(Call->getArgOperand(0), Model);
         rc_return{ std::move(Type) };
