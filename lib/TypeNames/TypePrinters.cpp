@@ -277,26 +277,6 @@ void ptml::CTypeBuilder::printDefinition(const model::TypeDefinition &T) {
     revng_abort("Unsupported type definition.");
 }
 
-void ptml::CTypeBuilder::printInlineDefinition(llvm::StringRef Name,
-                                               const model::Type &T) {
-  const model::TypeDefinition *Definition = T.skipToDefinition();
-  revng_assert(Definition, "Primitives cannot be printed inline.");
-
-  auto Suffix = getNamedCInstance(T, Name, true);
-  if (auto *Struct = llvm::dyn_cast<model::StructDefinition>(Definition)) {
-    printDefinition(*Struct, std::move(Suffix));
-
-  } else if (auto *U = llvm::dyn_cast<model::UnionDefinition>(Definition)) {
-    printDefinition(*U, std::move(Suffix));
-
-  } else if (auto *Enum = llvm::dyn_cast<model::EnumDefinition>(Definition)) {
-    printDefinition(*Enum, std::move(Suffix));
-
-  } else {
-    revng_abort("Only enums, structs, and unions can be printed inline.");
-  }
-}
-
 static Logger<> TypePrinterLog{ "type-definition-printer" };
 
 void ptml::CTypeBuilder::printTypeDefinitions() {

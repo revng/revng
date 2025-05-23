@@ -820,8 +820,6 @@ public:
                        std::string &&Suffix = "");
   void printDefinition(const model::TypeDefinition &T);
 
-  void printInlineDefinition(llvm::StringRef Name, const model::Type &T);
-
 public:
   /// Print all the type definitions in the model.
   ///
