@@ -938,11 +938,9 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
     if (not UpgradedType.has_value())
       continue;
 
-    if (not UpgradedType->isEmpty() /* we hit at use with strong expected type
-                                     */
-        and *UpgradedType != UT /* we actually need to upgrade something */
-        and isValidScalarUpgrade(UT,
-                                 *UpgradedType) /* the upgrade is valid */) {
+    if (not UpgradedType->isEmpty() // we hit at use with strong expected type
+        and *UpgradedType != UT // we actually need to upgrade something
+        and isValidScalarUpgrade(UT, *UpgradedType)) { // the upgrade is valid
       Result.erase(V);
       Result.insert({ V, UpgradedType->copy() });
     }
