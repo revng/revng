@@ -15,7 +15,7 @@
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng/mlir/Dialect/Clift/Utils/Helpers.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportModel.h"
-#include "revng/mlir/Pipes/MLIRContainer.h"
+#include "revng/mlir/Pipes/CliftContainer.h"
 
 using namespace mlir::clift;
 
@@ -58,11 +58,11 @@ public:
 
   void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
-           revng::pipes::MLIRContainer &MLIRContainer) {
+           revng::pipes::CliftContainer &CliftContainer) {
     importAllModelTypes(*revng::getModelFromContext(EC),
-                        MLIRContainer.getModule());
+                        CliftContainer.getModule());
 
-    EC.commitAllFor(MLIRContainer);
+    EC.commitAllFor(CliftContainer);
   }
 };
 

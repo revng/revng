@@ -12,14 +12,14 @@
 #include "mlir/Parser/Parser.h"
 
 #include "revng/Pipeline/RegisterContainerFactory.h"
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng/mlir/Dialect/Clift/Utils/Helpers.h"
-#include "revng/mlir/Pipes/MLIRContainer.h"
+#include "revng/mlir/Pipes/CliftContainer.h"
 
 using namespace revng;
 using namespace revng::pipes;
+namespace clift = mlir::clift;
 
-using mlir::FunctionOpInterface;
 using mlir::MLIRContext;
 using mlir::ModuleOp;
 using mlir::Operation;
@@ -39,8 +39,8 @@ static decltype(auto) getModuleOperations(ModuleOp Module) {
   return getModuleBlock(Module).getOperations();
 }
 
-static bool isTargetFunction(FunctionOpInterface F) {
-  return F->getAttrOfType<mlir::StringAttr>(FunctionEntryMDName) != nullptr;
+static bool isTargetFunction(clift::FunctionOp F) {
+  return getMetaAddress(F).isValid();
 }
 
 template<typename R, typename C, typename P>
@@ -134,7 +134,7 @@ static pipeline::Target makeTarget(const MetaAddress &MA) {
   return pipeline::Target(MA.toString(), kinds::MLIRFunctionKind);
 }
 
-static void makeExternal(FunctionOpInterface F) {
+static void makeExternal(clift::FunctionOp F) {
   revng_assert(F->getNumRegions() == 1);
 
   // A function is made external by clearing its region.
@@ -148,7 +148,7 @@ static void makeExternal(FunctionOpInterface F) {
 static void pruneUnusedSymbols(ModuleOp Module) {
   llvm::DenseSet<Operation *> UsedSymbols;
 
-  visit(Module, [&](FunctionOpInterface F) {
+  visit(Module, [&](clift::FunctionOp F) {
     if (isTargetFunction(F))
       UsedSymbols.insert(F);
 
@@ -176,13 +176,13 @@ static void pruneUnusedSymbols(ModuleOp Module) {
   });
 }
 
-const char MLIRContainer::ID = 0;
+const char CliftContainer::ID = 0;
 
-void MLIRContainer::setModule(OwningModuleRef &&NewModule) {
+void CliftContainer::setModule(OwningModuleRef &&NewModule) {
   revng_assert(NewModule);
 
   // Make any non-target functions external.
-  visit(*NewModule, [&](FunctionOpInterface F) {
+  visit(*NewModule, [&](clift::FunctionOp F) {
     if (not F.isExternal() and not isTargetFunction(F))
       makeExternal(F);
   });
@@ -199,8 +199,8 @@ void MLIRContainer::setModule(OwningModuleRef &&NewModule) {
 // is important to avoid polluting the new context with types and attributes
 // not used by the remaining functions.
 std::unique_ptr<pipeline::ContainerBase>
-MLIRContainer::cloneFiltered(const pipeline::TargetsList &Filter) const {
-  auto DestinationContainer = std::make_unique<MLIRContainer>(name());
+CliftContainer::cloneFiltered(const pipeline::TargetsList &Filter) const {
+  auto DestinationContainer = std::make_unique<CliftContainer>(name());
 
   if (getModuleBlock(*Module).empty())
     return DestinationContainer;
@@ -209,11 +209,11 @@ MLIRContainer::cloneFiltered(const pipeline::TargetsList &Filter) const {
   OwningModuleRef TemporaryModule(mlir::cast<ModuleOp>((*Module)->clone()));
 
   bool RemovedSome = false;
-  visit(*TemporaryModule, [&](FunctionOpInterface F) {
+  visit(*TemporaryModule, [&](clift::FunctionOp F) {
     if (F.isExternal())
       return;
 
-    const MetaAddress MA = mlir::clift::getMetaAddress(F);
+    MetaAddress MA = getMetaAddress(F);
     if (MA.isValid() and not Filter.contains(makeTarget(MA))) {
       makeExternal(F);
       RemovedSome = true;
@@ -233,7 +233,7 @@ MLIRContainer::cloneFiltered(const pipeline::TargetsList &Filter) const {
   return DestinationContainer;
 }
 
-void MLIRContainer::mergeBackImpl(MLIRContainer &&SourceContainer) {
+void CliftContainer::mergeBackImpl(CliftContainer &&SourceContainer) {
   if (getModuleBlock(*SourceContainer.Module).empty())
     return;
 
@@ -255,7 +255,7 @@ void MLIRContainer::mergeBackImpl(MLIRContainer &&SourceContainer) {
   visit(*TemporaryModule, [&](SymbolOpInterface Symbol) {
     // Erase an existing symbol with the same name, if one exists.
     if (auto S = SymbolTable::lookupSymbolIn(*Module, Symbol.getName())) {
-      if (auto F = mlir::dyn_cast<FunctionOpInterface>(Symbol.getOperation())) {
+      if (auto F = mlir::dyn_cast<clift::FunctionOp>(Symbol.getOperation())) {
         if (F.isExternal())
           return;
       }
@@ -271,15 +271,14 @@ void MLIRContainer::mergeBackImpl(MLIRContainer &&SourceContainer) {
   pruneUnusedSymbols(*Module);
 }
 
-pipeline::TargetsList MLIRContainer::enumerate() const {
+pipeline::TargetsList CliftContainer::enumerate() const {
   pipeline::TargetsList::List List;
 
-  visit(Module.get(), [&](FunctionOpInterface F) {
+  visit(Module.get(), [&](clift::FunctionOp F) {
     if (F.isExternal())
       return;
 
-    const MetaAddress MA = mlir::clift::getMetaAddress(F);
-
+    MetaAddress MA = getMetaAddress(F);
     if (MA.isValid())
       List.push_back(makeTarget(MA));
   });
@@ -290,12 +289,12 @@ pipeline::TargetsList MLIRContainer::enumerate() const {
   return pipeline::TargetsList(std::move(List));
 }
 
-bool MLIRContainer::removeImpl(const pipeline::TargetsList &List) {
+bool CliftContainer::removeImpl(const pipeline::TargetsList &List) {
   if (getModuleBlock(*Module).empty())
     return false;
 
   bool RemovedSome = false;
-  visit(*Module, [&](FunctionOpInterface F) {
+  visit(*Module, [&](clift::FunctionOp F) {
     if (F.isExternal())
       return;
 
@@ -322,19 +321,19 @@ bool MLIRContainer::removeImpl(const pipeline::TargetsList &List) {
   return RemovedSome;
 }
 
-void MLIRContainer::clearImpl() {
+void CliftContainer::clearImpl() {
   auto NewContext = makeContext();
 
   Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
   Context = std::move(NewContext);
 }
 
-llvm::Error MLIRContainer::serialize(llvm::raw_ostream &OS) const {
+llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
   mlir::writeBytecodeToFile(*Module, OS);
   return llvm::Error::success();
 }
 
-llvm::Error MLIRContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
+llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   auto NewContext = makeContext();
 
   const mlir::ParserConfig Config(NewContext.get());
@@ -350,9 +349,9 @@ llvm::Error MLIRContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   return llvm::Error::success();
 }
 
-llvm::Error MLIRContainer::extractOne(llvm::raw_ostream &OS,
-                                      const pipeline::Target &Target) const {
+llvm::Error CliftContainer::extractOne(llvm::raw_ostream &OS,
+                                       const pipeline::Target &Target) const {
   return cloneFiltered(pipeline::TargetsList::List{ Target })->serialize(OS);
 }
 
-static pipeline::RegisterDefaultConstructibleContainer<MLIRContainer> X;
+static pipeline::RegisterDefaultConstructibleContainer<CliftContainer> X;

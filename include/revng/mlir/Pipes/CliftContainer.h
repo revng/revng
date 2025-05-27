@@ -15,7 +15,7 @@
 
 namespace revng::pipes {
 
-class MLIRContainer : public pipeline::Container<MLIRContainer> {
+class CliftContainer : public pipeline::Container<CliftContainer> {
 public:
   static const char ID;
   static constexpr auto Name = "mlir-module";
@@ -27,19 +27,19 @@ private:
   mlir::OwningOpRef<mlir::ModuleOp> Module;
 
 public:
-  explicit MLIRContainer(const llvm::StringRef Name) :
-    pipeline::Container<MLIRContainer>(Name) {
+  explicit CliftContainer(const llvm::StringRef Name) :
+    pipeline::Container<CliftContainer>(Name) {
     clearImpl();
   }
 
-  mlir::MLIRContext *getContext() { return Context.get(); }
-  mlir::ModuleOp getModule() { return *Module; }
+  mlir::MLIRContext *getContext() const { return Context.get(); }
+  mlir::ModuleOp getModule() const { return *Module; }
   void setModule(mlir::OwningOpRef<mlir::ModuleOp> &&NewModule);
 
   std::unique_ptr<pipeline::ContainerBase>
   cloneFiltered(const pipeline::TargetsList &Targets) const override;
 
-  void mergeBackImpl(MLIRContainer &&Container) override;
+  void mergeBackImpl(CliftContainer &&Container) override;
 
   pipeline::TargetsList enumerate() const override;
 
