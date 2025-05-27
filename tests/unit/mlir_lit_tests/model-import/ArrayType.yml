@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+# RUN: %revngpipe import-all-clift-types %s <(tar -czT /dev/null) /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
 
 Architecture: x86_64
 

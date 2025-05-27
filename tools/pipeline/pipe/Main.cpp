@@ -25,6 +25,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/PipelineManager.h"
+#include "revng/Support/Debug.h"
 #include "revng/Support/InitRevng.h"
 
 using std::string;
@@ -70,7 +71,7 @@ int main(int argc, char *argv[]) {
   const pipeline::Loader &Loader = Manager.getLoader();
   const llvm::StringMap<PipeWrapper> &PipesMap = Loader.getPipes();
 
-  if (Arguments.size() <= 1 or PipesMap.count(Arguments[0]) == 0) {
+  if (Arguments.size() < 2 or PipesMap.count(Arguments[0]) == 0) {
     llvm::outs() << "USAGE: revng-pipe [options] <pipe> <model> <args>...\n\n";
     llvm::outs() << "<pipe> can be one of:\n\n";
 
@@ -87,31 +88,53 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
   }
 
+  llvm::StringRef PipeArgument = Arguments[0];
+  llvm::StringRef ModelArgument = Arguments[1];
+
+  auto ContainerArguments = llvm::ArrayRef<string>(Arguments).drop_front(2);
+
   const auto &Name = ModelGlobalName;
   auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));
-  FilePath InputFilePath = FilePath::fromLocalStorage(Arguments[1]);
+  FilePath InputFilePath = FilePath::fromLocalStorage(ModelArgument);
   AbortOnError(InputFilePath.check());
   AbortOnError(Model->load(InputFilePath));
 
-  const auto &Pipe = PipesMap.find(Arguments[0])->second.Pipe;
+  const auto &Pipe = PipesMap.find(PipeArgument)->second.Pipe;
   std::vector<std::string> DefaultNames;
   pipeline::ContainerSet Set;
 
-  if (Arguments.size() - 2 != Pipe->getContainerArgumentsCount()) {
-    llvm::errs() << "Pipe " << Arguments[0] << " required "
-                 << Pipe->getContainerArgumentsCount() << " arguments\n";
-    return EXIT_FAILURE;
-  }
-  for (size_t I = 0; I < Pipe->getContainerArgumentsCount(); I++) {
+  size_t PipeContainerCount = Pipe->getContainerArgumentsCount();
+
+  llvm::SmallVector<llvm::StringRef> InputArguments;
+  llvm::SmallVector<llvm::StringRef> OutputArguments;
+  size_t ExpectedArgumentCount = PipeContainerCount;
+
+  for (size_t I = 0, J = 0; I < Pipe->getContainerArgumentsCount(); ++I) {
+    if (J < ContainerArguments.size())
+      InputArguments.push_back(ContainerArguments[J++]);
+
+    if (not Pipe->isContainerArgumentConst(I)) {
+      if (J < ContainerArguments.size())
+        OutputArguments.push_back(ContainerArguments[J++]);
+
+      ++ExpectedArgumentCount;
+    }
+
     DefaultNames.push_back((llvm::Twine("arg") + llvm::Twine(I)).str());
   }
 
+  if (ContainerArguments.size() != ExpectedArgumentCount) {
+    dbg << "Pipe " << PipeArgument.str() << " required "
+        << ExpectedArgumentCount << " arguments\n";
+    return EXIT_FAILURE;
+  }
+
   PipeWrapper ClonedPipe(Pipe, DefaultNames);
-  for (size_t I = 0; I < Pipe->getContainerArgumentsCount(); I++) {
+  for (size_t I = 0; I < PipeContainerCount; I++) {
     llvm::StringRef Name = ClonedPipe.Pipe->getContainerName(I);
     auto &Factory = Loader.getContainerFactory(Name);
     Set.add(DefaultNames[I], Factory, Factory(DefaultNames[I]));
-    FilePath Path = FilePath::fromLocalStorage(Arguments[I + 2]);
+    FilePath Path = FilePath::fromLocalStorage(InputArguments[I]);
     AbortOnError(Path.check());
     AbortOnError(Set.at(DefaultNames[I]).load(Path));
   }
@@ -125,9 +148,9 @@ int main(int argc, char *argv[]) {
 
   AbortOnError(ClonedPipe.Pipe->run(ExecutionContext, Set));
 
-  for (size_t I = 0; I < Pipe->getContainerArgumentsCount(); I++) {
+  for (size_t I = 0, J = 0; I < PipeContainerCount; I++) {
     if (not Pipe->isContainerArgumentConst(I)) {
-      FilePath Path = FilePath::fromLocalStorage(Arguments[I + 2]);
+      FilePath Path = FilePath::fromLocalStorage(OutputArguments[J++]);
       AbortOnError(Path.check());
       AbortOnError(Set.at(DefaultNames[I]).store(Path));
     }
