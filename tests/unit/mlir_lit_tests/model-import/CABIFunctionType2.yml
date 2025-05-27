@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: %revngpipe import-all-clift-types %s <(tar -czT /dev/null) /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
+# RUN: %revngpipe import-clift-types %s /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
 
 Architecture: x86_64
 TypeDefinitions:
