@@ -6,16 +6,19 @@
 
 #include <optional>
 
-#include "mlir/IR/FunctionInterfaces.h"
-
-#include "revng/Support/IRHelpers.h"
+#include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Kinds.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 
 namespace mlir::clift {
 
-inline MetaAddress getMetaAddress(mlir::FunctionOpInterface F) {
-  if (auto Attr = F->getAttrOfType<mlir::StringAttr>(FunctionEntryMDName))
-    return MetaAddress::fromString(Attr.getValue());
+inline MetaAddress getMetaAddress(clift::FunctionOp F) {
+  if (auto L = pipeline::locationFromString(revng::ranks::Function,
+                                            F.getHandle())) {
+    auto [Key] = L->at(revng::ranks::Function);
+    return Key;
+  }
   return MetaAddress::invalid();
 }
 

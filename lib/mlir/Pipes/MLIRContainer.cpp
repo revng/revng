@@ -12,14 +12,14 @@
 #include "mlir/Parser/Parser.h"
 
 #include "revng/Pipeline/RegisterContainerFactory.h"
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng/mlir/Dialect/Clift/Utils/Helpers.h"
 #include "revng/mlir/Pipes/MLIRContainer.h"
 
 using namespace revng;
 using namespace revng::pipes;
+namespace clift = mlir::clift;
 
-using mlir::FunctionOpInterface;
 using mlir::MLIRContext;
 using mlir::ModuleOp;
 using mlir::Operation;
@@ -39,8 +39,8 @@ static decltype(auto) getModuleOperations(ModuleOp Module) {
   return getModuleBlock(Module).getOperations();
 }
 
-static bool isTargetFunction(FunctionOpInterface F) {
-  return F->getAttrOfType<mlir::StringAttr>(FunctionEntryMDName) != nullptr;
+static bool isTargetFunction(clift::FunctionOp F) {
+  return getMetaAddress(F).isValid();
 }
 
 template<typename R, typename C, typename P>
@@ -134,7 +134,7 @@ static pipeline::Target makeTarget(const MetaAddress &MA) {
   return pipeline::Target(MA.toString(), kinds::MLIRFunctionKind);
 }
 
-static void makeExternal(FunctionOpInterface F) {
+static void makeExternal(clift::FunctionOp F) {
   revng_assert(F->getNumRegions() == 1);
 
   // A function is made external by clearing its region.
@@ -148,7 +148,7 @@ static void makeExternal(FunctionOpInterface F) {
 static void pruneUnusedSymbols(ModuleOp Module) {
   llvm::DenseSet<Operation *> UsedSymbols;
 
-  visit(Module, [&](FunctionOpInterface F) {
+  visit(Module, [&](clift::FunctionOp F) {
     if (isTargetFunction(F))
       UsedSymbols.insert(F);
 
@@ -182,7 +182,7 @@ void MLIRContainer::setModule(OwningModuleRef &&NewModule) {
   revng_assert(NewModule);
 
   // Make any non-target functions external.
-  visit(*NewModule, [&](FunctionOpInterface F) {
+  visit(*NewModule, [&](clift::FunctionOp F) {
     if (not F.isExternal() and not isTargetFunction(F))
       makeExternal(F);
   });
@@ -209,11 +209,11 @@ MLIRContainer::cloneFiltered(const pipeline::TargetsList &Filter) const {
   OwningModuleRef TemporaryModule(mlir::cast<ModuleOp>((*Module)->clone()));
 
   bool RemovedSome = false;
-  visit(*TemporaryModule, [&](FunctionOpInterface F) {
+  visit(*TemporaryModule, [&](clift::FunctionOp F) {
     if (F.isExternal())
       return;
 
-    const MetaAddress MA = mlir::clift::getMetaAddress(F);
+    MetaAddress MA = getMetaAddress(F);
     if (MA.isValid() and not Filter.contains(makeTarget(MA))) {
       makeExternal(F);
       RemovedSome = true;
@@ -255,7 +255,7 @@ void MLIRContainer::mergeBackImpl(MLIRContainer &&SourceContainer) {
   visit(*TemporaryModule, [&](SymbolOpInterface Symbol) {
     // Erase an existing symbol with the same name, if one exists.
     if (auto S = SymbolTable::lookupSymbolIn(*Module, Symbol.getName())) {
-      if (auto F = mlir::dyn_cast<FunctionOpInterface>(Symbol.getOperation())) {
+      if (auto F = mlir::dyn_cast<clift::FunctionOp>(Symbol.getOperation())) {
         if (F.isExternal())
           return;
       }
@@ -274,12 +274,11 @@ void MLIRContainer::mergeBackImpl(MLIRContainer &&SourceContainer) {
 pipeline::TargetsList MLIRContainer::enumerate() const {
   pipeline::TargetsList::List List;
 
-  visit(Module.get(), [&](FunctionOpInterface F) {
+  visit(Module.get(), [&](clift::FunctionOp F) {
     if (F.isExternal())
       return;
 
-    const MetaAddress MA = mlir::clift::getMetaAddress(F);
-
+    MetaAddress MA = getMetaAddress(F);
     if (MA.isValid())
       List.push_back(makeTarget(MA));
   });
@@ -295,7 +294,7 @@ bool MLIRContainer::removeImpl(const pipeline::TargetsList &List) {
     return false;
 
   bool RemovedSome = false;
-  visit(*Module, [&](FunctionOpInterface F) {
+  visit(*Module, [&](clift::FunctionOp F) {
     if (F.isExternal())
       return;
 

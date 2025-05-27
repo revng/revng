@@ -32,8 +32,8 @@ public:
     clearImpl();
   }
 
-  mlir::MLIRContext *getContext() { return Context.get(); }
-  mlir::ModuleOp getModule() { return *Module; }
+  mlir::MLIRContext *getContext() const { return Context.get(); }
+  mlir::ModuleOp getModule() const { return *Module; }
   void setModule(mlir::OwningOpRef<mlir::ModuleOp> &&NewModule);
 
   std::unique_ptr<pipeline::ContainerBase>
