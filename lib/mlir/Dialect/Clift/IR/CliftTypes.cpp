@@ -7,12 +7,12 @@
 
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/StringExtras.h"
 
 #include "revng/Support/Identifier.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
 
 // keep this order
-#include "revng/Model/Binary.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
 
 namespace mlir {
@@ -76,67 +76,35 @@ static void mlir::printCliftDebugName(mlir::AsmPrinter &Printer,
 
 //===---------------------------- PrimitiveType ---------------------------===//
 
-static constexpr model::PrimitiveKind::Values
-kindToKind(const PrimitiveKind Kind) {
-  return static_cast<model::PrimitiveKind::Values>(Kind);
-}
-
-/// Test that kindToKind converts each clift::PrimitiveKind to the matching
-/// model::PrimitiveKind. Use a switch converting in the opposite direction
-/// in order to produce a warning if a new primitive kind is ever added.
-static consteval bool testKindToKind() {
-  PrimitiveKind UninitializedKind;
-  const auto TestSwitch = [&](const model::PrimitiveKind::Values Kind) {
-    switch (Kind) {
-    case model::PrimitiveKind::Float:
-      return PrimitiveKind::FloatKind;
-    case model::PrimitiveKind::Generic:
-      return PrimitiveKind::GenericKind;
-    case model::PrimitiveKind::Number:
-      return PrimitiveKind::NumberKind;
-    case model::PrimitiveKind::PointerOrNumber:
-      return PrimitiveKind::PointerOrNumberKind;
-    case model::PrimitiveKind::Signed:
-      return PrimitiveKind::SignedKind;
-    case model::PrimitiveKind::Unsigned:
-      return PrimitiveKind::UnsignedKind;
-    case model::PrimitiveKind::Void:
-      return PrimitiveKind::VoidKind;
-
-    case model::PrimitiveKind::Invalid:
-    case model::PrimitiveKind::Count:
-      // Unreachable. This causes an error during constant evaluation.
-      return UninitializedKind;
-    }
-  };
-
-  for (int I = 0; I < static_cast<int>(model::PrimitiveKind::Count); ++I) {
-    auto const Kind = static_cast<model::PrimitiveKind::Values>(I);
-    if (Kind != model::PrimitiveKind::Invalid) {
-      if (kindToKind(TestSwitch(Kind)) != Kind)
-        return false;
-    }
-  }
-  return true;
-}
-static_assert(testKindToKind());
-
 mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
                                           PrimitiveKind Kind,
                                           uint64_t Size,
                                           bool IsConst) {
-  if (not model::PrimitiveType::make(kindToKind(Kind), Size)->verify())
-    return EmitError() << "primitive type verify failed";
+  if (Kind == PrimitiveKind::VoidKind and Size != 0)
+    return EmitError() << "primitive type of void kind must have size of 0.";
 
   return mlir::success();
+}
+
+static llvm::StringRef getPrimitiveKindAlias(PrimitiveKind Kind) {
+  switch (Kind) {
+  case PrimitiveKind::SignedKind:
+    return "int";
+  case PrimitiveKind::UnsignedKind:
+    return "uint";
+  default:
+    return stringifyPrimitiveKind(Kind);
+  }
 }
 
 bool PrimitiveType::getAlias(llvm::raw_ostream &OS) const {
   if (getIsConst())
     return false;
 
-  OS << toString(model::PrimitiveType::getCName(kindToKind(getKind()),
-                                                getByteSize()));
+  OS << getPrimitiveKindAlias(getKind());
+  if (getKind() != PrimitiveKind::VoidKind)
+    OS << getByteSize() * 8 << "_t";
+
   return true;
 }
 
