@@ -138,7 +138,7 @@ static void makeExternal(clift::FunctionOp F) {
   revng_assert(F->getNumRegions() == 1);
 
   // A function is made external by clearing its region.
-  mlir::Region &Region = F->getRegion(0);
+  mlir::Region &Region = F.getBody();
   Region.dropAllReferences();
   Region.getBlocks().clear();
 }
@@ -180,6 +180,7 @@ const char CliftContainer::ID = 0;
 
 void CliftContainer::setModule(OwningModuleRef &&NewModule) {
   revng_assert(NewModule);
+  revng_assert(clift::hasModuleAttr(NewModule.get()));
 
   // Make any non-target functions external.
   visit(*NewModule, [&](clift::FunctionOp F) {
@@ -326,6 +327,8 @@ void CliftContainer::clearImpl() {
 
   Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
   Context = std::move(NewContext);
+
+  clift::setModuleAttr(Module.get());
 }
 
 llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
@@ -335,13 +338,21 @@ llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
 
 llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   auto NewContext = makeContext();
+  OwningModuleRef NewModule;
 
-  const mlir::ParserConfig Config(NewContext.get());
-  OwningModuleRef
+  if (Buffer.getBufferSize() == 0) {
+    NewModule = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
+    clift::setModuleAttr(NewModule.get());
+  } else {
+    const mlir::ParserConfig Config(NewContext.get());
     NewModule = mlir::parseSourceString<ModuleOp>(Buffer.getBuffer(), Config);
 
-  if (not NewModule)
-    return revng::createError("Cannot load MLIR module.");
+    if (not NewModule)
+      return revng::createError("Cannot load MLIR module.");
+
+    if (not clift::hasModuleAttr(NewModule.get()))
+      return revng::createError("MLIR module is not a Clift module.");
+  }
 
   Module = std::move(NewModule);
   Context = std::move(NewContext);
