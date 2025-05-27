@@ -8,7 +8,6 @@
 #include "mlir/IR/FunctionImplementation.h"
 #include "mlir/IR/RegionGraphTraits.h"
 
-#include "revng/Support/GraphAlgorithms.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 
 namespace mlir {
