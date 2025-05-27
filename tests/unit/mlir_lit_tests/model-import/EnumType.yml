@@ -6,7 +6,7 @@
 # input line. The angle brackets are matched separately in order to ignore
 # parameters other than those explicitly being checked for.
 #
-# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+# RUN: %revngpipe import-all-clift-types %s <(tar -czT /dev/null) /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
 
 Architecture: x86_64
 
