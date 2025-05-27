@@ -49,9 +49,7 @@ public:
     };
 
     mlir::ModuleOp Module = CliftContainer.getModule();
-
-    if (verifyCSemantics(Module, Target).failed())
-      revng_abort();
+    revng_assert(verifyCSemantics(Module, Target).succeeded());
 
     llvm::raw_null_ostream NullStream;
     ptml::CTypeBuilder B(NullStream,
@@ -70,8 +68,8 @@ public:
     for (const model::Function &Function :
          getFunctionsAndCommit(EC, DecompiledFunctionsContainer.name())) {
       auto It = Functions.find(Function.Entry());
-      if (It == Functions.end())
-        revng_abort("Requested Clift function not found");
+      revng_check(It != Functions.end()
+                  and "Requested Clift function not found");
 
       std::string Code = decompile(It->second, Target, B);
       DecompiledFunctionsContainer.insert_or_assign(Function.Entry(),

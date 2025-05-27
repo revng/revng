@@ -82,7 +82,7 @@ TypeDefinitions:
   - ID: 2002
     Kind: StructDefinition
     Name: "my_struct"
-    Size: 4
+    Size: 8
     Fields:
       - Offset: 0
         Name: "x"
@@ -197,10 +197,17 @@ ImportedDynamicFunctions:
       Definition: "/TypeDefinitions/1001-CABIFunctionDefinition"
 
 Segments:
+  - StartAddress: "0x40001000:Generic64"
+    VirtualSize: 0x1000
+    StartOffset: 0
+    FileSize: 0x1000
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
   - StartAddress: "0x40002001:Generic64"
     VirtualSize: 4
     Name: "seg_0x40002001"
-    StartOffset: 0
+    StartOffset: 0x1000
     FileSize: 4
     IsReadable: true
     IsWriteable: true
