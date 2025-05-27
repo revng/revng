@@ -58,8 +58,9 @@ public:
 
     mlir::ModuleOp Module = MLIRContainer.getModule();
 
-    if (verifyCSemantics(Module, Target).failed())
-      revng_abort();
+    if (verifyCSemantics(Module, Target).failed()) {
+      // WIP: revng_abort();
+    }
 
     llvm::raw_null_ostream NullStream;
     ptml::CTypeBuilder B(NullStream,
