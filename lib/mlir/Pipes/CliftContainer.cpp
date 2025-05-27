@@ -332,7 +332,18 @@ void CliftContainer::clearImpl() {
 }
 
 llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
+#define WIP_TEXTUAL_ASSEMBLY 0
+#if WIP_TEXTUAL_ASSEMBLY
+  mlir::AsmState AsmState(Module.get(),
+                          mlir::OpPrintingFlags(),
+                          /*locationMap=*/nullptr,
+                          /*fallbackResourceMap=*/nullptr);
+  Module.get()->print(OS, AsmState);
+  OS << '\n';
+#else
   mlir::writeBytecodeToFile(*Module, OS);
+#endif
+
   return llvm::Error::success();
 }
 
