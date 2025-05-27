@@ -115,7 +115,10 @@ int main(int argc, char *argv[]) {
     AbortOnError(Path.check());
     AbortOnError(Set.at(DefaultNames[I]).load(Path));
   }
+
   auto Enumeration = Set.enumerate();
+  ClonedPipe.Pipe->deduceResults(Manager.context(), Enumeration);
+
   ExecutionContext ExecutionContext(Manager.context(),
                                     &ClonedPipe,
                                     Enumeration);
