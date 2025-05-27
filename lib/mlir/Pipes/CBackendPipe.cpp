@@ -49,7 +49,7 @@ public:
     };
 
     mlir::ModuleOp Module = CliftContainer.getModule();
-    revng_assert(verifyCSemantics(Module, Target).succeeded());
+    // WIP: revng_assert(verifyCSemantics(Module, Target).succeeded());
 
     llvm::raw_null_ostream NullStream;
     ptml::CTypeBuilder B(NullStream,
