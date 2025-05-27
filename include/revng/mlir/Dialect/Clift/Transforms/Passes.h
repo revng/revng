@@ -5,7 +5,6 @@
 //
 
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
-#include "revng/mlir/Dialect/Clift/Transforms/ModelOption.h"
 
 namespace mlir::clift {
 
@@ -13,7 +12,6 @@ namespace mlir::clift {
 #include "revng/mlir/Dialect/Clift/Transforms/Passes.h.inc"
 
 std::unique_ptr<OperationPass<mlir::ModuleOp>> createVerifyCPass();
-std::unique_ptr<OperationPass<mlir::ModuleOp>> createEmitCPass();
 
 #define GEN_PASS_REGISTRATION
 #include "revng/mlir/Dialect/Clift/Transforms/Passes.h.inc"
