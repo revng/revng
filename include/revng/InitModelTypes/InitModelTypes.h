@@ -26,3 +26,10 @@ initModelTypes(const llvm::Function &F,
                const model::Function *ModelF,
                const model::Binary &Model,
                bool PointersOnly);
+
+/// Like `initModelTypes`, but also considering uses.
+extern std::map<const llvm::Value *, const model::UpcastableType>
+initModelTypesConsideringUses(const llvm::Function &F,
+                              const model::Function *ModelF,
+                              const model::Binary &Model,
+                              bool PointersOnly);

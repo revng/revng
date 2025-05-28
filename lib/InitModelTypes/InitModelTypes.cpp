@@ -927,6 +927,18 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
 
   ModelTypesMap Result = initModelTypesImpl(F, ModelF, Model, PointersOnly);
 
+  revng_log(Log, "========= END initModelTypes on " << F.getName());
+  return Result;
+}
+
+ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
+                                            const model::Function *ModelF,
+                                            const model::Binary &Model,
+                                            bool PointersOnly) {
+  revng_log(Log, "==== START initModelTypesConsideringUses on " << F.getName());
+
+  ModelTypesMap Result = initModelTypes(F, ModelF, Model, PointersOnly);
+
   // Refine the Result map, trying to upgrade types by looking at their uses and
   // see if they provide more accurate types.
   for (const auto &[V, UT] : llvm::make_early_inc_range(Result)) {
@@ -1004,6 +1016,6 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
     }
   }
 
-  revng_log(Log, "==== END initModelTypes on " << F.getName());
+  revng_log(Log, "==== END initModelTypesConsideringUses on " << F.getName());
   return Result;
 }

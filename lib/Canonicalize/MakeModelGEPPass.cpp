@@ -1855,10 +1855,11 @@ makeGEPReplacements(llvm::Function &F,
   // that are reachable from F. If this fails, we just bail out because we
   // cannot infer any modelGEP in F, if we have no type information to rely
   // on.
-  ModelTypesMap PointerTypes = initModelTypes(F,
-                                              ModelF,
-                                              Model,
-                                              /* PointersOnly = */ true);
+  ModelTypesMap
+    PointerTypes = initModelTypesConsideringUses(F,
+                                                 ModelF,
+                                                 Model,
+                                                 /* PointersOnly = */ true);
   if (PointerTypes.empty()) {
     revng_log(ModelGEPLog, "Model Types not found for " << F.getName());
     return Result;
