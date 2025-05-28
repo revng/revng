@@ -93,7 +93,7 @@ static OperatorInfo getPrecedenceImpl(const Instruction &I) {
       else if (FunctionTags::ModelGEP.isTagOf(CalledFunc)) {
         // Indirection
         if (auto *ArrayIndex = dyn_cast<ConstantInt>(Call->getArgOperand(2)))
-          if (Call->arg_size() < 3 and ArrayIndex->isZero())
+          if (Call->arg_size() <= 3 and ArrayIndex->isZero())
             return { 2, 0, Associativity::RightToLeft, Arity::Unary };
 
         // MemberAccess
