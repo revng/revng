@@ -127,8 +127,20 @@ std::vector<CastToEmit> MakeModelCastPass::computeCasts(Instruction *I) const {
         PushBackMoving(computeCast(Op));
 
     } else if (FunctionTags::ModelGEP.isTagOf(Callee)
-               or FunctionTags::ModelGEPRef.isTagOf(Callee)
-               or FunctionTags::AddressOf.isTagOf(Callee)) {
+               or FunctionTags::ModelGEPRef.isTagOf(Callee)) {
+      // Check the type of the base operand
+      PushBackMoving(computeCast(Call->getArgOperandUse(1)));
+
+      // If there are other arguments past the first two that are not constant
+      // indices, it means that they are indices into an array. For those, we
+      // have to make sure they are integers, possibly injecting casts.
+      if (Call->arg_size() > 2) {
+        for (Use &Argument : llvm::drop_begin(Call->args(), 2)) {
+          PushBackMoving(computeCast(Argument));
+        }
+      }
+
+    } else if (FunctionTags::AddressOf.isTagOf(Callee)) {
       // Check the type of the base operand
       PushBackMoving(computeCast(Call->getArgOperandUse(1)));
 

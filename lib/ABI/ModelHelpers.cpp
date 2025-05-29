@@ -18,6 +18,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/PrimitiveKind.h"
@@ -399,11 +400,9 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
       auto *CalledFunc = getCalledFunction(Call);
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
 
-      if (FTags.contains(FunctionTags::AddressOf)
-          or FTags.contains(FunctionTags::ModelGEP)
-          or FTags.contains(FunctionTags::ModelGEPRef)) {
+      if (FTags.contains(FunctionTags::AddressOf)) {
         // We have model type information only for the base value
-        if (ArgOperandIdx != ModelGEPBaseArgIndex)
+        if (ArgOperandIdx != 1)
           return {};
 
         // The type of the base value is contained in the first operand
@@ -412,6 +411,42 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
           Base = model::PointerType::make(std::move(Base),
                                           Model.Architecture());
         return { std::move(Base) };
+
+      } else if (FTags.contains(FunctionTags::ModelGEP)
+                 or FTags.contains(FunctionTags::ModelGEPRef)) {
+        // We have model type information only for the base value
+        if (ArgOperandIdx < ModelGEPBaseArgIndex)
+          return {};
+
+        if (ArgOperandIdx == ModelGEPBaseArgIndex) {
+          // The type of the base value is contained in the first operand
+          auto Base = fromLLVMString(Call->getArgOperand(0), Model);
+          if (FTags.contains(FunctionTags::ModelGEP))
+            Base = model::PointerType::make(std::move(Base),
+                                            Model.Architecture());
+          return { std::move(Base) };
+        } else {
+          // For all index operands in ModelGEP, if the operand is not an
+          // integer constant it must be an array index, for which the expected
+          // type is a signed integer.
+          if (not isa<llvm::ConstantInt>(U->get())) {
+            unsigned BitSize = U->get()->getType()->getScalarSizeInBits();
+            revng_assert(BitSize);
+            revng_assert(BitSize == 1 or 0 == (BitSize % 8));
+            model::UpcastableType
+              Result = model::PrimitiveType::makeNumber(BitSize == 1 ?
+                                                          BitSize :
+                                                          BitSize / 8);
+            if (not Result->verify()) {
+              using model::Architecture::getPointerSize;
+              size_t PointerSize = getPointerSize(Model.Architecture());
+              Result = model::PrimitiveType::makeNumber(PointerSize);
+              revng_assert(Result->verify());
+            }
+            return { std::move(Result) };
+          }
+          return {};
+        }
 
       } else if (isCallTo(Call, "revng_call_stack_arguments")) {
         auto *Arg0Operand = Call->getArgOperand(0);
