@@ -26,14 +26,15 @@ protected:
 
 public:
   struct ConfigurationOptions {
-    /// When set to true, the types that are only ever depended on by a single
-    /// other type (for example, a nested struct), are printed inside the parent
-    /// type definition instead of separately.
-    bool EnableTypeInlining = true;
-
-    /// When set to true, function stack frame types are printed inside the
-    /// struct body as opposed to the type header.
-    bool EnableStackFrameInlining = true;
+    /// When set to true, function stack frame types are printed also inside the
+    /// struct body, and not just in the header.
+    /// This may break the property that we emit syntactically valid C code,
+    /// because including the header will cause the definition of the stack
+    /// frame type to be duplicated in the header and inside the function body.
+    /// For this reason it's disabled by default. And it should only be turned
+    /// on when printing artifacts that only show the body of the function, for
+    /// which emitting recompilable C code is not a strict requirement.
+    bool EnableStackFrameInlining = false;
 
     /// Because we are emitting C11, we cannot specify underlying enum type
     /// (the feature was only backported from C++ in C23), which means that
@@ -61,53 +62,9 @@ public:
   const ConfigurationOptions Configuration;
 
 private:
-  /// This is the cache containing the names of artificial types (like array
-  /// wrappers).
-  std::map<model::UpcastableType, std::string> ArtificialNameCache = {};
-
   /// This is the cache containing the dependency data for the types.
   /// It is here so that we don't have to recompute it with multiple invocations
   std::optional<DependencyGraph> DependencyCache = std::nullopt;
-
-  /// This is the cache containing the keys of the types that should be inlined
-  /// into their only user.
-  std::set<model::TypeDefinition::Key> TypesToInlineCache = {};
-
-  /// This is the cache containing the keys of the stack frame types that
-  /// should be inlined into the functions they belong to.
-  std::set<model::TypeDefinition::Key> StackFrameTypeCache = {};
-
-  /// Is only set to true if \ref collectInlinableTypes was invoked.
-  bool InlinableCacheIsReady = false;
-
-public:
-  /// Gather (and store internally) the list of types that can (and should)
-  /// be inlined. This list is then later used by the invocations of
-  /// \ref printTypeDefinition.
-  void collectInlinableTypes();
-
-  bool shouldInline(model::TypeDefinition::Key Key) const {
-    revng_assert(InlinableCacheIsReady,
-                 "`shouldInline` must not be called before "
-                 "`collectInlinableTypes`.");
-
-    if (not TypesToInlineCache.contains(Key)) {
-      // This type is not allowed be inlined.
-      return false;
-    }
-
-    if (StackFrameTypeCache.contains(Key)) {
-      // This is a stack frame.
-      return Configuration.EnableStackFrameInlining;
-
-    } else {
-      return Configuration.EnableTypeInlining;
-    }
-  }
-
-  bool shouldInline(const model::TypeDefinition &Type) const {
-    return shouldInline(Type.key());
-  }
 
 public:
   CTypeBuilder(llvm::raw_ostream &OutputStream,
@@ -165,21 +122,24 @@ public:
   }
 
 public:
-  ScopeTag getIndentedTag(const llvm::StringRef AttributeName,
-                          bool NewLine = false) {
+  ScopeTag getScopeTag(const llvm::StringRef AttributeName,
+                       bool NewLine = false) {
     return getTag(AttributeName).scope(*Out, NewLine);
   }
-  ScopeTag getIndentedScope(const Scopes Scope, bool NewLine = false) {
+
+  ScopeTag getScopeTag(const Scopes Scope, bool NewLine = false) {
     return getScope(Scope).scope(*Out, NewLine);
   }
-  ptml::IndentedOstream::Scope getSimpleScope() { return Out->scope(); }
+
   Scope getCurvedBracketScope(std::string &&Attribute =
                                 ptml::c::scopes::Scope.str()) {
     return Scope(*Out, Attribute);
   }
+
   helpers::BlockComment getBlockCommentScope() {
     return helpers::BlockComment(*Out, *this);
   }
+
   helpers::LineComment getLineCommentScope() {
     return helpers::LineComment(*Out, *this);
   }
@@ -590,23 +550,6 @@ public:
                                         Actions);
   }
 
-  /// Special case handling for the array wrapper structs.
-  ///
-  /// \note this will go away sooner rather than later.
-  template<bool IsDefinition>
-  std::string getArrayWrapperTag(const model::ArrayType &Array) const {
-    // TODO: currently there's no location dedicated to these, as such no action
-    //       is possible.
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-    auto Location = "";
-
-    auto Name = NameBuilder.artificialArrayWrapperName(Array);
-    return getNameTagImpl<IsDefinition>(tokenTag(std::move(Name),
-                                                 ptml::c::tokens::Type),
-                                        Location,
-                                        Actions);
-  }
-
   /// Special case handling for helper functions.
   template<bool IsDefinition>
   std::string getHelperFunctionTag(llvm::StringRef Name) const {
@@ -846,40 +789,36 @@ public:
   }
 
   /// Generates the definition of a new struct type that wraps all the return
-  /// values of \a F.
-  void generateReturnValueWrapper(const model::RawFunctionDefinition &F);
+  /// values of \a F. F must return a set of registers.
+  void printReturnTypeWrapperDefinition(const model::RawFunctionDefinition &F);
 
-  /// Generates the definition of a new struct type that wraps \a ArrayType.
-  /// This is used to wrap array arguments or array return values of
-  /// CABI functions.
-  void generateArrayWrapper(const model::ArrayType &ArrayType);
+  /// Generates the forward declaration of a struct type that wraps all the
+  /// return values of \a F. F must return a set of registers.
+  void printReturnTypeWrapperDeclaration(const model::RawFunctionDefinition &F);
 
   void printFunctionWrappers(const model::RawFunctionDefinition &F);
-  void printFunctionWrappers(const model::CABIFunctionDefinition &F);
 
   void printPadding(uint64_t FieldOffset, uint64_t NextOffset);
 
 public:
-  void printForwardTypeDeclaration(const model::TypeDefinition &T);
+  void printForwardDeclaration(const model::TypeDefinition &T);
 
-  void printTypeDeclaration(const model::TypedefDefinition &Typedef);
-  void printTypeDeclaration(const model::RawFunctionDefinition &F);
-  void printTypeDeclaration(const model::CABIFunctionDefinition &F);
-  void printTypeDeclaration(const model::TypeDefinition &T);
+  void printDeclaration(const model::TypedefDefinition &Typedef);
+  void printDeclaration(const model::RawFunctionDefinition &F);
+  void printDeclaration(const model::CABIFunctionDefinition &F);
+  void printDeclaration(const model::TypeDefinition &T);
 
 private:
   using TypeSet = std::set<model::TypeDefinition::Key>;
 
 public:
-  void printTypeDefinition(const model::EnumDefinition &E,
-                           std::string &&Suffix = "");
-  void printTypeDefinition(const model::StructDefinition &S,
-                           std::string &&Suffix = "");
-  void printTypeDefinition(const model::UnionDefinition &U,
-                           std::string &&Suffix = "");
-  void printTypeDefinition(const model::TypeDefinition &T);
-
-  void printInlineDefinition(llvm::StringRef Name, const model::Type &T);
+  void printDefinition(const model::EnumDefinition &E,
+                       std::string &&Suffix = "");
+  void printDefinition(const model::StructDefinition &S,
+                       std::string &&Suffix = "");
+  void printDefinition(const model::UnionDefinition &U,
+                       std::string &&Suffix = "");
+  void printDefinition(const model::TypeDefinition &T);
 
 public:
   /// Print all the type definitions in the model.

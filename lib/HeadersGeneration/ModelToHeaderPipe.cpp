@@ -10,17 +10,6 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 
-static llvm::cl::opt<bool> InlineTypes("inline-types",
-                                       llvm::cl::desc("Enable printing struct, "
-                                                      "union and enum types "
-                                                      "inline in their parent "
-                                                      "types. This also "
-                                                      "enables printing stack "
-                                                      "types definitions "
-                                                      "inline in the function "
-                                                      "body."),
-                                       llvm::cl::init(false));
-
 namespace revng::pipes {
 
 inline constexpr char ModelHeaderFileContainerMIMEType[] = "text/x.c+ptml";
@@ -64,8 +53,7 @@ public:
       B(Header,
         *getModelFromContext(EC),
         /* EnableTaglessMode = */ false,
-        { .EnableTypeInlining = options::EnableTypeInlining,
-          .EnableStackFrameInlining = !options::DisableStackFrameInlining,
+        { .EnableStackFrameInlining = options::EnableStackFrameInlining,
           .EnablePrintingOfTheMaximumEnumValue = true });
     ptml::HeaderBuilder(B).printModelHeader();
 

@@ -12,6 +12,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
@@ -29,6 +30,7 @@
 #include "revng/Model/CommonTypeMethods.h"
 #include "revng/Model/DefinedType.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/PrimitiveType.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/TypedefDefinition.h"
 #include "revng/Support/Assert.h"
@@ -41,6 +43,8 @@ using llvm::BasicBlock;
 using llvm::Function;
 using llvm::Instruction;
 using llvm::SmallVector;
+using llvm::Use;
+using llvm::User;
 
 using llvm::dyn_cast;
 using llvm::isa;
@@ -51,6 +55,8 @@ using RPOT = llvm::ReversePostOrderTraversal<T>;
 using TypeVector = llvm::SmallVector<model::UpcastableType, 8>;
 using ModelTypesMap = std::map<const llvm::Value *,
                                const model::UpcastableType>;
+
+static Logger<> Log{ "init-model-types" };
 
 /// Map each llvm::Argument of the given llvm::Function to its type in the model
 static void addArgumentsTypes(const llvm::Function &LLVMFunc,
@@ -887,11 +893,51 @@ getCommonScalarTypeForPromotion(const model::UpcastableType &T1,
   return std::nullopt;
 }
 
+static RecursiveCoroutine<SmallVector<const Use *>>
+getUsesThroughCasts(const llvm::Use &U) {
+  revng_log(Log, "getUsesThroughCasts");
+  LoggerIndent Indent{ Log };
+
+  SmallVector<const Use *> Result;
+  User *TheUser = U.getUser();
+  if (llvm::isa<llvm::BitCastInst>(TheUser)
+      or llvm::isa<llvm::FreezeInst>(TheUser)
+      or llvm::isa<llvm::IntToPtrInst>(TheUser)
+      or llvm::isa<llvm::PtrToIntInst>(TheUser)) {
+    revng_log(Log, "User is a transparent cast, consider its uses");
+    LoggerIndent UseIndent{ Log };
+    for (const llvm::Use &NestedUse : TheUser->uses()) {
+      revng_log(Log,
+                "considering use of: " << dumpToString(NestedUse.get())
+                                       << " in : "
+                                       << dumpToString(NestedUse.getUser()));
+      Result.append(rc_recur getUsesThroughCasts(NestedUse));
+    }
+  } else {
+    Result.push_back(&U);
+  }
+  rc_return Result;
+}
+
 ModelTypesMap initModelTypes(const llvm::Function &F,
                              const model::Function *ModelF,
                              const model::Binary &Model,
                              bool PointersOnly) {
+  revng_log(Log, "========= START initModelTypes on " << F.getName());
+
   ModelTypesMap Result = initModelTypesImpl(F, ModelF, Model, PointersOnly);
+
+  revng_log(Log, "========= END initModelTypes on " << F.getName());
+  return Result;
+}
+
+ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
+                                            const model::Function *ModelF,
+                                            const model::Binary &Model,
+                                            bool PointersOnly) {
+  revng_log(Log, "==== START initModelTypesConsideringUses on " << F.getName());
+
+  ModelTypesMap Result = initModelTypes(F, ModelF, Model, PointersOnly);
 
   // Refine the Result map, trying to upgrade types by looking at their uses and
   // see if they provide more accurate types.
@@ -905,6 +951,10 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
     if (not isUpgradable(UT))
       continue;
 
+    revng_log(Log, "try to upgrade the type of: " << dumpToString(V));
+    revng_log(Log, "initial type: " << UT->toString());
+    LoggerIndent Indent{ Log };
+
     // If this optional is ever cleared it means that we cannot compute an
     // accurate common type to all users that is valid, so the substitution
     // should not take place.
@@ -913,10 +963,22 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
 
     // If UT is upgradable, we try to promote it, looking at the expected type
     // of all uses of V.
+    SmallVector<const Use *> UsesToInspect;
     for (const llvm::Use &U : V->uses()) {
+      revng_log(Log,
+                "considering use of: " << dumpToString(U.get()) << " in : "
+                                       << dumpToString(U.getUser()));
+      UsesToInspect.append(getUsesThroughCasts(U));
+    }
+
+    for (const llvm::Use *U : UsesToInspect) {
+      revng_log(Log,
+                "considering use of: " << dumpToString(U->get()) << " in : "
+                                       << dumpToString(U->getUser()));
+      LoggerIndent UseIndent{ Log };
 
       SmallVector<model::UpcastableType>
-        ExpectedTypes = getExpectedModelType(&U, Model);
+        ExpectedTypes = getExpectedModelType(U, Model);
       revng_assert(ExpectedTypes.size() <= 1);
 
       if (ExpectedTypes.empty())
@@ -926,26 +988,34 @@ ModelTypesMap initModelTypes(const llvm::Function &F,
 
       revng_assert(not UseType.empty());
 
+      revng_log(Log, "ExpectedType: " << UseType->toString());
+
       UpgradedType = getCommonScalarTypeForPromotion(UpgradedType.value(),
                                                      UseType);
 
       // If at some point we figure out the Upgraded type cannot be computed we
       // bail out.
-      if (not UpgradedType.has_value())
+      if (not UpgradedType.has_value()) {
+        revng_log(Log, "Upgraded type cannot be computed. Bail out.");
         break;
+      }
     }
 
-    if (not UpgradedType.has_value())
+    if (not UpgradedType.has_value()) {
+      revng_log(Log, "Upgraded type cannot be computed. Next value.");
       continue;
+    }
 
-    if (not UpgradedType->isEmpty() /* we hit at use with strong expected type
-                                     */
-        and *UpgradedType != UT /* we actually need to upgrade something */
-        and isValidScalarUpgrade(UT,
-                                 *UpgradedType) /* the upgrade is valid */) {
+    if (not UpgradedType->isEmpty() // we hit at use with strong expected type
+        and *UpgradedType != UT // we actually need to upgrade something
+        and isValidScalarUpgrade(UT, *UpgradedType)) { // the upgrade is valid
+
+      revng_log(Log, "Upgraded to: " << (*UpgradedType)->toString());
       Result.erase(V);
       Result.insert({ V, UpgradedType->copy() });
     }
   }
+
+  revng_log(Log, "==== END initModelTypesConsideringUses on " << F.getName());
   return Result;
 }

@@ -238,7 +238,8 @@ foreach(WELL_KNOWN_BINARY IN LISTS WELL_KNOWN_BINARIES)
     COMMAND "./bin/revng" analyze import-binary -o "${FULL_MODEL_PATH}"
             "${WELL_KNOWN_BINARY}"
     MAIN_DEPENDENCY "${WELL_KNOWN_BINARY}"
-    DEPENDS revng-all-binaries
+    DEPENDS revng-all-binaries generate-revngModel-tuple-tree-code
+            generate-revngPipeline-tuple-tree-code
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
   add_custom_target("import-${BASENAME}" DEPENDS "${FULL_MODEL_PATH}")
 

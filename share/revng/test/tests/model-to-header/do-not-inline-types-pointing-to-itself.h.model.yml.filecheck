@@ -1,8 +1,0 @@
-#
-# This file is distributed under the MIT License. See LICENSE.md for details.
-#
-
-CHECK: typedef struct _PACKED B B;
-CHECK: struct _PACKED B {
-CHECK:     B *next;
-CHECK: };

@@ -136,9 +136,7 @@ void Decompile::run(pipeline::ExecutionContext &EC,
     B(llvm::nulls(),
       Model,
       /* EnableTaglessMode = */ false,
-      { .EnableTypeInlining = options::EnableTypeInlining,
-        .EnableStackFrameInlining = !options::DisableStackFrameInlining });
-  B.collectInlinableTypes();
+      { .EnableStackFrameInlining = options::EnableStackFrameInlining });
 
   for (const model::Function &Function :
        getFunctionsAndCommit(EC, DecompiledFunctions.name())) {

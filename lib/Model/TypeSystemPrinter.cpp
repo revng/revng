@@ -85,7 +85,8 @@ static FieldList collectFields(const model::TypeDefinition *T) {
       Fields.push_back(Field.Type().get());
 
   } else if (auto *CABI = llvm::dyn_cast<model::CABIFunctionDefinition>(T)) {
-    Fields.push_back(CABI->ReturnType().get());
+    if (not CABI->ReturnType().isEmpty())
+      Fields.push_back(CABI->ReturnType().get());
     for (auto &Field : CABI->Arguments())
       Fields.push_back(Field.Type().get());
 
@@ -249,7 +250,9 @@ void TypeSystemPrinter::dumpFunctionType(llvm::raw_ostream &Out,
       Arguments.push_back(RawFunc->StackArgumentsType().get());
 
   } else if (auto *CABIFunc = dyn_cast<CABIFunctionDefinition>(T)) {
-    ReturnTypes.push_back(CABIFunc->ReturnType().get());
+
+    if (not CABIFunc->ReturnType().isEmpty())
+      ReturnTypes.push_back(CABIFunc->ReturnType().get());
 
     for (auto &ArgTy : CABIFunc->Arguments())
       Arguments.push_back(ArgTy.Type().get());

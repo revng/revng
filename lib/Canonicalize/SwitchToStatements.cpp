@@ -1246,10 +1246,11 @@ public:
 
     TypeMap InstructionTypes = {};
     if constexpr (IsLegacy) {
-      InstructionTypes = initModelTypes(F,
-                                        ModelFunction,
-                                        *Model,
-                                        /*PointerOnly*/ false);
+      InstructionTypes = initModelTypesConsideringUses(F,
+                                                       ModelFunction,
+                                                       *Model,
+                                                       /* PointersOnly */
+                                                       false);
     }
     VariableInserter<IsLegacy> VarInserter{ F,
                                             *Model,

@@ -435,10 +435,23 @@ bool IMCP::collectTypeInfoForTypePromotion(llvm::Instruction *I,
       for (llvm::Use &Op : Call->args())
         CheckTypeFor(Op);
     } else if (FunctionTags::ModelGEP.isTagOf(Callee)
-               or FunctionTags::ModelGEPRef.isTagOf(Callee)
-               or FunctionTags::AddressOf.isTagOf(Callee)) {
+               or FunctionTags::ModelGEPRef.isTagOf(Callee)) {
       // Check the type of the base operand
       CheckTypeFor(Call->getArgOperandUse(1));
+
+      // If there are other arguments past the first two that are not constant
+      // indices, it means that they are indices into an array. For those, we
+      // have to make sure they are integers, possibly injecting casts.
+      if (Call->arg_size() > 2) {
+        for (llvm::Use &Argument : llvm::drop_begin(Call->args(), 2)) {
+          CheckTypeFor(Argument);
+        }
+      }
+
+    } else if (FunctionTags::AddressOf.isTagOf(Callee)) {
+      // Check the type of the base operand
+      CheckTypeFor(Call->getArgOperandUse(1));
+
     } else if (FunctionTags::BinaryNot.isTagOf(Callee)) {
       CheckTypeFor(Call->getArgOperandUse(0));
     } else if (FunctionTags::StructInitializer.isTagOf(Callee)) {

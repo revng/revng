@@ -90,8 +90,11 @@ struct EmitCPass : clift::impl::CliftEmitCBase<EmitCPass> {
       return;
 
     llvm::raw_null_ostream NullStream;
-    ptml::CTypeBuilder B(NullStream, *Model, /* EnableTaglessMode = */ Tagless);
-    B.collectInlinableTypes();
+    ptml::CTypeBuilder B(NullStream,
+                         *Model,
+                         Tagless,
+                         ptml::CTypeBuilder::ConfigurationOptions{
+                           .EnableStackFrameInlining = true });
 
     getOperation()->walk([&](clift::FunctionOp Function) {
       if (not Function.isExternal())

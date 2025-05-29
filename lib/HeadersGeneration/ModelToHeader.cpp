@@ -28,9 +28,8 @@
 static Logger<> Log{ "model-to-header" };
 
 bool ptml::HeaderBuilder::printModelHeader() {
-  B.collectInlinableTypes();
 
-  auto Scope = B.getIndentedTag(ptml::tags::Div);
+  auto Scope = B.getScopeTag(ptml::tags::Div);
 
   std::string Includes = B.getPragmaOnce() + "\n"
                          + B.getIncludeAngle("stdint.h")
@@ -50,8 +49,8 @@ bool ptml::HeaderBuilder::printModelHeader() {
   B.append(std::move(Defines));
 
   if (not B.Binary.TypeDefinitions().empty()) {
-    auto Foldable = B.getIndentedScope(CBuilder::Scopes::TypeDeclarations,
-                                       /* Newline = */ true);
+    auto Foldable = B.getScopeTag(CBuilder::Scopes::TypeDeclarations,
+                                  /* Newline = */ true);
 
     B.appendLineComment("\\defgroup Type definitions");
     B.appendLineComment("\\{");
@@ -65,8 +64,8 @@ bool ptml::HeaderBuilder::printModelHeader() {
   }
 
   if (not B.Binary.Functions().empty()) {
-    auto Foldable = B.getIndentedScope(CBuilder::Scopes::FunctionDeclarations,
-                                       /* Newline = */ true);
+    auto Foldable = B.getScopeTag(CBuilder::Scopes::FunctionDeclarations,
+                                  /* Newline = */ true);
 
     B.appendLineComment("\\defgroup Functions");
     B.appendLineComment("\\{");
@@ -95,8 +94,8 @@ bool ptml::HeaderBuilder::printModelHeader() {
   }
 
   if (not B.Binary.ImportedDynamicFunctions().empty()) {
-    auto F = B.getIndentedScope(CBuilder::Scopes::DynamicFunctionDeclarations,
-                                /* Newline = */ true);
+    auto F = B.getScopeTag(CBuilder::Scopes::DynamicFunctionDeclarations,
+                           /* Newline = */ true);
 
     B.appendLineComment("\\defgroup Imported dynamic functions");
     B.appendLineComment("\\{");
@@ -123,8 +122,8 @@ bool ptml::HeaderBuilder::printModelHeader() {
   }
 
   if (not B.Binary.Segments().empty()) {
-    auto Foldable = B.getIndentedScope(CBuilder::Scopes::SegmentDeclarations,
-                                       /* Newline = */ true);
+    auto Foldable = B.getScopeTag(CBuilder::Scopes::SegmentDeclarations,
+                                  /* Newline = */ true);
 
     B.appendLineComment("/// \\defgroup Segments");
     B.appendLineComment("/// \\{");

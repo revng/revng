@@ -522,12 +522,6 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
     return revng::createError("it is reserved for an artificial return value "
                               "struct name");
 
-  // NOTE: since these names are kind of complicated to produce (they recur
-  //       on the array's element type), forbid them all.
-  if (Name.starts_with(Configuration.artificialArrayWrapperPrefix()))
-    return revng::createError("it is reserved for an artificial array wrapper "
-                              "name");
-
   // TODO: more granularity is possible here since this prefix is only ever
   //       followed by a primitive name, but forbid them all for now.
   if (Name.starts_with(Configuration.undefinedValuePrefix()))
@@ -556,9 +550,6 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   // Exact names
   //
 
-  if (Name == Configuration.artificialArrayWrapperFieldName())
-    return revng::createError("it is reserved for an artificial array wrapper "
-                              "field name");
   if (Name == Configuration.stackFrameVariableName())
     return revng::createError("it is reserved for a stack variable name");
   if (Name == Configuration.rawStackArgumentName())

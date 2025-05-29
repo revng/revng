@@ -136,18 +136,6 @@ public:
     else
       return ArtificialReturnValuePrefix();
   }
-  llvm::StringRef artificialArrayWrapperPrefix() const {
-    if (ArtificialArrayWrapperPrefix().empty())
-      return "artificial_wrapper_";
-    else
-      return ArtificialArrayWrapperPrefix();
-  }
-  llvm::StringRef artificialArrayWrapperFieldName() const {
-    if (ArtificialArrayWrapperFieldName().empty())
-      return "the_array";
-    else
-      return ArtificialArrayWrapperFieldName();
-  }
 };
 
 #include "revng/Model/Generated/Late/NamingConfiguration.h"

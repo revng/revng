@@ -692,7 +692,7 @@ Branches:
         Artifacts:
           Container: module.bc.zstd
           Kind: stack-accesses-segregated
-          SingleTargetFilename: prepare_for_clift.ll
+          SingleTargetFilename: prepared-for-clift.ll
           Docs: |-
             This artifact contains an LLVM function for each function in the
             input program.

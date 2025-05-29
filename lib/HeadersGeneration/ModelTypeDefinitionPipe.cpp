@@ -50,9 +50,8 @@ public:
                            { .EnablePrintingOfTheMaximumEnumValue = true,
                              .EnableExplicitPaddingMode = false,
                              .EnableStructSizeAnnotation = true });
-      B.collectInlinableTypes();
 
-      B.printTypeDefinition(Type);
+      B.printDefinition(Type);
     }
   }
 };

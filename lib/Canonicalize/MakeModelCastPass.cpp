@@ -67,6 +67,10 @@ private:
 };
 
 std::optional<CastToEmit> MakeModelCastPass::computeCast(Use &Operand) const {
+  revng_log(Log,
+            "computeCast on use of: " << dumpToString(Operand.get()) << " in : "
+                                      << dumpToString(Operand.getUser()));
+  LoggerIndent Indent{ Log };
 
   // Check if we have strong model information about this operand
   auto ModelTypes = getExpectedModelType(&Operand, *Model);
@@ -79,21 +83,29 @@ std::optional<CastToEmit> MakeModelCastPass::computeCast(Use &Operand) const {
     revng_assert(ExpectedType->verify());
 
     const model::Type &OperandType = *TypeMap.at(Operand.get());
+
+    revng_log(Log, "ExpectedType: " << ExpectedType->toString());
+    revng_log(Log, "OperandType: " << OperandType.toString());
+
     if (*ExpectedType->skipTypedefs() != *OperandType.skipTypedefs()) {
-      revng_log(Log,
-                "New CastToEmit on use of: "
-                  << dumpToString(Operand.get())
-                  << " in : " << dumpToString(Operand.getUser()));
+      revng_log(Log, "New CastToEmit!");
       revng_log(Log,
                 "Casting from : " << OperandType << " to : " << *ExpectedType);
       return CastToEmit{ .OperandToCast = Operand, .TargetType = ExpectedType };
+    } else {
+      revng_log(Log, "NO CastToEmit");
     }
+  } else {
+    revng_log(Log, "ModelTypes.size() != 1 (" << ModelTypes.size() << ")");
   }
   return std::nullopt;
 }
 
 std::vector<CastToEmit> MakeModelCastPass::computeCasts(Instruction *I) const {
   std::vector<CastToEmit> CastsToEmit;
+
+  revng_log(Log, "computeCasts on operands of: " << dumpToString(I));
+  LoggerIndent Indent{ Log };
 
   const auto PushBackMoving = [&CastsToEmit](std::optional<CastToEmit> &&C) {
     if (C.has_value())
@@ -115,8 +127,20 @@ std::vector<CastToEmit> MakeModelCastPass::computeCasts(Instruction *I) const {
         PushBackMoving(computeCast(Op));
 
     } else if (FunctionTags::ModelGEP.isTagOf(Callee)
-               or FunctionTags::ModelGEPRef.isTagOf(Callee)
-               or FunctionTags::AddressOf.isTagOf(Callee)) {
+               or FunctionTags::ModelGEPRef.isTagOf(Callee)) {
+      // Check the type of the base operand
+      PushBackMoving(computeCast(Call->getArgOperandUse(1)));
+
+      // If there are other arguments past the first two that are not constant
+      // indices, it means that they are indices into an array. For those, we
+      // have to make sure they are integers, possibly injecting casts.
+      if (Call->arg_size() > 2) {
+        for (Use &Argument : llvm::drop_begin(Call->args(), 2)) {
+          PushBackMoving(computeCast(Argument));
+        }
+      }
+
+    } else if (FunctionTags::AddressOf.isTagOf(Callee)) {
       // Check the type of the base operand
       PushBackMoving(computeCast(Call->getArgOperandUse(1)));
 
@@ -231,6 +255,9 @@ void MakeModelCastPass::makeModelCast(const CastToEmit &ToEmit,
 }
 
 bool MakeModelCastPass::runOnFunction(Function &F) {
+  revng_log(Log, "========= START MakeModelCast on " << F.getName());
+  LoggerIndent MMCIndent{ Log };
+
   bool Changed = false;
 
   Module *M = F.getParent();
@@ -303,8 +330,6 @@ bool MakeModelCastPass::runOnFunction(Function &F) {
   for (BasicBlock &BB : F) {
     for (Instruction &I : llvm::make_early_inc_range(BB)) {
       LoggerIndent Indent{ Log };
-      revng_log(Log, "computeCasts on operands of: " << dumpToString(I));
-      LoggerIndent MoreIndent{ Log };
 
       std::vector<CastToEmit> ToEmit = computeCasts(&I);
 
@@ -321,6 +346,7 @@ bool MakeModelCastPass::runOnFunction(Function &F) {
     }
   }
 
+  revng_log(Log, "========= END MakeModelCast on " << F.getName());
   return Changed;
 }
 

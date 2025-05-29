@@ -42,7 +42,7 @@ static void printLLVMTypeDeclaration(const llvm::StructType *S,
            + ptml::AttributeRegistry::getAttribute<"_PACKED">() + " ");
 
   {
-    auto Scope = B.getIndentedScope(ptml::CBuilder::Scopes::StructBody);
+    auto Scope = B.getCurvedBracketScope(ptml::c::scopes::StructBody.str());
 
     for (const auto &Field : llvm::enumerate(S->elements())) {
       B.append(getReturnStructFieldTypeReferenceTag(&F, Field.index(), B) + " "
@@ -89,7 +89,7 @@ static bool hasUnprintableArgsOrRetTypes(const llvm::Function &F) {
 }
 
 bool ptml::HeaderBuilder::printHelpersHeader(const llvm::Module &M) {
-  auto Scope = B.getIndentedTag(ptml::tags::Div);
+  auto Scope = B.getScopeTag(ptml::tags::Div);
   std::string Includes = B.getPragmaOnce() + B.getIncludeAngle("stdint.h")
                          + B.getIncludeAngle("stdbool.h")
                          + B.getIncludeQuote("primitive-types.h") + "\n";

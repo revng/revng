@@ -4,9 +4,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <algorithm>
+
 #include "llvm/ADT/STLExtras.h"
 
 #include "revng/ABI/Definition.h"
+#include "revng/ADT/STLExtras.h"
 #include "revng/Model/Binary.h"
 
 namespace abi::FunctionType {
@@ -130,6 +133,27 @@ public:
   size_t returnValueRegisterCount() const;
   llvm::SmallVector<model::Register::Values, 8> argumentRegisters() const;
   llvm::SmallVector<model::Register::Values, 8> returnValueRegisters() const;
+
+  auto returnValueTypes() {
+    return ReturnValues
+           | std::views::transform([](ReturnValue &RV) { return RV.Type; });
+  }
+
+  auto returnValueTypes() const {
+    return ReturnValues | std::views::transform([](const ReturnValue &RV) {
+             return RV.Type;
+           });
+  }
+
+  auto argumentTypes() {
+    return Arguments
+           | std::views::transform([](Argument &A) { return A.Type; });
+  }
+
+  auto argumentTypes() const {
+    return Arguments
+           | std::views::transform([](const Argument &A) { return A.Type; });
+  }
 
   bool hasSPTAR() const {
     using namespace abi::FunctionType::ArgumentKind;

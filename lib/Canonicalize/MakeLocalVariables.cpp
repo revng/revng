@@ -73,10 +73,11 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
   revng_assert(ModelF);
   using ModelTypesMap = std::map<const llvm::Value *,
                                  const model::UpcastableType>;
-  ModelTypesMap KnownTypes = initModelTypes(F,
-                                            ModelF,
-                                            *Model,
-                                            /* PointersOnly = */ false);
+  ModelTypesMap
+    KnownTypes = initModelTypesConsideringUses(F,
+                                               ModelF,
+                                               *Model,
+                                               /* PointersOnly */ false);
 
   for (auto *Alloca : ToReplace) {
     Builder.SetInsertPoint(Alloca);

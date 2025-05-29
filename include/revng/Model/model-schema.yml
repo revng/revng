@@ -1135,21 +1135,6 @@ definitions:
           The default value is `artificial_struct_returned_by_`.
         type: string
         optional: true
-      - name: ArtificialArrayWrapperPrefix
-        doc: |
-          The prefix for an artificial array wrapper.
-
-          The default value is `artificial_wrapper_`.
-        type: string
-        optional: true
-      - name: ArtificialArrayWrapperFieldName
-        doc: |
-          The name of the field within the artificial array wrapper.
-          See `ArtificialArrayWrapperPrefix`.
-
-          The default value is `the_array`.
-        type: string
-        optional: true
 
       - name: ReserveNamesStartingWithUnderscore
         doc: |

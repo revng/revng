@@ -8,10 +8,7 @@
 
 namespace revng::options {
 
-// Disabled by default.
-extern llvm::cl::opt<bool> EnableTypeInlining;
-
 // Enabled by default.
-extern llvm::cl::opt<bool> DisableStackFrameInlining;
+extern llvm::cl::opt<bool> EnableStackFrameInlining;
 
 } // namespace revng::options

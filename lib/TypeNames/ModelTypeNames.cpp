@@ -175,15 +175,8 @@ PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
       ReturnType = Layout.ReturnValues[0].Type.get();
     }
 
-    // When returning arrays, they need to be wrapped into an artificial struct
-    if (const model::ArrayType *Array = ReturnType->getArray()) {
-      return getReturnValueTag(getArrayWrapperTag<false>(*Array), Function)
-             + Suffix;
-
-    } else {
-      return getReturnValueTag(getNamedCInstance(*ReturnType, InstanceName),
-                               Function);
-    }
+    return getReturnValueTag(getNamedCInstance(*ReturnType, InstanceName),
+                             Function);
   }
 
   case abi::FunctionType::ReturnMethod::RegisterSet: {
@@ -192,6 +185,9 @@ PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
     const auto &RFT = llvm::cast<model::RawFunctionDefinition>(Function);
     return getReturnValueTag(getArtificialStructTag<false>(RFT), RFT) + Suffix;
   }
+
+  default:
+    revng_abort();
   }
 
   revng_abort("Unsupported function return method.");
@@ -321,22 +317,10 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
         ArgumentName = B.getDefinitionTag(CF, Argument);
 
       Result += Separator.str();
-      if (const model::ArrayType *Array = Argument.Type()->getArray()) {
-        if (not ArgumentName.empty())
-          ArgumentName = " " + std::move(ArgumentName);
-
-        Result += B.getCommentableTag(B.getArrayWrapperTag<false>(*Array)
-                                        + ArgumentName,
-                                      CF,
-                                      Argument);
-
-      } else {
-        Result += B.getCommentableTag(B.getNamedCInstance(*Argument.Type(),
-                                                          ArgumentName),
-                                      CF,
-                                      Argument);
-      }
-
+      Result += B.getCommentableTag(B.getNamedCInstance(*Argument.Type(),
+                                                        ArgumentName),
+                                    CF,
+                                    Argument);
       Separator = Comma;
     }
     Result += ")";
