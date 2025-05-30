@@ -85,6 +85,11 @@ class Clift_AllTypesMatch<list<string> names>
                               "mlir::clift::removeConst($_self.getType())",
                               "type, ignoring qualifiers">;
 
+class Clift_StaticType<Type constraint, string cppClassName>
+  : Type<constraint.predicate,
+         constraint.description,
+         cppClassName>;
+
 //===---------------------------- Region types ----------------------------===//
 
 def Clift_StatementRegion
@@ -108,7 +113,8 @@ def Clift_FunctionOp : Clift_Op<"func",
                                  AutomaticAllocationScope,
                                  IsolatedFromAbove]> {
   let arguments = (ins StrAttr:$sym_name,
-                       TypeAttrOf<Clift_AnyFunctionType>:$function_type,
+                       TypeAttrOf<Clift_StaticType<Clift_AnyFunctionType,
+                                                   "mlir::clift::FunctionType">>:$function_type,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs,
                        DefaultValuedStrAttr<StrAttr, "">:$handle);
@@ -128,8 +134,8 @@ def Clift_FunctionOp : Clift_Op<"func",
   let hasCustomAssemblyFormat = 1;
 
   code extraClassDeclaration = [{
-    clift::FunctionType getCliftFunctionType() {
-      return mlir::cast<clift::FunctionType>(getFunctionType());
+    clift::ValueType getReturnType() {
+      return getFunctionType().getReturnType();
     }
 
     clift::ValueType getCliftReturnType() {

@@ -514,7 +514,7 @@ private:
   mlir::Value emitHelperCall(mlir::Location Loc,
                              FunctionOp Function,
                              llvm::ArrayRef<mlir::Value> Arguments) {
-    auto FunctionType = Function.getCliftFunctionType();
+    auto FunctionType = Function.getFunctionType();
 
     llvm::SmallVector<mlir::Value> CastArgs;
     CastArgs.reserve(Arguments.size());
