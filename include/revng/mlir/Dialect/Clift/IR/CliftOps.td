@@ -576,6 +576,7 @@ class Clift_ComparisonOp<string mnemonic>
 class Clift_UnaryIntegerMutationOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
                        [NoMemoryEffect,
+                        Clift_SideEffects,
                         AllTypesMatch<["value", "result"]>]> {
 
   let arguments = (ins Clift_AnyModifiableType<Clift_AnyPrimitiveIntegerType>:$value);
@@ -693,6 +694,7 @@ def Clift_AddressofOp
 def Clift_IndirectionOp
   : Clift_ExpressionOp<"indirection",
                        [NoMemoryEffect,
+                        Clift_SideEffects,
                         TypesMatchWith<"result type must match the pointee type of the pointer type",
                                        "pointer",
                                        "result",
@@ -716,7 +718,8 @@ def Clift_IndirectionOp
 
 def Clift_AssignOp
   : Clift_ExpressionOp<"assign",
-                       [AllTypesMatch<["lhs", "result"]>,
+                       [Clift_SideEffects,
+                        AllTypesMatch<["lhs", "result"]>,
                         Clift_AllTypesMatch<["lhs", "rhs"]>]> {
 
   let arguments = (ins Clift_AnyModifiableType<Clift_AnyValueType>:$lhs,
@@ -738,7 +741,8 @@ def Clift_AssignOp
   let hasVerifier = 1;
 }
 
-def Clift_AccessOp : Clift_ExpressionOp<"access", [NoMemoryEffect]> {
+def Clift_AccessOp : Clift_ExpressionOp<"access", [NoMemoryEffect,
+                                                   Clift_SideEffects]> {
   let arguments = (ins Clift_AnyValueType:$value,
                        UnitAttr:$indirect,
                        I64Attr:$member_index);
@@ -766,6 +770,7 @@ def Clift_AccessOp : Clift_ExpressionOp<"access", [NoMemoryEffect]> {
 def Clift_SubscriptOp
   : Clift_ExpressionOp<"subscript",
                        [NoMemoryEffect,
+                        Clift_SideEffects,
                         TypesMatchWith<"result type must match the pointee type of the pointer type",
                                        "pointer",
                                        "result",
@@ -810,6 +815,7 @@ def Clift_CommaOp : Clift_ExpressionOp<"comma",
 def Clift_UseOp
   : Clift_ExpressionOp<"use",
                        [NoMemoryEffect,
+                        Clift_SideEffects,
                         DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
 
   let arguments = (ins FlatSymbolRefAttr:$symbol_name);
@@ -826,7 +832,7 @@ def Clift_UseOp
   }];
 }
 
-def Clift_CallOp : Clift_ExpressionOp<"call"> {
+def Clift_CallOp : Clift_ExpressionOp<"call", [Clift_SideEffects]> {
   let arguments = (ins Clift_AnyValueType:$function,
                        Variadic<Clift_AnyValueType>:$arguments);
 
@@ -839,6 +845,7 @@ def Clift_CallOp : Clift_ExpressionOp<"call"> {
 def Clift_TernaryOp
   : Clift_ExpressionOp<"ternary",
                        [NoMemoryEffect,
+                        Clift_SideEffects,
                         Clift_AllTypesMatch<["lhs", "rhs"]>,
                         TypesMatchWith<"result type must match the value type, ignoring qualifiers",
                                        "lhs",

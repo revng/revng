@@ -11,8 +11,9 @@ class Clift_OneUseOfType<string op> :
   ParamNativeOpTrait<"clift::OneUseOfType", op>,
   StructuralOpTrait;
 
-def Clift_NoFallthrough :
-  NativeOpTrait<"clift::NoFallthrough">;
+def Clift_NoFallthrough : NativeOpTrait<"clift::NoFallthrough">;
+
+def Clift_SideEffects : NativeOpTrait<"clift::SideEffects">;
 
 def Clift_ReturnsBoolean :
   NativeOpTrait<"clift::ReturnsBoolean">;

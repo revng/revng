@@ -54,9 +54,13 @@ public:
 };
 
 template<typename ConcreteType>
+<<<<<<< HEAD
 class ReturnsBoolean : public OpTrait::TraitBase<ConcreteType, ReturnsBoolean> {
   using Base = OpTrait::TraitBase<ConcreteType, ReturnsBoolean>;
 };
+=======
+class SideEffects : public OpTrait::TraitBase<ConcreteType, SideEffects> {};
+>>>>>>> e6acebe00 (WIP: Add SideEffects op trait)
 
 } // namespace clift
 } // namespace OpTrait
