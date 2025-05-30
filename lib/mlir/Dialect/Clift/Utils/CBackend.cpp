@@ -369,15 +369,25 @@ public:
   }
 
   ptml::Tag
-  getIntegerConstant(uint64_t Value, CIntegerKind Integer, bool Signed) {
+  getIntegerConstant(uint64_t Value,
+                     CIntegerKind Integer,
+                     bool Signed,
+                     unsigned Radix) {
     llvm::SmallString<64> String;
     {
       llvm::raw_svector_ostream Stream(String);
 
       if (Signed and static_cast<int64_t>(Value) < 0) {
-        Stream << static_cast<int64_t>(Value);
-      } else {
+        Stream << '-';
+        Value = ~Value + 1;
+      }
+
+      if (Radix == 10) {
         Stream << Value;
+      } else {
+        revng_assert(Radix == 0x10);
+        Stream << "0x";
+        Stream.write_hex(Value);
       }
 
       Stream << getCIntegerLiteralSuffix(Integer, Signed);
@@ -385,7 +395,9 @@ public:
     return C.getConstantTag(String);
   }
 
-  void emitIntegerImmediate(uint64_t Value, ValueType Type) {
+  void emitIntegerImmediate(uint64_t Value,
+                            ValueType Type,
+                            unsigned Radix = 10) {
     Type = dealias(Type, /*IgnoreQualifiers=*/true);
 
     if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
@@ -403,7 +415,7 @@ public:
       }
 
       bool Signed = T.getKind() == PrimitiveKind::SignedKind;
-      Out << getIntegerConstant(Value, *Integer, Signed);
+      Out << getIntegerConstant(Value, *Integer, Signed, Radix);
     } else {
       auto D = mlir::cast<DefinedType>(Type);
       const auto *ModelType = getModelTypeDefinition(D);
@@ -450,7 +462,19 @@ public:
 
   RecursiveCoroutine<void> emitImmediateExpression(mlir::Value V) {
     auto E = V.getDefiningOp<ImmediateOp>();
-    emitIntegerImmediate(E.getValue(), E.getResult().getType());
+
+    unsigned Radix = 10;
+    if (auto Attr = E->getAttrOfType<mlir::IntegerAttr>("clift.radix")) {
+      switch (Radix = Attr.getValue().getZExtValue()) {
+      case 10:
+      case 0x10:
+        break;
+      default:
+        revng_abort("Invalid immediate radix");
+      }
+    }
+
+    emitIntegerImmediate(E.getValue(), E.getResult().getType(), Radix);
     rc_return;
   }
 
