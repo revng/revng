@@ -1124,7 +1124,7 @@ public:
                                           Attributes);
       }
 
-      emitDeclaration(Op.getCliftFunctionType(),
+      emitDeclaration(Op.getFunctionType(),
                       DeclaratorInfo{
                         .Identifier = Op.getName(),
                         .Location = Op.getHandle(),

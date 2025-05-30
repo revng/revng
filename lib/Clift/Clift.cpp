@@ -408,13 +408,13 @@ mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
 }
 
 void FunctionOp::print(OpAsmPrinter &Printer) {
+  auto FunctionType = getFunctionType();
+
   Printer << ' ';
   Printer.printSymbolName(getSymName());
   Printer << '<';
-  Printer.printType(getCliftFunctionType());
+  Printer.printType(FunctionType);
   Printer << '>';
-
-  auto FunctionType = getCliftFunctionType();
 
   function_interface_impl::printFunctionSignature(Printer,
                                                   *this,
@@ -439,8 +439,7 @@ void FunctionOp::print(OpAsmPrinter &Printer) {
 }
 
 mlir::LogicalResult FunctionOp::verify() {
-  auto ReturnType = mlir::cast<ValueType>(getCliftFunctionType()
-                                            .getReturnType());
+  auto ReturnType = getReturnType();
 
   bool IsVoid = isVoid(ReturnType);
   auto Result = (*this)->walk([&](ReturnOp Op) -> mlir::WalkResult {
@@ -465,11 +464,11 @@ mlir::LogicalResult FunctionOp::verify() {
 }
 
 ArrayRef<Type> FunctionOp::getArgumentTypes() {
-  return getCliftFunctionType().getArgumentTypes();
+  return getFunctionType().getArgumentTypes();
 }
 
 ArrayRef<Type> FunctionOp::getResultTypes() {
-  return getCliftFunctionType().getResultTypes();
+  return getFunctionType().getResultTypes();
 }
 
 Type FunctionOp::cloneTypeWith(TypeRange inputs, TypeRange results) {
