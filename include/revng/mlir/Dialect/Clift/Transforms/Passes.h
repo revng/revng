@@ -8,10 +8,25 @@
 
 namespace mlir::clift {
 
+template<typename OpT>
+using PassPtr = std::unique_ptr<mlir::OperationPass<OpT>>;
+
 #define GEN_PASS_DECL
 #include "revng/mlir/Dialect/Clift/Transforms/Passes.h.inc"
 
-std::unique_ptr<OperationPass<mlir::ModuleOp>> createVerifyCPass();
+PassPtr<clift::FunctionOp> createLoopDetectionPass();
+PassPtr<clift::FunctionOp> createBranchEqualizationPass();
+
+PassPtr<clift::FunctionOp> createBeautifyStatementsPass();
+
+PassPtr<clift::FunctionOp> createReturnIntoGotoConversionPass();
+PassPtr<clift::FunctionOp> createGotoIntoReturnConversionPass();
+
+PassPtr<clift::FunctionOp> createBeautifyExpressionsPass();
+PassPtr<clift::FunctionOp> createExpressionRootSimplificationPass();
+PassPtr<clift::FunctionOp> createImmediateRadixDeductionPass();
+
+PassPtr<mlir::ModuleOp> createVerifyCPass();
 
 #define GEN_PASS_REGISTRATION
 #include "revng/mlir/Dialect/Clift/Transforms/Passes.h.inc"

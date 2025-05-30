@@ -1,6 +1,10 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
+set(LLVM_TARGET_DEFINITIONS Beautify/Expressions.td)
+mlir_tablegen(Beautify/Expressions.h.inc -gen-rewriters)
+add_public_tablegen_target(MLIRCliftBeautifyExpressionRewriteIncGen)
+add_dependencies(mlir-headers MLIRCliftBeautifyExpressionRewriteIncGen)
 
 set(LLVM_TARGET_DEFINITIONS Passes.td)
 mlir_tablegen(Passes.h.inc -gen-pass-decls -name Clift)
