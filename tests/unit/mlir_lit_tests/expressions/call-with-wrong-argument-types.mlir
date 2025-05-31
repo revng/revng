@@ -8,9 +8,9 @@
 !int32_t = !clift.primitive<signed 4>
 !uint32_t = !clift.primitive<unsigned 4>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1-CABIFunctionDefinition" : !void(!int32_t)
->>
+>
 
 %f = clift.undef : !f
 %u = clift.undef : !uint32_t

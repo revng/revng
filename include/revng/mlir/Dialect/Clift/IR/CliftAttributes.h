@@ -28,135 +28,158 @@ namespace mlir::clift {
 // discourse.llvm.org/t/custom-walk-and-replace-for-non-tablegen-types/74229
 // This is very brittle and it is very likely that it will change again in
 // future llvm releases
-struct StructTypeAttrStorage;
-class StructTypeAttr
-  : public mlir::Attribute::AttrBase<StructTypeAttr,
-                                     Attribute,
-                                     StructTypeAttrStorage,
-                                     SubElementAttrInterface::Trait,
-                                     TypeDefinitionAttr::Trait,
-                                     ClassTypeAttr::Trait,
-                                     AliasableAttr::Trait,
-                                     AttributeTrait::IsMutable> {
+class ClassAttrStorage;
+
+template<typename AttrT>
+using ClassAttrBase = Attribute::AttrBase<AttrT,
+                                          Attribute,
+                                          ClassAttrStorage,
+                                          AttributeTrait::IsMutable,
+                                          SubElementAttrInterface::Trait>;
+
+template<typename AttrT>
+class ClassAttrImpl : public ClassAttrBase<AttrT> {
+protected:
+  using Base = ClassAttrBase<AttrT>;
+
 public:
   using Base::Base;
 
-  static StructTypeAttr get(MLIRContext *Context, llvm::StringRef Handle);
+  static AttrT get(mlir::MLIRContext *Context, llvm::StringRef Handle);
 
-  static StructTypeAttr
+  llvm::StringRef getHandle() const;
+
+  llvm::StringRef getName() const {
+    revng_assert(hasDefinition());
+    return getDefinition().getName();
+  }
+
+  uint64_t getSize() const {
+    revng_assert(hasDefinition());
+    return getDefinition().getSize();
+  }
+
+  llvm::ArrayRef<FieldAttr> getFields() const {
+    revng_assert(hasDefinition());
+    return getDefinition().getFields();
+  }
+
+  bool hasDefinition() const;
+  ClassDefinitionAttr getDefinition() const;
+
+  void walkImmediateSubElements(llvm::function_ref<void(Attribute)> WalkAttrs,
+                                llvm::function_ref<void(Type)> WalkTypes) const;
+  Attribute replaceImmediateSubElements(llvm::ArrayRef<Attribute> NewAttrs,
+                                        llvm::ArrayRef<Type> NewTypes) const;
+};
+
+struct StructAttr : ClassAttrImpl<StructAttr> {
+  using ClassAttrImpl::ClassAttrImpl;
+
+  static LogicalResult
+  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+         llvm::StringRef Handle);
+
+  static mlir::LogicalResult
+  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+         llvm::StringRef Handle,
+         ClassDefinitionAttr Definition);
+
+  static mlir::LogicalResult
+  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+         llvm::StringRef Handle,
+         llvm::StringRef Name,
+         uint64_t Size,
+         llvm::ArrayRef<FieldAttr> Fields);
+
+  mlir::LogicalResult
+  verifyDefinition(llvm::function_ref<InFlightDiagnostic()> EmitError) const;
+
+  static StructAttr get(MLIRContext *Context, llvm::StringRef Handle);
+
+  static StructAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              llvm::StringRef Handle);
 
-  static StructTypeAttr get(MLIRContext *Context,
-                            llvm::StringRef Handle,
-                            llvm::StringRef Name,
-                            uint64_t Size,
-                            llvm::ArrayRef<FieldAttr> Fields);
+  static StructAttr get(MLIRContext *Context,
+                        llvm::StringRef Handle,
+                        ClassDefinitionAttr Definition);
 
-  static StructTypeAttr
+  static StructAttr
+  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
+             MLIRContext *Context,
+             llvm::StringRef Handle,
+             ClassDefinitionAttr Definition);
+
+  static StructAttr get(MLIRContext *Context,
+                        llvm::StringRef Handle,
+                        llvm::StringRef Name,
+                        uint64_t Size,
+                        llvm::ArrayRef<FieldAttr> Fields);
+
+  static StructAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              llvm::StringRef Handle,
              llvm::StringRef Name,
              uint64_t Size,
              llvm::ArrayRef<FieldAttr> Fields);
-
-  static llvm::StringLiteral getMnemonic() { return { "struct" }; }
-
-  void
-  define(llvm::StringRef Name, uint64_t Size, llvm::ArrayRef<FieldAttr> Fields);
-
-  llvm::StringRef getHandle() const;
-  llvm::StringRef getName() const;
-  llvm::ArrayRef<FieldAttr> getFields() const;
-
-  bool isDefinition() const;
-  uint64_t getByteSize() const;
-
-  bool getTypeDefinitionAlias(llvm::raw_ostream &OS) const;
-  bool getAlias(llvm::raw_ostream &OS) const;
-
-  static Attribute parse(AsmParser &Parser);
-  void print(AsmPrinter &Printer) const;
-
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              llvm::StringRef Handle);
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              llvm::StringRef Handle,
-                              llvm::StringRef Name,
-                              uint64_t Size,
-                              llvm::ArrayRef<FieldAttr> Fields);
-
-  void walkImmediateSubElements(function_ref<void(Attribute)> WalkAttrs,
-                                function_ref<void(Type)> WalkTypes) const;
-  Attribute replaceImmediateSubElements(ArrayRef<Attribute> NewAttrs,
-                                        ArrayRef<Type> NewTypes) const;
 };
 
-struct UnionTypeAttrStorage;
-class UnionTypeAttr : public Attribute::AttrBase<UnionTypeAttr,
-                                                 Attribute,
-                                                 UnionTypeAttrStorage,
-                                                 SubElementAttrInterface::Trait,
-                                                 TypeDefinitionAttr::Trait,
-                                                 ClassTypeAttr::Trait,
-                                                 AliasableAttr::Trait,
-                                                 AttributeTrait::IsMutable> {
-public:
-  using Base::Base;
+struct UnionAttr : ClassAttrImpl<UnionAttr> {
+  using ClassAttrImpl::ClassAttrImpl;
+  using ClassAttrImpl::verify;
 
-  static UnionTypeAttr get(MLIRContext *Context, llvm::StringRef Handle);
+  static LogicalResult
+  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+         llvm::StringRef Handle);
 
-  static UnionTypeAttr
+  static LogicalResult
+  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+         llvm::StringRef Handle,
+         ClassDefinitionAttr Definition);
+
+  static LogicalResult
+  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+         llvm::StringRef Handle,
+         llvm::StringRef Name,
+         llvm::ArrayRef<FieldAttr> Fields);
+
+  mlir::LogicalResult
+  verifyDefinition(llvm::function_ref<InFlightDiagnostic()> EmitError) const;
+
+  static UnionAttr get(MLIRContext *Context, llvm::StringRef Handle);
+
+  static UnionAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              llvm::StringRef Handle);
 
-  static UnionTypeAttr get(MLIRContext *Context,
-                           llvm::StringRef Handle,
-                           llvm::StringRef Name,
-                           llvm::ArrayRef<FieldAttr> Fields);
+  static UnionAttr get(MLIRContext *Context,
+                       llvm::StringRef Handle,
+                       ClassDefinitionAttr Definition);
 
-  static UnionTypeAttr
+  static UnionAttr
+  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
+             MLIRContext *Context,
+             llvm::StringRef Handle,
+             ClassDefinitionAttr Definition);
+
+  static UnionAttr get(MLIRContext *Context,
+                       llvm::StringRef Handle,
+                       llvm::StringRef Name,
+                       llvm::ArrayRef<FieldAttr> Fields);
+
+  static UnionAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              llvm::StringRef Handle,
              llvm::StringRef Name,
              llvm::ArrayRef<FieldAttr> Fields);
-
-  static llvm::StringLiteral getMnemonic() { return { "union" }; }
-
-  void define(llvm::StringRef Name, llvm::ArrayRef<FieldAttr> Fields);
-
-  llvm::StringRef getHandle() const;
-  llvm::StringRef getName() const;
-  llvm::ArrayRef<FieldAttr> getFields() const;
-
-  bool isDefinition() const;
-  uint64_t getByteSize() const;
-
-  bool getTypeDefinitionAlias(llvm::raw_ostream &OS) const;
-  bool getAlias(llvm::raw_ostream &OS) const;
-
-  static Attribute parse(AsmParser &Parser);
-  void print(AsmPrinter &Printer) const;
-
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              llvm::StringRef Handle);
-  static LogicalResult verify(function_ref<InFlightDiagnostic()> EmitError,
-                              llvm::StringRef Handle,
-                              llvm::StringRef Name,
-                              llvm::ArrayRef<FieldAttr> Fields);
-
-  // since mlir types and attributes are immutable, the infrastructure must
-  // provide to replace a subelement of the hierarchy. These methods allow
-  // to do. Notice that since LLVM17 these are no longer methods requested
-  // by the SubElementAttrInterface but are instead a builtin property of
-  // all types and attributes, so it will break.
-  void walkImmediateSubElements(function_ref<void(Attribute)> WalkAttrs,
-                                function_ref<void(Type)> WalkTypes) const;
-  Attribute replaceImmediateSubElements(ArrayRef<Attribute> NewAttrs,
-                                        ArrayRef<Type> NewTypes) const;
 };
+
+extern template class ClassAttrImpl<StructAttr>;
+extern template class ClassAttrImpl<UnionAttr>;
+
 } // namespace mlir::clift

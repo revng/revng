@@ -26,7 +26,7 @@ class CliftConverter {
   model::CNameBuilder NameBuilder;
   llvm::function_ref<mlir::InFlightDiagnostic()> EmitError;
 
-  llvm::DenseMap<uint64_t, clift::TypeDefinitionAttr> Cache;
+  llvm::DenseMap<uint64_t, clift::DefinedType> Cache;
   llvm::DenseMap<uint64_t, const model::TypeDefinition *> IncompleteTypes;
 
   llvm::SmallSet<uint64_t, 16> DefinitionGuardSet;
@@ -87,12 +87,6 @@ public:
   }
 
 private:
-  mlir::BoolAttr getBool(bool const Value) {
-    return mlir::BoolAttr::get(Context, Value);
-  }
-
-  mlir::BoolAttr getFalse() { return getBool(false); }
-
   template<typename T, typename... ArgTypes>
   T make(const ArgTypes &...Args) {
     if (failed(T::verify(EmitError, Args...)))
@@ -132,8 +126,8 @@ private:
     return pipeline::locationString(revng::ranks::ArtificialStruct, T.key());
   }
 
-  RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::CABIFunctionDefinition &ModelType) {
+  RecursiveCoroutine<clift::DefinedType>
+  getTypeDefinition(const model::CABIFunctionDefinition &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
       if (EmitError)
@@ -160,14 +154,14 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
-    rc_return make<clift::FunctionTypeAttr>(getHandle(ModelType),
-                                            NameBuilder.name(ModelType),
-                                            ReturnType,
-                                            ArgumentTypes);
+    rc_return make<clift::FunctionType>(getHandle(ModelType),
+                                        NameBuilder.name(ModelType),
+                                        ReturnType,
+                                        ArgumentTypes);
   }
 
-  RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::EnumDefinition &ModelType) {
+  RecursiveCoroutine<clift::DefinedType>
+  getTypeDefinition(const model::EnumDefinition &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
       if (EmitError)
@@ -191,10 +185,10 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::EnumTypeAttr>(getHandle(ModelType),
-                                        NameBuilder.name(ModelType),
-                                        UnderlyingType,
-                                        Fields);
+    rc_return make<clift::EnumType>(getHandle(ModelType),
+                                    NameBuilder.name(ModelType),
+                                    UnderlyingType,
+                                    Fields);
   }
 
   RecursiveCoroutine<clift::ValueType>
@@ -227,16 +221,14 @@ private:
       Out << "register_set_" << ModelType.ID();
     }
 
-    auto Attr = make<clift::StructTypeAttr>(getRegisterSetLocation(ModelType),
-                                            TypeName,
-                                            Offset,
-                                            Elements);
-
-    rc_return make<clift::DefinedType>(Attr, getBool(false));
+    rc_return make<clift::StructType>(getRegisterSetLocation(ModelType),
+                                      TypeName,
+                                      Offset,
+                                      Elements);
   }
 
-  RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::RawFunctionDefinition &ModelType) {
+  RecursiveCoroutine<clift::DefinedType>
+  getTypeDefinition(const model::RawFunctionDefinition &ModelType) {
     RecursiveDefinitionGuard Guard(*this, ModelType.ID());
     if (not Guard) {
       if (EmitError)
@@ -256,7 +248,7 @@ private:
       const uint64_t PointerSize = getPointerSize(ModelType.Architecture());
       StackArgumentType = make<clift::PointerType>(Type,
                                                    PointerSize,
-                                                   getFalse());
+                                                   /*IsConst=*/false);
       if (not StackArgumentType)
         rc_return nullptr;
 
@@ -282,7 +274,7 @@ private:
     case 0:
       ReturnType = make<clift::PrimitiveType>(clift::PrimitiveKind::VoidKind,
                                               0,
-                                              getFalse());
+                                              /*IsConst=*/false);
       break;
 
     case 1:
@@ -290,11 +282,7 @@ private:
       break;
 
     default: {
-      auto
-        Attr = make<clift::StructTypeAttr>(getRegisterSetLocation(ModelType));
-
-      ReturnType = make<clift::DefinedType>(Attr, getBool(false));
-
+      ReturnType = make<clift::StructType>(getRegisterSetLocation(ModelType));
       const auto R = IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       revng_assert(R.second && "Register set types are only visited once.");
     } break;
@@ -302,18 +290,18 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
-    rc_return make<clift::FunctionTypeAttr>(getHandle(ModelType),
-                                            NameBuilder.name(ModelType),
-                                            ReturnType,
-                                            ArgumentTypes);
+    rc_return make<clift::FunctionType>(getHandle(ModelType),
+                                        NameBuilder.name(ModelType),
+                                        ReturnType,
+                                        ArgumentTypes);
   }
 
-  RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::StructDefinition &ModelType,
-                   const bool RequireComplete) {
+  RecursiveCoroutine<clift::DefinedType>
+  getTypeDefinition(const model::StructDefinition &ModelType,
+                    const bool RequireComplete) {
     if (not RequireComplete) {
-      const auto T = clift::StructTypeAttr::get(Context, getHandle(ModelType));
-      if (not T.isDefinition())
+      const auto T = clift::StructType::get(Context, getHandle(ModelType));
+      if (not T.isComplete())
         IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       rc_return T;
     }
@@ -343,15 +331,15 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::StructTypeAttr>(getHandle(ModelType),
-                                          NameBuilder.name(ModelType),
-                                          ModelType.Size(),
-                                          Fields);
+    rc_return make<clift::StructType>(getHandle(ModelType),
+                                      NameBuilder.name(ModelType),
+                                      ModelType.Size(),
+                                      Fields);
   }
 
-  RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::TypedefDefinition &ModelType,
-                   const bool RequireComplete) {
+  RecursiveCoroutine<clift::DefinedType>
+  getTypeDefinition(const model::TypedefDefinition &ModelType,
+                    const bool RequireComplete) {
     std::optional<RecursiveDefinitionGuard> Guard;
 
     if (RequireComplete) {
@@ -368,17 +356,17 @@ private:
                                                   RequireComplete);
     if (not UnderlyingType)
       rc_return nullptr;
-    rc_return make<clift::TypedefTypeAttr>(getHandle(ModelType),
-                                           NameBuilder.name(ModelType),
-                                           UnderlyingType);
+    rc_return make<clift::TypedefType>(getHandle(ModelType),
+                                       NameBuilder.name(ModelType),
+                                       UnderlyingType);
   }
 
-  RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::UnionDefinition &ModelType,
-                   const bool RequireComplete) {
+  RecursiveCoroutine<clift::DefinedType>
+  getTypeDefinition(const model::UnionDefinition &ModelType,
+                    const bool RequireComplete) {
     if (not RequireComplete) {
-      const auto T = clift::UnionTypeAttr::get(Context, getHandle(ModelType));
-      if (not T.isDefinition())
+      const auto T = clift::UnionType::get(Context, getHandle(ModelType));
+      if (not T.isComplete())
         IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       rc_return T;
     }
@@ -408,30 +396,30 @@ private:
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::UnionTypeAttr>(getHandle(ModelType),
-                                         NameBuilder.name(ModelType),
-                                         Fields);
+    rc_return make<clift::UnionType>(getHandle(ModelType),
+                                     NameBuilder.name(ModelType),
+                                     Fields);
   }
 
-  RecursiveCoroutine<clift::TypeDefinitionAttr>
-  getTypeAttribute(const model::TypeDefinition &T, bool &RequireComplete) {
+  RecursiveCoroutine<clift::DefinedType>
+  getTypeDefinition(const model::TypeDefinition &T, bool &RequireComplete) {
     if (const auto *CFT = llvm::dyn_cast<model::CABIFunctionDefinition>(&T))
-      rc_return getTypeAttribute(*CFT);
+      rc_return getTypeDefinition(*CFT);
 
     if (const auto *RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&T))
-      rc_return getTypeAttribute(*RFT);
+      rc_return getTypeDefinition(*RFT);
 
     if (const auto *Enum = llvm::dyn_cast<model::EnumDefinition>(&T))
-      rc_return getTypeAttribute(*Enum);
+      rc_return getTypeDefinition(*Enum);
 
     if (const auto *Struct = llvm::dyn_cast<model::StructDefinition>(&T))
-      rc_return getTypeAttribute(*Struct, RequireComplete);
+      rc_return getTypeDefinition(*Struct, RequireComplete);
 
     if (const auto *Union = llvm::dyn_cast<model::UnionDefinition>(&T))
-      rc_return getTypeAttribute(*Union, RequireComplete);
+      rc_return getTypeDefinition(*Union, RequireComplete);
 
     if (const auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(&T))
-      rc_return getTypeAttribute(*Typedef, RequireComplete);
+      rc_return getTypeDefinition(*Typedef, RequireComplete);
 
     revng_abort("Unsupported type definition kind.");
   }
@@ -440,8 +428,15 @@ private:
   fromTypeDefinition(const model::TypeDefinition &ModelType,
                      bool RequireComplete = false,
                      const bool Const = false) {
+    if (Const) {
+      auto Type = rc_recur fromTypeDefinition(ModelType,
+                                              RequireComplete,
+                                              /*Const=*/false);
+      rc_return Type.addConst();
+    }
+
     if (const auto It = Cache.find(ModelType.ID()); It != Cache.end())
-      rc_return make<clift::DefinedType>(It->second, getBool(Const));
+      rc_return It->second;
 
     if (not ModelType.verify()) {
       if (EmitError)
@@ -450,18 +445,14 @@ private:
       rc_return nullptr;
     }
 
-    const clift::TypeDefinitionAttr Attr = getTypeAttribute(ModelType,
-                                                            RequireComplete);
+    auto Type = rc_recur getTypeDefinition(ModelType, RequireComplete);
 
-    if (not Attr)
-      rc_return nullptr;
-
-    if (RequireComplete) {
-      const auto R = Cache.try_emplace(ModelType.ID(), Attr);
-      revng_assert(R.second);
+    if (Type and RequireComplete) {
+      auto [Iterator, Inserted] = Cache.try_emplace(ModelType.ID(), Type);
+      revng_assert(Inserted);
     }
 
-    rc_return make<clift::DefinedType>(Attr, getBool(Const));
+    rc_return Type;
   }
 
   RecursiveCoroutine<clift::ValueType> fromType(const model::Type &ModelType,
@@ -476,7 +467,7 @@ private:
     if (const auto &P = llvm::dyn_cast<model::PrimitiveType>(&ModelType)) {
       rc_return make<clift::PrimitiveType>(getPrimitiveKind(*P),
                                            P->Size(),
-                                           getBool(P->IsConst()));
+                                           P->IsConst());
 
     } else if (const auto &D = llvm::dyn_cast<model::DefinedType>(&ModelType)) {
       rc_return fromTypeDefinition(D->unwrap(), RequireComplete, D->IsConst());
@@ -494,7 +485,7 @@ private:
       rc_return make<clift::PointerType>(rc_recur fromType(*P->PointeeType(),
                                                            RequireComplete),
                                          P->PointerSize(),
-                                         getBool(P->IsConst()));
+                                         P->IsConst());
 
     } else {
       if (EmitError)
@@ -511,12 +502,10 @@ private:
       IncompleteTypes.erase(Iterator);
 
       clift::ValueType CompleteType;
-      if (const auto
-            RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&ModelType)) {
+      if (auto RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&ModelType)) {
         CompleteType = getRegisterSetType(*RFT);
       } else {
-        CompleteType = fromTypeDefinition(ModelType,
-                                          /* RequireComplete = */ true);
+        CompleteType = fromTypeDefinition(ModelType, /*RequireComplete=*/true);
       }
 
       if (not CompleteType)

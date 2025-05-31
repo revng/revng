@@ -18,7 +18,7 @@ setTypeMetadata(AllocaInst *A, const model::Type &T, const char *Name) {
   A->setMetadata(Name, QMD.tuple(QMD.get(toLLVMString(T, *A->getModule()))));
 }
 
-static model::UpcastableType getTypeFromMetadata(AllocaInst *A,
+static model::UpcastableType getTypeFromMetadata(const AllocaInst *A,
                                                  const model::Binary &Model,
                                                  const char *Name) {
   revng_assert(hasNamedMetadata(A, Name));
@@ -37,7 +37,7 @@ void setStackTypeMetadata(AllocaInst *A, const model::Type &StackType) {
   return setTypeMetadata(A, StackType, StackTypeMDName);
 }
 
-model::UpcastableType getStackTypeFromMetadata(AllocaInst *A,
+model::UpcastableType getStackTypeFromMetadata(const AllocaInst *A,
                                                const model::Binary &Model) {
   return getTypeFromMetadata(A, Model, StackTypeMDName);
 }
@@ -46,7 +46,7 @@ void setVariableTypeMetadata(AllocaInst *A, const model::Type &VariableType) {
   return setTypeMetadata(A, VariableType, VariableTypeMDName);
 }
 
-model::UpcastableType getVariableTypeFromMetadata(AllocaInst *A,
+model::UpcastableType getVariableTypeFromMetadata(const AllocaInst *A,
                                                   const model::Binary &Model) {
   return getTypeFromMetadata(A, Model, VariableTypeMDName);
 }

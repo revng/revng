@@ -4,18 +4,15 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!s = !clift.defined<#clift.struct<
+!s = !clift.struct<
   "/type-definition/1-StructDefinition" : size(1) {
-    offset(0) : !clift.defined<#clift.struct<
-      "/type-definition/2-StructDefinition" : size(1) {
-        offset(0) : !clift.defined<#clift.struct<"/type-definition/1-StructDefinition">>
+    offset(0) : !clift.union<
+      "/type-definition/2-UnionDefinition" : {
+        !clift.struct<"/type-definition/1-StructDefinition">
       }
-    >>
+    >
   }
->>
+>
 
 // CHECK: recursive class type
-clift.module {
-} {
-  s = !s
-}
+module attributes {clift.module, clift.test = !s} {}

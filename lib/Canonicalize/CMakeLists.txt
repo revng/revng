@@ -17,6 +17,7 @@ revng_add_analyses_library_internal(
   PeepholeOptimizationPass.cpp
   PrettyIntFormattingPass.cpp
   RemoveBrokenDebugInformation.cpp
+  RemoveConstantArrayReturnsPass.cpp
   RemoveLLVMAssumeCallsPass.cpp
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp

@@ -6,13 +6,13 @@
 
 !void = !clift.primitive<void 0>
 
-!s = !clift.defined<#clift.struct<
+!s = !clift.struct<
   "/type-definition/1-StructDefinition" : size(8) {
     offset(1) : !clift.ptr<4 to !void>
   }
->>
+>
 
-clift.module {
+module attributes {clift.module} {
   // CHECK: Pointer type is not representable in the target implementation.
   clift.global !s @x
 }

@@ -10,11 +10,11 @@
 !float = !clift.primitive<float 4>
 !pointer = !clift.ptr<8 to !int32_t>
 
-!enum = !clift.defined<#clift.enum<
+!enum = !clift.enum<
   "/type-definition/1-EnumDefinition" : !int32_t {
     0
   }
->>
+>
 
 clift.for {} {
   %0 = clift.undef : !int32_t

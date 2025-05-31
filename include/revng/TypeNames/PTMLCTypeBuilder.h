@@ -8,6 +8,7 @@
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/PrimitiveType.h"
 #include "revng/PTML/CBuilder.h"
+#include "revng/Support/Identifier.h"
 #include "revng/TypeNames/DependencyGraph.h"
 
 namespace ptml {
@@ -614,7 +615,7 @@ public:
     auto Location = pipeline::locationString(revng::ranks::HelperFunction,
                                              Name.str());
 
-    std::string Sanitized = model::sanitizeHelperName(Name);
+    std::string Sanitized = sanitizeIdentifier(Name);
     return getNameTagImpl<IsDefinition>(tokenTag(std::move(Sanitized),
                                                  ptml::c::tokens::Function),
                                         Location,

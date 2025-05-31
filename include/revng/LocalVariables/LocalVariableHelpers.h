@@ -26,7 +26,7 @@ inline bool hasStackTypeMetadata(const llvm::AllocaInst *I) {
 
 void setStackTypeMetadata(llvm::AllocaInst *I, const model::Type &StackType);
 
-model::UpcastableType getStackTypeFromMetadata(llvm::AllocaInst *I,
+model::UpcastableType getStackTypeFromMetadata(const llvm::AllocaInst *I,
                                                const model::Binary &Model);
 
 ///@}
@@ -42,7 +42,7 @@ inline bool hasVariableTypeMetadata(const llvm::AllocaInst *I) {
 void setVariableTypeMetadata(llvm::AllocaInst *I,
                              const model::Type &VariableType);
 
-model::UpcastableType getVariableTypeFromMetadata(llvm::AllocaInst *I,
+model::UpcastableType getVariableTypeFromMetadata(const llvm::AllocaInst *I,
                                                   const model::Binary &Model);
 
 ///@}

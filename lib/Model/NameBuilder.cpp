@@ -9,6 +9,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Support/Annotations.h"
+#include "revng/Support/Identifier.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/YAMLTraits.h"
 
@@ -41,7 +42,7 @@ static bool isLLVMIntrinsic(llvm::StringRef Name) {
 
   // Start iteration from 1 because 0 is reserved for `not_intrinsic`.
   for (llvm::Intrinsic::ID I = 1; I < llvm::Intrinsic::num_intrinsics; ++I) {
-    auto Sanitized = model::sanitizeHelperName(llvm::Intrinsic::getBaseName(I));
+    auto Sanitized = sanitizeIdentifier(llvm::Intrinsic::getBaseName(I));
     if (Name.starts_with(Sanitized))
       return true;
   }
@@ -88,7 +89,7 @@ static const SortedVector<std::string> &loadHelperNameList() {
 
       // TODO: other names we don't want to ban?
 
-      Inserter.insert(model::sanitizeHelperName(Name));
+      Inserter.insert(sanitizeIdentifier(Name));
     }
   }
 

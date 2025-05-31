@@ -42,6 +42,12 @@ static cl::list<string> Arguments(Positional,
 static llvm::cl::list<std::string>
   InputPipeline("P", llvm::cl::desc("<Pipeline>"), llvm::cl::cat(MainCategory));
 
+static llvm::cl::list<std::string> Outputs("o",
+                                           llvm::cl::desc("List of paths for"
+                                                          "mutable container"
+                                                          "output"),
+                                           llvm::cl::cat(MainCategory));
+
 static llvm::cl::list<std::string> EnablingFlags("f",
                                                  llvm::cl::desc("list of "
                                                                 "pipeline "
@@ -70,7 +76,7 @@ int main(int argc, char *argv[]) {
   const pipeline::Loader &Loader = Manager.getLoader();
   const llvm::StringMap<PipeWrapper> &PipesMap = Loader.getPipes();
 
-  if (Arguments.size() <= 1 or PipesMap.count(Arguments[0]) == 0) {
+  if (Arguments.size() < 2 or PipesMap.count(Arguments[0]) == 0) {
     llvm::outs() << "USAGE: revng-pipe [options] <pipe> <model> <args>...\n\n";
     llvm::outs() << "<pipe> can be one of:\n\n";
 
@@ -87,23 +93,39 @@ int main(int argc, char *argv[]) {
     return EXIT_SUCCESS;
   }
 
+  llvm::StringRef PipeArgument = Arguments[0];
+  llvm::StringRef ModelArgument = Arguments[1];
+
+  auto ContainerArguments = llvm::ArrayRef<string>(Arguments).drop_front(2);
+
   const auto &Name = ModelGlobalName;
   auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));
-  FilePath InputFilePath = FilePath::fromLocalStorage(Arguments[1]);
+  FilePath InputFilePath = FilePath::fromLocalStorage(ModelArgument);
   AbortOnError(InputFilePath.check());
   AbortOnError(Model->load(InputFilePath));
 
-  const auto &Pipe = PipesMap.find(Arguments[0])->second.Pipe;
+  const auto &Pipe = PipesMap.find(PipeArgument)->second.Pipe;
   std::vector<std::string> DefaultNames;
   pipeline::ContainerSet Set;
 
-  if (Arguments.size() - 2 != Pipe->getContainerArgumentsCount()) {
-    llvm::errs() << "Pipe " << Arguments[0] << " required "
+  if (ContainerArguments.size() != Pipe->getContainerArgumentsCount()) {
+    llvm::errs() << "Pipe " << PipeArgument << " required "
                  << Pipe->getContainerArgumentsCount() << " arguments\n";
     return EXIT_FAILURE;
   }
+
+  size_t MutableCount = 0;
   for (size_t I = 0; I < Pipe->getContainerArgumentsCount(); I++) {
+    if (not Pipe->isContainerArgumentConst(I))
+      ++MutableCount;
+
     DefaultNames.push_back((llvm::Twine("arg") + llvm::Twine(I)).str());
+  }
+
+  if (Outputs.size() != 0 and Outputs.size() != MutableCount) {
+    llvm::errs() << "Pipe " << PipeArgument << " required " << MutableCount
+                 << " outputs\n";
+    return EXIT_FAILURE;
   }
 
   PipeWrapper ClonedPipe(Pipe, DefaultNames);
@@ -111,22 +133,30 @@ int main(int argc, char *argv[]) {
     llvm::StringRef Name = ClonedPipe.Pipe->getContainerName(I);
     auto &Factory = Loader.getContainerFactory(Name);
     Set.add(DefaultNames[I], Factory, Factory(DefaultNames[I]));
-    FilePath Path = FilePath::fromLocalStorage(Arguments[I + 2]);
+    FilePath Path = FilePath::fromLocalStorage(ContainerArguments[I]);
     AbortOnError(Path.check());
     AbortOnError(Set.at(DefaultNames[I]).load(Path));
   }
+
   auto Enumeration = Set.enumerate();
+  ClonedPipe.Pipe->deduceResults(Manager.context(), Enumeration);
+
   ExecutionContext ExecutionContext(Manager.context(),
                                     &ClonedPipe,
                                     Enumeration);
 
   AbortOnError(ClonedPipe.Pipe->run(ExecutionContext, Set));
 
-  for (size_t I = 0; I < Pipe->getContainerArgumentsCount(); I++) {
+  for (size_t I = 0, J = 0; I < Pipe->getContainerArgumentsCount(); I++) {
     if (not Pipe->isContainerArgumentConst(I)) {
-      FilePath Path = FilePath::fromLocalStorage(Arguments[I + 2]);
+      llvm::StringRef PathString = Outputs.size() != 0 ? Outputs[J] :
+                                                         ContainerArguments[I];
+
+      FilePath Path = FilePath::fromLocalStorage(PathString);
       AbortOnError(Path.check());
       AbortOnError(Set.at(DefaultNames[I]).store(Path));
+
+      ++J;
     }
   }
 

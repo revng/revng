@@ -326,11 +326,4 @@ public:
   [[nodiscard]] llvm::Error isNameReserved(llvm::StringRef Name) const;
 };
 
-inline std::string sanitizeHelperName(llvm::StringRef Name) {
-  auto Replace = std::views::transform([](char Character) -> char {
-    return std::isalnum(Character) ? Character : '_';
-  });
-  return Name | Replace | revng::to<std::string>();
-}
-
 } // namespace model

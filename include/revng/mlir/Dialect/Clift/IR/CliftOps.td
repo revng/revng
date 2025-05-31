@@ -13,9 +13,9 @@ include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/RegionKindInterface.td"
 include "mlir/IR/SymbolInterfaces.td"
 
-include "CliftOpInterfaces.td"
-include "CliftOpTraits.td"
-include "CliftTypes.td"
+include "revng/mlir/Dialect/Clift/IR/CliftOpInterfaces.td"
+include "revng/mlir/Dialect/Clift/IR/CliftOpTraits.td"
+include "revng/mlir/Dialect/Clift/IR/CliftTypes.td"
 
 class Clift_Op<string mnemonic, list<Trait> traits = []>
   : Op<Clift_Dialect,
@@ -101,28 +101,8 @@ def Clift_OptionalExpressionRegion
 
 //===------------------------ Top level operations ------------------------===//
 
-def Clift_ModuleOp : Clift_Op<"module",
-                              [SymbolTable,
-                               HasOnlyGraphRegion,
-                               NoRegionArguments,
-                               SingleBlock,
-                               RegionKindInterface,
-                               IsolatedFromAbove]> {
-  let regions = (region AnyRegion:$body);
-
-  let skipDefaultBuilders = 1;
-  let builders = [OpBuilder<(ins)>];
-
-  let assemblyFormat = [{
-    $body attr-dict
-  }];
-
-  let hasVerifier = 1;
-}
-
 def Clift_FunctionOp : Clift_Op<"func",
                                 [Clift_GlobalOpInterface,
-                                 Symbol,
                                  CallableOpInterface,
                                  FunctionOpInterface,
                                  AutomaticAllocationScope,
@@ -139,14 +119,20 @@ def Clift_FunctionOp : Clift_Op<"func",
 
   let regions = (region Clift_StatementRegion:$body);
 
-  let hasCustomAssemblyFormat = 1;
-
   let builders = [
-    OpBuilder<(ins "llvm::StringRef":$name,
-                   "mlir::Type":$function_type)>
+    OpBuilder<(ins "llvm::StringRef":$Name,
+                   "mlir::clift::FunctionType":$FunctionType)>
   ];
 
+  let hasVerifier = 1;
+  let hasCustomAssemblyFormat = 1;
+
   code extraClassDeclaration = [{
+    clift::FunctionType getCliftFunctionType() {
+      return mlir::cast<clift::FunctionType>(getFunctionType());
+    }
+
+
     mlir::Region::BlockListType& getBlocks() {
         return getBody().getBlocks();
     }
@@ -190,7 +176,6 @@ def Clift_FunctionOp : Clift_Op<"func",
 
 def Clift_GlobalVariableOp : Clift_Op<"global",
                                       [Clift_GlobalOpInterface,
-                                       Symbol,
                                        NoRegionArguments,
                                        IsolatedFromAbove]> {
   let arguments = (ins SymbolNameAttr:$sym_name,
@@ -222,11 +207,10 @@ def Clift_MakeLabelOp
   : Clift_StatementOp<"make_label",
                       [Clift_OneUseOfType<"mlir::clift::AssignLabelOp">]> {
 
-  let arguments = (ins StrAttr:$name);
   let results = (outs Clift_LabelType:$result);
 
   let assemblyFormat = [{
-    $name attr-dict
+    attr-dict
   }];
 
   let hasCanonicalizeMethod = 1;
@@ -236,8 +220,7 @@ def Clift_MakeLabelOp
     OpBuilder<(ins), [{
       build($_builder,
             $_state,
-            mlir::clift::LabelType::get($_builder.getContext()),
-            mlir::StringAttr::get($_builder.getContext(), ""));
+            mlir::clift::LabelType::get($_builder.getContext()));
     }]>
   ];
 }
@@ -311,14 +294,12 @@ def Clift_IfOp : Clift_StatementOp<"if"> {
 }
 
 def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
-  let arguments = (ins StrAttr:$sym_name);
-
   let results = (outs Clift_AnyValueType:$result);
 
   let regions = (region Clift_OptionalExpressionRegion:$initializer);
 
   let assemblyFormat = [{
-    type($result) $sym_name (`=` $initializer^)? attr-dict
+    type($result) (`=` $initializer^)? attr-dict
   }];
 
   let extraClassDeclaration = [{
@@ -328,20 +309,6 @@ def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
   }];
 
   let hasVerifier = 1;
-}
-
-def Clift_LoopBreakOp : Clift_StatementOp<"loop_break", [Clift_NoFallthrough]> {
-  let assemblyFormat = [{
-    attr-dict
-  }];
-}
-
-def Clift_LoopContinueOp : Clift_StatementOp<"loop_continue",
-                                             [Clift_NoFallthrough]> {
-
-  let assemblyFormat = [{
-    attr-dict
-  }];
 }
 
 def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
@@ -380,7 +347,7 @@ def Clift_SwitchOp : Clift_StatementOp<"switch"> {
       return not getDefaultCaseRegion().empty();
     }
 
-    [[nodiscard]] Region &getDefaultCaseRegion() {
+    [[nodiscard]] mlir::Region &getDefaultCaseRegion() {
       return getRegion(1);
     }
 
@@ -392,19 +359,15 @@ def Clift_SwitchOp : Clift_StatementOp<"switch"> {
       return static_cast<uint64_t>(getCaseValues()[index]);
     }
 
-    [[nodiscard]] Region &getCaseRegion(const unsigned index) {
-      return getRegion(index + 2u);
+    [[nodiscard]] llvm::MutableArrayRef<mlir::Region> getCaseRegions() {
+      return getOperation()->getRegions().drop_front(2);
     }
 
-    [[nodiscard]] Region *findCaseRegion(const uint64_t value);
-  }];
-}
+    [[nodiscard]] mlir::Region &getCaseRegion(const unsigned index) {
+      return getCaseRegions()[index];
+    }
 
-def Clift_SwitchBreakOp : Clift_StatementOp<"switch_break",
-                                            [Clift_NoFallthrough]> {
-
-  let assemblyFormat = [{
-    attr-dict
+    [[nodiscard]] mlir::Region *findCaseRegion(const uint64_t value);
   }];
 }
 
@@ -728,11 +691,8 @@ def Clift_AccessOp : Clift_ExpressionOp<"access"> {
     }
 
     [[nodiscard]] bool isLvalueExpression();
-
-    [[nodiscard]] DefinedType getClassType();
-    [[nodiscard]] TypeDefinitionAttr getClassTypeAttr();
-
-    [[nodiscard]] FieldAttr getFieldAttr();
+    [[nodiscard]] clift::ClassType getClassType();
+    [[nodiscard]] clift::FieldAttr getFieldAttr();
   }];
 
   let hasVerifier = 1;

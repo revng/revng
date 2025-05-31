@@ -7,11 +7,11 @@
 !void = !clift.primitive<void 0>
 !int16_t = !clift.primitive<signed 2>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()
->>
+>
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     // CHECK: is not representable in the target implementation
     clift.expr {

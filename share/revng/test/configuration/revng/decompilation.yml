@@ -18,7 +18,7 @@ commands:
         filter: for-decompilation
     suffix: /
     command: |-
-      revng artifact --resume "$OUTPUT" --analyze prepare-for-clift "$INPUT" -o /dev/null
+      revng artifact --resume "$OUTPUT" --analyze llvm-to-clift "$INPUT" -o /dev/null
   - # Perform checks on the model
     type: revng.legacy.decompile-to-single-file.model-check
     from:

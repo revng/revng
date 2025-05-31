@@ -7,11 +7,11 @@
 !int32_t = !clift.primitive<signed 4>
 !int64_t = !clift.primitive<signed 8>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1-CABIFunctionDefinition" as "f" : !int32_t(!int64_t)
->>
+>
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>(%arg0 : !int64_t) {
     // CHECK: type does not match the function return type
     clift.return {

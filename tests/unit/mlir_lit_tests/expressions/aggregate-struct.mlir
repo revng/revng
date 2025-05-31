@@ -5,14 +5,14 @@
 // RUN: %revngcliftopt %s
 
 !int32_t = !clift.primitive<signed 4>
-!int32_t$const = !clift.primitive<const signed 4>
+!int32_t$const = !clift.const<!clift.primitive<signed 4>>
 
-!s = !clift.defined<#clift.struct<
+!s = !clift.struct<
   "" : size(8) {
     offset(0) as "x" : !int32_t,
     offset(4) as "y" : !int32_t
   }
->>
+>
 
 %0 = clift.undef : !int32_t
 %a = clift.aggregate(%0, %0) : !s
