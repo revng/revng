@@ -108,6 +108,10 @@ def stacktrace_transform(data: Iterable[str]) -> Stacktrace:
         except json.JSONDecodeError:
             results.append(StacktraceLine("???", "???", None))
             continue
+
+        if "Symbol" not in entry:
+            results.append(StacktraceLine("???", "???", None))
+            continue
         for symbol in entry["Symbol"]:
             results.append(stacktrace_transform_entry(entry, symbol))
 

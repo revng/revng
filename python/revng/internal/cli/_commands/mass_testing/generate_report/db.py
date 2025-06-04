@@ -38,6 +38,7 @@ DEFAULT_COLUMNS = Schema(
         ("name TEXT PRIMARY KEY NOT NULL", lambda td: td.name),
         ("input_name TEXT NOT NULL", lambda td: td.input_name),
         ("elapsed_time REAL NOT NULL", lambda td: td.elapsed_time),
+        ("max_rss REAL NOT NULL", lambda td: td.max_rss),
         ("exit_code INTEGER NOT NULL", lambda td: td.exit_code),
         ("status TEXT NOT NULL", lambda td: td.status),
         ("has_input INTEGER NOT NULL", lambda td: td.has_input()),
