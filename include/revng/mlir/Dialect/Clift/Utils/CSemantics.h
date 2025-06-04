@@ -9,7 +9,7 @@
 
 namespace mlir::clift {
 
-mlir::LogicalResult verifyCSemantics(clift::ModuleOp Module,
+mlir::LogicalResult verifyCSemantics(mlir::ModuleOp Module,
                                      const TargetCImplementation &Target);
 
 } // namespace mlir::clift

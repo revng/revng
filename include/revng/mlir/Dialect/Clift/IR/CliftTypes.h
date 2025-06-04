@@ -139,33 +139,26 @@ bool isFunctionType(ValueType Type);
 /// Qualifiers are ignored.
 bool isCallableType(ValueType Type);
 
-/// Determine if the type can be from a function. This means either
+/// If the type, after unwrapping typedefs, is a function type or a pointer to a
+/// function type, returns that function type.
+FunctionType getFunctionOrFunctionPointerFunctionType(ValueType Type);
+
+inline FunctionType getFunctionOrFunctionPointerFunctionType(mlir::Type Type) {
+  if (auto T = mlir::dyn_cast<ValueType>(Type))
+    return getFunctionOrFunctionPointerFunctionType(T);
+  return {};
+}
+
+/// Verify that the type is a valid function return type, meaning:
 /// * void, or
-/// * any object type except array types, or
-/// * a scalar tuple type, or
-/// * a typedef naming any such type.
+/// * any object type except an array type, or
+/// * a typedef naming any such type, and
+/// * is not a type composed of any non-zero number of pointer indirections to
+///   an array or function (not involving any typedefs).
 ///
 /// Qualifiers are ignored.
-bool isReturnableType(ValueType Type);
-
-/// Get the underlying non-typedef type definition attribute, if any.
-TypeDefinitionAttr getTypeDefinitionAttr(mlir::Type Type);
-
-/// Get the underlying non-typedef type definition attribute of the specified
-/// type, if any.
-template<typename AttrT>
-AttrT getTypeDefinitionAttr(mlir::Type Type) {
-  return mlir::dyn_cast_or_null<AttrT>(getTypeDefinitionAttr(Type));
-}
-
-/// Get the underlying function type definition attribute, if any.
-inline FunctionTypeAttr getFunctionTypeAttr(mlir::Type Type) {
-  return getTypeDefinitionAttr<FunctionTypeAttr>(Type);
-}
-
-/// If the type, after unwrapping typedefs, is a function type or a pointer to a
-/// function type, returns the underlying function definition attribute of that
-/// function type.
-FunctionTypeAttr getFunctionOrFunctionPointerTypeAttr(mlir::Type Type);
+mlir::LogicalResult
+verifyReturnType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+                 ValueType Type);
 
 } // namespace mlir::clift

@@ -7,12 +7,12 @@
 !void = !clift.primitive<void 0>
 !int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1000-CABIFunctionDefinition" as "f" : !void()
->>
+>
 
 // CHECK: cannot return expression in function returning void
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     clift.return {
       %0 = clift.undef : !int32_t

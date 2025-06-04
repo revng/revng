@@ -8,7 +8,7 @@
 !int64_t = !clift.primitive<signed 8>
 
 // CHECK: initializer type must match the variable type
-clift.local !int32_t "x" = {
+clift.local !int32_t = {
   %0 = clift.undef : !int64_t
   clift.yield %0 : !int64_t
 }

@@ -23,6 +23,7 @@ def Clift_Dialect : Dialect {
   let cppNamespace = "mlir::clift";
   let useDefaultTypePrinterParser = 0;
   let useDefaultAttributePrinterParser = 0;
+  let hasOperationAttrVerify = 1;
   let useFoldAPI = kEmitFoldAdaptorFolder;
 
   let extraClassDeclaration = [{
@@ -30,12 +31,20 @@ def Clift_Dialect : Dialect {
     void registerAttributes();
     void registerOperations();
 
-    mlir::Attribute parseAttribute(mlir::DialectAsmParser &parser, mlir::Type t) const override;
-    void printAttribute(
-        mlir::Attribute attr, mlir::DialectAsmPrinter &printer) const override;
-    mlir::Type parseType(mlir::DialectAsmParser &parser) const override;
-    void printType(
-        mlir::Type type, mlir::DialectAsmPrinter &printer) const override;
+    static llvm::StringRef getModuleAttrName() {
+      return "clift.module";
+    }
+
+    mlir::Attribute parseAttribute(mlir::DialectAsmParser &Parser,
+                                   mlir::Type Type) const override;
+
+    void printAttribute(mlir::Attribute Attr,
+                        mlir::DialectAsmPrinter &Printer) const override;
+
+    mlir::Type parseType(mlir::DialectAsmParser &Parser) const override;
+
+    void printType(mlir::Type Type,
+                   mlir::DialectAsmPrinter &Printer) const override;
   }];
 }
 #endif

@@ -23,6 +23,9 @@ static RecursiveCoroutine<void> noopCoroutine() {
 
 template<typename Operation = mlir::Operation *>
 static Operation getOnlyOperation(mlir::Region &R) {
+  if (R.empty())
+    return {};
+
   revng_assert(R.hasOneBlock());
   mlir::Block &B = R.front();
   auto Beg = B.begin();
@@ -41,6 +44,20 @@ static Operation getOnlyOperation(mlir::Region &R) {
   } else {
     return mlir::dyn_cast<Operation>(Op);
   }
+}
+
+static bool hasFallthrough(mlir::Region &R) {
+  // TODO: Refactor the logic of getting the last statement operation in a
+  // region into a separate getTrailingStatement helper function.
+
+  if (R.empty())
+    return true;
+
+  mlir::Block &B = R.front();
+  if (B.empty())
+    return true;
+
+  return not B.back().hasTrait<mlir::OpTrait::clift::NoFallthrough>();
 }
 
 static llvm::StringRef getCIntegerLiteralSuffix(const CIntegerKind Integer,
@@ -134,7 +151,7 @@ public:
     revng_abort("Expected isolated model function.");
   }
 
-  const model::TypeDefinition &getModelTypeDefinition(TypeDefinitionAttr Type) {
+  const model::TypeDefinition &getModelTypeDefinition(DefinedType Type) {
     auto GetType = [&](const auto &Rank) -> const model::TypeDefinition * {
       if (auto L = pipeline::locationFromString(Rank, Type.getHandle())) {
         auto It = C.Binary.TypeDefinitions().find(L->at(Rank));
@@ -209,23 +226,22 @@ public:
         Item.Kind = StackItemKind::Array;
         Type = T.getElementType();
       } else if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
-        auto D = T.getElementType();
-        auto F = mlir::dyn_cast<FunctionTypeAttr>(D);
+        auto F = mlir::dyn_cast<FunctionType>(T);
 
         // Expand the function type if function type expansion is enabled.
         if (F and ExpandFunctionTypes) {
           Item.Kind = StackItemKind::Function;
           Type = F.getReturnType();
         } else {
-          if (mlir::isa<EnumTypeAttr>(D))
+          if (mlir::isa<EnumType>(T))
             Out << C.getKeyword(Keyword::Enum) << ' ';
-          else if (mlir::isa<StructTypeAttr>(D))
+          else if (mlir::isa<StructType>(T))
             Out << C.getKeyword(Keyword::Struct) << ' ';
-          else if (mlir::isa<UnionTypeAttr>(D))
+          else if (mlir::isa<UnionType>(T))
             Out << C.getKeyword(Keyword::Union) << ' ';
 
           EmitConst(T);
-          Out << C.getReferenceTag(getModelTypeDefinition(D));
+          Out << C.getReferenceTag(getModelTypeDefinition(T));
           NeedSpace = true;
         }
       }
@@ -299,8 +315,7 @@ public:
         Out << ']';
       } break;
       case StackItemKind::Function: {
-        auto T = mlir::dyn_cast<DefinedType>(SI.Type);
-        auto F = mlir::dyn_cast<FunctionTypeAttr>(T.getElementType());
+        auto F = mlir::dyn_cast<FunctionType>(SI.Type);
 
         if (I != 0)
           Out << ')';
@@ -369,8 +384,8 @@ public:
       bool Signed = T.getKind() == PrimitiveKind::SignedKind;
       Out << getIntegerConstant(Value, *Integer, Signed);
     } else {
-      auto TypeAttr = mlir::cast<DefinedType>(Type).getElementType();
-      const auto &ModelType = getModelTypeDefinition(TypeAttr);
+      auto D = mlir::cast<DefinedType>(Type);
+      const auto &ModelType = getModelTypeDefinition(D);
       const auto &ModelEnum = llvm::cast<model::EnumDefinition>(ModelType);
 
       auto It = ModelEnum.Entries().find(Value);
@@ -486,7 +501,7 @@ public:
   RecursiveCoroutine<void> emitUseExpression(mlir::Value V) {
     auto E = V.getDefiningOp<UseOp>();
 
-    auto Module = E->getParentOfType<clift::ModuleOp>();
+    auto Module = E->getParentOfType<mlir::ModuleOp>();
     revng_assert(Module);
 
     mlir::Operation
@@ -517,6 +532,13 @@ public:
     Out << C.getReferenceTag(TheClass, *It);
   }
 
+  void emitRawFunctionRegisterReference(const model::RawFunctionDefinition &RFT,
+                                        uint64_t Index) {
+    revng_assert(Index < RFT.ReturnValues().size());
+    auto It = std::next(RFT.ReturnValues().begin(), Index);
+    Out << C.NameBuilder.name(RFT, *It);
+  }
+
   RecursiveCoroutine<void> emitAccessExpression(mlir::Value V) {
     auto E = V.getDefiningOp<AccessOp>();
 
@@ -528,12 +550,16 @@ public:
     Out << C.getOperator(E.isIndirect() ? Operator::Arrow : Operator::Dot);
 
     const model::TypeDefinition
-      &ModelType = getModelTypeDefinition(E.getClassTypeAttr());
+      &ModelType = getModelTypeDefinition(E.getClassType());
 
     if (auto *T = llvm::dyn_cast<model::StructDefinition>(&ModelType))
       emitClassMemberReference(*T, E.getFieldAttr().getOffset());
     else if (auto *T = llvm::dyn_cast<model::UnionDefinition>(&ModelType))
       emitClassMemberReference(*T, E.getMemberIndex());
+    else if (auto *T = llvm::dyn_cast<model::RawFunctionDefinition>(&ModelType))
+      emitRawFunctionRegisterReference(*T, E.getMemberIndex());
+    else
+      revng_abort("Unexpected model type in access expression.");
   }
 
   RecursiveCoroutine<void> emitSubscriptExpression(mlir::Value V) {
@@ -984,11 +1010,6 @@ public:
 
   //===---------------------------- Statements ----------------------------===//
 
-  RecursiveCoroutine<void> emitKeywordStatement(Keyword K) {
-    Out << C.getKeyword(K) << ';' << '\n';
-    rc_return;
-  }
-
   RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S) {
     // TODO: Emit variable name from the model once the model is extended to
     //       provide this information.
@@ -1103,13 +1124,22 @@ public:
         Out << ' ';
       } else {
         rc_recur emitImplicitBlockStatement(S.getElse(), EmitBlocks);
-
-        if (EmitBlocks)
-          Out << '\n';
-
         break;
       }
     }
+
+    if (EmitBlocks)
+      Out << '\n';
+  }
+
+  RecursiveCoroutine<void> emitCaseRegion(mlir::Region &R) {
+    bool Break = hasFallthrough(R);
+
+    if (rc_recur emitImplicitBlockStatement(R))
+      Out << (Break ? ' ' : '\n');
+
+    if (Break)
+      Out << C.getKeyword(Keyword::Break) << ";\n";
   }
 
   RecursiveCoroutine<void> emitSwitchStatement(SwitchOp S) {
@@ -1126,14 +1156,12 @@ public:
         Out << C.getKeyword(Keyword::Case) << ' ';
         emitIntegerImmediate(S.getCaseValue(I), Type);
         Out << ':';
-        if (rc_recur emitImplicitBlockStatement(S.getCaseRegion(I)))
-          Out << '\n';
+        rc_recur emitCaseRegion(S.getCaseRegion(I));
       }
 
       if (S.hasDefaultCase()) {
         Out << C.getKeyword(Keyword::Default) << ':';
-        if (rc_recur emitImplicitBlockStatement(S.getDefaultCaseRegion()))
-          Out << '\n';
+        rc_recur emitCaseRegion(S.getDefaultCaseRegion());
       }
     }
 
@@ -1197,12 +1225,6 @@ public:
     if (auto S = mlir::dyn_cast<GoToOp>(Op))
       return emitGotoStatement(S);
 
-    if (mlir::isa<LoopBreakOp, SwitchBreakOp>(Op))
-      return emitKeywordStatement(Keyword::Break);
-
-    if (mlir::isa<LoopContinueOp>(Op))
-      return emitKeywordStatement(Keyword::Continue);
-
     if (auto S = mlir::dyn_cast<ReturnOp>(Op))
       return emitReturnStatement(S);
 
@@ -1230,11 +1252,7 @@ public:
   }
 
   static bool mayElideBraces(mlir::Operation *Op) {
-    return mlir::isa<ExpressionStatementOp,
-                     ReturnOp,
-                     SwitchBreakOp,
-                     LoopBreakOp,
-                     LoopContinueOp>(Op);
+    return mlir::isa<ExpressionStatementOp, GoToOp, ReturnOp>(Op);
   }
 
   static bool mayElideBraces(mlir::Region &R) {

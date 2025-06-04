@@ -7,13 +7,13 @@
 !void = !clift.primitive<void 0>
 !int16_t = !clift.primitive<signed 2>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()
->>
+>
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
-    %1 = clift.local !int16_t "x"
+    %1 = clift.local !int16_t
 
     // CHECK: causes integer promotion in the target implementation
     clift.expr {

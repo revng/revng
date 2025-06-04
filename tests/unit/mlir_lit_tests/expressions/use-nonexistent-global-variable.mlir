@@ -6,11 +6,11 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1-CABIFunctionDefinition" : !int32_t()
->>
+>
 
-clift.module {
+module attributes {clift.module} {
   clift.func @f<!f>() {
     clift.return {
       // CHECK: must reference a global variable or function

@@ -6,11 +6,11 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" as "f" : !void()
->>
+>
 
 // CHECK: parameter type must be an object type
-!g = !clift.defined<#clift.func<
+!g = !clift.func<
   "/type-definition/1002-CABIFunctionDefinition" as "g" : !void(!f)
->>
+>

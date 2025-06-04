@@ -1,32 +1,23 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+# RUN: %revngpipe import-clift-types %s /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
 
 Architecture: x86_64
 
 TypeDefinitions:
-  # CHECK: #my_struct$def = #clift.struct<
+  # CHECK: !my_struct = !clift.struct<
   # CHECK:   "/type-definition/1001-StructDefinition"
   # CHECK:   as "my_struct"
   # CHECK:   : size(8)
   # CHECK:   {
   # CHECK:     offset(0)
-  # CHECK:     : !clift.primitive<
-  # CHECK:       unsigned 1
-  # CHECK:     >
+  # CHECK:     : !uint8_t
   # CHECK:     offset(2)
-  # CHECK:     : !clift.primitive<
-  # CHECK:       unsigned 2
-  # CHECK:     >
+  # CHECK:     : !uint16_t
   # CHECK:     offset(4)
-  # CHECK:     : !clift.primitive<
-  # CHECK:       unsigned 4
-  # CHECK:     >
+  # CHECK:     : !uint32_t
   # CHECK:   }
-  # CHECK: >
-  # CHECK: !my_struct = !clift.defined<
-  # CHECK:   #my_struct$def
   # CHECK: >
   - ID: 1001
     Kind: StructDefinition

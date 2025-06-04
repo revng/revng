@@ -6,19 +6,19 @@
 
 !void = !clift.primitive<void 0>
 !int32_t = !clift.primitive<signed 4>
-!int32_t$const = !clift.primitive<const signed 4>
+!int32_t$const = !clift.const<!clift.primitive<signed 4>>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1-CABIFunctionDefinition" : !void()
->>
+>
 
-!g = !clift.defined<#clift.func<
+!g = !clift.func<
   "/type-definition/2-CABIFunctionDefinition" : !void(!int32_t)
->>
+>
 
-!h = !clift.defined<#clift.func<
+!h = !clift.func<
   "/type-definition/3-CABIFunctionDefinition" : !void(!int32_t$const)
->>
+>
 
 %mi = clift.undef : !int32_t
 %ci = clift.undef : !int32_t$const

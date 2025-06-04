@@ -2,24 +2,24 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngcliftopt %s --emit-c="tagless model=%S/model.yml" -o /dev/null | FileCheck %s
+// RUN: %revngpipe emit-c %S/model.yml %s <(tar -czT /dev/null) /dev/stdout | tar -zxO
 
 !void = !clift.primitive<void 0>
 
 !int32_t = !clift.primitive<signed 4>
 !uint32_t = !clift.primitive<unsigned 4>
 
-!f = !clift.defined<#clift.func<
+!f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()
->>
+>
 
-!my_enum = !clift.defined<#clift.enum<
+!my_enum = !clift.enum<
   "/type-definition/2001-EnumDefinition" : !int32_t {
     0
   }
->>
+>
 
-clift.module {
+module attributes {clift.module} {
   // CHECK: void fun_0x40001001(void) {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"

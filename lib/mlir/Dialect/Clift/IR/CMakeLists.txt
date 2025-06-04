@@ -13,13 +13,9 @@ add_mlir_dialect_library(
   CliftAttributes.cpp
   CliftInterfaces.cpp
   CliftEnums.cpp
-  CliftParser.cpp
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/Clift
-  DEPENDS
-  revngModel
   LINK_LIBS
-  revngModel
   revngSupport
   PUBLIC
   MLIRTransforms

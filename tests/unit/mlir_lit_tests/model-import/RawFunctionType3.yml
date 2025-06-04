@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+# RUN: %revngpipe import-clift-types %s /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
 
 Architecture: x86_64
 TypeDefinitions:
@@ -16,42 +16,28 @@ TypeDefinitions:
           PrimitiveKind: Unsigned
           Size: 8
 
-    # CHECK: #register_set_1002$def = #clift.struct<
+    # CHECK: !register_set_1002_ = !clift.struct<
     # CHECK:   "/artificial-struct/1002-RawFunctionDefinition"
     # CHECK:   as "register_set_1002"
     # CHECK:   : size(16)
     # CHECK:   {
     # CHECK:     offset(0)
-    # CHECK:     : !clift.primitive<
-    # CHECK:       unsigned 8
-    # CHECK.     >
+    # CHECK:     : !uint64_t
     # CHECK:     offset(8)
     # CHECK.     : !clift.ptr<
-    # CHECK:       8 to !clift.primitive<
-    # CHECK:         unsigned 8
-    # CHECK:       >
+    # CHECK:       8 to !uint64_t
     # CHECK.     >
     # CHECK:   }
     # CHECK: >
-    # CHECK: !register_set_1002_ = !clift.defined<
-    # CHECK:   #register_set_1002$def
-    # CHECK: >
 
-    # CHECK: #my_function3$def = #clift.func<
+    # CHECK: !my_function3_ = !clift.func<
     # CHECK:   "/type-definition/1002-RawFunctionDefinition"
     # CHECK:   as "my_function3"
     # CHECK:   : !register_set_1002_(
     # CHECK:     !uint64_t,
-    # CHECK:     !clift.ptr<
-    # CHECK:       8 to !uint64_t
-    # CHECK:     >,
-    # CHECK:     !clift.ptr<
-    # CHECK:       8 to !my_struct
-    # CHECK:     >
+    # CHECK:     !clift.ptr<8 to !uint64_t>,
+    # CHECK:     !clift.ptr<8 to !my_struct>
     # CHECK:   )
-    # CHECK: >
-    # CHECK: !my_function3_ = !clift.defined<
-    # CHECK:   #my_function3$def
     # CHECK: >
   - ID: 1002
     Kind: RawFunctionDefinition

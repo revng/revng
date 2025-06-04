@@ -1,17 +1,14 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+# RUN: %revngpipe import-clift-types %s /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
 
 Architecture: x86_64
 TypeDefinitions:
-  # CHECK: #my_function2$def = #clift.func<
+  # CHECK: !my_function2_ = !clift.func<
   # CHECK:   "/type-definition/1002-CABIFunctionDefinition"
   # CHECK:   as "my_function2"
   # CHECK:   : !uint8_t(!uint16_t, !uint32_t)
-  # CHECK: >
-  # CHECK: !my_function2_ = !clift.defined<
-  # CHECK:   #my_function2$def
   # CHECK: >
   - ID: 1002
     Kind: CABIFunctionDefinition

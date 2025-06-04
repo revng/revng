@@ -2,36 +2,39 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngcliftopt %s --emit-c="tagless model=%S/model.yml" -o /dev/null | FileCheck %s
+// RUN: %revngpipe emit-c %S/model.yml %s <(tar -czT /dev/null) /dev/stdout | tar -zxO
 
 !void = !clift.primitive<void 0>
 
 !int32_t = !clift.primitive<signed 4>
 
-!s = !clift.defined<#clift.struct<
+!s = !clift.struct<
   "/type-definition/2002-StructDefinition" : size(8) {
     offset(0) : !int32_t,
     offset(4) : !int32_t
-  }>>
+  }
+>
 !s$p = !clift.ptr<8 to !s>
 
-!u = !clift.defined<#clift.union<
+!u = !clift.union<
   "/type-definition/2003-UnionDefinition" : {
     !int32_t,
     !int32_t
-  }>>
+  }
+>
 !u$p = !clift.ptr<8 to !u>
 
-!f = !clift.defined<#clift.func<
-  "/type-definition/1001-CABIFunctionDefinition" : !void()>>
+!f = !clift.func<
+  "/type-definition/1001-CABIFunctionDefinition" : !void()
+>
 
-clift.module {
+module attributes {clift.module} {
   // CHECK: void fun_0x40001001(void) {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    %s = clift.local !s$p "s"
-    %u = clift.local !u$p "u"
+    %s = clift.local !s$p
+    %u = clift.local !u$p
 
     // CHECK: _var_0->x;
     clift.expr {

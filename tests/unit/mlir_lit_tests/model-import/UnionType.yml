@@ -1,28 +1,19 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+# RUN: %revngpipe import-clift-types %s /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
 
 Architecture: x86_64
 
 TypeDefinitions:
-  # CHECK: #my_union$def = #clift.union<
+  # CHECK: !my_union = !clift.union<
   # CHECK:   "/type-definition/1001-UnionDefinition"
   # CHECK:   as "my_union"
   # CHECK:   {
-  # CHECK:     !clift.primitive<
-  # CHECK:       unsigned 1
-  # CHECK:     >
-  # CHECK:     !clift.primitive<
-  # CHECK:       unsigned 2
-  # CHECK:     >
-  # CHECK:     !clift.primitive<
-  # CHECK:       unsigned 4
-  # CHECK:     >
+  # CHECK:     !uint8_t
+  # CHECK:     !uint16_t
+  # CHECK:     !uint32_t
   # CHECK:   }
-  # CHECK: >
-  # CHECK: !my_union = !clift.defined<
-  # CHECK:   #my_union$def
   # CHECK: >
   - ID: 1001
     Kind: UnionDefinition

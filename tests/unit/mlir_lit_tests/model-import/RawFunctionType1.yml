@@ -1,17 +1,14 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: set -euo pipefail; TEMP=$(mktemp -p .); %revngpipe import-all-clift-types %s <(tar -czT /dev/null) "$TEMP"; %revngcliftopt "$TEMP" | FileCheck %s; rm -f "$TEMP"
+# RUN: %revngpipe import-clift-types %s /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
 
 Architecture: x86_64
 TypeDefinitions:
-  # CHECK: #my_function1$def = #clift.func<
+  # CHECK: !my_function1_ = !clift.func<
   # CHECK:   "/type-definition/1000-RawFunctionDefinition"
   # CHECK:   as "my_function1"
   # CHECK:   : !void()
-  # CHECK: >
-  # CHECK: !my_function1_ = !clift.defined<
-  # CHECK:   #my_function1$def
   # CHECK: >
   - ID: 1000
     Kind: RawFunctionDefinition
