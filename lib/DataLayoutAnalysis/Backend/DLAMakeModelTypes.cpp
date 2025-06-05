@@ -141,7 +141,8 @@ static UpcastableType makeStructOrUnion(TupleTree<model::Binary> &Model,
             "Creating struct or union type for node with ID: " << Node->ID);
   LoggerIndent Indent{ Log };
 
-  revng_assert(representsTypeDefinition(Node));
+  revng_assert(representsTypeDefinition(Node)
+               or (isLeaf(Node) and not isPointerNode(Node)));
   revng_assert(Node->Size);
 
   model::UpcastableType NewStructOrUnion;
