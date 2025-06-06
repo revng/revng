@@ -91,7 +91,7 @@ ScopeGraphBuilder::ScopeGraphBuilder(Function *F) :
   GotoBlockFunction(getOrCreateGotoBlockFunction(F->getParent())) {
 }
 
-void ScopeGraphBuilder::makeGoto(BasicBlock *GotoBlock) {
+void ScopeGraphBuilder::makeGoto(BasicBlock *GotoBlock) const {
   // We must have a `GotoBlock`
   revng_assert(GotoBlock);
 
@@ -106,7 +106,7 @@ void ScopeGraphBuilder::makeGoto(BasicBlock *GotoBlock) {
   Builder.CreateCall(GotoBlockFunction, {});
 }
 
-void ScopeGraphBuilder::eraseGoto(BasicBlock *GotoBlock) {
+void ScopeGraphBuilder::eraseGoto(BasicBlock *GotoBlock) const {
   // We must have a `GotoBlock`
   revng_assert(GotoBlock);
 
@@ -124,7 +124,8 @@ void ScopeGraphBuilder::eraseGoto(BasicBlock *GotoBlock) {
   }
 }
 
-void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source, BasicBlock *Target) {
+void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source,
+                                       BasicBlock *Target) const {
   // We must have an insertion point
   revng_assert(Source);
 
@@ -137,7 +138,7 @@ void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source, BasicBlock *Target) {
   Builder.CreateCall(ScopeCloserFunction, BasicBlockAddressTarget);
 }
 
-BasicBlock *ScopeGraphBuilder::eraseScopeCloser(BasicBlock *Source) {
+BasicBlock *ScopeGraphBuilder::eraseScopeCloser(BasicBlock *Source) const {
 
   // We save the `Target` of the `scope_closer`, which will be returned by the
   // method, for eventual later restoring
@@ -155,7 +156,7 @@ BasicBlock *ScopeGraphBuilder::eraseScopeCloser(BasicBlock *Source) {
 }
 
 BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
-                                            BasicBlock *Target) {
+                                            BasicBlock *Target) const {
   Function *F = Source->getParent();
 
   // Create the `goto` block, and connect it with the `Target`
@@ -168,8 +169,7 @@ BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
   Builder.CreateBr(Target);
 
   // Insert the `goto_block` marker in the `ScopeGraph`
-  ScopeGraphBuilder SGBuilder(F);
-  SGBuilder.makeGoto(GotoBlock);
+  makeGoto(GotoBlock);
 
   // Redirect all the edges `Source` -> `Target` to `Source` -> `GotoBlock`
   auto SourceTerminator = Source->getTerminator();
