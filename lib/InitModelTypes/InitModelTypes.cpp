@@ -107,27 +107,27 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
         if (OperandType->isPointer()) {
           // If the operand is already a pointer, just forward it
           TypeMap.insert({ Operand, OperandType.copy() });
+          rc_return true;
         } else if (not PointersOnly) {
           auto PS = model::Architecture::getPointerSize(Model.Architecture());
           TypeMap.insert({ Operand, model::PrimitiveType::makeGeneric(PS) });
+          rc_return true;
         }
-        rc_return true;
       }
     }
   } else if (llvm::isa<llvm::ConstantInt>(Operand)
              or llvm::isa<llvm::GlobalVariable>(Operand)) {
 
     model::UpcastableType Type = modelType(Operand, Model);
-    if (not PointersOnly or Type->isPointer())
+    if (not PointersOnly or Type->isPointer()) {
       TypeMap.insert({ Operand, std::move(Type) });
-
-    rc_return true;
-
+      rc_return true;
+    }
   } else if (llvm::isa<llvm::PoisonValue>(Operand)
              or llvm::isa<llvm::UndefValue>(Operand)) {
     // Skip if it's not a pointer and we are only interested in pointers
     if (PointersOnly)
-      rc_return true;
+      rc_return false;
 
     // `poison` and `undef` can either be integers or pointers
     llvm::Type *OperandType = Operand->getType();
@@ -146,11 +146,12 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
 
   } else if (auto *NullPtr = dyn_cast<llvm::ConstantPointerNull>(Operand)) {
     if (PointersOnly)
-      rc_return true;
+      rc_return false;
 
     auto PtrSize = model::Architecture::getPointerSize(Model.Architecture());
     TypeMap.insert({ Operand, model::PrimitiveType::makeGeneric(PtrSize) });
     rc_return true;
+
   } else if (auto *ReferencedFunction = dyn_cast<llvm::Function>(Operand)) {
     if (FunctionTags::Isolated.isTagOf(ReferencedFunction)) {
       // Given a function, obtain a function pointer
