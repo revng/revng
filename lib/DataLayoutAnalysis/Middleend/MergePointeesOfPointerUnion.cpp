@@ -112,6 +112,7 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
                   "has a pair of instance children at the same offset that are "
                   "pointer nodes:");
         revng_log(Log, "A: " << APointer->ID << ", B:" << BPointer->ID);
+        revng_log(Log, "ATag: " << *ATag << ", BTag:" << *BTag);
 
         revng_assert(APointer->Successors.size() == 1,
                      std::to_string(APointer->ID).c_str());
@@ -147,10 +148,15 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
         if (Log.isEnabled()) {
           revng_log(Log, "Preparing to merge pointees:");
           LoggerIndent EvenMoreIndent{ Log };
-          for (LayoutTypeSystemNode *N : Pointers)
+          for (LayoutTypeSystemNode *N : Pointers) {
+            const LTSN *Pointee = getPointee(N);
+            std::string ScalarString = Pointee->NonScalar ? "Aggregate" :
+                                                            "Scalar";
             revng_log(Log,
-                      N->ID << " with pointee " << getPointee(N)->ID
-                            << " (size: " << getPointee(N)->Size << ")");
+                      N->ID << " with pointee " << Pointee->ID << " ("
+                            << ScalarString << ", size: " << getPointee(N)->Size
+                            << ")");
+          }
         }
 
         llvm::SmallSetVector<LTSN *, 8> UniquedScalars;
@@ -216,6 +222,8 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
           Erased.insert(std::next(Scalars.begin()), Scalars.end());
           MergedScalar = Scalars.front();
 
+          revng_log(Log, "MergedScalar: " << MergedScalar->ID);
+
           // Check if we merged more than one scalar that also was a pointer.
           // In that case we have to create a new union of their pointees,
           // enqueue it for further analysis
@@ -256,11 +264,13 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
               revng_log(Log, N->ID);
           }
           MergedAggregate = Aggregates.front();
+          revng_log(Log, "MergedAggregate: " << MergedAggregate->ID);
           TS.mergeNodes(Aggregates);
           Erased.insert(std::next(Aggregates.begin()), Aggregates.end());
         }
 
         if (MergedAggregate and not FromModel.empty()) {
+          revng_log(Log, "merged aggregate from model");
           size_t AggregateSize = MergedAggregate->Size;
           auto It = llvm::find_if(FromModel, [AggregateSize](LTSN *N) {
             return N->Size < AggregateSize;
@@ -269,6 +279,10 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
 
           for (LTSN *AggregateFromModel : SmallFromModel) {
             revng_assert(AggregateFromModel->Size < AggregateSize);
+            revng_log(Log,
+                      "AggregateFromModel: " << AggregateFromModel->ID
+                                             << " Size: "
+                                             << AggregateFromModel->Size);
             // We want to move the pointers that point to AggregateFromModel,
             // and make it point to MergedAggregate.
             const auto PredecessorPointsToAggregate =
@@ -305,11 +319,14 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
         }
 
         if (MergedAggregate and MergedScalar) {
+          revng_log(Log, "MergedAggregate and MergedScalar");
 
           // First, we want all pointers that point to MergedScalar to actually
           // start pointing to MergedAggregate.
           for (LTSN *Pointer : PointersToScalars) {
+            revng_log(Log, "PointerToScalar: " << Pointer->ID);
             const auto &[Pointee, PointerTag] = *Pointer->Successors.begin();
+            revng_log(Log, "Pointee: " << Pointee->ID);
             auto InverseEdgeIt = Pointee->Predecessors.find({ Pointer,
                                                               PointerTag });
             TS.moveEdgeTarget(Pointee, MergedAggregate, InverseEdgeIt, 0);
