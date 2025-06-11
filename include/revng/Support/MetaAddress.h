@@ -615,29 +615,12 @@ public:
   }
 
 public:
-  /// @{
+  constexpr auto operator<=>(const MetaAddress &Other) const {
+    return tie() <=> Other.tie();
+  }
   constexpr bool operator==(const MetaAddress &Other) const {
     return tie() == Other.tie();
   }
-
-  constexpr bool operator!=(const MetaAddress &Other) const {
-    return not(*this == Other);
-  }
-
-  constexpr bool operator<(const MetaAddress &Other) const {
-    return tie() < Other.tie();
-  }
-  constexpr bool operator<=(const MetaAddress &Other) const {
-    return tie() <= Other.tie();
-  }
-  constexpr bool operator>(const MetaAddress &Other) const {
-    return tie() > Other.tie();
-  }
-  constexpr bool operator>=(const MetaAddress &Other) const {
-    return tie() >= Other.tie();
-  }
-
-  /// @}
 
   /// \name Address comparisons
   ///
