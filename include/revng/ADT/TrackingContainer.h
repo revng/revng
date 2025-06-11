@@ -217,6 +217,22 @@ public:
     return Content == Other;
   }
 
+  auto operator<=>(const TrackingContainer &Another) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("operator<=>", name());
+#endif
+    Exact.access();
+    return Content <=> Another.Content;
+  }
+
+  auto operator<=>(const T &Another) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("operator<=>", name());
+#endif
+    Exact.access();
+    return Content <=> Another;
+  }
+
   const value_type &at(const key_type &Key) const {
 #ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
     onFieldAccess("at", name());
