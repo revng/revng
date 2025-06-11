@@ -496,56 +496,6 @@ public:
                                  Actions);
   }
 
-  /// Special case handling for the variables.
-  ///
-  /// \note this will be merged into the general case once `NameBuilder`
-  ///       supports them (as soon as they can be renamed).
-  std::string getVariableDefinitionTag(const model::Function &F,
-                                       llvm::StringRef VariableName) const {
-    // TODO: add the actions, at least rename!
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-
-    return getNameTagImpl<true>(tokenTag(VariableName,
-                                         ptml::c::tokens::Variable),
-                                "",
-                                Actions);
-  }
-
-  std::string getVariableReferenceTag(const model::Function &F,
-                                      llvm::StringRef VariableName) const {
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-
-    return getNameTagImpl<false>(tokenTag(VariableName,
-                                          ptml::c::tokens::Variable),
-                                 "",
-                                 Actions);
-  }
-
-  /// Special case handling for the goto labels.
-  ///
-  /// \note this will be merged into the general case once `NameBuilder`
-  ///       supports them (as soon as they can be renamed).
-  std::string getGotoLabelDefinitionTag(const model::Function &F,
-                                        llvm::StringRef GotoLabelName) const {
-    // TODO: add the actions, at least rename!
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-
-    return getNameTagImpl<true>(tokenTag(GotoLabelName,
-                                         ptml::c::tokens::Variable),
-                                "",
-                                Actions);
-  }
-
-  std::string getGotoLabelReferenceTag(const model::Function &F,
-                                       llvm::StringRef GotoLabelName) const {
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-
-    return getNameTagImpl<false>(tokenTag(GotoLabelName,
-                                          ptml::c::tokens::Variable),
-                                 "",
-                                 Actions);
-  }
-
   struct TagPair {
     std::string Definition;
     std::string Reference;
