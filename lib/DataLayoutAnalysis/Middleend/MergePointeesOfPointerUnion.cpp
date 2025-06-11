@@ -78,7 +78,7 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
       continue;
     }
 
-    llvm::EquivalenceClasses<LTSN *> ToMerge;
+    llvm::EquivalenceClasses<LTSN *> PointersToMerge;
 
     auto ChildEnd = Node->Successors.end();
     for (auto AChildIt = Node->Successors.begin(); AChildIt != ChildEnd;
@@ -112,38 +112,68 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
                   "has a pair of instance children at the same offset that are "
                   "pointer nodes:");
         revng_log(Log, "A: " << APointer->ID << ", B:" << BPointer->ID);
-        revng_log(Log, "ATag: " << *ATag << ", BTag:" << *BTag);
+        revng_log(Log, "ATag: " << *ATag << ", BTag: " << *BTag);
 
         revng_assert(APointer->Successors.size() == 1,
                      std::to_string(APointer->ID).c_str());
         revng_assert(BPointer->Successors.size() == 1,
                      std::to_string(BPointer->ID).c_str());
-        ToMerge.unionSets(APointer, BPointer);
+        PointersToMerge.unionSets(APointer, BPointer);
       }
     }
 
-    if (not ToMerge.empty()) {
+    if (not PointersToMerge.empty()) {
       revng_log(Log, "Merging children");
       LoggerIndent MoreIndent{ Log };
 
       // Iterate over all of the equivalence sets.
-      for (auto I = ToMerge.begin(), E = ToMerge.end(); I != E; ++I) {
+      for (auto I = PointersToMerge.begin(), E = PointersToMerge.end(); I != E;
+           ++I) {
         // Ignore non-leader sets.
         if (not I->isLeader())
           continue;
 
         // Loop over members in this set to select the node that we want to
         // merge the others into.
-        const auto NotErased =
+        const auto NotErasedPointer =
           [&Erased = std::as_const(Erased)](LayoutTypeSystemNode *N) {
-            return not Erased.contains(N)
-                   and not Erased.contains(getPointee(N));
+            revng_log(Log, "NotErased ID: " << N->ID);
+            LoggerIndent Indent{ Log };
+
+            // Skip erased nodes.
+            if (Erased.contains(N)) {
+              revng_log(Log, "Erased");
+              return false;
+            }
+
+            // Skip non-pointer nodes.
+            // Nodes in PointersToMerge, being scalar, can be pointed to by
+            // other pointers whose pointees are also scalars to merge.
+            // This means that in some cases a pointer node can be merged with
+            // its scalar pointee, turning it first into a scalar with an
+            // outgoing pointer edge to self, and then into a non-pointer scalar
+            // (because self edges are cancelled).
+            // In those cases, we might end up with a node that was in
+            // PointersToMerge being turned into a non-pointer.
+            // If that happens we just ignore it, because it's not a pointer
+            // anymore, and we just look at others.
+            if (not hasOutgoingPointerEdge(N)) {
+              revng_log(Log, "NOT hasOutgoingPointerEdge");
+              return false;
+            }
+
+            // If the pointee was erased, the outgoing pointer edge from N would
+            // have been erased too, and we would have fallen in the check
+            // above.
+            revng_assert(not Erased.contains(getPointee(N)));
+            return true;
           };
         using llvm::make_filter_range;
-        auto
-          Pointers = make_filter_range(llvm::make_range(ToMerge.member_begin(I),
-                                                        ToMerge.member_end()),
-                                       NotErased);
+        auto Pointers = make_filter_range(llvm::make_range(PointersToMerge
+                                                             .member_begin(I),
+                                                           PointersToMerge
+                                                             .member_end()),
+                                          NotErasedPointer);
 
         if (Log.isEnabled()) {
           revng_log(Log, "Preparing to merge pointees:");
@@ -157,6 +187,7 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
                             << ScalarString << ", size: " << getPointee(N)->Size
                             << ")");
           }
+          revng_log(Log, "----");
         }
 
         llvm::SmallSetVector<LTSN *, 8> UniquedScalars;
@@ -325,12 +356,28 @@ bool MergePointeesOfPointerUnion::runOnTypeSystem(LayoutTypeSystem &TS) {
           // start pointing to MergedAggregate.
           for (LTSN *Pointer : PointersToScalars) {
             revng_log(Log, "PointerToScalar: " << Pointer->ID);
+            if (Erased.contains(Pointer)) {
+              // This can happen if one of the PointersToScalars was also itself
+              // a pointee of another pointer to scalar.
+              revng_log(Log, "was erased");
+              continue;
+            }
+
+            if (Pointer == MergedScalar
+                and not hasOutgoingPointerEdge(Pointer)) {
+              revng_log(Log,
+                        "Pointer was merged with its pointee scalar, and is no "
+                        "longer a pointer");
+              continue;
+            }
+
             const auto &[Pointee, PointerTag] = *Pointer->Successors.begin();
             revng_log(Log, "Pointee: " << Pointee->ID);
             auto InverseEdgeIt = Pointee->Predecessors.find({ Pointer,
                                                               PointerTag });
             TS.moveEdgeTarget(Pointee, MergedAggregate, InverseEdgeIt, 0);
           }
+          revng_log(Log, "Fixed up PointersToScalars");
 
           // Second, we want to inject an instance of MergedScalar at offset 0
           // inside MergedAggregate.
