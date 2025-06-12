@@ -11,7 +11,9 @@
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/GenericDomTree.h"
 
+#include "revng/ADT/Concepts.h"
 #include "revng/RestructureCFG/InlineDivergentScopesPass.h"
+#include "revng/RestructureCFG/ScopeGraphAlgorithms.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/Support/Assert.h"
@@ -49,7 +51,7 @@ static bool isConditional(BasicBlock *Node) {
   }
 }
 
-/// Helper function which detects
+/// Helper function which detects if `Node` is an exit for the `ScopeGraph`
 static bool isExit(BasicBlock *Node) {
   auto Successors = children<Scope<BasicBlock *>>(Node);
   return std::ranges::empty(Successors);
@@ -120,6 +122,26 @@ getImmediateDominator(BasicBlock *N,
     return Node->getBlock();
   } else {
     return nullptr;
+  }
+}
+
+/// Define a concept to restrict the usage of `replaceSuccessors` over a
+/// `SuccessorsToRemove` parameter of type the `SmallSet`s and `SmallVector`
+template<typename T, typename ValueType>
+concept IterableOfBasicBlockPtrs = requires(T Container) {
+  { std::begin(Container) } -> std::input_iterator;
+  { std::end(Container) };
+  { *std::begin(Container) } -> std::convertible_to<ValueType>;
+};
+
+/// Helper function which substitutes some successors in the `Terminator` with
+/// `NewTarget`
+template<IterableOfBasicBlockPtrs<BasicBlock *> Container>
+static void replaceSuccessors(Instruction *Terminator,
+                              Container &SuccessorsToRemove,
+                              BasicBlock *NewTarget) {
+  for (BasicBlock *Successor : SuccessorsToRemove) {
+    Terminator->replaceSuccessorWith(Successor, NewTarget);
   }
 }
 
@@ -279,16 +301,56 @@ electDivergence(BasicBlock *Candidate,
   return std::nullopt;
 }
 
-/// Helper function that performs the IDS transformation
-static void performIDS(DivergenceDescriptor &DivergenceDescriptor,
+/// Helper function which create a single entry point block where a divergence
+/// is entered into by multiple successors of a `Conditional`
+static void createHead(BasicBlock *Conditional,
+                       DivergenceDescriptor &Divergence,
                        BasicBlock *PlaceHolderTarget) {
+  LLVMContext &Context = getContext(Conditional);
+  Function *F = Conditional->getParent();
+  Instruction *ConditionalTerminator = Conditional->getTerminator();
+  BasicBlock *Head = BasicBlock::Create(Context,
+                                        Conditional->getName() + "_head_ids",
+                                        F);
+  Instruction *HeadTerminator = ConditionalTerminator->clone();
+  IRBuilder<> HeadBuilder(Head);
+  HeadBuilder.Insert(HeadTerminator);
+
+  // Collect the `Successor`s composing the local `Divergence`
+  SmallSet<BasicBlock *, 4> LocalDivergentSuccessors = Divergence
+                                                         .DivergentSuccessors;
+
+  // And collect all the `Successor`s that do not make up the local
+  // `Divergence`
+  SmallVector<BasicBlock *> LocalNonDivergentSuccessors;
+  for (BasicBlock *Successor : children<Scope<BasicBlock *>>(Head)) {
+    if (not LocalDivergentSuccessors.contains(Successor)) {
+      LocalNonDivergentSuccessors.push_back(Successor);
+    }
+  }
+
+  // The `Head` only connects the `LocalDivergentSuccessors`, we simplify
+  // away the other successors
+  replaceSuccessors(HeadTerminator,
+                    LocalNonDivergentSuccessors,
+                    PlaceHolderTarget);
+  simplifyTerminator(Head, PlaceHolderTarget);
+
+  // If we insert the `Head`, we replace all the edges going to the
+  // `DivergentSuccessors` in the conditional so that they go to `Head`
+  replaceSuccessors(ConditionalTerminator, LocalDivergentSuccessors, Head);
+}
+
+/// Helper function that performs the IDS transformation
+static void
+performMultipleIDS(const ScopeGraphBuilder &SGBuilder,
+                   SmallVector<DivergenceDescriptor> &MultipleDivergences,
+                   BasicBlock *PlaceHolderTarget) {
 
   // Create the new `BasicBlock` representing the `C'` conditional
   // inserted by the IDS transformation. We will refer to this block as the
   // `Tail` (of the IDS group of nodes).
-  BasicBlock *Conditional = DivergenceDescriptor.Conditional;
-  auto DivergentSuccessors = DivergenceDescriptor.DivergentSuccessors;
-  BasicBlock *Exit = DivergenceDescriptor.Exit;
+  BasicBlock *Conditional = MultipleDivergences[0].Conditional;
   LLVMContext &Context = getContext(Conditional);
   Function *F = Conditional->getParent();
   BasicBlock *Tail = BasicBlock::Create(Context,
@@ -305,6 +367,14 @@ static void performIDS(DivergenceDescriptor &DivergenceDescriptor,
   IRBuilder<> TailBuilder(Tail);
   TailBuilder.Insert(TailTerminator);
 
+  // Populate the `DivergentSuccessors` summing all ones present in each
+  // `DivergenceDescriptor`
+  SmallSet<BasicBlock *, 4> DivergentSuccessors;
+  for (auto Divergence : MultipleDivergences) {
+    DivergentSuccessors.insert(Divergence.DivergentSuccessors.begin(),
+                               Divergence.DivergentSuccessors.end());
+  }
+
   // We connect the `Conditional` to `Tail`, by making sure that all
   // the previous slots and cases going to the nondivergent exits, are now
   // connected to the `Tail` block, in order to preserve the original semantics.
@@ -316,11 +386,55 @@ static void performIDS(DivergenceDescriptor &DivergenceDescriptor,
       NonDivergentSuccessors.push_back(Successor);
     }
   }
-  revng_assert(not DivergentSuccessors.empty()
-               and not NonDivergentSuccessors.empty());
-  for (BasicBlock *Successor : NonDivergentSuccessors) {
-    ConditionalTerminator->replaceSuccessorWith(Successor, Tail);
+
+  revng_assert(not DivergentSuccessors.empty());
+
+  // It may be that for a specific `Conditional` we elected all the exits as
+  // divergent. In this case, we need to arbitrarily elect one exit as the `one
+  // true exit`, and we do this by electing the last element in
+  // `MultipleDivergences`.
+  if (NonDivergentSuccessors.empty()) {
+    revng_assert(MultipleDivergences.size() > 1);
+
+    // The fact that we elect the last element in `MultipleDivergences` as the
+    // only non divergent exit, is very important, due to how the `exit` blocks
+    // are enqueued in `MupltipleDivergences`. If present, the `Goto` exit will
+    // be in the first positions, followed by the original exit blocks. In this
+    // way, if present, we always elect a original exit as the non divergent
+    // exit.
+    size_t LastElementIndex = MultipleDivergences.size() - 1;
+
+    // The first element in `MultipleDivergencies` is arbitrarily elected as the
+    // component not going to a divergent exit
+    NonDivergentSuccessors
+      .append(MultipleDivergences[LastElementIndex].DivergentSuccessors.begin(),
+              MultipleDivergences[LastElementIndex].DivergentSuccessors.end());
+
+    // We remove the `Successor`s from the `DivergentSuccessors`
+    for (BasicBlock *Successor :
+         MultipleDivergences[LastElementIndex].DivergentSuccessors) {
+      DivergentSuccessors.erase(Successor);
+    }
+
+    // We erase the first `DivergenceDescriptor` from the `MultipleDivergences`
+    MultipleDivergences.erase(MultipleDivergences.begin() + LastElementIndex);
   }
+
+  // Decide if we need a new `Head` that collects the entry of the divergent
+  // scope. This is needed if one `Divergence` is composed by multiple
+  // `Successor`s, since in that case there is no clear entry to the inlined
+  // divergent scope. We therefore add a `Head` block that collects the entry
+  // point, so that this new node will dominate the eventual postdominator
+  // common to the multiple `Successor`s.
+  for (auto Divergence : MultipleDivergences) {
+    if (Divergence.DivergentSuccessors.size() > 1) {
+      createHead(Conditional, Divergence, PlaceHolderTarget);
+    }
+  }
+
+  // Move the `NonDivergentSuccessors` outgoing edges from `Conditional` so that
+  // they point to `Tail`
+  replaceSuccessors(ConditionalTerminator, NonDivergentSuccessors, Tail);
 
   // We remove from the `Terminator` of `Tail`, all the edges that
   // target `DivergentSuccessor`, since it will be only reached by
@@ -328,30 +442,155 @@ static void performIDS(DivergenceDescriptor &DivergenceDescriptor,
   // successor with `PlaceHolderTarget`, and then we invoke
   // `simplifyTerminator`, which will take care of simplifying away the
   // unnecessary successors, both for `brcond`s and `switch`es.
-  for (BasicBlock *Successor : DivergentSuccessors) {
-    TailTerminator->replaceSuccessorWith(Successor, PlaceHolderTarget);
-  }
+  replaceSuccessors(TailTerminator, DivergentSuccessors, PlaceHolderTarget);
   simplifyTerminator(Tail, PlaceHolderTarget);
 
   // We add a `scope_closer` edge between the divergent exit node and
-  // the `Tail` node
-  ScopeGraphBuilder SGBuilder(F);
-  SGBuilder.addScopeCloser(Exit, Tail);
+  // the `Tail` node for all the exits
+  for (auto Divergence : MultipleDivergences) {
+    SGBuilder.addScopeCloser(Divergence.Exit, Tail);
+  }
+}
+
+/// Helper function which returns if a `DivergenceDescriptor` is compatible with
+/// all the ones already present in a `Collection`. Being compatible means that
+/// they insist on the same conditional, have non-overlapping `Exit` blocks, and
+/// do not have any overlapping `DivergentSuccessors`. We currently use this
+/// helper only in an assertion to double check that the `Divergencies`
+/// collected respect the compatibility criterion.
+static bool isCompatible(const SmallVector<DivergenceDescriptor> &Collection,
+                         const DivergenceDescriptor &NewDescriptor) {
+
+  // A new element is always compatible with an empty `Collection`
+  if (Collection.empty())
+    return true;
+
+  // A new element is compatible when it shares the `Conditional` with the ones
+  // already in the `Collection`
+  if (Collection[0].Conditional != NewDescriptor.Conditional)
+    return false;
+
+  // All the `DivergenceDescriptor`s involving a certain `Conditional`, must
+  // partition, so that there is no overlap: 1: the divergent `Exit` reached by
+  // each `DivergenceDescriptor` 2: the set of the `DivergentSuccessors`
+  for (const auto &Existing : Collection) {
+    if (Existing.Exit == NewDescriptor.Exit) {
+      return false;
+    }
+
+    for (BasicBlock *ExistingSucc : Existing.DivergentSuccessors) {
+      for (BasicBlock *NewSucc : NewDescriptor.DivergentSuccessors) {
+        if (ExistingSucc == NewSucc) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
+}
+
+/// Helper function which attempts to perform multiple IDS transformations
+static void
+tryMultipleIDS(const ScopeGraphBuilder &SGBuilder,
+               const SmallVector<DivergenceDescriptor> &DivergenceDescriptors,
+               BasicBlock *PlaceHolderTarget) {
+
+  // We attempt to perform multiple IDS transformations all at once
+  // We start by collecting all the `Conditional`s involved in at least one
+  // divergence
+  SmallSetVector<BasicBlock *, 4> Conditionals;
+  for (auto DivergenceDescriptor : DivergenceDescriptors) {
+    Conditionals.insert(DivergenceDescriptor.Conditional);
+  }
+
+  // For each `Conditional`, we collect all the multiple divergences involving
+  // it
+  for (BasicBlock *Conditional : Conditionals) {
+
+    // Support variables used to understand when we need to restart the
+    // collection
+    // of the `DivergentDescriptor`s
+    bool AllExitGotos = true;
+    size_t CoveredSuccessors = 0;
+    size_t ConditionalSuccessors = getScopeGraphSuccessors(Conditional).size();
+
+    SmallVector<DivergenceDescriptor> CompatibleDivergenceDescriptors;
+    for (auto DivergenceDescriptor : DivergenceDescriptors) {
+      if (DivergenceDescriptor.Conditional == Conditional) {
+
+        // As a safeguard, we assert that all the `DivergenceDescriptor`s are
+        // compatible, i.e., they partition correctly the divergencies insisting
+        // on a certain `Conditional`
+        revng_assert(isCompatible(CompatibleDivergenceDescriptors,
+                                  DivergenceDescriptor));
+        CompatibleDivergenceDescriptors.push_back(DivergenceDescriptor);
+
+        // Update the `AllExitGotos` state with the information of the current
+        // `Exit`
+        AllExitGotos = AllExitGotos and isGotoBlock(DivergenceDescriptor.Exit);
+
+        // Update the `CoveredSuccessors` information with the current
+        // divergence
+        CoveredSuccessors += DivergenceDescriptor.DivergentSuccessors.size();
+      }
+    }
+
+    // We must find at least one `DivergenceDescriptor` for each `Conditional`,
+    // since we previously selected only `Conditional`s involved in at least
+    // one `Divergence`
+    revng_assert(CompatibleDivergenceDescriptors.size() >= 1);
+
+    performMultipleIDS(SGBuilder,
+                       CompatibleDivergenceDescriptors,
+                       PlaceHolderTarget);
+
+    // Criterion which restarts the collection and processing of the divergent
+    // exits before every already collected divergence is processed.
+    // This must happen when:
+    // 1) The `Conditional` has only divergent successors.
+    // 2) All the divergent successors lead to a `goto` exit.
+    // The reasoning is the following: if a `Conditional` has all `goto`
+    // divergent successors, once we perform IDS for such `Conditional` one of
+    // the successors will be elected as the non divergent one, and the
+    // corresponding exit node, which is a `goto` exit, may become a new
+    // divergent exit for another `Conditional` upper in the `ScopeGraph`. In
+    // such case, if we do not restart the collection of the divergent exits, we
+    // may process divergences already collected, before the newly introduced
+    // one. And this violates the invariant that we always process divergent
+    // `goto` exits before the non `goto` exits. And this in turn may cause
+    // suboptimalities when `IDS` is combined with `MaterializeTrivialGoto` in
+    // order to reduce the number of emitted `goto`s.
+    if (AllExitGotos and CoveredSuccessors == ConditionalSuccessors)
+      return;
+  }
 }
 
 /// This helper function is used to attempt the IDS process, and returns `true`
 /// or `false` depending on whether a change is performed
-static bool tryIDS(Function &F, BasicBlock *PlaceHolderTarget) {
+static bool tryIDS(const ScopeGraphBuilder &SGBuilder,
+                   Function &F,
+                   BasicBlock *PlaceHolderTarget) {
 
   // The main need for recomputing the `DomTree` is that we insert the new
   // `IDS` block and redirect edges over the `ScopeGraph`
   DomTreeOnView<BasicBlock, Scope> DomTree;
   DomTree.recalculate(F);
 
+  SmallVector<DivergenceDescriptor> DivergenceDescriptors;
+
   // Collect the exit nodes
   SmallVector<BasicBlock *> Exits = getExits(F, PlaceHolderTarget);
 
-  // Attempt IDS on each exit node
+  // Collect all the IDS opportunities.
+  // We iterate over all the `Exit`s, and then search for a `Candidate`
+  // conditional node for which such `Exit` is divergent wrt. We do this by
+  // walking upward the dominator tree until we find (if it is present) the
+  // divergent `Conditional`. An alternative, which would also make the code
+  // more straightforward, would be to iterate over the `Conditional`s and start
+  // the search from there, but this would mean to perform multiple visits to
+  // the `Exit`s. With this techniques instead, even if less intuitive, we
+  // collect all the `DivergenceDescriptor`s in one sweep.
   for (BasicBlock *Exit : Exits) {
 
     // Here we go up in the `ScopeGraph`, hopping through the immediate
@@ -366,31 +605,35 @@ static bool tryIDS(Function &F, BasicBlock *PlaceHolderTarget) {
       std::optional<DivergenceDescriptor>
         DivergenceDescriptor = electDivergence(Candidate, Exit, DomTree);
 
-      // If we have found a divergence for the exit under analysis, we proceed
-      // to perform IDS
+      // If we have found a divergence for the exit under analysis, we add it to
+      // the `DivergenceDescriptors`
       if (DivergenceDescriptor) {
-        performIDS(*DivergenceDescriptor, PlaceHolderTarget);
+        DivergenceDescriptors.push_back(*DivergenceDescriptor);
 
-        // Empirically, we have found that restarting the analysis, by
-        // recollecting the exit nodes in the `ScopeGraph`, is faster than
-        // continuing with the processing of all the exits already collected.
-        // Therefore, we should not really try to optimize this, unless we
-        // find new evidence that this is better.
-        return true;
+        // We have found a `Divergence` for the current `Exit`, so we can move
+        // to the next one
+        break;
       }
     }
   }
 
-  // If no change has been performed, we return `false` to signal this fact
-  return false;
+  // If we did not collect any `DivergenceDescriptor`, we return `false` in
+  // order to signal that no change was performed at the last round
+  if (DivergenceDescriptors.empty()) {
+    return false;
+  } else {
+    tryMultipleIDS(SGBuilder, DivergenceDescriptors, PlaceHolderTarget);
+    return true;
+  }
 }
 
 /// Implementation class used to run the `IDS` transformation
 class InlineDivergentScopesImpl {
   Function &F;
+  const ScopeGraphBuilder SGBuilder;
 
 public:
-  InlineDivergentScopesImpl(Function &F) : F(F) {}
+  InlineDivergentScopesImpl(Function &F) : F(F), SGBuilder(&F) {}
 
 public:
   bool run() {
@@ -409,7 +652,7 @@ public:
     // continuing with the processing of all the exits already collected.
     // Therefore, we should not really try to optimize this, unless we find new
     // evidence that this is better.
-    while (tryIDS(F, *PlaceHolderTarget)) {
+    while (tryIDS(SGBuilder, F, *PlaceHolderTarget)) {
 
       // As soon as one IDS change is performed, we mark the current `Function`
       // as modified

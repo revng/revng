@@ -41,19 +41,19 @@ public:
   ScopeGraphBuilder(llvm::Function *F);
 
 public:
-  void makeGoto(llvm::BasicBlock *GotoBlock);
-  void eraseGoto(llvm::BasicBlock *GotoBlock);
-  void addScopeCloser(llvm::BasicBlock *Source, llvm::BasicBlock *Target);
+  void makeGoto(llvm::BasicBlock *GotoBlock) const;
+  void eraseGoto(llvm::BasicBlock *GotoBlock) const;
+  void addScopeCloser(llvm::BasicBlock *Source, llvm::BasicBlock *Target) const;
 
   /// Helper method which erase a `scope_closer`, and returns the block which
   /// was target of the `scope_closer`
-  llvm::BasicBlock *eraseScopeCloser(llvm::BasicBlock *Source);
+  llvm::BasicBlock *eraseScopeCloser(llvm::BasicBlock *Source) const;
 
   /// With the usage of this helper,  all the successor in the `Terminator` of
   /// the `Source` block pointing to `Target` will be redirected to the newly
   /// inserted `goto` block
   llvm::BasicBlock *makeGotoEdge(llvm::BasicBlock *Source,
-                                 llvm::BasicBlock *Target);
+                                 llvm::BasicBlock *Target) const;
 };
 
 template<ConstOrNot<llvm::BasicBlock> BasicBlockType>

@@ -40,6 +40,8 @@ block_e:
 ; CHECK: block_c_ids:
 ; CHECK-NEXT:   br label %block_b
 
+; IDS on switch test
+
 define void @g(i1 noundef %a, i32 noundef %b) {
 
 block_a:
@@ -67,7 +69,7 @@ block_f:
 ; CHECK: block_c:
 ; CHECK:   switch i32 %b, label %block_c_ids [
 ; CHECK:     i32 0, label %block_e
-; CHECK:     i32 1, label %block_c_ids
+; CHECK:     i32 1, label %block_f
 ; CHECK:   ]
 ; CHECK: block_b:
 ; CHECK:   ret void
@@ -75,12 +77,8 @@ block_f:
 ; CHECK:   call void @scope_closer(ptr blockaddress(@g, %block_c_ids))
 ; CHECK:   ret void
 ; CHECK: block_f:
-; CHECK:   call void @scope_closer(ptr blockaddress(@g, %block_c_ids_ids))
+; CHECK:   call void @scope_closer(ptr blockaddress(@g, %block_c_ids))
 ; CHECK:   ret void
 ; CHECK: block_c_ids:
-; CHECK:   switch i32 %b, label %block_c_ids_ids [
-; CHECK:     i32 1, label %block_f
-; CHECK:   ]
-; CHECK: block_c_ids_ids:
 ; CHECK:   switch i32 %b, label %block_b [
 ; CHECK:   ]
