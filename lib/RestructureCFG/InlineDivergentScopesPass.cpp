@@ -13,6 +13,7 @@
 
 #include "revng/ADT/Concepts.h"
 #include "revng/RestructureCFG/InlineDivergentScopesPass.h"
+#include "revng/RestructureCFG/ScopeGraphAlgorithms.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/Support/Assert.h"
@@ -490,7 +491,7 @@ static bool isCompatible(const SmallVector<DivergenceDescriptor> &Collection,
 }
 
 /// Helper function which attempts to perform multiple IDS transformations
-static bool
+static void
 tryMultipleIDS(const ScopeGraphBuilder &SGBuilder,
                const SmallVector<DivergenceDescriptor> &DivergenceDescriptors,
                BasicBlock *PlaceHolderTarget) {
@@ -506,6 +507,14 @@ tryMultipleIDS(const ScopeGraphBuilder &SGBuilder,
   // For each `Conditional`, we collect all the multiple divergences involving
   // it
   for (BasicBlock *Conditional : Conditionals) {
+
+    // Support variables used to understand when we need to restart the
+    // collection
+    // of the `DivergentDescriptor`s
+    bool AllExitGotos = true;
+    size_t CoveredSuccessors = 0;
+    size_t ConditionalSuccessors = getScopeGraphSuccessors(Conditional).size();
+
     SmallVector<DivergenceDescriptor> CompatibleDivergenceDescriptors;
     for (auto DivergenceDescriptor : DivergenceDescriptors) {
       if (DivergenceDescriptor.Conditional == Conditional) {
@@ -516,26 +525,45 @@ tryMultipleIDS(const ScopeGraphBuilder &SGBuilder,
         revng_assert(isCompatible(CompatibleDivergenceDescriptors,
                                   DivergenceDescriptor));
         CompatibleDivergenceDescriptors.push_back(DivergenceDescriptor);
+
+        // Update the `AllExitGotos` state with the information of the current
+        // `Exit`
+        AllExitGotos = AllExitGotos and isGotoBlock(DivergenceDescriptor.Exit);
+
+        // Update the `CoveredSuccessors` information with the current
+        // divergence
+        CoveredSuccessors += DivergenceDescriptor.DivergentSuccessors.size();
       }
     }
 
     // We must find at least one `DivergenceDescriptor` for each `Conditional`,
-    // since we previously selected only `Conditional`s involved in at least one
-    // `Divergence`
+    // since we previously selected only `Conditional`s involved in at least
+    // one `Divergence`
     revng_assert(CompatibleDivergenceDescriptors.size() >= 1);
+
     performMultipleIDS(SGBuilder,
                        CompatibleDivergenceDescriptors,
                        PlaceHolderTarget);
 
-    // When we perform an IDS transformation, it means that we changed the
-    // `ScopeGraph`, and therefore we may have unlocked new IDS opportunities,
-    // so we need to perform another round
-    return true;
+    // Criterion which restarts the collection and processing of the divergent
+    // exits before every already collected divergence is processed.
+    // This must happen when:
+    // 1) The `Conditional` has only divergent successors.
+    // 2) All the divergent successors lead to a `goto` exit.
+    // The reasoning is the following: if a `Conditional` has all `goto`
+    // divergent successors, once we perform IDS for such `Conditional` one of
+    // the successors will be elected as the non divergent one, and the
+    // corresponding exit node, which is a `goto` exit, may become a new
+    // divergent exit for another `Conditional` upper in the `ScopeGraph`. In
+    // such case, if we do not restart the collection of the divergent exits, we
+    // may process divergences already collected, before the newly introduced
+    // one. And this violates the invariant that we always process divergent
+    // `goto` exits before the non `goto` exits. And this in turn may cause
+    // suboptimalities when `IDS` is combined with `MaterializeTrivialGoto` in
+    // order to reduce the number of emitted `goto`s.
+    if (AllExitGotos and CoveredSuccessors == ConditionalSuccessors)
+      return;
   }
-
-  // If we reach this point, it means that no change has been applied during
-  // this round of IDS, so we do not need to run it again
-  return false;
 }
 
 /// This helper function is used to attempt the IDS process, and returns `true`
@@ -561,7 +589,7 @@ static bool tryIDS(const ScopeGraphBuilder &SGBuilder,
   // divergent `Conditional`. An alternative, which would also make the code
   // more straightforward, would be to iterate over the `Conditional`s and start
   // the search from there, but this would mean to perform multiple visits to
-  // the `Exit`s. With out techniques instead, even if less intuitive, we
+  // the `Exit`s. With this techniques instead, even if less intuitive, we
   // collect all the `DivergenceDescriptor`s in one sweep.
   for (BasicBlock *Exit : Exits) {
 
@@ -589,7 +617,14 @@ static bool tryIDS(const ScopeGraphBuilder &SGBuilder,
     }
   }
 
-  return tryMultipleIDS(SGBuilder, DivergenceDescriptors, PlaceHolderTarget);
+  // If we did not collect any `DivergenceDescriptor`, we return `false` in
+  // order to signal that no change was performed at the last round
+  if (DivergenceDescriptors.empty()) {
+    return false;
+  } else {
+    tryMultipleIDS(SGBuilder, DivergenceDescriptors, PlaceHolderTarget);
+    return true;
+  }
 }
 
 /// Implementation class used to run the `IDS` transformation
