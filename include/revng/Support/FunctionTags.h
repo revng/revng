@@ -95,6 +95,7 @@ extern Tag Decompiled;
 extern Tag StackOffsetMarker;
 extern Tag BinaryOperationOverflows;
 extern Tag Comment;
+extern Tag RenamableVariable;
 
 } // namespace FunctionTags
 

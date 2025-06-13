@@ -18,6 +18,7 @@ sources:
     members:
       - v3/
       - v4/
+      - v5/
 
 commands:
   - type: revng.model-migration

@@ -96,7 +96,8 @@ inline bool isComment(const llvm::Value *I) {
 }
 
 inline bool isLocalVarDecl(const llvm::Value *I) {
-  return isCallToTagged(I, FunctionTags::LocalVariable);
+  return isCallToTagged(I, FunctionTags::LocalVariable)
+         or isCallToTagged(I, FunctionTags::RenamableVariable);
 }
 
 inline bool isCallStackArgumentDecl(const llvm::Value *I) {
