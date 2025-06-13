@@ -397,6 +397,14 @@ public:
     Exact.access();
     return Iter;
   }
+
+  const T &operator*() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("operator*", name());
+#endif
+    Exact.access();
+    return Content;
+  }
   /// @}
 
 public:
