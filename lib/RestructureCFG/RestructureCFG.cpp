@@ -1330,6 +1330,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
                                     DeduplicatedDummies);
       ParentMetaRegion = ParentMetaRegion->getParent();
     }
+    LogMetaRegions(OrderedMetaRegions, "MetaRegions after update");
 
     // Replace the pointers inside SCS.
     Meta->replaceNodes(CollapsedGraph.getNodes());
