@@ -773,7 +773,13 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       // retreating edges in the `ContinueBackedges` set, checking that they
       // point to the `Entry` node
       for (EdgeDescriptor R : Retreatings) {
-        revng_assert(R.second == Entry);
+
+        // The following should be an assert, but since the backend is in
+        // maintenance mode, we have an early return to propagate an early
+        // failure
+        if (not(R.second == Entry))
+          return false;
+
         ContinueBackedges.push_back(R);
       }
     }
