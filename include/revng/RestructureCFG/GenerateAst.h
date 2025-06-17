@@ -443,7 +443,7 @@ createSwitchTile(RegionCFG<NodeT> &Graph,
   return Tile;
 }
 
-inline void
+inline bool
 generateAst(RegionCFG<llvm::BasicBlock *> &Region,
             ASTTree &AST,
             std::map<RegionCFG<llvm::BasicBlock *> *, ASTTree> &CollapsedMap) {
@@ -461,7 +461,10 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
   Region.weave();
 
   // Invoke the inflate function.
-  Region.inflate();
+  if (not Region.inflate())
+
+    // We propagate the failure upwards
+    return false;
 
   // After we are done with the combing, we need to pre-compute the weight of
   // the current RegionCFG, so that during the untangle phase of other
@@ -999,6 +1002,9 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
   revng_assert(Root);
   ASTNode *RootNode = AST.findASTNode(Root);
   AST.setRoot(RootNode);
+
+  // We return true to notify that no `generateAST` failure arose
+  return true;
 }
 
 inline void normalize(ASTTree &AST, const llvm::Function &F) {

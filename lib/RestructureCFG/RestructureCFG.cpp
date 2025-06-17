@@ -1421,7 +1421,10 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
   // Invoke the AST generation for the root region.
   std::map<RegionCFG<llvm::BasicBlock *> *, ASTTree> CollapsedMap;
-  generateAst(RootCFG, AST, CollapsedMap);
+  if (not generateAst(RootCFG, AST, CollapsedMap))
+
+    // We propagate the failure upwards
+    return false;
 
   // Scorporated this part which was previously inside the `generateAst` to
   // avoid having it run twice or more (it was run inside the recursive step
