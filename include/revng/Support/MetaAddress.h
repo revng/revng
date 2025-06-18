@@ -1050,9 +1050,10 @@ addressesToString(RangeOf<MetaAddress> auto const &Addresses) {
   std::string Result = "";
 
   if (not Addresses.empty()) {
+    constexpr llvm::StringRef Separator = " + ";
     for (const MetaAddress &Address : Addresses)
-      Result += Address.toString() + " + ";
-    Result.resize(Result.size() - 3);
+      Result += Address.toString() + Separator.str();
+    Result.resize(Result.size() - Separator.size());
   }
 
   return Result;

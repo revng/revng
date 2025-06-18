@@ -63,18 +63,19 @@ collectNamespaces(BinaryType &Binary) {
   // their names no matter what. As such, if we run into any dynamic function
   // related collisions, we abort right away.
   std::string ProblemNameList;
+  constexpr llvm::StringRef Separator = ", ";
   for (auto &&[Name, List] : Result.Global) {
     if (List.size() > 1) {
       ProblemNameList += "`" + Name.str() + "` (";
       for (const auto &Collision : List)
-        ProblemNameList += *Collision.Name;
-      ProblemNameList.resize(ProblemNameList.size() - 2);
-      ProblemNameList += "), ";
+        ProblemNameList += *Collision.Name + Separator.str();
+      ProblemNameList.resize(ProblemNameList.size() - Separator.size());
+      ProblemNameList += ")" + Separator.str();
     }
   }
 
   if (ProblemNameList.size() > 0) {
-    ProblemNameList.resize(ProblemNameList.size() - 2);
+    ProblemNameList.resize(ProblemNameList.size() - Separator.size());
     return revng::createError("Dynamic function names must never collide ("
                               + std::move(ProblemNameList) + ").");
   }
