@@ -1978,11 +1978,12 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     // disappear.
     std::set<llvm::StringRef> Homeless = VariableNameBuilder.homelessNames();
     if (not Homeless.empty()) {
+      constexpr llvm::StringRef Separator = ", ";
       std::string Message = "The following variables are no longer present "
                             "in this function: ";
       for (llvm::StringRef Name : Homeless)
-        Message += '`' + Name.str() + "`, ";
-      Message.resize(Message.size() - 2);
+        Message += '`' + Name.str() + '`' + Separator.str();
+      Message.resize(Message.size() - Separator.size());
 
       // TODO: embed an action into these variable definitions to allow
       //       dropping them easily.

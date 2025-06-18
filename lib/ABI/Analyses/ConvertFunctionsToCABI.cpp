@@ -262,14 +262,15 @@ public:
                   << toString(Model->getDefinitionReference(Key)));
 
       std::string Names = "";
+      constexpr llvm::StringRef Separator = ", ";
       for (model::Function &Function : Model->Functions())
         if (Function.prototype() && Function.prototype()->key() == Key)
-          Names += "\"" + NameBuilder->name(Function) + "\", ";
+          Names += '"' + NameBuilder->name(Function) + '"' + Separator.str();
 
       if (Names.empty()) {
         revng_log(Log, "There are no functions using it as a prototype.");
       } else {
-        Names.resize(Names.size() - 2);
+        Names.resize(Names.size() - Separator.size());
         revng_log(Log, "It's a prototype of " << Names);
       }
     };
