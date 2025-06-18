@@ -1104,6 +1104,8 @@ public:
                                                        UpdatedOffsetTuple);
         revng_assert(UpdatedOffsetTuple.size() == OffsetTuple.size());
         if (not Valid) {
+          revng_log(CSVAccessLog, "invalid tuple");
+          revng_log(CSVAccessLog, CSVOffsets(ResKind));
           insertOrCombine(V, C, CSVOffsets(ResKind), OffsetMap);
           continue;
         }
@@ -3186,7 +3188,7 @@ bool CPUStateAccessAnalysis::run() {
   if (CSVAccessLog.isEnabled()) {
     CSVAccessLog << "====== Reachable Functions ======";
     for (const Function *F : ReachedFunctions)
-      CSVAccessLog << "\n" << F;
+      CSVAccessLog << "\n" << F << ": " << F->getName().str();
     CSVAccessLog << DoLog;
   }
 
