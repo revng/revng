@@ -206,6 +206,7 @@ public:
     onFieldAccess("operator==", name());
 #endif
     Exact.access();
+    Other.Exact.access();
     return Content == Other.Content;
   }
 
