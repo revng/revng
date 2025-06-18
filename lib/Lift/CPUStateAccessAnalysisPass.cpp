@@ -1104,6 +1104,8 @@ public:
                                                        UpdatedOffsetTuple);
         revng_assert(UpdatedOffsetTuple.size() == OffsetTuple.size());
         if (not Valid) {
+          revng_log(CSVAccessLog, "invalid tuple");
+          revng_log(CSVAccessLog, CSVOffsets(ResKind));
           insertOrCombine(V, C, CSVOffsets(ResKind), OffsetMap);
           continue;
         }
@@ -2005,6 +2007,7 @@ void CPUSAOA::insertCallSiteOffset(Value *V, CSVOffsets &&Offset) {
   if (CrossedCallSites.empty() or isa<ConstantInt>(V)) {
     ValueCallSiteOffsets[V][nullptr] = Offset;
     revng_log(CSVAccessLog, "CallSite: nullptr\n    " << Offset);
+    revng_assert(not isa<ConstantInt>(V) or Offset.isNumeric());
   } else {
     // In all the other cases use the active set of crossed call sites
     for (const auto &Call : CrossedCallSites) {
@@ -2132,7 +2135,8 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
     } else {
       revng_assert(!Tainted.contains(NewItemV));
       for (const Use *U : NewItem.sources())
-        insertCallSiteOffset(U->get(), CSVOffsets(CSVOffsets::Kind::Unknown));
+        if (not isa<ConstantInt>(U->get()))
+          insertCallSiteOffset(U->get(), CSVOffsets(CSVOffsets::Kind::Unknown));
     }
 
   } else {
@@ -3096,7 +3100,7 @@ public:
   bool run();
 
 private:
-  void forceEmptyMetadata(Function *RootFunction) const;
+  bool forceEmptyMetadata(Function *RootFunction) const;
 };
 
 static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
@@ -3141,25 +3145,31 @@ static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
   }
 }
 
-void CPUStateAccessAnalysis::forceEmptyMetadata(Function *RootFunction) const {
+bool CPUStateAccessAnalysis::forceEmptyMetadata(Function *RootFunction) const {
   LLVMContext &Context = M.getContext();
   QuickMetadata QMD(Context);
+  bool Changed = false;
   for (BasicBlock &BB : *RootFunction) {
     for (Instruction &I : BB) {
       if (isCallToHelper(&I)) {
-        if (I.getMetadata(LoadMDKind) == nullptr)
+        if (I.getMetadata(LoadMDKind) == nullptr) {
           I.setMetadata(LoadMDKind,
                         MDTuple::get(Context,
                                      { QMD.get((uint32_t) 0),
                                        MDTuple::get(Context, {}) }));
-        if (I.getMetadata(StoreMDKind) == nullptr)
+          Changed = true;
+        }
+        if (I.getMetadata(StoreMDKind) == nullptr) {
           I.setMetadata(StoreMDKind,
                         MDTuple::get(Context,
                                      { QMD.get((uint32_t) 0),
                                        MDTuple::get(Context, {}) }));
+          Changed = true;
+        }
       }
     }
   }
+  return Changed;
 }
 
 bool CPUStateAccessAnalysis::run() {
@@ -3180,7 +3190,7 @@ bool CPUStateAccessAnalysis::run() {
   if (CSVAccessLog.isEnabled()) {
     CSVAccessLog << "====== Reachable Functions ======";
     for (const Function *F : ReachedFunctions)
-      CSVAccessLog << "\n" << F;
+      CSVAccessLog << "\n" << F << ": " << F->getName().str();
     CSVAccessLog << DoLog;
   }
 
@@ -3198,8 +3208,9 @@ bool CPUStateAccessAnalysis::run() {
   // If there are no tainted loads and stores we don't need to run the CPUSAOA.
   if (TaintResults.TaintedLoads.empty()
       and TaintResults.TaintedStores.empty()) {
-    forceEmptyMetadata(RootFunction);
-    return TaintResults.IllegalCalls.size();
+    CSVAccessLog << "No tainted loads nor stores" << DoLog;
+    bool Forced = forceEmptyMetadata(RootFunction);
+    return Forced or (not Lazy and not TaintResults.IllegalCalls.empty());
   }
 
   if (TaintLog.isEnabled()) {
@@ -3252,8 +3263,9 @@ bool CPUStateAccessAnalysis::run() {
     CSVAccessFixer.run();
   }
 
-  forceEmptyMetadata(RootFunction);
-  return Found;
+  bool Forced = forceEmptyMetadata(RootFunction);
+  return Forced or Found
+         or (not Lazy and not TaintResults.IllegalCalls.empty());
 }
 
 bool CPUStateAccessAnalysisPass::runOnModule(Module &Mod) {
