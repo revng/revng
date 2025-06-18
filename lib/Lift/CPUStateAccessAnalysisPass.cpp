@@ -3096,7 +3096,7 @@ public:
   bool run();
 
 private:
-  void forceEmptyMetadata(Function *RootFunction) const;
+  bool forceEmptyMetadata(Function *RootFunction) const;
 };
 
 static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
@@ -3141,25 +3141,31 @@ static void addAccessMetadata(const CallSiteOffsetMap &OffsetMap,
   }
 }
 
-void CPUStateAccessAnalysis::forceEmptyMetadata(Function *RootFunction) const {
+bool CPUStateAccessAnalysis::forceEmptyMetadata(Function *RootFunction) const {
   LLVMContext &Context = M.getContext();
   QuickMetadata QMD(Context);
+  bool Changed = false;
   for (BasicBlock &BB : *RootFunction) {
     for (Instruction &I : BB) {
       if (isCallToHelper(&I)) {
-        if (I.getMetadata(LoadMDKind) == nullptr)
+        if (I.getMetadata(LoadMDKind) == nullptr) {
           I.setMetadata(LoadMDKind,
                         MDTuple::get(Context,
                                      { QMD.get((uint32_t) 0),
                                        MDTuple::get(Context, {}) }));
-        if (I.getMetadata(StoreMDKind) == nullptr)
+          Changed = true;
+        }
+        if (I.getMetadata(StoreMDKind) == nullptr) {
           I.setMetadata(StoreMDKind,
                         MDTuple::get(Context,
                                      { QMD.get((uint32_t) 0),
                                        MDTuple::get(Context, {}) }));
+          Changed = true;
+        }
       }
     }
   }
+  return Changed;
 }
 
 bool CPUStateAccessAnalysis::run() {
@@ -3198,8 +3204,9 @@ bool CPUStateAccessAnalysis::run() {
   // If there are no tainted loads and stores we don't need to run the CPUSAOA.
   if (TaintResults.TaintedLoads.empty()
       and TaintResults.TaintedStores.empty()) {
-    forceEmptyMetadata(RootFunction);
-    return TaintResults.IllegalCalls.size();
+    CSVAccessLog << "No tainted loads nor stores" << DoLog;
+    bool Forced = forceEmptyMetadata(RootFunction);
+    return Forced or (not Lazy and not TaintResults.IllegalCalls.empty());
   }
 
   if (TaintLog.isEnabled()) {
@@ -3252,8 +3259,9 @@ bool CPUStateAccessAnalysis::run() {
     CSVAccessFixer.run();
   }
 
-  forceEmptyMetadata(RootFunction);
-  return Found;
+  bool Forced = forceEmptyMetadata(RootFunction);
+  return Forced or Found
+         or (not Lazy and not TaintResults.IllegalCalls.empty());
 }
 
 bool CPUStateAccessAnalysisPass::runOnModule(Module &Mod) {
