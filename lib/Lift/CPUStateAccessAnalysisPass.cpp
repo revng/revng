@@ -2007,6 +2007,7 @@ void CPUSAOA::insertCallSiteOffset(Value *V, CSVOffsets &&Offset) {
   if (CrossedCallSites.empty() or isa<ConstantInt>(V)) {
     ValueCallSiteOffsets[V][nullptr] = Offset;
     revng_log(CSVAccessLog, "CallSite: nullptr\n    " << Offset);
+    revng_assert(not isa<ConstantInt>(V) or Offset.isNumeric());
   } else {
     // In all the other cases use the active set of crossed call sites
     for (const auto &Call : CrossedCallSites) {
@@ -2134,7 +2135,8 @@ bool CPUSAOA::exploreImmediateSources(Value *V, bool IsLoad) {
     } else {
       revng_assert(!Tainted.contains(NewItemV));
       for (const Use *U : NewItem.sources())
-        insertCallSiteOffset(U->get(), CSVOffsets(CSVOffsets::Kind::Unknown));
+        if (not isa<ConstantInt>(U->get()))
+          insertCallSiteOffset(U->get(), CSVOffsets(CSVOffsets::Kind::Unknown));
     }
 
   } else {
