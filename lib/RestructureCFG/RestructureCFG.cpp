@@ -1476,5 +1476,6 @@ bool restructureCFG(Function &F, ASTTree &AST) {
                  << UntanglePerformedCounter << "," << InitialWeight << "\n";
   }
 
-  return false;
+  // We return true to notify that not restructuring error arose
+  return true;
 }

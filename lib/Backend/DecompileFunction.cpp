@@ -7,6 +7,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
@@ -2017,6 +2018,40 @@ static ASTVarDeclMap computeVariableDeclarationScope(const llvm::Function &F,
   return computeVarDeclMap(GHAST, PendingVariables);
 }
 
+/// Helper function which blanks a `llvm::Function` whose backend decompilation
+/// failed, replaces its body with a single `BasicBlock` containing an error
+/// message
+static void turnBodyIntoError(llvm::Function &F) {
+  using namespace llvm;
+
+  // Save the previous linkage of `F`, so that it can be restored after
+  // `deleteBody` is invoked
+  auto FLinkage = F.getLinkage();
+
+  // Save the `Metadata` attached to `F`
+  llvm::SmallVector<std::pair<unsigned, llvm::MDNode *>> SavedMetadata;
+  F.getAllMetadata(SavedMetadata);
+
+  // Remove all the content form `F`
+  F.deleteBody();
+
+  // Restore the linkage for `F`
+  F.setLinkage(FLinkage);
+
+  // Restore the `SavedMetadata`
+  for (const auto &Pair : SavedMetadata) {
+    F.setMetadata(Pair.first, Pair.second);
+  }
+
+  // Create the new empty error `BasicBlock`
+  LLVMContext &Context = F.getContext();
+  BasicBlock *NewBB = llvm::BasicBlock::Create(Context, "error", &F);
+
+  // Add the error message
+  IRBuilder<> Builder(NewBB);
+  emitAbort(Builder, "Backend Decompilation Failed");
+}
+
 std::string decompile(ControlFlowGraphCache &Cache,
                       llvm::Function &F,
                       const model::Binary &Model,
@@ -2030,7 +2065,31 @@ std::string decompile(ControlFlowGraphCache &Cache,
   // Generate the GHAST and beautify it.
   {
     T2.advance("restructureCFG");
-    restructureCFG(F, GHAST);
+    if (not restructureCFG(F, GHAST)) {
+
+      // If `restructureCFG` failed, we want to provide as the decompiled output
+      // a `Function` with an empty body containing an error message. Due to how
+      // the backend works, it is necessary to blank the body of the
+      // `llvm::Function`, substitute it with a single `BasicBlock` containing
+      // the error message, and call again the backend in order to decompile
+      // this new version of the `Function`.
+
+      // Blank the `GHAST` populated by the first run of `restructureCFG`
+      // GHAST.clear();
+      GHAST = ASTTree();
+
+      // Blank the function, and leave a single `BasicBlock` containing an error
+      // message
+      turnBodyIntoError(F);
+
+      // Call again the `restructureCFG` pass on the new `Function` composed
+      // only by the single `BasicBlock` with an error message
+      bool NewRun = restructureCFG(F, GHAST);
+
+      // The new run of `restructureCFG` must not fail
+      revng_assert(NewRun);
+    }
+
     // TODO: beautification should be optional, but at the moment it's not
     // truly so (if disabled, things crash). We should strive to make it
     // optional for real.
