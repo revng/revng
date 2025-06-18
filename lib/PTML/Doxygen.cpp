@@ -597,10 +597,12 @@ std::string ptml::statementComment(const ::ptml::MarkupBuilder &B,
 
   revng_assert(not Comment.Location().empty());
 
+  constexpr llvm::StringRef Separator = " + ";
+
   std::string ExpectedLocation = "";
   for (const MetaAddress &Address : Comment.Location())
-    ExpectedLocation += Address.toString() + " + ";
-  ExpectedLocation.resize(ExpectedLocation.size() - 3);
+    ExpectedLocation += Address.toString() + Separator.str();
+  ExpectedLocation.resize(ExpectedLocation.size() - Separator.size());
 
   if (ImprecisePositionWarning.isEnabled()) {
     if (IsBeingEmittedAt != ExpectedLocation) {

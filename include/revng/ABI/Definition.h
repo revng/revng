@@ -187,16 +187,18 @@ private:
                           + std::string(getName())
                           + ").\nList of registers to be sorted: [ ";
       if (Input.size() != 0) {
+        constexpr llvm::StringRef Separator = ", ";
         for (auto Register : Input)
-          Error += model::Register::getName(Register).str() + ", ";
-        Error.resize(Error.size() - 2);
+          Error += model::Register::getName(Register).str() + Separator.str();
+        Error.resize(Error.size() - Separator.size());
       }
 
       Error += " ]\nSorted list: [ ";
       if (Output.size() != 0) {
+        constexpr llvm::StringRef Separator = ", ";
         for (auto Register : Output)
-          Error += model::Register::getName(Register).str() + ", ";
-        Error.resize(Error.size() - 2);
+          Error += model::Register::getName(Register).str() + Separator.str();
+        Error.resize(Error.size() - Separator.size());
       }
       Error += " ]\n";
       revng_abort(Error.c_str());
