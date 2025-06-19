@@ -773,7 +773,13 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       // retreating edges in the `ContinueBackedges` set, checking that they
       // point to the `Entry` node
       for (EdgeDescriptor R : Retreatings) {
-        revng_assert(R.second == Entry);
+
+        // The following should be an assert, but since the backend is in
+        // maintenance mode, we have an early return to propagate an early
+        // failure
+        if (not(R.second == Entry))
+          return false;
+
         ContinueBackedges.push_back(R);
       }
     }
@@ -1164,19 +1170,33 @@ bool restructureCFG(Function &F, ASTTree &AST) {
             // with the same backedge target.
             DeduplicationMap[Succ] = It->second;
 
-            // If we are following this way of collapsing the successors edges,
-            // it means that we are collapsing two different retreating edges
-            // on a single retreating, so a backedge entry will remain in the
-            // global `Backedges` set as a ghost entry, and we need to take
-            // care of removing it now.
-            Backedges.erase({ Succ, BackedgeTgt });
+            // We can have two situations:
+            // 1: The dummy whose use we have simplified, was connected only
+            //    through the path we have simplified away, which coming from
+            //    the inside of the `MetaRegion`. Therefore we can proceed in
+            //    actually removing such dummy.
+            // 2: Another path not coming from nodes inside the `MetaRegion`.
+            //    This can happen if, e.g., first iteration outlining cloned the
+            //    path reaching the dummy. If we simplify the dummy, we perform
+            //    an incorrect operation.
+            if (llvm::all_of(Succ->predecessors(), [Meta](auto *P) {
+                  return Meta->containsNode(P);
+                })) {
 
-            // If we are "using" another `Dummy` node for representing the
-            // backedge, we need to take into consideration that the current
-            // dummy will need to be recursively removed from parent regions
-            // that contain the current region, otherwise a "ghost" node will
-            // remain in them.
-            DeduplicatedDummies.push_back(Succ);
+              // If we are following this way of collapsing the successors
+              // edges, it means that we are collapsing two different retreating
+              // edges on a single retreating, so a backedge entry will remain
+              // in the global `Backedges` set as a ghost entry, and we need to
+              // take care of removing it now.
+              Backedges.erase({ Succ, BackedgeTgt });
+
+              // If we are "using" another `Dummy` node for representing the
+              // backedge, we need to take into consideration that the current
+              // dummy will need to be recursively removed from parent regions
+              // that contain the current region, otherwise a "ghost" node will
+              // remain in them.
+              DeduplicatedDummies.push_back(Succ);
+            }
           }
         } else {
           DeduplicatedRegionSuccessors.insert(Succ);
@@ -1330,6 +1350,7 @@ bool restructureCFG(Function &F, ASTTree &AST) {
                                     DeduplicatedDummies);
       ParentMetaRegion = ParentMetaRegion->getParent();
     }
+    LogMetaRegions(OrderedMetaRegions, "MetaRegions after update");
 
     // Replace the pointers inside SCS.
     Meta->replaceNodes(CollapsedGraph.getNodes());
@@ -1400,7 +1421,10 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
   // Invoke the AST generation for the root region.
   std::map<RegionCFG<llvm::BasicBlock *> *, ASTTree> CollapsedMap;
-  generateAst(RootCFG, AST, CollapsedMap);
+  if (not generateAst(RootCFG, AST, CollapsedMap))
+
+    // We propagate the failure upwards
+    return false;
 
   // Scorporated this part which was previously inside the `generateAst` to
   // avoid having it run twice or more (it was run inside the recursive step
@@ -1461,5 +1485,6 @@ bool restructureCFG(Function &F, ASTTree &AST) {
                  << UntanglePerformedCounter << "," << InitialWeight << "\n";
   }
 
-  return false;
+  // We return true to notify that not restructuring error arose
+  return true;
 }

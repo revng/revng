@@ -30,6 +30,7 @@
 #include "revng/RestructureCFG/MetaRegionBB.h"
 #include "revng/RestructureCFG/RegionCFGTree.h"
 #include "revng/RestructureCFG/Utils.h"
+#include "revng/Support/Assert.h"
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -287,7 +288,8 @@ inline void RegionCFG<NodeT>::dumpCFGOnFile(const std::string &FuncName,
 }
 
 template<class NodeT>
-inline bool RegionCFG<NodeT>::purgeIfTrivialDummy(BBNodeT *Dummy) {
+inline RegionCFG<NodeT>::PurgeDummyReturnCode
+RegionCFG<NodeT>::purgeIfTrivialDummy(BBNodeT *Dummy) {
   RegionCFG<NodeT> &Graph = *this;
 
   revng_assert(not Dummy->isEmpty() or Dummy->predecessor_size() != 0);
@@ -301,17 +303,24 @@ inline bool RegionCFG<NodeT>::purgeIfTrivialDummy(BBNodeT *Dummy) {
     BasicBlockNode<NodeT> *Successor = *Dummy->successors().begin();
 
     // Connect directly predecessor and successor, and remove the dummy node
-    // under analysis
+    // under analysis.
+    // The following should be an assert, but since the backend is in
+    // maintenance mode, we have an early return to propagate an early failure.
+    if (Predecessor->hasSuccessor(Successor)) {
+      return PurgeDummyReturnCode::Failure;
+    }
+
     moveEdgeTarget({ Predecessor, Dummy }, Successor);
     Graph.removeNode(Dummy);
-    return true;
+    return PurgeDummyReturnCode::Simplification;
   }
 
-  return false;
+  return PurgeDummyReturnCode::NoSimplification;
 }
 
 template<class NodeT>
-inline bool RegionCFG<NodeT>::purgeTrivialDummies() {
+inline RegionCFG<NodeT>::PurgeDummyReturnCode
+RegionCFG<NodeT>::purgeTrivialDummies() {
   RegionCFG<NodeT> &Graph = *this;
   bool RemovedNow = true;
   bool Removed = false;
@@ -319,7 +328,13 @@ inline bool RegionCFG<NodeT>::purgeTrivialDummies() {
   while (RemovedNow) {
     RemovedNow = false;
     for (auto *Node : Graph) {
-      RemovedNow = purgeIfTrivialDummy(Node);
+
+      // We propagate the failure upwards
+      PurgeDummyReturnCode ReturnCode = purgeIfTrivialDummy(Node);
+      if (ReturnCode == PurgeDummyReturnCode::Failure)
+        return PurgeDummyReturnCode::Failure;
+
+      RemovedNow = ReturnCode == PurgeDummyReturnCode::Simplification;
       if (RemovedNow) {
         Removed = true;
         break;
@@ -327,7 +342,8 @@ inline bool RegionCFG<NodeT>::purgeTrivialDummies() {
     }
   }
 
-  return Removed;
+  return Removed ? PurgeDummyReturnCode::Simplification :
+                   PurgeDummyReturnCode::NoSimplification;
 }
 
 template<class NodeT>
@@ -703,7 +719,7 @@ struct ReachableExitsAnalysis
 };
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::inflate() {
+inline bool RegionCFG<NodeT>::inflate() {
 
   // Call the untangle preprocessing.
   untangle();
@@ -1089,9 +1105,11 @@ inline void RegionCFG<NodeT>::inflate() {
           revng_assert(DuplicatedSuccSize == 0 or DInl == false);
 
           // Notice: after this call Duplicated is invalid if the call returns
-          // true, meaning that dereferencing it is bad. You can still use it as
-          // a key or value into maps though.
-          if (not purgeIfTrivialDummy(Duplicated)) {
+          // `Simplification`, meaning that dereferencing it is bad. You can
+          // still use it as a key or value into maps though.
+          auto ReturnCode = purgeIfTrivialDummy(Duplicated);
+          revng_assert(ReturnCode != PurgeDummyReturnCode::Failure);
+          if (ReturnCode == PurgeDummyReturnCode::NoSimplification) {
             // Add the cloned node in the equivalence class of the original
             // node.
             CloneToOriginalMap[Duplicated] = OriginalNode;
@@ -1113,7 +1131,9 @@ inline void RegionCFG<NodeT>::inflate() {
           // Notice: after this call Candidate is invalid if the call returns
           // true, meaning that dereferencing it is bad. You can still use it as
           // a key or value into maps though.
-          if (purgeIfTrivialDummy(Candidate)) {
+          ReturnCode = purgeIfTrivialDummy(Candidate);
+          revng_assert(ReturnCode != PurgeDummyReturnCode::Failure);
+          if (ReturnCode == PurgeDummyReturnCode::Simplification) {
             revng_log(CombLogger, "Candidate is now trivial");
             CloneToOriginalMap.erase(Candidate);
             NodesEquivalenceClass.at(OriginalNode).erase(Candidate);
@@ -1168,7 +1188,11 @@ inline void RegionCFG<NodeT>::inflate() {
   }
 
   // Purge extra dummy nodes introduced.
-  purgeTrivialDummies();
+  PurgeDummyReturnCode ReturnCode = purgeTrivialDummies();
+  if (ReturnCode == PurgeDummyReturnCode::Failure)
+
+    // We propagate the failure upwards
+    return false;
 
   if (CombLogger.isEnabled()) {
     Graph.dumpCFGOnFile(FunctionName,
@@ -1177,6 +1201,9 @@ inline void RegionCFG<NodeT>::inflate() {
   }
 
   revng_log(CombLogger, "Region Final Size: " << Graph.size());
+
+  // We return true to notify that no `inflate` error arose
+  return true;
 }
 
 template<class NodeT>

@@ -62,6 +62,12 @@ class RegionCFG {
 
   static_assert(std::is_same_v<decltype(&getConstPointer), getConstPointerT>);
 
+  enum class PurgeDummyReturnCode {
+    NoSimplification,
+    Simplification,
+    Failure
+  };
+
 public:
   using BasicBlockNodeT = typename BBNodeT::BasicBlockNodeT;
   using BasicBlockNodeType = typename BasicBlockNodeT::Type;
@@ -362,9 +368,9 @@ public:
                      const std::string &FolderName,
                      const std::string &FileName) const;
 
-  bool purgeTrivialDummies();
+  PurgeDummyReturnCode purgeTrivialDummies();
 
-  bool purgeIfTrivialDummy(BBNodeT *Dummy);
+  PurgeDummyReturnCode purgeIfTrivialDummy(BBNodeT *Dummy);
 
   void purgeVirtualSink(BBNodeT *Sink);
 
@@ -374,7 +380,7 @@ public:
   void untangle();
 
   /// Apply comb to the region.
-  void inflate();
+  bool inflate();
 
   void removeNotReachables();
 

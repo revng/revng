@@ -69,7 +69,13 @@ private:
   links_container_expr CondExprList = {};
 
 public:
-  ASTTree() = default;
+  ASTTree() :
+    ASTNodeList(),
+    BBASTMap(),
+    ASTBBMap(),
+    RootNode(nullptr),
+    IDCounter(0),
+    CondExprList() {}
 
   // Default movable
   ASTTree(ASTTree &&) = default;
