@@ -142,7 +142,7 @@ inline void copyNeighbors(BBNodeT<NodeT> *Dst, BBNodeT<NodeT> *Src) {
 }
 
 template<class NodeT>
-inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
+inline bool RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
                                               BasicBlockNodeT *Head,
                                               BBNodeMap &SubMap,
                                               std::set<EdgeDescriptor> &Out,
@@ -220,8 +220,15 @@ inline void RegionCFG<NodeT>::insertBulkNodes(BasicBlockNodeTSet &Nodes,
     moveEdgeTarget(EdgeDescriptor(RetreatingSource, EntryNode), Continue);
   }
 
+  // The following should be an assert, but since the backend is in
+  // maintenance mode, we have an early return to propagate an early failure.
   // After the processing, confirm that the `EntryNode` has no more predecessor
-  revng_assert(EntryNode->predecessor_size() == 0);
+  if (EntryNode->predecessor_size() != 0) {
+    return false;
+  }
+
+  // We return true to notify that no `insertBulkNodes` error arose
+  return true;
 }
 
 template<class NodeT>
@@ -292,7 +299,11 @@ inline RegionCFG<NodeT>::PurgeDummyReturnCode
 RegionCFG<NodeT>::purgeIfTrivialDummy(BBNodeT *Dummy) {
   RegionCFG<NodeT> &Graph = *this;
 
-  revng_assert(not Dummy->isEmpty() or Dummy->predecessor_size() != 0);
+  // The following should be an assert, but since the backend is in
+  // maintenance mode, we have an early return to propagate an early failure.
+  if (Dummy->isEmpty() and Dummy->predecessor_size() == 0) {
+    return PurgeDummyReturnCode::Failure;
+  }
 
   if ((Dummy->isEmpty()) and (Dummy->predecessor_size() == 1)
       and (Dummy->successor_size() == 1)) {

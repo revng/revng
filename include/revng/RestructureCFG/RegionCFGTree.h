@@ -338,7 +338,7 @@ public:
 
   void removeNode(BasicBlockNodeT *Node);
 
-  void insertBulkNodes(BasicBlockNodeTSet &Nodes,
+  bool insertBulkNodes(BasicBlockNodeTSet &Nodes,
                        BasicBlockNodeT *Head,
                        BBNodeMap &SubstitutionMap,
                        std::set<EdgeDescriptor> &Out,

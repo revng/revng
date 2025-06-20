@@ -160,7 +160,12 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST) {
     }
   }
 
-  revng_assert(ASTSubstitutionMap.contains(OldAST.getRoot()));
+  // The following should be an assert, but since the backend is in
+  // maintenance mode, we have an early return to propagate an early failure.
+  if (not ASTSubstitutionMap.contains(OldAST.getRoot())) {
+    return nullptr;
+  }
+
   return ASTSubstitutionMap[OldAST.getRoot()];
 }
 

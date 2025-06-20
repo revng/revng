@@ -636,7 +636,16 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     BasicBlockNodeBB *Entry = Entries.begin()->first;
     {
       size_t MaxNEntries = Entries.begin()->second;
-      size_t ShortestPath = ShortestPathFromEntry.at(Entry);
+
+      // The following should be an assert, but since the backend is in
+      // maintenance mode, we have an early return to propagate an early
+      // failure.
+      auto ShortestPathFromEntryIt = ShortestPathFromEntry.find(Entry);
+      if (ShortestPathFromEntryIt == ShortestPathFromEntry.end()) {
+        return false;
+      }
+
+      size_t ShortestPath = ShortestPathFromEntryIt->second;
 
       auto EntriesEnd = Entries.end();
       for (BasicBlockNodeBB *Node : RPOT) {
@@ -784,7 +793,12 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       }
     }
 
+    // The following should be an assert, but since the backend is in
+    // maintenance mode, we have an early return to propagate an early failure.
     // Verify that we found at least one backedge
+    if (not(ContinueBackedges.size() > 0)) {
+      return false;
+    }
     revng_assert(ContinueBackedges.size() > 0);
 
     revng_assert(Head != nullptr);
@@ -1292,11 +1306,16 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     // during the bulk node insertion, in order to avoid errors in edge
     // ordering.
     std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
-    CollapsedGraph.insertBulkNodes(Meta->getNodes(),
-                                   Head,
-                                   SubstitutionMap,
-                                   OutgoingEdges,
-                                   ContinueBackedges);
+
+    // The following call may fail, and in that case we propagate the error
+    // upwards
+    if (not CollapsedGraph.insertBulkNodes(Meta->getNodes(),
+                                           Head,
+                                           SubstitutionMap,
+                                           OutgoingEdges,
+                                           ContinueBackedges)) {
+      return false;
+    }
 
     // Connect the old incoming edges to the collapsed node.
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
