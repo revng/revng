@@ -636,7 +636,16 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     BasicBlockNodeBB *Entry = Entries.begin()->first;
     {
       size_t MaxNEntries = Entries.begin()->second;
-      size_t ShortestPath = ShortestPathFromEntry.at(Entry);
+
+      // The following should be an assert, but since the backend is in
+      // maintenance mode, we have an early return to propagate an early
+      // failure.
+      auto ShortestPathFromEntryIt = ShortestPathFromEntry.find(Entry);
+      if (ShortestPathFromEntryIt == ShortestPathFromEntry.end()) {
+        return false;
+      }
+
+      size_t ShortestPath = ShortestPathFromEntryIt->second;
 
       auto EntriesEnd = Entries.end();
       for (BasicBlockNodeBB *Node : RPOT) {
