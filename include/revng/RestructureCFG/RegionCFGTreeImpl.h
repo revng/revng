@@ -292,7 +292,11 @@ inline RegionCFG<NodeT>::PurgeDummyReturnCode
 RegionCFG<NodeT>::purgeIfTrivialDummy(BBNodeT *Dummy) {
   RegionCFG<NodeT> &Graph = *this;
 
-  revng_assert(not Dummy->isEmpty() or Dummy->predecessor_size() != 0);
+  // The following should be an assert, but since the backend is in
+  // maintenance mode, we have an early return to propagate an early failure.
+  if (Dummy->isEmpty() and Dummy->predecessor_size() == 0) {
+    return PurgeDummyReturnCode::Failure;
+  }
 
   if ((Dummy->isEmpty()) and (Dummy->predecessor_size() == 1)
       and (Dummy->successor_size() == 1)) {
