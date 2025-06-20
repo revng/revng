@@ -1292,11 +1292,16 @@ bool restructureCFG(Function &F, ASTTree &AST) {
     // during the bulk node insertion, in order to avoid errors in edge
     // ordering.
     std::set<EdgeDescriptor> OutgoingEdges = Meta->getOutEdges();
-    CollapsedGraph.insertBulkNodes(Meta->getNodes(),
-                                   Head,
-                                   SubstitutionMap,
-                                   OutgoingEdges,
-                                   ContinueBackedges);
+
+    // The following call may fail, and in that case we propagate the error
+    // upwards
+    if (not CollapsedGraph.insertBulkNodes(Meta->getNodes(),
+                                           Head,
+                                           SubstitutionMap,
+                                           OutgoingEdges,
+                                           ContinueBackedges)) {
+      return false;
+    }
 
     // Connect the old incoming edges to the collapsed node.
     std::set<EdgeDescriptor> IncomingEdges = Meta->getInEdges();
