@@ -523,6 +523,13 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
 
       ASTNode *Body = AST.copyASTNodesFrom(CollapsedAST);
 
+      // We introduce the possibility of soft failing for the call to
+      // `copyASTNodesFrom`, which returns a `nullptr` if it failed in the
+      // substitution. In this case, we return `false` to signal the failure.
+      if (not Body) {
+        return false;
+      }
+
       switch (Successors.size()) {
 
       case 0: {
