@@ -793,7 +793,12 @@ bool restructureCFG(Function &F, ASTTree &AST) {
       }
     }
 
+    // The following should be an assert, but since the backend is in
+    // maintenance mode, we have an early return to propagate an early failure.
     // Verify that we found at least one backedge
+    if (not(ContinueBackedges.size() > 0)) {
+      return false;
+    }
     revng_assert(ContinueBackedges.size() > 0);
 
     revng_assert(Head != nullptr);
