@@ -604,29 +604,12 @@ public:
   }
 
 public:
-  /// @{
+  constexpr auto operator<=>(const MetaAddress &Other) const {
+    return tie() <=> Other.tie();
+  }
   constexpr bool operator==(const MetaAddress &Other) const {
     return tie() == Other.tie();
   }
-
-  constexpr bool operator!=(const MetaAddress &Other) const {
-    return not(*this == Other);
-  }
-
-  constexpr bool operator<(const MetaAddress &Other) const {
-    return tie() < Other.tie();
-  }
-  constexpr bool operator<=(const MetaAddress &Other) const {
-    return tie() <= Other.tie();
-  }
-  constexpr bool operator>(const MetaAddress &Other) const {
-    return tie() > Other.tie();
-  }
-  constexpr bool operator>=(const MetaAddress &Other) const {
-    return tie() >= Other.tie();
-  }
-
-  /// @}
 
   /// \name Address comparisons
   ///
@@ -1028,3 +1011,16 @@ template<>
 struct hash<std::set<MetaAddress>> : hash<const std::set<MetaAddress>> {};
 
 } // namespace std
+
+inline std::string
+addressesToString(RangeOf<MetaAddress> auto const &Addresses) {
+  std::string Result = "";
+
+  if (not Addresses.empty()) {
+    for (const MetaAddress &Address : Addresses)
+      Result += Address.toString() + " + ";
+    Result.resize(Result.size() - 3);
+  }
+
+  return Result;
+}

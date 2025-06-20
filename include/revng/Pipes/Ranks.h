@@ -87,11 +87,15 @@ inline auto HelperStructField = defineRank<"helper-struct-field",
 inline auto DynamicFunctionArgument = defineRank<"dynamic-function-argument",
                                                  std::string>(DynamicFunction);
 
-/// Rank for locations associated to function arguments and local variables.
-inline auto LocalVariable = defineRank<"local-variable", std::string>(Function);
+/// Rank for locations associated to regular local variables.
+inline auto LocalVariable = defineRank<"local-variable", uint64_t>(Function);
+
+/// Rank for locations associated to reserved local variables (like `stack`).
+inline auto ReservedLocalVariable = defineRank<"reserved-local-variable",
+                                               std::string>(Function);
 
 /// Rank for locations associated to goto-labels within functions.
-inline auto GotoLabel = defineRank<"goto-label", std::string>(Function);
+inline auto GotoLabel = defineRank<"goto-label", uint64_t>(Function);
 
 /// Rank for locations associated to comments within function bodies.
 inline auto

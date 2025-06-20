@@ -19,7 +19,7 @@ StackAlignment: 16
 MinimumStackArgumentSize: 8
 UnusedStackArgumentBytes: 32
 
-MaximumGPRsPerAggregateArgument: 0
+MaximumGPRsPerAggregateArgument: 1
 MaximumGPRsPerAggregateReturnValue: 1
 MaximumGPRsPerScalarArgument: 1
 MaximumGPRsPerScalarReturnValue: 1

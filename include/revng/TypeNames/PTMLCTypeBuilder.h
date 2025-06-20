@@ -13,6 +13,10 @@
 
 namespace ptml {
 
+namespace detail {
+extern Logger<> VariableNamingLog;
+};
+
 class CTypeBuilder : public CBuilder {
 public:
   using OutStream = ptml::IndentedOstream;
@@ -145,6 +149,18 @@ public:
     return helpers::LineComment(*Out, *this);
   }
 
+  using VariableNameBuilder = model::CNameBuilder::VariableNameBuilder;
+  VariableNameBuilder
+  makeLocalVariableNameBuilder(const model::Function &Function) const {
+    return NameBuilder.localVariables(Function);
+  }
+
+  using GotoLabelNameBuilder = model::CNameBuilder::GotoLabelNameBuilder;
+  GotoLabelNameBuilder
+  makeGotoLabelNameBuilder(const model::Function &Function) const {
+    return NameBuilder.gotoLabels(Function);
+  }
+
 private:
   static constexpr llvm::StringRef tokenType(const model::TypeDefinition &) {
     return ptml::c::tokens::Type;
@@ -233,10 +249,23 @@ private:
 
 private:
   std::string variableLocationString(const model::Function &Function,
-                                     llvm::StringRef Variable) const {
+                                     std::uint64_t LocalVariableIndex) const {
     return pipeline::locationString(revng::ranks::LocalVariable,
                                     Function.key(),
-                                    Variable.str());
+                                    LocalVariableIndex);
+  }
+  std::string reservedVariableLocationString(const model::Function &Function,
+                                             llvm::StringRef Name) const {
+    // WARNING: these should never be used as context for actions.
+    return pipeline::locationString(revng::ranks::ReservedLocalVariable,
+                                    Function.key(),
+                                    Name.str());
+  }
+  std::string gotoLabelLocationString(const model::Function &Function,
+                                      std::uint64_t GotoLabelIndex) const {
+    return pipeline::locationString(revng::ranks::GotoLabel,
+                                    Function.key(),
+                                    GotoLabelIndex);
   }
   std::string
   returnValueLocationString(const model::RawFunctionDefinition &Function,
@@ -467,60 +496,132 @@ public:
                                  Actions);
   }
 
-  /// Special case handling for the variables.
+  struct TagPair {
+    std::string Definition;
+    std::string Reference;
+  };
+
+  /// Special case handling for local variables.
   ///
-  /// \note this will be merged into the general case once `NameBuilder`
-  ///       supports them (as soon as they can be renamed).
-  std::string getVariableDefinitionTag(const model::Function &F,
-                                       llvm::StringRef VariableName) const {
-    // TODO: add the actions, at least rename!
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
+  /// \note that both tags are acquired at once, this removes the need to keep
+  ///       track of already emitted automated names.
+  TagPair
+  getVariableTags(VariableNameBuilder &SubNameBuilder,
+                  const SortedVector<MetaAddress> &UserLocationSet) const {
+    constexpr std::array Actions = { ptml::actions::Rename };
+    llvm::ArrayRef<llvm::StringRef> CurrentActions = Actions;
 
-    std::string Location = variableLocationString(F, VariableName);
-    return getNameTagImpl<true>(tokenTag(VariableName,
-                                         ptml::c::tokens::Variable),
-                                Location,
-                                Actions);
+    auto [Name, I, IsLocatable, Warning] = SubNameBuilder.name(UserLocationSet);
+    if (not IsLocatable) {
+      // The variable is not locatable, ensure `rename` action is not allowed.
+      constexpr std::array<llvm::StringRef, 0> EmptyActions = {};
+      CurrentActions = EmptyActions;
+    }
+
+    if (detail::VariableNamingLog.isEnabled()) {
+      if (IsLocatable)
+        detail::VariableNamingLog << "A locatable ";
+      else
+        detail::VariableNamingLog << "A non-locatable ";
+
+      detail::VariableNamingLog
+        << "variable (" << I << ") at '" << addressesToString(UserLocationSet)
+        << "' received the name: '" << Name << "'" << DoLog;
+
+      if (not Warning.empty())
+        detail::VariableNamingLog << "WARNING (in "
+                                  << ::toString(SubNameBuilder.Function->key())
+                                  << "): " << Warning << '\n';
+    }
+
+    // TODO: emit warning to users (comment, vscode squiggle, etc), instead of
+    //       just logging it.
+
+    std::string Location = variableLocationString(*SubNameBuilder.Function, I);
+    return TagPair{
+      .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         CurrentActions),
+      .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         CurrentActions)
+    };
   }
 
-  std::string getVariableReferenceTag(const model::Function &F,
-                                      llvm::StringRef VariableName) const {
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-
-    std::string Location = variableLocationString(F, VariableName);
-    return getNameTagImpl<false>(tokenTag(VariableName,
-                                          ptml::c::tokens::Variable),
-                                 Location,
-                                 Actions);
-  }
-
-  /// Special case handling for the goto labels.
+  /// This as a modified version of `getVariableTags` that allows
+  /// setting any name for a given variable, as long as NameBuilder considers
+  /// that name to already be reserved.
   ///
-  /// \note this will be merged into the general case once `NameBuilder`
-  ///       supports them (as soon as they can be renamed).
-  std::string getGotoLabelDefinitionTag(const model::Function &F,
-                                        llvm::StringRef GotoLabelName) const {
-    // TODO: add the actions, at least rename!
+  /// \note variables created this way cannot be renamed.
+  TagPair getReservedVariableTags(const model::Function &Function,
+                                  llvm::StringRef Name) const {
+    NameBuilder.assertNameIsReserved(Name);
+
     constexpr std::array<llvm::StringRef, 0> Actions = {};
-    std::string Location = pipeline::locationString(revng::ranks::GotoLabel,
-                                                    F.key(),
-                                                    GotoLabelName.str());
-    return getNameTagImpl<true>(tokenTag(GotoLabelName,
-                                         ptml::c::tokens::Variable),
-                                Location,
-                                Actions);
+
+    std::string Location = reservedVariableLocationString(Function, Name);
+    // NOTE: these should never be used as a context for any actions.
+
+    revng_log(detail::VariableNamingLog,
+              "A non-renamable variable received the name: '" << Name << "'");
+
+    return TagPair{
+      .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         Actions),
+      .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         Actions)
+    };
   }
 
-  std::string getGotoLabelReferenceTag(const model::Function &F,
-                                       llvm::StringRef GotoLabelName) const {
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-    std::string Location = pipeline::locationString(revng::ranks::GotoLabel,
-                                                    F.key(),
-                                                    GotoLabelName.str());
-    return getNameTagImpl<false>(tokenTag(GotoLabelName,
-                                          ptml::c::tokens::Variable),
-                                 Location,
-                                 Actions);
+  /// Special case handling for goto labels.
+  ///
+  /// \note that both tags are acquired at once, this removes the need to keep
+  ///       track of already emitted automated names.
+  TagPair
+  getGotoLabelTags(GotoLabelNameBuilder &SubNameBuilder,
+                   const SortedVector<MetaAddress> &UserLocationSet) const {
+    constexpr std::array Actions = { ptml::actions::Rename };
+    llvm::ArrayRef<llvm::StringRef> CurrentActions = Actions;
+
+    auto [Name, I, IsLocatable, Warning] = SubNameBuilder.name(UserLocationSet);
+    if (not IsLocatable) {
+      // The label is not locatable, ensure `rename` action is not allowed.
+      constexpr std::array<llvm::StringRef, 0> EmptyActions = {};
+      CurrentActions = EmptyActions;
+    }
+
+    if (detail::VariableNamingLog.isEnabled()) {
+      if (IsLocatable)
+        detail::VariableNamingLog << "A locatable ";
+      else
+        detail::VariableNamingLog << "A non-locatable ";
+
+      if (not Warning.empty())
+        detail::VariableNamingLog << "WARNING (in "
+                                  << ::toString(SubNameBuilder.Function->key())
+                                  << "): " << Warning << '\n';
+    }
+
+    // TODO: emit warning to users (comment, vscode squiggle, etc), instead of
+    //       just logging it.
+
+    std::string Location = gotoLabelLocationString(*SubNameBuilder.Function, I);
+    return TagPair{
+      .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         CurrentActions),
+      .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                  ptml::c::tokens::Variable),
+                                         Location,
+                                         CurrentActions)
+    };
   }
 
 public:
@@ -724,6 +825,15 @@ public:
                                   "//",
                                   0,
                                   availableCommentLineWidth());
+  }
+
+  std::string getFreeFormComment(llvm::StringRef Body) {
+    return ptml::freeFormComment(*this,
+                                 Body,
+                                 "///",
+                                 0,
+                                 availableCommentLineWidth(),
+                                 false);
   }
 
 public:

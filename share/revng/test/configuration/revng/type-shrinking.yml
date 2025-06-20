@@ -1,0 +1,18 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+tags:
+  - name: for-type-shrinking
+sources:
+  - tags: [for-type-shrinking]
+    members:
+      - share/revng/test/tests/type-shrinking.ll
+
+commands:
+  - type: revng.mlir-lit-tests
+    from:
+      - type: source
+        filter: for-type-shrinking
+    command: |-
+      revng opt -S -early-type-shrinking -type-shrinking -instcombine ${INPUT} | FileCheck ${INPUT}
