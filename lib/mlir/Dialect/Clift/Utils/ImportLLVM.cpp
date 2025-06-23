@@ -11,6 +11,7 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
+#include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportLLVM.h"
@@ -21,13 +22,16 @@ using namespace clift;
 
 namespace {
 
+static Logger<> BasicBlockLog{ "llvm-to-clift-basic-blocks" };
+static Logger<> ExpressionLog{ "llvm-to-clift-expressions" };
+
 [[nodiscard]] mlir::OpBuilder::InsertPoint
-makeInsertionPointAfterStart(mlir::Block *Block) {
+static makeInsertionPointAfterStart(mlir::Block *Block) {
   return mlir::OpBuilder::InsertPoint(Block, Block->end());
 }
 
 [[nodiscard]] mlir::OpBuilder::InsertPoint
-saveInsertionPointAfter(const mlir::OpBuilder &Builder) {
+static saveInsertionPointAfter(const mlir::OpBuilder &Builder) {
   mlir::Block *Block = Builder.getInsertionBlock();
   mlir::Block::iterator Point = Builder.getInsertionPoint();
 
@@ -38,7 +42,7 @@ saveInsertionPointAfter(const mlir::OpBuilder &Builder) {
   return mlir::OpBuilder::InsertPoint(Block, Point);
 }
 
-void restoreInsertionPointAfter(mlir::OpBuilder &Builder,
+static void restoreInsertionPointAfter(mlir::OpBuilder &Builder,
                                 mlir::OpBuilder::InsertPoint InsertPoint) {
   revng_assert(InsertPoint.isSet());
 
@@ -573,8 +577,11 @@ private:
 
   RecursiveCoroutine<mlir::Value>
   emitExpression(const llvm::Value *V, mlir::Location SurroundingLocation) {
+    LoggerIndent Indent(ExpressionLog);
+
     if (auto G = llvm::dyn_cast<llvm::GlobalObject>(V)) {
       if (const StringLiteral *String = detectStringLiteral(G)) {
+        revng_log(ExpressionLog, "llvm::GlobalObject -> StringOp");
         auto Op = Builder.create<StringOp>(SurroundingLocation,
                                            String->Type,
                                            std::move(String->Data));
@@ -584,12 +591,15 @@ private:
         rc_return emitCast(SurroundingLocation, Op, Type, CastKind::Decay);
       }
 
+      revng_log(ExpressionLog, "llvm::GlobalObject -> UseOp");
       rc_return Builder.create<UseOp>(SurroundingLocation,
                                       emitGlobalObject(G),
                                       G->getName());
     }
 
     if (auto It = ValueMapping.find(V); It != ValueMapping.end()) {
+      revng_log(ExpressionLog, "<existing value>");
+
       mlir::Value Value = It->second.Value;
 
       if (It->second.Addressof) {
@@ -602,15 +612,19 @@ private:
     }
 
     if (auto A = llvm::dyn_cast<llvm::Argument>(V)) {
+      revng_log(ExpressionLog, "llvm::Argument");
+      LoggerIndent Indent(ExpressionLog);
+
       auto It = ArgumentMapping.find(A);
       revng_assert(It != ArgumentMapping.end());
 
       mlir::Value Value = It->second.Argument;
 
-      if (It->second.IsByAddress)
+      if (It->second.IsByAddress) {
         Value = Builder.create<AddressofOp>(SurroundingLocation,
                                             makePointerType(Value.getType()),
                                             Value);
+      }
 
       rc_return emitImplicitCast(SurroundingLocation,
                                 Value,
@@ -618,11 +632,13 @@ private:
     }
 
     if (auto U = llvm::dyn_cast<llvm::UndefValue>(V)) {
+      revng_log(ExpressionLog, "llvm::UndefValue -> UndefOp");
       mlir::Type Type = importLLVMType(U->getType());
       rc_return Builder.create<UndefOp>(SurroundingLocation, Type);
     }
 
     if (auto C = llvm::dyn_cast<llvm::ConstantInt>(V)) {
+      revng_log(ExpressionLog, "llvm::ConstantInt -> ImmediateOp");
       const llvm::IntegerType *T = llvm::cast<llvm::IntegerType>(C->getType());
       rc_return Builder.create<ImmediateOp>(SurroundingLocation,
                                             importLLVMIntegerType(T),
@@ -630,19 +646,25 @@ private:
     }
 
     if (auto N = llvm::dyn_cast<llvm::ConstantPointerNull>(V)) {
+      revng_log(ExpressionLog, "llvm::ConstantPointerNull -> ImmediateOp");
       auto Op = Builder.create<ImmediateOp>(SurroundingLocation,
                                             getIntptrType(),
                                             /*Value=*/0);
 
+      LoggerIndent Indent(ExpressionLog);
       rc_return emitCast(SurroundingLocation, Op, getVoidPointerType());
     }
 
     if (auto E = llvm::dyn_cast<llvm::ConstantExpr>(V)) {
+      revng_log(ExpressionLog, "llvm::ConstantExpr");
+      LoggerIndent Indent(ExpressionLog);
+
       // TODO: This could be made more efficient by implementing direct
       //       ConstantExpr import.
       llvm::Instruction *I = E->getAsInstruction();
       mlir::Value Value = emitExpression(I, SurroundingLocation);
       I->deleteValue();
+
       rc_return Value;
     }
 
@@ -650,6 +672,9 @@ private:
       mlir::Location Loc = SurroundingLocation;
 
       if (auto It = AllocaMapping.find(I); It != AllocaMapping.end()) {
+        revng_log(ExpressionLog, "llvm::AllocaInst");
+        LoggerIndent Indent(ExpressionLog);
+
         auto Type = makePointerType(It->second.getType());
         auto Value = Builder.create<AddressofOp>(Loc, Type, It->second);
         rc_return emitImplicitCast(Loc, Value, importLLVMType(I->getType()));
@@ -660,46 +685,72 @@ private:
     }
 
     if (auto I = llvm::dyn_cast<llvm::LoadInst>(V)) {
+      revng_log(ExpressionLog, "llvm::LoadInst");
+      LoggerIndent Indent(ExpressionLog);
+
       mlir::Location Loc = getLocation(I);
 
-      mlir::Value Pointer = rc_recur emitExpression(I->getPointerOperand(),
-                                                    Loc);
+      revng_log(ExpressionLog, "Subexpression:");
+      mlir::Value Pointer = (LoggerIndent(ExpressionLog),
+                            rc_recur emitExpression(I->getPointerOperand(),
+                                                    Loc));
 
       clift::ValueType ValueType = importLLVMType(V->getType());
       clift::ValueType PointerType = makePointerType(ValueType);
 
-      auto Op1 = Builder.create<CastOp>(Loc,
-                                        PointerType,
-                                        Pointer,
-                                        CastKind::Bitcast);
+      Pointer = Builder.create<CastOp>(Loc,
+                                       PointerType,
+                                       Pointer,
+                                       CastKind::Bitcast);
 
-      rc_return Builder.create<IndirectionOp>(Loc, ValueType, Op1);
+      revng_log(ExpressionLog, "IndirectionOp");
+      rc_return Builder.create<IndirectionOp>(Loc, ValueType, Pointer);
     }
 
     if (auto I = llvm::dyn_cast<llvm::StoreInst>(V)) {
+      revng_log(ExpressionLog, "llvm::StoreInst");
+      LoggerIndent Indent(ExpressionLog);
+
       mlir::Location Loc = getLocation(I);
 
-      mlir::Value Pointer = rc_recur emitExpression(I->getPointerOperand(),
-                                                    Loc);
-      mlir::Value Value = rc_recur emitExpression(I->getValueOperand(), Loc);
+      revng_log(ExpressionLog, "Pointer subexpression:");
+      mlir::Value Pointer = (LoggerIndent(ExpressionLog),
+                            rc_recur emitExpression(I->getPointerOperand(),
+                                                    Loc));
 
-      auto Op1 = Builder.create<CastOp>(Loc,
-                                        makePointerType(Value.getType()),
-                                        Pointer,
-                                        CastKind::Bitcast);
+      revng_log(ExpressionLog, "Value subexpression:");
+      mlir::Value Value = (LoggerIndent(ExpressionLog),
+                          rc_recur emitExpression(I->getValueOperand(), Loc));
 
-      auto Op2 = Builder.create<IndirectionOp>(Loc, Value.getType(), Op1);
+      Pointer = Builder.create<CastOp>(Loc,
+                                       makePointerType(Value.getType()),
+                                       Pointer,
+                                       CastKind::Bitcast);
 
-      rc_return Builder.create<AssignOp>(Loc, Value.getType(), Op2, Value);
+      revng_log(ExpressionLog, "IndirectionOp");
+      mlir::Value Assignee = Builder.create<IndirectionOp>(Loc,
+                                                           Value.getType(),
+                                                           Pointer);
+
+      revng_log(ExpressionLog, "AssignOp");
+      rc_return Builder.create<AssignOp>(Loc, Value.getType(), Assignee, Value);
     }
 
     if (auto I = llvm::dyn_cast<llvm::BinaryOperator>(V)) {
+      revng_log(ExpressionLog, "llvm::BinaryOperator");
+      LoggerIndent Indent(ExpressionLog);
+
       using Operators = llvm::BinaryOperator::BinaryOps;
 
       mlir::Location Loc = getLocation(I);
 
-      mlir::Value Lhs = rc_recur emitExpression(I->getOperand(0), Loc);
-      mlir::Value Rhs = rc_recur emitExpression(I->getOperand(1), Loc);
+      revng_log(ExpressionLog, "LHS subexpression");
+      mlir::Value Lhs = (LoggerIndent(ExpressionLog),
+                         rc_recur emitExpression(I->getOperand(0), Loc));
+
+      revng_log(ExpressionLog, "RHS subexpression");
+      mlir::Value Rhs = (LoggerIndent(ExpressionLog),
+                         rc_recur emitExpression(I->getOperand(1), Loc));
 
 #if 0
       auto LhsPointerType = mlir::dyn_cast<PointerType>(Lhs.getType());
@@ -752,27 +803,37 @@ private:
       auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) {
         switch (I->getOpcode()) {
         case Operators::Add:
+          revng_log(ExpressionLog, "AddOp");
           return emitExpr<AddOp>(Loc, Type, Lhs, Rhs);
         case Operators::Sub:
+          revng_log(ExpressionLog, "SubOp");
           return emitExpr<SubOp>(Loc, Type, Lhs, Rhs);
         case Operators::Mul:
+          revng_log(ExpressionLog, "MulOp");
           return emitExpr<MulOp>(Loc, Type, Lhs, Rhs);
         case Operators::SDiv:
         case Operators::UDiv:
+          revng_log(ExpressionLog, "DivOp");
           return emitExpr<DivOp>(Loc, Type, Lhs, Rhs);
         case Operators::SRem:
         case Operators::URem:
+          revng_log(ExpressionLog, "RemOp");
           return emitExpr<RemOp>(Loc, Type, Lhs, Rhs);
         case Operators::Shl:
+          revng_log(ExpressionLog, "ShiftLeftOp");
           return emitExpr<ShiftLeftOp>(Loc, Type, Lhs, Rhs);
         case Operators::LShr:
         case Operators::AShr:
+          revng_log(ExpressionLog, "ShiftRightOp");
           return emitExpr<ShiftRightOp>(Loc, Type, Lhs, Rhs);
         case Operators::And:
+          revng_log(ExpressionLog, "BitwiseAndOp");
           return emitExpr<BitwiseAndOp>(Loc, Type, Lhs, Rhs);
         case Operators::Or:
+          revng_log(ExpressionLog, "BitwiseOrOp");
           return emitExpr<BitwiseOrOp>(Loc, Type, Lhs, Rhs);
         case Operators::Xor:
+          revng_log(ExpressionLog, "BitwiseXorOp");
           return emitExpr<BitwiseXorOp>(Loc, Type, Lhs, Rhs);
         default:
           revng_abort("Unsupported LLVM binary operator.");
@@ -783,6 +844,9 @@ private:
     }
 
     if (auto I = llvm::dyn_cast<llvm::ICmpInst>(V)) {
+      revng_log(ExpressionLog, "llvm::ICmpInst");
+      LoggerIndent Indent(ExpressionLog);
+
       using enum llvm::ICmpInst::Predicate;
 
       PrimitiveKind Kind = PrimitiveKind::GenericKind;
@@ -804,8 +868,14 @@ private:
       }
 
       mlir::Location Loc = getLocation(I);
-      mlir::Value Lhs = rc_recur emitExpression(I->getOperand(0), Loc);
-      mlir::Value Rhs = rc_recur emitExpression(I->getOperand(1), Loc);
+
+      revng_log(ExpressionLog, "LHS subexpression");
+      mlir::Value Lhs = (LoggerIndent(ExpressionLog),
+                         rc_recur emitExpression(I->getOperand(0), Loc));
+
+      revng_log(ExpressionLog, "RHS subexpression");
+      mlir::Value Rhs = (LoggerIndent(ExpressionLog),
+                         rc_recur emitExpression(I->getOperand(1), Loc));
 
       auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
       auto Type = importLLVMIntegerType(IntegerType, PrimitiveKind::SignedKind);
@@ -813,20 +883,26 @@ private:
       auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) {
         switch (I->getPredicate()) {
         case ICMP_EQ:
+          revng_log(ExpressionLog, "CmpEqOp");
           return emitExpr<CmpEqOp>(Loc, Type, Lhs, Rhs);
         case ICMP_NE:
+          revng_log(ExpressionLog, "CmpNeOp");
           return emitExpr<CmpNeOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SGT:
         case ICMP_UGT:
+          revng_log(ExpressionLog, "CmpGtOp");
           return emitExpr<CmpGtOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SGE:
         case ICMP_UGE:
+          revng_log(ExpressionLog, "CmpGeOp");
           return emitExpr<CmpGeOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SLT:
         case ICMP_ULT:
+          revng_log(ExpressionLog, "CmpLtOp");
           return emitExpr<CmpLtOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SLE:
         case ICMP_ULE:
+          revng_log(ExpressionLog, "CmpLeOp");
           return emitExpr<CmpLeOp>(Loc, Type, Lhs, Rhs);
         default:
           revng_abort("Unsupported LLVM comparison predicate.");
@@ -837,8 +913,14 @@ private:
     }
 
     if (auto I = llvm::dyn_cast<llvm::CastInst>(V)) {
+      revng_log(ExpressionLog, "llvm::CastInst");
+      LoggerIndent Indent(ExpressionLog);
+
       mlir::Location Loc = getLocation(I);
-      mlir::Value Operand = rc_recur emitExpression(I->getOperand(0), Loc);
+
+      revng_log(ExpressionLog, "Subexpression:");
+      mlir::Value Operand = (LoggerIndent(ExpressionLog),
+                             rc_recur emitExpression(I->getOperand(0), Loc));
 
       auto getIntegerSize = [](const llvm::Type *Type) {
         const auto *IntegerType = llvm::cast<llvm::IntegerType>(Type);
@@ -851,9 +933,6 @@ private:
                                      getIntegerSize(V->getType()),
                                      Kind);
       };
-
-      //llvm::errs() << *I << "\n";
-      //llvm::errs() << "  " << Operand.getType() << "\n";
 
       switch (I->getOpcode()) {
         using Operators = llvm::CastInst::CastOps;
@@ -887,6 +966,9 @@ private:
     }
 
     if (auto I = llvm::dyn_cast<llvm::CallInst>(V)) {
+      revng_log(ExpressionLog, "llvm::CallInst");
+      LoggerIndent Indent(ExpressionLog);
+
       mlir::Location Loc = getLocation(I);
 
       if (not I->hasMetadata(PrototypeMDName))
@@ -897,8 +979,10 @@ private:
 
       auto CallType = importModelType<clift::FunctionType>(*ModelCallType);
 
-      mlir::Value Function = rc_recur emitExpression(I->getCalledOperand(),
-                                                     Loc);
+      revng_log(ExpressionLog, "Callee subexpression:");
+      mlir::Value Function = (LoggerIndent(ExpressionLog),
+                              rc_recur emitExpression(I->getCalledOperand(),
+                                                      Loc));
 
       clift::FunctionType
         FunctionType = getFunctionOrFunctionPointerFunctionType(Function
@@ -920,10 +1004,13 @@ private:
       revng_assert(I->arg_size() == CallType.getArgumentTypes().size());
 
       llvm::SmallVector<mlir::Value> Arguments;
-      for (auto [A, T, L] : llvm::zip(I->args(),
-                                      CallType.getArgumentTypes(),
-                                      LayoutArguments)) {
-        mlir::Value Argument = rc_recur emitExpression(A, Loc);
+      for (size_t J = 0; auto [A, T, L] : llvm::zip(I->args(),
+                                                    CallType.getArgumentTypes(),
+                                                    LayoutArguments)) {
+
+        revng_log(ExpressionLog, "Argument " << J++ << " subexpression:");
+        mlir::Value Argument = (LoggerIndent(ExpressionLog),
+                                rc_recur emitExpression(A, Loc));
 
         if (isByAddressParameter(L)) {
           Argument = emitImplicitCast(Loc, Argument, makePointerType(T));
@@ -935,6 +1022,7 @@ private:
         Arguments.push_back(Argument);
       }
 
+      revng_log(ExpressionLog, "CallOp");
       rc_return Builder.create<CallOp>(Loc,
                                        CallType.getReturnType(),
                                        Function,
@@ -942,11 +1030,22 @@ private:
     }
 
     if (auto I = llvm::dyn_cast<llvm::SelectInst>(V)) {
+      revng_log(ExpressionLog, "llvm::SelectInst");
+      LoggerIndent Indent(ExpressionLog);
+
       mlir::Location Loc = getLocation(I);
 
-      mlir::Value Condition = rc_recur emitExpression(I->getCondition(), Loc);
-      mlir::Value True = rc_recur emitExpression(I->getTrueValue(), Loc);
-      mlir::Value False = rc_recur emitExpression(I->getFalseValue(), Loc);
+      revng_log(ExpressionLog, "Condition subexpression:");
+      mlir::Value Condition = (LoggerIndent(ExpressionLog),
+                               rc_recur emitExpression(I->getCondition(), Loc));
+
+      revng_log(ExpressionLog, "True subexpression:");
+      mlir::Value True = (LoggerIndent(ExpressionLog),
+                          rc_recur emitExpression(I->getTrueValue(), Loc));
+
+      revng_log(ExpressionLog, "False subexpression:");
+      mlir::Value False = (LoggerIndent(ExpressionLog),
+                           rc_recur emitExpression(I->getFalseValue(), Loc));
 
       auto TrueType = mlir::cast<clift::ValueType>(True.getType());
       auto FalseType = mlir::cast<clift::ValueType>(False.getType());
@@ -1116,6 +1215,9 @@ private:
   RecursiveCoroutine<void>
   emitBasicBlock(const llvm::BasicBlock *BB,
                  const llvm::BasicBlock *InnerPostDom) {
+    revng_log(BasicBlockLog, "BB: '" << BB->getName() << "'");
+    LoggerIndent Indent(BasicBlockLog);
+
     // Map BB to the MLIR block, emit label if necessary:
     {
       auto [Iterator, Inserted] = BlockMapping.try_emplace(BB);
@@ -1206,12 +1308,7 @@ private:
       }
 
 #if 0
-      if (I.use_empty()) {
-        // Any instruction with no uses can be considered the root of an
-        // expression tree. The tree can be emitted in an expression statement.
-        auto Op = Builder.create<ExpressionStatementOp>(mlir::UnknownLoc::get(Context));
-        emitExpressionTree(&I, Op.getExpression());
-      } else if (I.hasNUsesOrMore(2) or isUsedOutsideOfBlock(&I, BB)) {
+      else if (I.hasNUsesOrMore(2) or isUsedOutsideOfBlock(&I, BB)) {
         mlir::Region R;
         mlir::Type Type = emitExpressionTree(&I, R);
 
@@ -1234,10 +1331,14 @@ private:
     if (Terminal->getNumSuccessors() == 1) {
       const llvm::BasicBlock *Succ = Terminal->getSuccessor(0);
 
-      if (HasGotoMarker)
+      if (HasGotoMarker) {
+        revng_log(BasicBlockLog, "Explicit goto: '" << Succ->getName() << "'");
+        LoggerIndent Indent(BasicBlockLog);
         emitGoto(getLocation(Terminal), Succ);
-      else
+      } else if (Succ != InnerPostDom) {
+        revng_log(BasicBlockLog, "Via unconditional successor...");
         rc_recur emitScope(Succ, InnerPostDom);
+      }
 
       rc_return;
     }
@@ -1310,12 +1411,16 @@ private:
       // Emit true branch:
       revng_assert(Op.getThen().empty());
       Builder.setInsertionPointToEnd(&Op.getThen().emplaceBlock());
-      rc_recur emitScope(Branch->getSuccessor(0), InnerPostDom);
+      revng_log(BasicBlockLog, "Via BranchInst[true]:");
+      (LoggerIndent(BasicBlockLog),
+       rc_recur emitScope(Branch->getSuccessor(0), InnerPostDom));
 
       // Emit false branch:
       revng_assert(Op.getElse().empty());
       Builder.setInsertionPointToEnd(&Op.getElse().emplaceBlock());
-      rc_recur emitScope(Branch->getSuccessor(1), InnerPostDom);
+      revng_log(BasicBlockLog, "Via BranchInst[false]:");
+      (LoggerIndent(BasicBlockLog),
+       rc_recur emitScope(Branch->getSuccessor(1), InnerPostDom));
     } else if (auto *Switch = llvm::dyn_cast<llvm::SwitchInst>(Terminal)) {
       llvm::SmallVector<uint64_t> CaseValues;
       CaseValues.reserve(Switch->getNumCases());
@@ -1338,10 +1443,14 @@ private:
         revng_assert(Op.getCaseRegion(I).empty());
         Builder.setInsertionPointToEnd(&Op.getCaseRegion(I).emplaceBlock());
 
-        if (hasBeenEmitted(Succ))
+        LoggerIndent Indent(BasicBlockLog);
+        if (hasBeenEmitted(Succ)) {
+          revng_log(BasicBlockLog, "Implicit goto: '" << Succ->getName() << "'");
           emitGoto(TerminalLoc, Succ);
-        else
+        } else {
+          revng_log(BasicBlockLog, "Via SwitchInst[" << CaseValues[I] << "]:");
           rc_recur emitScope(Succ, InnerPostDom);
+        }
       }
 
       // Emit default block:
@@ -1352,10 +1461,14 @@ private:
         Builder
           .setInsertionPointToEnd(&Op.getDefaultCaseRegion().emplaceBlock());
 
-        if (hasBeenEmitted(Succ))
+        LoggerIndent Indent(BasicBlockLog);
+        if (hasBeenEmitted(Succ)) {
+          revng_log(BasicBlockLog, "Implicit goto: '" << Succ->getName() << "'");
           emitGoto(TerminalLoc, Succ);
-        else
+        } else {
+          revng_log(BasicBlockLog, "Via SwitchInst[default]:");
           rc_recur emitScope(Succ, InnerPostDom);
+        }
       }
     } else {
       revng_abort("Unsupported terminal instruction");
@@ -1412,6 +1525,9 @@ private:
     const model::Function *MF = llvmToModelFunction(Model, *F);
     if (MF == nullptr)
       return;
+
+    revng_log(BasicBlockLog, "Function: '" << F->getName() << "'");
+    LoggerIndent Indent(BasicBlockLog);
 
     auto Op = getOrEmitSymbol(F, [&]() -> FunctionOp {
       return emitModelFunctionDeclaration(F, MF);
