@@ -131,19 +131,26 @@ static bool hasSideEffects(IfNode *If) {
 using UniqueExpr = ASTTree::expr_unique_ptr;
 
 // Helper function to simplify short-circuit IFs
-static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
+static bool simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
+
+  // The following should be an assert, but since the backend is in
+  // maintenance mode, we have an early return to propagate an early
+  // failure.
+  if (RootNode == nullptr) {
+    return false;
+  }
 
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      simplifyShortCircuit(Node, AST);
+      return simplifyShortCircuit(Node, AST);
     }
 
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    simplifyShortCircuit(Scs->getBody(), AST);
+    return simplifyShortCircuit(Scs->getBody(), AST);
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
 
     for (auto &LabelCasePair : Switch->cases())
-      simplifyShortCircuit(LabelCasePair.second, AST);
+      return simplifyShortCircuit(LabelCasePair.second, AST);
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (If->hasBothBranches()) {
@@ -182,7 +189,7 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
             ShortCircuitCounter += 1;
 
             // Recursive call.
-            simplifyShortCircuit(If, AST);
+            return simplifyShortCircuit(If, AST);
           }
         }
 
@@ -216,7 +223,7 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
             // Increment counter
             ShortCircuitCounter += 1;
 
-            simplifyShortCircuit(If, AST);
+            return simplifyShortCircuit(If, AST);
           }
         }
       }
@@ -257,7 +264,7 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
             // Increment counter
             ShortCircuitCounter += 1;
 
-            simplifyShortCircuit(If, AST);
+            return simplifyShortCircuit(If, AST);
           }
         }
 
@@ -290,31 +297,42 @@ static void simplifyShortCircuit(ASTNode *RootNode, ASTTree &AST) {
             // Increment counter
             ShortCircuitCounter += 1;
 
-            simplifyShortCircuit(If, AST);
+            return simplifyShortCircuit(If, AST);
           }
         }
       }
     }
 
     if (If->hasThen())
-      simplifyShortCircuit(If->getThen(), AST);
+      return simplifyShortCircuit(If->getThen(), AST);
     if (If->hasElse())
-      simplifyShortCircuit(If->getElse(), AST);
+      return simplifyShortCircuit(If->getElse(), AST);
   }
+
+  // We return true to notify that no `simplifyShortCircuit` failure arose
+  return true;
 }
 
-static void simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
+static bool simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
+
+  // The following should be an assert, but since the backend is in
+  // maintenance mode, we have an early return to propagate an early
+  // failure.
+  if (RootNode == nullptr) {
+    return false;
+  }
+
   if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
     for (ASTNode *Node : Sequence->nodes()) {
-      simplifyTrivialShortCircuit(Node, AST);
+      return simplifyTrivialShortCircuit(Node, AST);
     }
   } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
-    simplifyTrivialShortCircuit(Scs->getBody(), AST);
+    return simplifyTrivialShortCircuit(Scs->getBody(), AST);
 
   } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
 
     for (auto &LabelCasePair : Switch->cases())
-      simplifyTrivialShortCircuit(LabelCasePair.second, AST);
+      return simplifyTrivialShortCircuit(LabelCasePair.second, AST);
 
   } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
     if (!If->hasElse()) {
@@ -345,16 +363,19 @@ static void simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
           // Increment counter
           TrivialShortCircuitCounter += 1;
 
-          simplifyTrivialShortCircuit(RootNode, AST);
+          return simplifyTrivialShortCircuit(RootNode, AST);
         }
       }
     }
 
     if (If->hasThen())
-      simplifyTrivialShortCircuit(If->getThen(), AST);
+      return simplifyTrivialShortCircuit(If->getThen(), AST);
     if (If->hasElse())
-      simplifyTrivialShortCircuit(If->getElse(), AST);
+      return simplifyTrivialShortCircuit(If->getElse(), AST);
   }
+
+  // We return true to notify that no `simplifyShortCircuit` failure arose
+  return true;
 }
 
 static ASTNode *matchSwitch(ASTTree &AST, ASTNode *RootNode) {
@@ -982,7 +1003,12 @@ bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   // Simplify short-circuit nodes.
   revng_log(BeautifyLogger, "Performing short-circuit simplification\n");
-  simplifyShortCircuit(RootNode, CombedAST);
+
+  // The following call may return `false` as a signal of failure, and in
+  // that case we propagate the error upwards
+  if (not(simplifyShortCircuit(RootNode, CombedAST))) {
+    return false;
+  }
   Dumper.log("after-short-circuit");
 
   // Flip IFs with empty then branches.
@@ -997,7 +1023,12 @@ bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   // Simplify trivial short-circuit nodes.
   revng_log(BeautifyLogger,
             "Performing trivial short-circuit simplification\n");
-  simplifyTrivialShortCircuit(RootNode, CombedAST);
+
+  // The following call may return `false` as a signal of failure, and in
+  // that case we propagate the error upwards
+  if (not(simplifyTrivialShortCircuit(RootNode, CombedAST))) {
+    return false;
+  }
   Dumper.log("after-trivial-short-circuit");
 
   // Flip IFs with empty then branches.
