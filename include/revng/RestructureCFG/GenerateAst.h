@@ -416,7 +416,12 @@ createSwitchTile(RegionCFG<NodeT> &Graph,
       if (not EdgeInfoN.has_value()) {
         EdgeInfoN.emplace(Edge.second);
       } else {
-        revng_assert(EdgeInfoN.value() == Edge.second);
+        // The following should be an assert, but since the backend is in
+        // maintenance mode, we have an early return to propagate an early
+        // failure.
+        if (EdgeInfoN.value() != Edge.second) {
+          return nullptr;
+        }
       }
 
       ASTDT.deleteEdge(Successor, End);
@@ -522,13 +527,6 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
         generateAst(*BodyGraph, CollapsedAST, CollapsedMap);
 
       ASTNode *Body = AST.copyASTNodesFrom(CollapsedAST);
-
-      // We introduce the possibility of soft failing for the call to
-      // `copyASTNodesFrom`, which returns a `nullptr` if it failed in the
-      // substitution. In this case, we return `false` to signal the failure.
-      if (not Body) {
-        return false;
-      }
 
       switch (Successors.size()) {
 
@@ -692,13 +690,18 @@ generateAst(RegionCFG<llvm::BasicBlock *> &Region,
       }
       revng_assert(HasDefault or Node->isWeaved() or Node->isDispatcher());
 
-      createSwitchTile(Region,
-                       ASTDT,
-                       TileToNodeMap,
-                       Node,
-                       CandidateFallthroughBB,
-                       EndIsPartOfTile,
-                       NotInlinedNotTerminalSuccessors);
+      // The following call may return `nullptr` as a signal of failure, and in
+      // that case we propagate the error upwards
+
+      if (not(createSwitchTile(Region,
+                               ASTDT,
+                               TileToNodeMap,
+                               Node,
+                               CandidateFallthroughBB,
+                               EndIsPartOfTile,
+                               NotInlinedNotTerminalSuccessors))) {
+        return false;
+      }
 
       // If we elected a postdominator for the current tile, we retrieve the
       // corresponding AST node in order to set it as the postdominator on the
