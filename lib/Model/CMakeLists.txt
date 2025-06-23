@@ -18,8 +18,6 @@ revng_add_analyses_library_internal(
 
 target_link_libraries(revngModel revngSupport)
 
-# Header files containing model YAML must be added here
-set(MODEL_HEADERS_DIR "${CMAKE_SOURCE_DIR}/include/revng/Model")
 set(SCHEMA_PATH "${CMAKE_SOURCE_DIR}/include/revng/Model/model-schema.yml")
 set(JSONSCHEMA_PATH "${CMAKE_BINARY_DIR}/model-jsonschema.yml")
 set(TYPESCRIPT_PATH "${CMAKE_BINARY_DIR}/lib/typescript/model.ts")
