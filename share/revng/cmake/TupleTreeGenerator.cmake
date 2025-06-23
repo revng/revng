@@ -220,9 +220,8 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" docs --namespace
-      "${NAMESPACE}" ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}" >
-      "${EXPECTED_GENERATED_MARKDOWN}"
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" docs ${SCALAR_TYPE_ARGS}
+      "${YAML_DEFINITIONS}" > "${EXPECTED_GENERATED_MARKDOWN}"
     OUTPUT "${EXPECTED_GENERATED_MARKDOWN}"
     DEPENDS "${YAML_DEFINITIONS}" "${TEMPLATES_DIR}/docs.md.tpl"
             ${TUPLE_TREE_GENERATOR_SOURCES})
@@ -296,9 +295,9 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" jsonschema --namespace
-      "${NAMESPACE}" --output "${OUTPUT_PATH}" ${STRING_TYPE_ARGS}
-      ${SEPARATE_STRING_TYPE_ARGS} ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" jsonschema --output
+      "${OUTPUT_PATH}" ${STRING_TYPE_ARGS} ${SEPARATE_STRING_TYPE_ARGS}
+      ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${TUPLE_TREE_GENERATOR_SOURCES})
 endfunction()
@@ -344,10 +343,10 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" typescript --namespace
-      "${NAMESPACE}" --output "${OUTPUT_PATH}" --global-name "${GLOBAL_NAME}"
-      ${INCLUDE_FILE_ARGS} ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS}
-      ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" typescript --output
+      "${OUTPUT_PATH}" --global-name "${GLOBAL_NAME}" ${INCLUDE_FILE_ARGS}
+      ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS} ${SCALAR_TYPE_ARGS}
+      "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${TYPESCRIPT_TEMPLATES}
             "${CMAKE_SOURCE_DIR}/typescript/model.ts"
@@ -392,10 +391,9 @@ function(
 
   add_custom_command(
     COMMAND
-      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" python --namespace
-      "${NAMESPACE}" --output "${OUTPUT_PATH}" ${PYTHON_MIXINS_ARGS}
-      ${STRING_TYPE_ARGS} ${EXTERNAL_TYPE_ARGS} ${SCALAR_TYPE_ARGS}
-      "${YAML_DEFINITIONS}"
+      "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" python --output
+      "${OUTPUT_PATH}" ${PYTHON_MIXINS_ARGS} ${STRING_TYPE_ARGS}
+      ${EXTERNAL_TYPE_ARGS} ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
     OUTPUT "${OUTPUT_PATH}"
     DEPENDS "${YAML_DEFINITIONS}" ${PYTHON_TEMPLATES}
             ${TUPLE_TREE_GENERATOR_SOURCES})

@@ -29,7 +29,7 @@ class TypeScriptGenerator:
         external_types: Optional[List[str]] = None,
     ):
         self.schema = schema
-        self.metadata = {"root": schema.root_type, "namespace": schema.base_namespace}
+        self.metadata = {"root": schema.root_type}
         self.string_types = string_types if string_types is not None else []
         self.external_types = external_types if external_types is not None else []
         self.external_files = external_files if external_files is not None else []
