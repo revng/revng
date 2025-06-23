@@ -24,9 +24,6 @@ class Subcommand(abc.ABC):
     def __init__(self, name: str, subparser, string_types: bool = False, add_output: bool = False):
         self.parser = subparser.add_parser(name)
         self.parser.add_argument("schema", help="YAML schema")
-        self.parser.add_argument(
-            "--namespace", required=True, help="Base namespace for generated types"
-        )
         self.parser.add_argument("--scalar-type", action="append", default=[], help="Scalar type")
         if string_types:
             self.parser.add_argument(
@@ -58,6 +55,9 @@ class CppSubcommand(Subcommand):
         super().__init__("cpp", subparser)
         self.parser.add_argument("output_dir", help="Output to this directory")
         self.parser.add_argument(
+            "--namespace", required=True, help="Base namespace for generated types"
+        )
+        self.parser.add_argument(
             "--include-path-prefix", required=True, help="Prefixed to include paths"
         )
         self.parser.add_argument(
@@ -65,7 +65,7 @@ class CppSubcommand(Subcommand):
         )
 
     def handle(self, args, schema: Schema):
-        generator = CppGenerator(schema, args.tracking, args.include_path_prefix)
+        generator = CppGenerator(schema, args.namespace, args.tracking, args.include_path_prefix)
         sources = generator.emit()
 
         if which("clang-format") is not None:
@@ -191,7 +191,7 @@ def main():
     with open(args.schema, encoding="utf-8") as f:
         raw_schema = yaml.safe_load(f)
 
-    schema = Schema(raw_schema, args.namespace, args.scalar_type)
+    schema = Schema(raw_schema, args.scalar_type)
     args.handler(args, schema)
 
 

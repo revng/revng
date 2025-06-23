@@ -22,7 +22,7 @@ The notice below applies to the generated files.
 /** if upcastable and struct.key_definition._key **/
 
 using /*= struct.name =*/Key = /*= struct | user_fullname =*/::Key;
-using U/*= struct.name =*/ = /*= struct.namespace =*/::Upcastable/*= struct.name =*/;
+using U/*= struct.name =*/ = /*= base_namespace =*/::Upcastable/*= struct.name =*/;
 using /*= struct.name =*/KOT = KeyedObjectTraits<U/*= struct.name =*/>;
 
 /*= struct.name =*/Key /*= struct.name =*/KOT::key(const U/*= struct.name =*/ &Obj) {
@@ -63,8 +63,8 @@ U/*= struct.name =*/ /*= struct.name =*/KOT::fromKey(const /*= struct.name =*/Ke
 
 /** if upcastable **/
 
-/*= struct.namespace =*/::Upcastable/*= struct.name =*/
-/*= struct.namespace =*/::copy/*= struct.name =*/(const /*= struct.name =*/ &From) {
+/*= base_namespace =*/::Upcastable/*= struct.name =*/
+/*= base_namespace =*/::copy/*= struct.name =*/(const /*= struct.name =*/ &From) {
   Upcastable/*= struct.name =*/ Result;
   upcast(&From, [&Result]<typename T>(const T &Upcasted) {
     Result = Upcastable/*= struct.name =*/::make<T>(Upcasted);
