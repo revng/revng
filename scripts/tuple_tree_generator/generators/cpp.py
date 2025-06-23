@@ -20,12 +20,10 @@ class CppGenerator:
     def __init__(
         self,
         schema: Schema,
-        root_type: str,
         emit_tracking: bool,
         user_include_path: Optional[str] = None,
     ):
         self.schema = schema
-        self.root_type = root_type
         self.emit_tracking = emit_tracking
 
         if not user_include_path:
@@ -173,7 +171,7 @@ class CppGenerator:
                     upcastable=upcastable_types,
                     schema=self.schema,
                     user_include_path=self.user_include_path,
-                    root_type=self.root_type,
+                    root_type=self.schema.root_type,
                     namespace=self.schema.generated_namespace,
                     all_types=all_known_types,
                     base_namespace=self.schema.base_namespace,
@@ -201,7 +199,7 @@ class CppGenerator:
                         upcastable=upcastable_types,
                         user_include_path=self.user_include_path,
                         schema=self.schema,
-                        root_type=self.root_type,
+                        root_type=self.schema.root_type,
                         base_namespace=self.schema.base_namespace,
                         emit_tracking=self.emit_tracking,
                     )

@@ -23,14 +23,13 @@ class TypeScriptGenerator:
     def __init__(
         self,
         schema: Schema,
-        root_type: str,
         global_name: str,
         external_files: Optional[List[str]] = None,
         string_types: Optional[List[str]] = None,
         external_types: Optional[List[str]] = None,
     ):
         self.schema = schema
-        self.metadata = {"root": root_type, "namespace": schema.base_namespace}
+        self.metadata = {"root": schema.root_type, "namespace": schema.base_namespace}
         self.string_types = string_types if string_types is not None else []
         self.external_types = external_types if external_types is not None else []
         self.external_files = external_files if external_files is not None else []

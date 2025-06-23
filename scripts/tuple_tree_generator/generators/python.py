@@ -24,14 +24,13 @@ class PythonGenerator:
     def __init__(
         self,
         schema: Schema,
-        root_type,
         output,
         string_types=None,
         external_types=None,
         mixins_paths=[],
     ):
         self.schema = schema
-        self.root_type = root_type
+        self.root_type = schema.root_type
         self.output = output
         self.string_types = string_types or []
         self.external_types = external_types or []

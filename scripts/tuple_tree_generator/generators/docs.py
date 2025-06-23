@@ -75,9 +75,8 @@ def leaf(target_type):
 
 
 class DocsGenerator:
-    def __init__(self, schema: Schema, root_type):
+    def __init__(self, schema: Schema):
         self.schema = schema
-        self.root_type = root_type
         environment.tests.update(
             {
                 "sequence": is_sequence,
@@ -105,7 +104,7 @@ class DocsGenerator:
             structs=structs,
             generator=self,
             schema=self.schema,
-            root_type=self.root_type,
+            root_type=self.schema.root_type,
             references_map=dict(references),
         )
         return rendered_template

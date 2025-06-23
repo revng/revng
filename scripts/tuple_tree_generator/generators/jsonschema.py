@@ -14,9 +14,8 @@ from .jinja_utils import int_re
 
 
 class JSONSchemaGenerator:
-    def __init__(self, schema: Schema, root_type, string_types=None, separate_string_types=None):
+    def __init__(self, schema: Schema, string_types=None, separate_string_types=None):
         self.schema = schema
-        self.root_type = root_type
         self.string_types = string_types or []
         self.separate_string_types = separate_string_types or []
 
@@ -24,7 +23,7 @@ class JSONSchemaGenerator:
         """Returns the JSON schema as a string"""
         jsonschema = {
             "$schema": "http://json-schema.org/draft-07/schema#",
-            "$ref": f"#/definitions/{self.root_type}",
+            "$ref": f"#/definitions/{self.schema.root_type}",
             "definitions": {
                 "Reference": {
                     "type": "string",

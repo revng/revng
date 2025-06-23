@@ -27,7 +27,6 @@ class Subcommand(abc.ABC):
         self.parser.add_argument(
             "--namespace", required=True, help="Base namespace for generated types"
         )
-        self.parser.add_argument("--root-type", required=True, help="Schema root type")
         self.parser.add_argument("--scalar-type", action="append", default=[], help="Scalar type")
         if string_types:
             self.parser.add_argument(
@@ -66,7 +65,7 @@ class CppSubcommand(Subcommand):
         )
 
     def handle(self, args, schema: Schema):
-        generator = CppGenerator(schema, args.root_type, args.tracking, args.include_path_prefix)
+        generator = CppGenerator(schema, args.tracking, args.include_path_prefix)
         sources = generator.emit()
 
         if which("clang-format") is not None:
@@ -92,7 +91,7 @@ class DocsSubcommand(Subcommand):
         super().__init__("docs", subparser, add_output=True)
 
     def handle(self, args, schema: Schema):
-        generator = DocsGenerator(schema, args.root_type)
+        generator = DocsGenerator(schema)
         self.handle_single_file_output(args.output, generator.emit_docs())
 
 
@@ -107,9 +106,7 @@ class JSONSchemaSubcommand(Subcommand):
         )
 
     def handle(self, args, schema):
-        generator = JSONSchemaGenerator(
-            schema, args.root_type, args.string_type, args.separate_string_type
-        )
+        generator = JSONSchemaGenerator(schema, args.string_type, args.separate_string_type)
         self.handle_single_file_output(args.output, generator.emit_jsonschema())
 
 
@@ -130,7 +127,7 @@ class PythonSubcommand(Subcommand):
 
     def handle(self, args, schema: Schema):
         generator = PythonGenerator(
-            schema, args.root_type, args.output, args.string_type, args.external_type, args.mixins
+            schema, args.output, args.string_type, args.external_type, args.mixins
         )
         self.handle_single_file_output(args.output, generator.emit_python())
 
@@ -154,7 +151,6 @@ class TypescriptSubcommand(Subcommand):
     def handle(self, args, schema: Schema):
         generator = TypeScriptGenerator(
             schema,
-            args.root_type,
             args.global_name,
             args.external_file,
             args.string_type,
@@ -195,7 +191,7 @@ def main():
     with open(args.schema, encoding="utf-8") as f:
         raw_schema = yaml.safe_load(f)
 
-    schema = Schema(raw_schema, args.root_type, args.namespace, args.scalar_type)
+    schema = Schema(raw_schema, args.namespace, args.scalar_type)
     args.handler(args, schema)
 
 

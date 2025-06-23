@@ -3,6 +3,7 @@
 #
 
 version: 1
+root_type: Function
 definitions:
   - name: Function
     type: struct
