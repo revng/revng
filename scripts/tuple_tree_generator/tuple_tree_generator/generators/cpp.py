@@ -16,7 +16,7 @@ from tuple_tree_generator.schema import UpcastableDefinition
 from .jinja_utils import loader
 
 
-class CppHeadersGenerator:
+class CppGenerator:
     def __init__(
         self,
         schema: Schema,

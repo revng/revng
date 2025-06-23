@@ -1,12 +1,12 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 
-from .generators import CppHeadersGenerator, DocsGenerator, JSONSchemaGenerator, PythonGenerator
+from .generators import CppGenerator, DocsGenerator, JSONSchemaGenerator, PythonGenerator
 from .generators import TypeScriptGenerator
 from .schema import Schema
 
 
 def generate_cpp_headers(schema: Schema, root_type, user_include_path, emit_tracking):
-    generator = CppHeadersGenerator(
+    generator = CppGenerator(
         schema,
         root_type=root_type,
         emit_tracking=emit_tracking,

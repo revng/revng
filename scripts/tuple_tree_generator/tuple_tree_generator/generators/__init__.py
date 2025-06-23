@@ -3,7 +3,7 @@
 #
 # flake8: noqa: F401
 
-from .cppheaders import CppHeadersGenerator
+from .cpp import CppGenerator
 from .docs import DocsGenerator
 from .jsonschema import JSONSchemaGenerator
 from .python import PythonGenerator
