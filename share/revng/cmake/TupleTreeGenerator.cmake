@@ -207,7 +207,7 @@ set(TUPLE_TREE_GENERATOR_SOURCES
     "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-jsonschema.py"
     "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-python.py"
     "${SCRIPTS_ROOT_DIR}/tuple-tree-generate-typescript.py"
-    "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/cppheaders.py"
+    "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/cpp.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/__init__.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jinja_utils.py"
     "${SCRIPTS_ROOT_DIR}/tuple_tree_generator/generators/jsonschema.py"
