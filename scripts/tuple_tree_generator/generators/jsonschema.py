@@ -61,8 +61,15 @@ class JSONSchemaGenerator:
             "enum": members,
             "title": definition.name,
         }
-        if definition.doc:
-            jsonschema["description"] = definition.doc
+        if not definition.doc:
+            raise Exception(
+                "Please always provide documentation!\n"
+                + "`doc` field is missing for the `"
+                + str(definition.name)
+                + "` enum."
+            )
+
+        jsonschema["description"] = definition.doc
 
         return jsonschema
 
@@ -72,7 +79,14 @@ class JSONSchemaGenerator:
             "title": definition.name,
             "additionalProperties": False,
         }
-        if definition.doc:
+        if not definition.doc:
+            raise Exception(
+                "Please always provide documentation!\n"
+                + "`doc` field is missing for the `"
+                + str(definition.name)
+                + "` struct."
+            )
+
             jsonschema["description"] = definition.doc
 
         # TODO: a type can be upcastable even if it is not abstract
