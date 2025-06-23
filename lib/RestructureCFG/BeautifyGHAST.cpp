@@ -961,7 +961,7 @@ static ASTNode *promoteNoFallthroughIf(const model::Binary &Model,
   return RootNode;
 }
 
-void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
+bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   // If the --short-circuit-metrics-output-dir=dir argument was passed from
   // command line, we need to print the statistics for the short circuit metrics
@@ -1105,4 +1105,7 @@ void beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
                      << F.getName().data() << "," << ShortCircuitCounter << ","
                      << TrivialShortCircuitCounter << "\n";
   }
+
+  // We return true to notify that not restructuring error arose
+  return true;
 }

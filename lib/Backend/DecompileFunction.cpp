@@ -2052,6 +2052,29 @@ static void turnBodyIntoError(llvm::Function &F) {
   emitAbort(Builder, "Backend Decompilation Failed");
 }
 
+/// Helper function which takes care of preparing the GHAST to emit the soft
+/// fail message
+static void softFail(llvm::Function &F, ASTTree &GHAST) {
+  // Due to how the backend works, it is necessary to blank the body of the
+  // `llvm::Function`, substitute it with a single `BasicBlock` containing the
+  // error message, and call again the backend in order to decompile this new
+  // version of the `Function`.
+
+  // Blank the `GHAST` populated by the first run of `restructureCFG`
+  GHAST = ASTTree();
+
+  // Blank the function, and leave a single `BasicBlock` containing an error
+  // message
+  turnBodyIntoError(F);
+
+  // Call again the `restructureCFG` pass on the new `Function` composed
+  // only by the single `BasicBlock` with an error message
+  bool NewRun = restructureCFG(F, GHAST);
+
+  // The new run of `restructureCFG` must not fail
+  revng_assert(NewRun);
+}
+
 std::string decompile(ControlFlowGraphCache &Cache,
                       llvm::Function &F,
                       const model::Binary &Model,
@@ -2065,36 +2088,23 @@ std::string decompile(ControlFlowGraphCache &Cache,
   // Generate the GHAST and beautify it.
   {
     T2.advance("restructureCFG");
+
+    // If `restructureCFG` failed, we want to provide as the decompiled output
+    // a `Function` with an empty body containing an error message.
     if (not restructureCFG(F, GHAST)) {
-
-      // If `restructureCFG` failed, we want to provide as the decompiled output
-      // a `Function` with an empty body containing an error message. Due to how
-      // the backend works, it is necessary to blank the body of the
-      // `llvm::Function`, substitute it with a single `BasicBlock` containing
-      // the error message, and call again the backend in order to decompile
-      // this new version of the `Function`.
-
-      // Blank the `GHAST` populated by the first run of `restructureCFG`
-      // GHAST.clear();
-      GHAST = ASTTree();
-
-      // Blank the function, and leave a single `BasicBlock` containing an error
-      // message
-      turnBodyIntoError(F);
-
-      // Call again the `restructureCFG` pass on the new `Function` composed
-      // only by the single `BasicBlock` with an error message
-      bool NewRun = restructureCFG(F, GHAST);
-
-      // The new run of `restructureCFG` must not fail
-      revng_assert(NewRun);
+      softFail(F, GHAST);
     }
 
     // TODO: beautification should be optional, but at the moment it's not
     // truly so (if disabled, things crash). We should strive to make it
     // optional for real.
     T2.advance("beautifyAST");
-    beautifyAST(Model, F, GHAST);
+
+    // If `beautifyAST` failed, we want to provide as the decompiled output
+    // a `Function` with an empty body containing an error message.
+    if (not beautifyAST(Model, F, GHAST)) {
+      softFail(F, GHAST);
+    }
   }
 
   T2.advance("decompileFunction");

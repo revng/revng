@@ -12,5 +12,5 @@ class Function;
 
 class ASTTree;
 
-extern void
+extern bool
 beautifyAST(const model::Binary &Model, llvm::Function &F, ASTTree &CombedAST);
