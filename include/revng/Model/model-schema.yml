@@ -121,7 +121,7 @@ definitions:
       - Kind
     abstract: true
   - name: UnionDefinition
-    doc: |
+    doc: |-
       A `union` type.
     type: struct
     inherits: TypeDefinition
@@ -132,7 +132,7 @@ definitions:
           type: SortedVector
           elementType: UnionField
   - name: CABIFunctionDefinition
-    doc: |
+    doc: |-
       The function type described through a C-like prototype plus an ABI.
 
       This is an "high level" representation of the prototype of a function. It is
@@ -163,7 +163,7 @@ definitions:
           type: SortedVector
           elementType: Argument
   - name: EnumDefinition
-    doc: |
+    doc: |-
       An `enum` type definition.
     type: struct
     inherits: TypeDefinition
@@ -264,7 +264,7 @@ definitions:
         doc: The type this `typedef` is aliasing.
         upcastable: true
   - name: StructDefinition
-    doc: |
+    doc: |-
       A `struct` type.
     type: struct
     inherits: TypeDefinition
@@ -273,7 +273,7 @@ definitions:
         doc: The size, in bytes, of the `struct`.
         type: uint64_t
       - name: CanContainCode
-        doc: |
+        doc: |-
           When this field is set to `true` *and* this `struct` is reachable for
           a segment's root type without traversing pointer, arrays or other
           qualifiers, the padding of the struct is treated at if it contains code.
@@ -302,7 +302,7 @@ definitions:
       - name: PrimitiveKind
         type: PrimitiveKind
       - name: Size
-        doc: |
+        doc: |-
           As of now, for floating point primitives, supported sizes include:
           ```
           { 2, 4, 8, 10, 12, 16 }
@@ -502,7 +502,7 @@ definitions:
         type: string
 
       - name: Location
-        doc: |
+        doc: |-
           The set of `MetaAddresses` of the instructions using this variable (or label).
 
         sequence:
@@ -522,7 +522,7 @@ definitions:
     type: struct
     fields:
       - name: Entry
-        doc: |
+        doc: |-
           The address of the entry point.
 
           Note: this does not necessarily correspond to the address of the basic
@@ -713,7 +713,7 @@ definitions:
     key:
       - CallerBlockAddress
   - name: FunctionAttribute
-    doc: |
+    doc: |-
       Attributes for functions. Can be applied both to functions and call sites.
     type: enum
     members:
@@ -983,7 +983,7 @@ definitions:
       # Configuration options that don't belong anywhere else find themselves here.
       # As this list grows, they should be split into their own sub-sections.
       - name: CommentLineWidth
-        doc: |
+        doc: |-
           Sets a recommended comment line width to improve their readability.
 
           The default value is `80`.
@@ -1000,7 +1000,7 @@ definitions:
         type: uint64_t
 
       - name: Location
-        doc: |
+        doc: |-
           The point this comment is attached to, encoded as a set of addresses.
 
           When emitted artifact contains a statement with a set of addresses exactly
@@ -1027,7 +1027,7 @@ definitions:
     type: struct
     fields:
       - name: UnnamedSegmentPrefix
-        doc: |
+        doc: |-
           The prefix for a segment without a name.
 
           The default value is `segment_`.
@@ -1035,7 +1035,7 @@ definitions:
         optional: true
 
       - name: UnnamedDynamicFunctionPrefix
-        doc: |
+        doc: |-
           The prefix for a dynamic function with an invalid name.
 
           The default value is `dynamic_function_`.
@@ -1043,7 +1043,7 @@ definitions:
         optional: true
 
       - name: UnnamedFunctionPrefix
-        doc: |
+        doc: |-
           The prefix for a local function without a name.
 
           The default value is `function_`.
@@ -1051,7 +1051,7 @@ definitions:
         optional: true
 
       - name: UnnamedTypeDefinitionPrefix
-        doc: |
+        doc: |-
           The prefix for a type definition without a name.
 
           The default value is "".
@@ -1062,21 +1062,21 @@ definitions:
         optional: true
 
       - name: UnnamedEnumEntryPrefix
-        doc: |
+        doc: |-
           The prefix for an enum entry without a name.
 
           The default value is `enum_entry_`.
         type: string
         optional: true
       - name: UnnamedStructFieldPrefix
-        doc: |
+        doc: |-
           The prefix for a struct field without a name.
 
           The default value is `offset_`.
         type: string
         optional: true
       - name: UnnamedUnionFieldPrefix
-        doc: |
+        doc: |-
           The prefix for a union member without a name.
 
           The default value is `member_`.
@@ -1084,14 +1084,14 @@ definitions:
         optional: true
 
       - name: UnnamedFunctionArgumentPrefix
-        doc: |
+        doc: |-
           The prefix for a cabi function argument without a name.
 
           The default value is `argument_`.
         type: string
         optional: true
       - name: UnnamedFunctionRegisterPrefix
-        doc: |
+        doc: |-
           The prefix for a raw function register without a name.
 
           The default value is `register_`.
@@ -1099,21 +1099,21 @@ definitions:
         optional: true
 
       - name: UnnamedLocalVariablePrefix
-        doc: |
+        doc: |-
           The prefix for a local variable without a name.
 
           The default value is `var_`.
         type: string
         optional: true
       - name: UnnamedBreakFromLoopVariablePrefix
-        doc: |
+        doc: |-
           The prefix for a local variable without a name.
 
           The default value is `break_from_loop_`.
         type: string
         optional: true
       - name: UnnamedGotoLabelPrefix
-        doc: |
+        doc: |-
           The prefix for a goto label without a name.
 
           The default value is `label_`.
@@ -1121,21 +1121,21 @@ definitions:
         optional: true
 
       - name: UndefinedValuePrefix
-        doc: |
+        doc: |-
           The prefix for an undefined value.
 
           The default value is `undef_`.
         type: string
         optional: true
       - name: OpaqueCSVValuePrefix
-        doc: |
+        doc: |-
           The prefix for accessing an opaque CSV Value.
 
           The default value is `undef_`.
         type: string
         optional: true
       - name: MaximumEnumValuePrefix
-        doc: |
+        doc: |-
           The prefix for the maximum enum value.
 
           The default value is `enum_max_value_`.
@@ -1143,21 +1143,21 @@ definitions:
         optional: true
 
       - name: StackFrameVariableName
-        doc: |
+        doc: |-
           The name of the variable representing stack.
 
           The default value is `stack`.
         type: string
         optional: true
       - name: RawStackArgumentName
-        doc: |
+        doc: |-
           The name of the variable representing stack.
 
           The default value is `stack_arguments`.
         type: string
         optional: true
       - name: LoopStateVariableName
-        doc: |
+        doc: |-
           The name of the variable representing stack.
 
           The default value is `loop_state_var`.
@@ -1165,14 +1165,14 @@ definitions:
         optional: true
 
       - name: StructPaddingPrefix
-        doc: |
+        doc: |-
           The prefix for a padding struct field.
 
           The default value is `padding_at_`.
         type: string
         optional: true
       - name: ArtificialReturnValuePrefix
-        doc: |
+        doc: |-
           The prefix for an artificial raw function return value.
 
           The default value is `artificial_struct_returned_by_`.
@@ -1180,7 +1180,7 @@ definitions:
         optional: true
 
       - name: ReserveNamesStartingWithUnderscore
-        doc: |
+        doc: |-
           When this is set to `true`, all the names starting with underscores will
           have a \ref ReservedNamePrefix prefix attached.
         type: bool
@@ -1202,21 +1202,21 @@ definitions:
         optional: true
 
       - name: AddressStyle
-        doc: |
+        doc: |-
           The default value is `Smart`. See the related enum for further
           explanation.
         type: DisassemblyConfigurationAddressStyle
         optional: true
 
       - name: ImmediateStyle
-        doc: |
+        doc: |-
           The default value is `CHexadecimal`. See the related enum for further
           explanation.
         type: DisassemblyConfigurationImmediateStyle
         optional: true
 
       - name: PrintFullMetaAddress
-        doc: |
+        doc: |-
           Set this to true to include the full meta-address whenever one is printed.
           The default value of `false` omits the address type as long as it matches
           that of the binary.
@@ -1224,7 +1224,7 @@ definitions:
         optional: true
 
       - name: BasicBlockPrefix
-        doc: |
+        doc: |-
           The prefix attached to the basic block address in the disassembly views.
           The default value is `bb_`.
         type: string
@@ -1240,31 +1240,31 @@ definitions:
     type: enum
     members:
       - name: Smart
-        doc: |
+        doc: |-
           Look for the addresses among basic blocks and functions.
           When a match is found, replace the addresses with relevant labels.
           Otherwise, prints an absolute address instead.
 
       - name: SmartWithPCRelativeFallback
-        doc: |
+        doc: |-
           Same as `Smart`, except when unable to single out the target,
           print a PC-relative address instead.
 
       - name: Strict
-        doc: |
+        doc: |-
           Same as `Smart`, except when unable to single out the target,
           print an error token.
 
       - name: Global
-        doc: |
+        doc: |-
           Convert PC relative addresses into global representation.
 
       - name: PCRelative
-        doc: |
+        doc: |-
           Print all the addresses exactly how disassembler emitted them
           in PC-relative mode.
   - name: Argument
-    doc: |
+    doc: |-
       The argument of a `CABIFunctionType`.
     type: struct
     fields:
@@ -1297,63 +1297,63 @@ definitions:
     type: enum
     members:
       - name: SystemV_x86_64
-        doc: |
+        doc: |-
           64-bit SystemV ABI for x86 processor architecture
           ([reference](https://gitlab.com/x86-psABIs/x86-64-ABI)).
       - name: SystemV_x86
-        doc: |
+        doc: |-
           32-bit SystemV ABI for x86 processor architecture ([reference][abi1]).
 
           [abi1]: https://gitlab.com/x86-psABIs/i386-ABI/-/tree/hjl/x86/master
 
       - name: SystemV_x86_regparm_3
-        doc: |
+        doc: |-
           A GCC specific modification of the 32-bit SystemV ABI for x86 processor
           architecture. It allows three first GPR-sized arguments to be passed
           using the EAX, EDX, and ECX registers.
           See the reference for `regparm` x86 function attribute.
 
       - name: SystemV_x86_regparm_2
-        doc: |
+        doc: |-
           A GCC specific modification of the 32-bit SystemV ABI for x86 processor
           architecture. It allows two first GPR-sized arguments to be passed
           using the EAX, and ECX registers.
           See the GCC documentation for `regparm` x86 function attribute.
 
       - name: SystemV_x86_regparm_1
-        doc: |
+        doc: |-
           A GCC specific modification of the 32-bit SystemV ABI for x86 processor
           architecture. It allows the first GPR-sized argument to be passed
           using the EAX register.
           See the GCC documentation for `regparm` x86 function attribute.
 
       - name: Microsoft_x86_64
-        doc: >
+        doc: |-
           64-bit Microsoft ABI for x86 processor architecture
           ([reference][abi2]).
 
           [abi2]: https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention
 
       - name: Microsoft_x86_64_vectorcall
-        doc: |
+        doc: |-
           A modification of 64-bit Microsoft ABI for x86 processor architecture
           ([reference](https://docs.microsoft.com/en-us/cpp/cpp/vectorcall)).
           It allows using extra vector registers for passing function arguments.
 
       - name: Microsoft_x86_cdecl
-        doc: |
+        doc: |-
           The default 32-bit Microsoft ABI for x86 processor architecture
           ([reference](https://docs.microsoft.com/en-us/cpp/cpp/cdecl)).
           It was indented to be compatible with `SystemV_x86` but there are slight
           differences.
 
       - name: Microsoft_x86_cdecl_gcc
-        doc: |
+        doc: |-
           32-bit Microsoft x86 `cdecl` abi as implemented in GCC (subtly different
           from the original).
 
       - name: Microsoft_x86_stdcall
-        doc: |
+        doc: |-
           A modification of the 32-bit `__cdecl` Microsoft ABI for x86 processor
           architecture
           ([reference](https://docs.microsoft.com/en-us/cpp/cpp/stdcall)).
@@ -1361,12 +1361,12 @@ definitions:
           cleanup instead of the caller.
 
       - name: Microsoft_x86_stdcall_gcc
-        doc: |
+        doc: |-
           32-bit Microsoft x86 `stdcall` abi as implemented in GCC (subtly different
           from the original).
 
       - name: Microsoft_x86_thiscall
-        doc: |
+        doc: |-
           A modification of the 32-bit `__stdcall` Microsoft ABI for x86 processor
           architecture
           ([reference](https://docs.microsoft.com/en-us/cpp/cpp/thiscall)).
@@ -1376,7 +1376,7 @@ definitions:
           pointer.
 
       - name: Microsoft_x86_fastcall
-        doc: |
+        doc: |-
           A modification of the 32-bit `__stdcall` Microsoft ABI for x86 processor
           architecture
           ([reference](https://docs.microsoft.com/en-us/cpp/cpp/fastcall)).
@@ -1384,25 +1384,25 @@ definitions:
           first GPR-sized non-aggregate function arguments in registers.
 
       - name: Microsoft_x86_fastcall_gcc
-        doc: |
+        doc: |-
           32-bit Microsoft x86 `fastcall` abi as implemented in GCC (subtly
           different from the original).
 
       - name: Microsoft_x86_vectorcall
-        doc: |
+        doc: |-
           A modification of the 32-bit `__fastcall` Microsoft ABI for x86 processor
           architecture
           ([reference](https://docs.microsoft.com/en-us/cpp/cpp/vectorcall)).
           It allows using extra vector registers for passing function arguments.
 
       - name: AAPCS64
-        doc: |
+        doc: |-
           Stands for `Arm Architecture Procedure Call Standard (64-bit)`
           ([reference](https://github.com/ARM-software/abi-aa/releases)).
           The official ABI for AArch64 (ARM64) processor architecture.
 
       - name: Microsoft_AAPCS64
-        doc: >
+        doc: |-
           Stands for "Arm Architecture Procedure Call Standard (64-bit)".
           This represents the version of the ABI used by windows-on-arm.
           For differences from the original ABI see the [reference][ab3].
@@ -1417,26 +1417,26 @@ definitions:
           code-for-apple-platforms)."
 
       - name: AAPCS
-        doc: |
+        doc: |-
           Stands for "Arm Architecture Procedure Call Standard"
           ([reference](https://github.com/ARM-software/abi-aa/releases)).
           The official ABI for ARM processor architecture.
 
       - name: SystemV_MIPS_o32
-        doc: >
+        doc: |-
           The ABI for MIPS RISC processor architecture
           ([reference][abi4]).
 
           [abi4]: http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
 
       - name: SystemV_MIPSEL_o32
-        doc: >
+        doc: |-
           The ABI for little-endian edition of the MIPS RISC processor architecture
           ([reference][abi5]).
 
           [abi5]: http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
 
       - name: SystemZ_s390x
-        doc: |
+        doc: |-
           The s390x ABI for SystemZ processor architecture
           ([reference](https://github.com/IBM/s390x-abi)).
