@@ -298,6 +298,8 @@ definitions:
   - name: PrimitiveType
     type: struct
     inherits: Type
+    doc: |-
+      A Primitive type defined by its kind (signed, float, etc) and size.
     fields:
       - name: PrimitiveKind
         type: PrimitiveKind
@@ -450,6 +452,8 @@ definitions:
       - VirtualSize
   - name: PrimitiveKind
     type: enum
+    doc: |-
+      The kind of a primitive type.
     members:
       - name: Void
         doc: The `void` type.
@@ -496,6 +500,10 @@ definitions:
 
   - name: LocalIdentifier
     type: struct
+
+    doc: |-
+      The common type for attaching metadata (like names) to function-local
+      identifiers (like variables and labels).
 
     fields:
       - name: Name
@@ -742,6 +750,8 @@ definitions:
       - Register
   - name: Register
     type: enum
+    doc: |-
+      An enum containing the list of all the currently supported registers.
     members:
       # x86 registers
       - name: eax_x86
@@ -973,6 +983,11 @@ definitions:
       - name: f15_systemz
   - name: Configuration
     type: struct
+    doc: A list of configuration options
+
+    # This of this as a temporary place to put the project-local (user-local?)
+    # configuration before a more comprehensive solution is introduced.
+
     fields:
       - name: Disassembly
         type: DisassemblyConfiguration
@@ -993,10 +1008,19 @@ definitions:
         optional: true
   - name: StatementComment
     type: struct
+    doc: |-
+      A comment that can be attached to a statement in the decompiled code
+      *if* we have a way to uniquely identify said statement.
 
     fields:
       - name: Index
-        doc: The index of the comment
+        doc: |-
+          The index of the comment.
+
+          Note that this is used exclusively to simplify lookup of
+          the *existing* comments. This way address set doesn't need to be
+          encoded in the location and any emitted comment can be looked up (and,
+          consecutively, edited) based on this index alone.
         type: uint64_t
 
       - name: Location
@@ -1025,6 +1049,9 @@ definitions:
       - Index
   - name: NamingConfiguration
     type: struct
+    doc: |-
+      Subset of configuration options dedicated to naming rules, mostly (but not
+      exclusively) centered around reserved name prefixes.
     fields:
       - name: UnnamedSegmentPrefix
         doc: |-
@@ -1187,6 +1214,8 @@ definitions:
         optional: true
   - name: DisassemblyConfiguration
     type: struct
+    doc: |-
+      The subset of configuration options dedicated to the disassembly view.
     fields:
       - name: DisableEmissionOfInstructionAddress
         type: bool
@@ -1232,12 +1261,17 @@ definitions:
 
   - name: DisassemblyConfigurationImmediateStyle
     type: enum
+    doc: |-
+      An enum listing immediate emission style in the disassembly views.
     members:
       - name: Decimal
       - name: CHexadecimal
       - name: AsmHexadecimal
   - name: DisassemblyConfigurationAddressStyle
     type: enum
+    doc: |-
+      An enum listing address (as in label) emission style in the disassembly
+      views.
     members:
       - name: Smart
         doc: |-
@@ -1285,6 +1319,8 @@ definitions:
       - Index
   - name: Architecture
     type: enum
+    doc: |-
+      An enum listing all the currently supported architectures.
     members:
       - name: x86
       - name: x86_64
@@ -1295,6 +1331,8 @@ definitions:
       - name: systemz
   - name: ABI
     type: enum
+    doc: |-
+      An enum listing all the currently supported ABIs.
     members:
       - name: SystemV_x86_64
         doc: |-
