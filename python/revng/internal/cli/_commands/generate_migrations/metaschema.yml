@@ -12,6 +12,8 @@ definitions:
       version:
         type: integer
         minimum: 1
+      root_type:
+        type: string
       definitions:
         type: array
         additionalItems: false

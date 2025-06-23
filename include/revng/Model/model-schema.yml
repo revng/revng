@@ -3,6 +3,7 @@
 #
 
 version: 4
+root_type: Binary
 definitions:
   - name: Binary
     doc: |-

@@ -55,8 +55,6 @@ target_tuple_tree_generator(
   efa
   SCHEMA_PATH
   ${SCHEMA_PATH}
-  ROOT_TYPE
-  ControlFlowGraph
   SEPARATE_STRING_TYPES
   "MetaAddress"
   SCALAR_TYPES
