@@ -87,7 +87,7 @@ class JSONSchemaGenerator:
                 + "` struct."
             )
 
-            jsonschema["description"] = definition.doc
+        jsonschema["description"] = definition.doc
 
         # TODO: a type can be upcastable even if it is not abstract
         if definition.abstract:
@@ -99,6 +99,14 @@ class JSONSchemaGenerator:
             for field in definition.all_fields:
                 field_definition = self._convert_struct_field(field)
                 properties[field.name] = field_definition
+
+                if not field.doc:
+                    raise Exception(
+                        "Please always provide documentation!\n"
+                        + "`doc` field is missing for the `"
+                        + str(field.name)
+                        + "` field."
+                    )
 
             jsonschema["required"] = [f.name for f in definition.all_required_fields]
             jsonschema["properties"] = properties
