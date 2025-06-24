@@ -4,27 +4,38 @@
 
 version: 5
 root_type: Binary
+
 definitions:
+  #
+  # Binary (the model Root)
+  #
+
   - name: Binary
+    type: struct
+
     doc: |-
       Data structure representing the whole binary.
       This is the entry point of the model.
-      It contains the type system (`Types`), the list of functions (`Functions`),
-      loading information (`Segments`) and more.
-    type: struct
+      It contains the type system (`TypeDefinitions`),
+      the list of functions (`Functions`), loading information (`Segments`),
+      and more.
+
     fields:
       - name: Architecture
         doc: The architecture for this binary.
         type: Architecture
         optional: true
+
       - name: EntryPoint
         doc: The program entry point, if any.
         type: MetaAddress
         optional: true
+
       - name: DefaultABI
         doc: The default ABI to adopt for analysis purposes.
         type: ABI
         optional: true
+
       - name: DefaultPrototype
         doc: |-
           The default function prototype to adopt for functions that do not provide
@@ -32,9 +43,11 @@ definitions:
         type: Type
         optional: true
         upcastable: true
+
       - name: Configuration
         type: Configuration
         optional: true
+
       - name: Segments
         doc: |-
           `Segment`s represent instructions on what part of the raw binary needs to
@@ -43,6 +56,7 @@ definitions:
           type: SortedVector
           elementType: Segment
         optional: true
+
       - name: ExtraCodeAddresses
         doc: |-
           A list of addresses known to contain code.
@@ -58,6 +72,7 @@ definitions:
         sequence:
           type: SortedVector
           elementType: MetaAddress
+
       - name: ImportedLibraries
         doc: |-
           The list of imported libraries identified by their file name.
@@ -67,18 +82,21 @@ definitions:
           type: SortedVector
           elementType: string
         optional: true
+
       - name: ImportedDynamicFunctions
         doc: List of functions imported from dynamic libraries (`.so`, `.dll`).
         sequence:
           type: SortedVector
           elementType: DynamicFunction
         optional: true
+
       - name: Functions
         doc: List of the functions present in the binary.
         sequence:
           type: SortedVector
           elementType: Function
         optional: true
+
       - name: TypeDefinitions
         doc: |-
           The set of types used in this binary.
@@ -88,7 +106,14 @@ definitions:
           upcastable: true
           elementType: TypeDefinition
         optional: true
+
+  #
+  # Type definition system
+  #
+
   - name: TypeDefinition
+    type: struct
+
     doc: |-
       Base data structure for all the type definitions.
 
@@ -99,39 +124,36 @@ definitions:
 
       A type definition can be a `struct`, a `union`, a `typedef`, an `enum` or a
       function prototype.
-    type: struct
+
+    key:
+      - ID
+      - Kind
+    abstract: true
+
     fields:
       - name: ID
         type: uint64_t
         is_guid: true
         doc: |-
           A unique identifier for this type.
+
       - name: Kind
         type: TypeDefinitionKind
+
       - name: Name
         doc: |-
           A user-chosen `Identifier` for this type.
         type: string
         optional: true
+
       - name: Comment
         type: string
         optional: true
-    key:
-      - ID
-      - Kind
-    abstract: true
-  - name: UnionDefinition
-    doc: |-
-      A `union` type.
-    type: struct
-    inherits: TypeDefinition
-    fields:
-      - name: Fields
-        doc: The list of alternative types in this `union`.
-        sequence:
-          type: SortedVector
-          elementType: UnionField
+
   - name: CABIFunctionDefinition
+    inherits: TypeDefinition
+    type: struct
+
     doc: |-
       The function type described through a C-like prototype plus an ABI.
 
@@ -143,30 +165,62 @@ definitions:
       In contrast, a `RawFunctionType` is not associated to any ABI and explicitly
       describes, among other things, what registers are used to pass arguments and
       return values.
-    type: struct
-    inherits: TypeDefinition
+
     fields:
       - name: ABI
         type: ABI
         doc: The C ABI associated to this function type.
+
       - name: ReturnType
         type: Type
         doc: The function return type.
         optional: true
         upcastable: true
+
       - name: ReturnValueComment
         type: string
         optional: true
+
       - name: Arguments
         doc: The list of formal arguments of the function type.
         sequence:
           type: SortedVector
           elementType: Argument
+
+  - name: Argument
+    type: struct
+
+    doc: |-
+      The argument of a `CABIFunctionType`.
+
+    key:
+      - Index
+
+    fields:
+      - name: Index
+        type: uint64_t
+        doc: The argument index.
+
+      - name: Type
+        type: Type
+        doc: The type of the argument.
+        upcastable: true
+
+      - name: Name
+        type: string
+        optional: true
+
+      - name: Comment
+        type: string
+        optional: true
+
   - name: EnumDefinition
+    inherits: TypeDefinition
+    type: struct
+
     doc: |-
       An `enum` type definition.
-    type: struct
-    inherits: TypeDefinition
+
     fields:
       - name: UnderlyingType
         type: Type
@@ -176,6 +230,7 @@ definitions:
 
           This can only be a `PrimitiveType` with either a `Unsigned` or a `Signed`
           kind.
+
       - name: Entries
         doc: |-
           The entries of the `enum`.
@@ -184,9 +239,37 @@ definitions:
         sequence:
           type: SortedVector
           elementType: EnumEntry
-  - name: RawFunctionDefinition
+
+  - name: EnumEntry
     type: struct
+
+    doc: An entry in an `enum`.
+
+    key:
+      - Value
+
+    fields:
+      - name: Value
+        doc: |-
+          The value associated to this `enum` entry.
+
+          Has to be unique within the `enum`.
+        type: uint64_t
+
+      - name: Name
+        type: string
+        optional: true
+        doc: |-
+          A user-chosen `Identifier` for this `enum` entry.
+
+      - name: Comment
+        type: string
+        optional: true
+
+  - name: RawFunctionDefinition
     inherits: TypeDefinition
+    type: struct
+
     doc: |-
       The function type described by explicitly listing how arguments and return
       values are passed.
@@ -200,10 +283,12 @@ definitions:
       high-level perspective (e.g., a single argument might span multiple registers)
       and his associated to a well-known ABI. Given an ABI, it is always possible
       to convert a `CABIFunctionDefinition` into a `RawFunctionDefinition`.
+
     fields:
       - name: Architecture
         type: Architecture
         doc: The processor architecture of this function type.
+
       - name: Arguments
         optional: true
         sequence:
@@ -213,6 +298,7 @@ definitions:
           The list of registers used to pass arguments.
 
           The registers must belong to `Architecture`.
+
       - name: ReturnValues
         optional: true
         sequence:
@@ -222,9 +308,11 @@ definitions:
           The list of registers used to return values.
 
           The registers must belong to `Architecture`.
+
       - name: ReturnValueComment
         type: string
         optional: true
+
       - name: PreservedRegisters
         optional: true
         sequence:
@@ -234,6 +322,7 @@ definitions:
           The list of registers preserved by functions using this function type.
 
           The registers must belong to `Architecture`.
+
       - name: FinalStackOffset
         type: uint64_t
         optional: true
@@ -245,33 +334,68 @@ definitions:
           initial and final value of the stack pointer is 8.
           This is due to the fact that `ret` instruction increase the stack pointer
           by 8.
+
       - name: StackArgumentsType
         doc: The type of the `struct` representing all of the stack arguments.
         type: Type
         optional: true
         upcastable: true
+
+  - name: NamedTypedRegister
+    type: struct
+
+    doc: |-
+      An argument or return values in a `RawFunctionDefinition`.
+
+      It is basically a pair of a register and a `Type`.
+
+    key:
+      - Location
+
+    fields:
+      - name: Location
+        type: Register
+
+      - name: Type
+        type: Type
+        upcastable: true
+
+      - name: Name
+        type: string
+        optional: true
+
+      - name: Comment
+        type: string
+        optional: true
+
   - name: TypedefDefinition
+    inherits: TypeDefinition
+    type: struct
+
     doc: |-
       A `typedef` type.
 
       Note, that unlike in C, two `typedef`s aliasing the same type are actually
       distinct types.
-    type: struct
-    inherits: TypeDefinition
+
     fields:
       - name: UnderlyingType
         type: Type
         doc: The type this `typedef` is aliasing.
         upcastable: true
+
   - name: StructDefinition
+    inherits: TypeDefinition
+    type: struct
+
     doc: |-
       A `struct` type.
-    type: struct
-    inherits: TypeDefinition
+
     fields:
       - name: Size
         doc: The size, in bytes, of the `struct`.
         type: uint64_t
+
       - name: CanContainCode
         doc: |-
           When this field is set to `true` *and* this `struct` is reachable for
@@ -279,30 +403,114 @@ definitions:
           qualifiers, the padding of the struct is treated at if it contains code.
         type: bool
         optional: true
+
       - name: Fields
         doc: The list of fields of this `struct`.
         sequence:
           type: SortedVector
           elementType: StructField
+
+  - name: StructField
+    type: struct
+
+    doc: |-
+      A field of a `StructDefinition`.
+
+      It is composed by the offset of the field and its type.
+
+    key:
+      - Offset
+
+    fields:
+      - name: Offset
+        type: uint64_t
+
+      - name: Name
+        type: string
+        optional: true
+
+      - name: Comment
+        type: string
+        optional: true
+
+      - name: Type
+        type: Type
+        doc: The type of the field.
+        upcastable: true
+
+  - name: UnionDefinition
+    inherits: TypeDefinition
+    type: struct
+
+    doc: |-
+      A `union` type.
+
+    fields:
+      - name: Fields
+        doc: The list of alternative types in this `union`.
+        sequence:
+          type: SortedVector
+          elementType: UnionField
+
+  - name: UnionField
+    type: struct
+
+    doc: |-
+      An alternative of a `UnionDefinition`.
+
+      It is composed by a index and the `Type`.
+
+    key:
+      - Index
+
+    fields:
+      - name: Index
+        type: uint64_t
+
+      - name: Name
+        type: string
+        optional: true
+
+      - name: Comment
+        type: string
+        optional: true
+
+      - name: Type
+        type: Type
+        doc: The type of this `union` alternative.
+        upcastable: true
+
+  #
+  # Type wrapping system (pointers / arrays / primitives)
+  #
+
   - name: Type
+    type: struct
+
     doc: |-
       A type such as an array, a pointer, a primitive or a defined type.
-    type: struct
+
+    abstract: true
+
     fields:
       - name: Kind
         type: TypeKind
+
       - name: IsConst
         type: bool
         optional: true
-    abstract: true
+
   - name: PrimitiveType
-    type: struct
     inherits: Type
+    type: struct
+
     doc: |-
       A Primitive type defined by its kind (signed, float, etc) and size.
+
     fields:
       - name: PrimitiveKind
         type: PrimitiveKind
+
       - name: Size
         doc: |-
           As of now, for floating point primitives, supported sizes include:
@@ -318,127 +526,155 @@ definitions:
           supported sizes, floating point or not.
         type: uint64_t
         optional: true
+
+  - name: PrimitiveKind
+    type: enum
+
+    doc: |-
+      The kind of a primitive type.
+
+    members:
+      - name: Void
+        doc: The `void` type.
+
+      - name: Generic
+        doc: |-
+          The most generic primitive kind: it can be any of the other primitive
+          kinds, except for `Void`.
+
+      - name: PointerOrNumber
+        doc: |-
+          A kind representing either a `Number` kind or a pointer.
+          This can also be seen as not-a-`Float`.
+
+      - name: Number
+        doc: |-
+          A two's complement integer number, either `Signed` or `Unsigned`.
+
+      - name: Unsigned
+        doc: |-
+          An `unsigned` two's complement integer number.
+
+      - name: Signed
+        doc: |-
+          An `signed` two's complement integer number.
+
+      - name: Float
+        doc: |-
+          A IEEE 754 floating point number.
+
   - name: PointerType
-    type: struct
     inherits: Type
+    type: struct
+
     doc: A pointer type.
+
     fields:
       - name: PointerSize
         doc: As of now, only 4 and 8 byte pointers are supported.
         type: uint64_t
+
       - name: PointeeType
         type: Type
         doc: The pointee type.
         upcastable: true
+
   - name: DefinedType
-    type: struct
     inherits: Type
+    type: struct
+
     doc: A reference to a `TypeDefinition`.
+
     fields:
       - name: Definition
         reference:
           pointeeType: TypeDefinition
           rootType: Binary
+
   - name: ArrayType
+    inherits: Type
     type: struct
+
     doc: |-
       An array of `Type`s.
-    inherits: Type
+
     fields:
       - name: ElementCount
         type: uint64_t
         doc: The number of elements.
+
       - name: ElementType
         type: Type
         upcastable: true
         doc: The type of the elements of the array.
-  - name: UnionField
-    doc: |-
-      An alternative of a `UnionDefinition`.
 
-      It is composed by a index and the `Type`.
-    type: struct
-    fields:
-      - name: Index
-        type: uint64_t
-      - name: Name
-        type: string
-        optional: true
-      - name: Comment
-        type: string
-        optional: true
-      - name: Type
-        type: Type
-        doc: The type of this `union` alternative.
-        upcastable: true
-    key:
-      - Index
-  - name: StructField
-    doc: |-
-      A field of a `StructDefinition`.
+  #
+  # Segments and function in the binary
+  #
 
-      It is composed by the offset of the field and its type.
-    type: struct
-    fields:
-      - name: Offset
-        type: uint64_t
-      - name: Name
-        type: string
-        optional: true
-      - name: Comment
-        type: string
-        optional: true
-      - name: Type
-        type: Type
-        doc: The type of the field.
-        upcastable: true
-    key:
-      - Offset
   - name: Segment
     type: struct
+
     doc: |-
       A segment contains the information necessary for rev.ng to load the executable
       in memory.
+
+    key:
+      - StartAddress
+      - VirtualSize
+
     fields:
       - name: StartAddress
         type: MetaAddress
         doc: The address at which this segment should be loaded.
+
       - name: VirtualSize
         type: uint64_t
         doc: |-
           The size of the segment in memory.
           If this value is greater than `FileSize`, the discrepancy is considered to
           full of `00`.
+
       - name: StartOffset
         type: uint64_t
         doc: Start file offset from which the segment will be loaded.
+
       - name: FileSize
         type: uint64_t
         doc: Number of bytes that will be loaded in memory from the file.
+
       - name: IsReadable
         type: bool
         doc: Is this segment readable?
+
       - name: IsWriteable
         type: bool
         doc: Is this segment writable?
+
       - name: IsExecutable
         type: bool
+        doc: Is this segment executable?
+
       - name: Name
         type: string
         optional: true
+
       - name: Comment
         type: string
         optional: true
+
       - name: CanonicalRegisterValues
         optional: true
         sequence:
           type: SortedVector
           elementType: CanonicalRegisterValue
+
       - name: Relocations
         optional: true
         sequence:
           type: SortedVector
           elementType: Relocation
+
       - name: Type
         doc: |-
           The `StructDefinition` associated to this segment.
@@ -447,56 +683,123 @@ definitions:
         upcastable: true
         optional: true
 
-    key:
-      - StartAddress
-      - VirtualSize
-  - name: PrimitiveKind
-    type: enum
-    doc: |-
-      The kind of a primitive type.
-    members:
-      - name: Void
-        doc: The `void` type.
-      - name: Generic
-        doc: |-
-          The most generic primitive kind: it can be any of the other primitive
-          kinds, except for `Void`.
-      - name: PointerOrNumber
-        doc: |-
-          A kind representing either a `Number` kind or a pointer.
-          This can also be seen as not-a-`Float`.
-      - name: Number
-        doc: |-
-          A two's complement integer number, either `Signed` or `Unsigned`.
-      - name: Unsigned
-        doc: |-
-          An `unsigned` two's complement integer number.
-      - name: Signed
-        doc: |-
-          An `signed` two's complement integer number.
-      - name: Float
-        doc: |-
-          A IEEE 754 floating point number.
-  - name: NamedTypedRegister
+  - name: Function
     type: struct
-    doc: |-
-      An argument or return values in a `RawFunctionDefinition`.
 
-      It is basically a pair of a register and a `Type`.
+    doc: A function defined within this binary.
+
+    key:
+      - Entry
+
     fields:
-      - name: Location
-        type: Register
-      - name: Type
-        type: Type
-        upcastable: true
+      - name: Entry
+        doc: |-
+          The address of the entry point.
+
+          Note: this does not necessarily correspond to the address of the basic
+          block with the lowest address.
+        type: MetaAddress
+
       - name: Name
         type: string
         optional: true
+
       - name: Comment
         type: string
         optional: true
+
+      - name: StackFrameType
+        doc: The type of the stack frame.
+        type: Type
+        upcastable: true
+        optional: true
+
+      - name: Prototype
+        doc: The prototype of the function.
+        type: Type
+        upcastable: true
+        optional: true
+
+      - name: Attributes
+        doc: Attributes for this call site.
+        sequence:
+          type: MutableSet
+          elementType: FunctionAttribute
+        optional: true
+
+      - name: CallSitePrototypes
+        doc: |-
+          Information about specific call sites within this function.
+        sequence:
+          type: SortedVector
+          elementType: CallSitePrototype
+        optional: true
+
+      - name: ExportedNames
+        doc: |-
+          The list of names used to make this function available as a dynamic
+          symbol.
+        sequence:
+          type: SortedVector
+          elementType: string
+        optional: true
+
+      - name: Comments
+        sequence:
+          type: SortedVector
+          elementType: StatementComment
+        optional: true
+
+      - name: LocalVariables
+        sequence:
+          type: SortedVector
+          elementType: LocalIdentifier
+        optional: true
+
+      - name: GotoLabels
+        sequence:
+          type: SortedVector
+          elementType: LocalIdentifier
+        optional: true
+
+  - name: DynamicFunction
+    type: struct
+
+    doc: A function defined in a dynamic library.
+
     key:
-      - Location
+      - Name
+
+    fields:
+      - name: Name
+        doc: The name of the symbol for this dynamic function.
+        type: string
+
+      - name: Comment
+        type: string
+        optional: true
+
+      - name: Prototype
+        doc: The prototype of the function.
+        type: Type
+        upcastable: true
+        optional: true
+
+      - name: Attributes
+        doc: The attributes of this dynamic function.
+        sequence:
+          type: MutableSet
+          elementType: FunctionAttribute
+        optional: true
+
+      - name: Relocations
+        doc: |-
+          A list of locations where the address of this dynamic function should
+          be placed.
+        sequence:
+          type: SortedVector
+          elementType: Relocation
+        optional: true
 
   - name: LocalIdentifier
     type: struct
@@ -504,6 +807,14 @@ definitions:
     doc: |-
       The common type for attaching metadata (like names) to function-local
       identifiers (like variables and labels).
+
+    key:
+      # Using the name as the key might not be the best from the invalidation
+      # standpoint, as renaming any variable would invalidate the entire set.
+      #
+      # On the other hand, this reduces potential duplication friction.
+      # As well as allows us to avoid an artificial key (like index).
+      - Name
 
     fields:
       - name: Name
@@ -517,241 +828,364 @@ definitions:
           type: SortedVector
           elementType: MetaAddress
 
-    key:
-      # Using the name as the key might not be the best from the invalidation
-      # standpoint, as renaming any variable would invalidate the entire set.
-      #
-      # On the other hand, this reduces potential duplication friction.
-      # As well as allows us to avoid an artificial key (like index).
-      - Name
-
-  - name: Function
-    doc: A function defined within this binary.
-    type: struct
-    fields:
-      - name: Entry
-        doc: |-
-          The address of the entry point.
-
-          Note: this does not necessarily correspond to the address of the basic
-          block with the lowest address.
-        type: MetaAddress
-      - name: Name
-        type: string
-        optional: true
-      - name: Comment
-        type: string
-        optional: true
-      - name: StackFrameType
-        doc: The type of the stack frame.
-        type: Type
-        upcastable: true
-        optional: true
-      - name: Prototype
-        doc: The prototype of the function.
-        type: Type
-        upcastable: true
-        optional: true
-      - name: Attributes
-        doc: Attributes for this call site.
-        sequence:
-          type: MutableSet
-          elementType: FunctionAttribute
-        optional: true
-      - name: CallSitePrototypes
-        doc: |-
-          Information about specific call sites within this function.
-        sequence:
-          type: SortedVector
-          elementType: CallSitePrototype
-        optional: true
-      - name: ExportedNames
-        doc: |-
-          The list of names used to make this function available as a dynamic
-          symbol.
-        sequence:
-          type: SortedVector
-          elementType: string
-        optional: true
-      - name: Comments
-        sequence:
-          type: SortedVector
-          elementType: StatementComment
-        optional: true
-      - name: LocalVariables
-        sequence:
-          type: SortedVector
-          elementType: LocalIdentifier
-        optional: true
-      - name: GotoLabels
-        sequence:
-          type: SortedVector
-          elementType: LocalIdentifier
-        optional: true
-    key:
-      - Entry
-  - name: EnumEntry
-    doc: An entry in an `enum`.
-    type: struct
-    fields:
-      - name: Value
-        doc: |-
-          The value associated to this `enum` entry.
-
-          Has to be unique within the `enum`.
-        type: uint64_t
-      - name: Name
-        type: string
-        optional: true
-        doc: |-
-          A user-chosen `Identifier` for this `enum` entry.
-      - name: Comment
-        type: string
-        optional: true
-    key:
-      - Value
-  - name: DynamicFunction
-    doc: A function defined in a dynamic library.
-    type: struct
-    fields:
-      - name: Name
-        doc: The name of the symbol for this dynamic function.
-        type: string
-      - name: Comment
-        type: string
-        optional: true
-      - name: Prototype
-        doc: The prototype of the function.
-        type: Type
-        upcastable: true
-        optional: true
-      - name: Attributes
-        doc: The attributes of this dynamic function.
-        sequence:
-          type: MutableSet
-          elementType: FunctionAttribute
-        optional: true
-      - name: Relocations
-        doc: |-
-          A list of locations where the address of this dynamic function should
-          be placed.
-        sequence:
-          type: SortedVector
-          elementType: Relocation
-        optional: true
-
-    key:
-      - Name
   - name: Relocation
     type: struct
+
     doc: |-
       A relocation, i.e., a directive to write the address of an object (a
       `DynamicFunction` or a `Segment`) at a specific address.
       Optionally, the address of the object can be modified with a constant offset.
+
+    key:
+      - Address
+      - Type
+
     fields:
       - name: Address
         type: MetaAddress
         doc: Where to write the address of the object.
+
       - name: Type
         type: RelocationType
         doc: |-
           How to write the address of the object (e.g., 32-bit vs 64-bit
           integer).
+
       - name: Addend
         type: uint64_t
         doc: Fixed offset to add when writing the address of the object.
 
-    key:
-      - Address
-      - Type
   - name: RelocationType
+    type: enum
+
     doc: |-
       A enumeration describing how a `Relocation` should be written at the target
       address.
-    type: enum
+
     members:
       - name: WriteAbsoluteAddress32
         doc: Write the absolute address of the object as a 32-bit integer.
+
       - name: WriteAbsoluteAddress64
         doc: Write the absolute address of the object as a 64-bit integer.
+
       - name: AddAbsoluteAddress32
         doc: |-
           Add to the 32-bit integer present at the target location the absolute
           address of the object.
+
       - name: AddAbsoluteAddress64
         doc: |-
           Add to the 64-bit integer present at the target location the absolute
           address of the object.
+
       - name: WriteRelativeAddress32
         doc: |-
           Write the address of the object as a 32-bit integer, expressed as a
           relative from the target of the relocation.
+
       - name: WriteRelativeAddress64
         doc: |-
           Write the address of the object as a 64-bit integer, expressed as a
           relative from the target of the relocation.
+
       - name: AddRelativeAddress32
         doc: |-
           Add to the 32-bit integer present at the target location the address of
           the object, expressed as a relative from the target of the relocation.
+
       - name: AddRelativeAddress64
         doc: |-
           Add to the 32-bit integer present at the target location the address of
           the object, expressed as a relative from the target of the relocation.
+
   - name: CallSitePrototype
-    doc: Information about the prototype of a specific callsite within a `Function`.
     type: struct
+
+    doc: Information about the prototype of a specific callsite within a `Function`.
+
+    key:
+      - CallerBlockAddress
+
     fields:
       - name: CallerBlockAddress
         doc: Address of the basic block of the call.
         type: MetaAddress
+
       - name: Prototype
         type: Type
         upcastable: true
+
       - name: IsTailCall
         doc: Whether this call site is a tail call or not.
         type: bool
         optional: true
+
       - name: Attributes
         doc: Attributes for this call site.
         sequence:
           type: MutableSet
           elementType: FunctionAttribute
         optional: true
-    key:
-      - CallerBlockAddress
+
   - name: FunctionAttribute
+    type: enum
+
     doc: |-
       Attributes for functions. Can be applied both to functions and call sites.
-    type: enum
+
     members:
       - name: NoReturn
         doc: The function does not return.
+
       - name: Inline
         doc: The function must be inlined in callers.
+
+  - name: StatementComment
+    type: struct
+
+    doc: |-
+      A comment that can be attached to a statement in the decompiled code
+      *if* we have a way to uniquely identify said statement.
+
+    key:
+      - Index
+
+    fields:
+      - name: Index
+        doc: |-
+          The index of the comment.
+
+          Note that this is used exclusively to simplify lookup of
+          the *existing* comments. This way address set doesn't need to be
+          encoded in the location and any emitted comment can be looked up (and,
+          consecutively, edited) based on this index alone.
+        type: uint64_t
+
+      - name: Location
+        doc: |-
+          The point this comment is attached to, encoded as a set of addresses.
+
+          When emitted artifact contains a statement with a set of addresses exactly
+          matching the set provided here, the comment is emitted before that
+          statement.
+
+          If there's no such statement, one is chosen based on how similar its
+          address set is to the address set of the comment.
+
+          Note that the same comment can be emitted multiple times if there are
+          multiple statements (that do *not* dominate each other) with the same
+          address set.
+
+        sequence:
+          type: SortedVector
+          elementType: MetaAddress
+
+      - name: Body
+        type: string
+
+  #
+  # Important enums
+  #
+
+  - name: Architecture
+    type: enum
+
+    doc: |-
+      An enum listing all the currently supported architectures.
+
+    members:
+      - name: x86
+      - name: x86_64
+      - name: arm
+      - name: aarch64
+      - name: mips
+      - name: mipsel
+      - name: systemz
+
+  - name: ABI
+    type: enum
+
+    doc: |-
+      An enum listing all the currently supported ABIs.
+
+    members:
+      - name: SystemV_x86_64
+        doc: |-
+          64-bit SystemV ABI for x86 processor architecture
+          ([reference](https://gitlab.com/x86-psABIs/x86-64-ABI)).
+
+      - name: SystemV_x86
+        doc: |-
+          32-bit SystemV ABI for x86 processor architecture ([reference][abi1]).
+
+          [abi1]: https://gitlab.com/x86-psABIs/i386-ABI/-/tree/hjl/x86/master
+
+      - name: SystemV_x86_regparm_3
+        doc: |-
+          A GCC specific modification of the 32-bit SystemV ABI for x86 processor
+          architecture. It allows three first GPR-sized arguments to be passed
+          using the EAX, EDX, and ECX registers.
+          See the reference for `regparm` x86 function attribute.
+
+      - name: SystemV_x86_regparm_2
+        doc: |-
+          A GCC specific modification of the 32-bit SystemV ABI for x86 processor
+          architecture. It allows two first GPR-sized arguments to be passed
+          using the EAX, and ECX registers.
+          See the GCC documentation for `regparm` x86 function attribute.
+
+      - name: SystemV_x86_regparm_1
+        doc: |-
+          A GCC specific modification of the 32-bit SystemV ABI for x86 processor
+          architecture. It allows the first GPR-sized argument to be passed
+          using the EAX register.
+          See the GCC documentation for `regparm` x86 function attribute.
+
+      - name: Microsoft_x86_64
+        doc: |-
+          64-bit Microsoft ABI for x86 processor architecture
+          ([reference][abi2]).
+
+          [abi2]: https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention
+
+      - name: Microsoft_x86_64_vectorcall
+        doc: |-
+          A modification of 64-bit Microsoft ABI for x86 processor architecture
+          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/vectorcall)).
+          It allows using extra vector registers for passing function arguments.
+
+      - name: Microsoft_x86_cdecl
+        doc: |-
+          The default 32-bit Microsoft ABI for x86 processor architecture
+          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/cdecl)).
+          It was indented to be compatible with `SystemV_x86` but there are slight
+          differences.
+
+      - name: Microsoft_x86_cdecl_gcc
+        doc: |-
+          32-bit Microsoft x86 `cdecl` abi as implemented in GCC (subtly different
+          from the original).
+
+      - name: Microsoft_x86_stdcall
+        doc: |-
+          A modification of the 32-bit `__cdecl` Microsoft ABI for x86 processor
+          architecture
+          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/stdcall)).
+          The main difference is the fact that the callee is responsible for stack
+          cleanup instead of the caller.
+
+      - name: Microsoft_x86_stdcall_gcc
+        doc: |-
+          32-bit Microsoft x86 `stdcall` abi as implemented in GCC (subtly different
+          from the original).
+
+      - name: Microsoft_x86_thiscall
+        doc: |-
+          A modification of the 32-bit `__stdcall` Microsoft ABI for x86 processor
+          architecture
+          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/thiscall)).
+          The main difference is the fact that it allows to pass a
+          single (the first) function argument using a register. This ABI is only
+          used for member function call where the first argument is always a `this`
+          pointer.
+
+      - name: Microsoft_x86_fastcall
+        doc: |-
+          A modification of the 32-bit `__stdcall` Microsoft ABI for x86 processor
+          architecture
+          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/fastcall)).
+          The main difference is the fact that it allows to pass two
+          first GPR-sized non-aggregate function arguments in registers.
+
+      - name: Microsoft_x86_fastcall_gcc
+        doc: |-
+          32-bit Microsoft x86 `fastcall` abi as implemented in GCC (subtly
+          different from the original).
+
+      - name: Microsoft_x86_vectorcall
+        doc: |-
+          A modification of the 32-bit `__fastcall` Microsoft ABI for x86 processor
+          architecture
+          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/vectorcall)).
+          It allows using extra vector registers for passing function arguments.
+
+      - name: AAPCS64
+        doc: |-
+          Stands for `Arm Architecture Procedure Call Standard (64-bit)`
+          ([reference](https://github.com/ARM-software/abi-aa/releases)).
+          The official ABI for AArch64 (ARM64) processor architecture.
+
+      - name: Microsoft_AAPCS64
+        doc: |-
+          Stands for "Arm Architecture Procedure Call Standard (64-bit)".
+          This represents the version of the ABI used by windows-on-arm.
+          For differences from the original ABI see the [reference][ab3].
+
+          [ab3]: https://learn.microsoft.com/cpp/build/arm64-windows-abi-conventions
+
+      - name: Apple_AAPCS64
+        doc: "Stands for \"Arm Architecture Procedure Call Standard (64-bit)\".\n
+          This represents the version of the ABI used by the apple products.\n
+          For differences from the original ABI see the [reference](\
+          https://developer.apple.com/documentation/xcode/writing-arm64-
+          code-for-apple-platforms)."
+
+      - name: AAPCS
+        doc: |-
+          Stands for "Arm Architecture Procedure Call Standard"
+          ([reference](https://github.com/ARM-software/abi-aa/releases)).
+          The official ABI for ARM processor architecture.
+
+      - name: SystemV_MIPS_o32
+        doc: |-
+          The ABI for MIPS RISC processor architecture
+          ([reference][abi4]).
+
+          [abi4]: http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
+
+      - name: SystemV_MIPSEL_o32
+        doc: |-
+          The ABI for little-endian edition of the MIPS RISC processor architecture
+          ([reference][abi5]).
+
+          [abi5]: http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
+
+      - name: SystemZ_s390x
+        doc: |-
+          The s390x ABI for SystemZ processor architecture
+          ([reference](https://github.com/IBM/s390x-abi)).
+
   - name: CanonicalRegisterValue
+    type: struct
+
     doc: |-
       A [`Segment`](#Segment) can specify a set of *canonical values* for certain
       registers.
       This can be used to represent concepts such as the global pointer, which in
       certain ABIs, is not set by each function, but it's possible to assume it has
       a certain value at the entry of the function.
-    type: struct
+
+    key:
+      - Register
+
     fields:
       - name: Register
         doc: The register for which to specify the canonical value.
         type: Register
+
       - name: Value
         doc: |-
           The canonical value that `Register` can be assumed to hold upon
           function entry.
         type: uint64_t
-    key:
-      - Register
+
   - name: Register
     type: enum
+
     doc: |-
       An enum containing the list of all the currently supported registers.
+
     members:
       # x86 registers
       - name: eax_x86
@@ -981,6 +1415,11 @@ definitions:
       - name: f13_systemz
       - name: f14_systemz
       - name: f15_systemz
+
+  #
+  # Configuration
+  #
+
   - name: Configuration
     type: struct
     doc: A list of configuration options
@@ -992,9 +1431,11 @@ definitions:
       - name: Disassembly
         type: DisassemblyConfiguration
         optional: true
+
       - name: Naming
         type: NamingConfiguration
         optional: true
+
       # Configuration options that don't belong anywhere else find themselves here.
       # As this list grows, they should be split into their own sub-sections.
       - name: CommentLineWidth
@@ -1006,52 +1447,14 @@ definitions:
           Set to `-1` for unlimited line size.
         type: uint64_t
         optional: true
-  - name: StatementComment
-    type: struct
-    doc: |-
-      A comment that can be attached to a statement in the decompiled code
-      *if* we have a way to uniquely identify said statement.
 
-    fields:
-      - name: Index
-        doc: |-
-          The index of the comment.
-
-          Note that this is used exclusively to simplify lookup of
-          the *existing* comments. This way address set doesn't need to be
-          encoded in the location and any emitted comment can be looked up (and,
-          consecutively, edited) based on this index alone.
-        type: uint64_t
-
-      - name: Location
-        doc: |-
-          The point this comment is attached to, encoded as a set of addresses.
-
-          When emitted artifact contains a statement with a set of addresses exactly
-          matching the set provided here, the comment is emitted before that
-          statement.
-
-          If there's no such statement, one is chosen based on how similar its
-          address set is to the address set of the comment.
-
-          Note that the same comment can be emitted multiple times if there are
-          multiple statements (that do *not* dominate each other) with the same
-          address set.
-
-        sequence:
-          type: SortedVector
-          elementType: MetaAddress
-
-      - name: Body
-        type: string
-
-    key:
-      - Index
   - name: NamingConfiguration
     type: struct
+
     doc: |-
       Subset of configuration options dedicated to naming rules, mostly (but not
       exclusively) centered around reserved name prefixes.
+
     fields:
       - name: UnnamedSegmentPrefix
         doc: |-
@@ -1095,6 +1498,7 @@ definitions:
           The default value is `enum_entry_`.
         type: string
         optional: true
+
       - name: UnnamedStructFieldPrefix
         doc: |-
           The prefix for a struct field without a name.
@@ -1102,6 +1506,7 @@ definitions:
           The default value is `offset_`.
         type: string
         optional: true
+
       - name: UnnamedUnionFieldPrefix
         doc: |-
           The prefix for a union member without a name.
@@ -1117,6 +1522,7 @@ definitions:
           The default value is `argument_`.
         type: string
         optional: true
+
       - name: UnnamedFunctionRegisterPrefix
         doc: |-
           The prefix for a raw function register without a name.
@@ -1132,6 +1538,7 @@ definitions:
           The default value is `var_`.
         type: string
         optional: true
+
       - name: UnnamedBreakFromLoopVariablePrefix
         doc: |-
           The prefix for a local variable without a name.
@@ -1139,6 +1546,7 @@ definitions:
           The default value is `break_from_loop_`.
         type: string
         optional: true
+
       - name: UnnamedGotoLabelPrefix
         doc: |-
           The prefix for a goto label without a name.
@@ -1154,6 +1562,7 @@ definitions:
           The default value is `undef_`.
         type: string
         optional: true
+
       - name: OpaqueCSVValuePrefix
         doc: |-
           The prefix for accessing an opaque CSV Value.
@@ -1161,6 +1570,7 @@ definitions:
           The default value is `undef_`.
         type: string
         optional: true
+
       - name: MaximumEnumValuePrefix
         doc: |-
           The prefix for the maximum enum value.
@@ -1176,6 +1586,7 @@ definitions:
           The default value is `stack`.
         type: string
         optional: true
+
       - name: RawStackArgumentName
         doc: |-
           The name of the variable representing stack.
@@ -1183,6 +1594,7 @@ definitions:
           The default value is `stack_arguments`.
         type: string
         optional: true
+
       - name: LoopStateVariableName
         doc: |-
           The name of the variable representing stack.
@@ -1198,6 +1610,7 @@ definitions:
           The default value is `padding_at_`.
         type: string
         optional: true
+
       - name: ArtificialReturnValuePrefix
         doc: |-
           The prefix for an artificial raw function return value.
@@ -1212,10 +1625,13 @@ definitions:
           have a \ref ReservedNamePrefix prefix attached.
         type: bool
         optional: true
+
   - name: DisassemblyConfiguration
     type: struct
+
     doc: |-
       The subset of configuration options dedicated to the disassembly view.
+
     fields:
       - name: DisableEmissionOfInstructionAddress
         type: bool
@@ -1261,17 +1677,22 @@ definitions:
 
   - name: DisassemblyConfigurationImmediateStyle
     type: enum
+
     doc: |-
       An enum listing immediate emission style in the disassembly views.
+
     members:
       - name: Decimal
       - name: CHexadecimal
       - name: AsmHexadecimal
+
   - name: DisassemblyConfigurationAddressStyle
     type: enum
+
     doc: |-
       An enum listing address (as in label) emission style in the disassembly
       views.
+
     members:
       - name: Smart
         doc: |-
@@ -1297,184 +1718,3 @@ definitions:
         doc: |-
           Print all the addresses exactly how disassembler emitted them
           in PC-relative mode.
-  - name: Argument
-    doc: |-
-      The argument of a `CABIFunctionType`.
-    type: struct
-    fields:
-      - name: Index
-        type: uint64_t
-        doc: The argument index.
-      - name: Type
-        type: Type
-        doc: The type of the argument.
-        upcastable: true
-      - name: Name
-        type: string
-        optional: true
-      - name: Comment
-        type: string
-        optional: true
-    key:
-      - Index
-  - name: Architecture
-    type: enum
-    doc: |-
-      An enum listing all the currently supported architectures.
-    members:
-      - name: x86
-      - name: x86_64
-      - name: arm
-      - name: aarch64
-      - name: mips
-      - name: mipsel
-      - name: systemz
-  - name: ABI
-    type: enum
-    doc: |-
-      An enum listing all the currently supported ABIs.
-    members:
-      - name: SystemV_x86_64
-        doc: |-
-          64-bit SystemV ABI for x86 processor architecture
-          ([reference](https://gitlab.com/x86-psABIs/x86-64-ABI)).
-      - name: SystemV_x86
-        doc: |-
-          32-bit SystemV ABI for x86 processor architecture ([reference][abi1]).
-
-          [abi1]: https://gitlab.com/x86-psABIs/i386-ABI/-/tree/hjl/x86/master
-
-      - name: SystemV_x86_regparm_3
-        doc: |-
-          A GCC specific modification of the 32-bit SystemV ABI for x86 processor
-          architecture. It allows three first GPR-sized arguments to be passed
-          using the EAX, EDX, and ECX registers.
-          See the reference for `regparm` x86 function attribute.
-
-      - name: SystemV_x86_regparm_2
-        doc: |-
-          A GCC specific modification of the 32-bit SystemV ABI for x86 processor
-          architecture. It allows two first GPR-sized arguments to be passed
-          using the EAX, and ECX registers.
-          See the GCC documentation for `regparm` x86 function attribute.
-
-      - name: SystemV_x86_regparm_1
-        doc: |-
-          A GCC specific modification of the 32-bit SystemV ABI for x86 processor
-          architecture. It allows the first GPR-sized argument to be passed
-          using the EAX register.
-          See the GCC documentation for `regparm` x86 function attribute.
-
-      - name: Microsoft_x86_64
-        doc: |-
-          64-bit Microsoft ABI for x86 processor architecture
-          ([reference][abi2]).
-
-          [abi2]: https://docs.microsoft.com/en-us/cpp/build/x64-calling-convention
-
-      - name: Microsoft_x86_64_vectorcall
-        doc: |-
-          A modification of 64-bit Microsoft ABI for x86 processor architecture
-          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/vectorcall)).
-          It allows using extra vector registers for passing function arguments.
-
-      - name: Microsoft_x86_cdecl
-        doc: |-
-          The default 32-bit Microsoft ABI for x86 processor architecture
-          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/cdecl)).
-          It was indented to be compatible with `SystemV_x86` but there are slight
-          differences.
-
-      - name: Microsoft_x86_cdecl_gcc
-        doc: |-
-          32-bit Microsoft x86 `cdecl` abi as implemented in GCC (subtly different
-          from the original).
-
-      - name: Microsoft_x86_stdcall
-        doc: |-
-          A modification of the 32-bit `__cdecl` Microsoft ABI for x86 processor
-          architecture
-          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/stdcall)).
-          The main difference is the fact that the callee is responsible for stack
-          cleanup instead of the caller.
-
-      - name: Microsoft_x86_stdcall_gcc
-        doc: |-
-          32-bit Microsoft x86 `stdcall` abi as implemented in GCC (subtly different
-          from the original).
-
-      - name: Microsoft_x86_thiscall
-        doc: |-
-          A modification of the 32-bit `__stdcall` Microsoft ABI for x86 processor
-          architecture
-          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/thiscall)).
-          The main difference is the fact that it allows to pass a
-          single (the first) function argument using a register. This ABI is only
-          used for member function call where the first argument is always a `this`
-          pointer.
-
-      - name: Microsoft_x86_fastcall
-        doc: |-
-          A modification of the 32-bit `__stdcall` Microsoft ABI for x86 processor
-          architecture
-          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/fastcall)).
-          The main difference is the fact that it allows to pass two
-          first GPR-sized non-aggregate function arguments in registers.
-
-      - name: Microsoft_x86_fastcall_gcc
-        doc: |-
-          32-bit Microsoft x86 `fastcall` abi as implemented in GCC (subtly
-          different from the original).
-
-      - name: Microsoft_x86_vectorcall
-        doc: |-
-          A modification of the 32-bit `__fastcall` Microsoft ABI for x86 processor
-          architecture
-          ([reference](https://docs.microsoft.com/en-us/cpp/cpp/vectorcall)).
-          It allows using extra vector registers for passing function arguments.
-
-      - name: AAPCS64
-        doc: |-
-          Stands for `Arm Architecture Procedure Call Standard (64-bit)`
-          ([reference](https://github.com/ARM-software/abi-aa/releases)).
-          The official ABI for AArch64 (ARM64) processor architecture.
-
-      - name: Microsoft_AAPCS64
-        doc: |-
-          Stands for "Arm Architecture Procedure Call Standard (64-bit)".
-          This represents the version of the ABI used by windows-on-arm.
-          For differences from the original ABI see the [reference][ab3].
-
-          [ab3]: https://learn.microsoft.com/cpp/build/arm64-windows-abi-conventions
-
-      - name: Apple_AAPCS64
-        doc: "Stands for \"Arm Architecture Procedure Call Standard (64-bit)\".\n
-          This represents the version of the ABI used by the apple products.\n
-          For differences from the original ABI see the [reference](\
-          https://developer.apple.com/documentation/xcode/writing-arm64-
-          code-for-apple-platforms)."
-
-      - name: AAPCS
-        doc: |-
-          Stands for "Arm Architecture Procedure Call Standard"
-          ([reference](https://github.com/ARM-software/abi-aa/releases)).
-          The official ABI for ARM processor architecture.
-
-      - name: SystemV_MIPS_o32
-        doc: |-
-          The ABI for MIPS RISC processor architecture
-          ([reference][abi4]).
-
-          [abi4]: http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
-
-      - name: SystemV_MIPSEL_o32
-        doc: |-
-          The ABI for little-endian edition of the MIPS RISC processor architecture
-          ([reference][abi5]).
-
-          [abi5]: http://math-atlas.sourceforge.net/devel/assembly/mipsabi32.pdf
-
-      - name: SystemZ_s390x
-        doc: |-
-          The s390x ABI for SystemZ processor architecture
-          ([reference](https://github.com/IBM/s390x-abi)).
