@@ -30,10 +30,12 @@ definitions:
           type: SortedVector
           elementType: Rank
       - name: Containers
+        doc: Containers
         sequence:
           type: SortedVector
           elementType: Container
       - name: Steps
+        doc: Steps
         sequence:
           type: SortedVector
           elementType: Step

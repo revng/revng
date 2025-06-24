@@ -45,6 +45,7 @@ definitions:
         upcastable: true
 
       - name: Configuration
+        doc: Project-level artifact configuration options
         type: Configuration
         optional: true
 
@@ -132,21 +133,24 @@ definitions:
 
     fields:
       - name: ID
+        doc: |-
+          A unique numeric identifier for this type.
         type: uint64_t
         is_guid: true
-        doc: |-
-          A unique identifier for this type.
 
       - name: Kind
+        doc: |-
+          Specifies which of the children classes this object is upcastable to.
         type: TypeDefinitionKind
 
       - name: Name
-        doc: |-
-          A user-chosen `Identifier` for this type.
+        doc: A user-chosen identifier for this type.
         type: string
         optional: true
 
       - name: Comment
+        doc: |-
+          A comment attached to the *definition* of this type.
         type: string
         optional: true
 
@@ -168,16 +172,19 @@ definitions:
 
     fields:
       - name: ABI
-        type: ABI
         doc: The C ABI associated to this function type.
+        type: ABI
 
       - name: ReturnType
-        type: Type
         doc: The function return type.
+        type: Type
         optional: true
         upcastable: true
 
       - name: ReturnValueComment
+        doc: |-
+          A comment that will be emitted as part of this function's definiktion
+          in the `\returns ${COMMENT_TEXT}` shape.
         type: string
         optional: true
 
@@ -198,19 +205,23 @@ definitions:
 
     fields:
       - name: Index
-        type: uint64_t
         doc: The argument index.
+        type: uint64_t
 
       - name: Type
-        type: Type
         doc: The type of the argument.
+        type: Type
         upcastable: true
 
       - name: Name
+        doc: The name of the argument.
         type: string
         optional: true
 
       - name: Comment
+        doc: |-
+          A comment that will be emitted as part of this function's definition
+          in the `\param ${NAME} ${COMMENT}` shape.
         type: string
         optional: true
 
@@ -223,13 +234,13 @@ definitions:
 
     fields:
       - name: UnderlyingType
-        type: Type
-        upcastable: true
         doc: |-
           The underlying type of the `enum`.
 
-          This can only be a `PrimitiveType` with either a `Unsigned` or a `Signed`
-          kind.
+          This must only ever be set to a `PrimitiveType` with either
+          an `Unsigned` or a `Signed` kind.
+        type: Type
+        upcastable: true
 
       - name: Entries
         doc: |-
@@ -257,12 +268,15 @@ definitions:
         type: uint64_t
 
       - name: Name
+        doc: |-
+          A user-chosen identifier for this `enum` entry.
         type: string
         optional: true
-        doc: |-
-          A user-chosen `Identifier` for this `enum` entry.
 
       - name: Comment
+        doc: |-
+          A comment that will be emitted right before the *definition* of this
+          `enum` entry.
         type: string
         optional: true
 
@@ -286,46 +300,47 @@ definitions:
 
     fields:
       - name: Architecture
-        type: Architecture
         doc: The processor architecture of this function type.
+        type: Architecture
 
       - name: Arguments
-        optional: true
-        sequence:
-          type: SortedVector
-          elementType: NamedTypedRegister
         doc: |-
           The list of registers used to pass arguments.
 
-          The registers must belong to `Architecture`.
-
-      - name: ReturnValues
+          The registers must belong to the `Architecture`.
         optional: true
         sequence:
           type: SortedVector
           elementType: NamedTypedRegister
+
+      - name: ReturnValues
         doc: |-
           The list of registers used to return values.
 
-          The registers must belong to `Architecture`.
+          The registers must belong to the `Architecture`.
+        optional: true
+        sequence:
+          type: SortedVector
+          elementType: NamedTypedRegister
 
       - name: ReturnValueComment
+        doc: |-
+          A comment that will be emitted as part of this function's definition
+          in the `\returns ${COMMENT}` shape.
         type: string
         optional: true
 
       - name: PreservedRegisters
-        optional: true
-        sequence:
-          type: SortedVector
-          elementType: Register
         doc: |-
           The list of registers preserved by functions using this function type.
 
           The registers must belong to `Architecture`.
+        optional: true
+        sequence:
+          type: SortedVector
+          elementType: Register
 
       - name: FinalStackOffset
-        type: uint64_t
-        optional: true
         doc: |-
           The expected difference between the initial and final value of the stack
           pointer.
@@ -334,6 +349,8 @@ definitions:
           initial and final value of the stack pointer is 8.
           This is due to the fact that `ret` instruction increase the stack pointer
           by 8.
+        type: uint64_t
+        optional: true
 
       - name: StackArgumentsType
         doc: The type of the `struct` representing all of the stack arguments.
@@ -345,7 +362,7 @@ definitions:
     type: struct
 
     doc: |-
-      An argument or return values in a `RawFunctionDefinition`.
+      An argument or a return value in a `RawFunctionDefinition`.
 
       It is basically a pair of a register and a `Type`.
 
@@ -354,17 +371,21 @@ definitions:
 
     fields:
       - name: Location
+        doc: The register this argument or return value is created for.
         type: Register
 
       - name: Type
+        doc: The type of this argument or return value.
         type: Type
         upcastable: true
 
       - name: Name
+        doc: The name for this argument or return value.
         type: string
         optional: true
 
       - name: Comment
+        doc: The comment for this argument or return value.
         type: string
         optional: true
 
@@ -375,13 +396,13 @@ definitions:
     doc: |-
       A `typedef` type.
 
-      Note, that unlike in C, two `typedef`s aliasing the same type are actually
-      distinct types.
+      Note, that unlike in C, in our type system two `typedef`s aliasing
+      the same type are actually distinct types.
 
     fields:
       - name: UnderlyingType
-        type: Type
         doc: The type this `typedef` is aliasing.
+        type: Type
         upcastable: true
 
   - name: StructDefinition
@@ -423,19 +444,22 @@ definitions:
 
     fields:
       - name: Offset
+        doc: The number of bytes in the given struct before this field.
         type: uint64_t
 
       - name: Name
+        doc: The name of this field.
         type: string
         optional: true
 
       - name: Comment
+        doc: The comment that will be emitted before this field's *definition*.
         type: string
         optional: true
 
       - name: Type
-        type: Type
         doc: The type of the field.
+        type: Type
         upcastable: true
 
   - name: UnionDefinition
@@ -456,7 +480,7 @@ definitions:
     type: struct
 
     doc: |-
-      An alternative of a `UnionDefinition`.
+      Specifies one of the possible types a given `UnionDefinition` can assume.
 
       It is composed by a index and the `Type`.
 
@@ -465,19 +489,28 @@ definitions:
 
     fields:
       - name: Index
+        doc: |
+          A numeric index unique within a given `UnionDefinition`.
+
+          Note that indexing is dense, so if a given union has a type with
+          index 4, it must also have types indexed 0-3.
         type: uint64_t
 
       - name: Name
+        doc: The name of this "field" (union alternative).
         type: string
         optional: true
 
       - name: Comment
+        doc: |-
+          The comment that will be emitted right before the *definition*
+          of the given "field" (union alternative).
         type: string
         optional: true
 
       - name: Type
+        doc: The name of this "field" (union alternative).
         type: Type
-        doc: The type of this `union` alternative.
         upcastable: true
 
   #
@@ -494,9 +527,12 @@ definitions:
 
     fields:
       - name: Kind
+        doc: |-
+          Specifies which of the children classes this object is upcastable to.
         type: TypeKind
 
       - name: IsConst
+        doc: Specifies whether the type this object denotes is `const` or not.
         type: bool
         optional: true
 
@@ -509,21 +545,30 @@ definitions:
 
     fields:
       - name: PrimitiveKind
+        doc: |-
+          Specifies whether this primitive type is `Signed`, `Float`,
+          `PointerOrNumber`, and so on.
         type: PrimitiveKind
 
       - name: Size
         doc: |-
-          As of now, for floating point primitives, supported sizes include:
-          ```
-          { 2, 4, 8, 10, 12, 16 }
-          ```
-          For non-floating point, they are:
+          Specifies the size of this primitive type.
+
+          As of now, supported sizes include
           ```
           { 1, 2, 4, 8, 16 }
           ```
 
-          Note that `Void` *must* have size of 0 while `Generic` can use all the
-          supported sizes, floating point or not.
+          Note that *only* floating point primitives (and `Generic` primitives,
+          whose kind is not known, so they are assumed to be floating point
+          compatible) can also have additional sizes:
+          ```
+          { 10, 12 }
+          ```
+
+          Note that 1-byte floating point primitives are not allowed.
+
+          Note that `Void` *must* have size of 0.
         type: uint64_t
         optional: true
 
@@ -571,12 +616,15 @@ definitions:
 
     fields:
       - name: PointerSize
-        doc: As of now, only 4 and 8 byte pointers are supported.
+        doc: |
+          The size of the pointer.
+
+          As of now, only 4 and 8 byte pointers are supported.
         type: uint64_t
 
       - name: PointeeType
-        type: Type
         doc: The pointee type.
+        type: Type
         upcastable: true
 
   - name: DefinedType
@@ -587,6 +635,7 @@ definitions:
 
     fields:
       - name: Definition
+        doc: The definition of the type this object represents.
         reference:
           pointeeType: TypeDefinition
           rootType: Binary
@@ -600,13 +649,13 @@ definitions:
 
     fields:
       - name: ElementCount
+        doc: The number of elements in this array.
         type: uint64_t
-        doc: The number of elements.
 
       - name: ElementType
+        doc: The type of the elements in this array.
         type: Type
         upcastable: true
-        doc: The type of the elements of the array.
 
   #
   # Segments and function in the binary
@@ -625,51 +674,62 @@ definitions:
 
     fields:
       - name: StartAddress
-        type: MetaAddress
         doc: The address at which this segment should be loaded.
+        type: MetaAddress
 
       - name: VirtualSize
-        type: uint64_t
         doc: |-
-          The size of the segment in memory.
+          The size of this segment in memory.
+
           If this value is greater than `FileSize`, the discrepancy is considered to
-          full of `00`.
+          full of `0`s.
+        type: uint64_t
 
       - name: StartOffset
-        type: uint64_t
         doc: Start file offset from which the segment will be loaded.
+        type: uint64_t
 
       - name: FileSize
-        type: uint64_t
         doc: Number of bytes that will be loaded in memory from the file.
+        type: uint64_t
 
       - name: IsReadable
-        type: bool
         doc: Is this segment readable?
+        type: bool
 
       - name: IsWriteable
-        type: bool
         doc: Is this segment writable?
+        type: bool
 
       - name: IsExecutable
-        type: bool
         doc: Is this segment executable?
+        type: bool
 
       - name: Name
+        doc: The name of the segment.
         type: string
         optional: true
 
       - name: Comment
+        doc: |-
+          The comment to emit right before the global variable that will be
+          created for this segment.
         type: string
         optional: true
 
       - name: CanonicalRegisterValues
+        doc: |-
+          The list of registers that are assumed to have a canonical value set
+          upon an entry into a function contained within this segment.
         optional: true
         sequence:
           type: SortedVector
           elementType: CanonicalRegisterValue
 
       - name: Relocations
+        doc: |-
+          A list of locations where the address of this segment should be
+          placed.
         optional: true
         sequence:
           type: SortedVector
@@ -677,8 +737,8 @@ definitions:
 
       - name: Type
         doc: |-
-          The `StructDefinition` associated to this segment.
-          Informally, each field of such `struct` is a global variable.
+          The struct type associated to this segment.
+          Informally, each field of such a `struct` is a global variable.
         type: Type
         upcastable: true
         optional: true
@@ -701,10 +761,12 @@ definitions:
         type: MetaAddress
 
       - name: Name
+        doc: The user-provided name for this function.
         type: string
         optional: true
 
       - name: Comment
+        doc: The user-provided comment for this function.
         type: string
         optional: true
 
@@ -721,7 +783,7 @@ definitions:
         optional: true
 
       - name: Attributes
-        doc: Attributes for this call site.
+        doc: Attributes for *every* call site.
         sequence:
           type: MutableSet
           elementType: FunctionAttribute
@@ -745,18 +807,25 @@ definitions:
         optional: true
 
       - name: Comments
+        doc: |-
+          The list of comments attached to statements (e.g., disassembled
+          instructions or C statements) within the body of this function.
         sequence:
           type: SortedVector
           elementType: StatementComment
         optional: true
 
       - name: LocalVariables
+        doc: |-
+          The list of *named* local variables within this function's body.
         sequence:
           type: SortedVector
           elementType: LocalIdentifier
         optional: true
 
       - name: GotoLabels
+        doc: |-
+          The list of *named* goto labels within this function's body.
         sequence:
           type: SortedVector
           elementType: LocalIdentifier
@@ -772,15 +841,20 @@ definitions:
 
     fields:
       - name: Name
-        doc: The name of the symbol for this dynamic function.
+        doc: |-
+          The name of the symbol for this dynamic function.
+
+          Currently, this must not contain `/`s and `\n`s. This restriction will
+          eventually be lifted, when proper escaping is in place.
         type: string
 
       - name: Comment
+        doc: The user-provided comment for this dynamic function.
         type: string
         optional: true
 
       - name: Prototype
-        doc: The prototype of the function.
+        doc: The prototype of this dynamic function.
         type: Type
         upcastable: true
         optional: true
@@ -818,12 +892,12 @@ definitions:
 
     fields:
       - name: Name
+        doc: The user-provided name for this variable or label.
         type: string
 
       - name: Location
         doc: |-
-          The set of `MetaAddresses` of the instructions using this variable (or label).
-
+          The set of `MetaAddress`es of the instructions using this variable (or label).
         sequence:
           type: SortedVector
           elementType: MetaAddress
@@ -842,18 +916,18 @@ definitions:
 
     fields:
       - name: Address
-        type: MetaAddress
         doc: Where to write the address of the object.
+        type: MetaAddress
 
       - name: Type
-        type: RelocationType
         doc: |-
           How to write the address of the object (e.g., 32-bit vs 64-bit
           integer).
+        type: RelocationType
 
       - name: Addend
-        type: uint64_t
         doc: Fixed offset to add when writing the address of the object.
+        type: uint64_t
 
   - name: RelocationType
     type: enum
@@ -913,6 +987,7 @@ definitions:
         type: MetaAddress
 
       - name: Prototype
+        doc: The prototype specific to *this* call site.
         type: Type
         upcastable: true
 
@@ -932,14 +1007,15 @@ definitions:
     type: enum
 
     doc: |-
-      Attributes for functions. Can be applied both to functions and call sites.
+      Attributes for function calls. They can either be applied to specific call
+      sites, or to *all* the call sites of a specific function.
 
     members:
       - name: NoReturn
-        doc: The function does not return.
+        doc: The function call does not return.
 
       - name: Inline
-        doc: The function must be inlined in callers.
+        doc: The function call must be inlined in the caller.
 
   - name: StatementComment
     type: struct
@@ -956,10 +1032,10 @@ definitions:
         doc: |-
           The index of the comment.
 
-          Note that this is used exclusively to simplify lookup of
-          the *existing* comments. This way address set doesn't need to be
-          encoded in the location and any emitted comment can be looked up (and,
-          consecutively, edited) based on this index alone.
+        # Note that this is used exclusively to simplify lookup of
+        # the *existing* comments. This way address set doesn't need to be
+        # encoded in the location and any emitted comment can be looked up (and,
+        # consecutively, edited) based on this index alone.
         type: uint64_t
 
       - name: Location
@@ -976,12 +1052,12 @@ definitions:
           Note that the same comment can be emitted multiple times if there are
           multiple statements (that do *not* dominate each other) with the same
           address set.
-
         sequence:
           type: SortedVector
           elementType: MetaAddress
 
       - name: Body
+        doc: The text of the comment.
         type: string
 
   #
@@ -1429,15 +1505,19 @@ definitions:
 
     fields:
       - name: Disassembly
+        doc: The options specific to the disassembly artifact.
         type: DisassemblyConfiguration
         optional: true
 
       - name: Naming
+        doc: The options specific to the naming conventions
         type: NamingConfiguration
         optional: true
 
-      # Configuration options that don't belong anywhere else find themselves here.
+      # Configuration options that don't belong anywhere else find themselves
+      # under this comment (in this struct).
       # As this list grows, they should be split into their own sub-sections.
+
       - name: CommentLineWidth
         doc: |-
           Sets a recommended comment line width to improve their readability.
@@ -1634,29 +1714,76 @@ definitions:
 
     fields:
       - name: DisableEmissionOfInstructionAddress
+        doc: |-
+          When set to `true`, the addresses of the instructions are not present
+          in the disassembly view.
+
+          ```
+          400df8:    fd 7b bd a9    stp x29, x30, [sp, #-0x30]!
+          400dfc:    fd 03 00 91    mov x29, sp
+          -----------
+          ^
+          This part
+          ```
         type: bool
         optional: true
 
       - name: DisableEmissionOfRawBytes
+        doc: |-
+          When set to `true`, the raw bytes of the instructions are not present
+          in the disassembly view.
+
+          ```
+          400df8:    fd 7b bd a9    stp x29, x30, [sp, #-0x30]!
+          400dfc:    fd 03 00 91    mov x29, sp
+                     ---------------
+                     ^
+                     This part
+          ```
         type: bool
         optional: true
 
       - name: UseX86ATTSyntax
-        doc: x86-only.
+        doc: |-
+          When set to `true`, ATT syntax is used.
+
+          `true`:
+          ```
+          80491a0:    83 c4 10             addl $0x10, %esp
+          80491a3:    8b 5d fc             movl -0x4(%ebp), %ebx
+          80491a6:    c9                   leave
+          80491a7:    e9 ec fe ff ff       jmp bb_0x8049098
+          ```
+
+          `false` (default):
+          ```
+          80491a0:    83 c4 10             add esp, 0x10
+          80491a3:    8b 5d fc             mov ebx, dword ptr [ebp - 0x4]
+          80491a6:    c9                   leave
+          80491a7:    e9 ec fe ff ff       jmp bb_0x8049098
+          ```
+
+          Note that this option has no effect on non-x86 binaries.
         type: bool
         optional: true
 
       - name: AddressStyle
         doc: |-
-          The default value is `Smart`. See the related enum for further
-          explanation.
+          This describes the way labels / addresses should be printed in
+          the disassembly view.
+          See the related enum for further explanation and examples.
+
+          The default value is `Smart`.
         type: DisassemblyConfigurationAddressStyle
         optional: true
 
       - name: ImmediateStyle
         doc: |-
-          The default value is `CHexadecimal`. See the related enum for further
-          explanation.
+          This describes the way immediate values are printed in
+          the disassembly view.
+          See the related enum for further explanation and examples.
+
+          The default value is `CHexadecimal`.
         type: DisassemblyConfigurationImmediateStyle
         optional: true
 
@@ -1665,6 +1792,16 @@ definitions:
           Set this to true to include the full meta-address whenever one is printed.
           The default value of `false` omits the address type as long as it matches
           that of the binary.
+
+          `true`:
+          ```
+          80491a7_Code_x86:    e9 ec fe ff ff       jmp bb_0x8049098_Code_x86
+          ```
+          `false` (default):
+          ```
+          80491a7:    e9 ec fe ff ff       jmp bb_0x8049098
+          ```
+
         type: bool
         optional: true
 
@@ -1672,6 +1809,15 @@ definitions:
         doc: |-
           The prefix attached to the basic block address in the disassembly views.
           The default value is `bb_`.
+
+          `my_value_`:
+          ```
+          80491a7:    e9 ec fe ff ff       jmp my_value_0x8049098
+          ```
+          default:
+          ```
+          80491a7:    e9 ec fe ff ff       jmp bb_0x8049098
+          ```
         type: string
         optional: true
 
@@ -1683,8 +1829,11 @@ definitions:
 
     members:
       - name: Decimal
+        doc: Print immediate values as decimal, for example `42`.
       - name: CHexadecimal
+        doc: Print immediate values as c-style hexadecimal, for example `0x2a`.
       - name: AsmHexadecimal
+        doc: Print immediate values as asm-style hexadecimal, for example `02ah`.
 
   - name: DisassemblyConfigurationAddressStyle
     type: enum
