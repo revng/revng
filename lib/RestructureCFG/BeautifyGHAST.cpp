@@ -378,6 +378,51 @@ static bool simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
   return true;
 }
 
+static bool checkLoops(ASTTree &AST, ASTNode *RootNode) {
+
+  // Inspect all the nodes composing a sequence node.
+  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
+    for (ASTNode *&Node : Sequence->nodes()) {
+      if (not checkLoops(AST, Node)) {
+        return false;
+      }
+    }
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+
+    // We only admit a `nullptr` body for a `DoWhile`, whose simplification
+    // already happened. If this is not verified, we soft fail the
+    // decompilation.
+    if ((not Scs->isDoWhile()) and (not Scs->hasBody())) {
+      return false;
+    }
+
+    // Inspect the body of a SCS region (it may be empty due to being an empty
+    // `do-while`).
+    if (Scs->hasBody()) {
+      return checkLoops(AST, Scs->getBody());
+    }
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+
+    // Inspect the body of an if construct.
+    if (If->hasThen()) {
+      if (not checkLoops(AST, If->getThen())) {
+        return false;
+      }
+    }
+    if (If->hasElse()) {
+      if (not checkLoops(AST, If->getElse())) {
+        return false;
+      }
+    }
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+    for (auto &LabelCasePair : Switch->cases())
+      if (not checkLoops(AST, LabelCasePair.second)) {
+        return false;
+      }
+  }
+  return true;
+}
+
 static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 
   BeautifyLogger << "Matching do whiles"
@@ -1094,6 +1139,13 @@ bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger, "Fixing loop breaks inside switches\n");
   SwitchBreaksFixer().run(RootNode, CombedAST);
   Dumper.log("after-fix-switch-breaks");
+
+  // Consistency check of loops.
+  // The following call may return `false` as a signal of failure, and in
+  // that case we propagate the error upwards.
+  if (not(checkLoops(CombedAST, RootNode))) {
+    return false;
+  }
 
   // Serialize the collected metrics in the statistics file if necessary
   if (StatsFileStream) {
