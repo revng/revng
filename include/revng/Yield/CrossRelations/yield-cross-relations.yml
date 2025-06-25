@@ -3,6 +3,7 @@
 #
 
 version: 1
+root_type: CrossRelations
 definitions:
   - name: CrossRelations
     type: struct

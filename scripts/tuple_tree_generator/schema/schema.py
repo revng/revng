@@ -13,17 +13,15 @@ from .struct import StructDefinition
 
 
 class Schema:
-    def __init__(self, raw_schema, root_type: str, base_namespace: str, scalar_types: List[str]):
+    def __init__(self, raw_schema, scalar_types: List[str]):
         self._raw_schema = raw_schema
 
         self.version = self._raw_schema["version"]
-        self.root_type = root_type
-        self.base_namespace = base_namespace
-        self.generated_namespace = f"{base_namespace}::generated"
+        self.root_type = self._raw_schema["root_type"]
 
         # Add implicit Version field to the root type
         for definition in self._raw_schema["definitions"]:
-            if definition["name"] == root_type:
+            if definition["name"] == self.root_type:
                 assert definition["type"] == "struct", "The root type must be a struct"
                 definition["fields"].insert(
                     0,
@@ -96,7 +94,7 @@ class Schema:
             else:
                 raise ValueError(f"Invalid type name: {type_name}")
 
-            definition = cls.from_dict(type_schema, self.base_namespace)
+            definition = cls.from_dict(type_schema)
             definitions[definition.name] = definition
 
         return definitions
@@ -137,7 +135,6 @@ class Schema:
 
             name = f"{parent.name}Kind"
             kind_enum = EnumDefinition(
-                namespace=parent.namespace,
                 name=name,
                 members=[EnumMember(name=c.name) for c in child_list],
             )

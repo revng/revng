@@ -31,8 +31,6 @@ target_tuple_tree_generator(
   "ABI"
   NAMESPACE
   "abi"
-  ROOT_TYPE
-  Definition
   SCHEMA_PATH
   "${CMAKE_SOURCE_DIR}/include/revng/ABI/abi-internal-schema.yml"
   SCALAR_TYPES

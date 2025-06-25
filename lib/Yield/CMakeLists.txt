@@ -53,8 +53,6 @@ target_tuple_tree_generator(
   "Yield"
   NAMESPACE
   "yield"
-  ROOT_TYPE
-  Function
   SCHEMA_PATH
   "${CMAKE_SOURCE_DIR}/include/revng/Yield/yield-internal-schema.yml"
   SEPARATE_STRING_TYPES
@@ -74,8 +72,6 @@ target_tuple_tree_generator(
   "Yield/CrossRelations"
   NAMESPACE
   "yield::crossrelations"
-  ROOT_TYPE
-  CrossRelations
   SCHEMA_PATH
   "${CMAKE_SOURCE_DIR}/include/revng/Yield/CrossRelations/yield-cross-relations.yml"
   SEPARATE_STRING_TYPES

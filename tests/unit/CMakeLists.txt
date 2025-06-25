@@ -285,8 +285,6 @@ target_tuple_tree_generator(
   test_tuple_tree_generator
   NAMESPACE
   ttgtest
-  ROOT_TYPE
-  TestClass
   SCHEMA_PATH
   "${CMAKE_SOURCE_DIR}/tests/unit/TupleTreeGenerator/schema.yml"
   HEADERS_PATH

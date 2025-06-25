@@ -3,6 +3,7 @@
 #
 
 version: 1
+root_type: TestClass
 definitions:
   - fields:
       - name: RequiredField

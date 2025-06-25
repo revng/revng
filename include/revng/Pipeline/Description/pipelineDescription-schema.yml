@@ -3,6 +3,7 @@
 #
 
 version: 1
+root_type: PipelineDescription
 definitions:
   - name: PipelineDescription
     doc: Data structure representing the structure of the pipeline

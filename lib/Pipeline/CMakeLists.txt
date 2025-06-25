@@ -50,7 +50,5 @@ target_tuple_tree_generator(
   "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/pipeline_description/_generated.py"
   TYPESCRIPT_PATH
   "${PIPELINEDESCRIPTION_TYPESCRIPT_PATH}"
-  ROOT_TYPE
-  PipelineDescription
   GLOBAL_NAME
   PipelineDescription)

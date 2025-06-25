@@ -16,7 +16,7 @@ The notice below applies to the generated files.
 #include "revng/TupleTree/NamedEnumScalarTraits.h"
 #include "revng/Support/Assert.h"
 
-namespace /*= enum.namespace =*/::/*= enum.name =*/ {
+namespace /*= base_namespace =*/::/*= enum.name =*/ {
 /*= enum.doc | docstring =*/
 enum Values
 /**- if enum.underlying_type is defined **/ : /*= enum.underlying_type =*//** endif **/{
@@ -58,7 +58,7 @@ inline Values fromName(llvm::StringRef Name) {
     return Invalid;
   }
 }
-} // namespace /*= enum.namespace =*/::/*= enum.name =*/
+} // namespace /*= base_namespace =*/::/*= enum.name =*/
 
 template<>
 struct KeyedObjectTraits</*= enum | fullname =*/>

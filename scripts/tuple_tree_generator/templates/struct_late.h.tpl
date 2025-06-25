@@ -63,7 +63,7 @@ template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
   };
 };
 
-namespace /*= struct.namespace =*/ {
+namespace /*= base_namespace =*/ {
 template <int I> const auto &get(const /*= struct.name =*/ &x) {
   /**- for field in struct.all_fields **/
   if constexpr (I == /*= loop.index0 =*/)
@@ -154,7 +154,7 @@ struct KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>> {
 };
 /** endif **/
 
-namespace /*= struct.namespace =*/ {
+namespace /*= base_namespace =*/ {
 
 /// Is roughly equivalent to
 /// ```
@@ -173,7 +173,7 @@ inline Upcastable/*= struct.name =*/ make/*= struct.name =*/(Args &&...A) {
 
 Upcastable/*= struct.name =*/ copy/*= struct.name =*/(const /*= struct.name =*/ &From);
 
-} // namespace /*= struct.namespace =*/
+} // namespace /*= base_namespace =*/
 
 extern template
 bool UpcastablePointer</*= struct | user_fullname =*/>::operator==(const UpcastablePointer &Other) const;
