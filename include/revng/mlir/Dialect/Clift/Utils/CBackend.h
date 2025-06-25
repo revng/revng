@@ -12,13 +12,13 @@
 #include "revng/mlir/Dialect/Clift/Utils/CTarget.h"
 
 namespace ptml {
-class CTypeBuilder;
+class ModelCBuilder;
 }
 
 namespace mlir::clift {
 
 std::string decompile(FunctionOp Function,
                       const TargetCImplementation &Target,
-                      ptml::CTypeBuilder &Builder);
+                      ptml::ModelCBuilder &Builder);
 
 } // namespace mlir::clift

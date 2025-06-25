@@ -9,7 +9,7 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/PTML/CBuilder.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
 
 namespace clift = mlir::clift;
@@ -121,7 +121,7 @@ static std::string getPrimitiveTypeCName(PrimitiveType Type) {
 class CEmitter {
 public:
   explicit CEmitter(const TargetCImplementation &Target,
-                    ptml::CTypeBuilder &Builder,
+                    ptml::ModelCBuilder &Builder,
                     llvm::raw_ostream &Out) :
     Target(Target), C(Builder), Out(Out, C) {
     Builder.setOutputStream(this->Out);
@@ -454,7 +454,7 @@ public:
     }
   }
 
-  const ptml::CTypeBuilder::TagPair &getLocalVariableTags(LocalVariableOp Op) {
+  const ptml::ModelCBuilder::TagPair &getLocalVariableTags(LocalVariableOp Op) {
     auto [Iterator, Inserted] = LocalSymbols.try_emplace(Op.getOperation());
     if (Inserted) {
       // TODO: pass in the list of `Op` user addresses.
@@ -464,7 +464,7 @@ public:
     return Iterator->second;
   }
 
-  const ptml::CTypeBuilder::TagPair &getGotoLabelTags(MakeLabelOp Op) {
+  const ptml::ModelCBuilder::TagPair &getGotoLabelTags(MakeLabelOp Op) {
     auto [Iterator, Inserted] = LocalSymbols.try_emplace(Op.getOperation());
     if (Inserted) {
       // TODO: pass in the label address.
@@ -1401,7 +1401,7 @@ public:
 
 private:
   const TargetCImplementation &Target;
-  ptml::CTypeBuilder &C;
+  ptml::ModelCBuilder &C;
   ptml::IndentedOstream Out;
 
   const model::Function *CurrentFunction = nullptr;
@@ -1413,16 +1413,16 @@ private:
   OperatorPrecedence CurrentPrecedence = {};
 
   // Local variable/label naming helpers
-  ptml::CTypeBuilder::VariableNameBuilder VariableNameBuilder;
-  ptml::CTypeBuilder::GotoLabelNameBuilder GotoLabelNameBuilder;
-  llvm::DenseMap<mlir::Operation *, ptml::CTypeBuilder::TagPair> LocalSymbols;
+  ptml::ModelCBuilder::VariableNameBuilder VariableNameBuilder;
+  ptml::ModelCBuilder::GotoLabelNameBuilder GotoLabelNameBuilder;
+  llvm::DenseMap<mlir::Operation *, ptml::ModelCBuilder::TagPair> LocalSymbols;
 };
 
 } // namespace
 
 std::string clift::decompile(FunctionOp Function,
                              const TargetCImplementation &Target,
-                             ptml::CTypeBuilder &Builder) {
+                             ptml::ModelCBuilder &Builder) {
   std::string Result;
   llvm::raw_string_ostream Out(Result);
   CEmitter(Target, Builder, Out).emitFunction(Function);

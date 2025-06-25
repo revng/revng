@@ -13,7 +13,7 @@
 
 namespace ptml {
 
-class CTypeBuilder : public CBuilder {
+class ModelCBuilder : public CBuilder {
 public:
   using OutStream = ptml::IndentedOstream;
 
@@ -72,10 +72,10 @@ private:
   std::optional<DependencyGraph> DependencyCache = std::nullopt;
 
 public:
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary,
-               CBuilder B,
-               ConfigurationOptions &&Configuration) :
+  ModelCBuilder(llvm::raw_ostream &OutputStream,
+                const model::Binary &Binary,
+                CBuilder B,
+                ConfigurationOptions &&Configuration) :
     CBuilder(B),
     Binary(Binary),
     NameBuilder(Binary),
@@ -84,34 +84,35 @@ public:
                                     DecompiledCCodeIndentation)),
     Configuration(std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary,
-               CBuilder B) :
-    CTypeBuilder(OutputStream, Binary, B, ConfigurationOptions{}) {}
+  ModelCBuilder(llvm::raw_ostream &OutputStream,
+                const model::Binary &Binary,
+                CBuilder B) :
+    ModelCBuilder(OutputStream, Binary, B, ConfigurationOptions{}) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary,
-               bool EnableTaglessMode,
-               ConfigurationOptions &&Configuration) :
-    CTypeBuilder(OutputStream,
-                 Binary,
-                 ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode },
-                 std::move(Configuration)) {}
+  ModelCBuilder(llvm::raw_ostream &OutputStream,
+                const model::Binary &Binary,
+                bool EnableTaglessMode,
+                ConfigurationOptions &&Configuration) :
+    ModelCBuilder(OutputStream,
+                  Binary,
+                  ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode },
+                  std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary,
-               bool EnableTaglessMode) :
-    CTypeBuilder(OutputStream,
-                 Binary,
-                 ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode }) {}
+  ModelCBuilder(llvm::raw_ostream &OutputStream,
+                const model::Binary &Binary,
+                bool EnableTaglessMode) :
+    ModelCBuilder(OutputStream,
+                  Binary,
+                  ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode }) {
+  }
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary,
-               ConfigurationOptions &&Configuration) :
-    CTypeBuilder(OutputStream, Binary, {}, std::move(Configuration)) {}
+  ModelCBuilder(llvm::raw_ostream &OutputStream,
+                const model::Binary &Binary,
+                ConfigurationOptions &&Configuration) :
+    ModelCBuilder(OutputStream, Binary, {}, std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream, const model::Binary &Binary) :
-    CTypeBuilder(OutputStream, Binary, {}, {}) {}
+  ModelCBuilder(llvm::raw_ostream &OutputStream, const model::Binary &Binary) :
+    ModelCBuilder(OutputStream, Binary, {}, {}) {}
 
 public:
   void setOutputStream(llvm::raw_ostream &OutputStream) {

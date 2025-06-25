@@ -22,7 +22,7 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 static Logger<> Log{ "implicit-model-cast" };
 
@@ -285,7 +285,7 @@ ImplicitModelCastPass::getOperandsToPromote(llvm::Instruction *I,
   }
 
   auto GetPlainTypeName = [](const model::Type &Type) {
-    ptml::CTypeBuilder B(llvm::nulls(), {}, /* TaglessMode = */ true);
+    ptml::ModelCBuilder B(llvm::nulls(), {}, /* TaglessMode = */ true);
     return B.getTypeName(Type);
   };
 
