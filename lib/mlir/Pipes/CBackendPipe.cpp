@@ -7,7 +7,7 @@
 #include "revng/Backend/DecompilePipe.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
 #include "revng/mlir/Dialect/Clift/Utils/CSemantics.h"
 #include "revng/mlir/Dialect/Clift/Utils/Helpers.h"
@@ -52,9 +52,9 @@ public:
     revng_assert(verifyCSemantics(Module, Target).succeeded());
 
     llvm::raw_null_ostream NullStream;
-    ptml::CTypeBuilder B(NullStream,
-                         *getModelFromContext(EC),
-                         /*EnableTaglessMode=*/true);
+    ptml::ModelCBuilder B(NullStream,
+                          *getModelFromContext(EC),
+                          /*EnableTaglessMode=*/true);
 
     std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
     Module->walk([&](clift::FunctionOp F) {

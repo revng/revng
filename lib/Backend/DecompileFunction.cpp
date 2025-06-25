@@ -62,7 +62,7 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 #include "revng/Yield/PTML.h"
 
 #include "ALAPVariableDeclaration.h"
@@ -137,7 +137,7 @@ static std::string addAlwaysParentheses(llvm::StringRef Expr) {
 }
 
 static std::string get128BitIntegerHexConstant(llvm::APInt Value,
-                                               const ptml::CTypeBuilder &B) {
+                                               const ptml::ModelCBuilder &B) {
   revng_assert(Value.getBitWidth() > 64);
   revng_assert(Value.getBitWidth() <= 128);
   using PTMLOperator = ptml::CBuilder::Operator;
@@ -186,7 +186,7 @@ static std::string get128BitIntegerHexConstant(llvm::APInt Value,
 }
 
 static std::string hexLiteral(const llvm::ConstantInt *Int,
-                              const ptml::CTypeBuilder &B) {
+                              const ptml::ModelCBuilder &B) {
   StringToken Formatted;
   if (Int->getBitWidth() <= 64) {
     Int->getValue().toString(Formatted,
@@ -241,7 +241,7 @@ private:
   const ModelTypesMap TypeMap;
 
   /// Helper for outputting the decompiled C code
-  ptml::CTypeBuilder &B;
+  ptml::ModelCBuilder &B;
 
   /// Name of the local variable used to break out of loops from within nested
   /// switches
@@ -259,7 +259,7 @@ private:
   ControlFlowGraphCache &Cache;
 
   /// Stateful generator for variable names
-  ptml::CTypeBuilder::VariableNameBuilder VariableNameBuilder;
+  ptml::ModelCBuilder::VariableNameBuilder VariableNameBuilder;
 
   /// Keep track of the names associated with function arguments, and local
   /// variables. In the past it also kept track of intermediate expressions, but
@@ -282,7 +282,7 @@ public:
                  const llvm::Function &LLVMFunction,
                  const ASTTree &GHAST,
                  const ASTVarDeclMap &VarToDeclare,
-                 ptml::CTypeBuilder &B) :
+                 ptml::ModelCBuilder &B) :
     Model(Model),
     LLVMFunction(LLVMFunction),
     ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
@@ -467,13 +467,13 @@ std::string CCodeGenerator::buildCastExpr(StringRef ExprToCast,
 }
 
 static std::string getUndefToken(const model::Type &UndefType,
-                                 const ptml::CTypeBuilder &B) {
+                                 const ptml::ModelCBuilder &B) {
   return B.Binary.Configuration().Naming().undefinedValuePrefix().str()
          + UndefType.toPrimitive().getCName() + "()";
 }
 
 static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
-                                            const ptml::CTypeBuilder &B) {
+                                            const ptml::ModelCBuilder &B) {
 
   if (isCallToTagged(Call, FunctionTags::HexInteger)) {
     const auto Operand = Call->getArgOperand(0);
@@ -1010,7 +1010,7 @@ static bool shouldGenerateDebugInfoAsPTML(const llvm::Instruction &I) {
 
 static std::string addDebugInfo(const llvm::Instruction *I,
                                 std::string &&Str,
-                                const ptml::CTypeBuilder &B) {
+                                const ptml::ModelCBuilder &B) {
   if (shouldGenerateDebugInfoAsPTML(*I)) {
     std::string Location = I->getDebugLoc()->getScope()->getName().str();
     return B.getDebugInfoTag(std::move(Str), std::move(Location));
@@ -1871,7 +1871,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
 static std::string getModelArgIdentifier(const model::TypeDefinition &ModelFT,
                                          const llvm::Argument &Argument,
-                                         const ptml::CTypeBuilder &B) {
+                                         const ptml::ModelCBuilder &B) {
   const llvm::Function *LLVMFunction = Argument.getParent();
   unsigned ArgNo = Argument.getArgNo();
 
@@ -2001,7 +2001,7 @@ static std::string decompileFunction(ControlFlowGraphCache &Cache,
                                      const Binary &Model,
                                      const ASTVarDeclMap &VarToDeclare,
                                      bool NeedsLocalStateVar,
-                                     ptml::CTypeBuilder &B) {
+                                     ptml::ModelCBuilder &B) {
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);
@@ -2107,7 +2107,7 @@ static void softFail(llvm::Function &F, ASTTree &GHAST) {
 std::string decompile(ControlFlowGraphCache &Cache,
                       llvm::Function &F,
                       const model::Binary &Model,
-                      ptml::CTypeBuilder &B) {
+                      ptml::ModelCBuilder &B) {
   using namespace llvm;
   Task T2(3, Twine("decompile Function: ") + Twine(F.getName()));
 

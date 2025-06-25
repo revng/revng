@@ -38,17 +38,17 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
   const model::Binary &Model = *getModelFromContext(EC);
 
   namespace options = revng::options;
-  ptml::CTypeBuilder B(llvm::nulls(),
-                       Model,
-                       /* EnableTaglessMode = */ true,
-                       // Disable stack frame inlining because enabling it could
-                       // break the property that we emit syntactically valid C
-                       // code, due to the stack frame type definition being
-                       // duplicated in the global header and in the function's
-                       // body. In this artifact, where all the decompiled
-                       // functions are put in a single .c file, recompilability
-                       // is still important.
-                       { .EnableStackFrameInlining = false });
+  ptml::ModelCBuilder B(llvm::nulls(),
+                        Model,
+                        /* EnableTaglessMode = */ true,
+                        // Disable stack frame inlining because enabling it
+                        // could break the property that we emit syntactically
+                        // valid C code, due to the stack frame type definition
+                        // being duplicated in the global header and
+                        // in the function's body. In this artifact, where all
+                        // the decompiled functions are put in a single .c file,
+                        // recompilability is still important.
+                        { .EnableStackFrameInlining = false });
 
   {
     ControlFlowGraphCache Cache{ CFGMap };

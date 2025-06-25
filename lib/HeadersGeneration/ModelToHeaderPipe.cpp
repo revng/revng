@@ -49,7 +49,7 @@ public:
       revng_abort(ErrorCode.message().c_str());
 
     namespace options = revng::options;
-    ptml::CTypeBuilder
+    ptml::ModelCBuilder
       B(Header,
         *getModelFromContext(EC),
         /* EnableTaglessMode = */ false,
