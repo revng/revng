@@ -36,7 +36,7 @@ static Logger<> Log{ "helpers-to-header" };
 /// type.
 static void printLLVMTypeDeclaration(const llvm::StructType *S,
                                      const llvm::Function &F,
-                                     ptml::CTypeBuilder &B) {
+                                     ptml::ModelCBuilder &B) {
   B.append(B.getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
            + B.getKeyword(ptml::CBuilder::Keyword::Struct) + " "
            + ptml::AttributeRegistry::getAttribute<"_PACKED">() + " ");
@@ -56,7 +56,7 @@ static void printLLVMTypeDeclaration(const llvm::StructType *S,
 
 /// Print the prototype of a helper.
 static void printHelperPrototype(const llvm::Function *Func,
-                                 ptml::CTypeBuilder &B) {
+                                 ptml::ModelCBuilder &B) {
   B.append(getReturnTypeReferenceTag(Func, B) + " "
            + getHelperFunctionDefinitionTag(Func, B));
 

@@ -11,7 +11,7 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/StringMap.h"
 #include "revng/Support/Identifier.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 static llvm::cl::opt<std::string> ProblemNameFile("naming-collisions-report",
                                                   llvm::cl::desc("The file to "
@@ -148,7 +148,7 @@ void Decompile::run(pipeline::ExecutionContext &EC,
   ControlFlowGraphCache Cache(CFGMap);
 
   namespace options = revng::options;
-  ptml::CTypeBuilder
+  ptml::ModelCBuilder
     B(llvm::nulls(),
       Model,
       /* EnableTaglessMode = */ false,

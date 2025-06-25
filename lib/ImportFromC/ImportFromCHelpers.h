@@ -20,7 +20,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 namespace {
 
@@ -75,7 +75,7 @@ collectDependentTypes(const model::TypeDefinition &TheType,
       if (auto *DependantType = Edge->skipToDefinition()) {
         // For non-typedefs, we can only keep the types that use the type
         // we are about to edit if there's a pointer in-between.
-        if (!ptml::CTypeBuilder::isDeclarationTheSameAsDefinition(TheType)
+        if (!ptml::ModelCBuilder::isDeclarationTheSameAsDefinition(TheType)
             and Edge->isPointer())
           continue;
 

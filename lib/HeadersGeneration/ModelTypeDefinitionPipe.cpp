@@ -44,12 +44,12 @@ public:
       std::string &Result = ModelTypesContainer[Type.key()];
       llvm::raw_string_ostream Out(Result);
 
-      ptml::CTypeBuilder B(Out,
-                           Model,
-                           true,
-                           { .EnablePrintingOfTheMaximumEnumValue = true,
-                             .EnableExplicitPaddingMode = false,
-                             .EnableStructSizeAnnotation = true });
+      ptml::ModelCBuilder B(Out,
+                            Model,
+                            true,
+                            { .EnablePrintingOfTheMaximumEnumValue = true,
+                              .EnableExplicitPaddingMode = false,
+                              .EnableStructSizeAnnotation = true });
 
       B.printDefinition(Type);
     }

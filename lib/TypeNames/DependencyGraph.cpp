@@ -21,14 +21,14 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/TypeNames/DependencyGraph.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 static Logger<> Log{ "type-dependency-graph" };
 
 using namespace llvm;
 
 static bool hasSeparateForwardDeclaration(const model::TypeDefinition &TD) {
-  return not ptml::CTypeBuilder::isDeclarationTheSameAsDefinition(TD);
+  return not ptml::ModelCBuilder::isDeclarationTheSameAsDefinition(TD);
 }
 
 static llvm::StringRef toString(TypeNode::Kind K) {
