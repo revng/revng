@@ -11,7 +11,7 @@ bool init_unit_test();
 
 #include "revng/Model/Binary.h"
 #include "revng/Support/Assert.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
 // Tests whether the way we emit pointers and arrays is reasonable.
@@ -132,7 +132,7 @@ BOOST_AUTO_TEST_CASE(PointerArrayEmission) {
                      "(*(*const *const ****const test)[4])[39][18]");
 
   std::string FailureLog;
-  ptml::CTypeBuilder B(llvm::nulls(), *Binary, /* EnableTaglessMode = */ true);
+  ptml::ModelCBuilder B(llvm::nulls(), *Binary, /* EnableTaglessMode = */ true);
   for (auto &&[Type, ExpectedOutput] : Tests) {
     std::string ActualOutput = B.getNamedCInstance(*Type, "test");
     if (ActualOutput != ExpectedOutput) {
