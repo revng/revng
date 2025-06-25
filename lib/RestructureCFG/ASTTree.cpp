@@ -154,6 +154,16 @@ ASTNode *ASTTree::copyASTNodesFrom(ASTTree &OldAST) {
   using MovedIteratorRange = llvm::iterator_range<links_container::iterator>;
   MovedIteratorRange Result = llvm::make_range(BeginInserted, EndInserted);
   for (ast_unique_ptr &NewNode : Result) {
+
+    // The following should be an assert, but since the backend is in
+    // maintenance mode, we have an early return to propagate an early
+    // failure.
+    if (auto *Scs = llvm::dyn_cast<ScsNode>(NewNode.get())) {
+      if (not Scs->hasBody()) {
+        return nullptr;
+      }
+    }
+
     NewNode->updateASTNodesPointers(ASTSubstitutionMap);
     if (auto *If = llvm::dyn_cast<IfNode>(NewNode.get())) {
       If->updateCondExprPtr(CondExprMap);
