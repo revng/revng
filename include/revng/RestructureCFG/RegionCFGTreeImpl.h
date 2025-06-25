@@ -1119,7 +1119,12 @@ inline bool RegionCFG<NodeT>::inflate() {
           // `Simplification`, meaning that dereferencing it is bad. You can
           // still use it as a key or value into maps though.
           auto ReturnCode = purgeIfTrivialDummy(Duplicated);
-          revng_assert(ReturnCode != PurgeDummyReturnCode::Failure);
+
+          // We propagate the failure upwards
+          if (ReturnCode == PurgeDummyReturnCode::Failure) {
+            return false;
+          }
+
           if (ReturnCode == PurgeDummyReturnCode::NoSimplification) {
             // Add the cloned node in the equivalence class of the original
             // node.
