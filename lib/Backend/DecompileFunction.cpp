@@ -1683,7 +1683,11 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
     {
       Scope TheScope = B.getCurvedBracketScope();
-      revng_assert(Loop->hasBody() or Loop->isDoWhile());
+      if ((not Loop->hasBody()) and (not Loop->isDoWhile())) {
+        revng_log(Log,
+                  "WARNING: emitting a loop with an empty body which is not a "
+                  "do-while");
+      }
       if (Loop->hasBody())
         rc_recur emitGHASTNode(Loop->getBody());
 

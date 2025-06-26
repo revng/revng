@@ -684,7 +684,9 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
       // Precompute how many `SetNode`s are present in the related `Scs`
       auto &[RelatedLoop, RemoveSetNode] = LoopDispatcherMap.at(Switch);
       SetNodeCounterMap SetCounterMap;
-      countSetNodeInLoop(RelatedLoop->getBody(), SetCounterMap);
+      if (RelatedLoop->hasBody()) {
+        countSetNodeInLoop(RelatedLoop->getBody(), SetCounterMap);
+      }
 
       // The inlining routine should proceed as follows:
       // 1) In the first phase, we iterate through all the cases, and try to
@@ -704,37 +706,43 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
         // are handled in the recursive step
         if (LabelSet.size() == 1) {
           auto Label = *LabelSet.begin();
-          auto &Sets = SetCounterMap.at(Label);
-          if (llvm::isa<SwitchBreakNode>(Case)) {
 
-            // The superfluous `SwitchBreak` removal should have been already
-            // performed in the `simplifySwitchBreak` phase
-            revng_abort();
-          } else if (Sets.size() == 1
-                     and (not needsLoopVar(RelatedLoop)
-                          or not containsSet(Case))
-                     and not containsContinueOrBreak(Case)) {
+          // We should always find the `SetNode`s to remove, but since the
+          // backend is in maintenance mode, we relaxed the assumption
+          auto SetsIt = SetCounterMap.find(Label);
+          if (SetsIt != SetCounterMap.end()) {
+            auto &Sets = SetsIt->second;
+            if (llvm::isa<SwitchBreakNode>(Case)) {
 
-            // We inline the body of the case only if the following conditions
-            // stand:
-            // 1) There is a single `SetNode` for the corresponding label in the
-            // body of the loop where we inline the case.
-            // 2) Either, the loop where we inline the case does not require a
-            // `state-variable`, or if it requires it, the body of the case we
-            // inline does not contain any `SetNode`. In that case indeed, we
-            // would be moving a `SetNode` from a scope to another one, which is
-            // not semantics preserving.
-            // 3) The `case` body we are trying to inline does not contain any
-            // loop related `NonLocalControlFlow`, meaning no `break` or
-            // `continue` statements. If that was the case, we would be moving
-            // such statements from an external loop to a more nested one,
-            // breaking the semantics.
-            addToDispatcherSet(AST,
-                               RelatedLoop->getBody(),
-                               Case,
-                               *Sets.begin(),
-                               RemoveSetNode);
-            ToRemoveCaseIndex.insert(Index);
+              // The superfluous `SwitchBreak` removal should have been already
+              // performed in the `simplifySwitchBreak` phase
+              revng_abort();
+            } else if (Sets.size() == 1
+                       and (not needsLoopVar(RelatedLoop)
+                            or not containsSet(Case))
+                       and not containsContinueOrBreak(Case)) {
+
+              // We inline the body of the case only if the following conditions
+              // stand:
+              // 1) There is a single `SetNode` for the corresponding label in
+              // the body of the loop where we inline the case. 2) Either, the
+              // loop where we inline the case does not require a
+              // `state-variable`, or if it requires it, the body of the case we
+              // inline does not contain any `SetNode`. In that case indeed, we
+              // would be moving a `SetNode` from a scope to another one, which
+              // is not semantics preserving. 3) The `case` body we are trying
+              // to inline does not contain any loop related
+              // `NonLocalControlFlow`, meaning no `break` or `continue`
+              // statements. If that was the case, we would be moving such
+              // statements from an external loop to a more nested one, breaking
+              // the semantics.
+              addToDispatcherSet(AST,
+                                 RelatedLoop->getBody(),
+                                 Case,
+                                 *Sets.begin(),
+                                 RemoveSetNode);
+              ToRemoveCaseIndex.insert(Index);
+            }
           }
         }
       }
@@ -910,13 +918,20 @@ simplifySwitchBreakImpl(ASTTree &AST,
         // Precompute how many `SetNode`s are present in the related `Scs`
         auto &[RelatedLoop, RemoveSetNode] = LoopDispatcherMap.at(Switch);
         SetNodeCounterMap SetCounterMap;
-        countSetNodeInLoop(RelatedLoop->getBody(), SetCounterMap);
+        if (RelatedLoop->hasBody()) {
+          countSetNodeInLoop(RelatedLoop->getBody(), SetCounterMap);
+        }
 
         // Remove the `SetNode`s associated to the removed `Label`s
         for (auto &Label : RemovedLabels) {
-          auto &Sets = SetCounterMap.at(Label);
-          for (auto *Set : Sets) {
-            removeDispatcherSet(AST, RelatedLoop->getBody(), Set);
+
+          // We should always find the `SetNode`s to remove, but since the
+          // backend is in maintenance mode, we relaxed the assumption
+          auto SetsIt = SetCounterMap.find(Label);
+          if (SetsIt != SetCounterMap.end()) {
+            for (auto *Set : SetsIt->second) {
+              removeDispatcherSet(AST, RelatedLoop->getBody(), Set);
+            }
           }
         }
       }

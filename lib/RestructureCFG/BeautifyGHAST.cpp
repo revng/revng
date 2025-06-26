@@ -378,6 +378,51 @@ static bool simplifyTrivialShortCircuit(ASTNode *RootNode, ASTTree &AST) {
   return true;
 }
 
+static bool checkLoops(ASTTree &AST, ASTNode *RootNode) {
+
+  // Inspect all the nodes composing a sequence node.
+  if (auto *Sequence = llvm::dyn_cast<SequenceNode>(RootNode)) {
+    for (ASTNode *&Node : Sequence->nodes()) {
+      if (not checkLoops(AST, Node)) {
+        return false;
+      }
+    }
+  } else if (auto *Scs = llvm::dyn_cast<ScsNode>(RootNode)) {
+
+    // We only admit a `nullptr` body for a `DoWhile`, whose simplification
+    // already happened. If this is not verified, we soft fail the
+    // decompilation.
+    if ((not Scs->isDoWhile()) and (not Scs->hasBody())) {
+      return false;
+    }
+
+    // Inspect the body of a SCS region (it may be empty due to being an empty
+    // `do-while`).
+    if (Scs->hasBody()) {
+      return checkLoops(AST, Scs->getBody());
+    }
+  } else if (auto *If = llvm::dyn_cast<IfNode>(RootNode)) {
+
+    // Inspect the body of an if construct.
+    if (If->hasThen()) {
+      if (not checkLoops(AST, If->getThen())) {
+        return false;
+      }
+    }
+    if (If->hasElse()) {
+      if (not checkLoops(AST, If->getElse())) {
+        return false;
+      }
+    }
+  } else if (auto *Switch = llvm::dyn_cast<SwitchNode>(RootNode)) {
+    for (auto &LabelCasePair : Switch->cases())
+      if (not checkLoops(AST, LabelCasePair.second)) {
+        return false;
+      }
+  }
+  return true;
+}
+
 static void matchDoWhile(ASTNode *RootNode, ASTTree &AST) {
 
   BeautifyLogger << "Matching do whiles"
@@ -952,6 +997,30 @@ static ASTNode *promoteNoFallthroughIf(const model::Binary &Model,
   return RootNode;
 }
 
+static bool checkKind(ASTTree &AST) {
+  for (ASTNode *Node : AST.nodes()) {
+    switch (Node->getKind()) {
+    case ASTNode::NK_Code:
+    case ASTNode::NK_Break:
+    case ASTNode::NK_Continue:
+    case ASTNode::NK_If:
+    case ASTNode::NK_Scs:
+    case ASTNode::NK_List:
+    case ASTNode::NK_Switch:
+    case ASTNode::NK_SwitchBreak:
+    case ASTNode::NK_Set:
+      break;
+    default:
+
+      // If we have an invalid `Kind`, we propagate the error upwards
+      return false;
+    }
+  }
+
+  // We return `true` if no inconsistency arose
+  return true;
+}
+
 bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   // If the --short-circuit-metrics-output-dir=dir argument was passed from
@@ -1079,6 +1148,12 @@ bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   simplifyCompareNode(CombedAST, RootNode);
   Dumper.log("after-compare-node-simplify");
 
+  // Consistency check for nodes. Check that all the nodes in the `ASTTree` have
+  // a valid `Kind`. If this is not true, we soft fail.
+  if (not(checkKind(CombedAST))) {
+    return false;
+  }
+
   // Remove useless continues.
   revng_log(BeautifyLogger, "Removing useless continue nodes\n");
   simplifyImplicitContinue(CombedAST);
@@ -1094,6 +1169,13 @@ bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger, "Fixing loop breaks inside switches\n");
   SwitchBreaksFixer().run(RootNode, CombedAST);
   Dumper.log("after-fix-switch-breaks");
+
+  // Consistency check of loops.
+  // The following call may return `false` as a signal of failure, and in
+  // that case we propagate the error upwards.
+  if (not(checkLoops(CombedAST, RootNode))) {
+    return false;
+  }
 
   // Serialize the collected metrics in the statistics file if necessary
   if (StatsFileStream) {
