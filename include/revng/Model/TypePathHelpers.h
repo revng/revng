@@ -40,18 +40,33 @@ inline std::string path(const model::UnionDefinition &Union,
   return path(Union) + "/UnionDefinition::Fields/" + key(Field);
 }
 
-inline std::string path(const model::CABIFunctionDefinition &CFT,
-                        const model::Argument &Argument) {
+inline std::string argumentPath(const model::CABIFunctionDefinition &CFT,
+                                const model::Argument &Argument) {
   return path(CFT) + "/CABIFunctionDefinition::Arguments/" + key(Argument);
 }
 
-inline std::string path(const model::RawFunctionDefinition &RFT,
-                        const model::NamedTypedRegister &Argument) {
+inline std::string argumentPath(const model::RawFunctionDefinition &RFT,
+                                const model::NamedTypedRegister &Argument) {
   return path(RFT) + "/RawFunctionDefinition::Arguments/" + key(Argument);
+}
+
+inline std::string returnValuePath(const model::RawFunctionDefinition &RFT,
+                                   const model::NamedTypedRegister &Argument) {
+  return path(RFT) + "/RawFunctionDefinition::ReturnValues/" + key(Argument);
 }
 
 inline std::string path(const model::Segment &Segment) {
   return "/Segments/" + key(Segment);
+}
+
+inline std::string variablePath(const model::Function &Function,
+                                const model::LocalIdentifier &Variable) {
+  return path(Function) + "/LocalVariables/" + key(Variable);
+}
+
+inline std::string gotoLabelPath(const model::Function &Function,
+                                 const model::LocalIdentifier &Label) {
+  return path(Function) + "/GotoLabels/" + key(Label);
 }
 
 } // namespace model::detail

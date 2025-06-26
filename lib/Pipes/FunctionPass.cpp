@@ -1,7 +1,6 @@
 /// \file FunctionPass.cpp
 /// Contains the implementation of pipeline passes.
 
-///
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //

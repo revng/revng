@@ -12,7 +12,7 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/Annotations.h"
 #include "revng/Support/Debug.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 #include "HeaderToModel.h"
 

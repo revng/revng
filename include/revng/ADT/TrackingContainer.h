@@ -206,6 +206,7 @@ public:
     onFieldAccess("operator==", name());
 #endif
     Exact.access();
+    Other.Exact.access();
     return Content == Other.Content;
   }
 
@@ -215,6 +216,23 @@ public:
 #endif
     Exact.access();
     return Content == Other;
+  }
+
+  auto operator<=>(const TrackingContainer &Other) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("operator<=>", name());
+#endif
+    Exact.access();
+    Other.Exact.access();
+    return Content <=> Other.Content;
+  }
+
+  auto operator<=>(const T &Other) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("operator<=>", name());
+#endif
+    Exact.access();
+    return Content <=> Other;
   }
 
   const value_type &at(const key_type &Key) const {

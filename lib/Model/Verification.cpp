@@ -109,26 +109,40 @@ bool CallSitePrototype::verify(VerifyHelper &VH) const {
   return true;
 }
 
+bool verifyAddressSet(VerifyHelper &VH,
+                      const TrackingSortedVector<MetaAddress> &MAs,
+                      const auto &ToLog) {
+  if (MAs.empty())
+    return VH.fail("Empty locations are not allowed.", ToLog);
+
+  std::set<MetaAddress> Deduplicator;
+  for (const MetaAddress &Address : MAs) {
+    if (Address.isInvalid())
+      return VH.fail("Only valid addresses can be a part of a location.",
+                     ToLog);
+
+    if (not Deduplicator.insert(Address).second)
+      return VH.fail("Duplicated addresses are not allowed as a part of "
+                     "a location.",
+                     ToLog);
+  }
+
+  return true;
+}
+
 bool StatementComment::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
   if (Body().empty())
     return VH.fail("Comment body must not be empty.", *this);
 
-  std::set<MetaAddress> Deduplicator;
-  for (const MetaAddress &Address : Location()) {
-    if (Address.isInvalid())
-      return VH.fail("Only valid addresses can be a part of the comment "
-                     "location.",
-                     *this);
+  return verifyAddressSet(VH, Location(), *this);
+}
 
-    if (not Deduplicator.insert(Address).second)
-      return VH.fail("Duplicated addresses are not allowed as a part of the "
-                     "comment location.",
-                     *this);
-  }
+bool LocalIdentifier::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
 
-  return true;
+  return verifyAddressSet(VH, Location(), *this);
 }
 
 bool Function::verify(VerifyHelper &VH) const {
@@ -168,6 +182,30 @@ bool Function::verify(VerifyHelper &VH) const {
 
     if (not Comment.verify())
       return VH.fail();
+  }
+
+  {
+    std::set<TrackingSortedVector<MetaAddress>> Deduplicator;
+    for (const auto &Variable : LocalVariables()) {
+      if (not Variable.verify())
+        return VH.fail();
+
+      if (!Deduplicator.insert(Variable.Location()).second)
+        return VH.fail("Multiple variables with the same address set: '"
+                       + addressesToString(Variable.Location()) + "'");
+    }
+  }
+
+  {
+    std::set<TrackingSortedVector<MetaAddress>> Deduplicator;
+    for (const auto &GotoLabel : GotoLabels()) {
+      if (not GotoLabel.verify())
+        return VH.fail();
+
+      if (!Deduplicator.insert(GotoLabel.Location()).second)
+        return VH.fail("Multiple goto labels with the same address set: '"
+                       + addressesToString(GotoLabel.Location()) + "'");
+    }
   }
 
   return true;
@@ -752,6 +790,8 @@ bool Configuration::verify(VerifyHelper &VH) const {
     return VH.fail("Local variable prefix must not be empty.");
   if (Configuration().Naming().unnamedBreakFromLoopVariablePrefix().empty())
     return VH.fail("\"Break from loop\" variable prefix must not be empty.");
+  if (Configuration().Naming().unnamedGotoLabelPrefix().empty())
+    return VH.fail("Goto label prefix must not be empty.");
 
   if (Configuration().Naming().structPaddingPrefix().empty())
     return VH.fail("Padding prefix must not be empty.");
@@ -944,6 +984,14 @@ bool StatementComment::verify(bool Assert) const {
   return verify(VH);
 }
 bool StatementComment::verify() const {
+  return verify(false);
+}
+
+bool LocalIdentifier::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool LocalIdentifier::verify() const {
   return verify(false);
 }
 

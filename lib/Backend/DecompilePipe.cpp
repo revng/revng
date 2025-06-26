@@ -11,7 +11,7 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/StringMap.h"
 #include "revng/Support/Identifier.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 static llvm::cl::opt<std::string> ProblemNameFile("naming-collisions-report",
                                                   llvm::cl::desc("The file to "
@@ -38,12 +38,27 @@ static void reportProblemNames(const model::Binary &Binary) {
     if (Result)
       OutputStream << *Result << '\n';
   };
+  auto OutputString = [&OutputStream](const std::string &Result) {
+    if (not Result.empty())
+      OutputStream << Result << '\n';
+  };
 
   model::CNameBuilder Builder(Binary);
-  for (const model::Function &F : Binary.Functions())
+  for (const model::Function &F : Binary.Functions()) {
     Output(Builder.warning(F));
+
+    auto VariableNameBuilder = Builder.localVariables(F);
+    for (auto &Variable : F.LocalVariables())
+      OutputString(VariableNameBuilder.name(Variable.Location()).Warning);
+
+    auto LabelNameBuilder = Builder.gotoLabels(F);
+    for (auto &Label : F.GotoLabels())
+      OutputString(LabelNameBuilder.name(Label.Location()).Warning);
+  }
+
   for (const model::Segment &S : Binary.Segments())
     Output(Builder.warning(Binary, S));
+
   for (const model::UpcastableTypeDefinition &D : Binary.TypeDefinitions()) {
     Output(Builder.warning(*D));
 
@@ -133,7 +148,7 @@ void Decompile::run(pipeline::ExecutionContext &EC,
   ControlFlowGraphCache Cache(CFGMap);
 
   namespace options = revng::options;
-  ptml::CTypeBuilder
+  ptml::ModelCBuilder
     B(llvm::nulls(),
       Model,
       /* EnableTaglessMode = */ false,

@@ -28,7 +28,9 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
+
+Logger<> VariableNamingLog("variable-naming");
 
 using llvm::dyn_cast;
 using llvm::StringRef;
@@ -40,7 +42,7 @@ namespace tokens = ptml::c::tokens;
 namespace ranks = revng::ranks;
 
 struct NamedCInstanceImpl {
-  const ptml::CTypeBuilder &B;
+  const ptml::ModelCBuilder &B;
   bool OmitInnerTypeName;
 
 public:
@@ -141,7 +143,7 @@ private:
   }
 };
 
-using PCTB = ptml::CTypeBuilder;
+using PCTB = ptml::ModelCBuilder;
 std::string PCTB::getNamedCInstance(const model::Type &Type,
                                     StringRef InstanceName,
                                     bool OmitInnerTypeName) const {
@@ -231,7 +233,7 @@ template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::RawFunctionDefinition &RF,
                                        const llvm::StringRef &FunctionName,
-                                       const ptml::CTypeBuilder &B,
+                                       const ptml::ModelCBuilder &B,
                                        bool SingleLine) {
   using namespace abi::FunctionType;
   auto Layout = Layout::make(RF);
@@ -288,7 +290,7 @@ template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::CABIFunctionDefinition &CF,
                                        const llvm::StringRef &FunctionName,
-                                       const ptml::CTypeBuilder &B,
+                                       const ptml::ModelCBuilder &B,
                                        bool SingleLine) {
 
   using namespace abi::FunctionType;
@@ -333,7 +335,7 @@ template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const model::TypeDefinition &FT,
                                        const FunctionType *Function,
                                        const llvm::StringRef &FunctionName,
-                                       const ptml::CTypeBuilder &B,
+                                       const ptml::ModelCBuilder &B,
                                        bool SingleLine) {
   std::string Result;
   if (auto *RF = dyn_cast<model::RawFunctionDefinition>(&FT)) {
@@ -360,9 +362,11 @@ std::string printFunctionPrototypeImpl(const model::TypeDefinition &FT,
     return B.getCommentableTag(std::move(Result), FT);
 }
 
-void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
-                                                const model::Function &Function,
-                                                bool SingleLine) {
+using MCB = ptml::ModelCBuilder;
+
+void MCB::printFunctionPrototype(const model::TypeDefinition &FT,
+                                 const model::Function &Function,
+                                 bool SingleLine) {
   *Out << printFunctionPrototypeImpl(FT,
                                      &Function,
                                      getDefinitionTag(Function),
@@ -370,10 +374,9 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
                                      SingleLine);
 }
 
-void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
-                                                const model::DynamicFunction
-                                                  &Function,
-                                                bool SingleLine) {
+void MCB::printFunctionPrototype(const model::TypeDefinition &FT,
+                                 const model::DynamicFunction &Function,
+                                 bool SingleLine) {
   *Out << printFunctionPrototypeImpl(FT,
                                      &Function,
                                      getDefinitionTag(Function),
@@ -381,8 +384,8 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
                                      SingleLine);
 }
 
-void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition
-                                                  &FT) {
+void ptml::ModelCBuilder::printFunctionPrototype(const model::TypeDefinition
+                                                   &FT) {
   *Out << printFunctionPrototypeImpl(FT,
                                      (const model::Function *) nullptr,
                                      getDefinitionTag(FT),
@@ -390,7 +393,7 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition
                                      true);
 }
 
-void ptml::CTypeBuilder::printSegmentType(const model::Segment &Segment) {
+void ptml::ModelCBuilder::printSegmentType(const model::Segment &Segment) {
   std::string Result = "\n" + getModelCommentWithoutLeadingNewline(Segment);
   if (not Segment.Type().isEmpty()) {
     Result += getNamedCInstance(*Segment.Type(), getDefinitionTag(Segment));

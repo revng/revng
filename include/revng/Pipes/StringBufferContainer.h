@@ -33,7 +33,7 @@ public:
   inline static const char *Name = TypeName;
 
   StringBufferContainer(llvm::StringRef Name,
-                        llvm::StringRef StartingConent = "") :
+                        llvm::StringRef StartingContent = "") :
     pipeline::Container<StringBufferContainer>(Name), Content() {}
 
   std::unique_ptr<pipeline::ContainerBase>
