@@ -997,6 +997,30 @@ static ASTNode *promoteNoFallthroughIf(const model::Binary &Model,
   return RootNode;
 }
 
+static bool checkKind(ASTTree &AST) {
+  for (ASTNode *Node : AST.nodes()) {
+    switch (Node->getKind()) {
+    case ASTNode::NK_Code:
+    case ASTNode::NK_Break:
+    case ASTNode::NK_Continue:
+    case ASTNode::NK_If:
+    case ASTNode::NK_Scs:
+    case ASTNode::NK_List:
+    case ASTNode::NK_Switch:
+    case ASTNode::NK_SwitchBreak:
+    case ASTNode::NK_Set:
+      break;
+    default:
+
+      // If we have an invalid `Kind`, we propagate the error upwards
+      return false;
+    }
+  }
+
+  // We return `true` if no inconsistency arose
+  return true;
+}
+
 bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   // If the --short-circuit-metrics-output-dir=dir argument was passed from
@@ -1123,6 +1147,12 @@ bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   revng_log(BeautifyLogger, "Performing the compare node simplification\n");
   simplifyCompareNode(CombedAST, RootNode);
   Dumper.log("after-compare-node-simplify");
+
+  // Consistency check for nodes. Check that all the nodes in the `ASTTree` have
+  // a valid `Kind`. If this is not true, we soft fail.
+  if (not(checkKind(CombedAST))) {
+    return false;
+  }
 
   // Remove useless continues.
   revng_log(BeautifyLogger, "Removing useless continue nodes\n");
