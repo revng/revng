@@ -684,7 +684,9 @@ inlineDispatcherSwitchImpl(ASTTree &AST,
       // Precompute how many `SetNode`s are present in the related `Scs`
       auto &[RelatedLoop, RemoveSetNode] = LoopDispatcherMap.at(Switch);
       SetNodeCounterMap SetCounterMap;
-      countSetNodeInLoop(RelatedLoop->getBody(), SetCounterMap);
+      if (RelatedLoop->hasBody()) {
+        countSetNodeInLoop(RelatedLoop->getBody(), SetCounterMap);
+      }
 
       // The inlining routine should proceed as follows:
       // 1) In the first phase, we iterate through all the cases, and try to
@@ -910,7 +912,9 @@ simplifySwitchBreakImpl(ASTTree &AST,
         // Precompute how many `SetNode`s are present in the related `Scs`
         auto &[RelatedLoop, RemoveSetNode] = LoopDispatcherMap.at(Switch);
         SetNodeCounterMap SetCounterMap;
-        countSetNodeInLoop(RelatedLoop->getBody(), SetCounterMap);
+        if (RelatedLoop->hasBody()) {
+          countSetNodeInLoop(RelatedLoop->getBody(), SetCounterMap);
+        }
 
         // Remove the `SetNode`s associated to the removed `Label`s
         for (auto &Label : RemovedLabels) {
