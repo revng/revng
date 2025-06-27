@@ -199,8 +199,11 @@ public:
     if (auto Error = MaybeWritableFile.get()->commit())
       return Error;
 
-    revng::FilePath IndexPath = Path.addExtension("idx");
-    auto MaybeWritableIndexFile = IndexPath.getWritableFile();
+    std::optional<revng::FilePath> IndexPath = Path.addExtension("idx");
+    if (not IndexPath.has_value())
+      return llvm::Error::success();
+
+    auto MaybeWritableIndexFile = IndexPath->getWritableFile();
     if (MaybeWritableIndexFile) {
       llvm::yaml::Output IndexOutput(MaybeWritableIndexFile.get()->os());
       IndexOutput << Offsets;
@@ -235,7 +238,11 @@ public:
 
   static std::vector<revng::FilePath>
   getWrittenFiles(const revng::FilePath &Path) {
-    return { Path, Path.addExtension("idx") };
+    std::optional<revng::FilePath> IndexPath = Path.addExtension("idx");
+    if (IndexPath.has_value())
+      return { Path, *IndexPath };
+    else
+      return { Path };
   }
 
   static std::vector<pipeline::Kind *> possibleKinds() { return { K }; }
