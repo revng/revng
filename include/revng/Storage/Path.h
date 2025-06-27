@@ -58,9 +58,11 @@ public:
   static FilePath fromLocalStorage(llvm::StringRef Path);
 
   /// This function will return another FilePath with the extension added
-  FilePath addExtension(llvm::StringRef Extension) const {
+  /// If the Path does not support adding an extension (e.g. stdout) then
+  /// nullopt will be returned instead.
+  std::optional<FilePath> addExtension(llvm::StringRef Extension) const {
     if (Client == nullptr)
-      return *this;
+      return std::nullopt;
 
     using llvm::sys::path::get_separator;
     llvm::StringRef Separator = get_separator(Client->getStyle());

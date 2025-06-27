@@ -103,6 +103,26 @@ commands:
       revng artifact --resume "$OUTPUT" render-svg-cfg "$INPUT1" -o /dev/null;
 
   #
+  # Produce a tarball of decompile files from revng.analyzed-model
+  # Also compare the members of the produced tar file and the input model,
+  # both should contain the same members (except the extension).
+  #
+  - type: revng.legacy.decompiled-c-tar
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+      - type: revng.analyzed-model
+    suffix: /
+    command: |-
+      revng artifact
+        --model "$INPUT2"
+        --resume "$OUTPUT"
+        decompile "$INPUT1" > "$OUTPUT/decompiled.tar.gz";
+
+      diff -u <(yq -r '.Functions[].Entry' "$INPUT2" | sort)
+              <(tar -tf "$OUTPUT/decompiled.tar.gz" | sed 's|\.c\.ptml$$||' | sort);
+
+  #
   # Produce legacy single decompiled file and headers from revng.analyzed-model
   #
   - type: revng.legacy.decompiled-c
