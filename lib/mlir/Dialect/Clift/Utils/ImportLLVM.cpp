@@ -295,7 +295,7 @@ private:
   }
 
   clift::FunctionOp emitModelFunctionDeclaration(const llvm::Function *F,
-                                                    const model::Function *MF) {
+                                                 const model::Function *MF) {
     auto FunctionType = importModelType<clift::FunctionType>(*MF->Prototype());
 
     auto Op = Builder.create<FunctionOp>(getLocation(F->getSubprogram()),
@@ -461,15 +461,43 @@ private:
                              mlir::Type ReturnType,
                              llvm::ArrayRef<mlir::Type> ParameterTypes,
                              llvm::ArrayRef<mlir::Value> Arguments) {
+    auto Handle = pipeline::locationString(revng::ranks::HelperFunction,
+                                           HelperName.str());
+
     auto FunctionType = clift::FunctionType::get(Context,
-                                                 "",
-                                                 "",
+                                                 Handle,
+                                                 /*Name=*/"",
                                                  ReturnType,
                                                  ParameterTypes);
 
     return emitHelperCall(Loc,
                           getHelperFunction(HelperName, FunctionType),
                           Arguments);
+  }
+
+  RecursiveCoroutine<mlir::Value>
+  emitStructInitializer(const llvm::CallInst *Call) {
+    mlir::Location Loc = getLocation(Call);
+
+    auto UseBegin = Call->use_begin();
+    auto UseEnd = Call->use_end();
+    revng_assert(UseBegin != UseEnd);
+
+    // StructInitializer must have exactly one user of type ReturnInst.
+    revng_assert(llvm::isa<llvm::ReturnInst>(UseBegin->getUser()));
+    revng_assert(std::next(UseBegin) == UseEnd);
+
+    auto T = mlir::dyn_cast<StructType>(CurrentFunction.getCliftReturnType());
+    revng_assert(Call->arg_size() == T.getFields().size());
+
+    llvm::SmallVector<mlir::Value> Initializers;
+    for (const auto &[A, F] : llvm::zip(Call->args(), T.getFields())) {
+      mlir::Value Value = rc_recur emitExpression(A, Loc);
+      Value = emitImplicitCast(Loc, Value, F.getType());
+      Initializers.push_back(Value);
+    }
+
+    rc_return Builder.create<AggregateOp>(Loc, T, Initializers);
   }
 
   RecursiveCoroutine<mlir::Value>
@@ -494,6 +522,9 @@ private:
   RecursiveCoroutine<mlir::Value> emitHelperCall(const llvm::CallInst *Call) {
     const llvm::Function *Function = Call->getCalledFunction();
     auto Tags = FunctionTags::TagsSet::from(Function);
+
+    if (Tags.contains(FunctionTags::StructInitializer))
+      rc_return rc_recur emitStructInitializer(Call);
 
     if (Tags.contains(FunctionTags::OpaqueExtractValue))
       rc_return rc_recur emitOpaqueExtractValue(Call);

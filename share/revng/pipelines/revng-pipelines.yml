@@ -712,7 +712,22 @@ Branches:
           Container: module.mlir
           Kind: mlir-module
           SingleTargetFilename: llvm_to_clift.mlir
-          Docs: WIP
+          Docs: |-
+            This artifact contains a Clift function for each function in the
+            input program.
+  - From: llvm-to-clift
+    Steps:
+      - Name: emit-c
+        Pipes:
+          - Type: emit-c
+            UsedContainers: [module.mlir, decompiled.tar.gz]
+        Artifacts:
+          Container: decompiled.tar.gz
+          Kind: decompiled
+          SingleTargetFilename: decompiled.c
+          Docs: |-
+            This artifact contains a C function for each function in the input
+            program.
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
