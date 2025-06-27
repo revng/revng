@@ -371,7 +371,9 @@ class IDBConverter:
 
         elif type.is_decl_enum():
             underlying = m.PrimitiveType(
-                PrimitiveKind=m.PrimitiveKind.Unsigned, Size=type.type_details.storage_size
+                PrimitiveKind=m.PrimitiveKind.Unsigned,
+                Size=type.type_details.storage_size,
+                IsConst=False,
             )
             entries = []
             for member in type.type_details.members:
@@ -422,7 +424,9 @@ class IDBConverter:
                     self.log(f"warning: Ignoring empty struct {type_name}, typedef it to `void`")
                     typedef = m.TypedefDefinition(
                         Name=type_name,
-                        UnderlyingType=m.PrimitiveType(m.PrimitiveKind.Void, 0),
+                        UnderlyingType=m.PrimitiveType(
+                            PrimitiveKind=m.PrimitiveKind.Void, Size=0, IsConst=False
+                        ),
                     )
                     self.revng_types_by_id[typedef.ID] = typedef
                     return self._type_for_definition(typedef, type.is_decl_const())
@@ -452,7 +456,9 @@ class IDBConverter:
                     self.log(f"warning: Ignoring empty union {type_name}, typedef it to `void`")
                     typedef = m.TypedefDefinition(
                         Name=type_name,
-                        UnderlyingType=m.PrimitiveType(m.PrimitiveKind.Void, 0),
+                        UnderlyingType=m.PrimitiveType(
+                            PrimitiveKind=m.PrimitiveKind.Void, Size=0, IsConst=False
+                        ),
                     )
                     self.revng_types_by_id[typedef.ID] = typedef
                     return self._type_for_definition(typedef, type.is_decl_const())
