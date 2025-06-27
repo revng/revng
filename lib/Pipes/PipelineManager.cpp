@@ -179,13 +179,16 @@ static llvm::Expected<FilePath> getBackupFilePath(const FilePath &Path) {
   while (true) {
     const uint64_t UnixTime = revng::getEpochInMilliseconds();
     auto BackupFilePath = Path.addExtension(std::to_string(UnixTime));
-    auto MaybeExists = BackupFilePath.exists();
+    if (not BackupFilePath.has_value())
+      return revng::createError("Could not get backup file");
+
+    auto MaybeExists = BackupFilePath->exists();
 
     if (not MaybeExists)
       return MaybeExists.takeError();
 
     if (not MaybeExists.get())
-      return BackupFilePath;
+      return *BackupFilePath;
   }
 }
 
