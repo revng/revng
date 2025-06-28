@@ -132,6 +132,10 @@ def Clift_FunctionOp : Clift_Op<"func",
       return mlir::cast<clift::FunctionType>(getFunctionType());
     }
 
+    clift::ValueType getCliftReturnType() {
+      return mlir::cast<clift::ValueType>(getCliftFunctionType().getReturnType());
+    }
+
 
     mlir::Region::BlockListType& getBlocks() {
         return getBody().getBlocks();

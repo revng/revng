@@ -333,6 +333,16 @@ void CliftContainer::clearImpl() {
 
 llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
   mlir::writeBytecodeToFile(*Module, OS);
+
+  #if 0
+  mlir::AsmState AsmState(Module.get(),
+                          mlir::OpPrintingFlags(),
+                          /*locationMap=*/nullptr,
+                          /*fallbackResourceMap=*/nullptr);
+  Module.get()->print(OS, AsmState);
+  OS << '\n';
+  #endif
+
   return llvm::Error::success();
 }
 

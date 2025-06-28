@@ -138,3 +138,33 @@ commands:
     suffix: /
     command: |-
       revng artifact --model "$INPUT2" --resume "$OUTPUT" prepare-for-clift "$INPUT1" -o /dev/null
+
+  #
+  # Produce the emit-c artifact and check the resulting C code
+  #
+  - type: revng.decompiled-c-clift
+    from:
+      - type: revng-qa.compiled
+        filter: one-per-architecture
+      - type: revng.analyzed-model
+    suffix: /
+    command: |-
+      WORKDIR="$OUTPUT/check-decompiled-c";
+      mkdir -p "$$WORKDIR";
+      echo "" > "$$WORKDIR/decompiled.c"
+
+      revng artifact --resume "$OUTPUT" emit-model-header "$INPUT1" | revng ptml > "$$WORKDIR/types-and-globals.h";
+      echo "#include \"types-and-globals.h\"" >> "$$WORKDIR/decompiled.c"
+
+      revng artifact --resume "$OUTPUT" emit-helpers-header "$INPUT1" | revng ptml > "$$WORKDIR/helpers.h";
+      echo "#include \"helpers.h\"" >> "$$WORKDIR/decompiled.c"
+
+      revng artifact
+        --model "$INPUT2"
+        --resume "$OUTPUT"
+        decompile-to-single-file-clift
+        "$INPUT1"
+      | tar -zxO
+      | revng ptml >> "$$WORKDIR/decompiled.c"
+
+      revng check-decompiled-c "$$WORKDIR/decompiled.c" -I"$$WORKDIR" -m${POINTER_SIZE};
