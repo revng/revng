@@ -86,7 +86,7 @@ public:
                     << std::to_string(RegionIndex) << "\n");
 
         revng_log(DAGifyPassLogger,
-                  "The elected head for this region is block"
+                  "The elected head for this region is block: "
                     << Region->getHead()->getName().str() << "\n");
 
         // Each time we attempt to process a `GenericRegion`, we need to
