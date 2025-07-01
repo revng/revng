@@ -18,7 +18,7 @@
 using namespace llvm;
 
 // Debug logger
-Logger<> DAGifyPassLogger("dagify");
+static Logger<> Log("dagify");
 
 class DAGifyPassImpl {
   Function &F;
@@ -33,7 +33,7 @@ public:
                            &RetreatingEdge) {
     BasicBlock *Source = RetreatingEdge.first;
     BasicBlock *Target = RetreatingEdge.second;
-    revng_log(DAGifyPassLogger,
+    revng_log(Log,
               "Found retreating " << Source->getName().str() << " -> "
                                   << Target->getName().str() << "\n");
 
@@ -81,11 +81,11 @@ public:
     size_t RegionIndex = 0;
     for (auto &TopLevelRegion : RegionInfo.top_level_regions()) {
       for (auto *Region : post_order(&TopLevelRegion)) {
-        revng_log(DAGifyPassLogger,
+        revng_log(Log,
                   "DAGify processing region with index: "
                     << std::to_string(RegionIndex) << "\n");
 
-        revng_log(DAGifyPassLogger,
+        revng_log(Log,
                   "The elected head for this region is block: "
                     << Region->getHead()->getName().str() << "\n");
 
@@ -138,8 +138,7 @@ static Reg X(Flag, "Perform the DAGify pass on the ScopeGrapgh");
 
 bool DAGifyPass::runOnFunction(llvm::Function &F) {
   // Log the function name
-  revng_log(DAGifyPassLogger,
-            "Running DAGify on function " << F.getName().str() << "\n");
+  revng_log(Log, "Running DAGify on function " << F.getName().str() << "\n");
 
   // Instantiate and call the `Impl` class
   DAGifyPassImpl DAGifyImpl(F);
