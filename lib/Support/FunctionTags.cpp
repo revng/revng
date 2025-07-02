@@ -450,7 +450,8 @@ extractStringLiteralFromMetadata(const llvm::Function &F) {
   return { StartAddress, VirtualSize, Offset, StrLen, ReturnType };
 }
 
-RegisterIRHelper RevngAbortHelper(AbortFunctionName.str(), "in early-linked");
+// This name corresponds to a function in `early-linked`.
+RegisterIRHelper RevngAbortHelper(AbortFunctionName.str());
 
 template<bool ShouldTerminateTheBlock>
 llvm::CallInst &emitMessageImpl(llvm::IRBuilderBase &Builder,

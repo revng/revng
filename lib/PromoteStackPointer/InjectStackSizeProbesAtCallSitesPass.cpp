@@ -8,8 +8,8 @@
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSitesPass.h"
 #include "revng/Support/FunctionTags.h"
 
-RegisterIRHelper StackSizeAtCallSite("stack_size_at_call_site",
-                                     "absent after CleanupStackSizeMarkers");
+// This name is not present after `CleanupStackSizeMarkers`.
+RegisterIRHelper StackSizeAtCallSite("stack_size_at_call_site");
 
 using namespace llvm;
 

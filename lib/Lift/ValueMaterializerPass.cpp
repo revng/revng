@@ -18,7 +18,9 @@
 #include "ValueMaterializerPass.h"
 
 static constexpr const char *AVIMarkerName = "revng_avi";
-RegisterIRHelper AVIMarker("revng_avi", "absent after lift");
+
+// This name is not present after `lift`.
+RegisterIRHelper AVIMarker(AVIMarkerName);
 
 using namespace llvm;
 
