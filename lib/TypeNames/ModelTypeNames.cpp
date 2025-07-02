@@ -9,6 +9,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -18,6 +19,7 @@
 #include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Helpers.h"
+#include "revng/Model/PointerType.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/PTML/CBuilder.h"
 #include "revng/PTML/Constants.h"
@@ -166,8 +168,8 @@ std::string PCTB::getNamedCInstance(const model::Type &Type,
 }
 
 std::string
-PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
-                                   llvm::StringRef InstanceName) const {
+PCTB::getNamedCInstanceOfReturnType(const model::TypeDefinition &Function,
+                                    llvm::StringRef InstanceName) const {
   std::string Suffix;
   if (not InstanceName.empty())
     Suffix.append(" " + InstanceName.str());
@@ -177,7 +179,7 @@ PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
 
   switch (ReturnMethod) {
   case abi::FunctionType::ReturnMethod::Void:
-    return getReturnValueTag(getVoidTag(), Function) + Suffix;
+    return getVoidTag() + Suffix;
 
   case abi::FunctionType::ReturnMethod::ModelAggregate:
   case abi::FunctionType::ReturnMethod::Scalar: {
@@ -190,22 +192,19 @@ PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
       ReturnType = Layout.ReturnValues[0].Type.get();
     }
 
-    return getReturnValueTag(getNamedCInstance(*ReturnType, InstanceName),
-                             Function);
+    return getNamedCInstance(*ReturnType, InstanceName);
   }
 
   case abi::FunctionType::ReturnMethod::RegisterSet: {
     // RawFunctionTypes can return multiple values, which need to be wrapped
     // in a struct
     const auto &RFT = llvm::cast<model::RawFunctionDefinition>(Function);
-    return getReturnValueTag(getArtificialStructTag<false>(RFT), RFT) + Suffix;
+    return getArtificialStructTag<false>(RFT) + Suffix;
   }
 
   default:
-    revng_abort();
+    revng_abort("Unsupported function return method.");
   }
-
-  revng_abort("Unsupported function return method.");
 }
 
 static std::string
@@ -242,6 +241,29 @@ template<typename FT>
 concept ModelFunction = std::same_as<FT, model::Function>
                         or std::same_as<FT, model::DynamicFunction>;
 
+static std::string
+getReturnValueAndNameImpl(const model::TypeDefinition &FunctionType,
+                          const llvm::StringRef &FunctionName,
+                          const ptml::ModelCBuilder &B) {
+  std::string Type = B.getFunctionReturnType(FunctionType);
+  revng_assert(not Type.empty());
+
+  // Workaround to ensure proper spacing around pointers.
+  bool NeedsSpace = true;
+  const auto Layout = abi::FunctionType::Layout::make(FunctionType);
+  if (Layout.returnMethod() == abi::FunctionType::ReturnMethod::Scalar) {
+    revng_assert(Layout.ReturnValues.size() == 1);
+
+    // Not using `isPointer` because typedefs change the behavior here.
+    using PointerT = model::PointerType;
+    if (auto *P = llvm::dyn_cast<PointerT>(Layout.ReturnValues[0].Type.get()))
+      NeedsSpace = P->IsConst();
+  }
+
+  return B.getReturnValueTag(std::move(Type), FunctionType)
+         + (NeedsSpace ? " " : "") + FunctionName.str();
+}
+
 template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::RawFunctionDefinition &RF,
@@ -259,7 +281,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
   if (Function and not Function->Attributes().empty())
     Result += getFunctionAttributesString(Function->Attributes());
   Result += (SingleLine ? " " : "\n");
-  Result += B.getNamedInstanceOfReturnType(RF, FunctionName);
+  Result += getReturnValueAndNameImpl(RF, FunctionName, B);
 
   if (RF.Arguments().empty() and RF.StackArgumentsType().isEmpty()) {
     Result += "(" + B.getVoidTag() + ")";
@@ -317,7 +339,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
   if (Function and not Function->Attributes().empty())
     Result += getFunctionAttributesString(Function->Attributes());
   Result += (SingleLine ? " " : "\n");
-  Result += B.getNamedInstanceOfReturnType(CF, FunctionName);
+  Result += getReturnValueAndNameImpl(CF, FunctionName, B);
 
   if (CF.Arguments().empty()) {
     Result += "(" + B.getVoidTag() + ")";

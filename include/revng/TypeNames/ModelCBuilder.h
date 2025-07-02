@@ -767,11 +767,16 @@ public:
 
   /// Return a string containing the C Type name of the return type of
   /// \a FunctionType, and a (possibly empty) \a InstanceName.
-  /// \note If F returns more than one value, the name of the wrapping struct
-  ///       will be returned instead.
+  /// \note If F is an RFT that returns more than one value, the name of the
+  ///       wrapping struct will be returned instead.
   std::string
-  getNamedInstanceOfReturnType(const model::TypeDefinition &FunctionType,
-                               llvm::StringRef InstanceName) const;
+  getNamedCInstanceOfReturnType(const model::TypeDefinition &FunctionType,
+                                llvm::StringRef InstanceName) const;
+
+  std::string
+  getFunctionReturnType(const model::TypeDefinition &FunctionType) const {
+    return getNamedCInstanceOfReturnType(FunctionType, "");
+  }
 
 public:
   /// Print the function prototype (without any trailing ';'s) of \a Function.
