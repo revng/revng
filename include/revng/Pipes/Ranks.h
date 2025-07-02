@@ -25,6 +25,11 @@ using NRK = model::NamedTypedRegister::Key;
 static_assert(HasScalarOrEnumTraits<MetaAddress>);
 static_assert(HasScalarOrEnumTraits<BasicBlockID>);
 
+using pipeline::defineRank;
+
+/// \defgroup Root rank
+/// @{
+
 /// This is the root rank, as such it has no key (there can only be one).
 ///
 /// Example:
@@ -33,7 +38,9 @@ static_assert(HasScalarOrEnumTraits<BasicBlockID>);
 /// ```
 inline auto Binary = pipeline::defineRootRank<"binary">();
 
-using pipeline::defineRank;
+/// @}
+/// \defgroup Generic ranks
+/// @{
 
 /// This is the rank for *isolated* functions.
 ///
@@ -43,35 +50,51 @@ using pipeline::defineRank;
 /// ```
 /// /function/0x1000:Code_aarch64
 /// ```
-inline auto
-  Function = defineRank<"function", model::Function::Key, "Functions">(Binary);
+inline auto Function = defineRank<"function", // formatting
+                                  model::Function::Key,
+                                  "Functions">(Binary);
 
-/// This is the rank for a basic block of an *isolated* function.
+/// This is the rank for representing an imported *dynamic* function.
 ///
-/// The key is the basic block ID (its entry address + a deduplication index).
+/// The key is the model key (its name).
+///
+/// Example:
+/// ```
+/// /dynamic-function/printf
+/// ```
+inline auto DynamicFunction = defineRank<"dynamic-function",
+                                         model::DynamicFunction::Key,
+                                         "ImportedDynamicFunctions">(Binary);
+
+/// This is the rank for representing a binary segment.
+///
+/// The key is the model key (its start address + virtual size).
+///
+/// Example:
+/// ```
+/// /segment/0x1000:Code_aarch64-256
+/// ```
+inline auto Segment = defineRank<"segment", // formatting
+                                 model::Segment::Key,
+                                 "Segments">(Binary);
+
+/// This is the rank for representing comments in isolated function *bodies*.
+///
+/// The key is the index of the comment within its function
+/// (based on the emission order)
 ///
 /// Examples:
 /// ```
-/// /basic-block/0x1000:Code_aarch64/0x1004:Code_aarch64
-/// /basic-block/0x1000:Code_aarch64/0x1004:Code_aarch64-1
-/// /basic-block/0x1000:Code_aarch64/0x1004:Code_aarch64-2
+/// /statement-comment/0x1000:Code_aarch64/0
+/// /statement-comment/0x1024:Code_aarch64/1
+/// /statement-comment/0x1144:Code_aarch64/2
 /// ```
-inline auto BasicBlock = defineRank<"basic-block", BasicBlockID>(Function);
+inline auto StatementComment = defineRank<"statement-comment", // formatting
+                                          uint64_t>(Function);
 
-/// This is the rank for an instruction within an *isolated* function.
-///
-/// The key is the address of the instruction.
-///
-/// Note that the same instruction is considered two distinct instructions
-/// when it's a part of separate (potentially inlined) basic blocks.
-///
-/// Examples:
-/// ```
-/// /instruction/0x1000:Code_aarch64/0x1004:Code_aarch64/0x1008:Code_aarch64
-/// /instruction/0x1000:Code_aarch64/0x1004:Code_aarch64-1/0x1008:Code_aarch64
-/// /instruction/0x1000:Code_aarch64/0x1004:Code_aarch64-2/0x1008:Code_aarch64
-/// ```
-inline auto Instruction = defineRank<"instruction", MetaAddress>(BasicBlock);
+/// @}
+/// \defgroup Type system related ranks
+/// @{
 
 /// This is the rank for a type definition.
 ///
@@ -128,6 +151,19 @@ inline auto EnumEntry = defineRank<"enum-entry",
                                    model::EnumEntry::Key,
                                    "Entries">(TypeDefinition);
 
+/// This is the rank for representing a primitive type.
+///
+/// The key is the *serialized* name of the primitive.
+///
+/// Examples:
+/// ```
+/// /primitive/void
+/// /primitive/int64_t
+/// /primitive/number64_t
+/// /primitive/pointer_or_number64_t
+/// ```
+inline auto PrimitiveType = defineRank<"primitive", std::string>(Binary);
+
 /// This is the rank for a *C ABI* function argument.
 ///
 /// The key is the model key of the definition (its index in the prototype).
@@ -142,6 +178,18 @@ inline auto CABIArgument = defineRank<"cabi-argument",
                                       detail::CAK,
                                       "Arguments">(TypeDefinition);
 
+/// This is the rank for the return value of a *C ABI* function.
+///
+/// The key is the model key of the prototype.
+///
+/// Note that this is *not* a subrank of the prototype.
+///
+/// Example:
+/// ```
+/// /return-value/22-CABIFunctionDefinition
+/// ```
+inline auto ReturnValue = defineRank<"return-value", detail::TDK>(Binary);
+
 /// This is the rank for a *raw* function argument.
 ///
 /// The key is the model key of the definition (register used by this argument).
@@ -155,22 +203,6 @@ inline auto CABIArgument = defineRank<"cabi-argument",
 inline auto RawArgument = defineRank<"raw-argument",
                                      detail::NRK,
                                      "Arguments">(TypeDefinition);
-
-/// This is the rank for the return value of a *C ABI* function.
-///
-/// The key is the model key of the prototype.
-///
-/// Note that this is *not* a subrank of the prototype.
-///
-/// Examples:
-/// ```
-/// /return-register/18-RawFunctionDefinition/rax_x86_64
-/// /return-register/19-RawFunctionDefinition/r2_aarch64
-/// /return-register/20-RawFunctionDefinition/r2_s390x
-/// ```
-inline auto ReturnRegister = defineRank<"return-register",
-                                        detail::NRK,
-                                        "ReturnValues">(TypeDefinition);
 
 /// This is the rank for *all of* stack arguments of a *raw* function.
 ///
@@ -192,11 +224,19 @@ inline auto RawStackArguments = defineRank<"raw-stack-arguments",
 ///
 /// Note that this is *not* a subrank of the prototype.
 ///
-/// Example:
+/// Examples:
 /// ```
-/// /return-value/22-CABIFunctionDefinition
+/// /return-register/18-RawFunctionDefinition/rax_x86_64
+/// /return-register/19-RawFunctionDefinition/r2_aarch64
+/// /return-register/20-RawFunctionDefinition/r2_s390x
 /// ```
-inline auto ReturnValue = defineRank<"return-value", detail::TDK>(Binary);
+inline auto ReturnRegister = defineRank<"return-register",
+                                        detail::NRK,
+                                        "ReturnValues">(TypeDefinition);
+
+/// @}
+/// \defgroup Raw byte view only ranks
+/// @{
 
 /// This is the rank for representing an arbitrary byte within the binary.
 ///
@@ -220,42 +260,106 @@ inline auto RawByte = defineRank<"raw-byte", MetaAddress>(Binary);
 /// ```
 inline auto RawByteRange = defineRank<"raw-byte-range", MetaAddress>(RawByte);
 
-/// This is the rank for representing a binary segment.
-///
-/// The key is the model key (its start address + virtual size).
-///
-/// Example:
-/// ```
-/// /segment/0x1000:Code_aarch64-256
-/// ```
-inline auto Segment = defineRank<"segment", // formatting
-                                 model::Segment::Key,
-                                 "Segments">(Binary);
+/// @}
+/// \defgroup Assembly view only ranks
+/// @{
 
-/// This is the rank for representing an imported *dynamic* function.
+/// This is the rank for a basic block of an *isolated* function.
 ///
-/// The key is the model key (its name).
-///
-/// Example:
-/// ```
-/// /dynamic-function/printf
-/// ```
-inline auto DynamicFunction = defineRank<"dynamic-function",
-                                         model::DynamicFunction::Key,
-                                         "ImportedDynamicFunctions">(Binary);
-
-/// This is the rank for representing a primitive type.
-///
-/// The key is the *serialized* name of the primitive.
+/// The key is the basic block ID (its entry address + a deduplication index).
 ///
 /// Examples:
 /// ```
-/// /primitive/void
-/// /primitive/int64_t
-/// /primitive/number64_t
-/// /primitive/pointer_or_number64_t
+/// /basic-block/0x1000:Code_aarch64/0x1004:Code_aarch64
+/// /basic-block/0x1000:Code_aarch64/0x1004:Code_aarch64-1
+/// /basic-block/0x1000:Code_aarch64/0x1004:Code_aarch64-2
 /// ```
-inline auto PrimitiveType = defineRank<"primitive", std::string>(Binary);
+inline auto BasicBlock = defineRank<"basic-block", BasicBlockID>(Function);
+
+/// This is the rank for an instruction within an *isolated* function.
+///
+/// The key is the address of the instruction.
+///
+/// Note that the same instruction is considered two distinct instructions
+/// when it's a part of separate (potentially inlined) basic blocks.
+///
+/// Examples:
+/// ```
+/// /instruction/0x1000:Code_aarch64/0x1004:Code_aarch64/0x1008:Code_aarch64
+/// /instruction/0x1000:Code_aarch64/0x1004:Code_aarch64-1/0x1008:Code_aarch64
+/// /instruction/0x1000:Code_aarch64/0x1004:Code_aarch64-2/0x1008:Code_aarch64
+/// ```
+inline auto Instruction = defineRank<"instruction", MetaAddress>(BasicBlock);
+
+/// @}
+/// \defgroup Decompiled view only ranks
+/// @{
+
+/// This is the rank for representing *local* variables.
+///
+/// The key is the index of the variable within its function
+/// (based on the emission order)
+///
+/// Examples:
+/// ```
+/// /local-variable/0x1000:Code_aarch64/0
+/// /local-variable/0x1024:Code_aarch64/1
+/// /local-variable/0x1144:Code_aarch64/2
+/// ```
+inline auto LocalVariable = defineRank<"local-variable", uint64_t>(Function);
+
+/// This is the rank for representing *local* variables with *reserved* names.
+///
+/// The key is the name of the variable.
+///
+/// Examples:
+/// ```
+/// /reserved-local-variable/0x1000:Code_aarch64/stack
+/// /reserved-local-variable/0x1024:Code_aarch64/stack
+/// ```
+inline auto ReservedLocalVariable = defineRank<"reserved-local-variable",
+                                               std::string>(Function);
+
+/// This is the rank for representing goto labels.
+///
+/// The key is the index of the label within its function
+/// (based on the emission order)
+///
+/// Examples:
+/// ```
+/// /goto-label/0x1000:Code_aarch64/0
+/// /goto-label/0x1024:Code_aarch64/1
+/// /goto-label/0x1144:Code_aarch64/2
+/// ```
+inline auto GotoLabel = defineRank<"goto-label", uint64_t>(Function);
+
+/// This is the rank for representing *structs* returned by *raw* function
+/// prototypes (they return a set of registers - so these structs are
+/// artificially created to represent said registers as fields).
+///
+/// The key is the model key of the prototype.
+///
+/// Note that this is *not* a subrank of the prototype.
+///
+/// Example:
+/// ```
+/// /artificial-struct/23-RawFunctionDefinition
+/// ```
+inline auto ArtificialStruct = defineRank<"artificial-struct",
+                                          model::TypeDefinition::Key>(Binary);
+
+/// This is the rank for representing *arguments* of imported dynamic functions.
+///
+/// The key is the name of the argument.
+///
+/// Examples:
+/// ```
+/// /dynamic-function-argument/pow/base
+/// /dynamic-function-argument/pow/exp
+/// /dynamic-function-argument/printf/format
+/// ```
+inline auto DynamicFunctionArgument = defineRank<"dynamic-function-argument",
+                                                 std::string>(DynamicFunction);
 
 /// This is the rank for representing QEMU and LLVM helper functions.
 ///
@@ -300,85 +404,5 @@ inline auto HelperStructType = defineRank<"helper-struct-type", // formatting
 /// ```
 inline auto HelperStructField = defineRank<"helper-struct-field",
                                            std::string>(HelperStructType);
-
-/// This is the rank for representing *arguments* of imported dynamic functions.
-///
-/// The key is the name of the argument.
-///
-/// Examples:
-/// ```
-/// /dynamic-function-argument/pow/base
-/// /dynamic-function-argument/pow/exp
-/// /dynamic-function-argument/printf/format
-/// ```
-inline auto DynamicFunctionArgument = defineRank<"dynamic-function-argument",
-                                                 std::string>(DynamicFunction);
-
-/// This is the rank for representing *local* variables.
-///
-/// The key is the index of the variable within its function
-/// (based on the emission order)
-///
-/// Examples:
-/// ```
-/// /local-variable/0x1000:Code_aarch64/0
-/// /local-variable/0x1024:Code_aarch64/1
-/// /local-variable/0x1144:Code_aarch64/2
-/// ```
-inline auto LocalVariable = defineRank<"local-variable", uint64_t>(Function);
-
-/// This is the rank for representing *local* variables with *reserved* names.
-///
-/// The key is the name of the variable.
-///
-/// Examples:
-/// ```
-/// /reserved-local-variable/0x1000:Code_aarch64/stack
-/// /reserved-local-variable/0x1024:Code_aarch64/stack
-/// ```
-inline auto ReservedLocalVariable = defineRank<"reserved-local-variable",
-                                               std::string>(Function);
-
-/// This is the rank for representing goto labels.
-///
-/// The key is the index of the label within its function
-/// (based on the emission order)
-///
-/// Examples:
-/// ```
-/// /goto-label/0x1000:Code_aarch64/0
-/// /goto-label/0x1024:Code_aarch64/1
-/// /goto-label/0x1144:Code_aarch64/2
-/// ```
-inline auto GotoLabel = defineRank<"goto-label", uint64_t>(Function);
-
-/// This is the rank for representing comments in isolated function *bodies*.
-///
-/// The key is the index of the comment within its function
-/// (based on the emission order)
-///
-/// Examples:
-/// ```
-/// /statement-comment/0x1000:Code_aarch64/0
-/// /statement-comment/0x1024:Code_aarch64/1
-/// /statement-comment/0x1144:Code_aarch64/2
-/// ```
-inline auto StatementComment = defineRank<"statement-comment", // formatting
-                                          uint64_t>(Function);
-
-/// This is the rank for representing *structs* returned by *raw* function
-/// prototypes (they return a set of registers - so these structs are
-/// artificially created to represent said registers as fields).
-///
-/// The key is the model key of the prototype.
-///
-/// Note that this is *not* a subrank of the prototype.
-///
-/// Example:
-/// ```
-/// /artificial-struct/23-RawFunctionDefinition
-/// ```
-inline auto ArtificialStruct = defineRank<"artificial-struct",
-                                          model::TypeDefinition::Key>(Binary);
 
 } // namespace revng::ranks
