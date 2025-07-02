@@ -150,7 +150,7 @@ public:
   /// Constructor for nodes pointing to LLVM IR BasicBlock
   explicit BasicBlockNode(RegionCFGT *Parent,
                           NodeT OriginalNode,
-                          llvm::StringRef Name = "") :
+                          llvm::StringRef Name = {}) :
     BasicBlockNode(Parent, OriginalNode, nullptr, Name, Type::Code) {}
 
   /// Constructor for nodes representing collapsed subgraphs

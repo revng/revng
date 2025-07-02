@@ -103,7 +103,7 @@ static void reportProblemNames(const model::Binary &Binary) {
 static std::optional<std::string>
 gatherNonReservedHelperNames(const llvm::Module &Module,
                              const model::CNameBuilder &B) {
-  std::string Error = "";
+  std::string Error = {};
   for (const llvm::Function &Function : Module.functions()) {
     std::string SanitizedName = sanitizeIdentifier(Function.getName());
 

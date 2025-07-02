@@ -1019,7 +1019,7 @@ struct hash<std::set<MetaAddress>> : hash<const std::set<MetaAddress>> {};
 /// debugging-related contexts.
 inline std::string
 addressesToString(RangeOf<MetaAddress> auto const &Addresses) {
-  std::string Result = "";
+  std::string Result = {};
 
   if (not Addresses.empty()) {
     constexpr llvm::StringRef Separator = " + ";

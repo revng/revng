@@ -754,7 +754,7 @@ public:
   ///        // (notice the leading space)
   ///        ```
   std::string getNamedCInstance(const model::Type &Type,
-                                llvm::StringRef InstanceName = "",
+                                llvm::StringRef InstanceName = {},
                                 bool OmitInnerTypeName = false) const;
 
   std::string getTypeName(const model::Type &Type) const {
@@ -823,11 +823,11 @@ private:
 
 public:
   void printDefinition(const model::EnumDefinition &E,
-                       std::string &&Suffix = "");
+                       std::string &&Suffix = {});
   void printDefinition(const model::StructDefinition &S,
-                       std::string &&Suffix = "");
+                       std::string &&Suffix = {});
   void printDefinition(const model::UnionDefinition &U,
-                       std::string &&Suffix = "");
+                       std::string &&Suffix = {});
   void printDefinition(const model::TypeDefinition &T);
 
 public:
