@@ -22,8 +22,11 @@
 #include "RootAnalyzer.h"
 #include "SubGraph.h"
 
-RegisterIRHelper JumpToSymbolMarker("jump_to_symbol", "absent after lift");
-RegisterIRHelper ExitTBMarker("exitTB", "absent after lift");
+// This name is not present after `lift`.
+RegisterIRHelper JumpToSymbolMarker("jump_to_symbol");
+
+// This name is not present after `lift`.
+RegisterIRHelper ExitTBMarker("exitTB");
 
 using namespace llvm;
 

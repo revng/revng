@@ -55,7 +55,8 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
-RegisterIRHelper FDispatcher("function_dispatcher", "absent after enforce-abi");
+// This name is not present after `enforce-abi`.
+RegisterIRHelper FDispatcher("function_dispatcher");
 
 using namespace llvm;
 

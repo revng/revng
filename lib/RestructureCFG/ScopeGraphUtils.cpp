@@ -24,11 +24,13 @@ static std::string kebabToSnake(llvm::StringRef KebabString) {
   return Result;
 }
 
-inline RegisterIRHelper
-  ScopeCloserMarker(kebabToSnake(FunctionTags::ScopeCloserMarker.name().str()),
-                    "");
-inline RegisterIRHelper
-  GotoBlockMarker(kebabToSnake(FunctionTags::GotoBlockMarker.name().str()), "");
+// This name is not present in the emitted C.
+static RegisterIRHelper
+  ScopeCloserMarker(kebabToSnake(FunctionTags::ScopeCloserMarker.name().str()));
+
+// This name is not present in the emitted C.
+static RegisterIRHelper
+  GotoBlockMarker(kebabToSnake(FunctionTags::GotoBlockMarker.name().str()));
 
 // Helper function which set the attributes for the created function
 // prototypes
@@ -139,7 +141,6 @@ void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source,
 }
 
 BasicBlock *ScopeGraphBuilder::eraseScopeCloser(BasicBlock *Source) const {
-
   // We save the `Target` of the `scope_closer`, which will be returned by the
   // method, for eventual later restoring
   BasicBlock *ScopeCloserTarget = getScopeCloserTarget(Source);
@@ -200,7 +201,6 @@ getLast2InstructionsBeforeTerminator(BasicBlockType *BB) {
 }
 
 BasicBlock *getScopeCloserTarget(const BasicBlock *BB) {
-
   // We must be provided with a `BasicBlock` where to search for the marker
   revng_assert(BB);
 
@@ -224,7 +224,6 @@ bool isScopeCloserBlock(const BasicBlock *BB) {
 }
 
 bool isGotoBlock(const BasicBlock *BB) {
-
   // We must be provided with a `BasicBlock` where to search for the marker
   revng_assert(BB);
 

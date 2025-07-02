@@ -25,7 +25,8 @@
 
 #include "ExternalJumpsHandler.h"
 
-RegisterIRHelper IsExecutableHelper("is_executable", "in early-linked");
+// This name corresponds to a function in `early-linked`.
+RegisterIRHelper IsExecutableHelper("is_executable");
 
 using namespace llvm;
 using std::string;

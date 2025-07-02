@@ -15,7 +15,8 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/DecompilationHelpers.h"
 
-RegisterIRHelper CommentHelper("comment", "absent in emitted c");
+// This name is not present in the emitted C.
+RegisterIRHelper CommentHelper("comment");
 
 template<typename ResultSet>
 static ResultSet gatherNonStatementAddresses(const llvm::Instruction &I,
