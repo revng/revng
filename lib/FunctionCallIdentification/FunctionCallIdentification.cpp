@@ -10,7 +10,8 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
-RegisterIRHelper IBIMarker("function_call", "absent after isolate");
+// This name is not present after `isolate`.
+RegisterIRHelper IBIMarker("function_call");
 
 using namespace llvm;
 

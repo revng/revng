@@ -21,11 +21,11 @@
 
 using namespace llvm;
 
-RegisterIRHelper StackFrameMarker("revng_stack_frame",
-                                  "absent in decompiled code");
+// This name is not present in the emitted C.
+RegisterIRHelper StackFrameMarker("revng_stack_frame");
 
-RegisterIRHelper StackArgumentMarker("revng_call_stack_arguments",
-                                     "absent in decompiled code");
+// This name is not present in the emitted C.
+RegisterIRHelper StackArgumentMarker("revng_call_stack_arguments");
 
 template<bool IsLegacy>
 using VarBuilder = LocalVariableBuilder<IsLegacy>;
