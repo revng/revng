@@ -8,6 +8,7 @@
 
 #include "revng/RestructureCFG/DAGifyPass.h"
 #include "revng/RestructureCFG/GenericRegionInfo.h"
+#include "revng/RestructureCFG/ScopeGraphAlgorithms.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/Support/Assert.h"
@@ -59,6 +60,47 @@ public:
     SGBuilder.makeGotoEdge(Source, Target);
   }
 
+  /// Helper method which performs the abnormal entry normalization for each
+  /// `GenericRegion`
+  bool processAbnormalEntries(GenericRegion<BasicBlock *> *Region) {
+
+    // Save, in order to return it, when the function is modified
+    bool FunctionModified = false;
+
+    BasicBlock *Head = Region->getHead();
+    SmallPtrSet<BasicBlock *, 4> RegionNodes;
+    for (auto &RegionNode : Region->blocks()) {
+      RegionNodes.insert(RegionNode);
+    }
+
+    // We want to transform each abnormal entry in a `GenericRegion` into a
+    // `goto` edge
+    for (auto *RegionNode : Region->blocks()) {
+
+      // We need to skip the elected entry node
+      if (RegionNode != Head) {
+
+        // Iterate over the predecessors of each block, and transform in a
+        // `goto` edge each abnormal entry
+        SmallSetVector<BasicBlock *, 2>
+          Predecessors = getScopeGraphPredecessors(RegionNode);
+        for (BasicBlock *Predecessor : Predecessors) {
+          if (not RegionNodes.contains(Predecessor)) {
+            revng_log(Log,
+                      "Transforming late entry edge into a goto edge: "
+                        << Predecessor->getName() << " -> "
+                        << RegionNode->getName() << "\n");
+
+            SGBuilder.makeGotoEdge(Predecessor, RegionNode);
+            FunctionModified = true;
+          }
+        }
+      }
+    }
+
+    return FunctionModified;
+  }
+
   bool run() {
 
     // We instantiate and run the `GenericRegionInfo` analysis on the raw CFG,
@@ -101,6 +143,8 @@ public:
         }
 
         BasicBlock *Head = Region->getHead();
+
+        // 1. Process the retreating edges of the `GenericRegion`
         using GT = GraphTraits<BasicBlock *>;
         auto Retreatings = getBackedgesWhiteList<BasicBlock *, GT>(Head,
                                                                    RegionNodes);
@@ -115,6 +159,10 @@ public:
           // Process each retreating edge
           processRetreating(Retreating);
         }
+
+        // 2. Handle abnormal entries into each `GenericRegion`
+        revng_log(Log, "Performing late entry normalization\n");
+        FunctionModified |= processAbnormalEntries(Region);
 
         RegionIndex++;
       }
