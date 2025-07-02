@@ -175,8 +175,7 @@ PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
       ReturnType = Layout.ReturnValues[0].Type.get();
     }
 
-    return getReturnValueTag(getNamedCInstance(*ReturnType, InstanceName),
-                             Function);
+    return getReturnValueTag(getNamedCInstance(*ReturnType), Function) + Suffix;
   }
 
   case abi::FunctionType::ReturnMethod::RegisterSet: {
