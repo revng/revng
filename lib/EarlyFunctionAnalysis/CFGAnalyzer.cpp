@@ -41,7 +41,8 @@
 #include "revng/Support/Generator.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
-RegisterIRHelper IBIMarker("indirect_branch_info", "absent after lift");
+// This name is not present after `lift`.
+RegisterIRHelper IBIMarker("indirect_branch_info");
 
 using namespace llvm;
 using namespace llvm::cl;

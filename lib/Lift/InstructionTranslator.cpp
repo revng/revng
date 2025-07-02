@@ -30,7 +30,8 @@
 #include "PTCInterface.h"
 #include "VariableManager.h"
 
-RegisterIRHelper NewPCHelper("newpc", "absent after remove-newpc-calls");
+// This name is not present after `remove-newpc-calls`.
+RegisterIRHelper NewPCHelper("newpc");
 
 using namespace llvm;
 
