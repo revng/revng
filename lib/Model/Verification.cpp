@@ -617,7 +617,7 @@ RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
 
   // Ensure the type we're pointing to is a scalar
   if (not Type()->isScalar())
-    rc_return VH.fail();
+    rc_return VH.fail("Only scalars are allowed in RFTs", Type());
 
   if (Location() == Register::Invalid)
     rc_return VH.fail("NamedTypedRegister must have a location", *this);
@@ -625,13 +625,16 @@ RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
   // Zero-sized types are not allowed
   auto MaybeTypeSize = rc_recur Type()->size(VH);
   if (not MaybeTypeSize)
-    rc_return VH.fail();
+    rc_return VH.fail("Types without size are not allowed in RFTs", Type());
 
   // Ensure if fits in the corresponding register
   if (not Type()->isFloatPrimitive()) {
     size_t RegisterSize = model::Register::getSize(Location());
     if (*MaybeTypeSize > RegisterSize)
-      rc_return VH.fail();
+      rc_return VH.fail("Object of " + ::toString(*MaybeTypeSize)
+                          + "-byte type does not fit into a "
+                          + ::toString(RegisterSize) + "-byte register",
+                        Type());
   } else {
     // TODO: handle floating point register sizes properly.
   }
@@ -644,30 +647,36 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   const model::Architecture::Values Architecture = T.Architecture();
 
   if (Architecture == model::Architecture::Invalid)
-    rc_return VH.fail();
+    rc_return VH.fail("RFTs must have a valid architecture");
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
   for (const NamedTypedRegister &Argument : T.Arguments()) {
     if (not rc_recur Argument.verify(VH))
       rc_return VH.fail();
     if (not isUsedInArchitecture(Argument.Location(), Architecture))
-      rc_return VH.fail();
+      rc_return VH.fail("Register '" + toString(Argument.Location())
+                        + "' is not allowed to be used in '"
+                        + toString(Architecture) + "' functions.");
     if (not VH.isNameAllowed(Argument.Name()))
       rc_return VH.fail();
   }
 
-  for (const NamedTypedRegister &Return : T.ReturnValues()) {
-    if (not rc_recur Return.verify(VH))
+  for (const NamedTypedRegister &Returned : T.ReturnValues()) {
+    if (not rc_recur Returned.verify(VH))
       rc_return VH.fail();
-    if (not isUsedInArchitecture(Return.Location(), Architecture))
-      rc_return VH.fail();
+    if (not isUsedInArchitecture(Returned.Location(), Architecture))
+      rc_return VH.fail("Register '" + toString(Returned.Location())
+                        + "' is not allowed to be used in '"
+                        + toString(Architecture) + "' functions.");
   }
 
   for (const Register::Values &Preserved : T.PreservedRegisters()) {
     if (Preserved == Register::Invalid)
       rc_return VH.fail();
     if (not isUsedInArchitecture(Preserved, Architecture))
-      rc_return VH.fail();
+      rc_return VH.fail("Register '" + toString(Preserved)
+                        + "' is not allowed to be used in '"
+                        + toString(Architecture) + "' functions.");
   }
 
   // TODO: neither arguments nor return values should be preserved.
