@@ -5,6 +5,7 @@
 #include <unordered_map>
 
 #include "revng/Backend/DecompilePipe.h"
+#include "revng/HeadersGeneration/ConfigurationHelpers.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
@@ -46,9 +47,11 @@ public:
     revng_assert(clift::verifyCSemantics(Module, Target).succeeded());
 
     llvm::raw_null_ostream NullStream;
-    ptml::CTypeBuilder B(NullStream,
-                         *getModelFromContext(EC),
-                         /*EnableTaglessMode=*/false);
+    ptml::CTypeBuilder
+      B(NullStream,
+        Model,
+        /*EnableTaglessMode=*/false,
+        { .ExplicitTargetPointerSize = getExplicitPointerSize(Model) });
 
     std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
     Module->walk([&](clift::FunctionOp F) {

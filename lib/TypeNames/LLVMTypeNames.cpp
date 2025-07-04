@@ -108,9 +108,15 @@ std::string getScalarTypeTag(const llvm::Type *LLVMType,
     }
   } break;
 
-  case llvm::Type::PointerTyID:
-    return B.getVoidTag() + " "
-           + B.getOperator(CBuilder::Operator::PointerDereference);
+  case llvm::Type::PointerTyID: {
+    if (uint64_t Size = B.Configuration.ExplicitTargetPointerSize) {
+      return "pointer" + std::to_string(Size * 8) + "_t(" + B.getVoidTag()
+             + ")";
+    } else {
+      return B.getVoidTag() + " "
+             + B.getOperator(CBuilder::Operator::PointerDereference);
+    }
+  }
 
   default:
     revng_abort("Cannot convert this type directly to a C type.");

@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/HeadersGeneration/ConfigurationHelpers.h"
 #include "revng/HeadersGeneration/Options.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -48,13 +49,16 @@ public:
     if (ErrorCode)
       revng_abort(ErrorCode.message().c_str());
 
+    const auto &Model = *revng::getModelFromContext(EC);
+
     namespace options = revng::options;
     ptml::CTypeBuilder
       B(Header,
-        *getModelFromContext(EC),
+        Model,
         /* EnableTaglessMode = */ false,
         { .EnableStackFrameInlining = options::EnableStackFrameInlining,
-          .EnablePrintingOfTheMaximumEnumValue = true });
+          .EnablePrintingOfTheMaximumEnumValue = true,
+          .ExplicitTargetPointerSize = getExplicitPointerSize(Model) });
     ptml::HeaderBuilder(B).printModelHeader();
 
     Header.flush();
