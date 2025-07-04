@@ -145,7 +145,7 @@ commands:
 
       revng artifact --resume "$OUTPUT" emit-model-header "$INPUT1" | revng ptml > "$$WORKDIR/types-and-globals.h";
       revng artifact --resume "$OUTPUT" emit-helpers-header "$INPUT1" | revng ptml > "$$WORKDIR/helpers.h";
-      revng check-decompiled-c "$$WORKDIR/decompiled.c" -I"$$WORKDIR" -m${POINTER_SIZE};
+      revng check-decompiled-c "$$WORKDIR/decompiled.c" -I"$$WORKDIR" -DLEGACY_BACKEND -m${POINTER_SIZE};
 
   #
   # Produce the prepare-for-clift artifact, as a preliminary test for clift-based decompilation

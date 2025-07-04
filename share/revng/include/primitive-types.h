@@ -233,4 +233,18 @@ extern float80_t undef_float80_t();
 extern float96_t undef_float96_t();
 extern float128_t undef_float128_t();
 
+//
+// Pointers
+//
+
+#ifdef LEGACY_BACKEND
+#define pointer16_t(T) __typeof__((T *){ 0 })
+#define pointer32_t(T) __typeof__((T *){ 0 })
+#define pointer64_t(T) __typeof__((T *){ 0 })
+#else
+#define pointer16_t(T) uint16_t
+#define pointer32_t(T) uint32_t
+#define pointer64_t(T) uint64_t
+#endif
+
 #undef static_assert_size
