@@ -672,7 +672,7 @@ Branches:
               - strip-dead-prototypes
               - split-overflow-intrinsics
               - dce
-      - Name: prepare-for-clift
+      - Name: emit-c
         Pipes:
           - Type: llvm-pipe
             UsedContainers: [module.bc.zstd]
@@ -690,31 +690,33 @@ Branches:
               - inline-divergent-scopes
               - enforce-single-exit
               - materialize-trivial-goto
-        Artifacts:
-          Container: module.bc.zstd
-          Kind: stack-accesses-segregated
-          SingleTargetFilename: prepared-for-clift.ll
-          Docs: |-
-            This artifact contains an LLVM function for each function in the
-            input program.
-
-            The output is similar to the output of `make-segment-ref` but it now
-            contains explicit Alloca/Load/Store instructions.
-            These are injected as a preliminary step for moving away from LLVM
-            towards a higher-level representation that can be emitted in C.
-  - From: prepare-for-clift
-    Steps:
-      - Name: llvm-to-clift
-        Pipes:
           - Type: llvm-to-clift
             UsedContainers: [module.bc.zstd, module.mlir]
+          - Type: clift-legalization
+            UsedContainers: [module.mlir]
+          - Type: model-verify-clift
+            UsedContainers: [module.mlir]
+          - Type: emit-c
+            UsedContainers: [module.mlir, decompiled.tar.gz]
         Artifacts:
-          Container: module.mlir
-          Kind: clift-module
-          SingleTargetFilename: llvm_to_clift.mlir
+          Container: decompiled.tar.gz
+          Kind: decompiled
+          SingleTargetFilename: decompiled.c
           Docs: |-
-            This artifact contains a Clift function for each function in the
-            input program.
+            This artifact contains a C function for each function in the input
+            program.
+      - Name: emit-c-as-single-file
+        Pipes:
+          - Type: decompile-to-single-file
+            UsedContainers: [decompiled.tar.gz, decompiled.c]
+        Artifacts:
+          Container: decompiled.c
+          Kind: decompiled-to-c
+          SingleTargetFilename: binary_decompiled.c
+          Docs: |-
+            This artifact is a single PTML file representing the decompiled C
+            code of the whole program, including the body of all of program's
+            functions. (Clift backend)
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
