@@ -875,24 +875,32 @@ mlir::LogicalResult CastOp::verify() {
   switch (auto Kind = getKind()) {
   case CastKind::Extend:
   case CastKind::Truncate: {
-    auto ResUnderlyingT = getUnderlyingIntegerType(ResT);
-    if (not ResUnderlyingT)
-      return emitOpError() << " result must have integer type.";
+    if (auto ResUnderlyingT = getUnderlyingIntegerType(ResT)) {
+      auto ArgUnderlyingT = getUnderlyingIntegerType(ArgT);
+      if (not ArgUnderlyingT)
+        return emitOpError() << " argument must have integer type.";
 
-    auto ArgUnderlyingT = getUnderlyingIntegerType(ArgT);
-    if (not ArgUnderlyingT)
-      return emitOpError() << " argument must have integer type.";
+      if (ResUnderlyingT.getKind() != ArgUnderlyingT.getKind())
+        return emitOpError() << " result and argument types must be equal in"
+                                " kind.";
+    } else if (auto ResPointerT = getPointerType(ResT)) {
+      auto ArgPointerT = getPointerType(ArgT);
+      if (not ArgPointerT)
+        return emitOpError() << " argument must have pointer type.";
 
-    if (ResUnderlyingT.getKind() != ArgUnderlyingT.getKind())
-      return emitOpError() << " result and argument types must be equal in"
-                              " kind.";
+      if (ResPointerT.getPointeeType() != ArgPointerT.getPointeeType())
+        return emitOpError() << " result and argument must have equal pointee "
+                                " types.";
+    } else {
+      return emitOpError() << " result must have integer or pointer type.";
+    }
 
     if (Kind == CastKind::Extend) {
-      if (ResUnderlyingT.getSize() <= ArgUnderlyingT.getSize())
+      if (ResT.getByteSize() <= ArgT.getByteSize())
         return emitOpError() << " result type must be wider than the argument"
                                 " type.";
     } else {
-      if (ResUnderlyingT.getSize() >= ArgUnderlyingT.getSize())
+      if (ResT.getByteSize() >= ArgT.getByteSize())
         return emitOpError() << " result type must be narrower than the"
                                 " argument type.";
     }
