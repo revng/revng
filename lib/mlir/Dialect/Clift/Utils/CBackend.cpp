@@ -98,6 +98,26 @@ enum class OperatorPrecedence {
   Ternary = Assignment,
 };
 
+static std::string getPrimitiveTypeCName(PrimitiveType Type) {
+  auto GetPrefix = [](PrimitiveKind Kind) -> llvm::StringRef {
+    switch (Kind) {
+    case PrimitiveKind::UnsignedKind:
+      return "uint";
+    case PrimitiveKind::SignedKind:
+      return "int";
+    default:
+      return clift::stringifyPrimitiveKind(Kind);
+    }
+  };
+
+  std::string Name;
+  {
+    llvm::raw_string_ostream Out(Name);
+    Out << GetPrefix(Type.getKind()) << (Type.getSize() * 8) << "_t";
+  }
+  return Name;
+}
+
 class CEmitter {
 public:
   explicit CEmitter(const TargetCImplementation &Target,
@@ -466,10 +486,9 @@ public:
   //===---------------------------- Expressions ---------------------------===//
 
   RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
-    auto E = V.getDefiningOp<UndefOp>();
-    Out << "/* undef */ (";
-    rc_recur emitType(E.getResult().getType());
-    Out << "){0}";
+    auto T = mlir::cast<clift::PrimitiveType>(V.getType());
+    Out << C.Binary.Configuration().Naming().undefinedValuePrefix().str()
+        << getPrimitiveTypeCName(T) << "()";
     rc_return;
   }
 
