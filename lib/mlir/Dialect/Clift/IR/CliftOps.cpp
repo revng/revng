@@ -819,6 +819,16 @@ static mlir::LogicalResult verifyPointerArithmeticOp(mlir::Operation *Op) {
   return mlir::success();
 }
 
+unsigned
+clift::impl::getPointerArithmeticPointerOperandIndex(mlir::Operation *Op) {
+  return isPointerType(Op->getOperand(0).getType()) ? 0 : 1;
+}
+
+unsigned
+clift::impl::getPointerArithmeticOffsetOperandIndex(mlir::Operation *Op) {
+  return isPointerType(Op->getOperand(0).getType()) ? 1 : 0;
+}
+
 //===------------------------------ PtrAddOp ------------------------------===//
 
 mlir::LogicalResult PtrAddOp::verify() {

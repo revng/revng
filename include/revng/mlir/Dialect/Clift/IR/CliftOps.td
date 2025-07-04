@@ -470,6 +470,24 @@ class Clift_PointerArithmeticOp<string mnemonic>
   }];
 
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    unsigned getPointerOperandIndex() {
+      return mlir::clift::impl::getPointerArithmeticPointerOperandIndex(getOperation());
+    }
+
+    mlir::Value getPointer() {
+      return getOperation()->getOperand(getPointerOperandIndex());
+    }
+
+    unsigned getOffsetOperandIndex() {
+      return mlir::clift::impl::getPointerArithmeticOffsetOperandIndex(getOperation());
+    }
+
+    mlir::Value getOffset() {
+      return getOperation()->getOperand(getOffsetOperandIndex());
+    }
+  }];
 }
 
 class Clift_BinaryLogicalOp<string mnemonic> : Clift_ExpressionOp<mnemonic> {
