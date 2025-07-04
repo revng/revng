@@ -113,14 +113,16 @@ public:
   }
 
   mlir::LogicalResult visitDefinedType(DefinedType Type) {
-    auto const [Iterator, Inserted] = Definitions.try_emplace(Type.getHandle(),
-                                                              Type);
+    auto UnqualifiedType = mlir::cast<DefinedType>(Type.removeConst());
 
-    if (not Inserted and Iterator->second != Type)
+    auto const [Iterator, Inserted] = Definitions.try_emplace(Type.getHandle(),
+                                                              UnqualifiedType);
+
+    if (not Inserted and Iterator->second != UnqualifiedType)
       return getCurrentOp()->emitError() << "Found two distinct type "
                                             "definitions with the same "
                                             "handle: '"
-                                         << Type.getHandle() << '\'';
+                                         << UnqualifiedType.getHandle() << '\'';
 
     if (maybeVisitClassType(Type, Type).failed())
       return mlir::failure();
