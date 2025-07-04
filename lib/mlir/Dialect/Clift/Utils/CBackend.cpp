@@ -1036,6 +1036,18 @@ public:
     Out << ';' << '\n';
   }
 
+  bool labelRequiresEmptyExpression(AssignLabelOp Op) {
+    // Prior to C23, labels cannot be placed at the end of a block:
+    if (Op.getOperation() == &Op->getBlock()->back())
+      return true;
+
+    // Prior to C23, labels cannot be placed preceding a declaration:
+    if (mlir::isa<LocalVariableOp>(&*std::next(Op->getIterator())))
+      return true;
+
+    return false;
+  }
+
   RecursiveCoroutine<void> emitLabelStatement(AssignLabelOp S) {
     Out.unindent();
 
@@ -1044,8 +1056,7 @@ public:
     auto Symbol = getLocalSymbolName(S.getLabelOp());
     Out << C.getGotoLabelDefinitionTag(*CurrentFunction, Symbol) << ':';
 
-    // Until C23, labels cannot be placed at the end of a block.
-    if (S.getOperation() == &S->getBlock()->back())
+    if (labelRequiresEmptyExpression(S))
       Out << ' ' << ';';
 
     Out << '\n';
