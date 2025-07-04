@@ -90,14 +90,4 @@ def Clift_TypedefAttr
   let genVerifyDecl = 1;
 }
 
-def Clift_ClassDefinitionAttr
-  : AttrDef<Clift_Dialect,
-            "ClassDefinition",
-            [SubElementAttrInterface]> {
-
-  let parameters = (ins StringRefParameter<>:$name,
-                        "uint64_t":$size,
-                        ArrayRefParameter<"mlir::clift::FieldAttr">:$fields);
-}
-
 #endif

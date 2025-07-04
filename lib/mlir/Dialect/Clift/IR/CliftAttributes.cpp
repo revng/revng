@@ -41,7 +41,7 @@ namespace mlir::clift {
 class ClassAttrStorage : public mlir::AttributeStorage {
   struct Key {
     llvm::StringRef Handle;
-    ClassDefinitionAttr Definition;
+    std::optional<ClassDefinition> Definition;
 
     explicit Key(llvm::StringRef Handle) : Handle(Handle) {}
 
@@ -79,16 +79,32 @@ public:
   }
 
   mlir::LogicalResult mutate(mlir::StorageUniquer::StorageAllocator &Allocator,
-                             ClassDefinitionAttr Definition) {
+                             const ClassDefinition &Definition) {
     if (TheKey.Definition)
       return mlir::success(Definition == TheKey.Definition);
 
-    TheKey.Definition = Definition;
+    TheKey.Definition.emplace(Allocator.copyInto(Definition.Name),
+                              Definition.Size,
+                              Allocator.copyInto(Definition.Fields));
+
     return mlir::success();
   }
 
   llvm::StringRef getHandle() const { return TheKey.Handle; }
-  ClassDefinitionAttr getDefinition() const { return TheKey.Definition; }
+
+  const ClassDefinition *getDefinitionOrNull() const {
+    return TheKey.Definition ? &*TheKey.Definition : nullptr;
+  }
+
+  const ClassDefinition &getDefinition() const {
+    revng_check(TheKey.Definition);
+    return *TheKey.Definition;
+  }
+
+  ClassDefinition &getMutableDefinition() {
+    revng_check(TheKey.Definition);
+    return *TheKey.Definition;
+  }
 };
 
 template<typename AttrT>
@@ -98,19 +114,24 @@ llvm::StringRef ClassAttrImpl<AttrT>::getHandle() const {
 
 template<typename AttrT>
 bool ClassAttrImpl<AttrT>::hasDefinition() const {
-  return static_cast<bool>(Base::getImpl()->getDefinition());
+  return Base::getImpl()->getDefinitionOrNull() != nullptr;
 }
 
 template<typename AttrT>
-ClassDefinitionAttr ClassAttrImpl<AttrT>::getDefinition() const {
+const ClassDefinition *ClassAttrImpl<AttrT>::getDefinitionOrNull() const {
+  return Base::getImpl()->getDefinitionOrNull();
+}
+
+template<typename AttrT>
+const ClassDefinition &ClassAttrImpl<AttrT>::getDefinition() const {
   return Base::getImpl()->getDefinition();
 }
 
 template<typename AttrT>
 void ClassAttrImpl<AttrT>::walkImmediateSubElements(WalkAttrT WalkAttr,
                                                     WalkTypeT WalkType) const {
-  if (auto Definition = Base::getImpl()->getDefinition())
-    WalkAttr(Definition);
+  for (auto Field : getDefinition().getFields())
+    WalkAttr(Field);
 }
 
 template<typename AttrT>
@@ -249,7 +270,7 @@ mlir::LogicalResult StructAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult StructAttr::verify(EmitErrorType EmitError,
                                        llvm::StringRef Handle,
-                                       ClassDefinitionAttr Definition) {
+                                       const ClassDefinition &Definition) {
   return mlir::success();
 }
 
@@ -263,7 +284,7 @@ mlir::LogicalResult StructAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult
 StructAttr::verifyDefinition(EmitErrorType EmitError) const {
-  ClassDefinitionAttr Definition = getDefinition();
+  const ClassDefinition &Definition = getDefinition();
 
   if (Definition.getSize() == 0)
     return EmitError() << "struct type cannot have a size of zero";
@@ -306,7 +327,7 @@ StructAttr StructAttr::getChecked(EmitErrorType EmitError,
 
 StructAttr StructAttr::get(MLIRContext *Context,
                            llvm::StringRef Handle,
-                           ClassDefinitionAttr Definition) {
+                           const ClassDefinition &Definition) {
   auto Attr = Base::get(Context, Handle);
   auto R = Attr.Base::mutate(Definition);
   revng_assert(R.succeeded()
@@ -318,7 +339,7 @@ StructAttr StructAttr::get(MLIRContext *Context,
 StructAttr StructAttr::getChecked(EmitErrorType EmitError,
                                   MLIRContext *Context,
                                   llvm::StringRef Handle,
-                                  ClassDefinitionAttr Definition) {
+                                  const ClassDefinition &Definition) {
   return get(Context, Handle, Definition);
 }
 
@@ -327,9 +348,7 @@ StructAttr StructAttr::get(MLIRContext *Context,
                            llvm::StringRef Name,
                            uint64_t Size,
                            llvm::ArrayRef<FieldAttr> Fields) {
-  return get(Context,
-             Handle,
-             ClassDefinitionAttr::get(Context, Name, Size, Fields));
+  return get(Context, Handle, ClassDefinition{ Name, Size, Fields });
 }
 
 StructAttr StructAttr::getChecked(EmitErrorType EmitError,
@@ -341,7 +360,7 @@ StructAttr StructAttr::getChecked(EmitErrorType EmitError,
   return getChecked(EmitError,
                     Context,
                     Handle,
-                    ClassDefinitionAttr::get(Context, Name, Size, Fields));
+                    ClassDefinition{ Name, Size, Fields });
 }
 
 //===------------------------------ UnionAttr -----------------------------===//
@@ -360,7 +379,7 @@ mlir::LogicalResult UnionAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult UnionAttr::verify(EmitErrorType EmitError,
                                       llvm::StringRef Handle,
-                                      ClassDefinitionAttr Definition) {
+                                      const ClassDefinition &Definition) {
   return mlir::success();
 }
 
@@ -372,7 +391,7 @@ mlir::LogicalResult UnionAttr::verify(EmitErrorType EmitError,
 }
 
 mlir::LogicalResult UnionAttr::verifyDefinition(EmitErrorType EmitError) const {
-  ClassDefinitionAttr Definition = getDefinition();
+  const ClassDefinition &Definition = getDefinition();
 
   if (Definition.getFields().empty())
     return EmitError() << "union types must have at least one field";
@@ -403,7 +422,7 @@ UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
 
 UnionAttr UnionAttr::get(MLIRContext *Context,
                          llvm::StringRef Handle,
-                         ClassDefinitionAttr Definition) {
+                         const ClassDefinition &Definition) {
   auto Attr = Base::get(Context, Handle);
   auto R = Attr.Base::mutate(Definition);
   revng_assert(R.succeeded()
@@ -415,7 +434,7 @@ UnionAttr UnionAttr::get(MLIRContext *Context,
 UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
                                 MLIRContext *Context,
                                 llvm::StringRef Handle,
-                                ClassDefinitionAttr Definition) {
+                                const ClassDefinition &Definition) {
   return get(Context, Handle, Definition);
 }
 
@@ -423,12 +442,7 @@ UnionAttr UnionAttr::get(MLIRContext *Context,
                          llvm::StringRef Handle,
                          llvm::StringRef Name,
                          llvm::ArrayRef<FieldAttr> Fields) {
-  return get(Context,
-             Handle,
-             ClassDefinitionAttr::get(Context,
-                                      Name,
-                                      getUnionSize(Fields),
-                                      Fields));
+  return get(Context, Handle, ClassDefinition{ Name, 0, Fields });
 }
 
 UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
@@ -439,10 +453,23 @@ UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
   return getChecked(EmitError,
                     Context,
                     Handle,
-                    ClassDefinitionAttr::get(Context,
-                                             Name,
-                                             getUnionSize(Fields),
-                                             Fields));
+                    ClassDefinition{ Name, 0, Fields });
+}
+
+uint64_t UnionAttr::getSize() const {
+  ClassDefinition &Definition = Base::getImpl()->getMutableDefinition();
+
+  uint64_t Size = Definition.Size;
+  if (Size == 0) {
+    // Technically since this is a const member function, another thread could
+    // be concurrently observing the zero size and mutating the same object.
+    // While this is technically UB (std::atomic_ref should be used instead but
+    // is not yet available), it should not be a problem because both threads
+    // are expected to compute the same value, and the shared object is only
+    // used for caching and not synchronisation.
+    Definition.Size = Size = getUnionSize(Definition.Fields);
+  }
+  return Size;
 }
 
 //===---------------------------- CliftDialect ----------------------------===//
