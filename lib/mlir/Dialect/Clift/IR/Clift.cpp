@@ -10,6 +10,8 @@
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
 #include "revng/mlir/Dialect/Clift/Utils/ModuleValidator.h"
 
+#include "CliftBytecode.h"
+
 // comment to force generated files to be included be after regular includes
 #include "revng/mlir/Dialect/Clift/IR/CliftOpsDialect.cpp.inc"
 
@@ -35,6 +37,34 @@ public:
         return AliasResult::FinalAlias;
     }
     return AliasResult::NoAlias;
+  }
+};
+
+class CliftBytecodeDialectInterface final
+  : public mlir::BytecodeDialectInterface {
+public:
+  CliftBytecodeDialectInterface(mlir::Dialect *Dialect) :
+    BytecodeDialectInterface(Dialect) {}
+
+  mlir::Attribute
+  readAttribute(mlir::DialectBytecodeReader &Reader) const override {
+    return mlir::clift::readAttr(Reader);
+  }
+
+  mlir::Type readType(mlir::DialectBytecodeReader &Reader) const override {
+    return mlir::clift::readType(Reader);
+  }
+
+  mlir::LogicalResult
+  writeAttribute(mlir::Attribute Attr,
+                 mlir::DialectBytecodeWriter &Writer) const override {
+    return mlir::clift::writeAttr(Attr, Writer);
+  }
+
+  mlir::LogicalResult
+  writeType(mlir::Type Type,
+            mlir::DialectBytecodeWriter &Writer) const override {
+    return mlir::clift::writeType(Type, Writer);
   }
 };
 
@@ -196,7 +226,7 @@ void CliftDialect::initialize() {
   registerTypes();
   registerOperations();
   registerAttributes();
-  addInterfaces<CliftOpAsmDialectInterface>();
+  addInterfaces<CliftOpAsmDialectInterface, CliftBytecodeDialectInterface>();
 }
 
 mlir::LogicalResult

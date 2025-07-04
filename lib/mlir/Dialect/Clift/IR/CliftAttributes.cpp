@@ -18,6 +18,8 @@
 #include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
 
+#include "CliftBytecode.h"
+
 // This include should stay here for correct build procedure
 //
 #define GET_ATTRDEF_CLASSES
@@ -168,6 +170,24 @@ mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
+template<std::same_as<EnumFieldAttr>>
+static EnumFieldAttr readAttr(mlir::DialectBytecodeReader &Reader) {
+  uint64_t RawValue;
+  if (Reader.readVarInt(RawValue).failed())
+    return {};
+
+  llvm::StringRef Name;
+  if (Reader.readString(Name).failed())
+    return {};
+
+  return EnumFieldAttr::get(Reader.getContext(), RawValue, Name);
+}
+
+static void writeAttr(EnumFieldAttr Attr, mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeVarInt(Attr.getRawValue());
+  Writer.writeOwnedString(Attr.getName());
+}
+
 //===------------------------------ EnumAttr ------------------------------===//
 
 mlir::LogicalResult EnumAttr::verify(EmitErrorType EmitError,
@@ -252,6 +272,44 @@ mlir::LogicalResult EnumAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
+template<std::same_as<EnumAttr>>
+static EnumAttr readAttr(mlir::DialectBytecodeReader &Reader) {
+  llvm::StringRef Handle;
+  if (Reader.readString(Handle).failed())
+    return {};
+
+  llvm::StringRef Name;
+  if (Reader.readString(Name).failed())
+    return {};
+
+  clift::ValueType UnderlyingType;
+  if (Reader.readType(UnderlyingType).failed())
+    return {};
+
+  auto ReadField = [&](EnumFieldAttr &Field) {
+    return Reader.readAttribute(Field);
+  };
+
+  llvm::SmallVector<EnumFieldAttr> Fields;
+  if (Reader.readList(Fields, ReadField).failed())
+    return {};
+
+  return EnumAttr::get(Reader.getContext(),
+                       Handle,
+                       Name,
+                       UnderlyingType,
+                       std::move(Fields));
+}
+
+static void writeAttr(EnumAttr Attr, mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeOwnedString(Attr.getHandle());
+  Writer.writeOwnedString(Attr.getName());
+  Writer.writeType(Attr.getUnderlyingType());
+  Writer.writeList(Attr.getFields(), [&](EnumFieldAttr Field) {
+    return Writer.writeAttribute(Field);
+  });
+}
+
 //===----------------------------- TypedefAttr ----------------------------===//
 
 mlir::LogicalResult TypedefAttr::verify(EmitErrorType EmitError,
@@ -259,6 +317,29 @@ mlir::LogicalResult TypedefAttr::verify(EmitErrorType EmitError,
                                         llvm::StringRef Name,
                                         clift::ValueType UnderlyingType) {
   return mlir::success();
+}
+
+template<std::same_as<TypedefAttr>>
+static TypedefAttr readAttr(mlir::DialectBytecodeReader &Reader) {
+  llvm::StringRef Handle;
+  if (Reader.readString(Handle).failed())
+    return {};
+
+  llvm::StringRef Name;
+  if (Reader.readString(Name).failed())
+    return {};
+
+  clift::ValueType UnderlyingType;
+  if (Reader.readType(UnderlyingType).failed())
+    return {};
+
+  return TypedefAttr::get(Reader.getContext(), Handle, Name, UnderlyingType);
+}
+
+static void writeAttr(TypedefAttr Attr, mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeOwnedString(Attr.getHandle());
+  Writer.writeOwnedString(Attr.getName());
+  Writer.writeType(Attr.getUnderlyingType());
 }
 
 //===----------------------------- StructAttr -----------------------------===//
@@ -492,4 +573,90 @@ mlir::Attribute CliftDialect::parseAttribute(mlir::DialectAsmParser &Parser,
 void CliftDialect::printAttribute(mlir::Attribute Attr,
                                   mlir::DialectAsmPrinter &Printer) const {
   revng_abort("cannot print attribute");
+}
+
+namespace {
+
+enum class CliftAttrKind : uint8_t {
+  Typedef,
+  EnumField,
+  Enum,
+  Struct,
+  Union,
+
+  N
+};
+
+} // namespace
+
+static mlir::LogicalResult readAttrKind(CliftAttrKind &TypeKind,
+                                        mlir::DialectBytecodeReader &Reader) {
+  uint64_t Value;
+  if (Reader.readVarInt(Value).failed())
+    return mlir::failure();
+
+  if (Value >= static_cast<uint64_t>(CliftAttrKind::N))
+    return mlir::failure();
+
+  TypeKind = static_cast<CliftAttrKind>(Value);
+  return mlir::success();
+}
+
+mlir::Attribute clift::readAttr(mlir::DialectBytecodeReader &Reader) {
+  CliftAttrKind TypeKind;
+  if (readAttrKind(TypeKind, Reader).failed())
+    return {};
+
+  switch (TypeKind) {
+  case CliftAttrKind::Typedef:
+    return ::readAttr<clift::TypedefAttr>(Reader);
+  case CliftAttrKind::EnumField:
+    return ::readAttr<clift::EnumFieldAttr>(Reader);
+  case CliftAttrKind::Enum:
+    return ::readAttr<clift::EnumAttr>(Reader);
+  case CliftAttrKind::Struct:
+    return BytecodeClassAttr::get(Reader.getContext(),
+                                  clift::readStructDefinition(Reader));
+  case CliftAttrKind::Union:
+    return BytecodeClassAttr::get(Reader.getContext(),
+                                  clift::readUnionDefinition(Reader));
+  case CliftAttrKind::N:
+    break;
+  }
+  revng_abort();
+}
+
+mlir::LogicalResult clift::writeAttr(mlir::Attribute Attr,
+                                     mlir::DialectBytecodeWriter &Writer) {
+  auto WriteKind = [&](CliftAttrKind TypeKind) {
+    Writer.writeVarInt(static_cast<uint64_t>(TypeKind));
+  };
+
+  auto Write = [&](auto T, CliftAttrKind TypeKind) {
+    WriteKind(TypeKind);
+    ::writeAttr(T, Writer);
+    return mlir::success();
+  };
+
+  if (auto A = mlir::dyn_cast<clift::TypedefAttr>(Attr))
+    return Write(A, CliftAttrKind::Typedef);
+  if (auto A = mlir::dyn_cast<clift::EnumFieldAttr>(Attr))
+    return Write(A, CliftAttrKind::EnumField);
+  if (auto A = mlir::dyn_cast<clift::EnumAttr>(Attr))
+    return Write(A, CliftAttrKind::Enum);
+
+  if (auto A = mlir::dyn_cast<clift::BytecodeClassAttr>(Attr)) {
+    if (auto T = mlir::dyn_cast<clift::StructType>(A.getType())) {
+      WriteKind(CliftAttrKind::Struct);
+      writeStructDefinition(T, Writer);
+      return mlir::success();
+    }
+    if (auto T = mlir::dyn_cast<clift::UnionType>(A.getType())) {
+      WriteKind(CliftAttrKind::Union);
+      writeUnionDefinition(T, Writer);
+      return mlir::success();
+    }
+  }
+
+  return mlir::failure();
 }
