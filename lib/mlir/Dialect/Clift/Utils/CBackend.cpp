@@ -8,6 +8,7 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/PTML/CBuilder.h"
+#include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
 
@@ -106,23 +107,23 @@ public:
     Builder.setOutputStream(this->Out);
   }
 
-  const model::Segment &getModelSegment(GlobalVariableOp Op) {
+  const model::Segment *getModelSegment(GlobalVariableOp Op) {
     auto L = pipeline::locationFromString(revng::ranks::Segment,
                                           Op.getHandle());
     if (not L)
-      revng_abort("Unrecognizable global variable unique handle.");
+      return nullptr;
 
     auto Key = L->at(revng::ranks::Segment);
     auto It = C.Binary.Segments().find(Key);
     if (It == C.Binary.Segments().end())
       revng_abort("No matching model segment.");
-    return *It;
+    return &*It;
   }
 
   using ModelFunctionVariant = std::variant<const model::Function *,
                                             const model::DynamicFunction *>;
 
-  ModelFunctionVariant getModelFunctionVariant(FunctionOp Op) {
+  std::optional<ModelFunctionVariant> getModelFunctionVariant(FunctionOp Op) {
     if (auto L = pipeline::locationFromString(revng::ranks::Function,
                                               Op.getHandle())) {
       auto [Key] = L->at(revng::ranks::Function);
@@ -141,33 +142,54 @@ public:
       return &*It;
     }
 
-    revng_abort("Unrecognizable function unique handle.");
+    return std::nullopt;
   }
 
-  const model::Function &getModelFunction(FunctionOp Op) {
-    auto Variant = getModelFunctionVariant(Op);
-    if (auto F = std::get_if<const model::Function *>(&Variant))
-      return **F;
-    revng_abort("Expected isolated model function.");
+  const model::Function *getIsolatedModelFunction(FunctionOp Op) {
+    if (auto OptionalVariant = getModelFunctionVariant(Op))
+      if (auto F = std::get_if<const model::Function *>(&*OptionalVariant))
+        return *F;
+
+    return nullptr;
   }
 
-  const model::TypeDefinition &getModelTypeDefinition(DefinedType Type) {
-    auto GetType = [&](const auto &Rank) -> const model::TypeDefinition * {
-      if (auto L = pipeline::locationFromString(Rank, Type.getHandle())) {
-        auto It = C.Binary.TypeDefinitions().find(L->at(Rank));
-        if (It != C.Binary.TypeDefinitions().end())
-          return It->get();
-      }
-      return nullptr;
-    };
+  template<typename RankT>
+  std::optional<std::string>
+  getHelperFunctionNameImpl(const RankT &Rank, llvm::StringRef Handle) {
+    if (auto L = pipeline::locationFromString(Rank, Handle))
+      return L->at(Rank);
 
-    if (const auto *T = GetType(revng::ranks::TypeDefinition))
-      return *T;
+    return std::nullopt;
+  }
 
-    if (const auto *T = GetType(revng::ranks::ArtificialStruct))
-      return *T;
+  std::optional<std::string> getHelperFunctionName(llvm::StringRef Handle) {
+    return getHelperFunctionNameImpl(revng::ranks::HelperFunction, Handle);
+  }
 
-    revng_abort("Unrecognized type unique handle");
+  std::optional<std::string> getHelperReturnTypeName(llvm::StringRef Handle) {
+    return getHelperFunctionNameImpl(revng::ranks::HelperStructType, Handle);
+  }
+
+  template<typename RankT>
+  const model::TypeDefinition *
+  getModelTypeDefinitionImpl(const RankT &Rank, DefinedType Type) {
+    if (auto L = pipeline::locationFromString(Rank, Type.getHandle())) {
+      auto It = C.Binary.TypeDefinitions().find(L->at(Rank));
+      if (It != C.Binary.TypeDefinitions().end())
+        return It->get();
+    }
+    return nullptr;
+  }
+
+  const model::TypeDefinition *getModelTypeDefinition(DefinedType Type) {
+    return getModelTypeDefinitionImpl(revng::ranks::TypeDefinition, Type);
+  }
+
+  const model::RawFunctionDefinition *
+  getArtificialStructFunctionType(DefinedType Type) {
+    const auto *T = getModelTypeDefinitionImpl(revng::ranks::ArtificialStruct,
+                                               Type);
+    return llvm::dyn_cast_or_null<model::RawFunctionDefinition>(T);
   }
 
   void emitPrimitiveType(PrimitiveType Type) {
@@ -241,7 +263,14 @@ public:
             Out << C.getKeyword(Keyword::Union) << ' ';
 
           EmitConst(T);
-          Out << C.getReferenceTag(getModelTypeDefinition(T));
+          if (const auto *MT = getModelTypeDefinition(T))
+            Out << C.getReferenceTag(*MT);
+          else if (const auto *MT = getArtificialStructFunctionType(T))
+            Out << getReturnStructTypeReferenceTag(C.NameBuilder.name(*MT), C);
+          else if (auto Name = getHelperReturnTypeName(T.getHandle()))
+            Out << getReturnStructTypeReferenceTag(*Name, C);
+          else
+            revng_abort("Unrecognized defined type handle");
           NeedSpace = true;
         }
       }
@@ -385,8 +414,10 @@ public:
       Out << getIntegerConstant(Value, *Integer, Signed);
     } else {
       auto D = mlir::cast<DefinedType>(Type);
-      const auto &ModelType = getModelTypeDefinition(D);
-      const auto &ModelEnum = llvm::cast<model::EnumDefinition>(ModelType);
+      const auto *ModelType = getModelTypeDefinition(D);
+      revng_assert(ModelType != nullptr);
+
+      const auto &ModelEnum = llvm::cast<model::EnumDefinition>(*ModelType);
 
       auto It = ModelEnum.Entries().find(Value);
       if (It == ModelEnum.Entries().end())
@@ -510,12 +541,21 @@ public:
     revng_assert(SymbolOp);
 
     if (auto G = mlir::dyn_cast<GlobalVariableOp>(SymbolOp)) {
-      Out << C.getReferenceTag(getModelSegment(G));
+      if (const model::Segment *Segment = getModelSegment(G))
+        Out << C.getReferenceTag(*getModelSegment(G));
+      else
+        revng_abort("Unrecognized global variable handle");
     } else if (auto F = mlir::dyn_cast<FunctionOp>(SymbolOp)) {
-      auto Visitor = [&](const auto *ModelFunction) {
-        Out << C.getReferenceTag(*ModelFunction);
-      };
-      std::visit(Visitor, getModelFunctionVariant(F));
+      if (auto OptionalVariant = getModelFunctionVariant(F)) {
+        auto Visitor = [&](const auto *ModelFunction) {
+          Out << C.getReferenceTag(*ModelFunction);
+        };
+        std::visit(Visitor, *OptionalVariant);
+      } else if (auto Name = getHelperFunctionName(F.getHandle())) {
+        Out << getHelperFunctionReferenceTag(*Name, C);
+      } else {
+        revng_abort("Unrecognized function handle");
+      }
     } else {
       revng_abort("Unsupported global operation");
     }
@@ -523,13 +563,13 @@ public:
     rc_return;
   }
 
-  template<typename Class>
-  void emitClassMemberReference(const Class &TheClass, uint64_t Key) {
-    auto It = TheClass.Fields().find(Key);
-    if (It == TheClass.Fields().end())
+  template<typename ClassT>
+  void emitClassMemberReference(const ClassT &Class, uint64_t Key) {
+    auto It = Class.Fields().find(Key);
+    if (It == Class.Fields().end())
       revng_abort("Class member not found.");
 
-    Out << C.getReferenceTag(TheClass, *It);
+    Out << C.getReferenceTag(Class, *It);
   }
 
   void emitRawFunctionRegisterReference(const model::RawFunctionDefinition &RFT,
@@ -549,17 +589,21 @@ public:
 
     Out << C.getOperator(E.isIndirect() ? Operator::Arrow : Operator::Dot);
 
-    const model::TypeDefinition
-      &ModelType = getModelTypeDefinition(E.getClassType());
-
-    if (auto *T = llvm::dyn_cast<model::StructDefinition>(&ModelType))
-      emitClassMemberReference(*T, E.getFieldAttr().getOffset());
-    else if (auto *T = llvm::dyn_cast<model::UnionDefinition>(&ModelType))
-      emitClassMemberReference(*T, E.getMemberIndex());
-    else if (auto *T = llvm::dyn_cast<model::RawFunctionDefinition>(&ModelType))
+    ClassType Class = E.getClassType();
+    if (const auto *MT = getModelTypeDefinition(Class)) {
+      if (auto *T = llvm::dyn_cast<model::StructDefinition>(MT))
+        emitClassMemberReference(*T, E.getFieldAttr().getOffset());
+      else if (auto *T = llvm::dyn_cast<model::UnionDefinition>(MT))
+        emitClassMemberReference(*T, E.getMemberIndex());
+      else
+        revng_abort("Unexpected model type in access expression.");
+    } else if (const auto *T = getArtificialStructFunctionType(Class)) {
       emitRawFunctionRegisterReference(*T, E.getMemberIndex());
-    else
-      revng_abort("Unexpected model type in access expression.");
+    } else if (auto Name = getHelperReturnTypeName(Class.getHandle())) {
+      Out << getReturnStructFieldReferenceTag(*Name, E.getMemberIndex(), C);
+    } else {
+      revng_abort("Unrecognized class type handle");
+    }
   }
 
   RecursiveCoroutine<void> emitSubscriptExpression(mlir::Value V) {
@@ -1296,18 +1340,19 @@ public:
   //===----------------------------- Functions ----------------------------===//
 
   RecursiveCoroutine<void> emitFunction(FunctionOp Op) {
-    const model::Function &ModelFunction = getModelFunction(Op);
-    CurrentFunction = &ModelFunction;
+    const model::Function *ModelFunction = getIsolatedModelFunction(Op);
+    revng_assert(ModelFunction != nullptr);
+    CurrentFunction = ModelFunction;
 
     auto ClearParameterNames = llvm::make_scope_exit([&]() {
       ParameterNames.clear();
     });
 
-    if (auto F = ModelFunction.cabiPrototype()) {
+    if (auto F = ModelFunction->cabiPrototype()) {
       for (const model::Argument &Parameter : F->Arguments())
         ParameterNames.push_back(C.getReferenceTag(*F, Parameter));
 
-    } else if (auto F = ModelFunction.rawPrototype()) {
+    } else if (auto F = ModelFunction->rawPrototype()) {
       for (const model::NamedTypedRegister &Register : F->Arguments())
         ParameterNames.push_back(C.getReferenceTag(*F, Register));
 
@@ -1328,13 +1373,14 @@ public:
     // Scope tags are applied within this scope:
     {
       auto OuterScope = C.scopeTag(ptml::c::scopes::Function).scope(Out);
-      const auto &MFD = *C.Binary.prototypeOrDefault(ModelFunction.prototype());
-      C.printFunctionPrototype(MFD, ModelFunction, /*SingleLine=*/false);
+      const auto &MFD = *C.Binary
+                           .prototypeOrDefault(ModelFunction->prototype());
+      C.printFunctionPrototype(MFD, *ModelFunction, /*SingleLine=*/false);
 
       Out << ' ';
       Scope InnerScope(Out, ptml::c::scopes::FunctionBody);
 
-      if (const model::Type *T = ModelFunction.StackFrameType().get()) {
+      if (const model::Type *T = ModelFunction->StackFrameType().get()) {
         const auto *D = llvm::cast<model::DefinedType>(T)->Definition().get();
 
         if (C.Configuration.EnableStackFrameInlining)
