@@ -148,13 +148,50 @@ commands:
       revng check-decompiled-c "$$WORKDIR/decompiled.c" -I"$$WORKDIR" -DLEGACY_BACKEND -m${POINTER_SIZE};
 
   #
-  # Produce the prepare-for-clift artifact, as a preliminary test for clift-based decompilation
+  # Produce the emit-c artifact and check the resulting C code
   #
-  - type: revng.decompiled-c
+  - type: revng.emit-and-check-c
     from:
       - type: revng-qa.compiled
         filter: one-per-architecture
       - type: revng.analyzed-model
     suffix: /
     command: |-
-      revng artifact --model "$INPUT2" --resume "$OUTPUT" prepare-for-clift "$INPUT1" -o /dev/null
+      ./emit-and-check-c "$INPUT1" "$INPUT2" "$OUTPUT" "$POINTER_SIZE"
+    scripts:
+      emit-and-check-c: |-
+        #!/usr/bin/env bash
+
+        set -euo pipefail
+
+        BINARY="$1"
+        MODEL="$2"
+        RESUME="$3"
+        POINTER_SIZE="$4"
+
+        OUTDIR="$RESUME/check-emit-c"
+        mkdir -p "$OUTDIR"
+
+        revng artifact \
+          --model "$MODEL" \
+          --resume "$RESUME" \
+          emit-helpers-header \
+          "$BINARY" \
+        | revng ptml > "$OUTDIR/helpers.h"
+
+        revng artifact \
+          --model "$MODEL" \
+          --resume "$RESUME" \
+          emit-model-header \
+          "$BINARY" \
+        | revng ptml > "$OUTDIR/types-and-globals.h"
+
+        revng artifact \
+          --model "$MODEL" \
+          --resume "$RESUME" \
+          emit-c-as-single-file \
+          "$BINARY" \
+        | revng ptml > "$OUTDIR/decompiled.c"
+
+        revng check-decompiled-c "$OUTDIR/decompiled.c" -I"$OUTDIR" -m"$POINTER_SIZE" \
+          2> "$OUTDIR/check-decompiled-c.log"

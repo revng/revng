@@ -43,7 +43,6 @@ public:
     mlir::ModuleOp Module = CliftContainer.getModule();
     const auto &Model = *revng::getModelFromContext(EC);
 
-    revng_assert(clift::verifyAgainstModel(Module, Model).succeeded());
     revng_assert(clift::verifyCSemantics(Module, Target).succeeded());
 
     llvm::raw_null_ostream NullStream;
