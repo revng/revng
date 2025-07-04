@@ -6,11 +6,14 @@
 #include <string>
 
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringExtras.h"
 
 #include "revng/Support/Identifier.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
+
+#include "CliftBytecode.h"
 
 // keep this order
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
@@ -74,6 +77,32 @@ static void mlir::printCliftDebugName(mlir::AsmPrinter &Printer,
   }
 }
 
+static mlir::LogicalResult readBool(bool &Value,
+                                    mlir::DialectBytecodeReader &Reader) {
+  uint64_t Integer;
+  if (Reader.readVarInt(Integer).failed())
+    return mlir::failure();
+  if (Integer > 1)
+    return mlir::failure();
+  Value = Integer != 0;
+  return mlir::success();
+}
+
+static void writeBool(bool Value, mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeVarInt(Value);
+}
+
+//===------------------------------ LabelType -----------------------------===//
+
+template<std::same_as<clift::LabelType>>
+static clift::LabelType readType(mlir::DialectBytecodeReader &Reader) {
+  return clift::LabelType::get(Reader.getContext());
+}
+
+static void writeType(clift::LabelType Type,
+                      mlir::DialectBytecodeWriter &Writer) {
+}
+
 //===---------------------------- PrimitiveType ---------------------------===//
 
 mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
@@ -122,6 +151,34 @@ ValueType PrimitiveType::removeConst() const {
   return get(getContext(), getKind(), getSize(), /*IsConst=*/false);
 }
 
+template<std::same_as<clift::PrimitiveType>>
+static clift::PrimitiveType readType(mlir::DialectBytecodeReader &Reader) {
+  uint64_t KindInteger;
+  if (Reader.readVarInt(KindInteger).failed())
+    return {};
+
+  auto Kind = symbolizePrimitiveKind(KindInteger);
+  if (not Kind)
+    return {};
+
+  uint64_t Size;
+  if (Reader.readVarInt(Size).failed())
+    return {};
+
+  bool Const;
+  if (readBool(Const, Reader).failed())
+    return {};
+
+  return clift::PrimitiveType::get(Reader.getContext(), *Kind, Size, Const);
+}
+
+static void writeType(clift::PrimitiveType Type,
+                      mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeVarInt(static_cast<uint64_t>(Type.getKind()));
+  Writer.writeVarInt(Type.getSize());
+  writeBool(Type.getIsConst(), Writer);
+}
+
 //===----------------------------- PointerType ----------------------------===//
 
 mlir::LogicalResult PointerType::verify(EmitErrorType EmitError,
@@ -158,6 +215,30 @@ ValueType PointerType::removeConst() const {
              /*IsConst=*/false);
 }
 
+template<std::same_as<clift::PointerType>>
+static clift::PointerType readType(mlir::DialectBytecodeReader &Reader) {
+  clift::ValueType PointeeType;
+  if (Reader.readType(PointeeType).failed())
+    return {};
+
+  uint64_t PointerSize;
+  if (Reader.readVarInt(PointerSize).failed())
+    return {};
+
+  bool Const;
+  if (readBool(Const, Reader).failed())
+    return {};
+
+  return clift::PointerType::get(PointeeType, PointerSize, Const);
+}
+
+static void writeType(clift::PointerType Type,
+                      mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeType(Type.getPointeeType());
+  Writer.writeVarInt(Type.getPointerSize());
+  writeBool(Type.getIsConst(), Writer);
+}
+
 //===------------------------------ ArrayType -----------------------------===//
 
 mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
@@ -189,6 +270,25 @@ ValueType ArrayType::removeConst() const {
     return *this;
 
   return get(getContext(), NewElementT, getElementsCount());
+}
+
+template<std::same_as<clift::ArrayType>>
+static clift::ArrayType readType(mlir::DialectBytecodeReader &Reader) {
+  clift::ValueType ElementType;
+  if (Reader.readType(ElementType).failed())
+    return {};
+
+  uint64_t ElementCount;
+  if (Reader.readVarInt(ElementCount).failed())
+    return {};
+
+  return clift::ArrayType::get(ElementType, ElementCount);
+}
+
+static void writeType(clift::ArrayType Type,
+                      mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeType(Type.getElementType());
+  Writer.writeVarInt(Type.getElementsCount());
 }
 
 //===------------------------------ EnumType ------------------------------===//
@@ -283,6 +383,25 @@ void EnumType::print(mlir::AsmPrinter &Printer) const {
   Printer << "}>";
 }
 
+template<std::same_as<clift::EnumType>>
+static clift::EnumType readType(mlir::DialectBytecodeReader &Reader) {
+  clift::EnumAttr Definition;
+  if (Reader.readAttribute(Definition).failed())
+    return {};
+
+  bool Const;
+  if (readBool(Const, Reader).failed())
+    return {};
+
+  return clift::EnumType::get(Reader.getContext(), Definition, Const);
+}
+
+static void writeType(clift::EnumType Type,
+                      mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeAttribute(Type.getDefinition());
+  writeBool(Type.getIsConst(), Writer);
+}
+
 //===----------------------------- TypedefType ----------------------------===//
 
 bool TypedefType::getAlias(llvm::raw_ostream &OS) const {
@@ -341,6 +460,25 @@ void TypedefType::print(mlir::AsmPrinter &Printer) const {
   Printer << ">";
 }
 
+template<std::same_as<clift::TypedefType>>
+static clift::TypedefType readType(mlir::DialectBytecodeReader &Reader) {
+  clift::TypedefAttr Definition;
+  if (Reader.readAttribute(Definition).failed())
+    return {};
+
+  bool Const;
+  if (readBool(Const, Reader).failed())
+    return {};
+
+  return clift::TypedefType::get(Reader.getContext(), Definition, Const);
+}
+
+static void writeType(clift::TypedefType Type,
+                      mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeAttribute(Type.getDefinition());
+  writeBool(Type.getIsConst(), Writer);
+}
+
 //===---------------------------- FunctionType ----------------------------===//
 
 mlir::LogicalResult FunctionType::verify(EmitErrorType EmitError,
@@ -395,6 +533,47 @@ bool FunctionType::getAlias(llvm::raw_ostream &OS) const {
 
 llvm::ArrayRef<mlir::Type> FunctionType::getResultTypes() const {
   return ArrayRef<Type>(getImpl()->return_type);
+}
+
+template<std::same_as<clift::FunctionType>>
+static clift::FunctionType readType(mlir::DialectBytecodeReader &Reader) {
+  auto ReadType = [&](mlir::Type &Type) -> mlir::LogicalResult {
+    clift::ValueType ValueType;
+    if (Reader.readType(ValueType).failed())
+      return mlir::failure();
+    Type = ValueType;
+    return mlir::success();
+  };
+
+  llvm::StringRef Handle;
+  if (Reader.readString(Handle).failed())
+    return {};
+
+  llvm::StringRef Name;
+  if (Reader.readString(Name).failed())
+    return {};
+
+  mlir::Type ReturnType;
+  if (ReadType(ReturnType).failed())
+    return {};
+
+  llvm::SmallVector<mlir::Type> ParameterTypes;
+  if (Reader.readList(ParameterTypes, ReadType).failed())
+    return {};
+
+  return clift::FunctionType::get(Handle,
+                                  Name,
+                                  ReturnType,
+                                  std::move(ParameterTypes));
+}
+
+static void writeType(clift::FunctionType Type,
+                      mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeOwnedString(Type.getHandle());
+  Writer.writeOwnedString(Type.getName());
+  Writer.writeType(Type.getReturnType());
+  Writer.writeList(Type.getArgumentTypes(),
+                   [&](mlir::Type Type) { Writer.writeType(Type); });
 }
 
 //===----------------------------- Class types ----------------------------===//
@@ -619,6 +798,174 @@ static uint64_t getClassTypeSize(AttrT Definition) {
   return Definition.getSize();
 }
 
+static thread_local llvm::SmallPtrSet<const void *, 32> BytecodeClassTypeSet;
+
+template<typename TypeT, typename AttrT>
+static TypeT readClassType(mlir::DialectBytecodeReader &Reader) {
+  constexpr bool IsStruct = std::is_same_v<TypeT, StructType>;
+
+  llvm::StringRef Handle;
+  if (Reader.readString(Handle).failed())
+    return {};
+
+  bool Const;
+  if (readBool(Const, Reader).failed())
+    return {};
+
+  auto Type = TypeT::get(Reader.getContext(), Handle);
+  const void *Opaque = Type.getAsOpaquePointer();
+  auto [Iterator, Inserted] = BytecodeClassTypeSet.insert(Opaque);
+
+  auto Guard = llvm::make_scope_exit([&]() {
+    if (Inserted)
+      BytecodeClassTypeSet.erase(Opaque);
+  });
+
+  // This is the complicated part of class type serialization.
+  //
+  // First, a little bit of background:
+  //
+  // The bytecode serializer first visits each type recursively, recording all
+  // reachable types and assigning them numeric ids. After that it visits each
+  // type again non-recursively, serializing them into a table, with references
+  // to other types serialized using their numeric ids. The same applies to
+  // attributes
+  //
+  // The bytecode deserializer deserializes types and attributes from the table
+  // on demand. When a type or attribute is fully deserialized for the first
+  // time, it is remembered and not deserialized again.
+  //
+  // Now the problem with recursive types:
+  //
+  // When deserializing a recursive class, using the normal rules, it is never
+  // *fully* deserialized, because the same type must be deserialized again and
+  // again forever. To get around this we employ a small hack:
+  //
+  // 1. Instead of storing the type in a single blob as usual, we store the
+  //    handle and constness of type, as well as a BytecodeClassAttr attribute
+  //    referencing the type itself. This creates an indirection in the table
+  //    as explained above. The definition of the class type is deserialized
+  //    as part of the attribute deserialization.
+  //    See `readClassDefinition` and `writeClassDefinition` below.
+  //
+  // 2. When recursion is detected during deserialization, instead of
+  //    deserializing the contained attribute (which is resolved through the
+  //    table) again, we read the underlying integer and simply skip it, ending
+  //    the recursion. At this point the class type has already been defined.
+
+  if (Inserted) {
+    clift::BytecodeClassAttr HelperAttr;
+    if (Reader.readAttribute(HelperAttr).failed())
+      return {};
+    revng_assert(HelperAttr.getType() == Type);
+    revng_assert(Type.isComplete());
+  } else {
+    // Here we skip the deserialization of the helper attribute by reading and
+    // ignoring the underlying table reference:
+    uint64_t HelperAttrReference;
+    if (Reader.readVarInt(HelperAttrReference).failed())
+      return {};
+  }
+
+  if (Const)
+    Type = mlir::cast<TypeT>(Type.addConst());
+
+  return Type;
+}
+
+template<typename TypeT>
+static void writeClassType(TypeT Type, mlir::DialectBytecodeWriter &Writer) {
+  constexpr bool IsStruct = std::is_same_v<TypeT, StructType>;
+
+  Writer.writeOwnedString(Type.getHandle());
+  writeBool(Type.getIsConst(), Writer);
+  Writer.writeAttribute(BytecodeClassAttr::get(Type.getContext(), Type));
+}
+
+template<typename TypeT, typename AttrT>
+static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
+  constexpr bool IsStruct = std::is_same_v<TypeT, StructType>;
+
+  llvm::StringRef Handle;
+  if (Reader.readString(Handle).failed())
+    return {};
+
+  llvm::StringRef Name;
+  if (Reader.readString(Name).failed())
+    return {};
+
+  uint64_t Size = 0;
+  if constexpr (IsStruct) {
+    if (Reader.readVarInt(Size).failed())
+      return {};
+  }
+
+  auto ReadField = [&](clift::FieldAttr &Field) -> mlir::LogicalResult {
+    uint64_t Offset = 0;
+    if constexpr (IsStruct) {
+      if (Reader.readVarInt(Offset).failed())
+        return mlir::failure();
+    }
+
+    clift::ValueType Type;
+    if (Reader.readType(Type).failed())
+      return mlir::failure();
+
+    llvm::StringRef Name;
+    if (Reader.readString(Name).failed())
+      return mlir::failure();
+
+    Field = clift::FieldAttr::get(Offset, Type, Name);
+    return mlir::success();
+  };
+
+  llvm::SmallVector<clift::FieldAttr> Fields;
+  if (Reader.readList(Fields, ReadField).failed())
+    return {};
+
+  auto GetCompleteType = [&](const auto &...Args) -> TypeT {
+    auto EmitError = [&] { return Reader.emitError(); };
+    if (AttrT::verify(EmitError, Handle, Name, Args..., Fields).failed())
+      return {};
+
+    return TypeT::get(Reader.getContext(),
+                      AttrT::get(Reader.getContext(),
+                                 Handle,
+                                 std::move(Name),
+                                 Args...,
+                                 std::move(Fields)),
+                      /*IsConst=*/false);
+  };
+
+  if constexpr (IsStruct) {
+    return GetCompleteType(Size);
+  } else {
+    return GetCompleteType();
+  }
+}
+
+template<typename TypeT>
+static void
+writeClassDefinition(TypeT Type, mlir::DialectBytecodeWriter &Writer) {
+  constexpr bool IsStruct = std::is_same_v<TypeT, StructType>;
+
+  Writer.writeOwnedString(Type.getHandle());
+  Writer.writeOwnedString(Type.getName());
+
+  if constexpr (IsStruct) {
+    Writer.writeVarInt(Type.getSize());
+  }
+
+  Writer.writeList(Type.getFields(), [&](clift::FieldAttr Field) {
+    if constexpr (IsStruct) {
+      Writer.writeVarInt(Field.getOffset());
+    }
+
+    Writer.writeType(Field.getType());
+    Writer.writeOwnedString(Field.getName());
+  });
+}
+
 //===----------------------------- StructType -----------------------------===//
 
 uint64_t StructType::getSize() const {
@@ -640,6 +987,26 @@ void StructType::print(mlir::AsmPrinter &Printer) const {
   return printClassType(*this, Printer);
 }
 
+template<std::same_as<clift::StructType>>
+static clift::StructType readType(mlir::DialectBytecodeReader &Reader) {
+  return readClassType<StructType, StructAttr>(Reader);
+}
+
+static void writeType(clift::StructType Type,
+                      mlir::DialectBytecodeWriter &Writer) {
+  return writeClassType<StructType>(Type, Writer);
+}
+
+clift::StructType
+clift::readStructDefinition(mlir::DialectBytecodeReader &Reader) {
+  return readClassDefinition<StructType, StructAttr>(Reader);
+}
+
+void clift::writeStructDefinition(clift::StructType Type,
+                                  mlir::DialectBytecodeWriter &Writer) {
+  return writeClassDefinition(Type, Writer);
+}
+
 //===------------------------------ UnionType -----------------------------===//
 
 uint64_t UnionType::getSize() const {
@@ -659,6 +1026,26 @@ mlir::Type UnionType::parse(mlir::AsmParser &Parser) {
 
 void UnionType::print(mlir::AsmPrinter &Printer) const {
   return printClassType(*this, Printer);
+}
+
+template<std::same_as<clift::UnionType>>
+static clift::UnionType readType(mlir::DialectBytecodeReader &Reader) {
+  return readClassType<UnionType, UnionAttr>(Reader);
+}
+
+static void writeType(clift::UnionType Type,
+                      mlir::DialectBytecodeWriter &Writer) {
+  return writeClassType<UnionType>(Type, Writer);
+}
+
+clift::UnionType
+clift::readUnionDefinition(mlir::DialectBytecodeReader &Reader) {
+  return readClassDefinition<UnionType, UnionAttr>(Reader);
+}
+
+void clift::writeUnionDefinition(clift::UnionType Type,
+                                 mlir::DialectBytecodeWriter &Writer) {
+  return writeClassDefinition(Type, Writer);
 }
 
 //===---------------------------- Type helpers ----------------------------===//
@@ -938,4 +1325,95 @@ void CliftDialect::printType(mlir::Type Type,
     return;
 
   revng_abort("cannot print type");
+}
+
+namespace {
+
+enum class CliftTypeKind : uint8_t {
+  Label,
+  Primitive,
+  Pointer,
+  Array,
+  Enum,
+  Typedef,
+  Function,
+  Struct,
+  Union,
+
+  N
+};
+
+} // namespace
+
+static mlir::LogicalResult readTypeKind(CliftTypeKind &TypeKind,
+                                        mlir::DialectBytecodeReader &Reader) {
+  uint64_t Value;
+  if (Reader.readVarInt(Value).failed())
+    return mlir::failure();
+
+  if (Value >= static_cast<uint64_t>(CliftTypeKind::N))
+    return mlir::failure();
+
+  TypeKind = static_cast<CliftTypeKind>(Value);
+  return mlir::success();
+}
+
+mlir::Type clift::readType(mlir::DialectBytecodeReader &Reader) {
+  CliftTypeKind TypeKind;
+  if (readTypeKind(TypeKind, Reader).failed())
+    return {};
+
+  switch (TypeKind) {
+  case CliftTypeKind::Label:
+    return ::readType<clift::LabelType>(Reader);
+  case CliftTypeKind::Primitive:
+    return ::readType<clift::PrimitiveType>(Reader);
+  case CliftTypeKind::Pointer:
+    return ::readType<clift::PointerType>(Reader);
+  case CliftTypeKind::Array:
+    return ::readType<clift::ArrayType>(Reader);
+  case CliftTypeKind::Enum:
+    return ::readType<clift::EnumType>(Reader);
+  case CliftTypeKind::Typedef:
+    return ::readType<clift::TypedefType>(Reader);
+  case CliftTypeKind::Function:
+    return ::readType<clift::FunctionType>(Reader);
+  case CliftTypeKind::Struct:
+    return ::readType<clift::StructType>(Reader);
+  case CliftTypeKind::Union:
+    return ::readType<clift::UnionType>(Reader);
+  case CliftTypeKind::N:
+    break;
+  }
+  revng_abort();
+}
+
+mlir::LogicalResult clift::writeType(mlir::Type Type,
+                                     mlir::DialectBytecodeWriter &Writer) {
+  auto Write = [&](auto T, CliftTypeKind TypeKind) {
+    Writer.writeVarInt(static_cast<uint64_t>(TypeKind));
+    ::writeType(T, Writer);
+    return mlir::success();
+  };
+
+  if (auto T = mlir::dyn_cast<clift::LabelType>(Type))
+    return Write(T, CliftTypeKind::Label);
+  if (auto T = mlir::dyn_cast<clift::PrimitiveType>(Type))
+    return Write(T, CliftTypeKind::Primitive);
+  if (auto T = mlir::dyn_cast<clift::PointerType>(Type))
+    return Write(T, CliftTypeKind::Pointer);
+  if (auto T = mlir::dyn_cast<clift::ArrayType>(Type))
+    return Write(T, CliftTypeKind::Array);
+  if (auto T = mlir::dyn_cast<clift::EnumType>(Type))
+    return Write(T, CliftTypeKind::Enum);
+  if (auto T = mlir::dyn_cast<clift::TypedefType>(Type))
+    return Write(T, CliftTypeKind::Typedef);
+  if (auto T = mlir::dyn_cast<clift::FunctionType>(Type))
+    return Write(T, CliftTypeKind::Function);
+  if (auto T = mlir::dyn_cast<clift::StructType>(Type))
+    return Write(T, CliftTypeKind::Struct);
+  if (auto T = mlir::dyn_cast<clift::UnionType>(Type))
+    return Write(T, CliftTypeKind::Union);
+
+  return mlir::failure();
 }
