@@ -806,8 +806,12 @@ bool clift::isFloatType(ValueType Type) {
   return false;
 }
 
+PointerType clift::getPointerType(ValueType Type) {
+  return mlir::dyn_cast<PointerType>(dealias(Type, /*IgnoreQualifiers=*/true));
+}
+
 bool clift::isPointerType(ValueType Type) {
-  return mlir::isa<PointerType>(dealias(Type, /*IgnoreQualifiers=*/true));
+  return static_cast<bool>(getPointerType(Type));
 }
 
 bool clift::isObjectType(ValueType Type) {
