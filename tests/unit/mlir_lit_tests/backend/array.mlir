@@ -21,10 +21,10 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: int32_t _var_0[1];
+    // CHECK: int32_t var_0[1];
     %array = clift.local !int32_t$1
 
-    // CHECK: _var_0[0];
+    // CHECK: var_0[0];
     clift.expr {
       %p = clift.cast<decay> %array : !int32_t$1 -> !int32_t$p
       %i = clift.imm 0 : !int32_t
@@ -32,13 +32,13 @@ module attributes {clift.module} {
       clift.yield %r : !int32_t
     }
 
-    // CHECK: int32_t(*_var_1)[1]
+    // CHECK: int32_t(*var_1)[1]
     %p_array = clift.local !int32_t$1$p = {
       %r = clift.addressof %array : !int32_t$1$p
       clift.yield %r : !int32_t$1$p
     }
 
-    // CHECK: (*_var_1)[(0, 0)]
+    // CHECK: (*var_1)[(0, 0)]
     clift.expr {
       %q = clift.indirection %p_array : !int32_t$1$p
       %p = clift.cast<decay> %q : !int32_t$1 -> !int32_t$p

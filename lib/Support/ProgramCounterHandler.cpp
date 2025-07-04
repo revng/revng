@@ -12,8 +12,8 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/ProgramCounterHandler.h"
 
-RegisterIRHelper SetMetaAddressHelper("set_PlainMetaAddress",
-                                      "in early-linked");
+// This name corresponds to a function in `early-linked`.
+RegisterIRHelper SetMetaAddressHelper("set_PlainMetaAddress");
 
 using namespace llvm;
 using PCH = ProgramCounterHandler;

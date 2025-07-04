@@ -5,11 +5,11 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Backend/DecompileToSingleFile.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 using namespace revng::pipes;
 
-void printSingleCFile(ptml::CTypeBuilder &B,
+void printSingleCFile(ptml::ModelCBuilder &B,
                       const DecompileStringMap &Functions,
                       const std::set<MetaAddress> &Targets) {
   auto Scope = B.getScopeTag(ptml::tags::Div);

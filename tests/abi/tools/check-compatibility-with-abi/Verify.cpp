@@ -19,7 +19,7 @@ struct VerificationHelper {
   const bool IsLittleEndian;
 
 public:
-  llvm::StringRef FunctionName = "";
+  llvm::StringRef FunctionName = {};
   abi::FunctionType::Layout FunctionLayout = {};
 
 private:

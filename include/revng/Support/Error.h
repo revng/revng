@@ -75,4 +75,10 @@ inline llvm::Error joinErrors(llvm::Error &&Error, T &&...Errors) {
     return llvm::joinErrors(std::move(Error), joinErrors(std::move(Errors)...));
 }
 
+template<typename T>
+inline T &&assertNonNull(T *Pointer) {
+  revng_assert(Pointer != nullptr);
+  return std::forward<T>(*Pointer);
+}
+
 } // namespace revng

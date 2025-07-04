@@ -604,29 +604,12 @@ public:
   }
 
 public:
-  /// @{
+  constexpr auto operator<=>(const MetaAddress &Other) const {
+    return tie() <=> Other.tie();
+  }
   constexpr bool operator==(const MetaAddress &Other) const {
     return tie() == Other.tie();
   }
-
-  constexpr bool operator!=(const MetaAddress &Other) const {
-    return not(*this == Other);
-  }
-
-  constexpr bool operator<(const MetaAddress &Other) const {
-    return tie() < Other.tie();
-  }
-  constexpr bool operator<=(const MetaAddress &Other) const {
-    return tie() <= Other.tie();
-  }
-  constexpr bool operator>(const MetaAddress &Other) const {
-    return tie() > Other.tie();
-  }
-  constexpr bool operator>=(const MetaAddress &Other) const {
-    return tie() >= Other.tie();
-  }
-
-  /// @}
 
   /// \name Address comparisons
   ///
@@ -1028,3 +1011,22 @@ template<>
 struct hash<std::set<MetaAddress>> : hash<const std::set<MetaAddress>> {};
 
 } // namespace std
+
+/// This returns a human-readable string containing the addresses in
+/// the provided container.
+///
+/// It should be mostly used for reporting these in logs and other
+/// debugging-related contexts.
+inline std::string
+addressesToString(RangeOf<MetaAddress> auto const &Addresses) {
+  std::string Result = {};
+
+  if (not Addresses.empty()) {
+    constexpr llvm::StringRef Separator = " + ";
+    for (const MetaAddress &Address : Addresses)
+      Result += Address.toString() + Separator.str();
+    Result.resize(Result.size() - Separator.size());
+  }
+
+  return Result;
+}

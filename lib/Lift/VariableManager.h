@@ -84,7 +84,7 @@ public:
   ///         it corresponding to \p Offset. For instance, if you're accessing
   ///         the third byte of a 32-bit integer it will 2.
   std::pair<llvm::GlobalVariable *, unsigned>
-  getByEnvOffset(intptr_t Offset, std::string Name = "") {
+  getByEnvOffset(intptr_t Offset, std::string Name = {}) {
     return getByCPUStateOffsetInternal(EnvOffset + Offset, Name);
   }
 
@@ -169,10 +169,10 @@ private:
                         llvm::Value *ToStore);
 
   llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
-                                            std::string Name = "");
+                                            std::string Name = {});
 
   std::pair<llvm::GlobalVariable *, unsigned>
-  getByCPUStateOffsetInternal(intptr_t Offset, std::string Name = "");
+  getByCPUStateOffsetInternal(intptr_t Offset, std::string Name = {});
 
 private:
   llvm::Module &TheModule;

@@ -275,8 +275,6 @@ install(
 #
 # Export information useful for subdirectories
 #
-set(MODEL_SCHEMA_PATH "${CMAKE_BINARY_DIR}/model-schema.yml")
-set(MODEL_JSONSCHEMA_PATH "${CMAKE_BINARY_DIR}/model-jsonschema.yml")
 set(PYTHON_GENERATED_MODEL_PATH revng/model/_generated.py)
 
 #

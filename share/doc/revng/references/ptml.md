@@ -208,38 +208,46 @@ Each location can have zero or more parameters.
 
 We currently implemented the following locations:
 
-* Generic locations
+* Root location
     * `/binary`
+
+* Generic locations
     * `/function/<Function_MetaAddress>`
     * `/dynamic-function/<Name_string>`
-    * `/type-definition/<Type_Kind>-<Type_ID>`
     * `/segment/<StartAddress_MetaAddress>-<VirtualSize_uint64>`
+    * `/statement-comment/<Function_MetaAddress>/<Index_uint64>`
+
+* Type system related locations
+    * `/type-definition/<Type_Kind>-<Type_ID>`
     * `/struct-field/<Type_Kind>-<Type_ID>/<Offset_uint64>`
     * `/union-field/<Type_Kind>-<Type_ID>/<Index_uint64>`
     * `/enum-entry/<Type_Kind>-<Type_ID>/<Index_uint64>`
     * `/primitive-type/<Type_Kind>-<Type_ID>/<Index_uint64>`
-    * `/raw-argument/<Type_Kind>-<Type_ID>/<Register>`
-    * `/raw-stack-arguments/<Type_Kind>-<Type_ID>`
     * `/cabi-argument/<Type_Kind>-<Type_ID>/<Index_uint64>`
     * `/return-value/<Type_Kind>-<Type_ID>`
+    * `/raw-argument/<Type_Kind>-<Type_ID>/<Register>`
+    * `/raw-stack-arguments/<Type_Kind>-<Type_ID>`
     * `/return-register/<Type_Kind>-<Type_ID>/<Register>`
-    * `/statement-comment/<Function_MetaAddress>/<Index_uint64>`
-* Byte-ranges related
+
+* Raw byte view only locations
     * `/raw-byte/<Start_MetaAddress>`
     * `/raw-byte-range/<Start_MetaAddress>/<End_MetaAddress>`
-* Assembly-related:
+
+* Assembly view only locations
     * `/basic-block/<Function_MetaAddress>/<BasicBlock_MetaAddress>`
     * `/instruction/<Function_MetaAddress>/<BasicBlock_MetaAddress>/<Instruction_MetaAddress>`
-* C-related:
-    * `/local-variable/<Function_MetaAddress>/<Name_string>`
-    * `/goto-label/<Function_MetaAddress>/<Name_string>`
+
+* Decompiled view only locations
+    * `/local-variable/<Function_MetaAddress>/<Index_uint64>`
+    * `/reserved-local-variable/<Function_MetaAddress>/<Name_string>`
+    * `/goto-label/<Function_MetaAddress>/<Index_uint64>`
+    * `/artificial-struct/<Type_Kind>-<Type_ID>`
+    * `/dynamic-function-argument/<Name_string>/<Name_string>`
     * `/helper-function/<Name_string>`
     * `/helper-struct-type/<Name_string>`
     * `/helper-structs-field/<Name_string>/<FieldName_string>`
-    * `/dynamic-function-argument/<Name_string>/<Name_string>`
-    * `/artificial-struct/<Type_Kind>-<Type_ID>`
 
-When interacting with revng, there is a description file, which, among other information, states what locations each Kind  *defines*, e.g.:
+When interacting with revng, there is a description file, which, among other information, states what locations each Kind *defines*, e.g.:
 
 * `DecompiledC` provides:
     * `/function/<MA>`
@@ -254,6 +262,9 @@ Some locations directly map to parts of the model, e.g.:
 
 * `/types/$TYPE_ID` -> `/TypeDefinitions/$TYPE_ID`
 * `/function/$FUNCTION_ADDRESS` -> `/Functions/$FUNCTION_ADDRESS`
+
+But not the others, e.g.:
+
 * `/basic-block/...` -> `null`
 * `/instruction/...` -> `null`
 
@@ -287,27 +298,42 @@ The following PTML attributes are used to provide navigation via location string
 PTML defines a set of *actions*:
 
 * `rename`: rename the current object.
-* `comment`: edit the comment of the current object.
+* `comment`: edit the comment of the current object or line.
 * `codeSwitch`: jump to an alternative representation of the current object (e.g. ASM <-> C).
 * `editType`: edit the type associated to the current object (e.g., for a function, its prototype).
 
 Each of these actions requires knowledge of how the action is executed correctly, its implementation is optional and left at the discretion of each PTML viewer.
 Each location supports a subset of the above actions:
 
-* `function`: supports `rename`, `comment` and `editType`.
-* `instruction`: supports  `codeSwitch`.
-* `type`: supports `rename`, `comment` and `editType`.
-* `struct-field`: supports `rename` and `comment`.
-* `union-field`: supports `rename` and `comment`.
-* `enum-entry`: supports `rename` and `comment`.
-* `cabi-argument`: supports `rename` and `comment`.
+* `binary`: doesn't support any actions as of now.
+* `function`: supports `rename`, `comment`, and `editType`.
+* `dynamic-function`: supports `rename`, `comment`, and `editType`.
+* `segment`: supports `rename`, `comment`, and `editType`.
+* `statement-comment`: only supports `comment` (will edit it).
+* `type-definition`: supports `rename`, `comment`, and `editType`.
+* `struct-field`: supports `rename`, and `comment`.
+* `union-field`: supports `rename`, and `comment`.
+* `enum-entry`: supports `rename`, and `comment`.
+* `primitive-type`: doesn't support any actions as of now.
+* `cabi-argument`: supports `rename`, and `comment`.
+* `return-value`: only supports `comment`.
 * `raw-argument`: supports `rename` and `comment`.
-* `return-value`: supports `comment`.
-* `return-register`: supports `rename` and `comment`.
-* `segment`: supports `rename`, `comment` and `editType`.
-* `dynamic-function`: supports `rename`, `comment` and `editType`.
+* `raw-stack-arguments`: only supports `comment`.
+* `return-register`: only supports `comment`.
+* `raw-byte`: doesn't support any actions as of now.
+* `raw-byte-range`: doesn't support any actions as of now.
+* `basic-block`: doesn't support any actions as of now.
+* `instruction`: supports `comment` and `codeSwitch`.
+* `local-variable`: only supports `rename`.
+* `reserved-local-variable`: doesn't support any actions as of now.
+* `goto-label`: only supports `rename`.
+* `artificial-struct`: doesn't support any actions as of now.
+* `dynamic-function-argument`: doesn't support any actions as of now.
+* `helper-function`: doesn't support any actions as of now.
+* `helper-struct-type`: doesn't support any actions as of now.
+* `helper-structs-field`: doesn't support any actions as of now.
 
 An action is defined by the following attributes:
 
 * `data-action-context-location`: indicates that the contained snippet has the specified context and allows the PTML viewer to activate the supported actions. Nested element can specify different context locations; in this case the viewer should pick the innermost one.
-* `data-allowed-actions`: in some cases, the set of possible actions needs to be restricted to a subset of all possible actions, in this case this attribute is used.
+* `data-allowed-actions`: the set of actions that make sense for the _current_ object.

@@ -11,7 +11,8 @@ revng_add_library_internal(
   RootKind.cpp
   FunctionPass.cpp
   TaggedFunctionKind.cpp
-  GlobalsAnalyses.cpp)
+  GlobalsAnalyses.cpp
+  DebugInfoHelpers.cpp)
 
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES

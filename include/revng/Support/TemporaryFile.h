@@ -20,13 +20,13 @@ private:
   }
 
 public:
-  TemporaryFile(const llvm::Twine &Prefix, llvm::StringRef Suffix = "") {
+  TemporaryFile(const llvm::Twine &Prefix, llvm::StringRef Suffix = {}) {
     revng::cantFail(llvm::sys::fs::createTemporaryFile(Prefix, Suffix, Path));
     llvm::sys::RemoveFileOnSignal(Path);
   }
 
   static llvm::Expected<TemporaryFile> make(const llvm::Twine &Prefix,
-                                            llvm::StringRef Suffix = "") {
+                                            llvm::StringRef Suffix = {}) {
     using llvm::sys::fs::createTemporaryFile;
     llvm::SmallString<32> TempPath;
     int FD;

@@ -83,6 +83,15 @@ public:
   }
 
   bool operator==(const SortedVector &) const = default;
+  std::strong_ordering operator<=>(const SortedVector &Other) const {
+    if (size() != Other.size())
+      return size() <=> Other.size();
+    for (auto [LHS, RHS] : llvm::zip(*this, Other))
+      if (LHS != RHS)
+        return LHS <=> RHS;
+
+    return std::strong_ordering::equal;
+  }
 
 public:
   T &at(const key_type &Key) {
