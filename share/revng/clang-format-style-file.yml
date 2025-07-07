@@ -81,7 +81,7 @@
       { Regex: '^"clang/', Priority: -3 },
       { Regex: '^"mlir/', Priority: -4 },
       { Regex: '^"llvm/', Priority: -5 },
-      { Regex: '^"aws/', Priority: -6 },
+      { Regex: '^"nanobind/', Priority: -6 },
       { Regex: '^"boost/', Priority: -7 },
       { Regex: "^<", Priority: -8 },
     ],
