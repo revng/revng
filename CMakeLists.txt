@@ -284,7 +284,10 @@ set(PYTHON_GENERATED_MODEL_PATH revng/model/_generated.py)
 #
 enable_testing()
 
-find_package(Python REQUIRED)
+find_package(
+  Python
+  COMPONENTS Interpreter Development
+  REQUIRED)
 file(RELATIVE_PATH PYTHON_INSTALL_PATH "${CMAKE_INSTALL_PREFIX}"
      "${Python_SITELIB}")
 
@@ -365,3 +368,4 @@ add_subdirectory(python)
 add_subdirectory(tests)
 add_subdirectory(tools)
 add_subdirectory(typescript)
+add_subdirectory(nanobind)
