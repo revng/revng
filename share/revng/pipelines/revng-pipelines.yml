@@ -702,6 +702,19 @@ Branches:
             contains explicit Alloca/Load/Store instructions.
             These are injected as a preliminary step for moving away from LLVM
             towards a higher-level representation that can be emitted in C.
+  - From: prepare-for-clift
+    Steps:
+      - Name: llvm-to-clift
+        Pipes:
+          - Type: llvm-to-clift
+            UsedContainers: [module.bc.zstd, module.mlir]
+        Artifacts:
+          Container: module.mlir
+          Kind: clift-module
+          SingleTargetFilename: llvm_to_clift.mlir
+          Docs: |-
+            This artifact contains a Clift function for each function in the
+            input program.
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
