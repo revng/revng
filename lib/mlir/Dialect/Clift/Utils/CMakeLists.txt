@@ -10,7 +10,8 @@ revng_add_library_internal(
   CTarget.cpp
   ImportLLVM.cpp
   ImportModel.cpp
-  ModelVerify.cpp)
+  ModelVerify.cpp
+  Legalization.cpp)
 
 target_link_libraries(
   MLIRCliftUtils
