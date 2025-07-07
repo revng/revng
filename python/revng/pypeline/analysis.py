@@ -21,8 +21,6 @@ class Analysis(ABC):
     objects in save points.
     """
 
-    __slots__: tuple = ("name",)
-
     def __init__(self, name: str):
         """
         Initialize the analysis with a name.

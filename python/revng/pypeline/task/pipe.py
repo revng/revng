@@ -37,8 +37,6 @@ class Pipe(ABC):
         argument should not be added.
         """
 
-    __slots__: tuple = ("name", "static_configuration")
-
     def __init__(
         self,
         static_configuration: str = "",

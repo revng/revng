@@ -7,7 +7,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Annotated, Dict, Generator, Optional, Tuple, Type
+from typing import Annotated, Dict, Generator, Tuple, Type
 
 from .object import Kind, ObjectID, ObjectSet
 from .utils.cabc import ABC, abstractmethod
@@ -109,11 +109,9 @@ class Container(ABC):
         """
 
     @abstractmethod
-    def serialize(self, objects: Optional[ObjectSet] = None) -> Mapping[ObjectID, bytes]:
+    def serialize(self, objects: ObjectSet) -> Mapping[ObjectID, bytes]:
         """
         Dump objects from this container into a serialized format.
-        If objects is provided, only those objects will be dumped.
-        If not, all objects in the container will be dumped.
         """
 
     @classmethod
@@ -182,7 +180,7 @@ def dump_container(
     """
     with open(path, "w", encoding="utf-8") as f:
         json.dump(
-            {k.serialize(): v.hex() for k, v in container.serialize().items()},
+            {k.serialize(): v.hex() for k, v in container.serialize(container.objects()).items()},
             f,
             indent=4,
             sort_keys=True,
