@@ -13,7 +13,7 @@
 >
 
 !f = !clift.func<
-  "/type-definition/1003-CABIFunctionDefinition" : !int32_t(!int32_t, !f_args)
+  "/type-definition/1003-RawFunctionDefinition" : !int32_t(!int32_t, !f_args)
 >
 
 module attributes {clift.module} {

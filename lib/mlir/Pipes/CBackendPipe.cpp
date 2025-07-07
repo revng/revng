@@ -11,6 +11,7 @@
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
 #include "revng/mlir/Dialect/Clift/Utils/CSemantics.h"
 #include "revng/mlir/Dialect/Clift/Utils/Helpers.h"
+#include "revng/mlir/Dialect/Clift/Utils/ModelVerify.h"
 #include "revng/mlir/Pipes/CliftContainer.h"
 
 using namespace revng;
@@ -39,7 +40,10 @@ public:
     const auto &Target = clift::TargetCImplementation::Default;
 
     mlir::ModuleOp Module = CliftContainer.getModule();
-    revng_assert(verifyCSemantics(Module, Target).succeeded());
+    const auto &Model = *revng::getModelFromContext(EC);
+
+    revng_assert(clift::verifyAgainstModel(Module, Model).succeeded());
+    revng_assert(clift::verifyCSemantics(Module, Target).succeeded());
 
     llvm::raw_null_ostream NullStream;
     ptml::CTypeBuilder B(NullStream,
