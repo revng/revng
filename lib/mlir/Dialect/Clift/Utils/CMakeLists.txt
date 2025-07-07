@@ -3,7 +3,7 @@
 #
 
 revng_add_library_internal(MLIRCliftUtils SHARED CBackend.cpp CSemantics.cpp
-                           ImportModel.cpp)
+                           CTarget.cpp ImportModel.cpp)
 
 target_link_libraries(
   MLIRCliftUtils PUBLIC MLIRCliftDialect MLIRLLVMDialect revngModel
