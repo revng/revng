@@ -30,6 +30,8 @@ struct TargetCImplementation {
       return It->second;
     return std::nullopt;
   }
+
+  static const TargetCImplementation Default;
 };
 
 } // namespace mlir::clift
