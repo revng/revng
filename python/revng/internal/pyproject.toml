@@ -42,6 +42,7 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.package-data]
 revng = [
   "internal/py.typed",
+  "internal/_pipebox.so",
   "internal/daemon/schema.graphql",
   "internal/cli/_commands/generate_migrations/metaschema.yml",
   "internal/cli/_commands/generate_migrations/migration.py.tpl",

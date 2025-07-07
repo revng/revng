@@ -282,7 +282,16 @@ set(PYTHON_GENERATED_MODEL_PATH revng/model/_generated.py)
 #
 enable_testing()
 
-find_package(Python REQUIRED)
+#
+# Find Python using the FindPython module. We request two components: *
+# Interpreter: needed for some variables, such as $Python_SITELIB * Development:
+# needed to compile nanobind module and friends, provides the
+# $Python_INCLUDE_DIRS and $Python_LIBRARIES variables
+#
+find_package(
+  Python
+  COMPONENTS Interpreter Development
+  REQUIRED)
 file(RELATIVE_PATH PYTHON_INSTALL_PATH "${CMAKE_INSTALL_PREFIX}"
      "${Python_SITELIB}")
 

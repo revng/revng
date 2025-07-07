@@ -1,0 +1,75 @@
+#pragma once
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+#include <vector>
+
+#include "nanobind/nanobind.h"
+
+#include "llvm/ADT/StringRef.h"
+
+#include "revng/PipeboxCommon/Common.h"
+#include "revng/PipeboxCommon/ObjectID.h"
+
+namespace revng::pypeline::helpers::python {
+
+inline nanobind::object importObject(llvm::StringRef String) {
+  auto [ModulePath, ObjectName] = String.rsplit('.');
+  nanobind::module_ Module = nanobind::module_::import_(ModulePath.str()
+                                                          .c_str());
+  return Module.attr(ObjectName.str().c_str());
+}
+
+// Helper class to unpack containers from a nanobind::list.
+// To be used in conjunction with PipeRunner or AnalysisRunner
+class ContainerListUnwrapper {
+public:
+  using ListType = nanobind::list &;
+
+  template<typename C, size_t I>
+  static C unwrap(ListType ContainerList) {
+    using C_ref_removed = std::remove_reference_t<C>;
+    return *nanobind::cast<C_ref_removed *>(ContainerList[I]);
+  }
+};
+
+class ManagedPyBuffer {
+private:
+  Py_buffer Buffer;
+
+  ManagedPyBuffer() { Buffer.obj = NULL; }
+
+public:
+  ~ManagedPyBuffer() {
+    if (Buffer.obj != NULL)
+      PyBuffer_Release(&Buffer);
+  }
+
+  ManagedPyBuffer(const ManagedPyBuffer &) = delete;
+  ManagedPyBuffer &operator=(const ManagedPyBuffer &) = delete;
+
+  ManagedPyBuffer(ManagedPyBuffer &&Other) { *this = std::move(Other); }
+  ManagedPyBuffer &operator=(ManagedPyBuffer &&Other) {
+    if (this == &Other)
+      return *this;
+
+    Buffer = std::move(Other.Buffer);
+    Other.Buffer.obj = NULL;
+    return *this;
+  }
+
+  static std::variant<int, ManagedPyBuffer> make(PyObject *Obj, int Flags) {
+    ManagedPyBuffer Result;
+    int RC = PyObject_GetBuffer(Obj, &Result.Buffer, Flags);
+    if (RC != 0)
+      return RC;
+    return Result;
+  }
+
+  const Py_buffer &operator*() { return Buffer; }
+  const Py_buffer *operator->() { return &Buffer; }
+};
+
+} // namespace revng::pypeline::helpers::python
