@@ -1,0 +1,73 @@
+#pragma once
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+#include <functional>
+#include <map>
+#include <set>
+
+#include "nanobind/stl/set.h"
+#include "nanobind/stl/string.h"
+#include "nanobind/stl/string_view.h"
+
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
+
+#include "revng/Pypeline/Concepts.h"
+#include "revng/Pypeline/Registrators/Detail/PythonUtils.h"
+#include "revng/Pypeline/Registry.h"
+#include "revng/Support/Assert.h"
+
+namespace detail {
+
+template<typename T>
+struct ContainerIO {
+  static void deserialize(T *Handle, nanobind::dict &Data) {
+    std::map<const ObjectID *, llvm::ArrayRef<const char>> Input;
+    for (auto It = Data.begin(); It != Data.end(); It.increment()) {
+      ObjectID *First = nanobind::cast<ObjectID *>((*It).first);
+      nanobind::bytes Second = nanobind::cast<nanobind::bytes>((*It).second);
+      const char *DataPtr = reinterpret_cast<const char *>(Second.data());
+      Input[First] = llvm::ArrayRef<const char>(DataPtr, Second.size());
+    }
+    Handle->deserialize(Input);
+  }
+
+  static nanobind::dict serialize(T *Handle, nanobind::set Objects) {
+    std::vector<const ObjectID *> CppObjects;
+    for (auto It = Objects.begin(); It != Objects.end(); ++It)
+      CppObjects.push_back(nanobind::cast<ObjectID *>(*It));
+
+    auto Result = Handle->serialize(CppObjects);
+    nanobind::dict Return;
+    for (auto &Entry : Result) {
+      ObjectID KeyCopy = Entry.first;
+      nanobind::object Key = nanobind::cast<ObjectID>(std::move(KeyCopy));
+      nanobind::object
+        Value = nanobind::cast<pypeline::Buffer>(std::move(Entry.second));
+      Return[Key] = Value;
+    }
+    return Return;
+  };
+};
+
+} // namespace detail
+
+template<IsContainer T>
+struct RegisterContainer {
+  RegisterContainer() {
+    pypeline::TheRegistry
+      .registerPythonModuleInitializer([](nanobind::module_ &M) {
+        nanobind::object BaseClass = detail::getBaseClass("Container");
+        nanobind::class_<T>(M, T::Name.data(), BaseClass)
+          .def(nanobind::init<>())
+          .def("kind", &T::kind)
+          .def("objects", &T::objects)
+          .def("verify", &T::verify)
+          .def("deserialize", &detail::ContainerIO<T>::deserialize)
+          .def("serialize", &detail::ContainerIO<T>::serialize);
+      });
+  }
+};
