@@ -534,7 +534,7 @@ class Clift_ComparisonOp<string mnemonic>
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:`
-    custom<CliftOpTypes>(type($result), type($lhs), type($rhs))
+    custom<CliftOpOperandTypes>(type($lhs), type($rhs)) `->` type($result)
   }];
 }
 
