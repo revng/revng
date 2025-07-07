@@ -1,0 +1,28 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+
+TypeDefinitions:
+  - ID: 1001
+    Kind: CABIFunctionDefinition
+    Name: "fun_0x40001001_t"
+    ABI: SystemV_x86_64
+    Arguments: []
+
+Functions:
+  - Entry: "0x40001001:Code_x86_64"
+    Name: "fun_0x40001001"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1001-CABIFunctionDefinition"
+
+Segments:
+  - StartAddress: "0x40001000:Generic64"
+    VirtualSize: 0x1000
+    StartOffset: 0
+    FileSize: 0x1000
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true

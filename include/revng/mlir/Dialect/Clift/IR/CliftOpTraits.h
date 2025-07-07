@@ -55,6 +55,11 @@ public:
   }
 };
 
+template<typename ConcreteType>
+class ReturnsBoolean : public OpTrait::TraitBase<ConcreteType, ReturnsBoolean> {
+  using Base = OpTrait::TraitBase<ConcreteType, ReturnsBoolean>;
+};
+
 } // namespace clift
 } // namespace OpTrait
 } // namespace mlir

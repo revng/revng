@@ -14,4 +14,7 @@ class Clift_OneUseOfType<string op> :
 def Clift_NoFallthrough :
   NativeOpTrait<"clift::NoFallthrough">;
 
+def Clift_ReturnsBoolean :
+  NativeOpTrait<"clift::ReturnsBoolean">;
+
 #endif
