@@ -572,7 +572,7 @@ mlir::Attribute CliftDialect::parseAttribute(mlir::DialectAsmParser &Parser,
 /// Print an attribute registered to this dialect
 void CliftDialect::printAttribute(mlir::Attribute Attr,
                                   mlir::DialectAsmPrinter &Printer) const {
-  revng_abort("cannot print attribute");
+  revng_abort("Cannot print attribute.");
 }
 
 namespace {
