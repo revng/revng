@@ -70,7 +70,7 @@ public:
     ParentRegion = NewParent;
   }
 
-  GenericRegion getParent() const { return ParentRegion; }
+  GenericRegion *getParent() const { return ParentRegion; }
 
   bool isRoot() const { return ParentRegion == nullptr; }
 
