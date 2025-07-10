@@ -26,7 +26,7 @@ public:
     using namespace pipeline;
     using namespace kinds;
 
-    return { ContractGroup({ Contract(MLIRFunctionKind,
+    return { ContractGroup({ Contract(CliftFunction,
                                       0,
                                       Decompiled,
                                       1,
