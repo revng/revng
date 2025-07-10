@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngcliftopt %s --beautify-statements | FileCheck %s
+// RUN: %revngcliftopt %s --beautify-statements="enable-patterns=trivial-jump-elimination" | FileCheck %s
 
 !void = !clift.primitive<void 0>
 !int32_t = !clift.primitive<signed 4>

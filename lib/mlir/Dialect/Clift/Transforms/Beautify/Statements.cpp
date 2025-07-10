@@ -510,6 +510,10 @@ struct TerminalIfElseUnwrappingPattern : mlir::OpRewritePattern<clift::IfOp> {
 struct TrivialGotoEliminationPattern : mlir::OpRewritePattern<clift::GoToOp> {
   using OpRewritePattern::OpRewritePattern;
 
+  void initialize() {
+    setDebugName("trivial-jump-elimination");
+  }
+
   static BlockPosition getFallthroughTarget(BlockPosition Position) {
     auto &[B, I] = Position;
 
