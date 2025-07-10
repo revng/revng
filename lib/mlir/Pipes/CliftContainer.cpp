@@ -131,7 +131,7 @@ static OwningModuleRef cloneModuleInto(ModuleOp SourceModule,
 }
 
 static pipeline::Target makeTarget(const MetaAddress &MA) {
-  return pipeline::Target(MA.toString(), kinds::MLIRFunctionKind);
+  return pipeline::Target(MA.toString(), kinds::CliftFunction);
 }
 
 static void makeExternal(clift::FunctionOp F) {

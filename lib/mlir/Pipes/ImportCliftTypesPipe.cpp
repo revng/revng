@@ -43,9 +43,9 @@ public:
     using namespace pipeline;
     using namespace revng::kinds;
 
-    return { ContractGroup({ Contract(MLIRFunctionKind,
+    return { ContractGroup({ Contract(CliftFunction,
                                       0,
-                                      MLIRFunctionKind,
+                                      CliftFunction,
                                       0,
                                       InputPreservation::Preserve) }) };
   }

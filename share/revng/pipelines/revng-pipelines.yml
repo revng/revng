@@ -40,7 +40,7 @@ Containers:
   - Name: recompilable-archive.tar.gz
     Type: recompilable-archive
   - Name: module.mlir
-    Type: mlir-module
+    Type: clift-module
   - Name: model-type-definitions.tar.gz
     Type: model-type-definitions
 Branches:
