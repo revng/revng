@@ -44,7 +44,7 @@ public:
     llvm::raw_null_ostream NullStream;
     ptml::CTypeBuilder B(NullStream,
                          *getModelFromContext(EC),
-                         /*EnableTaglessMode=*/true);
+                         /*EnableTaglessMode=*/false);
 
     std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
     Module->walk([&](clift::FunctionOp F) {
