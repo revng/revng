@@ -452,6 +452,10 @@ def Clift_StructType : Clift_ClassTypeBase<"Struct", "struct"> {
       return $_get($_ctxt, StructAttr::get($_ctxt, Handle), /*IsConst=*/false);
     }]>,
 
+    TypeBuilder<(ins "mlir::clift::StructAttr":$Definition), [{
+      return $_get($_ctxt, Definition, /*IsConst=*/false);
+    }]>,
+
     TypeBuilder<(ins "llvm::StringRef":$Handle,
                      "llvm::StringRef":$Name,
                      "uint64_t":$Size,
@@ -471,6 +475,10 @@ def Clift_UnionType : Clift_ClassTypeBase<"Union", "union"> {
   let builders = [
     TypeBuilder<(ins "llvm::StringRef":$Handle), [{
       return $_get($_ctxt, UnionAttr::get($_ctxt, Handle), /*IsConst=*/false);
+    }]>,
+
+    TypeBuilder<(ins "mlir::clift::UnionAttr":$Definition), [{
+      return $_get($_ctxt, Definition, /*IsConst=*/false);
     }]>,
 
     TypeBuilder<(ins "llvm::StringRef":$Handle,

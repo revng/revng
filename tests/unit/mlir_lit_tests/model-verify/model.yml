@@ -1,0 +1,93 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+
+TypeDefinitions:
+  - ID: 1001
+    Kind: StructDefinition
+    Name: "s"
+    Size: 1
+    Fields: []
+
+  - ID: 1002
+    Kind: UnionDefinition
+    Name: "u"
+    Fields:
+      - Index: 0
+        Name: "x"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+
+  - ID: 1003
+    Kind: EnumDefinition
+    Name: "e"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
+    Entries:
+      - Value: 0
+        Name: "e_0"
+
+  - ID: 1004
+    Kind: CABIFunctionDefinition
+    Name: "f"
+    ABI: SystemV_x86_64
+    Arguments: []
+
+  - ID: 1005
+    Kind: RawFunctionDefinition
+    Name: "r"
+    Architecture: x86_64
+    Arguments:
+      - Location: rcx_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 4
+        Name: "rcx"
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1001-StructDefinition"
+
+  - ID: 1006
+    Kind: TypedefDefinition
+    Name: "t"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
+
+Functions:
+  - Entry: "0x40001001:Code_x86_64"
+    Name: ""
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1004-CABIFunctionDefinition"
+
+ImportedDynamicFunctions:
+  - Name: "foo"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1004-CABIFunctionDefinition"
+
+Segments:
+  - StartAddress: "0x40001000:Generic64"
+    VirtualSize: 0x1000
+    StartOffset: 0
+    FileSize: 0x1000
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+  - StartAddress: "0x40002001:Generic64"
+    VirtualSize: 4
+    Name: "seg_0x40002001"
+    StartOffset: 0x1000
+    FileSize: 4
+    IsReadable: true
+    IsWriteable: true
+    IsExecutable: false

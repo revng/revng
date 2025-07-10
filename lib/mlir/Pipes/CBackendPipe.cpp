@@ -5,12 +5,14 @@
 #include <unordered_map>
 
 #include "revng/Backend/DecompilePipe.h"
+#include "revng/HeadersGeneration/ConfigurationHelpers.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/TypeNames/PTMLCTypeBuilder.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
 #include "revng/mlir/Dialect/Clift/Utils/CSemantics.h"
 #include "revng/mlir/Dialect/Clift/Utils/Helpers.h"
+#include "revng/mlir/Dialect/Clift/Utils/ModelVerify.h"
 #include "revng/mlir/Pipes/CliftContainer.h"
 
 using namespace revng;
@@ -26,7 +28,7 @@ public:
     using namespace pipeline;
     using namespace kinds;
 
-    return { ContractGroup({ Contract(MLIRFunctionKind,
+    return { ContractGroup({ Contract(CliftFunction,
                                       0,
                                       Decompiled,
                                       1,
@@ -36,25 +38,19 @@ public:
   void run(pipeline::ExecutionContext &EC,
            const pipes::CliftContainer &CliftContainer,
            pipes::DecompileStringMap &DecompiledFunctionsContainer) {
-
-    // TODO: Store this information in the model or another configuration.
-    clift::TargetCImplementation Target = {
-      .PointerSize = 8,
-      .IntegerTypes = {
-        { 1, clift::CIntegerKind::Char },
-        { 2, clift::CIntegerKind::Short },
-        { 4, clift::CIntegerKind::Int },
-        { 8, clift::CIntegerKind::Long },
-      },
-    };
+    const auto &Target = clift::TargetCImplementation::Default;
 
     mlir::ModuleOp Module = CliftContainer.getModule();
-    revng_assert(verifyCSemantics(Module, Target).succeeded());
+    const auto &Model = *revng::getModelFromContext(EC);
+
+    revng_assert(clift::verifyCSemantics(Module, Target).succeeded());
 
     llvm::raw_null_ostream NullStream;
-    ptml::CTypeBuilder B(NullStream,
-                         *getModelFromContext(EC),
-                         /*EnableTaglessMode=*/true);
+    ptml::CTypeBuilder
+      B(NullStream,
+        Model,
+        /*EnableTaglessMode=*/false,
+        { .ExplicitTargetPointerSize = getExplicitPointerSize(Model) });
 
     std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
     Module->walk([&](clift::FunctionOp F) {

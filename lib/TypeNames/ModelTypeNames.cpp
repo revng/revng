@@ -95,15 +95,30 @@ private:
   RecursiveCoroutine<std::string> impl(const model::PointerType &Pointer,
                                        std::string &&Emitted,
                                        bool PreviousWasAPointer) {
-    auto Current = B.getOperator(ptml::CBuilder::Operator::PointerDereference)
-                     .toString();
-    if (Pointer.IsConst())
-      Current += constKeyword();
-    Current += std::move(Emitted);
+    if (uint64_t Size = B.Configuration.ExplicitTargetPointerSize) {
+      std::string Current;
+      if (Pointer.IsConst()) {
+        Current += constKeyword();
+        Current += " ";
+      }
+      Current += "pointer";
+      Current += std::to_string(Size * 8);
+      Current += "_t(";
+      Current += rc_recur getString(*Pointer.PointeeType(), {});
+      Current += ") ";
+      Current += std::move(Emitted);
+      rc_return Current;
+    } else {
+      auto Current = B.getOperator(ptml::CBuilder::Operator::PointerDereference)
+                       .toString();
+      if (Pointer.IsConst())
+        Current += constKeyword();
+      Current += std::move(Emitted);
 
-    rc_return rc_recur getString(*Pointer.PointeeType(),
-                                 std::move(Current),
-                                 true);
+      rc_return rc_recur getString(*Pointer.PointeeType(),
+                                   std::move(Current),
+                                   true);
+    }
   }
 
   RecursiveCoroutine<std::string> impl(const model::DefinedType &Def,

@@ -36,7 +36,7 @@ TypeDefinitions:
     # CHECK:   : !register_set_1002_(
     # CHECK:     !uint64_t,
     # CHECK:     !clift.ptr<8 to !uint64_t>,
-    # CHECK:     !clift.ptr<8 to !my_struct>
+    # CHECK:     !my_struct
     # CHECK:   )
     # CHECK: >
   - ID: 1002

@@ -18,6 +18,8 @@
 #include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
 
+#include "CliftBytecode.h"
+
 // This include should stay here for correct build procedure
 //
 #define GET_ATTRDEF_CLASSES
@@ -41,7 +43,7 @@ namespace mlir::clift {
 class ClassAttrStorage : public mlir::AttributeStorage {
   struct Key {
     llvm::StringRef Handle;
-    ClassDefinitionAttr Definition;
+    std::optional<ClassDefinition> Definition;
 
     explicit Key(llvm::StringRef Handle) : Handle(Handle) {}
 
@@ -79,16 +81,32 @@ public:
   }
 
   mlir::LogicalResult mutate(mlir::StorageUniquer::StorageAllocator &Allocator,
-                             ClassDefinitionAttr Definition) {
+                             const ClassDefinition &Definition) {
     if (TheKey.Definition)
       return mlir::success(Definition == TheKey.Definition);
 
-    TheKey.Definition = Definition;
+    TheKey.Definition.emplace(Allocator.copyInto(Definition.Name),
+                              Definition.Size,
+                              Allocator.copyInto(Definition.Fields));
+
     return mlir::success();
   }
 
   llvm::StringRef getHandle() const { return TheKey.Handle; }
-  ClassDefinitionAttr getDefinition() const { return TheKey.Definition; }
+
+  const ClassDefinition *getDefinitionOrNull() const {
+    return TheKey.Definition ? &*TheKey.Definition : nullptr;
+  }
+
+  const ClassDefinition &getDefinition() const {
+    revng_check(TheKey.Definition);
+    return *TheKey.Definition;
+  }
+
+  ClassDefinition &getMutableDefinition() {
+    revng_check(TheKey.Definition);
+    return *TheKey.Definition;
+  }
 };
 
 template<typename AttrT>
@@ -98,19 +116,24 @@ llvm::StringRef ClassAttrImpl<AttrT>::getHandle() const {
 
 template<typename AttrT>
 bool ClassAttrImpl<AttrT>::hasDefinition() const {
-  return static_cast<bool>(Base::getImpl()->getDefinition());
+  return Base::getImpl()->getDefinitionOrNull() != nullptr;
 }
 
 template<typename AttrT>
-ClassDefinitionAttr ClassAttrImpl<AttrT>::getDefinition() const {
+const ClassDefinition *ClassAttrImpl<AttrT>::getDefinitionOrNull() const {
+  return Base::getImpl()->getDefinitionOrNull();
+}
+
+template<typename AttrT>
+const ClassDefinition &ClassAttrImpl<AttrT>::getDefinition() const {
   return Base::getImpl()->getDefinition();
 }
 
 template<typename AttrT>
 void ClassAttrImpl<AttrT>::walkImmediateSubElements(WalkAttrT WalkAttr,
                                                     WalkTypeT WalkType) const {
-  if (auto Definition = Base::getImpl()->getDefinition())
-    WalkAttr(Definition);
+  for (auto Field : getDefinition().getFields())
+    WalkAttr(Field);
 }
 
 template<typename AttrT>
@@ -145,6 +168,24 @@ mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
                                           uint64_t RawValue,
                                           llvm::StringRef Name) {
   return mlir::success();
+}
+
+template<std::same_as<EnumFieldAttr>>
+static EnumFieldAttr readAttr(mlir::DialectBytecodeReader &Reader) {
+  uint64_t RawValue;
+  if (Reader.readVarInt(RawValue).failed())
+    return {};
+
+  llvm::StringRef Name;
+  if (Reader.readString(Name).failed())
+    return {};
+
+  return EnumFieldAttr::get(Reader.getContext(), RawValue, Name);
+}
+
+static void writeAttr(EnumFieldAttr Attr, mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeVarInt(Attr.getRawValue());
+  Writer.writeOwnedString(Attr.getName());
 }
 
 //===------------------------------ EnumAttr ------------------------------===//
@@ -231,6 +272,44 @@ mlir::LogicalResult EnumAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
+template<std::same_as<EnumAttr>>
+static EnumAttr readAttr(mlir::DialectBytecodeReader &Reader) {
+  llvm::StringRef Handle;
+  if (Reader.readString(Handle).failed())
+    return {};
+
+  llvm::StringRef Name;
+  if (Reader.readString(Name).failed())
+    return {};
+
+  clift::ValueType UnderlyingType;
+  if (Reader.readType(UnderlyingType).failed())
+    return {};
+
+  auto ReadField = [&](EnumFieldAttr &Field) {
+    return Reader.readAttribute(Field);
+  };
+
+  llvm::SmallVector<EnumFieldAttr> Fields;
+  if (Reader.readList(Fields, ReadField).failed())
+    return {};
+
+  return EnumAttr::get(Reader.getContext(),
+                       Handle,
+                       Name,
+                       UnderlyingType,
+                       std::move(Fields));
+}
+
+static void writeAttr(EnumAttr Attr, mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeOwnedString(Attr.getHandle());
+  Writer.writeOwnedString(Attr.getName());
+  Writer.writeType(Attr.getUnderlyingType());
+  Writer.writeList(Attr.getFields(), [&](EnumFieldAttr Field) {
+    return Writer.writeAttribute(Field);
+  });
+}
+
 //===----------------------------- TypedefAttr ----------------------------===//
 
 mlir::LogicalResult TypedefAttr::verify(EmitErrorType EmitError,
@@ -238,6 +317,29 @@ mlir::LogicalResult TypedefAttr::verify(EmitErrorType EmitError,
                                         llvm::StringRef Name,
                                         clift::ValueType UnderlyingType) {
   return mlir::success();
+}
+
+template<std::same_as<TypedefAttr>>
+static TypedefAttr readAttr(mlir::DialectBytecodeReader &Reader) {
+  llvm::StringRef Handle;
+  if (Reader.readString(Handle).failed())
+    return {};
+
+  llvm::StringRef Name;
+  if (Reader.readString(Name).failed())
+    return {};
+
+  clift::ValueType UnderlyingType;
+  if (Reader.readType(UnderlyingType).failed())
+    return {};
+
+  return TypedefAttr::get(Reader.getContext(), Handle, Name, UnderlyingType);
+}
+
+static void writeAttr(TypedefAttr Attr, mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeOwnedString(Attr.getHandle());
+  Writer.writeOwnedString(Attr.getName());
+  Writer.writeType(Attr.getUnderlyingType());
 }
 
 //===----------------------------- StructAttr -----------------------------===//
@@ -249,7 +351,7 @@ mlir::LogicalResult StructAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult StructAttr::verify(EmitErrorType EmitError,
                                        llvm::StringRef Handle,
-                                       ClassDefinitionAttr Definition) {
+                                       const ClassDefinition &Definition) {
   return mlir::success();
 }
 
@@ -263,7 +365,7 @@ mlir::LogicalResult StructAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult
 StructAttr::verifyDefinition(EmitErrorType EmitError) const {
-  ClassDefinitionAttr Definition = getDefinition();
+  const ClassDefinition &Definition = getDefinition();
 
   if (Definition.getSize() == 0)
     return EmitError() << "struct type cannot have a size of zero";
@@ -306,7 +408,7 @@ StructAttr StructAttr::getChecked(EmitErrorType EmitError,
 
 StructAttr StructAttr::get(MLIRContext *Context,
                            llvm::StringRef Handle,
-                           ClassDefinitionAttr Definition) {
+                           const ClassDefinition &Definition) {
   auto Attr = Base::get(Context, Handle);
   auto R = Attr.Base::mutate(Definition);
   revng_assert(R.succeeded()
@@ -318,7 +420,7 @@ StructAttr StructAttr::get(MLIRContext *Context,
 StructAttr StructAttr::getChecked(EmitErrorType EmitError,
                                   MLIRContext *Context,
                                   llvm::StringRef Handle,
-                                  ClassDefinitionAttr Definition) {
+                                  const ClassDefinition &Definition) {
   return get(Context, Handle, Definition);
 }
 
@@ -327,9 +429,7 @@ StructAttr StructAttr::get(MLIRContext *Context,
                            llvm::StringRef Name,
                            uint64_t Size,
                            llvm::ArrayRef<FieldAttr> Fields) {
-  return get(Context,
-             Handle,
-             ClassDefinitionAttr::get(Context, Name, Size, Fields));
+  return get(Context, Handle, ClassDefinition{ Name, Size, Fields });
 }
 
 StructAttr StructAttr::getChecked(EmitErrorType EmitError,
@@ -341,7 +441,7 @@ StructAttr StructAttr::getChecked(EmitErrorType EmitError,
   return getChecked(EmitError,
                     Context,
                     Handle,
-                    ClassDefinitionAttr::get(Context, Name, Size, Fields));
+                    ClassDefinition{ Name, Size, Fields });
 }
 
 //===------------------------------ UnionAttr -----------------------------===//
@@ -360,7 +460,7 @@ mlir::LogicalResult UnionAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult UnionAttr::verify(EmitErrorType EmitError,
                                       llvm::StringRef Handle,
-                                      ClassDefinitionAttr Definition) {
+                                      const ClassDefinition &Definition) {
   return mlir::success();
 }
 
@@ -372,7 +472,7 @@ mlir::LogicalResult UnionAttr::verify(EmitErrorType EmitError,
 }
 
 mlir::LogicalResult UnionAttr::verifyDefinition(EmitErrorType EmitError) const {
-  ClassDefinitionAttr Definition = getDefinition();
+  const ClassDefinition &Definition = getDefinition();
 
   if (Definition.getFields().empty())
     return EmitError() << "union types must have at least one field";
@@ -403,7 +503,7 @@ UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
 
 UnionAttr UnionAttr::get(MLIRContext *Context,
                          llvm::StringRef Handle,
-                         ClassDefinitionAttr Definition) {
+                         const ClassDefinition &Definition) {
   auto Attr = Base::get(Context, Handle);
   auto R = Attr.Base::mutate(Definition);
   revng_assert(R.succeeded()
@@ -415,7 +515,7 @@ UnionAttr UnionAttr::get(MLIRContext *Context,
 UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
                                 MLIRContext *Context,
                                 llvm::StringRef Handle,
-                                ClassDefinitionAttr Definition) {
+                                const ClassDefinition &Definition) {
   return get(Context, Handle, Definition);
 }
 
@@ -423,12 +523,7 @@ UnionAttr UnionAttr::get(MLIRContext *Context,
                          llvm::StringRef Handle,
                          llvm::StringRef Name,
                          llvm::ArrayRef<FieldAttr> Fields) {
-  return get(Context,
-             Handle,
-             ClassDefinitionAttr::get(Context,
-                                      Name,
-                                      getUnionSize(Fields),
-                                      Fields));
+  return get(Context, Handle, ClassDefinition{ Name, 0, Fields });
 }
 
 UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
@@ -439,10 +534,23 @@ UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
   return getChecked(EmitError,
                     Context,
                     Handle,
-                    ClassDefinitionAttr::get(Context,
-                                             Name,
-                                             getUnionSize(Fields),
-                                             Fields));
+                    ClassDefinition{ Name, 0, Fields });
+}
+
+uint64_t UnionAttr::getSize() const {
+  ClassDefinition &Definition = Base::getImpl()->getMutableDefinition();
+
+  uint64_t Size = Definition.Size;
+  if (Size == 0) {
+    // Technically since this is a const member function, another thread could
+    // be concurrently observing the zero size and mutating the same object.
+    // While this is technically UB (std::atomic_ref should be used instead but
+    // is not yet available), it should not be a problem because both threads
+    // are expected to compute the same value, and the shared object is only
+    // used for caching and not synchronisation.
+    Definition.Size = Size = getUnionSize(Definition.Fields);
+  }
+  return Size;
 }
 
 //===---------------------------- CliftDialect ----------------------------===//
@@ -464,5 +572,91 @@ mlir::Attribute CliftDialect::parseAttribute(mlir::DialectAsmParser &Parser,
 /// Print an attribute registered to this dialect
 void CliftDialect::printAttribute(mlir::Attribute Attr,
                                   mlir::DialectAsmPrinter &Printer) const {
-  revng_abort("cannot print attribute");
+  revng_abort("Cannot print attribute.");
+}
+
+namespace {
+
+enum class CliftAttrKind : uint8_t {
+  Typedef,
+  EnumField,
+  Enum,
+  Struct,
+  Union,
+
+  N
+};
+
+} // namespace
+
+static mlir::LogicalResult readAttrKind(CliftAttrKind &TypeKind,
+                                        mlir::DialectBytecodeReader &Reader) {
+  uint64_t Value;
+  if (Reader.readVarInt(Value).failed())
+    return mlir::failure();
+
+  if (Value >= static_cast<uint64_t>(CliftAttrKind::N))
+    return mlir::failure();
+
+  TypeKind = static_cast<CliftAttrKind>(Value);
+  return mlir::success();
+}
+
+mlir::Attribute clift::readAttr(mlir::DialectBytecodeReader &Reader) {
+  CliftAttrKind TypeKind;
+  if (readAttrKind(TypeKind, Reader).failed())
+    return {};
+
+  switch (TypeKind) {
+  case CliftAttrKind::Typedef:
+    return ::readAttr<clift::TypedefAttr>(Reader);
+  case CliftAttrKind::EnumField:
+    return ::readAttr<clift::EnumFieldAttr>(Reader);
+  case CliftAttrKind::Enum:
+    return ::readAttr<clift::EnumAttr>(Reader);
+  case CliftAttrKind::Struct:
+    return BytecodeClassAttr::get(Reader.getContext(),
+                                  clift::readStructDefinition(Reader));
+  case CliftAttrKind::Union:
+    return BytecodeClassAttr::get(Reader.getContext(),
+                                  clift::readUnionDefinition(Reader));
+  case CliftAttrKind::N:
+    break;
+  }
+  revng_abort();
+}
+
+mlir::LogicalResult clift::writeAttr(mlir::Attribute Attr,
+                                     mlir::DialectBytecodeWriter &Writer) {
+  auto WriteKind = [&](CliftAttrKind TypeKind) {
+    Writer.writeVarInt(static_cast<uint64_t>(TypeKind));
+  };
+
+  auto Write = [&](auto T, CliftAttrKind TypeKind) {
+    WriteKind(TypeKind);
+    ::writeAttr(T, Writer);
+    return mlir::success();
+  };
+
+  if (auto A = mlir::dyn_cast<clift::TypedefAttr>(Attr))
+    return Write(A, CliftAttrKind::Typedef);
+  if (auto A = mlir::dyn_cast<clift::EnumFieldAttr>(Attr))
+    return Write(A, CliftAttrKind::EnumField);
+  if (auto A = mlir::dyn_cast<clift::EnumAttr>(Attr))
+    return Write(A, CliftAttrKind::Enum);
+
+  if (auto A = mlir::dyn_cast<clift::BytecodeClassAttr>(Attr)) {
+    if (auto T = mlir::dyn_cast<clift::StructType>(A.getType())) {
+      WriteKind(CliftAttrKind::Struct);
+      writeStructDefinition(T, Writer);
+      return mlir::success();
+    }
+    if (auto T = mlir::dyn_cast<clift::UnionType>(A.getType())) {
+      WriteKind(CliftAttrKind::Union);
+      writeUnionDefinition(T, Writer);
+      return mlir::success();
+    }
+  }
+
+  return mlir::failure();
 }
