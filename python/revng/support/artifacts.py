@@ -18,6 +18,7 @@ from typing import IO, Callable, Dict, Generator, Generic, Optional, Tuple, Type
 from typing import cast
 
 import yaml
+import zstandard as zstd
 
 from revng.ptml.parser import PTMLDocument
 from revng.ptml.parser import parse as ptml_parse
@@ -189,11 +190,21 @@ class LLVMArtifact(Artifact):
 
     def module(self, name: str = "module"):
         llvmcpy = get_llvmcpy()
+        context = llvmcpy.get_global_context()
         buffer = llvmcpy.create_memory_buffer_with_memory_range_copy(
             self._data, len(self._data), name
         )
-        context = llvmcpy.get_global_context()
-        return context.parse_ir(buffer)
+        try:
+            return context.parse_ir(buffer)
+        except llvmcpy.LLVMException as e:
+            if self._data[:4] != zstd.FRAME_HEADER:
+                raise e
+            # If outside of revng parse_ir cannot parse bitcode, decompress it
+            # manually via the zstandard library
+            with zstd.ZstdDecompressor().stream_reader(BytesIO(self._data)) as stream:
+                data = stream.read()
+            buffer = llvmcpy.create_memory_buffer_with_memory_range_copy(data, len(data), name)
+            return context.parse_ir(buffer)
 
 
 class ImageArtifact(Artifact):
