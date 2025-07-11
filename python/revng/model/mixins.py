@@ -2,7 +2,12 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from typing import Mapping
+from typing import Dict, Iterable, Mapping, Optional, TypeAlias, Union
+
+from revng.support.artifacts import Artifact
+from revng.tupletree import StructBase
+
+ArtifactResult: TypeAlias = Union[Artifact, Mapping[str, Artifact]]
 
 
 class AllMixin:
@@ -23,7 +28,7 @@ class _ArtifactMixin(AllMixin):
         """
         Fetch the artifacts from the `Binary`.
         """
-        result = self._project.get_artifact(artifact_name, [self])  # type: ignore[attr-defined]
+        result = self._project._get_artifact(artifact_name, [self])  # type: ignore[attr-defined]
         if isinstance(result, Mapping):
             keys = list(result.keys())
             assert len(keys) == 1
@@ -32,6 +37,34 @@ class _ArtifactMixin(AllMixin):
             return result
 
 
-BinaryMixin = _ArtifactMixin
+class BinaryMixin(_ArtifactMixin):
+    def commit(self):
+        """
+        Persist the changes to the backend.
+        """
+        self._project._commit()  # type: ignore[attr-defined]
+
+    def revert(self):
+        """
+        Revert changes made since the last call to `commit()`.
+        """
+        self._project._revert()  # type: ignore[attr-defined]
+
+    def get_artifacts(
+        self, params: Dict[str, Optional[Iterable[Union[str, StructBase]]]]
+    ) -> Dict[str, ArtifactResult]:
+        """
+        Allows fetching multiple artifacts at once. The `params` is a dict
+        containing the name of the artifact and a list of targets (it can be
+        empty to fetch all the targets).
+        Example `params`:
+        params = {
+            "disassemble": [Function_1, Function_2],
+            "decompile": []
+        }
+        """
+        return self._project._get_artifacts(params)  # type: ignore[attr-defined]
+
+
 FunctionMixin = _ArtifactMixin
 TypeDefinitionMixin = _ArtifactMixin

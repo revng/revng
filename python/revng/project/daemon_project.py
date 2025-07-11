@@ -49,7 +49,7 @@ class DaemonProject(Project):
         if not result["uploadFile"]:
             raise RuntimeError("File upload failed")
 
-    def _get_artifact(self, artifact_name: str, targets: Set[str]) -> Dict[str, bytes]:
+    def _get_artifact_impl(self, artifact_name: str, targets: Set[str]) -> Dict[str, bytes]:
         query = gql(
             """
             query($step: String!, $paths: String!, $index: BigInt!) {
@@ -130,7 +130,7 @@ class DaemonProject(Project):
         assert response["runAnalysesList"]["__typename"] == "Diff"
         self._set_model(self._get_model())
 
-    def commit(self):
+    def _commit(self):
         diff = DiffSet.make(self.last_saved_model, self.model)
         if len(diff.Changes) == 0:
             return

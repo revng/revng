@@ -34,7 +34,7 @@ class CLIProject(Project, CLIProjectMixin, ResumeProjectMixin):
         assert os.path.isfile(binary_path)
         self.input_binary_path = binary_path
 
-    def _get_artifact(self, artifact_name: str, targets: Set[str]) -> bytes:
+    def _get_artifact_impl(self, artifact_name: str, targets: Set[str]) -> bytes:
         assert self.input_binary_path is not None
         args = [
             "artifact",
@@ -69,7 +69,7 @@ class CLIProject(Project, CLIProjectMixin, ResumeProjectMixin):
         model = Binary.deserialize(result.decode("utf-8"))
         self._set_model(model)
 
-    def commit(self):
+    def _commit(self):
         diff = DiffSet.make(self.last_saved_model, self.model)
         if len(diff.Changes) == 0:
             return
