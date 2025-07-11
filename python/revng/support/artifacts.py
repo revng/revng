@@ -55,7 +55,8 @@ class Artifact:
         self._mime = mime
 
     # Common methods
-    def dump(self) -> bytes:
+    @property
+    def raw_data(self) -> bytes:
         return self._data
 
     def write_to_disk(self, path: Union[str, Path]):
@@ -151,7 +152,7 @@ class _MappedPTMLMixin:
                 continue
 
             key_writer(key)
-            ptml_print_with_printer(value.dump(), printer)
+            ptml_print_with_printer(value.raw_data, printer)
             output.write("\n")
 
 
