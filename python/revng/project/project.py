@@ -11,7 +11,8 @@ from copy import deepcopy
 from itertools import chain
 from subprocess import CalledProcessError, run
 from tempfile import TemporaryDirectory
-from typing import Dict, Iterable, List, Mapping, Optional, Set, TypeAlias, TypeVar, Union
+from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Set, TypeAlias, TypeVar
+from typing import Union
 
 from revng.model import Binary, iterate_fields  # type: ignore[attr-defined]
 from revng.model.mixins import AllMixin
@@ -59,7 +60,7 @@ class Project(ABC):
         return self._rank_targets[rank_name]
 
     def _get_artifact(
-        self, artifact_name: str, targets: Optional[Iterable[Union[str, StructBaseT]]] = None
+        self, artifact_name: str, targets: Optional[Sequence[Union[str, StructBaseT]]] = None
     ) -> ArtifactResult:
         """
         Use the method to fetch one or more targets from an artifact.
@@ -74,7 +75,12 @@ class Project(ABC):
         of them.
         """
         all_targets = set(self.list_targets(artifact_name))
-        if targets is None:
+        if targets is None or (
+            len(targets) == 1
+            and isinstance(targets[0], StructBase)
+            and isinstance(targets[0], AllMixin)
+            and targets[0]._keys == []
+        ):
             actual_targets = all_targets
         else:
             actual_targets = set()
@@ -124,7 +130,7 @@ class Project(ABC):
         raise ValueError
 
     def _get_artifacts(
-        self, params: Dict[str, Optional[Iterable[Union[str, StructBase]]]]
+        self, params: Dict[str, Optional[Sequence[Union[str, StructBase]]]]
     ) -> Dict[str, ArtifactResult]:
         """
         Allows fetching multiple artifacts at once. The `params` is a dict
