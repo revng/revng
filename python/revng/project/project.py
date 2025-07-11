@@ -13,11 +13,11 @@ from subprocess import CalledProcessError, run
 from tempfile import TemporaryDirectory
 from typing import Dict, Iterable, List, Mapping, Optional, Set, TypeAlias, TypeVar, Union
 
-from revng.model import iterate_fields  # type: ignore[attr-defined]
-from revng.model import Binary, StructBase  # type: ignore[attr-defined]
+from revng.model import Binary, iterate_fields  # type: ignore[attr-defined]
 from revng.model.mixins import AllMixin
 from revng.pipeline_description import Container, PipelineDescription  # type: ignore[attr-defined]
 from revng.support.artifacts import Artifact
+from revng.tupletree import StructBase
 
 StructBaseT = TypeVar("StructBaseT", bound=StructBase)
 ArtifactResult: TypeAlias = Union[Artifact, Mapping[str, Artifact]]
@@ -58,7 +58,7 @@ class Project(ABC):
         rank_name = self.pipeline_description.Kinds[kind_name].Rank
         return self._rank_targets[rank_name]
 
-    def get_artifact(
+    def _get_artifact(
         self, artifact_name: str, targets: Optional[Iterable[Union[str, StructBaseT]]] = None
     ) -> ArtifactResult:
         """
@@ -88,7 +88,7 @@ class Project(ABC):
             assert len(actual_targets) > 0
 
         assert actual_targets.issubset(all_targets)
-        results = self._get_artifact(artifact_name, actual_targets)
+        results = self._get_artifact_impl(artifact_name, actual_targets)
         container_mime = self._get_artifact_container(artifact_name).MIMEType
 
         kind_name = self.pipeline_description.Steps[artifact_name].Artifacts.Kind
@@ -107,7 +107,7 @@ class Project(ABC):
             return Artifact.make(results, container_mime)
 
     @abstractmethod
-    def _get_artifact(
+    def _get_artifact_impl(
         self, artifact_name: str, targets: Set[str]
     ) -> Union[bytes, Dict[str, bytes]]:
         """
@@ -123,7 +123,7 @@ class Project(ABC):
         """
         raise ValueError
 
-    def get_artifacts(
+    def _get_artifacts(
         self, params: Dict[str, Optional[Iterable[Union[str, StructBase]]]]
     ) -> Dict[str, ArtifactResult]:
         """
@@ -138,12 +138,12 @@ class Project(ABC):
         """
         result: Dict[str, ArtifactResult] = {}
         for artifact_name, targets in params.items():
-            result[artifact_name] = self.get_artifact(artifact_name, targets)
+            result[artifact_name] = self._get_artifact(artifact_name, targets)
 
         return result
 
     @abstractmethod
-    def analyze(
+    def _analyze(
         self, analysis_name: str, targets: Dict[str, List[str]] = {}, options: Dict[str, str] = {}
     ):
         """
@@ -154,7 +154,7 @@ class Project(ABC):
         pass
 
     @abstractmethod
-    def analyses_list(self, analysis_name: str):
+    def _analyses_list(self, analysis_name: str):
         """
         Run analysis list, these are predefined list of analysis that run sequentially.
         """
@@ -175,13 +175,13 @@ class Project(ABC):
         return inputs
 
     @abstractmethod
-    def commit(self):
+    def _commit(self):
         """
         Persist the changes from `self.model` to the backend.
         """
         pass
 
-    def revert(self):
+    def _revert(self):
         """
         Revert changes made to the `self.model` since the last call to `commit()`.
         """
@@ -201,7 +201,7 @@ class Project(ABC):
         the binary and runs the `revng` initial auto analysis.
         """
         self.set_binary_path(binary_path)
-        self.analyses_list("revng-initial-auto-analysis")
+        self._analyses_list("revng-initial-auto-analysis")
 
     def _set_model(self, model: Binary):
         self.model = model

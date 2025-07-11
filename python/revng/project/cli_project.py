@@ -34,7 +34,7 @@ class CLIProject(Project, CLIProjectMixin, ResumeProjectMixin):
         assert os.path.isfile(binary_path)
         self.input_binary_path = binary_path
 
-    def _get_artifact(self, artifact_name: str, targets: Set[str]) -> bytes:
+    def _get_artifact_impl(self, artifact_name: str, targets: Set[str]) -> bytes:
         assert self.input_binary_path is not None
         args = [
             "artifact",
@@ -46,15 +46,15 @@ class CLIProject(Project, CLIProjectMixin, ResumeProjectMixin):
 
         return self._run_revng_cli(args, capture_output=True).stdout
 
-    def analyze(self, analysis_name: str, targets={}, options={}):
-        assert analysis_name in self._analysis_names
-        self._analyze(analysis_name, targets, options)
-
-    def analyses_list(self, analysis_list_name: str):
-        assert analysis_list_name in self._analyses_list_names
-        return self._analyze(analysis_list_name)
-
     def _analyze(self, analysis_name: str, targets={}, options={}):
+        assert analysis_name in self._analysis_names
+        self._analyze_impl(analysis_name, targets, options)
+
+    def _analyses_list(self, analysis_list_name: str):
+        assert analysis_list_name in self._analyses_list_names
+        return self._analyze_impl(analysis_list_name)
+
+    def _analyze_impl(self, analysis_name: str, targets={}, options={}):
         assert self.input_binary_path is not None
         # TODO: add `targets` when `revng` allows it
         assert len(targets) == 0
@@ -69,7 +69,7 @@ class CLIProject(Project, CLIProjectMixin, ResumeProjectMixin):
         model = Binary.deserialize(result.decode("utf-8"))
         self._set_model(model)
 
-    def commit(self):
+    def _commit(self):
         diff = DiffSet.make(self.last_saved_model, self.model)
         if len(diff.Changes) == 0:
             return
