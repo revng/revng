@@ -31,10 +31,10 @@ class LocalDaemonProject(DaemonProject, CLIProjectMixin, ResumeProjectMixin):
         CLIProjectMixin.__init__(self, revng_executable_path)
         ResumeProjectMixin.__init__(self, resume_path)
 
-        self.port: int = self._get_port()
-        self.daemon_process: Optional[Popen] = None
+        self._port: int = self._get_port()
+        self._daemon_process: Optional[Popen] = None
         self.start_daemon(connection_retries)
-        super().__init__(f"http://127.0.0.1:{self.port}/graphql/")
+        super().__init__(f"http://127.0.0.1:{self._port}/graphql/")
 
     def __del__(self):
         self.stop_daemon()
@@ -44,10 +44,10 @@ class LocalDaemonProject(DaemonProject, CLIProjectMixin, ResumeProjectMixin):
         Start the `revng` daemon and wait for it to be ready.
         """
         env = os.environ
-        env["REVNG_DATA_DIR"] = self.resume_path
+        env["REVNG_DATA_DIR"] = self._resume_path
 
-        cli_args = [self.revng_executable_path, "daemon", "-b", f"tcp:127.0.0.1:{self.port}"]
-        self.daemon_process = Popen(cli_args, stdout=DEVNULL, stderr=STDOUT, env=env)
+        cli_args = [self._revng_executable_path, "daemon", "-b", f"tcp:127.0.0.1:{self._port}"]
+        self._daemon_process = Popen(cli_args, stdout=DEVNULL, stderr=STDOUT, env=env)
 
         failed_retries = 0
         while failed_retries <= connection_retries:
@@ -55,22 +55,22 @@ class LocalDaemonProject(DaemonProject, CLIProjectMixin, ResumeProjectMixin):
                 return
             failed_retries += 1
             sleep(1)
-        raise RuntimeError(f"Couldn't connect to daemon server at http://127.0.0.1:{self.port}")
+        raise RuntimeError(f"Couldn't connect to daemon server at http://127.0.0.1:{self._port}")
 
     def stop_daemon(self) -> int:
         """
         Stop the daemon server.
         """
-        if self.daemon_process:
-            self.daemon_process.send_signal(SIGINT)
-            status_code = self.daemon_process.wait(30.0)
-            self.daemon_process = None
+        if self._daemon_process:
+            self._daemon_process.send_signal(SIGINT)
+            status_code = self._daemon_process.wait(30.0)
+            self._daemon_process = None
             return status_code
         return 0
 
     def _is_server_running(self) -> bool:
         try:
-            urlopen(f"http://127.0.0.1:{self.port}/status", timeout=5)
+            urlopen(f"http://127.0.0.1:{self._port}/status", timeout=5)
             return True
         except URLError:
             return False

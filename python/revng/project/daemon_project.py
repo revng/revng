@@ -131,7 +131,7 @@ class DaemonProject(Project):
         self._set_model(self._get_model())
 
     def _commit(self):
-        diff = DiffSet.make(self.last_saved_model, self.model)
+        diff = DiffSet.make(self._last_saved_model, self.model)
         if len(diff.Changes) == 0:
             return
 
@@ -159,7 +159,7 @@ class DaemonProject(Project):
 
         response = self.client.execute(query, variable_values=variables)
         assert response["runAnalysis"]["__typename"] == "Diff"
-        self.last_saved_model = self._get_model()
+        self._last_saved_model = self._get_model()
 
     def _get_pipeline_description(self) -> PipelineDescription:
         response = self.client.execute(gql("{ pipelineDescription }"))
