@@ -8,8 +8,8 @@ from signal import SIGINT
 from subprocess import DEVNULL, STDOUT, Popen
 from time import sleep
 from typing import Optional
-
-import requests
+from urllib.error import URLError
+from urllib.request import urlopen
 
 from .daemon_project import DaemonProject
 from .project import CLIProjectMixin, ResumeProjectMixin
@@ -70,9 +70,9 @@ class LocalDaemonProject(DaemonProject, CLIProjectMixin, ResumeProjectMixin):
 
     def _is_server_running(self) -> bool:
         try:
-            requests.get(f"http://127.0.0.1:{self.port}/status", timeout=5)
+            urlopen(f"http://127.0.0.1:{self.port}/status", timeout=5)
             return True
-        except requests.exceptions.ConnectionError:
+        except URLError:
             return False
 
     def _get_port(self) -> int:

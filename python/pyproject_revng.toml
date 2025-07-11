@@ -9,6 +9,8 @@ dependencies = [
     "PyYAML>=6.0.1,<7.0",
     "yachalk>=0.1.7,<1.0",
     "llvmcpy>=0.2.1,<1.0",
+    "gql[aiohttp]>=3.5.3,<4.0",
+    "aiohttp>=3.12.11,<4.0",
 ]
 
 [build-system]
