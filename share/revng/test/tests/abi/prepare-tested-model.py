@@ -51,7 +51,7 @@ def main():
     function_prototypes_left = [str(f.Prototype.Definition) for f in functions if f.Prototype]
     for current_type in binary.TypeDefinitions:
         if current_type.Kind == model.TypeDefinitionKind.CABIFunctionDefinition:
-            reference = binary.get_reference_str(current_type)
+            reference = "/TypeDefinitions/" + current_type.key()
             if reference in function_prototypes_left:
                 current_type.ABI = args.new_abi
 
