@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import re
-import subprocess
 import sys
 import tarfile
 from collections.abc import Mapping
@@ -13,7 +12,8 @@ from contextlib import suppress
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from subprocess import PIPE, Popen, run
+from tempfile import NamedTemporaryFile, TemporaryFile
 from typing import IO, Callable, Dict, Generator, Generic, Optional, Tuple, Type, TypeVar, Union
 from typing import cast
 
@@ -55,7 +55,8 @@ class Artifact:
         self._mime = mime
 
     # Common methods
-    def dump(self) -> bytes:
+    @property
+    def raw_data(self) -> bytes:
         return self._data
 
     def write_to_disk(self, path: Union[str, Path]):
@@ -188,11 +189,30 @@ class LLVMArtifact(Artifact):
 
     def module(self, name: str = "module"):
         llvmcpy = get_llvmcpy()
+        context = llvmcpy.get_global_context()
         buffer = llvmcpy.create_memory_buffer_with_memory_range_copy(
             self._data, len(self._data), name
         )
-        context = llvmcpy.get_global_context()
-        return context.parse_ir(buffer)
+        try:
+            return context.parse_ir(buffer)
+        except llvmcpy.LLVMException as e:
+            if self._data[:4] != b'\x28\xb5\x2f\xfd':
+                raise e
+            # If outside of revng parse_ir cannot parse bitcode, decompress it
+            # via the zstd tool
+            with TemporaryFile("w+b") as output:
+                proc = Popen(["zstd", "-dc", "-"], stdin=PIPE, stdout=output)
+                assert proc.stdin is not None
+                assert proc.stdout is not None
+                proc.stdin.write(self._data)
+                proc.stdin.close()
+                assert proc.wait() == 0
+
+                output.seek(0)
+                data = output.read()
+
+            buffer = llvmcpy.create_memory_buffer_with_memory_range_copy(data, len(data), name)
+            return context.parse_ir()
 
 
 class ImageArtifact(Artifact):
@@ -202,7 +222,7 @@ class ImageArtifact(Artifact):
         with NamedTemporaryFile("wb", prefix="image-artifact-") as f:
             f.write(self._data)
             f.flush()
-            subprocess.run(["xdg-open", f.name])
+            run(["xdg-open", f.name])
 
 
 def ptml_artifact_autodetect(

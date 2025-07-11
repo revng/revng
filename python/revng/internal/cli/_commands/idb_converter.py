@@ -611,7 +611,9 @@ class IDBConverter:
         return result
 
     def _type_for_definition(self, definition: m.TypeDefinition, is_const: bool = False) -> m.Type:
-        return m.DefinedType(Definition=m.Reference.create(m.Binary, definition), IsConst=is_const)
+        return m.DefinedType(
+            Definition=m.Reference("/TypeDefinition/" + definition.key()), IsConst=is_const
+        )
 
     def get_model(self) -> m.Binary:
         return m.Binary(
