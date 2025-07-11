@@ -245,7 +245,7 @@ class Project(ABC):
             if rank.TupleTreePath == "":
                 continue
             path = rank.TupleTreePath
-            pattern = f"^{re.sub(r'\\\$\d+', '([^/]*)', re.escape(path))}$"
+            pattern = "^" + re.sub(r"\\\$\d+", "([^/]*)", re.escape(path)) + "$"
             result[rank.Name] = re.compile(pattern)
 
         return result
