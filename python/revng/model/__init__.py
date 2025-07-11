@@ -4,6 +4,7 @@
 # flake8: noqa: F405
 # type: ignore
 
+from dataclasses import dataclass
 from io import TextIOBase
 from typing import Optional, Union
 
@@ -65,6 +66,15 @@ class DiffSet(TTDiffSet[Binary]):
             return yaml.dump(self, Dumper=DiffYamlDumper)
         else:
             yaml.dump(self, output, Dumper=DiffYamlDumper)
+
+
+@dataclass
+class TypeId:
+    id_: int
+    kind: _generated.TypeDefinitionKind
+
+    def to_string(self):
+        return f"{self.id_}-{self.kind}"
 
 
 def get_element_by_path(path: str, obj: StructBase) -> StructBase:
