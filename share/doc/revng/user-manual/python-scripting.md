@@ -38,18 +38,18 @@ Once you have successfully loaded a binary, you can obtain the available artifac
 
 ```{python ignoreoutput=2,6,9,13,20}
 # Get artifact through the `project`
->>> project.get_artifact("disassemble")
+>>> project.model.get_artifact("disassemble")
 
 # Pass functions that you want to get artifacts from, the second argument is a
 # `list` so you can pass multiple functions
->>> project.get_artifact("disassemble", [project.model.Functions[0]])
+>>> project.model.get_artifact("disassemble", [project.model.Functions[0]])
 
 # Get artifact through a `function`, this is equal to above
 >>> project.model.Functions[0].get_artifact("disassemble")
 
 # Get multiple artifacts at once. Pass `None` if you wish to get the artifact
 # for all the targets
->>> project.get_artifacts({
+>>> project.model.get_artifacts({
 ...    "disassemble": [project.model.Functions[0],
 ...                    project.model.Functions[1]],
 ...    "decompile": None
@@ -69,7 +69,7 @@ You can also `parse` the result with `ptml`:
 LLVM modules can be parsed and explored via the `llvmcpy` python module:
 
 ```python
->>> lifted = project.get_artifact("lift")
+>>> lifted = project.model.get_artifact("lift")
 
 # Use the parsed IR
 >>> for function in lifted.module().iter_functions():
@@ -98,17 +98,17 @@ After you make a change, you need to invoke the `commit` method in order for the
 
 ```python
 >>> project.model.Functions[0].Name = "new_function_name"
->>> project.commit()
+>>> project.model.commit()
 ```
 
 If you want to run a set of predefined analyses, you can run them with:
 
 ```python
->>> project.analyses_list("revng-initial-auto-analysis")
+>>> project.model.analyses_list("revng-initial-auto-analysis")
 ```
 
 If you want to run a specific [analysis](../analyses/) instead, you can do that too.
 
 ```python
->>> project.analyze("detect-stack-size")
+>>> project.model.analyze("detect-stack-size")
 ```
