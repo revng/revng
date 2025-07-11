@@ -259,23 +259,23 @@ _RootType = TypeVar("_RootType")  # noqa: N808
 
 
 class Reference(Generic[_PointedType, _RootType]):
-    def __init__(self, ref_str, referenced_obj=None):
+    def __init__(self, ref_str: str):
         if not isinstance(ref_str, str):
             raise ValueError(
                 f"References can only be constructed from strings, got {type(ref_str)} instead"
             )
         self._ref_str = ref_str
-        self.referenced_obj = referenced_obj
+        # To be filled later
+        self._accessor: Optional[Callable[[str], StructBase]] = None
 
-    @classmethod
-    def create(cls, root_type, obj):
-        ref_str = root_type.get_reference_str(obj)
-        return cls(ref_str, referenced_obj=obj)
+    def get(self) -> StructBase:
+        assert self.is_valid(), "Reference is not valid"
+        assert self._accessor is not None
+        return self._accessor(self._ref_str)
 
     @property
     def id(self):  # noqa: A003
-        rid = self._ref_str.split("/")[2].split("-")[0]
-        return int(rid)
+        return self._ref_str.split("/")[-1]
 
     @classmethod
     def yaml_representer(cls, dumper: yaml.dumper.Dumper, instance: "Reference"):
@@ -284,12 +284,12 @@ class Reference(Generic[_PointedType, _RootType]):
     def __repr__(self):
         if self._ref_str == "":
             return "<Invalid Reference>"
-        return self._ref_str
+        return f"<Reference pointing to {self._ref_str}>"
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        return self._ref_str == other._ref_str and self.referenced_obj == other.referenced_obj
+        return self._ref_str == other._ref_str
 
     def is_valid(self):
         return self._ref_str != ""
@@ -866,6 +866,15 @@ class _FieldVisitor(Generic[StructBaseT]):
         self.types_metadata = types_metadata
         self.root = root
 
+    def _fetch_abc_type(
+        self, parent_info: TypeMetadata, base_info: Dict[str, TypeMetadata], child_obj
+    ) -> Dict[str, TypeMetadata]:
+        if child_obj is None:
+            return base_info
+        derived_type_children = parent_info["type"]._children
+        derived_class = derived_type_children[type(child_obj).__name__]
+        return {**base_info, **self.types_metadata[derived_class]}
+
     def visit_object(
         self, path: str, type_info: Dict[str, TypeMetadata], obj, obj_is_abstract=False
     ) -> VisitorEntryGenerator:
@@ -884,12 +893,23 @@ class _FieldVisitor(Generic[StructBaseT]):
             if is_complex:
                 new_type_info = self.types_metadata[info["type"]]
 
+                if is_abc and not info["is_array"]:
+                    new_type_info = self._fetch_abc_type(info, new_type_info, new_obj)
+
             if info["is_array"]:
                 for element in new_obj:
                     if is_complex:
                         element_path = f"{new_path}/{element.key()}"
                         yield (element_path, element)
-                        yield from self.visit_object(element_path, new_type_info, element, is_abc)
+                        if is_abc:
+                            element_type_info = self._fetch_abc_type(info, new_type_info, element)
+                            yield from self.visit_object(
+                                element_path, element_type_info, element, True
+                            )
+                        else:
+                            yield from self.visit_object(
+                                element_path, new_type_info, element, False
+                            )
                     else:
                         yield (new_path, element)
             else:
