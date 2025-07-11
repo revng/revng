@@ -18,6 +18,7 @@ from typing import IO, Callable, Dict, Generator, Generic, Optional, Tuple, Type
 from typing import cast
 
 import yaml
+import zstandard as zstd
 
 from revng.ptml.parser import PTMLDocument
 from revng.ptml.parser import parse as ptml_parse
@@ -188,10 +189,14 @@ class LLVMArtifact(Artifact):
     MIMES = ("application/x.llvm.bc+zstd",)
 
     def module(self, name: str = "module"):
+        if self._data[:4] != zstd.FRAME_HEADER:
+            data = self._data
+        else:
+            with zstd.ZstdDecompressor().stream_reader(BytesIO(self._data)) as stream:
+                data = stream.read()
+
         llvmcpy = get_llvmcpy()
-        buffer = llvmcpy.create_memory_buffer_with_memory_range_copy(
-            self._data, len(self._data), name
-        )
+        buffer = llvmcpy.create_memory_buffer_with_memory_range_copy(data, len(data), name)
         context = llvmcpy.get_global_context()
         return context.parse_ir(buffer)
 
