@@ -243,7 +243,7 @@ LegacyVB::createCopyFromAssignedOnUse(AssignType *Assign, Use &U) {
 template<>
 LegacyVB::AssignType *
 LegacyVB::createAssignmentBefore(Value *LocationToAssign,
-                                 Value *ValueToAssign,
+                                 Instruction *ValueToAssign,
                                  Instruction *InsertBefore) {
   // Create an assignment that assigns ValueToAssign to LocationToAssign.
   IRBuilder<> B(InsertBefore);
@@ -331,7 +331,7 @@ VB::CopyType *VB::createCopyFromAssignedOnUse(AssignType *Assign, Use &U) {
 
 template<>
 VB::AssignType *VB::createAssignmentBefore(Value *LocationToAssign,
-                                           Value *ValueToAssign,
+                                           Instruction *ValueToAssign,
                                            Instruction *InsertBefore) {
   // Create a copy from the assigned location at the proper insertion point.
   IRBuilder<> B(InsertBefore);
