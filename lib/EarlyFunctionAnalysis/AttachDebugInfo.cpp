@@ -146,7 +146,8 @@ public:
                       efa::ControlFlowGraph &FM,
                       GeneratedCodeBasicInfo &GCBI) {
     BasicBlockID CurrentBB = BasicBlockID(FM.Entry());
-    DILocation *CurrentDI = nullptr;
+    DILocation *DefaultDI = buildDI(FM.Entry(), CurrentBB, FM.Entry());
+    DILocation *CurrentDI = DefaultDI;
 
     for (auto *BB : ReversePostOrderTraversal(&F)) {
       if (not GCBI.isTranslated(BB))
