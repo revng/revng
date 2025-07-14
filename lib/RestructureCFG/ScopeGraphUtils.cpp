@@ -166,6 +166,7 @@ BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
                                              F);
   IRBuilder<> Builder(Context);
   Builder.SetInsertPoint(GotoBlock);
+  Builder.SetCurrentDebugLocation(Source->getTerminator()->getDebugLoc());
   Builder.CreateBr(Target);
 
   // Insert the `goto_block` marker in the `ScopeGraph`
