@@ -145,7 +145,9 @@ public:
   void handleFunction(llvm::Function &F,
                       efa::ControlFlowGraph &FM,
                       GeneratedCodeBasicInfo &GCBI) {
-    DILocation *CurrentDI = nullptr;
+    BasicBlockID CurrentBB = BasicBlockID(FM.Entry());
+    DILocation *DefaultDI = buildDI(FM.Entry(), CurrentBB, FM.Entry());
+    DILocation *CurrentDI = DefaultDI;
 
     for (auto *BB : ReversePostOrderTraversal(&F)) {
     if (not GCBI.isTranslated(BB))
