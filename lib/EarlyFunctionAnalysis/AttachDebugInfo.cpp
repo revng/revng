@@ -150,8 +150,25 @@ public:
     DILocation *CurrentDI = DefaultDI;
 
     for (auto *BB : ReversePostOrderTraversal(&F)) {
-    if (not GCBI.isTranslated(BB))
+      bool CanBeHandledNormally = GCBI.isTranslated(BB);
+
+      if (getType(BB) == BlockType::IndirectBranchDispatcherHelperBlock) {
+        // These helper blocks are introduced to handle indirect jumps (for
+        // example, `jmp rax`). But, since CFG around them is reasonable AND
+        // because we're traversing them in the reverse post order, we can let
+        // normal `newpc`-based address setter do its job for them too.
+        CanBeHandledNormally = true;
+      }
+
+      // TODO: keep a close eye on this, especially if we ever add more basic
+      //       block types, as using the default location is pretty much
+      //       the worst option available.
+      if (not CanBeHandledNormally) {
+        for (auto &I : *BB)
+          I.setDebugLoc(DefaultDI);
+
         continue;
+      }
 
       for (auto &I : *BB) {
         if (auto *Call = getCallTo(&I, "newpc")) {
