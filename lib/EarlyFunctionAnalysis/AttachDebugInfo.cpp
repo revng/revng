@@ -150,8 +150,39 @@ public:
     DILocation *CurrentDI = DefaultDI;
 
     for (auto *BB : ReversePostOrderTraversal(&F)) {
-      if (not GCBI.isTranslated(BB))
+      // There are two options of how we can handle basic block addresses:
+      //
+      // - in the general case, addresses provided by the `newpc` helper calls
+      //   are used to fill in the metadata of all the instructions in-between
+      //   (note that the reverse post order traversal is important).
+      //
+      // - when that is not possible (which most likely means that the block
+      //   in question is artificial), the fallback is to use the most basic
+      //   possible location:
+      //   ```
+      //   /instruction/<function-entry>/<function-entry>/<function-entry>
+      //   ```
+      //
+      // The following flag decides which approach is used for this basic block:
+      bool UseFallbackDebugLocation = !GCBI.isTranslated(BB);
+
+      if (getType(BB) == BlockType::IndirectBranchDispatcherHelperBlock) {
+        // These helper blocks are introduced to handle indirect jumps (for
+        // example, `jmp rax`). But, since CFG around them is reasonable AND
+        // because we're traversing them in the reverse post order, we can let
+        // normal `newpc`-based address setter do its job for them too.
+        UseFallbackDebugLocation = false;
+      }
+
+      // TODO: keep a close eye on this, especially if we ever add more basic
+      //       block types, as using the default location is pretty much
+      //       the worst option available.
+      if (UseFallbackDebugLocation) {
+        for (auto &I : *BB)
+          I.setDebugLoc(DefaultDI);
+
         continue;
+      }
 
       for (auto &I : *BB) {
         if (auto *Call = getCallTo(&I, "newpc")) {
