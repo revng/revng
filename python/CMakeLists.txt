@@ -103,6 +103,9 @@ function(python_wheel)
     "pyproject_${PYTHON_WHEEL_NAME}.toml"
     "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}/pyproject.toml"
     COPYONLY)
+  configure_file(
+    "README_${PYTHON_WHEEL_NAME}.md"
+    "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}/README.md" COPYONLY)
 
   add_custom_command(
     OUTPUT "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"

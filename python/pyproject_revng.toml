@@ -3,7 +3,7 @@
 [project]
 name = "revng"
 description = "Redistributable revng python package"
-dynamic = ["version"]
+dynamic = ["version", "readme"]
 
 dependencies = [
     "PyYAML>=6.0.1,<7.0",
@@ -22,3 +22,4 @@ revng = ["py.typed"]
 
 [tool.setuptools.dynamic]
 version = {attr = "revng.__version__"}
+readme = {file = ["README.md"], content-type = "text/markdown"}
