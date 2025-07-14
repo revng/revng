@@ -3,7 +3,7 @@
 [project]
 name = "revng"
 description = "Redistributable revng python package"
-version = "1.0.0"
+dynamic = ["version"]
 
 dependencies = [
     "PyYAML>=6.0.1,<7.0",
@@ -19,3 +19,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-data]
 revng = ["py.typed"]
+
+[tool.setuptools.dynamic]
+version = {attr = "revng.__version__"}
