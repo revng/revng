@@ -335,6 +335,7 @@ VB::AssignType *VB::createAssignmentBefore(Value *LocationToAssign,
                                            Instruction *InsertBefore) {
   // Create a copy from the assigned location at the proper insertion point.
   IRBuilder<> B(InsertBefore);
+  B.SetCurrentDebugLocation(ValueToAssign->getDebugLoc());
   return B.CreateStore(ValueToAssign, LocationToAssign);
 }
 
@@ -344,6 +345,7 @@ LocalVariableBuilder<IsLegacy>::createAllocaWithPtrToInt(llvm::Function *F,
                                                          llvm::Type *T) const {
   IRBuilder<> B(M.getContext());
   B.SetInsertPointPastAllocas(F);
+  B.SetCurrentDebugLocation(B.GetInsertPoint()->getDebugLoc());
   auto *Alloca = B.CreateAlloca(T);
   Value *PtrToInt = B.CreatePtrToInt(Alloca, TargetPointerSizedInteger);
 
