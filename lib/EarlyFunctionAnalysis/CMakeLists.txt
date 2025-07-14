@@ -12,11 +12,11 @@ revng_add_analyses_library_internal(
   CollectCFG.cpp
   CollectFunctionsFromCalleesPass.cpp
   CollectFunctionsFromUnusedAddressesPass.cpp
-  DetectABI.cpp
   ControlFlowGraph.cpp
+  ControlFlowGraphCache.cpp
+  DetectABI.cpp
   FunctionSummaryOracle.cpp
   IndirectBranchInfoPrinterPass.cpp
-  ControlFlowGraphCache.cpp
   Outliner.cpp
   PromoteGlobalToLocalVars.cpp
   SegregateDirectStackAccesses.cpp
