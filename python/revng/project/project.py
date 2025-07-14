@@ -104,7 +104,7 @@ class Project(ABC):
         if isinstance(results, dict):
             if rank.Depth == 0:
                 keys = list(results.keys())
-                assert len(keys) == 0
+                assert len(keys) == 1
                 return Artifact.make(results[keys[0]], container_mime)
             else:
                 container_mime = self._mapped_artifact_mime(artifact_name)
