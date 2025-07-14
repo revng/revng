@@ -293,8 +293,11 @@ buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
          llvm::make_range(std::next(S->getIterator()), StoreBlock->end())) {
       for (Use &Operand : NextInBlock.operands()) {
         if (Operand.get() == IncomingInst) {
-          if (not LoadFromStore)
+          if (not LoadFromStore) {
             LoadFromStore = Builder.CreateLoad(IncomingInst->getType(), Alloca);
+            if (auto *IncomingInst = dyn_cast<Instruction>(Incoming))
+              LoadFromStore->setDebugLoc(IncomingInst->getDebugLoc());
+          }
           Operand.set(LoadFromStore);
         }
       }
