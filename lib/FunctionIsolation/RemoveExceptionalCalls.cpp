@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -40,11 +41,15 @@ bool RemoveExceptionalCalls::runOnModule(llvm::Module &M) {
     // Split containing basic block
     BB->splitBasicBlock(Call);
 
-    // Drop terminator of the old basic block
-    eraseFromParent(BB->getTerminator());
+    // Record the old terminator so that we don't need to look for it again
+    llvm::Instruction *OldTerminator = BB->getTerminator();
 
     // Terminate with an unreachable
-    new UnreachableInst(C, BB);
+    auto Unreachable = new UnreachableInst(C, BB);
+    Unreachable->setDebugLoc(OldTerminator->getDebugLoc());
+
+    // Drop the old terminator
+    eraseFromParent(OldTerminator);
 
     // Drop function call
     auto *Undef = UndefValue::get(Call->getType());
