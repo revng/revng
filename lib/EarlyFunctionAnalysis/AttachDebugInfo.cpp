@@ -149,8 +149,14 @@ public:
     DILocation *CurrentDI = DefaultDI;
 
     for (auto *BB : ReversePostOrderTraversal(&F)) {
-    if (not GCBI.isTranslated(BB))
+      if (not GCBI.isTranslated(BB)) {
+        // This is a dispatcher-related basic block, fill its debug information
+        // with function entry point to avoid leaving it empty.
+        for (auto &I : *BB)
+          I.setDebugLoc(DefaultDI);
+
         continue;
+      }
 
       for (auto &I : *BB) {
         if (auto *Call = getCallTo(&I, "newpc")) {
