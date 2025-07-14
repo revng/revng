@@ -70,10 +70,12 @@ public:
 
           // First iteration, create phis
           for (Type *ArgumentType : Call->getFunctionType()->params()) {
-            Phis.push_back(cast<PHINode>(PHINode::Create(ArgumentType,
-                                                         PhiSize,
-                                                         "",
-                                                         Phi)));
+            llvm::Instruction *NewPhi = PHINode::Create(ArgumentType,
+                                                        PhiSize,
+                                                        "",
+                                                        Phi);
+            NewPhi->setDebugLoc(Phi->getDebugLoc());
+            Phis.push_back(NewPhi);
           }
 
           Calls.push_back(Call);
