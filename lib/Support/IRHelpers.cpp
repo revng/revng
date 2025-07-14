@@ -26,8 +26,6 @@
 #include "revng/Support/StringOperations.h"
 #include "revng/Support/Tag.h"
 
-// TODO: including GeneratedCodeBasicInfo.h is not very nice
-
 using namespace llvm;
 
 void dumpModule(const Module *M, const char *Path) {
