@@ -1344,6 +1344,7 @@ setInsertPointToFirstNonAlloca(llvm::IRBuilder<T, Inserter> &Builder,
   for (Instruction &I : Entry) {
     if (not isa<AllocaInst>(&I)) {
       Builder.SetInsertPoint(&I);
+      Builder.SetCurrentDebugLocation(I.getDebugLoc());
       return;
     }
   }
