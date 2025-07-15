@@ -3,7 +3,7 @@
 [project]
 name = "revng_internal"
 description = "Internal revng modules"
-version = "1.0.0"
+dynamic = ["version"]
 
 dependencies = [
   # Requirements for revng_merge_dynamic
@@ -50,3 +50,6 @@ revng = [
 
 [project.entry-points.console_scripts]
 revng = "revng.internal.cli.revng:main"
+
+[tool.setuptools.dynamic]
+version = {attr = "revng.internal.__version__"}
