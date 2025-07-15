@@ -737,7 +737,10 @@ def _make_diff_subtree(
     """
     result = []
     if type(obj_old) is not type(obj_new):
-        return []
+        raise ValueError(
+            f"The objects in {prefix} don't have the same type, "
+            + f"old: {type(obj_old)} new: {type(obj_new)}"
+        )
 
     # If we have an abstract class, we need the `_children` to fetch the type
     # hints from and update the info object.
