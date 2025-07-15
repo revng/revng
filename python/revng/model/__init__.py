@@ -33,12 +33,6 @@ class Binary(_generated.Binary):
         _fix_references(obj)
         return obj
 
-    def serialize(self, output: Optional[TextIOBase] = None):
-        if output is None:
-            return yaml.dump(self, Dumper=YamlDumper)
-        else:
-            return yaml.dump(self, output, Dumper=YamlDumper)
-
 
 class DiffSet(TTDiffSet[Binary]):
     @staticmethod

@@ -6,7 +6,10 @@
 import random
 import sys
 from dataclasses import dataclass, field
-from typing import ClassVar
+from io import TextIOBase
+from typing import ClassVar, Optional
+
+import yaml
 
 from revng.tupletree import (
     EnumBase,
@@ -146,6 +149,11 @@ class #{ struct.name }#(
         return #{ struct | gen_key }#
     ## endif ##
 
+    def serialize(self, output: Optional[TextIOBase] = None):
+        if output is None:
+            return yaml.dump(self, Dumper=YamlDumper)
+        else:
+            return yaml.dump(self, output, Dumper=YamlDumper)
 ## endfor ##
 
 ## for struct in structs ##
