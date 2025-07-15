@@ -138,9 +138,13 @@ void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source,
   // We always insert the marker as the penultimate instruction in a
   // `BasicBlock`
   Instruction *Terminator = Source->getTerminator();
-  IRBuilder<> Builder(Terminator);
   auto *BasicBlockAddressTarget = BlockAddress::get(Target);
   revng_assert(BasicBlockAddressTarget);
+
+  // We set the debug metadata of the decorator call to the same value it
+  // assumes in the `Terminator` of the `BasicBlock`
+  IRBuilder<> Builder(Terminator);
+  Builder.SetCurrentDebugLocation(Terminator->getDebugLoc());
   Builder.CreateCall(ScopeCloserFunction, BasicBlockAddressTarget);
 }
 
