@@ -105,6 +105,10 @@ void ScopeGraphBuilder::makeGoto(BasicBlock *GotoBlock) const {
   // We always insert the marker as the penultimate instruction in a
   // `BasicBlock`
   IRBuilder<> Builder(Terminator);
+
+  // We set the debug metadata of the decorator call to the same value it
+  // assumes in the `Terminator` of the `BasicBlock`
+  Builder.SetCurrentDebugLocation(Terminator->getDebugLoc());
   Builder.CreateCall(GotoBlockFunction, {});
 }
 
@@ -166,6 +170,12 @@ BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
                                              "goto_" + Target->getName().str(),
                                              F);
   IRBuilder<> Builder(Context);
+
+  // We set the debug metadata in the inserted `GotoBlock` to the same location
+  // of the `Source` `BasicBlock`
+  Instruction *SourceTerminator = Source->getTerminator();
+  Builder.SetCurrentDebugLocation(SourceTerminator->getDebugLoc());
+
   Builder.SetInsertPoint(GotoBlock);
   Builder.CreateBr(Target);
 
@@ -173,7 +183,6 @@ BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
   makeGoto(GotoBlock);
 
   // Redirect all the edges `Source` -> `Target` to `Source` -> `GotoBlock`
-  auto SourceTerminator = Source->getTerminator();
   SourceTerminator->replaceSuccessorWith(Target, GotoBlock);
 
   return GotoBlock;
