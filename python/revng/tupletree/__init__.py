@@ -431,11 +431,6 @@ class TypedList(Generic[T], MutableSequence, Mapping):
 YamlDumper.add_representer(TypedList, TypedList.yaml_representer)
 
 
-def enum_value_to_index(enum_value: Enum):
-    """Converts an enum value to its index"""
-    return list(enum_value.__class__.__members__).index(enum_value.value)
-
-
 # TODO: once tuple_tree_generator becomes kind-aware, this will no longer be necessary
 def force_constructor_kwarg(base_class: type, kwarg_name, kwarg_value):
     """Monkeypatches the __init__ method so that the given kwarg is forced to the given value.
