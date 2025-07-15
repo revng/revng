@@ -21,7 +21,7 @@ USAGE: revng-artifact [options] <artifact> <binary>
   make-segment-ref            - application/x.llvm.bc+zstd
   decompile                   - text/x.c+ptml+tar+gz
   decompile-to-single-file    - text/x.c+ptml
-  emit-recompilable-archive   - application/x-tar
+  emit-recompilable-archive   - application/x.recompilable-archive+tar+gz
   emit-helpers-header         - text/x.c+ptml
   emit-model-header           - text/x.c+ptml
   emit-type-definitions       - text/x.c+tar+gz

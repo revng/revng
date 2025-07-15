@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -13,10 +14,11 @@ from contextlib import suppress
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import IO, Callable, Dict, Generator, Generic, Optional, Tuple, Type, TypeVar, Union
 from typing import cast
 
+import pycparser
 import yaml
 import zstandard as zstd
 
@@ -209,6 +211,26 @@ class ImageArtifact(Artifact):
             f.write(self._data)
             f.flush()
             subprocess.run(["xdg-open", f.name])
+
+
+class RecompilableArchiveArtifact(Artifact):
+    MIMES = ("application/x.recompilable-archive+tar+gz",)
+
+    def parse(self) -> pycparser.c_ast.FileAST:
+        with TemporaryDirectory() as temp_dir:
+            with tarfile.open(fileobj=BytesIO(self._data), mode="r:*") as tar:
+                tar.extractall(path=temp_dir)
+
+            c_file = Path(temp_dir) / "decompiled/functions.c"
+            args_common = ["-DDISABLE_ATTRIBUTES", "-DDISABLE_FLOAT16"]
+            for executable in ("cpp", "clang-cpp", "gcc", "clang"):
+                if shutil.which(executable) is not None:
+                    args = args_common if "cpp" in executable else ["-E", *args_common]
+                    processed_text = pycparser.preprocess_file(c_file, executable, args)
+                    break
+            else:
+                raise ValueError("No suitable C preprocessor found")
+            return pycparser.CParser().parse(processed_text, str(c_file))
 
 
 def ptml_artifact_autodetect(

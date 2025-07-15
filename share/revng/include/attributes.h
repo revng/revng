@@ -4,6 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#ifdef DISABLE_ATTRIBUTES
+#define __attribute__(argument)
+#endif
+
 #define STR(x) #x
 // NOLINTNEXTLINE
 // clang-format off
