@@ -10,7 +10,7 @@ from dataclasses import dataclass, fields
 from enum import Enum, EnumType
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Callable, Dict, Generator, Generic, List, NotRequired
-from typing import Optional, Tuple, Type, TypeAlias, TypedDict, TypeVar, Union, get_args
+from typing import Optional, Sequence, Tuple, Type, TypeAlias, TypedDict, TypeVar, Union, get_args
 from typing import get_origin, get_type_hints
 
 import yaml
@@ -30,8 +30,6 @@ no_default = object()
 
 dataclass_kwargs = {}
 if sys.version_info >= (3, 10, 0):
-    # Performance optimization available since python 3.10
-    dataclass_kwargs["slots"] = True
     dataclass_kwargs["kw_only"] = True
 
 
@@ -310,10 +308,39 @@ def _field_is_default(field, value):
     return value == factory()
 
 
+class TypedListDescriptor:
+    def __init__(self, base_class):
+        self.base_class = base_class
+        self.name: str = ""
+
+    def __set_name__(self, owner, name):
+        self.name = "_" + name
+
+    def __get__(self, obj, objtype=None):
+        val = getattr(obj, self.name, None)
+        if val is not None:
+            return val
+        return TypedList(self.base_class)
+
+    def __set__(self, obj, value):
+        if value is self:
+            setattr(obj, self.name, TypedList(self.base_class))
+            return
+
+        if isinstance(value, list):
+            setattr(obj, self.name, TypedList(self.base_class, value))
+        elif isinstance(value, TypedList):
+            setattr(obj, self.name, value)
+        else:
+            raise ValueError(f"Error setting {value} as attribute")
+
+
 class TypedList(Generic[T], MutableSequence, Mapping):
-    def __init__(self, base_class: Type[T]):
-        self._data: List[Any] = []
+    def __init__(self, base_class: Type[T], list_: Sequence[T] = []):
+        self._data: List[T] = []
         self._base_class = base_class
+        if list_ != []:
+            self.extend(list_)
 
     def __setitem__(self, idx: int, obj: T):  # type: ignore
         if not isinstance(obj, self._base_class):
@@ -392,13 +419,6 @@ class TypedList(Generic[T], MutableSequence, Mapping):
 
 
 YamlDumper.add_representer(TypedList, TypedList.yaml_representer)
-
-
-def typedlist_factory(base_class: type) -> Callable[[], TypedList]:
-    def factory():
-        return TypedList(base_class)
-
-    return factory
 
 
 def enum_value_to_index(enum_value: Enum):
