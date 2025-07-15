@@ -16,7 +16,7 @@ from revng.tupletree import (
     dataclass_kwargs,
     no_default,
     TypedList,
-    typedlist_factory,
+    TypedListDescriptor,
     force_constructor_kwarg,
     force_kw_only,
     TypesMetadata,
@@ -96,7 +96,7 @@ class #{ struct.name }#(
     ##- if field.is_guid -##
     = field(default_factory=random_id)
     ##- elif field is sequence_field -##
-    = field(default_factory=typedlist_factory(#{ field | python_type }#))
+    = field(default=TypedListDescriptor(#{ field.element_type | python_type }#))
     ##- elif field is reference_field -##
     = field(default_factory=lambda: Reference(""))
     ##- elif struct.inherits -##
@@ -118,7 +118,7 @@ class #{ struct.name }#(
         ## if field is simple_field ##
         default_factory=lambda: #{- field | default_value }#
         ## elif field is sequence_field ##
-        default_factory=typedlist_factory(#{ field | python_type }#)
+        default=TypedListDescriptor(#{ field.element_type | python_type }#)
         ## elif field is reference_field ##
         default_factory=lambda: Reference("")
         ## endif ##
