@@ -170,6 +170,10 @@ static void simplifyTerminator(BasicBlock *BB,
       // with an unconditional branch
       if (SingleDestination) {
         IRBuilder<> Builder(Terminator);
+
+        // We set the debug metadata of the promoted `Branch` instruction to the
+        // same value it has before the promotion is performed
+        Builder.SetCurrentDebugLocation(Terminator->getDebugLoc());
         Builder.CreateBr(SingleDestination);
 
         // We remove the old conditional branch
