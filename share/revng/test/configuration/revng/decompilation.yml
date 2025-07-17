@@ -11,14 +11,14 @@ commands:
     suffix: /
     command: |-
       revng artifact --resume "$OUTPUT" --analyze decompile-to-single-file "$INPUT" -o /dev/null
-  - # Run initial portion of the clift-based decompilation pipeline up to prepare-for-clift
-    type: revng.prepare-for-clift
+  - # Run the Clift decompilation pipeline
+    type: revng.emit-c
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-decompilation
     suffix: /
     command: |-
-      revng artifact --resume "$OUTPUT" --analyze prepare-for-clift "$INPUT" -o /dev/null
+      revng artifact --resume "$OUTPUT" --analyze emit-c "$INPUT" -o /dev/null
   - # Perform checks on the model
     type: revng.legacy.decompile-to-single-file.model-check
     from:
@@ -38,7 +38,7 @@ commands:
       revng artifact --resume "$$RESUME" decompile-to-single-file "$INPUT1" | revng ptml > "$OUTPUT/decompiled.c";
       revng artifact --resume "$$RESUME" emit-model-header "$INPUT1" | revng ptml > "$OUTPUT/types-and-globals.h";
       revng artifact --resume "$$RESUME" emit-helpers-header "$INPUT1" | revng ptml > "$OUTPUT/helpers.h";
-      revng check-decompiled-c "$OUTPUT/decompiled.c" -I "$OUTPUT"
+      revng check-decompiled-c "$OUTPUT/decompiled.c" -I "$OUTPUT" -DLEGACY_BACKEND
   - # Perform checks on the decompiled C code
     type: revng.legacy.decompile-to-single-file.filecheck
     from:

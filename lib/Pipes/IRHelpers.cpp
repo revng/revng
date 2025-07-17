@@ -8,6 +8,7 @@
 #include "llvm/IR/Instruction.h"
 
 #include "revng/Pipes/IRHelpers.h"
+#include "revng/Support/IRHelpers.h"
 
 std::optional<pipeline::Location<decltype(revng::ranks::Instruction)>>
 getLocation(const llvm::Instruction *I) {
@@ -20,4 +21,17 @@ getLocation(const llvm::Instruction *I) {
   revng_assert(Result);
 
   return Result;
+}
+
+llvm::DenseMap<MetaAddress, const llvm::Function *>
+getTargetToFunctionMapping(const llvm::Module &M) {
+  llvm::DenseMap<MetaAddress, const llvm::Function *> Map;
+  for (const llvm::Function &F : M.functions()) {
+    auto MA = getMetaAddressMetadata(&F, FunctionEntryMDName);
+    if (MA.isValid()) {
+      auto [Iterator, Inserted] = Map.try_emplace(MA, &F);
+      revng_assert(Inserted);
+    }
+  }
+  return Map;
 }

@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/HeadersGeneration/ConfigurationHelpers.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/RegisterContainerFactory.h"
@@ -44,7 +45,13 @@ public:
     if (ErrorCode)
       revng_abort(ErrorCode.message().c_str());
 
-    ptml::CTypeBuilder B(Header, *revng::getModelFromContext(EC));
+    const auto &Model = *revng::getModelFromContext(EC);
+
+    ptml::CTypeBuilder
+      B(Header,
+        Model,
+        /* EnableTaglessMode = */ false,
+        { .ExplicitTargetPointerSize = getExplicitPointerSize(Model) });
     ptml::HeaderBuilder(B).printHelpersHeader(IRContainer.getModule());
     Header.flush();
     ErrorCode = Header.error();

@@ -26,6 +26,8 @@ class StructType;
 class GlobalVariable;
 class Instruction;
 class IRBuilderBase;
+template<typename T, typename Enable>
+struct DenseMapInfo;
 } // namespace llvm
 
 namespace MetaAddressType {
@@ -450,6 +452,11 @@ inline constexpr llvm::StringRef getLLVMCPUFeatures(Values Type) {
 class MetaAddress : private PlainMetaAddress {
 private:
   friend class ProgramCounterHandler;
+  friend llvm::DenseMapInfo<MetaAddress>;
+
+  struct Tombstone {
+    explicit Tombstone() = default;
+  };
 
 public:
   constexpr static llvm::StringRef Separator = ":";
@@ -473,7 +480,7 @@ public:
   /// Public constructor creating an invalid MetaAddress
   ///
   /// \note Prefer MetaAddress::invalid()
-  constexpr explicit MetaAddress() : PlainMetaAddress({}) {}
+  constexpr explicit MetaAddress() : PlainMetaAddress{} {}
 
   /// Public constructor allowing to create a custom instance to validate
   ///
@@ -482,11 +489,15 @@ public:
                                  MetaAddressType::Values Type,
                                  uint32_t Epoch = 0,
                                  uint16_t AddressSpace = 0) :
-    PlainMetaAddress({ Epoch, AddressSpace, Type, Address }) {
+    PlainMetaAddress{ Epoch, AddressSpace, Type, Address } {
 
     // Verify the given data
     validate();
   }
+
+private:
+  constexpr explicit MetaAddress(Tombstone) :
+    PlainMetaAddress{ .Address = 1 } {}
 
   /// @}
 
@@ -1028,3 +1039,20 @@ template<>
 struct hash<std::set<MetaAddress>> : hash<const std::set<MetaAddress>> {};
 
 } // namespace std
+
+template<>
+struct llvm::DenseMapInfo<MetaAddress> {
+  static MetaAddress getEmptyKey() { return MetaAddress(); }
+
+  static MetaAddress getTombstoneKey() {
+    return MetaAddress(MetaAddress::Tombstone());
+  }
+
+  static llvm::hash_code getHashValue(const MetaAddress &MA) {
+    return ::hash_value(MA);
+  }
+
+  static bool isEqual(const MetaAddress &LHS, const MetaAddress &RHS) {
+    return LHS == RHS;
+  }
+};

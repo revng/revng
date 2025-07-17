@@ -132,29 +132,59 @@ commands:
       - type: revng.analyzed-model
     suffix: /
     command: |-
-      WORKDIR="$OUTPUT/check-decompiled-c";
-      mkdir -p "$$WORKDIR";
-
-      revng artifact
-        --model "$INPUT2"
-        --resume "$OUTPUT"
-        decompile-to-single-file
-        "$INPUT1"
-        --naming-collisions-report="$$WORKDIR/name-collisions.txt"
-      | revng ptml > "$$WORKDIR/decompiled.c";
-
-      revng artifact --resume "$OUTPUT" emit-model-header "$INPUT1" | revng ptml > "$$WORKDIR/types-and-globals.h";
-      revng artifact --resume "$OUTPUT" emit-helpers-header "$INPUT1" | revng ptml > "$$WORKDIR/helpers.h";
-      revng check-decompiled-c "$$WORKDIR/decompiled.c" -I"$$WORKDIR" -m${POINTER_SIZE};
+      ./emit-and-check-c decompile-to-single-file "$INPUT1" "$INPUT2" "$OUTPUT" "$POINTER_SIZE"
 
   #
-  # Produce the prepare-for-clift artifact, as a preliminary test for clift-based decompilation
+  # Produce the emit-c artifact and check the resulting C code
   #
-  - type: revng.decompiled-c
+  - type: revng.emit-and-check-c
     from:
       - type: revng-qa.compiled
         filter: one-per-architecture
       - type: revng.analyzed-model
     suffix: /
     command: |-
-      revng artifact --model "$INPUT2" --resume "$OUTPUT" prepare-for-clift "$INPUT1" -o /dev/null
+      ./emit-and-check-c emit-c-as-single-file "$INPUT1" "$INPUT2" "$OUTPUT" "$POINTER_SIZE"
+    scripts:
+      emit-and-check-c: |-
+        #!/usr/bin/env bash
+
+        set -euo pipefail
+
+        ARTIFACT="$1"
+        BINARY="$2"
+        MODEL="$3"
+        RESUME="$4"
+        POINTER_SIZE="$5"
+
+        OUTDIR="$RESUME/e2e-test-$ARTIFACT"
+        mkdir -p "$OUTDIR"
+
+        revng artifact \
+          --model "$MODEL" \
+          --resume "$RESUME" \
+          emit-helpers-header \
+          "$BINARY" \
+        | revng ptml > "$OUTDIR/helpers.h"
+
+        revng artifact \
+          --model "$MODEL" \
+          --resume "$RESUME" \
+          emit-model-header \
+          "$BINARY" \
+        | revng ptml > "$OUTDIR/types-and-globals.h"
+
+        revng artifact \
+          --model "$MODEL" \
+          --resume "$RESUME" \
+          "$ARTIFACT" \
+          "$BINARY" \
+        | revng ptml > "$OUTDIR/decompiled.c"
+
+        DEFINES=""
+        if [ "$ARTIFACT" == "decompile-to-single-file" ]; then
+          DEFINES="-DLEGACY_BACKEND"
+        fi
+
+        revng check-decompiled-c "$OUTDIR/decompiled.c" -I"$OUTDIR" -m"$POINTER_SIZE" $DEFINES \
+          2> "$OUTDIR/check-decompiled-c.log"

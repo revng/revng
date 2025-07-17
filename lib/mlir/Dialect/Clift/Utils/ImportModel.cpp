@@ -241,17 +241,9 @@ private:
     size_t ArgumentsCount = 0;
 
     if (not ModelType.StackArgumentsType().isEmpty()) {
-      const auto Type = rc_recur fromType(*ModelType.StackArgumentsType());
-      if (not Type)
-        rc_return nullptr;
-
-      const uint64_t PointerSize = getPointerSize(ModelType.Architecture());
-      StackArgumentType = make<clift::PointerType>(Type,
-                                                   PointerSize,
-                                                   /*IsConst=*/false);
+      StackArgumentType = rc_recur fromType(*ModelType.StackArgumentsType());
       if (not StackArgumentType)
         rc_return nullptr;
-
       ++ArgumentsCount;
     }
 

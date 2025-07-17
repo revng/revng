@@ -140,10 +140,8 @@ static bool isStatement(const Instruction *I) {
   // huge dataflows.
   // In the future we should drop this from here and add a separate pass after
   // this, that takes care of forcing local variables for nasty dataflows.
-  // In non-legacy mode this will be taken care of by LLVM-to-clift conversion
-  if constexpr (IsLegacy)
-    if (isa<SelectInst>(I))
-      return true;
+  if (isa<SelectInst>(I))
+    return true;
 
   return hasSideEffects(*I);
 }

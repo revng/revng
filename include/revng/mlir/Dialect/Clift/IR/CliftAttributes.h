@@ -37,6 +37,21 @@ using ClassAttrBase = Attribute::AttrBase<AttrT,
                                           AttributeTrait::IsMutable,
                                           SubElementAttrInterface::Trait>;
 
+struct ClassDefinition {
+  llvm::StringRef Name;
+  uint64_t Size;
+  llvm::ArrayRef<FieldAttr> Fields;
+
+  llvm::StringRef getName() const { return Name; }
+
+  uint64_t getSize() const { return Size; }
+
+  llvm::ArrayRef<FieldAttr> getFields() const { return Fields; }
+
+  friend bool operator==(const ClassDefinition &,
+                         const ClassDefinition &) = default;
+};
+
 template<typename AttrT>
 class ClassAttrImpl : public ClassAttrBase<AttrT> {
 protected:
@@ -49,23 +64,15 @@ public:
 
   llvm::StringRef getHandle() const;
 
-  llvm::StringRef getName() const {
-    revng_assert(hasDefinition());
-    return getDefinition().getName();
-  }
-
-  uint64_t getSize() const {
-    revng_assert(hasDefinition());
-    return getDefinition().getSize();
-  }
+  llvm::StringRef getName() const { return getDefinition().getName(); }
 
   llvm::ArrayRef<FieldAttr> getFields() const {
-    revng_assert(hasDefinition());
     return getDefinition().getFields();
   }
 
   bool hasDefinition() const;
-  ClassDefinitionAttr getDefinition() const;
+  const ClassDefinition *getDefinitionOrNull() const;
+  const ClassDefinition &getDefinition() const;
 
   void walkImmediateSubElements(llvm::function_ref<void(Attribute)> WalkAttrs,
                                 llvm::function_ref<void(Type)> WalkTypes) const;
@@ -83,7 +90,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
   static mlir::LogicalResult
   verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle,
-         ClassDefinitionAttr Definition);
+         const ClassDefinition &Definition);
 
   static mlir::LogicalResult
   verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
@@ -104,13 +111,13 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
 
   static StructAttr get(MLIRContext *Context,
                         llvm::StringRef Handle,
-                        ClassDefinitionAttr Definition);
+                        const ClassDefinition &Definition);
 
   static StructAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              llvm::StringRef Handle,
-             ClassDefinitionAttr Definition);
+             const ClassDefinition &Definition);
 
   static StructAttr get(MLIRContext *Context,
                         llvm::StringRef Handle,
@@ -125,6 +132,8 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
              llvm::StringRef Name,
              uint64_t Size,
              llvm::ArrayRef<FieldAttr> Fields);
+
+  uint64_t getSize() const { return getDefinition().getSize(); }
 };
 
 struct UnionAttr : ClassAttrImpl<UnionAttr> {
@@ -138,7 +147,7 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
   static LogicalResult
   verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle,
-         ClassDefinitionAttr Definition);
+         const ClassDefinition &Definition);
 
   static LogicalResult
   verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
@@ -158,13 +167,13 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
 
   static UnionAttr get(MLIRContext *Context,
                        llvm::StringRef Handle,
-                       ClassDefinitionAttr Definition);
+                       const ClassDefinition &Definition);
 
   static UnionAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              llvm::StringRef Handle,
-             ClassDefinitionAttr Definition);
+             const ClassDefinition &Definition);
 
   static UnionAttr get(MLIRContext *Context,
                        llvm::StringRef Handle,
@@ -177,6 +186,8 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
              llvm::StringRef Handle,
              llvm::StringRef Name,
              llvm::ArrayRef<FieldAttr> Fields);
+
+  uint64_t getSize() const;
 };
 
 extern template class ClassAttrImpl<StructAttr>;

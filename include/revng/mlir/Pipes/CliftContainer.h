@@ -18,7 +18,7 @@ namespace revng::pipes {
 class CliftContainer : public pipeline::Container<CliftContainer> {
 public:
   static const char ID;
-  static constexpr auto Name = "mlir-module";
+  static constexpr auto Name = "clift-module";
   static constexpr auto MIMEType = "application/x.mlir.bc";
 
 private:
@@ -54,7 +54,7 @@ public:
                          const pipeline::Target &Target) const override;
 
   static std::vector<pipeline::Kind *> possibleKinds() {
-    return { &kinds::MLIRFunctionKind };
+    return { &kinds::CliftFunction };
   }
 };
 

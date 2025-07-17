@@ -90,14 +90,14 @@ def Clift_TypedefAttr
   let genVerifyDecl = 1;
 }
 
-def Clift_ClassDefinitionAttr
+// This is a helper attribute used for emitting the bytecode representation of
+// (potentially recursive) class types.
+def Clift_BytecodeClassAttr
   : AttrDef<Clift_Dialect,
-            "ClassDefinition",
+            "BytecodeClass",
             [SubElementAttrInterface]> {
 
-  let parameters = (ins StringRefParameter<>:$name,
-                        "uint64_t":$size,
-                        ArrayRefParameter<"mlir::clift::FieldAttr">:$fields);
+  let parameters = (ins "mlir::clift::ClassType":$type);
 }
 
 #endif

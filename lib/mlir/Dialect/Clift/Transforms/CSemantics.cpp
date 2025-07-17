@@ -20,15 +20,7 @@ namespace {
 
 struct VerifyCPass : clift::impl::CliftVerifyCBase<VerifyCPass> {
   void runOnOperation() override {
-    clift::TargetCImplementation Target = {
-      .PointerSize = 8,
-      .IntegerTypes = {
-        { 1, clift::CIntegerKind::Char },
-        { 2, clift::CIntegerKind::Short },
-        { 4, clift::CIntegerKind::Int },
-        { 8, clift::CIntegerKind::Long },
-      },
-    };
+    const auto &Target = clift::TargetCImplementation::Default;
 
     if (mlir::failed(verifyCSemantics(getOperation(), Target)))
       signalPassFailure();

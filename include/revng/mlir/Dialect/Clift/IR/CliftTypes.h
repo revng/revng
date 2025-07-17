@@ -98,6 +98,8 @@ bool isIntegerType(ValueType Type);
 /// type, ignoring qualifiers.
 bool isFloatType(ValueType Type);
 
+PointerType getPointerType(ValueType Type);
+
 /// Determine if the type is a pointer type. This includes pointers to objects
 /// as well as pointers to functions. Qualifiers are ignored.
 bool isPointerType(ValueType Type);
