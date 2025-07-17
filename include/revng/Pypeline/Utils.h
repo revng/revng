@@ -10,6 +10,7 @@
 
 #include "revng/Pypeline/Common.h"
 #include "revng/Pypeline/ObjectIDImpl.h"
+#include "revng/Pypeline/TraceRunner.h"
 
 #include "nanobind/nanobind.h"
 
@@ -46,6 +47,19 @@ public:
     auto It = std::next(ContainerList.begin(), I);
     revng_assert(nanobind::isinstance<C_ref_removed>(*It));
     return *nanobind::cast<C_ref_removed *>(*It);
+  }
+};
+
+template<typename T>
+class TraceRunnerInfo {
+public:
+  using Type = T;
+  using ListT = llvm::ArrayRef<tracerunner::Container *>;
+
+  template<typename C, size_t I>
+  static C unwrap(llvm::ArrayRef<tracerunner::Container *> Containers) {
+    using Cptr = std::remove_reference_t<C> *;
+    return *static_cast<Cptr>(Containers[I]->get());
   }
 };
 

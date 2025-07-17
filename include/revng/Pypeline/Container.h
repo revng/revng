@@ -57,6 +57,18 @@ struct ContainerSerdes {
   };
 };
 
+template<typename T>
+class ContainerWrapper final : public tracerunner::Container {
+private:
+  T Instance;
+
+public:
+  ContainerWrapper() : Instance() {}
+  ~ContainerWrapper() override = default;
+
+  virtual void *get() override { return &Instance; }
+};
+
 } // namespace detail
 
 template<IsContainer T>
@@ -71,6 +83,12 @@ struct RegisterContainer {
         .def("verify", &T::verify)
         .def("deserialize", &detail::ContainerSerdes<T>::deserialize)
         .def("serialize", &detail::ContainerSerdes<T>::serialize);
+    });
+    TheRegistry.registerTraceRunnerCallback([](TraceRunnerRegistry &R) {
+      revng_assert(R.Containers.count(T::Name) == 0);
+      R.Containers[T::Name] = []() {
+        return std::make_unique<detail::ContainerWrapper<T>>();
+      };
     });
   }
 };

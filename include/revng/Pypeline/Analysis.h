@@ -37,6 +37,28 @@ struct NanobindAnalysisRunner {
   }
 };
 
+template<IsAnalysis T>
+class AnalysisWrapper final : public tracerunner::Analysis {
+private:
+  T Instance;
+
+public:
+  AnalysisWrapper() : Instance() {}
+  ~AnalysisWrapper() override = default;
+
+  virtual bool run(Model *TheModel,
+                   std::vector<tracerunner::Container *> Containers,
+                   detail::RequestT Incoming,
+                   llvm::StringRef Configuration) override {
+    return AnalysisRunner<TraceRunnerInfo<T>>::runImpl(Instance,
+                                                       &T::run,
+                                                       TheModel,
+                                                       Incoming,
+                                                       Configuration,
+                                                       Containers);
+  }
+};
+
 } // namespace detail
 
 template<IsAnalysis T>
@@ -47,6 +69,12 @@ struct RegisterAnalysis {
       nanobind::class_<T>(M, T::Name.data(), BaseClass)
         .def(nanobind::init<>())
         .def("run", &detail::NanobindAnalysisRunner<T>::run);
+    });
+    TheRegistry.registerTraceRunnerCallback([](TraceRunnerRegistry &R) {
+      revng_assert(R.Analyses.count(T::Name) == 0);
+      R.Analyses[T::Name] = []() {
+        return std::make_unique<detail::AnalysisWrapper<T>>();
+      };
     });
   }
 };

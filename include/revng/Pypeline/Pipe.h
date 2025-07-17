@@ -45,6 +45,31 @@ public:
   }
 };
 
+template<IsPipe T>
+class PipeWrapper final : public tracerunner::Pipe {
+private:
+  T Instance;
+
+public:
+  PipeWrapper(llvm::StringRef Conf) : Instance(Conf) {}
+  ~PipeWrapper() override = default;
+
+  virtual ObjectDependencies
+  run(const Model *TheModel,
+      std::vector<tracerunner::Container *> Containers,
+      detail::RequestT Incoming,
+      detail::RequestT Outgoing,
+      llvm::StringRef Configuration) override {
+    return PipeRunner<TraceRunnerInfo<T>>::runImpl(Instance,
+                                                   &T::run,
+                                                   TheModel,
+                                                   Incoming,
+                                                   Outgoing,
+                                                   Configuration,
+                                                   Containers);
+  }
+};
+
 } // namespace detail
 
 template<IsPipe T>
@@ -55,6 +80,12 @@ struct RegisterPipe {
       nanobind::class_<T>(M, T::Name.data(), BaseClass)
         .def(nanobind::init<llvm::StringRef>())
         .def("run", &detail::NanobindPipeRunner<T>::run);
+    });
+    TheRegistry.registerTraceRunnerCallback([](TraceRunnerRegistry &R) {
+      revng_assert(R.Pipes.count(T::Name) == 0);
+      R.Pipes[T::Name] = [](llvm::StringRef Config) {
+        return std::make_unique<detail::PipeWrapper<T>>(Config);
+      };
     });
   }
 };
