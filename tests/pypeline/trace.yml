@@ -1,0 +1,38 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+containers:
+  - name: main
+    type: StringContainer
+tasks:
+  - type: Savepoint
+    name: savepoint1
+    id: 0
+    containers:
+      - name: main
+        configuration_hash: ""
+        incoming: []
+        outgoing: ["/function/0x400000:Code_x86_64", "/function/0x400020:Code_x86_64"]
+  - type: Pipe
+    name: AppendFooPipe
+    static_config: "{}"
+    dynamic_config: "{}"
+    args:
+      - name: main
+        incoming: ["/function/0x400000:Code_x86_64"]
+        outgoing: ["/function/0x400000:Code_x86_64"]
+  - type: Analysis
+    name: AppendFooLibAnalysis
+    config: "{}"
+    args:
+      - name: main
+        incoming: []
+  - type: Savepoint
+    name: savepoint2
+    id: 1
+    containers:
+      - name: main
+        configuration_hash: ""
+        incoming: ["/function/0x400000:Code_x86_64", "/function/0x400020:Code_x86_64"]
+        outgoing: []

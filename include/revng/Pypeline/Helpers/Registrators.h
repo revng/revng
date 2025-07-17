@@ -12,6 +12,10 @@
 #include "nanobind/stl/vector.h"
 
 #include "revng/Pypeline/Concepts.h"
+#include "revng/Pypeline/Helpers/Native/AnalysisImpl.h"
+#include "revng/Pypeline/Helpers/Native/ContainerImpl.h"
+#include "revng/Pypeline/Helpers/Native/PipeImpl.h"
+#include "revng/Pypeline/Helpers/Native/Registry.h"
 #include "revng/Pypeline/Helpers/Python/AnalysisRunnerImpl.h"
 #include "revng/Pypeline/Helpers/Python/Casters.h"
 #include "revng/Pypeline/Helpers/Python/ContainerIO.h"
@@ -30,6 +34,13 @@ struct RegisterAnalysis {
         .def(nanobind::init<>())
         .def("run", &python::AnalysisRunnerImpl<T>::run);
     });
+
+    // Native
+    revng_assert(native::Registry.Analyses.count(T::Name) == 0);
+    native::Registry.Analyses[T::Name] =
+      []() -> std::unique_ptr<native::Analysis> {
+      return std::make_unique<native::AnalysisImpl<T>>();
+    };
   }
 };
 
@@ -49,6 +60,13 @@ struct RegisterContainer {
         .def("deserialize", &python::ContainerIO<T>::deserialize)
         .def("serialize", &python::ContainerIO<T>::serialize);
     });
+
+    // Native
+    revng_assert(native::Registry.Containers.count(T::Name) == 0);
+    native::Registry.Containers[T::Name] =
+      []() -> std::unique_ptr<native::Container> {
+      return std::make_unique<native::ContainerImpl<T>>();
+    };
   }
 };
 
@@ -64,5 +82,12 @@ struct RegisterPipe {
         .def(nanobind::init<llvm::StringRef>())
         .def("run", &python::PipeRunnerImpl<T>::run);
     });
+
+    // Native
+    revng_assert(native::Registry.Pipes.count(T::Name) == 0);
+    native::Registry.Pipes[T::Name] =
+      [](llvm::StringRef Config) -> std::unique_ptr<native::Pipe> {
+      return std::make_unique<native::PipeImpl<T>>(Config);
+    };
   }
 };

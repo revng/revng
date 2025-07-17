@@ -27,3 +27,15 @@ set_tests_properties(
   pypeline-annotations-test
   PROPERTIES LABELS "pypeline;test" ENVIRONMENT
              "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}")
+
+revng_add_test(
+  NAME
+  pypeline-tracerunner-test
+  COMMAND
+  "${CMAKE_CURRENT_SOURCE_DIR}/tracerunner_test.py"
+  "${CMAKE_CURRENT_SOURCE_DIR}/trace.yml"
+  "${CMAKE_CURRENT_BINARY_DIR}/libfakePipebox.so")
+set_tests_properties(
+  pypeline-tracerunner-test
+  PROPERTIES LABELS "pypeline;test" ENVIRONMENT
+             "PATH=${CMAKE_BINARY_DIR}/bin:$ENV{PATH}")
