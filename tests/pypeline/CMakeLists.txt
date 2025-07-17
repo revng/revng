@@ -19,3 +19,13 @@ set_tests_properties(
   pypeline-test
   PROPERTIES LABELS "pypeline;test" ENVIRONMENT
              "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}")
+
+revng_add_test(
+  NAME
+  pypeline-tracerunner-test
+  COMMAND
+  "${CMAKE_CURRENT_SOURCE_DIR}/test_tracerunner.py"
+  "${CMAKE_CURRENT_SOURCE_DIR}/trace.yml"
+  "${CMAKE_CURRENT_BINARY_DIR}/libfakePipebox.so")
+set_tests_properties(pypeline-tracerunner-test PROPERTIES LABELS
+                                                          "pypeline;test")

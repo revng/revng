@@ -14,13 +14,20 @@ class module_;
 
 namespace pypeline {
 
+namespace tracerunner {
+class Registry;
+}
+
 class Registry {
 private:
   using PythonCallback = std::function<void(nanobind::module_ &)>;
   std::vector<PythonCallback> PythonCallbacks;
 
+  using TRRCallback = std::function<void(pypeline::tracerunner::Registry &)>;
+  std::vector<TRRCallback> TRRCallbacks;
+
 public:
-  Registry() : PythonCallbacks() {
+  Registry() : PythonCallbacks(), TRRCallbacks() {
     // The registry will be populated by multiple dynamic libraries, clear it
     // before exit to guarantee that there are no reverse-initialization
     // fiascos.
@@ -37,13 +44,25 @@ public:
     PythonCallbacks.push_back(std::move(Callback));
   }
 
+  void registerTraceRunnerCallback(TRRCallback &&Callback) {
+    TRRCallbacks.push_back(std::move(Callback));
+  }
+
   void callAll(nanobind::module_ &M) {
     for (auto &Element : PythonCallbacks)
       Element(M);
   }
 
-private:
-  void clear() { PythonCallbacks.clear(); }
+  void callAll(pypeline::tracerunner::Registry &M) {
+    for (auto &Element : TRRCallbacks)
+      Element(M);
+  }
+
+public:
+  void clear() {
+    PythonCallbacks.clear();
+    TRRCallbacks.clear();
+  }
 };
 
 extern Registry TheRegistry;
