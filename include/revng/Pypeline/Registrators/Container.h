@@ -18,6 +18,7 @@
 #include "revng/Pypeline/Concepts.h"
 #include "revng/Pypeline/Registrators/Detail/PythonUtils.h"
 #include "revng/Pypeline/Registry.h"
+#include "revng/Pypeline/TraceRunner/Registry.h"
 #include "revng/Support/Assert.h"
 
 namespace detail {
@@ -53,6 +54,35 @@ struct ContainerIO {
   };
 };
 
+template<typename T>
+class ContainerWrapper final : public pypeline::tracerunner::Container {
+private:
+  T Instance;
+
+public:
+  ContainerWrapper() : Instance() {}
+  ~ContainerWrapper() override = default;
+
+public:
+  virtual void
+  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<const char>>
+                &Input) override {
+    Instance.deserialize(Input);
+  }
+
+  virtual std::map<ObjectID, pypeline::Buffer>
+  serialize(llvm::ArrayRef<const ObjectID> ToSave) const override {
+    std::vector<const ObjectID *> Input;
+    for (const ObjectID &Element : ToSave)
+      Input.push_back(&Element);
+
+    return Instance.serialize(Input);
+  }
+
+public:
+  virtual void *get() override { return &Instance; }
+};
+
 } // namespace detail
 
 template<IsContainer T>
@@ -68,6 +98,13 @@ struct RegisterContainer {
           .def("verify", &T::verify)
           .def("deserialize", &detail::ContainerIO<T>::deserialize)
           .def("serialize", &detail::ContainerIO<T>::serialize);
+      });
+    pypeline::TheRegistry
+      .registerTraceRunnerCallback([](pypeline::tracerunner::Registry &R) {
+        revng_assert(R.Containers.count(T::Name) == 0);
+        R.Containers[T::Name] = []() {
+          return std::make_unique<detail::ContainerWrapper<T>>();
+        };
       });
   }
 };

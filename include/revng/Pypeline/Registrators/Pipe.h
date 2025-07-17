@@ -16,6 +16,7 @@
 #include "revng/Pypeline/Registrators/Detail/Casters.h"
 #include "revng/Pypeline/Registrators/Detail/PythonUtils.h"
 #include "revng/Pypeline/Registry.h"
+#include "revng/Pypeline/TraceRunner/Registry.h"
 #include "revng/Support/Assert.h"
 
 namespace detail {
@@ -90,6 +91,31 @@ public:
   }
 };
 
+template<IsPipe T>
+class PipeWrapper final : public pypeline::tracerunner::Pipe {
+private:
+  T Instance;
+
+public:
+  PipeWrapper(llvm::StringRef Conf) : Instance(Conf) {}
+  ~PipeWrapper() override = default;
+
+  virtual pypeline::ObjectDependencies
+  run(const Model *TheModel,
+      std::vector<pypeline::tracerunner::Container *> Containers,
+      pypeline::Request Incoming,
+      pypeline::Request Outgoing,
+      llvm::StringRef Configuration) override {
+    return PipeRunner<TraceRunnerInfo<T>>::runImpl(Instance,
+                                                   &T::run,
+                                                   TheModel,
+                                                   Incoming,
+                                                   Outgoing,
+                                                   Configuration,
+                                                   Containers);
+  }
+};
+
 } // namespace detail
 
 template<IsPipe T>
@@ -101,6 +127,13 @@ struct RegisterPipe {
         nanobind::class_<T>(M, T::Name.data(), BaseClass)
           .def(nanobind::init<llvm::StringRef>())
           .def("run", &detail::PythonPipeRunner<T>::run);
+      });
+    pypeline::TheRegistry
+      .registerTraceRunnerCallback([](pypeline::tracerunner::Registry &R) {
+        revng_assert(R.Pipes.count(T::Name) == 0);
+        R.Pipes[T::Name] = [](llvm::StringRef Config) {
+          return std::make_unique<detail::PipeWrapper<T>>(Config);
+        };
       });
   }
 };

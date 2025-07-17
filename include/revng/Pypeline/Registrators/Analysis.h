@@ -10,6 +10,7 @@
 #include "revng/Pypeline/Model.h"
 #include "revng/Pypeline/Registrators/Detail/PythonUtils.h"
 #include "revng/Pypeline/Registry.h"
+#include "revng/Pypeline/TraceRunner/Registry.h"
 #include "revng/Support/Assert.h"
 
 namespace detail {
@@ -78,6 +79,29 @@ struct PythonAnalysisRunner {
   }
 };
 
+template<IsAnalysis T>
+class AnalysisWrapper final : public pypeline::tracerunner::Analysis {
+private:
+  T Instance;
+
+public:
+  AnalysisWrapper() : Instance() {}
+  ~AnalysisWrapper() override = default;
+
+  virtual llvm::Error
+  run(Model *TheModel,
+      std::vector<pypeline::tracerunner::Container *> Containers,
+      pypeline::Request Incoming,
+      llvm::StringRef Configuration) override {
+    return AnalysisRunner<TraceRunnerInfo<T>>::runImpl(Instance,
+                                                       &T::run,
+                                                       TheModel,
+                                                       Incoming,
+                                                       Configuration,
+                                                       Containers);
+  }
+};
+
 } // namespace detail
 
 template<IsAnalysis T>
@@ -89,6 +113,13 @@ struct RegisterAnalysis {
         nanobind::class_<T>(M, T::Name.data(), BaseClass)
           .def(nanobind::init<>())
           .def("run", &detail::PythonAnalysisRunner<T>::run);
+      });
+    pypeline::TheRegistry
+      .registerTraceRunnerCallback([](pypeline::tracerunner::Registry &R) {
+        revng_assert(R.Analyses.count(T::Name) == 0);
+        R.Analyses[T::Name] = []() {
+          return std::make_unique<detail::AnalysisWrapper<T>>();
+        };
       });
   }
 };

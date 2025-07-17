@@ -12,10 +12,17 @@ class module_;
 
 namespace pypeline {
 
+namespace tracerunner {
+class Registry;
+}
+
 class Registry {
 private:
   using PythonModuleInitializer = void (*)(nanobind::module_ &);
   std::vector<PythonModuleInitializer> PythonModuleInitializers;
+
+  using TRRCallback = void (*)(pypeline::tracerunner::Registry &);
+  std::vector<TRRCallback> TRRCallbacks;
 
 public:
   Registry() = default;
@@ -30,8 +37,17 @@ public:
     PythonModuleInitializers.push_back(std::move(PMI));
   }
 
+  void registerTraceRunnerCallback(TRRCallback &&Callback) {
+    TRRCallbacks.push_back(std::move(Callback));
+  }
+
   void callAll(nanobind::module_ &M) {
     for (auto &Element : PythonModuleInitializers)
+      Element(M);
+  }
+
+  void callAll(pypeline::tracerunner::Registry &M) {
+    for (auto &Element : TRRCallbacks)
       Element(M);
   }
 };
