@@ -462,7 +462,7 @@ public:
       std::string Symbol;
 
       while (true) {
-        llvm::raw_string_ostream(Symbol) << '_' << Prefix << '_' << Counter++;
+        llvm::raw_string_ostream(Symbol) << Prefix << '_' << Counter++;
 
         if (not llvm::is_contained(ParameterNames, Symbol))
           break;
