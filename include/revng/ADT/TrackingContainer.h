@@ -399,6 +399,23 @@ public:
     Exact.access();
     return Iter;
   }
+
+  /// This method lets you use the underlying container as if it wasn't wrapped.
+  ///
+  /// \note only use this if you know what you're doing, any other alternative
+  ///       is preferable if available.
+  ///
+  /// \note this marks the entire container as read.
+  ///
+  /// \note non-const version is not provided intentionally, hopefully we never
+  ///       need it.
+  T const &unwrap() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("unwrap", name());
+#endif
+    Exact.access();
+    return Content;
+  }
   /// @}
 
 public:
