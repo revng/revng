@@ -2,7 +2,7 @@
 ; This file is distributed under the MIT License. See LICENSE.md for details.
 ;
 
-; RUN: %revngopt -load tests/unit/libtest_scopegraph.so %s -scope-graph-logger -o /dev/null |& FileCheck %s
+; RUN: %revngopt %s -scope-graph-dumper --scope-graph-output=/dev/stdout -o /dev/null | FileCheck %s
 
 ; function tags metadata needed for all the tests
 declare !revng.tags !0 void @scope_closer(ptr)

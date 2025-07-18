@@ -2,12 +2,22 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <fstream>
+
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
 
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
+#include "revng/Support/CommandLine.h"
 
 using namespace llvm;
+
+static cl::opt<std::string> OutputPath("scope-graph-output",
+                                       cl::desc("Scope Graph serialization "
+                                                "path"),
+                                       cl::init("-"),
+                                       cl::cat(MainCategory),
+                                       cl::Optional);
 
 class ScopeGraphLoggerPassImpl {
   llvm::Function &F;
@@ -17,7 +27,10 @@ public:
 
 public:
   bool run() {
-    dumpScopeGraph(F);
+    std::ofstream Output;
+    std::ostream &OutputStream = pathToStream(OutputPath, Output);
+
+    OutputStream << dumpScopeGraphImpl(F);
 
     return false; // The function was not modified
   }
@@ -39,7 +52,7 @@ public:
 
 char ScopeGraphLoggerPass::ID = 0;
 
-static constexpr const char *Flag = "scope-graph-logger";
+static constexpr const char *Flag = "scope-graph-dumper";
 using Reg = llvm::RegisterPass<ScopeGraphLoggerPass>;
 static Reg X(Flag, "Dump edge information on the `ScopeGraph`");
 
