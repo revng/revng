@@ -276,7 +276,7 @@ public:
   ///
   /// TODO: This method can be made const whenever we drop legacy mode.
   AssignType *createAssignmentBefore(llvm::Value *LocationToAssign,
-                                     llvm::Value *ValueToAssign,
+                                     llvm::Instruction *ValueToAssign,
                                      llvm::Instruction *InsertBefore);
 
   /// Creates an alloca in \a F with type \a T.
