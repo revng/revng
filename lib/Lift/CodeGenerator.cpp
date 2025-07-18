@@ -1026,7 +1026,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
         if (J == IL->instruction_count - 1) {
           BasicBlock *Target = JumpTargets.registerJT(EndPC,
                                                       JTReason::PostHelper);
-          Builder.CreateBr(notNull(Target));
+          Builder.CreateBr(&notNull(Target));
         }
 
       } break;

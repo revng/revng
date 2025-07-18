@@ -281,9 +281,9 @@ std::array<T, Size> slice(const std::array<T, OldSize> &Old) {
 
 /// Simple helper function asserting a pointer is not a `nullptr`
 template<typename T>
-inline T *notNull(T *Pointer) {
+inline T &notNull(T *Pointer) {
   revng_assert(Pointer != nullptr);
-  return Pointer;
+  return *Pointer;
 }
 
 inline llvm::ArrayRef<uint8_t> toArrayRef(llvm::StringRef Data) {
