@@ -121,7 +121,7 @@ def to_bytes(input_: ToBytesInput) -> Generator[bytes, None, None]:
             yield input_
 
 
-def get_example_binary() -> str:
+def get_example_binary_path() -> str:
     runtime_dir = get_root() / "share/revng/test/tests/runtime"
     for entry in runtime_dir.iterdir():
         if not entry.is_file():

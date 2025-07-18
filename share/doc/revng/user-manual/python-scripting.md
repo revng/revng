@@ -20,17 +20,16 @@ You can provide a path to the resume directory (similar to `revng [command] --re
 This useful if you want to persist changes for loading the project again in the future:
 
 ```python
->>> import os
 >>> resume = "path/to/resume/dir"
 >>> project = CLIProject(resume)
 ```
 
-After that, you can to import a binary and run the *initial auto analyses*, we have a method that does just that:
+After that, you can to import a binary and run the [*initial auto analyses*](references/pipeline.md#analysis-lists), we have a method that does just that:
 
 ```python
->>> from revng.support import get_example_binary
->>> binary = get_example_binary()
->>> project.import_and_analyze(binary)
+>>> from revng.support import get_example_binary_path
+>>> binary_path = get_example_binary_path()
+>>> project.import_and_analyze(binary_path)
 ```
 
 ## Producing artifacts
