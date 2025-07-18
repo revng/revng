@@ -17,11 +17,11 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/Identifier.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 using llvm::Twine;
 using CBuilder = ptml::CBuilder;
-using CTypeBuilder = ptml::CTypeBuilder;
+using ModelCBuilder = ptml::ModelCBuilder;
 
 constexpr const char *const StructFieldPrefix = "field_";
 
@@ -63,7 +63,7 @@ bool isScalarCType(const llvm::Type *LLVMType) {
 }
 
 std::string getScalarTypeTag(const llvm::Type *LLVMType,
-                             const CTypeBuilder &B) {
+                             const ModelCBuilder &B) {
   revng_assert(isScalarCType(LLVMType));
   switch (LLVMType->getTypeID()) {
   case llvm::Type::HalfTyID:
@@ -124,26 +124,26 @@ std::string getScalarTypeTag(const llvm::Type *LLVMType,
 }
 
 static std::string getReturnedStructName(llvm::StringRef FunctionName,
-                                         const CTypeBuilder &B) {
+                                         const ModelCBuilder &B) {
   return B.NameBuilder.Configuration.artificialReturnValuePrefix().str()
          + sanitizeIdentifier(FunctionName);
 }
 
 template<bool IsDefinition>
 static std::string getReturnStructTypeTagImpl(llvm::StringRef FunctionName,
-                                              const ptml::CTypeBuilder &B) {
+                                              const ptml::ModelCBuilder &B) {
   return B.getHelperStructTag<IsDefinition>(getReturnedStructName(FunctionName,
                                                                   B));
 }
 
 std::string getReturnStructTypeReferenceTag(llvm::StringRef FunctionName,
-                                            const ptml::CTypeBuilder &B) {
+                                            const ptml::ModelCBuilder &B) {
   return getReturnStructTypeTagImpl<false>(FunctionName, B);
 }
 
 template<bool IsDefinition>
 static std::string
-getReturnTypeTagImpl(const llvm::Function *F, const CTypeBuilder &B) {
+getReturnTypeTagImpl(const llvm::Function *F, const ModelCBuilder &B) {
   auto *RetType = F->getReturnType();
   // Isolated functions' return types must be converted using model types
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
@@ -155,18 +155,18 @@ getReturnTypeTagImpl(const llvm::Function *F, const CTypeBuilder &B) {
 }
 
 std::string getReturnTypeDefinitionTag(const llvm::Function *F,
-                                       const CTypeBuilder &B) {
+                                       const ModelCBuilder &B) {
   return getReturnTypeTagImpl<true>(F, B);
 }
 
 std::string getReturnTypeReferenceTag(const llvm::Function *F,
-                                      const CTypeBuilder &B) {
+                                      const ModelCBuilder &B) {
   return getReturnTypeTagImpl<false>(F, B);
 }
 
 std::string getReturnStructFieldTypeReferenceTag(const llvm::Function *F,
                                                  size_t Index,
-                                                 const CTypeBuilder &B) {
+                                                 const ModelCBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   auto *StructTy = llvm::cast<llvm::StructType>(F->getReturnType());
   return getScalarTypeTag(StructTy->getTypeAtIndex(Index), B);
@@ -175,7 +175,7 @@ std::string getReturnStructFieldTypeReferenceTag(const llvm::Function *F,
 template<bool IsDefinition>
 static std::string getReturnStructFieldTagImpl(llvm::StringRef FunctionName,
                                                size_t Index,
-                                               const CTypeBuilder &B) {
+                                               const ModelCBuilder &B) {
   std::string StructName = getReturnedStructName(FunctionName, B);
   std::string FieldName = (Twine(StructFieldPrefix) + Twine(Index)).str();
   revng_assert(not StructName.empty() and not FieldName.empty());
@@ -184,7 +184,7 @@ static std::string getReturnStructFieldTagImpl(llvm::StringRef FunctionName,
 
 std::string getReturnStructFieldDefinitionTag(const llvm::Function *F,
                                               size_t Index,
-                                              const CTypeBuilder &B) {
+                                              const ModelCBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   revng_assert(F->getReturnType()->isStructTy());
   return getReturnStructFieldTagImpl<true>(F->getName(), Index, B);
@@ -192,31 +192,31 @@ std::string getReturnStructFieldDefinitionTag(const llvm::Function *F,
 
 std::string getReturnStructFieldReferenceTag(llvm::StringRef FunctionName,
                                              size_t Index,
-                                             const CTypeBuilder &B) {
+                                             const ModelCBuilder &B) {
   return getReturnStructFieldTagImpl<false>(FunctionName, Index, B);
 }
 
 std::string getReturnStructFieldReferenceTag(const llvm::Function *F,
                                              size_t Index,
-                                             const CTypeBuilder &B) {
+                                             const ModelCBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   revng_assert(F->getReturnType()->isStructTy());
   return getReturnStructFieldReferenceTag(F->getName(), Index, B);
 }
 
 std::string getHelperFunctionDefinitionTag(const llvm::Function *F,
-                                           const CTypeBuilder &B) {
+                                           const ModelCBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   return B.getHelperFunctionTag<true>(F->getName());
 }
 
 std::string getHelperFunctionReferenceTag(llvm::StringRef FunctionName,
-                                          const CTypeBuilder &B) {
+                                          const ModelCBuilder &B) {
   return B.getHelperFunctionTag<false>(FunctionName);
 }
 
 std::string getHelperFunctionReferenceTag(const llvm::Function *F,
-                                          const CTypeBuilder &B) {
+                                          const ModelCBuilder &B) {
   revng_assert(not FunctionTags::Isolated.isTagOf(F));
   return getHelperFunctionReferenceTag(F->getName(), B);
 }

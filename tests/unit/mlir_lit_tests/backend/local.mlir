@@ -41,22 +41,22 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: enum my_enum _var_0;
+    // CHECK: enum my_enum var_0;
     %e = clift.local !my_enum
 
-    // CHECK: struct my_struct _var_1;
+    // CHECK: struct my_struct var_1;
     %s = clift.local !my_struct
 
-    // CHECK: union my_union _var_2;
+    // CHECK: union my_union var_2;
     %u = clift.local !my_union
 
-    // CHECK: int32_t _var_3 = 42;
+    // CHECK: int32_t var_3 = 42;
     %i = clift.local !int32_t = {
       %42 = clift.imm 42 : !int32_t
       clift.yield %42 : !int32_t
     }
 
-    // CHECK: struct my_pair _var_4 = {
+    // CHECK: struct my_pair var_4 = {
     // CHECK:   1,
     // CHECK:   2
     // CHECK: };
@@ -67,27 +67,27 @@ module attributes {clift.module} {
       clift.yield %r : !my_pair
     }
 
-    // CHECK: _var_0;
+    // CHECK: var_0;
     clift.expr {
         clift.yield %e : !my_enum
     }
 
-    // CHECK: _var_1;
+    // CHECK: var_1;
     clift.expr {
         clift.yield %s : !my_struct
     }
 
-    // CHECK: _var_2;
+    // CHECK: var_2;
     clift.expr {
         clift.yield %u : !my_union
     }
 
-    // CHECK: _var_3;
+    // CHECK: var_3;
     clift.expr {
         clift.yield %i : !int32_t
     }
 
-    // CHECK: _var_4;
+    // CHECK: var_4;
     clift.expr {
         clift.yield %p : !my_pair
     }

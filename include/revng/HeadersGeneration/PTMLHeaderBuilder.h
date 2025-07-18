@@ -4,13 +4,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 namespace ptml {
 
 class HeaderBuilder {
 public:
-  CTypeBuilder &B;
+  ModelCBuilder &B;
 
 public:
   struct ConfigurationOptions {
@@ -25,9 +25,9 @@ public:
   const ConfigurationOptions Configuration;
 
 public:
-  HeaderBuilder(CTypeBuilder &B, ConfigurationOptions &&Configuration) :
+  HeaderBuilder(ModelCBuilder &B, ConfigurationOptions &&Configuration) :
     B(B), Configuration(std::move(Configuration)) {}
-  HeaderBuilder(CTypeBuilder &B) : B(B), Configuration() {}
+  HeaderBuilder(ModelCBuilder &B) : B(B), Configuration() {}
 
 public:
   /// Generate a C header containing a serialization of the type system,

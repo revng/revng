@@ -56,9 +56,14 @@
 #include "PTCInterface.h"
 #include "VariableManager.h"
 
-RegisterIRHelper CPULoopHelper("cpu_loop", "in libtinycode");
-RegisterIRHelper RevngAbortHelper("cpu_loop_exit", "in libtinycode");
-RegisterIRHelper InitializeEnv("initialize_env", "absent after drop-root");
+// This name corresponds to a function in `libtinycode`.
+RegisterIRHelper CPULoopHelper("cpu_loop");
+
+// This name corresponds to a function in `libtinycode`.
+RegisterIRHelper RevngAbortHelper("cpu_loop_exit");
+
+// This name is not present after `drop-root`.
+RegisterIRHelper InitializeEnv("initialize_env");
 
 using namespace llvm;
 
@@ -1026,7 +1031,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
         if (J == IL->instruction_count - 1) {
           BasicBlock *Target = JumpTargets.registerJT(EndPC,
                                                       JTReason::PostHelper);
-          Builder.CreateBr(notNull(Target));
+          Builder.CreateBr(&notNull(Target));
         }
 
       } break;

@@ -166,9 +166,11 @@ ValueDistributor::distribute(uint64_t Size,
                           + " registers";
     if (!DA.Registers.empty()) {
       Message += " (";
+      constexpr llvm::StringRef Separator = ", ";
       for (auto Register : DA.Registers)
-        Message += model::Register::getRegisterName(Register).str() + ", ";
-      Message.resize(Message.size() - 2);
+        Message += model::Register::getRegisterName(Register).str()
+                   + Separator.str();
+      Message.resize(Message.size() - Separator.size());
       Message += ")";
     }
     Message += ", and " + std::to_string(DA.SizeOnStack) + " bytes at offset "

@@ -615,29 +615,12 @@ public:
   }
 
 public:
-  /// @{
+  constexpr auto operator<=>(const MetaAddress &Other) const {
+    return tie() <=> Other.tie();
+  }
   constexpr bool operator==(const MetaAddress &Other) const {
     return tie() == Other.tie();
   }
-
-  constexpr bool operator!=(const MetaAddress &Other) const {
-    return not(*this == Other);
-  }
-
-  constexpr bool operator<(const MetaAddress &Other) const {
-    return tie() < Other.tie();
-  }
-  constexpr bool operator<=(const MetaAddress &Other) const {
-    return tie() <= Other.tie();
-  }
-  constexpr bool operator>(const MetaAddress &Other) const {
-    return tie() > Other.tie();
-  }
-  constexpr bool operator>=(const MetaAddress &Other) const {
-    return tie() >= Other.tie();
-  }
-
-  /// @}
 
   /// \name Address comparisons
   ///
@@ -1056,3 +1039,22 @@ struct llvm::DenseMapInfo<MetaAddress> {
     return LHS == RHS;
   }
 };
+
+/// This returns a human-readable string containing the addresses in
+/// the provided container.
+///
+/// It should only be used for reporting these in error messages, logs and other
+/// debugging-related contexts.
+inline std::string
+addressesToString(RangeOf<MetaAddress> auto const &Addresses) {
+  std::string Result;
+
+  if (not Addresses.empty()) {
+    constexpr llvm::StringRef Separator = " + ";
+    for (const MetaAddress &Address : Addresses)
+      Result += Address.toString() + Separator.str();
+    Result.resize(Result.size() - Separator.size());
+  }
+
+  return Result;
+}

@@ -206,6 +206,7 @@ public:
     onFieldAccess("operator==", name());
 #endif
     Exact.access();
+    Other.Exact.access();
     return Content == Other.Content;
   }
 
@@ -215,6 +216,23 @@ public:
 #endif
     Exact.access();
     return Content == Other;
+  }
+
+  auto operator<=>(const TrackingContainer &Other) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("operator<=>", name());
+#endif
+    Exact.access();
+    Other.Exact.access();
+    return Content <=> Other.Content;
+  }
+
+  auto operator<=>(const T &Other) const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("operator<=>", name());
+#endif
+    Exact.access();
+    return Content <=> Other;
   }
 
   const value_type &at(const key_type &Key) const {
@@ -380,6 +398,23 @@ public:
     auto Iter = Content.upper_bound(Key);
     Exact.access();
     return Iter;
+  }
+
+  /// This method lets you use the underlying container as if it wasn't wrapped.
+  ///
+  /// \note only use this if you know what you're doing, any other alternative
+  ///       is preferable if available.
+  ///
+  /// \note this marks the entire container as read.
+  ///
+  /// \note non-const version is not provided intentionally, hopefully we never
+  ///       need it.
+  T const &unwrap() const {
+#ifdef TUPLE_TREE_GENERATOR_EMIT_TRACKING_DEBUG
+    onFieldAccess("unwrap", name());
+#endif
+    Exact.access();
+    return Content;
   }
   /// @}
 

@@ -12,7 +12,7 @@ from .reference import ReferenceDefinition
 from .sequence import SequenceDefinition
 from .upcastable import UpcastableDefinition
 
-# TODO: should we return the fields in a stable order (in all_fields, all_optional_fields, etc)
+# TODO: we should return the fields in a stable order (in all_fields, all_optional_fields, etc)
 
 
 def is_enum(resolved_type):

@@ -22,9 +22,9 @@ module attributes {clift.module} {
         %0 = clift.imm 0 : !int32_t
         clift.yield %0 : !int32_t
     }
-    // CHECK: goto _label_0;
+    // CHECK: goto label_0;
     clift.goto %exit
-    // CHECK: _label_0: ;
+    // CHECK: label_0: ;
     clift.assign_label %exit
   }
   // CHECK: }

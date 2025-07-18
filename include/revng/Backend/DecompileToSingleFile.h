@@ -9,13 +9,13 @@
 #include "revng/Support/MetaAddress.h"
 
 namespace ptml {
-class CTypeBuilder;
+class ModelCBuilder;
 }
 
 namespace detail {
 using DecompiledStringMap = revng::pipes::DecompileStringMap;
 }
 
-void printSingleCFile(ptml::CTypeBuilder &B,
+void printSingleCFile(ptml::ModelCBuilder &B,
                       const detail::DecompiledStringMap &Functions,
                       const std::set<MetaAddress> &Targets);

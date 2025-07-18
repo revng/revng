@@ -353,7 +353,7 @@ public:
   BlockMap::const_iterator end() const { return JumpTargets.end(); }
 
   void registerJT(llvm::BasicBlock *BB, JTReason::Values Reason) {
-    registerJT(getBasicBlockAddress(notNull(BB)), Reason);
+    registerJT(getBasicBlockAddress(&notNull(BB)), Reason);
   }
 
   // TODO: this is a likely approach is broken, it depends on the order

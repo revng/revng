@@ -17,7 +17,7 @@ BasicBlockID BasicBlockID::fromString(llvm::StringRef Text) {
   SmallVector<StringRef, 2> Parts;
   Text.split(Parts, "-");
 
-  if (not(Parts.size() == 1 or Parts.size() == 2))
+  if (Parts.empty() || Parts.size() > 2)
     return BasicBlockID::invalid();
 
   auto Start = MetaAddress::fromString(Parts[0]);
