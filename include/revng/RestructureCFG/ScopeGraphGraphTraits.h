@@ -391,35 +391,45 @@ struct llvm::DOTGraphTraits<Scope<const llvm::Function *>>
   }
 };
 
-// Debug function used dump a serialized representation of the `ScopeGraph` on a
-// stream
-debug_function inline void dumpScopeGraph(llvm::Function &F) {
-  llvm::dbgs() << "ScopeGraph of function: " << F.getName().str() << "\n";
+/// Function used dump a serialized representation of the `ScopeGraph` in a
+/// string
+inline std::string dumpScopeGraphImpl(llvm::Function &F) {
+  std::string Output;
+  Output = Output + "ScopeGraph of function: " + F.getName().str() + "\n";
   for (llvm::BasicBlock &BB : F) {
-    llvm::dbgs() << "Block " << BB.getName().str() << " successors:\n";
+    Output = Output + "Block " + BB.getName().str() + " successors:\n";
     for (auto *Succ : llvm::children<Scope<llvm::BasicBlock *>>(&BB)) {
-      llvm::dbgs() << " " << Succ->getName().str() << "\n";
+      Output = Output + " " + Succ->getName().str() + "\n";
     }
   }
 
   // Iteration on the whole graph using a `llvm::depth_first` visit
-  llvm::dbgs() << "Depth first order:\n";
+  Output = Output + "Depth first order:\n";
   for (auto *DFSNode : llvm::depth_first(Scope<llvm::Function *>(&F))) {
-    llvm::dbgs() << DFSNode->getName().str() << "\n";
+    Output = Output + DFSNode->getName().str() + "\n";
   }
 
   // Print the dominator tree
   llvm::DomTreeOnView<llvm::BasicBlock, Scope> DominatorTree;
   DominatorTree.recalculate(F);
-  DominatorTree.print(llvm::dbgs());
+  llvm::raw_string_ostream OutputStream(Output);
+  DominatorTree.print(OutputStream);
 
   // Print the postdominator tree
   llvm::PostDomTreeOnView<llvm::BasicBlock, Scope> PostDominatorTree;
   PostDominatorTree.recalculate(F);
-  PostDominatorTree.print(llvm::dbgs());
+  PostDominatorTree.print(OutputStream);
 
   // We also dump the `.dot` serialization of the `ScopeGraph` for debugging
   // purposes
-  llvm::dbgs() << "Serializing the dot file representing the ScopeGraph\n";
+  Output = Output + "Serializing the dot file representing the ScopeGraph\n";
   llvm::WriteGraph<Scope<llvm::Function *>>(&F, "ScopeGraph-" + F.getName());
+
+  return Output;
+}
+
+/// Debug function used to dump a serialized representation of the `ScopeGraph`
+/// on stderr
+debug_function inline void dumpScopeGraph(llvm::Function &F) {
+  dbg << dumpScopeGraphImpl(F);
 }
