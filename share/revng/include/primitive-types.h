@@ -41,7 +41,7 @@ typedef struct {
 #endif
 
 #ifdef __SIZEOF_INT128__
-typedef __uint128_t generic128_t;
+typedef unsigned __int128 generic128_t;
 #endif
 
 static_assert_size(generic8_t, 1);
@@ -73,7 +73,7 @@ typedef uint16_t pointer_or_number16_t;
 typedef uint32_t pointer_or_number32_t;
 typedef uint64_t pointer_or_number64_t;
 #ifdef __SIZEOF_INT128__
-typedef __uint128_t pointer_or_number128_t;
+typedef unsigned __int128 pointer_or_number128_t;
 #endif
 
 static_assert_size(pointer_or_number8_t, 1);
@@ -101,7 +101,7 @@ typedef uint16_t number16_t;
 typedef uint32_t number32_t;
 typedef uint64_t number64_t;
 #ifdef __SIZEOF_INT128__
-typedef __uint128_t number128_t;
+typedef unsigned __int128 number128_t;
 #endif
 
 static_assert_size(number8_t, 1);
@@ -126,8 +126,8 @@ extern number128_t undef_number128_t();
 
 // Smaller sizes are already present in stdint.h
 #ifdef __SIZEOF_INT128__
-typedef __int128_t int128_t;
-typedef __uint128_t uint128_t;
+typedef __int128 int128_t;
+typedef unsigned __int128 uint128_t;
 #endif
 
 static_assert_size(int8_t, 1);
@@ -166,7 +166,8 @@ extern uint128_t undef_uint128_t();
 // Float
 //
 
-#if __ARM_FP16_ARGS == 1 || defined(__FLT16_MIN__)
+#if (__ARM_FP16_ARGS == 1 || defined(__FLT16_MIN__)) \
+  && !defined(DISABLE_FLOAT16)
 typedef _Float16 float16_t;
 #else
 typedef struct {

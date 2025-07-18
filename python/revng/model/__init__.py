@@ -4,6 +4,7 @@
 # flake8: noqa: F405
 # type: ignore
 
+from dataclasses import dataclass
 from io import TextIOBase
 from typing import Optional, Union
 
@@ -12,7 +13,7 @@ import yaml
 from revng.model.metaaddress import MetaAddress, MetaAddressType, init_metaaddress_yaml_classes
 from revng.tupletree import DiffSet as TTDiffSet
 from revng.tupletree import Reference, StructBase, TypesMetadata, _FieldVisitor
-from revng.tupletree import _get_element_by_path, enum_value_to_index, init_reference_yaml_classes
+from revng.tupletree import _get_element_by_path, init_reference_yaml_classes
 
 from . import _generated
 from ._generated import *
@@ -26,23 +27,11 @@ init_reference_yaml_classes(DiffYamlLoader, DiffYamlDumper)
 
 
 class Binary(_generated.Binary):
-    @classmethod
-    def get_reference_str(cls, t):
-        if hasattr(t, "Kind"):
-            typename = t.Kind.value
-        else:
-            typename = type(t).__name__
-        return f"/TypeDefinitions/{t.ID}-{typename}"
-
     @staticmethod
     def deserialize(input_: Union[str, TextIOBase]) -> Binary:
-        return yaml.load(input_, Loader=YamlLoader)
-
-    def serialize(self, output: Optional[TextIOBase] = None):
-        if output is None:
-            return yaml.dump(self, Dumper=YamlDumper)
-        else:
-            return yaml.dump(self, output, Dumper=YamlDumper)
+        obj = yaml.load(input_, Loader=YamlLoader)
+        _fix_references(obj)
+        return obj
 
 
 class DiffSet(TTDiffSet[Binary]):
@@ -67,12 +56,29 @@ class DiffSet(TTDiffSet[Binary]):
             yaml.dump(self, output, Dumper=DiffYamlDumper)
 
 
+@dataclass
+class TypeId:
+    id_: int
+    kind: _generated.TypeDefinitionKind
+
+    def to_string(self):
+        return f"{self.id_}-{self.kind}"
+
+
 def get_element_by_path(path: str, obj: StructBase) -> StructBase:
     return _get_element_by_path(path, obj)
 
 
 def iterate_fields(obj: Binary):
     return _FieldVisitor(_generated.types_metadata, _generated.Binary).visit(obj)
+
+
+def _fix_references(obj: Binary):
+    accessor = lambda x: get_element_by_path(x, obj)
+    for _, field_obj in iterate_fields(obj):
+        if not isinstance(field_obj, Reference) or not field_obj.is_valid():
+            continue
+        field_obj._accessor = accessor
 
 
 # Since we subclassed them we need to re-register their constructors and representers
