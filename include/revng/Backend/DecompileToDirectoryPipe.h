@@ -17,7 +17,9 @@
 
 namespace revng::pipes {
 
-inline constexpr char RecompilableArchiveMime[] = "application/x-tar";
+inline constexpr char RecompilableArchiveMime[] = "application/"
+                                                  "x.recompilable-archive"
+                                                  "+tar+gz";
 inline constexpr char RecompilableArchiveName[] = "recompilable-archive";
 inline constexpr char RecompilableArchiveExtension[] = ".tar.gz";
 using RecompilableArchiveContainer = FileContainer<

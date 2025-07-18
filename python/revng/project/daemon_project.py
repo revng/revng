@@ -49,7 +49,7 @@ class DaemonProject(Project):
         if not result["uploadFile"]:
             raise RuntimeError("File upload failed")
 
-    def _get_artifact(self, artifact_name: str, targets: Set[str]) -> Dict[str, bytes]:
+    def _get_artifact_impl(self, artifact_name: str, targets: Set[str]) -> Dict[str, bytes]:
         query = gql(
             """
             query($step: String!, $paths: String!, $index: BigInt!) {
@@ -83,7 +83,7 @@ class DaemonProject(Project):
             return container_mime.removesuffix("+tar+gz")
         raise ValueError
 
-    def analyze(
+    def _analyze(
         self, analysis_name: str, targets: Dict[str, List[str]] = {}, options: Dict[str, str] = {}
     ):
         step = self._get_step_name(analysis_name)
@@ -114,7 +114,7 @@ class DaemonProject(Project):
         assert response["runAnalysis"]["__typename"] == "Diff"
         self._set_model(self._get_model())
 
-    def analyses_list(self, analysis_name: str):
+    def _analyses_list(self, analysis_name: str):
         query = gql(
             """
             mutation($analysis: String!, $index: BigInt!) {
@@ -130,8 +130,8 @@ class DaemonProject(Project):
         assert response["runAnalysesList"]["__typename"] == "Diff"
         self._set_model(self._get_model())
 
-    def commit(self):
-        diff = DiffSet.make(self.last_saved_model, self.model)
+    def _commit(self):
+        diff = DiffSet.make(self._last_saved_model, self.model)
         if len(diff.Changes) == 0:
             return
 
@@ -159,7 +159,7 @@ class DaemonProject(Project):
 
         response = self.client.execute(query, variable_values=variables)
         assert response["runAnalysis"]["__typename"] == "Diff"
-        self.last_saved_model = self._get_model()
+        self._last_saved_model = self._get_model()
 
     def _get_pipeline_description(self) -> PipelineDescription:
         response = self.client.execute(gql("{ pipelineDescription }"))

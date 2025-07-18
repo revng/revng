@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -13,11 +14,13 @@ from contextlib import suppress
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import IO, Callable, Dict, Generator, Generic, Optional, Tuple, Type, TypeVar, Union
 from typing import cast
 
+import pycparser
 import yaml
+import zstandard as zstd
 
 from revng.ptml.parser import PTMLDocument
 from revng.ptml.parser import parse as ptml_parse
@@ -55,7 +58,8 @@ class Artifact:
         self._mime = mime
 
     # Common methods
-    def dump(self) -> bytes:
+    @property
+    def raw_data(self) -> bytes:
         return self._data
 
     def write_to_disk(self, path: Union[str, Path]):
@@ -151,7 +155,7 @@ class _MappedPTMLMixin:
                 continue
 
             key_writer(key)
-            ptml_print_with_printer(value.dump(), printer)
+            ptml_print_with_printer(value.raw_data, printer)
             output.write("\n")
 
 
@@ -187,10 +191,14 @@ class LLVMArtifact(Artifact):
     MIMES = ("application/x.llvm.bc+zstd",)
 
     def module(self, name: str = "module"):
+        if self._data[:4] != zstd.FRAME_HEADER:
+            data = self._data
+        else:
+            with zstd.ZstdDecompressor().stream_reader(BytesIO(self._data)) as stream:
+                data = stream.read()
+
         llvmcpy = get_llvmcpy()
-        buffer = llvmcpy.create_memory_buffer_with_memory_range_copy(
-            self._data, len(self._data), name
-        )
+        buffer = llvmcpy.create_memory_buffer_with_memory_range_copy(data, len(data), name)
         context = llvmcpy.get_global_context()
         return context.parse_ir(buffer)
 
@@ -203,6 +211,26 @@ class ImageArtifact(Artifact):
             f.write(self._data)
             f.flush()
             subprocess.run(["xdg-open", f.name])
+
+
+class RecompilableArchiveArtifact(Artifact):
+    MIMES = ("application/x.recompilable-archive+tar+gz",)
+
+    def parse(self) -> pycparser.c_ast.FileAST:
+        with TemporaryDirectory() as temp_dir:
+            with tarfile.open(fileobj=BytesIO(self._data), mode="r:*") as tar:
+                tar.extractall(path=temp_dir)
+
+            c_file = Path(temp_dir) / "decompiled/functions.c"
+            args_common = ["-DDISABLE_ATTRIBUTES", "-DDISABLE_FLOAT16"]
+            for executable in ("cpp", "clang-cpp", "gcc", "clang"):
+                if shutil.which(executable) is not None:
+                    args = args_common if "cpp" in executable else ["-E", *args_common]
+                    processed_text = pycparser.preprocess_file(c_file, executable, args)
+                    break
+            else:
+                raise ValueError("No suitable C preprocessor found")
+            return pycparser.CParser().parse(processed_text, str(c_file))
 
 
 def ptml_artifact_autodetect(

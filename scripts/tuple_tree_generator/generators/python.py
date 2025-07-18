@@ -73,7 +73,14 @@ class PythonGenerator:
         )
 
     @classmethod
-    def python_type(cls, field: StructField):
+    def python_type(cls, field: StructField | str):
+        if isinstance(field, str):
+            if field == "string":
+                return "str"
+            if int_re.match(field):
+                return "int"
+            else:
+                return field
         resolved_type = field.resolved_type
         assert resolved_type
         return cls._python_type(resolved_type)

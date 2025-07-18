@@ -238,7 +238,6 @@ python_module(TARGET_NAME revng-python-cli WHEEL revng_internal MODULE_FILES
 #
 set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/translate.py
-    revng/internal/cli/_commands/idb_converter.py
     revng/internal/cli/_commands/opt.py
     revng/internal/cli/_commands/pipeline_tools.py
     revng/internal/cli/_commands/override_by_name.py
@@ -247,7 +246,6 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/llm_rename/prompt.tpl
     revng/internal/cli/_commands/hard_purge.py
     revng/internal/cli/_commands/process_docs_yaml/__init__.py
-    revng/internal/cli/_commands/import_idb.py
     revng/internal/cli/_commands/tar_to_yaml.py
     revng/internal/cli/_commands/test_docs/__init__.py
     revng/internal/cli/_commands/test_docs/doctest_runner.py
@@ -257,6 +255,13 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/ptml.py)
 python_module(TARGET_NAME revng-python-cli-commands WHEEL revng_internal
               MODULE_FILES ${REVNG_CLI_COMMANDS_MODULE_FILES})
+
+set(REVNG_CLI_COMMANDS_IMPORT_IDB_MODULE_FILES
+    revng/internal/cli/_commands/import_idb/__init__.py
+    revng/internal/cli/_commands/import_idb/idb_converter.py)
+python_module(
+  TARGET_NAME revng-python-cli-commands-import-idb WHEEL revng_internal
+  MODULE_FILES ${REVNG_CLI_COMMANDS_IMPORT_IDB_MODULE_FILES})
 
 set(REVNG_CLI_COMMANDS_GENERATE_MIGRATION_MODULE_FILES
     revng/internal/cli/_commands/generate_migrations/__init__.py

@@ -48,12 +48,13 @@ def main():
     #
 
     functions = binary.Functions
-    function_prototypes_left = [str(f.Prototype.Definition) for f in functions if f.Prototype]
+    function_prototypes_left = [f.Prototype.Definition.id for f in functions if f.Prototype]
     for current_type in binary.TypeDefinitions:
-        if current_type.Kind == model.TypeDefinitionKind.CABIFunctionDefinition:
-            reference = binary.get_reference_str(current_type)
-            if reference in function_prototypes_left:
-                current_type.ABI = args.new_abi
+        if (
+            current_type.Kind == model.TypeDefinitionKind.CABIFunctionDefinition
+            and current_type.key() in function_prototypes_left
+        ):
+            current_type.ABI = args.new_abi
 
     with open(args.output_model_path, "w") as f:
         f.write(yaml.dump(binary, Dumper=model.YamlDumper))

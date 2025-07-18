@@ -76,7 +76,7 @@ def run_test(project_getter: Callable[[], Project], binary: str):
 
     # Check that when we get the artifact of all the function we get
     # the result for all the functions
-    result2 = project.get_artifact("disassemble")
+    result2 = project.model.get_artifact("disassemble")
     assert isinstance(result2, Mapping)
     assert set(result2.keys()) == set(map(str, all_functions_entry))
     for value in result2.values():
@@ -87,7 +87,7 @@ def run_test(project_getter: Callable[[], Project], binary: str):
     # parsed result contains the new name
     function_new_name1 = "lol"
     project.model.Functions[function_idx].Name = function_new_name1
-    project.commit()
+    project.model.commit()
     result3 = project.model.Functions[function_idx].get_artifact("disassemble")
     assert isinstance(result3, PTMLArtifact)
     parsed3 = result3.parse()
@@ -97,12 +97,12 @@ def run_test(project_getter: Callable[[], Project], binary: str):
     # Change function name again and commit
     function_new_name2 = "wow"
     project.model.Functions[function_idx].Name = function_new_name2
-    project.commit()
+    project.model.commit()
 
     # Test revert
     function_new_name3 = "heh"
     project.model.Functions[function_idx].Name = function_new_name3
-    project.revert()
+    project.model.revert()
     assert project.model.Functions[function_idx].Name == function_new_name2
 
     # Stop daemon if `DaemonProject` otherwise the daemon will
@@ -123,7 +123,7 @@ def run_test(project_getter: Callable[[], Project], binary: str):
     address = MetaAddress(int(function[0], 16), MetaAddressType[function[1]])
 
     # Get multiple artifacts
-    result = project.get_artifacts(
+    result = project.model.get_artifacts(
         {
             "disassemble": [project.model.Functions[address], project.model.Functions[1]],
             "decompile": None,
@@ -154,12 +154,12 @@ def run_test(project_getter: Callable[[], Project], binary: str):
 
     if isinstance(project, CLIProject):
         # TODO: drop this if when CLI supports passing targets for analyses
-        project.analyze(analysis_name, {})
+        project.model.analyze(analysis_name, {})
     else:
-        project.analyze(analysis_name, targets)
+        project.model.analyze(analysis_name, targets)
 
     # Run an analysis without targets
-    project.analyze(analysis_name)
+    project.model.analyze(analysis_name)
 
 
 if __name__ == "__main__":

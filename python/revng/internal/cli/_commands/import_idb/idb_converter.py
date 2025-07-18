@@ -86,7 +86,7 @@ class IDBConverter:
         self.arch: m.Architecture = self._get_arch()
         self.is64bit: bool = self._is_64_bit()
         self.segments: List[m.Segment] = []
-        self.revng_types_by_id: Dict[int, RevngTypeDefinitions] = {}
+        self.revng_types_by_id: Dict[str, RevngTypeDefinitions] = {}
         self.idb_types_to_revng_types: Dict[int, m.Type] = {}
         self.functions: Set[m.Function] = set()
         self.dynamic_functions: List[m.DynamicFunction] = []
@@ -193,7 +193,7 @@ class IDBConverter:
                 ABI=revng_arch_to_abiname[self.arch],
                 Arguments=[],
             )
-            self.revng_types_by_id[prototype_definition.ID] = prototype_definition
+            self.revng_types_by_id[prototype_definition.key()] = prototype_definition
             prototype = self._type_for_definition(prototype_definition)
         dynamic_function = m.DynamicFunction(
             Name=function_name,
@@ -407,7 +407,7 @@ class IDBConverter:
                 if type.type_details.ref.type_details.ordinal not in self.idb_types_to_revng_types:
                     # This is just a forward declaration. Make a placeholder for now.
                     resulting_definition = m.StructDefinition(Name="", Size=0, Fields=[])
-                    self.revng_types_by_id[resulting_definition.ID] = resulting_definition
+                    self.revng_types_by_id[resulting_definition.key()] = resulting_definition
 
                     wrapped = self._type_for_definition(resulting_definition, type.is_decl_const())
 
@@ -428,7 +428,7 @@ class IDBConverter:
                             PrimitiveKind=m.PrimitiveKind.Void, Size=0, IsConst=False
                         ),
                     )
-                    self.revng_types_by_id[typedef.ID] = typedef
+                    self.revng_types_by_id[typedef.key()] = typedef
                     return self._type_for_definition(typedef, type.is_decl_const())
                 else:
                     # Struct members and size will be computed later.
@@ -440,7 +440,7 @@ class IDBConverter:
                 if type.type_details.ref.type_details.ordinal not in self.idb_types_to_revng_types:
                     # This is just a forward declaration. Make a placeholder for now.
                     resulting_definition = m.UnionDefinition(Name="", Fields=[])
-                    self.revng_types_by_id[resulting_definition.ID] = resulting_definition
+                    self.revng_types_by_id[resulting_definition.key()] = resulting_definition
 
                     wrapped = self._type_for_definition(resulting_definition, type.is_decl_const())
                     self._ordinal_types_to_fixup.add(
@@ -460,7 +460,7 @@ class IDBConverter:
                             PrimitiveKind=m.PrimitiveKind.Void, Size=0, IsConst=False
                         ),
                     )
-                    self.revng_types_by_id[typedef.ID] = typedef
+                    self.revng_types_by_id[typedef.key()] = typedef
                     return self._type_for_definition(typedef, type.is_decl_const())
                 else:
                     # Union members will be computed later.
@@ -605,13 +605,15 @@ class IDBConverter:
         if ordinal is not None:
             self.idb_types_to_revng_types[ordinal] = result
 
-        if not self.revng_types_by_id.get(resulting_definition.ID):
-            self.revng_types_by_id[resulting_definition.ID] = resulting_definition
+        if resulting_definition.key() not in self.revng_types_by_id:
+            self.revng_types_by_id[resulting_definition.key()] = resulting_definition
 
         return result
 
     def _type_for_definition(self, definition: m.TypeDefinition, is_const: bool = False) -> m.Type:
-        return m.DefinedType(Definition=m.Reference.create(m.Binary, definition), IsConst=is_const)
+        return m.DefinedType(
+            Definition=m.Reference("/TypeDefinitions/" + definition.key()), IsConst=is_const
+        )
 
     def get_model(self) -> m.Binary:
         return m.Binary(
