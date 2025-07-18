@@ -28,15 +28,15 @@ namespace pipeline {
 struct ContainerDeclaration {
   std::string Name;
   std::string Type;
-  std::string Role = "";
+  std::string Role = {};
 };
 
 struct AnalysisDeclaration {
   std::string Type;
   std::vector<std::string> UsedContainers;
-  std::string Name = "";
-  std::string Step = "";
-  std::string Docs = "";
+  std::string Name;
+  std::string Step;
+  std::string Docs;
 };
 
 struct PipeInvocation {
