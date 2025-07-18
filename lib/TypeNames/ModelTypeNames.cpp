@@ -123,7 +123,7 @@ private:
 
   RecursiveCoroutine<std::string> impl(const model::DefinedType &Def,
                                        std::string &&Emitted) {
-    std::string Result = "";
+    std::string Result;
     if (not OmitInnerTypeName) {
       if (Def.IsConst())
         Result += constKeyword() + " ";
@@ -138,7 +138,7 @@ private:
 
   RecursiveCoroutine<std::string> impl(const model::PrimitiveType &Primitive,
                                        std::string &&Emitted) {
-    std::string Result = "";
+    std::string Result;
     if (not OmitInnerTypeName) {
       if (Primitive.IsConst())
         Result += constKeyword() + " ";
@@ -168,7 +168,7 @@ std::string PCTB::getNamedCInstance(const model::Type &Type,
 std::string
 PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
                                    llvm::StringRef InstanceName) const {
-  std::string Suffix = "";
+  std::string Suffix;
   if (not InstanceName.empty())
     Suffix.append(" " + InstanceName.str());
 

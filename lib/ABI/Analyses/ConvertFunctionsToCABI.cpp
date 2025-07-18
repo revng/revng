@@ -261,7 +261,7 @@ public:
                 "Converting a function: "
                   << toString(Model->getDefinitionReference(Key)));
 
-      std::string Names = "";
+      std::string Names;
       constexpr llvm::StringRef Separator = ", ";
       for (model::Function &Function : Model->Functions())
         if (Function.prototype() && Function.prototype()->key() == Key)

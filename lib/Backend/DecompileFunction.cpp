@@ -534,7 +534,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
     // Check if initializer is a CString
     auto *Initializer = Global->getInitializer();
 
-    StringRef Content = "";
+    StringRef Content;
     if (auto StringInit = dyn_cast<ConstantDataArray>(Initializer)) {
 
       // If it's not a C string, bail out

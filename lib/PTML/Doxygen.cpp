@@ -593,13 +593,13 @@ std::string ptml::statementComment(const ::ptml::MarkupBuilder &B,
                                    llvm::StringRef CommentIndicator,
                                    size_t Indentation,
                                    size_t WrapAt) {
-  std::string Result = "";
+  std::string Result;
 
   revng_assert(not Comment.Location().empty());
 
   constexpr llvm::StringRef Separator = " + ";
 
-  std::string ExpectedLocation = "";
+  std::string ExpectedLocation;
   for (const MetaAddress &Address : Comment.Location())
     ExpectedLocation += Address.toString() + Separator.str();
   ExpectedLocation.resize(ExpectedLocation.size() - Separator.size());
