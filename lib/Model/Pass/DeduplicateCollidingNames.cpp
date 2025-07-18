@@ -22,7 +22,7 @@ static RegisterModelPass R("deduplicate-colliding-names",
 static Logger Log("name-deduplication");
 
 struct GlobalEntry {
-  llvm::StringRef FirstModelPath = "";
+  llvm::StringRef FirstModelPath;
   uint64_t NextIndex = 0;
 };
 

@@ -311,7 +311,7 @@ static std::string instruction(const ptml::MarkupBuilder &B,
                                bool AddTargets = false) {
   revng_assert(Instruction.verify(true));
 
-  std::string Result = "";
+  std::string Result;
 
   const model::Architecture::Values A = Binary.Architecture();
   auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);

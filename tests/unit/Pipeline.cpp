@@ -1085,7 +1085,7 @@ class EnumerableContainerExample
 public:
   static char ID;
 
-  static inline const llvm::StringRef MIMEType = "";
+  static inline const llvm::StringRef MIMEType;
   EnumerableContainerExample(Context &Context, llvm::StringRef Name) :
     EnumerableContainer<EnumerableContainerExample>(Context, Name) {}
 

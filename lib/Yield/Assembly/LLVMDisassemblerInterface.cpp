@@ -48,7 +48,7 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType,
   auto *LLVMTarget = Registry::lookupTarget(Architecture.str(), ErrorMessage);
   revng_assert(LLVMTarget != nullptr, "Requested target is not available");
 
-  llvm::StringRef CPUDefinition = "";
+  llvm::StringRef CPUDefinition;
   llvm::StringRef CPUFeatures = MetaAddressType::getLLVMCPUFeatures(AddrType);
   SubtargetInformation.reset(LLVMTarget->createMCSubtargetInfo(Architecture,
                                                                CPUDefinition,
