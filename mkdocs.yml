@@ -27,6 +27,7 @@ nav:
       - Tutorial:
           - "A model from scratch": "user-manual/tutorial/model-from-scratch.md"
           - "Running analyses": "user-manual/tutorial/running-analyses.md"
+      - "Python scripting": "user-manual/python-scripting.md"
   - "References":
       - "Model": references/model.md
       - Artifacts: references/artifacts.md
