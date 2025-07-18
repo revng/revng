@@ -190,7 +190,15 @@ PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
       ReturnType = Layout.ReturnValues[0].Type.get();
     }
 
-    return getReturnValueTag(getNamedCInstance(*ReturnType), Function) + Suffix;
+    // This is a workaround to avoid having to figure out whether we need
+    // an extra space here, or not.
+    auto R = getNamedCInstance(*ReturnType, "x");
+    revng_assert(not R.empty());
+    revng_assert(R.back() == 'x',
+                 "How did this happen? Does this function return an array?");
+    R.pop_back();
+
+    return getReturnValueTag(std::move(R), Function) + InstanceName.str();
   }
 
   case abi::FunctionType::ReturnMethod::RegisterSet: {
