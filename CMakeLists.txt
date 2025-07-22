@@ -235,6 +235,7 @@ foreach(
       "${LIBTCG_HELPERS_ANNOTATED}")
   add_custom_target("annotated-libtcg-helpers-${ARCH}" ALL
                     DEPENDS "${LIBTCG_HELPERS_ANNOTATED}")
+  list(APPEND HELPER_MODULE_LIST "${LIBTCG_HELPERS_ANNOTATED}")
 endforeach()
 
 # Produce well-known-models

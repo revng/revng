@@ -3,8 +3,8 @@
 //
 
 #include "revng/Support/FunctionTags.h"
-#include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/ProgramCounterHandler.h"
 
 namespace FunctionTags {
 

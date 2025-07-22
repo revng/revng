@@ -66,7 +66,8 @@
 // WIP
 RegisterIRHelper CPULoopHelper("cpu_loop", "in libtinycode");
 RegisterIRHelper RevngAbortHelper("cpu_loop_exit", "in libtinycode");
-RegisterIRHelper InitializeEnv("initialize_env", "absent after drop-root");
+RegisterIRHelper InitializeEnv("helper_initialize_env",
+                               "absent after drop-root");
 
 using namespace llvm;
 
@@ -235,40 +236,6 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
       }
     }
   }
-}
-
-static BasicBlock *replaceFunction(Function *ToReplace) {
-  MetadataBackup SavedMetadata(ToReplace);
-
-  ToReplace->setLinkage(GlobalValue::InternalLinkage);
-  ToReplace->dropAllReferences();
-
-  SavedMetadata.restoreIn(ToReplace);
-
-  return BasicBlock::Create(ToReplace->getParent()->getContext(),
-                            "",
-                            ToReplace);
-}
-
-static void replaceFunctionWithRet(Function *ToReplace, uint64_t Result) {
-  if (ToReplace == nullptr)
-    return;
-
-  BasicBlock *Body = replaceFunction(ToReplace);
-  Value *ResultValue = nullptr;
-
-  if (ToReplace->getReturnType()->isVoidTy()) {
-    revng_assert(Result == 0);
-    ResultValue = nullptr;
-  } else if (ToReplace->getReturnType()->isIntegerTy()) {
-    auto *ReturnType = cast<IntegerType>(ToReplace->getReturnType());
-    ResultValue = ConstantInt::get(ReturnType, Result, false);
-  } else {
-    revng_unreachable("No-op functions can only return void or an integer "
-                      "type");
-  }
-
-  ReturnInst::Create(ToReplace->getParent()->getContext(), ResultValue, Body);
 }
 
 void CodeGenerator::translate(const LibTcgInterface &LibTcg,
@@ -752,10 +719,10 @@ void CodeGenerator::translate(const LibTcgInterface &LibTcg,
   // Add a call to the function to initialize the CPUState, if present.
   // This is important on x86 architecture.
   // We only add the call after the Linker has imported the
-  // initialize_env function from the helpers, because the declaration
+  // helper_initialize_env function from the helpers, because the declaration
   // imported before with importHelperFunctionDeclaration() only has
   // stub types and injecting the CallInst earlier would break
-  if (Function *InitEnv = getIRHelper("initialize_env", *TheModule)) {
+  if (Function *InitEnv = getIRHelper("helper_initialize_env", *TheModule)) {
     revng_assert(not InitEnv->getFunctionType()->isVarArg());
     revng_assert(InitEnv->getFunctionType()->getNumParams() == 1);
     auto *CPUStateType = InitEnv->getFunctionType()->getParamType(0);

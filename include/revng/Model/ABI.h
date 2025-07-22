@@ -6,7 +6,6 @@
 
 #include "revng/Model/Architecture.h"
 
-
 #include "revng/Model/Generated/Early/ABI.h"
 
 namespace model::ABI {

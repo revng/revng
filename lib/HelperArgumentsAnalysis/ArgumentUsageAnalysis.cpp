@@ -91,7 +91,7 @@ void ArgumentUsageAnalysis::analyzeFunction(llvm::Function &F) {
 
 void ArgumentUsageAnalysis::taintAnalysis(Function &FunctionResults,
                                           const llvm::Function &F) {
-  revng_log(Log, "Running taint analysys");
+  revng_log(Log, "Running taint analysis");
   LoggerIndent<> Indent(Log);
 
   revng_assert(not isVarArg(F));

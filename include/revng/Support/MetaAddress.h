@@ -190,7 +190,6 @@ inline constexpr Values genericFromArch(llvm::Triple::ArchType Arch) {
   case llvm::Triple::arm:
   case llvm::Triple::mips:
   case llvm::Triple::mipsel:
-  case llvm::Triple::hexagon:
     return Generic32;
   case llvm::Triple::x86_64:
   case llvm::Triple::aarch64:
@@ -222,8 +221,6 @@ inline constexpr Values toGeneric(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return Generic64;
-  default:
-    revng_abort();
 
   case Count:
   default:
@@ -273,8 +270,6 @@ inline constexpr unsigned alignment(Values Type) {
   case Code_arm:
   case Code_aarch64:
     return 4;
-  default:
-    revng_abort();
 
   case Count:
   default:
@@ -299,8 +294,6 @@ inline constexpr unsigned bitSize(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return 64;
-  default:
-    revng_abort();
 
   case Count:
   default:
@@ -333,8 +326,6 @@ inline constexpr bool isCode(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return true;
-  default:
-    revng_abort();
 
   case Count:
   default:
@@ -381,8 +372,6 @@ inline constexpr bool isGeneric(Values Type) {
   case Generic32:
   case Generic64:
     return true;
-  default:
-    revng_abort();
 
   case Count:
   default:
@@ -406,9 +395,6 @@ inline constexpr bool isDefaultCode(Values Type) {
   case Generic64:
   case Code_arm_thumb:
     return false;
-  default:
-    revng_abort();
-
   case Count:
   default:
     revng_abort("Unknown MetaAddressType value");
@@ -430,8 +416,6 @@ inline constexpr llvm::StringRef getLLVMCPUFeatures(Values Type) {
   case Code_systemz:
   case Code_aarch64:
     return "";
-  default:
-    revng_abort();
 
   case Count:
   default:
@@ -826,9 +810,6 @@ public:
 
     case MetaAddressType::Generic32:
     case MetaAddressType::Generic64:
-    case MetaAddressType::Count:
-      revng_abort();
-
     case MetaAddressType::Count:
     default:
       revng_abort("Unknown MetaAddressType value");

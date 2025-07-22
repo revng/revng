@@ -55,6 +55,8 @@ static void setMetadata(VariableManager &Variables,
         break;
       }
 
+      revng_assert(CSV->getParent() == F.getParent());
+
       auto CSVSize = CSV->getValueType()->getIntegerBitWidth() / 8;
       CSVList.push_back(QMD.get(CSV));
 

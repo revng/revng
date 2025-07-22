@@ -883,7 +883,6 @@ static unsigned getMinimumPCAlignment(Triple::ArchType Architecture) {
   case Triple::mips:
   case Triple::mipsel:
   case Triple::aarch64:
-  case Triple::hexagon:
     return 4;
   default:
     revng_abort();
@@ -906,7 +905,6 @@ PCH::create(Triple::ArchType Architecture,
   case Triple::aarch64:
   case Triple::systemz:
   case Triple::x86:
-  case Triple::hexagon:
     return PCOnlyProgramCounterHandler::create(M, Factory, Alignment);
 
   default:
@@ -930,7 +928,6 @@ PCH::fromModule(Triple::ArchType Architecture, Module *M) {
   case Triple::aarch64:
   case Triple::systemz:
   case Triple::x86:
-  case Triple::hexagon:
     return PCOnlyProgramCounterHandler::fromModule(M, Alignment);
 
   default:
