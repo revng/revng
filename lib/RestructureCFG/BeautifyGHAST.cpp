@@ -1040,6 +1040,14 @@ bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
 
   Dumper.log("before-beautify");
 
+  // Consistency check of loops. This is used to early catch `WhileTrue`
+  // `SCSNode`s with an empty body.
+  // The following call may return `false` as a signal of failure, and in that
+  // case we propagate the error upwards.
+  if (not(checkLoops(CombedAST, RootNode))) {
+    return false;
+  }
+
   // Simplify short-circuit nodes.
   revng_log(BeautifyLogger, "Performing short-circuit simplification\n");
 
@@ -1170,9 +1178,10 @@ bool beautifyAST(const model::Binary &Model, Function &F, ASTTree &CombedAST) {
   SwitchBreaksFixer().run(RootNode, CombedAST);
   Dumper.log("after-fix-switch-breaks");
 
-  // Consistency check of loops.
-  // The following call may return `false` as a signal of failure, and in
-  // that case we propagate the error upwards.
+  // Consistency check of loops. This is used to catch loops left in a non legal
+  // state by the beautify steps.
+  // The following call may return `false` as a signal of failure, and in that
+  // case we propagate the error upwards.
   if (not(checkLoops(CombedAST, RootNode))) {
     return false;
   }
