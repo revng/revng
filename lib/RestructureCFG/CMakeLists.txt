@@ -28,6 +28,7 @@ revng_add_analyses_library_internal(
   RemoveDeadCode.cpp
   RestructureCFG.cpp
   ScopeGraphAlgorithms.cpp
+  ScopeGraphLoggerPass.cpp
   SelectScopePass.cpp
   SimplifyCompareNode.cpp
   SimplifyDualSwitch.cpp

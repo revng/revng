@@ -14,5 +14,3 @@ extern llvm::cl::OptionCategory MainCategory;
 /// every invocations. Users of this variable need to account for it being
 /// possibly empty.
 extern std::string InputPath;
-
-std::ostream &pathToStream(const std::string &Path, std::ofstream &File);

@@ -17,6 +17,7 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
+#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/RestructureCFG/ASTTree.h"
@@ -1492,16 +1493,22 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
     float Increase = float(FinalWeight) / float(InitialWeight);
 
-    std::ofstream Output;
+    ExitOnError ExitOnError;
+    std::error_code EC;
+
     const char *FunctionName = F.getName().data();
-    std::ostream &OutputStream = pathToStream(MetricsOutputPath + "/"
-                                                + FunctionName,
-                                              Output);
-    OutputStream << "function,"
-                    "duplications,percentage,tuntangle,puntangle,iweight\n";
-    OutputStream << F.getName().data() << "," << DuplicationCounter << ","
-                 << Increase << "," << UntangleTentativeCounter << ","
-                 << UntanglePerformedCounter << "," << InitialWeight << "\n";
+    llvm::ToolOutputFile OutputFile(MetricsOutputPath + "/" + FunctionName,
+                                    EC,
+                                    llvm::sys::fs::OF_Text);
+    revng_assert(!EC, EC.message().c_str());
+
+    OutputFile.os() << "function,"
+                       "duplications,percentage,tuntangle,puntangle,iweight\n";
+    OutputFile.os() << F.getName().data() << "," << DuplicationCounter << ","
+                    << Increase << "," << UntangleTentativeCounter << ","
+                    << UntanglePerformedCounter << "," << InitialWeight << "\n";
+
+    OutputFile.keep();
   }
 
   // We return true to notify that not restructuring error arose
