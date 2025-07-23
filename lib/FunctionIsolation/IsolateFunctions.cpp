@@ -6,8 +6,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#pragma clang optimize off
-
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
@@ -632,12 +630,13 @@ void IsolateFunctionsImpl::handleUnexpectedPCCloned(efa::OutlinedFunction
 void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
                                             const efa::ControlFlowGraph &FM) {
 
-  // WIP
+#if 0
   if (Outlined.Address == MetaAddress::fromString("0x2214c:Code_arm")) {
     dbg << "IsolateFunctionsImpl::handleAnyPCJumps\n";
     Outlined.Function->dump();
     FM.dump();
   }
+#endif
 
   if (BasicBlock *AnyPC = Outlined.AnyPCCloned) {
     for (BasicBlock *AnyPCPredecessor : toVector(predecessors(AnyPC))) {
@@ -660,10 +659,12 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
         if (Edge->Type() == efa::FunctionEdgeType::DirectBranch)
           continue;
 
-        revng_assert(not AtLeastAMatch);
-        AtLeastAMatch = true;
-
         switch (Edge->Type()) {
+        case efa::FunctionEdgeType::Unexpected:
+          // emitAbort(Builder, "A unexpected jump was taken", DebugLoc());
+
+          // Ignore
+          continue;
         case efa::FunctionEdgeType::Return:
           Builder.CreateRetVoid();
           break;
@@ -695,6 +696,9 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
           revng_abort();
           break;
         }
+
+        revng_assert(not AtLeastAMatch);
+        AtLeastAMatch = true;
       }
 
       if (not AtLeastAMatch) {

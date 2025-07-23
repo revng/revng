@@ -25,6 +25,7 @@ inline bool isCall(Values V) {
   case BrokenReturn:
   case LongJmp:
   case Killer:
+  case Unexpected:
   case Unreachable:
     return false;
   }

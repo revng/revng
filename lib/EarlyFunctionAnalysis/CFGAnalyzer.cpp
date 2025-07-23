@@ -265,11 +265,12 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
   revng_log(Log, "collectDirectCFG(" << OF->Function->getName().str() << ")");
   LoggerIndent<> Indent(Log);
 
-  // WIP
+#if 0
   if (OF->Address == MetaAddress::fromString("0x2214c:Code_arm")) {
     dbg << "CFGAnalyzer::collectDirectCFG\n";
     OF->Function->dump();
   }
+#endif
 
   SortedVector<efa::BasicBlock> CFG;
 
@@ -369,9 +370,9 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
           // successor of the current basic block.
           revng_log(Log,
                     "No other successors other than UnexpectedPC, emitting "
-                    "LongJmp");
+                    "Unexpected");
           auto Edge = makeEdge(BasicBlockID::invalid(),
-                               efa::FunctionEdgeType::LongJmp);
+                               efa::FunctionEdgeType::Unexpected);
           Block.Successors().insert(Edge);
         }
       }
@@ -745,11 +746,12 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   using namespace model::Architecture;
   int64_t CallPushSize = getCallPushSize(Binary->Architecture());
 
-  // WIP
+#if 0
   if (OutlinedFunction->Address == MetaAddress::fromString("0x2214c:Code_arm")) {
     dbg << "CFGAnalyzer::milkInfo\n";
     OutlinedFunction->Function->dump();
   }
+#endif
 
   revng_log(Log, "Milking info for " << OutlinedFunction->Address.toString());
   LoggerIndent<> Ident(Log);
@@ -1110,11 +1112,12 @@ FunctionSummary CFGAnalyzer::analyze(const MetaAddress &Entry) {
   // constant-folded away by the optimization pipeline.
   materializePCValues(F, Builder);
 
-  // WIP
+#if 0
   if (OutlinedFunction.Address == MetaAddress::fromString("0x2214c:Code_arm")) {
     dbg << "pre runOptimizationPipeline\n";
     OutlinedFunction.Function->dump();
   }
+#endif
 
   // Execute the optimization pipeline over the outlined function
   runOptimizationPipeline(F);
