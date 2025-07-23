@@ -4,19 +4,26 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <unordered_set>
+
+#include "llvm/ADT/StringSet.h"
+
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/ADT/SortedVector.h"
 #include "revng/Model/ArrayType.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/EnumDefinition.h"
 #include "revng/Model/Function.h"
 #include "revng/Model/Helpers.h"
+#include "revng/Model/LocalIdentifier.h"
 #include "revng/Model/NamingConfiguration.h"
 #include "revng/Model/PrimitiveType.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/StructDefinition.h"
 #include "revng/Model/UnionDefinition.h"
 #include "revng/Support/CommonOptions.h"
+#include "revng/Support/MetaAddress.h"
 #include "revng/Support/StringOperations.h"
 
 namespace model {
@@ -38,7 +45,6 @@ public:
     return static_cast<const Inheritor &>(*this).isNameReserved(Name);
   }
 
-private:
   void assertNameIsReserved(llvm::StringRef Name) const {
     if (llvm::Error Error = isNameReserved(Name)) {
       // All good, we want an error here.
@@ -52,6 +58,7 @@ private:
     }
   }
 
+private:
   [[nodiscard]] std::string automaticName(const model::Binary &Binary,
                                           const model::Segment &Segment) const {
     auto Iterator = Binary.Segments().find(Segment.key());
@@ -197,6 +204,200 @@ public:
     std::string Result = Primitive.getCName();
     assertNameIsReserved(Result);
     return Result;
+  }
+
+  /// This helper provides shared functionality for all the different types
+  /// of counting name builders (those that emit `prefix_1`, `prefix_2`,
+  /// `prefix_3`, and so on as default names on sequential requests).
+  ///
+  /// It ensures that:
+  /// - a single *name* cannot appear more than once
+  /// - a single *location* cannot appear more than once
+  /// - the indexes (either a part of a name, or the corresponding locations)
+  ///   are unique for each \ref nameImpl call.
+  class CountingNameBuilder {
+  private:
+    const NameBuilder *Parent = nullptr;
+
+    uint64_t NextIndex = 0;
+
+    /// This is used to keep track of the *names* that were already emitted.
+    llvm::DenseSet<llvm::StringRef> EmittedNames = {};
+
+    /// This is used to keep track of the *locations* that were already emitted.
+    std::set<SortedVector<MetaAddress>> EmittedLocations = {};
+
+  protected:
+    const NameBuilder &parent() const { return notNull(Parent); }
+
+  public:
+    CountingNameBuilder() = default;
+    CountingNameBuilder(const NameBuilder &Parent) : Parent(&Parent) {}
+
+  public:
+    struct NamingResult {
+      std::string Name;
+
+      /// The index of this variable provided to enable `pipeline::Location`
+      /// to use it as a key.
+      uint64_t Index;
+
+      /// This flag is set for variables that cannot be located (either no
+      /// address set can be gathered or the gathered address set is already
+      /// attached to another variable). Such variables should have any actions
+      /// allowed on them.
+      bool HasAddressAssociated;
+
+      /// Since the same variable shouldn't be queried more then once,
+      /// the warning appears warning here instead of using a dedicated query
+      /// method (like the base `NameBuilder`).
+      std::string Warning = {};
+    };
+
+    [[nodiscard]] NamingResult automaticName(llvm::StringRef Prefix,
+                                             bool HasAddressAssociated) {
+      uint64_t CurrentIndex = NextIndex++;
+      std::string Result = Prefix.str() + std::to_string(CurrentIndex);
+      parent().assertNameIsReserved(Result);
+      return { Result, CurrentIndex, HasAddressAssociated };
+    }
+
+  protected:
+    [[nodiscard]] NamingResult
+    nameImpl(SortedVector<MetaAddress> const &UserLocationSet,
+             RangeOf<const model::LocalIdentifier &> auto const &KnownNames,
+             llvm::StringRef AutomaticPrefix) {
+      if (UserLocationSet.empty()) {
+        // No location is provided, emit an *untagged* automatic name.
+        return automaticName(AutomaticPrefix, false);
+      }
+
+      bool IsLocationUnique = EmittedLocations.insert(UserLocationSet).second;
+      if (not IsLocationUnique) {
+        // This location was used for a different variable already,
+        // emit an *untagged* automatic name.
+        return automaticName(AutomaticPrefix, false);
+      }
+
+      auto Comparator = [&](const model::LocalIdentifier &Identifier) {
+        return Identifier.Location() == UserLocationSet;
+      };
+      auto Iterator = std::ranges::find_if(KnownNames, Comparator);
+      if (Iterator == KnownNames.end()) {
+        // There's nothing in the model for the current location,
+        // emit a *tagged* automatic name.
+        return automaticName(AutomaticPrefix, true);
+      }
+
+      bool IsNameUnique = EmittedNames.insert(Iterator->Name()).second;
+      if (not IsNameUnique) {
+        // This name was already emitted, fall back on the automatic name.
+        auto Result = automaticName(AutomaticPrefix, true);
+        Result.Warning = "Name `" + Iterator->Name()
+                         + "` cannot be used more than once, so it was "
+                           "replaced by an automatic one (`"
+                         + Result.Name + "`).";
+        return Result;
+      }
+
+      if (llvm::Error Reason = parent().isNameReserved(Iterator->Name())) {
+        // Current name cannot be used as its reserved for something else.
+        auto Result = automaticName(AutomaticPrefix, true);
+        Result.Warning = "Name `" + Iterator->Name()
+                         + "` is not valid, so it was replaced by an automatic "
+                           "one (`"
+                         + Result.Name + "`) because "
+                         + revng::unwrapError(std::move(Reason)) + ".";
+        return Result;
+
+      } else {
+        // We don't want existing automatic names to "shift" when a rename
+        // happens, as such we have to advance the index even if no automatic
+        // name is produced for it.
+        uint64_t CurrentIndex = NextIndex++;
+
+        return { Iterator->Name(), CurrentIndex, true };
+      }
+    }
+
+    [[nodiscard]] std::set<llvm::StringRef>
+    homelessNamesImpl(RangeOf<const model::LocalIdentifier &> auto R) const {
+      return R | std::views::filter([this](const auto &V) {
+               return not EmittedNames.contains(V.Name());
+             })
+             | std::views::transform([](const auto &V) { return V.Name(); })
+             | revng::to<std::set<llvm::StringRef>>();
+    }
+  };
+
+  class VariableNameBuilder : public CountingNameBuilder {
+    const model::Function *Function = nullptr;
+
+  public:
+    VariableNameBuilder() = default;
+    VariableNameBuilder(const NameBuilder &Parent,
+                        const model::Function &Function) :
+      CountingNameBuilder(Parent), Function(&Function) {}
+
+    const model::Function &function() const { return notNull(Function); }
+
+    CountingNameBuilder::NamingResult
+    name(SortedVector<MetaAddress> const &UserLocationSet) {
+      auto Prefix = this->parent().Configuration.unnamedLocalVariablePrefix();
+      return CountingNameBuilder::nameImpl(UserLocationSet,
+                                           function().LocalVariables(),
+                                           Prefix);
+    }
+
+    CountingNameBuilder::NamingResult
+    name(TrackingSortedVector<MetaAddress> const &UserLocationSet) {
+      auto Prefix = this->parent().Configuration.unnamedLocalVariablePrefix();
+      return CountingNameBuilder::nameImpl(UserLocationSet.unwrap(),
+                                           function().LocalVariables(),
+                                           Prefix);
+    }
+
+    std::set<llvm::StringRef> homelessNames() const {
+      return CountingNameBuilder::homelessNamesImpl(Function->LocalVariables());
+    }
+  };
+  VariableNameBuilder localVariables(const model::Function &Function) const {
+    return VariableNameBuilder(*this, Function);
+  }
+
+  class GotoLabelNameBuilder : public CountingNameBuilder {
+    const model::Function *Function = nullptr;
+
+  public:
+    GotoLabelNameBuilder() = default;
+    GotoLabelNameBuilder(const NameBuilder &Parent,
+                         const model::Function &Function) :
+      CountingNameBuilder(Parent), Function(&Function) {}
+
+    const model::Function &function() const { return notNull(Function); }
+
+    CountingNameBuilder::NamingResult
+    name(SortedVector<MetaAddress> const &UserLocationSet) {
+      auto Prefix = this->parent().Configuration.unnamedGotoLabelPrefix();
+      return CountingNameBuilder::nameImpl(UserLocationSet,
+                                           function().GotoLabels(),
+                                           Prefix);
+    }
+
+    CountingNameBuilder::NamingResult
+    name(TrackingSortedVector<MetaAddress> const &UserLocationSet) {
+      auto Prefix = this->parent().Configuration.unnamedGotoLabelPrefix();
+      return CountingNameBuilder::nameImpl(UserLocationSet.unwrap(),
+                                           function().GotoLabels(),
+                                           Prefix);
+    }
+
+    std::set<llvm::StringRef> homelessNames() const {
+      return CountingNameBuilder::homelessNamesImpl(Function->GotoLabels());
+    }
+  };
+  GotoLabelNameBuilder gotoLabels(const model::Function &Function) const {
+    return GotoLabelNameBuilder(*this, Function);
   }
 
   [[nodiscard]] std::string llvmName(const model::Function &Function) const {

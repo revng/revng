@@ -11,7 +11,7 @@
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/StringMap.h"
 #include "revng/Support/Identifier.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 static llvm::cl::opt<std::string> ProblemNameFile("naming-collisions-report",
                                                   llvm::cl::desc("The file to "
@@ -38,12 +38,27 @@ static void reportProblemNames(const model::Binary &Binary) {
     if (Result)
       OutputStream << *Result << '\n';
   };
+  auto OutputString = [&OutputStream](const std::string &Result) {
+    if (not Result.empty())
+      OutputStream << Result << '\n';
+  };
 
   model::CNameBuilder Builder(Binary);
-  for (const model::Function &F : Binary.Functions())
+  for (const model::Function &F : Binary.Functions()) {
     Output(Builder.warning(F));
+
+    auto VariableNameBuilder = Builder.localVariables(F);
+    for (auto &Variable : F.LocalVariables())
+      OutputString(VariableNameBuilder.name(Variable.Location()).Warning);
+
+    auto LabelNameBuilder = Builder.gotoLabels(F);
+    for (auto &Label : F.GotoLabels())
+      OutputString(LabelNameBuilder.name(Label.Location()).Warning);
+  }
+
   for (const model::Segment &S : Binary.Segments())
     Output(Builder.warning(Binary, S));
+
   for (const model::UpcastableTypeDefinition &D : Binary.TypeDefinitions()) {
     Output(Builder.warning(*D));
 
@@ -88,7 +103,7 @@ static void reportProblemNames(const model::Binary &Binary) {
 static std::optional<std::string>
 gatherNonReservedHelperNames(const llvm::Module &Module,
                              const model::CNameBuilder &B) {
-  std::string Error = "";
+  std::string ErrorMessage;
   for (const llvm::Function &Function : Module.functions()) {
     std::string SanitizedName = sanitizeIdentifier(Function.getName());
 
@@ -100,27 +115,27 @@ gatherNonReservedHelperNames(const llvm::Module &Module,
     }
 
     if (FunctionTags::QEMU.isTagOf(&Function))
-      Error += "- QEMU: " + SanitizedName + "\n";
+      ErrorMessage += "- QEMU: " + SanitizedName + "\n";
 
     if (FunctionTags::Helper.isTagOf(&Function)
         and not FunctionTags::BinaryOperationOverflows.isTagOf(&Function)) {
-      Error += "- Helper: " + SanitizedName + "\n";
+      ErrorMessage += "- Helper: " + SanitizedName + "\n";
     }
 
     if (FunctionTags::OpaqueCSVValue.isTagOf(&Function))
-      Error += "- OpaqueCSVValue: " + SanitizedName + "\n";
+      ErrorMessage += "- OpaqueCSVValue: " + SanitizedName + "\n";
 
     if (FunctionTags::Exceptional.isTagOf(&Function))
-      Error += "- Exceptional: " + SanitizedName + "\n";
+      ErrorMessage += "- Exceptional: " + SanitizedName + "\n";
 
     if (Function.isIntrinsic())
-      Error += "- Intrinsic: " + SanitizedName + "\n";
+      ErrorMessage += "- Intrinsic: " + SanitizedName + "\n";
   }
 
-  if (Error.empty())
+  if (ErrorMessage.empty())
     return std::nullopt;
 
-  return std::move(Error);
+  return std::move(ErrorMessage);
 }
 
 void Decompile::run(pipeline::ExecutionContext &EC,
@@ -133,7 +148,7 @@ void Decompile::run(pipeline::ExecutionContext &EC,
   ControlFlowGraphCache Cache(CFGMap);
 
   namespace options = revng::options;
-  ptml::CTypeBuilder
+  ptml::ModelCBuilder
     B(llvm::nulls(),
       Model,
       /* EnableTaglessMode = */ false,

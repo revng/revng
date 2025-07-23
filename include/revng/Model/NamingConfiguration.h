@@ -85,6 +85,12 @@ public:
     else
       return UnnamedBreakFromLoopVariablePrefix();
   }
+  llvm::StringRef unnamedGotoLabelPrefix() const {
+    if (UnnamedGotoLabelPrefix().empty())
+      return "label_";
+    else
+      return UnnamedGotoLabelPrefix();
+  }
 
   llvm::StringRef undefinedValuePrefix() const {
     if (UndefinedValuePrefix().empty())

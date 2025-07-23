@@ -9,7 +9,7 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/PTML/CBuilder.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
 
 namespace clift = mlir::clift;
@@ -121,7 +121,7 @@ static std::string getPrimitiveTypeCName(PrimitiveType Type) {
 class CEmitter {
 public:
   explicit CEmitter(const TargetCImplementation &Target,
-                    ptml::CTypeBuilder &Builder,
+                    ptml::ModelCBuilder &Builder,
                     llvm::raw_ostream &Out) :
     Target(Target), C(Builder), Out(Out, C) {
     Builder.setOutputStream(this->Out);
@@ -454,33 +454,24 @@ public:
     }
   }
 
-  llvm::StringRef getLocalSymbolName(mlir::Operation *Op,
-                                     llvm::StringRef Prefix,
-                                     size_t &Counter) {
-    auto [Iterator, Inserted] = LocalSymbolNames.try_emplace(Op);
+  const ptml::ModelCBuilder::TagPair &getLocalVariableTags(LocalVariableOp Op) {
+    auto [Iterator, Inserted] = LocalSymbols.try_emplace(Op.getOperation());
     if (Inserted) {
-      std::string Symbol;
-
-      while (true) {
-        llvm::raw_string_ostream(Symbol) << '_' << Prefix << '_' << Counter++;
-
-        if (not llvm::is_contained(ParameterNames, Symbol))
-          break;
-
-        Symbol.clear();
-      }
-
-      Iterator->second = std::move(Symbol);
+      // TODO: pass in the list of `Op` user addresses.
+      Iterator->second = C.getVariableTags(VariableNameBuilder, {});
     }
+
     return Iterator->second;
   }
 
-  llvm::StringRef getLocalSymbolName(LocalVariableOp Op) {
-    return getLocalSymbolName(Op.getOperation(), "var", LocalVariableCounter);
-  }
+  const ptml::ModelCBuilder::TagPair &getGotoLabelTags(MakeLabelOp Op) {
+    auto [Iterator, Inserted] = LocalSymbols.try_emplace(Op.getOperation());
+    if (Inserted) {
+      // TODO: pass in the label address.
+      Iterator->second = C.getGotoLabelTags(GotoLabelNameBuilder, {});
+    }
 
-  llvm::StringRef getLocalSymbolName(MakeLabelOp Op) {
-    return getLocalSymbolName(Op.getOperation(), "label", GotoLabelCounter);
+    return Iterator->second;
   }
 
   //===---------------------------- Expressions ---------------------------===//
@@ -546,11 +537,7 @@ public:
   }
 
   RecursiveCoroutine<void> emitLocalVariableExpression(mlir::Value V) {
-    // TODO: Emit variable name from the model once the model is extended to
-    //       provide this information.
-
-    auto Symbol = getLocalSymbolName(V.getDefiningOp<LocalVariableOp>());
-    Out << C.getVariableReferenceTag(*CurrentFunction, Symbol);
+    Out << getLocalVariableTags(V.getDefiningOp<LocalVariableOp>()).Reference;
 
     rc_return;
   }
@@ -1081,13 +1068,8 @@ public:
   //===---------------------------- Statements ----------------------------===//
 
   RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S) {
-    // TODO: Emit variable name from the model once the model is extended to
-    //       provide this information.
-
-    auto Symbol = getLocalSymbolName(S);
     rc_recur emitDeclaration(S.getResult().getType(),
-                             C.getVariableDefinitionTag(*CurrentFunction,
-                                                        Symbol));
+                             getLocalVariableTags(S).Definition);
 
     if (not S.getInitializer().empty()) {
       Out << ' ' << '=' << ' ';
@@ -1121,10 +1103,7 @@ public:
   RecursiveCoroutine<void> emitLabelStatement(AssignLabelOp S) {
     Out.unindent();
 
-    // TODO: Emit the label name from the model once the model is extended to
-    //       provide this information.
-    auto Symbol = getLocalSymbolName(S.getLabelOp());
-    Out << C.getGotoLabelDefinitionTag(*CurrentFunction, Symbol) << ':';
+    Out << getGotoLabelTags(S.getLabelOp()).Definition << ':';
 
     if (labelRequiresEmptyExpression(S))
       Out << ' ' << ';';
@@ -1141,12 +1120,8 @@ public:
   }
 
   RecursiveCoroutine<void> emitGotoStatement(GoToOp S) {
-    // TODO: Emit the label name from the model once the model is extended to
-    //       provide this information.
-
-    auto Symbol = getLocalSymbolName(S.getLabelOp());
     Out << C.getKeyword(Keyword::Goto) << ' '
-        << C.getGotoLabelReferenceTag(*CurrentFunction, Symbol) << ';' << '\n';
+        << getGotoLabelTags(S.getLabelOp()).Reference << ';' << '\n';
 
     rc_return;
   }
@@ -1389,11 +1364,13 @@ public:
       revng_abort("Unsupported model function type definition");
     }
 
-    LocalVariableCounter = 0;
-    GotoLabelCounter = 0;
-
+    // Reset variable and label counters
+    // TODO: consider recreating these for each function, that way
+    //       we don't have to provide the default and copy constructors.
+    VariableNameBuilder = C.makeLocalVariableNameBuilder(*ModelFunction);
+    GotoLabelNameBuilder = C.makeGotoLabelNameBuilder(*ModelFunction);
     auto ClearLocalSymbols = llvm::make_scope_exit([&]() {
-      LocalSymbolNames.clear();
+      LocalSymbols.clear();
     });
 
     // Scope tags are applied within this scope:
@@ -1414,6 +1391,9 @@ public:
       }
 
       rc_recur emitStatementRegion(Op.getBody());
+
+      // TODO: emit a comment containing homeless variable names.
+      //       See how old backend does it for reference.
     }
 
     Out << '\n';
@@ -1421,7 +1401,7 @@ public:
 
 private:
   const TargetCImplementation &Target;
-  ptml::CTypeBuilder &C;
+  ptml::ModelCBuilder &C;
   ptml::IndentedOstream Out;
 
   const model::Function *CurrentFunction = nullptr;
@@ -1432,17 +1412,17 @@ private:
   // Ambient precedence of the current expression.
   OperatorPrecedence CurrentPrecedence = {};
 
-  size_t LocalVariableCounter = 0;
-  size_t GotoLabelCounter = 0;
-
-  llvm::DenseMap<mlir::Operation *, std::string> LocalSymbolNames;
+  // Local variable/label naming helpers
+  ptml::ModelCBuilder::VariableNameBuilder VariableNameBuilder;
+  ptml::ModelCBuilder::GotoLabelNameBuilder GotoLabelNameBuilder;
+  llvm::DenseMap<mlir::Operation *, ptml::ModelCBuilder::TagPair> LocalSymbols;
 };
 
 } // namespace
 
 std::string clift::decompile(FunctionOp Function,
                              const TargetCImplementation &Target,
-                             ptml::CTypeBuilder &Builder) {
+                             ptml::ModelCBuilder &Builder) {
   std::string Result;
   llvm::raw_string_ostream Out(Result);
   CEmitter(Target, Builder, Out).emitFunction(Function);

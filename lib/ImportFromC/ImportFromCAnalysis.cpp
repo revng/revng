@@ -142,16 +142,18 @@ struct ImportFromCAnalysis {
                                        + ErrorCode.message());
     }
 
-    ptml::CTypeBuilder::ConfigurationOptions Configuration = {
+    ptml::ModelCBuilder::ConfigurationOptions Configuration = {
       .EnableStackFrameInlining = false
     };
     ptml::HeaderBuilder::ConfigurationOptions HeaderConfiguration = {};
     if (TheOption == ImportFromCOption::EditType) {
       // For all the types other than functions and typedefs, generate forward
       // declarations.
-      if (!ptml::CTypeBuilder::isDeclarationTheSameAsDefinition(*TypeToEdit)) {
+      if (!ptml::ModelCBuilder::isDeclarationTheSameAsDefinition(*TypeToEdit)) {
         llvm::raw_string_ostream Stream(HeaderConfiguration.PostIncludeSnippet);
-        ptml::CTypeBuilder PI(Stream, *Model, /* GenerateTaglessPTML = */ true);
+        ptml::ModelCBuilder PI(Stream,
+                               *Model,
+                               /* GenerateTaglessPTML = */ true);
         PI.appendLineComment("The type we are editing");
         // The declaration of this type will be near the top of the file.
         PI.printForwardDeclaration(*TypeToEdit);
@@ -171,10 +173,10 @@ struct ImportFromCAnalysis {
       revng_abort("Unknown action requested.");
     }
 
-    ptml::CTypeBuilder B(Out,
-                         *Model,
-                         /* EnableTaglessMode = */ true,
-                         std::move(Configuration));
+    ptml::ModelCBuilder B(Out,
+                          *Model,
+                          /* EnableTaglessMode = */ true,
+                          std::move(Configuration));
     ptml::HeaderBuilder(B, std::move(HeaderConfiguration)).printModelHeader();
     Out.close();
 

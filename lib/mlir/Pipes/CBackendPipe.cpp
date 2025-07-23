@@ -8,7 +8,7 @@
 #include "revng/HeadersGeneration/ConfigurationHelpers.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
 #include "revng/mlir/Dialect/Clift/Utils/CSemantics.h"
 #include "revng/mlir/Dialect/Clift/Utils/Helpers.h"
@@ -46,7 +46,7 @@ public:
     revng_assert(clift::verifyCSemantics(Module, Target).succeeded());
 
     llvm::raw_null_ostream NullStream;
-    ptml::CTypeBuilder
+    ptml::ModelCBuilder
       B(NullStream,
         Model,
         /*EnableTaglessMode=*/false,

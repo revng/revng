@@ -47,7 +47,7 @@ public:
 
     const auto &Model = *revng::getModelFromContext(EC);
 
-    ptml::CTypeBuilder
+    ptml::ModelCBuilder
       B(Header,
         Model,
         /* EnableTaglessMode = */ false,

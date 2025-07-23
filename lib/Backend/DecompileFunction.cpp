@@ -49,6 +49,7 @@
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/Pipeline/Location.h"
+#include "revng/Pipes/DebugInfoHelpers.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/RestructureCFG/ASTNode.h"
 #include "revng/RestructureCFG/ASTNodeUtils.h"
@@ -61,7 +62,7 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 #include "revng/Yield/PTML.h"
 
 #include "ALAPVariableDeclaration.h"
@@ -136,7 +137,7 @@ static std::string addAlwaysParentheses(llvm::StringRef Expr) {
 }
 
 static std::string get128BitIntegerHexConstant(llvm::APInt Value,
-                                               const ptml::CTypeBuilder &B) {
+                                               const ptml::ModelCBuilder &B) {
   revng_assert(Value.getBitWidth() > 64);
   revng_assert(Value.getBitWidth() <= 128);
   using PTMLOperator = ptml::CBuilder::Operator;
@@ -185,7 +186,7 @@ static std::string get128BitIntegerHexConstant(llvm::APInt Value,
 }
 
 static std::string hexLiteral(const llvm::ConstantInt *Int,
-                              const ptml::CTypeBuilder &B) {
+                              const ptml::ModelCBuilder &B) {
   StringToken Formatted;
   if (Int->getBitWidth() <= 64) {
     Int->getValue().toString(Formatted,
@@ -240,7 +241,7 @@ private:
   const ModelTypesMap TypeMap;
 
   /// Helper for outputting the decompiled C code
-  ptml::CTypeBuilder &B;
+  ptml::ModelCBuilder &B;
 
   /// Name of the local variable used to break out of loops from within nested
   /// switches
@@ -257,29 +258,8 @@ private:
   ///       getCallEdge.
   ControlFlowGraphCache &Cache;
 
-private:
-  class VarNameGenerator {
-  private:
-    uint64_t CurrentVariableID = 0;
-    const model::NamingConfiguration &Configuration;
-
-  public:
-    VarNameGenerator(const model::Binary &Binary) :
-      Configuration(Binary.Configuration().Naming()) {}
-
-    std::string nextVarName() {
-      return Configuration.unnamedLocalVariablePrefix().str()
-             + std::to_string(CurrentVariableID++);
-    }
-
-    std::string nextSwitchStateVar() {
-      return Configuration.unnamedBreakFromLoopVariablePrefix().str()
-             + std::to_string(CurrentVariableID++);
-    }
-  };
-
   /// Stateful generator for variable names
-  VarNameGenerator NameGenerator;
+  ptml::ModelCBuilder::VariableNameBuilder VariableNameBuilder;
 
   /// Keep track of the names associated with function arguments, and local
   /// variables. In the past it also kept track of intermediate expressions, but
@@ -302,7 +282,7 @@ public:
                  const llvm::Function &LLVMFunction,
                  const ASTTree &GHAST,
                  const ASTVarDeclMap &VarToDeclare,
-                 ptml::CTypeBuilder &B) :
+                 ptml::ModelCBuilder &B) :
     Model(Model),
     LLVMFunction(LLVMFunction),
     ModelFunction(*llvmToModelFunction(Model, LLVMFunction)),
@@ -316,13 +296,14 @@ public:
     B(B),
     SwitchStateVars(),
     Cache(Cache),
-    NameGenerator(Model) {
+    VariableNameBuilder(B.makeLocalVariableNameBuilder(ModelFunction)) {
     // TODO: don't use a global loop state variable
     const auto &Configuration = B.NameBuilder.Configuration;
     llvm::StringRef LoopStateVariable = Configuration.loopStateVariableName();
-    LoopStateVar = B.getVariableReferenceTag(ModelFunction, LoopStateVariable);
-    LoopStateVarDeclaration = B.getVariableDefinitionTag(ModelFunction,
-                                                         LoopStateVariable);
+    auto [Definition, Reference] = B.getReservedVariableTags(ModelFunction,
+                                                             LoopStateVariable);
+    LoopStateVarDeclaration = std::move(Definition);
+    LoopStateVar = std::move(Reference);
 
     if (LLVMFunction.getMetadata(ExplicitParenthesesMDName))
       IsOperatorPrecedenceResolutionPassEnabled = true;
@@ -403,19 +384,41 @@ private:
     revng_assert(not TokenMap.contains(I));
 
     const auto &Configuration = Model.Configuration().Naming();
-    std::string VarName = Configuration.stackFrameVariableName().str();
-    TokenMap[I] = B.getVariableReferenceTag(ModelFunction, VarName);
-    return B.getVariableDefinitionTag(ModelFunction, VarName);
+    llvm::StringRef VarName = Configuration.stackFrameVariableName();
+    auto [Definition, Reference] = B.getReservedVariableTags(ModelFunction,
+                                                             VarName);
+    TokenMap[I] = std::move(Reference);
+    return std::move(Definition);
   }
 
   std::string createLocalVarDeclName(const llvm::Instruction *I) {
-    revng_assert(isLocalVarDecl(I) or isArtificialAggregateLocalVarDecl(I)
-                 or isCallStackArgumentDecl(I));
-    std::string VarName = NameGenerator.nextVarName();
+    revng_assert(isCallToTagged(I, FunctionTags::LocalVariable)
+                   or isArtificialAggregateLocalVarDecl(I)
+                   or isCallStackArgumentDecl(I),
+                 "This instruction is not a local variable!");
+
+    SortedVector<MetaAddress> UserAddressList;
+    for (const llvm::Value *UserValue : I->users()) {
+      if (const auto *User = llvm::dyn_cast<llvm::Instruction>(UserValue)) {
+        if (std::optional MaybeAddress = revng::tryExtractAddress(*User)) {
+          UserAddressList.emplace(std::move(MaybeAddress.value()));
+
+        } else {
+          // Found a user without debug information,
+          // discard current variable.
+          // TODO: is there a way to handle this case more gracefully?
+          UserAddressList.clear();
+          break;
+        }
+      }
+    }
+
     // This may override the entry for I, if I belongs to a "duplicated"
     // BasicBlock that is reachable from many paths on the GHAST.
-    TokenMap[I] = B.getVariableReferenceTag(ModelFunction, VarName);
-    return B.getVariableDefinitionTag(ModelFunction, VarName);
+    auto [Definition, Reference] = B.getVariableTags(VariableNameBuilder,
+                                                     UserAddressList);
+    TokenMap[I] = std::move(Reference);
+    return std::move(Definition);
   }
 
   std::string getVarName(const llvm::Instruction *I) const {
@@ -464,13 +467,13 @@ std::string CCodeGenerator::buildCastExpr(StringRef ExprToCast,
 }
 
 static std::string getUndefToken(const model::Type &UndefType,
-                                 const ptml::CTypeBuilder &B) {
+                                 const ptml::ModelCBuilder &B) {
   return B.Binary.Configuration().Naming().undefinedValuePrefix().str()
          + UndefType.toPrimitive().getCName() + "()";
 }
 
 static std::string getFormattedIntegerToken(const llvm::CallInst *Call,
-                                            const ptml::CTypeBuilder &B) {
+                                            const ptml::ModelCBuilder &B) {
 
   if (isCallToTagged(Call, FunctionTags::HexInteger)) {
     const auto Operand = Call->getArgOperand(0);
@@ -531,7 +534,7 @@ CCodeGenerator::getConstantToken(const llvm::Value *C) const {
     // Check if initializer is a CString
     auto *Initializer = Global->getInitializer();
 
-    StringRef Content = "";
+    StringRef Content;
     if (auto StringInit = dyn_cast<ConstantDataArray>(Initializer)) {
 
       // If it's not a C string, bail out
@@ -827,7 +830,7 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
     auto *StructTy = cast<llvm::StructType>(Call->getType());
     revng_assert(Call->getFunction()->getReturnType() == StructTy);
     revng_assert(LLVMFunction.getReturnType() == StructTy);
-    auto StrucTypeName = B.getNamedInstanceOfReturnType(Prototype, "");
+    auto StrucTypeName = B.getFunctionReturnType(Prototype);
     std::string StructInit = addAlwaysParentheses(StrucTypeName);
 
     // Emit RHS
@@ -1007,7 +1010,7 @@ static bool shouldGenerateDebugInfoAsPTML(const llvm::Instruction &I) {
 
 static std::string addDebugInfo(const llvm::Instruction *I,
                                 std::string &&Str,
-                                const ptml::CTypeBuilder &B) {
+                                const ptml::ModelCBuilder &B) {
   if (shouldGenerateDebugInfoAsPTML(*I)) {
     std::string Location = I->getDebugLoc()->getScope()->getName().str();
     return B.getDebugInfoTag(std::move(Str), std::move(Location));
@@ -1559,7 +1562,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         const auto *Prototype = getCallSitePrototype(Model, VarDeclCall);
         revng_assert(Prototype != nullptr);
 
-        auto Named = B.getNamedInstanceOfReturnType(*Prototype, VarName);
+        auto Named = B.getNamedCInstanceOfReturnType(*Prototype, VarName);
         B.append(Named + ";\n");
       } else {
         revng_assert(not VarDeclCall->getType()->isAggregateType());
@@ -1726,15 +1729,20 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
     // is used by nested switches inside loops to break out of the loop
     if (Switch->needsStateVariable()) {
       revng_assert(Switch->needsLoopBreakDispatcher());
-      std::string NewVarName = NameGenerator.nextSwitchStateVar();
-      std::string SwitchStateVar = B.getVariableReferenceTag(ModelFunction,
-                                                             NewVarName);
-      SwitchStateVars.push_back(std::move(SwitchStateVar));
+
+      SortedVector<MetaAddress> Location;
+      if (const llvm::BasicBlock *BasicBlock = Switch->getBB())
+        if (not BasicBlock->empty())
+          if (std::optional MA = revng::tryExtractAddress(BasicBlock->back()))
+            Location.emplace(*MA);
+
+      auto [Definition, Reference] = B.getVariableTags(VariableNameBuilder,
+                                                       Location);
+      SwitchStateVars.push_back(std::move(Reference));
       using COperator = ptml::CBuilder::Operator;
       B.append(B.tokenTag("bool", ptml::c::tokens::Type) + " "
-               + B.getVariableDefinitionTag(ModelFunction, NewVarName) + " "
-               + B.getOperator(COperator::Assign) + " " + B.getFalseTag()
-               + ";\n");
+               + std::move(Definition) + " " + B.getOperator(COperator::Assign)
+               + " " + B.getFalseTag() + ";\n");
     }
 
     // Generate the condition of the switch
@@ -1863,7 +1871,7 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
 
 static std::string getModelArgIdentifier(const model::TypeDefinition &ModelFT,
                                          const llvm::Argument &Argument,
-                                         const ptml::CTypeBuilder &B) {
+                                         const ptml::ModelCBuilder &B) {
   const llvm::Function *LLVMFunction = Argument.getParent();
   unsigned ArgNo = Argument.getArgNo();
 
@@ -1965,6 +1973,23 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
 
     // Recursively print the body of this function
     emitGHASTNode(GHAST.getRoot());
+
+    // Mention unused variables by name, to reduce confusion when they suddenly
+    // disappear.
+    std::set<llvm::StringRef> Homeless = VariableNameBuilder.homelessNames();
+    if (not Homeless.empty()) {
+      constexpr llvm::StringRef Separator = ", ";
+      std::string Message = "The following variables are no longer present "
+                            "in this function: ";
+      for (llvm::StringRef Name : Homeless)
+        Message += '`' + Name.str() + '`' + Separator.str();
+      Message.resize(Message.size() - Separator.size());
+
+      // TODO: embed an action into these variable definitions to allow
+      //       dropping them easily.
+
+      B.append('\n' + B.getFreeFormComment(std::move(Message)));
+    }
   }
 
   B.append("\n");
@@ -1976,7 +2001,7 @@ static std::string decompileFunction(ControlFlowGraphCache &Cache,
                                      const Binary &Model,
                                      const ASTVarDeclMap &VarToDeclare,
                                      bool NeedsLocalStateVar,
-                                     ptml::CTypeBuilder &B) {
+                                     ptml::ModelCBuilder &B) {
   std::string Result;
 
   llvm::raw_string_ostream Out(Result);
@@ -2082,7 +2107,7 @@ static void softFail(llvm::Function &F, ASTTree &GHAST) {
 std::string decompile(ControlFlowGraphCache &Cache,
                       llvm::Function &F,
                       const model::Binary &Model,
-                      ptml::CTypeBuilder &B) {
+                      ptml::ModelCBuilder &B) {
   using namespace llvm;
   Task T2(3, Twine("decompile Function: ") + Twine(F.getName()));
 

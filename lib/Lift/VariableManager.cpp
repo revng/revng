@@ -30,7 +30,8 @@
 #include "PTCInterface.h"
 #include "VariableManager.h"
 
-RegisterIRHelper SetRegisterMarker("set_register", "in early-linked");
+// This name corresponds to a function in `early-linked`.
+RegisterIRHelper SetRegisterMarker("set_register");
 
 using namespace llvm;
 

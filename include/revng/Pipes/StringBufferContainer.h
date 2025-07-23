@@ -33,8 +33,9 @@ public:
   inline static const char *Name = TypeName;
 
   StringBufferContainer(llvm::StringRef Name,
-                        llvm::StringRef StartingConent = "") :
-    pipeline::Container<StringBufferContainer>(Name), Content() {}
+                        std::string &&StartingContent = {}) :
+    pipeline::Container<StringBufferContainer>(Name),
+    Content(std::move(StartingContent)) {}
 
   std::unique_ptr<pipeline::ContainerBase>
   cloneFiltered(const pipeline::TargetsList &Container) const final {

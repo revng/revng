@@ -6,10 +6,10 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Support/Annotations.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 using T = model::TypeDefinition;
-void ptml::CTypeBuilder::printForwardDeclaration(const T &Type) {
+void ptml::ModelCBuilder::printForwardDeclaration(const T &Type) {
   revng_assert(not isDeclarationTheSameAsDefinition(Type));
 
   auto TypeNameReference = getReferenceTag(Type);
@@ -19,8 +19,8 @@ void ptml::CTypeBuilder::printForwardDeclaration(const T &Type) {
        << TypeNameReference << " " << TypeNameReference << ";\n";
 }
 
-void ptml::CTypeBuilder::printDefinition(const model::EnumDefinition &E,
-                                         std::string &&Suffix) {
+void ptml::ModelCBuilder::printDefinition(const model::EnumDefinition &E,
+                                          std::string &&Suffix) {
   // We have to make the enum of the correct size of the underlying type
   auto ByteSize = *E.size();
   revng_assert(ByteSize <= 8);
@@ -63,8 +63,8 @@ void ptml::CTypeBuilder::printDefinition(const model::EnumDefinition &E,
   *Out << std::move(Suffix) << ";\n";
 }
 
-void ptml::CTypeBuilder::printPadding(uint64_t FieldOffset,
-                                      uint64_t NextOffset) {
+void ptml::ModelCBuilder::printPadding(uint64_t FieldOffset,
+                                       uint64_t NextOffset) {
   revng_assert(FieldOffset <= NextOffset);
   if (FieldOffset == NextOffset)
     return; // There is no padding
@@ -80,8 +80,8 @@ void ptml::CTypeBuilder::printPadding(uint64_t FieldOffset,
   }
 }
 
-void ptml::CTypeBuilder::printDefinition(const model::StructDefinition &S,
-                                         std::string &&Suffix) {
+void ptml::ModelCBuilder::printDefinition(const model::StructDefinition &S,
+                                          std::string &&Suffix) {
 
   std::string StructLine = getModelCommentWithoutLeadingNewline(S)
                            + getKeyword(ptml::CBuilder::Keyword::Struct) + " "
@@ -122,8 +122,8 @@ void ptml::CTypeBuilder::printDefinition(const model::StructDefinition &S,
   *Out << std::move(Suffix) << ";\n";
 }
 
-void ptml::CTypeBuilder::printDefinition(const model::UnionDefinition &U,
-                                         std::string &&Suffix) {
+void ptml::ModelCBuilder::printDefinition(const model::UnionDefinition &U,
+                                          std::string &&Suffix) {
   std::string UnionLine = getModelCommentWithoutLeadingNewline(U)
                           + getKeyword(ptml::CBuilder::Keyword::Union) + " "
                           + ptml::AttributeRegistry::getAttribute<"_PACKED">()
@@ -143,7 +143,7 @@ void ptml::CTypeBuilder::printDefinition(const model::UnionDefinition &U,
 }
 
 using TD = model::TypedefDefinition;
-void ptml::CTypeBuilder::printDeclaration(const TD &Typedef) {
+void ptml::ModelCBuilder::printDeclaration(const TD &Typedef) {
   std::string TypedefString;
   if (isDeclarationTheSameAsDefinition(Typedef))
     TypedefString = getModelCommentWithoutLeadingNewline(Typedef);
@@ -158,7 +158,7 @@ void ptml::CTypeBuilder::printDeclaration(const TD &Typedef) {
 /// Generate the definition of a new struct type that wraps all the return
 /// values of \a F. The name of the struct type is provided by the caller.
 using RFT = model::RawFunctionDefinition;
-void ptml::CTypeBuilder::printReturnTypeWrapperDefinition(const RFT &F) {
+void ptml::ModelCBuilder::printReturnTypeWrapperDefinition(const RFT &F) {
 
   using abi::FunctionType::Layout;
   auto TheLayout = Layout::make(F);
@@ -192,7 +192,7 @@ void ptml::CTypeBuilder::printReturnTypeWrapperDefinition(const RFT &F) {
 /// Generate the definition of a new struct type that wraps all the return
 /// values of \a F. The name of the struct type is provided by the caller.
 using RFT = model::RawFunctionDefinition;
-void ptml::CTypeBuilder::printReturnTypeWrapperDeclaration(const RFT &F) {
+void ptml::ModelCBuilder::printReturnTypeWrapperDeclaration(const RFT &F) {
 
   using abi::FunctionType::Layout;
   auto TheLayout = Layout::make(F);
@@ -209,7 +209,7 @@ void ptml::CTypeBuilder::printReturnTypeWrapperDeclaration(const RFT &F) {
 
 /// Print a typedef for a RawFunctionDefinition, that can be used when you have
 /// a variable that is a pointer to a function.
-void ptml::CTypeBuilder::printDeclaration(const RFT &F) {
+void ptml::ModelCBuilder::printDeclaration(const RFT &F) {
   *Out << getCommentableTag(getModelCommentWithoutLeadingNewline(F)
                               + getKeyword(ptml::CBuilder::Keyword::Typedef)
                               + " ",
@@ -224,7 +224,7 @@ using CFT = model::CABIFunctionDefinition;
 
 /// Print a typedef for a CABI function, that can be used when you have
 /// a variable that is a pointer to a function.
-void ptml::CTypeBuilder::printDeclaration(const CFT &F) {
+void ptml::ModelCBuilder::printDeclaration(const CFT &F) {
 
   *Out << getCommentableTag(getModelCommentWithoutLeadingNewline(F)
                               + getKeyword(ptml::CBuilder::Keyword::Typedef)
@@ -237,7 +237,7 @@ void ptml::CTypeBuilder::printDeclaration(const CFT &F) {
   *Out << ";\n";
 }
 
-void ptml::CTypeBuilder::printDeclaration(const model::TypeDefinition &T) {
+void ptml::ModelCBuilder::printDeclaration(const model::TypeDefinition &T) {
   if (auto *Enum = llvm::dyn_cast<model::EnumDefinition>(&T))
     printForwardDeclaration(*Enum);
 
@@ -260,7 +260,7 @@ void ptml::CTypeBuilder::printDeclaration(const model::TypeDefinition &T) {
     revng_abort("Unsupported type definition.");
 }
 
-void ptml::CTypeBuilder::printDefinition(const model::TypeDefinition &T) {
+void ptml::ModelCBuilder::printDefinition(const model::TypeDefinition &T) {
   if (isDeclarationTheSameAsDefinition(T))
     printDeclaration(T);
 
@@ -279,7 +279,7 @@ void ptml::CTypeBuilder::printDefinition(const model::TypeDefinition &T) {
 
 static Logger<> TypePrinterLog{ "type-definition-printer" };
 
-void ptml::CTypeBuilder::printTypeDefinitions() {
+void ptml::ModelCBuilder::printTypeDefinitions() {
   if (not DependencyCache.has_value())
     DependencyCache = DependencyGraph::make(Binary.TypeDefinitions());
 

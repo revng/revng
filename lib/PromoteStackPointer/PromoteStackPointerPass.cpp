@@ -33,8 +33,8 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 
-RegisterIRHelper IBIMarker("revng_undefined_local_sp",
-                           "absent after promote-stack-pointer");
+// This name is not present after `promote-stack-pointer`.
+RegisterIRHelper IBIMarker("revng_undefined_local_sp");
 
 using namespace llvm;
 

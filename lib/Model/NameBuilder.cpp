@@ -483,6 +483,9 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
                        Configuration.unnamedBreakFromLoopVariablePrefix()))
     return revng::createError("it is reserved for a break-from-loop variable "
                               "name");
+  if (isPrefixAndIndex(Name, Configuration.unnamedGotoLabelPrefix()))
+    return revng::createError("it is reserved for an automatic goto label "
+                              "name");
 
   // NOTE: This should live in the "Prefix + `[0-9]+`" section, but because we
   //       parse these names when importing from C, let's be extra cautious and

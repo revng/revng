@@ -77,7 +77,7 @@ module attributes {clift.module} {
       clift.yield %e : !int32_t
     }
 
-    // CHECK: &_var_0 + (&_var_1 - &_var_0);
+    // CHECK: &var_0 + (&var_1 - &var_0);
     clift.expr {
       %0 = clift.addressof %v0 : !int32_t$ptr
       %1 = clift.addressof %v1 : !int32_t$ptr
@@ -87,7 +87,7 @@ module attributes {clift.module} {
       clift.yield %3 : !int32_t$ptr
     }
 
-    // CHECK: &_var_1 - (&_var_1 - &_var_0);
+    // CHECK: &var_1 - (&var_1 - &var_0);
     clift.expr {
       %0 = clift.addressof %v0 : !int32_t$ptr
       %1 = clift.addressof %v1 : !int32_t$ptr

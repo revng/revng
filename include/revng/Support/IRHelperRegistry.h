@@ -11,7 +11,6 @@
 struct IRHelper {
 public:
   std::string Name;
-  std::string Description;
 
   // TODO: pull the prototype inside
 

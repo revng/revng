@@ -12,10 +12,10 @@
 #include "revng/Pipes/StringMap.h"
 
 namespace ptml {
-class CTypeBuilder;
+class ModelCBuilder;
 }
 
 std::string decompile(ControlFlowGraphCache &Cache,
                       llvm::Function &F,
                       const model::Binary &Model,
-                      ptml::CTypeBuilder &B);
+                      ptml::ModelCBuilder &B);

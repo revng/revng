@@ -13,7 +13,7 @@
 
 namespace ptml {
 
-class CTypeBuilder : public CBuilder {
+class ModelCBuilder : public CBuilder {
 public:
   using OutStream = ptml::IndentedOstream;
 
@@ -72,10 +72,10 @@ private:
   std::optional<DependencyGraph> DependencyCache = std::nullopt;
 
 public:
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary,
-               CBuilder B,
-               ConfigurationOptions &&Configuration) :
+  ModelCBuilder(llvm::raw_ostream &OutputStream,
+                const model::Binary &Binary,
+                CBuilder B,
+                ConfigurationOptions &&Configuration) :
     CBuilder(B),
     Binary(Binary),
     NameBuilder(Binary),
@@ -84,34 +84,35 @@ public:
                                     DecompiledCCodeIndentation)),
     Configuration(std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary,
-               CBuilder B) :
-    CTypeBuilder(OutputStream, Binary, B, ConfigurationOptions{}) {}
+  ModelCBuilder(llvm::raw_ostream &OutputStream,
+                const model::Binary &Binary,
+                CBuilder B) :
+    ModelCBuilder(OutputStream, Binary, B, ConfigurationOptions{}) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary,
-               bool EnableTaglessMode,
-               ConfigurationOptions &&Configuration) :
-    CTypeBuilder(OutputStream,
-                 Binary,
-                 ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode },
-                 std::move(Configuration)) {}
+  ModelCBuilder(llvm::raw_ostream &OutputStream,
+                const model::Binary &Binary,
+                bool EnableTaglessMode,
+                ConfigurationOptions &&Configuration) :
+    ModelCBuilder(OutputStream,
+                  Binary,
+                  ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode },
+                  std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary,
-               bool EnableTaglessMode) :
-    CTypeBuilder(OutputStream,
-                 Binary,
-                 ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode }) {}
+  ModelCBuilder(llvm::raw_ostream &OutputStream,
+                const model::Binary &Binary,
+                bool EnableTaglessMode) :
+    ModelCBuilder(OutputStream,
+                  Binary,
+                  ptml::MarkupBuilder{ .IsInTaglessMode = EnableTaglessMode }) {
+  }
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream,
-               const model::Binary &Binary,
-               ConfigurationOptions &&Configuration) :
-    CTypeBuilder(OutputStream, Binary, {}, std::move(Configuration)) {}
+  ModelCBuilder(llvm::raw_ostream &OutputStream,
+                const model::Binary &Binary,
+                ConfigurationOptions &&Configuration) :
+    ModelCBuilder(OutputStream, Binary, {}, std::move(Configuration)) {}
 
-  CTypeBuilder(llvm::raw_ostream &OutputStream, const model::Binary &Binary) :
-    CTypeBuilder(OutputStream, Binary, {}, {}) {}
+  ModelCBuilder(llvm::raw_ostream &OutputStream, const model::Binary &Binary) :
+    ModelCBuilder(OutputStream, Binary, {}, {}) {}
 
 public:
   void setOutputStream(llvm::raw_ostream &OutputStream) {
@@ -147,6 +148,18 @@ public:
 
   helpers::LineComment getLineCommentScope() {
     return helpers::LineComment(*Out, *this);
+  }
+
+  using VariableNameBuilder = model::CNameBuilder::VariableNameBuilder;
+  VariableNameBuilder
+  makeLocalVariableNameBuilder(const model::Function &Function) const {
+    return NameBuilder.localVariables(Function);
+  }
+
+  using GotoLabelNameBuilder = model::CNameBuilder::GotoLabelNameBuilder;
+  GotoLabelNameBuilder
+  makeGotoLabelNameBuilder(const model::Function &Function) const {
+    return NameBuilder.gotoLabels(Function);
   }
 
 private:
@@ -237,10 +250,23 @@ private:
 
 private:
   std::string variableLocationString(const model::Function &Function,
-                                     llvm::StringRef Variable) const {
+                                     uint64_t LocalVariableIndex) const {
     return pipeline::locationString(revng::ranks::LocalVariable,
                                     Function.key(),
-                                    Variable.str());
+                                    LocalVariableIndex);
+  }
+  std::string reservedVariableLocationString(const model::Function &Function,
+                                             llvm::StringRef Name) const {
+    // WARNING: these should never be used as context for actions.
+    return pipeline::locationString(revng::ranks::ReservedLocalVariable,
+                                    Function.key(),
+                                    Name.str());
+  }
+  std::string gotoLabelLocationString(const model::Function &Function,
+                                      uint64_t GotoLabelIndex) const {
+    return pipeline::locationString(revng::ranks::GotoLabel,
+                                    Function.key(),
+                                    GotoLabelIndex);
   }
   std::string
   returnValueLocationString(const model::RawFunctionDefinition &Function,
@@ -471,61 +497,34 @@ public:
                                  Actions);
   }
 
-  /// Special case handling for the variables.
+  struct TagPair {
+    std::string Definition;
+    std::string Reference;
+  };
+
+  /// Special case handling for local variables.
   ///
-  /// \note this will be merged into the general case once `NameBuilder`
-  ///       supports them (as soon as they can be renamed).
-  std::string getVariableDefinitionTag(const model::Function &F,
-                                       llvm::StringRef VariableName) const {
-    // TODO: add the actions, at least rename!
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
+  /// \note that both tags are acquired at once, this removes the need to keep
+  ///       track of already emitted automated names.
+  TagPair
+  getVariableTags(VariableNameBuilder &VariableNameBuilder,
+                  const SortedVector<MetaAddress> &UserLocationSet) const;
 
-    std::string Location = variableLocationString(F, VariableName);
-    return getNameTagImpl<true>(tokenTag(VariableName,
-                                         ptml::c::tokens::Variable),
-                                Location,
-                                Actions);
-  }
-
-  std::string getVariableReferenceTag(const model::Function &F,
-                                      llvm::StringRef VariableName) const {
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-
-    std::string Location = variableLocationString(F, VariableName);
-    return getNameTagImpl<false>(tokenTag(VariableName,
-                                          ptml::c::tokens::Variable),
-                                 Location,
-                                 Actions);
-  }
-
-  /// Special case handling for the goto labels.
+  /// This as a modified version of `getVariableTags` that allows
+  /// setting any name for a given variable, as long as NameBuilder considers
+  /// that name to already be reserved.
   ///
-  /// \note this will be merged into the general case once `NameBuilder`
-  ///       supports them (as soon as they can be renamed).
-  std::string getGotoLabelDefinitionTag(const model::Function &F,
-                                        llvm::StringRef GotoLabelName) const {
-    // TODO: add the actions, at least rename!
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-    std::string Location = pipeline::locationString(revng::ranks::GotoLabel,
-                                                    F.key(),
-                                                    GotoLabelName.str());
-    return getNameTagImpl<true>(tokenTag(GotoLabelName,
-                                         ptml::c::tokens::Variable),
-                                Location,
-                                Actions);
-  }
+  /// \note variables created this way cannot be renamed.
+  TagPair getReservedVariableTags(const model::Function &Function,
+                                  llvm::StringRef Name) const;
 
-  std::string getGotoLabelReferenceTag(const model::Function &F,
-                                       llvm::StringRef GotoLabelName) const {
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-    std::string Location = pipeline::locationString(revng::ranks::GotoLabel,
-                                                    F.key(),
-                                                    GotoLabelName.str());
-    return getNameTagImpl<false>(tokenTag(GotoLabelName,
-                                          ptml::c::tokens::Variable),
-                                 Location,
-                                 Actions);
-  }
+  /// Special case handling for goto labels.
+  ///
+  /// \note that both tags are acquired at once, this removes the need to keep
+  ///       track of already emitted automated names.
+  TagPair
+  getGotoLabelTags(GotoLabelNameBuilder &LabelNameBuilder,
+                   const SortedVector<MetaAddress> &UserLocationSet) const;
 
 public:
   std::string getPrimitiveTag(model::PrimitiveKind::Values Kind,
@@ -730,6 +729,15 @@ public:
                                   availableCommentLineWidth());
   }
 
+  std::string getFreeFormComment(llvm::StringRef Body) {
+    return ptml::freeFormComment(*this,
+                                 Body,
+                                 "///",
+                                 0,
+                                 availableCommentLineWidth(),
+                                 false);
+  }
+
 public:
   /// Obtain a line representing a typical usage of a type (how it appears
   /// when used to declare a struct field or a local variable)
@@ -747,6 +755,7 @@ public:
   ///
   ///        // OmitInnerTypeName = true
   ///         *my_variable
+  ///        // (notice the leading space)
   ///        ```
   std::string getNamedCInstance(const model::Type &Type,
                                 llvm::StringRef InstanceName = "",
@@ -758,14 +767,19 @@ public:
 
   /// Return a string containing the C Type name of the return type of
   /// \a FunctionType, and a (possibly empty) \a InstanceName.
-  /// \note If F returns more than one value, the name of the wrapping struct
-  ///       will be returned instead.
+  /// \note If F is an RFT that returns more than one value, the name of the
+  ///       wrapping struct will be returned instead.
   std::string
-  getNamedInstanceOfReturnType(const model::TypeDefinition &FunctionType,
-                               llvm::StringRef InstanceName) const;
+  getNamedCInstanceOfReturnType(const model::TypeDefinition &FunctionType,
+                                llvm::StringRef InstanceName) const;
+
+  std::string
+  getFunctionReturnType(const model::TypeDefinition &FunctionType) const {
+    return getNamedCInstanceOfReturnType(FunctionType, "");
+  }
 
 public:
-  /// Print the function prototype (without any trailing ';') of \a Function.
+  /// Print the function prototype (without any trailing ';'s) of \a Function.
   /// \note If the return value or any of the arguments needs a wrapper, print
   ///       it with the corresponding wrapper type. The definition of such
   ///       wrappers should have already been printed before this function is

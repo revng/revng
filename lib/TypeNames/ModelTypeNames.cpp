@@ -9,6 +9,7 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Type.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -18,6 +19,7 @@
 #include "revng/Model/CABIFunctionDefinition.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Helpers.h"
+#include "revng/Model/PointerType.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/PTML/CBuilder.h"
 #include "revng/PTML/Constants.h"
@@ -28,7 +30,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
-#include "revng/TypeNames/PTMLCTypeBuilder.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 using llvm::dyn_cast;
 using llvm::StringRef;
@@ -40,7 +42,7 @@ namespace tokens = ptml::c::tokens;
 namespace ranks = revng::ranks;
 
 struct NamedCInstanceImpl {
-  const ptml::CTypeBuilder &B;
+  const ptml::ModelCBuilder &B;
   bool OmitInnerTypeName;
 
 public:
@@ -123,7 +125,7 @@ private:
 
   RecursiveCoroutine<std::string> impl(const model::DefinedType &Def,
                                        std::string &&Emitted) {
-    std::string Result = "";
+    std::string Result;
     if (not OmitInnerTypeName) {
       if (Def.IsConst())
         Result += constKeyword() + " ";
@@ -138,7 +140,7 @@ private:
 
   RecursiveCoroutine<std::string> impl(const model::PrimitiveType &Primitive,
                                        std::string &&Emitted) {
-    std::string Result = "";
+    std::string Result;
     if (not OmitInnerTypeName) {
       if (Primitive.IsConst())
         Result += constKeyword() + " ";
@@ -156,7 +158,7 @@ private:
   }
 };
 
-using PCTB = ptml::CTypeBuilder;
+using PCTB = ptml::ModelCBuilder;
 std::string PCTB::getNamedCInstance(const model::Type &Type,
                                     StringRef InstanceName,
                                     bool OmitInnerTypeName) const {
@@ -166,9 +168,9 @@ std::string PCTB::getNamedCInstance(const model::Type &Type,
 }
 
 std::string
-PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
-                                   llvm::StringRef InstanceName) const {
-  std::string Suffix = "";
+PCTB::getNamedCInstanceOfReturnType(const model::TypeDefinition &Function,
+                                    llvm::StringRef InstanceName) const {
+  std::string Suffix;
   if (not InstanceName.empty())
     Suffix.append(" " + InstanceName.str());
 
@@ -177,7 +179,7 @@ PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
 
   switch (ReturnMethod) {
   case abi::FunctionType::ReturnMethod::Void:
-    return getReturnValueTag(getVoidTag(), Function) + Suffix;
+    return getVoidTag() + Suffix;
 
   case abi::FunctionType::ReturnMethod::ModelAggregate:
   case abi::FunctionType::ReturnMethod::Scalar: {
@@ -190,22 +192,19 @@ PCTB::getNamedInstanceOfReturnType(const model::TypeDefinition &Function,
       ReturnType = Layout.ReturnValues[0].Type.get();
     }
 
-    return getReturnValueTag(getNamedCInstance(*ReturnType, InstanceName),
-                             Function);
+    return getNamedCInstance(*ReturnType, InstanceName);
   }
 
   case abi::FunctionType::ReturnMethod::RegisterSet: {
     // RawFunctionTypes can return multiple values, which need to be wrapped
     // in a struct
     const auto &RFT = llvm::cast<model::RawFunctionDefinition>(Function);
-    return getReturnValueTag(getArtificialStructTag<false>(RFT), RFT) + Suffix;
+    return getArtificialStructTag<false>(RFT) + Suffix;
   }
 
   default:
-    revng_abort();
+    revng_abort("Unsupported function return method.");
   }
-
-  revng_abort("Unsupported function return method.");
 }
 
 static std::string
@@ -242,11 +241,34 @@ template<typename FT>
 concept ModelFunction = std::same_as<FT, model::Function>
                         or std::same_as<FT, model::DynamicFunction>;
 
+static std::string
+getReturnValueAndNameImpl(const model::TypeDefinition &FunctionType,
+                          const llvm::StringRef &FunctionName,
+                          const ptml::ModelCBuilder &B) {
+  std::string Type = B.getFunctionReturnType(FunctionType);
+  revng_assert(not Type.empty());
+
+  // Workaround to ensure proper spacing around pointers.
+  bool NeedsSpace = true;
+  const auto Layout = abi::FunctionType::Layout::make(FunctionType);
+  if (Layout.returnMethod() == abi::FunctionType::ReturnMethod::Scalar) {
+    revng_assert(Layout.ReturnValues.size() == 1);
+
+    // Not using `isPointer` because typedefs change the behavior here.
+    using PointerT = model::PointerType;
+    if (auto *P = llvm::dyn_cast<PointerT>(Layout.ReturnValues[0].Type.get()))
+      NeedsSpace = P->IsConst();
+  }
+
+  return B.getReturnValueTag(std::move(Type), FunctionType)
+         + (NeedsSpace ? " " : "") + FunctionName.str();
+}
+
 template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::RawFunctionDefinition &RF,
                                        const llvm::StringRef &FunctionName,
-                                       const ptml::CTypeBuilder &B,
+                                       const ptml::ModelCBuilder &B,
                                        bool SingleLine) {
   using namespace abi::FunctionType;
   auto Layout = Layout::make(RF);
@@ -259,7 +281,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
   if (Function and not Function->Attributes().empty())
     Result += getFunctionAttributesString(Function->Attributes());
   Result += (SingleLine ? " " : "\n");
-  Result += B.getNamedInstanceOfReturnType(RF, FunctionName);
+  Result += getReturnValueAndNameImpl(RF, FunctionName, B);
 
   if (RF.Arguments().empty() and RF.StackArgumentsType().isEmpty()) {
     Result += "(" + B.getVoidTag() + ")";
@@ -303,7 +325,7 @@ template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const FunctionType *Function,
                                        const model::CABIFunctionDefinition &CF,
                                        const llvm::StringRef &FunctionName,
-                                       const ptml::CTypeBuilder &B,
+                                       const ptml::ModelCBuilder &B,
                                        bool SingleLine) {
 
   using namespace abi::FunctionType;
@@ -317,7 +339,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
   if (Function and not Function->Attributes().empty())
     Result += getFunctionAttributesString(Function->Attributes());
   Result += (SingleLine ? " " : "\n");
-  Result += B.getNamedInstanceOfReturnType(CF, FunctionName);
+  Result += getReturnValueAndNameImpl(CF, FunctionName, B);
 
   if (CF.Arguments().empty()) {
     Result += "(" + B.getVoidTag() + ")";
@@ -348,7 +370,7 @@ template<ModelFunction FunctionType>
 std::string printFunctionPrototypeImpl(const model::TypeDefinition &FT,
                                        const FunctionType *Function,
                                        const llvm::StringRef &FunctionName,
-                                       const ptml::CTypeBuilder &B,
+                                       const ptml::ModelCBuilder &B,
                                        bool SingleLine) {
   std::string Result;
   if (auto *RF = dyn_cast<model::RawFunctionDefinition>(&FT)) {
@@ -375,9 +397,11 @@ std::string printFunctionPrototypeImpl(const model::TypeDefinition &FT,
     return B.getCommentableTag(std::move(Result), FT);
 }
 
-void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
-                                                const model::Function &Function,
-                                                bool SingleLine) {
+using MCB = ptml::ModelCBuilder;
+
+void MCB::printFunctionPrototype(const model::TypeDefinition &FT,
+                                 const model::Function &Function,
+                                 bool SingleLine) {
   *Out << printFunctionPrototypeImpl(FT,
                                      &Function,
                                      getDefinitionTag(Function),
@@ -385,10 +409,9 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
                                      SingleLine);
 }
 
-void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
-                                                const model::DynamicFunction
-                                                  &Function,
-                                                bool SingleLine) {
+void MCB::printFunctionPrototype(const model::TypeDefinition &FT,
+                                 const model::DynamicFunction &Function,
+                                 bool SingleLine) {
   *Out << printFunctionPrototypeImpl(FT,
                                      &Function,
                                      getDefinitionTag(Function),
@@ -396,8 +419,8 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition &FT,
                                      SingleLine);
 }
 
-void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition
-                                                  &FT) {
+void ptml::ModelCBuilder::printFunctionPrototype(const model::TypeDefinition
+                                                   &FT) {
   *Out << printFunctionPrototypeImpl(FT,
                                      (const model::Function *) nullptr,
                                      getDefinitionTag(FT),
@@ -405,7 +428,7 @@ void ptml::CTypeBuilder::printFunctionPrototype(const model::TypeDefinition
                                      true);
 }
 
-void ptml::CTypeBuilder::printSegmentType(const model::Segment &Segment) {
+void ptml::ModelCBuilder::printSegmentType(const model::Segment &Segment) {
   std::string Result = "\n" + getModelCommentWithoutLeadingNewline(Segment);
   if (not Segment.Type().isEmpty()) {
     Result += getNamedCInstance(*Segment.Type(), getDefinitionTag(Segment));
@@ -418,4 +441,119 @@ void ptml::CTypeBuilder::printSegmentType(const model::Segment &Segment) {
   }
 
   *Out << getCommentableTag(std::move(Result) + ";\n", Binary, Segment);
+}
+
+Logger<> VariableNamingLog("variable-naming");
+
+ptml::ModelCBuilder::TagPair
+ptml::ModelCBuilder::getVariableTags(VariableNameBuilder &VariableNameBuilder,
+                                     const SortedVector<MetaAddress>
+                                       &UserLocationSet) const {
+  constexpr std::array Actions = { ptml::actions::Rename };
+  llvm::ArrayRef<llvm::StringRef> CurrentActions = Actions;
+
+  auto [Name, I, HasA, Warning] = VariableNameBuilder.name(UserLocationSet);
+  if (not HasA) {
+    // The variable is not locatable, ensure `rename` action is not allowed.
+    constexpr std::array<llvm::StringRef, 0> EmptyActions = {};
+    CurrentActions = EmptyActions;
+  }
+
+  if (VariableNamingLog.isEnabled()) {
+    if (HasA)
+      VariableNamingLog << "A locatable ";
+    else
+      VariableNamingLog << "A non-locatable ";
+
+    VariableNamingLog << "variable (" << I << ") at '"
+                      << addressesToString(UserLocationSet)
+                      << "' received the name: '" << Name << "'" << DoLog;
+
+    if (not Warning.empty())
+      VariableNamingLog << "WARNING (in "
+                        << ::toString(VariableNameBuilder.function().key())
+                        << "): " << Warning << '\n';
+  }
+
+  // TODO: emit warning to users (comment, vscode squiggle, etc), instead of
+  //       just logging it.
+
+  auto Location = variableLocationString(VariableNameBuilder.function(), I);
+  return TagPair{
+    .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       CurrentActions),
+    .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       CurrentActions)
+  };
+}
+
+ptml::ModelCBuilder::TagPair
+ptml::ModelCBuilder::getReservedVariableTags(const model::Function &Function,
+                                             llvm::StringRef Name) const {
+  NameBuilder.assertNameIsReserved(Name);
+
+  constexpr std::array<llvm::StringRef, 0> Actions = {};
+
+  std::string Location = reservedVariableLocationString(Function, Name);
+  // NOTE: these should never be used as a context for any actions.
+
+  revng_log(VariableNamingLog,
+            "A non-renamable variable received the name: '" << Name << "'");
+
+  return TagPair{
+    .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       Actions),
+    .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       Actions)
+  };
+}
+
+ptml::ModelCBuilder::TagPair
+ptml::ModelCBuilder::getGotoLabelTags(GotoLabelNameBuilder &LabelNameBuilder,
+                                      const SortedVector<MetaAddress>
+                                        &UserLocationSet) const {
+  constexpr std::array Actions = { ptml::actions::Rename };
+  llvm::ArrayRef<llvm::StringRef> CurrentActions = Actions;
+
+  auto [Name, I, HasAddr, Warning] = LabelNameBuilder.name(UserLocationSet);
+  if (not HasAddr) {
+    // The label is not locatable, ensure `rename` action is not allowed.
+    constexpr std::array<llvm::StringRef, 0> EmptyActions = {};
+    CurrentActions = EmptyActions;
+  }
+
+  if (VariableNamingLog.isEnabled()) {
+    if (HasAddr)
+      VariableNamingLog << "A locatable ";
+    else
+      VariableNamingLog << "A non-locatable ";
+
+    if (not Warning.empty())
+      VariableNamingLog << "WARNING (in "
+                        << ::toString(LabelNameBuilder.function().key())
+                        << "): " << Warning << '\n';
+  }
+
+  // TODO: emit warning to users (comment, vscode squiggle, etc), instead of
+  //       just logging it.
+
+  auto Location = gotoLabelLocationString(LabelNameBuilder.function(), I);
+  return TagPair{
+    .Definition = getNameTagImpl<true>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       CurrentActions),
+    .Reference = getNameTagImpl<false>(tokenTag(Name,
+                                                ptml::c::tokens::Variable),
+                                       Location,
+                                       CurrentActions)
+  };
 }

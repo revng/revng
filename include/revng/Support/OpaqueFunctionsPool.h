@@ -22,6 +22,9 @@ template<typename T>
 concept PointerToLLVMTypeOrDerived = std::derived_from<std::remove_pointer_t<T>,
                                                        llvm::Type>;
 
+// TODO: make this work with the IR helper registry (see `IRHelperRegistry.h`),
+//       as currently pulled functions go untracked.
+
 template<typename KeyT>
 class OpaqueFunctionsPool {
 private:

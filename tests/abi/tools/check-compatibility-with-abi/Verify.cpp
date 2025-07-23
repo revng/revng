@@ -19,8 +19,8 @@ struct VerificationHelper {
   const bool IsLittleEndian;
 
 public:
-  llvm::StringRef FunctionName = "";
-  abi::FunctionType::Layout FunctionLayout = {};
+  llvm::StringRef FunctionName;
+  abi::FunctionType::Layout FunctionLayout;
 
 private:
   mutable uint64_t PotentialPadding = 0;
