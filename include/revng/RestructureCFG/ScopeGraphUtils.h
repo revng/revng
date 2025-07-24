@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
+
 #include "revng/ADT/Concepts.h"
 #include "revng/Support/FunctionTags.h"
 
@@ -76,3 +78,19 @@ void verifyScopeGraphAnnotationsImpl(FunctionTags::Tag &Tag,
                                      const llvm::BasicBlock *BB);
 
 void verifyScopeGraphAnnotations(const llvm::BasicBlock *BB);
+
+/// Helper function which substitutes some successors in the `Terminator` with
+/// `NewTarget`
+template<RangeOf<llvm::BasicBlock *> Container>
+void replaceSuccessors(llvm::Instruction *Terminator,
+                       Container &SuccessorsToRemove,
+                       llvm::BasicBlock *NewTarget) {
+  for (llvm::BasicBlock *Successor : SuccessorsToRemove) {
+    Terminator->replaceSuccessorWith(Successor, NewTarget);
+  }
+}
+
+/// Helper function which simplifies all the terminators containing
+/// `PlaceHolderTarget`, by removing it
+void simplifyTerminator(llvm::BasicBlock *BB,
+                        const llvm::BasicBlock *PlaceHolderTarget);
