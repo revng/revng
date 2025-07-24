@@ -375,6 +375,42 @@ python_module(
   revng/pipeline_description/_generated.py)
 
 #
+# Install revng.internal.pypeline
+#
+set(REVNG_PYPELINE_MODULE_FILES revng/internal/pypeline/__init__.py)
+python_module(TARGET_NAME revng-python-pypeline WHEEL revng_internal
+              MODULE_FILES ${REVNG_PYPELINE_MODULE_FILES})
+
+#
+# Nanobind module generation and creation of revng.internal.{,_}cpp_pypeline
+#
+execute_process(
+  COMMAND "${Python_EXECUTABLE}" "-c"
+          "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))"
+  OUTPUT_VARIABLE PYTHON_EXT_SUFFIX
+  OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core)
+
+set(CPP_MODULE_NAME _cpp_pypeline)
+set(CPP_MODULE_FILENAME "${CPP_MODULE_NAME}${PYTHON_EXT_SUFFIX}")
+add_library("${CPP_MODULE_NAME}" MODULE "revng/internal/_cpp_pypeline.cpp")
+set_target_properties(
+  "${CPP_MODULE_NAME}"
+  PROPERTIES LINKER_LANGUAGE CXX
+             PREFIX ""
+             SUFFIX "${PYTHON_EXT_SUFFIX}"
+             LIBRARY_OUTPUT_DIRECTORY
+             "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/internal")
+target_link_libraries(
+  "${CPP_MODULE_NAME}" PUBLIC ${Python_LIBRARIES} ${LLVM_LIBRARIES} nanobind
+                              revngPypeline revngSupport revngModel)
+target_include_directories("${CPP_MODULE_NAME}" PUBLIC ${Python_INCLUDE_DIRS})
+
+python_module(TARGET_NAME python-cpp-pypeline WHEEL revng_internal
+              MODULE_GENERATED_FILES "revng/internal/${CPP_MODULE_FILENAME}")
+
+#
 # Generate actual wheel rules
 #
 python_wheel(NAME revng)
