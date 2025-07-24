@@ -392,9 +392,9 @@ private:
   }
 
   std::string createLocalVarDeclName(const llvm::Instruction *I) {
-    revng_assert(isCallToTagged(I, FunctionTags::LocalVariable)
+    revng_assert(isLocalVarDecl(I) or isCallStackArgumentDecl(I)
                    or isArtificialAggregateLocalVarDecl(I)
-                   or isCallStackArgumentDecl(I),
+                   or isHelperAggregateLocalVarDecl(I),
                  "This instruction is not a local variable!");
 
     SortedVector<MetaAddress> UserAddressList;
@@ -423,8 +423,9 @@ private:
 
   std::string getVarName(const llvm::Instruction *I) const {
     revng_assert(isStackFrameDecl(I) or isLocalVarDecl(I)
+                 or isCallStackArgumentDecl(I)
                  or isArtificialAggregateLocalVarDecl(I)
-                 or isCallStackArgumentDecl(I));
+                 or isHelperAggregateLocalVarDecl(I));
     revng_assert(TokenMap.contains(I));
     return TokenMap.at(I);
   };
@@ -847,26 +848,26 @@ CCodeGenerator::getCustomOpcodeToken(const llvm::CallInst *Call) const {
   if (isCallToTagged(Call, FunctionTags::OpaqueExtractValue)) {
 
     const llvm::Value *AggregateOp = Call->getArgOperand(0);
-    const auto *I = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(1));
+    revng_assert(isArtificialAggregateLocalVarDecl(AggregateOp)
+                 or isHelperAggregateLocalVarDecl(AggregateOp));
 
     const auto *CallReturnsStruct = llvm::cast<llvm::CallInst>(AggregateOp);
-    const llvm::Function *Callee = getCalledFunction(CallReturnsStruct);
-    const auto &CalleePrototype = getCallSitePrototype(Model,
-                                                       CallReturnsStruct);
+    const auto *I = llvm::cast<llvm::ConstantInt>(Call->getArgOperand(1));
+    uint64_t Index = I->getZExtValue();
 
     std::string StructFieldRef;
-    if (not CalleePrototype) {
+    if (isArtificialAggregateLocalVarDecl(AggregateOp)) {
+      const auto *CalleePrototype = getCallSitePrototype(Model,
+                                                         CallReturnsStruct);
+      auto RF = llvm::cast<const model::RawFunctionDefinition>(CalleePrototype);
+      const auto &ReturnValue = std::next(RF->ReturnValues().begin(), Index);
+      StructFieldRef = B.NameBuilder.name(*RF, *ReturnValue);
+    } else if (isHelperAggregateLocalVarDecl(AggregateOp)) {
       // The call returning a struct is a call to a helper function.
       // It must be a direct call.
+      const llvm::Function *Callee = getCalledFunction(CallReturnsStruct);
       revng_assert(Callee);
-      StructFieldRef = getReturnStructFieldReferenceTag(Callee,
-                                                        I->getZExtValue(),
-                                                        B);
-    } else {
-      auto RF = llvm::cast<const model::RawFunctionDefinition>(CalleePrototype);
-      uint64_t Idx = I->getZExtValue();
-      const auto &ReturnValue = std::next(RF->ReturnValues().begin(), Idx);
-      StructFieldRef = B.NameBuilder.name(*RF, *ReturnValue);
+      StructFieldRef = getReturnStructFieldReferenceTag(Callee, Index, B);
     }
 
     rc_return rc_recur getToken(AggregateOp) + "." + StructFieldRef;
@@ -1327,7 +1328,7 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
       // token.
       std::string RHSExpression = isArtificialAggregateLocalVarDecl(Call) ?
                                     getIsolatedCallToken(Call) :
-                                    getToken(Call);
+                                    getNonIsolatedCallToken(Call);
 
       // Assign to the local variable
       B.append(VarName + " " + B.getOperator(ptml::CBuilder::Operator::Assign)
@@ -1553,20 +1554,27 @@ RecursiveCoroutine<void> CCodeGenerator::emitGHASTNode(const ASTNode *N) {
         // constness.
         auto NonConst = model::getNonConst(*TypeMap.at(VarDeclCall));
 
-        B.append(B.getNamedCInstance(*NonConst, VarName) + ";\n");
-      } else if (isHelperAggregateLocalVarDecl(VarDeclCall)
-                 or isArtificialAggregateLocalVarDecl(VarDeclCall)) {
+        B.append(B.getNamedCInstance(*NonConst, VarName));
+      } else if (isArtificialAggregateLocalVarDecl(VarDeclCall)) {
         // Create missing local variable declarations
         std::string VarName = createLocalVarDeclName(VarDeclCall);
         revng_assert(not VarName.empty());
-        const auto *Prototype = getCallSitePrototype(Model, VarDeclCall);
-        revng_assert(Prototype != nullptr);
 
-        auto Named = B.getNamedCInstanceOfReturnType(*Prototype, VarName);
-        B.append(Named + ";\n");
+        const auto *Prototype = getCallSitePrototype(Model, VarDeclCall);
+        revng_assert(Prototype);
+        B.append(B.getNamedCInstanceOfReturnType(*Prototype, VarName));
+
+      } else if (isHelperAggregateLocalVarDecl(VarDeclCall)) {
+        // Create missing local variable declarations
+        std::string VarName = createLocalVarDeclName(VarDeclCall);
+        revng_assert(not VarName.empty());
+        llvm::Function *Callee = VarDeclCall->getCalledFunction();
+        revng_assert(Callee);
+        B.append(getReturnTypeReferenceTag(Callee, B) + " " + VarName);
       } else {
         revng_assert(not VarDeclCall->getType()->isAggregateType());
       }
+      B.append(";\n");
     }
   }
 
