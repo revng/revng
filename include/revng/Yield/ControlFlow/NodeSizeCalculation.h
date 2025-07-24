@@ -49,8 +49,13 @@ constexpr inline yield::layout::Size pureTextSize(std::string_view Text) {
 inline yield::layout::Size
 fontSize(yield::layout::Size &&Input,
          const yield::cfg::Configuration &Configuration) {
+  auto ExtraPadding = Input.H * Configuration.PaddingBetweenLines;
+
   Input.W *= Configuration.FontSize * Configuration.HorizontalFontFactor;
   Input.H *= Configuration.FontSize * Configuration.VerticalFontFactor;
+
+  Input.H += ExtraPadding;
+
   return std::move(Input);
 }
 
