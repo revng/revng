@@ -324,6 +324,15 @@ struct std::tuple_size</*= struct | fullname =*/::Key>
 template<size_t I>
 struct std::tuple_element<I, /*= struct | fullname =*/::Key>
   : public std::tuple_element<I, /*= struct | fullname =*/::KeyTuple> {};
+
+template<>
+struct std::hash<const /*= struct | fullname =*/::Key> {
+  size_t operator()(const /*= struct | fullname =*/::Key &Key) const {
+    return llvm::hash_value(Key);
+  }
+};
+template<>
+struct hash</*= struct | fullname =*/::Key> : hash<const /*= struct | fullname =*/::Key> {};
 /** endif **/
 
 /*# --- UpcastablePointer stuff --- #*/
