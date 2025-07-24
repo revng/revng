@@ -186,6 +186,10 @@ BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
   // Insert the `goto_block` marker in the `ScopeGraph`
   makeGoto(GotoBlock);
 
+  // We ensure that we are not trying to make a `scope_closer` edge a `goto`
+  // edge
+  revng_assert(getScopeCloserTarget(Source) != Target);
+
   // Redirect all the edges `Source` -> `Target` to `Source` -> `GotoBlock`
   SourceTerminator->replaceSuccessorWith(Target, GotoBlock);
 
