@@ -85,3 +85,17 @@ private:
 template<>
 struct KeyedObjectTraits<BasicBlockID>
   : public IdentityKeyedObjectTraits<BasicBlockID> {};
+
+inline llvm::hash_code hash_value(const BasicBlockID &BBID) {
+  return llvm::hash_combine(BBID.start(), BBID.inliningIndex());
+}
+
+template<>
+struct std::hash<const BasicBlockID> {
+  uint64_t operator()(const BasicBlockID &BBID) const {
+    return hash_value(BBID);
+  }
+};
+
+template<>
+struct std::hash<BasicBlockID> : hash<const BasicBlockID> {};
