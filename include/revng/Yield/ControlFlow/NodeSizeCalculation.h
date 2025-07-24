@@ -38,6 +38,11 @@ constexpr inline yield::layout::Size pureTextSize(std::string_view Text) {
   if (LastLineLength != 0)
     ++LineCount;
 
+  // Ignore empty lines at the end
+  size_t TrailingEmptyLineCount = Text.size() - Text.find_last_not_of('\n');
+  if (TrailingEmptyLineCount > 1)
+    LineCount -= TrailingEmptyLineCount - 1;
+
   return yield::layout::Size(MaximumLineLength, LineCount);
 }
 
