@@ -49,6 +49,9 @@ public:
   /// Specifies the size of the font used.
   layout::Dimension FontSize;
 
+  /// Specifies the number of pixels to leave in-between lines
+  layout::Dimension PaddingBetweenLines;
+
   /// Specifies the degree to which node corners should be rounded.
   size_t NodeCornerRoundingFactor;
 
@@ -86,6 +89,7 @@ public:
                           .VerticalFontFactor = 1.25f,
 
                           .FontSize = 18.f,
+                          .PaddingBetweenLines = 4.f,
 
                           .NodeCornerRoundingFactor = 5,
 

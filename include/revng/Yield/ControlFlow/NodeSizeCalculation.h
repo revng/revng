@@ -38,14 +38,24 @@ constexpr inline yield::layout::Size pureTextSize(std::string_view Text) {
   if (LastLineLength != 0)
     ++LineCount;
 
+  // Ignore empty lines at the end
+  size_t TrailingEmptyLineCount = Text.size() - Text.find_last_not_of('\n');
+  if (TrailingEmptyLineCount > 1)
+    LineCount -= TrailingEmptyLineCount - 1;
+
   return yield::layout::Size(MaximumLineLength, LineCount);
 }
 
 inline yield::layout::Size
 fontSize(yield::layout::Size &&Input,
          const yield::cfg::Configuration &Configuration) {
+  auto ExtraPadding = Input.H * Configuration.PaddingBetweenLines;
+
   Input.W *= Configuration.FontSize * Configuration.HorizontalFontFactor;
   Input.H *= Configuration.FontSize * Configuration.VerticalFontFactor;
+
+  Input.H += ExtraPadding;
+
   return std::move(Input);
 }
 
