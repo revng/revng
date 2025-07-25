@@ -4,7 +4,7 @@
 
 import asyncio
 import json
-import logging
+import sys
 from base64 import b64decode
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -23,6 +23,11 @@ from revng.internal.api.target import Target
 
 from .multiqueue import MultiQueue
 from .util import produce_serializer
+
+
+def log(message: str):
+    sys.stderr.write(message + "\n")
+    sys.stderr.flush()
 
 
 @dataclass
@@ -98,6 +103,8 @@ async def resolve_produce(
 ):
     manager: Manager = info.context["manager"]
     index_lock: asyncio.Lock = info.context["index_lock"]
+    req_json = {"step": step, "container": container, "targetList": targetList, "index": index}
+    log("Requested produce with " + json.dumps(req_json))
     async with index_lock:
         current_index = await run_in_executor(manager.get_context_commit_index)
         if current_index != index:
@@ -125,6 +132,8 @@ async def resolve_produce_artifacts(
 ):
     manager: Manager = info.context["manager"]
     index_lock: asyncio.Lock = info.context["index_lock"]
+    req_json = {"step": step, "paths": paths, "index": index}
+    log("Requested artifact produce with " + json.dumps(req_json))
     async with index_lock:
         current_index = await run_in_executor(manager.get_context_commit_index)
         if current_index != index:
@@ -182,11 +191,12 @@ async def resolve_save(_, info) -> bool:
 async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A002
     manager: Manager = info.context["manager"]
     index_lock: asyncio.Lock = info.context["index_lock"]
+    log(f"Uploading B64 with size {len(input)}")
     async with index_lock:
         invalidations = await run_in_executor(manager.set_input, container, b64decode(input))
         index = await run_in_executor(manager.get_context_commit_index)
         await invalidation_queue.send(Invalidation(index, str(invalidations)))
-        logging.info(f"Saved file for container {container}")
+        log(f"Saved file for container {container}")
         return True
 
 
@@ -194,12 +204,13 @@ async def resolve_upload_b64(_, info, *, input: str, container: str):  # noqa: A
 async def resolve_upload_file(_, info, *, file: UploadFile, container: str):
     manager: Manager = info.context["manager"]
     index_lock: asyncio.Lock = info.context["index_lock"]
+    log(f"Uploading file with size {file.size}")
     async with index_lock:
         contents = await file.read()
         invalidations = await run_in_executor(manager.set_input, container, contents)
         index = await run_in_executor(manager.get_context_commit_index)
         await invalidation_queue.send(Invalidation(index, str(invalidations)))
-        logging.info(f"Saved file for container {container}")
+        log(f"Saved file for container {container}")
         return True
 
 
@@ -216,6 +227,14 @@ async def resolve_run_analysis(
 ):
     manager: Manager = info.context["manager"]
     index_lock: asyncio.Lock = info.context["index_lock"]
+    req_json = {
+        "step": step,
+        "analysis": analysis,
+        "ctt": containerToTargets,
+        "options": options,
+        "index": index,
+    }
+    log("Requested run_analysis with " + json.dumps(req_json))
     async with index_lock:
         current_index = await run_in_executor(manager.get_context_commit_index)
         if current_index != index:
@@ -240,6 +259,8 @@ async def resolve_run_analysis(
 async def resolve_run_analyses_list(_, info, *, name: str, options: str | None = None, index: int):
     manager: Manager = info.context["manager"]
     index_lock: asyncio.Lock = info.context["index_lock"]
+    req_json = {"name": name, "options": options, "index": index}
+    log("Requested run_analyses_list with " + json.dumps(req_json))
     async with index_lock:
         current_index = await run_in_executor(manager.get_context_commit_index)
         if current_index != index:
