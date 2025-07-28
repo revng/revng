@@ -7,6 +7,10 @@ class RevngException(Exception):
     pass
 
 
+class RevngManagerInstantiationException(RevngException):
+    pass
+
+
 class RevngDocumentException(RevngException):
     def __init__(self, document_error):
         self.document_error = document_error
