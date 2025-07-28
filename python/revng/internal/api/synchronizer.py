@@ -16,6 +16,7 @@ from uuid import uuid4
 import boto3
 import botocore
 import yaml
+from boto3.s3.transfer import TransferConfig
 
 
 class Synchronizer(Protocol):
@@ -292,6 +293,7 @@ class S3Synchronizer(Synchronizer):
                 Key=key,
                 Bucket=self.bucket,
                 ExtraArgs=extra_args,
+                Config=TransferConfig(multipart_threshold=1 * (1024**4)),  # 1TB
             )
             return True
         except boto3.exceptions.S3UploadFailedError as e:
