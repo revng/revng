@@ -319,13 +319,13 @@ public:
       }
     }
 
-    [[nodiscard]] std::set<llvm::StringRef>
+    [[nodiscard]] std::set<std::string>
     homelessNamesImpl(RangeOf<const model::LocalIdentifier &> auto R) const {
       return R | std::views::filter([this](const auto &V) {
                return not EmittedNames.contains(V.Name());
              })
              | std::views::transform([](const auto &V) { return V.Name(); })
-             | revng::to<std::set<llvm::StringRef>>();
+             | revng::to<std::set<std::string>>();
     }
   };
 
@@ -356,7 +356,7 @@ public:
                                            Prefix);
     }
 
-    std::set<llvm::StringRef> homelessNames() const {
+    std::set<std::string> homelessNames() const {
       return CountingNameBuilder::homelessNamesImpl(Function->LocalVariables());
     }
   };
