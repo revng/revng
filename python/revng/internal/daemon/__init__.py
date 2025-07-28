@@ -29,6 +29,7 @@ from ariadne.contrib.tracing.apollotracing import ApolloTracingExtension
 from revng.internal.api import Manager
 from revng.internal.api._capi import initialize as capi_initialize
 from revng.internal.api._capi import shutdown as capi_shutdown
+from revng.internal.api.exceptions import RevngManagerInstantiationException
 from revng.internal.api.syncing_manager import SyncingManager
 
 from .graphql import get_schema
@@ -39,7 +40,7 @@ DEBUG = config("STARLETTE_DEBUG", cast=bool, default=False)
 
 
 class ManagerCredentialsMiddleware:
-    def __init__(self, app: ASGIApp, manager: Manager):
+    def __init__(self, app: ASGIApp, manager: Manager | None):
         self.app = app
         self.manager = manager
 
@@ -48,7 +49,7 @@ class ManagerCredentialsMiddleware:
             return await self.app(scope, receive, send)
 
         credentials = Headers(scope=scope).get("x-revng-set-credentials")
-        if credentials is not None:
+        if credentials is not None and self.manager is not None:
             self.manager.set_storage_credentials(credentials)
 
         return await self.app(scope, receive, send)
@@ -87,7 +88,7 @@ def load_plugins() -> PluginHooks:
     return hooks
 
 
-def get_middlewares(manager: Manager, hooks: PluginHooks) -> List[Middleware]:
+def get_middlewares(manager: Manager | None, hooks: PluginHooks) -> List[Middleware]:
     origins: List[str] = []
     if "REVNG_ORIGINS" in os.environ:
         origins = os.environ["REVNG_ORIGINS"].split(",")
@@ -116,6 +117,27 @@ async def client_disconnect_handler(request: Request, exc: ClientDisconnect):
     return PlainTextResponse()
 
 
+def all_500_starlette(hooks: PluginHooks) -> Starlette:
+    async def index_page(request):
+        return PlainTextResponse("")
+
+    async def status(request):
+        return PlainTextResponse("OK")
+
+    async def catch_all(request):
+        return PlainTextResponse("Manager failed to initialize", 500)
+
+    return Starlette(
+        debug=DEBUG,
+        middleware=get_middlewares(None, hooks),
+        routes=[
+            Route("/", index_page, methods=["GET"]),
+            Route("/status", status, methods=["GET"]),
+            Route("/{path:path}", catch_all),
+        ],
+    )
+
+
 def make_startlette() -> Starlette:
     capi_initialize(
         signals_to_preserve=(
@@ -134,7 +156,12 @@ def make_startlette() -> Starlette:
     )
 
     hooks = load_plugins()
-    manager = SyncingManager(project_workdir(), save_hooks=hooks.save_hooks)
+    try:
+        manager = SyncingManager(project_workdir(), save_hooks=hooks.save_hooks)
+    except RevngManagerInstantiationException:
+        capi_shutdown()
+        return all_500_starlette(hooks)
+
     startup_done = False
 
     if DEBUG:

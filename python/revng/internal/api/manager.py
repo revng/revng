@@ -12,7 +12,7 @@ from revng.pipeline_description import YamlLoader  # type: ignore
 
 from ._capi import _api, ffi
 from .errors import Error, Expected
-from .exceptions import RevngException
+from .exceptions import RevngException, RevngManagerInstantiationException
 from .invalidations import Invalidations, ResultWithInvalidations
 from .string_map import StringMap
 from .target import ContainerToTargetsMap, Target, TargetsList
@@ -49,7 +49,8 @@ class Manager:
             _workdir,
         )
 
-        assert self._manager, "Failed to instantiate manager"
+        if self._manager in (None, ffi.NULL):
+            raise RevngManagerInstantiationException("Failed to instantiate manager")
 
         _description = _api.rp_manager_get_pipeline_description(self._manager)
         self._description_str = make_python_string(_description)
