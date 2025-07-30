@@ -249,7 +249,7 @@ LegacyVB::createCopyFromAssignedOnUse(AssignType *Assign, Use &U) {
 template<>
 LegacyVB::AssignType *
 LegacyVB::createAssignmentBefore(Value *LocationToAssign,
-                                 Value *ValueToAssign,
+                                 Instruction *ValueToAssign,
                                  Instruction *InsertBefore) {
   // Create an assignment that assigns ValueToAssign to LocationToAssign.
   IRBuilder<> B(InsertBefore);
@@ -337,10 +337,11 @@ VB::CopyType *VB::createCopyFromAssignedOnUse(AssignType *Assign, Use &U) {
 
 template<>
 VB::AssignType *VB::createAssignmentBefore(Value *LocationToAssign,
-                                           Value *ValueToAssign,
+                                           Instruction *ValueToAssign,
                                            Instruction *InsertBefore) {
   // Create a copy from the assigned location at the proper insertion point.
   IRBuilder<> B(InsertBefore);
+  B.SetCurrentDebugLocation(ValueToAssign->getDebugLoc());
   return B.CreateStore(ValueToAssign, LocationToAssign);
 }
 
@@ -350,6 +351,7 @@ LocalVariableBuilder<IsLegacy>::createAllocaWithPtrToInt(llvm::Function *F,
                                                          llvm::Type *T) const {
   IRBuilder<> B(M.getContext());
   B.SetInsertPointPastAllocas(F);
+  B.SetCurrentDebugLocation(B.GetInsertPoint()->getDebugLoc());
   auto *Alloca = B.CreateAlloca(T);
   Value *PtrToInt = B.CreatePtrToInt(Alloca, TargetPointerSizedInteger);
 
