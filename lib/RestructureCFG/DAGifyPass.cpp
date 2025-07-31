@@ -21,6 +21,19 @@ using namespace llvm;
 // Debug logger
 static Logger<> Log("dagify");
 
+/// Helper function used to insert on the `Head` node the metadata that will be
+/// later checked for consistency
+static void insertHeadMD(BasicBlock *Head) {
+
+  // We attach a metadata to the terminator instruction of the `Head`
+  // block. Later on, we will check during `MaterializeLoopScopes` that
+  // the `Head` block of each `GenericRegion` will be the same
+  Instruction *HeadTerminator = Head->getTerminator();
+  QuickMetadata QMD(getContext(HeadTerminator));
+  auto *HeadMD = QMD.tuple();
+  HeadTerminator->setMetadata("genericregion-head", HeadMD);
+}
+
 class DAGifyPassImpl {
   Function &F;
   const ScopeGraphBuilder SGBuilder;
@@ -142,7 +155,9 @@ public:
           RegionNodes.insert(RegionNode);
         }
 
+        // Mark the `Head` block with the custom named metadata
         BasicBlock *Head = Region->getHead();
+        insertHeadMD(Head);
 
         // 1. Process the retreating edges of the `GenericRegion`
         using GT = GraphTraits<BasicBlock *>;
