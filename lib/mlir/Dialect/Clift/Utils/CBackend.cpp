@@ -773,9 +773,26 @@ public:
 
     Out << C.getOperator(getOperator(Op));
 
+    auto StartsWithMinus = [](mlir::Value V) {
+      if (mlir::isa<NegOp, DecrementOp>(V.getDefiningOp()))
+        return true;
+
+      if (auto I = V.getDefiningOp<ImmediateOp>()) {
+        if (auto T = mlir::dyn_cast<PrimitiveType>(I.getResult().getType())) {
+          if (T.getKind() == PrimitiveKind::SignedKind)
+            return static_cast<int64_t>(I.getValue()) < 0;
+        }
+      }
+
+      return false;
+    };
+
     // Double negation requires a space in between to avoid being confused as
     // decrement. (- -x) vs (--x)
-    if (V.getDefiningOp<NegOp>() and Operand.getDefiningOp<NegOp>())
+    //
+    // Negation after a decrement requires a space in between to avoid being
+    // confused as decrement after negation. (- --x) vs (---x)
+    if (V.getDefiningOp<NegOp>() and StartsWithMinus(Operand))
       Out << ' ';
 
     // Parenthesizing a nested unary prefix expression is not necessary.
