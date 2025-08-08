@@ -18,8 +18,8 @@ from .common import log, logger
 from .elf import fetch_dwarf
 from .pe import fetch_pdb
 
-DEFAULT_ELF_SERVERS = ["https://debuginfod.elfutils.org"]
-DEFAULT_PE_SERVERS = ["https://msdl.microsoft.com/download/symbols"]
+DEFAULT_ELF_SERVERS = ["https://debuginfo-cache.rev.ng/elf"]
+DEFAULT_PE_SERVERS = ["https://debuginfo-cache.rev.ng/pe"]
 
 
 def log_success(file_path):
