@@ -24,30 +24,28 @@
 #include "revng/Pipes/ToolCLOptions.h"
 #include "revng/Support/InitRevng.h"
 
-using std::string;
-using namespace llvm;
-using namespace llvm::cl;
+namespace cl = llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
 
-static cl::list<string> Targets(Positional,
-                                Required,
-                                desc("<Targets to invalidate>..."),
-                                cat(MainCategory));
+static cl::list<std::string> Targets(cl::Positional,
+                                     cl::Required,
+                                     cl::desc("<Targets to invalidate>..."),
+                                     cl::cat(MainCategory));
 
-static opt<bool> DumpPredictedRemovals("dump-invalidations",
-                                       desc("dump predicted invalidate "
-                                            "targets"),
-                                       cat(MainCategory));
+static cl::opt<bool> DumpPredictedRemovals("dump-invalidations",
+                                           cl::desc("dump predicted invalidate "
+                                                    "targets"),
+                                           cl::cat(MainCategory));
 
-static opt<bool> DumpFinalStatus("dump-status",
-                                 desc("dump status after invalidation "
-                                      "targets"),
-                                 cat(MainCategory));
+static cl::opt<bool> DumpFinalStatus("dump-status",
+                                     cl::desc("dump status after invalidation "
+                                              "targets"),
+                                     cl::cat(MainCategory));
 
 static ToolCLOptions BaseOptions(MainCategory);
 
-static ExitOnError AbortOnError;
+static llvm::ExitOnError AbortOnError;
 
 static TargetInStepSet getTargetInStepSet(Runner &Pipeline) {
   TargetInStepSet Invalidations;

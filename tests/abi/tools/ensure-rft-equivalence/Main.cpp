@@ -30,7 +30,7 @@
 #include "revng/TupleTree/TupleTree.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
-using namespace llvm;
+namespace cl = llvm::cl;
 
 static cl::OptionCategory ThisToolCategory("Tool options", "");
 
@@ -110,7 +110,7 @@ ensureIDMatch(const model::TypeDefinition::Key &Left,
 int main(int Argc, char *Argv[]) {
   revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory });
 
-  ExitOnError ExitOnError;
+  llvm::ExitOnError ExitOnError;
 
   using Model = TupleTree<model::Binary>;
   auto LeftModule = Model::fromFile(LeftModelPath);
@@ -126,7 +126,7 @@ int main(int Argc, char *Argv[]) {
   std::error_code EC;
   llvm::ToolOutputFile OutputFile(OutputFilename,
                                   EC,
-                                  sys::fs::OpenFlags::OF_Text);
+                                  llvm::sys::fs::OpenFlags::OF_Text);
   if (EC)
     ExitOnError(llvm::createStringError(EC, EC.message()));
 

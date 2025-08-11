@@ -8,7 +8,7 @@
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Support/InitRevng.h"
 
-using namespace llvm;
+namespace cl = llvm::cl;
 
 static cl::OptionCategory ThisToolCategory("Tool options", "");
 
@@ -27,10 +27,9 @@ static cl::opt<std::string> InputModulePath(cl::Positional,
 int main(int Argc, char *Argv[]) {
   revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory });
 
-  ExitOnError ExitOnError;
+  llvm::ExitOnError ExitOnError;
 
-  using Model = TupleTree<model::Binary>;
-  auto MaybeModel = Model::fromFileOrSTDIN(InputModulePath);
+  auto MaybeModel = TupleTree<model::Binary>::fromFileOrSTDIN(InputModulePath);
   if (not MaybeModel)
     ExitOnError(MaybeModel.takeError());
 

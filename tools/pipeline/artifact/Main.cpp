@@ -30,45 +30,43 @@
 #include "revng/Pipes/ToolCLOptions.h"
 #include "revng/Support/InitRevng.h"
 
-using std::string;
-using namespace llvm;
-using namespace llvm::cl;
+namespace cl = llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
 using namespace ::revng;
 
-static cl::list<string> Arguments(Positional,
-                                  ZeroOrMore,
-                                  desc("<artifact> <binary> [TARGET [TARGET "
-                                       "[...]]]"),
-                                  cat(MainCategory));
+static cl::list<std::string> Arguments(cl::Positional,
+                                       cl::ZeroOrMore,
+                                       cl::desc("<artifact> <binary> [TARGET "
+                                                "[TARGET [...]]]"),
+                                       cl::cat(MainCategory));
 
 static OutputPathOpt Output("o",
-                            desc("Output filepath of produced artifact"),
-                            cat(MainCategory),
-                            init(revng::PathInit::Dash));
+                            cl::desc("Output filepath of produced artifact"),
+                            cl::cat(MainCategory),
+                            cl::init(revng::PathInit::Dash));
 
 static OutputPathOpt SaveModel("save-model",
-                               desc("Save the model at the end of the run"),
-                               cat(MainCategory));
+                               cl::desc("Save the model at the end of the run"),
+                               cl::cat(MainCategory));
 
-static opt<bool> ListArtifacts("list",
-                               desc("list all possible targets of artifact and "
-                                    "exit"),
-                               cat(MainCategory),
-                               init(false));
+static cl::opt<bool> ListArtifacts("list",
+                                   cl::desc("list all the known artifacts and "
+                                            "exit"),
+                                   cl::cat(MainCategory),
+                                   cl::init(false));
 
-static opt<string> Analyses("analyses",
-                            desc("Analyses to run, comma separated"),
-                            cat(MainCategory));
+static cl::opt<string> Analyses("analyses",
+                                cl::desc("Analyses to run, comma separated"),
+                                cl::cat(MainCategory));
 
-static opt<bool> Analyze("analyze",
-                         desc("Run all available revng-initial-auto-analysis"),
-                         cat(MainCategory));
+static cl::opt<bool> Analyze("analyze",
+                             cl::desc("Run revng-initial-auto-analysis"),
+                             cl::cat(MainCategory));
 
 static ToolCLOptions BaseOptions(MainCategory);
 
-static ExitOnError AbortOnError;
+static llvm::ExitOnError AbortOnError;
 
 inline void
 printStringPair(const std::vector<std::pair<std::string, std::string>> &Pairs) {
@@ -139,10 +137,10 @@ int main(int argc, char *argv[]) {
   AbortOnError(InputFilePath.check());
   AbortOnError(InputContainer.load(InputFilePath));
 
-  SmallVector<StringRef> AnalysesToRun;
+  llvm::SmallVector<llvm::StringRef> AnalysesToRun;
   if (Analyses.getNumOccurrences() > 0) {
-    StringRef(Analyses.getValue()).split(AnalysesToRun, ',');
-    for (StringRef AnalysesName : AnalysesToRun) {
+    llvm::StringRef(Analyses.getValue()).split(AnalysesToRun, ',');
+    for (llvm::StringRef AnalysesName : AnalysesToRun) {
       if (not Runner.hasAnalysesList(AnalysesName)
           and not Runner.containsAnalysis(AnalysesName)) {
         AbortOnError(revng::createError("No known analysis named "
@@ -151,12 +149,12 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  Task T(2, "revng-artifact");
+  llvm::Task T(2, "revng-artifact");
   T.advance("Run analyses", true);
 
   // Collect analyses lists to run
   if (Analyze) {
-    StringRef List = "revng-initial-auto-analysis";
+    llvm::StringRef List = "revng-initial-auto-analysis";
 
     if (not Runner.hasAnalysesList(List)) {
       AbortOnError(revng::createError("The \"" + List.str()
@@ -168,8 +166,8 @@ int main(int argc, char *argv[]) {
   }
 
   // Run the analyses lists
-  Task T2(AnalysesToRun.size(), "Run analyses");
-  for (StringRef AnalysesName : AnalysesToRun) {
+  llvm::Task T2(AnalysesToRun.size(), "Run analyses");
+  for (llvm::StringRef AnalysesName : AnalysesToRun) {
     T2.advance(AnalysesName, true);
 
     auto InvMap = revng::pipes::runAnalysisOrAnalysesList(Manager,
