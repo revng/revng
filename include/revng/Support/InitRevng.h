@@ -8,6 +8,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
+#include "llvm/Support/RevngOptions.h"
 
 #include "revng/Support/Statistics.h"
 
@@ -55,6 +56,10 @@ public:
 
     if (not Result)
       std::exit(EXIT_FAILURE);
+
+    // Force-enable `--enable-strict-debug-information-preservation-style` for
+    // revng binaries even if it wasn't specified.
+    EnableStrictDebugInformationPreservationStyle->setInitialValue(true);
   }
 
   ~InitRevng() { OnQuit->quit(); }
