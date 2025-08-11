@@ -106,12 +106,6 @@ blockFromIndirectBranchInfo(CallBase *CI, SortedVector<efa::BasicBlock> &CFG) {
 static std::unique_ptr<llvm::raw_ostream>
 streamFromOption(const opt<std::string> &Option) {
   if (Option.getNumOccurrences() == 1) {
-    std::ifstream File(Option.c_str());
-    if (File.is_open()) {
-      int Status = std::remove(Option.c_str());
-      revng_assert(Status == 0);
-    }
-
     std::error_code EC;
     auto Result = std::make_unique<raw_fd_ostream>(Option,
                                                    EC,
