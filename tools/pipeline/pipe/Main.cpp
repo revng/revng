@@ -28,34 +28,30 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/InitRevng.h"
 
-using std::string;
-using namespace llvm;
-using namespace llvm::cl;
+namespace cl = llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
 using namespace ::revng;
 
-static cl::list<string> Arguments(Positional,
-                                  ZeroOrMore,
-                                  desc("<pipe> <containers>..."),
-                                  cat(MainCategory));
+static cl::list<std::string> Arguments(cl::Positional,
+                                       cl::ZeroOrMore,
+                                       cl::desc("<pipe> <containers>..."),
+                                       cl::cat(MainCategory));
 
-static llvm::cl::list<std::string>
-  InputPipeline("P", llvm::cl::desc("<Pipeline>"), llvm::cl::cat(MainCategory));
+static cl::list<std::string>
+  InputPipeline("P", cl::desc("<Pipeline>"), cl::cat(MainCategory));
 
-static llvm::cl::list<std::string> EnablingFlags("f",
-                                                 llvm::cl::desc("list of "
-                                                                "pipeline "
-                                                                "enabling "
-                                                                "flags"),
-                                                 llvm::cl::cat(MainCategory));
+static cl::list<std::string> EnablingFlags("f",
+                                           cl::desc("list of pipeline enabling "
+                                                    "flags"),
+                                           cl::cat(MainCategory));
 
-static llvm::cl::alias A1("l",
-                          llvm::cl::desc("Alias for --load"),
-                          llvm::cl::aliasopt(llvm::LoadOpt),
-                          llvm::cl::cat(MainCategory));
+static cl::alias A1("l",
+                    cl::desc("Alias for --load"),
+                    cl::aliasopt(llvm::LoadOpt),
+                    cl::cat(MainCategory));
 
-static ExitOnError AbortOnError;
+static llvm::ExitOnError AbortOnError;
 
 int main(int argc, char *argv[]) {
   using revng::FilePath;
