@@ -13,21 +13,23 @@
 #include "revng/Support/InitRevng.h"
 #include "revng/Support/LDDTree.h"
 
-using namespace llvm;
-using namespace llvm::cl;
-using std::string;
+namespace cl = llvm::cl;
 
-class StringPositionalArgument : public opt<string> {
+class StringPositionalArgument : public cl::opt<std::string> {
 public:
   StringPositionalArgument(const char *Description) :
-    opt<string>(Positional, Required, desc(Description), cat(MainCategory)) {}
+    cl::opt<std::string>(cl::Positional,
+                         cl::Required,
+                         cl::desc(Description),
+                         cl::cat(MainCategory)) {}
 };
 
-static opt<unsigned> DependencyLevel("dependency-level",
-                                     desc("Resolve dependencies of the "
-                                          "depending libraries as well."),
-                                     cat(MainCategory),
-                                     init(1));
+static cl::opt<unsigned> DependencyLevel("dependency-level",
+                                         cl::desc("Resolve dependencies of the "
+                                                  "depending libraries as "
+                                                  "well."),
+                                         cl::cat(MainCategory),
+                                         cl::init(1));
 
 // TODO: Add --root option to act as SYSROOT.
 
