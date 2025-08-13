@@ -3,6 +3,7 @@
 //
 
 #include "revng/HeadersGeneration/ConfigurationHelpers.h"
+#include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/HeadersGeneration/Options.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -76,3 +77,40 @@ static pipeline::RegisterDefaultConstructibleContainer<ModelHeaderFileContainer>
 } // namespace revng::pipes
 
 static pipeline::RegisterPipe<revng::pipes::ModelToHeader> Y;
+
+namespace revng::pypeline::pipes {
+
+ObjectDependencies ModelToHeader::run(const Model *TheModel,
+                                      Request Incoming,
+                                      Request Outgoing,
+                                      llvm::StringRef DynamicConfig,
+                                      RootBuffer &Buffer) {
+  if (Outgoing[0].empty())
+    return {};
+
+  revng_assert(Outgoing[0].size() == 1);
+  ObjectID Target = *Outgoing[0][0];
+  const model::Binary &Binary = *TheModel->get().get();
+  revng::Tracking::clearAndResume(Binary);
+  std::unique_ptr<llvm::raw_ostream> Out = Buffer.getOStream(Target);
+  ptml::ModelCBuilder
+    B(*Out,
+      Binary,
+      /* EnableTaglessMode = */ false,
+      { .EnableStackFrameInlining = revng::options::EnableStackFrameInlining,
+        .EnablePrintingOfTheMaximumEnumValue = true,
+        .ExplicitTargetPointerSize = getExplicitPointerSize(Binary) });
+  ptml::HeaderBuilder(B).printModelHeader();
+  Out->flush();
+
+  ObjectDependencies Result(1);
+  ReadFields ReadFieldsStruct = revng::Tracking::collect(Binary);
+  for (const TupleTreePath &Path : ReadFieldsStruct.Read)
+    Result[0].push_back({ Target, *pathAsString<model::Binary>(Path) });
+  for (const TupleTreePath &Path : ReadFieldsStruct.ExactVectors)
+    Result[0].push_back({ Target, *pathAsString<model::Binary>(Path) });
+
+  return Result;
+}
+
+} // namespace revng::pypeline::pipes
