@@ -36,8 +36,7 @@ class Subcommand(abc.ABC):
         self.parser.set_defaults(handler=self.handle)
 
     @abc.abstractmethod
-    def handle(self, args, schema: Schema):
-        ...
+    def handle(self, args, schema: Schema): ...
 
     @staticmethod
     def handle_single_file_output(output: str | None, source: str):
