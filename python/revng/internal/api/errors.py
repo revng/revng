@@ -58,12 +58,10 @@ class DocumentErrorReasonList(Sequence[DocumentErrorReason]):
         return _api.rp_document_error_reasons_count(self.document_error._document_error)
 
     @overload
-    def __getitem__(self, idx: int) -> DocumentErrorReason:
-        ...
+    def __getitem__(self, idx: int) -> DocumentErrorReason: ...
 
     @overload
-    def __getitem__(self, idx: slice) -> Sequence[DocumentErrorReason]:
-        ...
+    def __getitem__(self, idx: slice) -> Sequence[DocumentErrorReason]: ...
 
     def __getitem__(self, idx: int | slice):
         if isinstance(idx, int):

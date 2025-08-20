@@ -95,7 +95,7 @@ class GenerateMigrationCommand(Command):
 
         return result
 
-    def _process_schema(self, raw_schema: str, metaschema: str) -> Dict:
+    def _process_schema(self, raw_schema: str, metaschema) -> Dict:
         """Parse the schema into YAML, validate the YAML against the metaschema, and restructure."""
         unstructured_schema = yaml.safe_load(raw_schema)
         jsonschema.validate(instance=unstructured_schema, schema=metaschema)

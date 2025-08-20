@@ -19,11 +19,9 @@ from revng.internal.cli.support import popen
 class DaemonHandler(Protocol):
     url: str
 
-    async def wait_for_start(self):
-        ...
+    async def wait_for_start(self): ...
 
-    def terminate(self) -> int:
-        ...
+    def terminate(self) -> int: ...
 
 
 class ExternalDaemonHandler(DaemonHandler):
