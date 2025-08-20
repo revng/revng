@@ -129,7 +129,7 @@ def produce_artifacts(filter_: List[str] | None = None):
             }"""
             )
             arguments = {"step": step_name, "container": artifacts_container}
-            res = await client.execute(q, arguments)
+            res = await client.execute(q, arguments)  # type: ignore[call-overload]
 
             target_list = {
                 target["serialized"]
@@ -150,7 +150,9 @@ def produce_artifacts(filter_: List[str] | None = None):
                 }
             }"""
             )
-            result = await client.execute(q, {**arguments, "target": targets, "index": index})
+            result = await client.execute(
+                q, {**arguments, "target": targets, "index": index}
+            )  # type: ignore[call-overload]
             assert result["produce"]["__typename"] == "Produced"
             json_result = json.loads(result["produce"]["result"])
             assert target_list == set(json_result.keys()), "Some targets were not produced"
