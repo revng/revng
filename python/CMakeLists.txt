@@ -92,7 +92,7 @@ endfunction()
 #
 function(python_wheel)
   set(options)
-  set(oneValueArgs NAME)
+  set(oneValueArgs NAME PYPROJECT README)
   set(multiValueArgs)
   cmake_parse_arguments(PYTHON_WHEEL "${options}" "${oneValueArgs}"
                         "${multiValueArgs}" ${ARGN})
@@ -100,11 +100,11 @@ function(python_wheel)
   set(WHEEL_OUTPUT_NAME
       "${PYTHON_WHEEL_NAME}-${PYTHON_WHL_VERSION}-py3-none-any.whl")
   configure_file(
-    "pyproject_${PYTHON_WHEEL_NAME}.toml"
+    "${PYTHON_WHEEL_PYPROJECT}"
     "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}/pyproject.toml"
     COPYONLY)
   configure_file(
-    "README_${PYTHON_WHEEL_NAME}.md"
+    "${PYTHON_WHEEL_README}"
     "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}/README.md" COPYONLY)
 
   add_custom_command(
@@ -377,5 +377,6 @@ python_module(
 #
 # Generate actual wheel rules
 #
-python_wheel(NAME revng)
-python_wheel(NAME revng_internal)
+python_wheel(NAME revng PYPROJECT revng/pyproject.toml README revng/README.md)
+python_wheel(NAME revng_internal PYPROJECT revng/internal/pyproject.toml README
+             revng/internal/README.md)
