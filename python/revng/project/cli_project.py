@@ -102,7 +102,9 @@ class CLIProject(Project, CLIProjectMixin, ResumeProjectMixin):
         # TODO: We hardcode the path to the `model.yml`, fix when there is a
         # command to get the model.
         model_path = f"{self._resume_path}/context/model.yml"
-        if not os.path.isfile(model_path):
-            return
-        with open(model_path) as f:
-            self._set_model(Binary.deserialize(f))
+        if os.path.isfile(model_path):
+            with open(model_path) as f:
+                model = Binary.deserialize(f)
+        else:
+            model = Binary()
+        self._set_model(model)
