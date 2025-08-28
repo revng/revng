@@ -153,8 +153,11 @@ public:
     if (AssertOnFail and not Result) {
       revng_abort(Reason.str().c_str());
     } else {
-      if (not Result)
+      if (not Result) {
         InProgress.clear();
+        if (not Reason.str().empty())
+          ReasonBuffer = Reason.str();
+      }
       return Result;
     }
   }
