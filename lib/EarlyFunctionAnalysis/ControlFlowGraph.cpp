@@ -317,11 +317,11 @@ bool FunctionEdgeBase::verify(model::VerifyHelper &VH) const {
   switch (Type()) {
   case Invalid:
   case Count:
-    return VH.fail();
+    return VH.fail("Invalid Type");
 
   case DirectBranch:
     if (not Destination().isValid())
-      return VH.fail();
+      return VH.fail("Invalid destination in DirectBranch");
     break;
   case FunctionCall: {
     const auto &Call = cast<const CallEdge>(*this);
@@ -340,7 +340,7 @@ bool FunctionEdgeBase::verify(model::VerifyHelper &VH) const {
   case Killer:
   case Unreachable:
     if (Destination().isValid())
-      return VH.fail();
+      return VH.fail("Invalid destination");
     break;
   }
 
@@ -362,7 +362,7 @@ bool BasicBlock::verify(bool Assert) const {
 
 bool BasicBlock::verify(model::VerifyHelper &VH) const {
   if (not ID().isValid() or End().isInvalid())
-    return VH.fail();
+    return VH.fail("Invalid BasicBlock ID or End");
 
   for (auto &Edge : Successors())
     if (not Edge->verify(VH))
