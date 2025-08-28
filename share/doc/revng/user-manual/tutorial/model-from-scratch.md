@@ -1,7 +1,7 @@
 An empty model is a valid model:
 
 ```bash
-$ revng model opt /dev/null -verify -Y
+$ revng model opt /dev/null -verify
 ---
 Version:         6
 ...

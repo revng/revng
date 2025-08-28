@@ -68,7 +68,7 @@ class ModelOverrideByName(Command):
 
             # Extract model, if necessary
             result = run_revng_command(
-                ["model", "opt", "-Y", saved_file.name, "-o", model_file.name], options
+                ["model", "opt", saved_file.name, "-o", model_file.name], options
             )
             if result != 0:
                 return result

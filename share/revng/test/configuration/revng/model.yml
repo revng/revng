@@ -10,9 +10,9 @@ commands:
     from:
       - type: revng.analyzed-model
     command: |-
-      revng model opt -Y -verify "$INPUT"
+      revng model opt -verify "$INPUT"
         | ./serialize-deserialize.py
-        | revng model opt -Y -verify
+        | revng model opt -verify
         | revng model diff /dev/stdin "$INPUT" -o /dev/null
     scripts:
       serialize-deserialize.py: |-
@@ -29,9 +29,9 @@ commands:
     from:
       - type: revng.analyzed-model
     command: |-
-      revng model opt -Y -verify "$INPUT"
+      revng model opt -verify "$INPUT"
         | ./serialize-deserialize.js
-        | revng model opt -Y -verify
+        | revng model opt -verify
         | revng model diff /dev/stdin "$INPUT" -o /dev/null
     scripts:
       serialize-deserialize.js: |-
