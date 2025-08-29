@@ -425,18 +425,20 @@ class LicenseCheckPass(TaggedPass):
         ignore_suffixes: List[str],
         ignore_pathnames: List[str],
         ignore_stems: List[str],
+        include_pathnames: List[str],
     ):
         super().__init__("license-check", "all")
         self.ignore_suffixes = ignore_suffixes
         self.ignore_pathnames = ignore_pathnames
         self.ignore_stems = ignore_stems
+        self.include_pathnames = include_pathnames
 
     def skip_test(self, path: Path) -> bool:
         return (
             path.suffix in self.ignore_suffixes
             or path.name in self.ignore_pathnames
             or path.stem in self.ignore_stems
-        )
+        ) and (path.name not in self.include_pathnames)
 
     @staticmethod
     def check_license(content: str) -> bool:
