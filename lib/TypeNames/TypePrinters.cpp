@@ -103,8 +103,12 @@ void ptml::ModelCBuilder::printDefinition(const model::StructDefinition &S,
 
       auto F = getDefinitionTag(S, Field);
       std::string Result = getModelComment(Field)
-                           + getNamedCInstance(*Field.Type(), F) + ';';
-      *Out << getCommentableTag(std::move(Result), S, Field) << '\n';
+                           + getNamedCInstance(*Field.Type(), F);
+      if (not NameBuilder.shouldUseAutomaticName(Field)) {
+        using AttributeR = ptml::AttributeRegistry;
+        Result += ' ' + AttributeR::getAnnotation<"_STARTS_AT">(Field.Offset());
+      }
+      *Out << getCommentableTag(std::move(Result += ';'), S, Field) << '\n';
 
       PreviousOffset = Field.Offset() + Field.Type()->size().value();
     }

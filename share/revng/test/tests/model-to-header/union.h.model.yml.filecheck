@@ -9,6 +9,6 @@ CHECK:     uint32_t a;
 CHECK:     uint32_t b;
 CHECK: };
 CHECK: struct _PACKED _SIZE(8) B {
-CHECK:     A a1;
-CHECK:     A a2;
+CHECK:     A a1 _STARTS_AT(0);
+CHECK:     A a2 _STARTS_AT(4);
 CHECK: };

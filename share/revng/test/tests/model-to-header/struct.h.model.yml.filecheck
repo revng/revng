@@ -5,9 +5,9 @@
 CHECK: typedef struct _PACKED B B;
 CHECK: typedef struct _PACKED A A;
 CHECK: struct _PACKED _SIZE(4) A {
-CHECK:     int32_t x;
+CHECK:     int32_t x _STARTS_AT(0);
 CHECK: };
 CHECK: struct _PACKED _SIZE(8) B {
-CHECK:    A a1;
-CHECK:    A a2;
+CHECK:    A a1 _STARTS_AT(0);
+CHECK:    A a2 _STARTS_AT(4);
 CHECK: };
