@@ -4,10 +4,10 @@
 
 CHECK: typedef struct _PACKED B B;
 CHECK: typedef struct _PACKED A A;
-CHECK: struct _PACKED A {
+CHECK: struct _PACKED _SIZE(4) A {
 CHECK:     int32_t x;
 CHECK: };
-CHECK: struct _PACKED B {
+CHECK: struct _PACKED _SIZE(8) B {
 CHECK:    A a1;
 CHECK:    A a2;
 CHECK: };

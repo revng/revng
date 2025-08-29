@@ -52,10 +52,6 @@ public:
     /// is printed instead.
     bool EnableExplicitPaddingMode = true;
 
-    /// When this flag is set to true, a special `_SIZE($bytes)` annotation is
-    /// printed with every struct definition.
-    bool EnableStructSizeAnnotation = false;
-
     /// When this value is not zero, all pointer types are emitted with explicit
     /// sizes (e.g. `pointer32_t(T)`).
     uint64_t ExplicitTargetPointerSize = 0;

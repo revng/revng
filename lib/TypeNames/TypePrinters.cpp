@@ -92,11 +92,8 @@ void ptml::ModelCBuilder::printDefinition(const model::StructDefinition &S,
     StructLine += ptml::AttributeRegistry::getAttribute<"_CAN_CONTAIN_CODE">()
                   + " ";
 
-  if (Configuration.EnableStructSizeAnnotation)
-    StructLine += ptml::AttributeRegistry::getAnnotation<"_SIZE">(S.Size())
-                  + " ";
-
-  StructLine += getDefinitionTag(S) + " ";
+  StructLine += ptml::AttributeRegistry::getAnnotation<"_SIZE">(S.Size()) + " "
+                + getDefinitionTag(S) + " ";
 
   *Out << getCommentableTag(std::move(StructLine), S);
 
