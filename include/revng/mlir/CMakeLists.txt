@@ -1,3 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
 # This policy mimics the behavior set in `CMakePolicy.cmake` in the official
 # LLVM repo. Can be dropped when it is dropped from there.
 if(POLICY CMP0116)
