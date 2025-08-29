@@ -3,5 +3,5 @@
 #
 
 import-from-c: While parsing field #0:
-import-from-c failed: Padding fields (`uint8_t padding_at_$offset[$size]`) must not have `_START_AT` annotation attached.
+import-from-c failed: Padding fields (`uint8_t padding_at_$offset[$size]`) must not have `_STARTS_AT` annotation attached.
 

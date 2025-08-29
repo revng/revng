@@ -33,7 +33,7 @@ struct AttributeRegistry {
   static constexpr std::array<Annotation, 5> StaticAnnotations{
     Annotation{ .Macro = "_REG", .Prefix = "reg:" },
     Annotation{ .Macro = "_ABI", .Prefix = "abi:" },
-    Annotation{ .Macro = "_START_AT", .Prefix = "field_start_offset:" },
+    Annotation{ .Macro = "_STARTS_AT", .Prefix = "field_start_offset:" },
     Annotation{ .Macro = "_SIZE", .Prefix = "struct_size:" },
     Annotation{ .Macro = "_ENUM_UNDERLYING", .Prefix = "enum_underlying_type:" }
   };

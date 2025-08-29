@@ -6,6 +6,6 @@ struct _PACKED my_struct {
   uint8_t padding_at_0[8];
   uint64_t *normal_field;
 
-  _START_AT(10)
+  _STARTS_AT(10)
   uint64_t *overlapping_field;
 };

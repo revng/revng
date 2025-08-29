@@ -3,6 +3,6 @@
 //
 
 struct _PACKED _SIZE(24) _CAN_CONTAIN_CODE my_struct {
-  _START_AT(16)
+  _STARTS_AT(16)
   uint64_t no_code_in_the_last_third;
 };

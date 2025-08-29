@@ -3,6 +3,6 @@
 //
 
 struct _PACKED _SIZE(24) my_struct {
-  _START_AT(8)
+  _STARTS_AT(8)
   uint64_t *field;
 };

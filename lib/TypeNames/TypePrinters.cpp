@@ -75,7 +75,7 @@ void ptml::ModelCBuilder::printPadding(uint64_t FieldOffset,
                      ptml::c::tokens::Field)
          << "[" << getNumber(NextOffset - FieldOffset) << "];\n";
   } else {
-    *Out << ptml::AttributeRegistry::getAnnotation<"_START_AT">(NextOffset)
+    *Out << ptml::AttributeRegistry::getAnnotation<"_STARTS_AT">(NextOffset)
          << "\n";
   }
 }

@@ -3,5 +3,5 @@
 #
 
 import-from-c: While parsing field #1:
-import-from-c failed: `_START_AT` must not be used to make fields overlap.
+import-from-c failed: `_STARTS_AT` must not be used to make fields overlap.
 

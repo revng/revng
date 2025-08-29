@@ -3,7 +3,7 @@
 //
 
 struct _PACKED _SIZE(24) my_struct {
-  _START_AT(16)
+  _STARTS_AT(16)
   uint8_t padding_at_0[8];
   uint64_t normal_field;
 };
