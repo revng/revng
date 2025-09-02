@@ -1189,6 +1189,7 @@ bool VariableInserter<IsLegacy>::serializeToLocalVariable(Instruction *I) {
   // Create instruction that allocates a LocalVariable
   LocalVarType<IsLegacy> *LocalVariable = LocalVariableBuilder
                                             .createLocalVariable(*VariableType);
+  LocalVariable->setDebugLoc(I->getDebugLoc());
 
   // Then, we have to replace all the uses of I so that they make a Copy
   // from the LocalVariable, unless it's a call to an IsolatedFunction that
@@ -1197,7 +1198,7 @@ bool VariableInserter<IsLegacy>::serializeToLocalVariable(Instruction *I) {
   for (Use &U : llvm::make_early_inc_range(I->uses())) {
     revng_assert(isa<Instruction>(U.getUser()));
 
-    llvm::Value *ValueToUse = LocalVariable;
+    llvm::Instruction *ValueToUse = LocalVariable;
     if (shouldReplaceUseWithCopies(I, U)) {
       ValueToUse = LocalVariableBuilder.createCopyOnUse(LocalVariable, U);
     }

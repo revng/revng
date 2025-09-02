@@ -236,7 +236,10 @@ LegacyVB::createCopyOnUse(ReferenceType *LocationToCopy, Use &U) {
   // Create a Copy to dereference the LocalVariable
   auto *CopyFnType = getCopyType(U->getType(), LocationToCopy->getType());
   auto *CopyFunction = CopyPool.get(U->getType(), CopyFnType, "Copy");
-  return B.CreateCall(CopyFunction, { LocationToCopy });
+  auto *Call = B.CreateCall(CopyFunction, { LocationToCopy });
+  if (auto *InstructionLocation = dyn_cast<Instruction>(LocationToCopy))
+    Call->setDebugLoc(InstructionLocation->getDebugLoc());
+  return Call;
 }
 
 template<>
@@ -326,7 +329,10 @@ VB::CopyType *VB::createCopyOnUse(ReferenceType *LocationToCopy, Use &U) {
   // Create a copy from the assigned location at the proper insertion point.
   auto *InsertBefore = cast<Instruction>(U.getUser());
   IRBuilder<> B(InsertBefore);
-  return B.CreateLoad(U->getType(), LocationToCopy);
+  auto *Load = B.CreateLoad(U->getType(), LocationToCopy);
+  if (auto *InstructionLocation = dyn_cast<Instruction>(LocationToCopy))
+    Load->setDebugLoc(InstructionLocation->getDebugLoc());
+  return Load;
 }
 
 template<>
