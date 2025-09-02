@@ -81,6 +81,7 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
 
   for (auto *Alloca : ToReplace) {
     Builder.SetInsertPoint(Alloca);
+    Builder.SetCurrentDebugLocation(Alloca->getDebugLoc());
     llvm::Type *ResultType = Alloca->getType();
 
     // Compute the allocated type for the alloca

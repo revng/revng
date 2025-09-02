@@ -548,6 +548,7 @@ bool OPRP::runOnFunction(Function &F) {
   for (const auto &[I, Op] : InstructionsToBeParenthesized) {
     Builder.SetInsertPoint(I);
     Instruction *Ins = cast<Instruction>(Op->get());
+    Builder.SetCurrentDebugLocation(Ins->getDebugLoc());
 
     Type *OpToReplaceType = I->getOperand(Op->getOperandNo())->getType();
 
