@@ -16,6 +16,7 @@
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
@@ -2167,6 +2168,11 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       Builder.SetInsertPoint(UserInstr);
     }
 
+    if (auto *UsedInstructionToGEPify = dyn_cast<Instruction>(TheUseToGEPify
+                                                                ->get())) {
+      Builder.SetCurrentDebugLocation(UsedInstructionToGEPify->getDebugLoc());
+    }
+
     // The other arguments are the indices in IndexVector
     for (auto &Group : llvm::enumerate(GEPArgs.IndexVector)) {
       const auto &[Index, AggregateTy] = Group.value();
@@ -2213,7 +2219,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       Args.push_back(IndexValue);
     }
 
-    Value *ModelGEPRef = Builder.CreateCall(ModelGEPFunction, Args);
+    llvm::CallInst *ModelGEPRef = Builder.CreateCall(ModelGEPFunction, Args);
 
     // If there is a remaining offset, we are returning something more
     // similar to a pointer than the actual value
@@ -2235,9 +2241,10 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       // inject the remaining part of the pointer arithmetic as normal sums
       auto GEPResultBitWidth = ModelGEPPtr->getType()->getIntegerBitWidth();
       APInt OffsetToAdd = MismatchedOffset.zextOrTrunc(GEPResultBitWidth);
-      if (not OffsetToAdd.isNullValue())
+      if (not OffsetToAdd.isNullValue()) {
         ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
                                         ConstantInt::get(Context, OffsetToAdd));
+      }
       for (const auto &[Coefficient, Index] : MismatchedIndices) {
         ModelGEPPtr = Builder.CreateAdd(ModelGEPPtr,
                                         Builder.CreateMul(Index, Coefficient));
