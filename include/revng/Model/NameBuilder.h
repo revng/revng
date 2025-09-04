@@ -166,35 +166,34 @@ public:
   /// (*) Temporarily, there are further restrictions, namely you are not
   /// allowed to use `/`. But these will eventually be lifted.
   [[nodiscard]] std::string name(EntityWithName auto const &E) const {
-    if (E.Name().empty()) {
+    if (shouldUseAutomaticName(E))
       return automaticName(E);
-
-    } else if (llvm::Error Error = isNameReserved(E.Name())) {
-      // We don't care what the specific error is - if there is one,
-      // just fall back on the automatic name.
-      llvm::consumeError(std::move(Error));
-
-      return automaticName(E);
-
-    } else {
+    else
       return E.Name();
-    }
   }
 
   [[nodiscard]] std::string name(const auto &Parent,
                                  EntityWithName auto const &E) const {
-    if (E.Name().empty()) {
+    if (shouldUseAutomaticName(E))
       return automaticName(Parent, E);
+    else
+      return E.Name();
+  }
+
+  [[nodiscard]] bool
+  shouldUseAutomaticName(EntityWithName auto const &E) const {
+    if (E.Name().empty()) {
+      return true;
 
     } else if (llvm::Error Error = isNameReserved(E.Name())) {
       // We don't care what the specific error is - if there is one,
       // just fall back on the automatic name.
       llvm::consumeError(std::move(Error));
 
-      return automaticName(Parent, E);
+      return true;
 
     } else {
-      return E.Name();
+      return false;
     }
   }
 
