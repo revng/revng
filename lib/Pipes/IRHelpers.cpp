@@ -5,6 +5,7 @@
 //
 
 #include "llvm/IR/DebugInfoMetadata.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Instruction.h"
 
 #include "revng/Pipes/IRHelpers.h"
@@ -34,4 +35,36 @@ getTargetToFunctionMapping(const llvm::Module &M) {
     }
   }
   return Map;
+}
+
+llvm::Error isDebugLocationInvalid(const llvm::DebugLoc &DebugLocation) {
+  if (not DebugLocation)
+    return revng::createError("The debug location is empty.");
+
+  if (not DebugLocation->getScope())
+    return revng::createError("The debug location has no scope component.");
+
+  //
+  // TODO: don't forget to update this when we add more structure to debug
+  //       information we attach (for example, when we allow for more than one
+  //       address).
+  //
+
+  const auto &Serialized = DebugLocation->getScope()->getName();
+  if (Serialized.empty())
+    return revng::createError("The scope component has an empty name.");
+
+  // This check is kind of expensive, we might want it hidden away behind
+  // `if (VerifyLog.isEnabled())` in the general case because of how unlikely
+  // it is to ever trigger.
+  if (not pipeline::locationFromString(revng::ranks::Instruction,
+                                       Serialized.str()))
+    return revng::createError("The scope component name is not a valid "
+                              "instruction location.");
+
+  return llvm::Error::success();
+}
+
+llvm::Error isDebugLocationInvalid(const llvm::Instruction &Instruction) {
+  return isDebugLocationInvalid(Instruction.getDebugLoc());
 }
