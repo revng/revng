@@ -11,11 +11,11 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/Debug.h"
 
-struct RemoveBrokenDebugInformation : public llvm::FunctionPass {
+struct DiscardBrokenDebugInformation : public llvm::FunctionPass {
 public:
   static char ID;
 
-  RemoveBrokenDebugInformation() : llvm::FunctionPass(ID) {}
+  DiscardBrokenDebugInformation() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override {
     bool WasModified = false;
@@ -43,10 +43,10 @@ public:
   }
 };
 
-char RemoveBrokenDebugInformation::ID = 0;
+char DiscardBrokenDebugInformation::ID = 0;
 
-using RBDI = RemoveBrokenDebugInformation;
-llvm::RegisterPass<RBDI> R("remove-broken-debug-information",
+using RBDI = DiscardBrokenDebugInformation;
+llvm::RegisterPass<RBDI> R("discard-broken-debug-information",
                            "Sometimes llvm passes break the debug information "
                            "we use to maintain the link between the decompiled "
                            "code and the original assembly. This pass detects "
