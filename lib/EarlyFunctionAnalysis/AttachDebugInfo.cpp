@@ -34,6 +34,7 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
+#include "revng/Pipes/IRHelpers.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/Ranks.h"
@@ -201,6 +202,9 @@ public:
 
           revng_assert(Address.inliningIndex() == CurrentBB.inliningIndex());
           CurrentDI = buildDI(FM.Entry(), CurrentBB, Address.start());
+
+          if (llvm::Error Error = isDebugLocationInvalid(CurrentDI))
+            revng_abort(revng::unwrapError(std::move(Error)).c_str());
         }
 
         I.setDebugLoc(CurrentDI);
