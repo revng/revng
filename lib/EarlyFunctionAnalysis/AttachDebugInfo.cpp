@@ -31,6 +31,7 @@
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
+#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
@@ -187,6 +188,16 @@ public:
 
           revng_assert(Address.inliningIndex() == CurrentBB.inliningIndex());
           CurrentDI = buildDI(FM.Entry(), CurrentBB, Address.start());
+
+          if (llvm::Error Error = checkDebugLocationValidity(CurrentDI)) {
+            std::string ErrorMessage = revng::unwrapError(std::move(Error));
+            revng_log(Log,
+                      "Discarding debug information from:\n"
+                        << dumpToString(I) << "Because "
+                        << std::move(ErrorMessage) << '\n');
+
+            CurrentDI = DefaultDI;
+          }
         }
 
         I.setDebugLoc(CurrentDI);
