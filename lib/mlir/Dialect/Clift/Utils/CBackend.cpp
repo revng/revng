@@ -10,6 +10,7 @@
 #include "revng/PTML/CBuilder.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/ModelCBuilder.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftOpHelpers.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
 
 namespace clift = mlir::clift;

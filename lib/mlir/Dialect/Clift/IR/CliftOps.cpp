@@ -427,7 +427,8 @@ void FunctionOp::print(OpAsmPrinter &Printer) {
 }
 
 mlir::LogicalResult FunctionOp::verify() {
-  auto ReturnType = getReturnType();
+  auto ReturnType = mlir::cast<ValueType>(getCliftFunctionType()
+                                            .getReturnType());
 
   bool IsVoid = isVoid(ReturnType);
   auto Result = (*this)->walk([&](ReturnOp Op) -> mlir::WalkResult {

@@ -34,7 +34,7 @@ struct ReturnIntoGotoConversionPattern : mlir::OpRewritePattern<clift::ReturnOp>
   matchAndRewrite(clift::ReturnOp Return,
                   mlir::PatternRewriter &Rewriter) const override {
     auto Function = Return->getParentOfType<clift::FunctionOp>();
-    revng_assert(clift::isVoid(Function.getReturnType()));
+    revng_assert(clift::isVoid(Function.getCliftReturnType()));
 
     Rewriter.setInsertionPointAfter(Return);
     Rewriter.create<clift::GoToOp>(Return.getLoc(), Label);
@@ -51,7 +51,7 @@ struct ReturnIntoGotoConversionPass
     mlir::MLIRContext *Context = &getContext();
 
     clift::FunctionOp Function = getOperation();
-    if (not clift::isVoid(Function.getReturnType()))
+    if (not clift::isVoid(Function.getCliftReturnType()))
       return;
 
     mlir::Location Loc = mlir::UnknownLoc::get(Context);
@@ -85,7 +85,7 @@ struct GotoIntoReturnConversionPattern : mlir::OpRewritePattern<clift::GoToOp> {
   matchAndRewrite(clift::GoToOp Goto,
                   mlir::PatternRewriter &Rewriter) const override {
     auto Function = Goto->getParentOfType<clift::FunctionOp>();
-    revng_assert(clift::isVoid(Function.getReturnType()));
+    revng_assert(clift::isVoid(Function.getCliftReturnType()));
 
     if (Goto.getLabel() != Label)
       return mlir::failure();
@@ -105,7 +105,7 @@ struct GotoIntoReturnConversionPass
     mlir::MLIRContext *Context = &getContext();
 
     clift::FunctionOp Function = getOperation();
-    if (not clift::isVoid(Function.getReturnType()))
+    if (not clift::isVoid(Function.getCliftReturnType()))
       return;
 
     auto Label = clift::getTrailingOp<clift::AssignLabelOp>(Function.getBody());

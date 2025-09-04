@@ -134,8 +134,8 @@ def Clift_FunctionOp : Clift_Op<"func",
   let hasCustomAssemblyFormat = 1;
 
   code extraClassDeclaration = [{
-    clift::ValueType getReturnType() {
-      return getFunctionType().getReturnType();
+    clift::FunctionType getCliftFunctionType() {
+      return mlir::cast<clift::FunctionType>(getFunctionType());
     }
 
     clift::ValueType getCliftReturnType() {
