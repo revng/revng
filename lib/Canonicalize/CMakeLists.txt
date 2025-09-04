@@ -4,6 +4,7 @@
 
 revng_add_analyses_library_internal(
   revngCanonicalize
+  DiscardBrokenDebugInformation.cpp
   EmbedStatementComments.cpp
   ExitSSAPass.cpp
   FoldModelGEP.cpp
@@ -16,7 +17,6 @@ revng_add_analyses_library_internal(
   OperatorPrecedenceResolutionPass.cpp
   PeepholeOptimizationPass.cpp
   PrettyIntFormattingPass.cpp
-  RemoveBrokenDebugInformation.cpp
   RemoveConstantArrayReturnsPass.cpp
   RemoveLLVMAssumeCallsPass.cpp
   RemoveLoadStore.cpp
