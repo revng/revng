@@ -65,18 +65,15 @@ void ptml::ModelCBuilder::printDefinition(const model::EnumDefinition &E,
 
 void ptml::ModelCBuilder::printPadding(uint64_t FieldOffset,
                                        uint64_t NextOffset) {
-  revng_assert(FieldOffset <= NextOffset);
-  if (FieldOffset == NextOffset)
-    return; // There is no padding
+  if (Configuration.EnableExplicitPadding) {
+    revng_assert(FieldOffset <= NextOffset);
+    if (FieldOffset == NextOffset)
+      return; // There is no padding
 
-  if (Configuration.EnableExplicitPaddingMode) {
     *Out << tokenTag("uint8_t", ptml::c::tokens::Type) << " "
          << tokenTag(NameBuilder.paddingFieldName(FieldOffset),
                      ptml::c::tokens::Field)
          << "[" << getNumber(NextOffset - FieldOffset) << "];\n";
-  } else {
-    *Out << ptml::AttributeRegistry::getAnnotation<"_STARTS_AT">(NextOffset)
-         << "\n";
   }
 }
 
@@ -112,8 +109,7 @@ void ptml::ModelCBuilder::printDefinition(const model::StructDefinition &S,
       PreviousOffset = Field.Offset() + Field.Type()->size().value();
     }
 
-    if (Configuration.EnableExplicitPaddingMode)
-      printPadding(PreviousOffset, S.Size());
+    printPadding(PreviousOffset, S.Size());
   }
 
   *Out << std::move(Suffix) << ";\n";

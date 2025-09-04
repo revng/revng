@@ -50,7 +50,7 @@ public:
     /// byte has to be occupied. In explicit padding mode, the padding is
     /// printed as arrays of bytes. In implicit mode, a `_STARTS_AT` annotation
     /// is printed instead.
-    bool EnableExplicitPaddingMode = true;
+    bool EnableExplicitPadding = true;
 
     /// When this value is not zero, all pointer types are emitted with explicit
     /// sizes (e.g. `pointer32_t(T)`).

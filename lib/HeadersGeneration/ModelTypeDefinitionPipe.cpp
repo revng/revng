@@ -48,7 +48,7 @@ public:
                             Model,
                             true,
                             { .EnablePrintingOfTheMaximumEnumValue = true,
-                              .EnableExplicitPaddingMode = false });
+                              .EnableExplicitPadding = false });
 
       B.printDefinition(Type);
     }
