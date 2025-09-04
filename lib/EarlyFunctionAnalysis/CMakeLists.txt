@@ -17,6 +17,7 @@ revng_add_analyses_library_internal(
   DetectABI.cpp
   FunctionSummaryOracle.cpp
   IndirectBranchInfoPrinterPass.cpp
+  IRHelpers.cpp
   Outliner.cpp
   PromoteGlobalToLocalVars.cpp
   SegregateDirectStackAccesses.cpp
