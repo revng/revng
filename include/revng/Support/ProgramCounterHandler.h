@@ -5,11 +5,14 @@
 //
 
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Value.h"
 
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
+
+namespace revng {
+class IRBuilder;
+} // namespace revng
 
 inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {
   using namespace llvm;
@@ -88,23 +91,23 @@ public:
 
   /// Hook for the emission of a store to a CSV
   ///
-  /// \param Builder IRBuilder to employ in order to inject new instructions. It
-  ///        is positioned after \p Store
+  /// \param Builder Builder to employ in order to inject new instructions.
+  ///        Those are positioned after \p Store
   /// \param Store the StoreInst targeting a CSV
   ///
   /// \return true if new instructions have been emitted.
-  bool handleStore(llvm::IRBuilderBase &Builder, llvm::StoreInst *Store) const {
+  bool handleStore(revng::IRBuilder &Builder, llvm::StoreInst *Store) const {
     if (affectsPC(Store))
       return handleStoreInternal(Builder, Store);
     return false;
   }
 
-  void initializePC(llvm::IRBuilderBase &Builder, MetaAddress NewPC) const {
+  void initializePC(revng::IRBuilder &Builder, MetaAddress NewPC) const {
     setPC(Builder, NewPC);
     initializePCInternal(Builder, NewPC);
   }
 
-  void setPC(llvm::IRBuilderBase &Builder, MetaAddress NewPC) const {
+  void setPC(revng::IRBuilder &Builder, MetaAddress NewPC) const {
     revng_assert(NewPC.isValid() and NewPC.isCode());
     store(Builder, AddressCSV, NewPC.address());
     store(Builder, EpochCSV, NewPC.epoch());
@@ -115,22 +118,22 @@ public:
   void expandNewPC(llvm::CallBase *Call) const {
     revng_assert(isCallTo(Call, "newpc"));
     MetaAddress Address = addressFromNewPC(Call);
-    llvm::IRBuilder<> Builder(Call);
+    revng::IRBuilder Builder(Call);
     setPC(Builder, Address);
   }
 
-  void setCurrentPCPlainMetaAddress(llvm::IRBuilderBase &Builder) const;
-  void setLastPCPlainMetaAddress(llvm::IRBuilderBase &Builder,
+  void setCurrentPCPlainMetaAddress(revng::IRBuilder &Builder) const;
+  void setLastPCPlainMetaAddress(revng::IRBuilder &Builder,
                                  const MetaAddress &Address) const;
-  void setPlainMetaAddress(llvm::IRBuilderBase &Builder,
+  void setPlainMetaAddress(revng::IRBuilder &Builder,
                            llvm::StringRef GlobalName,
                            const MetaAddress &Address) const;
 
 protected:
-  virtual void initializePCInternal(llvm::IRBuilderBase &Builder,
+  virtual void initializePCInternal(revng::IRBuilder &Builder,
                                     MetaAddress NewPC) const = 0;
 
-  virtual bool handleStoreInternal(llvm::IRBuilderBase &Builder,
+  virtual bool handleStoreInternal(revng::IRBuilder &Builder,
                                    llvm::StoreInst *Store) const = 0;
 
 public:
@@ -153,7 +156,7 @@ public:
   std::pair<NextJumpTarget::Values, MetaAddress>
   getUniqueJumpTarget(llvm::BasicBlock *BB);
 
-  void deserializePC(llvm::IRBuilderBase &Builder) const {
+  void deserializePC(revng::IRBuilder &Builder) const {
     using namespace llvm;
 
     // Load and re-store each CSV affecting the PC and then feed them to
@@ -172,19 +175,19 @@ public:
     }
   }
 
-  virtual llvm::Value *loadJumpablePC(llvm::IRBuilderBase &Builder) const = 0;
+  virtual llvm::Value *loadJumpablePC(revng::IRBuilder &Builder) const = 0;
 
   virtual std::array<llvm::Value *, 4>
-  dissectJumpablePC(llvm::IRBuilderBase &Builder,
+  dissectJumpablePC(revng::IRBuilder &Builder,
                     llvm::Value *ToDissect,
                     llvm::Triple::ArchType Arch) const = 0;
 
   virtual void
-  deserializePCFromSignalContext(llvm::IRBuilderBase &Builder,
+  deserializePCFromSignalContext(revng::IRBuilder &Builder,
                                  llvm::Value *PCAddress,
                                  llvm::Value *SavedRegisters) const = 0;
 
-  llvm::Instruction *composeIntegerPC(llvm::IRBuilderBase &B) const {
+  llvm::Instruction *composeIntegerPC(revng::IRBuilder &B) const {
     return MetaAddress::composeIntegerPC(B,
                                          align(B, createLoad(B, AddressCSV)),
                                          createLoad(B, EpochCSV),
@@ -206,7 +209,7 @@ public:
   ///        sorted.
   DispatcherInfo
   buildDispatcher(DispatcherTargets &Targets,
-                  llvm::IRBuilderBase &Builder,
+                  revng::IRBuilder &Builder,
                   llvm::BasicBlock *Default,
                   std::optional<BlockType::Values> SetBlockType) const;
 
@@ -215,7 +218,7 @@ public:
                   llvm::BasicBlock *CreateIn,
                   llvm::BasicBlock *Default,
                   std::optional<BlockType::Values> SetBlockType) const {
-    llvm::IRBuilder<> Builder(CreateIn);
+    revng::IRBuilder Builder(CreateIn);
     return buildDispatcher(Targets, Builder, Default, SetBlockType);
   }
 
@@ -226,7 +229,7 @@ public:
 
   void destroyDispatcher(llvm::SwitchInst *Root) const;
 
-  void buildHotPath(llvm::IRBuilderBase &Builder,
+  void buildHotPath(revng::IRBuilder &Builder,
                     const DispatcherTarget &CandidateTarget,
                     llvm::BasicBlock *Default) const;
 
@@ -242,7 +245,7 @@ protected:
       TypeCSV = createType(M);
   }
 
-  llvm::Value *align(llvm::IRBuilderBase &Builder, llvm::Value *V) const {
+  llvm::Value *align(revng::IRBuilder &Builder, llvm::Value *V) const {
     revng_assert(Alignment != 0);
 
     if (Alignment == 1)
@@ -300,9 +303,8 @@ private:
   }
 
 protected:
-  static llvm::StoreInst *store(llvm::IRBuilderBase &Builder,
-                                llvm::GlobalVariable *GV,
-                                uint64_t Value) {
+  static llvm::StoreInst *
+  store(revng::IRBuilder &Builder, llvm::GlobalVariable *GV, uint64_t Value) {
     using namespace llvm;
     auto *Type = cast<IntegerType>(GV->getValueType());
     return Builder.CreateStore(ConstantInt::get(Type, Value), GV);

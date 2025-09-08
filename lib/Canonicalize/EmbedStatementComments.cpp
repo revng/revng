@@ -3,7 +3,6 @@
 //
 
 #include "llvm/IR/DebugInfoMetadata.h"
-#include "llvm/IR/IRBuilder.h"
 
 #include "revng/PTML/CommentPlacementHelper.h"
 #include "revng/Pipeline/LLVMContainer.h"
@@ -14,6 +13,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/DecompilationHelpers.h"
+#include "revng/Support/IRBuilder.h"
 
 // This name is not present in the emitted C.
 RegisterIRHelper CommentHelper("comment");
@@ -80,7 +80,7 @@ public:
   void run(pipeline::ExecutionContext &Context,
            pipeline::LLVMContainer &ModuleContainer) {
     llvm::Module &M = ModuleContainer.getModule();
-    llvm::IRBuilder<> B(M.getContext());
+    revng::IRBuilder B(M.getContext());
 
     llvm::FunctionCallee IRComment = makeIRComment(M);
 

@@ -2,13 +2,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Verifier.h"
 
 #include "revng/ADT/Queue.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
@@ -115,7 +115,7 @@ void InstrumentStackAccesses::instrumentStackAccess(Instruction *I) {
   auto *Pointer = cast<Instruction>(getPointer(I));
 
   auto *IntegerPointer = cast<Instruction>(skipCasts(Pointer));
-  IRBuilder<> B(I);
+  revng::IRBuilder B(I);
 
   if (not IntegerPointer->getType()->isIntegerTy()) {
     Value *PtrToInt = B.CreatePtrToInt(IntegerPointer, SPType);

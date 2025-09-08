@@ -454,7 +454,7 @@ extractStringLiteralFromMetadata(const llvm::Function &F) {
 RegisterIRHelper RevngAbortHelper(AbortFunctionName.str());
 
 template<bool ShouldTerminateTheBlock>
-llvm::CallInst &emitMessageImpl(llvm::IRBuilderBase &Builder,
+llvm::CallInst &emitMessageImpl(revng::IRBuilder &Builder,
                                 const llvm::Twine &Message,
                                 const llvm::DebugLoc &DbgLocation,
                                 const ProgramCounterHandler *PCH) {
@@ -508,14 +508,14 @@ llvm::CallInst &emitMessageImpl(llvm::IRBuilderBase &Builder,
   return *NewCall;
 }
 
-llvm::CallInst &emitAbort(llvm::IRBuilderBase &Builder,
+llvm::CallInst &emitAbort(revng::IRBuilder &Builder,
                           const llvm::Twine &Message,
                           const llvm::DebugLoc &DbgLocation,
                           const ProgramCounterHandler *PCH) {
   return emitMessageImpl<true>(Builder, Message, DbgLocation, PCH);
 }
 
-llvm::CallInst &emitMessage(llvm::IRBuilderBase &Builder,
+llvm::CallInst &emitMessage(revng::IRBuilder &Builder,
                             const llvm::Twine &Message,
                             const llvm::DebugLoc &DbgLocation,
                             const ProgramCounterHandler *PCH) {
