@@ -114,7 +114,8 @@ class Pass(abc.ABC):
     @abc.abstractmethod
     async def run(
         self, files: Dict[str, Dict[Path, str]], args: Dict[str, str | bool]
-    ) -> PassResult: ...
+    ) -> PassResult:
+        ...
 
 
 class TaggedPass(Pass, abc.ABC):
@@ -136,7 +137,8 @@ class TaggedPass(Pass, abc.ABC):
         return await self.process(files[self.tag], args)
 
     @abc.abstractmethod
-    async def process(self, files: Dict[Path, str], args: Dict[str, str | bool]) -> PassResult: ...
+    async def process(self, files: Dict[Path, str], args: Dict[str, str | bool]) -> PassResult:
+        ...
 
 
 def log(string: str):

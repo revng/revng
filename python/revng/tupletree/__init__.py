@@ -521,11 +521,13 @@ class DiffSet(abc.ABC, Generic[StructBaseT]):
 
     @staticmethod
     @abc.abstractmethod
-    def _get_root() -> StructBase: ...
+    def _get_root() -> StructBase:
+        ...
 
     @staticmethod
     @abc.abstractmethod
-    def _get_types_metadata() -> TypesMetadata: ...
+    def _get_types_metadata() -> TypesMetadata:
+        ...
 
     @classmethod
     def make(cls, obj_old: StructBaseT, obj_new: StructBaseT) -> "DiffSet":
