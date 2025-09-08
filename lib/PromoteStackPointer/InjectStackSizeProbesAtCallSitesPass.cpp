@@ -2,11 +2,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/IRBuilder.h"
-
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSitesPass.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 
 // This name is not present after `CleanupStackSizeMarkers`.
 RegisterIRHelper StackSizeAtCallSite("stack_size_at_call_site");
@@ -15,7 +14,7 @@ using namespace llvm;
 
 bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
   bool Changed = false;
-  IRBuilder<> B(M.getContext());
+  revng::IRBuilder B(M.getContext());
 
   // Get the stack pointer CSV
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();

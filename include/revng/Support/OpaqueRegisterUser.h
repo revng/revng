@@ -6,10 +6,13 @@
 
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/IR/IRBuilder.h"
 
 #include "revng/Model/Register.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
+
+namespace revng {
+class IRBuilder;
+} // namespace revng
 
 class OpaqueRegisterUser {
 private:
@@ -44,12 +47,12 @@ public:
   }
 
 public:
-  llvm::StoreInst *clobber(llvm::IRBuilder<> &Builder,
+  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
                            llvm::GlobalVariable *CSV) {
     return writeImpl(Builder, CSV, "clobber_", Clobberers);
   }
 
-  llvm::StoreInst *clobber(llvm::IRBuilder<> &Builder,
+  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
                            model::Register::Values Value) {
     if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
       return clobber(Builder, CSV);
@@ -57,12 +60,11 @@ public:
       return nullptr;
   }
 
-  llvm::StoreInst *write(llvm::IRBuilder<> &Builder,
-                         llvm::GlobalVariable *CSV) {
+  llvm::StoreInst *write(revng::IRBuilder &Builder, llvm::GlobalVariable *CSV) {
     return writeImpl(Builder, CSV, "write_", Writers);
   }
 
-  llvm::StoreInst *write(llvm::IRBuilder<> &Builder,
+  llvm::StoreInst *write(revng::IRBuilder &Builder,
                          model::Register::Values Value) {
     if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
       return write(Builder, CSV);
@@ -70,7 +72,7 @@ public:
       return nullptr;
   }
 
-  llvm::Instruction *read(llvm::IRBuilder<> &Builder,
+  llvm::Instruction *read(revng::IRBuilder &Builder,
                           llvm::GlobalVariable *CSV) {
     auto *CSVTy = CSV->getValueType();
     std::string Name = "reader_" + CSV->getName().str();
@@ -88,7 +90,7 @@ public:
     return OpaqueCall;
   }
 
-  llvm::Instruction *read(llvm::IRBuilder<> &Builder,
+  llvm::Instruction *read(revng::IRBuilder &Builder,
                           model::Register::Values Value) {
     if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
       return read(Builder, CSV);
@@ -103,7 +105,7 @@ public:
   }
 
 private:
-  llvm::StoreInst *writeImpl(llvm::IRBuilder<> &Builder,
+  llvm::StoreInst *writeImpl(revng::IRBuilder &Builder,
                              llvm::GlobalVariable *CSV,
                              llvm::StringRef Prefix,
                              OpaqueFunctionsPool<std::string> &Pool) {

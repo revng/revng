@@ -7,11 +7,11 @@
 //
 
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -104,7 +104,7 @@ void ScopeGraphBuilder::makeGoto(BasicBlock *GotoBlock) const {
 
   // We always insert the marker as the penultimate instruction in a
   // `BasicBlock`
-  IRBuilder<> Builder(Terminator);
+  revng::IRBuilder Builder(Terminator);
 
   // We set the debug metadata of the decorator call to the same value it
   // assumes in the `Terminator` of the `BasicBlock`
@@ -143,7 +143,7 @@ void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source,
 
   // We set the debug metadata of the decorator call to the same value it
   // assumes in the `Terminator` of the `BasicBlock`
-  IRBuilder<> Builder(Terminator);
+  revng::IRBuilder Builder(Terminator);
   Builder.SetCurrentDebugLocation(Terminator->getDebugLoc());
   Builder.CreateCall(ScopeCloserFunction, BasicBlockAddressTarget);
 }
@@ -173,7 +173,7 @@ BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
   BasicBlock *GotoBlock = BasicBlock::Create(Context,
                                              "goto_" + Target->getName().str(),
                                              F);
-  IRBuilder<> Builder(Context);
+  revng::IRBuilder Builder(Context);
 
   // We set the debug metadata in the inserted `GotoBlock` to the same location
   // of the `Source` `BasicBlock`
@@ -314,11 +314,9 @@ void simplifyTerminator(BasicBlock *BB, const BasicBlock *PlaceHolderTarget) {
       // If we found a `BranchInst` candidate for promotion, we substitute it
       // with an unconditional branch
       if (SingleDestination) {
-        IRBuilder<> Builder(Terminator);
-
         // We set the debug metadata of the promoted `Branch` instruction to the
         // same value it has before the promotion is performed
-        Builder.SetCurrentDebugLocation(Terminator->getDebugLoc());
+        revng::IRBuilder Builder(Terminator);
         Builder.CreateBr(SingleDestination);
 
         // We remove the old conditional branch

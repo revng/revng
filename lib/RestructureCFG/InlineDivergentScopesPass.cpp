@@ -6,7 +6,6 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/GenericDomTree.h"
@@ -19,6 +18,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/GraphAlgorithms.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -220,7 +220,7 @@ static void createHead(BasicBlock *Conditional,
                                         Conditional->getName() + "_head_ids",
                                         F);
   Instruction *HeadTerminator = ConditionalTerminator->clone();
-  IRBuilder<> HeadBuilder(Head);
+  revng::IRBuilder HeadBuilder(Head);
   HeadBuilder.Insert(HeadTerminator);
 
   // Collect the `Successor`s composing the local `Divergence`
@@ -271,7 +271,7 @@ performMultipleIDS(const ScopeGraphBuilder &SGBuilder,
   // `Tail`.
   Instruction *ConditionalTerminator = Conditional->getTerminator();
   Instruction *TailTerminator = ConditionalTerminator->clone();
-  IRBuilder<> TailBuilder(Tail);
+  revng::IRBuilder TailBuilder(Tail);
   TailBuilder.Insert(TailTerminator);
 
   // Populate the `DivergentSuccessors` summing all ones present in each

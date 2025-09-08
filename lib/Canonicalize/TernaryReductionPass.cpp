@@ -4,7 +4,6 @@
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
@@ -14,6 +13,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 struct TernaryReductionPass : public llvm::FunctionPass {
@@ -30,7 +30,7 @@ public:
 };
 
 class TernaryReductionImpl {
-  llvm::IRBuilder<> Builder;
+  revng::IRBuilder Builder;
   OpaqueFunctionsPool<llvm::Type *> BooleanNotPool;
 
 public:

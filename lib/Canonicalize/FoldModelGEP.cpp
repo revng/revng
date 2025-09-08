@@ -5,7 +5,6 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
@@ -17,6 +16,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/DecompilationHelpers.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/YAMLTraits.h"
 
 static Logger<> Log{ "fold-model-gep" };
@@ -116,7 +116,7 @@ bool FoldModelGEP::runOnFunction(llvm::Function &F) {
 
   // Initialize the IR builder to inject functions
   llvm::LLVMContext &LLVMCtx = F.getContext();
-  llvm::IRBuilder<> Builder(LLVMCtx);
+  revng::IRBuilder Builder(LLVMCtx);
   bool Modified = false;
 
   revng_log(Log, "=========Function: " << F.getName());

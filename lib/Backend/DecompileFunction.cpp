@@ -2081,7 +2081,7 @@ static void turnBodyIntoError(llvm::Function &F) {
   BasicBlock *NewBB = llvm::BasicBlock::Create(Context, "error", &F);
 
   // Add the error message
-  IRBuilder<> Builder(NewBB);
+  revng::IRBuilder Builder(NewBB);
   emitAbort(Builder, "Backend Decompilation Failed");
 }
 

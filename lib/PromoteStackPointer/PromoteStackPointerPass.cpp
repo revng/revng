@@ -12,7 +12,6 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
@@ -32,6 +31,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 
 // This name is not present after `promote-stack-pointer`.
 RegisterIRHelper IBIMarker("revng_undefined_local_sp");
@@ -62,7 +62,7 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
                                   GlobalVariable *GlobalSP) {
   bool Changed = false;
 
-  IRBuilder<> B(F.getParent()->getContext());
+  revng::IRBuilder B(F.getParent()->getContext());
 
   Type *SPType = GlobalSP->getValueType();
 
@@ -164,7 +164,7 @@ bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
   // Create an alloca to represent the local value of the stack pointer.
   // This should be inserted at the beginning of the entry block.
   BasicBlock &EntryBlock = F.getEntryBlock();
-  IRBuilder<> Builder(Context);
+  revng::IRBuilder Builder(Context);
   Builder.SetInsertPoint(&EntryBlock, EntryBlock.begin());
   AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
 
