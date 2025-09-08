@@ -3,6 +3,6 @@
 //
 
 struct _PACKED _SIZ_TYPO_E(24) my_struct {
-  _START_AT(16)
+  _STARTS_AT(16)
   uint64_t normal_field;
 };

@@ -951,21 +951,21 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
 
     const auto &Config = Model->Configuration().Naming();
     bool IsPadding = Field->getName().starts_with(Config.structPaddingPrefix());
-    auto ExplicitOffset = parseIntegerAnnotation<"_START_AT">(*Field, Errors);
+    auto ExplicitOffset = parseIntegerAnnotation<"_STARTS_AT">(*Field, Errors);
     if (ExplicitOffset.has_value()) {
       if (IsPadding) {
         Errors.emplace_back("import-from-c: While parsing field #"
                             + std::to_string(Struct->Fields().size()) + ":\n");
         Errors.emplace_back("import-from-c failed: Padding fields (`uint8_t "
                             "padding_at_$offset[$size]`) must not have "
-                            "`_START_AT` annotation attached.\n");
+                            "`_STARTS_AT` annotation attached.\n");
         return false;
       }
 
       if (not Struct->Fields().empty() and CurrentOffset > *ExplicitOffset) {
         Errors.emplace_back("import-from-c: While parsing field #"
                             + std::to_string(Struct->Fields().size()) + ":\n");
-        Errors.emplace_back("import-from-c failed: `_START_AT` must not be "
+        Errors.emplace_back("import-from-c failed: `_STARTS_AT` must not be "
                             "used to make fields overlap.\n");
         return false;
       }

@@ -48,13 +48,9 @@ public:
 
     /// All of our structs are packed by definition. Which means every single
     /// byte has to be occupied. In explicit padding mode, the padding is
-    /// printed as arrays of bytes. In implicit mode, a `_START_AT` annotation
+    /// printed as arrays of bytes. In implicit mode, a `_STARTS_AT` annotation
     /// is printed instead.
-    bool EnableExplicitPaddingMode = true;
-
-    /// When this flag is set to true, a special `_SIZE($bytes)` annotation is
-    /// printed with every struct definition.
-    bool EnableStructSizeAnnotation = false;
+    bool EnableExplicitPadding = true;
 
     /// When this value is not zero, all pointer types are emitted with explicit
     /// sizes (e.g. `pointer32_t(T)`).

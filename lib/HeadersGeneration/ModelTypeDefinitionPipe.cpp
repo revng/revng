@@ -48,8 +48,7 @@ public:
                             Model,
                             true,
                             { .EnablePrintingOfTheMaximumEnumValue = true,
-                              .EnableExplicitPaddingMode = false,
-                              .EnableStructSizeAnnotation = true });
+                              .EnableExplicitPadding = false });
 
       B.printDefinition(Type);
     }

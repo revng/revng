@@ -65,18 +65,15 @@ void ptml::ModelCBuilder::printDefinition(const model::EnumDefinition &E,
 
 void ptml::ModelCBuilder::printPadding(uint64_t FieldOffset,
                                        uint64_t NextOffset) {
-  revng_assert(FieldOffset <= NextOffset);
-  if (FieldOffset == NextOffset)
-    return; // There is no padding
+  if (Configuration.EnableExplicitPadding) {
+    revng_assert(FieldOffset <= NextOffset);
+    if (FieldOffset == NextOffset)
+      return; // There is no padding
 
-  if (Configuration.EnableExplicitPaddingMode) {
     *Out << tokenTag("uint8_t", ptml::c::tokens::Type) << " "
          << tokenTag(NameBuilder.paddingFieldName(FieldOffset),
                      ptml::c::tokens::Field)
          << "[" << getNumber(NextOffset - FieldOffset) << "];\n";
-  } else {
-    *Out << ptml::AttributeRegistry::getAnnotation<"_START_AT">(NextOffset)
-         << "\n";
   }
 }
 
@@ -92,11 +89,8 @@ void ptml::ModelCBuilder::printDefinition(const model::StructDefinition &S,
     StructLine += ptml::AttributeRegistry::getAttribute<"_CAN_CONTAIN_CODE">()
                   + " ";
 
-  if (Configuration.EnableStructSizeAnnotation)
-    StructLine += ptml::AttributeRegistry::getAnnotation<"_SIZE">(S.Size())
-                  + " ";
-
-  StructLine += getDefinitionTag(S) + " ";
+  StructLine += ptml::AttributeRegistry::getAnnotation<"_SIZE">(S.Size()) + " "
+                + getDefinitionTag(S) + " ";
 
   *Out << getCommentableTag(std::move(StructLine), S);
 
@@ -109,14 +103,17 @@ void ptml::ModelCBuilder::printDefinition(const model::StructDefinition &S,
 
       auto F = getDefinitionTag(S, Field);
       std::string Result = getModelComment(Field)
-                           + getNamedCInstance(*Field.Type(), F) + ';';
-      *Out << getCommentableTag(std::move(Result), S, Field) << '\n';
+                           + getNamedCInstance(*Field.Type(), F);
+      if (not NameBuilder.shouldUseAutomaticName(Field)) {
+        using AttributeR = ptml::AttributeRegistry;
+        Result += ' ' + AttributeR::getAnnotation<"_STARTS_AT">(Field.Offset());
+      }
+      *Out << getCommentableTag(std::move(Result += ';'), S, Field) << '\n';
 
       PreviousOffset = Field.Offset() + Field.Type()->size().value();
     }
 
-    if (Configuration.EnableExplicitPaddingMode)
-      printPadding(PreviousOffset, S.Size());
+    printPadding(PreviousOffset, S.Size());
   }
 
   *Out << std::move(Suffix) << ";\n";
