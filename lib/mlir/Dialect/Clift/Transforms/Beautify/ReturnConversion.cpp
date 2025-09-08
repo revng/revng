@@ -22,13 +22,13 @@ namespace clift = mlir::clift;
 
 namespace {
 
-struct ReturnIntoGotoConversionPattern : mlir::OpRewritePattern<clift::ReturnOp> {
+struct ReturnIntoGotoConversionPattern
+  : mlir::OpRewritePattern<clift::ReturnOp> {
   mlir::Value Label;
 
   explicit ReturnIntoGotoConversionPattern(mlir::MLIRContext *Context,
                                            mlir::Value Label) :
-    OpRewritePattern(Context),
-    Label(Label) {}
+    OpRewritePattern(Context), Label(Label) {}
 
   mlir::LogicalResult
   matchAndRewrite(clift::ReturnOp Return,
@@ -45,7 +45,8 @@ struct ReturnIntoGotoConversionPattern : mlir::OpRewritePattern<clift::ReturnOp>
 };
 
 struct ReturnIntoGotoConversionPass
-  : clift::impl::CliftReturnIntoGotoConversionBase<ReturnIntoGotoConversionPass> {
+  : clift::impl::CliftReturnIntoGotoConversionBase<
+      ReturnIntoGotoConversionPass> {
 
   void runOnOperation() override {
     mlir::MLIRContext *Context = &getContext();
@@ -77,9 +78,7 @@ struct GotoIntoReturnConversionPattern : mlir::OpRewritePattern<clift::GoToOp> {
 
   explicit GotoIntoReturnConversionPattern(mlir::MLIRContext *Context,
                                            mlir::Value Label) :
-    OpRewritePattern(Context),
-    Label(Label) {}
-
+    OpRewritePattern(Context), Label(Label) {}
 
   mlir::LogicalResult
   matchAndRewrite(clift::GoToOp Goto,
@@ -99,7 +98,8 @@ struct GotoIntoReturnConversionPattern : mlir::OpRewritePattern<clift::GoToOp> {
 };
 
 struct GotoIntoReturnConversionPass
-  : clift::impl::CliftGotoIntoReturnConversionBase<GotoIntoReturnConversionPass> {
+  : clift::impl::CliftGotoIntoReturnConversionBase<
+      GotoIntoReturnConversionPass> {
 
   void runOnOperation() override {
     mlir::MLIRContext *Context = &getContext();

@@ -369,11 +369,10 @@ public:
     return static_cast<OperatorPrecedence>(static_cast<T>(Precedence) - 1);
   }
 
-  ptml::Tag
-  getIntegerConstant(uint64_t Value,
-                     CIntegerKind Integer,
-                     bool Signed,
-                     unsigned Radix) {
+  ptml::Tag getIntegerConstant(uint64_t Value,
+                               CIntegerKind Integer,
+                               bool Signed,
+                               unsigned Radix) {
     llvm::SmallString<64> String;
     {
       llvm::raw_svector_ostream Stream(String);
@@ -396,9 +395,8 @@ public:
     return C.getConstantTag(String);
   }
 
-  void emitIntegerImmediate(uint64_t Value,
-                            ValueType Type,
-                            unsigned Radix = 10) {
+  void
+  emitIntegerImmediate(uint64_t Value, ValueType Type, unsigned Radix = 10) {
     Type = dealias(Type, /*IgnoreQualifiers=*/true);
 
     if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {

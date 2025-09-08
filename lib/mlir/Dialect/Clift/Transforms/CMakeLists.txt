@@ -10,6 +10,7 @@ add_mlir_dialect_library(
   Beautify/Expressions.cpp
   Beautify/ImmediateRadixDeduction.cpp
   Beautify/LoopDetection.cpp
+  Beautify/LoopPromotion.cpp
   Beautify/Statements.cpp
   Beautify/ReturnConversion.cpp
   Beautify.cpp

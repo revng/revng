@@ -17,11 +17,7 @@ namespace clift {
 
 namespace clift = mlir::clift;
 
-namespace {
-
-
-
-} // namespace
+namespace {} // namespace
 
 clift::PassPtr<clift::FunctionOp> clift::createLoopLabelMotionPass() {
   return std::make_unique<LoopLabelMotionPass>();

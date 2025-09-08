@@ -22,7 +22,6 @@ namespace clift = mlir::clift;
 namespace {
 
 static void simplifyExpressionRoot(clift::YieldOp Yield) {
-  
 }
 
 template<typename T>

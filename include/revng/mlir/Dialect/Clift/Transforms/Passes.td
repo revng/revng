@@ -12,6 +12,11 @@ class Clift_Pass<string arg, string operation> : Pass<arg, operation> {
   let dependentDialects = ["clift::CliftDialect"];
 }
 
+def CliftLoopPromotion : Clift_Pass<"loop-promotion", "clift::FunctionOp"> {
+  let summary = "Promote Clift loops";
+  let constructor = "mlir::clift::createLoopPromotionPass()";
+}
+
 def CliftLoopDetection : Clift_Pass<"loop-detection", "clift::FunctionOp"> {
   let summary = "Detect Clift loops";
   let constructor = "mlir::clift::createLoopDetectionPass()";

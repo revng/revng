@@ -627,6 +627,22 @@ mlir::LogicalResult ReturnOp::verify() {
   return mlir::success();
 }
 
+//===------------------------------ BreakOp ------------------------------===//
+
+mlir::LogicalResult BreakOp::verify() {
+
+  // TODO: implement the necessary verifications
+  return mlir::success();
+}
+
+//===------------------------------ ContinueOp ------------------------------===//
+
+mlir::LogicalResult ContinueOp::verify() {
+
+  // TODO: implement the necessary verifications
+  return mlir::success();
+}
+
 //===------------------------------ SwitchOp ------------------------------===//
 
 bool SwitchOp::hasIndirectFallthrough() const {

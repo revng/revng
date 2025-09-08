@@ -29,9 +29,7 @@ struct BlockPosition {
     return mlir::dyn_cast<OpT>(&*Pos);
   }
 
-  explicit operator bool() const {
-    return Block != nullptr;
-  }
+  explicit operator bool() const { return Block != nullptr; }
 
   friend bool operator==(BlockPosition const &,
                          BlockPosition const &) = default;
@@ -40,7 +38,6 @@ struct BlockPosition {
 inline BlockPosition getGotoTarget(clift::GoToOp Goto) {
   return BlockPosition::get(Goto.getAssignLabelOp().getOperation());
 }
-
 
 inline bool isEmptyRegionOrBlock(mlir::Region &R) {
   return R.empty() or R.front().empty();
@@ -143,12 +140,11 @@ OpT getTrailingOp(mlir::Region &Region) {
   return getTrailingOp<OpT>(Region, [](OpT) { return true; });
 }
 
-
 inline YieldOp getYieldOp(mlir::Region &R) {
   return getTrailingOp<YieldOp>(R);
 }
 
-template<typename ... ArgsT>
+template<typename... ArgsT>
 StatementOpInterface getTrailingStatement(mlir::Region &R, ArgsT &&...Args) {
   return getTrailingOp<StatementOpInterface>(R, std::forward<ArgsT>(Args)...);
 }
@@ -158,7 +154,6 @@ inline StatementOpInterface getTrailingJumpOp(mlir::Region &R) {
     return Op->template hasTrait<mlir::OpTrait::clift::NoFallthrough>();
   });
 }
-
 
 inline bool hasIndirectFallthrough(mlir::Region &R) {
   auto Op = getTrailingStatement(R);

@@ -49,10 +49,7 @@ static mlir::LogicalResult equalizeBranch(clift::BranchOpInterface Branch) {
   while (Beg != End and mlir::isa<clift::AssignLabelOp>(&*std::prev(End)))
     --End;
 
-  Inner->getOperations().splice(Inner->end(),
-                                Outer->getOperations(),
-                                Beg,
-                                End);
+  Inner->getOperations().splice(Inner->end(), Outer->getOperations(), Beg, End);
 
   return mlir::success();
 }
@@ -85,7 +82,7 @@ struct BranchEqualizationPass
     getOperation()->walk<mlir::WalkOrder::PreOrder>([](mlir::Operation *Op) {
       for (mlir::Region &R : Op->getRegions()) {
         for (auto Branch : R.getOps<clift::BranchOpInterface>())
-          (void)equalizeBranch(Branch);
+          (void) equalizeBranch(Branch);
       }
     });
   }

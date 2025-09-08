@@ -341,6 +341,26 @@ def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
   let hasVerifier = 1;
 }
 
+def Clift_BreakOp : Clift_StatementOp<"break", [Clift_NoFallthrough]> {
+  let regions = (region Clift_OptionalExpressionRegion:$result);
+
+  let assemblyFormat = [{
+    $result attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_ContinueOp : Clift_StatementOp<"continue", [Clift_NoFallthrough]> {
+  let regions = (region Clift_OptionalExpressionRegion:$result);
+
+  let assemblyFormat = [{
+    $result attr-dict
+  }];
+
+  let hasVerifier = 1;
+}
+
 def Clift_SwitchOp : Clift_StatementOp<"switch", [Clift_BranchOpInterface]> {
   let arguments = (ins DenseI64ArrayAttr:$case_values);
 

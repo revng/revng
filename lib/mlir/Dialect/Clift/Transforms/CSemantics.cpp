@@ -29,7 +29,6 @@ struct VerifyCPass : clift::impl::CliftVerifyCBase<VerifyCPass> {
 
 } // namespace
 
-clift::PassPtr<mlir::ModuleOp>
-clift::createVerifyCPass() {
+clift::PassPtr<mlir::ModuleOp> clift::createVerifyCPass() {
   return std::make_unique<VerifyCPass>();
 }

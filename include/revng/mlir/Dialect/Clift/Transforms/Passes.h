@@ -14,6 +14,8 @@ using PassPtr = std::unique_ptr<mlir::OperationPass<OpT>>;
 #define GEN_PASS_DECL
 #include "revng/mlir/Dialect/Clift/Transforms/Passes.h.inc"
 
+PassPtr<clift::FunctionOp> createLoopPromotionPass();
+
 PassPtr<clift::FunctionOp> createLoopDetectionPass();
 PassPtr<clift::FunctionOp> createBranchEqualizationPass();
 

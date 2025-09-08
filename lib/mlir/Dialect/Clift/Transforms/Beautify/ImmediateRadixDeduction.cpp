@@ -56,8 +56,8 @@ static unsigned deduceIntegerRadix(uint64_t Value) {
   return 10;
 }
 
-struct ImmediateRadixDeductionPattern :
-  mlir::OpRewritePattern<clift::ImmediateOp> {
+struct ImmediateRadixDeductionPattern
+  : mlir::OpRewritePattern<clift::ImmediateOp> {
 
   using OpRewritePattern::OpRewritePattern;
 
@@ -101,4 +101,3 @@ struct ImmediateRadixDeductionPass : PassBase<ImmediateRadixDeductionPass> {
 clift::PassPtr<clift::FunctionOp> clift::createImmediateRadixDeductionPass() {
   return std::make_unique<ImmediateRadixDeductionPass>();
 }
-

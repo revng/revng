@@ -235,15 +235,12 @@ static BlockPosition skipLabels(BlockPosition Position) {
   return Position;
 }
 
-
 static void invertBooleanExpression(mlir::PatternRewriter &Rewriter,
                                     mlir::Location Loc,
                                     mlir::Region &R) {
   replaceExpression(Rewriter, R, [&](mlir::Value Value) {
     auto BooleanType = getBooleanType(Rewriter.getContext());
-    auto Op = Rewriter.create<clift::LogicalNotOp>(Loc,
-                                                   BooleanType,
-                                                   Value);
+    auto Op = Rewriter.create<clift::LogicalNotOp>(Loc, BooleanType, Value);
     return Op.getResult();
   });
 }
@@ -381,9 +378,9 @@ struct BranchEqualizationPattern
     mlir::Region *FallthroughRegion = nullptr;
 
     for (mlir::Region &R : Branch.getBranchRegions()) {
-      //bool A = (bool)clift::getTrailingJumpOp(R);
-      //bool B = not clift::hasIndirectFallthrough(R);
-      //llvm::errs() << "A/B: " << A << "/" << B << "\n";
+      // bool A = (bool)clift::getTrailingJumpOp(R);
+      // bool B = not clift::hasIndirectFallthrough(R);
+      // llvm::errs() << "A/B: " << A << "/" << B << "\n";
 
       if (not clift::hasIndirectFallthrough(R))
         continue;
@@ -408,7 +405,8 @@ struct BranchEqualizationPattern
     if (Beg == End)
       return mlir::failure();
 
-    if (mlir::cast<clift::StatementOpInterface>(std::prev(End)).hasIndirectFallthrough())
+    if (mlir::cast<clift::StatementOpInterface>(std::prev(End))
+          .hasIndirectFallthrough())
       return mlir::failure();
 
     if (FallthroughRegion->empty())
@@ -510,9 +508,7 @@ struct TerminalIfElseUnwrappingPattern : mlir::OpRewritePattern<clift::IfOp> {
 struct TrivialGotoEliminationPattern : mlir::OpRewritePattern<clift::GoToOp> {
   using OpRewritePattern::OpRewritePattern;
 
-  void initialize() {
-    setDebugName("trivial-jump-elimination");
-  }
+  void initialize() { setDebugName("trivial-jump-elimination"); }
 
   static BlockPosition getFallthroughTarget(BlockPosition Position) {
     auto &[B, I] = Position;
@@ -716,8 +712,7 @@ struct BeautifyStatementsPass
   }
 
   void runOnOperation() override {
-    if (mlir::applyPatternsAndFoldGreedily(getOperation(), Patterns)
-          .failed())
+    if (mlir::applyPatternsAndFoldGreedily(getOperation(), Patterns).failed())
       signalPassFailure();
   }
 

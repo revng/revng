@@ -96,8 +96,7 @@ struct BeautifyExpressionsPass
   }
 
   void runOnOperation() override {
-    if (mlir::applyPatternsAndFoldGreedily(getOperation(), Patterns)
-          .failed())
+    if (mlir::applyPatternsAndFoldGreedily(getOperation(), Patterns).failed())
       signalPassFailure();
   }
 
