@@ -996,23 +996,10 @@ CCodeGenerator::getNonIsolatedCallToken(const llvm::CallInst *Call) const {
   rc_return rc_recur getCallToken(Call, HelperRef, /*prototype=*/nullptr);
 }
 
-static bool shouldGenerateDebugInfoAsPTML(const llvm::Instruction &I) {
-  if (!I.getDebugLoc() || !I.getDebugLoc()->getScope())
-    return false;
-
-  // If the next instruction in the BB has different DebugLoc, generate the
-  // PTML location now.
-  auto NextInstr = std::next(I.getIterator());
-  if (NextInstr == I.getParent()->end() || !NextInstr->getDebugLoc()
-      || NextInstr->getDebugLoc() != I.getDebugLoc())
-    return true;
-  return false;
-}
-
 static std::string addDebugInfo(const llvm::Instruction *I,
                                 std::string &&Str,
                                 const ptml::ModelCBuilder &B) {
-  if (shouldGenerateDebugInfoAsPTML(*I)) {
+  if (I->getDebugLoc() && I->getDebugLoc()->getScope()) {
     std::string Location = I->getDebugLoc()->getScope()->getName().str();
     return B.getDebugInfoTag(std::move(Str), std::move(Location));
 
@@ -1984,7 +1971,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
 
     // Mention unused variables by name, to reduce confusion when they suddenly
     // disappear.
-    std::set<llvm::StringRef> Homeless = VariableNameBuilder.homelessNames();
+    std::set<std::string> Homeless = VariableNameBuilder.homelessNames();
     if (not Homeless.empty()) {
       constexpr llvm::StringRef Separator = ", ";
       std::string Message = "The following variables are no longer present "
