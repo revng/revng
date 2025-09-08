@@ -6,7 +6,6 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/IRBuilder.h"
 
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/Support/FunctionTags.h"
@@ -37,7 +36,7 @@ PromoteGlobalToLocalPass::run(llvm::Function &F,
   }
 
   // Create an equivalent local variable, replace all the uses of the CSV.
-  IRBuilder<> Builder(&F.getEntryBlock().front());
+  revng::IRBuilder Builder(&F.getEntryBlock().front());
   for (GlobalVariable *CSV : toSortedByName(llvm::make_first_range(CSVMap))) {
     auto *CSVTy = CSV->getValueType();
     auto *Alloca = Builder.CreateAlloca(CSVTy, nullptr, CSV->getName());

@@ -58,7 +58,6 @@ using llvm::ConstantInt;
 using llvm::dyn_cast;
 using llvm::FunctionPass;
 using llvm::Instruction;
-using llvm::IRBuilder;
 using llvm::isa;
 using llvm::LLVMContext;
 using llvm::PHINode;
@@ -2086,7 +2085,7 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
   llvm::Module &M = *F.getParent();
   LLVMContext &Context = M.getContext();
-  IRBuilder<> Builder(Context);
+  revng::IRBuilder Builder(Context);
   ModelGEPArgCache TypeArgCache;
 
   // Create a function pool for AddressOf calls

@@ -4,7 +4,6 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
@@ -14,6 +13,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 
 using namespace llvm;
 
@@ -79,7 +79,7 @@ bool CleanupIRPass::Impl::replaceInstructions(Function &F) {
   for (Instruction &I : llvm::make_early_inc_range(llvm::instructions(F))) {
     if (auto *Call = getCallToTagged(&I,
                                      FunctionTags::AllocatesLocalVariable)) {
-      IRBuilder<> Builder(Context);
+      revng::IRBuilder Builder(Context);
       Builder.SetInsertPointPastAllocas(Call->getFunction());
       Value *AllocatedSize = nullptr;
       if (auto *Callee = getCalledFunction(Call);

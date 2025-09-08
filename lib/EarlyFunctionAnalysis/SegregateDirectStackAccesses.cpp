@@ -9,7 +9,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/PatternMatch.h"
@@ -17,6 +16,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/IRBuilder.h"
 
 using namespace llvm;
 class SegregateDirectStackAccessesPassImpl;
@@ -85,7 +85,7 @@ void SDSAPI::segregateAccesses(Function &F) {
   auto It = F.getEntryBlock().begin();
   while (It->getOpcode() == Instruction::Alloca)
     It++;
-  IRBuilder<> Builder(&(*It));
+  revng::IRBuilder Builder(&(*It));
 
   // Context: inttoptr instructions basically inhibits all optimizations. In
   // particular, when an integer is inttoptr'd twice with different destination

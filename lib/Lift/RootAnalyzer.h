@@ -7,7 +7,6 @@
 #include <unordered_set>
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
@@ -15,6 +14,10 @@
 #include "revng/Support/MetaAddress.h"
 
 #include "DropHelperCallsPass.h"
+
+namespace revng {
+class IRBuilder;
+} // namespace revng
 
 class AnalysisRegistry;
 class JumpTargetManager;
@@ -45,7 +48,7 @@ private:
   MetaAddressSet inflateValueMaterializerWhitelist();
 
   void promoteHelpersToIntrinsics(llvm::Function *OptimizedFunction,
-                                  llvm::IRBuilder<> &Builder);
+                                  revng::IRBuilder &Builder);
 
   SummaryCallsBuilder optimize(llvm::Function *OptimizedFunction,
                                const Features &CommonFeatures);

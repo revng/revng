@@ -26,10 +26,13 @@ class Module;
 class StructType;
 class GlobalVariable;
 class Instruction;
-class IRBuilderBase;
 template<typename T, typename Enable>
 struct DenseMapInfo;
 } // namespace llvm
+
+namespace revng {
+class IRBuilder;
+} // namespace revng
 
 namespace MetaAddressType {
 
@@ -580,7 +583,7 @@ public:
   llvm::Constant *toValue(llvm::Module *M) const;
 
 public:
-  static llvm::Instruction *composeIntegerPC(llvm::IRBuilderBase &B,
+  static llvm::Instruction *composeIntegerPC(revng::IRBuilder &B,
                                              llvm::Value *AddressValue,
                                              llvm::Value *EpochValue,
                                              llvm::Value *AddressSpaceValue,

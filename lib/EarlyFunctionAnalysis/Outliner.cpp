@@ -192,7 +192,7 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
                                 BB->getTerminator());
   } else {
     Instruction *Term = BB->getTerminator();
-    IRBuilder<> Builder(Term);
+    revng::IRBuilder Builder(Term);
 
     if (FunctionCall != nullptr) {
       // This is a proper call, storing the return address somewhere: inject a
@@ -360,7 +360,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
       if (IsNoReturn) {
         auto *BB = Term->getParent();
         Term->eraseFromParent();
-        IRBuilder<> Builder(BB);
+        revng::IRBuilder Builder(BB);
         Builder.CreateUnreachable();
 
         // Ensure markers are still close to the terminator
@@ -465,7 +465,7 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
 
     auto *JumpToAnyPC = Split->getTerminator();
     revng_assert(isa<BranchInst>(JumpToAnyPC));
-    IRBuilder<> Builder(JumpToAnyPC);
+    revng::IRBuilder Builder(JumpToAnyPC);
     Builder.SetInsertPoint(JumpToAnyPC);
 
     using CPN = ConstantPointerNull;

@@ -175,7 +175,7 @@ VariableManager::VariableManager(Module &M,
 }
 
 std::optional<StoreInst *>
-VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
+VariableManager::storeToCPUStateOffset(revng::IRBuilder &Builder,
                                        unsigned StoreSize,
                                        unsigned Offset,
                                        Value *ToStore) {
@@ -241,7 +241,7 @@ VariableManager::storeToCPUStateOffset(IRBuilder<> &Builder,
   return { Builder.CreateStore(ToStore, Target) };
 }
 
-Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
+Value *VariableManager::loadFromCPUStateOffset(revng::IRBuilder &Builder,
                                                unsigned LoadSize,
                                                unsigned Offset) {
   GlobalVariable *Target = nullptr;
@@ -290,7 +290,7 @@ Value *VariableManager::loadFromCPUStateOffset(IRBuilder<> &Builder,
   return Builder.CreateTrunc(Result, LoadTy);
 }
 
-bool VariableManager::memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
+bool VariableManager::memcpyAtEnvOffset(revng::IRBuilder &Builder,
                                         llvm::CallInst *CallMemcpy,
                                         unsigned InitialEnvOffset,
                                         bool EnvIsSrc) {
@@ -365,7 +365,7 @@ void VariableManager::finalize() {
       P.second->setLinkage(GlobalValue::InternalLinkage);
   }
 
-  IRBuilder<> Builder(Context);
+  revng::IRBuilder Builder(Context);
 
   // Create the setRegister function
   auto *SetRegisterTy = FunctionType::get(Builder.getVoidTy(),
@@ -608,7 +608,7 @@ Value *VariableManager::cpuStateToEnv(Value *CPUState,
                                       Instruction *InsertBefore) const {
   using CI = ConstantInt;
 
-  IRBuilder<> Builder(InsertBefore);
+  revng::IRBuilder Builder(InsertBefore);
   auto *OpaquePointer = PointerType::get(TheModule.getContext(), 0);
   auto *IntPtrTy = Builder.getIntPtrTy(TheModule.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);

@@ -3,7 +3,6 @@
 //
 
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
@@ -17,6 +16,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/DecompilationHelpers.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 struct RemoveLoadStore : public llvm::FunctionPass {
@@ -38,7 +38,7 @@ public:
 using llvm::dyn_cast;
 
 static llvm::CallInst *buildDerefCall(llvm::Module &M,
-                                      llvm::IRBuilder<> &Builder,
+                                      revng::IRBuilder &Builder,
                                       llvm::Value *Arg,
                                       const model::UpcastableType &PointedType,
                                       llvm::Type *ReturnType) {
@@ -87,7 +87,7 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
   // Initialize the IR builder to inject functions
   llvm::LLVMContext &LLVMCtx = F.getContext();
   llvm::Module &M = *F.getParent();
-  llvm::IRBuilder<> Builder(LLVMCtx);
+  revng::IRBuilder Builder(LLVMCtx);
 
   // Initialize function pool
   auto AssignPool = FunctionTags::Assign.getPool(M);

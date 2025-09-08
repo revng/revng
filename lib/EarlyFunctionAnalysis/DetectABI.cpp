@@ -535,7 +535,7 @@ Changes DetectABI::analyzeFunctionABI(const model::Function &Function,
     }
   }
 
-  IRBuilder<> Builder(M.getContext());
+  revng::IRBuilder Builder(M.getContext());
   for (auto &[Call, IsPreHook] : Hooks) {
     auto CallerBlock = BasicBlockID::fromValue(Call->getArgOperand(0));
     auto CalleeAddress = MetaAddress::fromValue(Call->getArgOperand(1));
@@ -995,7 +995,7 @@ Changes DetectABI::runAnalyses(MetaAddress EntryAddress,
   using namespace llvm;
   using llvm::BasicBlock;
 
-  IRBuilder<> Builder(M.getContext());
+  revng::IRBuilder Builder(M.getContext());
   RUAResults ABIResults;
 
   // Find registers that may be target of at least one store. This helps

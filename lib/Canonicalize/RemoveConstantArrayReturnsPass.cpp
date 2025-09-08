@@ -2,8 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/Pass.h"
+
+#include "revng/Support/IRBuilder.h"
 
 using namespace llvm;
 
@@ -48,7 +49,7 @@ public:
       // same type and initialise it using stores for each defined aggregate
       // initialiser found in the array constant.
 
-      IRBuilder<> Builder(&BB, BasicBlock::iterator(Return));
+      revng::IRBuilder Builder(&BB, BasicBlock::iterator(Return));
       auto *Alloca = Builder.CreateAlloca(ArrayT);
       auto *AllocaInt = Builder.CreatePtrToInt(Alloca, IntPtrT);
 

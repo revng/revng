@@ -4,7 +4,6 @@
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
@@ -14,6 +13,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 struct TwosComplementArithmeticNormalizationPass : public llvm::FunctionPass {
@@ -34,7 +34,7 @@ using TANP = TwosComplementArithmeticNormalizationPass;
 class UnaryMinusBuilder {
 
   OpaqueFunctionsPool<llvm::Type *> Pool;
-  llvm::IRBuilder<> Builder;
+  revng::IRBuilder Builder;
 
 public:
   UnaryMinusBuilder(llvm::Function &F) :
@@ -55,7 +55,7 @@ public:
 class BinaryNotBuilder {
 
   OpaqueFunctionsPool<llvm::Type *> Pool;
-  llvm::IRBuilder<> Builder;
+  revng::IRBuilder Builder;
 
 public:
   BinaryNotBuilder(llvm::Function &F) :
@@ -74,7 +74,7 @@ public:
 class BooleanNotBuilder {
 
   OpaqueFunctionsPool<llvm::Type *> Pool;
-  llvm::IRBuilder<> Builder;
+  revng::IRBuilder Builder;
 
 public:
   BooleanNotBuilder(llvm::Function &F) :
@@ -102,7 +102,7 @@ bool TANP::runOnFunction(llvm::Function &F) {
   UnaryMinusBuilder BuildUnaryMinus{ F };
   BinaryNotBuilder BuildBinaryNot{ F };
   BooleanNotBuilder BuildBooleanNot{ F };
-  llvm::IRBuilder<> Builder{ F.getContext() };
+  revng::IRBuilder Builder{ F.getContext() };
 
   bool Changed = false;
 

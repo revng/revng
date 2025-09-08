@@ -192,7 +192,7 @@ private:
   std::vector<TrackedValue> TrackedValues;
   QuickMetadata QMD;
   llvm::Function *ValueMaterializerMarker;
-  IRBuilder<> Builder;
+  revng::IRBuilder Builder;
 
 public:
   AnalysisRegistry(Module *M) : QMD(getContext(M)), Builder(getContext(M)) {
@@ -377,7 +377,7 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
 
   // Force canonical register values at the beginning of each callee
   Callees.erase(nullptr);
-  llvm::IRBuilder<> Builder(TheModule.getContext());
+  revng::IRBuilder Builder(TheModule.getContext());
   for (BasicBlock *BB : Callees) {
     if (OldToNew.count(BB) == 0)
       continue;
@@ -461,7 +461,7 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
 
 // Helper to intrinsic promotion
 void RootAnalyzer::promoteHelpersToIntrinsics(Function *OptimizedFunction,
-                                              IRBuilder<> &Builder) {
+                                              revng::IRBuilder &Builder) {
   using MapperFunction = std::function<Instruction *(CallInst *)>;
   std::pair<std::vector<StringRef>, MapperFunction> Mapping[] = {
     { { "helper_clz", "helper_clz32", "helper_clz64", "helper_dclz" },
@@ -510,8 +510,8 @@ RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
 
   // Create and initialize an alloca per CSV (except for the PC-affecting ones)
   BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
-  IRBuilder<> AllocaBuilder(&*EntryBB->begin());
-  IRBuilder<> InitializeBuilder(EntryBB->getTerminator());
+  revng::IRBuilder AllocaBuilder(&*EntryBB->begin());
+  revng::IRBuilder InitializeBuilder(EntryBB->getTerminator());
 
   for (GlobalVariable *CSV : toSortedByName(NonPCCSVs)) {
     Type *CSVType = CSV->getValueType();
@@ -828,7 +828,7 @@ void RootAnalyzer::cloneOptimizeAndHarvest(Function *TheFunction) {
   AnalysisRegistry AR(&TheModule);
 
   // Register for analysis the value written in the PC before each exit_tb call
-  IRBuilder<> Builder(TheModule.getContext());
+  revng::IRBuilder Builder(TheModule.getContext());
   for (CallBase *Call : callersIn(JTM.exitTB(), TheFunction)) {
     BasicBlock *BB = Call->getParent();
     auto It = OldToNew.find(Call);

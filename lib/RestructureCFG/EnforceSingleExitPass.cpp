@@ -125,7 +125,7 @@ public:
       BasicBlock *SinkBlock = BasicBlock::Create(Context, "sink_block", &F);
 
       // Add an `UnreachableInst` to the end of the `SinkBlock`
-      IRBuilder<> Builder(Context);
+      revng::IRBuilder Builder(Context);
       Builder.SetInsertPoint(SinkBlock);
       Builder.CreateUnreachable();
 

@@ -18,7 +18,6 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Metadata.h"
@@ -31,6 +30,7 @@
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/Generator.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"
 
 class ProgramCounterHandler;
@@ -1351,17 +1351,14 @@ getOption(llvm::StringMap<llvm::cl::Option *> &Options, const char *Name) {
 /// Extract MD text from MDString or GlobalVariable
 llvm::StringRef getText(const llvm::Instruction *I, unsigned Kind);
 
-template<typename T, typename Inserter>
-inline void
-setInsertPointToFirstNonAlloca(llvm::IRBuilder<T, Inserter> &Builder,
-                               llvm::Function &F) {
+inline void setInsertPointToFirstNonAlloca(revng::IRBuilder &Builder,
+                                           llvm::Function &F) {
   using namespace llvm;
 
   BasicBlock &Entry = F.getEntryBlock();
   for (Instruction &I : Entry) {
     if (not isa<AllocaInst>(&I)) {
       Builder.SetInsertPoint(&I);
-      Builder.SetCurrentDebugLocation(I.getDebugLoc());
       return;
     }
   }
@@ -1406,9 +1403,8 @@ llvm::Function *changeFunctionType(llvm::Function &OldFunction,
                                    llvm::Type *NewReturnType,
                                    llvm::ArrayRef<llvm::Type *> NewArguments);
 
-template<typename T, typename Inserter>
-llvm::SmallVector<llvm::Value *, 4>
-unpack(llvm::IRBuilder<T, Inserter> &Builder, llvm::Value *V) {
+inline llvm::SmallVector<llvm::Value *, 4> unpack(revng::IRBuilder &Builder,
+                                                  llvm::Value *V) {
   using namespace llvm;
   Type *Type = V->getType();
   if (isa<IntegerType>(Type)) {
@@ -1423,19 +1419,18 @@ unpack(llvm::IRBuilder<T, Inserter> &Builder, llvm::Value *V) {
   }
 }
 
-inline llvm::Instruction *createLoad(llvm::IRBuilderBase &Builder,
+inline llvm::Instruction *createLoad(revng::IRBuilder &Builder,
                                      llvm::GlobalVariable *GV) {
   return Builder.CreateLoad(GV->getValueType(), GV);
 }
 
-inline llvm::Instruction *createLoad(llvm::IRBuilderBase &Builder,
+inline llvm::Instruction *createLoad(revng::IRBuilder &Builder,
                                      llvm::AllocaInst *Alloca) {
   return Builder.CreateLoad(Alloca->getAllocatedType(), Alloca);
 }
 
-template<typename T, typename Inserter>
-llvm::Instruction *createLoadVariable(llvm::IRBuilder<T, Inserter> &Builder,
-                                      llvm::Value *Variable) {
+inline llvm::Instruction *createLoadVariable(revng::IRBuilder &Builder,
+                                             llvm::Value *Variable) {
   if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
     return createLoad(Builder, Alloca);
   else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))

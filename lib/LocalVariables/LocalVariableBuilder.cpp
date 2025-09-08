@@ -5,7 +5,6 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/MathExtras.h"
@@ -17,6 +16,7 @@
 #include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -136,7 +136,7 @@ LegacyVB::createLocalVariable(const model::Type &VariableType) {
                                             LocalVarFunctionType,
                                             "LocalVariable");
 
-  IRBuilder<> B(F->getContext());
+  revng::IRBuilder B(F->getContext());
   setInsertPointToFirstNonAlloca(B, *F);
   Constant *ReferenceString = toLLVMString(VariableType, M);
   return B.CreateCall(LocalVarFunction, { ReferenceString });
@@ -149,7 +149,7 @@ LegacyVB::createLocalVariableAndTakeIntAddress(const model::Type
 
   LocalVarType *LocalVar = createLocalVariable(VariableType);
 
-  IRBuilder<> B(LocalVar->getNextNonDebugInstruction());
+  revng::IRBuilder B(LocalVar->getNextNonDebugInstruction());
 
   // Take the address
   llvm::Type *T = LocalVar->getType();
@@ -171,7 +171,7 @@ LegacyVB::createCallStackArgumentVariable(const model::Type &VariableType) {
 
   llvm::Constant *VarTypeString = toLLVMString(VariableType, M);
 
-  IRBuilder<> B(F->getContext());
+  revng::IRBuilder B(F->getContext());
   setInsertPointToFirstNonAlloca(B, *F);
 
   Value *Size = ConstantInt::get(InputPointerSizedInteger, VariableSize);
@@ -197,7 +197,7 @@ Instruction *LegacyVB::createStackFrameVariable() {
   size_t StackSize = StackFrameType->size().value_or(0);
   revng_assert(StackSize);
 
-  IRBuilder<> B(F->getContext());
+  revng::IRBuilder B(F->getContext());
   setInsertPointToFirstNonAlloca(B, *F);
 
   Instruction
@@ -231,7 +231,7 @@ template<>
 LegacyVB::CopyType *
 LegacyVB::createCopyOnUse(ReferenceType *LocationToCopy, Use &U) {
   auto *InsertBefore = cast<Instruction>(U.getUser());
-  IRBuilder<> B(InsertBefore);
+  revng::IRBuilder B(InsertBefore);
 
   // Create a Copy to dereference the LocalVariable
   auto *CopyFnType = getCopyType(U->getType(), LocationToCopy->getType());
@@ -255,7 +255,7 @@ LegacyVB::createAssignmentBefore(Value *LocationToAssign,
                                  Value *ValueToAssign,
                                  Instruction *InsertBefore) {
   // Create an assignment that assigns ValueToAssign to LocationToAssign.
-  IRBuilder<> B(InsertBefore);
+  revng::IRBuilder B(InsertBefore);
   auto *IRType = ValueToAssign->getType();
   auto *AssignFnType = getAssignFunctionType(IRType,
                                              LocationToAssign->getType());
@@ -274,7 +274,7 @@ VB::LocalVarType *VB::createLocalVariable(const model::Type &VariableType) {
   size_t VariableSize = VariableType.size().value_or(0);
   revng_assert(VariableSize);
 
-  IRBuilder<> B(F->getContext());
+  revng::IRBuilder B(F->getContext());
   setInsertPointToFirstNonAlloca(B, *F);
 
   // Create an alloca of array type with number of elements equal to
@@ -291,7 +291,7 @@ VB::LocalVarType *VB::createLocalVariable(const model::Type &VariableType) {
 template<>
 std::pair<VB::LocalVarType *, llvm::Instruction *>
 VB::createLocalVariableAndTakeIntAddress(const model::Type &VariableType) {
-  IRBuilder<> B(F->getContext());
+  revng::IRBuilder B(F->getContext());
   setInsertPointToFirstNonAlloca(B, *F);
   auto *Variable = createLocalVariable(VariableType);
   return { Variable,
@@ -328,7 +328,7 @@ template<>
 VB::CopyType *VB::createCopyOnUse(ReferenceType *LocationToCopy, Use &U) {
   // Create a copy from the assigned location at the proper insertion point.
   auto *InsertBefore = cast<Instruction>(U.getUser());
-  IRBuilder<> B(InsertBefore);
+  revng::IRBuilder B(InsertBefore);
   auto *Load = B.CreateLoad(U->getType(), LocationToCopy);
   if (auto *InstructionLocation = dyn_cast<Instruction>(LocationToCopy))
     Load->setDebugLoc(InstructionLocation->getDebugLoc());
@@ -346,7 +346,7 @@ VB::AssignType *VB::createAssignmentBefore(Value *LocationToAssign,
                                            Value *ValueToAssign,
                                            Instruction *InsertBefore) {
   // Create a copy from the assigned location at the proper insertion point.
-  IRBuilder<> B(InsertBefore);
+  revng::IRBuilder B(InsertBefore);
   if (auto *Instruction = llvm::dyn_cast<llvm::Instruction>(ValueToAssign))
     B.SetCurrentDebugLocation(Instruction->getDebugLoc());
   return B.CreateStore(ValueToAssign, LocationToAssign);
@@ -356,7 +356,7 @@ template<bool IsLegacy>
 std::pair<llvm::AllocaInst *, llvm::Value *>
 LocalVariableBuilder<IsLegacy>::createAllocaWithPtrToInt(llvm::Function *F,
                                                          llvm::Type *T) const {
-  IRBuilder<> B(M.getContext());
+  revng::IRBuilder B(M.getContext());
   B.SetInsertPointPastAllocas(F);
   B.SetCurrentDebugLocation(B.GetInsertPoint()->getDebugLoc());
   auto *Alloca = B.CreateAlloca(T);

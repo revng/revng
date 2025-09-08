@@ -6,10 +6,12 @@
 
 #include <set>
 
-#include "llvm/IR/IRBuilder.h"
-
 #include "revng/EarlyFunctionAnalysis/AnalyzeRegisterUsage.h"
 #include "revng/Support/MetaAddress.h"
+
+namespace revng {
+class IRBuilder;
+} // namespace revng
 
 namespace efa {
 
@@ -19,7 +21,7 @@ public:
 
   /// \note Implementers should not emit a terminator
   virtual void handleCall(MetaAddress CallerBlock,
-                          llvm::IRBuilder<> &Builder,
+                          revng::IRBuilder &Builder,
                           MetaAddress Callee,
                           const CSVSet &ClobberedRegisters,
                           const std::optional<int64_t> &MaybeFSO,
@@ -28,11 +30,11 @@ public:
                           llvm::Value *SymbolNamePointer) = 0;
 
   /// \note Implementers are responsible for terminator emissions
-  virtual void handlePostNoReturn(llvm::IRBuilder<> &Builder,
+  virtual void handlePostNoReturn(revng::IRBuilder &Builder,
                                   const llvm::DebugLoc &DbgLocation) = 0;
 
   /// \note Implementers should not emit a terminator
-  virtual void handleIndirectJump(llvm::IRBuilder<> &Builder,
+  virtual void handleIndirectJump(revng::IRBuilder &Builder,
                                   MetaAddress Block,
                                   const CSVSet &ClobberedRegisters,
                                   llvm::Value *SymbolNamePointer) = 0;

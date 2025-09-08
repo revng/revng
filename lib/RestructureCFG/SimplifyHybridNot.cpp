@@ -6,7 +6,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Transforms/Utils/Local.h"
@@ -17,6 +16,7 @@
 #include "revng/RestructureCFG/ExprNode.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 
 #include "SimplifyHybridNot.h"
 
@@ -289,7 +289,7 @@ static void flipIRNot(BasicBlock *BB, const NotKind &NotKind) {
     // We manually forge the new `icmp ne 0` to represent the inversion of the
     // `@boolean_not` predicate semantics
     llvm::Value *OriginalLHS = Call->getArgOperand(0);
-    llvm::IRBuilder<> Builder(BB);
+    revng::IRBuilder Builder(BB);
     Builder.SetInsertPoint(Call);
     llvm::Value *NewCondition = Builder.CreateIsNotNull(OriginalLHS);
 

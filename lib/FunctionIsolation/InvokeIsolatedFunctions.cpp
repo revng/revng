@@ -94,7 +94,7 @@ public:
                                              nullptr);
 
     // Create a builder object
-    IRBuilder<> Builder(Context);
+    revng::IRBuilder Builder(Context);
     Builder.SetInsertPoint(CatchBB);
 
     // Create the StructType necessary for the landingpad
@@ -152,7 +152,7 @@ public:
       NewBB->getTerminator()->eraseFromParent();
       NewBB->takeName(BB);
 
-      IRBuilder<> Builder(NewBB);
+      revng::IRBuilder Builder(NewBB);
 
       // In case the isolated functions has arguments, provide them
       SmallVector<Value *, 4> Arguments;

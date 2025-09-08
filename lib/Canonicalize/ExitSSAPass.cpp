@@ -20,7 +20,6 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
@@ -30,6 +29,7 @@
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -264,7 +264,7 @@ using EdgeToNewBlockMap = std::map<std::pair<BasicBlock *, BasicBlock *>,
 
 static void
 buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
-  IRBuilder<> Builder(StoreBlock->getContext());
+  revng::IRBuilder Builder(StoreBlock->getContext());
 
   auto *IncomingInst = dyn_cast<Instruction>(Incoming);
   if (IncomingInst and IncomingInst->getParent() == StoreBlock) {
@@ -312,7 +312,7 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
   revng_log(Log, "New PHIGroup ================");
   LoggerIndent FirstIndent{ Log };
 
-  IRBuilder<> Builder(F.getContext());
+  revng::IRBuilder Builder(F.getContext());
   Builder.SetInsertPointPastAllocas(&F);
   const DebugLoc &PHIDebugLoc = (*PHIs.begin())->getDebugLoc();
   AllocaInst *Alloca = Builder.CreateAlloca((*PHIs.begin())->getType());
