@@ -36,6 +36,7 @@ using ClassAttrBase = Attribute::AttrBase<AttrT,
                                           Attribute,
                                           ClassAttrStorage,
                                           AttributeTrait::IsMutable,
+                                          TypeDefinitionAttr::Trait,
                                           SubElementAttrInterface::Trait>;
 
 struct ClassDefinition {

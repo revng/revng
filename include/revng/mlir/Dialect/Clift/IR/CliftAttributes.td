@@ -49,8 +49,7 @@ def Clift_FieldAttr
 def Clift_EnumFieldAttr
   : AttrDef<Clift_Dialect,
             "EnumField",
-            [SubElementAttrInterface,
-             Clift_TypeDefinitionAttr]> {
+            [SubElementAttrInterface]> {
 
   let summary = "A attribute representing a field of enum";
   let description = [{
@@ -66,8 +65,8 @@ def Clift_EnumFieldAttr
 def Clift_EnumAttr
   : AttrDef<Clift_Dialect,
             "Enum",
-            [SubElementAttrInterface,
-             Clift_TypeDefinitionAttr]> {
+            [Clift_TypeDefinitionAttr,
+             SubElementAttrInterface]> {
 
   let parameters = (ins StringRefParameter<>:$handle,
                         StringRefParameter<>:$name,
@@ -80,8 +79,8 @@ def Clift_EnumAttr
 def Clift_TypedefAttr
   : AttrDef<Clift_Dialect,
             "Typedef",
-            [SubElementAttrInterface,
-             Clift_TypeDefinitionAttr]> {
+            [Clift_TypeDefinitionAttr,
+             SubElementAttrInterface]> {
 
   let parameters = (ins StringRefParameter<>:$handle,
                         StringRefParameter<>:$name,
