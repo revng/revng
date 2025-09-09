@@ -211,6 +211,8 @@ def Clift_MakeLabelOp
   : Clift_StatementOp<"make_label",
                       [Clift_OneUseOfType<"mlir::clift::AssignLabelOp">]> {
 
+  let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$handle);
+
   let results = (outs Clift_LabelType:$result);
 
   let assemblyFormat = [{
@@ -298,6 +300,8 @@ def Clift_IfOp : Clift_StatementOp<"if"> {
 }
 
 def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
+  let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$handle);
+
   let results = (outs Clift_AnyValueType:$result);
 
   let regions = (region Clift_OptionalExpressionRegion:$initializer);
