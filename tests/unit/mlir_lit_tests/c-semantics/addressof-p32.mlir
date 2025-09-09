@@ -14,7 +14,7 @@
 
 module attributes {clift.module} {
   clift.func @f<!f>() {
-    %0 = clift.local !int32_t
+    %0 = clift.local : !int32_t
     // CHECK: Pointer operation is not representable in the target implementation
     clift.expr {
       %1 = clift.addressof %0 : !ptr32_int32_t

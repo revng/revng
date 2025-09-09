@@ -12,7 +12,7 @@
 >
 
 module attributes {clift.module} {
-  clift.global !int32_t @g {
+  clift.global @g : !int32_t attributes {
     handle = "/segment/0x40002001:Generic64-4"
   }
 
