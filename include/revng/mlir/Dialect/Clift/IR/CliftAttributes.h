@@ -15,6 +15,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftEnums.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftMutableStringAttr.h"
 
 // This include should stay here for correct build procedure
 #define GET_ATTRDEF_CLASSES
