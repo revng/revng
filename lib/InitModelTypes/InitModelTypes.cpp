@@ -15,6 +15,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
@@ -895,7 +896,7 @@ getCommonScalarTypeForPromotion(const model::UpcastableType &T1,
 }
 
 static RecursiveCoroutine<SmallVector<const Use *>>
-getUsesThroughCasts(const llvm::Use &U) {
+getUsesThroughCasts(const llvm::Use &U, llvm::ModuleSlotTracker &MST) {
   revng_log(Log, "getUsesThroughCasts");
   LoggerIndent Indent{ Log };
 
@@ -909,10 +910,10 @@ getUsesThroughCasts(const llvm::Use &U) {
     LoggerIndent UseIndent{ Log };
     for (const llvm::Use &NestedUse : TheUser->uses()) {
       revng_log(Log,
-                "considering use of: " << dumpToString(NestedUse.get())
-                                       << " in : "
-                                       << dumpToString(NestedUse.getUser()));
-      Result.append(rc_recur getUsesThroughCasts(NestedUse));
+                "considering use of: "
+                  << dumpToString(*NestedUse.get(), MST)
+                  << " in : " << dumpToString(*NestedUse.getUser(), MST));
+      Result.append(rc_recur getUsesThroughCasts(NestedUse, MST));
     }
   } else {
     Result.push_back(&U);
@@ -940,6 +941,11 @@ ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
 
   ModelTypesMap Result = initModelTypes(F, ModelF, Model, PointersOnly);
 
+  llvm::ModuleSlotTracker MST(F.getParent(),
+                              /* ShouldInitializeAllMetadata = */ false);
+  if (Log.isEnabled())
+    MST.incorporateFunction(F);
+
   // Refine the Result map, trying to upgrade types by looking at their uses and
   // see if they provide more accurate types.
   for (const auto &[V, UT] : llvm::make_early_inc_range(Result)) {
@@ -952,7 +958,7 @@ ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
     if (not isUpgradable(UT))
       continue;
 
-    revng_log(Log, "try to upgrade the type of: " << dumpToString(V));
+    revng_log(Log, "try to upgrade the type of: " << dumpToString(*V, MST));
     revng_log(Log, "initial type: " << UT->toString());
     LoggerIndent Indent{ Log };
 
@@ -967,15 +973,17 @@ ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
     SmallVector<const Use *> UsesToInspect;
     for (const llvm::Use &U : V->uses()) {
       revng_log(Log,
-                "considering use of: " << dumpToString(U.get()) << " in : "
-                                       << dumpToString(U.getUser()));
-      UsesToInspect.append(getUsesThroughCasts(U));
+                "considering use of: " << dumpToString(*U.get(), MST)
+                                       << " in : "
+                                       << dumpToString(*U.getUser(), MST));
+      UsesToInspect.append(getUsesThroughCasts(U, MST));
     }
 
     for (const llvm::Use *U : UsesToInspect) {
       revng_log(Log,
-                "considering use of: " << dumpToString(U->get()) << " in : "
-                                       << dumpToString(U->getUser()));
+                "considering use of: " << dumpToString(*U->get(), MST)
+                                       << " in : "
+                                       << dumpToString(*U->getUser(), MST));
       LoggerIndent UseIndent{ Log };
 
       SmallVector<model::UpcastableType>

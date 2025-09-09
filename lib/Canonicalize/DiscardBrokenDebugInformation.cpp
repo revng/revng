@@ -3,6 +3,7 @@
 //
 
 #include "llvm/IR/Function.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/Pass.h"
 
 #include "revng/Pipes/IRHelpers.h"
@@ -20,13 +21,19 @@ public:
 
   bool runOnFunction(llvm::Function &F) override {
     bool WasModified = false;
+
+    llvm::ModuleSlotTracker MST(F.getParent(),
+                                /* ShouldInitializeAllMetadata = */ false);
+    if (Log.isEnabled())
+      MST.incorporateFunction(F);
+
     for (llvm::BasicBlock &BB : F) {
       for (llvm::Instruction &I : BB) {
         if (llvm::Error Error = isDebugLocationInvalid(I)) {
           std::string ErrorMessage = revng::unwrapError(std::move(Error));
           revng_log(Log,
                     "Discarding debug information from:\n"
-                      << dumpToString(I) << '\n');
+                      << dumpToString(I, MST) << '\n');
           revng_log(Log, ErrorMessage << '\n');
 
           I.setDebugLoc({});

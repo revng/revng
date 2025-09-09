@@ -22,6 +22,7 @@
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/IR/Type.h"
 #include "llvm/IR/Value.h"
 #include "llvm/Support/Casting.h"
@@ -272,6 +273,9 @@ private:
   std::string LoopStateVar;
   std::string LoopStateVarDeclaration;
 
+  /// `dumpToString` optimization helper.
+  llvm::ModuleSlotTracker ModuleSlotTracker;
+
 private:
   /// Emission of parentheses may change whether the OPRP is enabled or not
   bool IsOperatorPrecedenceResolutionPassEnabled = false;
@@ -296,7 +300,13 @@ public:
     B(B),
     SwitchStateVars(),
     Cache(Cache),
-    VariableNameBuilder(B.makeLocalVariableNameBuilder(ModelFunction)) {
+    VariableNameBuilder(B.makeLocalVariableNameBuilder(ModelFunction)),
+    ModuleSlotTracker(LLVMFunction.getParent(),
+                      /* ShouldInitializeAllMetadata = */ false) {
+
+    if (Log.isEnabled())
+      ModuleSlotTracker.incorporateFunction(LLVMFunction);
+
     // TODO: don't use a global loop state variable
     const auto &Configuration = B.NameBuilder.Configuration;
     llvm::StringRef LoopStateVariable = Configuration.loopStateVariableName();
@@ -1275,7 +1285,7 @@ void CCodeGenerator::emitBasicBlock(const llvm::BasicBlock *BB,
   bool NextStatementDoesNotReturn = false;
 
   for (const Instruction &I : *BB) {
-    revng_log(Log, "Analyzing: " << dumpToString(I));
+    revng_log(Log, "Analyzing: " << dumpToString(I, ModuleSlotTracker));
 
     auto *Call = dyn_cast<llvm::CallInst>(&I);
 
