@@ -288,13 +288,7 @@ def Clift_FunctionType
   }];
 
   let genVerifyDecl = 1;
-
-  let assemblyFormat = [{
-    `<`
-    $handle custom<CliftDebugName>($name)
-    `:` $return_type `(` (`)`) : ($argument_types^ `)`)?
-    `>`
-  }];
+  let hasCustomAssemblyFormat = 1;
 }
 
 class Clift_ClassTypeBase<string name, string mnemonic>

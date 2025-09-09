@@ -548,6 +548,78 @@ llvm::ArrayRef<mlir::Type> FunctionType::getResultTypes() const {
   return ArrayRef<Type>(getImpl()->return_type);
 }
 
+mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
+  mlir::SMLoc Loc = Parser.getCurrentLocation();
+
+  if (Parser.parseLess().failed())
+    return {};
+
+  std::string Handle;
+  if (Parser.parseString(&Handle).failed())
+    return {};
+
+  std::string Name;
+  if (mlir::parseCliftDebugName(Parser, Name).failed())
+    return {};
+
+  if (Parser.parseColon().failed())
+    return {};
+
+  clift::ValueType ReturnType;
+  if (Parser.parseType(ReturnType).failed())
+    return {};
+
+  llvm::SmallVector<clift::ValueType> ParameterTypes;
+  const auto ParseParameterType = [&Parser,
+                                   &ParameterTypes]() -> mlir::ParseResult {
+    clift::ValueType ParameterType;
+    if (Parser.parseType(ParameterType))
+      return mlir::failure();
+
+    ParameterTypes.push_back(ParameterType);
+    return mlir::success();
+  };
+
+  if (Parser
+        .parseCommaSeparatedList(mlir::AsmParser::Delimiter::Paren,
+                                 ParseParameterType,
+                                 " in parameter list")
+        .failed())
+    return {};
+
+  if (Parser.parseGreater().failed())
+    return {};
+
+  return FunctionType::getChecked(getEmitError(Parser, Loc),
+                                  Parser.getContext(),
+                                  llvm::StringRef(Handle),
+                                  llvm::StringRef(Name),
+                                  ReturnType,
+                                  llvm::ArrayRef(ParameterTypes));
+}
+
+void FunctionType::print(mlir::AsmPrinter &Printer) const {
+  Printer << "<";
+  printString(Printer, getHandle());
+  mlir::printCliftDebugName(Printer, getName());
+
+  Printer << " : ";
+  Printer.printType(getReturnType());
+  Printer << "(";
+
+  bool Comma = false;
+  for (mlir::Type ParameterType : getArgumentTypes()) {
+    if (Comma)
+      Printer << ", ";
+    Comma = true;
+
+    Printer.printType(ParameterType);
+  }
+
+  Printer << ")";
+  Printer << ">";
+}
+
 template<std::same_as<clift::FunctionType>>
 static clift::FunctionType readType(mlir::DialectBytecodeReader &Reader) {
   auto ReadType = [&](mlir::Type &Type) -> mlir::LogicalResult {
