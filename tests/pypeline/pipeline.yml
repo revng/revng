@@ -1,0 +1,61 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+containers:
+  - name: child_source
+    type: ChildDictContainer
+
+  - name: child_destination
+    type: ChildDictContainer
+
+  - name: root_source
+    type: RootDictContainer
+
+  - name: root_destination
+    type: RootDictContainer
+
+branches:
+  root:
+    tasks:
+      - pipe: GeneratorPipe
+        arguments: [child_source]
+        configuration: ""
+        analyses:
+          - name: init_analysis
+            analysis: AddStuffAnalysis
+            containers: [child_source]
+      - pipe: InPlacePipe
+        arguments: [child_source]
+      - pipe: SameKindPipe
+        arguments: [child_source, child_destination]
+      - savepoint:
+          name: "after_same_kind"
+          containers: [child_source, child_destination]
+
+  second_branch:
+    from: root
+    tasks:
+      - pipe: ToLowerKindPipe
+        arguments: [child_destination, root_source]
+        artifacts:
+          - name: RootArtifact
+            container: root_source
+        analyses:
+          - name: blackhole
+            analysis: PurgeAllAnalysis
+            containers: [root_source]
+      - pipe: ToHigherKindPipe
+        arguments: [root_source, child_destination]
+
+  third_branch:
+    from: root
+    tasks:
+      - pipe: InPlacePipe
+        arguments: [child_destination]
+        artifacts:
+          - name: ChildArtifact
+            container: child_destination
+        analyses:
+          - analysis: NullAnalysis
+            containers: [child_destination]

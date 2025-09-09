@@ -50,6 +50,7 @@ revng = [
 
 [project.entry-points.console_scripts]
 revng = "revng.internal.cli.revng:main"
+revng2 = "revng.internal.cli.revng2:run"
 
 [tool.setuptools.dynamic]
 version = {attr = "revng.internal.__version__"}
