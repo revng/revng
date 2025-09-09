@@ -133,6 +133,7 @@ public:
 
   Instruction *wrap(Instruction *I) {
     revng::IRBuilder Builder(I->getParent(), ++I->getIterator());
+    Builder.ChecksEnabled = false; // Debug information hasn't been attached yet.
     return wrap(Builder, I);
   }
 };
@@ -386,6 +387,8 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   Type *TargetType = CpuExec.getReturnType();
 
   revng::IRBuilder Builder(Call);
+  Builder.ChecksEnabled = false; // Debug information hasn't been attached yet.
+
   Type *IntPtrTy = Builder.getIntPtrTy(M.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
   using CI = ConstantInt;
@@ -660,7 +663,10 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
       if (not OldFunction->empty())
         DLocation = OldFunction->getEntryBlock().getTerminator()->getDebugLoc();
 
-      emitAbort(replaceFunction(OldFunction),
+      revng::IRBuilder Builder(replaceFunction(OldFunction), DLocation);
+      Builder.ChecksEnabled = false; // Debug information hasn't been attached yet.
+
+      emitAbort(Builder,
                 llvm::Twine("Abort instead of calling `") + Name + "`",
                 std::move(DLocation));
     }
@@ -778,6 +784,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
                                                Factory);
 
   revng::IRBuilder Builder(Context);
+  Builder.ChecksEnabled = false; // Debug information hasn't been attached yet.
 
   // Create main function
   auto *MainType = FT::get(Builder.getVoidTy(),

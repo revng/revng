@@ -52,6 +52,16 @@ using LLVMBuilderBase = llvm::IRBuilder<llvm::ConstantFolder,
 /// with valid debug information attached.
 class IRBuilder : public detail::LLVMBuilderBase {
 public:
+  /// This is a way to disable checks for a specific instance of
+  /// `revng::IRBuilder`. Please use with care!
+  ///
+  /// Practically, this should only appear in one of two cases:
+  /// - in `revngLift` before debug information has been attached.
+  /// - in the old pipeline as a temporary workaround to avoid having to
+  ///   fix selected issues.
+  bool ChecksEnabled = true;
+
+public:
   void SetInsertPoint(llvm::BasicBlock *BB, const llvm::DebugLoc &DL) {
     detail::LLVMBuilderBase::SetInsertPoint(BB);
 
@@ -115,12 +125,14 @@ public:
 };
 
 inline void detail::RevngIRInsertionChecker::checkImpl() const {
-  // TODO: adopt `isDebugLocationInvalid` here once it's available without
-  //       the pipeline dependency.
-  llvm::DebugLoc CurrentLocation = Builder->getCurrentDebugLocation();
-  revng_assert(CurrentLocation);
-  revng_assert(CurrentLocation->getScope());
-  revng_assert(not CurrentLocation->getScope()->getName().empty());
+  if (Builder->ChecksEnabled) {
+    // TODO: adopt `isDebugLocationInvalid` here once it's available without
+    //       the pipeline dependency.
+    llvm::DebugLoc CurrentLocation = Builder->getCurrentDebugLocation();
+    revng_assert(CurrentLocation);
+    revng_assert(CurrentLocation->getScope());
+    revng_assert(not CurrentLocation->getScope()->getName().empty());
+  }
 }
 
 } // namespace revng
