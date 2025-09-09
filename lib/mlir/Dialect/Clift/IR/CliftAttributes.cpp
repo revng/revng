@@ -40,6 +40,93 @@ using ReplaceTypeT = llvm::ArrayRef<mlir::Type>;
 
 namespace mlir::clift {
 
+class MutableStringAttrStorage : public mlir::AttributeStorage {
+  struct Pair {
+    mlir::Attribute Key;
+    llvm::StringRef Value;
+
+    explicit Pair(mlir::Attribute Key) : Key(Key) {}
+
+    friend bool operator==(const Pair &LHS, const Pair &RHS) {
+      return LHS.Key.getAsOpaquePointer() == RHS.Key.getAsOpaquePointer();
+    }
+
+    [[nodiscard]] llvm::hash_code hashValue() const {
+      return llvm::hash_value(Key.getAsOpaquePointer());
+    }
+  };
+
+  Pair TheKey;
+
+public:
+  using KeyTy = Pair;
+
+  const Pair &getAsKey() const { return TheKey; }
+
+  static llvm::hash_code hashKey(const Pair &Key) { return Key.hashValue(); }
+
+  friend bool operator==(const MutableStringAttrStorage &LHS, const Pair &RHS) {
+    return LHS.TheKey == RHS;
+  }
+
+  explicit MutableStringAttrStorage(mlir::Attribute Key) : TheKey(Key) {}
+
+  static MutableStringAttrStorage *
+  construct(mlir::StorageUniquer::StorageAllocator &Allocator,
+            const Pair &Key) {
+    void *Storage = Allocator.allocate<MutableStringAttrStorage>();
+    auto *S = new (Storage) MutableStringAttrStorage(Key.Key);
+    return S;
+  }
+
+  mlir::LogicalResult mutate(mlir::StorageUniquer::StorageAllocator &Allocator,
+                             llvm::StringRef Value) {
+    TheKey.Value = Allocator.copyInto(Value);
+    return mlir::success();
+  }
+
+  mlir::Attribute getKey() const { return TheKey.Key; }
+  llvm::StringRef getValue() const { return TheKey.Value; }
+};
+
+MutableStringAttr MutableStringAttr::get(mlir::MLIRContext *Context,
+                                         mlir::Attribute Key) {
+  return Base::get(Context, Key);
+}
+
+MutableStringAttr MutableStringAttr::get(mlir::MLIRContext *Context,
+                                         mlir::Attribute Key,
+                                         llvm::StringRef Value) {
+  auto Attr = get(Context, Key);
+  Attr.setValue(Value);
+  return Attr;
+}
+
+mlir::Attribute MutableStringAttr::getKey() const {
+  return getImpl()->getKey();
+}
+
+llvm::StringRef MutableStringAttr::getValue() const {
+  return getImpl()->getValue();
+}
+
+void MutableStringAttr::setValue(llvm::StringRef Value) {
+  (void) Base::mutate(Value);
+}
+
+void MutableStringAttr::walkImmediateSubElements(WalkAttrT WalkAttrs,
+                                                 WalkTypeT WalkTypes) const {
+  WalkAttrs(getImpl()->getKey());
+}
+
+Attribute
+MutableStringAttr::replaceImmediateSubElements(ReplaceAttrT NewAttrs,
+                                               ReplaceTypeT NewTypes) const {
+  revng_assert(NewAttrs.size() == 1);
+  revng_assert(NewTypes.size() == 0);
+  return MutableStringAttr::get(getContext(), NewAttrs.front());
+}
+
 class ClassAttrStorage : public mlir::AttributeStorage {
   struct Key {
     llvm::StringRef Handle;
@@ -556,7 +643,7 @@ uint64_t UnionAttr::getSize() const {
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerAttributes() {
-  addAttributes<StructAttr, UnionAttr,
+  addAttributes<MutableStringAttr, StructAttr, UnionAttr,
   // Include the list of auto-generated attributes
 #define GET_ATTRDEF_LIST
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.cpp.inc"
