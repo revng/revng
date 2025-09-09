@@ -3,14 +3,13 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <string>
 
 #include "revng/Support/Assert.h"
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
-
-namespace mlir::clift {
 
 enum class CIntegerKind : uint8_t {
   Char,
@@ -24,6 +23,7 @@ enum class CIntegerKind : uint8_t {
 struct TargetCImplementation {
   uint8_t PointerSize;
   std::map<uint8_t, CIntegerKind> IntegerTypes;
+  std::string UndefFunctionPrefix;
 
   [[nodiscard]] std::optional<CIntegerKind>
   getIntegerKind(uint64_t const IntegerSize) const {
@@ -43,5 +43,3 @@ struct TargetCImplementation {
 
   static const TargetCImplementation Default;
 };
-
-} // namespace mlir::clift

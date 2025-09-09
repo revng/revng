@@ -57,7 +57,7 @@ static void modifyOperandType(mlir::PatternRewriter &Rewriter,
 template<typename OpT>
 struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
   explicit PointerResizePattern(mlir::MLIRContext *Context,
-                                const clift::TargetCImplementation &Target) :
+                                const TargetCImplementation &Target) :
     mlir::OpRewritePattern<OpT>(Context),
     TargetPointerSize(Target.PointerSize) {}
 
@@ -170,8 +170,7 @@ struct BooleanCanonicalizationPattern
   : mlir::OpTraitRewritePattern<mlir::OpTrait::clift::ReturnsBoolean> {
 
   explicit BooleanCanonicalizationPattern(mlir::MLIRContext *Context,
-                                          const clift::TargetCImplementation
-                                            &Target) :
+                                          const TargetCImplementation &Target) :
     mlir::OpTraitRewritePattern<mlir::OpTrait::clift::ReturnsBoolean>(Context),
     CanonicalBooleanType(getCanonicalBooleanType(Context, Target)) {}
 
@@ -179,7 +178,7 @@ struct BooleanCanonicalizationPattern
 
   static clift::PrimitiveType
   getCanonicalBooleanType(mlir::MLIRContext *Context,
-                          const clift::TargetCImplementation &Target) {
+                          const TargetCImplementation &Target) {
     return clift::PrimitiveType::get(Context,
                                      clift::PrimitiveKind::SignedKind,
                                      Target.getIntSize(),
@@ -208,7 +207,7 @@ template<typename OpT>
 struct IntegerPromotionPattern : mlir::OpRewritePattern<OpT> {
 
   explicit IntegerPromotionPattern(mlir::MLIRContext *Context,
-                                   const clift::TargetCImplementation &Target) :
+                                   const TargetCImplementation &Target) :
     mlir::OpRewritePattern<OpT>(Context), PromotionSize(Target.getIntSize()) {}
 
   uint64_t PromotionSize;
@@ -268,9 +267,8 @@ struct ShiftPromotionPattern : IntegerPromotionPattern<OpT> {
 
 } // namespace
 
-mlir::LogicalResult
-clift::legalizeForC(clift::FunctionOp Function,
-                    const clift::TargetCImplementation &Target) {
+mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function,
+                                        const TargetCImplementation &Target) {
   mlir::MLIRContext *Context = Function.getContext();
   mlir::RewritePatternSet Set(Context);
 
