@@ -1,0 +1,26 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+[project]
+name = "pypeline"
+dynamic = ["version", "readme"]
+dependencies = [
+    "click==8.2.1",
+    "jsonschema",
+    "pyyaml",
+]
+
+[project.scripts]
+pype = "revng.pypeline.main:run"
+
+[tool.setuptools.package-data]
+pypeline = ["revng/pypeline/pipeline_schema.yml"]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.dynamic]
+version = {attr = "revng.pypeline.__version__"}
+readme = {file = ["README.md"], content-type = "text/markdown"}
