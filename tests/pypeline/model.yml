@@ -1,0 +1,11 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+/one: 1
+/two: 2
+/three: 3
+/all/one: 1
+/all/two: 2
+/all/three: 3
+/test/test: test

@@ -68,6 +68,10 @@ read_passes:
       # inference on untyped functions
       - --no-check-untyped-defs
       - --disable-error-code=annotation-unchecked
+      # This is needed so mypy doesn't complain about having a wheel called
+      # `revng` and having a file `revng.py` which implicitly defines a
+      # duplicated module called `revng`, but it works.
+      - --exclude="python/scripts/revng"
   - type: LicenseCheckPass
     ignore_suffixes: [".txt", ".md", ".rst", ".dot"]
     ignore_stems: ["LICENSE"]
