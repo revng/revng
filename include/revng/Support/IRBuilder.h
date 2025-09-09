@@ -83,13 +83,25 @@ public:
     Underlying.SetCurrentDebugLocation(DebugLocation);
   }
 
+public:
+  /// This is a way to disable checks for a specific instance of
+  /// `revng::IRBuilder`. Please use with care!
+  ///
+  /// Practically, this should only appear in one of two cases:
+  /// - in `revngLift` before debug information has been attached.
+  /// - in the old pipeline as a temporary workaround to avoid having to
+  ///   fix selected issues.
+  bool ChecksEnabled = true;
+
 private:
   void checkImpl() const {
-    // TODO: adopt `isDebugLocationInvalid` here once it's available.
-    llvm::DebugLoc CurrentLocation = Underlying.getCurrentDebugLocation();
-    revng_assert(CurrentLocation);
-    revng_assert(CurrentLocation->getScope());
-    revng_assert(not CurrentLocation->getScope()->getName().empty());
+    if (ChecksEnabled) {
+      // TODO: adopt `isDebugLocationInvalid` here once it's available.
+      llvm::DebugLoc CurrentLocation = Underlying.getCurrentDebugLocation();
+      revng_assert(CurrentLocation);
+      revng_assert(CurrentLocation->getScope());
+      revng_assert(not CurrentLocation->getScope()->getName().empty());
+    }
   }
 
 public:

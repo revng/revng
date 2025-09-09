@@ -386,6 +386,8 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   Type *TargetType = CpuExec.getReturnType();
 
   revng::IRBuilder Builder(Call);
+  Builder.ChecksEnabled = false; // Debug information hasn't been attached yet.
+
   Type *IntPtrTy = Builder.getIntPtrTy(M.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
   using CI = ConstantInt;
