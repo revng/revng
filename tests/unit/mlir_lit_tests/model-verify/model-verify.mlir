@@ -18,11 +18,11 @@ module attributes {clift.module} {
   clift.func @helper<!f>() attributes { handle = "/helper-function/foo" }
   clift.func @imported<!f>() attributes { handle = "/dynamic-function/foo" }
   clift.func @isolated<!f>() attributes { handle = "/function/0x40001001:Code_x86_64" } {
-    %1 = clift.local !s
-    %2 = clift.local !u
-    %3 = clift.local !e
-    %4 = clift.local !clift.ptr<8 to !f>
-    %5 = clift.local !clift.ptr<8 to !r>
-    %6 = clift.local !t
+    %1 = clift.local : !s
+    %2 = clift.local : !u
+    %3 = clift.local : !e
+    %4 = clift.local : !clift.ptr<8 to !f>
+    %5 = clift.local : !clift.ptr<8 to !r>
+    %6 = clift.local : !t
   }
 }

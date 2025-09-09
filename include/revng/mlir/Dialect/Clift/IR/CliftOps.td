@@ -193,7 +193,7 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
   let regions = (region Clift_OptionalExpressionRegion:$initializer);
 
   let assemblyFormat = [{
-    $type $sym_name (`=` $initializer^)? attr-dict
+    $sym_name `:` $type (`=` $initializer^)? attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
@@ -307,7 +307,7 @@ def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
   let regions = (region Clift_OptionalExpressionRegion:$initializer);
 
   let assemblyFormat = [{
-    type($result) (`=` $initializer^)? attr-dict
+    `:` type($result) (`=` $initializer^)? attr-dict-with-keyword
   }];
 
   let extraClassDeclaration = [{

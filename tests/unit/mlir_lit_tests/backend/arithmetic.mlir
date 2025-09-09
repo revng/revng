@@ -20,8 +20,8 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    %v0 = clift.local !int32_t
-    %v1 = clift.local !int32_t
+    %v0 = clift.local : !int32_t
+    %v1 = clift.local : !int32_t
 
     // (0 + 1 - 2) * 3 / 4 % 5;
     clift.expr {

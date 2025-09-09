@@ -16,7 +16,7 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    %0 = clift.local !int16_t
+    %0 = clift.local : !int16_t
     clift.expr {
       // CHECK: %1 = clift.cast<extend> %0 : !int16_t -> !int32_t
       // CHECK: %2 = clift.cast<extend> %0 : !int16_t -> !int32_t

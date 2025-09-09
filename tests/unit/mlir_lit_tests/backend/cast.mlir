@@ -20,7 +20,7 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    %x = clift.local !uint64_t
+    %x = clift.local : !uint64_t
 
     // CHECK: (uint64_t)0;
     clift.expr {
