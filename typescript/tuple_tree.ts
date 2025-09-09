@@ -39,6 +39,10 @@ export class Reference<T, M> {
         return this.reference;
     }
 
+    toString(): string {
+        return this.reference;
+    }
+
     equals(other: unknown): boolean {
         if (other instanceof Reference<T, M>) {
             return this.reference == other.reference;

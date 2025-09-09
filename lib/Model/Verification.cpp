@@ -672,7 +672,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
   for (const Register::Values &Preserved : T.PreservedRegisters()) {
     if (Preserved == Register::Invalid)
-      rc_return VH.fail();
+      rc_return VH.fail("Specified register is Invalid");
     if (not isUsedInArchitecture(Preserved, Architecture))
       rc_return VH.fail("Register '" + toString(Preserved)
                         + "' is not allowed to be used in '"
