@@ -152,6 +152,14 @@ def Clift_EnumType
   ];
 
   let extraClassDeclaration = [{
+    EnumFieldAttr getFieldByValue(uint64_t RawValue) const {
+      for (EnumFieldAttr Field : getFields()) {
+        if (Field.getRawValue() == RawValue)
+          return Field;
+      }
+      return {};
+    }
+
     // AliasableType
     bool getAlias(llvm::raw_ostream &OS) const;
 
