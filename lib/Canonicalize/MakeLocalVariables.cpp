@@ -18,8 +18,6 @@
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
-static Logger<> Log{ "make-local-variables" };
-
 struct MakeLocalVariables : public llvm::FunctionPass {
 public:
   static char ID;
