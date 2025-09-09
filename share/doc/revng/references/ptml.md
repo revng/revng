@@ -306,7 +306,8 @@ PTML defines a set of *actions*:
 * `editType`: edit the type associated to the current object (e.g., for a function, its prototype).
 
 Each of these actions requires knowledge of how the action is executed correctly, its implementation is optional and left at the discretion of each PTML viewer.
-Each location supports a subset of the above actions:
+For each location, PTML defines the set of *supported actions*, as a subset of the above actions.
+The *supported actions* for various locations are the following:
 
 * `binary`: doesn't support any actions as of now.
 * `function`: supports `rename`, `comment`, and `editType`.
@@ -339,4 +340,4 @@ Each location supports a subset of the above actions:
 An action is defined by the following attributes:
 
 * `data-action-context-location`: indicates that the contained snippet has the specified context and allows the PTML viewer to activate the supported actions. Nested element can specify different context locations; in this case the viewer should pick the innermost one.
-* `data-allowed-actions`: the set of actions that make sense for the _current_ object.
+* `data-allowed-actions`: the set of actions that make sense for the *current* object, which is required to be a subset of the *supported actions* for that location. If `data-allowed-actions` are not specified, implicitly all *supported actions* are allowed.
