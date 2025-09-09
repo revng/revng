@@ -39,6 +39,9 @@ Attributes defined in PTML can be organize in the following categories:
 2. Navigation attributes: used for navigation purposes (e.g., going from a function call to its definition).
 3. Action attributes: used to provide a context for certain *actions* (e.g., `rename`) on a certain portion of text.
 
+Each and every one of these categories of attributes is designed to provide separate functionality than the others, and it's meant to be entirely orthogonal and decoupled from the others.
+This is very important because in this way both PTML generators and PTML consumers can opportunistically opt in to each attribute category and the associated functionality, without having to support all the attributes categories.
+
 ## Syntax attributes
 
 ### `data-scope`
