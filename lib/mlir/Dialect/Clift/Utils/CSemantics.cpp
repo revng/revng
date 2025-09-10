@@ -3,7 +3,7 @@
 //
 
 #include "revng/mlir/Dialect/Clift/Utils/CSemantics.h"
-#include "revng/mlir/Dialect/Clift/Utils/ModuleValidator.h"
+#include "revng/mlir/Dialect/Clift/Utils/ModuleVisitor.h"
 
 namespace clift = mlir::clift;
 using namespace clift;
@@ -37,7 +37,7 @@ static clift::PointerType getPointerOperationType(mlir::Operation *Op) {
   return {};
 }
 
-class CVerifier : public ModuleValidator<CVerifier> {
+class CVerifier : public ModuleVisitor<CVerifier> {
 public:
   explicit CVerifier(const TargetCImplementation &Target) : Target(Target) {}
 
@@ -131,5 +131,5 @@ private:
 mlir::LogicalResult
 clift::verifyCSemantics(mlir::ModuleOp Module,
                         const TargetCImplementation &Target) {
-  return CVerifier::validate(Module, Target);
+  return CVerifier::visit(Module, Target);
 }

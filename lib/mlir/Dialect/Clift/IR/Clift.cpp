@@ -8,7 +8,7 @@
 #include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
-#include "revng/mlir/Dialect/Clift/Utils/ModuleValidator.h"
+#include "revng/mlir/Dialect/Clift/Utils/ModuleVisitor.h"
 
 #include "CliftBytecode.h"
 
@@ -68,7 +68,7 @@ public:
   }
 };
 
-class ModuleVerifier : public ModuleValidator<ModuleVerifier> {
+class ModuleVerifier : public ModuleVisitor<ModuleVerifier> {
   enum class LoopOrSwitch : uint8_t {
     Loop,
     Switch,
@@ -219,7 +219,7 @@ static mlir::LogicalResult verifyModuleAttr(mlir::Operation *Op,
               "attribute to be attached to '"
            << mlir::ModuleOp::getOperationName() << "'";
 
-  return ModuleVerifier::validate(Module);
+  return ModuleVerifier::visit(Module);
 }
 
 } // namespace

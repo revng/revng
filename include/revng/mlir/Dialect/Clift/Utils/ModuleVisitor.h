@@ -11,16 +11,16 @@
 
 namespace mlir::clift {
 
-/// CRTP base class for ModuleOp validation. The derived class must inherit from
+/// CRTP base class for ModuleOp visitation. The derived class must inherit from
 /// this class template publicly. This class invokes a number of customization
 /// point functions on the derived object. If a customization point function is
 /// not provided, its invocation is skipped. All customisation points must
-/// return mlir::LogicalResult indicating the validation result.
+/// return mlir::LogicalResult indicating the visitation result.
 ///
-/// The following example shows a derived validator definition with all
+/// The following example shows a derived visitor definition with all
 /// supported customisation points provided:
 ///
-/// struct MyValidator : ModuleValidator<MyValidator> {
+/// struct MyVisitor : ModuleVisitor<MyVisitor> {
 ///   // Invoked for each type referenced in the module.
 ///   mlir::LogicalResult visitType(mlir::Type Type);
 ///
@@ -35,20 +35,30 @@ namespace mlir::clift {
 ///   // module operation.
 ///   mlir::LogicalResult visitModuleLevelOp(mlir::Operation* Op);
 /// };
-template<typename ValidatorT>
-class ModuleValidator {
+template<typename VisitorT>
+class ModuleVisitor {
 public:
-  template<typename... Args>
-    requires std::derived_from<ValidatorT, ModuleValidator>
-             and std::constructible_from<ValidatorT, Args...>
-  static mlir::LogicalResult validate(mlir::ModuleOp Module, Args &&...args) {
-    ValidatorT Validator(std::forward<Args>(args)...);
-    auto &Self = static_cast<ModuleValidator &>(Validator);
+  template<typename... ArgsT>
+    requires std::derived_from<VisitorT, ModuleVisitor>
+             and std::constructible_from<VisitorT, ArgsT...>
+  static mlir::LogicalResult visit(mlir::ModuleOp Module, ArgsT &&...Args) {
+    VisitorT Visitor(std::forward<ArgsT>(Args)...);
+    auto &Self = static_cast<ModuleVisitor &>(Visitor);
     return Self.internalVisitModuleOp(Module);
   }
 
+  template<typename... ArgsT>
+    requires std::derived_from<VisitorT, ModuleVisitor>
+             and std::constructible_from<VisitorT, ArgsT...>
+  static mlir::LogicalResult
+  visit(clift::GlobalOpInterface Op, ArgsT &&...Args) {
+    VisitorT Visitor(std::forward<ArgsT>(Args)...);
+    auto &Self = static_cast<ModuleVisitor &>(Visitor);
+    return Self.internalVisitModuleLevelOp(Op);
+  }
+
 protected:
-  ModuleValidator() = default;
+  ModuleVisitor() = default;
 
   /// Always returns the operation currently being visited. This may be the
   /// module operation itself, a module-level operation, or a nested operation.
@@ -66,7 +76,7 @@ protected:
   mlir::ModuleOp getCurrentModule() const { return CurrentModule; }
 
 private:
-  ValidatorT &getValidator() { return static_cast<ValidatorT &>(*this); }
+  VisitorT &getVisitor() { return static_cast<VisitorT &>(*this); }
 
   template<typename SubElementInterface>
   mlir::LogicalResult visitSubElements(SubElementInterface Interface) {
@@ -89,8 +99,8 @@ private:
     if (not VisitedTypes.insert(Type).second)
       return mlir::success();
 
-    if constexpr (requires { getValidator().visitType(Type); }) {
-      if (getValidator().visitType(Type).failed())
+    if constexpr (requires { getVisitor().visitType(Type); }) {
+      if (getVisitor().visitType(Type).failed())
         return mlir::failure();
     }
 
@@ -106,8 +116,8 @@ private:
     if (not VisitedAttrs.insert(Attr).second)
       return mlir::success();
 
-    if constexpr (requires { getValidator().visitAttr(Attr); }) {
-      if (getValidator().visitAttr(Attr).failed())
+    if constexpr (requires { getVisitor().visitAttr(Attr); }) {
+      if (getVisitor().visitAttr(Attr).failed())
         return mlir::failure();
     }
 
@@ -153,8 +163,8 @@ private:
     if (internalVisitOp(Op).failed())
       return mlir::failure();
 
-    if constexpr (requires { getValidator().visitNestedOp(Op); }) {
-      if (getValidator().visitNestedOp(Op).failed())
+    if constexpr (requires { getVisitor().visitNestedOp(Op); }) {
+      if (getVisitor().visitNestedOp(Op).failed())
         return mlir::failure();
     }
 
@@ -168,8 +178,8 @@ private:
     if (internalVisitOp(Op).failed())
       return mlir::failure();
 
-    if constexpr (requires { getValidator().visitModuleLevelOp(Op); }) {
-      if (getValidator().visitModuleLevelOp(Op).failed())
+    if constexpr (requires { getVisitor().visitModuleLevelOp(Op); }) {
+      if (getVisitor().visitModuleLevelOp(Op).failed())
         return mlir::failure();
     }
 
@@ -200,8 +210,8 @@ private:
       }
     }
 
-    if constexpr (requires { getValidator().finish(); }) {
-      if (getValidator().finish().failed())
+    if constexpr (requires { getVisitor().finish(); }) {
+      if (getVisitor().finish().failed())
         return mlir::failure();
     }
 
