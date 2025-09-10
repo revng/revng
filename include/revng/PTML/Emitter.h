@@ -6,6 +6,7 @@
 
 #include <ranges>
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -70,6 +71,30 @@ public:
       if (Emitter->EmitTags) {
         Emitter->OS << ' ' << Name << '=' << '"';
         Emitter->emitAttributeValue(Value);
+        Emitter->OS << '"';
+      }
+    }
+
+    void emitListAttribute(llvm::StringRef Name,
+                           llvm::ArrayRef<llvm::StringRef> Values) {
+      revng_assert(Emitter != nullptr);
+      revng_assert(Emitter->CurrentTagEmitter == this);
+      revng_assert(not IsFinalized);
+
+      if (Emitter->EmitTags) {
+        Emitter->OS << ' ' << Name << '=' << '"';
+
+        bool InsertComma = false;
+        for (llvm::StringRef Value : Values) {
+          revng_assert(not Value.contains(','));
+
+          if (InsertComma)
+            Emitter->OS << ',';
+          InsertComma = true;
+
+          Emitter->emitAttributeValue(Value);
+        }
+
         Emitter->OS << '"';
       }
     }
