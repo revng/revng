@@ -250,10 +250,12 @@ public:
         Out << C.getKeyword(Keyword::Const) << ' ';
     };
 
-    // Recurse through the declaration, pushing each level into the stack until
+    // Recurse through the declaration, pushing each level onto the stack until
     // a terminal type is encountered. Primitive types as well as defined types
     // are considered terminal. Function types are not considered terminal if
-    // function type expansion is enabled.
+    // function type expansion is enabled. Pointers with size not matching the
+    // pointer size of the target implementation are considered terminal and
+    // are printed by recursively entering this function.
     while (true) {
       StackItem Item = { StackItemKind::Terminal, Type };
 
@@ -262,11 +264,19 @@ public:
         emitPrimitiveType(T);
         NeedSpace = true;
       } else if (auto T = mlir::dyn_cast<PointerType>(Type)) {
-        if (T.getPointerSize() != Target.PointerSize)
-          Out << "pointer" << (T.getPointerSize() * 8) << "_t(";
+        if (T.getPointerSize() == Target.PointerSize) {
+          Item.Kind = StackItemKind::Pointer;
+          Type = T.getPointeeType();
+        } else {
+          EmitConst(T);
+          Out << "pointer" << (T.getPointerSize() * 8) << "_t";
 
-        Item.Kind = StackItemKind::Pointer;
-        Type = T.getPointeeType();
+          Out << '(';
+          rc_recur emitType(T.getPointeeType());
+          Out << ')';
+
+          NeedSpace = true;
+        }
       } else if (auto T = mlir::dyn_cast<ArrayType>(Type)) {
         Item.Kind = StackItemKind::Array;
         Type = T.getElementType();
@@ -278,6 +288,8 @@ public:
           Item.Kind = StackItemKind::Function;
           Type = F.getReturnType();
         } else {
+          EmitConst(T);
+
           if (mlir::isa<EnumType>(T))
             Out << C.getKeyword(Keyword::Enum) << ' ';
           else if (mlir::isa<StructType>(T))
@@ -285,7 +297,6 @@ public:
           else if (mlir::isa<UnionType>(T))
             Out << C.getKeyword(Keyword::Union) << ' ';
 
-          EmitConst(T);
           if (const auto *MT = getModelTypeDefinition(T))
             Out << C.getReferenceTag(*MT);
           else if (const auto *MT = getArtificialStructFunctionType(T))
@@ -317,14 +328,9 @@ public:
       } break;
       case StackItemKind::Pointer: {
         auto T = mlir::dyn_cast<PointerType>(SI.Type);
-
-        if (T.getPointerSize() == Target.PointerSize) {
-          EmitSpace();
-          Out << '*';
-        } else {
-          Out << ')';
-          NeedSpace = false;
-        }
+        EmitSpace();
+        Out << '*';
+        EmitConst(T);
       } break;
       case StackItemKind::Array: {
         if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array) {
@@ -339,9 +345,6 @@ public:
         }
       } break;
       }
-
-      if (SI.Kind != StackItemKind::Terminal)
-        EmitConst(SI.Type);
     }
 
     if (DeclaratorName) {
