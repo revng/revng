@@ -3,11 +3,11 @@
 //
 
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/IR/Use.h"
 #include "llvm/Pass.h"
 
@@ -48,7 +48,9 @@ private:
   bool collectTypeInfoForTypePromotion(llvm::Instruction *I,
                                        const model::Binary &Model);
   llvm::SmallSet<llvm::Use *, 4>
-  getOperandsToPromote(llvm::Instruction *I, const model::Binary &Model);
+  getOperandsToPromote(llvm::Instruction *I,
+                       const model::Binary &Model,
+                       llvm::ModuleSlotTracker &MST);
 
   bool collectTypeInfoForPromotionForSingleValue(const llvm::Value *Value,
                                                  const model::Type &OperandType,
@@ -275,12 +277,13 @@ static bool isShiftLikeInstruction(llvm::Instruction *I) {
 // Returns set of operand's indices that do not need a cast.
 llvm::SmallSet<llvm::Use *, 4>
 ImplicitModelCastPass::getOperandsToPromote(llvm::Instruction *I,
-                                            const model::Binary &Model) {
+                                            const model::Binary &Model,
+                                            llvm::ModuleSlotTracker &MST) {
   llvm::SmallSet<llvm::Use *, 4> Result;
   if (not shouldApplyIntegerPromotion(I)) {
     revng_log(Log,
               "Shouldn't be applying integer promotion for "
-                << dumpToString(I));
+                << dumpToString(*I, MST));
     return Result;
   }
 
@@ -295,7 +298,7 @@ ImplicitModelCastPass::getOperandsToPromote(llvm::Instruction *I,
       continue;
 
     if (not PromotedTypes.contains(I)) {
-      revng_log(Log, "No promoted types for: " << dumpToString(I));
+      revng_log(Log, "No promoted types for: " << dumpToString(*I, MST));
       return Result;
     }
 
@@ -484,6 +487,11 @@ bool ImplicitModelCastPass::process(llvm::Function &F,
                                     const model::Binary &Model) {
   bool Changed = false;
 
+  llvm::ModuleSlotTracker MST(F.getParent(),
+                              /* ShouldInitializeAllMetadata = */ false);
+  if (Log.isEnabled())
+    MST.incorporateFunction(F);
+
   for (llvm::BasicBlock &BB : F) {
     for (llvm::Instruction &I : BB) {
       // Candidates for the cast reduction are instructions that contain
@@ -493,28 +501,30 @@ bool ImplicitModelCastPass::process(llvm::Function &F,
 
       bool HasTypes = collectTypeInfoForTypePromotion(&I, Model);
       if (not HasTypes) {
-        revng_log(Log, "No types collected to promote for " << dumpToString(I));
+        revng_log(Log,
+                  "No types collected to promote for " << dumpToString(I, MST));
         continue;
       }
 
       // Integer promotion - stage 2: Try to avoid casts that are not needed in
       // C.
       llvm::SmallSet<llvm::Use *, 4>
-        OperandsToPromoteTypeFor = getOperandsToPromote(&I, Model);
+        OperandsToPromoteTypeFor = getOperandsToPromote(&I, Model, MST);
       if (not OperandsToPromoteTypeFor.size()) {
         revng_log(Log,
                   "No operands detected for type promotion in "
-                    << dumpToString(I));
+                    << dumpToString(I, MST));
         continue;
       }
 
-      revng_log(Log, "Marking implicit casts in " << dumpToString(I));
+      revng_log(Log, "Marking implicit casts in " << dumpToString(I, MST));
       // Here we try to mark some casts as implicit by changing the LLVM IR.
       for (unsigned Index = 0; Index < I.getNumOperands(); ++Index) {
         llvm::Use &OperandUse = I.getOperandUse(Index);
         if (OperandsToPromoteTypeFor.contains(&OperandUse)) {
           revng_log(Log,
-                    " Found implicit cast: " << dumpToString(OperandUse.get()));
+                    " Found implicit cast: " << dumpToString(*OperandUse.get(),
+                                                             MST));
           setImplicitModelCast(OperandUse.get());
           Changed = true;
         }

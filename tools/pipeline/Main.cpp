@@ -31,81 +31,84 @@
 #include "revng/Support/InitRevng.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
-using std::string;
-using namespace llvm;
-using namespace llvm::cl;
+namespace cl = llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
 using namespace revng;
 
-static cl::list<string> ContainerOverrides("i",
-                                           desc("Load the target file in the "
-                                                "target container at the "
-                                                "target step"),
-                                           cat(MainCategory));
+static cl::list<std::string> ContainerOverrides("i",
+                                                cl::desc("Load the target file "
+                                                         "in the target "
+                                                         "container at the "
+                                                         "target step"),
+                                                cl::cat(MainCategory));
 
 static OutputPathOpt SaveModel("save-model",
-                               desc("Save the model at the end of the run"),
-                               cat(MainCategory));
+                               cl::desc("Save the model at the end of the run"),
+                               cl::cat(MainCategory));
 
-static opt<string> ApplyModelDiff("apply-model-diff",
-                                  desc("Apply model diff"),
-                                  cat(MainCategory),
-                                  init(""));
+static cl::opt<std::string> ApplyModelDiff("apply-model-diff",
+                                           cl::desc("Apply model diff"),
+                                           cl::cat(MainCategory),
+                                           cl::init(""));
 
-static opt<bool> ProduceAllPossibleTargets("produce-all",
-                                           desc("Try producing all possible "
-                                                "targets"),
-                                           cat(MainCategory),
-                                           init(false));
+static cl::opt<bool> ProduceAllPossibleTargets("produce-all",
+                                               cl::desc("Try producing all "
+                                                        "possible targets"),
+                                               cl::cat(MainCategory),
+                                               cl::init(false));
 
-static opt<bool> ProduceAllPossibleTargetsSingle("produce-all-single",
-                                                 desc("Try producing all "
-                                                      "possible "
-                                                      "targets one element at "
-                                                      "the time"),
-                                                 cat(MainCategory),
-                                                 init(false));
+static cl::opt<bool> ProduceAllPossibleTargetsSingle("produce-all-single",
+                                                     cl::desc("Try producing "
+                                                              "all possible "
+                                                              "targets one "
+                                                              "element at the "
+                                                              "time"),
+                                                     cl::cat(MainCategory),
+                                                     cl::init(false));
 
-static opt<bool> InvalidateAll("invalidate-all",
-                               desc("Try invalidating all possible "
-                                    "targets after producing them. Used for "
-                                    "debug purposes"),
-                               cat(MainCategory),
-                               init(false));
+static cl::opt<bool> InvalidateAll("invalidate-all",
+                                   cl::desc("Try invalidating all possible "
+                                            "targets after producing them. "
+                                            "Used for debug purposes"),
+                                   cl::cat(MainCategory),
+                                   cl::init(false));
 
-static opt<bool> DumpPipeline("d",
-                              desc("Dump built pipeline, but dont run it"),
-                              cat(MainCategory));
+static cl::opt<bool> DumpPipeline("d",
+                                  cl::desc("Dump built pipeline, but dont run "
+                                           "it"),
+                                  cl::cat(MainCategory));
 
-static cl::list<string> StoresOverrides("o",
-                                        desc("Store the target container at "
-                                             "the "
-                                             "target step in the target file"),
-                                        cat(MainCategory));
+static cl::list<std::string> StoresOverrides("o",
+                                             cl::desc("Store the target "
+                                                      "container at the target "
+                                                      "step in the target "
+                                                      "file"),
+                                             cl::cat(MainCategory));
 
-static cl::list<string> Produce("produce",
-                                desc("comma separated list of targets to be "
-                                     "produced in one sweep."),
-                                cat(MainCategory));
+static cl::list<std::string> Produce("produce",
+                                     cl::desc("comma separated list of targets "
+                                              "to be produced in one sweep."),
+                                     cl::cat(MainCategory));
 
-static cl::list<string>
-  Analyze("analyze", desc("analyses to be performed."), cat(MainCategory));
+static cl::list<std::string> Analyze("analyze",
+                                     cl::desc("analyses to be performed."),
+                                     cl::cat(MainCategory));
 
-static opt<bool> PrintBuildableTargets("targets",
-                                       desc("Prints the target that can be "
-                                            "produced from the current status "
-                                            "and exit"),
-                                       cat(MainCategory));
+static cl::opt<bool> PrintBuildableTargets("targets",
+                                           cl::desc("Prints the target that "
+                                                    "can be produced from the "
+                                                    "current status and exit"),
+                                           cl::cat(MainCategory));
 
-static alias A2("t",
-                desc("Alias for --targets"),
-                aliasopt(PrintBuildableTargets),
-                cat(MainCategory));
+static cl::alias A2("t",
+                    cl::desc("Alias for --targets"),
+                    cl::aliasopt(PrintBuildableTargets),
+                    cl::cat(MainCategory));
 
 static ToolCLOptions BaseOptions(MainCategory);
 
-static ExitOnError AbortOnError;
+static llvm::ExitOnError AbortOnError;
 
 static Runner::State
 parseProductionRequest(Runner &Pipeline,
@@ -137,7 +140,7 @@ static void runAnalysis(Runner &Pipeline, llvm::StringRef Target) {
 static void runPipeline(Runner &Pipeline) {
   // First run the requested analyses
   {
-    Task T(Analyze.size(), "revng-pipeline analyses");
+    llvm::Task T(Analyze.size(), "revng-pipeline analyses");
     for (llvm::StringRef Entry : Analyze) {
       T.advance(Entry, true);
       runAnalysis(Pipeline, Entry);
@@ -145,7 +148,7 @@ static void runPipeline(Runner &Pipeline) {
   }
 
   // Then produce the requested targets
-  Task T(Produce.size(), "revng-pipeline produce");
+  llvm::Task T(Produce.size(), "revng-pipeline produce");
   for (llvm::StringRef Entry : Produce) {
     T.advance(Entry, true);
     llvm::SmallVector<llvm::StringRef, 3> Targets;

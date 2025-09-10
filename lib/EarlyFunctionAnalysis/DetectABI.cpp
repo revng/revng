@@ -313,7 +313,6 @@ void DetectABI::computeApproximateCallGraph() {
 
   // Dump the call-graph, if requested
   if (CallGraphOutputPath.getNumOccurrences() == 1) {
-    std::ifstream File(CallGraphOutputPath.c_str());
     std::error_code EC;
     raw_fd_ostream OutputCG(CallGraphOutputPath, EC);
     revng_assert(!EC);

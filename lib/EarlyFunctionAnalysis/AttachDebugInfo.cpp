@@ -21,10 +21,12 @@
 //
 
 #include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Metadata.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
@@ -32,10 +34,13 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
+#include "revng/Pipes/IRHelpers.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/Ranks.h"
+#include "revng/Support/BasicBlockID.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/MetaAddress.h"
 
 using namespace llvm;
 
@@ -74,78 +79,139 @@ static bool isTrue(const llvm::Value *V) {
   return getLimitedValue(V) != 0;
 }
 
-static void handleFunction(DIBuilder &DIB,
-                           llvm::Function &F,
-                           DISubprogram *TheSubprogram,
-                           efa::ControlFlowGraph &FM,
-                           GeneratedCodeBasicInfo &GCBI) {
-  namespace ranks = revng::ranks;
+class DebugInformationBuilder {
+private:
+  DIBuilder &DIB;
+  LLVMContext &Context;
+  DIFile *File = nullptr;
 
-  LLVMContext &Context = F.getParent()->getContext();
-  DILocation *CurrentDebugLocation = nullptr;
-  BasicBlockID LastJumpTarget;
-  for (auto *BB : ReversePostOrderTraversal(&F)) {
-    if (not GCBI.isTranslated(BB))
-      continue;
+  DISubprogram::DISPFlags SubprogramFlags;
+  DISubroutineType *SubprogramType = nullptr;
+  DISubprogram *FunctionSubprogram = nullptr;
 
-    for (auto &I : *BB) {
-      if (auto *Call = getCallTo(&I, "newpc")) {
-        BasicBlockID Address = blockIDFromNewPC(Call);
+public:
+  DebugInformationBuilder(DIBuilder &DIB,
+                          LLVMContext &Context,
+                          DIFile *File,
+                          llvm::StringRef Name) :
+    DIB(DIB), Context(Context), File(File) {
+    SubprogramFlags = DISubprogram::toSPFlags(false, /* isLocalToUnit */
+                                              true, /* isDefinition*/
+                                              false /* isOptimized */);
+    SubprogramType = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
+    FunctionSubprogram = makeSubprogram(Name);
+  }
 
-        if (isTrue(Call->getArgOperand(NewPCArguments::IsJumpTarget))) {
-          const auto &CFG = FM.Blocks();
-          if (CFG.contains(Address)) {
-            LastJumpTarget = Address;
-          } else {
-            revng_assert(CFG.at(LastJumpTarget).contains(Address));
-          }
-        }
+private:
+  DISubprogram *makeSubprogram(llvm::StringRef Name) {
+    DISubprogram
+      *Result = DIB.createFunction(/* Scope = */ File,
+                                   /* Name = */ Name,
+                                   /* LinkageName = */ StringRef(),
+                                   /* File = */ File,
+                                   /* LineNo = */ 1,
+                                   /* Ty = */ SubprogramType,
+                                   /* ScopeLine = */ 1,
+                                   /* DIFlags = */ DINode::FlagPrototyped,
+                                   /* SPFlags = */ SubprogramFlags);
+    DIB.finalizeSubprogram(Result);
+    return Result;
+  }
 
-        revng_assert(LastJumpTarget.isValid());
-        revng_assert(Address.inliningIndex() == LastJumpTarget.inliningIndex());
+  DILocation *buildDI(MetaAddress FunctionAddress,
+                      BasicBlockID BasicBlockAddress,
+                      MetaAddress InstructionAddress) {
+    std::string NewDebugLocation = locationString(revng::ranks::Instruction,
+                                                  FunctionAddress,
+                                                  BasicBlockAddress,
+                                                  InstructionAddress);
+    DISubprogram *Subprogram = makeSubprogram(NewDebugLocation);
 
-        auto SPFlags = DISubprogram::toSPFlags(false, /* isLocalToUnit */
-                                               true, /* isDefinition*/
-                                               false /* isOptimized */);
-        auto Type = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
+    auto InlineLocationForMetaAddress = DILocation::get(Context,
+                                                        0,
+                                                        0,
+                                                        Subprogram,
+                                                        nullptr);
 
-        // Let's make the debug location that points back to the binary.
-        std::string NewDebugLocation = locationString(ranks::Instruction,
-                                                      FM.Entry(),
-                                                      LastJumpTarget,
-                                                      Address.start());
-        auto Subprogram = DIB.createFunction(TheSubprogram->getFile(), // Scope
-                                             NewDebugLocation, // Name
-                                             StringRef(), // LinkageName
-                                             TheSubprogram->getFile(), // File
-                                             1, // LineNo
-                                             Type, // Ty (subroutine type)
-                                             1, // ScopeLine
-                                             DINode::FlagPrototyped, // Flags
-                                             SPFlags);
-        DIB.finalizeSubprogram(Subprogram);
+    // Represent debug info for all the isolated functions as if they were
+    // inlined in the root.
+    return DILocation::get(Context,
+                           0,
+                           0,
+                           Subprogram,
+                           InlineLocationForMetaAddress);
+  }
 
-        auto InlineLocationForMetaAddress = DILocation::get(Context,
-                                                            0,
-                                                            0,
-                                                            TheSubprogram,
-                                                            nullptr);
+public:
+  void handleFunction(llvm::Function &F,
+                      efa::ControlFlowGraph &FM,
+                      GeneratedCodeBasicInfo &GCBI) {
+    BasicBlockID CurrentBB = BasicBlockID(FM.Entry());
+    DILocation *DefaultDI = buildDI(FM.Entry(), CurrentBB, FM.Entry());
+    DILocation *CurrentDI = DefaultDI;
 
-        // Represent debug info for all the isolated functions as if they were
-        // inlined in the root.
-        auto InlineLoc = DILocation::get(Context,
-                                         0,
-                                         0,
-                                         Subprogram,
-                                         InlineLocationForMetaAddress);
+    for (auto *BB : ReversePostOrderTraversal(&F)) {
+      // There are two options of how we can handle basic block addresses:
+      //
+      // - in the general case, addresses provided by the `newpc` helper calls
+      //   are used to fill in the metadata of all the instructions in-between
+      //   (note that the reverse post order traversal is important).
+      //
+      // - when that is not possible (which most likely means that the block
+      //   in question is artificial), the fallback is to use the most basic
+      //   possible location:
+      //   ```
+      //   /instruction/<function-entry>/<function-entry>/<function-entry>
+      //   ```
+      //
+      // The following flag decides which approach is used for this basic block:
+      bool UseFallbackDebugLocation = !GCBI.isTranslated(BB);
 
-        CurrentDebugLocation = InlineLoc;
+      if (getType(BB) == BlockType::IndirectBranchDispatcherHelperBlock) {
+        // These helper blocks are introduced to handle indirect jumps (for
+        // example, `jmp rax`). But, since CFG around them is reasonable AND
+        // because we're traversing them in the reverse post order, we can let
+        // normal `newpc`-based address setter do its job for them too.
+        UseFallbackDebugLocation = false;
       }
 
-      I.setDebugLoc(CurrentDebugLocation);
+      // TODO: keep a close eye on this, especially if we ever add more basic
+      //       block types, as using the default location is pretty much
+      //       the worst option available.
+      if (UseFallbackDebugLocation) {
+        for (auto &I : *BB)
+          I.setDebugLoc(DefaultDI);
+
+        continue;
+      }
+
+      for (auto &I : *BB) {
+        if (auto *Call = getCallTo(&I, "newpc")) {
+          BasicBlockID Address = blockIDFromNewPC(Call);
+
+          if (isTrue(Call->getArgOperand(NewPCArguments::IsJumpTarget))) {
+            const auto &CFG = FM.Blocks();
+            if (CFG.contains(Address)) {
+              CurrentBB = Address;
+              revng_assert(CurrentBB.isValid());
+
+            } else {
+              revng_assert(CFG.at(CurrentBB).contains(Address));
+            }
+          }
+
+          revng_assert(Address.inliningIndex() == CurrentBB.inliningIndex());
+          CurrentDI = buildDI(FM.Entry(), CurrentBB, Address.start());
+
+          if (llvm::Error Error = isDebugLocationInvalid(CurrentDI))
+            revng_abort(revng::unwrapError(std::move(Error)).c_str());
+        }
+
+        I.setDebugLoc(CurrentDI);
+      }
     }
   }
-}
+};
 
 bool AttachDebugInfo::prologue() {
   // This will be used for attaching the !dbg to instructions.
@@ -181,26 +247,9 @@ bool AttachDebugInfo::runOnFunction(const model::Function &ModelFunction,
             "Metadata for Function " << F.getName() << ":"
                                      << FM.Entry().toString());
 
-  // Create debug info for the function.
-  auto SPFlags = DISubprogram::toSPFlags(false, // isLocalToUnit
-                                         true, // isDefinition
-                                         false // isOptimized
-  );
-  auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
-
-  DISubprogram
-    *TheSubprogram = DIB.createFunction(CU->getFile(), // Scope
-                                        F.getName(), // Name
-                                        StringRef(), // LinkageName
-                                        CU->getFile(), // File
-                                        1, // LineNo
-                                        SPType, // Ty (subroutine type)
-                                        1, // ScopeLine
-                                        DINode::FlagPrototyped, // Flags
-                                        SPFlags);
-  DIB.finalizeSubprogram(TheSubprogram);
-
-  handleFunction(DIB, F, TheSubprogram, FM, GCBI);
+  LLVMContext &Context = F.getParent()->getContext();
+  DebugInformationBuilder Builder(DIB, Context, CU->getFile(), F.getName());
+  Builder.handleFunction(F, FM, GCBI);
 
   return true;
 }

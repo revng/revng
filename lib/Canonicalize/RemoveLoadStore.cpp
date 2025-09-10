@@ -60,6 +60,14 @@ static llvm::CallInst *buildDerefCall(llvm::Module &M,
                                                     { BaseTypeConstantStrPtr,
                                                       Arg,
                                                       Zero });
+  if (auto *InstructionArg = dyn_cast<llvm::Instruction>(Arg)) {
+    // InjectedCall represents a reference to the pointee of Arg.
+    // Taking a reference is neither loading/reading nor storing/writing.
+    // So InjectedCall should have the debug locations of Arg if possible.
+    // The debug location of the load or store should only be used for Copy or
+    // Assign respectively.
+    InjectedCall->setDebugLoc(InstructionArg->getDebugLoc());
+  }
 
   return InjectedCall;
 }
@@ -101,6 +109,7 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
       }
 
       Builder.SetInsertPoint(&I);
+      Builder.SetCurrentDebugLocation(I.getDebugLoc());
       ToRemove.push_back(&I);
 
       llvm::CallInst *InjectedCall = nullptr;

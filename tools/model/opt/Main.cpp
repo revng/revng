@@ -14,10 +14,9 @@
 #include "revng/Model/ToolHelpers.h"
 #include "revng/Support/InitRevng.h"
 
-using namespace llvm;
-
+namespace cl = llvm::cl;
 static cl::OptionCategory ThisToolCategory("Tool options", "");
-extern llvm::cl::OptionCategory ModelPassCategory;
+extern cl::OptionCategory ModelPassCategory;
 
 static ModelOutputOptions<true> Options(ThisToolCategory);
 
@@ -66,9 +65,8 @@ int main(int Argc, char *Argv[]) {
 
   revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory, &ModelPassCategory });
 
-  ExitOnError ExitOnError;
-  using Model = TupleTree<model::Binary>;
-  auto ParsedModel = Model::fromFileOrSTDIN(InputFilename);
+  llvm::ExitOnError ExitOnError;
+  auto ParsedModel = TupleTree<model::Binary>::fromFileOrSTDIN(InputFilename);
   auto MaybeModel = ExitOnError(std::move(ParsedModel));
 
   for (const PassName &PassName : PassesList) {

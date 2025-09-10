@@ -974,6 +974,12 @@ concept ValueLikePrintable = requires(V Val) {
   Val.print(std::declval<llvm::raw_ostream &>(), true);
 };
 
+template<typename ValueType>
+concept ModuleSlotTrackerPrintable = requires(llvm::ModuleSlotTracker &Tracker,
+                                              ValueType Value) {
+  Value.print(std::declval<llvm::raw_ostream &>(), Tracker, true);
+};
+
 template<typename F>
 concept ModFunLikePrintable = requires(F Fun) {
   Fun.print(std::declval<llvm::raw_ostream &>(), nullptr, false, true);
@@ -994,6 +1000,17 @@ inline std::string dumpToString(ValueRef &V) {
   std::string Result;
   llvm::raw_string_ostream Stream(Result);
   V.print(Stream, true);
+  Stream.flush();
+  return Result;
+}
+
+// This is is similar to the overload above, but it allows taking advantage of
+// a `llvm::ModuleSlotTracker` optimization.
+template<ModuleSlotTrackerPrintable ValueRef>
+inline std::string dumpToString(ValueRef &V, llvm::ModuleSlotTracker &Tracker) {
+  std::string Result;
+  llvm::raw_string_ostream Stream(Result);
+  V.print(Stream, Tracker, true);
   Stream.flush();
   return Result;
 }
@@ -1344,6 +1361,7 @@ setInsertPointToFirstNonAlloca(llvm::IRBuilder<T, Inserter> &Builder,
   for (Instruction &I : Entry) {
     if (not isa<AllocaInst>(&I)) {
       Builder.SetInsertPoint(&I);
+      Builder.SetCurrentDebugLocation(I.getDebugLoc());
       return;
     }
   }

@@ -131,6 +131,9 @@ bool FoldModelGEP::runOnFunction(llvm::Function &F) {
         auto *CallToFold = cast<CallInst>(&I);
         revng_assert(isCallToTagged(CallToFold, FunctionTags::ModelGEP));
         Builder.SetInsertPoint(CallToFold);
+        if (auto *I = dyn_cast<llvm::Instruction>(ValueToSubstitute)) {
+          Builder.SetCurrentDebugLocation(I->getDebugLoc());
+        }
 
         llvm::SmallVector<llvm::Value *, 8> Args;
         for (auto &Group : llvm::enumerate(CallToFold->args())) {

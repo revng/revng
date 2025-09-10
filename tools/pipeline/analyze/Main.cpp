@@ -36,46 +36,45 @@
 #include "revng/Support/InitRevng.h"
 #include "revng/TupleTree/TupleTree.h"
 
-using std::string;
-using namespace llvm;
-using namespace llvm::cl;
+namespace cl = llvm::cl;
 using namespace pipeline;
 using namespace ::revng::pipes;
-using namespace revng;
 
-static cl::list<string> Arguments(Positional,
-                                  ZeroOrMore,
-                                  desc("<analysis> <binary>"),
-                                  cat(MainCategory));
+static cl::list<std::string> Arguments(cl::Positional,
+                                       cl::ZeroOrMore,
+                                       cl::desc("<analysis> <binary>"),
+                                       cl::cat(MainCategory));
 
-static OutputPathOpt Output("o",
-                            desc("Output filepath of produced model"),
-                            cat(MainCategory),
-                            init(revng::PathInit::Dash));
+static revng::OutputPathOpt Output("o",
+                                   cl::desc("Output filepath of produced "
+                                            "model"),
+                                   cl::cat(MainCategory),
+                                   cl::init(revng::PathInit::Dash));
 
-static opt<bool> NoApplyModel("no-apply",
-                              desc("run the analysis but do not apply it (used "
-                                   "to recreate consistent debug "
-                                   "configurations)"),
-                              cat(MainCategory),
-                              init(false));
+static cl::opt<bool> NoApplyModel("no-apply",
+                                  cl::desc("run the analysis but do not apply "
+                                           "it (used to recreate consistent "
+                                           "debug configurations)"),
+                                  cl::cat(MainCategory),
+                                  cl::init(false));
 
-static opt<std::string> InvalidationsPath("save-invalidations",
-                                          desc("path where to save the list of "
-                                               "invalidated targets"),
-                                          cat(MainCategory),
-                                          init(""));
+static cl::opt<std::string> InvalidationsPath("save-invalidations",
+                                              cl::desc("path where to save the "
+                                                       "list of invalidated "
+                                                       "targets"),
+                                              cl::cat(MainCategory),
+                                              cl::init(""));
 
 static ToolCLOptions BaseOptions(MainCategory);
 
-static ExitOnError AbortOnError;
+static llvm::ExitOnError AbortOnError;
 
 static TupleTreeGlobal<model::Binary> &getModel(PipelineManager &Manager) {
   auto &Context = Manager.context();
   const auto &ModelName = revng::ModelGlobalName;
-  auto *FinalModel = AbortOnError(Context.getGlobal<ModelGlobal>(ModelName));
-  revng_assert(FinalModel != nullptr);
-  return *FinalModel;
+  auto *Result = AbortOnError(Context.getGlobal<revng::ModelGlobal>(ModelName));
+  revng_assert(Result != nullptr);
+  return *Result;
 }
 
 static llvm::Error overrideModel(PipelineManager &Manager,
@@ -88,16 +87,15 @@ static llvm::Error overrideModel(PipelineManager &Manager,
 
 int main(int argc, char *argv[]) {
   using revng::FilePath;
-  using BinaryRef = TupleTreeGlobal<model::Binary>;
 
   revng::InitRevng X(argc, argv, "", { &MainCategory });
 
   Registry::runAllInitializationRoutines();
 
   auto Manager = AbortOnError(BaseOptions.makeManager());
-  const auto &Context = Manager.context();
-  auto OriginalModel = *AbortOnError(Context
-                                       .getGlobal<BinaryRef>(ModelGlobalName));
+  const auto &C = Manager.context();
+  using BR = TupleTreeGlobal<model::Binary>;
+  auto OriginalModel = *AbortOnError(C.getGlobal<BR>(revng::ModelGlobalName));
 
   if (Arguments.size() == 0) {
     std::cout << "USAGE: revng-analyze [options] <analysis> <binary>\n\n";
@@ -138,9 +136,9 @@ int main(int argc, char *argv[]) {
 
   if (not InvalidationsPath.empty()) {
     std::error_code EC;
-    ToolOutputFile InvalidationOutput(InvalidationsPath,
-                                      EC,
-                                      sys::fs::OpenFlags::OF_Text);
+    llvm::ToolOutputFile InvalidationOutput(InvalidationsPath,
+                                            EC,
+                                            llvm::sys::fs::OpenFlags::OF_Text);
     if (EC)
       AbortOnError(llvm::createStringError(EC, EC.message()));
 

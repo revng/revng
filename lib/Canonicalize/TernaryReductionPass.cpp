@@ -45,6 +45,7 @@ public:
                  "Both are constant booleans? Why is this even a select?");
 
     Builder.SetInsertPoint(&Select);
+    Builder.SetCurrentDebugLocation(Select.getDebugLoc());
     if (TrueBranch.has_value()) {
       if (TrueBranch.value()) {
         return Builder.CreateOr(Select.getCondition(), Select.getFalseValue());
