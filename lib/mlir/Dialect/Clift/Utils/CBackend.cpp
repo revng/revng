@@ -1396,12 +1396,7 @@ public:
       Out << ' ';
       Scope InnerScope(Out, ptml::c::scopes::FunctionBody);
 
-      if (const model::Type *T = ModelFunction->StackFrameType().get()) {
-        const auto *D = llvm::cast<model::DefinedType>(T)->Definition().get();
-
-        if (C.Configuration.EnableStackFrameInlining)
-          C.printDefinition(*D);
-      }
+      // TODO: Re-enable stack frame inlining.
 
       rc_recur emitStatementRegion(Op.getBody());
 
