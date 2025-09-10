@@ -125,100 +125,6 @@ getImmediateDominator(BasicBlock *N,
   }
 }
 
-/// Define a concept to restrict the usage of `replaceSuccessors` over a
-/// `SuccessorsToRemove` parameter of type the `SmallSet`s and `SmallVector`
-template<typename T, typename ValueType>
-concept IterableOfBasicBlockPtrs = requires(T Container) {
-  { std::begin(Container) } -> std::input_iterator;
-  { std::end(Container) };
-  { *std::begin(Container) } -> std::convertible_to<ValueType>;
-};
-
-/// Helper function which substitutes some successors in the `Terminator` with
-/// `NewTarget`
-template<IterableOfBasicBlockPtrs<BasicBlock *> Container>
-static void replaceSuccessors(Instruction *Terminator,
-                              Container &SuccessorsToRemove,
-                              BasicBlock *NewTarget) {
-  for (BasicBlock *Successor : SuccessorsToRemove) {
-    Terminator->replaceSuccessorWith(Successor, NewTarget);
-  }
-}
-
-/// Helper function which simplifies all the terminators containing
-/// `PlaceHolderTarget`, by removing it
-static void simplifyTerminator(BasicBlock *BB,
-                               const BasicBlock *PlaceHolderTarget) {
-  Instruction *Terminator = BB->getTerminator();
-
-  if (auto *Branch = dyn_cast<BranchInst>(Terminator)) {
-    if (Branch->isConditional()) {
-
-      // We want to transform a conditional branch with one of the destination
-      // set to `PlaceHolderTarget` to a non conditional branch
-      BasicBlock *SingleDestination = nullptr;
-
-      if (Branch->getSuccessor(0) == PlaceHolderTarget) {
-        SingleDestination = Branch->getSuccessor(1);
-        revng_assert(SingleDestination != PlaceHolderTarget);
-      } else if (Branch->getSuccessor(1) == PlaceHolderTarget) {
-        SingleDestination = Branch->getSuccessor(0);
-        revng_assert(SingleDestination != PlaceHolderTarget);
-      }
-
-      // If we found a `BranchInst` candidate for promotion, we substitute it
-      // with an unconditional branch
-      if (SingleDestination) {
-        IRBuilder<> Builder(Terminator);
-        Builder.CreateBr(SingleDestination);
-
-        // We remove the old conditional branch
-        Terminator->eraseFromParent();
-      }
-    }
-  } else if (auto *Switch = dyn_cast<SwitchInst>(Terminator)) {
-
-    // Handle the simplification when `PlaceHolderTager` is the default
-    // destination of the `SwitchInst`
-    BasicBlock *DefaultTarget = Switch->getDefaultDest();
-    if (DefaultTarget == PlaceHolderTarget) {
-
-      // We promote the first case, not pointing to `PlaceHolderTarget`. If we
-      // promote a case already pointing to `PlaceHolderTarget`, this would, in
-      // turn, cause the `default` case to not be simplified ever.
-      for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();
-           ++CaseIt) {
-        if (CaseIt->getCaseSuccessor() != PlaceHolderTarget) {
-          Switch->setDefaultDest(CaseIt->getCaseSuccessor());
-          Switch->removeCase(CaseIt);
-          break;
-        }
-      }
-    }
-
-    // Handle the simplification when `PlaceHolderTarget` is part the standard
-    // `case`s
-    for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();) {
-      if (CaseIt->getCaseSuccessor() == PlaceHolderTarget) {
-
-        // We do not want to have a situation where the `PlaceHolderTarget` is
-        // both the `default` successor of a `switch` and one of its standard
-        // case
-        CaseIt = Switch->removeCase(CaseIt);
-      } else {
-        ++CaseIt;
-      }
-    }
-
-    // It should never be the case that we end up with a `switch` having only
-    // `PlaceHolderTarget` as its successor
-    if (Switch->getNumCases() == 0
-        and Switch->getDefaultDest() == PlaceHolderTarget) {
-      revng_abort();
-    }
-  }
-}
-
 /// Helper function which collects all the nodes reachable from a vector of
 /// nodes (`Successors`)
 static MapVector<BasicBlock *, SmallSet<BasicBlock *, 4>>
@@ -254,7 +160,7 @@ getReachablesFromSuccessor(BasicBlock *N) {
 /// node which is divergent wrt. those divergent successors.
 struct DivergenceDescriptor {
   BasicBlock *Conditional;
-  SmallSet<BasicBlock *, 4> DivergentSuccessors;
+  std::set<BasicBlock *> DivergentSuccessors;
   BasicBlock *Exit;
 };
 
@@ -272,7 +178,7 @@ electDivergence(BasicBlock *Candidate,
       ReachablesFromSuccessor = getReachablesFromSuccessor(Candidate);
     size_t SuccessorsSize = ReachablesFromSuccessor.size();
 
-    SmallSet<BasicBlock *, 4> DivergentSuccessors;
+    std::set<BasicBlock *> DivergentSuccessors;
     for (const auto &[Successor, ReachableExits] : ReachablesFromSuccessor) {
       if (ReachableExits.size() == 1 and *ReachableExits.begin() == Exit) {
         DivergentSuccessors.insert(Successor);
@@ -317,8 +223,8 @@ static void createHead(BasicBlock *Conditional,
   HeadBuilder.Insert(HeadTerminator);
 
   // Collect the `Successor`s composing the local `Divergence`
-  SmallSet<BasicBlock *, 4> LocalDivergentSuccessors = Divergence
-                                                         .DivergentSuccessors;
+  std::set<BasicBlock *> LocalDivergentSuccessors = Divergence
+                                                      .DivergentSuccessors;
 
   // And collect all the `Successor`s that do not make up the local
   // `Divergence`
@@ -369,7 +275,7 @@ performMultipleIDS(const ScopeGraphBuilder &SGBuilder,
 
   // Populate the `DivergentSuccessors` summing all ones present in each
   // `DivergenceDescriptor`
-  SmallSet<BasicBlock *, 4> DivergentSuccessors;
+  std::set<BasicBlock *> DivergentSuccessors;
   for (auto Divergence : MultipleDivergences) {
     DivergentSuccessors.insert(Divergence.DivergentSuccessors.begin(),
                                Divergence.DivergentSuccessors.end());

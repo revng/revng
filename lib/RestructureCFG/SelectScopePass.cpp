@@ -11,6 +11,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Support/GenericDomTree.h"
 
 #include "revng/RestructureCFG/ScopeGraphAlgorithms.h"
@@ -131,6 +132,12 @@ public:
       SmallSetVector<BasicBlock *, 2>
         Predecessors = getScopeGraphPredecessors(Candidate);
 
+      if (Log.isEnabled()) {
+        for (BasicBlock *Predecessor : Predecessors) {
+          Log << "  " << Predecessor->getName() << "\n";
+        }
+      }
+
       // `Candidate`, could be itself a immediate successor of a conditional
       // node, and therefore correspond to a `ScopeID`. We therefore need to
       // take into consideration it when assigning the final scope for each
@@ -191,6 +198,11 @@ public:
           if (PredecessorScopeID != ElectedScopeID) {
             SGBuilder.makeGotoEdge(Predecessor, Candidate);
 
+            revng_log(Log,
+                      "Inserting a goto edge between predecessor "
+                        << Predecessor->getName() << " -> and candidate "
+                        << Candidate->getName());
+
             // We mark the CFG as modified
             FunctionModified = true;
           }
@@ -229,6 +241,8 @@ using Reg = llvm::RegisterPass<SelectScopePass>;
 static Reg X(Flag, "Perform the SelectScope pass on the ScopeGraph");
 
 bool SelectScopePass::runOnFunction(llvm::Function &F) {
+  // Log the function name
+  revng_log(Log, "Running SelectScope on function " << F.getName() << "\n");
 
   // Instantiate and call the `Impl` class
   SelectScopePassImpl SelectScopeImpl(F);

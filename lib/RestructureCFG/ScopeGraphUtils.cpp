@@ -105,6 +105,10 @@ void ScopeGraphBuilder::makeGoto(BasicBlock *GotoBlock) const {
   // We always insert the marker as the penultimate instruction in a
   // `BasicBlock`
   IRBuilder<> Builder(Terminator);
+
+  // We set the debug metadata of the decorator call to the same value it
+  // assumes in the `Terminator` of the `BasicBlock`
+  Builder.SetCurrentDebugLocation(Terminator->getDebugLoc());
   Builder.CreateCall(GotoBlockFunction, {});
 }
 
@@ -134,9 +138,13 @@ void ScopeGraphBuilder::addScopeCloser(BasicBlock *Source,
   // We always insert the marker as the penultimate instruction in a
   // `BasicBlock`
   Instruction *Terminator = Source->getTerminator();
-  IRBuilder<> Builder(Terminator);
   auto *BasicBlockAddressTarget = BlockAddress::get(Target);
   revng_assert(BasicBlockAddressTarget);
+
+  // We set the debug metadata of the decorator call to the same value it
+  // assumes in the `Terminator` of the `BasicBlock`
+  IRBuilder<> Builder(Terminator);
+  Builder.SetCurrentDebugLocation(Terminator->getDebugLoc());
   Builder.CreateCall(ScopeCloserFunction, BasicBlockAddressTarget);
 }
 
@@ -166,14 +174,23 @@ BasicBlock *ScopeGraphBuilder::makeGotoEdge(BasicBlock *Source,
                                              "goto_" + Target->getName().str(),
                                              F);
   IRBuilder<> Builder(Context);
+
+  // We set the debug metadata in the inserted `GotoBlock` to the same location
+  // of the `Source` `BasicBlock`
+  Instruction *SourceTerminator = Source->getTerminator();
+  Builder.SetCurrentDebugLocation(SourceTerminator->getDebugLoc());
+
   Builder.SetInsertPoint(GotoBlock);
   Builder.CreateBr(Target);
 
   // Insert the `goto_block` marker in the `ScopeGraph`
   makeGoto(GotoBlock);
 
+  // We ensure that we are not trying to make a `scope_closer` edge a `goto`
+  // edge
+  revng_assert(getScopeCloserTarget(Source) != Target);
+
   // Redirect all the edges `Source` -> `Target` to `Source` -> `GotoBlock`
-  auto SourceTerminator = Source->getTerminator();
   SourceTerminator->replaceSuccessorWith(Target, GotoBlock);
 
   return GotoBlock;
@@ -274,4 +291,79 @@ void verifyScopeGraphAnnotationsImpl(FunctionTags::Tag &Tag,
 void verifyScopeGraphAnnotations(const BasicBlock *BB) {
   verifyScopeGraphAnnotationsImpl(FunctionTags::ScopeCloserMarker, BB);
   verifyScopeGraphAnnotationsImpl(FunctionTags::GotoBlockMarker, BB);
+}
+
+void simplifyTerminator(BasicBlock *BB, const BasicBlock *PlaceHolderTarget) {
+  Instruction *Terminator = BB->getTerminator();
+
+  if (auto *Branch = dyn_cast<BranchInst>(Terminator)) {
+    if (Branch->isConditional()) {
+
+      // We want to transform a conditional branch with one of the destination
+      // set to `PlaceHolderTarget` to a non conditional branch
+      BasicBlock *SingleDestination = nullptr;
+
+      if (Branch->getSuccessor(0) == PlaceHolderTarget) {
+        SingleDestination = Branch->getSuccessor(1);
+        revng_assert(SingleDestination != PlaceHolderTarget);
+      } else if (Branch->getSuccessor(1) == PlaceHolderTarget) {
+        SingleDestination = Branch->getSuccessor(0);
+        revng_assert(SingleDestination != PlaceHolderTarget);
+      }
+
+      // If we found a `BranchInst` candidate for promotion, we substitute it
+      // with an unconditional branch
+      if (SingleDestination) {
+        IRBuilder<> Builder(Terminator);
+
+        // We set the debug metadata of the promoted `Branch` instruction to the
+        // same value it has before the promotion is performed
+        Builder.SetCurrentDebugLocation(Terminator->getDebugLoc());
+        Builder.CreateBr(SingleDestination);
+
+        // We remove the old conditional branch
+        Terminator->eraseFromParent();
+      }
+    }
+  } else if (auto *Switch = dyn_cast<SwitchInst>(Terminator)) {
+
+    // Handle the simplification when `PlaceHolderTager` is the default
+    // destination of the `SwitchInst`
+    BasicBlock *DefaultTarget = Switch->getDefaultDest();
+    if (DefaultTarget == PlaceHolderTarget) {
+
+      // We promote the first case, not pointing to `PlaceHolderTarget`. If we
+      // promote a case already pointing to `PlaceHolderTarget`, this would, in
+      // turn, cause the `default` case to not be simplified ever.
+      for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();
+           ++CaseIt) {
+        if (CaseIt->getCaseSuccessor() != PlaceHolderTarget) {
+          Switch->setDefaultDest(CaseIt->getCaseSuccessor());
+          Switch->removeCase(CaseIt);
+          break;
+        }
+      }
+    }
+
+    // Handle the simplification when `PlaceHolderTarget` is part the standard
+    // `case`s
+    for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();) {
+      if (CaseIt->getCaseSuccessor() == PlaceHolderTarget) {
+
+        // We do not want to have a situation where the `PlaceHolderTarget` is
+        // both the `default` successor of a `switch` and one of its standard
+        // case
+        CaseIt = Switch->removeCase(CaseIt);
+      } else {
+        ++CaseIt;
+      }
+    }
+
+    // It should never be the case that we end up with a `switch` having only
+    // `PlaceHolderTarget` as its successor
+    if (Switch->getNumCases() == 0
+        and Switch->getDefaultDest() == PlaceHolderTarget) {
+      revng_abort();
+    }
+  }
 }

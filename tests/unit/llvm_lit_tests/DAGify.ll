@@ -112,7 +112,7 @@ block_e:
 
 ; CHECK-LABEL: define void @h(i1 noundef %a, i1 noundef %b)
 ; CHECK: block_a:
-; CHECK-NEXT:   br i1 %a, label %block_b, label %block_c
+; CHECK-NEXT:   br i1 %a, label %goto_block_b, label %block_c
 ; CHECK: block_b:
 ; CHECK-NEXT:   br label %goto_block_c
 ; CHECK: block_c:
@@ -124,6 +124,9 @@ block_e:
 ; CHECK: goto_block_c:
 ; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_c
+; CHECK: goto_block_b:
+; CHECK-NEXT:   call void @goto_block()
+; CHECK-NEXT:   br label %block_b
 
 ; nested loops same head test
 

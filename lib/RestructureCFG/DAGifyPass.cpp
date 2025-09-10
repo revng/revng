@@ -8,6 +8,7 @@
 
 #include "revng/RestructureCFG/DAGifyPass.h"
 #include "revng/RestructureCFG/GenericRegionInfo.h"
+#include "revng/RestructureCFG/ScopeGraphAlgorithms.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/Support/Assert.h"
@@ -18,7 +19,20 @@
 using namespace llvm;
 
 // Debug logger
-Logger<> DAGifyPassLogger("dagify");
+static Logger<> Log("dagify");
+
+/// Helper function used to insert on the `Head` node the metadata that will be
+/// later checked for consistency
+static void insertHeadMD(BasicBlock *Head) {
+
+  // We attach a metadata to the terminator instruction of the `Head`
+  // block. Later on, we will check during `MaterializeLoopScopes` that
+  // the `Head` block of each `GenericRegion` will be the same
+  Instruction *HeadTerminator = Head->getTerminator();
+  QuickMetadata QMD(getContext(HeadTerminator));
+  auto *HeadMD = QMD.tuple();
+  HeadTerminator->setMetadata("genericregion-head", HeadMD);
+}
 
 class DAGifyPassImpl {
   Function &F;
@@ -33,7 +47,7 @@ public:
                            &RetreatingEdge) {
     BasicBlock *Source = RetreatingEdge.first;
     BasicBlock *Target = RetreatingEdge.second;
-    revng_log(DAGifyPassLogger,
+    revng_log(Log,
               "Found retreating " << Source->getName().str() << " -> "
                                   << Target->getName().str() << "\n");
 
@@ -59,19 +73,57 @@ public:
     SGBuilder.makeGotoEdge(Source, Target);
   }
 
+  /// Helper method which performs the abnormal entry normalization for each
+  /// `GenericRegion`
+  bool processAbnormalEntries(GenericRegion<BasicBlock *> *Region) {
+
+    // Save, in order to return it, when the function is modified
+    bool FunctionModified = false;
+
+    BasicBlock *Head = Region->getHead();
+    SmallPtrSet<BasicBlock *, 4> RegionNodes;
+    for (auto &RegionNode : Region->blocks()) {
+      RegionNodes.insert(RegionNode);
+    }
+
+    // We want to transform each abnormal entry in a `GenericRegion` into a
+    // `goto` edge
+    for (auto *RegionNode : Region->blocks()) {
+
+      // We need to skip the elected entry node
+      if (RegionNode != Head) {
+
+        // Iterate over the predecessors of each block, and transform in a
+        // `goto` edge each abnormal entry
+        SmallSetVector<BasicBlock *, 2>
+          Predecessors = getScopeGraphPredecessors(RegionNode);
+        for (BasicBlock *Predecessor : Predecessors) {
+          if (not RegionNodes.contains(Predecessor)) {
+            revng_log(Log,
+                      "Transforming late entry edge into a goto edge: "
+                        << Predecessor->getName() << " -> "
+                        << RegionNode->getName() << "\n");
+
+            SGBuilder.makeGotoEdge(Predecessor, RegionNode);
+            FunctionModified = true;
+          }
+        }
+      }
+    }
+
+    return FunctionModified;
+  }
+
   bool run() {
 
-    // Build the `ScopeGraph` on which the `GenericRegionInfo` analysis should
-    // be run
-    Scope<Function *> ScopeGraph(&F);
-
-    // Build and run the `GenericRegionInfo` analysis on the `ScopeGraph`
-    GenericRegionInfo<Scope<Function *>> RegionInfo;
+    // We instantiate and run the `GenericRegionInfo` analysis on the raw CFG,
+    // and not on the `ScopeGraph`
+    GenericRegionInfo<Function *> RegionInfo;
     RegionInfo.clear();
-    RegionInfo.compute(ScopeGraph);
+    RegionInfo.compute(&F);
 
-    // We keep a boolean variable to track whether the `Module` was modified
-    bool ModuleModified = false;
+    // We keep a boolean variable to track whether the `Function` was modified
+    bool FunctionModified = false;
 
     // We need to perform the DAGify process for each `GenericRegion` that we
     // have identified. We start from the top level `GenericRegion`s, and then
@@ -84,12 +136,12 @@ public:
     size_t RegionIndex = 0;
     for (auto &TopLevelRegion : RegionInfo.top_level_regions()) {
       for (auto *Region : post_order(&TopLevelRegion)) {
-        revng_log(DAGifyPassLogger,
+        revng_log(Log,
                   "DAGify processing region with index: "
                     << std::to_string(RegionIndex) << "\n");
 
-        revng_log(DAGifyPassLogger,
-                  "The elected head for this region is block"
+        revng_log(Log,
+                  "The elected head for this region is block: "
                     << Region->getHead()->getName().str() << "\n");
 
         // Each time we attempt to process a `GenericRegion`, we need to
@@ -103,21 +155,29 @@ public:
           RegionNodes.insert(RegionNode);
         }
 
+        // Mark the `Head` block with the custom named metadata
         BasicBlock *Head = Region->getHead();
-        using ScopeGT = GraphTraits<Scope<BasicBlock *>>;
-        auto Retreatings = getBackedgesWhiteList<BasicBlock *,
-                                                 ScopeGT>(Head, RegionNodes);
+        insertHeadMD(Head);
+
+        // 1. Process the retreating edges of the `GenericRegion`
+        using GT = GraphTraits<BasicBlock *>;
+        auto Retreatings = getBackedgesWhiteList<BasicBlock *, GT>(Head,
+                                                                   RegionNodes);
 
         // Insert a `goto` in place of each retreating edge
         for (auto &Retreating : Retreatings) {
 
-          // As soon as we find a retreating edge, we mark the `Module` as
+          // As soon as we find a retreating edge, we mark the `Function` as
           // modified
-          ModuleModified = true;
+          FunctionModified = true;
 
           // Process each retreating edge
           processRetreating(Retreating);
         }
+
+        // 2. Handle abnormal entries into each `GenericRegion`
+        revng_log(Log, "Performing late entry normalization\n");
+        FunctionModified |= processAbnormalEntries(Region);
 
         RegionIndex++;
       }
@@ -126,10 +186,11 @@ public:
     // Verify that the output `ScopeGraph` is acyclic, after `DAGify` has
     // processed the input, but only when the `VerifyLog` is enabled
     if (VerifyLog.isEnabled()) {
+      Scope<Function *> ScopeGraph(&F);
       revng_assert(isDAG(ScopeGraph));
     }
 
-    return ModuleModified;
+    return FunctionModified;
   }
 };
 
@@ -140,8 +201,7 @@ static Reg X(Flag, "Perform the DAGify pass on the ScopeGrapgh");
 
 bool DAGifyPass::runOnFunction(llvm::Function &F) {
   // Log the function name
-  revng_log(DAGifyPassLogger,
-            "Running DAGify on function " << F.getName().str() << "\n");
+  revng_log(Log, "Running DAGify on function " << F.getName().str() << "\n");
 
   // Instantiate and call the `Impl` class
   DAGifyPassImpl DAGifyImpl(F);
