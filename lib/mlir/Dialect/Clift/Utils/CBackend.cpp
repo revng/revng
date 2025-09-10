@@ -149,14 +149,67 @@ public:
     emitPrimitiveType(Type.getKind(), Type.getSize());
   }
 
+  void emitAttribute(AttributeAttr Attribute) {
+    auto Macro = Attribute.getMacro();
+
+    Emitter.emitSpace();
+    Emitter.emitIdentifier(Macro.getString(),
+                           Macro.getHandle(),
+                           CEmitter::EntityKind::Attribute,
+                           CEmitter::IdentifierKind::Reference);
+
+    if (auto Arguments = Attribute.getArguments()) {
+      Emitter.emitPunctuator(CEmitter::Symbol::LeftParenthesis);
+
+      for (auto [I, A] : llvm::enumerate(*Arguments)) {
+        if (I != 0) {
+          Emitter.emitPunctuator(CEmitter::Symbol::Comma);
+          Emitter.emitSpace();
+        }
+
+        Emitter.emitIdentifier(A.getString(),
+                               A.getHandle(),
+                               CEmitter::EntityKind::AttributeArgument,
+                               CEmitter::IdentifierKind::Reference);
+      }
+
+      Emitter.emitPunctuator(CEmitter::Symbol::RightParenthesis);
+    }
+  }
+
+  static bool checkAttributeArray(mlir::ArrayAttr ArrayAttr) {
+    auto IsAttributeAttr = [](mlir::Attribute Attr) {
+      return mlir::isa<AttributeAttr>(Attr);
+    };
+    return std::ranges::all_of(ArrayAttr, IsAttributeAttr);
+  }
+
+  mlir::ArrayAttr getDeclarationOpAttributes(mlir::Operation *Op) {
+    if (auto Attr = Op->getAttr("clift.attributes")) {
+      auto ArrayAttr = mlir::cast<mlir::ArrayAttr>(Attr);
+      revng_assert(checkAttributeArray(ArrayAttr));
+      return ArrayAttr;
+    }
+    return {};
+  }
+
+  void emitAttributes(mlir::ArrayAttr Attributes) {
+    if (Attributes) {
+      for (mlir::Attribute Attr : Attributes)
+        emitAttribute(mlir::cast<AttributeAttr>(Attr));
+    }
+  }
+
   struct BasicDeclaratorInfo {
     llvm::StringRef Identifier;
     llvm::StringRef Location;
+    mlir::ArrayAttr Attributes;
   };
 
   struct DeclaratorInfo {
     llvm::StringRef Identifier;
     llvm::StringRef Location;
+    mlir::ArrayAttr Attributes;
     CEmitter::EntityKind Kind;
 
     llvm::ArrayRef<BasicDeclaratorInfo> Parameters;
@@ -371,6 +424,7 @@ public:
               ParameterDeclarator = DeclaratorInfo{
                 .Identifier = Declarator->Parameters[J].Identifier,
                 .Location = Declarator->Parameters[J].Location,
+                .Attributes = Declarator->Parameters[J].Attributes,
                 .Kind = CEmitter::EntityKind::FunctionParameter,
               };
             }
@@ -382,6 +436,9 @@ public:
       } break;
       }
     }
+
+    if (Declarator)
+      emitAttributes(Declarator->Attributes);
   }
 
   RecursiveCoroutine<void> emitType(ValueType Type) {
@@ -1031,6 +1088,7 @@ public:
                              DeclaratorInfo{
                                .Identifier = getNameAttr(S),
                                .Location = S.getHandle(),
+                               .Attributes = getDeclarationOpAttributes(S),
                                .Kind = CEmitter::EntityKind::LocalVariable,
                              });
 
@@ -1373,14 +1431,22 @@ public:
           return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
         };
 
+        mlir::ArrayAttr Attributes = {};
+        if (auto Attr = Attrs.get("clift.attributes")) {
+          Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
+          revng_assert(checkAttributeArray(Attributes));
+        }
+
         ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
-                                          GetStringAttr("clift.handle"));
+                                          GetStringAttr("clift.handle"),
+                                          Attributes);
       }
 
       rc_recur emitDeclaration(Op.getCliftFunctionType(),
                                DeclaratorInfo{
                                  .Identifier = Op.getName(),
                                  .Location = Op.getHandle(),
+                                 .Attributes = getDeclarationOpAttributes(Op),
                                  .Kind = CEmitter::EntityKind::Function,
                                  .Parameters = ParameterDeclarators,
                                });

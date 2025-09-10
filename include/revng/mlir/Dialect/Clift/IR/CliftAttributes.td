@@ -11,6 +11,15 @@ include "revng/mlir/Dialect/Clift/IR/Clift.td"
 include "revng/mlir/Dialect/Clift/IR/CliftAttrInterfaces.td"
 include "revng/mlir/Dialect/Clift/IR/CliftEnums.td"
 
+class Clift_OptionalArrayRefParameter<string arrayOf, string desc = "">
+  : AttrOrTypeParameter<"std::optional<llvm::ArrayRef<" # arrayOf # ">>", desc> {
+  let allocator = [{
+    if (auto const& self = $_self) {
+      $_dst = $_allocator.copyInto(*self);
+    }
+  }];
+}
+
 class Clift_Attr<string name, string attrMnemonic, list<Trait> traits = []>
   : AttrDef<Clift_Dialect, name, traits> {
   let mnemonic = attrMnemonic;
@@ -19,6 +28,22 @@ class Clift_Attr<string name, string attrMnemonic, list<Trait> traits = []>
 def Clift_StringPairAttr : AttrDef<Clift_Dialect, "StringPair"> {
   let parameters = (ins StringRefParameter<>:$first,
                         StringRefParameter<>:$second);
+}
+
+def Clift_AttributeComponentAttr : AttrDef<Clift_Dialect,
+                                           "AttributeComponent",
+                                           [SubElementAttrInterface]> {
+  let parameters = (ins StringRefParameter<>:$string,
+                        StringRefParameter<>:$handle);
+}
+
+def Clift_AttributeAttr : Clift_Attr<"Attribute",
+                                     "attribute",
+                                     [SubElementAttrInterface]> {
+  let parameters = (ins "mlir::clift::AttributeComponentAttr":$macro,
+                        Clift_OptionalArrayRefParameter<"mlir::clift::AttributeComponentAttr">:$arguments);
+
+  let hasCustomAssemblyFormat = 1;
 }
 
 def Clift_FieldAttr
