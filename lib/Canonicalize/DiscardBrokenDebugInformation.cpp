@@ -2,35 +2,35 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/DebugInfoMetadata.h"
-#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
 #include "llvm/Pass.h"
 
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/EarlyFunctionAnalysis/IRHelpers.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/Error.h"
+#include "revng/Support/IRHelpers.h"
 
-struct RemoveBrokenDebugInformation : public llvm::FunctionPass {
+static Logger<> Log("discarded-debug-information");
+
+struct DiscardBrokenDebugInformation : public llvm::FunctionPass {
 public:
   static char ID;
 
-  RemoveBrokenDebugInformation() : llvm::FunctionPass(ID) {}
+  DiscardBrokenDebugInformation() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override {
     bool WasModified = false;
     for (llvm::BasicBlock &BB : F) {
       for (llvm::Instruction &I : BB) {
-        if (I.getDebugLoc()) {
-          if (I.getDebugLoc()->getInlinedAt() == nullptr) {
-            I.setDebugLoc({});
-            WasModified = true;
+        if (llvm::Error Error = checkDebugLocationValidity(I)) {
+          std::string ErrorMessage = revng::unwrapError(std::move(Error));
+          revng_log(Log,
+                    "Discarding debug information from:\n"
+                      << dumpToString(I) << "Because "
+                      << std::move(ErrorMessage) << '\n');
 
-          } else if (VerifyLog.isEnabled()) {
-            const auto &Serialized = I.getDebugLoc()->getScope()->getName();
-            revng_assert(pipeline::locationFromString(revng::ranks::Instruction,
-                                                      Serialized.str()));
-          }
+          I.setDebugLoc({});
+          WasModified = true;
         }
       }
     }
@@ -43,10 +43,10 @@ public:
   }
 };
 
-char RemoveBrokenDebugInformation::ID = 0;
+char DiscardBrokenDebugInformation::ID = 0;
 
-using RBDI = RemoveBrokenDebugInformation;
-llvm::RegisterPass<RBDI> R("remove-broken-debug-information",
+using RBDI = DiscardBrokenDebugInformation;
+llvm::RegisterPass<RBDI> R("discard-broken-debug-information",
                            "Sometimes llvm passes break the debug information "
                            "we use to maintain the link between the decompiled "
                            "code and the original assembly. This pass detects "

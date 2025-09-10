@@ -203,6 +203,8 @@ static CallInst *createCallToModelCast(IRBuilder<> &Builder,
                                               *ModelCastFunction->getParent()),
                                  Operand,
                                  IsImplicit });
+  if (auto *InstructionOp = dyn_cast<Instruction>(Operand))
+    Call->setDebugLoc(InstructionOp->getDebugLoc());
   return Call;
 }
 

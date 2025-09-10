@@ -16,7 +16,7 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
-using namespace llvm;
+namespace cl = llvm::cl;
 
 static cl::OptionCategory ThisToolCategory("Tool options", "");
 
@@ -36,7 +36,7 @@ static ModelOutputOptions<false> Options(ThisToolCategory);
 int main(int Argc, char *Argv[]) {
   revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory });
 
-  ExitOnError ExitOnError;
+  llvm::ExitOnError ExitOnError;
 
   using Type = TupleTree<model::Binary>;
   auto Model = Type::fromFileOrSTDIN(PathModel);

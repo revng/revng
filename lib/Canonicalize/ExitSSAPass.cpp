@@ -18,6 +18,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
@@ -279,10 +280,9 @@ buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
   } else {
     Builder.SetInsertPoint(StoreBlock->getTerminator());
   }
+  Builder.SetCurrentDebugLocation(Alloca->getDebugLoc());
 
   auto *S = Builder.CreateStore(Incoming, Alloca);
-  if (auto *IncomingInst = dyn_cast<Instruction>(Incoming))
-    S->setDebugLoc(IncomingInst->getDebugLoc());
   revng_log(Log,
             "Created StoreInst " << dumpToString(S)
                                  << " in Block: " << StoreBlock->getName());
@@ -293,8 +293,11 @@ buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
          llvm::make_range(std::next(S->getIterator()), StoreBlock->end())) {
       for (Use &Operand : NextInBlock.operands()) {
         if (Operand.get() == IncomingInst) {
-          if (not LoadFromStore)
+          if (not LoadFromStore) {
             LoadFromStore = Builder.CreateLoad(IncomingInst->getType(), Alloca);
+            if (auto *IncomingInst = dyn_cast<Instruction>(Incoming))
+              LoadFromStore->setDebugLoc(IncomingInst->getDebugLoc());
+          }
           Operand.set(LoadFromStore);
         }
       }
@@ -311,8 +314,9 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
 
   IRBuilder<> Builder(F.getContext());
   Builder.SetInsertPointPastAllocas(&F);
+  const DebugLoc &PHIDebugLoc = (*PHIs.begin())->getDebugLoc();
   AllocaInst *Alloca = Builder.CreateAlloca((*PHIs.begin())->getType());
-  Alloca->setDebugLoc((*PHIs.begin())->getDebugLoc());
+  Alloca->setDebugLoc(PHIDebugLoc);
   revng_log(Log, "Created Alloca: " << dumpToString(Alloca));
 
   {
@@ -453,7 +457,7 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
 
       Builder.SetInsertPoint(PHI);
       auto *NewLoad = createLoad(Builder, Alloca);
-      NewLoad->setDebugLoc(PHI->getDebugLoc());
+      NewLoad->setDebugLoc(PHIDebugLoc);
       revng_log(Log, "Create new load: " << dumpToString(NewLoad));
 
       for (Use &U : llvm::make_early_inc_range(PHI->uses())) {

@@ -17,7 +17,7 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
-using namespace llvm;
+namespace cl = llvm::cl;
 
 static cl::OptionCategory ThisToolCategory("Tool options", "");
 
@@ -43,21 +43,20 @@ static cl::opt<std::string> OutputFilename("o",
 int main(int Argc, char *Argv[]) {
   revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory });
 
-  ExitOnError ExitOnError;
+  llvm::ExitOnError ExitOnError;
 
-  using Model = TupleTree<model::Binary>;
-  auto LeftModel = Model::fromFileOrSTDIN(LeftModelPath);
+  auto LeftModel = TupleTree<model::Binary>::fromFileOrSTDIN(LeftModelPath);
   if (not LeftModel)
     ExitOnError(LeftModel.takeError());
 
-  auto RightModel = Model::fromFileOrSTDIN(RightModelPath);
+  auto RightModel = TupleTree<model::Binary>::fromFileOrSTDIN(RightModelPath);
   if (not RightModel)
     ExitOnError(RightModel.takeError());
 
   std::error_code EC;
   llvm::ToolOutputFile OutputFile(OutputFilename,
                                   EC,
-                                  sys::fs::OpenFlags::OF_Text);
+                                  llvm::sys::fs::OpenFlags::OF_Text);
   if (EC)
     ExitOnError(llvm::createStringError(EC, EC.message()));
   auto &Stream = OutputFile.os();
