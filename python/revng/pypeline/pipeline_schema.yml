@@ -1,0 +1,150 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+$schema: http://json-schema.org/draft-07/schema#
+title: Pipeline Schema
+type: object
+required:
+  - containers
+  - branches
+additionalProperties: false
+properties:
+  containers:
+    type: array
+    uniqueItems: true
+    items:
+      $ref: "#/$defs/container_decl"
+  branches:
+    type: object
+    required:
+      - root
+    patternProperties:
+      ^[a-zA-Z0-9_]+$:
+        type: object
+        required:
+          - tasks
+        additionalProperties: false
+        properties:
+          from:
+            type: string
+            description: The current branch will start from the end of the given branch.
+            example: root
+          tasks:
+            type: array
+            items:
+              anyOf:
+                - $ref: "#/$defs/pipe"
+                - type: object
+                  required:
+                    - savepoint
+                  additionalProperties: false
+                  properties:
+                    savepoint:
+                      $ref: "#/$defs/savepoint"
+            description: A list of tasks in the branch, each task is a pipe.
+            minItems: 1
+$defs:
+  container_decl:
+    type: object
+    required:
+      - name
+      - type
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        description: The name of the container.
+        example: my_container
+      type:
+        type: string
+        description: The type of the container.
+        example: llvm_module
+  args:
+    type: array
+    items:
+      type: string
+    description: A list of container names that cannot be empty.
+    example:
+      - container1
+      - container2
+    minItems: 1
+  pipe:
+    type: object
+    additionalProperties: false
+    required:
+      - pipe
+      - arguments
+    properties:
+      name:
+        type: string
+        description: The name of the pipe task.
+        example: my_pipe_task
+      pipe:
+        type: string
+        description: The name of the pipe.
+        example: my_pipe
+      configuration:
+        type: string
+        description: The static configuration for the pipe, if any.
+        default: ""
+        example: intel_asm=1
+      arguments:
+        $ref: "#/$defs/args"
+        description: The names of the containers to pass to the pipe.
+      artifacts:
+        type: array
+        items:
+          $ref: "#/$defs/artifact"
+        minItems: 1
+      analyses:
+        type: array
+        items:
+          $ref: "#/$defs/analysis"
+        minItems: 1
+  savepoint:
+    type: object
+    required:
+      - name
+      - containers
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        description: The name of the savepoint.
+      containers:
+        $ref: "#/$defs/args"
+        description: The names of the containers the savepoint will cache.
+  analysis:
+    type: object
+    required:
+      - analysis
+      - containers
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        description: The name that can be used from the CLI to refer to the analysis
+          in this point of the pipeline. If not passed it defaults to the name of
+          the analysis.
+      analysis:
+        type: string
+        description: The name of the analysis to run.
+      containers:
+        $ref: "#/$defs/args"
+        description: The names of the containers the analysis will need.
+  artifact:
+    type: object
+    required:
+      - name
+      - container
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        description: The name of the artifact.
+        example: my_artifact
+      container:
+        type: string
+        description: The container that will produce the artifact.
+        example: my_container

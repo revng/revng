@@ -4,6 +4,7 @@
 name = "revng"
 description = "Redistributable revng python package"
 dynamic = ["version", "readme"]
+requires-python = ">= 3.6"
 
 dependencies = [
     "PyYAML>=6.0.1,<7.0",
