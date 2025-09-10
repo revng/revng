@@ -1,0 +1,134 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+
+TypeDefinitions:
+  - ID: 1001
+    Kind: CABIFunctionDefinition
+    Name: "f"
+    ABI: SystemV_x86_64
+    Arguments:
+      - Index: 0
+        Name: "a"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 1
+
+  - ID: 1002
+    Kind: RawFunctionDefinition
+    Architecture: x86_64
+    Name: "h"
+    Arguments:
+      - Location: rcx_x86_64
+        Name: "rcx"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Signed
+          Size: 8
+    ReturnValues: []
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2004-StructDefinition"
+
+  - ID: 1003
+    Kind: CABIFunctionDefinition
+    Name: "g"
+    ABI: SystemV_x86_64
+    Arguments: []
+
+  - ID: 2001
+    Kind: StructDefinition
+    Name: "s"
+    Size: 1
+    Fields:
+      - Offset: 0
+        Name: "x"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 1
+
+  - ID: 2002
+    Kind: UnionDefinition
+    Name: "u"
+    Fields:
+      - Index: 0
+        Name: "x"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 1
+
+  - ID: 2003
+    Kind: EnumDefinition
+    Name: "e"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 4
+    Entries:
+      - Value: 0
+        Name: "e_0"
+
+  - ID: 2004
+    Kind: StructDefinition
+    Name: "stack_1002"
+    Size: 8
+    Fields:
+      - Offset: 0
+        Name: "x"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+
+  - ID: 2005
+    Kind: StructDefinition
+    Name: "segment"
+    Size: 1
+    Fields:
+      - Offset: 0
+        Name: "x"
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 1
+
+Functions:
+  - Entry: "0x40001001:Code_x86_64"
+    Name: "fun_0x40001001"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1001-CABIFunctionDefinition"
+
+  - Entry: "0x40001002:Code_x86_64"
+    Name: "fun_0x40001002"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1002-RawFunctionDefinition"
+
+  - Entry: "0x40001003:Code_x86_64"
+    Name: "fun_0x40001003"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1003-CABIFunctionDefinition"
+
+Segments:
+  - StartAddress: "0x40001000:Generic64"
+    VirtualSize: 0x1000
+    StartOffset: 0
+    FileSize: 0x1000
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+  - StartAddress: "0x40002001:Generic64"
+    VirtualSize: 4
+    Name: "seg_0x40002001"
+    StartOffset: 0x1000
+    FileSize: 4
+    IsReadable: true
+    IsWriteable: true
+    IsExecutable: false
