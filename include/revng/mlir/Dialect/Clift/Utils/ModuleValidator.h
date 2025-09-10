@@ -38,13 +38,23 @@ namespace mlir::clift {
 template<typename ValidatorT>
 class ModuleValidator {
 public:
-  template<typename... Args>
+  template<typename... ArgsT>
     requires std::derived_from<ValidatorT, ModuleValidator>
-             and std::constructible_from<ValidatorT, Args...>
-  static mlir::LogicalResult validate(mlir::ModuleOp Module, Args &&...args) {
-    ValidatorT Validator(std::forward<Args>(args)...);
+             and std::constructible_from<ValidatorT, ArgsT...>
+  static mlir::LogicalResult validate(mlir::ModuleOp Module, ArgsT &&...Args) {
+    ValidatorT Validator(std::forward<ArgsT>(Args)...);
     auto &Self = static_cast<ModuleValidator &>(Validator);
     return Self.internalVisitModuleOp(Module);
+  }
+
+  template<typename... ArgsT>
+    requires std::derived_from<ValidatorT, ModuleValidator>
+             and std::constructible_from<ValidatorT, ArgsT...>
+  static mlir::LogicalResult
+  validate(clift::GlobalOpInterface Op, ArgsT &&...Args) {
+    ValidatorT Validator(std::forward<ArgsT>(Args)...);
+    auto &Self = static_cast<ModuleValidator &>(Validator);
+    return Self.internalVisitModuleLevelOp(Op);
   }
 
 protected:
