@@ -5,7 +5,7 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/mlir/Dialect/Clift/Utils/ModelVerify.h"
-#include "revng/mlir/Dialect/Clift/Utils/ModuleValidator.h"
+#include "revng/mlir/Dialect/Clift/Utils/ModuleVisitor.h"
 
 namespace clift = mlir::clift;
 namespace ranks = revng::ranks;
@@ -61,7 +61,7 @@ static auto getModelPrimitiveType(clift::PrimitiveType T) {
   return model::PrimitiveType::make(kindToKind(T.getKind()), T.getSize());
 }
 
-class Verifier : public clift::ModuleValidator<Verifier> {
+class Verifier : public clift::ModuleVisitor<Verifier> {
 public:
   explicit Verifier(const model::Binary &Model) : Model(Model) {}
 
@@ -232,5 +232,5 @@ private:
 
 mlir::LogicalResult clift::verifyAgainstModel(mlir::ModuleOp Module,
                                               const model::Binary &Model) {
-  return Verifier::validate(Module, Model);
+  return Verifier::visit(Module, Model);
 }
