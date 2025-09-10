@@ -1,5 +1,6 @@
 revng_add_analyses_library_internal(
   revngMLIRPipes
+  NameInjectionPipe.cpp
   CliftContainer.cpp
   ImportCliftTypesPipe.cpp
   CBackendPipe.cpp
