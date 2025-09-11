@@ -20,6 +20,7 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
@@ -83,27 +84,63 @@ struct IsolatePipe {
     return { ContractGroup({ Contract(kinds::Root,
                                       1,
                                       kinds::Isolated,
-                                      1,
+                                      2,
                                       InputPreservation::Preserve),
                              Contract(kinds::CFG,
                                       0,
                                       kinds::Isolated,
-                                      1,
+                                      2,
                                       InputPreservation::Preserve) }) };
   }
 
+private:
+  static void cleanTheModuleUp(llvm::Module &Module) {
+    // Is there something in LLVM that does this already?
+
+    // WARNING: this removes way too much, breaking some assumptions
+    // we have about the module.
+    // TODO: investigate the proper way to do this.
+
+    // llvm::legacy::PassManager PM;
+    // PM.add(llvm::createStripDeadPrototypesPass());
+    // PM.add(llvm::createGlobalDCEPass());
+    // PM.add(llvm::createDeadArgEliminationPass());
+    // PM.add(llvm::createStripDeadDebugInfoPass());
+    // for (int i = 0; i < 3; ++i) {
+    //   PM.add(llvm::createGlobalDCEPass());
+    //   PM.add(llvm::createStripDeadPrototypesPass());
+    // }
+
+    // PM.run(Module);
+  }
+
+public:
   void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
-           pipeline::LLVMContainer &ModuleContainer) {
+           pipeline::LLVMContainer &RootContainer,
+           pipeline::LLVMContainer &OutputContainer) {
+    // Clone the container
+    OutputContainer.cloneFrom(RootContainer);
+
+    // Do the isolation
     using namespace revng;
     llvm::legacy::PassManager Manager;
     Manager.add(new pipeline::LoadExecutionContextPass(&EC,
-                                                       ModuleContainer.name()));
+                                                       OutputContainer.name()));
     Manager
       .add(new LoadModelWrapperPass(ModelWrapper(getModelFromContext(EC))));
     Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new IsolateFunctions());
-    Manager.run(ModuleContainer.getModule());
+    Manager.run(OutputContainer.getModule());
+
+    // Remove "root" from the output container.
+    namespace FT = FunctionTags;
+    for (Function &F : FT::Root.functions(&OutputContainer.getModule()))
+      F.deleteBody();
+
+    // Finally, do some basic cleanup, removing unused stuff.
+    cleanTheModuleUp(RootContainer.getModule());
+    cleanTheModuleUp(OutputContainer.getModule());
   }
 };
 
