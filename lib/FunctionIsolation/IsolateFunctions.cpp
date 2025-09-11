@@ -565,6 +565,7 @@ void IsolateFunctionsImpl::run() {
     Context.getContext().pushReadFields();
 
     auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
+    revng_assert(Entry.isValid());
     const efa::ControlFlowGraph &FM = Cache->getControlFlowGraph(Entry);
 
     // Get or create the llvm::Function
