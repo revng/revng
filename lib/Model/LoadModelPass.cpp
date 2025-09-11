@@ -10,7 +10,6 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
-#include "llvm/Support/Error.h"
 
 // Local libraries includes
 #include "revng/Model/LoadModelPass.h"
