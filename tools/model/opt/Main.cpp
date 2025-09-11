@@ -11,14 +11,18 @@
 
 #include "revng/Model/Pass/RegisterModelPass.h"
 #include "revng/Model/Processing.h"
-#include "revng/Model/ToolHelpers.h"
 #include "revng/Support/InitRevng.h"
 
 namespace cl = llvm::cl;
 static cl::OptionCategory ThisToolCategory("Tool options", "");
 extern cl::OptionCategory ModelPassCategory;
 
-static ModelOutputOptions<true> Options(ThisToolCategory);
+static cl::opt<std::string> OutputFilename("o",
+                                           llvm::cl::init("-"),
+                                           llvm::cl::desc("Override output "
+                                                          "filename"),
+                                           llvm::cl::value_desc("filename"),
+                                           llvm::cl::cat(ThisToolCategory));
 
 static cl::opt<std::string> InputFilename(cl::Positional,
                                           cl::desc("<input model file>"),
@@ -80,5 +84,5 @@ int main(int Argc, char *Argv[]) {
   }
 
   // Serialize
-  ExitOnError(MaybeModel.toFile(Options.getPath()));
+  ExitOnError(MaybeModel.toFile(OutputFilename));
 }
