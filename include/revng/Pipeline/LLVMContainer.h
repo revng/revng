@@ -46,6 +46,9 @@ public:
                 std::unique_ptr<llvm::Module> M) :
     EnumerableContainer<ThisType>(*Context, Name), Module(std::move(M)) {}
 
+  LLVMContainer &cloneFrom(const LLVMContainer &Another);
+  LLVMContainer &swapWith(LLVMContainer &Another);
+
 public:
   template<typename... LLVMPasses>
   static PipeWrapper

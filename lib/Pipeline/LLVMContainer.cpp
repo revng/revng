@@ -96,6 +96,16 @@ LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
                                     std::move(Cloned));
 }
 
+LLVMContainer &LLVMContainer::cloneFrom(const LLVMContainer &Another) {
+  Module = llvm::CloneModule(Another.getModule());
+  return *this;
+}
+
+LLVMContainer &LLVMContainer::swapWith(LLVMContainer &Another) {
+  std::swap(Module, Another.Module);
+  return *this;
+}
+
 using LinkageRestoreMap = std::map<std::string,
                                    llvm::GlobalValue::LinkageTypes>;
 

@@ -7,10 +7,13 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/Linker/Linker.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
-#include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
+#include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -23,78 +26,47 @@
 
 using namespace llvm;
 
-using std::tuple;
-
-char InvokeIsolatedFunctionsPass::ID = 0;
-using Register = RegisterPass<InvokeIsolatedFunctionsPass>;
-static Register
-  X("invoke-isolated-functions", "Invoke Isolated Functions Pass", true, true);
-
-struct InvokeIsolatedPipe {
-  static constexpr auto Name = "invoke-isolated-functions";
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace revng::kinds;
-    using namespace pipeline;
-
-    // TODO: we're not using the following contract even if we should, probably
-    //       due to some error in the contract logic.
-    //       Specifically, adding this contract leads to deduce that we do *not*
-    //       need /:root at beginning of the recompile-isolated step.
-    ContractGroup IsolatedToRoot(Isolated,
-                                 0,
-                                 IsolatedRoot,
-                                 0,
-                                 pipeline::InputPreservation::Preserve);
-
-    return {
-      ContractGroup(Root, 0, IsolatedRoot, 0, InputPreservation::Erase)
-    };
-  }
-
-  void registerPasses(llvm::legacy::PassManager &Manager) {
-    Manager.add(new InvokeIsolatedFunctionsPass());
-  }
-};
-
-static pipeline::RegisterLLVMPass<InvokeIsolatedPipe> Y;
-
-class InvokeIsolatedFunctions {
+class InvokeIsolatedFunctionsImpl {
 private:
-  using FunctionInfo = tuple<const model::Function *, BasicBlock *, Function *>;
-  using FunctionMap = std::map<MetaAddress, FunctionInfo>;
+  using FunctionInfo = tuple<const model::Function *,
+                             BasicBlock *,
+                             const Function *>;
+  using FunctionMap = std::map<model::Function::Key, FunctionInfo>;
 
 private:
   const model::Binary &Binary;
-  Function *RootFunction = nullptr;
-  Module *M = nullptr;
+  Function &RootFunction;
+  Module &RootModule;
   LLVMContext &Context;
-  GeneratedCodeBasicInfo &GCBI;
+  GeneratedCodeBasicInfo GCBI;
   FunctionMap Map;
 
 public:
-  InvokeIsolatedFunctions(const model::Binary &Binary,
-                          Function *RootFunction,
-                          GeneratedCodeBasicInfo &GCBI) :
+  InvokeIsolatedFunctionsImpl(const model::Binary &Binary,
+                              llvm::Module &RootModule,
+                              const llvm::Module &FunctionModule) :
     Binary(Binary),
-    RootFunction(RootFunction),
-    M(RootFunction->getParent()),
-    Context(M->getContext()),
-    GCBI(GCBI) {
+    RootFunction(*RootModule.getFunction("root")),
+    RootModule(RootModule),
+    Context(RootModule.getContext()),
+    GCBI(Binary) {
+
+    GCBI.run(RootModule);
 
     model::CNameBuilder NameBuilder = Binary;
     for (const model::Function &Function : Binary.Functions()) {
-      llvm::Function *F = M->getFunction(NameBuilder.llvmName(Function));
+      auto *F = FunctionModule.getFunction(NameBuilder.llvmName(Function));
       revng_assert(F != nullptr);
-      Map[Function.Entry()] = { &Function, nullptr, F };
+      Map[Function.key()] = { &Function, nullptr, F };
     }
 
-    for (BasicBlock &BB : *RootFunction) {
+    for (BasicBlock &BB : RootFunction) {
       revng_assert(not BB.empty());
 
       MetaAddress JumpTarget = getBasicBlockJumpTarget(&BB);
       auto It = Map.find(JumpTarget);
       if (It != Map.end()) {
+        revng_assert(get<1>(It->second) == nullptr);
         get<1>(It->second) = &BB;
       }
     }
@@ -105,7 +77,7 @@ public:
     // Create the first block
     BasicBlock *InvokeReturnBlock = BasicBlock::Create(Context,
                                                        "invoke_return",
-                                                       RootFunction,
+                                                       &RootFunction,
                                                        nullptr);
 
     BranchInst::Create(GCBI.dispatcher(), InvokeReturnBlock);
@@ -118,7 +90,7 @@ public:
     // Create a basic block that represents the catch part of the exception
     BasicBlock *CatchBB = BasicBlock::Create(Context,
                                              "catchblock",
-                                             RootFunction,
+                                             &RootFunction,
                                              nullptr);
 
     // Create a builder object
@@ -166,10 +138,10 @@ public:
     Function *PersonalityFunction = Function::Create(PersonalityFT,
                                                      Function::ExternalLinkage,
                                                      "__gxx_personality_v0",
-                                                     M);
+                                                     RootModule);
 
     // Add the personality to the root function
-    RootFunction->setPersonalityFn(PersonalityFunction);
+    RootFunction.setPersonalityFn(PersonalityFunction);
 
     for (auto &&[_, T] : Map) {
       auto &&[ModelF, BB, F] = T;
@@ -190,15 +162,21 @@ public:
         for (const auto &ArgumentLayout : Layout.Arguments) {
           for (model::Register::Values Register : ArgumentLayout.Registers) {
             auto Name = model::Register::getCSVName(Register);
-            GlobalVariable *CSV = M->getGlobalVariable(Name, true);
+            GlobalVariable *CSV = RootModule.getGlobalVariable(Name, true);
             revng_assert(CSV != nullptr);
             Arguments.push_back(createLoad(Builder, CSV));
           }
         }
       }
 
+      llvm::Function *
+        NewDeclaration = llvm::Function::Create(F->getFunctionType(),
+                                                llvm::Function::ExternalLinkage,
+                                                F->getName(),
+                                                RootModule);
+
       // Emit the invoke instruction, propagating debug info
-      auto *NewInvoke = Builder.CreateInvoke(F,
+      auto *NewInvoke = Builder.CreateInvoke(NewDeclaration,
                                              InvokeReturnBlock,
                                              CatchBB,
                                              Arguments);
@@ -207,33 +185,50 @@ public:
 
     // Remove all the orphan basic blocks from the root function (e.g., the
     // blocks that have been substituted by the trampoline)
-    EliminateUnreachableBlocks(*RootFunction, nullptr, false);
+    EliminateUnreachableBlocks(RootFunction, nullptr, false);
 
-    FunctionTags::IsolatedRoot.addTo(RootFunction);
+    FunctionTags::IsolatedRoot.addTo(&RootFunction);
   }
 };
 
-bool InvokeIsolatedFunctionsPass::runOnModule(Module &M) {
-  using namespace pipeline;
-  auto &Analysis = getAnalysis<LoadExecutionContextPass>();
-  auto &RequestedTargets = Analysis.getRequestedTargets();
+struct InvokeIsolatedPipe {
+  static constexpr auto Name = "invoke-isolated-functions";
 
-  if (RequestedTargets.empty())
-    return false;
+  std::vector<pipeline::ContractGroup> getContract() const {
+    using namespace revng;
+    using namespace pipeline;
+    return { ContractGroup({ Contract(kinds::Root,
+                                      0,
+                                      kinds::IsolatedRoot,
+                                      2,
+                                      InputPreservation::Preserve),
+                             Contract(kinds::Isolated,
+                                      1,
+                                      kinds::IsolatedRoot,
+                                      2,
+                                      InputPreservation::Preserve) }) };
+  }
 
-  revng_assert(M.getFunction("root")
-               and not M.getFunction("root")->isDeclaration());
+public:
+  void run(pipeline::ExecutionContext &EC,
+           pipeline::LLVMContainer &InputRootContainer,
+           pipeline::LLVMContainer &FunctionContainer,
+           pipeline::LLVMContainer &OutputRootContainer) {
+    // Clone the container
+    OutputRootContainer.cloneFrom(InputRootContainer);
 
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
-  InvokeIsolatedFunctions TheFunction(Binary, M.getFunction("root"), GCBI);
-  TheFunction.run();
+    InvokeIsolatedFunctionsImpl Impl(*revng::getModelFromContext(EC),
+                                     OutputRootContainer.getModule(),
+                                     FunctionContainer.getModule());
+    Impl.run();
 
-  // Commit
-  ExecutionContext *ExecutionContext = Analysis.get();
-  ExecutionContext->commit(Target(revng::kinds::IsolatedRoot),
-                           Analysis.getContainerName());
+    const llvm::Module &FunctionModule = FunctionContainer.getModule();
+    linkModules(llvm::CloneModule(FunctionModule),
+                OutputRootContainer.getModule());
 
-  return true;
-}
+    EC.commit(pipeline::Target(revng::kinds::IsolatedRoot),
+              OutputRootContainer.name());
+  }
+};
+
+static pipeline::RegisterPipe<InvokeIsolatedPipe> Y;
