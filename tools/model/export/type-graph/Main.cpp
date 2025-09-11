@@ -4,7 +4,6 @@
 
 #include "llvm/Support/CommandLine.h"
 
-#include "revng/Model/ToolHelpers.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Support/InitRevng.h"
 

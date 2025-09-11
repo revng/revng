@@ -10,12 +10,12 @@
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/ToolOutputFile.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
-#include "revng/Model/ToolHelpers.h"
 #include "revng/Support/InitRevng.h"
 #include "revng/Support/MetaAddress.h"
 

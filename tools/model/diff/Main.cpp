@@ -11,7 +11,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/Model/ToolHelpers.h"
+#include "revng/Model/Binary.h"
 #include "revng/Support/InitRevng.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"

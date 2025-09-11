@@ -10,7 +10,7 @@
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/Model/ToolHelpers.h"
+#include "revng/Model/Binary.h"
 #include "revng/Support/InitRevng.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
@@ -31,7 +31,12 @@ static cl::opt<std::string> DiffPath(cl::Positional,
                                      cl::init("-"),
                                      cl::value_desc("model"));
 
-static ModelOutputOptions<false> Options(ThisToolCategory);
+static cl::opt<std::string> OutputFilename("o",
+                                           llvm::cl::init("-"),
+                                           llvm::cl::desc("Override output "
+                                                          "filename"),
+                                           llvm::cl::value_desc("filename"),
+                                           llvm::cl::cat(ThisToolCategory));
 
 int main(int Argc, char *Argv[]) {
   revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory });
@@ -47,9 +52,7 @@ int main(int Argc, char *Argv[]) {
   auto Diff = ExitOnError(fromFileOrSTDIN<TypeDiff>(DiffPath));
 
   ExitOnError(Diff.apply(*Model));
-
-  auto DesiredOutput = Options.getDesiredOutput();
-  ExitOnError(Model->toFile(Options.getPath()));
+  ExitOnError(Model->toFile(OutputFilename));
 
   return EXIT_SUCCESS;
 }
