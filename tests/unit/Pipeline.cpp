@@ -822,9 +822,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
   Invalidations[Name].add(CName, {}, RootKind);
 
-  auto Error = Pipeline.getInvalidations(Invalidations);
-  BOOST_TEST(!Error);
-
+  Pipeline.getInvalidations(Invalidations);
   const auto &EndContainerInvalidations = Invalidations["end"][CName];
   BOOST_TEST(not EndContainerInvalidations.empty());
   BOOST_TEST((EndContainerInvalidations == TargetsList({ T, T2 })));
@@ -854,8 +852,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   Target ToKill({}, RootKind);
 
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
-  auto Error = Pipeline.getInvalidations(ToKill, Invalidations);
-  BOOST_TEST(!Error);
+  Pipeline.getInvalidations(ToKill, Invalidations);
   const auto &QuantifOfInvalidated = Invalidations["end"][CName]
                                        .front()
                                        .getPathComponents();
@@ -1320,11 +1317,8 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
   pipeline::TargetInStepSet Invalidations;
   Invalidations[Name][CName].push_back(T);
 
-  auto Error = Pipeline.getInvalidations(Invalidations);
-  BOOST_TEST(!Error);
-
-  Error = Pipeline.invalidate(Invalidations);
-
+  Pipeline.getInvalidations(Invalidations);
+  llvm::Error Error = Pipeline.invalidate(Invalidations);
   BOOST_TEST(!Error);
 
   BOOST_TEST(C1.get(T) == 0);

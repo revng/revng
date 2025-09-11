@@ -25,6 +25,7 @@
 #include "revng/MFP/Graph.h"
 #include "revng/MFP/MFP.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/Error.h"
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/DataFlowGraph.h"
 
@@ -289,7 +290,9 @@ BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
     Entry.Operands = MFPResult.OutValue;
   }
 
-  revng_assert(not DataFlowGraph.verify());
+  if (llvm::Error Error = DataFlowGraph.verify())
+    revng_abort(revng::unwrapError(std::move(Error)).c_str());
+
   MFP::Graph<BitLivenessAnalysis> MFPGraph(&DataFlowGraph, MFPRes);
 
   return Result;
