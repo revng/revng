@@ -28,9 +28,8 @@ std::string getComponentsHash() {
 
   std::string Result;
   for (std::string &File : Files) {
-    auto MaybeBuffer = llvm::MemoryBuffer::getFile(File);
-    revng_assert(MaybeBuffer);
-    llvm::StringRef Contents = MaybeBuffer->get()->getBuffer().trim();
+    auto Buf = cantFail(errorOrToExpected(llvm::MemoryBuffer::getFile(File)));
+    llvm::StringRef Contents = Buf->getBuffer().trim();
     Result.append(Contents.begin(), Contents.end());
   }
 
