@@ -38,16 +38,14 @@ struct LLMRename {
       ProgramRunner::Result Result = ::Runner.run("revng",
                                                   { "llm-rename" },
                                                   Options);
-      if (Result.ExitCode != 0) {
-        if (Result.ExitCode == 2) {
-          // Exit code 2 is treated specially to propagate stderr as the error
-          // message
-          return revng::createError(Result.Stderr);
-        } else {
-          return revng::createError("Failed to run llm-rename, process "
-                                    "returned with exit code: "
-                                    + std::to_string(Result.ExitCode));
-        }
+      if (Result.ExitCode == 2) {
+        // Exit code 2 is treated specially to propagate stderr as the error
+        // message
+        return revng::createError(Result.Stderr);
+      } else if (Result.ExitCode != 0) {
+        return revng::createError("Failed to run llm-rename, process "
+                                  "returned with exit code: "
+                                  + std::to_string(Result.ExitCode));
       }
 
       auto MaybeChanges = fromString<TupleTreeDiff<ModelT>>(Result.Stdout);
