@@ -145,7 +145,7 @@ public:
   invalidateFromDiff(const llvm::StringRef Name,
                      const pipeline::GlobalTupleTreeDiff &Diff);
 
-  /// returns the cached list of targets that are known to be available to be
+  /// \returns the cached list of targets that are known to be available to be
   /// produced in a container
   const pipeline::TargetsList *
   getTargetsAvailableFor(const Container &TheContainer) const {

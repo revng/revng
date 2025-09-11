@@ -115,10 +115,9 @@ public:
   }
 
   llvm::Error serialize(llvm::raw_ostream &OS) const override {
-    if (not Content)
-      return llvm::Error::success();
+    if (Content)
+      Content.value().serialize(OS);
 
-    Content.value().serialize(OS);
     return llvm::Error::success();
   }
 
