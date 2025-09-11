@@ -8,7 +8,6 @@
 
 #include "revng/Storage/Path.h"
 #include "revng/Storage/StorageClient.h"
-#include "revng/Support/Error.h"
 
 namespace {
 

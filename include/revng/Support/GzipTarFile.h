@@ -5,7 +5,6 @@
 //
 
 #include "llvm/ADT/StringSet.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
