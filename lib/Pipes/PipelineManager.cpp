@@ -563,8 +563,7 @@ PipelineManager::invalidateAllPossibleTargets() {
 
         TargetInStepSet Map;
         Map[Step.first()][Container.first()].push_back(Target);
-        if (auto Error = Runner->getInvalidations(Map))
-          return std::move(Error);
+        Runner->getInvalidations(Map);
         if (auto Error = Runner->invalidate(Map))
           return std::move(Error);
 
