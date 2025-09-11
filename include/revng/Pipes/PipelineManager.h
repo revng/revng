@@ -141,9 +141,6 @@ public:
   }
 
   llvm::Expected<pipeline::TargetInStepSet> invalidateAllPossibleTargets();
-  llvm::Expected<pipeline::TargetInStepSet>
-  invalidateFromDiff(const llvm::StringRef Name,
-                     const pipeline::GlobalTupleTreeDiff &Diff);
 
   /// \returns the cached list of targets that are known to be available to be
   /// produced in a container

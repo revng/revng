@@ -691,17 +691,6 @@ PipelineManager::runAnalysis(llvm::StringRef AnalysisName,
   return Result;
 }
 
-llvm::Expected<TargetInStepSet>
-PipelineManager::invalidateFromDiff(const llvm::StringRef Name,
-                                    const pipeline::GlobalTupleTreeDiff &Diff) {
-  TargetInStepSet Map;
-  if (auto ApplyError = getRunner().apply(Diff, Map); !!ApplyError)
-    return std::move(ApplyError);
-
-  // TODO: once invalidations are working, return `Map` instead of this
-  return invalidateAllPossibleTargets();
-}
-
 llvm::Error
 PipelineManager::materializeTargets(const llvm::StringRef StepName,
                                     const ContainerToTargetsMap &Map) {
