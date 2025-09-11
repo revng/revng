@@ -1493,7 +1493,6 @@ bool restructureCFG(Function &F, ASTTree &AST) {
 
     float Increase = float(FinalWeight) / float(InitialWeight);
 
-    ExitOnError ExitOnError;
     std::error_code EC;
 
     const char *FunctionName = F.getName().data();

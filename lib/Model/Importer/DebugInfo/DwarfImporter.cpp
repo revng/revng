@@ -1200,25 +1200,23 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
   // improvement.
   auto HasDebugInfo = [](ObjectFile *Object) {
     for (const SectionRef &Section : Object->sections()) {
-      StringRef SectionName;
       if (Expected<StringRef> NameOrErr = Section.getName()) {
-        SectionName = *NameOrErr;
+        // TODO: When adding support for Split dwarf, there will be
+        // .debug_info.dwo section, so we need to handle it.
+        if (*NameOrErr == ".debug_info")
+          return true;
+
       } else {
         llvm::consumeError(NameOrErr.takeError());
         continue;
       }
-
-      // TODO: When adding support for Split dwarf, there will be
-      // .debug_info.dwo section, so we need to handle it.
-      if (SectionName == ".debug_info")
-        return true;
     }
     return false;
   };
 
   auto PerformImport = [this, &T, &Options](StringRef FilePath,
                                             StringRef TheDebugFile) {
-    auto ExpectedBinary = object::createBinary(FilePath);
+    llvm::Expected ExpectedBinary = object::createBinary(FilePath);
     if (!ExpectedBinary) {
       revng_log(DILogger, "Can't create binary for " << FilePath);
       llvm::consumeError(ExpectedBinary.takeError());

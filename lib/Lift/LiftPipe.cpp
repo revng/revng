@@ -142,8 +142,8 @@ llvm::Error Lift::checkPrecondition(const pipeline::Context &Context) const {
 
   if (Model.DefaultABI() == model::ABI::Invalid
       and Model.DefaultPrototype().isEmpty()) {
-    return revng::createError("Cannot lift binary without either a DefaultABI "
-                              "or a DefaultPrototype.");
+    return revng::createError("Cannot lift binary with neither `DefaultABI` "
+                              "nor `DefaultPrototype`.");
   }
 
   return llvm::Error::success();

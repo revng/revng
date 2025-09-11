@@ -484,11 +484,11 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
         .EnableRemoteDebugInfo = Opts.EnableRemoteDebugInfo,
         .AdditionalDebugInfoPaths = Opts.AdditionalDebugInfoPaths
       };
-      if (auto E = importELF(DepModel, *TheBinary, AdjustedOptions)) {
+      if (auto Error = importELF(DepModel, *TheBinary, AdjustedOptions)) {
         revng_log(ELFImporterLog,
                   "Can't import model for " << DependencyLibrary << " due to "
-                                            << E);
-        llvm::consumeError(std::move(E));
+                                            << Error);
+        llvm::consumeError(std::move(Error));
         ModelsOfLibraries.erase(DependencyLibrary);
         continue;
       }

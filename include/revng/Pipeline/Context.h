@@ -81,7 +81,7 @@ public:
   llvm::Expected<T *> getExternalContext(llvm::StringRef Name) const {
     auto Iter = Contexts.find(Name);
     if (Iter == Contexts.end()) {
-      auto *Message = "pipeline loader context did not contained object ";
+      auto *Message = "pipeline loader context did not contain the object ";
       return revng::createError(Message + Name);
     }
 

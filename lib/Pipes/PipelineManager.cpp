@@ -245,7 +245,7 @@ static llvm::Expected<FilePath> migrateModel(const FilePath &ModelFile) {
 
   if (auto MigrationError = migrateModelFile(ModelFile); !!MigrationError) {
     // Migration failed, that's okay though, as the original model has not been
-    // written (see migrateModelFile). Just return the error.
+    // overridden (see migrateModelFile). Just return the error.
     return MigrationError;
   }
 
@@ -278,10 +278,11 @@ PipelineManager::setUpPipeline(llvm::ArrayRef<std::string> TextPipelines) {
         return revng::joinErrors(ModelFileExists.takeError(),
                                  std::move(FirstLoadError));
 
-      if (not ModelFileExists.get())
+      if (not ModelFileExists.get()) {
         // Model file does not exist, so nothing to migrate. Stop here and
         // return the first load error.
         return FirstLoadError;
+      }
 
       llvm::Expected<FilePath> BackupFilePath = migrateModel(ModelFile);
 
@@ -291,13 +292,13 @@ PipelineManager::setUpPipeline(llvm::ArrayRef<std::string> TextPipelines) {
 
       if (auto SecondLoadError = Runner
                                    ->loadContextDirectory(ExecutionDirectory)) {
-        // Doesn't load even after migration, restore and report the errors.
         if (auto Error = BackupFilePath.get().copyTo(ModelFile)) {
           return revng::joinErrors(std::move(Error),
                                    std::move(SecondLoadError),
                                    std::move(FirstLoadError));
         }
 
+        // Doesn't load even after migration, restore and report the errors?
         return llvm::joinErrors(std::move(SecondLoadError),
                                 std::move(FirstLoadError));
       }
