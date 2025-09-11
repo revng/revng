@@ -282,6 +282,7 @@ Error MachOImporter::import() {
   }
 
   Error TheError = Error::success();
+  revng_check(TheError);
 
   for (const MachOBindEntry &U : MachO.bindTable(TheError))
     registerBindEntry(&U);
