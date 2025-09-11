@@ -101,6 +101,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
     Expected<const object::coff_section *> MaybeSection = TheBinary
                                                             .getSection(Id);
     if (auto Error = MaybeSection.takeError()) {
+      // TODO: we might want a way to convey errors like this further up.
       revng_log(Log, "Error in section with ID " << Id << ": " << Error);
       consumeError(std::move(Error));
       continue;

@@ -22,6 +22,8 @@ Error Global::store(const revng::FilePath &Path) const {
   if (not MaybeWritableFile)
     return MaybeWritableFile.takeError();
 
+  // TODO: we check whether `get` returns nullptr on load, why not on store?
+  // (see below)
   auto &WritableFile = MaybeWritableFile.get();
   llvm::Error SerializeError = serialize(WritableFile.get()->os());
   if (SerializeError)

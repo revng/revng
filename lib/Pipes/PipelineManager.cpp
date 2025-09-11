@@ -274,9 +274,12 @@ PipelineManager::setUpPipeline(llvm::ArrayRef<std::string> TextPipelines) {
                          .getFile(revng::ModelGlobalName);
 
       llvm::Expected<bool> ModelFileExists = ModelFile.exists();
-      if (not ModelFileExists)
+      if (not ModelFileExists) {
+        // TODO: do we care about `FirstLoadError` here? The file clearly
+        // doesn't exist. Why clutter the user-facing output?
         return revng::joinErrors(ModelFileExists.takeError(),
                                  std::move(FirstLoadError));
+      }
 
       if (not ModelFileExists.get()) {
         // Model file does not exist, so nothing to migrate. Stop here and
@@ -292,13 +295,17 @@ PipelineManager::setUpPipeline(llvm::ArrayRef<std::string> TextPipelines) {
 
       if (auto SecondLoadError = Runner
                                    ->loadContextDirectory(ExecutionDirectory)) {
-        // Doesn't load even after migration, restore and report the errors.
         if (auto Error = BackupFilePath.get().copyTo(ModelFile)) {
+          // TODO: do we care about all the errors here?
+          // Isn't this branch specifically there to indicate we couldn't
+          // *restore* the model to is original state
+          // (something went *really* bad)?
           return revng::joinErrors(std::move(Error),
                                    std::move(SecondLoadError),
                                    std::move(FirstLoadError));
         }
 
+        // Doesn't load even after migration, restore and report the errors?
         return llvm::joinErrors(std::move(SecondLoadError),
                                 std::move(FirstLoadError));
       }

@@ -1218,6 +1218,7 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
                                             StringRef TheDebugFile) {
     llvm::Expected ExpectedBinary = object::createBinary(FilePath);
     if (!ExpectedBinary) {
+      // TODO: we probably want a way to report errors like this back up.
       revng_log(DILogger, "Can't create binary for " << FilePath);
       llvm::consumeError(ExpectedBinary.takeError());
     } else {
@@ -1324,6 +1325,7 @@ computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
     auto MaybeName = Symbol.getName();
     auto MaybeFlags = Symbol.getFlags();
 
+    // TODO: are we sure we just want to discard all these errors?
     if (auto Error = MaybeType.takeError()) {
       consumeError(std::move(Error));
       continue;

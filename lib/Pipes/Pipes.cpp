@@ -60,6 +60,8 @@ public:
     auto MaybeContext = Context.getExternalContext<LLVMContext>("LLVMContext");
 
     if (auto Error = MaybeContext.takeError()) {
+      // TODO: this is extremely suspicious.
+      // Why are we fine with this broken context?
       consumeError(std::move(Error));
       return;
     }

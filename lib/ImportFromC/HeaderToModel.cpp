@@ -1265,6 +1265,8 @@ void HeaderToModelDiagnosticConsumer::HandleDiagnostic(Level DiagLevel,
   llvm::raw_string_ostream OS(Text);
   auto *DiagOpts = &Info.getDiags()->getDiagnosticOptions();
 
+  // Suspicious!
+  // TODO: investigate.
   uint64_t StartOfLocationInfo = OS.tell();
 
   TextDiagnostic::printDiagnosticLevel(OS, DiagLevel, DiagOpts->ShowColors);
