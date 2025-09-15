@@ -1,0 +1,30 @@
+# Storage provider configuration
+# Supported formats:
+#   - sqlite://path/to/db.sqlite
+#   - memory:// (No persistance)
+storage_provider: "sqlite://~/.cache/revng/db.sqlite"
+
+lock:
+    # What class to use for the lock
+    # Supported:
+    #   - LocalLock : An in-memory lock that handles concurrency but doesn't
+    #       support multiple daemon instances.
+    class: "revng.internal.daemon2.lock.local_lock:LocalLock"
+    # Class-specific constructor arguments
+    args:
+        # Lock duration in seconds (default: 60)
+        lock_duration: 60
+
+# Optional: Server configuration
+server:
+    # Host to bind to (default: 127.0.0.1)
+    host: "0.0.0.0"
+    # Port to bind to (default: 5000)
+    port: 5000
+    # Number of worker processes for production (default: 1)
+    workers: 1
+
+# Optional: Logging configuration
+logging:
+    level: "INFO"
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

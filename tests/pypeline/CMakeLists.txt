@@ -19,3 +19,22 @@ set_tests_properties(
   test_pypeline
   PROPERTIES LABELS "pypeline" ENVIRONMENT
              "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}")
+
+revng_add_test(
+  NAME
+  test_daemon2
+  COMMAND
+  "${Python_EXECUTABLE}"
+  -m
+  pytest
+  -p
+  no:cacheprovider
+  -v
+  -s
+  --rootdir
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/test_daemon2.py")
+set_tests_properties(
+  test_daemon2
+  PROPERTIES LABELS "daemon2" ENVIRONMENT
+             "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}")

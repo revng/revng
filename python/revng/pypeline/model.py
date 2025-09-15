@@ -49,7 +49,7 @@ class Model(ABC):
         """
         obj_id_ty: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
         root: ObjectID = obj_id_ty.root()
-        return ObjectSet(root.kind(), self.children(root, kind).objects)
+        return ObjectSet(kind, self.children(root, kind).objects)
 
     def move_to_kind(self, objects: ObjectSet, destination_kind: Kind) -> ObjectSet:
         if not objects:

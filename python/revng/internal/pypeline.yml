@@ -1,0 +1,20 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Placeholder for the real pypeline that will be implemented in future commits
+
+containers:
+    - name: child_source
+      type: ChildDictContainer
+
+branches:
+    root:
+        tasks:
+            - pipe: GeneratorPipe
+              arguments: [child_source]
+              configuration: ""
+              analyses:
+                  - name: init_analysis
+                    analysis: AddStuffAnalysis
+                    containers: [child_source]
