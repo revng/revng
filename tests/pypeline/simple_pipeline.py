@@ -238,6 +238,8 @@ class DictModel(Model):
                 )
             elif kind == MyKind.ROOT:
                 return ObjectSet(MyKind.ROOT, {MyObjectID(MyKind.ROOT)})
+            else:
+                raise NotImplementedError()
 
         raise NotImplementedError()
 
@@ -250,7 +252,7 @@ class DictModel(Model):
         return yaml.safe_dump(self._data).encode()
 
     def deserialize(self, data: bytes):
-        self._data = yaml.safe_load(data)
+        self._data = yaml.safe_load(data) or {}
 
     def __repr__(self):
         return f"DictModel({self._data!r})"
@@ -399,8 +401,10 @@ class ToLowerKindPipe(Pipe):
         root_object = MyObjectID.root()
 
         # Ensure we have all the object we need in input
-        assert input_container.objects() == model.children(root_object, input_kind)
-
+        assert input_container.objects() == model.children(root_object, input_kind), (
+            f"Expected input objects {model.children(root_object, input_kind)} "
+            f"but got {input_container.objects()}"
+        )
         output_container: RootDictContainer = cast(RootDictContainer, containers[1])
 
         # Add to the output the root object

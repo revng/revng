@@ -267,7 +267,9 @@ class ObjectSet(MutableSet[ObjectID]):
     def __post_init__(self):
         for obj in self.objects:
             assert isinstance(obj, ObjectID), f"Expected ObjectID, got {obj}"
-            assert obj.kind() == self.kind
+            assert (
+                obj.kind() == self.kind
+            ), f"On an objectset with kind {self.kind} got an object with kind {obj.kind()}"
 
     def __contains__(self, obj: object) -> bool:
         assert isinstance(obj, ObjectID)

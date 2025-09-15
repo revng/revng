@@ -188,10 +188,10 @@ def build_arg_objects(
     the objects that the user wants in a specific container.
     """
     arg_name = normalize_flag(container_decl.name)
-    object_id = container_decl.container_type.kind
+    kind = container_decl.container_type.kind
     return click.option(
         f"--{arg_name}-objects",
-        metavar=f"/{object_id.__name__}1,/{object_id.__name__}2,...",
+        metavar=f"/{kind.serialize()}1,/{kind.serialize()}2,...",
         type=str,
         help=(
             f"The objects to require from container {arg_name.upper()}"
@@ -254,7 +254,7 @@ def list_objects_for_container(
     """
     Print all available objects for a given container kind in the model.
     """
-    print(f"Available objects for `{arg_name}` kind: {kind.__name__}")
+    print(f"Available objects for `{arg_name}` kind: {kind.serialize()}")
     for obj in model.all_objects(kind):
         print(f" - {obj}")
 

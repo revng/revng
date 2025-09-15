@@ -1,0 +1,82 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Rev.ng Daemon Configuration",
+    "description": "Configuration schema for the Rev.ng daemon2",
+    "type": "object",
+    "properties": {
+        "storage_provider": {
+            "type": "string",
+            "description": "Storage provider configuration URI",
+            "pattern": "\\S+://.*",
+            "examples": [
+                "sqlite://path/to/db.sqlite",
+                "sqlite://$HOME/.cache/revng/db.sqlite",
+                "memory://"
+            ]
+        },
+        "lock": {
+            "type": "object",
+            "description": "Lock configuration for handling concurrency",
+            "properties": {
+                "class": {
+                    "type": "string",
+                    "description": "Fully qualified class name for the lock implementation",
+                    "examples": ["revng.internal.daemon2.lock:LocalLock"],
+                    "pattern": "\\S+(\\.\\S+):\\S+"
+                },
+                "args": {
+                    "type": "object",
+                    "description": "Class-specific constructor arguments"
+                }
+            },
+            "required": ["class"],
+            "additionalProperties": false
+        },
+        "server": {
+            "type": "object",
+            "description": "Server configuration settings",
+            "properties": {
+                "host": {
+                    "type": "string",
+                    "description": "Host address to bind to",
+                    "format": "hostname",
+                    "default": "127.0.0.1"
+                },
+                "port": {
+                    "type": "integer",
+                    "description": "Port number to bind to",
+                    "minimum": 1,
+                    "maximum": 65535,
+                    "default": 5000
+                },
+                "workers": {
+                    "type": "integer",
+                    "description": "Number of worker processes for production",
+                    "minimum": 1,
+                    "default": 1
+                }
+            },
+            "additionalProperties": false
+        },
+        "logging": {
+            "type": "object",
+            "description": "Logging configuration",
+            "properties": {
+                "level": {
+                    "type": "string",
+                    "description": "Logging level",
+                    "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                    "default": "INFO"
+                },
+                "format": {
+                    "type": "string",
+                    "description": "Log message format string",
+                    "default": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+                }
+            },
+            "additionalProperties": false
+        }
+    },
+    "required": ["lock", "storage_provider"],
+    "additionalProperties": false
+}
