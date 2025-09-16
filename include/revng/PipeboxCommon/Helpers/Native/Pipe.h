@@ -37,7 +37,6 @@ public:
       const pypeline::Request &Outgoing,
       llvm::StringRef Configuration) override {
     return PipeRunner<ContainerListUnwrapper>::run(Instance,
-                                                   &T::run,
                                                    TheModel,
                                                    Incoming,
                                                    Outgoing,

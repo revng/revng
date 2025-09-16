@@ -440,6 +440,14 @@ constexpr auto takeAsTuple(RangeType &&R) {
   });
 }
 
+template<typename T>
+struct add_reference {
+  using type = T &;
+};
+
+template<typename T>
+using add_reference_t = add_reference<T>::type;
+
 //
 // Some views from the STL.
 // TODO: remove these after updating the libc++ version.

@@ -95,7 +95,8 @@ struct Kinds {
 class ObjectID {
 private:
   using TypeDefinitionKey = model::TypeDefinition::Key;
-  std::variant<std::monostate, MetaAddress, TypeDefinitionKey> Key;
+  using KeyType = std::variant<std::monostate, MetaAddress, TypeDefinitionKey>;
+  KeyType Key;
 
 public:
   // Create a root ObjectID
@@ -168,6 +169,8 @@ public:
       return revng::createError("Failed deserializing ObjectID");
     }
   }
+
+  const KeyType &key() const { return Key; }
 
   std::strong_ordering operator<=>(const ObjectID &) const = default;
   friend std::hash<const ObjectID>;

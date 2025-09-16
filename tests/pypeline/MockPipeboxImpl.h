@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ADT/TypeList.h"
 #include "revng/PipeboxCommon/Common.h"
 #include "revng/PipeboxCommon/Model.h"
 #include "revng/PipeboxCommon/ObjectID.h"
@@ -30,8 +31,8 @@ public:
 class AppendFooPipe {
 public:
   static constexpr llvm::StringRef Name = "AppendFooPipe";
-  static constexpr revng::pypeline::PipeArgumentDocumentation
-    ArgumentsDocumentation[]{ { "Container", "" } };
+  using ArgumentsDocumentation = TypeList<
+    revng::pypeline::PipeArgumentDocumentation<"Container", "">>;
 
   const std::string StaticConfiguration;
 

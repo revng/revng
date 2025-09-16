@@ -21,39 +21,34 @@ namespace revng::pypeline::helpers {
 template<typename ContainerListUnwrapper>
 struct PipeRunner {
 private:
-  template<size_t... I>
-  using integer_sequence = std::integer_sequence<size_t, I...>;
   using ObjectDeps = pypeline::ObjectDependencies;
 
   using ListType = ContainerListUnwrapper::ListType;
 
 public:
-  template<IsPipe T, typename... ContainersT>
+  template<IsPipe T>
   static ObjectDeps run(T &Pipe,
-                        ObjectDeps (T::*RunMethod)(const Model &,
-                                                   const pypeline::Request &,
-                                                   const pypeline::Request &,
-                                                   llvm::StringRef,
-                                                   ContainersT...),
                         const Model &TheModel,
                         const pypeline::Request &Incoming,
                         const pypeline::Request &Outgoing,
                         llvm::StringRef Configuration,
                         ListType Containers) {
-    revng_assert(Incoming.size() == sizeof...(ContainersT));
-    revng_assert(Outgoing.size() == sizeof...(ContainersT));
+    using Traits = PipeRunTraits<T>;
+    revng_assert(Incoming.size() == Traits::ContainerCount);
+    revng_assert(Outgoing.size() == Traits::ContainerCount);
 
-    auto Runner = ([&]<size_t... ContainerIndexes>(const integer_sequence<
+    auto Runner = ([&]<size_t... ContainerIndexes>(const std::index_sequence<
                                                    ContainerIndexes...> &) {
-      return (Pipe.*RunMethod)(TheModel,
-                               Incoming,
-                               Outgoing,
-                               Configuration,
-                               ContainerListUnwrapper::template unwrap<
-                                 ContainersT,
-                                 ContainerIndexes>(Containers)...);
+      return Pipe.run(TheModel,
+                      Incoming,
+                      Outgoing,
+                      Configuration,
+                      ContainerListUnwrapper::template unwrap<
+                        std::tuple_element_t<ContainerIndexes,
+                                             typename Traits::ContainerTypes> &,
+                        ContainerIndexes>(Containers)...);
     });
-    return Runner(std::make_integer_sequence<size_t, sizeof...(ContainersT)>());
+    return Runner(std::make_index_sequence<Traits::ContainerCount>());
   }
 };
 
