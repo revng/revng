@@ -33,6 +33,13 @@ struct PipeArgumentDocumentation {
   llvm::StringRef HelpText;
 };
 
+template<typename T, ConstexprString N, ConstexprString HT>
+struct PipeArgument {
+  using Type = T;
+  static constexpr llvm::StringRef Name = N;
+  static constexpr llvm::StringRef HelpText = HT;
+};
+
 class Buffer {
 private:
   llvm::SmallVector<char, 0> Vector;

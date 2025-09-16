@@ -12,6 +12,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include "revng/ADT/Concepts.h"
+#include "revng/ADT/TypeList.h"
 
 namespace compile_time {
 
@@ -98,7 +99,7 @@ constexpr std::optional<size_t> select(CallableType &&Callable) {
 
 /// Calls \ref Callable on each element of \ref TupleType. Each time the element
 /// type and index will be provided as template parameters.
-template<SpecializationOf<std::tuple> TupleType, typename CallableType>
+template<SpecializationOf<TypeList> TupleType, typename CallableType>
 constexpr void forEach(CallableType &&Callable) {
   repeat<std::tuple_size_v<TupleType>>([&Callable]<size_t I>() {
     Callable.template operator()<std::tuple_element_t<I, TupleType>, I>();
@@ -167,6 +168,6 @@ struct ArrayTraits<std::array<T, N>> {
 /// Helper struct that reports the value_type and Size of an array at
 /// compile-time
 template<auto &T>
-using ArrayTraits = detail::ArrayTraits<std::remove_reference_t<decltype(T)>>;
+using ArrayTraits = detail::ArrayTraits<std::remove_cvref_t<decltype(T)>>;
 
 } // namespace compile_time
