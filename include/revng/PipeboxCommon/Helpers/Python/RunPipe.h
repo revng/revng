@@ -27,7 +27,6 @@ inline ObjectDependencies runPipe(T &Handle,
   const Model *CppModel = nanobind::cast<Model *>(ActualModel);
 
   return PipeRunner<ContainerListUnwrapper>::run(Handle,
-                                                 &T::run,
                                                  *CppModel,
                                                  Incoming,
                                                  Outgoing,
