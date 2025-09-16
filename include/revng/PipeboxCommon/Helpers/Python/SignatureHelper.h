@@ -59,18 +59,19 @@ private:
     nanobind::list Result;
 
     using CT = PipeRunTraits<T>::ContainerTypes;
-    compile_time::forEach<CT>([&Result,
-                               &TaskArgument,
-                               &TaskArgumentAccess]<typename A, size_t I>() {
-      const PipeArgumentDocumentation &Argument = T::ArgumentsDocumentation[I];
+    forEach<CT>([&Result,
+                 &TaskArgument,
+                 &TaskArgumentAccess]<typename A, size_t I>() {
+      using Argument = std::tuple_element_t<I,
+                                            typename T::ArgumentsDocumentation>;
       // Create a Kwargs dictionary, this will be passed to the constructor of
       // TaskArgument
       nanobind::dict Kwargs;
 
-      Kwargs["name"] = nanobind::str(Argument.Name.data(),
-                                     Argument.Name.size());
-      Kwargs["help_text"] = nanobind::str(Argument.HelpText.data(),
-                                          Argument.HelpText.size());
+      Kwargs["name"] = nanobind::str(Argument::Name.data(),
+                                     Argument::Name.size());
+      Kwargs["help_text"] = nanobind::str(Argument::HelpText.data(),
+                                          Argument::HelpText.size());
       // nanobind::type<T> returns a reference, so we need to borrow it and
       // increase the reference count
       Kwargs["container_type"] = nanobind::borrow(nanobind::type<A>());
@@ -96,7 +97,7 @@ private:
     nanobind::list Result;
 
     using CT = AnalysisRunTraits<T>::ContainerTypes;
-    compile_time::forEach<CT>([&Result]<typename A, size_t I>() {
+    forEach<CT>([&Result]<typename A, size_t I>() {
       // For each tuple element, add the python type to the Result list
       Result.append(nanobind::borrow(nanobind::type<A>()));
     });

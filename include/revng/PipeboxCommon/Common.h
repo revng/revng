@@ -25,12 +25,15 @@ using ModelPath = std::string;
 using ObjectDependencies = std::vector<
   std::vector<std::pair<ObjectID, ModelPath>>>;
 
-/// Description of a single Pipe argument
+template<ConstexprString N, ConstexprString HT>
 struct PipeArgumentDocumentation {
-  /// Pretty-name for the argument, e.g. to show in the CLI
-  llvm::StringRef Name;
-  /// Long description of the container, to be used in help texts
-  llvm::StringRef HelpText;
+  static constexpr llvm::StringRef Name = N;
+  static constexpr llvm::StringRef HelpText = HT;
+};
+
+template<typename T, ConstexprString N, ConstexprString HT>
+struct PipeArgument : public PipeArgumentDocumentation<N, HT> {
+  using Type = T;
 };
 
 class Buffer {
