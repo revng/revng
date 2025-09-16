@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
 #include "revng/PipeboxCommon/MapContainer.h"
 
@@ -20,3 +21,5 @@ static RegisterContainer<TypeDefinitionToBytesContainer> C3;
 //
 
 using namespace revng::pypeline::pipes;
+
+static RegisterSingleOutputPipe<ModelToHeader> P1;
