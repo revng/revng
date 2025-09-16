@@ -7,6 +7,8 @@ containers:
     type: BinariesContainer
   - name: llvm-root
     type: LLVMRootContainer
+  - name: model-header
+    type: CBytesContainer
 
 branches:
   files-imported:
@@ -29,3 +31,13 @@ branches:
         artifacts:
           - name: lift
             container: llvm-root
+
+  emit-model-header:
+    tasks:
+      - pipe: ModelToHeader
+        arguments: [model-header]
+      - savepoint: model-header
+        containers: [model-header]
+        artifacts:
+          - name: emit-model-header
+            container: model-header
