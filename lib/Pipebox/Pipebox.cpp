@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Pipebox/LLVMPipe.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
@@ -16,6 +17,7 @@ using namespace revng::pypeline;
 
 static RegisterContainer<LLVMRootContainer> C1;
 static RegisterContainer<LLVMFunctionContainer> C3;
+static RegisterContainer<CBytesContainer> C4;
 static RegisterContainer<BinariesContainer> C5;
 
 //
@@ -28,3 +30,4 @@ using namespace revng::pypeline::piperuns;
 static RegisterSingleOutputPipe<Lift> P1;
 static RegisterPipe<PureLLVMPassesRootPipe> P2;
 static RegisterPipe<PureLLVMPassesPipe> P3;
+static RegisterSingleOutputPipe<ModelToHeader> P4;
