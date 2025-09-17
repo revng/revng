@@ -100,6 +100,40 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
 
 } // end namespace revng::pipes
 
+namespace revng::pypeline::pipes {
+
+void YieldAssembly::runOnFunction(const model::Function &Function) {
+  MetaAddress Address = Function.Entry();
+  auto Buffer = Input.getMemoryBuffer(ObjectID(Address));
+  llvm::StringRef YamlText = Buffer->getBuffer();
+  auto MaybeFunction = TupleTree<yield::Function>::fromString(YamlText);
+
+  revng_assert(MaybeFunction && MaybeFunction->verify());
+  revng_assert((*MaybeFunction)->Entry() == Address);
+
+  const model::Architecture::Values A = Model.get()->Architecture();
+  auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
+
+  const model::Configuration &Configuration = Model.get()->Configuration();
+  uint64_t LineWidth = Configuration.commentLineWidth();
+
+  std::string R = ptml::functionComment(B,
+                                        Function,
+                                        *Model.get(),
+                                        CommentIndicator,
+                                        0,
+                                        LineWidth,
+                                        NameBuilder);
+  R += yield::ptml::functionAssembly(B, **MaybeFunction, *Model.get());
+  R = B.getTag(ptml::tags::Div, std::move(R)).toString();
+
+  auto OS = Output.getOStream(ObjectID(Address));
+  *OS << R;
+  OS->flush();
+}
+
+} // namespace revng::pypeline::pipes
+
 using namespace revng::pipes;
 using namespace pipeline;
 static RegisterDefaultConstructibleContainer<FunctionAssemblyStringMap> X1;

@@ -5,6 +5,7 @@
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
 #include "revng/PipeboxCommon/RawContainer.h"
+#include "revng/Yield/Pipes/YieldAssembly.h"
 
 using namespace revng::pypeline;
 
@@ -24,3 +25,4 @@ static RegisterContainer<LLVMRootContainer> C4;
 using namespace revng::pypeline::pipes;
 
 static RegisterSingleOutputPipe<ModelToHeader> P1;
+static RegisterFunctionPipe<YieldAssembly> P2;
