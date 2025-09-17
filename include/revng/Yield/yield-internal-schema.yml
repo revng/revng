@@ -48,7 +48,6 @@ definitions:
         doc: List of successor edges
         sequence:
           type: SortedVector
-          upcastable: true
           elementType: FunctionEdgeBase
 
       - name: Instructions

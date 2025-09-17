@@ -91,11 +91,11 @@ class TypeScriptGenerator:
         type_ = self._real_type(field)
         if isinstance(field.resolved_type, SequenceDefinition):
             return f"{type_}[]"
-        else:
-            if not interface and isinstance(field, SimpleStructField) and field.upcastable:
-                return f"{type_} | undefined"
-            else:
-                return type_
+
+        if not interface and self.is_upcastable(field):
+            return f"{type_} | undefined"
+
+        return type_
 
     def ts_itype(self, field: StructField) -> str:
         if self._is_simple_type(field):

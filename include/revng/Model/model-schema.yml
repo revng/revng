@@ -42,7 +42,6 @@ definitions:
           it explicitly.
         type: Type
         optional: true
-        upcastable: true
 
       - name: Configuration
         doc: Project-level artifact configuration options
@@ -104,7 +103,6 @@ definitions:
           It contains `struct`, `union`, `typedef`, `enum` and function prototypes.
         sequence:
           type: SortedVector
-          upcastable: true
           elementType: TypeDefinition
         optional: true
 
@@ -179,7 +177,6 @@ definitions:
         doc: The function return type.
         type: Type
         optional: true
-        upcastable: true
 
       - name: ReturnValueComment
         doc: |-
@@ -211,7 +208,6 @@ definitions:
       - name: Type
         doc: The type of the argument.
         type: Type
-        upcastable: true
 
       - name: Name
         doc: The name of the argument.
@@ -240,7 +236,6 @@ definitions:
           This must only ever be set to a `PrimitiveType` with either
           an `Unsigned` or a `Signed` kind.
         type: Type
-        upcastable: true
 
       - name: Entries
         doc: |-
@@ -356,7 +351,6 @@ definitions:
         doc: The type of the `struct` representing all of the stack arguments.
         type: Type
         optional: true
-        upcastable: true
 
   - name: NamedTypedRegister
     type: struct
@@ -377,7 +371,6 @@ definitions:
       - name: Type
         doc: The type of this argument or return value.
         type: Type
-        upcastable: true
 
       - name: Name
         doc: The name for this argument or return value.
@@ -403,7 +396,6 @@ definitions:
       - name: UnderlyingType
         doc: The type this `typedef` is aliasing.
         type: Type
-        upcastable: true
 
   - name: StructDefinition
     inherits: TypeDefinition
@@ -460,7 +452,6 @@ definitions:
       - name: Type
         doc: The type of the field.
         type: Type
-        upcastable: true
 
   - name: UnionDefinition
     inherits: TypeDefinition
@@ -511,7 +502,6 @@ definitions:
       - name: Type
         doc: The name of this "field" (union alternative).
         type: Type
-        upcastable: true
 
   #
   # Type wrapping system (pointers / arrays / primitives)
@@ -625,7 +615,6 @@ definitions:
       - name: PointeeType
         doc: The pointee type.
         type: Type
-        upcastable: true
 
   - name: DefinedType
     inherits: Type
@@ -655,7 +644,6 @@ definitions:
       - name: ElementType
         doc: The type of the elements in this array.
         type: Type
-        upcastable: true
 
   #
   # Segments and function in the binary
@@ -740,7 +728,6 @@ definitions:
           The struct type associated to this segment.
           Informally, each field of such a `struct` is a global variable.
         type: Type
-        upcastable: true
         optional: true
 
   - name: Function
@@ -773,13 +760,11 @@ definitions:
       - name: StackFrameType
         doc: The type of the stack frame.
         type: Type
-        upcastable: true
         optional: true
 
       - name: Prototype
         doc: The prototype of the function.
         type: Type
-        upcastable: true
         optional: true
 
       - name: Attributes
@@ -856,7 +841,6 @@ definitions:
       - name: Prototype
         doc: The prototype of this dynamic function.
         type: Type
-        upcastable: true
         optional: true
 
       - name: Attributes
@@ -989,7 +973,6 @@ definitions:
       - name: Prototype
         doc: The prototype specific to *this* call site.
         type: Type
-        upcastable: true
 
       - name: IsTailCall
         doc: Whether this call site is a tail call or not.
