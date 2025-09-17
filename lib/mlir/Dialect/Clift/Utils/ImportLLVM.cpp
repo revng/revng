@@ -48,11 +48,6 @@ static Logger<> ExpressionLog{ "llvm-to-clift-expressions" };
 // operation before the first operation in the block, if any).
 
 [[nodiscard]] static mlir::OpBuilder::InsertPoint
-makeInsertionPointAfterStart(mlir::Block *Block) {
-  return mlir::OpBuilder::InsertPoint(Block, Block->end());
-}
-
-[[nodiscard]] static mlir::OpBuilder::InsertPoint
 saveInsertionPointAfter(const mlir::OpBuilder &Builder) {
   mlir::Block *Block = Builder.getInsertionBlock();
   mlir::Block::iterator Point = Builder.getInsertionPoint();
@@ -588,13 +583,17 @@ private:
     uint64_t Index = getConstantInt(Call->getArgOperand(1));
     auto Struct = mlir::cast<StructType>(Aggregate.getType());
     revng_assert(Index < Struct.getFields().size());
-    mlir::Type ResultType = Struct.getFields()[Index].getType();
 
-    rc_return Builder.create<AccessOp>(Loc,
-                                       ResultType,
-                                       Aggregate,
-                                       /*indirect=*/false,
-                                       Index);
+    mlir::Type FieldType = Struct.getFields()[Index].getType();
+    mlir::Value FieldValue = Builder.create<AccessOp>(Loc,
+                                                      FieldType,
+                                                      Aggregate,
+                                                      /*indirect=*/false,
+                                                      Index);
+
+    rc_return emitImplicitCast(Loc,
+                               FieldValue,
+                               importLLVMType(Call->getType()));
   }
 
   RecursiveCoroutine<mlir::Value> emitHelperCall(const llvm::CallInst *Call) {
@@ -1244,9 +1243,8 @@ private:
   template<typename OpT, typename... ArgsT>
   OpT emitLocalDeclaration(mlir::Location Loc, ArgsT &&...Args) {
     mlir::OpBuilder::InsertionGuard Guard(Builder);
-    restoreInsertionPointAfter(Builder, LocalDeclarationInsertPoint);
+    Builder.setInsertionPointToEnd(LocalDeclarationBlock);
     OpT Op = Builder.create<OpT>(Loc, std::forward<ArgsT>(Args)...);
-    LocalDeclarationInsertPoint = saveInsertionPointAfter(Builder);
     return Op;
   }
 
@@ -1649,8 +1647,6 @@ public:
     CurrentFunction = Op;
     CurrentLayout = abi::FunctionType::Layout::make(*getPrototype(*MF));
 
-    LocalDeclarationInsertPoint = makeInsertionPointAfterStart(&BodyBlock);
-
     // Clear the function-specific mappings once this function is emitted.
     auto MappingGuard = llvm::make_scope_exit([&]() {
       ArgumentMapping.clear();
@@ -1684,8 +1680,14 @@ public:
     mlir::OpBuilder::InsertionGuard BuilderGuard(Builder);
     Builder.setInsertionPointToEnd(&BodyBlock);
 
+    mlir::Block DeclarationBlock;
+    ScopedExchange _(LocalDeclarationBlock, &DeclarationBlock);
+
     // Finally emit the function body starting at the entry block.
     emitScope(&F->getEntryBlock(), PostDomTree.getRootNode()->getBlock());
+
+    BodyBlock.getOperations().splice(BodyBlock.getOperations().begin(),
+                                     DeclarationBlock.getOperations());
 
     return Op;
   }
@@ -1700,7 +1702,7 @@ private:
   clift::FunctionOp CurrentFunction;
   abi::FunctionType::Layout CurrentLayout;
 
-  mlir::OpBuilder::InsertPoint LocalDeclarationInsertPoint;
+  mlir::Block *LocalDeclarationBlock = nullptr;
 
   ScopeGraphPostDomTree PostDomTree;
 
