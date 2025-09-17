@@ -3,6 +3,7 @@
 //
 
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
+#include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
 #include "revng/PipeboxCommon/MapContainer.h"
 #include "revng/Yield/Pipes/YieldAssembly.h"
@@ -25,3 +26,4 @@ using namespace revng::pypeline::pipes;
 
 static RegisterSingleOutputPipe<ModelToHeader> P1;
 static RegisterFunctionPipe<YieldAssembly> P2;
+static RegisterTypeDefinitionPipe<GenerateModelTypeDefinition> P3;
