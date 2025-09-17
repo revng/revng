@@ -545,7 +545,8 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   //
 
   // TODO: We can be more careful with these and only reserve the ones we use,
-  //       once `CTargetImplementation` is mature enough to give us the list.
+  //       We should take a fresh look once `CTargetImplementation` is mature
+  //       enough to give us the list.
   if (Name.starts_with("__builtin_"))
     return revng::createError("it is reserved for a builtin intrinsic");
 
