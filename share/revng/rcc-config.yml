@@ -81,6 +81,8 @@ read_passes:
       - clang-format-style-file.yml
       - .clang-tidy
       - Doxyfile.in
+    include_pathnames:
+      - CMakeLists.txt
   - type: BashPass
   - # This is hardcoded to act on file tagged as "c"
     type: CPPCheckPass

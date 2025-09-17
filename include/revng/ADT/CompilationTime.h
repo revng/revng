@@ -11,6 +11,8 @@
 
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/ADT/Concepts.h"
+
 namespace compile_time {
 
 namespace detail {
@@ -94,6 +96,15 @@ constexpr std::optional<size_t> select(CallableType &&Callable) {
                         std::forward<CallableType>(Callable));
 }
 
+/// Calls \ref Callable on each element of \ref TupleType. Each time the element
+/// type and index will be provided as template parameters.
+template<SpecializationOf<std::tuple> TupleType, typename CallableType>
+constexpr void forEach(CallableType &&Callable) {
+  repeat<std::tuple_size_v<TupleType>>([&Callable]<size_t I>() {
+    Callable.template operator()<std::tuple_element_t<I, TupleType>, I>();
+  });
+}
+
 namespace detail {
 
 template<size_t N, size_t I = 0>
@@ -133,5 +144,29 @@ split(llvm::StringRef Separator, llvm::StringRef Input) {
   else
     return std::nullopt;
 }
+
+namespace detail {
+
+template<typename>
+struct ArrayTraits {};
+
+template<typename T, size_t N>
+struct ArrayTraits<T[N]> {
+  using value_type = T;
+  static constexpr size_t Size = N;
+};
+
+template<typename T, size_t N>
+struct ArrayTraits<std::array<T, N>> {
+  using value_type = T;
+  static constexpr size_t Size = N;
+};
+
+} // namespace detail
+
+/// Helper struct that reports the value_type and Size of an array at
+/// compile-time
+template<auto &T>
+using ArrayTraits = detail::ArrayTraits<std::remove_reference_t<decltype(T)>>;
 
 } // namespace compile_time
