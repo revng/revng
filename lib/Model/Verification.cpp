@@ -708,7 +708,7 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
 
   bool Result = false;
 
-  // We could use upcast() but we'd need to workaround coroutines.
+  // We could use upcast() but we'd need to work around coroutines.
   if (auto *F = llvm::dyn_cast<model::CABIFunctionDefinition>(this))
     Result = rc_recur verifyImpl(VH, *F);
   else if (auto *F = llvm::dyn_cast<model::RawFunctionDefinition>(this))
@@ -808,7 +808,7 @@ bool Configuration::verify(VerifyHelper &VH) const {
   if (Configuration().Naming().undefinedValuePrefix().empty())
     return VH.fail("Undefined value prefix must not be empty.");
   if (Configuration().Naming().opaqueCSVValuePrefix().empty())
-    return VH.fail("Undefined value prefix must not be empty.");
+    return VH.fail("Opaque CSV prefix must not be empty.");
   if (Configuration().Naming().maximumEnumValuePrefix().empty())
     return VH.fail("Maximum enum value prefix must not be empty.");
 

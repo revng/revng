@@ -453,7 +453,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     revng_check(Union.Fields().at(It->Index()).Name() == "fld1");
     revng_check(not verify(*T, false));
 
-    // But removing goes back to good again
+    // But removing the field, makes the union valid again
     revng_check(Union.Fields().erase(It->Index()));
     revng_check(verify(Union, *T, true));
     revng_check(verify(*T, true));
