@@ -3,6 +3,7 @@
 //
 
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
+#include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Pipebox/LLVMPipe.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
@@ -19,6 +20,7 @@ static RegisterContainer<LLVMRootContainer> C1;
 static RegisterContainer<LLVMFunctionContainer> C3;
 static RegisterContainer<CBytesContainer> C4;
 static RegisterContainer<BinariesContainer> C5;
+static RegisterContainer<PTMLCTypeContainer> C6;
 
 //
 // Pipes
@@ -31,3 +33,4 @@ static RegisterSingleOutputPipe<Lift> P1;
 static RegisterPipe<PureLLVMPassesRootPipe> P2;
 static RegisterPipe<PureLLVMPassesPipe> P3;
 static RegisterSingleOutputPipe<ModelToHeader> P4;
+static RegisterTypeDefinitionPipe<GenerateModelTypeDefinition> P5;
