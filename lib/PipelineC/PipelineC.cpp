@@ -69,6 +69,10 @@ public:
 
 static void llvmErrorToRpError(llvm::Error Error, rp_error *Out) {
   if (Out == nullptr) {
+    // By passing `Out == nullptr` the callee indicated that they do not care
+    // about the error, so we can just discard it.
+    //
+    // For more context, see `include/revng/PipelineC/Prototypes.h`.
     llvm::consumeError(std::move(Error));
     return;
   }
