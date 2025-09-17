@@ -111,7 +111,7 @@ type: struct
 fields:
   - name: MyArray
     sequence:
-      type: std::vector
+      type: SortedVector
       elementType: int
 ```
 
@@ -124,12 +124,15 @@ type: struct
 fields:
   - name: MyArray
     sequence:
-      type: std::vector
+      type: SortedVector
       upcastable: true
       elementType: efa::FunctionEdgeBase
 ```
 
-This will get translated in C++ as `std::vector<UpcastablePointer<efa::FunctionEdgeBase>>`.
+This will get translated in C++ as
+```cpp
+SortedVector<UpcastablePointer<efa::FunctionEdgeBase>>
+```
 
 #### Reference members
 
