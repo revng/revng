@@ -10,6 +10,11 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/TypeList.h"
+#include "revng/Model/NameBuilder.h"
+#include "revng/PTML/Tag.h"
+#include "revng/PipeboxCommon/MapContainer.h"
+#include "revng/PipeboxCommon/Model.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/StringMap.h"
 #include "revng/Yield/Pipes/YieldControlFlow.h"
@@ -36,3 +41,34 @@ public:
 };
 
 } // namespace revng::pipes
+
+namespace revng::pypeline::pipes {
+
+class YieldAssembly {
+private:
+  const Model &Model;
+  const FunctionToBytesContainer &Input;
+  FunctionToBytesContainer &Output;
+  model::CNameBuilder NameBuilder;
+  ptml::MarkupBuilder B;
+
+public:
+  static constexpr llvm::StringRef Name = "yield-assembly";
+  using Arguments = TypeList<
+    PipeArgument<const FunctionToBytesContainer, "Input", "">,
+    PipeArgument<FunctionToBytesContainer, "Output", "">>;
+
+  YieldAssembly(const class Model &Model,
+                llvm::StringRef Config,
+                llvm::StringRef DynamicConfig,
+                const FunctionToBytesContainer &Input,
+                FunctionToBytesContainer &Output) :
+    Model(Model),
+    Input(Input),
+    Output(Output),
+    NameBuilder(*Model.get().get()) {}
+
+  void runOnFunction(const model::Function &TheFunction);
+};
+
+} // namespace revng::pypeline::pipes
