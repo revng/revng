@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#pragma clang optimize off
+
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/GenericDomTree.h"
@@ -16,7 +18,7 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportLLVM.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportModel.h"

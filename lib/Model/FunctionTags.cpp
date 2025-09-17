@@ -445,7 +445,7 @@ extractStringLiteralFromMetadata(const llvm::Function &F) {
 }
 
 // This name corresponds to a function in `early-linked`.
-RegisterIRHelper RevngAbortHelper(AbortFunctionName.str());
+RegisterIRHelper CPULoopExitHelper(AbortFunctionName.str());
 
 template<bool ShouldTerminateTheBlock>
 llvm::CallInst &emitMessageImpl(llvm::IRBuilderBase &Builder,

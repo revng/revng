@@ -617,16 +617,13 @@ public:
   }
 
 public:
-  constexpr auto operator<=>(const MetaAddress &Other) const {
+  constexpr std::strong_ordering operator<=>(const MetaAddress &Other) const {
     return tie() <=> Other.tie();
   }
   constexpr bool operator==(const MetaAddress &Other) const {
     return tie() == Other.tie();
   }
 
-  constexpr std::strong_ordering operator<=>(const MetaAddress &Other) const {
-    return tie() <=> Other.tie();
-  }
   /// \name Address comparisons
   ///
   /// Comparison operators ignoring the MetaAddress type

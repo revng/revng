@@ -63,14 +63,13 @@ public:
           FirstCall = Call;
 
           Function *Callee = getCalledFunction(Call);
-          revng_assert(Callee != nullptr);
+
+          // Ignore isolated functions
+          if (Callee == nullptr or FunctionTags::Isolated.isTagOf(Callee))
+            return;
 
           revng_assert(isLastBeforeTerminator(Call)
                        or Callee->onlyReadsMemory());
-
-          // Ignore isolated functions
-          if (FunctionTags::Isolated.isTagOf(Callee))
-            return;
 
           // First iteration, create phis
           for (Type *ArgumentType : Call->getFunctionType()->params()) {

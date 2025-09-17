@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#pragma clang optimize off
+
 #include <variant>
 
 #include "llvm/ADT/ScopeExit.h"

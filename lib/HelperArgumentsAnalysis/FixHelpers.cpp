@@ -120,7 +120,7 @@ public:
     Variables(Variables),
     IntPtrType(IntPtrType),
     Builder(IntPtrType.getContext()),
-    Abort(*notNull(M.getFunction("abort"))) {}
+    Abort(notNull(M.getFunction("abort"))) {}
 
 public:
   void fixMemoryAccess(Instruction &I, const aua::Annotation &Annotation);

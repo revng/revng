@@ -63,10 +63,9 @@
 #include "JumpTargetManager.h"
 
 // WIP
-RegisterIRHelper CPULoopHelper("cpu_loop", "in libtinycode");
-RegisterIRHelper RevngAbortHelper("cpu_loop_exit", "in libtinycode");
-RegisterIRHelper InitializeEnv("helper_initialize_env",
-                               "absent after drop-root");
+RegisterIRHelper CPULoopHelper("cpu_loop");
+RegisterIRHelper CPULoopExitHelper("cpu_loop_exit");
+RegisterIRHelper InitializeEnv("helper_initialize_env");
 
 using namespace llvm;
 
