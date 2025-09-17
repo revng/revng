@@ -3,13 +3,18 @@
 #
 
 version: 1
+
 root_type: ControlFlowGraph
+
 definitions:
   - name: ControlFlowGraph
     doc: |-
       Metadata attached to a function. As of now, it includes a list of basic
       blocks, representing the control-flow graph.
     type: struct
+    key:
+      - Entry
+
     fields:
       - name: Entry
         doc: Start address of the basic block
@@ -23,11 +28,14 @@ definitions:
           type: SortedVector
           elementType: BasicBlock
         optional: true
-    key:
-      - Entry
+
   - name: BasicBlock
     doc: The basic block of a function
     type: struct
+
+    key:
+      - ID
+
     fields:
       - name: ID
         type: BasicBlockID
@@ -46,11 +54,16 @@ definitions:
           type: SortedVector
           upcastable: true
           elementType: FunctionEdgeBase
-    key:
-      - ID
+
   - name: FunctionEdgeBase
     doc: An edge on the CFG
     type: struct
+    abstract: true
+
+    key:
+      - Destination
+      - Kind
+
     fields:
       - name: Destination
         optional: true
@@ -68,19 +81,19 @@ definitions:
       - name: Type
         doc: Type of the CFG edge
         type: FunctionEdgeType
-    key:
-      - Destination
-      - Kind
-    abstract: true
+
   - name: FunctionEdge
     doc: An edge on the CFG
     type: struct
     inherits: FunctionEdgeBase
+
     fields: []
+
   - name: CallEdge
     doc: A CFG edge to represent function calls (direct, indirect and tail calls)
     type: struct
     inherits: FunctionEdgeBase
+
     fields:
       - name: DynamicFunction
         doc: |
@@ -102,9 +115,11 @@ definitions:
           type: MutableSet
           elementType: model::FunctionAttribute::Values
         optional: true
+
   - name: FunctionEdgeType
     doc: Type of edge on the CFG
     type: enum
+
     members:
       - name: DirectBranch
         doc: Branch due to function-local CFG (a regular branch)
