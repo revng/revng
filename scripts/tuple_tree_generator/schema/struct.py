@@ -22,6 +22,7 @@ class StructField(ABC):
         self.name = name
         self.doc = doc
         self.optional = optional
+        self.upcastable = False
         self.const = const
         self.is_guid = is_guid
         self.resolved_type = None
@@ -39,7 +40,6 @@ class StructField(ABC):
                 {
                     "sequence_type": sequence_def["type"],
                     "element_type": sequence_def["elementType"],
-                    "upcastable": sequence_def.get("upcastable", False),
                 }
             )
             return SequenceStructField(**args)
@@ -62,23 +62,6 @@ class StructField(ABC):
         raise NotImplementedError()
 
 
-class UpcastableStructField(StructField):
-    def __init__(self, underlying):
-        super().__init__(
-            name=underlying.name,
-            doc=underlying.doc,
-            optional=underlying.optional,
-            const=underlying.const,
-            is_guid=underlying.is_guid,
-        )
-        self.underlying = underlying
-
-    def resolve_references(self, schema):
-        self.underlying.resolve_references(schema)
-        self.resolved_type = UpcastableDefinition(self.underlying.resolved_type)
-        assert self.resolved_type
-
-
 class SimpleStructField(StructField):
     def __init__(
         self,
@@ -88,17 +71,18 @@ class SimpleStructField(StructField):
         doc=None,
         optional=False,
         const=False,
-        upcastable=False,
         is_guid=False,
     ):
         super().__init__(name=name, doc=doc, optional=optional, const=const, is_guid=is_guid)
         self.type = type
-        self.upcastable = upcastable
 
     def resolve_references(self, schema):
         self.resolved_type = schema.get_definition_for(self.type)
-        if self.upcastable:
+
+        if isinstance(self.resolved_type, StructDefinition) and self.resolved_type.abstract:
             self.resolved_type = UpcastableDefinition(self.resolved_type)
+            self.upcastable = True
+
         assert self.resolved_type
 
 
@@ -109,7 +93,6 @@ class SequenceStructField(StructField):
         name,
         sequence_type,
         element_type,
-        upcastable=False,
         doc=None,
         optional=False,
         const=False,
@@ -117,13 +100,16 @@ class SequenceStructField(StructField):
         super().__init__(name=name, doc=doc, optional=optional, const=const)
         self.sequence_type = sequence_type
         self.element_type = element_type
-        self.upcastable = upcastable
         self.resolved_element_type = None
 
     def resolve_references(self, schema):
         self.resolved_element_type = schema.get_definition_for(self.element_type)
-        if self.upcastable:
+        if (
+            isinstance(self.resolved_element_type, StructDefinition)
+            and self.resolved_element_type.abstract
+        ):
             self.resolved_element_type = UpcastableDefinition(self.resolved_element_type)
+            self.upcastable = True
         self.resolved_type = SequenceDefinition(self.sequence_type, self.resolved_element_type)
 
 
