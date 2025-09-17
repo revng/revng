@@ -89,7 +89,6 @@ class JSONSchemaGenerator:
 
         jsonschema["description"] = definition.doc
 
-        # TODO: a type can be upcastable even if it is not abstract
         if definition.abstract:
             upcastable_to = self.schema.get_upcastable_types(definition)
             jsonschema["oneOf"] = [{"$ref": f"#/definitions/{f.name}"} for f in upcastable_to]
@@ -122,6 +121,7 @@ class JSONSchemaGenerator:
             internal_element_type = self.schema.get_definition_for(field.element_type)
             element_schema = self._get_schema_for_scalar(field.element_type, internal_element_type)
             schema = {"type": "array", "items": element_schema}
+
         elif isinstance(field, ReferenceStructField):
             schema = {"$ref": "#/definitions/Reference"}
         else:

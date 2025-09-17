@@ -183,7 +183,7 @@ export /** if class_.abstract **/abstract/** endif **/ class /*= class_.name =*/
         const result = /*= "super.toJSON()" if class_.inherits else "{}" =*/;
         /**- for field in class_.fields **/
         /**- if is_optional(field) **/
-        /**- if is_upcastable(field) **/
+        /**- if is_directly_upcastable(field) **/
         if (this./*= field.name =*/ !== undefined) {
         /**- else **/
         if (!deepEqual(this./*= field.name =*/, /*= default_value(field) =*/)) {

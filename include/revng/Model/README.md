@@ -115,8 +115,7 @@ fields:
       elementType: int
 ```
 
-The sequence type must be instantiable with one type parameter (the element type). If the element type is polymorphic,
-add `upcastable: true`
+The sequence type must be instantiable with one type parameter (the element type).
 
 ```yaml
 name: MyStruct
@@ -125,11 +124,12 @@ fields:
   - name: MyArray
     sequence:
       type: SortedVector
-      upcastable: true
       elementType: efa::FunctionEdgeBase
 ```
 
-This will get translated in C++ as
+Note that, if the specified `elementType` has `abstract: true` set, this will be
+automatically promoted to an upcastable container:
+
 ```cpp
 SortedVector<UpcastablePointer<efa::FunctionEdgeBase>>
 ```

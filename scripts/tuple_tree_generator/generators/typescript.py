@@ -45,7 +45,7 @@ class TypeScriptGenerator:
         )
         self.jinja_environment.globals["load_file"] = self.load_file
         self.jinja_environment.globals["is_optional"] = self.is_optional
-        self.jinja_environment.globals["is_upcastable"] = self.is_upcastable
+        self.jinja_environment.globals["is_directly_upcastable"] = self.is_directly_upcastable
         self.jinja_environment.globals["completely_optional"] = self.completely_optional
         self.jinja_environment.globals["default_value"] = self.get_default_value
         self.jinja_environment.filters["read_file"] = self.read_file
@@ -91,11 +91,11 @@ class TypeScriptGenerator:
         type_ = self._real_type(field)
         if isinstance(field.resolved_type, SequenceDefinition):
             return f"{type_}[]"
-        else:
-            if not interface and isinstance(field, SimpleStructField) and field.upcastable:
-                return f"{type_} | undefined"
-            else:
-                return type_
+
+        if not interface and self.is_directly_upcastable(field):
+            return f"{type_} | undefined"
+
+        return type_
 
     def ts_itype(self, field: StructField) -> str:
         if self._is_simple_type(field):
@@ -293,7 +293,7 @@ class TypeScriptGenerator:
         return field.optional or isinstance(field.resolved_type, ReferenceDefinition)
 
     @staticmethod
-    def is_upcastable(field: StructField):
+    def is_directly_upcastable(field: StructField):
         return isinstance(field, SimpleStructField) and field.upcastable
 
     @classmethod
