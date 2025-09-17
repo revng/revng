@@ -9,6 +9,8 @@ containers:
     type: LLVMRootContainer
   - name: model-header
     type: CBytesContainer
+  - name: model-types
+    type: PTMLCTypeContainer
 
 branches:
   files-imported:
@@ -41,3 +43,13 @@ branches:
         artifacts:
           - name: emit-model-header
             container: model-header
+
+  emit-type-definition:
+    tasks:
+      - pipe: GenerateModelTypeDefinition
+        arguments: [model-types]
+      - savepoint: model-types
+        containers: [model-types]
+        artifacts:
+          - name: emit-type-definitions
+            container: model-types
