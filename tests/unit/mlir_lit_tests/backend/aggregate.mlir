@@ -8,7 +8,7 @@
 !int32_t = !clift.primitive<signed 4>
 
 !s = !clift.struct<
-  "/type-definition/2002-StructDefinition" : size(8) {
+  "/type-definition/2002-StructDefinition" as "my_struct" : size(8) {
     "/struct-field/2002-StructDefinition/0" : offset(0) !int32_t,
     "/struct-field/2002-StructDefinition/4" : offset(4) !int32_t
   }
@@ -20,7 +20,7 @@
 
 module attributes {clift.module} {
   // CHECK: void fun_0x40001001(void) {
-  clift.func @f<!f>() attributes {
+  clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: (my_struct){0, 1};

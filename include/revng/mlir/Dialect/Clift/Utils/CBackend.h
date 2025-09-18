@@ -7,18 +7,14 @@
 #include <cstdint>
 #include <string>
 
-#include "revng/Model/Binary.h"
+#include "revng/PTML/CTokenEmitter.h"
 #include "revng/Support/CTarget.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 
-namespace ptml {
-class ModelCBuilder;
-}
-
 namespace mlir::clift {
 
-std::string decompile(FunctionOp Function,
-                      const TargetCImplementation &Target,
-                      ptml::ModelCBuilder &Builder);
+void decompile(FunctionOp Function,
+               CTokenEmitter &Emitter,
+               const TargetCImplementation &Target);
 
 } // namespace mlir::clift

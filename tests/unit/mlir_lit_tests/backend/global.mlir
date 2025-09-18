@@ -12,17 +12,17 @@
 >
 
 module attributes {clift.module} {
-  clift.global @g : !int32_t attributes {
+  clift.global @seg_0x40002001 : !int32_t attributes {
     handle = "/segment/0x40002001:Generic64-4"
   }
 
   // CHECK: void fun_0x40001001(void) {
-  clift.func @f<!f>() attributes {
+  clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: seg_0x40002001;
     clift.expr {
-      %y = clift.use @g : !int32_t
+      %y = clift.use @seg_0x40002001 : !int32_t
       clift.yield %y : !int32_t
     }
   }
