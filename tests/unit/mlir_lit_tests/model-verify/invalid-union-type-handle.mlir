@@ -5,7 +5,7 @@
 // RUN: not %revngpipe model-verify-clift %S/model.yml %s /dev/null 2>&1 | FileCheck %s
 
 !t = !clift.union<"/type-definition/1001-StructDefinition" : {
-  !clift.primitive<signed 4>
+  "/struct-field/1001-StructDefinition/0" : !clift.primitive<signed 4>
 }>
 
 // CHECK: UnionType with invalid handle: '/type-definition/1001-StructDefinition'

@@ -6,17 +6,19 @@
 Architecture: x86_64
 
 TypeDefinitions:
-  # CHECK: !my_struct = !clift.struct<
+  # CHECK: !_type_definition_1001_StructDefinition = !clift.struct<
   # CHECK:   "/type-definition/1001-StructDefinition"
-  # CHECK:   as "my_struct"
   # CHECK:   : size(8)
   # CHECK:   {
-  # CHECK:     offset(0)
-  # CHECK:     : !uint8_t
-  # CHECK:     offset(2)
-  # CHECK:     : !uint16_t
-  # CHECK:     offset(4)
-  # CHECK:     : !uint32_t
+  # CHECK:     "/struct-field/1001-StructDefinition/0"
+  # CHECK:     : offset(0)
+  # CHECK:     !uint8_t
+  # CHECK:     "/struct-field/1001-StructDefinition/2"
+  # CHECK:     : offset(2)
+  # CHECK:     !uint16_t
+  # CHECK:     "/struct-field/1001-StructDefinition/4"
+  # CHECK:     : offset(4)
+  # CHECK:     !uint32_t
   # CHECK:   }
   # CHECK: >
   - ID: 1001

@@ -13,5 +13,5 @@ config.suffixes = [".mlir"]
 config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = config.my_obj_root
 config.substitutions.append(("%revngcliftopt", "../bin/revng clift-opt"))
-config.substitutions.append(("%revngcliftemit", "../bin/revng clift-emit"))
 config.substitutions.append(("%revngpipe", "../bin/revng pipe"))
+config.substitutions.append(("%revngptml", "../bin/revng ptml"))

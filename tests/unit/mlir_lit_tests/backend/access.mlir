@@ -2,24 +2,25 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngpipe emit-c %S/model.yml %s <(tar -czT /dev/null) /dev/stdout | tar -zxO
+// RUN: %revngcliftopt --emit-c %s | FileCheck %s
+// RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
 !void = !clift.primitive<void 0>
 
 !int32_t = !clift.primitive<signed 4>
 
 !s = !clift.struct<
-  "/type-definition/2002-StructDefinition" : size(8) {
-    offset(0) : !int32_t,
-    offset(4) : !int32_t
+  "/type-definition/2002-StructDefinition" as "s" : size(8) {
+    "/struct-field/2002-StructDefinition/0" as "x" : offset(0) !int32_t,
+    "/struct-field/2002-StructDefinition/4" as "y" : offset(4) !int32_t
   }
 >
 !s$p = !clift.ptr<8 to !s>
 
 !u = !clift.union<
-  "/type-definition/2003-UnionDefinition" : {
-    !int32_t,
-    !int32_t
+  "/type-definition/2003-UnionDefinition" as "u" : {
+    "/union-field/2003-UnionDefinition/0" as "x" : !int32_t,
+    "/union-field/2003-UnionDefinition/1" as "y" : !int32_t
   }
 >
 !u$p = !clift.ptr<8 to !u>
@@ -30,11 +31,18 @@
 
 module attributes {clift.module} {
   // CHECK: void fun_0x40001001(void) {
-  clift.func @f<!f>() attributes {
+  clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    %s = clift.local !s$p
-    %u = clift.local !u$p
+    %s = clift.local : !s$p attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/0",
+      clift.name = "var_0"
+    }
+
+    %u = clift.local : !u$p attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/1",
+      clift.name = "var_1"
+    }
 
     // CHECK: var_0->x;
     clift.expr {

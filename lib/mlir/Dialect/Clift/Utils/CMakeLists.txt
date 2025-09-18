@@ -7,7 +7,6 @@ revng_add_library_internal(
   SHARED
   CBackend.cpp
   CSemantics.cpp
-  CTarget.cpp
   ImportLLVM.cpp
   ImportModel.cpp
   ModelVerify.cpp
