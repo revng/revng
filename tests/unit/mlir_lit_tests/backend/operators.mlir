@@ -14,14 +14,20 @@
 
 module attributes {clift.module} {
   // CHECK: void fun_0x40001001(void) {
-  clift.func @f<!f>() attributes {
+  clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: int32_t var_0;
-    %x = clift.local : !int32_t
+    %x = clift.local : !int32_t attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/0",
+      clift.name = "var_0"
+    }
 
     // CHECK: int32_t *var_1;
-    %p = clift.local : !int32_t$p
+    %p = clift.local : !int32_t$p attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/1",
+      clift.name = "var_1"
+    }
 
     // CHECK: -var_0;
     clift.expr {
