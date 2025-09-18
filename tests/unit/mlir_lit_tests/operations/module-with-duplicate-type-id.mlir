@@ -9,7 +9,9 @@
 >
 
 !u = !clift.union<
-  "/type-definition/1-StructDefinition" : { !s }
+  "/type-definition/1-StructDefinition" : {
+    "/struct-field/1-StructDefinition/0" : !s
+  }
 >
 
 // CHECK: two distinct type definitions with the same handle: '/type-definition/1-StructDefinition'

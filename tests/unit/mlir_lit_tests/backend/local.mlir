@@ -13,26 +13,27 @@
 
 !my_enum = !clift.enum<
   "/type-definition/2001-EnumDefinition" : !int32_t {
-    0
+    "/enum-entry/2001-EnumDefinition/0" : 0
   }
 >
 
 !my_struct = !clift.struct<
-  "/type-definition/2002-StructDefinition" : size(4) {
-    offset(0) : !int32_t
+  "/type-definition/2002-StructDefinition" : size(8) {
+    "/struct-field/2002-StructDefinition/0" : offset(0) !int32_t,
+    "/struct-field/2002-StructDefinition/1" : offset(4) !int32_t
   }
 >
 
 !my_union = !clift.union<
   "/type-definition/2003-UnionDefinition" : {
-    !int32_t
+    "/union-field/2003-UnionDefinition/0" : !int32_t
   }
 >
 
 !my_pair = !clift.struct<
   "/type-definition/2006-StructDefinition" : size(8) {
-    offset(0) : !int32_t,
-    offset(4) : !int32_t
+    "/struct-field/2006-StructDefinition/0" : offset(0) !int32_t,
+    "/struct-field/2006-StructDefinition/4" : offset(4) !int32_t
   }
 >
 

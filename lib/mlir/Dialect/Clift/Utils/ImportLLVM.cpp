@@ -254,25 +254,50 @@ private:
     return mlir::cast<ReturnType>(Iterator->second);
   }
 
+  static std::string getHelperStructFieldName(unsigned Index) {
+    std::string Name;
+    {
+      llvm::raw_string_ostream Out(Name);
+      Out << "field_" << Index;
+    }
+    return Name;
+  }
+
   // Import an LLVM type used as a helper function return type. If the type is a
   // struct type, create a Clift struct type with a handle derived from the
   // helper function name.
   clift::ValueType importHelperReturnType(const llvm::Type *Type,
                                           llvm::StringRef HelperName) {
-    auto StructType = llvm::dyn_cast<llvm::StructType>(Type);
+    auto Struct = llvm::dyn_cast<llvm::StructType>(Type);
 
-    if (not StructType)
+    if (not Struct)
       return importLLVMType(Type);
 
-    revng_assert(StructType->isLiteral());
+    revng_assert(Struct->isLiteral());
+
+    auto Location = pipeline::location(revng::ranks::HelperStructType,
+                                       HelperName.str());
 
     llvm::SmallVector<FieldAttr> Fields;
-    Fields.reserve(StructType->getNumElements());
+    Fields.reserve(Struct->getNumElements());
 
     uint64_t Offset = 0;
-    for (const llvm::Type *T : StructType->elements()) {
+    for (auto [I, T] : llvm::enumerate(Struct->elements())) {
       clift::ValueType FieldType = importLLVMType(T);
-      Fields.push_back(FieldAttr::get(Context, Offset, FieldType, ""));
+
+      std::string FieldName = getHelperStructFieldName(I);
+      std::string FieldHandle = Location
+                                  .extend(revng::ranks::HelperStructField,
+                                          FieldName)
+                                  .toString();
+
+      Fields.push_back(FieldAttr::get(Context,
+                                      FieldHandle,
+                                      makeNameAttr<FieldAttr>(Context,
+                                                              FieldHandle,
+                                                              FieldName),
+                                      Offset,
+                                      FieldType));
       Offset += FieldType.getByteSize();
     }
 
@@ -283,7 +308,13 @@ private:
       Name = Model.Configuration().Naming().artificialReturnValuePrefix().str()
              + sanitizeIdentifier(HelperName);
 
-    auto Definition = StructAttr::get(Context, Handle, Name, Offset, Fields);
+    auto Definition = StructAttr::get(Context,
+                                      Handle,
+                                      makeNameAttr<StructAttr>(Context,
+                                                               Handle,
+                                                               Name),
+                                      Offset,
+                                      Fields);
 
     return StructType::get(Context, Definition);
   }
@@ -306,7 +337,11 @@ private:
     auto Handle = pipeline::locationString(revng::ranks::HelperFunction,
                                            HelperName.str());
 
-    return FunctionType::get(Context, Handle, "", ReturnType, ParameterTypes);
+    return FunctionType::get(Context,
+                             Handle,
+                             makeNameAttr<FunctionType>(Context, Handle),
+                             ReturnType,
+                             ParameterTypes);
   }
 
   // Import a Clift function type from an LLVM function, using the name of the
@@ -544,9 +579,10 @@ private:
     auto Handle = pipeline::locationString(revng::ranks::HelperFunction,
                                            HelperName.str());
 
+    auto NameAttr = makeNameAttr<clift::FunctionType>(Context, Handle);
     auto FunctionType = clift::FunctionType::get(Context,
                                                  Handle,
-                                                 /*Name=*/"",
+                                                 NameAttr,
                                                  ReturnType,
                                                  ParameterTypes);
 

@@ -20,10 +20,12 @@ TypeDefinitions:
     # CHECK:   "/artificial-struct/1002-RawFunctionDefinition"
     # CHECK:   : size(16)
     # CHECK:   {
-    # CHECK:     offset(0)
-    # CHECK:     : !uint64_t
-    # CHECK:     offset(8)
-    # CHECK.     : !clift.ptr<
+    # CHECK:     "/return-register/1002-RawFunctionDefinition/rcx_x86_64"
+    # CHECK:     : offset(0)
+    # CHECK:     !uint64_t
+    # CHECK:     "/return-register/1002-RawFunctionDefinition/rdx_x86_64"
+    # CHECK:     : offset(8)
+    # CHECK.     !clift.ptr<
     # CHECK:       8 to !uint64_t
     # CHECK.     >
     # CHECK:   }

@@ -7,8 +7,8 @@
 !int32_t = !clift.primitive<signed 4>
 
 !enum = !clift.enum<
-  "/type-definition/1-CABIFunctionDefinition" : !int32_t {
-    0
+  "/type-definition/1-EnumDefinition" : !int32_t {
+    "/enum-entry/1-EnumDefinition/0" : 0
   }
 >
 

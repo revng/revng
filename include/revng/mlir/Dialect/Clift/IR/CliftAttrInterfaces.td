@@ -27,7 +27,32 @@ def Clift_AliasableAttr : Clift_AttrInterface<"AliasableAttr"> {
   ];
 }
 
-def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {}
+def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
+  let methods = [
+    InterfaceMethod<
+      "Returns the unique handle of the DefinedType.",
+      "llvm::StringRef", "getHandle", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        return $_attr.getHandle();
+      }]
+    >,
+    InterfaceMethod<
+      "Returns the mutable name attribute of the DefinedType.",
+      "mlir::clift::MutableStringAttr", "getMutableName", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplemetation=*/[{}]
+    >,
+    InterfaceMethod<
+      "Returns the name of the DefinedType.",
+      "llvm::StringRef", "getName", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplemetation=*/[{
+        return $_attr.getMutableName().getValue();
+      }]
+    >,
+  ];
+}
 
 #endif
 

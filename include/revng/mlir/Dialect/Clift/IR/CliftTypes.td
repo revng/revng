@@ -209,6 +209,8 @@ def Clift_TypedefType
   ];
 
   let extraClassDeclaration = [{
+    static constexpr llvm::StringRef NameAttrKey = TypedefAttr::NameAttrKey;
+
     // AliasableType
     bool getAlias(llvm::raw_ostream &OS) const;
 
@@ -246,13 +248,13 @@ def Clift_FunctionType
   }];
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        StringRefParameter<>:$name,
+                        "mlir::clift::MutableStringAttr":$mutable_name,
                         "mlir::Type":$return_type,
                         OptionalArrayRefParameter<"mlir::Type">:$argument_types);
 
   let builders = [
     TypeBuilder<(ins "llvm::StringRef":$Handle,
-                     "llvm::StringRef":$Name,
+                     "mlir::clift::MutableStringAttr":$Name,
                      "mlir::clift::ValueType":$ReturnType,
                      "llvm::ArrayRef<mlir::clift::ValueType>":$ArgumentTypes), [{
       return $_get($_ctxt,
@@ -264,6 +266,12 @@ def Clift_FunctionType
   ];
 
   let extraClassDeclaration = [{
+    static constexpr llvm::StringRef NameAttrKey = "Function";
+
+    llvm::StringRef getName() const {
+      return getMutableName().getValue();
+    }
+
     // AliasableType
     bool getAlias(llvm::raw_ostream &OS) const;
 
@@ -304,6 +312,8 @@ class Clift_ClassTypeBase<string name, string mnemonic>
 
   let extraClassDeclaration = [{
     using DefinitionAttrType = }] # name # [{Attr;
+
+    static constexpr llvm::StringRef NameAttrKey = DefinitionAttrType::NameAttrKey;
 
     bool isComplete() const {
       return getDefinition().hasDefinition();

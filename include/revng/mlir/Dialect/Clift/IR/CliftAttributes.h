@@ -17,11 +17,31 @@
 #include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftMutableStringAttr.h"
 
+namespace mlir::clift {
+
+template<typename T>
+MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
+                               llvm::StringRef Handle,
+                               llvm::StringRef Name = "");
+
+} // namespace mlir::clift
+
 // This include should stay here for correct build procedure
 #define GET_ATTRDEF_CLASSES
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h.inc"
 
 namespace mlir::clift {
+
+template<typename T>
+MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
+                               llvm::StringRef Handle,
+                               llvm::StringRef Name) {
+  return MutableStringAttr::get(Context,
+                                StringPairAttr::get(Context,
+                                                    T::NameAttrKey,
+                                                    Handle),
+                                Name);
+}
 
 // VERY IMPORTANT!!!
 // If you upgraded to LLVM 17 and walks on types stopped working, you need to
@@ -40,11 +60,11 @@ using ClassAttrBase = Attribute::AttrBase<AttrT,
                                           SubElementAttrInterface::Trait>;
 
 struct ClassDefinition {
-  llvm::StringRef Name;
+  MutableStringAttr Name;
   uint64_t Size;
   llvm::ArrayRef<FieldAttr> Fields;
 
-  llvm::StringRef getName() const { return Name; }
+  MutableStringAttr getMutableName() const { return Name; }
 
   uint64_t getSize() const { return Size; }
 
@@ -66,7 +86,11 @@ public:
 
   llvm::StringRef getHandle() const;
 
-  llvm::StringRef getName() const { return getDefinition().getName(); }
+  MutableStringAttr getMutableName() const {
+    return getDefinition().getMutableName();
+  }
+
+  llvm::StringRef getName() const { return getMutableName().getValue(); }
 
   llvm::ArrayRef<FieldAttr> getFields() const {
     return getDefinition().getFields();
@@ -83,6 +107,8 @@ public:
 };
 
 struct StructAttr : ClassAttrImpl<StructAttr> {
+  static constexpr llvm::StringRef NameAttrKey = "Struct";
+
   using ClassAttrImpl::ClassAttrImpl;
 
   static LogicalResult
@@ -97,7 +123,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
   static mlir::LogicalResult
   verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle,
-         llvm::StringRef Name,
+         MutableStringAttr Name,
          uint64_t Size,
          llvm::ArrayRef<FieldAttr> Fields);
 
@@ -123,7 +149,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
 
   static StructAttr get(MLIRContext *Context,
                         llvm::StringRef Handle,
-                        llvm::StringRef Name,
+                        MutableStringAttr Name,
                         uint64_t Size,
                         llvm::ArrayRef<FieldAttr> Fields);
 
@@ -131,7 +157,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              llvm::StringRef Handle,
-             llvm::StringRef Name,
+             MutableStringAttr Name,
              uint64_t Size,
              llvm::ArrayRef<FieldAttr> Fields);
 
@@ -139,6 +165,8 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
 };
 
 struct UnionAttr : ClassAttrImpl<UnionAttr> {
+  static constexpr llvm::StringRef NameAttrKey = "Union";
+
   using ClassAttrImpl::ClassAttrImpl;
   using ClassAttrImpl::verify;
 
@@ -154,7 +182,7 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
   static LogicalResult
   verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle,
-         llvm::StringRef Name,
+         MutableStringAttr Name,
          llvm::ArrayRef<FieldAttr> Fields);
 
   mlir::LogicalResult
@@ -179,14 +207,14 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
 
   static UnionAttr get(MLIRContext *Context,
                        llvm::StringRef Handle,
-                       llvm::StringRef Name,
+                       MutableStringAttr Name,
                        llvm::ArrayRef<FieldAttr> Fields);
 
   static UnionAttr
   getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
              MLIRContext *Context,
              llvm::StringRef Handle,
-             llvm::StringRef Name,
+             MutableStringAttr Name,
              llvm::ArrayRef<FieldAttr> Fields);
 
   uint64_t getSize() const;

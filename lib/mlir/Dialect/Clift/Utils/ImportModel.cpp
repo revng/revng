@@ -90,6 +90,12 @@ private:
     return T::getChecked(EmitError, Context, Args...);
   }
 
+  template<typename KeyT>
+  clift::MutableStringAttr
+  makeNameAttr(llvm::StringRef Handle, llvm::StringRef Name = {}) {
+    return clift::makeNameAttr<KeyT>(Context, Handle, Name);
+  }
+
   static clift::PrimitiveKind
   getPrimitiveKind(const model::PrimitiveType &ModelType) {
     switch (ModelType.PrimitiveKind()) {
@@ -156,8 +162,9 @@ private:
       rc_return nullptr;
 
     auto Handle = getHandle(ModelType);
+    auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
     rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
-                                        llvm::StringRef(""),
+                                        NameAttr,
                                         ReturnType,
                                         llvm::ArrayRef(ArgumentTypes));
   }
@@ -185,8 +192,10 @@ private:
       auto Handle = Location.extend(revng::ranks::EnumEntry, Entry.Value())
                       .toString();
 
-      auto Attr = make<clift::EnumFieldAttr>(Entry.Value(),
-                                             llvm::StringRef(""));
+      auto NameAttr = makeNameAttr<clift::EnumFieldAttr>(Handle);
+      auto Attr = make<clift::EnumFieldAttr>(llvm::StringRef(Handle),
+                                             NameAttr,
+                                             Entry.Value());
 
       if (not Attr)
         rc_return nullptr;
@@ -195,8 +204,9 @@ private:
     }
 
     auto Handle = Location.toString();
+    auto NameAttr = makeNameAttr<clift::EnumAttr>(Handle);
     auto Attr = make<clift::EnumAttr>(llvm::StringRef(Handle),
-                                      llvm::StringRef(""),
+                                      NameAttr,
                                       UnderlyingType,
                                       llvm::ArrayRef(Fields));
 
@@ -223,9 +233,11 @@ private:
                       .extend(revng::ranks::ReturnRegister, Register.Location())
                       .toString();
 
-      auto Attr = make<clift::FieldAttr>(Offset,
-                                         RegisterType,
-                                         llvm::StringRef(""));
+      auto NameAttr = makeNameAttr<clift::FieldAttr>(Handle);
+      auto Attr = make<clift::FieldAttr>(llvm::StringRef(Handle),
+                                         NameAttr,
+                                         Offset,
+                                         RegisterType);
       if (not Attr)
         rc_return nullptr;
 
@@ -234,8 +246,9 @@ private:
     }
 
     auto Handle = Location.transmute(revng::ranks::ArtificialStruct).toString();
+    auto NameAttr = makeNameAttr<clift::StructAttr>(Handle);
     auto Attr = make<clift::StructAttr>(llvm::StringRef(Handle),
-                                        llvm::StringRef(""),
+                                        NameAttr,
                                         Offset,
                                         llvm::ArrayRef(Fields));
 
@@ -303,8 +316,9 @@ private:
       rc_return nullptr;
 
     auto Handle = getHandle(ModelType);
+    auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
     rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
-                                        llvm::StringRef(""),
+                                        NameAttr,
                                         mlir::Type(ReturnType),
                                         llvm::ArrayRef(ArgumentTypes));
   }
@@ -341,9 +355,11 @@ private:
       auto Handle = Location.extend(revng::ranks::StructField, Field.Offset())
                       .toString();
 
-      auto Attr = make<clift::FieldAttr>(Field.Offset(),
-                                         FieldType,
-                                         llvm::StringRef(""));
+      auto NameAttr = makeNameAttr<clift::FieldAttr>(Handle);
+      auto Attr = make<clift::FieldAttr>(llvm::StringRef(Handle),
+                                         NameAttr,
+                                         Field.Offset(),
+                                         FieldType);
       if (not Attr)
         rc_return nullptr;
 
@@ -351,8 +367,9 @@ private:
     }
 
     auto Handle = Location.toString();
+    auto NameAttr = makeNameAttr<clift::StructAttr>(Handle);
     auto Attr = make<clift::StructAttr>(llvm::StringRef(Handle),
-                                        llvm::StringRef(""),
+                                        NameAttr,
                                         ModelType.Size(),
                                         llvm::ArrayRef(Fields));
 
@@ -383,8 +400,9 @@ private:
       rc_return nullptr;
 
     auto Handle = getHandle(ModelType);
+    auto NameAttr = makeNameAttr<clift::TypedefAttr>(Handle);
     auto Attr = make<clift::TypedefAttr>(llvm::StringRef(Handle),
-                                         llvm::StringRef(""),
+                                         NameAttr,
                                          UnderlyingType);
 
     if (not Attr)
@@ -425,17 +443,20 @@ private:
       auto Handle = Location.extend(revng::ranks::UnionField, Field.Index())
                       .toString();
 
-      auto Attr = make<clift::FieldAttr>(/*Offset=*/static_cast<uint64_t>(0),
-                                         FieldType,
-                                         llvm::StringRef(""));
+      auto NameAttr = makeNameAttr<clift::FieldAttr>(Handle);
+      auto Attr = make<clift::FieldAttr>(llvm::StringRef(Handle),
+                                         NameAttr,
+                                         /*Offset=*/static_cast<uint64_t>(0),
+                                         FieldType);
       if (not Attr)
         rc_return nullptr;
       Fields.push_back(Attr);
     }
 
     auto Handle = Location.toString();
+    auto NameAttr = makeNameAttr<clift::UnionAttr>(Handle);
     auto Attr = make<clift::UnionAttr>(llvm::StringRef(Handle),
-                                       llvm::StringRef(""),
+                                       NameAttr,
                                        llvm::ArrayRef(Fields));
 
     rc_return clift::UnionType::get(Attr);
