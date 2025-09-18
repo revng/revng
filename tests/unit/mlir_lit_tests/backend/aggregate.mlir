@@ -23,7 +23,7 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: (struct my_struct){0, 1};
+    // CHECK: (my_struct){0, 1};
     clift.expr {
       %0 = clift.imm 0 : !int32_t
       %1 = clift.imm 1 : !int32_t

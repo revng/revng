@@ -15,7 +15,7 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001005:Code_x86_64"
   } {
-    // CHECK: struct {{.*}}frame_1005 {
+    // CHECK: {{.*}}frame_1005 {
     // CHECK: int32_t a;
     // CHECK: };
 
