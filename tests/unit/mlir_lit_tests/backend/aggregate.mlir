@@ -9,8 +9,8 @@
 
 !s = !clift.struct<
   "/type-definition/2002-StructDefinition" : size(8) {
-    offset(0) : !int32_t,
-    offset(4) : !int32_t
+    "/struct-field/2002-StructDefinition/0" : offset(0) !int32_t,
+    "/struct-field/2002-StructDefinition/4" : offset(4) !int32_t
   }
 >
 

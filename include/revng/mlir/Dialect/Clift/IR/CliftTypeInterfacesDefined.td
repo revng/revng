@@ -17,7 +17,7 @@ def Clift_DefinedType
 
   let methods = [
     InterfaceMethod<
-      "The unique handle of the type",
+      "Returns the unique handle of the DefinedType.",
       "llvm::StringRef", "getHandle", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
@@ -25,11 +25,19 @@ def Clift_DefinedType
       }]
     >,
     InterfaceMethod<
-      "returns the name of the type.",
+      "Returns the mutable name attribute of the DefinedType.",
+      "mlir::clift::MutableStringAttr", "getMutableName", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplemetation=*/[{
+        return $_type.getDefinition().getMutableName();
+      }]
+    >,
+    InterfaceMethod<
+      "Returns the name of the DefinedType.",
       "llvm::StringRef", "getName", (ins),
       /*methodBody=*/[{}],
       /*defaultImplemetation=*/[{
-        return $_type.getName();
+        return $_type.getMutableName().getValue();
       }]
     >,
   ];

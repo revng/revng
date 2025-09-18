@@ -15,7 +15,7 @@
 
 !my_enum = !clift.enum<
   "/type-definition/2001-EnumDefinition" : !int32_t {
-    0
+    "/enum-entry/2001-EnumDefinition/0" : 0
   }
 >
 

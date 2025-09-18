@@ -10,16 +10,16 @@
 
 !s = !clift.struct<
   "/type-definition/2002-StructDefinition" : size(8) {
-    offset(0) : !int32_t,
-    offset(4) : !int32_t
+    "/struct-field/2002-StructDefinition/0" : offset(0) !int32_t,
+    "/struct-field/2002-StructDefinition/4" : offset(4) !int32_t
   }
 >
 !s$p = !clift.ptr<8 to !s>
 
 !u = !clift.union<
   "/type-definition/2003-UnionDefinition" : {
-    !int32_t,
-    !int32_t
+    "/union-field/2003-UnionDefinition/0" : !int32_t,
+    "/union-field/2003-UnionDefinition/1" : !int32_t
   }
 >
 !u$p = !clift.ptr<8 to !u>

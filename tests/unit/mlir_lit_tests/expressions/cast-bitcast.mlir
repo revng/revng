@@ -18,7 +18,7 @@
 
 !my_enum = !clift.enum<
   "/type-definition/2-EnumDefinition" as "my_enum" : !uint32_t {
-    1 as "enumerator"
+    "/enum-entry/2-EnumDefinition/1" as "enumerator" : 1
   }
 >
 

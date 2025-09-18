@@ -9,7 +9,7 @@
 
 !s = !clift.struct<
   "/type-definition/1-StructDefinition" : size(4) {
-    offset(0) as "x" : !int32_t
+    "/type-definition/1-StructDefinition/0" as "x" : offset(0) !int32_t
   }
 >
 !p_s = !clift.ptr<8 to !s>

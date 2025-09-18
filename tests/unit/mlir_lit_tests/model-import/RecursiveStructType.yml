@@ -10,8 +10,9 @@ TypeDefinitions:
   # CHECK:   "/type-definition/1001-StructDefinition"
   # CHECK:   : size(4)
   # CHECK:   {
-  # CHECK:     offset(0)
-  # CHECK:     : !clift.ptr<4 to
+  # CHECK:     "/struct-field/1001-StructDefinition/0"
+  # CHECK:     : offset(0)
+  # CHECK:     !clift.ptr<4 to
   # CHECK:       !clift.struct<"/type-definition/1001-StructDefinition">
   # CHECK:     >
   # CHECK:   }

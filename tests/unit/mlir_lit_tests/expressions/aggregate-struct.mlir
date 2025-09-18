@@ -9,8 +9,8 @@
 
 !s = !clift.struct<
   "" : size(8) {
-    offset(0) as "x" : !int32_t,
-    offset(4) as "y" : !int32_t
+    "" : offset(0) !int32_t,
+    "" : offset(4) !int32_t
   }
 >
 

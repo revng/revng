@@ -8,7 +8,7 @@
 
 !f_args = !clift.struct<
   "/type-definition/2004-StructDefinition" : size(4) {
-    offset(0) : !int32_t
+    "/struct-field/2004-StructDefinition/0" : offset(0) !int32_t
   }
 >
 
