@@ -17,6 +17,7 @@
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/Identifier.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportLLVM.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportModel.h"
@@ -278,7 +279,11 @@ private:
     auto Handle = pipeline::locationString(revng::ranks::HelperStructType,
                                            HelperName.str());
 
-    return StructType::get(Context, Handle, "", Offset, Fields);
+    std::string
+      Name = Model.Configuration().Naming().artificialReturnValuePrefix().str()
+             + sanitizeIdentifier(HelperName);
+
+    return StructType::get(Context, Handle, Name, Offset, Fields);
   }
 
   // Import a Clift function type from an LLVM function type and a helper name
