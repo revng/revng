@@ -87,9 +87,7 @@ public:
 private:
   template<typename T, typename... ArgTypes>
   T make(const ArgTypes &...Args) {
-    if (failed(T::verify(EmitError, Args...)))
-      return {};
-    return T::get(Context, Args...);
+    return T::getChecked(EmitError, Context, Args...);
   }
 
   static clift::PrimitiveKind
@@ -116,11 +114,15 @@ private:
     }
   }
 
-  std::string getHandle(const model::TypeDefinition &T) {
-    return pipeline::locationString(revng::ranks::TypeDefinition, T.key());
+  auto getLocation(const model::TypeDefinition &T) {
+    return pipeline::location(revng::ranks::TypeDefinition, T.key());
   }
 
-  std::string getRegisterSetLocation(const model::RawFunctionDefinition &T) {
+  std::string getHandle(const model::TypeDefinition &T) {
+    return getLocation(T).toString();
+  }
+
+  std::string getRegisterSetHandle(const model::RawFunctionDefinition &T) {
     return pipeline::locationString(revng::ranks::ArtificialStruct, T.key());
   }
 
@@ -149,13 +151,15 @@ private:
       ReturnType = rc_recur fromType(*model::PrimitiveType::makeVoid());
     else
       ReturnType = rc_recur fromType(*ModelType.ReturnType());
+
     if (not ReturnType)
       rc_return nullptr;
 
-    rc_return make<clift::FunctionType>(getHandle(ModelType),
-                                        "",
+    auto Handle = getHandle(ModelType);
+    rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
+                                        llvm::StringRef(""),
                                         ReturnType,
-                                        ArgumentTypes);
+                                        llvm::ArrayRef(ArgumentTypes));
   }
 
   RecursiveCoroutine<clift::DefinedType>
@@ -172,28 +176,42 @@ private:
     if (not UnderlyingType)
       rc_return nullptr;
 
+    auto Location = getLocation(ModelType);
+
     AttributeVector<clift::EnumFieldAttr> Fields;
     Fields.reserve(ModelType.Entries().size());
 
     for (const model::EnumEntry &Entry : ModelType.Entries()) {
-      const auto Attribute = make<clift::EnumFieldAttr>(Entry.Value(), "");
-      if (not Attribute)
+      auto Handle = Location.extend(revng::ranks::EnumEntry, Entry.Value())
+                      .toString();
+
+      auto Attr = make<clift::EnumFieldAttr>(Entry.Value(),
+                                             llvm::StringRef(""));
+
+      if (not Attr)
         rc_return nullptr;
-      Fields.push_back(Attribute);
+
+      Fields.push_back(Attr);
     }
 
-    rc_return make<clift::EnumType>(getHandle(ModelType),
-                                    "",
-                                    UnderlyingType,
-                                    Fields);
+    auto Handle = Location.toString();
+    auto Attr = make<clift::EnumAttr>(llvm::StringRef(Handle),
+                                      llvm::StringRef(""),
+                                      UnderlyingType,
+                                      llvm::ArrayRef(Fields));
+
+    if (not Attr)
+      rc_return nullptr;
+
+    rc_return clift::EnumType::get(Attr);
   }
 
   RecursiveCoroutine<clift::ValueType>
   getRegisterSetType(const model::RawFunctionDefinition &ModelType) {
-    using ElementAttr = clift::FieldAttr;
+    auto Location = getLocation(ModelType);
 
-    AttributeVector<ElementAttr> Elements;
-    Elements.reserve(ModelType.ReturnValues().size());
+    AttributeVector<clift::FieldAttr> Fields;
+    Fields.reserve(ModelType.ReturnValues().size());
 
     uint64_t Offset = 0;
     for (const model::NamedTypedRegister &Register : ModelType.ReturnValues()) {
@@ -201,18 +219,30 @@ private:
       if (not RegisterType)
         rc_return nullptr;
 
-      const auto Attribute = make<ElementAttr>(Offset, RegisterType, "");
-      if (not Attribute)
+      auto Handle = Location
+                      .extend(revng::ranks::ReturnRegister, Register.Location())
+                      .toString();
+
+      auto Attr = make<clift::FieldAttr>(Offset,
+                                         RegisterType,
+                                         llvm::StringRef(""));
+      if (not Attr)
         rc_return nullptr;
 
-      Elements.push_back(Attribute);
+      Fields.push_back(Attr);
       Offset += RegisterType.getByteSize();
     }
 
-    rc_return make<clift::StructType>(getRegisterSetLocation(ModelType),
-                                      "",
-                                      Offset,
-                                      Elements);
+    auto Handle = Location.transmute(revng::ranks::ArtificialStruct).toString();
+    auto Attr = make<clift::StructAttr>(llvm::StringRef(Handle),
+                                        llvm::StringRef(""),
+                                        Offset,
+                                        llvm::ArrayRef(Fields));
+
+    if (not Attr)
+      rc_return nullptr;
+
+    rc_return clift::StructType::get(Attr);
   }
 
   RecursiveCoroutine<clift::DefinedType>
@@ -253,7 +283,7 @@ private:
     switch (ModelType.ReturnValues().size()) {
     case 0:
       ReturnType = make<clift::PrimitiveType>(clift::PrimitiveKind::VoidKind,
-                                              0,
+                                              /*Size=*/static_cast<uint64_t>(0),
                                               /*IsConst=*/false);
       break;
 
@@ -262,7 +292,9 @@ private:
       break;
 
     default: {
-      ReturnType = make<clift::StructType>(getRegisterSetLocation(ModelType));
+      ReturnType = clift::StructType::get(Context,
+                                          getRegisterSetHandle(ModelType));
+
       const auto R = IncompleteTypes.try_emplace(ModelType.ID(), &ModelType);
       revng_assert(R.second && "Register set types are only visited once.");
     } break;
@@ -270,10 +302,11 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
-    rc_return make<clift::FunctionType>(getHandle(ModelType),
-                                        "",
-                                        ReturnType,
-                                        ArgumentTypes);
+    auto Handle = getHandle(ModelType);
+    rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
+                                        llvm::StringRef(""),
+                                        mlir::Type(ReturnType),
+                                        llvm::ArrayRef(ArgumentTypes));
   }
 
   RecursiveCoroutine<clift::DefinedType>
@@ -294,6 +327,8 @@ private:
       rc_return nullptr;
     }
 
+    auto Location = getLocation(ModelType);
+
     AttributeVector<clift::FieldAttr> Fields;
     Fields.reserve(ModelType.Fields().size());
 
@@ -302,16 +337,29 @@ private:
                                                /* RequireComplete = */ true);
       if (not FieldType)
         rc_return nullptr;
-      auto Attribute = make<clift::FieldAttr>(Field.Offset(), FieldType, "");
-      if (not Attribute)
+
+      auto Handle = Location.extend(revng::ranks::StructField, Field.Offset())
+                      .toString();
+
+      auto Attr = make<clift::FieldAttr>(Field.Offset(),
+                                         FieldType,
+                                         llvm::StringRef(""));
+      if (not Attr)
         rc_return nullptr;
-      Fields.push_back(Attribute);
+
+      Fields.push_back(Attr);
     }
 
-    rc_return make<clift::StructType>(getHandle(ModelType),
-                                      "",
-                                      ModelType.Size(),
-                                      Fields);
+    auto Handle = Location.toString();
+    auto Attr = make<clift::StructAttr>(llvm::StringRef(Handle),
+                                        llvm::StringRef(""),
+                                        ModelType.Size(),
+                                        llvm::ArrayRef(Fields));
+
+    if (not Attr)
+      rc_return nullptr;
+
+    rc_return clift::StructType::get(Attr);
   }
 
   RecursiveCoroutine<clift::DefinedType>
@@ -333,9 +381,16 @@ private:
                                                   RequireComplete);
     if (not UnderlyingType)
       rc_return nullptr;
-    rc_return make<clift::TypedefType>(getHandle(ModelType),
-                                       "",
-                                       UnderlyingType);
+
+    auto Handle = getHandle(ModelType);
+    auto Attr = make<clift::TypedefAttr>(llvm::StringRef(Handle),
+                                         llvm::StringRef(""),
+                                         UnderlyingType);
+
+    if (not Attr)
+      rc_return nullptr;
+
+    rc_return clift::TypedefType::get(Attr);
   }
 
   RecursiveCoroutine<clift::DefinedType>
@@ -356,6 +411,8 @@ private:
       rc_return nullptr;
     }
 
+    auto Location = getLocation(ModelType);
+
     AttributeVector<clift::FieldAttr> Fields;
     Fields.reserve(ModelType.Fields().size());
 
@@ -364,13 +421,24 @@ private:
                                                /* RequireComplete = */ true);
       if (not FieldType)
         rc_return nullptr;
-      auto Attribute = make<clift::FieldAttr>(0, FieldType, "");
-      if (not Attribute)
+
+      auto Handle = Location.extend(revng::ranks::UnionField, Field.Index())
+                      .toString();
+
+      auto Attr = make<clift::FieldAttr>(/*Offset=*/static_cast<uint64_t>(0),
+                                         FieldType,
+                                         llvm::StringRef(""));
+      if (not Attr)
         rc_return nullptr;
-      Fields.push_back(Attribute);
+      Fields.push_back(Attr);
     }
 
-    rc_return make<clift::UnionType>(getHandle(ModelType), "", Fields);
+    auto Handle = Location.toString();
+    auto Attr = make<clift::UnionAttr>(llvm::StringRef(Handle),
+                                       llvm::StringRef(""),
+                                       llvm::ArrayRef(Fields));
+
+    rc_return clift::UnionType::get(Attr);
   }
 
   RecursiveCoroutine<clift::DefinedType>
