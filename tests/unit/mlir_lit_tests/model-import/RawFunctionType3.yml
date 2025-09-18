@@ -16,9 +16,8 @@ TypeDefinitions:
           PrimitiveKind: Unsigned
           Size: 8
 
-    # CHECK: !register_set_1002_ = !clift.struct<
+    # CHECK: !_artificial_struct_1002_RawFunctionDefinition = !clift.struct<
     # CHECK:   "/artificial-struct/1002-RawFunctionDefinition"
-    # CHECK:   as "register_set_1002"
     # CHECK:   : size(16)
     # CHECK:   {
     # CHECK:     offset(0)
@@ -30,13 +29,12 @@ TypeDefinitions:
     # CHECK:   }
     # CHECK: >
 
-    # CHECK: !my_function3_ = !clift.func<
+    # CHECK: !_type_definition_1002_RawFunctionDefinition = !clift.func<
     # CHECK:   "/type-definition/1002-RawFunctionDefinition"
-    # CHECK:   as "my_function3"
-    # CHECK:   : !register_set_1002_(
+    # CHECK:   : !_artificial_struct_1002_RawFunctionDefinition(
     # CHECK:     !uint64_t,
     # CHECK:     !clift.ptr<8 to !uint64_t>,
-    # CHECK:     !my_struct
+    # CHECK:     !_type_definition_201_StructDefinition
     # CHECK:   )
     # CHECK: >
   - ID: 1002
