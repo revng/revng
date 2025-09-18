@@ -290,13 +290,6 @@ public:
         } else {
           EmitConst(T);
 
-          if (mlir::isa<EnumType>(T))
-            Out << C.getKeyword(Keyword::Enum) << ' ';
-          else if (mlir::isa<StructType>(T))
-            Out << C.getKeyword(Keyword::Struct) << ' ';
-          else if (mlir::isa<UnionType>(T))
-            Out << C.getKeyword(Keyword::Union) << ' ';
-
           if (const auto *MT = getModelTypeDefinition(T))
             Out << C.getReferenceTag(*MT);
           else if (const auto *MT = getArtificialStructFunctionType(T))
