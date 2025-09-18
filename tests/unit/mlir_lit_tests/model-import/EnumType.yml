@@ -15,11 +15,16 @@ TypeDefinitions:
   # CHECK:   "/type-definition/1104-EnumDefinition"
   # CHECK:   : !int32_t
   # CHECK:   {
-  # CHECK:     0
-  # CHECK:     1
-  # CHECK:     2147483647
-  # CHECK:     18446744071562067968
-  # CHECK:     18446744073709551615
+  # CHECK:     "/enum-entry/1104-EnumDefinition/0"
+  # CHECK:                                    : 0
+  # CHECK:     "/enum-entry/1104-EnumDefinition/1"
+  # CHECK:                                    : 1
+  # CHECK:     "/enum-entry/1104-EnumDefinition/2147483647"
+  # CHECK:                                    : 2147483647
+  # CHECK:     "/enum-entry/1104-EnumDefinition/18446744071562067968"
+  # CHECK:                                    : 18446744071562067968
+  # CHECK:     "/enum-entry/1104-EnumDefinition/18446744073709551615"
+  # CHECK:                                    : 18446744073709551615
   # CHECK:   }
   # CHECK: >
   - ID: 1104
@@ -40,11 +45,16 @@ TypeDefinitions:
     # CHECK:   "/type-definition/1108-EnumDefinition"
     # CHECK:   : !int64_t
     # CHECK:   {
-    # CHECK:     0
-    # CHECK:     1
-    # CHECK:     9223372036854775807
-    # CHECK:     9223372036854775808
-    # CHECK:     18446744073709551615
+    # CHECK:     "/enum-entry/1108-EnumDefinition/0"
+    # CHECK:                                    : 0
+    # CHECK:     "/enum-entry/1108-EnumDefinition/1"
+    # CHECK:                                    : 1
+    # CHECK:     "/enum-entry/1108-EnumDefinition/9223372036854775807"
+    # CHECK:                                    : 9223372036854775807
+    # CHECK:     "/enum-entry/1108-EnumDefinition/9223372036854775808"
+    # CHECK:                                    : 9223372036854775808
+    # CHECK:     "/enum-entry/1108-EnumDefinition/18446744073709551615"
+    # CHECK:                                    : 18446744073709551615
     # CHECK:   }
     # CHECK: >
   - ID: 1108
@@ -65,9 +75,12 @@ TypeDefinitions:
     # CHECK:   "/type-definition/1204-EnumDefinition"
     # CHECK:   : !uint32_t
     # CHECK:   {
-    # CHECK:     0
-    # CHECK:     1
-    # CHECK:     4294967295
+    # CHECK:     "/enum-entry/1204-EnumDefinition/0"
+    # CHECK:                                    : 0
+    # CHECK:     "/enum-entry/1204-EnumDefinition/1"
+    # CHECK:                                    : 1
+    # CHECK:     "/enum-entry/1204-EnumDefinition/4294967295"
+    # CHECK:                                    : 4294967295
     # CHECK:   }
     # CHECK: >
   - ID: 1204
@@ -86,9 +99,12 @@ TypeDefinitions:
     # CHECK:   "/type-definition/1208-EnumDefinition"
     # CHECK:   : !uint64_t
     # CHECK:   {
-    # CHECK:     0
-    # CHECK:     1
-    # CHECK:     18446744073709551615
+    # CHECK:     "/enum-entry/1208-EnumDefinition/0"
+    # CHECK:                                    : 0
+    # CHECK:     "/enum-entry/1208-EnumDefinition/1"
+    # CHECK:                                    : 1
+    # CHECK:     "/enum-entry/1208-EnumDefinition/18446744073709551615"
+    # CHECK:                                    : 18446744073709551615
     # CHECK:   }
     # CHECK: >
   - ID: 1208

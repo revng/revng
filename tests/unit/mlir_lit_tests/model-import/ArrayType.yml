@@ -10,8 +10,9 @@ TypeDefinitions:
   # CHECK:   "/type-definition/1001-StructDefinition"
   # CHECK:   : size(1024)
   # CHECK:   {
-  # CHECK:     offset(0)
-  # CHECK:     : !clift.array<1024 x !generic8_t>
+  # CHECK:     "/struct-field/1001-StructDefinition/0"
+  # CHECK:     : offset(0)
+  # CHECK:     !clift.array<1024 x !generic8_t>
   # CHECK:   }
   # CHECK: >
   - ID: 1001

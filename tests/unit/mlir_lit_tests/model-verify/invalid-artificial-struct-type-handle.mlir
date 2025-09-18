@@ -5,7 +5,7 @@
 // RUN: not %revngpipe model-verify-clift %S/model.yml %s /dev/null 2>&1 | FileCheck %s
 
 !t = !clift.union<"/artificial-struct/foo" : {
-  !clift.primitive<signed 4>
+  "/return-register/foo/rax_x86_64" : !clift.primitive<signed 4>
 }>
 
 // CHECK: non-struct type with ArtificialStruct handle: '/artificial-struct/foo'
