@@ -19,6 +19,7 @@
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallSet.h"
 
 #include "revng/Support/Debug.h"
 
@@ -407,4 +408,29 @@ bool isDAG(GraphT Graph) {
       return false;
   }
   return true;
+}
+
+/// Helper function which checks that there are no blocks unreachable blocks
+/// from the entry block, on `GraphT`
+template<class GraphT>
+bool hasUnreachableBlocks(GraphT Graph) {
+  using NodeRef = llvm::GraphTraits<GraphT>::NodeRef;
+
+  // We collect all the blocks that we can reach performing a DFS visit, on the
+  // `ScopeGraph`, starting from the entry block
+  llvm::SmallSet<NodeRef, 4> DFSNodes;
+  for (NodeRef Node : depth_first(Graph)) {
+    DFSNodes.insert(Node);
+  }
+
+  // We iterate over all the blocks in the `ScopeGraph`, and if we find a block
+  // that we did not see during the DFS visit, it means that we have a block
+  // disconnected from the entry
+  for (NodeRef Node : nodes(Graph)) {
+    if (not DFSNodes.contains(Node)) {
+      return true;
+    }
+  }
+
+  return false;
 }
