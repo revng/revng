@@ -30,19 +30,6 @@ def Clift_FieldAttr
                         "mlir::clift::ValueType":$type,
                         StringRefParameter<>:$name);
 
-  let builders = [
-    AttrBuilderWithInferredContext<(ins "uint64_t":$Offset,
-                                        "mlir::clift::ValueType":$Type,
-                                        CArg<"llvm::StringRef", "\"\"">:$Name), [{
-      return $_get(Type.getContext(), Offset, Type, Name);
-    }]>,
-
-    AttrBuilderWithInferredContext<(ins "mlir::clift::ValueType":$Type,
-                                        CArg<"llvm::StringRef", "\"\"">:$Name), [{
-      return $_get(Type.getContext(), 0, Type, Name);
-    }]>
-  ];
-
   let genVerifyDecl = 1;
 }
 

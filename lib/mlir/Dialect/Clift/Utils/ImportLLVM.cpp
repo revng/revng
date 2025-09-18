@@ -283,7 +283,9 @@ private:
       Name = Model.Configuration().Naming().artificialReturnValuePrefix().str()
              + sanitizeIdentifier(HelperName);
 
-    return StructType::get(Context, Handle, Name, Offset, Fields);
+    auto Definition = StructAttr::get(Context, Handle, Name, Offset, Fields);
+
+    return StructType::get(Context, Definition);
   }
 
   // Import a Clift function type from an LLVM function type and a helper name
