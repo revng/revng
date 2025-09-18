@@ -15,73 +15,73 @@ module attributes {clift.module} {
     clift.handle = "f",
     clift.name = "f"
   } {
-    // CHECK: const struct s *const cp8_cs;
+    // CHECK: const s *const cp8_cs;
     clift.local : !clift.const<!clift.ptr<8 to !clift.const<!s>>> attributes {
       clift.handle = "cp8_cs",
       clift.name = "cp8_cs"
     }
 
-    // CHECK: const pointer32_t(const struct s) cp4_cs;
+    // CHECK: const pointer32_t(const s) cp4_cs;
     clift.local : !clift.const<!clift.ptr<4 to !clift.const<!s>>> attributes {
       clift.handle = "cp4_cs",
       clift.name = "cp4_cs"
     }
 
-    // CHECK: const struct s *const *const cp8_cp8_cs;
+    // CHECK: const s *const *const cp8_cp8_cs;
     clift.local : !clift.const<!clift.ptr<8 to !clift.const<!clift.ptr<8 to !clift.const<!s>>>>> attributes {
       clift.handle = "cp8_cp8_cs",
       clift.name = "cp8_cp8_cs"
     }
 
-    // CHECK: const pointer32_t(const pointer32_t(const struct s)) cp4_cp4_cs;
+    // CHECK: const pointer32_t(const pointer32_t(const s)) cp4_cp4_cs;
     clift.local : !clift.const<!clift.ptr<4 to !clift.const<!clift.ptr<4 to !clift.const<!s>>>>> attributes {
       clift.handle = "cp4_cp4_cs",
       clift.name = "cp4_cp4_cs"
     }
 
-    // CHECK: const struct s a1_cs[1];
+    // CHECK: const s a1_cs[1];
     clift.local : !clift.array<1 x !clift.const<!s>> attributes {
       clift.handle = "a1_cs",
       clift.name = "a1_cs"
     }
 
-    // CHECK: const struct s a2_a1_cs[2][1];
+    // CHECK: const s a2_a1_cs[2][1];
     clift.local : !clift.array<2 x !clift.array<1 x !clift.const<!s>>> attributes {
       clift.handle = "a2_a1_cs",
       clift.name = "a2_a1_cs"
     }
 
-    // CHECK: const struct s(*const cp8_a1_cs)[1];
+    // CHECK: const s(*const cp8_a1_cs)[1];
     clift.local : !clift.const<!clift.ptr<8 to !clift.array<1 x !clift.const<!s>>>> attributes {
       clift.handle = "cp8_a1_cs",
       clift.name = "cp8_a1_cs"
     }
 
-    // CHECK: const pointer32_t(const struct s[1]) cp4_a1_cs;
+    // CHECK: const pointer32_t(const s[1]) cp4_a1_cs;
     clift.local : !clift.const<!clift.ptr<4 to !clift.array<1 x !clift.const<!s>>>> attributes {
       clift.handle = "cp4_a1_cs",
       clift.name = "cp4_a1_cs"
     }
 
-    // CHECK: const struct s *const a1_cp8_cs[1];
+    // CHECK: const s *const a1_cp8_cs[1];
     clift.local : !clift.array<1 x !clift.const<!clift.ptr<8 to !clift.const<!s>>>> attributes {
       clift.handle = "a1_cp8_cs",
       clift.name = "a1_cp8_cs"
     }
 
-    // CHECK: const pointer32_t(const struct s) a1_cp4_cs[1];
+    // CHECK: const pointer32_t(const s) a1_cp4_cs[1];
     clift.local : !clift.array<1 x !clift.const<!clift.ptr<4 to !clift.const<!s>>>> attributes {
       clift.handle = "a1_cp4_cs",
       clift.name = "a1_cp4_cs"
     }
 
-    // CHECK: const struct s(*const a2_cp8_a1_cs[2])[1];
+    // CHECK: const s(*const a2_cp8_a1_cs[2])[1];
     clift.local : !clift.array<2 x !clift.const<!clift.ptr<8 to !clift.array<1 x !clift.const<!s>>>>> attributes {
       clift.handle = "a2_cp8_a1_cs",
       clift.name = "a2_cp8_a1_cs"
     }
 
-    // CHECK: const pointer32_t(const struct s[1]) a2_cp4_a1_cs[2];
+    // CHECK: const pointer32_t(const s[1]) a2_cp4_a1_cs[2];
     clift.local : !clift.array<2 x !clift.const<!clift.ptr<4 to !clift.array<1 x !clift.const<!s>>>>> attributes {
       clift.handle = "a2_cp4_a1_cs",
       clift.name = "a2_cp4_a1_cs"
