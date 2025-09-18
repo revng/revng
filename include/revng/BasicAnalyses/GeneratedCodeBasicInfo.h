@@ -174,7 +174,7 @@ public:
   template<typename T>
   ProgramCounterHandler::DispatcherInfo
   buildDispatcher(T &Targets,
-                  llvm::IRBuilder<> &Builder,
+                  revng::IRBuilder &Builder,
                   llvm::BasicBlock *Default = nullptr) {
     parseRoot();
 
