@@ -6,9 +6,8 @@
 Architecture: x86_64
 
 TypeDefinitions:
-  # CHECK: !my_union = !clift.union<
+  # CHECK: !_type_definition_1001_UnionDefinition = !clift.union<
   # CHECK:   "/type-definition/1001-UnionDefinition"
-  # CHECK:   as "my_union"
   # CHECK:   {
   # CHECK:     !uint8_t
   # CHECK:     !uint16_t

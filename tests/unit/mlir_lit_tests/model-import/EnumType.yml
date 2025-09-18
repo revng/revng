@@ -11,9 +11,8 @@
 Architecture: x86_64
 
 TypeDefinitions:
-  # CHECK: !my_enum1_ = !clift.enum<
+  # CHECK: !_type_definition_1104_EnumDefinition = !clift.enum<
   # CHECK:   "/type-definition/1104-EnumDefinition"
-  # CHECK:   as "my_enum1"
   # CHECK:   : !int32_t
   # CHECK:   {
   # CHECK:     0
@@ -37,9 +36,8 @@ TypeDefinitions:
       - Value: 0xffffffff80000000 # 2^64 - 2^31
       - Value: 0xffffffffffffffff # 2^64 - 1
 
-    # CHECK: !my_enum2_ = !clift.enum<
+    # CHECK: !_type_definition_1108_EnumDefinition = !clift.enum<
     # CHECK:   "/type-definition/1108-EnumDefinition"
-    # CHECK:   as "my_enum2"
     # CHECK:   : !int64_t
     # CHECK:   {
     # CHECK:     0
@@ -63,9 +61,8 @@ TypeDefinitions:
       - Value: 0x8000000000000000 # 2^63
       - Value: 0xffffffffffffffff # 2^64 - 1
 
-    # CHECK: !my_enum3_ = !clift.enum<
+    # CHECK: !_type_definition_1204_EnumDefinition = !clift.enum<
     # CHECK:   "/type-definition/1204-EnumDefinition"
-    # CHECK:   as "my_enum3"
     # CHECK:   : !uint32_t
     # CHECK:   {
     # CHECK:     0
@@ -85,9 +82,8 @@ TypeDefinitions:
       - Value: 1
       - Value: 0x00000000ffffffff # 2^32 - 1
 
-    # CHECK: !my_enum4_ = !clift.enum<
+    # CHECK: !_type_definition_1208_EnumDefinition = !clift.enum<
     # CHECK:   "/type-definition/1208-EnumDefinition"
-    # CHECK:   as "my_enum4"
     # CHECK:   : !uint64_t
     # CHECK:   {
     # CHECK:     0

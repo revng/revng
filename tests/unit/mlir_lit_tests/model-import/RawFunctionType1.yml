@@ -5,9 +5,8 @@
 
 Architecture: x86_64
 TypeDefinitions:
-  # CHECK: !my_function1_ = !clift.func<
+  # CHECK: !_type_definition_1000_RawFunctionDefinition = !clift.func<
   # CHECK:   "/type-definition/1000-RawFunctionDefinition"
-  # CHECK:   as "my_function1"
   # CHECK:   : !void()
   # CHECK: >
   - ID: 1000

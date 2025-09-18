@@ -6,7 +6,6 @@
 #include "llvm/Support/FormatVariadic.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/mlir/Dialect/Clift/IR/Clift.h"
@@ -23,7 +22,6 @@ using AttributeVector = llvm::SmallVector<Attribute, 16>;
 
 class CliftConverter {
   mlir::MLIRContext *Context;
-  model::CNameBuilder NameBuilder;
   llvm::function_ref<mlir::InFlightDiagnostic()> EmitError;
 
   llvm::DenseMap<uint64_t, clift::DefinedType> Cache;
@@ -62,7 +60,7 @@ public:
                           const model::Binary &Binary,
                           llvm::function_ref<mlir::InFlightDiagnostic()>
                             EmitError) :
-    Context(&Context), NameBuilder(Binary), EmitError(EmitError) {}
+    Context(&Context), EmitError(EmitError) {}
 
   CliftConverter(const CliftConverter &) = delete;
   CliftConverter &operator=(const CliftConverter &) = delete;
@@ -155,7 +153,7 @@ private:
       rc_return nullptr;
 
     rc_return make<clift::FunctionType>(getHandle(ModelType),
-                                        NameBuilder.name(ModelType),
+                                        "",
                                         ReturnType,
                                         ArgumentTypes);
   }
@@ -178,15 +176,14 @@ private:
     Fields.reserve(ModelType.Entries().size());
 
     for (const model::EnumEntry &Entry : ModelType.Entries()) {
-      std::string Name = NameBuilder.name(ModelType, Entry);
-      const auto Attribute = make<clift::EnumFieldAttr>(Entry.Value(), Name);
+      const auto Attribute = make<clift::EnumFieldAttr>(Entry.Value(), "");
       if (not Attribute)
         rc_return nullptr;
       Fields.push_back(Attribute);
     }
 
     rc_return make<clift::EnumType>(getHandle(ModelType),
-                                    NameBuilder.name(ModelType),
+                                    "",
                                     UnderlyingType,
                                     Fields);
   }
@@ -204,10 +201,7 @@ private:
       if (not RegisterType)
         rc_return nullptr;
 
-      const auto Attribute = make<ElementAttr>(Offset,
-                                               RegisterType,
-                                               NameBuilder.name(ModelType,
-                                                                Register));
+      const auto Attribute = make<ElementAttr>(Offset, RegisterType, "");
       if (not Attribute)
         rc_return nullptr;
 
@@ -215,14 +209,8 @@ private:
       Offset += RegisterType.getByteSize();
     }
 
-    std::string TypeName;
-    {
-      llvm::raw_string_ostream Out(TypeName);
-      Out << "register_set_" << ModelType.ID();
-    }
-
     rc_return make<clift::StructType>(getRegisterSetLocation(ModelType),
-                                      TypeName,
+                                      "",
                                       Offset,
                                       Elements);
   }
@@ -283,7 +271,7 @@ private:
       rc_return nullptr;
 
     rc_return make<clift::FunctionType>(getHandle(ModelType),
-                                        NameBuilder.name(ModelType),
+                                        "",
                                         ReturnType,
                                         ArgumentTypes);
   }
@@ -314,17 +302,14 @@ private:
                                                /* RequireComplete = */ true);
       if (not FieldType)
         rc_return nullptr;
-      auto Attribute = make<clift::FieldAttr>(Field.Offset(),
-                                              FieldType,
-                                              NameBuilder.name(ModelType,
-                                                               Field));
+      auto Attribute = make<clift::FieldAttr>(Field.Offset(), FieldType, "");
       if (not Attribute)
         rc_return nullptr;
       Fields.push_back(Attribute);
     }
 
     rc_return make<clift::StructType>(getHandle(ModelType),
-                                      NameBuilder.name(ModelType),
+                                      "",
                                       ModelType.Size(),
                                       Fields);
   }
@@ -349,7 +334,7 @@ private:
     if (not UnderlyingType)
       rc_return nullptr;
     rc_return make<clift::TypedefType>(getHandle(ModelType),
-                                       NameBuilder.name(ModelType),
+                                       "",
                                        UnderlyingType);
   }
 
@@ -379,18 +364,13 @@ private:
                                                /* RequireComplete = */ true);
       if (not FieldType)
         rc_return nullptr;
-      auto Attribute = make<clift::FieldAttr>(0,
-                                              FieldType,
-                                              NameBuilder.name(ModelType,
-                                                               Field));
+      auto Attribute = make<clift::FieldAttr>(0, FieldType, "");
       if (not Attribute)
         rc_return nullptr;
       Fields.push_back(Attribute);
     }
 
-    rc_return make<clift::UnionType>(getHandle(ModelType),
-                                     NameBuilder.name(ModelType),
-                                     Fields);
+    rc_return make<clift::UnionType>(getHandle(ModelType), "", Fields);
   }
 
   RecursiveCoroutine<clift::DefinedType>
