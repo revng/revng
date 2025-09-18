@@ -17,6 +17,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/Passes/PassBuilder.h"
 
+#include "revng/Canonicalize/SimplifySwitchPass.h"
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/RegisterPipe.h"
@@ -273,6 +274,22 @@ void SimplifySwitch::run(pipeline::ExecutionContext &EC,
 }
 
 } // namespace revng::pipes
+
+namespace revng::pypeline::pipes {
+
+void SimplifySwitch::runOnFunction(const model::Function &ModelFunction,
+                                   llvm::Function &Function) {
+  auto &LVI = Pass.getAnalysis<LazyValueInfoWrapperPass>(Function).getLVI();
+  auto &DT = Pass.getAnalysis<DominatorTreeWrapperPass>(Function).getDomTree();
+
+  const model::Binary &ModelBinary = *Model.get().get();
+  RawBinaryView BinaryView(ModelBinary,
+                           Binary.getMemoryBuffer(ObjectID())->getBuffer());
+  RawBinaryMemoryOracle MO(BinaryView, ModelBinary.Architecture());
+  simplifySwitch(Function, LVI, DT, MO);
+}
+
+} // namespace revng::pypeline::pipes
 
 static pipeline::RegisterPipe<revng::pipes::SimplifySwitch>
   RegSimplifySwitchPipe;
