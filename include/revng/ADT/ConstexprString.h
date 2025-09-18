@@ -24,9 +24,10 @@ public:
   std::array<char, N - 1> String;
 
   constexpr ConstexprString(const char (&Value)[N]) noexcept
-    requires(N >= 2)
-  {
-    std::copy(Value, Value + N - 1, String.data());
+    requires(N >= 1)
+    : String({}) {
+    if constexpr (N >= 2)
+      std::copy(Value, Value + N - 1, String.data());
   }
 
   constexpr ConstexprString() noexcept

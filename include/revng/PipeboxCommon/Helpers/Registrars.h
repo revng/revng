@@ -13,6 +13,7 @@
 
 #include "revng/PipeboxCommon/Concepts.h"
 #include "revng/PipeboxCommon/Helpers/Native/Registry.h"
+#include "revng/PipeboxCommon/Helpers/PipeWrappers.h"
 #include "revng/PipeboxCommon/Helpers/Python/Casters.h"
 #include "revng/PipeboxCommon/Helpers/Python/ContainerIO.h"
 #include "revng/PipeboxCommon/Helpers/Python/Registry.h"
@@ -116,3 +117,15 @@ struct RegisterPipe {
     };
   }
 };
+
+template<typename T>
+using RegisterSingleOutputPipe = RegisterPipe<SingleOutputPipe<T>>;
+
+template<typename T>
+using RegisterFunctionPipe = RegisterPipe<FunctionPipe<T>>;
+
+template<typename T>
+using RegisterTypeDefinitionPipe = RegisterPipe<TypeDefinitionPipe<T>>;
+
+template<typename T>
+using RegisterLLVMFunctionPassPipe = RegisterPipe<LLVMFunctionPassPipe<T>>;
