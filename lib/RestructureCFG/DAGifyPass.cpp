@@ -157,6 +157,7 @@ public:
 
         // Mark the `Head` block with the custom named metadata
         BasicBlock *Head = Region->getHead();
+        revng_assert(Head);
         insertHeadMD(Head);
 
         // 1. Process the retreating edges of the `GenericRegion`
