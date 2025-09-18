@@ -17,11 +17,18 @@
 
 module attributes {clift.module} {
   // CHECK: void fun_0x40001001(void) {
-  clift.func @f<!f>() attributes {
+  clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    %v0 = clift.local : !int32_t
-    %v1 = clift.local : !int32_t
+    %v0 = clift.local : !int32_t attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/0",
+      clift.name = "var_0"
+    }
+
+    %v1 = clift.local : !int32_t attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/1",
+      clift.name = "var_1"
+    }
 
     // (0 + 1 - 2) * 3 / 4 % 5;
     clift.expr {

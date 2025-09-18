@@ -13,10 +13,13 @@
 
 module attributes {clift.module} {
   // CHECK: void fun_0x40001001(void) {
-  clift.func @f<!f>() attributes {
+  clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    %exit = clift.make_label
+    %exit = clift.make_label {
+      clift.handle = "/goto-label/0x40001001:Code_x86_64/0",
+      clift.name = "label_0"
+    }
     // CHECK: 0;
     clift.expr {
         %0 = clift.imm 0 : !int32_t

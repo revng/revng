@@ -45,13 +45,6 @@ public:
 
     revng_assert(clift::verifyCSemantics(Module, Target).succeeded());
 
-    llvm::raw_null_ostream NullStream;
-    ptml::ModelCBuilder
-      B(NullStream,
-        Model,
-        /*EnableTaglessMode=*/false,
-        { .ExplicitTargetPointerSize = getExplicitPointerSize(Model) });
-
     std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
     Module->walk([&](clift::FunctionOp F) {
       MetaAddress MA = getMetaAddress(F);
@@ -67,7 +60,13 @@ public:
       revng_check(It != Functions.end()
                   and "Requested Clift function not found");
 
-      std::string Code = decompile(It->second, Target, B);
+      std::string Code;
+      {
+        llvm::raw_string_ostream OS(Code);
+        CTokenEmitter Emitter(OS, ptml::Tagging::Enabled);
+        clift::decompile(It->second, Emitter, Target);
+      }
+
       DecompiledFunctionsContainer.insert_or_assign(Function.Entry(),
                                                     std::move(Code));
     }
