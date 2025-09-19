@@ -39,13 +39,11 @@ public:
   static constexpr auto Name = "compile-isolated";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
-    pipeline::Contract RootPart(kinds::IsolatedRoot,
-                                0,
-                                kinds::Object,
-                                1,
-                                pipeline::InputPreservation::Preserve);
-    pipeline::Contract IsolatedPart(kinds::Isolated, 0, kinds::Object, 1);
-    return { pipeline::ContractGroup({ RootPart, IsolatedPart }) };
+    return { pipeline::ContractGroup(kinds::IsolatedRoot,
+                                     0,
+                                     kinds::Object,
+                                     1,
+                                     pipeline::InputPreservation::Preserve) };
   }
 
   void run(pipeline::ExecutionContext &,

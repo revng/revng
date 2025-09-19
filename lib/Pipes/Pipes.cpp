@@ -57,16 +57,17 @@ public:
   void registerContainersAndPipes(Loader &Loader) override {
     using namespace llvm;
     auto &Context = Loader.getContext();
-    auto MaybeLLVMContext = Context.getExternalContext<LLVMContext>("LLVMContex"
-                                                                    "t");
+    auto MaybeContext = Context.getExternalContext<LLVMContext>("LLVMContext");
 
-    if (auto Error = MaybeLLVMContext.takeError()) {
+    if (auto Error = MaybeContext.takeError()) {
+      // TODO: this is extremely suspicious.
+      // Why are we fine with this broken context?
       consumeError(std::move(Error));
       return;
     }
 
     auto &PipeContext = Loader.getContext();
-    auto &LLVMContext = **MaybeLLVMContext;
+    auto &LLVMContext = **MaybeContext;
     auto Factory = ContainerFactory::fromGlobal<LLVMContainer>(&PipeContext,
                                                                &LLVMContext);
 

@@ -72,6 +72,8 @@ static void compileModuleRunImpl(const Context &Context,
   const auto *TheTarget = TargetRegistry::lookupTarget("", TheTriple, Error);
   revng_assert(TheTarget);
 
+  // TODO: the `Error` above is unused.
+
   TargetOptions Options = InitTargetOptionsFromCodeGenFlags(TheTriple);
 
   CodeGenOpt::Level OLvl = CodeGenOpt::Default;

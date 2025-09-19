@@ -23,7 +23,6 @@
 
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/Pass/PurgeUnnamedAndUnreachableTypes.h"
-#include "revng/Model/ToolHelpers.h"
 #include "revng/Support/InitRevng.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
@@ -113,15 +112,8 @@ int main(int Argc, char *Argv[]) {
   llvm::ExitOnError ExitOnError;
 
   using Model = TupleTree<model::Binary>;
-  auto LeftModule = Model::fromFile(LeftModelPath);
-  if (not LeftModule)
-    ExitOnError(LeftModule.takeError());
-  TupleTree<model::Binary> &LeftModel = *LeftModule;
-
-  auto RightModule = Model::fromFile(RightModelPath);
-  if (not RightModule)
-    ExitOnError(RightModule.takeError());
-  TupleTree<model::Binary> &RightModel = *RightModule;
+  auto LeftModel = ExitOnError(Model::fromFile(LeftModelPath));
+  auto RightModel = ExitOnError(Model::fromFile(RightModelPath));
 
   std::error_code EC;
   llvm::ToolOutputFile OutputFile(OutputFilename,
