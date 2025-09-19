@@ -187,6 +187,12 @@ bool EnforceSingleExitPass::runOnFunction(llvm::Function &F) {
   EnforceSingleExitPassImpl ESEImpl(F);
   bool FunctionChanged = ESEImpl.run();
 
+  // We verify that the `ScopeGraph` has not blocks disconnected from the
+  // entry block
+  if (VerifyLog.isEnabled()) {
+    revng_assert(not hasUnreachableBlocks(&F));
+  }
+
   // This pass may transform the CFG by inserting new block, edges, and
   // `scope_closer` edges (which however do not affect the CFG). We propagate
   // this information up to the `FunctionPassManager`
