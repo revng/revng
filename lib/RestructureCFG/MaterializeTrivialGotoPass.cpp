@@ -108,6 +108,12 @@ public:
       MergeBlockIntoPredecessor(GotoBlock);
     }
 
+    // We verify that the `ScopeGraph` has not blocks disconnected from the
+    // entry block
+    if (VerifyLog.isEnabled()) {
+      revng_assert(not hasUnreachableBlocks(&F));
+    }
+
     return FunctionModified;
   }
 };
