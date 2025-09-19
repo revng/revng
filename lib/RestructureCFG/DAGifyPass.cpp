@@ -185,8 +185,11 @@ public:
     }
 
     // Verify that the output `ScopeGraph` is acyclic, after `DAGify` has
-    // processed the input, but only when the `VerifyLog` is enabled
+    // processed the input, but only when the `VerifyLog` is enabled.
+    // In addition, we also verify that the `ScopeGraph` has not blocks
+    // disconnected from the entry block.
     if (VerifyLog.isEnabled()) {
+      revng_assert(not hasUnreachableBlocks(&F));
       Scope<Function *> ScopeGraph(&F);
       revng_assert(isDAG(ScopeGraph));
     }
