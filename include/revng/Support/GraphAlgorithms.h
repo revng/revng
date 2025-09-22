@@ -243,21 +243,27 @@ template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
 llvm::SmallSetVector<revng::detail::EdgeDescriptor<typename GT::NodeRef>, 4>
 getBackedges(GraphT Block) {
   llvm::SmallPtrSet<typename GT::NodeRef, 4> EmptySet;
-  return getBackedgesImpl<revng::detail::FilterSet::BlackList>(Block, EmptySet);
+  return getBackedgesImpl<revng::detail::FilterSet::BlackList,
+                          GraphT,
+                          GT>(Block, EmptySet);
 }
 
 template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
 llvm::SmallSetVector<revng::detail::EdgeDescriptor<typename GT::NodeRef>, 4>
 getBackedgesWhiteList(GraphT Block,
                       llvm::SmallPtrSet<typename GT::NodeRef, 4> &Set) {
-  return getBackedgesImpl<revng::detail::FilterSet::WhiteList>(Block, Set);
+  return getBackedgesImpl<revng::detail::FilterSet::WhiteList,
+                          GraphT,
+                          GT>(Block, Set);
 }
 
 template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
 llvm::SmallSetVector<revng::detail::EdgeDescriptor<typename GT::NodeRef>, 4>
 getBackedgesBlackList(GraphT Block,
                       llvm::SmallPtrSet<typename GT::NodeRef, 4> &Set) {
-  return getBackedgesImpl<revng::detail::FilterSet::BlackList>(Block, Set);
+  return getBackedgesImpl<revng::detail::FilterSet::BlackList,
+                          GraphT,
+                          GT>(Block, Set);
 }
 
 template<class GraphT, class GT>
