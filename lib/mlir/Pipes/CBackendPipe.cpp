@@ -38,7 +38,7 @@ public:
   void run(pipeline::ExecutionContext &EC,
            const pipes::CliftContainer &CliftContainer,
            pipes::DecompileStringMap &DecompiledFunctionsContainer) {
-    const auto &Target = clift::TargetCImplementation::Default;
+    const auto &Target = TargetCImplementation::Default;
 
     mlir::ModuleOp Module = CliftContainer.getModule();
     const auto &Model = *revng::getModelFromContext(EC);

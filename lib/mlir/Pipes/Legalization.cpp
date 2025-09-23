@@ -32,7 +32,7 @@ public:
 
   void run(pipeline::ExecutionContext &EC,
            pipes::CliftContainer &CliftContainer) {
-    const auto &Target = clift::TargetCImplementation::Default;
+    const auto &Target = TargetCImplementation::Default;
 
     mlir::ModuleOp Module = CliftContainer.getModule();
 
