@@ -66,12 +66,11 @@ public:
     return std::get<AnotherRank::Depth - 1>(tuple());
   }
 
-  template<RankConvertibleTo<Rank> AnotherRank>
-  auto &back() {
+  auto &back() { return std::get<std::tuple_size_v<Tuple> - 1>(tuple()); }
+
+  const auto &back() const {
     return std::get<std::tuple_size_v<Tuple> - 1>(tuple());
   }
-
-  const auto &back() { return std::get<std::tuple_size_v<Tuple> - 1>(tuple()); }
 
   auto parent() const
     requires(not std::is_same_v<typename Rank::Parent, void>)
