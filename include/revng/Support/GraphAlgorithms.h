@@ -398,15 +398,38 @@ nodesBetweenReverse(GraphT Source, GraphT Destination) {
   return nodesBetweenImpl<GraphT, Inverse<GraphT>>(Source, Destination);
 }
 
-template<class GraphT>
+/// Helper function which checks that the `ScopeGraph` is a DAG
+template<class GraphT, class NodeT>
 bool isDAG(GraphT Graph) {
-  for (llvm::scc_iterator<GraphT> I = llvm::scc_begin(Graph),
-                                  IE = llvm::scc_end(Graph);
-       I != IE;
-       ++I) {
-    if (I.hasCycle())
-      return false;
+
+  using NodeRef = llvm::GraphTraits<GraphT>::NodeRef;
+  llvm::SmallSet<NodeRef, 4> VisitedNodes;
+
+  // We iterate over all the nodes in the `Graph`, and we check that we never
+  // find a `SCC`
+  for (NodeRef Node : nodes(Graph)) {
+
+    // We skip nodes which we have already visited
+    if (VisitedNodes.contains(Node)) {
+      continue;
+    }
+
+    for (llvm::scc_iterator<NodeT> I = llvm::scc_begin(NodeT(Node)),
+                                   IE = llvm::scc_end(NodeT(Node));
+         I != IE;
+         ++I) {
+      if (I.hasCycle()) {
+        return false;
+      }
+
+      // We add each node of a visited `SCC` to the nodes that will be skipped
+      // from the next iteration on
+      for (NodeRef SCCNode : *I) {
+        VisitedNodes.insert(SCCNode);
+      }
+    }
   }
+
   return true;
 }
 

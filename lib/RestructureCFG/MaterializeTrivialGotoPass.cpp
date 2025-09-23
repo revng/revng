@@ -84,8 +84,8 @@ public:
         // We rollback the changes if either:
         // 1) The obtained `ScopeGraph` becomes cyclic
         // 2) The obtained `ScopeGraph` becomes undecided
-        Scope<Function *> ScopeGraph(&F);
-        if (not isDAG(ScopeGraph) or not isScopeGraphDecided(F)) {
+        if (not isDAG<Scope<Function *>, Scope<BasicBlock *>>(&F)
+            or not isScopeGraphDecided(F)) {
 
           // We rollback to the original situation
           rollbackScopeGraph(SGBuilder, BB, ScopeCloserTarget);

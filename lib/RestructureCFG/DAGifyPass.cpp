@@ -190,8 +190,8 @@ public:
     // disconnected from the entry block.
     if (VerifyLog.isEnabled()) {
       revng_assert(not hasUnreachableBlocks(&F));
-      Scope<Function *> ScopeGraph(&F);
-      revng_assert(isDAG(ScopeGraph));
+      bool IsDAG = isDAG<Scope<Function *>, Scope<BasicBlock *>>(&F);
+      revng_assert(IsDAG);
     }
 
     return FunctionModified;
