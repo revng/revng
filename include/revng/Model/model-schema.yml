@@ -625,9 +625,7 @@ definitions:
     fields:
       - name: Definition
         doc: The definition of the type this object represents.
-        reference:
-          pointeeType: TypeDefinition
-          rootType: Binary
+        referenceTo: TypeDefinition
 
   - name: ArrayType
     inherits: Type

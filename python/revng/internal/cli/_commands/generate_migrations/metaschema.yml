@@ -156,17 +156,8 @@ definitions:
     properties:
       name:
         type: string
-      reference:
-        type: object
-        additionalProperties: false
-        properties:
-          pointeeType:
-            type: string
-          rootType:
-            type: string
-        required:
-          - pointeeType
-          - rootType
+      referenceTo:
+        type: string
       optional:
         type: boolean
         default: false
@@ -177,7 +168,7 @@ definitions:
         type: string
     required:
       - name
-      - reference
+      - referenceTo
 
   StructKey:
     type: array
