@@ -11,6 +11,20 @@ include "revng/mlir/Dialect/Clift/IR/Clift.td"
 include "revng/mlir/Dialect/Clift/IR/CliftAttrInterfaces.td"
 include "revng/mlir/Dialect/Clift/IR/CliftEnums.td"
 
+class Clift_OptionalArrayRefParameter<string elementType, string desc = "">
+  : AttrOrTypeParameter<"std::optional<llvm::ArrayRef<" # elementType # ">>", desc> {
+
+  // Describes how to make a copy of the string, backed by the attribute's
+  // storage allocator. $_dst is the std::optional<llvm::ArrayRef> stored in the
+  // attribute implementation object. $_self is the argument, which may dangle
+  // after this function returns if a reference to a temporary array was given.
+  let allocator = [{
+    if (auto const& self = $_self) {
+      $_dst = $_allocator.copyInto(*self);
+    }
+  }];
+}
+
 class Clift_Attr<string name, string attrMnemonic, list<Trait> traits = []>
   : AttrDef<Clift_Dialect, name, traits> {
   let mnemonic = attrMnemonic;
@@ -19,6 +33,22 @@ class Clift_Attr<string name, string attrMnemonic, list<Trait> traits = []>
 def Clift_StringPairAttr : AttrDef<Clift_Dialect, "StringPair"> {
   let parameters = (ins StringRefParameter<>:$first,
                         StringRefParameter<>:$second);
+}
+
+def Clift_AttributeComponentAttr : AttrDef<Clift_Dialect,
+                                           "AttributeComponent",
+                                           [SubElementAttrInterface]> {
+  let parameters = (ins StringRefParameter<>:$string,
+                        StringRefParameter<>:$handle);
+}
+
+def Clift_AttributeAttr : Clift_Attr<"Attribute",
+                                     "attribute",
+                                     [SubElementAttrInterface]> {
+  let parameters = (ins "mlir::clift::AttributeComponentAttr":$macro,
+                        Clift_OptionalArrayRefParameter<"mlir::clift::AttributeComponentAttr">:$arguments);
+
+  let hasCustomAssemblyFormat = 1;
 }
 
 def Clift_FieldAttr

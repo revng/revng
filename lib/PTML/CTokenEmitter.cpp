@@ -50,6 +50,9 @@ static std::optional<llvm::StringRef> getEntityKindAttribute(EntityKind Kind) {
     return ptml::c::tokens::FunctionParameter;
   case EntityKind::Label:
     return ptml::c::tokens::GotoLabel;
+  case EntityKind::Attribute:
+  case EntityKind::AttributeArgument:
+    return std::nullopt;
   default:
     revng_abort("Invalid CTokenEmitter::EntityKind");
   }
