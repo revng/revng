@@ -44,16 +44,10 @@ class StructField(ABC):
             )
             return SequenceStructField(**args)
 
-        if source_dict.get("reference"):
-            reference = source_dict["reference"]
+        if source_dict.get("referenceTo"):
             args = copy.copy(source_dict)
-            del args["reference"]
-            args.update(
-                {
-                    "pointee_type": reference["pointeeType"],
-                    "root_type": reference["rootType"],
-                }
-            )
+            args["pointee_type"] = source_dict["referenceTo"]
+            del args["referenceTo"]
             return ReferenceStructField(**args)
 
         raise ValueError("Invalid struct field")
@@ -114,14 +108,13 @@ class SequenceStructField(StructField):
 
 
 class ReferenceStructField(StructField):
-    def __init__(self, *, name, pointee_type, root_type, doc=None, optional=False, const=False):
+    def __init__(self, *, name, pointee_type, doc=None, optional=False, const=False):
         super().__init__(name=name, doc=doc, optional=optional, const=const)
         self.pointee_type = pointee_type
-        self.root_type = root_type
 
     def resolve_references(self, schema):
         resolved_pointee_type = schema.get_definition_for(self.pointee_type)
-        resolved_root_type = schema.get_definition_for(self.root_type)
+        resolved_root_type = schema.get_definition_for(schema.root_type)
         self.resolved_type = ReferenceDefinition(resolved_pointee_type, resolved_root_type)
 
 
@@ -177,8 +170,11 @@ class StructDefinition(Definition):
                 self.dependencies.add(field.element_type)
             elif isinstance(field, ReferenceStructField):
                 self.dependencies.add(field.pointee_type)
-                # TODO: if we add this dependency we generate circular dependencies
-                # self.dependencies.add(field.root_type)  # noqa: E800
+                # TODO: technically, every reference also depends on the root
+                # type, but adding it as a dependency here will cause a circular
+                # dependency.
+                #
+                # self.dependencies.add(schema.root_type)  # noqa: E800
             else:
                 raise ValueError()
 

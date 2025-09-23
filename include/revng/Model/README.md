@@ -143,12 +143,11 @@ name: MyStruct
 type: struct
 fields:
   - name: MyRef
-    reference:
-      pointeeType: model::TypeDefinition
-      rootType: model::Binary
+    referenceTo: model::TypeDefinition
 ```
 
-This gets translated in C++ as a `TupleTreeReference<model::TypeDefinition, model::Binary>`.
+This gets translated in C++ as a `TupleTreeReference<model::TypeDefinition, model::Binary>`,
+where `model::Binary` is the root type of the `TupleTree` this struct is a part of.
 
 #### Upcastable structs
 
