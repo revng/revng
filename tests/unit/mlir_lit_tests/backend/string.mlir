@@ -17,10 +17,10 @@ module attributes {clift.module} {
   clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: "hello";
+    // CHECK: "hello \"world\" \\ \0\x07\x08\t\n\v\f\r\x7f\xff";
     clift.expr {
-      %s = clift.str "hello" : !clift.array<6 x !char$const>
-      clift.yield %s : !clift.array<6 x !char$const>
+      %s = clift.str "hello \"world\" \\ \00\07\08\09\0a\0b\0c\0d\7f\ff" : !clift.array<27 x !char$const>
+      clift.yield %s : !clift.array<27 x !char$const>
     }
   }
   // CHECK: }
