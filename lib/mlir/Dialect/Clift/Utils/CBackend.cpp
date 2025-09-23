@@ -152,10 +152,62 @@ public:
     emitPrimitiveType(Type.getKind(), Type.getSize());
   }
 
+  void emitAttribute(AttributeAttr Attribute) {
+    auto Macro = Attribute.getMacro();
+
+    Emitter.emitSpace();
+    Emitter.emitIdentifier(Macro.getString(),
+                           Macro.getHandle(),
+                           CTE::EntityKind::Attribute,
+                           CTE::IdentifierKind::Reference);
+
+    if (auto Arguments = Attribute.getArguments()) {
+      Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+
+      for (auto [I, A] : llvm::enumerate(*Arguments)) {
+        if (I != 0) {
+          Emitter.emitPunctuator(CTE::Punctuator::Comma);
+          Emitter.emitSpace();
+        }
+
+        Emitter.emitIdentifier(A.getString(),
+                               A.getHandle(),
+                               CTE::EntityKind::AttributeArgument,
+                               CTE::IdentifierKind::Reference);
+      }
+
+      Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    }
+  }
+
+  static bool checkAttributeArray(mlir::ArrayAttr ArrayAttr) {
+    auto IsAttributeAttr = [](mlir::Attribute Attr) {
+      return mlir::isa<AttributeAttr>(Attr);
+    };
+    return std::ranges::all_of(ArrayAttr, IsAttributeAttr);
+  }
+
+  mlir::ArrayAttr getDeclarationOpAttributes(mlir::Operation *Op) {
+    if (auto Attr = Op->getAttr("clift.attributes")) {
+      auto ArrayAttr = mlir::cast<mlir::ArrayAttr>(Attr);
+      revng_assert(checkAttributeArray(ArrayAttr));
+      return ArrayAttr;
+    }
+    return {};
+  }
+
+  void emitAttributes(mlir::ArrayAttr Attributes) {
+    if (Attributes) {
+      for (mlir::Attribute Attr : Attributes)
+        emitAttribute(mlir::cast<AttributeAttr>(Attr));
+    }
+  }
+
   /// Describes a function parameter declarator.
   struct ParameterDeclaratorInfo {
     llvm::StringRef Identifier;
     llvm::StringRef Location;
+    mlir::ArrayAttr Attributes;
   };
 
   /// Describes a declarator. This can be any function or variable declarator,
@@ -165,6 +217,7 @@ public:
   struct DeclaratorInfo {
     llvm::StringRef Identifier;
     llvm::StringRef Location;
+    mlir::ArrayAttr Attributes;
     CTE::EntityKind Kind;
 
     llvm::ArrayRef<ParameterDeclaratorInfo> Parameters;
@@ -388,6 +441,7 @@ public:
               ParameterDeclarator = DeclaratorInfo{
                 .Identifier = Declarator->Parameters[J].Identifier,
                 .Location = Declarator->Parameters[J].Location,
+                .Attributes = Declarator->Parameters[J].Attributes,
                 .Kind = CTE::EntityKind::FunctionParameter,
               };
             }
@@ -399,6 +453,9 @@ public:
       } break;
       }
     }
+
+    if (Declarator)
+      emitAttributes(Declarator->Attributes);
   }
 
   RecursiveCoroutine<void> emitType(ValueType Type) {
@@ -1043,6 +1100,7 @@ public:
                              DeclaratorInfo{
                                .Identifier = getNameAttr(S),
                                .Location = S.getHandle(),
+                               .Attributes = getDeclarationOpAttributes(S),
                                .Kind = CTE::EntityKind::LocalVariable,
                              });
 
@@ -1384,14 +1442,22 @@ public:
           return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
         };
 
+        mlir::ArrayAttr Attributes = {};
+        if (auto Attr = Attrs.get("clift.attributes")) {
+          Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
+          revng_assert(checkAttributeArray(Attributes));
+        }
+
         ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
-                                          GetStringAttr("clift.handle"));
+                                          GetStringAttr("clift.handle"),
+                                          Attributes);
       }
 
       rc_recur emitDeclaration(Op.getCliftFunctionType(),
                                DeclaratorInfo{
                                  .Identifier = Op.getName(),
                                  .Location = Op.getHandle(),
+                                 .Attributes = getDeclarationOpAttributes(Op),
                                  .Kind = CTE::EntityKind::Function,
                                  .Parameters = ParameterDeclarators,
                                });

@@ -143,6 +143,9 @@ public:
     FunctionParameter,
 
     Label,
+
+    Attribute,
+    AttributeArgument,
   };
 
   enum class IdentifierKind : bool {
