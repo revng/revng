@@ -8,8 +8,8 @@
 #include <string>
 
 #include "revng/Model/Binary.h"
+#include "revng/Support/CTarget.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
-#include "revng/mlir/Dialect/Clift/Utils/CTarget.h"
 
 namespace ptml {
 class ModelCBuilder;
