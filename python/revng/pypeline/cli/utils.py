@@ -76,7 +76,7 @@ class EagerParsedPath(click.Path):
     def __init__(
         self,
         name: str,
-        parser: Callable[[str], Any],
+        parser: Callable[[str, click.Context], Any],
         *args,
         **kwargs,
     ):
@@ -93,18 +93,18 @@ class EagerParsedPath(click.Path):
     ) -> Any:
         res = super().convert(value, param, ctx)
         if isinstance(res, str):
+            assert ctx is not None, "EagerParsedPath tired to evaluate without context"
             # If the value is a string, we parse it using the provided parser
-            res = self.parser(res)
-            if ctx is not None:
-                if ctx.obj is None:
-                    ctx.obj = {}
-                if self.name in ctx.obj:
-                    raise ValueError(
-                        f"Argument `{self.name}` already set in context, "
-                        "this is likely a bug in the code."
-                    )
-                # Store the parsed value in the context object
-                ctx.obj[self.name] = res
+            res = self.parser(res, ctx)
+            if ctx.obj is None:
+                ctx.obj = {}
+            if self.name in ctx.obj:
+                raise ValueError(
+                    f"Argument `{self.name}` already set in context, "
+                    "this is likely a bug in the code."
+                )
+            # Store the parsed value in the context object
+            ctx.obj[self.name] = res
         return res
 
 

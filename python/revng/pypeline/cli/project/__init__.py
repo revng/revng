@@ -22,7 +22,7 @@ from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
     "--pipeline",
     type=EagerParsedPath(
         name="pipeline",
-        parser=load_pipeline_yaml_file,
+        parser=lambda path, _ctx: load_pipeline_yaml_file(path),
     ),
     help=(
         "Path to the pipeline file. Defaults to the `PIPELINE` environment "
