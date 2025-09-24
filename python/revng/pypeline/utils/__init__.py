@@ -13,3 +13,14 @@ def cache_directory() -> Path:
         return Path(os.environ["PYPELINE_CACHE_DIR"])
     else:
         return xdg_cache_home() / "pypeline"
+
+
+def is_mime_type_text(mime_type: str) -> bool:
+    """
+    Returns True if the mime type represents a text file, False otherwise.
+    """
+    return mime_type.startswith("text/") or mime_type in {
+        "application/json",
+        "application/xml",
+        "application/x-yaml",
+    }
