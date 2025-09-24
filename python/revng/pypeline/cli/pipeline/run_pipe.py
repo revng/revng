@@ -8,7 +8,8 @@ from pathlib import Path
 import click
 
 from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
-from revng.pypeline.cli.utils import normalize_kwarg_name, normalize_whitespace
+from revng.pypeline.cli.utils import list_objects_option, normalize_kwarg_name
+from revng.pypeline.cli.utils import normalize_whitespace
 from revng.pypeline.container import dump_container, load_container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
@@ -43,13 +44,11 @@ class SimpleFileProvider(FileProvider):
 class RunPipeGroup(click.Group):
     """We need to create a custom command for each pipe we loaded from the registry.
     Since we already have to generate the code dynamically, we do it lazily so
-    we generate only the commands that are requested.
-    This is based on the LazyGroup from revng.pypeline.cli.utils."""
+    we generate only the commands that are requested."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.registry: dict[str, type[Pipe]] = get_registry(Pipe)
-        self.model_type: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
+    @property
+    def registry(self) -> dict[str, type[Pipe]]:
+        return get_registry(Pipe)  # type: ignore[type-abstract]
 
     def list_commands(self, ctx):
         base = super().list_commands(ctx)
@@ -86,7 +85,7 @@ class RunPipeGroup(click.Group):
             pipe_name=pipe_name,
             help_text=help_text,
             pipe_type=pipe_type,
-            model_type=self.model_type,
+            model_type=get_singleton(Model),  # type: ignore[type-abstract]
         )
 
         # Decorate it to add the arguments it needs
@@ -113,30 +112,16 @@ class RunPipeGroup(click.Group):
         # For each argument, call the `click.argument` decorator to dynamically add
         # them to the command
         for arg in pipe_type.signature():
-            if arg.access == TaskArgumentAccess.READ_WRITE:
+            if TaskArgumentAccess.READ in arg.access:
                 run_pipe_command = click.argument(
                     f"{arg.name}-input",
                     type=click.Path(exists=True, dir_okay=False, readable=True),
                 )(run_pipe_command)
+            if TaskArgumentAccess.WRITE in arg.access:
                 run_pipe_command = click.argument(
                     f"{arg.name}-output",
                     type=click.Path(dir_okay=False, writable=True),
                 )(run_pipe_command)
-            elif arg.access == TaskArgumentAccess.READ:
-                run_pipe_command = click.argument(
-                    arg.name,
-                    type=click.Path(exists=True, dir_okay=False, readable=True),
-                )(run_pipe_command)
-            elif arg.access == TaskArgumentAccess.WRITE:
-                run_pipe_command = click.argument(
-                    arg.name,
-                    type=click.Path(dir_okay=False, writable=True),
-                )(run_pipe_command)
-            else:
-                raise ValueError("Unreachable code: unknown access type %s")
-            # For output arguments, we can specify which objects we want
-            # to request
-            if arg.access & TaskArgumentAccess.WRITE:
                 run_pipe_command = build_arg_objects(arg)(run_pipe_command)
 
         return run_pipe_command
@@ -155,17 +140,11 @@ def build_pipe_command(
         required=True,
     )
     @click.option(
-        "--list",
-        type=bool,
-        is_flag=True,
-        default=False,
-        help="List the available objects for each argument.",
-    )
-    @click.option(
         "--file-storage",
         type=click.Path(exists=True, file_okay=False, path_type=Path),
         default=Path.cwd(),
     )
+    @list_objects_option
     def run_pipe_command(
         model: str,
         static_configuration: str,
@@ -197,10 +176,7 @@ def build_pipe_command(
                 continue
 
             # Otherwise we need to load the container from the filesystem
-            if arg.access == TaskArgumentAccess.READ_WRITE:
-                path = kwargs[f"{arg_name}_input"]
-            else:
-                path = kwargs[arg_name]
+            path = kwargs[f"{arg_name}_input"]
             containers.append(
                 load_container(
                     arg.container_type,
@@ -258,10 +234,7 @@ def build_pipe_command(
             arg_name = normalize_kwarg_name(arg.name)
             # If the argument is writable, we dump the container
             # to the filesystem
-            if arg.access == TaskArgumentAccess.READ_WRITE:
-                path = kwargs[f"{arg_name}_output"]
-            else:
-                path = kwargs[arg_name]
+            path = kwargs[f"{arg_name}_output"]
             logger.info("Dumping container %s to %s", arg.name, path)
             dump_container(
                 container,

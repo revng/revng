@@ -9,13 +9,15 @@ dependencies = [
     "click==8.2.1",
     "jsonschema",
     "pyyaml",
+    "psuitl",
+    "xdg"
 ]
 
 [project.scripts]
 pype = "revng.pypeline.main:run"
 
 [tool.setuptools.package-data]
-pypeline = ["revng/pypeline/pipeline_schema.yml"]
+revng = ["pypeline/schema.yml"]
 
 [build-system]
 requires = ["setuptools", "wheel"]

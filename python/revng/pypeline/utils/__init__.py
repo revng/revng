@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -24,3 +25,14 @@ def is_mime_type_text(mime_type: str) -> bool:
         "application/xml",
         "application/x-yaml",
     }
+
+
+def crypto_hash(data: bytes | str) -> str:
+    """
+    Returns the SHA256 hash of the given data in hexadecimal format.
+    """
+    hasher = hashlib.sha256()
+    if isinstance(data, str):
+        data = data.encode()
+    hasher.update(data)
+    return hasher.hexdigest()

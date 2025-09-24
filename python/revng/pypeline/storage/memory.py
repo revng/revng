@@ -17,8 +17,8 @@ from revng.pypeline.task.task import ObjectDependencies
 
 from .file_provider import FileRequest
 from .storage_provider import ConfigurationId, ContainerLocation, FileStorageEntry
-from .storage_provider import InvalidatedObjects, ProjectMetadata, SavepointID, SavePointsRange
-from .storage_provider import StorageProvider
+from .storage_provider import InvalidatedObjects, ProjectID, ProjectMetadata, SavepointID
+from .storage_provider import SavePointsRange, StorageProvider, StorageProviderFactory
 from .util import _REVNG_VERSION_PLACEHOLDER, check_kind_structure, compute_hash
 
 
@@ -29,6 +29,28 @@ class DependencyEntry:
     container_id: ContainerID
     configuration_id: ConfigurationId
     object_id: ObjectID
+
+
+class InMemoryStorageProviderFactory(StorageProviderFactory):
+    def __init__(self, url: str):
+        assert url == "memory://"
+        self.providers: dict[ProjectID | None, InMemoryStorageProvider] = {}
+
+    @classmethod
+    def scheme(cls) -> str:
+        return "memory"
+
+    def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> StorageProvider:
+        if project_id in self.providers:
+            return self.providers[project_id]
+        provider = InMemoryStorageProvider()
+        self.providers[project_id] = provider
+        return provider
 
 
 class InMemoryStorageProvider(StorageProvider):
