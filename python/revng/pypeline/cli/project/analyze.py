@@ -8,10 +8,11 @@ import sys
 import click
 
 from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
-from revng.pypeline.cli.utils import list_objects_for_container, normalize_whitespace
+from revng.pypeline.cli.utils import list_objects_for_container, list_objects_option
+from revng.pypeline.cli.utils import normalize_whitespace, project_id_option, token_option
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, Pipeline
-from revng.pypeline.storage_provider.storage_provider import storage_provider_factory_factory
+from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils.registry import get_singleton
 
@@ -93,15 +94,15 @@ def build_analysis_command(
     analysis_name: str = analysis_binding.analysis.name
 
     @click.command(name=analysis_name, help=help_text)
-    @click.option(
-        "--list",
-        type=bool,
-        is_flag=True,
-        default=False,
-        help="List the available objects for each argument.",
-    )
+    @list_objects_option
+    @project_id_option
+    @token_option
+    @click.pass_context
     def run_analysis_command(
+        ctx: click.Context,
         configuration: str,
+        project_id: str,
+        token: str,
         **kwargs,
     ) -> None:
         logger.debug("Running analysis: `%s`", analysis_name)
@@ -109,11 +110,11 @@ def build_analysis_command(
         logger.debug("and kwargs: `%s`", kwargs)
 
         # Load the model
-        storage_provider_factory = storage_provider_factory_factory("local://")
+        storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
         storage_provider = storage_provider_factory.get(
-            project_id="WIP",
-            token="WIP",
-            cache_dir="WIP",
+            project_id=project_id,
+            token=token,
+            cache_dir=ctx.obj["cache_dir"],
         )
         loaded_model: Model = model_ty()
         loaded_model.deserialize(storage_provider.get_model())

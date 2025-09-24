@@ -9,6 +9,7 @@ dependencies = [
     "click==8.2.1",
     "jsonschema",
     "pyyaml",
+    "xdg",
 ]
 
 [project.scripts]
