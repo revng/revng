@@ -92,12 +92,6 @@ public:
       return UnnamedGotoLabelPrefix();
   }
 
-  llvm::StringRef undefinedValuePrefix() const {
-    if (UndefinedValuePrefix().empty())
-      return "undef_";
-    else
-      return UndefinedValuePrefix();
-  }
   llvm::StringRef opaqueCSVValuePrefix() const {
     if (OpaqueCSVValuePrefix().empty())
       return "revng_undefined_";

@@ -1635,14 +1635,6 @@ definitions:
         type: string
         optional: true
 
-      - name: UndefinedValuePrefix
-        doc: |-
-          The prefix for an undefined value.
-
-          The default value is `undef_`.
-        type: string
-        optional: true
-
       - name: OpaqueCSVValuePrefix
         doc: |-
           The prefix for accessing an opaque CSV Value.

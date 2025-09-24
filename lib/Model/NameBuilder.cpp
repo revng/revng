@@ -526,11 +526,6 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
     return revng::createError("it is reserved for an artificial return value "
                               "struct name");
 
-  // TODO: more granularity is possible here since this prefix is only ever
-  //       followed by a primitive name, but forbid them all for now.
-  if (Name.starts_with(Configuration.undefinedValuePrefix()))
-    return revng::createError("it is reserved for an undefined value");
-
   // NOTE: since CSV value names are kind of external, reserve everything just
   //       to be safe.
   if (Name.starts_with(Configuration.opaqueCSVValuePrefix()))
