@@ -13,6 +13,7 @@ from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 
 from .analyze import analyze
 from .artifact import artifact
+from .daemon import run_daemon
 
 
 @click.group(
@@ -68,3 +69,4 @@ def project(
 
 project.add_command(analyze)
 project.add_command(artifact)
+project.add_command(run_daemon, name="daemon")

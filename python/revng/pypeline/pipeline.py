@@ -45,6 +45,10 @@ class Artifact:
     container: ContainerDeclaration
     description: Optional[str] = None
 
+    def is_cacheable(self) -> bool:
+        """An artifact is cacheable if it's backed by a savepoint."""
+        return isinstance(self.node.task, SavePoint)
+
 
 C = TypeVar("C", bound=Model)
 

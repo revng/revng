@@ -390,6 +390,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/cli/project/__init__.py
     revng/pypeline/cli/project/analyze.py
     revng/pypeline/cli/project/artifact.py
+    revng/pypeline/cli/project/daemon.py
     revng/pypeline/cli/__init__.py
     revng/pypeline/cli/utils.py
     revng/pypeline/analysis.py
@@ -402,6 +403,12 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/pipeline_parser.py
     revng/pypeline/pipeline.py
     revng/pypeline/schema.yml
+    revng/pypeline/daemon/__init__.py
+    revng/pypeline/daemon/app.py
+    revng/pypeline/daemon/daemon.py
+    revng/pypeline/daemon/notification_broker/__init__.py
+    revng/pypeline/daemon/notification_broker/local_broker.py
+    revng/pypeline/daemon/utils.py
     revng/pypeline/schedule/__init__.py
     revng/pypeline/schedule/scheduled_task.py
     revng/pypeline/schedule/schedule.py
