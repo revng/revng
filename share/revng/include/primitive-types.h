@@ -54,16 +54,6 @@ static_assert_size(generic96_t, 12);
 static_assert_size(generic128_t, 16);
 #endif
 
-extern generic8_t undef_generic8_t();
-extern generic16_t undef_generic16_t();
-extern generic32_t undef_generic32_t();
-extern generic64_t undef_generic64_t();
-extern generic80_t undef_generic80_t();
-extern generic96_t undef_generic96_t();
-#ifdef __SIZEOF_INT128__
-extern generic128_t undef_generic128_t();
-#endif
-
 //
 // PointerOrNumber
 //
@@ -82,14 +72,6 @@ static_assert_size(pointer_or_number32_t, 4);
 static_assert_size(pointer_or_number64_t, 8);
 #ifdef __SIZEOF_INT128__
 static_assert_size(pointer_or_number128_t, 16);
-#endif
-
-extern pointer_or_number8_t undef_pointer_or_number8_t();
-extern pointer_or_number16_t undef_pointer_or_number16_t();
-extern pointer_or_number32_t undef_pointer_or_number32_t();
-extern pointer_or_number64_t undef_pointer_or_number64_t();
-#ifdef __SIZEOF_INT128__
-extern pointer_or_number128_t undef_pointer_or_number128_t();
 #endif
 
 //
@@ -112,14 +94,6 @@ static_assert_size(number64_t, 8);
 static_assert_size(number128_t, 16);
 #endif
 
-extern number8_t undef_number8_t();
-extern number16_t undef_number16_t();
-extern number32_t undef_number32_t();
-extern number64_t undef_number64_t();
-#ifdef __SIZEOF_INT128__
-extern number128_t undef_number128_t();
-#endif
-
 //
 // Signed and Unsigned
 //
@@ -138,28 +112,12 @@ static_assert_size(int64_t, 8);
 static_assert_size(int128_t, 16);
 #endif
 
-extern int8_t undef_int8_t();
-extern int16_t undef_int16_t();
-extern int32_t undef_int32_t();
-extern int64_t undef_int64_t();
-#ifdef __SIZEOF_INT128__
-extern int128_t undef_int128_t();
-#endif
-
 static_assert_size(uint8_t, 1);
 static_assert_size(uint16_t, 2);
 static_assert_size(uint32_t, 4);
 static_assert_size(uint64_t, 8);
 #ifdef __SIZEOF_INT128__
 static_assert_size(uint128_t, 16);
-#endif
-
-extern uint8_t undef_uint8_t();
-extern uint16_t undef_uint16_t();
-extern uint32_t undef_uint32_t();
-extern uint64_t undef_uint64_t();
-#ifdef __SIZEOF_INT128__
-extern uint128_t undef_uint128_t();
 #endif
 
 //
@@ -227,13 +185,6 @@ static_assert_size(float80_t, 10);
 static_assert_size(float96_t, 12);
 static_assert_size(float128_t, 16);
 
-extern float16_t undef_float16_t();
-extern float32_t undef_float32_t();
-extern float64_t undef_float64_t();
-extern float80_t undef_float80_t();
-extern float96_t undef_float96_t();
-extern float128_t undef_float128_t();
-
 //
 // Pointers
 //
@@ -249,3 +200,11 @@ extern float128_t undef_float128_t();
 #endif
 
 #undef static_assert_size
+
+//
+// Undefined values
+//
+
+extern uintmax_t undef_value(void);
+
+#define undef(T) ((T) undef_value())
