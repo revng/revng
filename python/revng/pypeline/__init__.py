@@ -11,7 +11,7 @@ __version__ = "@VERSION@"
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from . import utils  # noqa: F401
+    from . import utils, daemon  # noqa: F401
     from . import analysis, cli, container, graph, main, model  # noqa: F401
     from . import object as _object  # noqa: F401
     from . import pipeline, pipeline_node, pipeline_parser, schedule, storage, task  # noqa: F401

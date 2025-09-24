@@ -399,6 +399,13 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/pipeline_parser.py
     revng/pypeline/pipeline.py
     revng/pypeline/schema.yml
+    revng/pypeline/daemon/__init__.py
+    revng/pypeline/daemon/app.py
+    revng/pypeline/daemon/daemon.py
+    revng/pypeline/daemon/postoffice.py
+    revng/pypeline/daemon/utils.py
+    revng/pypeline/daemon/lock/__init__.py
+    revng/pypeline/daemon/lock/local_lock.py
     revng/pypeline/schedule/__init__.py
     revng/pypeline/schedule/scheduled_task.py
     revng/pypeline/schedule/schedule.py

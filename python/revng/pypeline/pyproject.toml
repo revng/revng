@@ -10,6 +10,8 @@ dependencies = [
     "jsonschema",
     "pyyaml",
     "xdg",
+    "starlette",
+    "uvicorn",
 ]
 
 [project.scripts]
