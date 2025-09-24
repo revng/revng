@@ -14,12 +14,12 @@
 #include "revng/Clifter/Clifter.h"
 #include "revng/LocalVariables/LocalVariableHelpers.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/Identifier.h"
 
 namespace clift = mlir::clift;

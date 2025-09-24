@@ -6,9 +6,8 @@
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Transforms/Utils/Local.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 using namespace llvm;

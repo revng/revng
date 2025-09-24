@@ -23,6 +23,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+#include "revng/Lift/CPUStateAccessAnalysisPass.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 #include "revng/Support/Statistics.h"
@@ -30,7 +31,6 @@
 #include "revng/TypeShrinking/TypeShrinking.h"
 #include "revng/ValueMaterializer/DataFlowGraph.h"
 
-#include "CPUStateAccessAnalysisPass.h"
 #include "JumpTargetManager.h"
 #include "RootAnalyzer.h"
 #include "ValueMaterializerPass.h"

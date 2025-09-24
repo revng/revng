@@ -34,11 +34,11 @@
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/DecompilationHelpers.h"
-#include "revng/Support/FunctionTags.h"
 
 static Logger<> Log{ "switch-to-statements" };
 

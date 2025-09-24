@@ -7,7 +7,7 @@
 #include "llvm/ADT/STLExtras.h"
 
 #include "revng/ADT/Concepts.h"
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
 
 // We use a template here in order to instantiate `FunctionType` both as
 // `Function` and `const Function`

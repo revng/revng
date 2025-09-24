@@ -10,12 +10,11 @@
 
 #include "llvm/Pass.h"
 
+#include "revng/Lift/CPUStateAccessAnalysisPass.h"
+#include "revng/Lift/PTCDump.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
-
-#include "CPUStateAccessAnalysisPass.h"
-#include "PTCDump.h"
 
 namespace llvm {
 class AllocaInst;

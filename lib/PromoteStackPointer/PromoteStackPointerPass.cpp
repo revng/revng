@@ -22,6 +22,7 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
@@ -30,8 +31,6 @@
 #include "revng/PromoteStackPointer/PromoteStackPointerPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
 
 // This name is not present after `promote-stack-pointer`.
 RegisterIRHelper IBIMarker("revng_undefined_local_sp");

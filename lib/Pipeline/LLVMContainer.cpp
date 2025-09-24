@@ -24,9 +24,9 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/LLVMKind.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ModuleStatistics.h"
 #include "revng/Support/ZstdStream.h"

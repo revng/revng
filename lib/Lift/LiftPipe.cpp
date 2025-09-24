@@ -12,6 +12,7 @@ extern "C" {
 #include "llvm/Support/Error.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Lift/IRAnnotators.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Lift/LiftPipe.h"
 #include "revng/Model/LoadModelPass.h"
@@ -20,7 +21,6 @@ extern "C" {
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/RootKind.h"
-#include "revng/Support/IRAnnotators.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ResourceFinder.h"
 

@@ -7,10 +7,10 @@
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Pass.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Base.h"
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Helpers.h"
 #include "revng/PipeboxCommon/LLVMContainer.h"
-#include "revng/Support/FunctionTags.h"
 
 namespace detail {
 

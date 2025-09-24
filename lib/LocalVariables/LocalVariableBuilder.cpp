@@ -13,10 +13,9 @@
 #include "revng/LocalVariables/LocalVariableBuilder.h"
 #include "revng/LocalVariables/LocalVariableHelpers.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

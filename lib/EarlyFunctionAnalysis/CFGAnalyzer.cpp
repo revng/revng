@@ -36,8 +36,8 @@
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/EarlyFunctionAnalysis/SegregateDirectStackAccesses.h"
 #include "revng/Model/FunctionAttribute.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/BasicBlockID.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 

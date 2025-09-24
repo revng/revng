@@ -7,10 +7,9 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/ModRef.h"
 
+#include "revng/Model/FunctionTags.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
-#include "revng/Support/ProgramCounterHandler.h"
 
 // This name corresponds to a function in `early-linked`.
 RegisterIRHelper SetMetaAddressHelper("set_PlainMetaAddress");

@@ -12,10 +12,9 @@
 
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/InitModelTypes/InitModelTypes.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 struct MakeLocalVariables : public llvm::FunctionPass {

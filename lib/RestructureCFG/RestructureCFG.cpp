@@ -20,6 +20,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_os_ostream.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/RestructureCFG/ASTTree.h"
 #include "revng/RestructureCFG/BasicBlockNodeImpl.h"
 #include "revng/RestructureCFG/GenerateAst.h"
@@ -29,7 +30,6 @@
 #include "revng/RestructureCFG/Utils.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/IRHelpers.h"
 

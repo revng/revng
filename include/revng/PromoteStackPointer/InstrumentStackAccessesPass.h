@@ -6,7 +6,7 @@
 
 #include "llvm/Pass.h"
 
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
 
 /// Wrap stack accesses into StackOffsetMarker-tagged calls
 ///

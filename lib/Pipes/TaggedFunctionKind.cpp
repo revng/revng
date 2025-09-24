@@ -11,6 +11,7 @@
 #include "llvm/ADT/STLExtras.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Context.h"
@@ -22,7 +23,6 @@
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/MetaAddress.h"
 
 using namespace pipeline;

@@ -11,12 +11,11 @@
 #include "llvm/Pass.h"
 
 #include "revng/ABI/ModelHelpers.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/DecompilationHelpers.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
 #include "revng/Support/YAMLTraits.h"
 
 static Logger<> Log{ "fold-model-gep" };

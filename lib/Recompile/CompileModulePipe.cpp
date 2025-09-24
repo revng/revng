@@ -18,15 +18,15 @@
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 
+#include "revng/Lift/IRAnnotators.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Recompile/CompileModulePipe.h"
+#include "revng/Recompile/OriginalAssemblyAnnotationWriter.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/IRAnnotators.h"
 #include "revng/Support/IRHelpers.h"
-#include "revng/Support/OriginalAssemblyAnnotationWriter.h"
 
 using namespace llvm;
 using namespace llvm::codegen;

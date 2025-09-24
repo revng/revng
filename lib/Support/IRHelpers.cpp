@@ -21,9 +21,9 @@
 
 #include "revng/ADT/Queue.h"
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
-#include "revng/Support/ProgramCounterHandler.h"
 #include "revng/Support/StringOperations.h"
 #include "revng/Support/Tag.h"
 

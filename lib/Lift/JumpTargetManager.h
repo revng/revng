@@ -23,11 +23,11 @@
 #include "revng/Lift/Lift.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
-#include "revng/Support/ProgramCounterHandler.h"
 
 // Forward declarations
 namespace llvm {

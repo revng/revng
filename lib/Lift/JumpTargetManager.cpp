@@ -14,7 +14,7 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/Lift/Lift.h"
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/Statistics.h"
 

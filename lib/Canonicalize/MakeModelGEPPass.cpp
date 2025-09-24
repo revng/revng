@@ -38,6 +38,7 @@
 #include "revng/InitModelTypes/InitModelTypes.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/TypeDefinition.h"
@@ -45,7 +46,6 @@
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 

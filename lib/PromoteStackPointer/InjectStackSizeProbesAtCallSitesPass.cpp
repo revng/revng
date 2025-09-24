@@ -3,9 +3,8 @@
 //
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSitesPass.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
 
 // This name is not present after `CleanupStackSizeMarkers`.
 RegisterIRHelper StackSizeAtCallSite("stack_size_at_call_site");

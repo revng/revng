@@ -11,11 +11,10 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Pass.h"
 
-#include "revng/Support/IRBuilder.h"
-#include "revng/Support/ProgramCounterHandler.h"
+#include "revng/Lift/PTCDump.h"
+#include "revng/Model/ProgramCounterHandler.h"
 
 #include "JumpTargetManager.h"
-#include "PTCDump.h"
 
 // Forward declarations
 namespace llvm {

@@ -12,8 +12,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Transforms/Utils/Local.h"
 
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 struct TernaryReductionPass : public llvm::FunctionPass {
