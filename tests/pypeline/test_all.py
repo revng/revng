@@ -10,9 +10,9 @@ from tempfile import NamedTemporaryFile
 from typing import Optional, TypeVar, Union
 
 import pytest
-from simple_pipeline import ChildDictContainer, DictModel, GeneratorPipe, InPlacePipe, MyKind
-from simple_pipeline import MyObjectID, NullAnalysis, PurgeAllAnalysis, PurgeOneAnalysis
-from simple_pipeline import RootDictContainer, SameKindPipe, ToHigherKindPipe, ToLowerKindPipe
+from pipebox import ChildDictContainer, DictModel, GeneratorPipe, InPlacePipe, MyKind, MyObjectID
+from pipebox import NullAnalysis, PurgeAllAnalysis, PurgeOneAnalysis, RootDictContainer
+from pipebox import SameKindPipe, ToHigherKindPipe, ToLowerKindPipe
 
 from revng.pypeline import initialize_pypeline
 from revng.pypeline.analysis import AnalysisBinding
