@@ -4,19 +4,24 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
 
 from revng.pypeline.container import ConfigurationId
-from revng.pypeline.model import ModelPathSet
+from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 from revng.pypeline.utils.registry import get_singleton
 
-from .storage_provider import ContainerLocation, ProjectMetadata, SavePointsRange, StorageProvider
+from .storage_provider import ContainerLocation, ProjectID, ProjectMetadata, SavePointsRange
+from .storage_provider import StorageProvider, StorageProviderFactory
 from .util import _REVNG_VERSION_PLACEHOLDER
+
+logger = logging.getLogger(__name__)
 
 CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS project(
@@ -110,6 +115,55 @@ class CursorWrapper:
             self.connection.commit()
         self.cursor.close()
         return False
+
+
+class LocalStorageProviderFactory(StorageProviderFactory):
+    def __init__(self, url: str):
+        assert url == ""
+        self.providers: dict[ProjectID | None, LocalStorageProvider] = {}
+
+    @classmethod
+    def protocol(cls) -> str:
+        return "local"
+
+    def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> StorageProvider:
+        assert cache_dir is not None, "Cache directory must be provided"
+
+        if project_id in self.providers:
+            return self.providers[project_id]
+
+        # Figure out how the model should be name
+        model_ty = get_singleton(Model)  # type: ignore [type-abstract]
+        model_name = model_ty.model_name()
+
+        # Find the model in the current directory or any of its parents
+        folder = Path.cwd().resolve()
+        while True:
+            logger.debug("Searching for model at '%s'", folder / model_name)
+            if (folder / model_name).exists():
+                break
+            if folder == folder.parent:
+                raise FileNotFoundError(f"Model '{model_name}' not found")
+            folder = folder.parent
+
+        model_path = folder / model_name
+        logger.info("Model '%s' found at '%s'", model_name, model_path)
+        # Compute the hash of the model path as a tentative unique identifier
+        # for the project
+        hasher = hashlib.sha256()
+        hasher.update(str(model_path).encode())
+        db_name = hasher.hexdigest() + ".sqlite"
+        db_path = Path(cache_dir) / db_name
+        logger.info("Using DB '%s'", db_path)
+
+        provider = LocalStorageProvider(str(db_path), str(model_path))
+        self.providers[project_id] = provider
+        return provider
 
 
 class LocalStorageProvider(StorageProvider):

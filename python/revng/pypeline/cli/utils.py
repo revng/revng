@@ -5,7 +5,6 @@
 import importlib
 import importlib.util
 import logging
-import os
 import re
 from collections.abc import Sequence
 from typing import Any, Callable, Optional
@@ -15,22 +14,10 @@ import click
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
-from revng.pypeline.storage import storage_provider_factory
-from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.task.task import TaskArgument, TaskArgumentAccess
 from revng.pypeline.utils.registry import get_registry, get_singleton
 
 logger = logging.getLogger(__name__)
-
-
-def default_storage_provider(model_path: str) -> StorageProvider:
-    """
-    While we figure out how to configure the storage provider, we use a default
-    SQLite3 storage provider. This is a temporary solution, and we should
-    eventually allow the user to configure the storage provider using an
-    environment variable or a configuration file.
-    """
-    return storage_provider_factory(model_path, os.environ.get("PYPELINE_STORAGE"))
 
 
 class RegistryChoice(click.Choice):

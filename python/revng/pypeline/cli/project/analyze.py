@@ -9,9 +9,9 @@ import click
 
 from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
 from revng.pypeline.cli.utils import list_objects_for_container, normalize_whitespace
-from revng.pypeline.cli.utils import storage_provider_factory
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, Pipeline
+from revng.pypeline.storage_provider.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils.registry import get_singleton
 
@@ -93,11 +93,6 @@ def build_analysis_command(
     analysis_name: str = analysis_binding.analysis.name
 
     @click.command(name=analysis_name, help=help_text)
-    @click.argument(
-        "model",
-        type=click.Path(exists=True, dir_okay=False, readable=True),
-        required=True,
-    )
     @click.option(
         "--list",
         type=bool,
@@ -106,17 +101,20 @@ def build_analysis_command(
         help="List the available objects for each argument.",
     )
     def run_analysis_command(
-        model: str,
         configuration: str,
         **kwargs,
     ) -> None:
         logger.debug("Running analysis: `%s`", analysis_name)
         logger.debug("configuration: `%s`", configuration)
-        logger.debug("model: `%s`", model)
         logger.debug("and kwargs: `%s`", kwargs)
 
         # Load the model
-        storage_provider = storage_provider_factory(model_path=model)
+        storage_provider_factory = storage_provider_factory_factory("local://")
+        storage_provider = storage_provider_factory.get(
+            project_id="WIP",
+            token="WIP",
+            cache_dir="WIP",
+        )
         loaded_model: Model = model_ty()
         loaded_model.deserialize(storage_provider.get_model())
 

@@ -12,8 +12,9 @@ from .analysis import Analysis
 from .container import Container
 from .model import Model
 from .object import Kind, ObjectID
+from .storage.storage_provider import StorageProviderFactory
 from .task.pipe import Pipe
-from .utils.registry import get_singleton, register_all_subclasses
+from .utils.registry import get_registry, get_singleton, register_all_subclasses
 
 
 def initialize_pypeline() -> None:
@@ -33,3 +34,13 @@ def initialize_pypeline() -> None:
     register_all_subclasses(ObjectID, singleton=True)
     kind_ty = get_singleton(Kind)  # type: ignore[type-abstract]
     kind_ty._init_type()
+
+    # This is already initialized by the storage module, but the user might
+    # want to add custom storage providers in its pypebox so we should update it
+    register_all_subclasses(StorageProviderFactory)
+    # Ensure that all protocols are unique
+    protocols = {}
+    for factory_ty in get_registry(StorageProviderFactory).values():  # type: ignore [type-abstract]
+        if factory_ty.protocol() in protocols:
+            raise ValueError(f"Duplicate protocol {factory_ty.protocol()}")
+        protocols[factory_ty.protocol()] = factory_ty
