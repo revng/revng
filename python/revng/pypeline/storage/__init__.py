@@ -8,9 +8,9 @@ from typing import Optional
 from revng.pypeline.model import Model
 from revng.pypeline.utils.registry import get_singleton
 
+from .local_provider import LocalStorageProvider
 from .memory import InMemoryStorageProvider
 from .null import NullStorageProvider
-from .sqlite3 import SQlite3StorageProvider
 from .storage_provider import StorageProvider
 
 
@@ -33,7 +33,7 @@ def storage_provider_factory(
             with resolved_model_path.open("wb") as f:
                 f.write(empty_model.serialize())
 
-        return SQlite3StorageProvider(
+        return LocalStorageProvider(
             db_path=storage_url[len("sqlite://") :],
             model_path=resolved_model_path,
         )

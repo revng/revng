@@ -112,7 +112,7 @@ class CursorWrapper:
         return False
 
 
-class SQlite3StorageProvider(StorageProvider):
+class LocalStorageProvider(StorageProvider):
     """StorageProvider implementation with backing sqlite3 db"""
 
     def __init__(self, db_path: str, model_path: str | Path):
