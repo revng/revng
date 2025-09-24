@@ -4,6 +4,10 @@
 
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from . import analyze, artifact  # noqa: F401
 
 import click
 from xdg import xdg_cache_home

@@ -2,6 +2,11 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from . import cabc, default_dict_from_key, registry  # noqa: F401
+
 
 def is_mime_type_text(mime_type: str) -> bool:
     """
