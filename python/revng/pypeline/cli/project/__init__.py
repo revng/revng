@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from . import analyze, artifact  # noqa: F401
+    from . import analyze, artifact, daemon  # noqa: F401
 
 import click
 from xdg import xdg_cache_home
@@ -21,6 +21,7 @@ from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
     lazy_subcommands={
         "analyze": "revng.pypeline.cli.project.analyze:analyze",
         "artifact": "revng.pypeline.cli.project.artifact:get_artifact",
+        "daemon": "revng.pypeline.cli.project.daemon:run_daemon",
     },
     help="Project commands (porcelain)",
 )
