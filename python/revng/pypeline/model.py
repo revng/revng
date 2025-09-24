@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Annotated, Self, Set
 
 from .object import Kind, ObjectID, ObjectSet
+from .utils import is_mime_type_text
 from .utils.cabc import ABC, abstractmethod
 from .utils.registry import get_singleton
 
@@ -50,8 +51,8 @@ class Model(ABC):
         obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
         root: ObjectID = obj_id_type.root()
         if kind == root.kind():
-            return ObjectSet(root.kind(), {root})
-        return ObjectSet(root.kind(), self.children(root, kind))
+            return ObjectSet(kind, {root})
+        return ObjectSet(kind, self.children(root, kind))
 
     def move_to_kind(self, objects: ObjectSet, destination_kind: Kind) -> ObjectSet:
         if not objects:
@@ -111,12 +112,26 @@ class Model(ABC):
         pass
 
     @classmethod
+    @abstractmethod
+    def mime_type(cls) -> str:
+        """
+        The mime type of the serialized format of the model.
+        """
+
+    @classmethod
     def is_text(cls) -> bool:
         """
         Returns True if the serialized model is a text file, False otherwise.
-        This is used to determine if the model should be treated as a text file or not.
         """
-        return False
+        return is_mime_type_text(cls.mime_type())
+
+    @classmethod
+    @abstractmethod
+    def model_name(cls) -> str:
+        """
+        The file name of the model when saved on disk. This can be used by
+        the storage provider to find the model in a project.
+        """
 
 
 class ReadOnlyModel[M: Model]:

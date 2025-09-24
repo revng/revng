@@ -288,9 +288,12 @@ class DictModel(Model):
         raise NotImplementedError()
 
     @classmethod
-    def is_text(cls) -> bool:
-        # We serialize already as json
-        return True
+    def mime_type(cls) -> str:
+        return "application/x-yaml"
+
+    @classmethod
+    def model_name(cls) -> str:
+        return "model.yml"
 
     def serialize(self):
         return yaml.safe_dump(self._data).encode()

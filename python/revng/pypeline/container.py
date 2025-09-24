@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Annotated, Dict, Generator, Tuple, Type
 
 from .object import Kind, ObjectID, ObjectSet
+from .utils import is_mime_type_text
 from .utils.cabc import ABC, abstractmethod
 from .utils.registry import get_singleton
 
@@ -131,11 +132,7 @@ class Container(ABC):
         This is used to improve transmission performance by avoiding
         unnecessary encoding/decoding steps.
         """
-        return cls.mime_type().startswith("text/") or cls.mime_type() in {
-            "application/json",
-            "application/xml",
-            "application/x-yaml",
-        }
+        return is_mime_type_text(cls.mime_type())
 
     @abstractmethod
     def verify(self) -> bool:
