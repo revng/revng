@@ -4,15 +4,15 @@
 
 from __future__ import annotations
 
-import base64
 import json
 from collections.abc import Buffer, Mapping
 from dataclasses import dataclass
+from io import StringIO
 from pathlib import Path
-from typing import Annotated, Dict, Generator, Tuple, Type, final
+from typing import Annotated, Dict, Generator, TextIO, Tuple, Type, final
 
 from .object import Kind, ObjectID, ObjectSet
-from .utils import is_mime_type_text
+from .utils import bytes_to_string, is_mime_type_text, string_to_bytes
 from .utils.cabc import ABC, abstractmethod
 from .utils.registry import get_singleton
 
@@ -112,9 +112,10 @@ class Container(ABC):
         """
 
     @abstractmethod
-    def serialize(self, objects: ObjectSet) -> Mapping[ObjectID, Buffer]:
+    def serialize(self, objects: ObjectSet | None = None) -> Mapping[ObjectID, Buffer]:
         """
-        Dump objects from this container into a serialized format.
+        Dump objects from this container into a serialized format, dump all
+        objects if none are specified.
         """
 
     @classmethod
@@ -153,54 +154,81 @@ class Container(ABC):
 
     @classmethod
     @final
-    def from_string(
-        cls,
-        data: str,
-    ) -> Container:
+    def from_dict(cls, data: dict[str, str]) -> Container:
+        # Feed the data in the container
         container = cls()
         obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
         container.deserialize(
             {
-                obj_id_type.deserialize(obj_id): (
-                    content if container.is_text() else base64.b64decode(content)
-                )
-                for obj_id, content in json.loads(data).items()
+                obj_id_type.deserialize(obj_id): string_to_bytes(content, container.is_text())
+                for obj_id, content in data.items()
             }
         )
         return container
 
     @classmethod
     @final
+    def from_string(
+        cls,
+        data: str,
+    ) -> Container:
+        """
+        Load a container into a serialized format.
+        """
+        return cls.from_file(StringIO(data))
+
+    @classmethod
+    @final
     def from_file(
         cls,
-        path: str | Path,
+        path_or_file: str | Path | TextIO,
     ) -> Container:
         """
         Load a container from a serialized format.
         This is used to **load** cached objects into this container.
         """
-        with open(path, "r", encoding="utf-8") as f:
-            return cls.from_string(f.read())
+        if isinstance(path_or_file, (str, Path)):
+            path: str | Path = path_or_file
+            with open(path, "r", encoding="utf-8") as f:
+                return cls.from_file(f)
+
+        # Read the file
+        file: TextIO = path_or_file
+        return cls.from_dict(json.load(file))
+
+    @final
+    def to_dict(self) -> dict[str, str]:
+        return {
+            k.serialize(): bytes_to_string(v, self.is_text())
+            for k, v in self.serialize(self.objects()).items()
+        }
 
     @final
     def to_string(self) -> str:
         """
         Dump a container into a serialized format.
         """
-        return json.dumps(
-            {k.serialize(): bytes(v).hex() for k, v in self.serialize(self.objects()).items()},
-            indent=4,
-            sort_keys=True,
-        )
+        data = StringIO()
+        self.to_file(data)
+        return data.getvalue()
 
     @final
-    def to_file(self, path: str | Path) -> None:
+    def to_file(self, path_or_file: str | Path | TextIO) -> None:
         """
         Dump a container into a serialized format.
         This is used to **save** cached objects from this container.
         """
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(self.to_string())
+        if isinstance(path_or_file, (str, Path)):
+            with open(path_or_file, "w", encoding="utf-8") as f:
+                self.to_file(f)
+                return
+        else:
+            json.dump(
+                self.to_dict(),
+                path_or_file,
+                indent=4,
+                sort_keys=True,
+            )
 
 
 ContainerSet = Annotated[
