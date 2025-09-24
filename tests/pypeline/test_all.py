@@ -10,9 +10,9 @@ from tempfile import NamedTemporaryFile
 from typing import Optional, TypeVar, Union
 
 import pytest
-from simple_pipeline import ChildDictContainer, DictModel, GeneratorPipe, InPlacePipe, MyKind
-from simple_pipeline import MyObjectID, NullAnalysis, PurgeAllAnalysis, PurgeOneAnalysis
-from simple_pipeline import RootDictContainer, SameKindPipe, ToHigherKindPipe, ToLowerKindPipe
+from pipebox import ChildDictContainer, DictModel, GeneratorPipe, InPlacePipe, MyKind, MyObjectID
+from pipebox import NullAnalysis, PurgeAllAnalysis, PurgeOneAnalysis, RootDictContainer
+from pipebox import SameKindPipe, ToHigherKindPipe, ToLowerKindPipe
 
 from revng.pypeline import initialize_pypeline
 from revng.pypeline.analysis import AnalysisBinding
@@ -22,8 +22,8 @@ from revng.pypeline.object import Kind, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
+from revng.pypeline.storage.local_provider import LocalStorageProvider
 from revng.pypeline.storage.memory import InMemoryStorageProvider
-from revng.pypeline.storage.sqlite3 import SQlite3StorageProvider
 from revng.pypeline.storage.storage_provider import ContainerLocation, SavePointsRange
 from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.task.pipe import Pipe
@@ -49,15 +49,15 @@ def model():
     return DictModel()
 
 
-@pytest.fixture(params=["memory", "sqlite3"])
+@pytest.fixture(params=["memory", "local"])
 def storage_provider(request):
     storage_provider: StorageProvider
     if request.param == "memory":
         storage_provider = InMemoryStorageProvider()
         yield storage_provider
-    elif request.param == "sqlite3":
+    elif request.param == "local":
         with NamedTemporaryFile() as f:
-            storage_provider = SQlite3StorageProvider(":memory:", f.name)
+            storage_provider = LocalStorageProvider(":memory:", f.name)
             yield storage_provider
     else:
         raise ValueError()

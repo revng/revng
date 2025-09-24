@@ -41,6 +41,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.package-data]
 revng = [
+  "internal/pipeline.yml",
   "internal/py.typed",
   "internal/_pipebox.so",
   "internal/daemon/schema.graphql",
@@ -50,7 +51,7 @@ revng = [
 
 [project.entry-points.console_scripts]
 revng = "revng.internal.cli.revng:main"
-revng2 = "revng.internal.cli.revng2:run"
+revng2 = "revng.internal.cli.revng2:main"
 
 [tool.setuptools.dynamic]
 version = {attr = "revng.internal.__version__"}

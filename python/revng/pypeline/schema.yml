@@ -4,47 +4,42 @@
 
 $schema: http://json-schema.org/draft-07/schema#
 title: Pipeline Schema
-type: object
-required:
-  - containers
-  - branches
-additionalProperties: false
-properties:
-  containers:
-    type: array
-    uniqueItems: true
-    items:
-      $ref: "#/$defs/container_decl"
-  branches:
+$defs:
+  pipeline:
     type: object
     required:
-      - root
-    patternProperties:
-      ^[a-zA-Z0-9_]+$:
+      - containers
+      - branches
+    additionalProperties: false
+    properties:
+      containers:
+        type: array
+        uniqueItems: true
+        items:
+          $ref: "#/$defs/container_decl"
+      branches:
         type: object
         required:
-          - tasks
-        additionalProperties: false
-        properties:
-          from:
-            type: string
-            description: The current branch will start from the end of the given branch.
-            example: root
-          tasks:
-            type: array
-            items:
-              anyOf:
-                - $ref: "#/$defs/pipe"
-                - type: object
-                  required:
-                    - savepoint
-                  additionalProperties: false
-                  properties:
-                    savepoint:
-                      $ref: "#/$defs/savepoint"
-            description: A list of tasks in the branch, each task is a pipe.
-            minItems: 1
-$defs:
+          - root
+        patternProperties:
+          ^[a-zA-Z0-9_]+$:
+            type: object
+            required:
+              - tasks
+            additionalProperties: false
+            properties:
+              from:
+                type: string
+                description: The current branch will start from the end of the given branch.
+                example: root
+              tasks:
+                type: array
+                items:
+                  anyOf:
+                    - $ref: "#/$defs/pipe"
+                    - $ref: "#/$defs/savepoint"
+                description: A list of tasks in the branch, each task is a pipe.
+                minItems: 1
   container_decl:
     type: object
     required:
@@ -105,16 +100,26 @@ $defs:
   savepoint:
     type: object
     required:
-      - name
+      - savepoint
       - containers
     additionalProperties: false
     properties:
-      name:
+      savepoint:
         type: string
         description: The name of the savepoint.
       containers:
         $ref: "#/$defs/args"
         description: The names of the containers the savepoint will cache.
+      artifacts:
+        type: array
+        items:
+          $ref: "#/$defs/artifact"
+        minItems: 1
+      analyses:
+        type: array
+        items:
+          $ref: "#/$defs/analysis"
+        minItems: 1
   analysis:
     type: object
     required:
@@ -148,3 +153,6 @@ $defs:
         type: string
         description: The container that will produce the artifact.
         example: my_container
+      description:
+        type: string
+        description: The description of the artifact that will appear in the CLI help.

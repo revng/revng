@@ -4,9 +4,11 @@
 
 from __future__ import annotations
 
+import base64
 import json
 from collections.abc import Buffer, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Annotated, Dict, Generator, Tuple, Type
 
 from .object import Kind, ObjectID, ObjectSet
@@ -150,41 +152,61 @@ class Container(ABC):
         return self.objects().issubset(obj)
 
 
+def loads_container(
+    container_type: type[Container],
+    data: str,
+) -> Container:
+    container = container_type()
+    obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
+    container.deserialize(
+        {
+            obj_id_type.deserialize(obj_id): (
+                content if container.is_text() else base64.b64decode(content)
+            )
+            for obj_id, content in json.loads(data).items()
+        }
+    )
+    return container
+
+
 def load_container(
     container_type: type[Container],
-    path: str,
+    path: str | Path,
 ) -> Container:
     """
     Load a container from a serialized format.
     This is used to **load** cached objects into this container.
     """
-    container = container_type()
-    obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
     with open(path, "r", encoding="utf-8") as f:
-        container.deserialize(
-            {obj_id_type.deserialize(k): bytes.fromhex(v) for k, v in json.load(f).items()}
-        )
-    return container
+        return loads_container(container_type, f.read())
+
+
+def dumps_container(
+    container: Container,
+) -> str:
+    """
+    Dump a container into a serialized format.
+    """
+    return json.dumps(
+        {
+            k.serialize(): bytes(v).hex()
+            for k, v in container.serialize(container.objects()).items()
+        },
+        indent=4,
+        sort_keys=True,
+    )
 
 
 def dump_container(
     container: Container,
-    path: str,
+    path: str | Path,
 ) -> None:
     """
     Dump a container into a serialized format.
     This is used to **save** cached objects from this container.
     """
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(
-            {
-                k.serialize(): bytes(v).hex()
-                for k, v in container.serialize(container.objects()).items()
-            },
-            f,
-            indent=4,
-            sort_keys=True,
-        )
+        f.write(dumps_container(container))
 
 
 ContainerSet = Annotated[

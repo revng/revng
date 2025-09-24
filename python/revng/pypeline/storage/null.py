@@ -14,9 +14,27 @@ from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
+from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects, ProjectID
 from .storage_provider import ProjectMetadata, SavePointsRange, StorageProvider
+from .storage_provider import StorageProviderFactory
 from .util import _REVNG_VERSION_PLACEHOLDER, compute_hash
+
+
+class NullStorageProviderFactory(StorageProviderFactory):
+    def __init__(self, url: str):
+        assert url == "null://"
+
+    @classmethod
+    def scheme(cls) -> str:
+        return "null"
+
+    def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> StorageProvider:
+        return NullStorageProvider()
 
 
 class NullStorageProvider(StorageProvider):

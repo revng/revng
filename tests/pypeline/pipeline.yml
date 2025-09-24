@@ -29,9 +29,8 @@ branches:
         arguments: [child_source]
       - pipe: SameKindPipe
         arguments: [child_source, child_destination]
-      - savepoint:
-          name: "after_same_kind"
-          containers: [child_source, child_destination]
+      - savepoint: "after_same_kind"
+        containers: [child_source, child_destination]
 
   second_branch:
     from: root
@@ -53,9 +52,12 @@ branches:
     tasks:
       - pipe: InPlacePipe
         arguments: [child_destination]
+      - savepoint: "cachable_artifact_savepoint"
+        containers: [child_destination]
         artifacts:
           - name: ChildArtifact
             container: child_destination
+            description: An artifact containing all objects in child_destination
         analyses:
           - analysis: NullAnalysis
             containers: [child_destination]

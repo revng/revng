@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import sqlite3
@@ -16,15 +17,16 @@ from typing import Collection, Mapping
 import yaml
 
 from revng.pypeline.container import ConfigurationId
-from revng.pypeline.model import ModelPathSet
+from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
-from revng.pypeline.utils import cache_directory
+from revng.pypeline.utils import cache_directory, crypto_hash
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
+from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects, ProjectID
 from .storage_provider import ProjectMetadata, SavePointsRange, StorageProvider
+from .storage_provider import StorageProviderFactory
 from .util import _OBJECTID_MAXSIZE, _REVNG_VERSION_PLACEHOLDER, check_kind_structure
 from .util import check_object_id_supported_by_sql, compute_hash
 
@@ -33,6 +35,8 @@ from .util import check_object_id_supported_by_sql, compute_hash
 # prefixed, so, to check for all children the check will be
 # target_object_id <= checked_object_id <= CONCAT(target_object_id, _OBJECTID_MASK)  # noqa: E800
 _OBJECTID_MASK = f"x'{"ff" * _OBJECTID_MAXSIZE}'"
+
+logger = logging.getLogger(__name__)
 
 CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS project(
@@ -154,7 +158,58 @@ class CursorWrapper:
         return False
 
 
-class SQlite3StorageProvider(StorageProvider):
+class LocalStorageProviderFactory(StorageProviderFactory):
+    def __init__(self, url: str):
+        assert url == "local://"
+        self.providers: dict[ProjectID | None, LocalStorageProvider] = {}
+
+    @classmethod
+    def scheme(cls) -> str:
+        return "local"
+
+    def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> StorageProvider:
+        assert cache_dir is not None, "Cache directory must be provided"
+
+        if project_id in self.providers:
+            return self.providers[project_id]
+
+        # Figure out how the model should be name
+        model_ty = get_singleton(Model)  # type: ignore [type-abstract]
+        model_name = model_ty.model_name()
+
+        # Find the model in the current directory or any of its parents
+        directory = Path.cwd().resolve()
+        while True:
+            logger.debug('Searching for model at "%s"', directory / model_name)
+            if (directory / model_name).exists():
+                break
+            if directory == directory.parent:
+                raise FileNotFoundError(f'Model "{model_name}" not found')
+            directory = directory.parent
+
+        model_path = directory / model_name
+        logger.info('Model "%s" found at "%s"', model_name, model_path)
+        # Compute the hash of the model path as a tentative unique identifier for the project
+        # TODO: we are relying on the *absolute* model path, which means that if the
+        # user moves the project around, it will be treated as a different project
+        # and caches will be recomputed, and most importantly, if someone deletes
+        # the project and creates a new one at the same path, it will reuse the
+        # old cache.
+        db_name = crypto_hash(str(model_path)) + ".sqlite"
+        db_path = Path(cache_dir) / db_name
+        logger.info('Using DB "%s"', db_path)
+
+        provider = LocalStorageProvider(str(db_path), str(model_path))
+        self.providers[project_id] = provider
+        return provider
+
+
+class LocalStorageProvider(StorageProvider):
     """StorageProvider implementation with backing sqlite3 db"""
 
     def __init__(self, db_path: str, model_path: str | Path):

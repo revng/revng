@@ -9,7 +9,7 @@ import click
 
 from revng.pypeline.analysis import Analysis
 from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
-from revng.pypeline.cli.utils import normalize_whitespace
+from revng.pypeline.cli.utils import list_objects_option, normalize_whitespace
 from revng.pypeline.container import ContainerDeclaration, load_container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
@@ -22,13 +22,11 @@ logger = logging.getLogger(__name__)
 class RunAnalysisGroup(click.Group):
     """We need to create a custom command for each analysis we loaded from the registry.
     Since we already have to generate the code dynamically, we do it lazily so
-    we generate only the commands that are requested.
-    This is based on the LazyGroup from revng.pypeline.cli.utils."""
+    we generate only the commands that are requested."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.registry: dict[str, type[Analysis]] = get_registry(Analysis)
-        self.model_type: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
+    @property
+    def registry(self) -> dict[str, type[Analysis]]:
+        return get_registry(Analysis)  # type: ignore[type-abstract]
 
     def list_commands(self, ctx):
         base = super().list_commands(ctx)
@@ -66,7 +64,7 @@ class RunAnalysisGroup(click.Group):
             analysis_name=analysis_name,
             help_text=help_text,
             analysis_type=analysis_type,
-            model_type=self.model_type,
+            model_type=get_singleton(Model),  # type: ignore[type-abstract]
         )
 
         config = getattr(
@@ -112,13 +110,7 @@ def build_run_analysis_command(
         type=click.Path(exists=True, dir_okay=False, readable=True),
         required=True,
     )
-    @click.option(
-        "--list",
-        type=bool,
-        is_flag=True,
-        default=False,
-        help="List the available objects for each argument.",
-    )
+    @list_objects_option
     def run_analysis_command(
         model: str,
         configuration: str,

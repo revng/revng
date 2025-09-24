@@ -43,6 +43,7 @@ class Artifact:
     name: str
     node: PipelineNode
     container: ContainerDeclaration
+    description: Optional[str] = None
 
 
 C = TypeVar("C", bound=Model)

@@ -72,8 +72,8 @@ def parse_savepoint(
     container_decls: dict[str, ContainerDeclaration],
 ):
     """Parse a savepoint task from the JSON value."""
-    name = task["savepoint"]["name"]
-    containers = task["savepoint"]["containers"]
+    name = task["savepoint"]
+    containers = task["containers"]
     args = []
     for container_name in containers:
         if container_name not in container_decls:
@@ -104,6 +104,7 @@ def parse_artifacts(
                 name=name,
                 node=target_node,
                 container=container_decls[container],
+                description=artifact.get("description"),
             )
         )
 
@@ -313,7 +314,7 @@ def parse_container_decls(
         if ty not in containers_registry:
             raise ValueError(
                 f"Container type {ty} is not registered, the available types "
-                "are: {list(sorted(containers_registry.keys()))}"
+                f"are: {sorted(containers_registry.keys())}"
             )
 
         container_decls[name] = ContainerDeclaration(
@@ -328,7 +329,7 @@ def schema() -> dict[str, Any]:
     Return the jsonschema for the pipeline.
     """
     root = Path(__file__).resolve().parent
-    with open(root / "pipeline_schema.yml", "r", encoding="utf-8") as f:
+    with open(root / "schema.yml", "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
@@ -336,10 +337,13 @@ def load_pipeline(values: Any) -> Pipeline:
     """
     Load a pipeline from parsed JSON / YAML / TOML.
     """
-    validator = jsonschema.Draft7Validator(schema())
+    # This setup is needed so we can have multiple schemas in the same file
+    # so we can reuse the definitions
+    full_schema = schema()
+    resolver = jsonschema.RefResolver.from_schema(full_schema)
+    pipeline_schema = full_schema["$defs"]["pipeline"]
+    validator = jsonschema.Draft7Validator(pipeline_schema, resolver=resolver)
     validator.validate(values)
-    # Yeah the validator already checks that everything is correct, but
-    # mypy doesn't
 
     # Parse create all the container declarations
     container_decls: dict[str, ContainerDeclaration] = parse_container_decls(values["containers"])
