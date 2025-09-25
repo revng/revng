@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 5
+version: 6
 root_type: Binary
 
 definitions:
