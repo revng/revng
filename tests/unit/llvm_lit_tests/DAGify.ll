@@ -302,7 +302,7 @@ block_h:
 ; CHECK: block_a:
 ; CHECK-NEXT:   br i1 %a, label %block_b, label %block_h
 ; CHECK: block_b:
-; CHECK-NEXT:   br label %block_c, !genericregion-head !2
+; CHECK-NEXT:   br label %block_c
 ; CHECK: block_c:
 ; CHECK-NEXT:   br i1 %a, label %block_d, label %block_e
 ; CHECK: block_d:

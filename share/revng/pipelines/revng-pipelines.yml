@@ -686,7 +686,6 @@ Branches:
               - inline-divergent-scopes
               - enforce-single-exit
               - materialize-trivial-goto
-              - materialize-loop-scopes
               - select-scope
               - inline-divergent-scopes
               - enforce-single-exit

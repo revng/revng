@@ -21,7 +21,6 @@ revng_add_analyses_library_internal(
   GenericRegionPass.cpp
   InlineDispatcherSwitch.cpp
   InlineDivergentScopesPass.cpp
-  MaterializeLoopScopes.cpp
   MaterializeTrivialGotoPass.cpp
   MetaRegion.cpp
   PromoteCallNoReturn.cpp
