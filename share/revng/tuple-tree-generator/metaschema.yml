@@ -108,9 +108,6 @@ definitions:
         type: string
       doc:
         type: string
-      optional:
-        type: boolean
-        default: false
       is_guid:
         type: boolean
         default: false
@@ -138,9 +135,6 @@ definitions:
         required:
           - type
           - elementType
-      optional:
-        type: boolean
-        default: false
       const:
         type: boolean
         default: false
@@ -158,9 +152,6 @@ definitions:
         type: string
       referenceTo:
         type: string
-      optional:
-        type: boolean
-        default: false
       const:
         type: boolean
         default: false

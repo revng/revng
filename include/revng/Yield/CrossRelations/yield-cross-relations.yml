@@ -21,6 +21,5 @@ definitions:
         sequence:
           type: SortedVector
           elementType: string
-        optional: true
     key:
       - Location

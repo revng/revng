@@ -24,29 +24,24 @@ definitions:
       - name: Architecture
         doc: The architecture for this binary.
         type: Architecture
-        optional: true
 
       - name: EntryPoint
         doc: The program entry point, if any.
         type: MetaAddress
-        optional: true
 
       - name: DefaultABI
         doc: The default ABI to adopt for analysis purposes.
         type: ABI
-        optional: true
 
       - name: DefaultPrototype
         doc: |-
           The default function prototype to adopt for functions that do not provide
           it explicitly.
         type: Type
-        optional: true
 
       - name: Configuration
         doc: Project-level artifact configuration options
         type: Configuration
-        optional: true
 
       - name: Segments
         doc: |-
@@ -55,7 +50,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: Segment
-        optional: true
 
       - name: ExtraCodeAddresses
         doc: |-
@@ -68,7 +62,6 @@ definitions:
           handlers: no code ever directly jumps there and their address is not
           stored in jump tables. Their address can only be obtained by interpreting
           metadata in the ELF.
-        optional: true
         sequence:
           type: SortedVector
           elementType: MetaAddress
@@ -81,21 +74,18 @@ definitions:
         sequence:
           type: SortedVector
           elementType: string
-        optional: true
 
       - name: ImportedDynamicFunctions
         doc: List of functions imported from dynamic libraries (`.so`, `.dll`).
         sequence:
           type: SortedVector
           elementType: DynamicFunction
-        optional: true
 
       - name: Functions
         doc: List of the functions present in the binary.
         sequence:
           type: SortedVector
           elementType: Function
-        optional: true
 
       - name: TypeDefinitions
         doc: |-
@@ -104,7 +94,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: TypeDefinition
-        optional: true
 
   #
   # Type definition system
@@ -144,13 +133,11 @@ definitions:
       - name: Name
         doc: A user-chosen identifier for this type.
         type: string
-        optional: true
 
       - name: Comment
         doc: |-
           A comment attached to the *definition* of this type.
         type: string
-        optional: true
 
   - name: CABIFunctionDefinition
     inherits: TypeDefinition
@@ -176,14 +163,12 @@ definitions:
       - name: ReturnType
         doc: The function return type.
         type: Type
-        optional: true
 
       - name: ReturnValueComment
         doc: |-
           A comment that will be emitted as part of this function's definiktion
           in the `\returns ${COMMENT_TEXT}` shape.
         type: string
-        optional: true
 
       - name: Arguments
         doc: The list of formal arguments of the function type.
@@ -212,14 +197,12 @@ definitions:
       - name: Name
         doc: The name of the argument.
         type: string
-        optional: true
 
       - name: Comment
         doc: |-
           A comment that will be emitted as part of this function's definition
           in the `\param ${NAME} ${COMMENT}` shape.
         type: string
-        optional: true
 
   - name: EnumDefinition
     inherits: TypeDefinition
@@ -266,14 +249,12 @@ definitions:
         doc: |-
           A user-chosen identifier for this `enum` entry.
         type: string
-        optional: true
 
       - name: Comment
         doc: |-
           A comment that will be emitted right before the *definition* of this
           `enum` entry.
         type: string
-        optional: true
 
   - name: RawFunctionDefinition
     inherits: TypeDefinition
@@ -303,7 +284,6 @@ definitions:
           The list of registers used to pass arguments.
 
           The registers must belong to the `Architecture`.
-        optional: true
         sequence:
           type: SortedVector
           elementType: NamedTypedRegister
@@ -313,7 +293,6 @@ definitions:
           The list of registers used to return values.
 
           The registers must belong to the `Architecture`.
-        optional: true
         sequence:
           type: SortedVector
           elementType: NamedTypedRegister
@@ -323,14 +302,12 @@ definitions:
           A comment that will be emitted as part of this function's definition
           in the `\returns ${COMMENT}` shape.
         type: string
-        optional: true
 
       - name: PreservedRegisters
         doc: |-
           The list of registers preserved by functions using this function type.
 
           The registers must belong to `Architecture`.
-        optional: true
         sequence:
           type: SortedVector
           elementType: Register
@@ -345,12 +322,10 @@ definitions:
           This is due to the fact that `ret` instruction increase the stack pointer
           by 8.
         type: uint64_t
-        optional: true
 
       - name: StackArgumentsType
         doc: The type of the `struct` representing all of the stack arguments.
         type: Type
-        optional: true
 
   - name: NamedTypedRegister
     type: struct
@@ -375,12 +350,10 @@ definitions:
       - name: Name
         doc: The name for this argument or return value.
         type: string
-        optional: true
 
       - name: Comment
         doc: The comment for this argument or return value.
         type: string
-        optional: true
 
   - name: TypedefDefinition
     inherits: TypeDefinition
@@ -415,7 +388,6 @@ definitions:
           a segment's root type without traversing pointer, arrays or other
           qualifiers, the padding of the struct is treated at if it contains code.
         type: bool
-        optional: true
 
       - name: Fields
         doc: The list of fields of this `struct`.
@@ -442,12 +414,10 @@ definitions:
       - name: Name
         doc: The name of this field.
         type: string
-        optional: true
 
       - name: Comment
         doc: The comment that will be emitted before this field's *definition*.
         type: string
-        optional: true
 
       - name: Type
         doc: The type of the field.
@@ -490,14 +460,12 @@ definitions:
       - name: Name
         doc: The name of this "field" (union alternative).
         type: string
-        optional: true
 
       - name: Comment
         doc: |-
           The comment that will be emitted right before the *definition*
           of the given "field" (union alternative).
         type: string
-        optional: true
 
       - name: Type
         doc: The name of this "field" (union alternative).
@@ -524,7 +492,6 @@ definitions:
       - name: IsConst
         doc: Specifies whether the type this object denotes is `const` or not.
         type: bool
-        optional: true
 
   - name: PrimitiveType
     inherits: Type
@@ -560,7 +527,6 @@ definitions:
 
           Note that `Void` *must* have size of 0.
         type: uint64_t
-        optional: true
 
   - name: PrimitiveKind
     type: enum
@@ -694,20 +660,17 @@ definitions:
       - name: Name
         doc: The name of the segment.
         type: string
-        optional: true
 
       - name: Comment
         doc: |-
           The comment to emit right before the global variable that will be
           created for this segment.
         type: string
-        optional: true
 
       - name: CanonicalRegisterValues
         doc: |-
           The list of registers that are assumed to have a canonical value set
           upon an entry into a function contained within this segment.
-        optional: true
         sequence:
           type: SortedVector
           elementType: CanonicalRegisterValue
@@ -716,7 +679,6 @@ definitions:
         doc: |-
           A list of locations where the address of this segment should be
           placed.
-        optional: true
         sequence:
           type: SortedVector
           elementType: Relocation
@@ -726,7 +688,6 @@ definitions:
           The struct type associated to this segment.
           Informally, each field of such a `struct` is a global variable.
         type: Type
-        optional: true
 
   - name: Function
     type: struct
@@ -748,29 +709,24 @@ definitions:
       - name: Name
         doc: The user-provided name for this function.
         type: string
-        optional: true
 
       - name: Comment
         doc: The user-provided comment for this function.
         type: string
-        optional: true
 
       - name: StackFrameType
         doc: The type of the stack frame.
         type: Type
-        optional: true
 
       - name: Prototype
         doc: The prototype of the function.
         type: Type
-        optional: true
 
       - name: Attributes
         doc: Attributes for *every* call site.
         sequence:
           type: MutableSet
           elementType: FunctionAttribute
-        optional: true
 
       - name: CallSitePrototypes
         doc: |-
@@ -778,7 +734,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: CallSitePrototype
-        optional: true
 
       - name: ExportedNames
         doc: |-
@@ -787,7 +742,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: string
-        optional: true
 
       - name: Comments
         doc: |-
@@ -796,7 +750,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: StatementComment
-        optional: true
 
       - name: LocalVariables
         doc: |-
@@ -804,7 +757,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: LocalIdentifier
-        optional: true
 
       - name: GotoLabels
         doc: |-
@@ -812,7 +764,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: LocalIdentifier
-        optional: true
 
   - name: DynamicFunction
     type: struct
@@ -834,19 +785,16 @@ definitions:
       - name: Comment
         doc: The user-provided comment for this dynamic function.
         type: string
-        optional: true
 
       - name: Prototype
         doc: The prototype of this dynamic function.
         type: Type
-        optional: true
 
       - name: Attributes
         doc: The attributes of this dynamic function.
         sequence:
           type: MutableSet
           elementType: FunctionAttribute
-        optional: true
 
       - name: Relocations
         doc: |-
@@ -855,7 +803,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: Relocation
-        optional: true
 
   - name: LocalIdentifier
     type: struct
@@ -975,14 +922,12 @@ definitions:
       - name: IsTailCall
         doc: Whether this call site is a tail call or not.
         type: bool
-        optional: true
 
       - name: Attributes
         doc: Attributes for this call site.
         sequence:
           type: MutableSet
           elementType: FunctionAttribute
-        optional: true
 
   - name: FunctionAttribute
     type: enum
@@ -1488,12 +1433,10 @@ definitions:
       - name: Disassembly
         doc: The options specific to the disassembly artifact.
         type: DisassemblyConfiguration
-        optional: true
 
       - name: Naming
         doc: The options specific to the naming conventions
         type: NamingConfiguration
-        optional: true
 
       # Configuration options that don't belong anywhere else find themselves
       # under this comment (in this struct).
@@ -1507,7 +1450,6 @@ definitions:
 
           Set to `-1` for unlimited line size.
         type: uint64_t
-        optional: true
 
   - name: NamingConfiguration
     type: struct
@@ -1523,7 +1465,6 @@ definitions:
 
           The default value is `segment_`.
         type: string
-        optional: true
 
       - name: UnnamedDynamicFunctionPrefix
         doc: |-
@@ -1531,7 +1472,6 @@ definitions:
 
           The default value is `dynamic_function_`.
         type: string
-        optional: true
 
       - name: UnnamedFunctionPrefix
         doc: |-
@@ -1539,7 +1479,6 @@ definitions:
 
           The default value is `function_`.
         type: string
-        optional: true
 
       - name: UnnamedTypeDefinitionPrefix
         doc: |-
@@ -1550,7 +1489,6 @@ definitions:
           Note that the type kind (like `struct`, or `typedef`) is going to be
           inserted automatically after this prefix.
         type: string
-        optional: true
 
       - name: UnnamedEnumEntryPrefix
         doc: |-
@@ -1558,7 +1496,6 @@ definitions:
 
           The default value is `enum_entry_`.
         type: string
-        optional: true
 
       - name: UnnamedStructFieldPrefix
         doc: |-
@@ -1566,7 +1503,6 @@ definitions:
 
           The default value is `offset_`.
         type: string
-        optional: true
 
       - name: UnnamedUnionFieldPrefix
         doc: |-
@@ -1574,7 +1510,6 @@ definitions:
 
           The default value is `member_`.
         type: string
-        optional: true
 
       - name: UnnamedFunctionArgumentPrefix
         doc: |-
@@ -1582,7 +1517,6 @@ definitions:
 
           The default value is `argument_`.
         type: string
-        optional: true
 
       - name: UnnamedFunctionRegisterPrefix
         doc: |-
@@ -1590,7 +1524,6 @@ definitions:
 
           The default value is `register_`.
         type: string
-        optional: true
 
       - name: UnnamedLocalVariablePrefix
         doc: |-
@@ -1598,7 +1531,6 @@ definitions:
 
           The default value is `var_`.
         type: string
-        optional: true
 
       - name: UnnamedBreakFromLoopVariablePrefix
         doc: |-
@@ -1606,7 +1538,6 @@ definitions:
 
           The default value is `break_from_loop_`.
         type: string
-        optional: true
 
       - name: UnnamedGotoLabelPrefix
         doc: |-
@@ -1614,7 +1545,6 @@ definitions:
 
           The default value is `label_`.
         type: string
-        optional: true
 
       - name: OpaqueCSVValuePrefix
         doc: |-
@@ -1622,7 +1552,6 @@ definitions:
 
           The default value is `undef_`.
         type: string
-        optional: true
 
       - name: MaximumEnumValuePrefix
         doc: |-
@@ -1630,7 +1559,6 @@ definitions:
 
           The default value is `enum_max_value_`.
         type: string
-        optional: true
 
       - name: StackFrameVariableName
         doc: |-
@@ -1638,7 +1566,6 @@ definitions:
 
           The default value is `stack`.
         type: string
-        optional: true
 
       - name: RawStackArgumentName
         doc: |-
@@ -1646,7 +1573,6 @@ definitions:
 
           The default value is `stack_arguments`.
         type: string
-        optional: true
 
       - name: LoopStateVariableName
         doc: |-
@@ -1654,7 +1580,6 @@ definitions:
 
           The default value is `loop_state_var`.
         type: string
-        optional: true
 
       - name: StructPaddingPrefix
         doc: |-
@@ -1662,7 +1587,6 @@ definitions:
 
           The default value is `padding_at_`.
         type: string
-        optional: true
 
       - name: ArtificialReturnValuePrefix
         doc: |-
@@ -1670,14 +1594,12 @@ definitions:
 
           The default value is `artificial_struct_returned_by_`.
         type: string
-        optional: true
 
       - name: ReserveNamesStartingWithUnderscore
         doc: |-
           When this is set to `true`, all the names starting with underscores will
           have a \ref ReservedNamePrefix prefix attached.
         type: bool
-        optional: true
 
   - name: DisassemblyConfiguration
     type: struct
@@ -1699,7 +1621,6 @@ definitions:
           This part
           ```
         type: bool
-        optional: true
 
       - name: DisableEmissionOfRawBytes
         doc: |-
@@ -1714,7 +1635,6 @@ definitions:
                      This part
           ```
         type: bool
-        optional: true
 
       - name: UseX86ATTSyntax
         doc: |-
@@ -1738,7 +1658,6 @@ definitions:
 
           Note that this option has no effect on non-x86 binaries.
         type: bool
-        optional: true
 
       - name: AddressStyle
         doc: |-
@@ -1748,7 +1667,6 @@ definitions:
 
           The default value is `Smart`.
         type: DisassemblyConfigurationAddressStyle
-        optional: true
 
       - name: ImmediateStyle
         doc: |-
@@ -1758,7 +1676,6 @@ definitions:
 
           The default value is `CHexadecimal`.
         type: DisassemblyConfigurationImmediateStyle
-        optional: true
 
       - name: PrintFullMetaAddress
         doc: |-
@@ -1776,7 +1693,6 @@ definitions:
           ```
 
         type: bool
-        optional: true
 
       - name: BasicBlockPrefix
         doc: |-
@@ -1792,7 +1708,6 @@ definitions:
           80491a7:    e9 ec fe ff ff       jmp bb_0x8049098
           ```
         type: string
-        optional: true
 
   - name: DisassemblyConfigurationImmediateStyle
     type: enum

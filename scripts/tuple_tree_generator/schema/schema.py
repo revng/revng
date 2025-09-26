@@ -36,7 +36,6 @@ class Schema:
                         "name": "Version",
                         "type": "uint64_t",
                         "doc": "The input's version, must match revng's schema version",
-                        "optional": True,
                     },
                 )
 
