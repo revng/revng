@@ -67,10 +67,12 @@ class SimpleStructField(StructField):
         type,  # noqa: A002
         doc=None,
         const=False,
+        default=None,
         is_global_index=False,
     ):
         super().__init__(name=name, doc=doc, const=const)
         self.type = type
+        self.default = default
         self.is_global_index = is_global_index
 
     def resolve_references(self, schema):
