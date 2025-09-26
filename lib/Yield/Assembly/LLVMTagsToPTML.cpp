@@ -228,19 +228,17 @@ labelImpl(const BasicBlockID &BasicBlock,
       .Name = NameBuilder.name(*ModelFunction),
       .Location = locationString(revng::ranks::Function, ModelFunction->key()),
     };
-  } else if (Function.Blocks().contains(BasicBlock)) {
-    std::string BBPr = Binary.Configuration().Disassembly().BasicBlockPrefix();
-    if (BBPr.empty()) {
-      // TODO: introduce a better way to handle default configuration values.
-      BBPr = "bb_";
-    }
 
+  } else if (Function.Blocks().contains(BasicBlock)) {
     return LabelDescription{
-      .Name = BBPr + yield::sanitizedAddress(BasicBlock, Binary),
+      .Name = Binary.Configuration().Disassembly().BasicBlockPrefix()
+              + yield::sanitizedAddress(BasicBlock, Binary),
+
       .Location = locationString(revng::ranks::BasicBlock,
                                  model::Function(Function.Entry()).key(),
                                  BasicBlock)
     };
+
   } else {
     revng_abort("Unable to emit a label for an object that does not exist.");
   }
@@ -325,11 +323,6 @@ emitAddress(yield::TaggedString &&Input,
   namespace Style = model::DisassemblyConfigurationAddressStyle;
   const auto &Configuration = Binary.Configuration().Disassembly();
   Style::Values AddressStyle = Configuration.AddressStyle();
-  if (AddressStyle == Style::Invalid) {
-    // TODO: introduce a better way to handle default configuration values.
-    AddressStyle = Style::Smart;
-  }
-
   if (AddressStyle == Style::SmartWithPCRelativeFallback
       || AddressStyle == Style::Smart || AddressStyle == Style::Strict) {
     // "Smart" style selected, try to emit the label.
