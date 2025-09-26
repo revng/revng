@@ -124,6 +124,7 @@ definitions:
           A unique numeric identifier for this type.
         type: uint64_t
         is_guid: true
+        default: -1
 
       - name: Kind
         doc: |-
@@ -189,6 +190,7 @@ definitions:
       - name: Index
         doc: The argument index.
         type: uint64_t
+        default: -1
 
       - name: Type
         doc: The type of the argument.
@@ -456,6 +458,7 @@ definitions:
           Note that indexing is dense, so if a given union has a type with
           index 4, it must also have types indexed 0-3.
         type: uint64_t
+        default: -1
 
       - name: Name
         doc: The name of this "field" (union alternative).
@@ -527,6 +530,7 @@ definitions:
 
           Note that `Void` *must* have size of 0.
         type: uint64_t
+        default: -1
 
   - name: PrimitiveKind
     type: enum
@@ -577,6 +581,7 @@ definitions:
 
           As of now, only 4 and 8 byte pointers are supported.
         type: uint64_t
+        default: -1
 
       - name: PointeeType
         doc: The pointee type.
@@ -604,6 +609,7 @@ definitions:
       - name: ElementCount
         doc: The number of elements in this array.
         type: uint64_t
+        default: -1
 
       - name: ElementType
         doc: The type of the elements in this array.
@@ -963,6 +969,7 @@ definitions:
         # encoded in the location and any emitted comment can be looked up (and,
         # consecutively, edited) based on this index alone.
         type: uint64_t
+        default: -1
 
       - name: Location
         doc: |-
@@ -1446,10 +1453,9 @@ definitions:
         doc: |-
           Sets a recommended comment line width to improve their readability.
 
-          The default value is `80`.
-
           Set to `-1` for unlimited line size.
         type: uint64_t
+        default: 80
 
   - name: NamingConfiguration
     type: struct
@@ -1460,146 +1466,110 @@ definitions:
 
     fields:
       - name: UnnamedSegmentPrefix
-        doc: |-
-          The prefix for a segment without a name.
-
-          The default value is `segment_`.
+        doc: The prefix for a segment without a name.
         type: string
+        default: segment_
 
       - name: UnnamedDynamicFunctionPrefix
-        doc: |-
-          The prefix for a dynamic function with an invalid name.
-
-          The default value is `dynamic_function_`.
+        doc: The prefix for a dynamic function with an invalid name.
         type: string
+        default: dynamic_function_
 
       - name: UnnamedFunctionPrefix
-        doc: |-
-          The prefix for a local function without a name.
-
-          The default value is `function_`.
+        doc: The prefix for a local function without a name.
         type: string
+        default: function_
 
       - name: UnnamedTypeDefinitionPrefix
         doc: |-
           The prefix for a type definition without a name.
 
-          The default value is "".
-
           Note that the type kind (like `struct`, or `typedef`) is going to be
           inserted automatically after this prefix.
         type: string
+        default: ""
 
       - name: UnnamedEnumEntryPrefix
-        doc: |-
-          The prefix for an enum entry without a name.
-
-          The default value is `enum_entry_`.
+        doc: The prefix for an enum entry without a name.
         type: string
+        default: enum_entry_
 
       - name: UnnamedStructFieldPrefix
-        doc: |-
-          The prefix for a struct field without a name.
-
-          The default value is `offset_`.
+        doc: The prefix for a struct field without a name.
         type: string
+        default: offset_
 
       - name: UnnamedUnionFieldPrefix
-        doc: |-
-          The prefix for a union member without a name.
-
-          The default value is `member_`.
+        doc: The prefix for a union member without a name.
         type: string
+        default: member_
 
       - name: UnnamedFunctionArgumentPrefix
-        doc: |-
-          The prefix for a cabi function argument without a name.
-
-          The default value is `argument_`.
+        doc: The prefix for a cabi function argument without a name.
         type: string
+        default: argument_
 
       - name: UnnamedFunctionRegisterPrefix
-        doc: |-
-          The prefix for a raw function register without a name.
-
-          The default value is `register_`.
+        doc: The prefix for a raw function register without a name.
         type: string
+        default: register_
 
       - name: UnnamedLocalVariablePrefix
-        doc: |-
-          The prefix for a local variable without a name.
-
-          The default value is `var_`.
+        doc: The prefix for a local variable without a name.
         type: string
+        default: var_
 
       - name: UnnamedBreakFromLoopVariablePrefix
-        doc: |-
-          The prefix for a local variable without a name.
-
-          The default value is `break_from_loop_`.
+        doc: The prefix for a local variable without a name.
         type: string
+        default: break_from_loop_
 
       - name: UnnamedGotoLabelPrefix
-        doc: |-
-          The prefix for a goto label without a name.
-
-          The default value is `label_`.
+        doc: The prefix for a goto label without a name.
         type: string
+        default: label_
 
       - name: OpaqueCSVValuePrefix
-        doc: |-
-          The prefix for accessing an opaque CSV Value.
-
-          The default value is `undef_`.
+        doc: The prefix for accessing an opaque CSV Value.
         type: string
+        default: revng_undefined_
 
       - name: MaximumEnumValuePrefix
-        doc: |-
-          The prefix for the maximum enum value.
-
-          The default value is `enum_max_value_`.
+        doc: The prefix for the maximum enum value.
         type: string
+        default: enum_max_value_
 
       - name: StackFrameVariableName
-        doc: |-
-          The name of the variable representing stack.
-
-          The default value is `stack`.
+        doc: The name of the variable representing stack.
         type: string
+        default: stack
 
       - name: RawStackArgumentName
-        doc: |-
-          The name of the variable representing stack.
-
-          The default value is `stack_arguments`.
+        doc: The name of the variable representing stack.
         type: string
+        default: stack_arguments
 
       - name: LoopStateVariableName
-        doc: |-
-          The name of the variable representing stack.
-
-          The default value is `loop_state_var`.
+        doc: The name of the variable representing stack.
         type: string
+        default: loop_state_var
 
       - name: StructPaddingPrefix
-        doc: |-
-          The prefix for a padding struct field.
-
-          The default value is `padding_at_`.
+        doc: The prefix for a padding struct field.
         type: string
+        default: padding_at_
 
       - name: ArtificialReturnValuePrefix
-        doc: |-
-          The prefix for an artificial raw function return value.
-
-          The default value is `artificial_struct_returned_by_`.
+        doc: The prefix for an artificial raw function return value.
         type: string
+        default: artificial_struct_returned_by_
 
       - name: ReserveNamesStartingWithUnderscore
         doc: |-
           When this is set to `true`, all the names starting with underscores will
-          have a \ref ReservedNamePrefix prefix attached.
+          be replaced by an automatic name.
         type: bool
+        default: false
 
   - name: DisassemblyConfiguration
     type: struct
@@ -1621,6 +1591,7 @@ definitions:
           This part
           ```
         type: bool
+        default: false
 
       - name: DisableEmissionOfRawBytes
         doc: |-
@@ -1635,6 +1606,7 @@ definitions:
                      This part
           ```
         type: bool
+        default: false
 
       - name: UseX86ATTSyntax
         doc: |-
@@ -1658,15 +1630,15 @@ definitions:
 
           Note that this option has no effect on non-x86 binaries.
         type: bool
+        default: false
 
       - name: AddressStyle
         doc: |-
           This describes the way labels / addresses should be printed in
           the disassembly view.
           See the related enum for further explanation and examples.
-
-          The default value is `Smart`.
         type: DisassemblyConfigurationAddressStyle
+        default: Smart
 
       - name: ImmediateStyle
         doc: |-
@@ -1676,6 +1648,7 @@ definitions:
 
           The default value is `CHexadecimal`.
         type: DisassemblyConfigurationImmediateStyle
+        default: CHexadecimal
 
       - name: PrintFullMetaAddress
         doc: |-
@@ -1693,11 +1666,11 @@ definitions:
           ```
 
         type: bool
+        default: false
 
       - name: BasicBlockPrefix
         doc: |-
           The prefix attached to the basic block address in the disassembly views.
-          The default value is `bb_`.
 
           `my_value_`:
           ```
@@ -1708,6 +1681,7 @@ definitions:
           80491a7:    e9 ec fe ff ff       jmp bb_0x8049098
           ```
         type: string
+        default: bb_
 
   - name: DisassemblyConfigurationImmediateStyle
     type: enum

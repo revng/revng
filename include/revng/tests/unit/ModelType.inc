@@ -467,7 +467,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
 
   // Union x cannot have a field with type x
   Union.Fields().clear();
-  UnionField Same;
+  UnionField Same(0);
   Same.Type() = std::move(UnionType);
   revng_check(Union.Fields().insert(Same).second);
   revng_check(not verify(Union, *T, false));
@@ -482,7 +482,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
 
   // Adding a void field is not valid either
   Union.Fields().clear();
-  UnionField VoidField;
+  UnionField VoidField(0);
   VoidField.Type() = model::PrimitiveType::makeVoid();
   revng_check(Union.Fields().insert(VoidField).second);
   revng_check(not verify(Union, *T, false));
