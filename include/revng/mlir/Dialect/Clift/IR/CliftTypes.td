@@ -70,13 +70,8 @@ def Clift_PointerType
 
   let builders = [
     TypeBuilderWithInferredContext<(ins "mlir::clift::ValueType":$PointeeType,
-                                        "uint64_t":$PointerSize), [{
-      return $_get(PointeeType.getContext(), PointeeType, PointerSize, false);
-    }]>,
-
-    TypeBuilderWithInferredContext<(ins "mlir::clift::ValueType":$PointeeType,
                                         "uint64_t":$PointerSize,
-                                        "bool":$Const), [{
+                                        CArg<"bool", "false">:$Const), [{
       return $_get(PointeeType.getContext(), PointeeType, PointerSize, Const);
     }]>,
   ];
@@ -147,34 +142,24 @@ def Clift_EnumType
                         DefaultValuedParameter<"bool", "false">:$is_const);
 
   let builders = [
-    TypeBuilder<(ins "llvm::StringRef":$Handle,
-                     "llvm::StringRef":$Name,
-                     "mlir::clift::ValueType":$UnderlyingType,
-                     "llvm::ArrayRef<mlir::clift::EnumFieldAttr>":$Fields), [{
-      return $_get($_ctxt,
-                   EnumAttr::get($_ctxt,
-                                 Handle,
-                                 Name,
-                                 UnderlyingType,
-                                 Fields),
-                   /*IsConst=*/false);
+    TypeBuilder<(ins "mlir::clift::EnumAttr":$Definition), [{
+      return $_get($_ctxt, Definition, /*IsConst=*/false);
     }]>,
 
-    TypeBuilderWithInferredContext<(ins "llvm::StringRef":$Handle,
-                                        "llvm::StringRef":$Name,
-                                        "mlir::clift::ValueType":$UnderlyingType,
-                                        "llvm::ArrayRef<mlir::clift::EnumFieldAttr>":$Fields), [{
-      return $_get(UnderlyingType.getContext(),
-                   EnumAttr::get(UnderlyingType.getContext(),
-                                 Handle,
-                                 Name,
-                                 UnderlyingType,
-                                 Fields),
-                   /*IsConst=*/false);
+    TypeBuilderWithInferredContext<(ins "mlir::clift::EnumAttr":$Definition), [{
+      return $_get(Definition.getContext(), Definition, /*IsConst=*/false);
     }]>,
   ];
 
   let extraClassDeclaration = [{
+    EnumFieldAttr getFieldByValue(uint64_t RawValue) const {
+      for (EnumFieldAttr Field : getFields()) {
+        if (Field.getRawValue() == RawValue)
+          return Field;
+      }
+      return {};
+    }
+
     // AliasableType
     bool getAlias(llvm::raw_ostream &OS) const;
 
@@ -201,17 +186,6 @@ def Clift_EnumType
     llvm::ArrayRef<EnumFieldAttr> getFields() const {
       return getDefinition().getFields();
     }
-
-    using Base::verify;
-
-    static mlir::LogicalResult
-    verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-           llvm::StringRef Handle,
-           llvm::StringRef Name,
-           clift::ValueType UnderlyingType,
-           llvm::ArrayRef<clift::EnumFieldAttr> Fields) {
-      return EnumAttr::verify(EmitError, Handle, Name, UnderlyingType, Fields);
-    }
   }];
 
   let hasCustomAssemblyFormat = 1;
@@ -233,28 +207,18 @@ def Clift_TypedefType
                         DefaultValuedParameter<"bool", "false">:$is_const);
 
   let builders = [
-    TypeBuilder<(ins "llvm::StringRef":$Handle,
-                     "llvm::StringRef":$Name,
-                     "mlir::clift::ValueType":$UnderlyingType), [{
-      return $_get($_ctxt,
-                   TypedefAttr::get($_ctxt,
-                                    Handle,
-                                    Name,
-                                    UnderlyingType),
-                   /*IsConst=*/false);
+    TypeBuilder<(ins "mlir::clift::TypedefAttr":$Definition), [{
+      return $_get($_ctxt, Definition, /*IsConst=*/false);
     }]>,
 
-    TypeBuilderWithInferredContext<(ins "llvm::StringRef":$Handle,
-                                        "llvm::StringRef":$Name,
-                                        "mlir::clift::ValueType":$UnderlyingType), [{
-      return TypedefType::get(UnderlyingType.getContext(),
-                              Handle,
-                              Name,
-                              UnderlyingType);
+    TypeBuilderWithInferredContext<(ins "mlir::clift::TypedefAttr":$Definition), [{
+      return $_get(Definition.getContext(), Definition, /*IsConst=*/false);
     }]>,
   ];
 
   let extraClassDeclaration = [{
+    static constexpr llvm::StringRef NameAttrKey = TypedefAttr::NameAttrKey;
+
     // AliasableType
     bool getAlias(llvm::raw_ostream &OS) const;
 
@@ -274,16 +238,6 @@ def Clift_TypedefType
     clift::ValueType getUnderlyingType() const {
       return getDefinition().getUnderlyingType();
     }
-
-    using Base::verify;
-
-    static mlir::LogicalResult
-    verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-           llvm::StringRef Handle,
-           llvm::StringRef Name,
-           clift::ValueType UnderlyingType) {
-      return TypedefAttr::verify(EmitError, Handle, Name, UnderlyingType);
-    }
   }];
 
   let hasCustomAssemblyFormat = 1;
@@ -302,13 +256,13 @@ def Clift_FunctionType
   }];
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        StringRefParameter<>:$name,
+                        "mlir::clift::MutableStringAttr":$mutable_name,
                         "mlir::Type":$return_type,
                         OptionalArrayRefParameter<"mlir::Type">:$argument_types);
 
   let builders = [
     TypeBuilder<(ins "llvm::StringRef":$Handle,
-                     "llvm::StringRef":$Name,
+                     "mlir::clift::MutableStringAttr":$Name,
                      "mlir::clift::ValueType":$ReturnType,
                      "llvm::ArrayRef<mlir::clift::ValueType>":$ArgumentTypes), [{
       return $_get($_ctxt,
@@ -317,31 +271,15 @@ def Clift_FunctionType
                    ReturnType,
                    llvm::SmallVector<mlir::Type, 16>(ArgumentTypes));
     }]>,
-
-    TypeBuilderWithInferredContext<(ins "llvm::StringRef":$Handle,
-                                        "llvm::StringRef":$Name,
-                                        "mlir::Type":$ReturnType,
-                                        "llvm::ArrayRef<mlir::Type>":$ArgumentTypes), [{
-      return $_get(ReturnType.getContext(),
-                   Handle,
-                   Name,
-                   ReturnType,
-                   ArgumentTypes);
-    }]>,
-
-    TypeBuilderWithInferredContext<(ins "llvm::StringRef":$Handle,
-                                        "llvm::StringRef":$Name,
-                                        "mlir::clift::ValueType":$ReturnType,
-                                        "llvm::ArrayRef<mlir::clift::ValueType>":$ArgumentTypes), [{
-      return $_get(ReturnType.getContext(),
-                   Handle,
-                   Name,
-                   ReturnType,
-                   llvm::SmallVector<mlir::Type, 16>(ArgumentTypes));
-    }]>,
   ];
 
   let extraClassDeclaration = [{
+    static constexpr llvm::StringRef NameAttrKey = "Function";
+
+    llvm::StringRef getName() const {
+      return getMutableName().getValue();
+    }
+
     // AliasableType
     bool getAlias(llvm::raw_ostream &OS) const;
 
@@ -363,23 +301,10 @@ def Clift_FunctionType
     }
 
     llvm::ArrayRef<mlir::Type> getResultTypes() const;
-
-    static mlir::LogicalResult
-    verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-           llvm::StringRef Handle,
-           llvm::StringRef Name,
-           clift::ValueType ReturnType,
-           llvm::ArrayRef<clift::ValueType> ArgumentTypes);
   }];
 
   let genVerifyDecl = 1;
-
-  let assemblyFormat = [{
-    `<`
-    $handle custom<CliftDebugName>($name)
-    `:` $return_type `(` (`)`) : ($argument_types^ `)`)?
-    `>`
-  }];
+  let hasCustomAssemblyFormat = 1;
 }
 
 class Clift_ClassTypeBase<string name, string mnemonic>
@@ -393,10 +318,10 @@ class Clift_ClassTypeBase<string name, string mnemonic>
   let parameters = (ins "mlir::clift::" # name # "Attr":$definition,
                         DefaultValuedParameter<"bool", "false">:$is_const);
 
-  let hasCustomAssemblyFormat = 1;
-
   let extraClassDeclaration = [{
     using DefinitionAttrType = }] # name # [{Attr;
+
+    static constexpr llvm::StringRef NameAttrKey = DefinitionAttrType::NameAttrKey;
 
     bool isComplete() const {
       return getDefinition().hasDefinition();
@@ -422,17 +347,6 @@ class Clift_ClassTypeBase<string name, string mnemonic>
     // ValueType
     clift::ValueType addConst() const;
     clift::ValueType removeConst() const;
-
-
-    using Base::verify;
-
-    template<typename... ArgsT>
-    static mlir::LogicalResult
-    verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-           llvm::StringRef Handle,
-           const ArgsT &... Args) {
-      return DefinitionAttrType::verify(EmitError, Handle, Args...);
-    }
   }];
 
   let extraClassDefinition = [{
@@ -444,52 +358,42 @@ class Clift_ClassTypeBase<string name, string mnemonic>
       return Base::get(getContext(), getDefinition(), false);
     }
   }];
+
+  let hasCustomAssemblyFormat = 1;
 }
 
 def Clift_StructType : Clift_ClassTypeBase<"Struct", "struct"> {
   let builders = [
-    TypeBuilder<(ins "llvm::StringRef":$Handle), [{
-      return $_get($_ctxt, StructAttr::get($_ctxt, Handle), /*IsConst=*/false);
+    TypeBuilder<(ins "llvm::StringRef":$Handle,
+                     CArg<"bool", "false">:$IsConst), [{
+      return $_get($_ctxt, StructAttr::get($_ctxt, Handle), IsConst);
     }]>,
 
     TypeBuilder<(ins "mlir::clift::StructAttr":$Definition), [{
       return $_get($_ctxt, Definition, /*IsConst=*/false);
     }]>,
 
-    TypeBuilder<(ins "llvm::StringRef":$Handle,
-                     "llvm::StringRef":$Name,
-                     "uint64_t":$Size,
-                     "llvm::ArrayRef<mlir::clift::FieldAttr>":$Fields), [{
-      return $_get($_ctxt,
-                   StructAttr::get($_ctxt,
-                                   Handle,
-                                   Name,
-                                   Size,
-                                   Fields),
-                   /*IsConst=*/false);
+    TypeBuilderWithInferredContext<(ins "mlir::clift::StructAttr":$Definition,
+                                        CArg<"bool", "false">:$IsConst), [{
+      return $_get(Definition.getContext(), Definition, IsConst);
     }]>,
   ];
 }
 
 def Clift_UnionType : Clift_ClassTypeBase<"Union", "union"> {
   let builders = [
-    TypeBuilder<(ins "llvm::StringRef":$Handle), [{
-      return $_get($_ctxt, UnionAttr::get($_ctxt, Handle), /*IsConst=*/false);
+    TypeBuilder<(ins "llvm::StringRef":$Handle,
+                     CArg<"bool", "false">:$IsConst), [{
+      return $_get($_ctxt, UnionAttr::get($_ctxt, Handle), IsConst);
     }]>,
 
     TypeBuilder<(ins "mlir::clift::UnionAttr":$Definition), [{
       return $_get($_ctxt, Definition, /*IsConst=*/false);
     }]>,
 
-    TypeBuilder<(ins "llvm::StringRef":$Handle,
-                     "llvm::StringRef":$Name,
-                     "llvm::ArrayRef<mlir::clift::FieldAttr>":$Fields), [{
-      return $_get($_ctxt,
-                   UnionAttr::get($_ctxt,
-                                  Handle,
-                                  Name,
-                                  Fields),
-                   /*IsConst=*/false);
+    TypeBuilderWithInferredContext<(ins "mlir::clift::UnionAttr":$Definition,
+                                        CArg<"bool", "false">:$IsConst), [{
+      return $_get(Definition.getContext(), Definition, IsConst);
     }]>,
   ];
 }

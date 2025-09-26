@@ -2,18 +2,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <variant>
-
 #include "llvm/ADT/ScopeExit.h"
 
-#include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/PTML/CBuilder.h"
-#include "revng/TypeNames/LLVMTypeNames.h"
-#include "revng/TypeNames/ModelCBuilder.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
+#include "revng/mlir/Dialect/Clift/Utils/CEmitter.h"
 
 namespace clift = mlir::clift;
-
 using namespace mlir::clift;
 
 namespace {
@@ -61,22 +55,6 @@ static bool hasFallthrough(mlir::Region &R) {
   return not B.back().hasTrait<mlir::OpTrait::clift::NoFallthrough>();
 }
 
-static llvm::StringRef getCIntegerLiteralSuffix(const CIntegerKind Integer,
-                                                const bool Signed) {
-  switch (Integer) {
-  default:
-  case CIntegerKind::Int:
-    return Signed ? "" : "u";
-  case CIntegerKind::Long:
-    return Signed ? "l" : "ul";
-  case CIntegerKind::LongLong:
-    return Signed ? "ll" : "ull";
-  }
-}
-
-using Keyword = ptml::CBuilder::Keyword;
-using Operator = ptml::CBuilder::Operator;
-
 enum class OperatorPrecedence {
   Parentheses,
   Comma,
@@ -98,303 +76,25 @@ enum class OperatorPrecedence {
   Ternary = Assignment,
 };
 
-static std::string getPrimitiveTypeCName(PrimitiveType Type) {
-  auto GetPrefix = [](PrimitiveKind Kind) -> llvm::StringRef {
-    switch (Kind) {
-    case PrimitiveKind::UnsignedKind:
-      return "uint";
-    case PrimitiveKind::SignedKind:
-      return "int";
-    default:
-      return clift::stringifyPrimitiveKind(Kind);
-    }
-  };
+class CliftToCEmitter : CEmitter {
+  FunctionOp CurrentFunction = {};
 
-  std::string Name;
-  {
-    llvm::raw_string_ostream Out(Name);
-    Out << GetPrefix(Type.getKind()) << (Type.getSize() * 8) << "_t";
-  }
-  return Name;
-}
+  // Ambient precedence of the current expression.
+  OperatorPrecedence CurrentPrecedence = {};
 
-class CEmitter {
 public:
-  explicit CEmitter(const TargetCImplementation &Target,
-                    ptml::ModelCBuilder &Builder,
-                    llvm::raw_ostream &Out) :
-    Target(Target), C(Builder), Out(Out, C) {
-    Builder.setOutputStream(this->Out);
+  using CEmitter::CEmitter;
+
+  llvm::StringRef getStringAttr(mlir::Operation *Op, llvm::StringRef Name) {
+    return mlir::cast<mlir::StringAttr>(Op->getAttr(Name)).getValue();
   }
 
-  const model::Segment *getModelSegment(GlobalVariableOp Op) {
-    auto L = pipeline::locationFromString(revng::ranks::Segment,
-                                          Op.getHandle());
-    if (not L)
-      return nullptr;
-
-    auto Key = L->at(revng::ranks::Segment);
-    auto It = C.Binary.Segments().find(Key);
-    if (It == C.Binary.Segments().end())
-      revng_abort("No matching model segment.");
-    return &*It;
+  llvm::StringRef getNameAttr(mlir::Operation *Op) {
+    return getStringAttr(Op, "clift.name");
   }
 
-  using ModelFunctionVariant = std::variant<const model::Function *,
-                                            const model::DynamicFunction *>;
-
-  std::optional<ModelFunctionVariant> getModelFunctionVariant(FunctionOp Op) {
-    if (auto L = pipeline::locationFromString(revng::ranks::Function,
-                                              Op.getHandle())) {
-      auto [Key] = L->at(revng::ranks::Function);
-      auto It = C.Binary.Functions().find(Key);
-      if (It == C.Binary.Functions().end())
-        revng_abort("No matching model function.");
-      return &*It;
-    }
-
-    if (auto L = pipeline::locationFromString(revng::ranks::DynamicFunction,
-                                              Op.getHandle())) {
-      auto [Key] = L->at(revng::ranks::DynamicFunction);
-      auto It = C.Binary.ImportedDynamicFunctions().find(Key);
-      if (It == C.Binary.ImportedDynamicFunctions().end())
-        revng_abort("No matching model dynamic function.");
-      return &*It;
-    }
-
-    return std::nullopt;
-  }
-
-  const model::Function *getIsolatedModelFunction(FunctionOp Op) {
-    if (auto OptionalVariant = getModelFunctionVariant(Op))
-      if (auto F = std::get_if<const model::Function *>(&*OptionalVariant))
-        return *F;
-
-    return nullptr;
-  }
-
-  template<typename RankT>
-  std::optional<std::string>
-  getHelperFunctionNameImpl(const RankT &Rank, llvm::StringRef Handle) {
-    if (auto L = pipeline::locationFromString(Rank, Handle))
-      return L->at(Rank);
-
-    return std::nullopt;
-  }
-
-  std::optional<std::string> getHelperFunctionName(llvm::StringRef Handle) {
-    return getHelperFunctionNameImpl(revng::ranks::HelperFunction, Handle);
-  }
-
-  std::optional<std::string> getHelperReturnTypeName(llvm::StringRef Handle) {
-    return getHelperFunctionNameImpl(revng::ranks::HelperStructType, Handle);
-  }
-
-  template<typename RankT>
-  const model::TypeDefinition *
-  getModelTypeDefinitionImpl(const RankT &Rank, DefinedType Type) {
-    if (auto L = pipeline::locationFromString(Rank, Type.getHandle())) {
-      auto It = C.Binary.TypeDefinitions().find(L->at(Rank));
-      if (It != C.Binary.TypeDefinitions().end())
-        return It->get();
-    }
-    return nullptr;
-  }
-
-  const model::TypeDefinition *getModelTypeDefinition(DefinedType Type) {
-    return getModelTypeDefinitionImpl(revng::ranks::TypeDefinition, Type);
-  }
-
-  const model::RawFunctionDefinition *
-  getArtificialStructFunctionType(DefinedType Type) {
-    const auto *T = getModelTypeDefinitionImpl(revng::ranks::ArtificialStruct,
-                                               Type);
-    return llvm::dyn_cast_or_null<model::RawFunctionDefinition>(T);
-  }
-
-  void emitPrimitiveType(PrimitiveType Type) {
-    auto Kind = static_cast<model::PrimitiveKind::Values>(Type.getKind());
-    Out << C.getPrimitiveTag(Kind, Type.getSize());
-  }
-
-  RecursiveCoroutine<void>
-  emitDeclaration(ValueType Type,
-                  std::optional<llvm::StringRef> DeclaratorName) {
-    // Function type expansion is currently always disabled:
-    static constexpr bool ExpandFunctionTypes = false;
-
-    enum class StackItemKind {
-      Terminal,
-      Pointer,
-      Array,
-      Function,
-    };
-
-    struct StackItem {
-      StackItemKind Kind;
-      ValueType Type;
-    };
-
-    llvm::SmallVector<StackItem> Stack;
-
-    bool NeedSpace = false;
-    auto EmitSpace = [&]() {
-      if (NeedSpace)
-        Out << ' ';
-      NeedSpace = false;
-    };
-
-    auto EmitConst = [&](ValueType T) {
-      EmitSpace();
-      if (T.isConst())
-        Out << C.getKeyword(Keyword::Const) << ' ';
-    };
-
-    // Recurse through the declaration, pushing each level into the stack until
-    // a terminal type is encountered. Primitive types as well as defined types
-    // are considered terminal. Function types are not considered terminal if
-    // function type expansion is enabled.
-    while (true) {
-      StackItem Item = { StackItemKind::Terminal, Type };
-
-      if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
-        EmitConst(T);
-        emitPrimitiveType(T);
-        NeedSpace = true;
-      } else if (auto T = mlir::dyn_cast<PointerType>(Type)) {
-        if (T.getPointerSize() != Target.PointerSize)
-          Out << "pointer" << (T.getPointerSize() * 8) << "_t(";
-
-        Item.Kind = StackItemKind::Pointer;
-        Type = T.getPointeeType();
-      } else if (auto T = mlir::dyn_cast<ArrayType>(Type)) {
-        Item.Kind = StackItemKind::Array;
-        Type = T.getElementType();
-      } else if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
-        auto F = mlir::dyn_cast<FunctionType>(T);
-
-        // Expand the function type if function type expansion is enabled.
-        if (F and ExpandFunctionTypes) {
-          Item.Kind = StackItemKind::Function;
-          Type = F.getReturnType();
-        } else {
-          if (mlir::isa<EnumType>(T))
-            Out << C.getKeyword(Keyword::Enum) << ' ';
-          else if (mlir::isa<StructType>(T))
-            Out << C.getKeyword(Keyword::Struct) << ' ';
-          else if (mlir::isa<UnionType>(T))
-            Out << C.getKeyword(Keyword::Union) << ' ';
-
-          EmitConst(T);
-          if (const auto *MT = getModelTypeDefinition(T))
-            Out << C.getReferenceTag(*MT);
-          else if (const auto *MT = getArtificialStructFunctionType(T))
-            Out << getReturnStructTypeReferenceTag(C.NameBuilder.name(*MT), C);
-          else if (auto Name = getHelperReturnTypeName(T.getHandle()))
-            Out << getReturnStructTypeReferenceTag(*Name, C);
-          else
-            revng_abort("Unrecognized defined type handle");
-          NeedSpace = true;
-        }
-      }
-
-      Stack.push_back(Item);
-
-      if (Item.Kind == StackItemKind::Terminal)
-        break;
-    }
-
-    // Print type syntax appearing before the declarator name. This includes
-    // cv-qualifiers, stars indicating a pointer, as well as left parentheses
-    // used to disambiguate non-root array and function types. The types must be
-    // handled inside out, so the stack is visited in reverse order.
-    for (auto [RI, SI] : llvm::enumerate(std::views::reverse(Stack))) {
-      const size_t I = Stack.size() - RI - 1;
-
-      switch (SI.Kind) {
-      case StackItemKind::Terminal: {
-        // Do nothing
-      } break;
-      case StackItemKind::Pointer: {
-        auto T = mlir::dyn_cast<PointerType>(SI.Type);
-
-        if (T.getPointerSize() == Target.PointerSize) {
-          EmitSpace();
-          Out << '*';
-        } else {
-          Out << ')';
-          NeedSpace = false;
-        }
-      } break;
-      case StackItemKind::Array: {
-        if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array) {
-          Out << '(';
-          NeedSpace = false;
-        }
-      } break;
-      case StackItemKind::Function: {
-        if (I != 0) {
-          Out << '(';
-          NeedSpace = false;
-        }
-      } break;
-      }
-
-      if (SI.Kind != StackItemKind::Terminal)
-        EmitConst(SI.Type);
-    }
-
-    if (DeclaratorName) {
-      EmitSpace();
-      Out << *DeclaratorName;
-    }
-
-    // Print type syntax appearing after the declarator name. This includes
-    // right parentheses matching the left parentheses printed in the first
-    // pass, as well as array extents and function parameter lists. The
-    // declarators appearing in function parameter lists are printed by
-    // recursively entering this function.
-    for (auto [I, SI] : llvm::enumerate(Stack)) {
-      switch (SI.Kind) {
-      case StackItemKind::Terminal: {
-        // Do nothing
-      } break;
-      case StackItemKind::Pointer: {
-        // Do nothing
-      } break;
-      case StackItemKind::Array: {
-        if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array)
-          Out << ')';
-
-        Out << '[';
-        Out << mlir::cast<ArrayType>(SI.Type).getElementsCount();
-        Out << ']';
-      } break;
-      case StackItemKind::Function: {
-        auto F = mlir::dyn_cast<FunctionType>(SI.Type);
-
-        if (I != 0)
-          Out << ')';
-
-        Out << '(';
-        if (F.getArgumentTypes().empty()) {
-          Out << C.getVoidTag();
-        } else {
-          for (auto [J, PT] : llvm::enumerate(F.getArgumentTypes())) {
-            if (J != 0)
-              Out << ',' << ' ';
-
-            rc_recur emitType(PT);
-          }
-        }
-        Out << ')';
-      } break;
-      }
-    }
-  }
-
-  RecursiveCoroutine<void> emitType(ValueType Type) {
-    return emitDeclaration(Type, std::nullopt);
+  llvm::StringRef getLocationAttr(mlir::Operation *Op) {
+    return getStringAttr(Op, "clift.handle");
   }
 
   static OperatorPrecedence decrementPrecedence(OperatorPrecedence Precedence) {
@@ -403,21 +103,11 @@ public:
     return static_cast<OperatorPrecedence>(static_cast<T>(Precedence) - 1);
   }
 
-  ptml::Tag
-  getIntegerConstant(uint64_t Value, CIntegerKind Integer, bool Signed) {
-    llvm::SmallString<64> String;
-    {
-      llvm::raw_svector_ostream Stream(String);
+  static llvm::APSInt makeIntegerValue(PrimitiveType Type, uint64_t Value) {
+    bool Signed = Type.getKind() == PrimitiveKind::SignedKind;
 
-      if (Signed and static_cast<int64_t>(Value) < 0) {
-        Stream << static_cast<int64_t>(Value);
-      } else {
-        Stream << Value;
-      }
-
-      Stream << getCIntegerLiteralSuffix(Integer, Signed);
-    }
-    return C.getConstantTag(String);
+    return llvm::APSInt(llvm::APInt(Type.getSize() * 8, Value, Signed),
+                        not Signed);
   }
 
   void emitIntegerImmediate(uint64_t Value, ValueType Type) {
@@ -430,56 +120,35 @@ public:
         // Emit explicit cast if the standard integer type is not known. Emit
         // the literal itself without a suffix (as if int).
 
-        Out << '(';
+        C.emitOperator(CTE::Operator::LeftParenthesis);
         emitPrimitiveType(T);
-        Out << ')';
+        C.emitOperator(CTE::Operator::RightParenthesis);
 
         Integer = CIntegerKind::Int;
       }
 
-      bool Signed = T.getKind() == PrimitiveKind::SignedKind;
-      Out << getIntegerConstant(Value, *Integer, Signed);
+      C.emitIntegerLiteral(makeIntegerValue(T, Value), *Integer, 10);
     } else {
-      auto D = mlir::cast<DefinedType>(Type);
-      const auto *ModelType = getModelTypeDefinition(D);
-      revng_assert(ModelType != nullptr);
+      auto Enum = mlir::cast<EnumType>(Type);
+      auto Enumerator = Enum.getFieldByValue(Value);
 
-      const auto &ModelEnum = llvm::cast<model::EnumDefinition>(*ModelType);
-
-      auto It = ModelEnum.Entries().find(Value);
-      if (It == ModelEnum.Entries().end())
-        revng_abort("Model enum entry not found.");
-
-      Out << C.getReferenceTag(ModelEnum, *It);
+      C.emitIdentifier(Enumerator.getName(),
+                       Enumerator.getHandle(),
+                       CTE::EntityKind::Enumerator,
+                       CTE::IdentifierKind::Reference);
     }
-  }
-
-  const ptml::ModelCBuilder::TagPair &getLocalVariableTags(LocalVariableOp Op) {
-    auto [Iterator, Inserted] = LocalSymbols.try_emplace(Op.getOperation());
-    if (Inserted) {
-      // TODO: pass in the list of `Op` user addresses.
-      Iterator->second = C.getVariableTags(VariableNameBuilder, {});
-    }
-
-    return Iterator->second;
-  }
-
-  const ptml::ModelCBuilder::TagPair &getGotoLabelTags(MakeLabelOp Op) {
-    auto [Iterator, Inserted] = LocalSymbols.try_emplace(Op.getOperation());
-    if (Inserted) {
-      // TODO: pass in the label address.
-      Iterator->second = C.getGotoLabelTags(GotoLabelNameBuilder, {});
-    }
-
-    return Iterator->second;
   }
 
   //===---------------------------- Expressions ---------------------------===//
 
   RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
-    auto T = mlir::cast<clift::PrimitiveType>(V.getType());
-    Out << C.Binary.Configuration().Naming().undefinedValuePrefix().str()
-        << getPrimitiveTypeCName(T) << "()";
+    revng_assert(isScalarType(V.getType()));
+
+    C.emitLiteralIdentifier("undef");
+    C.emitOperator(CTE::Operator::LeftParenthesis);
+    emitType(V.getType());
+    C.emitOperator(CTE::Operator::RightParenthesis);
+
     rc_return;
   }
 
@@ -491,16 +160,7 @@ public:
 
   RecursiveCoroutine<void> emitStringLiteralExpression(mlir::Value V) {
     auto E = V.getDefiningOp<StringOp>();
-
-    std::string Literal;
-    {
-      llvm::raw_string_ostream Out(Literal);
-      Out << '"';
-      Out.write_escaped(E.getValue(), /*UseHexEscapes=*/true);
-      Out << '"';
-    }
-    Out << C.getStringLiteral(Literal);
-
+    C.emitStringLiteral(E.getValue());
     rc_return;
   }
 
@@ -510,35 +170,50 @@ public:
     // initializers instead.
     CurrentPrecedence = OperatorPrecedence::Comma;
 
-    Out << '{';
+    C.emitPunctuator(CTE::Punctuator::LeftBrace);
     for (auto [I, Initializer] : llvm::enumerate(E.getInitializers())) {
-      if (I != 0)
-        Out << ',' << ' ';
+      if (I != 0) {
+        C.emitPunctuator(CTE::Punctuator::Comma);
+        C.emitSpace();
+      }
 
       rc_recur emitExpression(Initializer);
     }
-    Out << '}';
+    C.emitPunctuator(CTE::Punctuator::RightBrace);
   }
 
   RecursiveCoroutine<void> emitAggregateExpression(mlir::Value V) {
     auto E = V.getDefiningOp<AggregateOp>();
 
-    Out << '(';
-    rc_recur emitType(E.getResult().getType());
-    Out << ')';
+    C.emitOperator(CTE::Operator::LeftParenthesis);
+    emitType(E.getResult().getType());
+    C.emitOperator(CTE::Operator::RightParenthesis);
 
     rc_recur emitAggregateInitializer(E);
   }
 
   RecursiveCoroutine<void> emitParameterExpression(mlir::Value V) {
-    auto Arg = mlir::cast<mlir::BlockArgument>(V);
-    Out << ParameterNames[Arg.getArgNumber()];
+    auto E = mlir::cast<mlir::BlockArgument>(V);
+
+    const auto &ArgAttrs = CurrentFunction.getArgAttrs(E.getArgNumber());
+    const auto GetStringAttr = [&ArgAttrs](llvm::StringRef Name) {
+      return mlir::cast<mlir::StringAttr>(ArgAttrs.get(Name)).getValue();
+    };
+
+    C.emitIdentifier(GetStringAttr("clift.name"),
+                     GetStringAttr("clift.handle"),
+                     CTE::EntityKind::FunctionParameter,
+                     CTE::IdentifierKind::Reference);
     rc_return;
   }
 
   RecursiveCoroutine<void> emitLocalVariableExpression(mlir::Value V) {
-    Out << getLocalVariableTags(V.getDefiningOp<LocalVariableOp>()).Reference;
+    auto E = V.getDefiningOp<LocalVariableOp>();
 
+    C.emitIdentifier(getNameAttr(E),
+                     E.getHandle(),
+                     CTE::EntityKind::LocalVariable,
+                     CTE::IdentifierKind::Reference);
     rc_return;
   }
 
@@ -548,48 +223,23 @@ public:
     auto Module = E->getParentOfType<mlir::ModuleOp>();
     revng_assert(Module);
 
-    mlir::Operation
-      *SymbolOp = mlir::SymbolTable::lookupSymbolIn(Module,
-                                                    E.getSymbolNameAttr());
-    revng_assert(SymbolOp);
+    auto S = mlir::SymbolTable::lookupSymbolIn(Module, E.getSymbolNameAttr());
+    auto Symbol = mlir::cast<GlobalOpInterface>(S);
 
-    if (auto G = mlir::dyn_cast<GlobalVariableOp>(SymbolOp)) {
-      if (const model::Segment *Segment = getModelSegment(G))
-        Out << C.getReferenceTag(*getModelSegment(G));
-      else
-        revng_abort("Unrecognized global variable handle");
-    } else if (auto F = mlir::dyn_cast<FunctionOp>(SymbolOp)) {
-      if (auto OptionalVariant = getModelFunctionVariant(F)) {
-        auto Visitor = [&](const auto *ModelFunction) {
-          Out << C.getReferenceTag(*ModelFunction);
-        };
-        std::visit(Visitor, *OptionalVariant);
-      } else if (auto Name = getHelperFunctionName(F.getHandle())) {
-        Out << getHelperFunctionReferenceTag(*Name, C);
-      } else {
-        revng_abort("Unrecognized function handle");
-      }
-    } else {
+    constexpr auto GetEntityKind = [](GlobalOpInterface Symbol) {
+      if (mlir::isa<FunctionOp>(Symbol))
+        return CTE::EntityKind::Function;
+      if (mlir::isa<GlobalVariableOp>(Symbol))
+        return CTE::EntityKind::GlobalVariable;
       revng_abort("Unsupported global operation");
-    }
+    };
+
+    C.emitIdentifier(Symbol.getName(),
+                     Symbol.getHandle(),
+                     GetEntityKind(Symbol),
+                     CTE::IdentifierKind::Reference);
 
     rc_return;
-  }
-
-  template<typename ClassT>
-  void emitClassMemberReference(const ClassT &Class, uint64_t Key) {
-    auto It = Class.Fields().find(Key);
-    if (It == Class.Fields().end())
-      revng_abort("Class member not found.");
-
-    Out << C.getReferenceTag(Class, *It);
-  }
-
-  void emitRawFunctionRegisterReference(const model::RawFunctionDefinition &RFT,
-                                        uint64_t Index) {
-    revng_assert(Index < RFT.ReturnValues().size());
-    auto It = std::next(RFT.ReturnValues().begin(), Index);
-    Out << C.NameBuilder.name(RFT, *It);
   }
 
   RecursiveCoroutine<void> emitAccessExpression(mlir::Value V) {
@@ -600,23 +250,14 @@ public:
 
     rc_recur emitExpression(E.getValue());
 
-    Out << C.getOperator(E.isIndirect() ? Operator::Arrow : Operator::Dot);
+    C.emitOperator(E.isIndirect() ? CTE::Operator::Arrow : CTE::Operator::Dot);
 
-    ClassType Class = E.getClassType();
-    if (const auto *MT = getModelTypeDefinition(Class)) {
-      if (auto *T = llvm::dyn_cast<model::StructDefinition>(MT))
-        emitClassMemberReference(*T, E.getFieldAttr().getOffset());
-      else if (auto *T = llvm::dyn_cast<model::UnionDefinition>(MT))
-        emitClassMemberReference(*T, E.getMemberIndex());
-      else
-        revng_abort("Unexpected model type in access expression.");
-    } else if (const auto *T = getArtificialStructFunctionType(Class)) {
-      emitRawFunctionRegisterReference(*T, E.getMemberIndex());
-    } else if (auto Name = getHelperReturnTypeName(Class.getHandle())) {
-      Out << getReturnStructFieldReferenceTag(*Name, E.getMemberIndex(), C);
-    } else {
-      revng_abort("Unrecognized class type handle");
-    }
+    auto Field = E.getClassType().getFields()[E.getMemberIndex()];
+
+    C.emitIdentifier(Field.getName(),
+                     Field.getHandle(),
+                     CTE::EntityKind::Field,
+                     CTE::IdentifierKind::Reference);
   }
 
   RecursiveCoroutine<void> emitSubscriptExpression(mlir::Value V) {
@@ -634,9 +275,9 @@ public:
     // lists. The output in this case is as: array[(i, j)]
     CurrentPrecedence = OperatorPrecedence::Comma;
 
-    Out << '[';
+    C.emitOperator(CTE::Operator::LeftBracket);
     rc_recur emitExpression(E.getIndex());
-    Out << ']';
+    C.emitOperator(CTE::Operator::RightBracket);
   }
 
   RecursiveCoroutine<void> emitCallExpression(mlir::Value V) {
@@ -652,14 +293,16 @@ public:
     // arguments instead.
     CurrentPrecedence = OperatorPrecedence::Comma;
 
-    Out << '(';
+    C.emitOperator(CTE::Operator::LeftParenthesis);
     for (auto [I, A] : llvm::enumerate(E.getArguments())) {
-      if (I != 0)
-        Out << ',' << ' ';
+      if (I != 0) {
+        C.emitPunctuator(CTE::Punctuator::Comma);
+        C.emitSpace();
+      }
 
       rc_recur emitExpression(A);
     }
-    Out << ')';
+    C.emitOperator(CTE::Operator::RightParenthesis);
   }
 
   static bool isHiddenCast(CastOp Cast) {
@@ -681,9 +324,9 @@ public:
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOp>();
 
-    Out << '(';
-    rc_recur emitType(E.getResult().getType());
-    Out << ')';
+    C.emitOperator(CTE::Operator::LeftParenthesis);
+    emitType(E.getResult().getType());
+    C.emitOperator(CTE::Operator::RightParenthesis);
 
     // Parenthesizing a nested unary prefix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
@@ -699,9 +342,16 @@ public:
     auto E = V.getDefiningOp<TernaryOp>();
 
     rc_recur emitExpression(E.getCondition());
-    Out << " ? ";
+
+    C.emitSpace();
+    C.emitOperator(CTE::Operator::Question);
+    C.emitSpace();
+
     rc_recur emitExpression(E.getLhs());
-    Out << " : ";
+
+    C.emitSpace();
+    C.emitOperator(CTE::Operator::Colon);
+    C.emitSpace();
 
     // The right hand expression does not need parentheses.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::Ternary);
@@ -709,61 +359,55 @@ public:
     rc_recur emitExpression(E.getRhs());
   }
 
-  static ptml::CBuilder::Operator getOperator(mlir::Operation *Op) {
-    if (mlir::isa<NegOp>(Op))
-      return Operator::UnaryMinus;
+  static CTE::Operator getOperator(mlir::Operation *Op) {
+    if (mlir::isa<NegOp, SubOp, PtrSubOp, PtrDiffOp>(Op))
+      return CTE::Operator::Minus;
     if (mlir::isa<AddOp, PtrAddOp>(Op))
-      return Operator::Add;
-    if (mlir::isa<SubOp, PtrSubOp, PtrDiffOp>(Op))
-      return Operator::Sub;
-    if (mlir::isa<MulOp>(Op))
-      return Operator::Mul;
+      return CTE::Operator::Plus;
+    if (mlir::isa<MulOp, IndirectionOp>(Op))
+      return CTE::Operator::Star;
     if (mlir::isa<DivOp>(Op))
-      return Operator::Div;
+      return CTE::Operator::Slash;
     if (mlir::isa<RemOp>(Op))
-      return Operator::Modulo;
+      return CTE::Operator::Percent;
     if (mlir::isa<LogicalNotOp>(Op))
-      return Operator::BoolNot;
+      return CTE::Operator::Exclaim;
     if (mlir::isa<LogicalAndOp>(Op))
-      return Operator::BoolAnd;
+      return CTE::Operator::AmpersandAmpersand;
     if (mlir::isa<LogicalOrOp>(Op))
-      return Operator::BoolOr;
+      return CTE::Operator::PipePipe;
     if (mlir::isa<BitwiseNotOp>(Op))
-      return Operator::BinaryNot;
-    if (mlir::isa<BitwiseAndOp>(Op))
-      return Operator::And;
+      return CTE::Operator::Tilde;
+    if (mlir::isa<BitwiseAndOp, AddressofOp>(Op))
+      return CTE::Operator::Ampersand;
     if (mlir::isa<BitwiseOrOp>(Op))
-      return Operator::Or;
+      return CTE::Operator::Pipe;
     if (mlir::isa<BitwiseXorOp>(Op))
-      return Operator::Xor;
+      return CTE::Operator::Caret;
     if (mlir::isa<ShiftLeftOp>(Op))
-      return Operator::LShift;
+      return CTE::Operator::LessLess;
     if (mlir::isa<ShiftRightOp>(Op))
-      return Operator::RShift;
+      return CTE::Operator::GreaterGreater;
     if (mlir::isa<CmpEqOp>(Op))
-      return Operator::CmpEq;
+      return CTE::Operator::EqualsEquals;
     if (mlir::isa<CmpNeOp>(Op))
-      return Operator::CmpNeq;
+      return CTE::Operator::ExclaimEquals;
     if (mlir::isa<CmpLtOp>(Op))
-      return Operator::CmpLt;
+      return CTE::Operator::Less;
     if (mlir::isa<CmpGtOp>(Op))
-      return Operator::CmpGt;
+      return CTE::Operator::Greater;
     if (mlir::isa<CmpLeOp>(Op))
-      return Operator::CmpLte;
+      return CTE::Operator::LessEquals;
     if (mlir::isa<CmpGeOp>(Op))
-      return Operator::CmpGte;
+      return CTE::Operator::GreaterEquals;
     if (mlir::isa<IncrementOp, PostIncrementOp>(Op))
-      return Operator::Increment;
+      return CTE::Operator::PlusPlus;
     if (mlir::isa<DecrementOp, PostDecrementOp>(Op))
-      return Operator::Decrement;
-    if (mlir::isa<AddressofOp>(Op))
-      return Operator::AddressOf;
-    if (mlir::isa<IndirectionOp>(Op))
-      return Operator::PointerDereference;
+      return CTE::Operator::MinusMinus;
     if (mlir::isa<AssignOp>(Op))
-      return Operator::Assign;
+      return CTE::Operator::Equals;
     if (mlir::isa<CommaOp>(Op))
-      return Operator::Comma;
+      return CTE::Operator::Comma;
     revng_abort("This operation does not represent a C operator.");
   }
 
@@ -771,12 +415,29 @@ public:
     mlir::Operation *Op = V.getDefiningOp();
     mlir::Value Operand = Op->getOperand(0);
 
-    Out << C.getOperator(getOperator(Op));
+    C.emitOperator(getOperator(Op));
+
+    auto StartsWithMinus = [](mlir::Value V) {
+      if (mlir::isa<NegOp, DecrementOp>(V.getDefiningOp()))
+        return true;
+
+      if (auto I = V.getDefiningOp<ImmediateOp>()) {
+        if (auto T = mlir::dyn_cast<PrimitiveType>(I.getResult().getType())) {
+          if (T.getKind() == PrimitiveKind::SignedKind)
+            return static_cast<int64_t>(I.getValue()) < 0;
+        }
+      }
+
+      return false;
+    };
 
     // Double negation requires a space in between to avoid being confused as
     // decrement. (- -x) vs (--x)
-    if (V.getDefiningOp<NegOp>() and Operand.getDefiningOp<NegOp>())
-      Out << ' ';
+    //
+    // Negation after a decrement requires a space in between to avoid being
+    // confused as decrement after negation. (- --x) vs (---x)
+    if (V.getDefiningOp<NegOp>() and StartsWithMinus(Operand))
+      C.emitSpace();
 
     // Parenthesizing a nested unary prefix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
@@ -791,7 +452,7 @@ public:
     // Parenthesizing a nested unary postfix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPostfix);
 
-    Out << C.getOperator(getOperator(Op));
+    C.emitOperator(getOperator(Op));
   }
 
   RecursiveCoroutine<void> emitInfixExpression(mlir::Value V) {
@@ -808,9 +469,10 @@ public:
     rc_recur emitExpression(Op->getOperand(0));
 
     if (not mlir::isa<CommaOp>(Op))
-      Out << ' ';
+      C.emitSpace();
 
-    Out << C.getOperator(getOperator(Op)) << ' ';
+    C.emitOperator(getOperator(Op));
+    C.emitSpace();
 
     CurrentPrecedence = RhsPrecedence;
     rc_recur emitExpression(Op->getOperand(1));
@@ -818,7 +480,7 @@ public:
 
   struct ExpressionEmitInfo {
     OperatorPrecedence Precedence;
-    RecursiveCoroutine<void> (CEmitter::*Emit)(mlir::Value V);
+    RecursiveCoroutine<void> (CliftToCEmitter::*Emit)(mlir::Value V);
   };
 
   // This function handles the dispatching for emitting different kinds of
@@ -833,14 +495,14 @@ public:
       if (mlir::isa<mlir::BlockArgument>(V)) {
         return {
           .Precedence = OperatorPrecedence::Primary,
-          .Emit = &CEmitter::emitParameterExpression,
+          .Emit = &CliftToCEmitter::emitParameterExpression,
         };
       }
 
       if (auto Variable = V.getDefiningOp<LocalVariableOp>()) {
         return {
           .Precedence = OperatorPrecedence::Primary,
-          .Emit = &CEmitter::emitLocalVariableExpression,
+          .Emit = &CliftToCEmitter::emitLocalVariableExpression,
         };
       }
 
@@ -850,63 +512,63 @@ public:
     if (mlir::isa<UndefOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Primary,
-        .Emit = &CEmitter::emitUndefExpression,
+        .Emit = &CliftToCEmitter::emitUndefExpression,
       };
     }
 
     if (mlir::isa<ImmediateOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Primary,
-        .Emit = &CEmitter::emitImmediateExpression,
+        .Emit = &CliftToCEmitter::emitImmediateExpression,
       };
     }
 
     if (mlir::isa<StringOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Primary,
-        .Emit = &CEmitter::emitStringLiteralExpression,
+        .Emit = &CliftToCEmitter::emitStringLiteralExpression,
       };
     }
 
     if (mlir::isa<AggregateOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Primary,
-        .Emit = &CEmitter::emitAggregateExpression,
+        .Emit = &CliftToCEmitter::emitAggregateExpression,
       };
     }
 
     if (mlir::isa<UseOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Primary,
-        .Emit = &CEmitter::emitUseExpression,
+        .Emit = &CliftToCEmitter::emitUseExpression,
       };
     }
 
     if (mlir::isa<AccessOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::UnaryPostfix,
-        .Emit = &CEmitter::emitAccessExpression,
+        .Emit = &CliftToCEmitter::emitAccessExpression,
       };
     }
 
     if (mlir::isa<SubscriptOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::UnaryPostfix,
-        .Emit = &CEmitter::emitSubscriptExpression,
+        .Emit = &CliftToCEmitter::emitSubscriptExpression,
       };
     }
 
     if (mlir::isa<CallOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::UnaryPostfix,
-        .Emit = &CEmitter::emitCallExpression,
+        .Emit = &CliftToCEmitter::emitCallExpression,
       };
     }
 
     if (mlir::isa<PostIncrementOp, PostDecrementOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::UnaryPostfix,
-        .Emit = &CEmitter::emitPostfixExpression,
+        .Emit = &CliftToCEmitter::emitPostfixExpression,
       };
     }
 
@@ -916,13 +578,13 @@ public:
 
         return {
           .Precedence = decrementPrecedence(Info.Precedence),
-          .Emit = &CEmitter::emitHiddenCastExpression,
+          .Emit = &CliftToCEmitter::emitHiddenCastExpression,
         };
       }
 
       return {
         .Precedence = OperatorPrecedence::UnaryPrefix,
-        .Emit = &CEmitter::emitCastExpression,
+        .Emit = &CliftToCEmitter::emitCastExpression,
       };
     }
 
@@ -935,98 +597,98 @@ public:
                   IndirectionOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::UnaryPrefix,
-        .Emit = &CEmitter::emitPrefixExpression,
+        .Emit = &CliftToCEmitter::emitPrefixExpression,
       };
     }
 
     if (mlir::isa<MulOp, DivOp, RemOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Multiplicative,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<AddOp, SubOp, PtrAddOp, PtrSubOp, PtrDiffOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Additive,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<ShiftLeftOp, ShiftRightOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Shift,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<CmpLtOp, CmpGtOp, CmpLeOp, CmpGeOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Relational,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<CmpEqOp, CmpNeOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Equality,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<BitwiseAndOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Bitand,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<BitwiseXorOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Bitxor,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<BitwiseOrOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Bitor,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<LogicalAndOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::And,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<LogicalOrOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Or,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<AssignOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Assignment,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<CommaOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Comma,
-        .Emit = &CEmitter::emitInfixExpression,
+        .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
     if (mlir::isa<TernaryOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Ternary,
-        .Emit = &CEmitter::emitTernaryExpression,
+        .Emit = &CliftToCEmitter::emitTernaryExpression,
       };
     }
 
@@ -1040,7 +702,7 @@ public:
                             and Info.Precedence != OperatorPrecedence::Primary;
 
     if (PrintParentheses)
-      Out << '(';
+      C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
     // CurrentPrecedence is changed within this scope:
     {
@@ -1056,7 +718,7 @@ public:
     }
 
     if (PrintParentheses)
-      Out << ')';
+      C.emitPunctuator(CTE::Punctuator::RightParenthesis);
   }
 
   RecursiveCoroutine<void> emitExpressionRegion(mlir::Region &R) {
@@ -1068,11 +730,18 @@ public:
   //===---------------------------- Statements ----------------------------===//
 
   RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S) {
-    rc_recur emitDeclaration(S.getResult().getType(),
-                             getLocalVariableTags(S).Definition);
+    emitDeclaration(S.getResult().getType(),
+                    DeclaratorInfo{
+                      .Identifier = getNameAttr(S),
+                      .Location = S.getHandle(),
+                      .Attributes = getDeclarationOpAttributes(S),
+                      .Kind = CTE::EntityKind::LocalVariable,
+                    });
 
     if (not S.getInitializer().empty()) {
-      Out << ' ' << '=' << ' ';
+      C.emitSpace();
+      C.emitOperator(CTE::Operator::Equals);
+      C.emitSpace();
 
       // Comma expressions in a variable initialiser must be parenthesized.
       CurrentPrecedence = OperatorPrecedence::Comma;
@@ -1085,7 +754,8 @@ public:
         rc_recur emitExpression(Expression);
     }
 
-    Out << ';' << '\n';
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitNewline();
   }
 
   bool labelRequiresEmptyExpression(AssignLabelOp Op) {
@@ -1101,40 +771,58 @@ public:
   }
 
   RecursiveCoroutine<void> emitLabelStatement(AssignLabelOp S) {
-    Out.unindent();
+    auto Scope = C.enterScope(CTE::ScopeKind::None,
+                              CTE::Delimiter::None,
+                              /*Indent=*/-1);
 
-    Out << getGotoLabelTags(S.getLabelOp()).Definition << ':';
+    C.emitIdentifier(getNameAttr(S.getLabelOp()),
+                     getLocationAttr(S.getLabelOp()),
+                     CTE::EntityKind::Label,
+                     CTE::IdentifierKind::Definition);
 
-    if (labelRequiresEmptyExpression(S))
-      Out << ' ' << ';';
+    C.emitPunctuator(CTE::Punctuator::Colon);
 
-    Out << '\n';
+    if (labelRequiresEmptyExpression(S)) {
+      C.emitSpace();
+      C.emitPunctuator(CTE::Punctuator::Semicolon);
+    }
 
-    Out.indent();
+    C.emitNewline();
+
     rc_return;
   }
 
   RecursiveCoroutine<void> emitExpressionStatement(ExpressionStatementOp S) {
     rc_recur emitExpressionRegion(S.getExpression());
-    Out << ';' << '\n';
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitGotoStatement(GoToOp S) {
-    Out << C.getKeyword(Keyword::Goto) << ' '
-        << getGotoLabelTags(S.getLabelOp()).Reference << ';' << '\n';
+    C.emitKeyword(CTE::Keyword::Goto);
+    C.emitSpace();
+
+    C.emitIdentifier(getNameAttr(S.getLabelOp()),
+                     getLocationAttr(S.getLabelOp()),
+                     CTE::EntityKind::Label,
+                     CTE::IdentifierKind::Reference);
+
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitNewline();
 
     rc_return;
   }
 
   RecursiveCoroutine<void> emitReturnStatement(ReturnOp S) {
-    Out << C.getKeyword(Keyword::Return);
+    C.emitKeyword(CTE::Keyword::Return);
 
     if (not S.getResult().empty()) {
-      Out << ' ';
+      C.emitSpace();
       rc_recur emitExpressionRegion(S.getResult());
     }
 
-    Out << ';' << '\n';
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitNewline();
   }
 
   static bool mayElideIfStatementBraces(IfOp If) {
@@ -1161,9 +849,11 @@ public:
     bool EmitBlocks = not mayElideIfStatementBraces(S);
 
     while (true) {
-      Out << C.getKeyword(Keyword::If) << ' ' << '(';
+      C.emitKeyword(CTE::Keyword::If);
+      C.emitSpace();
+      C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
       rc_recur emitExpressionRegion(S.getCondition());
-      Out << ')';
+      C.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
       rc_recur emitImplicitBlockStatement(S.getThen(), EmitBlocks);
 
@@ -1171,13 +861,13 @@ public:
         break;
 
       if (EmitBlocks)
-        Out << ' ';
+        C.emitSpace();
 
-      Out << C.getKeyword(Keyword::Else);
+      C.emitKeyword(CTE::Keyword::Else);
 
       if (auto ElseIf = getOnlyOperation<IfOp>(S.getElse())) {
         S = ElseIf;
-        Out << ' ';
+        C.emitSpace();
       } else {
         rc_recur emitImplicitBlockStatement(S.getElse(), EmitBlocks);
         break;
@@ -1185,82 +875,110 @@ public:
     }
 
     if (EmitBlocks)
-      Out << '\n';
+      C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitCaseRegion(mlir::Region &R) {
     bool Break = hasFallthrough(R);
 
-    if (rc_recur emitImplicitBlockStatement(R))
-      Out << (Break ? ' ' : '\n');
+    if (rc_recur emitImplicitBlockStatement(R)) {
+      if (Break)
+        C.emitSpace();
+      else
+        C.emitNewline();
+    }
 
-    if (Break)
-      Out << C.getKeyword(Keyword::Break) << ";\n";
+    if (Break) {
+      C.emitKeyword(CTE::Keyword::Break);
+      C.emitPunctuator(CTE::Punctuator::Semicolon);
+      C.emitNewline();
+    }
   }
 
   RecursiveCoroutine<void> emitSwitchStatement(SwitchOp S) {
-    Out << C.getKeyword(Keyword::Switch) << ' ' << '(';
+    C.emitKeyword(CTE::Keyword::Switch);
+    C.emitSpace();
+    C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+
     rc_recur emitExpressionRegion(S.getCondition());
-    Out << ')' << ' ';
+
+    C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    C.emitSpace();
 
     // Scope tags are applied within this scope:
     {
-      Scope Scope(Out);
+      auto Scope = C.enterScope(CTE::ScopeKind::BlockStatement,
+                                CTE::Delimiter::Braces,
+                                /*Indented=*/false);
 
       ValueType Type = S.getConditionType();
       for (unsigned I = 0, Count = S.getNumCases(); I < Count; ++I) {
-        Out << C.getKeyword(Keyword::Case) << ' ';
+        C.emitKeyword(CTE::Keyword::Case);
+        C.emitSpace();
         emitIntegerImmediate(S.getCaseValue(I), Type);
-        Out << ':';
+        C.emitPunctuator(CTE::Punctuator::Colon);
         rc_recur emitCaseRegion(S.getCaseRegion(I));
       }
 
       if (S.hasDefaultCase()) {
-        Out << C.getKeyword(Keyword::Default) << ':';
+        C.emitKeyword(CTE::Keyword::Default);
+        C.emitPunctuator(CTE::Punctuator::Colon);
         rc_recur emitCaseRegion(S.getDefaultCaseRegion());
       }
     }
 
-    Out << '\n';
+    C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitForStatement(ForOp S) {
-    Out << C.getKeyword(Keyword::For) << ' ' << '(' << ';';
+    C.emitKeyword(CTE::Keyword::For);
+    C.emitSpace();
+    C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
 
     if (not S.getCondition().empty()) {
-      Out << ' ';
+      C.emitSpace();
       rc_recur emitExpressionRegion(S.getCondition());
     }
 
-    Out << ';';
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
     if (not S.getExpression().empty()) {
-      Out << ' ';
+      C.emitSpace();
       rc_recur emitExpressionRegion(S.getExpression());
     }
-    Out << ')';
+    C.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
     if (rc_recur emitImplicitBlockStatement(S.getBody()))
-      Out << '\n';
+      C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitWhileStatement(WhileOp S) {
-    Out << C.getKeyword(Keyword::While) << ' ' << '(';
+    C.emitKeyword(CTE::Keyword::While);
+    C.emitSpace();
+    C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+
     rc_recur emitExpressionRegion(S.getCondition());
-    Out << ')';
+    C.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
     if (rc_recur emitImplicitBlockStatement(S.getBody()))
-      Out << '\n';
+      C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitDoWhileStatement(DoWhileOp S) {
-    Out << C.getKeyword(Keyword::Do);
+    C.emitKeyword(CTE::Keyword::Do);
 
     if (rc_recur emitImplicitBlockStatement(S.getBody()))
-      Out << ' ';
+      C.emitSpace();
 
-    Out << C.getKeyword(Keyword::While) << ' ' << '(';
+    C.emitKeyword(CTE::Keyword::While);
+    C.emitSpace();
+    C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+
     rc_recur emitExpressionRegion(S.getCondition());
-    Out << ')' << ';' << '\n';
+
+    C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitStatement(StatementOpInterface Stmt) {
@@ -1318,17 +1036,18 @@ public:
 
   RecursiveCoroutine<void> emitImplicitBlockStatement(mlir::Region &R,
                                                       bool EmitBlock) {
-    std::optional<PairedScope<"{", "}">> BraceScope;
+    auto ScopeKind = CTE::ScopeKind::None;
+    auto Delimiter = CTE::Delimiter::None;
 
     if (EmitBlock) {
-      Out << ' ';
-      BraceScope.emplace(Out);
+      C.emitSpace();
+      ScopeKind = CTE::ScopeKind::BlockStatement;
+      Delimiter = CTE::Delimiter::Braces;
     }
 
-    auto Scope = C.scopeTag(ptml::c::scopes::Scope).scope(Out);
-    ptml::IndentedOstream::Scope IndentScope(Out);
+    auto Scope = C.enterScope(ScopeKind, Delimiter);
+    C.emitNewline();
 
-    Out << '\n';
     rc_recur emitStatementRegion(R);
   }
 
@@ -1341,54 +1060,50 @@ public:
   //===----------------------------- Functions ----------------------------===//
 
   RecursiveCoroutine<void> emitFunction(FunctionOp Op) {
-    const model::Function *ModelFunction = getIsolatedModelFunction(Op);
-    revng_assert(ModelFunction != nullptr);
-    CurrentFunction = ModelFunction;
-
-    auto ClearParameterNames = llvm::make_scope_exit([&]() {
-      ParameterNames.clear();
-    });
-
-    if (auto F = ModelFunction->cabiPrototype()) {
-      for (const model::Argument &Parameter : F->Arguments())
-        ParameterNames.push_back(C.getReferenceTag(*F, Parameter));
-
-    } else if (auto F = ModelFunction->rawPrototype()) {
-      for (const model::NamedTypedRegister &Register : F->Arguments())
-        ParameterNames.push_back(C.getReferenceTag(*F, Register));
-
-      if (not F->StackArgumentsType().isEmpty())
-        ParameterNames.push_back(C.getStackArgumentReferenceTag(*F));
-
-    } else {
-      revng_abort("Unsupported model function type definition");
-    }
-
-    // Reset variable and label counters
-    // TODO: consider recreating these for each function, that way
-    //       we don't have to provide the default and copy constructors.
-    VariableNameBuilder = C.makeLocalVariableNameBuilder(*ModelFunction);
-    GotoLabelNameBuilder = C.makeGotoLabelNameBuilder(*ModelFunction);
-    auto ClearLocalSymbols = llvm::make_scope_exit([&]() {
-      LocalSymbols.clear();
-    });
+    CurrentFunction = Op;
 
     // Scope tags are applied within this scope:
     {
-      auto OuterScope = C.scopeTag(ptml::c::scopes::Function).scope(Out);
-      const auto &MFD = *C.Binary
-                           .prototypeOrDefault(ModelFunction->prototype());
-      C.printFunctionPrototype(MFD, *ModelFunction, /*SingleLine=*/false);
+      auto OuterScope = C.enterScope(CTE::ScopeKind::FunctionDeclaration,
+                                     CTE::Delimiter::None,
+                                     /*Indented=*/false);
 
-      Out << ' ';
-      Scope InnerScope(Out, ptml::c::scopes::FunctionBody);
+      llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
+      for (unsigned I = 0; I < Op.getArgCount(); ++I) {
+        auto Attrs = Op.getArgAttrs(I);
 
-      if (const model::Type *T = ModelFunction->StackFrameType().get()) {
-        const auto *D = llvm::cast<model::DefinedType>(T)->Definition().get();
+        auto GetStringAttr = [&Attrs](llvm::StringRef Name) {
+          return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
+        };
 
-        if (C.Configuration.EnableStackFrameInlining)
-          C.printDefinition(*D);
+        mlir::ArrayAttr Attributes = {};
+        if (auto Attr = Attrs.get("clift.attributes")) {
+          Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
+          revng_assert(isValidAttributeArray(Attributes));
+        }
+
+        ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
+                                          GetStringAttr("clift.handle"),
+                                          Attributes);
       }
+
+      emitDeclaration(Op.getCliftFunctionType(),
+                      DeclaratorInfo{
+                        .Identifier = Op.getName(),
+                        .Location = Op.getHandle(),
+                        .Attributes = getDeclarationOpAttributes(Op),
+                        .Kind = CTE::EntityKind::Function,
+                        .Parameters = ParameterDeclarators,
+                      });
+
+      C.emitSpace();
+
+      auto InnerScope = C.enterScope(CTE::ScopeKind::FunctionDefinition,
+                                     CTE::Delimiter::Braces);
+
+      C.emitNewline();
+
+      // TODO: Re-enable stack frame inlining.
 
       rc_recur emitStatementRegion(Op.getBody());
 
@@ -1396,35 +1111,14 @@ public:
       //       See how old backend does it for reference.
     }
 
-    Out << '\n';
+    C.emitNewline();
   }
-
-private:
-  const TargetCImplementation &Target;
-  ptml::ModelCBuilder &C;
-  ptml::IndentedOstream Out;
-
-  const model::Function *CurrentFunction = nullptr;
-
-  // Parameter names of the current function.
-  llvm::SmallVector<std::string> ParameterNames;
-
-  // Ambient precedence of the current expression.
-  OperatorPrecedence CurrentPrecedence = {};
-
-  // Local variable/label naming helpers
-  ptml::ModelCBuilder::VariableNameBuilder VariableNameBuilder;
-  ptml::ModelCBuilder::GotoLabelNameBuilder GotoLabelNameBuilder;
-  llvm::DenseMap<mlir::Operation *, ptml::ModelCBuilder::TagPair> LocalSymbols;
 };
 
 } // namespace
 
-std::string clift::decompile(FunctionOp Function,
-                             const TargetCImplementation &Target,
-                             ptml::ModelCBuilder &Builder) {
-  std::string Result;
-  llvm::raw_string_ostream Out(Result);
-  CEmitter(Target, Builder, Out).emitFunction(Function);
-  return Result;
+void clift::decompile(FunctionOp Function,
+                      CTokenEmitter &Emitter,
+                      const TargetCImplementation &Target) {
+  CliftToCEmitter(Emitter, Target).emitFunction(Function);
 }

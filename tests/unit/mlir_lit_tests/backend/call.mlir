@@ -2,7 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngpipe emit-c %S/model.yml %s <(tar -czT /dev/null) /dev/stdout | tar -zxO
+// RUN: %revngcliftopt --emit-c %s | FileCheck %s
+// RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
 !int32_t = !clift.primitive<signed 4>
 
@@ -12,12 +13,15 @@
 
 module attributes {clift.module} {
   // CHECK: int32_t fun_0x40001002(int32_t x, int32_t y) {
-  clift.func @f<!f>(%arg0 : !int32_t, %arg1 : !int32_t) attributes {
+  clift.func @fun_0x40001002<!f>(%arg0 : !int32_t { clift.handle = "/cabi-argument/1002-CABIFunctionDefinition/0",
+                                                    clift.name = "x" },
+                                 %arg1 : !int32_t { clift.handle = "/cabi-argument/1002-CABIFunctionDefinition/1",
+                                                    clift.name = "y" }) attributes {
     handle = "/function/0x40001002:Code_x86_64"
   } {
     // CHECK: return
     clift.return {
-      %f = clift.use @f : !f
+      %f = clift.use @fun_0x40001002 : !f
 
       %comma = clift.comma %arg1, %arg1 : !int32_t, !int32_t
 

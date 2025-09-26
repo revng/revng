@@ -2,7 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngpipe emit-c %S/model.yml %s <(tar -czT /dev/null) /dev/stdout | tar -zxO
+// RUN: %revngcliftopt --emit-c %s | FileCheck %s
+// RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
 !void = !clift.primitive<void 0>
 
@@ -14,14 +15,14 @@
 >
 
 !my_enum = !clift.enum<
-  "/type-definition/2001-EnumDefinition" : !int32_t {
-    0
+  "/type-definition/2001-EnumDefinition" as "my_enum" : !int32_t {
+    "/enum-entry/2001-EnumDefinition/0" as "my_enum_0" : 0
   }
 >
 
 module attributes {clift.module} {
   // CHECK: void fun_0x40001001(void) {
-  clift.func @f<!f>() attributes {
+  clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: 0;
@@ -30,7 +31,7 @@ module attributes {clift.module} {
       clift.yield %i : !int32_t
     }
 
-    // CHECK: 0u;
+    // CHECK: 0U;
     clift.expr {
       %u = clift.imm 0 : !uint32_t
       clift.yield %u : !uint32_t

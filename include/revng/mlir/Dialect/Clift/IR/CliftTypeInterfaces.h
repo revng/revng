@@ -12,6 +12,8 @@ class FieldAttr;
 
 #include "mlir/IR/Types.h"
 
+#include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
+
 // Prevent reordering:
 #include "revng/mlir/Dialect/Clift/IR/CliftTypeInterfacesBasic.h.inc"
 // Prevent reordering:

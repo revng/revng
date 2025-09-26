@@ -479,8 +479,7 @@ std::string CCodeGenerator::buildCastExpr(StringRef ExprToCast,
 
 static std::string getUndefToken(const model::Type &UndefType,
                                  const ptml::ModelCBuilder &B) {
-  return B.Binary.Configuration().Naming().undefinedValuePrefix().str()
-         + UndefType.toPrimitive().getCName() + "()";
+  return "undef(" + B.getTypeName(UndefType) + ")";
 }
 
 static std::string getFormattedIntegerToken(const llvm::CallInst *Call,

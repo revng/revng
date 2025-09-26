@@ -6,9 +6,9 @@
 
 !int32_t = !clift.primitive<signed 4>
 
-clift.global !int32_t @x
+clift.global @x : !int32_t
 
-clift.global !int32_t @y = {
+clift.global @y : !int32_t = {
   %0 = clift.undef : !int32_t
   clift.yield %0 : !int32_t
 }

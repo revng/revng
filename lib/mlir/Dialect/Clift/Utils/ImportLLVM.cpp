@@ -17,6 +17,7 @@
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/Identifier.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportLLVM.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportModel.h"
@@ -46,11 +47,6 @@ static Logger<> ExpressionLog{ "llvm-to-clift-expressions" };
 // longer X but rather Y. For the same reason the usual mechanism does not allow
 // saving the position at the beginning of a block (or *after* an imagined
 // operation before the first operation in the block, if any).
-
-[[nodiscard]] static mlir::OpBuilder::InsertPoint
-makeInsertionPointAfterStart(mlir::Block *Block) {
-  return mlir::OpBuilder::InsertPoint(Block, Block->end());
-}
 
 [[nodiscard]] static mlir::OpBuilder::InsertPoint
 saveInsertionPointAfter(const mlir::OpBuilder &Builder) {
@@ -258,32 +254,69 @@ private:
     return mlir::cast<ReturnType>(Iterator->second);
   }
 
+  static std::string getHelperStructFieldName(unsigned Index) {
+    std::string Name;
+    {
+      llvm::raw_string_ostream Out(Name);
+      Out << "field_" << Index;
+    }
+    return Name;
+  }
+
   // Import an LLVM type used as a helper function return type. If the type is a
   // struct type, create a Clift struct type with a handle derived from the
   // helper function name.
   clift::ValueType importHelperReturnType(const llvm::Type *Type,
                                           llvm::StringRef HelperName) {
-    auto StructType = llvm::dyn_cast<llvm::StructType>(Type);
+    auto Struct = llvm::dyn_cast<llvm::StructType>(Type);
 
-    if (not StructType)
+    if (not Struct)
       return importLLVMType(Type);
 
-    revng_assert(StructType->isLiteral());
+    revng_assert(Struct->isLiteral());
+
+    auto Location = pipeline::location(revng::ranks::HelperStructType,
+                                       HelperName.str());
 
     llvm::SmallVector<FieldAttr> Fields;
-    Fields.reserve(StructType->getNumElements());
+    Fields.reserve(Struct->getNumElements());
 
     uint64_t Offset = 0;
-    for (const llvm::Type *T : StructType->elements()) {
+    for (auto [I, T] : llvm::enumerate(Struct->elements())) {
       clift::ValueType FieldType = importLLVMType(T);
-      Fields.push_back(FieldAttr::get(Context, Offset, FieldType, ""));
+
+      std::string FieldName = getHelperStructFieldName(I);
+      std::string FieldHandle = Location
+                                  .extend(revng::ranks::HelperStructField,
+                                          FieldName)
+                                  .toString();
+
+      Fields.push_back(FieldAttr::get(Context,
+                                      FieldHandle,
+                                      makeNameAttr<FieldAttr>(Context,
+                                                              FieldHandle,
+                                                              FieldName),
+                                      Offset,
+                                      FieldType));
       Offset += FieldType.getByteSize();
     }
 
     auto Handle = pipeline::locationString(revng::ranks::HelperStructType,
                                            HelperName.str());
 
-    return StructType::get(Context, Handle, "", Offset, Fields);
+    std::string
+      Name = Model.Configuration().Naming().artificialReturnValuePrefix().str()
+             + sanitizeIdentifier(HelperName);
+
+    auto Definition = StructAttr::get(Context,
+                                      Handle,
+                                      makeNameAttr<StructAttr>(Context,
+                                                               Handle,
+                                                               Name),
+                                      Offset,
+                                      Fields);
+
+    return StructType::get(Context, Definition);
   }
 
   // Import a Clift function type from an LLVM function type and a helper name
@@ -304,7 +337,11 @@ private:
     auto Handle = pipeline::locationString(revng::ranks::HelperFunction,
                                            HelperName.str());
 
-    return FunctionType::get(Context, Handle, "", ReturnType, ParameterTypes);
+    return FunctionType::get(Context,
+                             Handle,
+                             makeNameAttr<FunctionType>(Context, Handle),
+                             ReturnType,
+                             ParameterTypes);
   }
 
   // Import a Clift function type from an LLVM function, using the name of the
@@ -542,9 +579,10 @@ private:
     auto Handle = pipeline::locationString(revng::ranks::HelperFunction,
                                            HelperName.str());
 
+    auto NameAttr = makeNameAttr<clift::FunctionType>(Context, Handle);
     auto FunctionType = clift::FunctionType::get(Context,
                                                  Handle,
-                                                 /*Name=*/"",
+                                                 NameAttr,
                                                  ReturnType,
                                                  ParameterTypes);
 
@@ -588,13 +626,17 @@ private:
     uint64_t Index = getConstantInt(Call->getArgOperand(1));
     auto Struct = mlir::cast<StructType>(Aggregate.getType());
     revng_assert(Index < Struct.getFields().size());
-    mlir::Type ResultType = Struct.getFields()[Index].getType();
 
-    rc_return Builder.create<AccessOp>(Loc,
-                                       ResultType,
-                                       Aggregate,
-                                       /*indirect=*/false,
-                                       Index);
+    mlir::Type FieldType = Struct.getFields()[Index].getType();
+    mlir::Value FieldValue = Builder.create<AccessOp>(Loc,
+                                                      FieldType,
+                                                      Aggregate,
+                                                      /*indirect=*/false,
+                                                      Index);
+
+    rc_return emitImplicitCast(Loc,
+                               FieldValue,
+                               importLLVMType(Call->getType()));
   }
 
   RecursiveCoroutine<mlir::Value> emitHelperCall(const llvm::CallInst *Call) {
@@ -1244,9 +1286,8 @@ private:
   template<typename OpT, typename... ArgsT>
   OpT emitLocalDeclaration(mlir::Location Loc, ArgsT &&...Args) {
     mlir::OpBuilder::InsertionGuard Guard(Builder);
-    restoreInsertionPointAfter(Builder, LocalDeclarationInsertPoint);
+    Builder.setInsertionPointToEnd(LocalDeclarationBlock);
     OpT Op = Builder.create<OpT>(Loc, std::forward<ArgsT>(Args)...);
-    LocalDeclarationInsertPoint = saveInsertionPointAfter(Builder);
     return Op;
   }
 
@@ -1649,8 +1690,6 @@ public:
     CurrentFunction = Op;
     CurrentLayout = abi::FunctionType::Layout::make(*getPrototype(*MF));
 
-    LocalDeclarationInsertPoint = makeInsertionPointAfterStart(&BodyBlock);
-
     // Clear the function-specific mappings once this function is emitted.
     auto MappingGuard = llvm::make_scope_exit([&]() {
       ArgumentMapping.clear();
@@ -1684,8 +1723,14 @@ public:
     mlir::OpBuilder::InsertionGuard BuilderGuard(Builder);
     Builder.setInsertionPointToEnd(&BodyBlock);
 
+    mlir::Block DeclarationBlock;
+    ScopedExchange _(LocalDeclarationBlock, &DeclarationBlock);
+
     // Finally emit the function body starting at the entry block.
     emitScope(&F->getEntryBlock(), PostDomTree.getRootNode()->getBlock());
+
+    BodyBlock.getOperations().splice(BodyBlock.getOperations().begin(),
+                                     DeclarationBlock.getOperations());
 
     return Op;
   }
@@ -1700,7 +1745,7 @@ private:
   clift::FunctionOp CurrentFunction;
   abi::FunctionType::Layout CurrentLayout;
 
-  mlir::OpBuilder::InsertPoint LocalDeclarationInsertPoint;
+  mlir::Block *LocalDeclarationBlock = nullptr;
 
   ScopeGraphPostDomTree PostDomTree;
 

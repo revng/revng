@@ -3,14 +3,13 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <string>
 
 #include "revng/Support/Assert.h"
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
-
-namespace mlir::clift {
 
 enum class CIntegerKind : uint8_t {
   Char,
@@ -43,5 +42,3 @@ struct TargetCImplementation {
 
   static const TargetCImplementation Default;
 };
-
-} // namespace mlir::clift

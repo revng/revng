@@ -6,13 +6,15 @@
 Architecture: x86_64
 
 TypeDefinitions:
-  # CHECK: !my_union = !clift.union<
+  # CHECK: !_type_definition_1001_UnionDefinition = !clift.union<
   # CHECK:   "/type-definition/1001-UnionDefinition"
-  # CHECK:   as "my_union"
   # CHECK:   {
-  # CHECK:     !uint8_t
-  # CHECK:     !uint16_t
-  # CHECK:     !uint32_t
+  # CHECK:     "/union-field/1001-UnionDefinition/0"
+  # CHECK:     : !uint8_t
+  # CHECK:     "/union-field/1001-UnionDefinition/1"
+  # CHECK:     : !uint16_t
+  # CHECK:     "/union-field/1001-UnionDefinition/2"
+  # CHECK:     : !uint32_t
   # CHECK:   }
   # CHECK: >
   - ID: 1001

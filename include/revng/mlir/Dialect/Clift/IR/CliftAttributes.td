@@ -11,9 +11,44 @@ include "revng/mlir/Dialect/Clift/IR/Clift.td"
 include "revng/mlir/Dialect/Clift/IR/CliftAttrInterfaces.td"
 include "revng/mlir/Dialect/Clift/IR/CliftEnums.td"
 
+class Clift_OptionalArrayRefParameter<string elementType, string desc = "">
+  : AttrOrTypeParameter<"std::optional<llvm::ArrayRef<" # elementType # ">>", desc> {
+
+  // Describes how to make a copy of the string, backed by the attribute's
+  // storage allocator. $_dst is the std::optional<llvm::ArrayRef> stored in the
+  // attribute implementation object. $_self is the argument, which may dangle
+  // after this function returns if a reference to a temporary array was given.
+  let allocator = [{
+    if (auto const& self = $_self) {
+      $_dst = $_allocator.copyInto(*self);
+    }
+  }];
+}
+
 class Clift_Attr<string name, string attrMnemonic, list<Trait> traits = []>
   : AttrDef<Clift_Dialect, name, traits> {
   let mnemonic = attrMnemonic;
+}
+
+def Clift_StringPairAttr : AttrDef<Clift_Dialect, "StringPair"> {
+  let parameters = (ins StringRefParameter<>:$first,
+                        StringRefParameter<>:$second);
+}
+
+def Clift_AttributeComponentAttr : AttrDef<Clift_Dialect,
+                                           "AttributeComponent",
+                                           [SubElementAttrInterface]> {
+  let parameters = (ins StringRefParameter<>:$string,
+                        StringRefParameter<>:$handle);
+}
+
+def Clift_AttributeAttr : Clift_Attr<"Attribute",
+                                     "attribute",
+                                     [SubElementAttrInterface]> {
+  let parameters = (ins "mlir::clift::AttributeComponentAttr":$macro,
+                        Clift_OptionalArrayRefParameter<"mlir::clift::AttributeComponentAttr">:$arguments);
+
+  let hasCustomAssemblyFormat = 1;
 }
 
 def Clift_FieldAttr
@@ -26,22 +61,18 @@ def Clift_FieldAttr
     A attribute representing a field of a struct or a union
   }];
 
-  let parameters = (ins "uint64_t":$offset,
-                        "mlir::clift::ValueType":$type,
-                        StringRefParameter<>:$name);
+  let parameters = (ins StringRefParameter<>:$handle,
+                        "mlir::clift::MutableStringAttr":$mutable_name,
+                        "uint64_t":$offset,
+                        "mlir::clift::ValueType":$type);
 
-  let builders = [
-    AttrBuilderWithInferredContext<(ins "uint64_t":$Offset,
-                                        "mlir::clift::ValueType":$Type,
-                                        CArg<"llvm::StringRef", "\"\"">:$Name), [{
-      return $_get(Type.getContext(), Offset, Type, Name);
-    }]>,
+  let extraClassDeclaration = [{
+    static constexpr llvm::StringRef NameAttrKey = "Field";
 
-    AttrBuilderWithInferredContext<(ins "mlir::clift::ValueType":$Type,
-                                        CArg<"llvm::StringRef", "\"\"">:$Name), [{
-      return $_get(Type.getContext(), 0, Type, Name);
-    }]>
-  ];
+    llvm::StringRef getName() const {
+      return getMutableName().getValue();
+    }
+  }];
 
   let genVerifyDecl = 1;
 }
@@ -49,16 +80,24 @@ def Clift_FieldAttr
 def Clift_EnumFieldAttr
   : AttrDef<Clift_Dialect,
             "EnumField",
-            [SubElementAttrInterface,
-             Clift_TypeDefinitionAttr]> {
+            [SubElementAttrInterface]> {
 
   let summary = "A attribute representing a field of enum";
   let description = [{
     A attribute representing a field of a struct or a union
   }];
 
-  let parameters = (ins "uint64_t":$raw_value,
-                        StringRefParameter<>:$name);
+  let parameters = (ins StringRefParameter<>:$handle,
+                        "mlir::clift::MutableStringAttr":$mutable_name,
+                        "uint64_t":$raw_value);
+
+  let extraClassDeclaration = [{
+    static constexpr llvm::StringRef NameAttrKey = "EnumField";
+
+    llvm::StringRef getName() const {
+      return getMutableName().getValue();
+    }
+  }];
 
   let genVerifyDecl = 1;
 }
@@ -66,13 +105,21 @@ def Clift_EnumFieldAttr
 def Clift_EnumAttr
   : AttrDef<Clift_Dialect,
             "Enum",
-            [SubElementAttrInterface,
-             Clift_TypeDefinitionAttr]> {
+            [Clift_TypeDefinitionAttr,
+             SubElementAttrInterface]> {
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        StringRefParameter<>:$name,
+                        "mlir::clift::MutableStringAttr":$mutable_name,
                         "mlir::clift::ValueType":$underlying_type,
                         ArrayRefParameter<"mlir::clift::EnumFieldAttr">:$fields);
+
+  let extraClassDeclaration = [{
+    static constexpr llvm::StringRef NameAttrKey = "Enum";
+
+    llvm::StringRef getName() const {
+      return getMutableName().getValue();
+    }
+  }];
 
   let genVerifyDecl = 1;
 }
@@ -80,12 +127,20 @@ def Clift_EnumAttr
 def Clift_TypedefAttr
   : AttrDef<Clift_Dialect,
             "Typedef",
-            [SubElementAttrInterface,
-             Clift_TypeDefinitionAttr]> {
+            [Clift_TypeDefinitionAttr,
+             SubElementAttrInterface]> {
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        StringRefParameter<>:$name,
+                        "mlir::clift::MutableStringAttr":$mutable_name,
                         "mlir::clift::ValueType":$underlying_type);
+
+  let extraClassDeclaration = [{
+    static constexpr llvm::StringRef NameAttrKey = "Typedef";
+
+    llvm::StringRef getName() const {
+      return getMutableName().getValue();
+    }
+  }];
 
   let genVerifyDecl = 1;
 }

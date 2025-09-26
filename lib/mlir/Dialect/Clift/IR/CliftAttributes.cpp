@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
 
 #include "mlir/IR/Builders.h"
@@ -30,6 +31,18 @@ namespace clift = mlir::clift;
 
 using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 
+//===----------------------- Implementation helpers -----------------------===//
+
+static auto getEmitError(mlir::AsmParser &Parser, const mlir::SMLoc &Location) {
+  return [&Parser, Location]() { return Parser.emitError(Location); };
+}
+
+static void printString(mlir::AsmPrinter &Printer, llvm::StringRef String) {
+  Printer << '\"';
+  llvm::printEscapedString(String, Printer.getStream());
+  Printer << '\"';
+}
+
 //===-------------------------- Class attributes --------------------------===//
 
 using WalkAttrT = llvm::function_ref<void(mlir::Attribute)>;
@@ -39,6 +52,93 @@ using ReplaceAttrT = llvm::ArrayRef<mlir::Attribute>;
 using ReplaceTypeT = llvm::ArrayRef<mlir::Type>;
 
 namespace mlir::clift {
+
+class MutableStringAttrStorage : public mlir::AttributeStorage {
+  struct Pair {
+    mlir::Attribute Key;
+    llvm::StringRef Value;
+
+    explicit Pair(mlir::Attribute Key) : Key(Key) {}
+
+    friend bool operator==(const Pair &LHS, const Pair &RHS) {
+      return LHS.Key.getAsOpaquePointer() == RHS.Key.getAsOpaquePointer();
+    }
+
+    [[nodiscard]] llvm::hash_code hashValue() const {
+      return llvm::hash_value(Key.getAsOpaquePointer());
+    }
+  };
+
+  Pair TheKey;
+
+public:
+  using KeyTy = Pair;
+
+  const Pair &getAsKey() const { return TheKey; }
+
+  static llvm::hash_code hashKey(const Pair &Key) { return Key.hashValue(); }
+
+  friend bool operator==(const MutableStringAttrStorage &LHS, const Pair &RHS) {
+    return LHS.TheKey == RHS;
+  }
+
+  explicit MutableStringAttrStorage(mlir::Attribute Key) : TheKey(Key) {}
+
+  static MutableStringAttrStorage *
+  construct(mlir::StorageUniquer::StorageAllocator &Allocator,
+            const Pair &Key) {
+    void *Storage = Allocator.allocate<MutableStringAttrStorage>();
+    auto *S = new (Storage) MutableStringAttrStorage(Key.Key);
+    return S;
+  }
+
+  mlir::LogicalResult mutate(mlir::StorageUniquer::StorageAllocator &Allocator,
+                             llvm::StringRef Value) {
+    TheKey.Value = Allocator.copyInto(Value);
+    return mlir::success();
+  }
+
+  mlir::Attribute getKey() const { return TheKey.Key; }
+  llvm::StringRef getValue() const { return TheKey.Value; }
+};
+
+MutableStringAttr MutableStringAttr::get(mlir::MLIRContext *Context,
+                                         mlir::Attribute Key) {
+  return Base::get(Context, Key);
+}
+
+MutableStringAttr MutableStringAttr::get(mlir::MLIRContext *Context,
+                                         mlir::Attribute Key,
+                                         llvm::StringRef Value) {
+  auto Attr = get(Context, Key);
+  Attr.setValue(Value);
+  return Attr;
+}
+
+mlir::Attribute MutableStringAttr::getKey() const {
+  return getImpl()->getKey();
+}
+
+llvm::StringRef MutableStringAttr::getValue() const {
+  return getImpl()->getValue();
+}
+
+void MutableStringAttr::setValue(llvm::StringRef Value) {
+  (void) Base::mutate(Value);
+}
+
+void MutableStringAttr::walkImmediateSubElements(WalkAttrT WalkAttrs,
+                                                 WalkTypeT WalkTypes) const {
+  WalkAttrs(getImpl()->getKey());
+}
+
+Attribute
+MutableStringAttr::replaceImmediateSubElements(ReplaceAttrT NewAttrs,
+                                               ReplaceTypeT NewTypes) const {
+  revng_assert(NewAttrs.size() == 1);
+  revng_assert(NewTypes.size() == 0);
+  return MutableStringAttr::get(getContext(), NewAttrs.front());
+}
 
 class ClassAttrStorage : public mlir::AttributeStorage {
   struct Key {
@@ -85,7 +185,7 @@ public:
     if (TheKey.Definition)
       return mlir::success(Definition == TheKey.Definition);
 
-    TheKey.Definition.emplace(Allocator.copyInto(Definition.Name),
+    TheKey.Definition.emplace(Definition.Name,
                               Definition.Size,
                               Allocator.copyInto(Definition.Fields));
 
@@ -148,12 +248,109 @@ template class ClassAttrImpl<UnionAttr>;
 
 } // namespace mlir::clift
 
+//===---------------------------- AttributeAttr ---------------------------===//
+
+static mlir::LogicalResult parseAttributeComponent(mlir::AsmParser &Parser,
+                                                   AttributeComponentAttr &C) {
+  mlir::SMLoc Loc = Parser.getCurrentLocation();
+
+  std::string String;
+  if (Parser.parseString(&String).failed())
+    return mlir::failure();
+
+  std::string Handle;
+  if (Parser.parseOptionalColon().succeeded()) {
+    if (Parser.parseString(&Handle).failed())
+      return mlir::failure();
+  }
+
+  C = AttributeComponentAttr::getChecked(getEmitError(Parser, Loc),
+                                         Parser.getContext(),
+                                         String,
+                                         Handle);
+
+  return mlir::success();
+}
+
+mlir::Attribute AttributeAttr::parse(mlir::AsmParser &Parser, mlir::Type Type) {
+  mlir::SMLoc Loc = Parser.getCurrentLocation();
+
+  if (Parser.parseLess().failed())
+    return {};
+
+  AttributeComponentAttr Macro;
+  if (parseAttributeComponent(Parser, Macro).failed())
+    return {};
+
+  llvm::SmallVector<AttributeComponentAttr> ArgumentsArray;
+  std::optional<llvm::ArrayRef<AttributeComponentAttr>> Arguments;
+
+  if (Parser.parseOptionalLParen().succeeded()) {
+    if (Parser.parseOptionalRParen().failed()) {
+      auto ParseArgument = [&Parser, &ArgumentsArray]() -> mlir::ParseResult {
+        AttributeComponentAttr Argument;
+        if (parseAttributeComponent(Parser, Argument).failed())
+          return mlir::failure();
+
+        ArgumentsArray.push_back(Argument);
+        return mlir::success();
+      };
+
+      if (Parser.parseCommaSeparatedList(ParseArgument).failed())
+        return {};
+
+      if (Parser.parseRParen().failed())
+        return {};
+    }
+
+    Arguments = ArgumentsArray;
+  }
+
+  if (Parser.parseGreater().failed())
+    return {};
+
+  return AttributeAttr::getChecked(getEmitError(Parser, Loc),
+                                   Parser.getContext(),
+                                   Macro,
+                                   Arguments);
+}
+
+static void printAttributeComponent(mlir::AsmPrinter &Printer,
+                                    AttributeComponentAttr C) {
+  printString(Printer, C.getString());
+
+  if (not C.getHandle().empty()) {
+    Printer << " : ";
+    printString(Printer, C.getHandle());
+  }
+}
+
+void AttributeAttr::print(mlir::AsmPrinter &Printer) const {
+  Printer << '<';
+
+  printAttributeComponent(Printer, getMacro());
+
+  if (const auto &Arguments = getArguments()) {
+    Printer << '(';
+    for (auto [I, A] : llvm::enumerate(*Arguments)) {
+      if (I != 0)
+        Printer << ", ";
+
+      printAttributeComponent(Printer, A);
+    }
+    Printer << ')';
+  }
+
+  Printer << '>';
+}
+
 //===------------------------------ FieldAttr -----------------------------===//
 
 mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,
+                                      llvm::StringRef Handle,
+                                      MutableStringAttr Name,
                                       uint64_t Offset,
-                                      clift::ValueType ElementType,
-                                      llvm::StringRef Name) {
+                                      clift::ValueType ElementType) {
   if (not isObjectType(ElementType)) {
     return EmitError() << "Struct and union field types must be object types. "
                        << "Field at offset " << Offset << " is not.";
@@ -165,34 +362,45 @@ mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,
 //===---------------------------- EnumFieldAttr ---------------------------===//
 
 mlir::LogicalResult EnumFieldAttr::verify(EmitErrorType EmitError,
-                                          uint64_t RawValue,
-                                          llvm::StringRef Name) {
+                                          llvm::StringRef Handle,
+                                          MutableStringAttr Name,
+                                          uint64_t RawValue) {
   return mlir::success();
 }
 
 template<std::same_as<EnumFieldAttr>>
 static EnumFieldAttr readAttr(mlir::DialectBytecodeReader &Reader) {
-  uint64_t RawValue;
-  if (Reader.readVarInt(RawValue).failed())
+  llvm::StringRef Handle;
+  if (Reader.readString(Handle).failed())
     return {};
 
   llvm::StringRef Name;
   if (Reader.readString(Name).failed())
     return {};
 
-  return EnumFieldAttr::get(Reader.getContext(), RawValue, Name);
+  uint64_t RawValue;
+  if (Reader.readVarInt(RawValue).failed())
+    return {};
+
+  return EnumFieldAttr::get(Reader.getContext(),
+                            Handle,
+                            makeNameAttr<EnumFieldAttr>(Reader.getContext(),
+                                                        Handle,
+                                                        Name),
+                            RawValue);
 }
 
 static void writeAttr(EnumFieldAttr Attr, mlir::DialectBytecodeWriter &Writer) {
-  Writer.writeVarInt(Attr.getRawValue());
+  Writer.writeOwnedString(Attr.getHandle());
   Writer.writeOwnedString(Attr.getName());
+  Writer.writeVarInt(Attr.getRawValue());
 }
 
 //===------------------------------ EnumAttr ------------------------------===//
 
 mlir::LogicalResult EnumAttr::verify(EmitErrorType EmitError,
                                      llvm::StringRef Handle,
-                                     llvm::StringRef Name,
+                                     MutableStringAttr Name,
                                      clift::ValueType UnderlyingType,
                                      llvm::ArrayRef<EnumFieldAttr> Fields) {
   auto [DealiasedType, HasConst] = decomposeTypedef(UnderlyingType);
@@ -296,7 +504,9 @@ static EnumAttr readAttr(mlir::DialectBytecodeReader &Reader) {
 
   return EnumAttr::get(Reader.getContext(),
                        Handle,
-                       Name,
+                       makeNameAttr<EnumAttr>(Reader.getContext(),
+                                              Handle,
+                                              Name),
                        UnderlyingType,
                        std::move(Fields));
 }
@@ -314,7 +524,7 @@ static void writeAttr(EnumAttr Attr, mlir::DialectBytecodeWriter &Writer) {
 
 mlir::LogicalResult TypedefAttr::verify(EmitErrorType EmitError,
                                         llvm::StringRef Handle,
-                                        llvm::StringRef Name,
+                                        MutableStringAttr Name,
                                         clift::ValueType UnderlyingType) {
   return mlir::success();
 }
@@ -333,7 +543,12 @@ static TypedefAttr readAttr(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readType(UnderlyingType).failed())
     return {};
 
-  return TypedefAttr::get(Reader.getContext(), Handle, Name, UnderlyingType);
+  return TypedefAttr::get(Reader.getContext(),
+                          Handle,
+                          makeNameAttr<TypedefAttr>(Reader.getContext(),
+                                                    Handle,
+                                                    Name),
+                          UnderlyingType);
 }
 
 static void writeAttr(TypedefAttr Attr, mlir::DialectBytecodeWriter &Writer) {
@@ -357,7 +572,7 @@ mlir::LogicalResult StructAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult StructAttr::verify(EmitErrorType EmitError,
                                        llvm::StringRef Handle,
-                                       llvm::StringRef Name,
+                                       MutableStringAttr Name,
                                        uint64_t Size,
                                        llvm::ArrayRef<FieldAttr> Fields) {
   return mlir::success();
@@ -426,7 +641,7 @@ StructAttr StructAttr::getChecked(EmitErrorType EmitError,
 
 StructAttr StructAttr::get(MLIRContext *Context,
                            llvm::StringRef Handle,
-                           llvm::StringRef Name,
+                           MutableStringAttr Name,
                            uint64_t Size,
                            llvm::ArrayRef<FieldAttr> Fields) {
   return get(Context, Handle, ClassDefinition{ Name, Size, Fields });
@@ -435,7 +650,7 @@ StructAttr StructAttr::get(MLIRContext *Context,
 StructAttr StructAttr::getChecked(EmitErrorType EmitError,
                                   MLIRContext *Context,
                                   llvm::StringRef Handle,
-                                  llvm::StringRef Name,
+                                  MutableStringAttr Name,
                                   uint64_t Size,
                                   llvm::ArrayRef<FieldAttr> Fields) {
   return getChecked(EmitError,
@@ -466,7 +681,7 @@ mlir::LogicalResult UnionAttr::verify(EmitErrorType EmitError,
 
 mlir::LogicalResult UnionAttr::verify(EmitErrorType EmitError,
                                       llvm::StringRef Handle,
-                                      llvm::StringRef Name,
+                                      MutableStringAttr Name,
                                       llvm::ArrayRef<FieldAttr> Fields) {
   return mlir::success();
 }
@@ -521,7 +736,7 @@ UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
 
 UnionAttr UnionAttr::get(MLIRContext *Context,
                          llvm::StringRef Handle,
-                         llvm::StringRef Name,
+                         MutableStringAttr Name,
                          llvm::ArrayRef<FieldAttr> Fields) {
   return get(Context, Handle, ClassDefinition{ Name, 0, Fields });
 }
@@ -529,7 +744,7 @@ UnionAttr UnionAttr::get(MLIRContext *Context,
 UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
                                 MLIRContext *Context,
                                 llvm::StringRef Handle,
-                                llvm::StringRef Name,
+                                MutableStringAttr Name,
                                 llvm::ArrayRef<FieldAttr> Fields) {
   return getChecked(EmitError,
                     Context,
@@ -556,7 +771,7 @@ uint64_t UnionAttr::getSize() const {
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerAttributes() {
-  addAttributes<StructAttr, UnionAttr,
+  addAttributes<MutableStringAttr, StructAttr, UnionAttr,
   // Include the list of auto-generated attributes
 #define GET_ATTRDEF_LIST
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.cpp.inc"
@@ -566,13 +781,21 @@ void CliftDialect::registerAttributes() {
 /// Parse an attribute registered to this dialect
 mlir::Attribute CliftDialect::parseAttribute(mlir::DialectAsmParser &Parser,
                                              mlir::Type Type) const {
+  llvm::StringRef Mnemonic;
+  if (mlir::Attribute Attr;
+      generatedAttributeParser(Parser, &Mnemonic, Type, Attr).has_value())
+    return Attr;
+
   return {};
 }
 
 /// Print an attribute registered to this dialect
 void CliftDialect::printAttribute(mlir::Attribute Attr,
                                   mlir::DialectAsmPrinter &Printer) const {
-  revng_abort("Cannot print attribute.");
+  if (mlir::succeeded(generatedAttributePrinter(Attr, Printer)))
+    return;
+
+  revng_abort("cannot print attribute");
 }
 
 namespace {

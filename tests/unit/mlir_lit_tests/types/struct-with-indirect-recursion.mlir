@@ -6,9 +6,9 @@
 
 !s = !clift.struct<
   "/type-definition/1-StructDefinition" : size(1) {
-    offset(0) : !clift.union<
+    "/struct-field/1-StructDefinition/0" : offset(0) !clift.union<
       "/type-definition/2-UnionDefinition" : {
-        !clift.struct<"/type-definition/1-StructDefinition">
+        "/union-field/2-UnionDefinition/0" : !clift.struct<"/type-definition/1-StructDefinition">
       }
     >
   }

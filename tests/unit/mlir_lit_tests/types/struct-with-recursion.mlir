@@ -6,7 +6,7 @@
 
 !s = !clift.struct<
   "/type-definition/1-StructDefinition" : size(1) {
-    offset(0) : !clift.struct<"/type-definition/1-StructDefinition">
+    "/struct-field/1-StructDefinition/0" : offset(0) !clift.struct<"/type-definition/1-StructDefinition">
   }
 >
 
