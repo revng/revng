@@ -218,6 +218,12 @@ bool ControlFlowGraph::verify(const model::Binary &Binary, bool Assert) const {
 
 bool ControlFlowGraph::verify(const model::Binary &Binary,
                               model::VerifyHelper &VH) const {
+  if (Entry().isInvalid())
+    return VH.fail("CFG can only be built for a valid function.", *this);
+
+  if (not Binary.Functions().contains(Entry()))
+    return VH.fail("CFG can only be built for a known function.", *this);
+
   const auto &Function = Binary.Functions().at(Entry());
 
   if (Blocks().size() == 0)
@@ -251,6 +257,10 @@ bool ControlFlowGraph::verify(const model::Binary &Binary,
                          Block);
         HasEntry = true;
       }
+
+      if (Block.ID().isValid() and Block.End().isInvalid())
+        return VH.fail("If a block has a beginning, it must also have an end.",
+                       Block);
 
       if (Block.Successors().size() == 0)
         return VH.fail("A block has no successors", Block);
@@ -317,12 +327,14 @@ bool FunctionEdgeBase::verify(model::VerifyHelper &VH) const {
   switch (Type()) {
   case Invalid:
   case Count:
-    return VH.fail("Invalid Type");
+  default:
+    return VH.fail("Invalid edge type");
 
   case DirectBranch:
     if (not Destination().isValid())
       return VH.fail("Invalid destination in DirectBranch");
     break;
+
   case FunctionCall: {
     const auto &Call = cast<const CallEdge>(*this);
     if (Destination().isValid()) {
@@ -340,7 +352,7 @@ bool FunctionEdgeBase::verify(model::VerifyHelper &VH) const {
   case Killer:
   case Unreachable:
     if (Destination().isValid())
-      return VH.fail("Invalid destination");
+      return VH.fail("Unexpected destination, please use `:Invalid`.");
     break;
   }
 

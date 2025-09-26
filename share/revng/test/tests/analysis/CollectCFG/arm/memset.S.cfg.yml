@@ -60,7 +60,7 @@
     - ID: "9"
       End: "10"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
         - Destination: "10"
           Type: DirectBranch
@@ -114,5 +114,5 @@
     - ID: "18"
       End: "19"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
