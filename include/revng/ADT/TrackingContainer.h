@@ -130,6 +130,8 @@ public:
   /// @{
   TrackingContainer() {}
 
+  TrackingContainer(T &&Underlying) : T(std::move(Underlying)) {}
+
   TrackingContainer(std::initializer_list<T> List) : T(std::move(List)) {}
 
   TrackingContainer(TrackingContainer &&) = default;
