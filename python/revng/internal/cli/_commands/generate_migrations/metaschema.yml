@@ -111,7 +111,7 @@ definitions:
       optional:
         type: boolean
         default: false
-      is_guid:
+      is_global_index:
         type: boolean
         default: false
       const:

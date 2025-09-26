@@ -65,41 +65,16 @@ export class Reference<T, M> {
 }
 
 /**
- * Generate a random hexadecimal string
- * @param length output string length
- * @returns a random string
+ * Utility function that keeps track of the used indices
+ * @returns a unique index
  */
-function randomBytes(length: number): string {
-    let value = "";
-    for (let i = 0; i < length; i++) {
-        value += (Math.random() * 16).toString(16);
-    }
-    return value;
+export function getNextGlobalIndex(): bigint {
+    // TODO: automatically advance `nextIndex` if bigger values are already
+    // present in this tuple tree.
+    return getNextGlobalIndex.nextIndex++;
 }
 
-/**
- * Generate a random bigint, between [start, end)
- * @param start lower bound
- * @param end upper bound
- * @returns random bigint
- */
-function randomBigint(start: bigint, end: bigint): bigint {
-    const diff = end - start;
-    let value = end;
-    do {
-        const randomLength = diff.toString().length * Math.random();
-        value = BigInt(`0x${randomBytes(randomLength)}`);
-    } while (value > diff);
-    return value + start;
-}
-
-/**
- * Utility function that returns a bigint suitable for IDs
- * @returns guid ID
- */
-export function genGuid(): bigint {
-    return randomBigint(2n ** 10n + 1n, 2n ** 64n - 1n);
-}
+getNextGlobalIndex.nextIndex = BigInt(0);
 
 // Tree traversal
 

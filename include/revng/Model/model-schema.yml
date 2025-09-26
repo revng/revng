@@ -134,7 +134,7 @@ definitions:
         doc: |-
           A unique numeric identifier for this type.
         type: uint64_t
-        is_guid: true
+        is_global_index: true
 
       - name: Kind
         doc: |-
