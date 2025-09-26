@@ -53,7 +53,6 @@ TypeDefinitions:
       PointeeType:
         Kind: DefinedType
         Definition: "/TypeDefinitions/1848-StructDefinition"
-    Arguments: []
   # TODO: unfortunately we can't recover it until we don't properly model `free` and
   # memory release in general, so for now we disabled the test on the prototype of
   # release_list. We might think to re-enable this in the future when we support
