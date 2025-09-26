@@ -6,6 +6,7 @@ revng_add_library_internal(
   MLIRCliftUtils
   SHARED
   CBackend.cpp
+  CEmitter.cpp
   CSemantics.cpp
   ImportLLVM.cpp
   ImportModel.cpp
