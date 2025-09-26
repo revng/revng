@@ -58,6 +58,7 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
                                            BinaryView,
                                            *Model,
                                            NameBuilder);
+    revng_assert(Disassembled.verify());
     Output.insert_or_assign(Function.Entry(), toString(Disassembled));
   }
 }
@@ -77,6 +78,7 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
     auto MaybeFunction = TupleTree<yield::Function>::fromString(YamlText);
 
     revng_assert(MaybeFunction && MaybeFunction->verify());
+    revng_assert((*MaybeFunction)->verify());
     revng_assert((*MaybeFunction)->Entry() == Address);
 
     const model::Architecture::Values A = Model->Architecture();
