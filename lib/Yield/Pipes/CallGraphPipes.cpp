@@ -48,9 +48,12 @@ void ProcessCallGraph::run(pipeline::ExecutionContext &Context,
   Context.commitUniqueTarget(OutputFile);
 }
 
-void YieldCallGraph::run(pipeline::ExecutionContext &Context,
-                         const CrossRelationsFileContainer &Relations,
-                         CallGraphSVGFileContainer &Output) {
+llvm::Error YieldCallGraph::run(pipeline::ExecutionContext &Context,
+                                const CrossRelationsFileContainer &Relations,
+                                CallGraphSVGFileContainer &Output) {
+  if (llvm::Error Error = Relations.verify())
+    return Error;
+
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
   ptml::MarkupBuilder B;
@@ -62,12 +65,18 @@ void YieldCallGraph::run(pipeline::ExecutionContext &Context,
   Output.setContent(std::move(Result));
 
   Context.commitUniqueTarget(Output);
+
+  return llvm::Error::success();
 }
 
-void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
-                              const CFGMap &CFGMap,
-                              const CrossRelationsFileContainer &Relations,
-                              CallGraphSliceSVGStringMap &Output) {
+llvm::Error
+YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
+                         const CFGMap &CFGMap,
+                         const CrossRelationsFileContainer &Relations,
+                         CallGraphSliceSVGStringMap &Output) {
+  if (llvm::Error Error = Relations.verify())
+    return Error;
+
   // Access the model
   const auto &Model = revng::getModelFromContext(Context);
 
@@ -89,6 +98,8 @@ void YieldCallGraphSlice::run(pipeline::ExecutionContext &Context,
                                                        *Relations.get(),
                                                        *Model));
   }
+
+  return llvm::Error::success();
 }
 
 using namespace pipeline;
