@@ -13,17 +13,17 @@
     - End: "3"
       ID: "2"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
 - Name: indirectcall
   Blocks:
     - End: "4"
       ID: "3"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: FunctionCall
     - End: "5"
       ID: "4"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return

@@ -88,5 +88,5 @@
     - ID: "16"
       End: "17"
       Successors:
-        - "-Destination": ""
+        - Destination: :Invalid
           Type: Return

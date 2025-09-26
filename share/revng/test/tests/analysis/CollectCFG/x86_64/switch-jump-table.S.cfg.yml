@@ -30,30 +30,30 @@
     - ID: "3"
       End: "4"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
     - ID: "4"
       End: "5"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
     - ID: "5"
       End: "6"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
     - ID: "6"
       End: "7"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
     - ID: "7"
       End: "8"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
     - ID: "8"
       End: "9"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return

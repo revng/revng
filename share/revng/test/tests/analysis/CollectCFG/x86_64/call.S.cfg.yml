@@ -13,12 +13,12 @@
     - ID: "2"
       End: "3"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
 - Name: call
   Blocks:
     - ID: "3"
       End: "4"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
