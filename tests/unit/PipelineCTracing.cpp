@@ -63,7 +63,6 @@ BOOST_AUTO_TEST_SUITE(PipelineCTracingTestSuite,
                       *boost::unit_test::fixture<Fixture>())
 
 BOOST_AUTO_TEST_CASE(PipelineCTraceTest) {
-  llvm::ExitOnError AbortOnError;
   std::string Buffer;
 
   {
@@ -94,7 +93,7 @@ BOOST_AUTO_TEST_CASE(PipelineCTraceTest) {
     llvm::raw_string_ostream OS(Buffer);
     tracing::setTracing(&OS);
 
-    AbortOnError(Trace.run());
+    llvm::cantFail(Trace.run());
 
     tracing::setTracing(nullptr);
   }

@@ -135,12 +135,11 @@ public:
     if (empty())
       return llvm::Error::success();
 
-    if (auto MaybeBuffer = llvm::MemoryBuffer::getFile(File->path());
-        !MaybeBuffer)
+    if (auto MaybeBuffer = llvm::MemoryBuffer::getFile(File->path()))
+      OS << (*MaybeBuffer)->getBuffer();
+    else
       return llvm::createStringError(MaybeBuffer.getError(),
                                      "could not read file");
-    else
-      OS << (*MaybeBuffer)->getBuffer();
 
     return llvm::Error::success();
   }

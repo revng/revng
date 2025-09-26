@@ -224,6 +224,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
       auto MaybeSectionName = TheELF.getSectionName(SectionHeader);
       if (auto Error = MaybeSectionName.takeError()) {
+        // TODO: is there anything useful we can extract from this error to log?
         consumeError(std::move(Error));
       } else {
         SectionName = *MaybeSectionName;
@@ -461,6 +462,9 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
       revng_log(ELFImporterLog, " Importing Model for: " << DependencyLibrary);
       auto BinaryOrErr = llvm::object::createBinary(DependencyLibrary);
       if (auto Error = BinaryOrErr.takeError()) {
+        // TODO: wouldn't user want to know we couldn't find one of
+        //       the dependencies?
+        //       Sounds like we want a better way to report this.
         revng_log(ELFImporterLog,
                   "Can't create object for " << DependencyLibrary << " due to "
                                              << Error);
@@ -484,11 +488,14 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
         .EnableRemoteDebugInfo = Opts.EnableRemoteDebugInfo,
         .AdditionalDebugInfoPaths = Opts.AdditionalDebugInfoPaths
       };
-      if (auto E = importELF(DepModel, *TheBinary, AdjustedOptions)) {
+      if (auto Error = importELF(DepModel, *TheBinary, AdjustedOptions)) {
+        // TODO: wouldn't user want to know we were unable to parse one of
+        //       the dependencies?
+        //       Sounds like we want a better way to report this.
         revng_log(ELFImporterLog,
                   "Can't import model for " << DependencyLibrary << " due to "
-                                            << E);
-        llvm::consumeError(std::move(E));
+                                            << Error);
+        llvm::consumeError(std::move(Error));
         ModelsOfLibraries.erase(DependencyLibrary);
         continue;
       }
@@ -617,6 +624,8 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
   }
 }
 
+// TODO: we might want to return an error from here so we can propagate it
+//       further up.
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
                                              ConstElf_Shdr *SymtabShdr) {
@@ -688,6 +697,8 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
   }
 }
 
+// TODO: we might want to return an error from here so we can propagate it
+//       further up.
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseSegments(ELFFile<T> &TheELF) {
   auto ProgHeaders = TheELF.program_headers();
@@ -744,6 +755,8 @@ void ELFImporter<T, HasAddend>::parseSegments(ELFFile<T> &TheELF) {
   processSegments();
 }
 
+// TODO: we might want to return an error from here so we can propagate it
+//       further up.
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
   using Elf_Phdr = const typename object::ELFFile<T>::Elf_Phdr;
@@ -800,6 +813,8 @@ void ELFImporter<T, HasAddend>::parseProgramHeaders(ELFFile<T> &TheELF) {
   }
 }
 
+// TODO: we might want to return an error from here so we can propagate it
+//       further up.
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
                                                    StringRef Dynstr) {
@@ -1217,6 +1232,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
       auto MaybeName = Symbol.getName(Dynstr.extractString());
 
       if (auto Error = MaybeName.takeError()) {
+        // TODO: is there anything useful we can extract from this error?
         consumeError(std::move(Error));
       } else {
         SymbolName = *MaybeName;

@@ -185,6 +185,7 @@ public:
 void PDBImporterImpl::populateTypes() {
   auto MaybeInputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
   if (not MaybeInputFile) {
+    // TODO: user probably wants to know this failed (same below)!
     revng_log(Log, "Unable to open PDB file " << MaybeInputFile.takeError());
     consumeError(MaybeInputFile.takeError());
     return;
@@ -252,6 +253,8 @@ public:
     } else {
       // If the module stream does not exist, it is not an
       // error condition.
+      // TODO: Why are just ignoring this?
+      // Doesn't it mean we can import *nothing* from the given file?
       consumeError(MaybeDebugStream.takeError());
     }
 
@@ -262,6 +265,7 @@ public:
 void PDBImporterImpl::populateSymbolsWithTypes(NativeSession &Session) {
   auto MaybeInputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
   if (not MaybeInputFile) {
+    // TODO: user probably wants to know we couldn't parse his PDB (same below)!
     revng_log(Log, "Unable to open PDB file: " << MaybeInputFile.takeError());
     consumeError(MaybeInputFile.takeError());
     return;

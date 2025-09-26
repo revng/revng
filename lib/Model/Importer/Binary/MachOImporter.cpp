@@ -281,7 +281,10 @@ Error MachOImporter::import() {
     setEntryPoint(EntryPoint);
   }
 
+  // TODO: We might want a way to propagate these error messages back.
+
   Error TheError = Error::success();
+  revng_check(TheError);
 
   for (const MachOBindEntry &U : MachO.bindTable(TheError))
     registerBindEntry(&U);
