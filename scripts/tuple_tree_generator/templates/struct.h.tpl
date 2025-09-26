@@ -67,10 +67,10 @@ private:
   static_assert(Yamlizable</*= field | field_type =*/>);
   /**- endfor **/
 
+  /** if emit_tracking -**/
   //
   // Tracking helpers
   //
-  /**- if emit_tracking **/
   /**- for field in struct.fields **/
   mutable revng::AccessTracker /*= field.name =*/Tracker = revng::AccessTracker(false);
   /**- endfor **/
