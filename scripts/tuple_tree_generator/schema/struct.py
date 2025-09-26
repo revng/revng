@@ -13,6 +13,8 @@ from .sequence import SequenceDefinition
 from .upcastable import UpcastableDefinition
 
 # TODO: we should return the fields in a stable order (in all_fields, all_optional_fields, etc)
+# **ivan**: are they not already stable? :thinking-face:
+# The `fields` is always a list, and don't have multiple inheritance, what am I missing?
 
 
 def is_enum(resolved_type):

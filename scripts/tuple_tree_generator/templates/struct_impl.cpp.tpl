@@ -219,6 +219,7 @@ void revng::Tracking::stop(const /*= base_namespace =*/::/*= struct.name =*/ &LH
 
 /** endif **/
 
+// **ivan**: the following never generates anything. What was it supposed to check?
 /**- for field in struct.fields **/
 /**- if struct | is_struct_field **/
 static_assert(not (TupleTreeCompatible</*= field | field_type =*/> and KeyedObjectContainerCompatible</*= field | field_type =*/>));
