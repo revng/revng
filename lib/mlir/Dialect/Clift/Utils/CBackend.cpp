@@ -2,17 +2,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <variant>
-
 #include "llvm/ADT/ScopeExit.h"
 
-#include "revng/ADT/RecursiveCoroutine.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
 #include "revng/mlir/Dialect/Clift/Utils/CBackend.h"
+#include "revng/mlir/Dialect/Clift/Utils/CEmitter.h"
 
 namespace clift = mlir::clift;
-
 using namespace mlir::clift;
 
 namespace {
@@ -81,45 +76,14 @@ enum class OperatorPrecedence {
   Ternary = Assignment,
 };
 
-static std::string getPrimitiveTypeCName(PrimitiveKind Kind, uint64_t Size) {
-  auto GetPrefix = [](PrimitiveKind Kind) -> llvm::StringRef {
-    switch (Kind) {
-    case PrimitiveKind::UnsignedKind:
-      return "uint";
-    case PrimitiveKind::SignedKind:
-      return "int";
-    default:
-      return clift::stringifyPrimitiveKind(Kind);
-    }
-  };
-
-  std::string Name;
-  {
-    llvm::raw_string_ostream Out(Name);
-    Out << GetPrefix(Kind);
-
-    if (Kind != PrimitiveKind::VoidKind)
-      Out << (Size * 8) << "_t";
-  }
-  return Name;
-}
-
-class CliftToCEmitter {
-  using CTE = CTokenEmitter;
-
-  CTokenEmitter &Emitter;
-  const TargetCImplementation &Target;
-
+class CliftToCEmitter : CEmitter {
   FunctionOp CurrentFunction = {};
-  pipeline::Location<decltype(revng::ranks::Function)> CurrentFunctionLocation;
 
   // Ambient precedence of the current expression.
   OperatorPrecedence CurrentPrecedence = {};
 
 public:
-  explicit CliftToCEmitter(CTokenEmitter &Emitter,
-                           const TargetCImplementation &Target) :
-    Emitter(Emitter), Target(Target) {}
+  using CEmitter::CEmitter;
 
   llvm::StringRef getStringAttr(mlir::Operation *Op, llvm::StringRef Name) {
     return mlir::cast<mlir::StringAttr>(Op->getAttr(Name)).getValue();
@@ -131,335 +95,6 @@ public:
 
   llvm::StringRef getLocationAttr(mlir::Operation *Op) {
     return getStringAttr(Op, "clift.handle");
-  }
-
-  void emitPrimitiveType(PrimitiveKind Kind, uint64_t Size) {
-    if (Kind == PrimitiveKind::VoidKind) {
-      Emitter.emitKeyword(CTE::Keyword::Void);
-    } else {
-      auto TypeName = getPrimitiveTypeCName(Kind, Size);
-      auto Location = pipeline::locationString(revng::ranks::PrimitiveType,
-                                               TypeName);
-
-      Emitter.emitIdentifier(TypeName,
-                             Location,
-                             CTE::EntityKind::Primitive,
-                             CTE::IdentifierKind::Reference);
-    }
-  }
-
-  void emitPrimitiveType(PrimitiveType Type) {
-    emitPrimitiveType(Type.getKind(), Type.getSize());
-  }
-
-  void emitAttribute(AttributeAttr Attribute) {
-    auto Macro = Attribute.getMacro();
-
-    Emitter.emitSpace();
-    Emitter.emitIdentifier(Macro.getString(),
-                           Macro.getHandle(),
-                           CTE::EntityKind::Attribute,
-                           CTE::IdentifierKind::Reference);
-
-    if (auto Arguments = Attribute.getArguments()) {
-      Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-
-      for (auto [I, A] : llvm::enumerate(*Arguments)) {
-        if (I != 0) {
-          Emitter.emitPunctuator(CTE::Punctuator::Comma);
-          Emitter.emitSpace();
-        }
-
-        Emitter.emitIdentifier(A.getString(),
-                               A.getHandle(),
-                               CTE::EntityKind::AttributeArgument,
-                               CTE::IdentifierKind::Reference);
-      }
-
-      Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
-    }
-  }
-
-  static bool checkAttributeArray(mlir::ArrayAttr ArrayAttr) {
-    auto IsAttributeAttr = [](mlir::Attribute Attr) {
-      return mlir::isa<AttributeAttr>(Attr);
-    };
-    return std::ranges::all_of(ArrayAttr, IsAttributeAttr);
-  }
-
-  mlir::ArrayAttr getDeclarationOpAttributes(mlir::Operation *Op) {
-    if (auto Attr = Op->getAttr("clift.attributes")) {
-      auto ArrayAttr = mlir::cast<mlir::ArrayAttr>(Attr);
-      revng_assert(checkAttributeArray(ArrayAttr));
-      return ArrayAttr;
-    }
-    return {};
-  }
-
-  void emitAttributes(mlir::ArrayAttr Attributes) {
-    if (Attributes) {
-      for (mlir::Attribute Attr : Attributes)
-        emitAttribute(mlir::cast<AttributeAttr>(Attr));
-    }
-  }
-
-  /// Describes a function parameter declarator.
-  struct ParameterDeclaratorInfo {
-    llvm::StringRef Identifier;
-    llvm::StringRef Location;
-    mlir::ArrayAttr Attributes;
-  };
-
-  /// Describes a declarator. This can be any function or variable declarator,
-  /// including a function parameter declarator. When emitting a function
-  /// declaration, the parameters declarators array must contain entries for
-  /// each parameter of the outermost function type.
-  struct DeclaratorInfo {
-    llvm::StringRef Identifier;
-    llvm::StringRef Location;
-    mlir::ArrayAttr Attributes;
-    CTE::EntityKind Kind;
-
-    llvm::ArrayRef<ParameterDeclaratorInfo> Parameters;
-  };
-
-  RecursiveCoroutine<void>
-  emitDeclaration(ValueType Type, std::optional<DeclaratorInfo> Declarator) {
-    // Function type expansion is currently always disabled:
-    static constexpr bool ExpandFunctionTypes = false;
-
-    enum class StackItemKind {
-      Terminal,
-      Pointer,
-      Array,
-      Function,
-    };
-
-    struct StackItem {
-      StackItemKind Kind;
-      ValueType Type;
-    };
-
-    llvm::SmallVector<StackItem> Stack;
-
-    bool NeedSpace = false;
-    auto EmitSpace = [&]() {
-      if (NeedSpace)
-        Emitter.emitSpace();
-      NeedSpace = false;
-    };
-
-    auto EmitConst = [&](ValueType T) {
-      EmitSpace();
-      if (T.isConst()) {
-        Emitter.emitKeyword(CTE::Keyword::Const);
-        Emitter.emitSpace();
-      }
-    };
-
-    // Expanded function parameter declarator names are only emitted for the
-    // outermost function type of a function declarator. When emitting a
-    // function declarator, this optional is engaged. It is initially null, and
-    // is filled out by the first function type visited.
-    std::optional<FunctionType> OutermostFunctionType;
-    if (Declarator and Declarator->Kind == CTE::EntityKind::Function)
-      OutermostFunctionType.emplace(nullptr);
-
-    auto IsOutermostFunction = [&](FunctionType F) {
-      if (not OutermostFunctionType)
-        return false;
-
-      if (*OutermostFunctionType == nullptr)
-        OutermostFunctionType.emplace(F);
-
-      return F == *OutermostFunctionType;
-    };
-
-    // Recurse through the declaration, pushing each level onto the stack until
-    // a terminal type is encountered. Primitive types as well as defined types
-    // are considered terminal. Function types are not considered terminal if
-    // function type expansion is enabled. Pointers with size not matching the
-    // pointer size of the target implementation are considered terminal and
-    // are printed by recursively entering this function.
-    while (true) {
-      StackItem Item = { StackItemKind::Terminal, Type };
-
-      if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
-        EmitConst(T);
-        emitPrimitiveType(T);
-        NeedSpace = true;
-      } else if (auto T = mlir::dyn_cast<PointerType>(Type)) {
-        if (T.getPointerSize() == Target.PointerSize) {
-          Item.Kind = StackItemKind::Pointer;
-          Type = T.getPointeeType();
-        } else {
-          std::string Name;
-          {
-            llvm::raw_string_ostream Out(Name);
-            Out << "pointer" << (T.getPointerSize() * 8) << "_t";
-          }
-
-          EmitConst(T);
-          Emitter.emitLiteralIdentifier(Name);
-          Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-
-          rc_recur emitType(T.getPointeeType());
-
-          Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
-          NeedSpace = true;
-        }
-      } else if (auto T = mlir::dyn_cast<ArrayType>(Type)) {
-        Item.Kind = StackItemKind::Array;
-        Type = T.getElementType();
-      } else if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
-        auto F = mlir::dyn_cast<FunctionType>(T);
-
-        // Expand the function type if function type expansion is enabled.
-        if (F and (ExpandFunctionTypes or IsOutermostFunction(F))) {
-          Item.Kind = StackItemKind::Function;
-          Type = F.getReturnType();
-        } else {
-          auto Kind = CTE::EntityKind::Typedef;
-
-          if (mlir::isa<FunctionType>(T))
-            Kind = CTE::EntityKind::Function;
-          else if (mlir::isa<StructType>(T))
-            Kind = CTE::EntityKind::Struct;
-          else if (mlir::isa<UnionType>(T))
-            Kind = CTE::EntityKind::Union;
-          else if (mlir::isa<EnumType>(T))
-            Kind = CTE::EntityKind::Enum;
-
-          EmitConst(T);
-          Emitter.emitIdentifier(T.getName(),
-                                 T.getHandle(),
-                                 Kind,
-                                 CTE::IdentifierKind::Reference);
-
-          NeedSpace = true;
-        }
-      }
-
-      Stack.push_back(Item);
-
-      if (Item.Kind == StackItemKind::Terminal)
-        break;
-    }
-
-    // Print type syntax appearing before the declarator name. This includes
-    // cv-qualifiers, stars indicating a pointer, as well as left parentheses
-    // used to disambiguate non-root array and function types. The types must be
-    // handled inside out, so the stack is visited in reverse order.
-    for (auto [RI, SI] : llvm::enumerate(std::views::reverse(Stack))) {
-      const size_t I = Stack.size() - RI - 1;
-
-      switch (SI.Kind) {
-      case StackItemKind::Terminal: {
-        // Do nothing
-      } break;
-      case StackItemKind::Pointer: {
-        auto T = mlir::dyn_cast<PointerType>(SI.Type);
-        EmitSpace();
-        Emitter.emitPunctuator(CTE::Punctuator::Star);
-        EmitConst(T);
-      } break;
-      case StackItemKind::Array: {
-        if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array) {
-          Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-          NeedSpace = false;
-        }
-      } break;
-      case StackItemKind::Function: {
-        if (I != 0) {
-          Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-          NeedSpace = false;
-        }
-      } break;
-      }
-    }
-
-    if (Declarator) {
-      EmitSpace();
-      Emitter.emitIdentifier(Declarator->Identifier,
-                             Declarator->Location,
-                             Declarator->Kind,
-                             CTE::IdentifierKind::Definition);
-    }
-
-    // Print type syntax appearing after the declarator name. This includes
-    // right parentheses matching the left parentheses printed in the first
-    // pass, as well as array extents and function parameter lists. The
-    // declarators appearing in function parameter lists are printed by
-    // recursively entering this function.
-    for (auto [I, SI] : llvm::enumerate(Stack)) {
-      switch (SI.Kind) {
-      case StackItemKind::Terminal: {
-        // Do nothing
-      } break;
-      case StackItemKind::Pointer: {
-        // Do nothing
-      } break;
-      case StackItemKind::Array: {
-        if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array)
-          Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
-
-        Emitter.emitPunctuator(CTE::Punctuator::LeftBracket);
-
-        uint64_t Extent = mlir::cast<ArrayType>(SI.Type).getElementsCount();
-
-        // Use a wider bit-width to handle the edge-case of an extent greater
-        // than the maximum value of a signed 64-bit integer. Making the value
-        // unsigned would cause unnecessary type suffixes to be emitted.
-        auto ExtentValue = llvm::APSInt(llvm::APInt(/*numBits=*/128, Extent),
-                                        /*isUnsigned=*/false);
-
-        Emitter.emitIntegerLiteral(ExtentValue,
-                                   CIntegerKind::Int,
-                                   /*Radix=*/10);
-
-        Emitter.emitPunctuator(CTE::Punctuator::RightBracket);
-      } break;
-      case StackItemKind::Function: {
-        auto F = mlir::dyn_cast<FunctionType>(SI.Type);
-        bool IsOutermost = IsOutermostFunction(F);
-
-        if (I != 0)
-          Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
-
-        Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-        if (F.getArgumentTypes().empty()) {
-          emitPrimitiveType(PrimitiveKind::VoidKind, 0);
-        } else {
-          for (auto [J, PT] : llvm::enumerate(F.getArgumentTypes())) {
-            if (J != 0) {
-              Emitter.emitPunctuator(CTE::Punctuator::Comma);
-              Emitter.emitSpace();
-            }
-
-            std::optional<DeclaratorInfo> ParameterDeclarator;
-            if (IsOutermost) {
-              ParameterDeclarator = DeclaratorInfo{
-                .Identifier = Declarator->Parameters[J].Identifier,
-                .Location = Declarator->Parameters[J].Location,
-                .Attributes = Declarator->Parameters[J].Attributes,
-                .Kind = CTE::EntityKind::FunctionParameter,
-              };
-            }
-
-            rc_recur emitDeclaration(PT, ParameterDeclarator);
-          }
-        }
-        Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
-      } break;
-      }
-    }
-
-    if (Declarator)
-      emitAttributes(Declarator->Attributes);
-  }
-
-  RecursiveCoroutine<void> emitType(ValueType Type) {
-    return emitDeclaration(Type, std::nullopt);
   }
 
   static OperatorPrecedence decrementPrecedence(OperatorPrecedence Precedence) {
@@ -485,22 +120,22 @@ public:
         // Emit explicit cast if the standard integer type is not known. Emit
         // the literal itself without a suffix (as if int).
 
-        Emitter.emitOperator(CTE::Operator::LeftParenthesis);
+        C.emitOperator(CTE::Operator::LeftParenthesis);
         emitPrimitiveType(T);
-        Emitter.emitOperator(CTE::Operator::RightParenthesis);
+        C.emitOperator(CTE::Operator::RightParenthesis);
 
         Integer = CIntegerKind::Int;
       }
 
-      Emitter.emitIntegerLiteral(makeIntegerValue(T, Value), *Integer, 10);
+      C.emitIntegerLiteral(makeIntegerValue(T, Value), *Integer, 10);
     } else {
       auto Enum = mlir::cast<EnumType>(Type);
       auto Enumerator = Enum.getFieldByValue(Value);
 
-      Emitter.emitIdentifier(Enumerator.getName(),
-                             Enumerator.getHandle(),
-                             CTE::EntityKind::Enumerator,
-                             CTE::IdentifierKind::Reference);
+      C.emitIdentifier(Enumerator.getName(),
+                       Enumerator.getHandle(),
+                       CTE::EntityKind::Enumerator,
+                       CTE::IdentifierKind::Reference);
     }
   }
 
@@ -509,12 +144,12 @@ public:
   RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
     revng_assert(isScalarType(V.getType()));
 
-    Emitter.emitLiteralIdentifier("undef");
-    Emitter.emitOperator(CTE::Operator::LeftParenthesis);
+    C.emitLiteralIdentifier("undef");
+    C.emitOperator(CTE::Operator::LeftParenthesis);
+    emitType(V.getType());
+    C.emitOperator(CTE::Operator::RightParenthesis);
 
-    rc_recur emitType(V.getType());
-
-    Emitter.emitOperator(CTE::Operator::RightParenthesis);
+    rc_return;
   }
 
   RecursiveCoroutine<void> emitImmediateExpression(mlir::Value V) {
@@ -525,7 +160,7 @@ public:
 
   RecursiveCoroutine<void> emitStringLiteralExpression(mlir::Value V) {
     auto E = V.getDefiningOp<StringOp>();
-    Emitter.emitStringLiteral(E.getValue());
+    C.emitStringLiteral(E.getValue());
     rc_return;
   }
 
@@ -535,24 +170,24 @@ public:
     // initializers instead.
     CurrentPrecedence = OperatorPrecedence::Comma;
 
-    Emitter.emitPunctuator(CTE::Punctuator::LeftBrace);
+    C.emitPunctuator(CTE::Punctuator::LeftBrace);
     for (auto [I, Initializer] : llvm::enumerate(E.getInitializers())) {
       if (I != 0) {
-        Emitter.emitPunctuator(CTE::Punctuator::Comma);
-        Emitter.emitSpace();
+        C.emitPunctuator(CTE::Punctuator::Comma);
+        C.emitSpace();
       }
 
       rc_recur emitExpression(Initializer);
     }
-    Emitter.emitPunctuator(CTE::Punctuator::RightBrace);
+    C.emitPunctuator(CTE::Punctuator::RightBrace);
   }
 
   RecursiveCoroutine<void> emitAggregateExpression(mlir::Value V) {
     auto E = V.getDefiningOp<AggregateOp>();
 
-    Emitter.emitOperator(CTE::Operator::LeftParenthesis);
-    rc_recur emitType(E.getResult().getType());
-    Emitter.emitOperator(CTE::Operator::RightParenthesis);
+    C.emitOperator(CTE::Operator::LeftParenthesis);
+    emitType(E.getResult().getType());
+    C.emitOperator(CTE::Operator::RightParenthesis);
 
     rc_recur emitAggregateInitializer(E);
   }
@@ -565,20 +200,20 @@ public:
       return mlir::cast<mlir::StringAttr>(ArgAttrs.get(Name)).getValue();
     };
 
-    Emitter.emitIdentifier(GetStringAttr("clift.name"),
-                           GetStringAttr("clift.handle"),
-                           CTE::EntityKind::FunctionParameter,
-                           CTE::IdentifierKind::Reference);
+    C.emitIdentifier(GetStringAttr("clift.name"),
+                     GetStringAttr("clift.handle"),
+                     CTE::EntityKind::FunctionParameter,
+                     CTE::IdentifierKind::Reference);
     rc_return;
   }
 
   RecursiveCoroutine<void> emitLocalVariableExpression(mlir::Value V) {
     auto E = V.getDefiningOp<LocalVariableOp>();
 
-    Emitter.emitIdentifier(getNameAttr(E),
-                           E.getHandle(),
-                           CTE::EntityKind::LocalVariable,
-                           CTE::IdentifierKind::Reference);
+    C.emitIdentifier(getNameAttr(E),
+                     E.getHandle(),
+                     CTE::EntityKind::LocalVariable,
+                     CTE::IdentifierKind::Reference);
     rc_return;
   }
 
@@ -599,10 +234,10 @@ public:
       revng_abort("Unsupported global operation");
     };
 
-    Emitter.emitIdentifier(Symbol.getName(),
-                           Symbol.getHandle(),
-                           GetEntityKind(Symbol),
-                           CTE::IdentifierKind::Reference);
+    C.emitIdentifier(Symbol.getName(),
+                     Symbol.getHandle(),
+                     GetEntityKind(Symbol),
+                     CTE::IdentifierKind::Reference);
 
     rc_return;
   }
@@ -615,15 +250,14 @@ public:
 
     rc_recur emitExpression(E.getValue());
 
-    Emitter.emitOperator(E.isIndirect() ? CTE::Operator::Arrow :
-                                          CTE::Operator::Dot);
+    C.emitOperator(E.isIndirect() ? CTE::Operator::Arrow : CTE::Operator::Dot);
 
     auto Field = E.getClassType().getFields()[E.getMemberIndex()];
 
-    Emitter.emitIdentifier(Field.getName(),
-                           Field.getHandle(),
-                           CTE::EntityKind::Field,
-                           CTE::IdentifierKind::Reference);
+    C.emitIdentifier(Field.getName(),
+                     Field.getHandle(),
+                     CTE::EntityKind::Field,
+                     CTE::IdentifierKind::Reference);
   }
 
   RecursiveCoroutine<void> emitSubscriptExpression(mlir::Value V) {
@@ -641,9 +275,9 @@ public:
     // lists. The output in this case is as: array[(i, j)]
     CurrentPrecedence = OperatorPrecedence::Comma;
 
-    Emitter.emitOperator(CTE::Operator::LeftBracket);
+    C.emitOperator(CTE::Operator::LeftBracket);
     rc_recur emitExpression(E.getIndex());
-    Emitter.emitOperator(CTE::Operator::RightBracket);
+    C.emitOperator(CTE::Operator::RightBracket);
   }
 
   RecursiveCoroutine<void> emitCallExpression(mlir::Value V) {
@@ -659,16 +293,16 @@ public:
     // arguments instead.
     CurrentPrecedence = OperatorPrecedence::Comma;
 
-    Emitter.emitOperator(CTE::Operator::LeftParenthesis);
+    C.emitOperator(CTE::Operator::LeftParenthesis);
     for (auto [I, A] : llvm::enumerate(E.getArguments())) {
       if (I != 0) {
-        Emitter.emitPunctuator(CTE::Punctuator::Comma);
-        Emitter.emitSpace();
+        C.emitPunctuator(CTE::Punctuator::Comma);
+        C.emitSpace();
       }
 
       rc_recur emitExpression(A);
     }
-    Emitter.emitOperator(CTE::Operator::RightParenthesis);
+    C.emitOperator(CTE::Operator::RightParenthesis);
   }
 
   static bool isHiddenCast(CastOp Cast) {
@@ -690,9 +324,9 @@ public:
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOp>();
 
-    Emitter.emitOperator(CTE::Operator::LeftParenthesis);
-    rc_recur emitType(E.getResult().getType());
-    Emitter.emitOperator(CTE::Operator::RightParenthesis);
+    C.emitOperator(CTE::Operator::LeftParenthesis);
+    emitType(E.getResult().getType());
+    C.emitOperator(CTE::Operator::RightParenthesis);
 
     // Parenthesizing a nested unary prefix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
@@ -709,15 +343,15 @@ public:
 
     rc_recur emitExpression(E.getCondition());
 
-    Emitter.emitSpace();
-    Emitter.emitOperator(CTE::Operator::Question);
-    Emitter.emitSpace();
+    C.emitSpace();
+    C.emitOperator(CTE::Operator::Question);
+    C.emitSpace();
 
     rc_recur emitExpression(E.getLhs());
 
-    Emitter.emitSpace();
-    Emitter.emitOperator(CTE::Operator::Colon);
-    Emitter.emitSpace();
+    C.emitSpace();
+    C.emitOperator(CTE::Operator::Colon);
+    C.emitSpace();
 
     // The right hand expression does not need parentheses.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::Ternary);
@@ -781,7 +415,7 @@ public:
     mlir::Operation *Op = V.getDefiningOp();
     mlir::Value Operand = Op->getOperand(0);
 
-    Emitter.emitOperator(getOperator(Op));
+    C.emitOperator(getOperator(Op));
 
     auto StartsWithMinus = [](mlir::Value V) {
       if (mlir::isa<NegOp, DecrementOp>(V.getDefiningOp()))
@@ -803,7 +437,7 @@ public:
     // Negation after a decrement requires a space in between to avoid being
     // confused as decrement after negation. (- --x) vs (---x)
     if (V.getDefiningOp<NegOp>() and StartsWithMinus(Operand))
-      Emitter.emitSpace();
+      C.emitSpace();
 
     // Parenthesizing a nested unary prefix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
@@ -818,7 +452,7 @@ public:
     // Parenthesizing a nested unary postfix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPostfix);
 
-    Emitter.emitOperator(getOperator(Op));
+    C.emitOperator(getOperator(Op));
   }
 
   RecursiveCoroutine<void> emitInfixExpression(mlir::Value V) {
@@ -835,10 +469,10 @@ public:
     rc_recur emitExpression(Op->getOperand(0));
 
     if (not mlir::isa<CommaOp>(Op))
-      Emitter.emitSpace();
+      C.emitSpace();
 
-    Emitter.emitOperator(getOperator(Op));
-    Emitter.emitSpace();
+    C.emitOperator(getOperator(Op));
+    C.emitSpace();
 
     CurrentPrecedence = RhsPrecedence;
     rc_recur emitExpression(Op->getOperand(1));
@@ -1068,7 +702,7 @@ public:
                             and Info.Precedence != OperatorPrecedence::Primary;
 
     if (PrintParentheses)
-      Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+      C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
     // CurrentPrecedence is changed within this scope:
     {
@@ -1084,7 +718,7 @@ public:
     }
 
     if (PrintParentheses)
-      Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
+      C.emitPunctuator(CTE::Punctuator::RightParenthesis);
   }
 
   RecursiveCoroutine<void> emitExpressionRegion(mlir::Region &R) {
@@ -1096,18 +730,18 @@ public:
   //===---------------------------- Statements ----------------------------===//
 
   RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S) {
-    rc_recur emitDeclaration(S.getResult().getType(),
-                             DeclaratorInfo{
-                               .Identifier = getNameAttr(S),
-                               .Location = S.getHandle(),
-                               .Attributes = getDeclarationOpAttributes(S),
-                               .Kind = CTE::EntityKind::LocalVariable,
-                             });
+    emitDeclaration(S.getResult().getType(),
+                    DeclaratorInfo{
+                      .Identifier = getNameAttr(S),
+                      .Location = S.getHandle(),
+                      .Attributes = getDeclarationOpAttributes(S),
+                      .Kind = CTE::EntityKind::LocalVariable,
+                    });
 
     if (not S.getInitializer().empty()) {
-      Emitter.emitSpace();
-      Emitter.emitOperator(CTE::Operator::Equals);
-      Emitter.emitSpace();
+      C.emitSpace();
+      C.emitOperator(CTE::Operator::Equals);
+      C.emitSpace();
 
       // Comma expressions in a variable initialiser must be parenthesized.
       CurrentPrecedence = OperatorPrecedence::Comma;
@@ -1120,8 +754,8 @@ public:
         rc_recur emitExpression(Expression);
     }
 
-    Emitter.emitPunctuator(CTE::Punctuator::Semicolon);
-    Emitter.emitNewline();
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitNewline();
   }
 
   bool labelRequiresEmptyExpression(AssignLabelOp Op) {
@@ -1137,58 +771,58 @@ public:
   }
 
   RecursiveCoroutine<void> emitLabelStatement(AssignLabelOp S) {
-    auto Scope = Emitter.enterScope(CTE::ScopeKind::None,
-                                    CTE::Delimiter::None,
-                                    /*Indent=*/-1);
+    auto Scope = C.enterScope(CTE::ScopeKind::None,
+                              CTE::Delimiter::None,
+                              /*Indent=*/-1);
 
-    Emitter.emitIdentifier(getNameAttr(S.getLabelOp()),
-                           getLocationAttr(S.getLabelOp()),
-                           CTE::EntityKind::Label,
-                           CTE::IdentifierKind::Definition);
+    C.emitIdentifier(getNameAttr(S.getLabelOp()),
+                     getLocationAttr(S.getLabelOp()),
+                     CTE::EntityKind::Label,
+                     CTE::IdentifierKind::Definition);
 
-    Emitter.emitPunctuator(CTE::Punctuator::Colon);
+    C.emitPunctuator(CTE::Punctuator::Colon);
 
     if (labelRequiresEmptyExpression(S)) {
-      Emitter.emitSpace();
-      Emitter.emitPunctuator(CTE::Punctuator::Semicolon);
+      C.emitSpace();
+      C.emitPunctuator(CTE::Punctuator::Semicolon);
     }
 
-    Emitter.emitNewline();
+    C.emitNewline();
 
     rc_return;
   }
 
   RecursiveCoroutine<void> emitExpressionStatement(ExpressionStatementOp S) {
     rc_recur emitExpressionRegion(S.getExpression());
-    Emitter.emitPunctuator(CTE::Punctuator::Semicolon);
-    Emitter.emitNewline();
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitGotoStatement(GoToOp S) {
-    Emitter.emitKeyword(CTE::Keyword::Goto);
-    Emitter.emitSpace();
+    C.emitKeyword(CTE::Keyword::Goto);
+    C.emitSpace();
 
-    Emitter.emitIdentifier(getNameAttr(S.getLabelOp()),
-                           getLocationAttr(S.getLabelOp()),
-                           CTE::EntityKind::Label,
-                           CTE::IdentifierKind::Reference);
+    C.emitIdentifier(getNameAttr(S.getLabelOp()),
+                     getLocationAttr(S.getLabelOp()),
+                     CTE::EntityKind::Label,
+                     CTE::IdentifierKind::Reference);
 
-    Emitter.emitPunctuator(CTE::Punctuator::Semicolon);
-    Emitter.emitNewline();
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitNewline();
 
     rc_return;
   }
 
   RecursiveCoroutine<void> emitReturnStatement(ReturnOp S) {
-    Emitter.emitKeyword(CTE::Keyword::Return);
+    C.emitKeyword(CTE::Keyword::Return);
 
     if (not S.getResult().empty()) {
-      Emitter.emitSpace();
+      C.emitSpace();
       rc_recur emitExpressionRegion(S.getResult());
     }
 
-    Emitter.emitPunctuator(CTE::Punctuator::Semicolon);
-    Emitter.emitNewline();
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitNewline();
   }
 
   static bool mayElideIfStatementBraces(IfOp If) {
@@ -1215,11 +849,11 @@ public:
     bool EmitBlocks = not mayElideIfStatementBraces(S);
 
     while (true) {
-      Emitter.emitKeyword(CTE::Keyword::If);
-      Emitter.emitSpace();
-      Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+      C.emitKeyword(CTE::Keyword::If);
+      C.emitSpace();
+      C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
       rc_recur emitExpressionRegion(S.getCondition());
-      Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
+      C.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
       rc_recur emitImplicitBlockStatement(S.getThen(), EmitBlocks);
 
@@ -1227,13 +861,13 @@ public:
         break;
 
       if (EmitBlocks)
-        Emitter.emitSpace();
+        C.emitSpace();
 
-      Emitter.emitKeyword(CTE::Keyword::Else);
+      C.emitKeyword(CTE::Keyword::Else);
 
       if (auto ElseIf = getOnlyOperation<IfOp>(S.getElse())) {
         S = ElseIf;
-        Emitter.emitSpace();
+        C.emitSpace();
       } else {
         rc_recur emitImplicitBlockStatement(S.getElse(), EmitBlocks);
         break;
@@ -1241,7 +875,7 @@ public:
     }
 
     if (EmitBlocks)
-      Emitter.emitNewline();
+      C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitCaseRegion(mlir::Region &R) {
@@ -1249,102 +883,102 @@ public:
 
     if (rc_recur emitImplicitBlockStatement(R)) {
       if (Break)
-        Emitter.emitSpace();
+        C.emitSpace();
       else
-        Emitter.emitNewline();
+        C.emitNewline();
     }
 
     if (Break) {
-      Emitter.emitKeyword(CTE::Keyword::Break);
-      Emitter.emitPunctuator(CTE::Punctuator::Semicolon);
-      Emitter.emitNewline();
+      C.emitKeyword(CTE::Keyword::Break);
+      C.emitPunctuator(CTE::Punctuator::Semicolon);
+      C.emitNewline();
     }
   }
 
   RecursiveCoroutine<void> emitSwitchStatement(SwitchOp S) {
-    Emitter.emitKeyword(CTE::Keyword::Switch);
-    Emitter.emitSpace();
-    Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+    C.emitKeyword(CTE::Keyword::Switch);
+    C.emitSpace();
+    C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
     rc_recur emitExpressionRegion(S.getCondition());
 
-    Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
-    Emitter.emitSpace();
+    C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    C.emitSpace();
 
     // Scope tags are applied within this scope:
     {
-      auto Scope = Emitter.enterScope(CTE::ScopeKind::BlockStatement,
-                                      CTE::Delimiter::Braces,
-                                      /*Indented=*/false);
+      auto Scope = C.enterScope(CTE::ScopeKind::BlockStatement,
+                                CTE::Delimiter::Braces,
+                                /*Indented=*/false);
 
       ValueType Type = S.getConditionType();
       for (unsigned I = 0, Count = S.getNumCases(); I < Count; ++I) {
-        Emitter.emitKeyword(CTE::Keyword::Case);
-        Emitter.emitSpace();
+        C.emitKeyword(CTE::Keyword::Case);
+        C.emitSpace();
         emitIntegerImmediate(S.getCaseValue(I), Type);
-        Emitter.emitPunctuator(CTE::Punctuator::Colon);
+        C.emitPunctuator(CTE::Punctuator::Colon);
         rc_recur emitCaseRegion(S.getCaseRegion(I));
       }
 
       if (S.hasDefaultCase()) {
-        Emitter.emitKeyword(CTE::Keyword::Default);
-        Emitter.emitPunctuator(CTE::Punctuator::Colon);
+        C.emitKeyword(CTE::Keyword::Default);
+        C.emitPunctuator(CTE::Punctuator::Colon);
         rc_recur emitCaseRegion(S.getDefaultCaseRegion());
       }
     }
 
-    Emitter.emitNewline();
+    C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitForStatement(ForOp S) {
-    Emitter.emitKeyword(CTE::Keyword::For);
-    Emitter.emitSpace();
-    Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-    Emitter.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitKeyword(CTE::Keyword::For);
+    C.emitSpace();
+    C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
 
     if (not S.getCondition().empty()) {
-      Emitter.emitSpace();
+      C.emitSpace();
       rc_recur emitExpressionRegion(S.getCondition());
     }
 
-    Emitter.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
     if (not S.getExpression().empty()) {
-      Emitter.emitSpace();
+      C.emitSpace();
       rc_recur emitExpressionRegion(S.getExpression());
     }
-    Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    C.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
     if (rc_recur emitImplicitBlockStatement(S.getBody()))
-      Emitter.emitNewline();
+      C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitWhileStatement(WhileOp S) {
-    Emitter.emitKeyword(CTE::Keyword::While);
-    Emitter.emitSpace();
-    Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+    C.emitKeyword(CTE::Keyword::While);
+    C.emitSpace();
+    C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
     rc_recur emitExpressionRegion(S.getCondition());
-    Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    C.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
     if (rc_recur emitImplicitBlockStatement(S.getBody()))
-      Emitter.emitNewline();
+      C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitDoWhileStatement(DoWhileOp S) {
-    Emitter.emitKeyword(CTE::Keyword::Do);
+    C.emitKeyword(CTE::Keyword::Do);
 
     if (rc_recur emitImplicitBlockStatement(S.getBody()))
-      Emitter.emitSpace();
+      C.emitSpace();
 
-    Emitter.emitKeyword(CTE::Keyword::While);
-    Emitter.emitSpace();
-    Emitter.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+    C.emitKeyword(CTE::Keyword::While);
+    C.emitSpace();
+    C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
     rc_recur emitExpressionRegion(S.getCondition());
 
-    Emitter.emitPunctuator(CTE::Punctuator::RightParenthesis);
-    Emitter.emitPunctuator(CTE::Punctuator::Semicolon);
-    Emitter.emitNewline();
+    C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+    C.emitNewline();
   }
 
   RecursiveCoroutine<void> emitStatement(StatementOpInterface Stmt) {
@@ -1406,13 +1040,13 @@ public:
     auto Delimiter = CTE::Delimiter::None;
 
     if (EmitBlock) {
-      Emitter.emitSpace();
+      C.emitSpace();
       ScopeKind = CTE::ScopeKind::BlockStatement;
       Delimiter = CTE::Delimiter::Braces;
     }
 
-    auto Scope = Emitter.enterScope(ScopeKind, Delimiter);
-    Emitter.emitNewline();
+    auto Scope = C.enterScope(ScopeKind, Delimiter);
+    C.emitNewline();
 
     rc_recur emitStatementRegion(R);
   }
@@ -1430,22 +1064,22 @@ public:
 
     // Scope tags are applied within this scope:
     {
-      auto OuterScope = Emitter.enterScope(CTE::ScopeKind::FunctionDeclaration,
-                                           CTE::Delimiter::None,
-                                           /*Indented=*/false);
+      auto OuterScope = C.enterScope(CTE::ScopeKind::FunctionDeclaration,
+                                     CTE::Delimiter::None,
+                                     /*Indented=*/false);
 
       llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
       for (unsigned I = 0; I < Op.getArgCount(); ++I) {
         auto Attrs = Op.getArgAttrs(I);
 
-        auto GetStringAttr = [&](llvm::StringRef Name) {
+        auto GetStringAttr = [&Attrs](llvm::StringRef Name) {
           return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
         };
 
         mlir::ArrayAttr Attributes = {};
         if (auto Attr = Attrs.get("clift.attributes")) {
           Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
-          revng_assert(checkAttributeArray(Attributes));
+          revng_assert(isValidAttributeArray(Attributes));
         }
 
         ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
@@ -1453,21 +1087,21 @@ public:
                                           Attributes);
       }
 
-      rc_recur emitDeclaration(Op.getCliftFunctionType(),
-                               DeclaratorInfo{
-                                 .Identifier = Op.getName(),
-                                 .Location = Op.getHandle(),
-                                 .Attributes = getDeclarationOpAttributes(Op),
-                                 .Kind = CTE::EntityKind::Function,
-                                 .Parameters = ParameterDeclarators,
-                               });
+      emitDeclaration(Op.getCliftFunctionType(),
+                      DeclaratorInfo{
+                        .Identifier = Op.getName(),
+                        .Location = Op.getHandle(),
+                        .Attributes = getDeclarationOpAttributes(Op),
+                        .Kind = CTE::EntityKind::Function,
+                        .Parameters = ParameterDeclarators,
+                      });
 
-      Emitter.emitSpace();
+      C.emitSpace();
 
-      auto InnerScope = Emitter.enterScope(CTE::ScopeKind::FunctionDefinition,
-                                           CTE::Delimiter::Braces);
+      auto InnerScope = C.enterScope(CTE::ScopeKind::FunctionDefinition,
+                                     CTE::Delimiter::Braces);
 
-      Emitter.emitNewline();
+      C.emitNewline();
 
       // TODO: Re-enable stack frame inlining.
 
@@ -1477,7 +1111,7 @@ public:
       //       See how old backend does it for reference.
     }
 
-    Emitter.emitNewline();
+    C.emitNewline();
   }
 };
 
