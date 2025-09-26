@@ -4,12 +4,19 @@
 
 from collections import defaultdict
 from graphlib import TopologicalSorter
-from typing import Dict, List
+from typing import Dict, List, TypeVar
 
 from .definition import Definition
 from .enum import EnumDefinition, EnumMember
 from .scalar import ScalarDefinition
 from .struct import StructDefinition
+
+T = TypeVar("T")
+
+
+def assert_not_none(x: T | None) -> T:
+    assert x is not None
+    return x
 
 
 class Schema:
@@ -56,13 +63,15 @@ class Schema:
 
     def struct_definitions(self) -> List[StructDefinition]:
         toposorter: TopologicalSorter = TopologicalSorter()
-        for struct in self.definitions.values():
+        for struct in sorted(self.definitions.values(), key=lambda d: assert_not_none(d.name)):
+            assert struct.name
+
             if not isinstance(struct, StructDefinition):
                 continue
 
             toposorter.add(struct)
 
-            for dependency in struct.dependencies:
+            for dependency in sorted(struct.dependencies):
                 dep_type = self.get_definition_for(dependency)
                 if isinstance(dep_type, StructDefinition):
                     toposorter.add(struct, dep_type)
@@ -81,7 +90,7 @@ class Schema:
         for definition in self.struct_definitions():
             if definition.inherits is base_type:
                 upcastable_types.add(definition)
-        return upcastable_types
+        return sorted(upcastable_types, key=lambda t: assert_not_none(t.name))
 
     def _parse_definitions(self):
         definitions = {}
