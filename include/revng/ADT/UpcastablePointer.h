@@ -52,6 +52,15 @@ concept UpcastablePointerLike = Dereferenceable<T> and Upcastable<pointee<T>>;
 template<typename T>
 concept NotUpcastablePointerLike = not UpcastablePointerLike<T>;
 
+/// This is an upcasting helper, `UpcastablePointer` below takes advantage of
+/// heavily. When possible, prefer the member function instead.
+///
+/// That being said, this free function is not tied to the object and can be
+/// used on normal pointers, as long as LLVM-style RTTI conventions
+/// are adhered to.
+///
+/// \note \param IfNull can be an `llvm::Error`. In such case, in case of
+///       a successful upcast, \param IfNull will be consumed.
 template<typename ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
   requires(not std::is_void_v<ReturnT>)
 ReturnT upcast(P &&Upcastable, const L &Callable, ReturnT &&IfNull) {
