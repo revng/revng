@@ -177,21 +177,38 @@ class TypeScriptGenerator:
     def get_default_value(self, field: StructField):
         if isinstance(field.resolved_type, SequenceDefinition):
             return "[]"
+
         elif isinstance(field.resolved_type, ReferenceDefinition):
             return 'new Reference("")'
+
         elif isinstance(field, SimpleStructField):
             if field.type == "string":
-                return '""'
+                assert not field.default or isinstance(field.default, str)
+                return f'"{field.default if field.default else ""}"'
+
             elif field.type in self.string_types:
-                return f'new {field.type}("")'
+                assert not field.default or isinstance(field.default, str)
+                return f'new {field.type}("{field.default if field.default else ""}")'
+
             elif field.type == "bool":
-                return "false"
+                assert not field.default or isinstance(field.default, bool)
+                return "true" if field.default else "false"
+
             elif int_re.match(field.type):
-                return "0n"
+                assert not field.default or isinstance(field.default, int)
+                return f"{field.default if field.default else 0}n"
+
             elif isinstance(field.resolved_type, EnumDefinition):
-                return '"Invalid"'
-            else:
-                return f"new {field.type}()"
+                assert not field.default or isinstance(field.default, str)
+                return f'"{field.default if field.default else "Invalid"}"'
+
+            assert not field.default, (
+                "Currently `default:` is only allowed on simple types: "
+                "integers, booleans, strings and enums."
+            )
+
+            return f"new {field.type}()"
+
         else:
             raise ValueError()
 

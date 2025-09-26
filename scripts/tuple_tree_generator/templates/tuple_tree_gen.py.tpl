@@ -116,10 +116,10 @@ class #{ struct.name }#(
         ## if struct.name == root_type and field.name == "Version" ##
         metadata={"optional": True, "default_value": lambda: 0}, default_factory=lambda: #{- version }#
         ## else ##
-        metadata={"optional": True, "default_value": lambda: #{- field | default_value }#},
+        metadata={"optional": True, "default_value": lambda: #{- field | get_default_value }#},
         ## if field.is_guid ##default_factory=random_id,## endif ##
         ## if field is simple_field ##
-        default_factory=lambda: #{- field | default_value }#
+        default_factory=lambda: #{- field | get_default_value }#
         ## elif field is sequence_field ##
         default=TypedListDescriptor(#{ field.element_type | python_type }#)
         ## elif field is reference_field ##
