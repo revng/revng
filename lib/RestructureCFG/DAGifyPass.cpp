@@ -21,19 +21,6 @@ using namespace llvm;
 // Debug logger
 static Logger<> Log("dagify");
 
-/// Helper function used to insert on the `Head` node the metadata that will be
-/// later checked for consistency
-static void insertHeadMD(BasicBlock *Head) {
-
-  // We attach a metadata to the terminator instruction of the `Head`
-  // block. Later on, we will check during `MaterializeLoopScopes` that
-  // the `Head` block of each `GenericRegion` will be the same
-  Instruction *HeadTerminator = Head->getTerminator();
-  QuickMetadata QMD(getContext(HeadTerminator));
-  auto *HeadMD = QMD.tuple();
-  HeadTerminator->setMetadata("genericregion-head", HeadMD);
-}
-
 class DAGifyPassImpl {
   Function &F;
   const ScopeGraphBuilder SGBuilder;
@@ -155,11 +142,9 @@ public:
           RegionNodes.insert(RegionNode);
         }
 
-        // Mark the `Head` block with the custom named metadata
-        BasicBlock *Head = Region->getHead();
-        insertHeadMD(Head);
-
         // 1. Process the retreating edges of the `GenericRegion`
+        BasicBlock *Head = Region->getHead();
+        revng_assert(Head);
         using GT = GraphTraits<BasicBlock *>;
         auto Retreatings = getBackedgesWhiteList<BasicBlock *, GT>(Head,
                                                                    RegionNodes);
@@ -184,10 +169,13 @@ public:
     }
 
     // Verify that the output `ScopeGraph` is acyclic, after `DAGify` has
-    // processed the input, but only when the `VerifyLog` is enabled
+    // processed the input, but only when the `VerifyLog` is enabled.
+    // In addition, we also verify that the `ScopeGraph` has not blocks
+    // disconnected from the entry block.
     if (VerifyLog.isEnabled()) {
-      Scope<Function *> ScopeGraph(&F);
-      revng_assert(isDAG(ScopeGraph));
+      revng_assert(not hasUnreachableBlocks(&F));
+      bool IsDAG = isDAG<Scope<Function *>, Scope<BasicBlock *>>(&F);
+      revng_assert(IsDAG);
     }
 
     return FunctionModified;

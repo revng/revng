@@ -17,6 +17,7 @@
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/Debug.h"
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -580,6 +581,12 @@ bool InlineDivergentScopesPass::runOnFunction(llvm::Function &F) {
   // Instantiate and call the `Impl` class
   InlineDivergentScopesImpl IDSImpl(F);
   bool FunctionModified = IDSImpl.run();
+
+  // We verify that the `ScopeGraph` has not blocks disconnected from the
+  // entry block
+  if (VerifyLog.isEnabled()) {
+    revng_assert(not hasUnreachableBlocks(&F));
+  }
 
   // This pass may transform the CFG by assign some blocks to perform the IDS
   // canonicalization and by redirecting edges on the `ScopeGraph`

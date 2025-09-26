@@ -19,6 +19,7 @@
 #include "llvm/ADT/SetOperations.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallSet.h"
 
 #include "revng/Support/Debug.h"
 
@@ -243,21 +244,27 @@ template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
 llvm::SmallSetVector<revng::detail::EdgeDescriptor<typename GT::NodeRef>, 4>
 getBackedges(GraphT Block) {
   llvm::SmallPtrSet<typename GT::NodeRef, 4> EmptySet;
-  return getBackedgesImpl<revng::detail::FilterSet::BlackList>(Block, EmptySet);
+  return getBackedgesImpl<revng::detail::FilterSet::BlackList,
+                          GraphT,
+                          GT>(Block, EmptySet);
 }
 
 template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
 llvm::SmallSetVector<revng::detail::EdgeDescriptor<typename GT::NodeRef>, 4>
 getBackedgesWhiteList(GraphT Block,
                       llvm::SmallPtrSet<typename GT::NodeRef, 4> &Set) {
-  return getBackedgesImpl<revng::detail::FilterSet::WhiteList>(Block, Set);
+  return getBackedgesImpl<revng::detail::FilterSet::WhiteList,
+                          GraphT,
+                          GT>(Block, Set);
 }
 
 template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
 llvm::SmallSetVector<revng::detail::EdgeDescriptor<typename GT::NodeRef>, 4>
 getBackedgesBlackList(GraphT Block,
                       llvm::SmallPtrSet<typename GT::NodeRef, 4> &Set) {
-  return getBackedgesImpl<revng::detail::FilterSet::BlackList>(Block, Set);
+  return getBackedgesImpl<revng::detail::FilterSet::BlackList,
+                          GraphT,
+                          GT>(Block, Set);
 }
 
 template<class GraphT, class GT>
@@ -391,14 +398,62 @@ nodesBetweenReverse(GraphT Source, GraphT Destination) {
   return nodesBetweenImpl<GraphT, Inverse<GraphT>>(Source, Destination);
 }
 
-template<class GraphT>
+/// Helper function which checks that the `ScopeGraph` is a DAG
+template<class GraphT, class NodeT>
 bool isDAG(GraphT Graph) {
-  for (llvm::scc_iterator<GraphT> I = llvm::scc_begin(Graph),
-                                  IE = llvm::scc_end(Graph);
-       I != IE;
-       ++I) {
-    if (I.hasCycle())
-      return false;
+
+  using NodeRef = llvm::GraphTraits<GraphT>::NodeRef;
+  llvm::SmallSet<NodeRef, 4> VisitedNodes;
+
+  // We iterate over all the nodes in the `Graph`, and we check that we never
+  // find a `SCC`
+  for (NodeRef Node : nodes(Graph)) {
+
+    // We skip nodes which we have already visited
+    if (VisitedNodes.contains(Node)) {
+      continue;
+    }
+
+    for (llvm::scc_iterator<NodeT> I = llvm::scc_begin(NodeT(Node)),
+                                   IE = llvm::scc_end(NodeT(Node));
+         I != IE;
+         ++I) {
+      if (I.hasCycle()) {
+        return false;
+      }
+
+      // We add each node of a visited `SCC` to the nodes that will be skipped
+      // from the next iteration on
+      for (NodeRef SCCNode : *I) {
+        VisitedNodes.insert(SCCNode);
+      }
+    }
   }
+
   return true;
+}
+
+/// Helper function which checks that there are no blocks unreachable blocks
+/// from the entry block, on `GraphT`
+template<class GraphT>
+bool hasUnreachableBlocks(GraphT Graph) {
+  using NodeRef = llvm::GraphTraits<GraphT>::NodeRef;
+
+  // We collect all the blocks that we can reach performing a DFS visit, on the
+  // `ScopeGraph`, starting from the entry block
+  llvm::SmallSet<NodeRef, 4> DFSNodes;
+  for (NodeRef Node : depth_first(Graph)) {
+    DFSNodes.insert(Node);
+  }
+
+  // We iterate over all the blocks in the `ScopeGraph`, and if we find a block
+  // that we did not see during the DFS visit, it means that we have a block
+  // disconnected from the entry
+  for (NodeRef Node : nodes(Graph)) {
+    if (not DFSNodes.contains(Node)) {
+      return true;
+    }
+  }
+
+  return false;
 }

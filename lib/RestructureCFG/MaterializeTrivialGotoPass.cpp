@@ -84,8 +84,8 @@ public:
         // We rollback the changes if either:
         // 1) The obtained `ScopeGraph` becomes cyclic
         // 2) The obtained `ScopeGraph` becomes undecided
-        Scope<Function *> ScopeGraph(&F);
-        if (not isDAG(ScopeGraph) or not isScopeGraphDecided(F)) {
+        if (not isDAG<Scope<Function *>, Scope<BasicBlock *>>(&F)
+            or not isScopeGraphDecided(F)) {
 
           // We rollback to the original situation
           rollbackScopeGraph(SGBuilder, BB, ScopeCloserTarget);
@@ -106,6 +106,12 @@ public:
     // We try to batch remove all the `GotoBlock`s which are not `goto` anymore
     for (BasicBlock *GotoBlock : SimplifiedGotoBlocks) {
       MergeBlockIntoPredecessor(GotoBlock);
+    }
+
+    // We verify that the `ScopeGraph` has not blocks disconnected from the
+    // entry block
+    if (VerifyLog.isEnabled()) {
+      revng_assert(not hasUnreachableBlocks(&F));
     }
 
     return FunctionModified;

@@ -135,61 +135,89 @@ void GenericRegionInfo<GraphT, GT>::electHead(GraphT F) {
   std::optional<llvm::SmallDenseMap<NodeT, size_t>>
     ShortestPathFromEntry = std::nullopt;
 
-  // 3) Perform the election for each `Region`
-  for (auto &CurrentRegion : Regions) {
+  // 3) Perform the head election for each `Region`
+  for (auto &TopLevelRegion : top_level_regions()) {
+    for (auto &CurrentRegion : depth_first(&TopLevelRegion)) {
 
-    // All the blocks which have an incoming edge from a block not part of the
-    // region itself, are considered as head candidates
-    llvm::SmallMapVector<NodeT, size_t, 4> HeadCandidates;
-    for (NodeT Block : CurrentRegion->blocks()) {
-      for (NodeT Predecessor : graph_predecessors(Block)) {
-        if (not CurrentRegion->containsBlock(Predecessor)) {
-          HeadCandidates[Block]++;
+      // During the `Head` election phase, we now introduce the following
+      // additional criterion:
+      // When processing a `GenericRegion` nested into an
+      // outer one(its `ParentRegion`), if the inner `Region` contains the block
+      // that has been elected as `Head` of the `ParentRegion`, we also force
+      // that block to be the `Head` of the inner `GenericRegion`.
+      // This criterion is justified by the following observation:
+      // Suppose that we elect for the outer `Region` A as `Head`. If A is
+      // also contained in the inner child region, and we elect another
+      // block, say B, as its `Head`, it would mean that A becomes a late
+      // entry for the inner region, causing it to be disconnected (late
+      // entry edges are transformed into `goto` edges). This would clearly
+      // break the assumption that all the blocks remain connected to the
+      // entry in the `ScopeGraph`. If this criterion does not apply, we
+      // continue with the standard criterion election.
+      auto *ParentRegion = CurrentRegion->getParent();
+      if (ParentRegion) {
+        NodeT ParentHead = ParentRegion->getHead();
+        revng_assert(ParentHead);
+
+        if (CurrentRegion->containsBlock(ParentHead)) {
+          CurrentRegion->setHead(ParentHead);
+          continue;
         }
       }
-    }
 
-    // Elect the `Head` as the candidate head with the largest number of
-    // incoming edges from outside the region.
-    // If there is a tie, i.e., there are 2 or more candidate heads with the
-    // same number of incoming edges from outside the region itself, we select
-    // the entry with the minimal shortest path from entry. If it is still a
-    // tie, i.e., there are 2 or more candidate heads with, also, the same
-    // minimal shortest path from entry, then we disambiguate by picking the
-    // head that comes first in RPOT.
-    NodeT Head = HeadCandidates.begin()->first;
-    {
-      size_t MaxNHead = HeadCandidates.begin()->second;
-      auto HeadEnd = HeadCandidates.end();
-      for (NodeT Block : RPOT) {
-        auto HeadIt = HeadCandidates.find(Block);
-        if (HeadIt != HeadEnd) {
-          const auto &[HeadCandidate, NumIncoming] = *HeadIt;
-          if (NumIncoming > MaxNHead) {
-            Head = HeadCandidate;
-          } else if (NumIncoming == MaxNHead) {
+      // All the blocks which have an incoming edge from a block not part of the
+      // region itself, are considered as head candidates
+      llvm::SmallMapVector<NodeT, size_t, 4> HeadCandidates;
+      for (NodeT Block : CurrentRegion->blocks()) {
+        for (NodeT Predecessor : graph_predecessors(Block)) {
+          if (not CurrentRegion->containsBlock(Predecessor)) {
+            HeadCandidates[Block]++;
+          }
+        }
+      }
 
-            // Compute the `ShortestPathFromEntry` map since we need to break
-            // a tie here
-            if (not ShortestPathFromEntry.has_value()) {
-              ShortestPathFromEntry = computeShortesPath(F);
-            }
-            size_t CurrentShortest = mapAt(*ShortestPathFromEntry, Head);
-            size_t CandidateShortest = mapAt(*ShortestPathFromEntry,
-                                             HeadCandidate);
-            if (CandidateShortest < CurrentShortest) {
+      // Elect the `Head` as the candidate head with the largest number of
+      // incoming edges from outside the region.
+      // If there is a tie, i.e., there are 2 or more candidate heads with the
+      // same number of incoming edges from outside the region itself, we select
+      // the entry with the minimal shortest path from entry. If it is still a
+      // tie, i.e., there are 2 or more candidate heads with, also, the same
+      // minimal shortest path from entry, then we disambiguate by picking the
+      // head that comes first in RPOT.
+      NodeT Head = HeadCandidates.begin()->first;
+      {
+        size_t MaxNHead = HeadCandidates.begin()->second;
+        auto HeadEnd = HeadCandidates.end();
+        for (NodeT Block : RPOT) {
+          auto HeadIt = HeadCandidates.find(Block);
+          if (HeadIt != HeadEnd) {
+            const auto &[HeadCandidate, NumIncoming] = *HeadIt;
+            if (NumIncoming > MaxNHead) {
               Head = HeadCandidate;
+            } else if (NumIncoming == MaxNHead) {
+
+              // Compute the `ShortestPathFromEntry` map since we need to break
+              // a tie here
+              if (not ShortestPathFromEntry.has_value()) {
+                ShortestPathFromEntry = computeShortesPath(F);
+              }
+              size_t CurrentShortest = mapAt(*ShortestPathFromEntry, Head);
+              size_t CandidateShortest = mapAt(*ShortestPathFromEntry,
+                                               HeadCandidate);
+              if (CandidateShortest < CurrentShortest) {
+                Head = HeadCandidate;
+              }
             }
           }
         }
       }
+
+      // Verify that we found a `Head`
+      revng_assert(Head != nullptr);
+
+      // Set the `Head` for the `Region`
+      CurrentRegion->setHead(Head);
     }
-
-    // Verify that we found a `Head`
-    revng_assert(Head != nullptr);
-
-    // Set the `Head` for the `Region`
-    CurrentRegion->setHead(Head);
   }
 }
 
