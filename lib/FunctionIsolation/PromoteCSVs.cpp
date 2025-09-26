@@ -121,7 +121,7 @@ PromoteCSVs::PromoteCSVs(ModulePass &Pass,
       continue;
 
     CSVs.insert(CSV);
-    if (auto *F = M.getFunction(Configuration.opaqueCSVValuePrefix().str()
+    if (auto *F = M.getFunction(Configuration.OpaqueCSVValuePrefix()
                                 + CSV->getName().str()))
       if (FunctionTags::OpaqueCSVValue.isTagOf(F))
         CSVInitializers.record(CSV->getName(), F);
@@ -300,7 +300,7 @@ void PromoteCSVs::promoteCSVs(Function *F) {
     using namespace model::Register;
     Values Register = fromCSVName(CSVName, Architecture);
     if (Register != Invalid) {
-      llvm::StringRef Prefix = Configuration.opaqueCSVValuePrefix();
+      llvm::StringRef Prefix = Configuration.OpaqueCSVValuePrefix();
       auto *Initializer = CSVInitializers.get(CSVName,
                                               CSVType,
                                               {},
