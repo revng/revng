@@ -220,7 +220,7 @@ void revng::Tracking::stop(const /*= base_namespace =*/::/*= struct.name =*/ &LH
 /** endif **/
 
 /**- for field in struct.fields **/
-/**- if struct | is_struct_field **/
+/**- if field | is_struct_field **/
 static_assert(not (TupleTreeCompatible</*= field | field_type =*/> and KeyedObjectContainerCompatible</*= field | field_type =*/>));
 /**- endif **/
 /**- endfor **/
