@@ -950,7 +950,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     }
 
     const auto &Config = Model->Configuration().Naming();
-    bool IsPadding = Field->getName().starts_with(Config.structPaddingPrefix());
+    bool IsPadding = Field->getName().starts_with(Config.StructPaddingPrefix());
     auto ExplicitOffset = parseIntegerAnnotation<"_STARTS_AT">(*Field, Errors);
     if (ExplicitOffset.has_value()) {
       if (IsPadding) {

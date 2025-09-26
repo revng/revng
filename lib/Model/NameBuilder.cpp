@@ -469,75 +469,75 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
                                 "underscore");
 
   // Prefix + `[0-9]+`
-  if (isPrefixAndIndex(Name, Configuration.unnamedSegmentPrefix()))
+  if (isPrefixAndIndex(Name, Configuration.UnnamedSegmentPrefix()))
     return revng::createError("it is reserved for an automatic segment name");
-  if (isPrefixAndIndex(Name, Configuration.unnamedStructFieldPrefix()))
+  if (isPrefixAndIndex(Name, Configuration.UnnamedStructFieldPrefix()))
     return revng::createError("it is reserved for an automatic struct field "
                               "name");
-  if (isPrefixAndIndex(Name, Configuration.unnamedUnionFieldPrefix()))
+  if (isPrefixAndIndex(Name, Configuration.UnnamedUnionFieldPrefix()))
     return revng::createError("it is reserved for an automatic struct union "
                               "name");
-  if (isPrefixAndIndex(Name, Configuration.unnamedFunctionArgumentPrefix()))
+  if (isPrefixAndIndex(Name, Configuration.UnnamedFunctionArgumentPrefix()))
     return revng::createError("it is reserved for an automatic function "
                               "argument name");
-  if (isPrefixAndIndex(Name, Configuration.unnamedLocalVariablePrefix()))
+  if (isPrefixAndIndex(Name, Configuration.UnnamedLocalVariablePrefix()))
     return revng::createError("it is reserved for an automatic local variable "
                               "name");
   if (isPrefixAndIndex(Name,
-                       Configuration.unnamedBreakFromLoopVariablePrefix()))
+                       Configuration.UnnamedBreakFromLoopVariablePrefix()))
     return revng::createError("it is reserved for a break-from-loop variable "
                               "name");
-  if (isPrefixAndIndex(Name, Configuration.unnamedGotoLabelPrefix()))
+  if (isPrefixAndIndex(Name, Configuration.UnnamedGotoLabelPrefix()))
     return revng::createError("it is reserved for an automatic goto label "
                               "name");
 
   // NOTE: This should live in the "Prefix + `[0-9]+`" section, but because we
   //       parse these names when importing from C, let's be extra cautious and
   //       forbid them all.
-  if (Name.starts_with(Configuration.structPaddingPrefix()))
+  if (Name.starts_with(Configuration.StructPaddingPrefix()))
     return revng::createError("it is reserved for a struct padding name");
 
   // Prefix + MetaAddress.toIdentifier()
-  if (isPrefixAndAddress(Name, Configuration.unnamedFunctionPrefix()))
+  if (isPrefixAndAddress(Name, Configuration.UnnamedFunctionPrefix()))
     return revng::createError("it is reserved for an automatic function name");
 
   // Prefix + toString(TypeDefinitionKey)
   if (isPrefixAndTypeDefinitionKey(Name,
-                                   Configuration.unnamedTypeDefinitionPrefix()))
+                                   Configuration.UnnamedTypeDefinitionPrefix()))
     return revng::createError("it is reserved for an automatic type name");
 
   // NOTE: since automatic enum entry names depend on (potentially unreserved)
   //       enum names, we have no choice but to reserve everything starting with
   //       this prefix that also ends with a number.
-  if (Name.starts_with(Configuration.unnamedEnumEntryPrefix())
+  if (Name.starts_with(Configuration.UnnamedEnumEntryPrefix())
       and std::isdigit(Name.back()))
     return revng::createError("it is reserved for an automatic enum entry "
                               "name");
 
   // NOTE: since we parse these it's safer to reserve all of them.
-  if (Name.starts_with(Configuration.maximumEnumValuePrefix()))
+  if (Name.starts_with(Configuration.MaximumEnumValuePrefix()))
     return revng::createError("it is reserved for a maximum enum value");
 
   // Prefix + model::Register::getRegisterName(Register)
-  if (isPrefixAndRegister(Name, Configuration.unnamedFunctionRegisterPrefix()))
+  if (isPrefixAndRegister(Name, Configuration.UnnamedFunctionRegisterPrefix()))
     return revng::createError("it is reserved for an automatic register "
                               "argument name");
 
   // NOTE: since artificial return value struct name depends on a (potentially
   //       unreserved) function type name, we have no choice but to reserve
   //       everything starting with this prefix.
-  if (Name.starts_with(Configuration.artificialReturnValuePrefix()))
+  if (Name.starts_with(Configuration.ArtificialReturnValuePrefix()))
     return revng::createError("it is reserved for an artificial return value "
                               "struct name");
 
   // NOTE: since CSV value names are kind of external, reserve everything just
   //       to be safe.
-  if (Name.starts_with(Configuration.opaqueCSVValuePrefix()))
+  if (Name.starts_with(Configuration.OpaqueCSVValuePrefix()))
     return revng::createError("it is reserved for an opaque CSV value");
 
   // NOTE: since these use a hash suffix, let's be on the safe side and reserve
   //       the entire prefix.
-  if (Name.starts_with(Configuration.unnamedDynamicFunctionPrefix()))
+  if (Name.starts_with(Configuration.UnnamedDynamicFunctionPrefix()))
     return revng::createError("it is reserved for a dynamic function name");
 
   //
@@ -554,11 +554,11 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   // Exact names
   //
 
-  if (Name == Configuration.stackFrameVariableName())
+  if (Name == Configuration.StackFrameVariableName())
     return revng::createError("it is reserved for a stack variable name");
-  if (Name == Configuration.rawStackArgumentName())
+  if (Name == Configuration.RawStackArgumentName())
     return revng::createError("it is reserved for a stack argument name");
-  if (Name == Configuration.loopStateVariableName())
+  if (Name == Configuration.LoopStateVariableName())
     return revng::createError("it is reserved for a loop state variable name");
 
   // Anything else to add here?
@@ -591,12 +591,12 @@ model::AssemblyNameBuilder::isNameReserved(llvm::StringRef Name) const {
                                 "underscore");
 
   // Prefix + MetaAddress.toIdentifier()
-  if (isPrefixAndAddress(Name, Configuration.unnamedFunctionPrefix()))
+  if (isPrefixAndAddress(Name, Configuration.UnnamedFunctionPrefix()))
     return revng::createError("it is reserved for an automatic function name");
 
   // NOTE: since these use a hash suffix, let's be on the safe side and reserve
   //       the entire prefix.
-  if (Name.starts_with(Configuration.unnamedDynamicFunctionPrefix()))
+  if (Name.starts_with(Configuration.UnnamedDynamicFunctionPrefix()))
     return revng::createError("it is reserved for a dynamic function name");
 
   // Register names

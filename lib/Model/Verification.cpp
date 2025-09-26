@@ -824,55 +824,55 @@ bool Configuration::verify(VerifyHelper &VH) const {
   //
   // As such, let's add them now so that they don't end up forgotten.
 
-  if (Configuration().Naming().unnamedSegmentPrefix().empty())
+  if (Configuration().Naming().UnnamedSegmentPrefix().empty())
     return VH.fail("Segment prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedFunctionPrefix().empty())
+  if (Configuration().Naming().UnnamedFunctionPrefix().empty())
     return VH.fail("Function prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedDynamicFunctionPrefix().empty())
+  if (Configuration().Naming().UnnamedDynamicFunctionPrefix().empty())
     return VH.fail("Dynamic function prefix must not be empty.");
 
-  // `unnamedTypeDefinitionPrefix` can be empty.
+  // `UnnamedTypeDefinitionPrefix` can be empty.
 
-  if (Configuration().Naming().unnamedEnumEntryPrefix().empty())
+  if (Configuration().Naming().UnnamedEnumEntryPrefix().empty())
     return VH.fail("Enum entry prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedStructFieldPrefix().empty())
+  if (Configuration().Naming().UnnamedStructFieldPrefix().empty())
     return VH.fail("Struct field prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedUnionFieldPrefix().empty())
+  if (Configuration().Naming().UnnamedUnionFieldPrefix().empty())
     return VH.fail("Union field prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedFunctionArgumentPrefix().empty())
+  if (Configuration().Naming().UnnamedFunctionArgumentPrefix().empty())
     return VH.fail("Argument prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedFunctionRegisterPrefix().empty())
+  if (Configuration().Naming().UnnamedFunctionRegisterPrefix().empty())
     return VH.fail("Register prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedLocalVariablePrefix().empty())
+  if (Configuration().Naming().UnnamedLocalVariablePrefix().empty())
     return VH.fail("Local variable prefix must not be empty.");
-  if (Configuration().Naming().unnamedBreakFromLoopVariablePrefix().empty())
+  if (Configuration().Naming().UnnamedBreakFromLoopVariablePrefix().empty())
     return VH.fail("\"Break from loop\" variable prefix must not be empty.");
-  if (Configuration().Naming().unnamedGotoLabelPrefix().empty())
+  if (Configuration().Naming().UnnamedGotoLabelPrefix().empty())
     return VH.fail("Goto label prefix must not be empty.");
 
-  if (Configuration().Naming().structPaddingPrefix().empty())
+  if (Configuration().Naming().StructPaddingPrefix().empty())
     return VH.fail("Padding prefix must not be empty.");
 
-  if (Configuration().Naming().opaqueCSVValuePrefix().empty())
+  if (Configuration().Naming().OpaqueCSVValuePrefix().empty())
     return VH.fail("Opaque CSV prefix must not be empty.");
-  if (Configuration().Naming().maximumEnumValuePrefix().empty())
+  if (Configuration().Naming().MaximumEnumValuePrefix().empty())
     return VH.fail("Maximum enum value prefix must not be empty.");
 
-  if (Configuration().Naming().stackFrameVariableName().empty())
+  if (Configuration().Naming().StackFrameVariableName().empty())
     return VH.fail("Stack frame variable name must not be empty.");
-  if (Configuration().Naming().rawStackArgumentName().empty())
+  if (Configuration().Naming().RawStackArgumentName().empty())
     return VH.fail("Raw stack argument name must not be empty.");
-  if (Configuration().Naming().loopStateVariableName().empty())
+  if (Configuration().Naming().LoopStateVariableName().empty())
     return VH.fail("Loop state variable name must not be empty.");
 
-  if (Configuration().Naming().artificialReturnValuePrefix().empty())
+  if (Configuration().Naming().ArtificialReturnValuePrefix().empty())
     return VH.fail("Artificial return value prefix must not be empty.");
 
   return true;
