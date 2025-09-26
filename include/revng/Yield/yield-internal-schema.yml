@@ -14,6 +14,7 @@ definitions:
     fields:
       - name: Entry
         type: MetaAddress
+        default: ":Invalid"
 
       - name: Blocks
         sequence:
@@ -29,16 +30,19 @@ definitions:
     fields:
       - name: ID
         type: BasicBlockID
+        default: ":Invalid"
 
       - name: End
         doc: |
           End address of the basic block, i.e., the address where the last
           instruction ends
         type: MetaAddress
+        default: ":Invalid"
 
       - name: InlinedFrom
         type: MetaAddress
         doc: Address of the function this basic block has been inlined from
+        default: ":Invalid"
 
       - name: Label
         type: TaggedString
@@ -62,6 +66,7 @@ definitions:
           This lets us dynamically decide whether we want to show labels like this
           or not.
         type: bool
+        default: false
 
       - name: HasDelaySlot
         doc: >
@@ -70,6 +75,7 @@ definitions:
           \note: This is always equal to `false` on architectures that do not
           support delay slots.
         type: bool
+        default: false
 
   - name: FunctionEdgeBase
     doc: An edge on the CFG
@@ -91,6 +97,7 @@ definitions:
           branch, or, in case of a function call, the address of the callee.
           TODO: switch to TupleTreeReference
         type: BasicBlockID
+        default: ":Invalid"
       - name: Kind
         type: FunctionEdgeBaseKind
       - name: Type
@@ -116,6 +123,7 @@ definitions:
       - name: IsTailCall
         doc: Is this a tail call?
         type: bool
+        default: false
       - name: Attributes
         doc: |
           Attributes for this function
@@ -160,6 +168,7 @@ definitions:
         doc: >
           Indicates the address of the first byte of the instruction.
         type: MetaAddress
+        default: ":Invalid"
 
       - name: RawBytes
         type: yield::ByteContainer
@@ -181,6 +190,7 @@ definitions:
 
       - name: OpcodeIdentifier
         type: string
+        default: ""
 
       - name: Comment
         doc: >
@@ -199,6 +209,7 @@ definitions:
     fields:
       - name: Index
         type: uint64_t
+        default: -1
 
       - name: Tags
         sequence:
@@ -217,12 +228,14 @@ definitions:
     fields:
       - name: Index
         type: uint64_t
+        default: -1
 
       - name: Type
         type: TagType
 
       - name: Content
         type: string
+        default: ""
 
       - name: Attributes
         sequence:
@@ -238,9 +251,11 @@ definitions:
     fields:
       - name: Name
         type: string
+        default: ""
 
       - name: Value
         type: string
+        default: ""
 
   - name: TagType
     doc: Enum for identifying different instruction markup tag types
