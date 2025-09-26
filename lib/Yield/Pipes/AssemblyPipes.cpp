@@ -85,7 +85,7 @@ void YieldAssembly::run(pipeline::ExecutionContext &Context,
     auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
 
     const model::Configuration &Configuration = Model->Configuration();
-    uint64_t LineWidth = Configuration.commentLineWidth();
+    uint64_t LineWidth = Configuration.CommentLineWidth();
 
     std::string R = ptml::functionComment(B,
                                           Function,
