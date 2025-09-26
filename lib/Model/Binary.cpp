@@ -84,8 +84,9 @@ model::Binary::recordNewType(model::UpcastableTypeDefinition &&T) {
   revng_assert(!T.isEmpty());
 
   // Assign progressive ID
-  if (T->ID() != 0) {
-    std::string Error = "Newly recorded types must not have an ID.\n"
+  if (T->ID() != uint64_t(-1)) {
+    std::string Error = "Types must not have an ID before they are a part of "
+                        "a binary.\n"
                         + ::toString(T);
     revng_abort(Error.c_str());
   }
