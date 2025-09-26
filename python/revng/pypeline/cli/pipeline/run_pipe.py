@@ -7,7 +7,7 @@ import logging
 import click
 
 from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
-from revng.pypeline.cli.utils import normalize_whitespace
+from revng.pypeline.cli.utils import list_objects_option, normalize_whitespace
 from revng.pypeline.container import dump_container, load_container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
@@ -132,13 +132,7 @@ def build_pipe_command(
         type=click.Path(exists=True, dir_okay=False, readable=True),
         required=True,
     )
-    @click.option(
-        "--list",
-        type=bool,
-        is_flag=True,
-        default=False,
-        help="List the available objects for each argument.",
-    )
+    @list_objects_option
     def run_pipe_command(
         model: str, static_configuration: str, configuration: str, **kwargs
     ) -> None:

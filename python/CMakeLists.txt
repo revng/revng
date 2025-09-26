@@ -24,64 +24,64 @@ execute_process(
 # The module sources will be copied to the build directory
 # ~~~
 function(python_module)
-  set(options)
-  set(oneValueArgs TARGET_NAME WHEEL MODULE_INIT)
-  set(multiValueArgs MODULE_FILES MODULE_GENERATED_FILES)
-  cmake_parse_arguments(PYTHON_MODULE "${options}" "${oneValueArgs}"
+    set(options)
+    set(oneValueArgs TARGET_NAME WHEEL MODULE_INIT)
+    set(multiValueArgs MODULE_FILES MODULE_GENERATED_FILES)
+    cmake_parse_arguments(PYTHON_MODULE "${options}" "${oneValueArgs}"
                         "${multiValueArgs}" ${ARGN})
 
-  if(NOT "${PYTHON_MODULE_MODULE_INIT}" STREQUAL "")
-    execute_process(
+    if(NOT "${PYTHON_MODULE_MODULE_INIT}" STREQUAL "")
+        execute_process(
       COMMAND sed "s;@VERSION@;${PYTHON_WHL_VERSION};"
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
       INPUT_FILE "${PYTHON_MODULE_MODULE_INIT}"
       OUTPUT_VARIABLE MODULE_INIT_CONTENTS)
-    file(
+        file(
       WRITE
       "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${PYTHON_MODULE_MODULE_INIT}"
       "${MODULE_INIT_CONTENTS}")
-    file(
+        file(
       WRITE
       "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${PYTHON_MODULE_MODULE_INIT}"
       "${MODULE_INIT_CONTENTS}")
-    list(
+        list(
       APPEND
       "WHEEL_FILES_${PYTHON_MODULE_WHEEL}"
       "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${PYTHON_MODULE_MODULE_INIT}"
     )
-  endif()
+    endif()
 
-  foreach(MODULE_FILE ${PYTHON_MODULE_MODULE_FILES})
-    configure_file(
+    foreach(MODULE_FILE ${PYTHON_MODULE_MODULE_FILES})
+        configure_file(
       "${MODULE_FILE}"
       "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}" COPYONLY)
-    configure_file(
+        configure_file(
       "${MODULE_FILE}"
       "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}"
       COPYONLY)
-    list(
+        list(
       APPEND "WHEEL_FILES_${PYTHON_MODULE_WHEEL}"
       "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}")
-  endforeach()
+    endforeach()
 
-  foreach(MODULE_FILE ${PYTHON_MODULE_MODULE_GENERATED_FILES})
-    add_custom_command(
+    foreach(MODULE_FILE ${PYTHON_MODULE_MODULE_GENERATED_FILES})
+        add_custom_command(
       OUTPUT
         "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}"
       DEPENDS "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}"
       COMMAND
         cp -a "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${MODULE_FILE}"
         "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}")
-    list(
+        list(
       APPEND "WHEEL_FILES_${PYTHON_MODULE_WHEEL}"
       "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_MODULE_WHEEL}/${MODULE_FILE}")
-  endforeach()
+    endforeach()
 
-  set("WHEEL_FILES_${PYTHON_MODULE_WHEEL}"
+    set("WHEEL_FILES_${PYTHON_MODULE_WHEEL}"
       "${WHEEL_FILES_${PYTHON_MODULE_WHEEL}}"
       PARENT_SCOPE)
 
-  add_custom_target(
+    add_custom_target(
     "${PYTHON_MODULE_TARGET_NAME}"
     DEPENDS ${PYTHON_MODULE_MODULE_FILES}
             ${PYTHON_MODULE_MODULE_GENERATED_FILES})
@@ -91,23 +91,23 @@ endfunction()
 # Wheel generation
 #
 function(python_wheel)
-  set(options)
-  set(oneValueArgs NAME PYPROJECT README)
-  set(multiValueArgs)
-  cmake_parse_arguments(PYTHON_WHEEL "${options}" "${oneValueArgs}"
+    set(options)
+    set(oneValueArgs NAME PYPROJECT README)
+    set(multiValueArgs)
+    cmake_parse_arguments(PYTHON_WHEEL "${options}" "${oneValueArgs}"
                         "${multiValueArgs}" ${ARGN})
 
-  set(WHEEL_OUTPUT_NAME
+    set(WHEEL_OUTPUT_NAME
       "${PYTHON_WHEEL_NAME}-${PYTHON_WHL_VERSION}-py3-none-any.whl")
-  configure_file(
+    configure_file(
     "${PYTHON_WHEEL_PYPROJECT}"
     "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}/pyproject.toml"
     COPYONLY)
-  configure_file(
+    configure_file(
     "${PYTHON_WHEEL_README}"
     "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}/README.md" COPYONLY)
 
-  add_custom_command(
+    add_custom_command(
     OUTPUT "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
     COMMAND python -m build --no-isolation --wheel --outdir
             "${CMAKE_BINARY_DIR}" &> /dev/null
@@ -116,11 +116,11 @@ function(python_wheel)
       "${WHEEL_FILES_${PYTHON_WHEEL_NAME}}"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}")
 
-  add_custom_target("generate-${PYTHON_WHEEL_NAME}-wheel" ALL
+    add_custom_target("generate-${PYTHON_WHEEL_NAME}-wheel" ALL
                     DEPENDS "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}")
-  install(FILES "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
+    install(FILES "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
           DESTINATION "${CMAKE_INSTALL_PREFIX}/share/python")
-  install(
+    install(
     CODE "execute_process(COMMAND \"${CMAKE_CURRENT_SOURCE_DIR}/wheel-install.sh\" \
 \"${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}\")")
 endfunction()
@@ -154,7 +154,9 @@ python_module(
   MODULE_INIT
   revng/internal/__init__.py
   MODULE_FILES
-  revng/internal/py.typed)
+  revng/internal/py.typed
+  revng/internal/pipebox.py
+  revng/internal/pipeline.yml)
 
 #
 # Install revng.model (including autogenerated classes)
@@ -329,7 +331,7 @@ set(PIPELINE_C_HEADERS_BUILD_DIR "${CMAKE_BINARY_DIR}/include/revng/PipelineC")
 set(REQUIRED_PIPELINE_C_HEADERS ForwardDeclarationsC.h Prototypes.h)
 file(MAKE_DIRECTORY "${PIPELINE_C_HEADERS_BUILD_DIR}")
 foreach(HEADER ${REQUIRED_PIPELINE_C_HEADERS})
-  configure_file("${PIPELINE_C_HEADERS_SOURCE_DIR}/${HEADER}"
+    configure_file("${PIPELINE_C_HEADERS_SOURCE_DIR}/${HEADER}"
                  "${PIPELINE_C_HEADERS_BUILD_DIR}/${HEADER}" COPYONLY)
 endforeach()
 
@@ -396,13 +398,20 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/pipeline_node.py
     revng/pypeline/pipeline_parser.py
     revng/pypeline/pipeline.py
-    revng/pypeline/pipeline_schema.yml
+    revng/pypeline/schema.yml
+    revng/pypeline/daemon/__init__.py
+    revng/pypeline/daemon/app.py
+    revng/pypeline/daemon/daemon.py
+    revng/pypeline/daemon/postoffice.py
+    revng/pypeline/daemon/utils.py
+    revng/pypeline/daemon/lock/__init__.py
+    revng/pypeline/daemon/lock/local_lock.py
     revng/pypeline/schedule/__init__.py
     revng/pypeline/schedule/scheduled_task.py
     revng/pypeline/schedule/schedule.py
     revng/pypeline/storage/memory.py
     revng/pypeline/storage/null.py
-    revng/pypeline/storage/sqlite3.py
+    revng/pypeline/storage/local_provider.py
     revng/pypeline/storage/storage_provider.py
     revng/pypeline/storage/util.py
     revng/pypeline/storage/__init__.py
