@@ -177,7 +177,7 @@ class PythonGenerator:
             f'{{"type": {hint_type}, '
             + (f'"possible_values": {possible_values},' if possible_values is not None else "")
             + f'"ctor": "{ctor}", '
-            + f'"optional": {self.to_bool(field.optional)}, '
+            + f'"is_key": {self.to_bool(field.is_key)}, '
             + f'"is_array": {self.to_bool(is_sequence)}, '
             + f'"is_abstract": {self.to_bool(is_abstract)},'
             + f'"external": {self.to_bool(external)}}}'

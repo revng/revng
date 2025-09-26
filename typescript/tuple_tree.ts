@@ -278,7 +278,6 @@ export function _makeDiff<T>(
         type: rootType,
         ctor: "class",
         isArray: false,
-        optional: false,
         isAbstract: false,
     };
     return new DiffSet(
@@ -559,7 +558,6 @@ type NativeParsable = (rawObject: any) => any;
 export type TupleTreeType = Constructor | Parsable;
 
 interface CommonTypeInfo {
-    optional: boolean;
     isArray: boolean;
     isAbstract: boolean;
 }

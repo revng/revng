@@ -12,7 +12,7 @@ from .reference import ReferenceDefinition
 from .sequence import SequenceDefinition
 from .upcastable import UpcastableDefinition
 
-# TODO: we should return the fields in a stable order (in all_fields, all_optional_fields, etc)
+# TODO: we should return the fields in a stable order in `all_fields`
 # **ivan**: are they not already stable? :thinking-face:
 # The `fields` is always a list, and don't have multiple inheritance, what am I missing?
 
@@ -22,10 +22,10 @@ def is_enum(resolved_type):
 
 
 class StructField(ABC):
-    def __init__(self, *, name, doc=None, optional=False, const=False):
+    def __init__(self, *, name, doc=None, const=False):
         self.name = name
         self.doc = doc
-        self.optional = optional
+        self.is_key = False
         self.upcastable = False
         self.const = const
         self.resolved_type = None
@@ -66,11 +66,10 @@ class SimpleStructField(StructField):
         name,
         type,  # noqa: A002
         doc=None,
-        optional=False,
         const=False,
         is_global_index=False,
     ):
-        super().__init__(name=name, doc=doc, optional=optional, const=const)
+        super().__init__(name=name, doc=doc, const=const)
         self.type = type
         self.is_global_index = is_global_index
 
@@ -92,10 +91,9 @@ class SequenceStructField(StructField):
         sequence_type,
         element_type,
         doc=None,
-        optional=False,
         const=False,
     ):
-        super().__init__(name=name, doc=doc, optional=optional, const=const)
+        super().__init__(name=name, doc=doc, const=const)
         self.sequence_type = sequence_type
         self.element_type = element_type
         self.resolved_element_type = None
@@ -112,8 +110,8 @@ class SequenceStructField(StructField):
 
 
 class ReferenceStructField(StructField):
-    def __init__(self, *, name, pointee_type, doc=None, optional=False, const=False):
-        super().__init__(name=name, doc=doc, optional=optional, const=const)
+    def __init__(self, *, name, pointee_type, doc=None, const=False):
+        super().__init__(name=name, doc=doc, const=const)
         self.pointee_type = pointee_type
 
     def resolve_references(self, schema):
@@ -148,8 +146,6 @@ class StructDefinition(Definition):
         # These fields will be populated by resolve_references()
         self.inherits = None
         self._key_kind_index = None
-        # Type containing the key fields (might be self or a base class)
-        self.key_definition = None
         # None, "simple" or "composite"
         self.keytype = None
         self.key_fields: List[SimpleStructField] = []
@@ -162,8 +158,17 @@ class StructDefinition(Definition):
             return
 
         if self._inherits:
-            self.inherits = schema.get_definition_for(self._inherits)
             self.dependencies.add(self._inherits)
+
+            self.inherits = schema.get_definition_for(self._inherits)
+            self.inherits.resolve_references(schema)
+
+            # TODO: support indirect inheritance
+            assert not self._key
+            self._key = self.inherits._key
+            self._key_kind_index = self.inherits._key_kind_index
+            self.keytype = self.inherits.keytype
+            self.key_fields = self.inherits.key_fields
 
         for field in self.fields:
             field.resolve_references(schema)
@@ -182,36 +187,30 @@ class StructDefinition(Definition):
             else:
                 raise ValueError()
 
-        if self._key:
-            self.key_definition = self
+        if self._key and not self._inherits:
+            for field in self.fields:
+                if field.name in self._key:
+                    assert isinstance(field, SimpleStructField)
 
-        elif self.inherits and self.inherits._key:
-            # TODO: support indirect inheritance
-            self.key_definition = self.inherits
+                    field.is_key = True
+                    # TODO: mark `field` as `const`
 
-        # TODO: mark key fields as const
-        if self.key_definition:
-            for key_field_index, key_field_name in enumerate(self.key_definition._key):
-                key_field = next(f for f in self.key_definition.fields if f.name == key_field_name)
-                assert isinstance(key_field, SimpleStructField)
-                self.key_fields.append(key_field)
+                    self.key_fields.append(field)
 
-                if key_field.name == "Kind":
-                    assert self._key_kind_index is None, "Multiple kind fields in the key"
-                    self._key_kind_index = key_field_index
+            kind_fields = [i for i, k in enumerate(self._key) if k == "Kind"]
+            assert len(kind_fields) <= 1, f"Multiple kind fields in {self.name}"
+            self._key_kind_index = kind_fields[0] if kind_fields else None
 
-            if len(self.key_definition.key_fields) == 0:
+            if len(self.key_fields) == 0:
                 self.keytype = None
-            elif len(self.key_definition.key_fields) == 1:
+            elif len(self.key_fields) == 1:
                 self.keytype = "simple"
             else:
                 self.keytype = "composite"
 
         self._refs_resolved = True
 
-        key_fields_names = {f.name for f in self.key_fields}
-        all_field_names = {f.name for f in self.all_fields}
-        self.emit_full_constructor = key_fields_names != all_field_names
+        self.emit_full_constructor = len(set(self.all_optional_fields)) != 0
 
         if (self.inherits or self.abstract) and self.keytype:
             assert self._key_kind_index is not None, "A polymorphic type without kind in the key"
@@ -228,34 +227,40 @@ class StructDefinition(Definition):
         }
         return StructDefinition(**args)
 
+    def is_required(self, field):
+        if field.is_key:
+            return True
+
+        return (self.inherits or self.abstract) and field.name == "Kind"
+
     @property
     def optional_fields(self):
         for field in self.fields:
-            if field.optional:
+            if not self.is_required(field):
                 yield field
 
     @property
     def required_fields(self):
         for field in self.fields:
-            if not field.optional:
+            if self.is_required(field):
                 yield field
 
     @property
     def all_optional_fields(self):
         for field in self.all_fields:
-            if field.optional:
+            if not self.is_required(field):
                 yield field
 
     @property
     def all_required_fields(self):
         for field in self.all_fields:
-            if not field.optional:
+            if self.is_required(field):
                 yield field
 
     @property
     def all_fields(self):
         if not self._refs_resolved:
-            raise RuntimeError("all_fields not available before resolving references")
+            raise RuntimeError("`all_fields` is only available after resolving references")
         if self.inherits:
             yield from self.inherits.fields
         yield from self.fields

@@ -9,7 +9,6 @@ definitions:
       - name: RequiredField
         type: uint64_t
       - name: OptionalField
-        optional: true
         type: uint64_t
       - name: EnumField
         type: TestEnum

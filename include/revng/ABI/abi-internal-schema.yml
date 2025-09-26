@@ -40,7 +40,6 @@ definitions:
         type: uint64_t
       - name: UnusedStackArgumentBytes
         type: uint64_t
-        optional: true
 
       - name: MaximumGPRsPerAggregateArgument
         type: uint64_t
@@ -55,37 +54,29 @@ definitions:
         sequence:
           type: std::vector
           elementType: model::Register::Values
-        optional: true
       - name: GeneralPurposeReturnValueRegisters
         sequence:
           type: std::vector
           elementType: model::Register::Values
-        optional: true
       - name: VectorArgumentRegisters
         sequence:
           type: std::vector
           elementType: model::Register::Values
-        optional: true
       - name: VectorReturnValueRegisters
         sequence:
           type: std::vector
           elementType: model::Register::Values
-        optional: true
       - name: CalleeSavedRegisters
         sequence:
           type: std::vector
           elementType: model::Register::Values
-        optional: true
 
       - name: ReturnValueLocationRegister
         type: model::Register::Values
-        optional: true
       - name: ReturnValueLocationOnStack
         type: bool
-        optional: true
       - name: ReturnValueLocationIsReturned
         type: bool
-        optional: true
 
       - name: ScalarTypes
         sequence:
@@ -113,7 +104,6 @@ definitions:
         doc: |
           When set to `0` (default), the alignment of this type matches its size
         type: uint64_t
-        optional: true
 
     key:
       - Size
