@@ -22,6 +22,7 @@ definitions:
       - name: Name
         type: string
         doc: Optional name for debugging purposes
+        default: ""
       - name: Blocks
         sequence:
           type: SortedVector
@@ -37,14 +38,17 @@ definitions:
     fields:
       - name: ID
         type: BasicBlockID
+        default: ":Invalid"
       - name: End
         doc: |
           End address of the basic block, i.e., the address where the last
           instruction ends
         type: MetaAddress
+        default: ":Invalid"
       - name: InlinedFrom
         type: MetaAddress
         doc: Address of the function this basic block has been inlined from
+        default: ":Invalid"
       - name: Successors
         doc: List of successor edges
         sequence:
@@ -71,6 +75,7 @@ definitions:
           branch, or, in case of a function call, the address of the callee.
           TODO: switch to TupleTreeReference
         type: BasicBlockID
+        default: ":Invalid"
       - name: Kind
         type: FunctionEdgeBaseKind
       - name: Type
@@ -97,6 +102,7 @@ definitions:
       - name: IsTailCall
         doc: Is this a tail call?
         type: bool
+        default: false
       - name: Attributes
         doc: |
           Attributes for this function
