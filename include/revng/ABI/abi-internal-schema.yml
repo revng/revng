@@ -14,41 +14,58 @@ definitions:
 
       - name: ArgumentsArePositionBased
         type: bool
+        default: false
 
       - name: OnlyStartDoubleArgumentsFromAnEvenRegister
         type: bool
+        default: false
       - name: ArgumentsCanBeSplitBetweenRegistersAndStack
         type: bool
+        default: false
       - name: BigArgumentsUsePointersToCopy
         type: bool
+        default: false
       - name: NoRegisterArgumentsCanComeAfterStackOnes
         type: bool
+        default: false
       - name: AllowPackedTypesInRegisters
         type: bool
+        default: false
       - name: CalleeIsResponsibleForStackCleanup
         type: bool
+        default: false
       - name: FloatsUseGPRs
         type: bool
+        default: false
       - name: PackStackArguments
         type: bool
+        default: false
       - name: TreatAllAggregatesAsPacked
         type: bool
+        default: false
 
       - name: StackAlignment
         type: uint64_t
+        default: -1
       - name: MinimumStackArgumentSize
         type: uint64_t
+        default: -1
       - name: UnusedStackArgumentBytes
         type: uint64_t
+        default: 0
 
       - name: MaximumGPRsPerAggregateArgument
         type: uint64_t
+        default: 0
       - name: MaximumGPRsPerAggregateReturnValue
         type: uint64_t
+        default: 0
       - name: MaximumGPRsPerScalarArgument
         type: uint64_t
+        default: 0
       - name: MaximumGPRsPerScalarReturnValue
         type: uint64_t
+        default: 0
 
       - name: GeneralPurposeArgumentRegisters
         sequence:
@@ -75,8 +92,10 @@ definitions:
         type: model::Register::Values
       - name: ReturnValueLocationOnStack
         type: bool
+        default: false
       - name: ReturnValueLocationIsReturned
         type: bool
+        default: false
 
       - name: ScalarTypes
         sequence:
@@ -99,11 +118,13 @@ definitions:
     fields:
       - name: Size
         type: uint64_t
+        default: -1
 
       - name: AlignedAt
         doc: |
-          When set to `0` (default), the alignment of this type matches its size
+          When set to `0`, the alignment of this type matches its size.
         type: uint64_t
+        default: 0
 
     key:
       - Size
