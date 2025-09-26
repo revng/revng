@@ -22,9 +22,11 @@ class CppGenerator:
         schema: Schema,
         base_namespace: str,
         emit_tracking: bool,
+        string_types=[],
         user_include_path: Optional[str] = None,
     ):
         self.schema = schema
+        self.string_types = string_types
         self.emit_tracking = emit_tracking
         self.base_namespace = base_namespace
         self.generated_namespace = f"{base_namespace}::generated"
