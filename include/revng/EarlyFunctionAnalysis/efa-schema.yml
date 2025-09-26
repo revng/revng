@@ -22,12 +22,10 @@ definitions:
       - name: Name
         type: string
         doc: Optional name for debugging purposes
-        optional: true
       - name: Blocks
         sequence:
           type: SortedVector
           elementType: BasicBlock
-        optional: true
 
   - name: BasicBlock
     doc: The basic block of a function
@@ -46,7 +44,6 @@ definitions:
         type: MetaAddress
       - name: InlinedFrom
         type: MetaAddress
-        optional: true
         doc: Address of the function this basic block has been inlined from
       - name: Successors
         doc: List of successor edges
@@ -65,7 +62,6 @@ definitions:
 
     fields:
       - name: Destination
-        optional: true
         doc: |
           Target of the CFG edge
 
@@ -98,11 +94,9 @@ definitions:
         doc: |
           Name of the dynamic function being called, or empty if not a dynamic call
         type: string
-        optional: true
       - name: IsTailCall
         doc: Is this a tail call?
         type: bool
-        optional: true
       - name: Attributes
         doc: |
           Attributes for this function
@@ -113,7 +107,6 @@ definitions:
         sequence:
           type: MutableSet
           elementType: model::FunctionAttribute::Values
-        optional: true
 
   - name: FunctionEdgeType
     doc: Type of edge on the CFG

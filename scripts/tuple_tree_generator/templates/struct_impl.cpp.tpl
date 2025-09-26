@@ -19,7 +19,7 @@ The notice below applies to the generated files.
 
 #include "/*= user_include_path =*//*= struct.name =*/.h"
 
-/** if upcastable and struct.key_definition._key **/
+/** if upcastable and struct._key **/
 
 using /*= struct.name =*/Key = /*= struct | user_fullname =*/::Key;
 using U/*= struct.name =*/ = /*= base_namespace =*/::Upcastable/*= struct.name =*/;

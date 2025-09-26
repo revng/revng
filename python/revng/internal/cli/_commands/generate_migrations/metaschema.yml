@@ -120,6 +120,7 @@ definitions:
     required:
       - name
       - type
+      - doc
 
   SequenceStructField:
     type: object
@@ -138,9 +139,6 @@ definitions:
         required:
           - type
           - elementType
-      optional:
-        type: boolean
-        default: false
       const:
         type: boolean
         default: false
@@ -149,6 +147,7 @@ definitions:
     required:
       - name
       - sequence
+      - doc
 
   ReferenceStructField:
     type: object
@@ -158,9 +157,6 @@ definitions:
         type: string
       referenceTo:
         type: string
-      optional:
-        type: boolean
-        default: false
       const:
         type: boolean
         default: false
@@ -169,6 +165,7 @@ definitions:
     required:
       - name
       - referenceTo
+      - doc
 
   StructKey:
     type: array

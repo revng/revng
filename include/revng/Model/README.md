@@ -70,8 +70,6 @@ fields:
   - name: <Field2_name>
     type: <Field2_type>
     doc: <Documentation entry about the second field>
-    # marks a field as optional when deserializing YAML
-    optional: true
 
 key:
   # List the fields that uniquely identify an object inside a container here.

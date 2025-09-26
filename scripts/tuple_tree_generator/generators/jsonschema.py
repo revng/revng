@@ -107,7 +107,10 @@ class JSONSchemaGenerator:
                         + "` field."
                     )
 
-            jsonschema["required"] = [f.name for f in definition.all_required_fields]
+            if definition._key:
+                jsonschema["required"] = definition._key
+            else:
+                jsonschema["required"] = []
             jsonschema["properties"] = properties
 
         return jsonschema
