@@ -52,7 +52,7 @@ class Subcommand(abc.ABC):
 
 class CppSubcommand(Subcommand):
     def __init__(self, subparser):
-        super().__init__("cpp", subparser)
+        super().__init__("cpp", subparser, True)
         self.parser.add_argument("output_dir", help="Output to this directory")
         self.parser.add_argument(
             "--namespace", required=True, help="Base namespace for generated types"
@@ -65,7 +65,9 @@ class CppSubcommand(Subcommand):
         )
 
     def handle(self, args, schema: Schema):
-        generator = CppGenerator(schema, args.namespace, args.tracking, args.include_path_prefix)
+        generator = CppGenerator(
+            schema, args.namespace, args.tracking, args.string_type, args.include_path_prefix
+        )
         sources = generator.emit()
 
         if which("clang-format") is not None:
