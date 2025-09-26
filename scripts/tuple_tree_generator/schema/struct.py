@@ -64,10 +64,12 @@ class SimpleStructField(StructField):
         type,  # noqa: A002
         doc=None,
         const=False,
+        default=None,
         is_guid=False,
     ):
         super().__init__(name=name, doc=doc, const=const, is_guid=is_guid)
         self.type = type
+        self.default = default
 
     def resolve_references(self, schema):
         self.resolved_type = schema.get_definition_for(self.type)

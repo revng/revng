@@ -114,6 +114,9 @@ definitions:
       const:
         type: boolean
         default: false
+      default:
+        type: ["string", "integer", "boolean"]
+        default: ""
     required:
       - name
       - type
