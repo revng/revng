@@ -13,12 +13,12 @@
     - End: "3"
       ID: "2"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
 - Name: function
   Blocks:
     - End: "4"
       ID: "3"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
