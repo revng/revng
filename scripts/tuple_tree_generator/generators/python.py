@@ -13,7 +13,6 @@ from jinja2 import Environment
 from tuple_tree_generator.schema import Definition, EnumDefinition, ReferenceDefinition
 from tuple_tree_generator.schema import ScalarDefinition, Schema, SequenceDefinition
 from tuple_tree_generator.schema import StructDefinition, StructField, UpcastableDefinition
-from tuple_tree_generator.schema.struct import ReferenceStructField, SequenceStructField
 from tuple_tree_generator.schema.struct import SimpleStructField
 
 from .jinja_utils import int_re, is_reference_struct_field, is_sequence_struct_field
@@ -25,15 +24,15 @@ class PythonGenerator:
         self,
         schema: Schema,
         output,
-        string_types=None,
-        external_types=None,
+        string_types=[],
+        external_types=[],
         mixins_paths=[],
     ):
         self.schema = schema
         self.root_type = schema.root_type
         self.output = output
-        self.string_types = string_types or []
-        self.external_types = external_types or []
+        self.string_types = string_types
+        self.external_types = external_types
         self.mixins_paths = mixins_paths
         self.jinja_environment = Environment(
             block_start_string="##",
@@ -47,7 +46,7 @@ class PythonGenerator:
         self.jinja_environment.filters["python_type"] = self.python_type
         self.jinja_environment.filters["type_metadata"] = self.type_metadata
         self.jinja_environment.filters["docstring"] = self.render_docstring
-        self.jinja_environment.filters["default_value"] = self.default_value
+        self.jinja_environment.filters["get_default_value"] = self.get_default_value
         self.jinja_environment.filters["gen_key"] = self.gen_key
         self.jinja_environment.filters["key_parser"] = self.key_parser
         self.jinja_environment.filters["get_mixins"] = self.get_mixins
@@ -177,7 +176,7 @@ class PythonGenerator:
             f'{{"type": {hint_type}, '
             + (f'"possible_values": {possible_values},' if possible_values is not None else "")
             + f'"ctor": "{ctor}", '
-            + f'"optional": {self.to_bool(field.optional)}, '
+            + f'"is_key": {self.to_bool(field.is_key)}, '
             + f'"is_array": {self.to_bool(is_sequence)}, '
             + f'"is_abstract": {self.to_bool(is_abstract)},'
             + f'"external": {self.to_bool(external)}}}'
@@ -286,19 +285,39 @@ class PythonGenerator:
         rendered_docstring += '"""'
         return rendered_docstring
 
-    def default_value(self, field: StructField):
-        if isinstance(field, ReferenceStructField):
-            return '""'
-        if isinstance(field, SequenceStructField):
+    def get_default_value(self, field: StructField):
+        if isinstance(field.resolved_type, SequenceDefinition):
             return "[]"
-        if isinstance(field, SimpleStructField):
+
+        elif isinstance(field.resolved_type, ReferenceDefinition):
+            return '""'
+
+        elif isinstance(field, SimpleStructField):
             if field.type == "string" or field.type in self.string_types:
-                return '""'
-            if field.type == "bool":
-                return "False"
-            if int_re.match(field.type):
-                return "0"
+                assert not field.default or isinstance(field.default, str)
+                return f'"{field.default if field.default else ""}"'
+
+            elif field.type == "bool":
+                assert not field.default or isinstance(field.default, bool)
+                return "True" if field.default else "False"
+
+            elif int_re.match(field.type):
+                assert not field.default or isinstance(field.default, int)
+                return f"{field.default if field.default else 0}"
+
+            elif isinstance(field.resolved_type, EnumDefinition):
+                assert not field.default or isinstance(field.default, str)
+                return f'"{field.default if field.default else "Invalid"}"'
+
+            assert not field.default, (
+                "Currently `default:` is only allowed on simple types: "
+                "integers, booleans, strings and enums."
+            )
+
             if field.upcastable:
                 return "None"
-            return f"{field.type}()"
-        raise ValueError()
+            else:
+                return f"{field.type}()"
+
+        else:
+            raise ValueError()

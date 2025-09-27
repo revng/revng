@@ -45,14 +45,14 @@ class TypeScriptGenerator:
         )
         self.jinja_environment.globals["load_file"] = self.load_file
         self.jinja_environment.globals["is_optional"] = self.is_optional
-        self.jinja_environment.globals["is_upcastable"] = self.is_upcastable
+        self.jinja_environment.globals["is_directly_upcastable"] = self.is_directly_upcastable
         self.jinja_environment.globals["completely_optional"] = self.completely_optional
         self.jinja_environment.globals["default_value"] = self.get_default_value
         self.jinja_environment.filters["read_file"] = self.read_file
         self.jinja_environment.filters["ts_doc"] = self.ts_doc
         self.jinja_environment.filters["ts_type"] = self.ts_type
         self.jinja_environment.filters["ts_itype"] = self.ts_itype
-        self.jinja_environment.filters["get_guid"] = self.get_guid_field
+        self.jinja_environment.filters["get_the_index_field"] = self.get_the_index_field
         self.jinja_environment.filters["get_attr"] = self.get_attr
         self.jinja_environment.filters["gen_assignment"] = self.gen_assignment
         self.jinja_environment.filters["gen_key"] = self.gen_key
@@ -91,11 +91,11 @@ class TypeScriptGenerator:
         type_ = self._real_type(field)
         if isinstance(field.resolved_type, SequenceDefinition):
             return f"{type_}[]"
-        else:
-            if not interface and isinstance(field, SimpleStructField) and field.upcastable:
-                return f"{type_} | undefined"
-            else:
-                return type_
+
+        if not interface and self.is_directly_upcastable(field):
+            return f"{type_} | undefined"
+
+        return type_
 
     def ts_itype(self, field: StructField) -> str:
         if self._is_simple_type(field):
@@ -140,13 +140,20 @@ class TypeScriptGenerator:
         )
 
     @classmethod
-    def get_guid_field(cls, class_: StructDefinition) -> Optional[StructField]:
-        return next((field for field in class_.fields if field.is_guid), None)
+    def get_the_index_field(cls, class_: StructDefinition) -> Optional[StructField]:
+        return next(
+            (
+                field
+                for field in class_.fields
+                if isinstance(field, SimpleStructField) and field.is_global_index
+            ),
+            None,
+        )
 
     def gen_assignment(self, field: StructField) -> str:
         if self._is_simple_type(field):
             result = f"this.{field.name} = rawObject.{field.name}"
-            opt = f"|| {self.get_default_value(field)}" if field.optional else ""
+            opt = "" if field.is_key else f"|| {self.get_default_value(field)}"
             return f"{result}{opt};"
         if isinstance(field.resolved_type, ReferenceDefinition):
             pointee_type = field.resolved_type.pointee.name
@@ -177,21 +184,38 @@ class TypeScriptGenerator:
     def get_default_value(self, field: StructField):
         if isinstance(field.resolved_type, SequenceDefinition):
             return "[]"
+
         elif isinstance(field.resolved_type, ReferenceDefinition):
             return 'new Reference("")'
+
         elif isinstance(field, SimpleStructField):
             if field.type == "string":
-                return '""'
+                assert not field.default or isinstance(field.default, str)
+                return f'"{field.default if field.default else ""}"'
+
             elif field.type in self.string_types:
-                return f'new {field.type}("")'
+                assert not field.default or isinstance(field.default, str)
+                return f'new {field.type}("{field.default if field.default else ""}")'
+
             elif field.type == "bool":
-                return "false"
+                assert not field.default or isinstance(field.default, bool)
+                return "true" if field.default else "false"
+
             elif int_re.match(field.type):
-                return "0n"
+                assert not field.default or isinstance(field.default, int)
+                return f"{field.default if field.default else 0}n"
+
             elif isinstance(field.resolved_type, EnumDefinition):
-                return '"Invalid"'
-            else:
-                return f"new {field.type}()"
+                assert not field.default or isinstance(field.default, str)
+                return f'"{field.default if field.default else "Invalid"}"'
+
+            assert not field.default, (
+                "Currently `default:` is only allowed on simple types: "
+                "integers, booleans, strings and enums."
+            )
+
+            return f"new {field.type}()"
+
         else:
             raise ValueError()
 
@@ -283,17 +307,16 @@ class TypeScriptGenerator:
             f"{{type: {hint_type}, "
             + (f"possibleValues: {possible_values}," if possible_values is not None else "")
             + f"ctor: '{ctor}', "
-            + f"optional: {'true' if field.optional else 'false'}, "
             + f"isArray: {'true' if is_sequence else 'false'}, "
             + f"isAbstract: {'true' if is_abstract else 'false'}}}"
         )
 
     @staticmethod
     def is_optional(field: StructField):
-        return field.optional or isinstance(field.resolved_type, ReferenceDefinition)
+        return not field.is_key or isinstance(field.resolved_type, ReferenceDefinition)
 
     @staticmethod
-    def is_upcastable(field: StructField):
+    def is_directly_upcastable(field: StructField):
         return isinstance(field, SimpleStructField) and field.upcastable
 
     @classmethod

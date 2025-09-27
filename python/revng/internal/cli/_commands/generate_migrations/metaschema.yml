@@ -108,21 +108,16 @@ definitions:
         type: string
       doc:
         type: string
-      optional:
-        type: boolean
-        default: false
-      is_guid:
+      is_global_index:
         type: boolean
         default: false
       const:
         type: boolean
         default: false
-      upcastable:
-        type: boolean
-        default: false
     required:
       - name
       - type
+      - doc
 
   SequenceStructField:
     type: object
@@ -138,15 +133,9 @@ definitions:
             type: string
           elementType:
             type: string
-          upcastable:
-            type: boolean
-            default: false
         required:
           - type
           - elementType
-      optional:
-        type: boolean
-        default: false
       const:
         type: boolean
         default: false
@@ -155,6 +144,7 @@ definitions:
     required:
       - name
       - sequence
+      - doc
 
   ReferenceStructField:
     type: object
@@ -162,23 +152,8 @@ definitions:
     properties:
       name:
         type: string
-      reference:
-        type: object
-        additionalProperties: false
-        properties:
-          pointeeType:
-            type: string
-          rootType:
-            type: string
-          upcastable:
-            type: boolean
-            default: false
-        required:
-          - pointeeType
-          - rootType
-      optional:
-        type: boolean
-        default: false
+      reference-to:
+        type: string
       const:
         type: boolean
         default: false
@@ -186,7 +161,8 @@ definitions:
         type: string
     required:
       - name
-      - reference
+      - reference-to
+      - doc
 
   StructKey:
     type: array

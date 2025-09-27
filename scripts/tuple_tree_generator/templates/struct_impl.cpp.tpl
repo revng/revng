@@ -19,7 +19,7 @@ The notice below applies to the generated files.
 
 #include "/*= user_include_path =*//*= struct.name =*/.h"
 
-/** if upcastable and struct.key_definition._key **/
+/** if upcastable and struct._key **/
 
 using /*= struct.name =*/Key = /*= struct | user_fullname =*/::Key;
 using U/*= struct.name =*/ = /*= base_namespace =*/::Upcastable/*= struct.name =*/;
@@ -94,11 +94,19 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
 
   /**- else -**/
 
-  /** for field in struct.all_fields if not field.is_guid and field.__class__.__name__ != "ReferenceStructField" **/
+  /** for field in struct.all_fields **/
 
-  /**- if field.__class__.__name__ == "SimpleStructField" **/
+  /**- if field.__class__.__name__ == "ReferenceStructField" **/
+  // The following field will not be compared here as it's
+  // a reference field: `/*= field.name =*/`.
 
-  /**- if schema.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
+  /**- elif field.__class__.__name__ == "SimpleStructField" **/
+
+  /**- if field.is_global_index **/
+  // The following field will not be compared as it's declared as
+  // a global index: `/*= field.name =*/`.
+
+  /**- elif schema.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
   /**- if field.upcastable -**/
   if (this->/*= field.name =*/().isEmpty() || Other./*= field.name =*/().isEmpty()) {
     if (this->/*= field.name =*/() != Other./*= field.name =*/())
@@ -219,6 +227,7 @@ void revng::Tracking::stop(const /*= base_namespace =*/::/*= struct.name =*/ &LH
 
 /** endif **/
 
+// **ivan**: the following never generates anything. What was it supposed to check?
 /**- for field in struct.fields **/
 /**- if struct | is_struct_field **/
 static_assert(not (TupleTreeCompatible</*= field | field_type =*/> and KeyedObjectContainerCompatible</*= field | field_type =*/>));

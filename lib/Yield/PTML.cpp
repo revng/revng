@@ -317,7 +317,7 @@ static std::string instruction(const ptml::MarkupBuilder &B,
   auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
 
   const model::Configuration &Configuration = Binary.Configuration();
-  uint64_t LineWidth = Configuration.commentLineWidth();
+  uint64_t LineWidth = Configuration.CommentLineWidth();
 
   for (const auto &Comment : CM.getComments(&Instruction)) {
     auto &&ModelComment = ModelFunction.Comments().at(Comment.CommentIndex);
@@ -509,7 +509,7 @@ std::string yield::ptml::functionAssembly(const ::ptml::MarkupBuilder &B,
   auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
 
   const model::Configuration &Configuration = Binary.Configuration();
-  uint64_t LineWidth = Configuration.commentLineWidth();
+  uint64_t LineWidth = Configuration.CommentLineWidth();
 
   for (const auto &Comment : CM.getHomelessComments()) {
     auto &&ModelComment = MFunction.Comments().at(Comment.CommentIndex);

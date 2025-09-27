@@ -157,7 +157,7 @@ struct KeyedObjectTraits<UpcastablePointer</*= struct | user_fullname =*/>> {
 namespace /*= base_namespace =*/ {
 
 /// Is roughly equivalent to
-/// ```
+/// ```cpp
 ///   std::variant<std::monostate,
 /**- for child_type in upcastable | sort(attribute = "user_fullname") **/
 ///                /*= child_type | user_fullname -=*//**- if not loop.last **/, /** endif -**/

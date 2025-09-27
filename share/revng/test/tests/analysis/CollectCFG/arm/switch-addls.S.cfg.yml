@@ -53,5 +53,5 @@
     - ID: "8"
       End: "9"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return

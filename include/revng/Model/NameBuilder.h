@@ -62,7 +62,7 @@ private:
   [[nodiscard]] std::string automaticName(const model::Binary &Binary,
                                           const model::Segment &Segment) const {
     auto Iterator = Binary.Segments().find(Segment.key());
-    auto Result = std::string(Configuration.unnamedSegmentPrefix())
+    auto Result = std::string(Configuration.UnnamedSegmentPrefix())
                   + std::to_string(std::distance(Binary.Segments().begin(),
                                                  Iterator));
     assertNameIsReserved(Result);
@@ -71,14 +71,14 @@ private:
   [[nodiscard]] std::string
   automaticName(const model::DynamicFunction &Function) const {
     // TODO: use something nicer to look at than hash, maybe punycode.
-    std::string Result = Configuration.unnamedDynamicFunctionPrefix().str()
+    std::string Result = Configuration.UnnamedDynamicFunctionPrefix()
                          + revng::nameHash(Function.Name());
     assertNameIsReserved(Result);
     return Result;
   }
   [[nodiscard]] std::string
   automaticName(const model::Function &Function) const {
-    std::string Result = Configuration.unnamedFunctionPrefix().str()
+    std::string Result = Configuration.UnnamedFunctionPrefix()
                          + Function.Entry().toIdentifier();
     assertNameIsReserved(Result);
     return Result;
@@ -86,8 +86,8 @@ private:
   [[nodiscard]] std::string
   automaticName(const model::TypeDefinition &Definition) const {
     auto K = model::TypeDefinitionKind::automaticNamePrefix(Definition.Kind());
-    std::string Result = Configuration.unnamedTypeDefinitionPrefix().str()
-                         + K.str() + std::to_string(Definition.ID());
+    std::string Result = Configuration.UnnamedTypeDefinitionPrefix() + K.str()
+                         + std::to_string(Definition.ID());
     assertNameIsReserved(Result);
     return Result;
   }
@@ -95,7 +95,7 @@ private:
   [[nodiscard]] std::string
   automaticName(const model::EnumDefinition &Definition,
                 const model::EnumEntry &Entry) const {
-    std::string Result = Configuration.unnamedEnumEntryPrefix().str()
+    std::string Result = Configuration.UnnamedEnumEntryPrefix()
                          + name(Definition) + "_"
                          + std::to_string(Entry.Value());
     assertNameIsReserved(Result);
@@ -104,7 +104,7 @@ private:
   [[nodiscard]] std::string
   automaticName(const model::StructDefinition &Definition,
                 const model::StructField &Field) const {
-    std::string Result = Configuration.unnamedStructFieldPrefix().str()
+    std::string Result = Configuration.UnnamedStructFieldPrefix()
                          + std::to_string(Field.Offset());
     assertNameIsReserved(Result);
     return Result;
@@ -112,7 +112,7 @@ private:
   [[nodiscard]] std::string
   automaticName(const model::UnionDefinition &Definition,
                 const model::UnionField &Field) const {
-    std::string Result = Configuration.unnamedUnionFieldPrefix().str()
+    std::string Result = Configuration.UnnamedUnionFieldPrefix()
                          + std::to_string(Field.Index());
     assertNameIsReserved(Result);
     return Result;
@@ -121,7 +121,7 @@ private:
   [[nodiscard]] std::string
   automaticName(const model::CABIFunctionDefinition &Function,
                 const model::Argument &Argument) const {
-    std::string Result = Configuration.unnamedFunctionArgumentPrefix().str()
+    std::string Result = Configuration.UnnamedFunctionArgumentPrefix()
                          + std::to_string(Argument.Index());
     assertNameIsReserved(Result);
     return Result;
@@ -129,7 +129,7 @@ private:
   [[nodiscard]] std::string
   automaticName(const model::RawFunctionDefinition &Function,
                 const model::NamedTypedRegister &Argument) const {
-    std::string Result = Configuration.unnamedFunctionRegisterPrefix().str()
+    std::string Result = Configuration.UnnamedFunctionRegisterPrefix()
                          + std::string(getRegisterName(Argument.Location()));
     assertNameIsReserved(Result);
     return Result;
@@ -342,7 +342,7 @@ public:
 
     CountingNameBuilder::NamingResult
     name(SortedVector<MetaAddress> const &UserLocationSet) {
-      auto Prefix = this->parent().Configuration.unnamedLocalVariablePrefix();
+      auto Prefix = this->parent().Configuration.UnnamedLocalVariablePrefix();
       return CountingNameBuilder::nameImpl(UserLocationSet,
                                            function().LocalVariables(),
                                            Prefix);
@@ -350,7 +350,7 @@ public:
 
     CountingNameBuilder::NamingResult
     name(TrackingSortedVector<MetaAddress> const &UserLocationSet) {
-      auto Prefix = this->parent().Configuration.unnamedLocalVariablePrefix();
+      auto Prefix = this->parent().Configuration.UnnamedLocalVariablePrefix();
       return CountingNameBuilder::nameImpl(UserLocationSet.unwrap(),
                                            function().LocalVariables(),
                                            Prefix);
@@ -377,7 +377,7 @@ public:
 
     CountingNameBuilder::NamingResult
     name(SortedVector<MetaAddress> const &UserLocationSet) {
-      auto Prefix = this->parent().Configuration.unnamedGotoLabelPrefix();
+      auto Prefix = this->parent().Configuration.UnnamedGotoLabelPrefix();
       return CountingNameBuilder::nameImpl(UserLocationSet,
                                            function().GotoLabels(),
                                            Prefix);
@@ -385,7 +385,7 @@ public:
 
     CountingNameBuilder::NamingResult
     name(TrackingSortedVector<MetaAddress> const &UserLocationSet) {
-      auto Prefix = this->parent().Configuration.unnamedGotoLabelPrefix();
+      auto Prefix = this->parent().Configuration.UnnamedGotoLabelPrefix();
       return CountingNameBuilder::nameImpl(UserLocationSet.unwrap(),
                                            function().GotoLabels(),
                                            Prefix);
@@ -450,7 +450,7 @@ public:
 
 public:
   [[nodiscard]] std::string paddingFieldName(uint64_t Offset) const {
-    std::string Result = Configuration.structPaddingPrefix().str()
+    std::string Result = Configuration.StructPaddingPrefix()
                          + std::to_string(Offset);
     assertNameIsReserved(Result);
     return Result;
@@ -459,8 +459,7 @@ public:
 public:
   [[nodiscard]] std::string
   artificialReturnValueWrapperName(const RFT &Function) const {
-    auto Result = Configuration.artificialReturnValuePrefix().str()
-                  + name(Function);
+    auto Result = Configuration.ArtificialReturnValuePrefix() + name(Function);
     assertNameIsReserved(Result);
     return Result;
   }

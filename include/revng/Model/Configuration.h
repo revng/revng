@@ -20,14 +20,6 @@ public:
   bool verify(VerifyHelper &VH) const;
   bool verify(bool Assert) const debug_function;
   bool verify() const debug_function;
-
-public:
-  uint64_t commentLineWidth() const {
-    if (CommentLineWidth() == 0)
-      return 80;
-    else
-      return CommentLineWidth();
-  }
 };
 
 #include "revng/Model/Generated/Late/Configuration.h"

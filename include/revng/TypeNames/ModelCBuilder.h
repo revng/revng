@@ -447,7 +447,7 @@ public:
     auto TypeLoc = pipeline::locationString(revng::ranks::TypeDefinition,
                                             RFT.stackArgumentsType()->key());
 
-    llvm::StringRef Name = NameBuilder.Configuration.rawStackArgumentName();
+    llvm::StringRef Name = NameBuilder.Configuration.RawStackArgumentName();
     return getNameTagImpl<true>(tokenTag(Name, ptml::c::tokens::Variable),
                                 VarLoc,
                                 TypeLoc,
@@ -460,7 +460,7 @@ public:
     auto VarLoc = pipeline::locationString(revng::ranks::RawStackArguments,
                                            RFT.key());
 
-    llvm::StringRef Name = NameBuilder.Configuration.rawStackArgumentName();
+    llvm::StringRef Name = NameBuilder.Configuration.RawStackArgumentName();
     return getNameTagImpl<false>(tokenTag(Name, ptml::c::tokens::Variable),
                                  VarLoc,
                                  Actions);
@@ -668,7 +668,7 @@ public:
 private:
   uint64_t availableCommentLineWidth() const {
     const model::Configuration &Configuration = Binary.Configuration();
-    uint64_t TotalLineWidth = Configuration.commentLineWidth();
+    uint64_t TotalLineWidth = Configuration.CommentLineWidth();
 
     // TODO: Come up with something more robust here, because:
     //       1. there is no guarantee that the string is going to be written to

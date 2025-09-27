@@ -8,7 +8,7 @@
     - ID: "1"
       End: "2"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
 - Name: _start
   Blocks:
@@ -25,5 +25,5 @@
     - End: "6"
       ID: "5"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return

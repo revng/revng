@@ -67,7 +67,7 @@ public:
     NewD *Upcasted = llvm::cast<NewD>(D.get());
 
     // Assign the ID
-    revng_assert(Upcasted->ID() == 0);
+    revng_assert(Upcasted->ID() == uint64_t(-1));
     Upcasted->ID() = NextAvailableID++;
 
     return { *Upcasted, Binary.makeType(Upcasted->key()) };
