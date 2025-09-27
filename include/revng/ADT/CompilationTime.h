@@ -96,15 +96,6 @@ constexpr std::optional<size_t> select(CallableType &&Callable) {
                         std::forward<CallableType>(Callable));
 }
 
-/// Calls \ref Callable on each element of \ref TupleType. Each time the element
-/// type and index will be provided as template parameters.
-template<SpecializationOf<std::tuple> TupleType, typename CallableType>
-constexpr void forEach(CallableType &&Callable) {
-  repeat<std::tuple_size_v<TupleType>>([&Callable]<size_t I>() {
-    Callable.template operator()<std::tuple_element_t<I, TupleType>, I>();
-  });
-}
-
 namespace detail {
 
 template<size_t N, size_t I = 0>
@@ -167,6 +158,6 @@ struct ArrayTraits<std::array<T, N>> {
 /// Helper struct that reports the value_type and Size of an array at
 /// compile-time
 template<auto &T>
-using ArrayTraits = detail::ArrayTraits<std::remove_reference_t<decltype(T)>>;
+using ArrayTraits = detail::ArrayTraits<std::remove_cvref_t<decltype(T)>>;
 
 } // namespace compile_time
