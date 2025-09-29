@@ -105,6 +105,21 @@ bool Segment::verify(VerifyHelper &VH) const {
   return true;
 }
 
+bool BinaryIdentifier::verify(VerifyHelper &VH) const {
+  auto Guard = VH.suspendTracking(*this);
+
+  auto IsLowerHex = [](const char &C) {
+    return ('0' <= C and C <= '9') or ('a' <= C and C <= 'f');
+  };
+
+  if (Hash().size() != 64 or not llvm::all_of(Hash(), IsLowerHex))
+    return VH.fail("Hash has invalid format. A series of 64 lowercase hex "
+                   "digits representing SHA256 is expected.",
+                   Hash());
+
+  return true;
+}
+
 //
 // Functions
 //
@@ -946,6 +961,17 @@ bool Binary::verify(VerifyHelper &VH) const {
     return llvm::any_of(ExecutableSegments, ContainsAddress);
   };
 
+  // Verify that there's (0, 1) binaries present
+  // TODO: remove this once multi-binary is implemented
+  if (Binaries().size() > 1)
+    return VH.fail("Binaries must either contain 0 or 1 elements", Binaries());
+
+  // Verify Binaries
+  for (const BinaryIdentifier &BI : Binaries()) {
+    if (not BI.verify(VH))
+      return VH.fail();
+  }
+
   // Verify EntryPoint
   if (EntryPoint().isValid()) {
     if (not EntryPoint().isCode())
@@ -1030,6 +1056,14 @@ bool Segment::verify(bool Assert) const {
   return verify(VH);
 }
 bool Segment::verify() const {
+  return verify(false);
+}
+
+bool BinaryIdentifier::verify(bool Assert) const {
+  VerifyHelper VH(Assert);
+  return verify(VH);
+}
+bool BinaryIdentifier::verify() const {
   return verify(false);
 }
 

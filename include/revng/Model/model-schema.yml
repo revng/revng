@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 6
+version: 7
 root_type: Binary
 
 definitions:
@@ -42,6 +42,22 @@ definitions:
       - name: Configuration
         doc: Project-level artifact configuration options
         type: Configuration
+
+      - name: Binaries
+        doc: |-
+          A list of binaries used in this project. Currently only limited to 0
+          or 1 elements.
+          This is currently optional and a Model is valid without any Binaries
+          specified. This is done as a transitional measure as the new
+          experimental pipeline is implemented. Eventually this limitation will
+          be lifted and each element of `Segments` will need to reference a
+          binary present in `Binaries`.
+          Do note that, even in this transitional phase, running some pipes in
+          the new experimental pipeline will lead to an error being thrown if
+          `Binaries` is empty.
+        sequence:
+          type: SortedVector
+          elementType: BinaryIdentifier
 
       - name: Segments
         doc: |-
@@ -619,6 +635,34 @@ definitions:
   # Segments and function in the binary
   #
 
+  - name: BinaryIdentifier
+    type: struct
+
+    doc: |-
+      Information needed to identify a single binary in the project
+
+    key:
+      - Index
+
+    fields:
+      - name: Index
+        doc: The identifier index
+        type: uint64_t
+
+      - name: Hash
+        doc: The sha256 hash of the binary (in hexadecimal)
+        type: string
+
+      - name: Size
+        doc: The size of the binary (in bytes)
+        type: uint64_t
+
+      - name: Name
+        doc: |-
+          The binary's filename at the time when it was imported. This is kept
+          as an heuristic to re-search the file if it is missing.
+        type: string
+
   - name: Segment
     type: struct
 
@@ -631,6 +675,10 @@ definitions:
       - VirtualSize
 
     fields:
+      - name: Binary
+        doc: The binary from where the segment is loaded from.
+        referenceTo: BinaryIdentifier
+
       - name: StartAddress
         doc: The address at which this segment should be loaded.
         type: MetaAddress
