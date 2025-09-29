@@ -20,8 +20,8 @@ using namespace llvm;
 llvm::Error GlobalsMap::store(const revng::DirectoryPath &Path) const {
   for (const auto &Global : Map) {
     revng::FilePath Filename = Path.getFile(Global.first);
-    if (auto E = Global.second->store(Filename); !!E)
-      return E;
+    if (auto Error = Global.second->store(Filename); Error)
+      return Error;
   }
   return llvm::Error::success();
 }
@@ -29,8 +29,8 @@ llvm::Error GlobalsMap::store(const revng::DirectoryPath &Path) const {
 llvm::Error GlobalsMap::load(const revng::DirectoryPath &Path) {
   for (const auto &Global : Map) {
     revng::FilePath Filename = Path.getFile(Global.first);
-    if (auto E = Global.second->load(Filename); !!E)
-      return E;
+    if (auto Error = Global.second->load(Filename); Error)
+      return Error;
   }
   return llvm::Error::success();
 }

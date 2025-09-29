@@ -218,7 +218,7 @@ template<Yamlizable T>
 llvm::Error serializeToFile(const T &ToWrite, const llvm::StringRef &Path) {
   std::error_code ErrorCode;
   llvm::raw_fd_ostream OutFile(Path, ErrorCode, llvm::sys::fs::CD_CreateAlways);
-  if (!!ErrorCode) {
+  if (ErrorCode) {
     return llvm::make_error<llvm::StringError>("Could not open file "
                                                  + Path.str(),
                                                ErrorCode);

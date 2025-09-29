@@ -197,7 +197,7 @@ static llvm::Error migrateModelFile(const FilePath &ModelFile) {
   TemporaryFile OutputTemporaryFile("revng-model-migration-output", "yml");
 
   auto InputFile = FilePath::fromLocalStorage(InputTemporaryFile.path());
-  if (auto Error = ModelFile.copyTo(InputFile); !!Error)
+  if (auto Error = ModelFile.copyTo(InputFile); Error)
     return Error;
 
   {
@@ -215,7 +215,7 @@ static llvm::Error migrateModelFile(const FilePath &ModelFile) {
   }
 
   auto OutputFile = FilePath::fromLocalStorage(OutputTemporaryFile.path());
-  if (auto Error = OutputFile.copyTo(ModelFile); !!Error)
+  if (auto Error = OutputFile.copyTo(ModelFile); Error)
     return Error;
 
   return llvm::Error::success();
@@ -237,13 +237,13 @@ static llvm::Expected<FilePath> migrateModel(const FilePath &ModelFile) {
   if (not ModelBackupFile)
     return ModelBackupFile.takeError();
 
-  if (auto Error = ModelFile.copyTo(ModelBackupFile.get()); !!Error)
+  if (auto Error = ModelFile.copyTo(ModelBackupFile.get()); Error)
     return Error;
 
   if (not ModelBackupFile)
     return ModelBackupFile.takeError();
 
-  if (auto MigrationError = migrateModelFile(ModelFile); !!MigrationError) {
+  if (auto MigrationError = migrateModelFile(ModelFile); MigrationError) {
     // Migration failed, that's okay though, as the original model has not been
     // overridden (see migrateModelFile). Just return the error.
     return MigrationError;
@@ -321,7 +321,7 @@ PipelineManager::setUpPipeline(llvm::ArrayRef<std::string> TextPipelines) {
       }
     }
 
-    if (auto Error = Runner->loadContainers(ExecutionDirectory); !!Error)
+    if (auto Error = Runner->loadContainers(ExecutionDirectory); Error)
       return Error;
   }
 
@@ -498,14 +498,14 @@ PipelineManager::deserializeContainer(pipeline::Step &Step,
                               Step.getName().str().c_str());
 
   auto &Container = Step.containers()[ContainerName];
-  if (auto Error = Container.deserialize(Buffer); !!Error)
+  if (auto Error = Container.deserialize(Buffer); Error)
     return Error;
 
   auto MaybeInvalidations = invalidateAllPossibleTargets();
   if (not MaybeInvalidations)
     return MaybeInvalidations.takeError();
 
-  if (auto Error = storeStepToDisk(Step.getName()); !!Error)
+  if (auto Error = storeStepToDisk(Step.getName()); Error)
     return Error;
 
   PipelineContext->bumpCommitIndex();

@@ -26,7 +26,7 @@ class Instruction;
 // This ensures debug information validity.
 //
 // In revng modules, valid debug information location is one that is:
-// - non-empty (`!!DebugLoc`),
+// - non-empty (`bool(DebugLoc)`),
 // - has a scope (`DebugLoc->getScope()`) with a non-empty name,
 // - where the name is a valid `/instruction/...` location.
 // (the last one is subject to change when we start attaching more than one

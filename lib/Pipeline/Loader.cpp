@@ -42,7 +42,7 @@ Error Loader::parseStepDeclaration(Runner &Runner,
                                             Kind,
                                             Declaration.Artifacts
                                               .SingleTargetFilename);
-        !!Error) {
+        Error) {
       return Error;
     }
   }
@@ -89,7 +89,7 @@ Loader::parseLLVMPass(const PipeInvocation &Invocation) const {
 
   if (OnLLVMContainerCreationAction.has_value()) {
     auto MaybeError = (*OnLLVMContainerCreationAction)(*this, ToInsert);
-    if (!!MaybeError)
+    if (MaybeError)
       return std::move(MaybeError);
   }
 
@@ -225,7 +225,7 @@ llvm::Error Loader::parseSteps(Runner &Runner,
                                           LastAddedStep,
                                           ReadOnlyNames,
                                           Component);
-        !!Error)
+        Error)
       return Error;
   }
   return llvm::Error::success();
@@ -239,7 +239,7 @@ llvm::Error Loader::parseDeclarations(Runner &Runner,
     if (auto Error = parseContainerDeclaration(Runner,
                                                Container,
                                                ReadOnlyNames);
-        !!Error)
+        Error)
       return Error;
   return llvm::Error::success();
 }
