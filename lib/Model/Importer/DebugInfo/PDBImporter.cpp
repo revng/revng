@@ -256,7 +256,9 @@ public:
       // error condition.
 
       // TODO: emit a diagnostic message for the user.
-      consumeError(MaybeDebugStream.takeError());
+      llvm::Error Error = MaybeDebugStream.takeError();
+      revng_log(Log, "Error reading from the PDB stream: " << Error);
+      consumeError(std::move(Error));
     }
 
     return Error::success();
@@ -323,6 +325,7 @@ bool PDBImporter::loadDataFromPDB(StringRef PDBFileName) {
     auto MaybePDBInfoStream = ThePDBFile->getPDBInfoStream();
     if (auto Error = MaybePDBInfoStream.takeError()) {
       // TODO: emit a diagnostic message for the user.
+      revng_log(Log, "Error reading from the PDB stream: " << Error);
       consumeError(std::move(Error));
       // TODO: is it correct to ignore this error?
       return true;
@@ -330,7 +333,6 @@ bool PDBImporter::loadDataFromPDB(StringRef PDBFileName) {
 
     codeview::GUID GUIDFromPDBFile = MaybePDBInfoStream->getGuid();
     if (ExpectedGUID != GUIDFromPDBFile) {
-      // TODO: emit a diagnostic message for the user.
       revng_log(Log, "Signatures from exe and PDB file mismatch");
       return false;
     }
