@@ -663,7 +663,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineFailure) {
 
   auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!!Error);
-  if (!!Error)
+  if (Error)
     consumeError(std::move(Error));
 }
 
