@@ -1254,12 +1254,6 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
 
       auto DebugFilePath = findDebugInfoFileByName(FileName, DebugFile, ELF);
       if (!DebugFilePath) {
-        if (!::Runner.isProgramAvailable("revng")) {
-          revng_log(DILogger,
-                    "Can't find `revng` binary to run `fetch-debuginfo`.");
-          return;
-        }
-
         int ExitCode = runFetchDebugInfo(FileName, DILogger.isEnabled());
         if (ExitCode != 0) {
           revng_log(DILogger,
