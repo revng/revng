@@ -140,6 +140,9 @@ class ReadOnlyModel[M: Model]:
     def move_to_kind(self, objects: ObjectSet, destination_kind: Kind) -> ObjectSet:
         return self._context.move_to_kind(objects, destination_kind)
 
+    def serialize(self) -> bytes:
+        return self._context.serialize()
+
     def downcast(self) -> M:
         """
         Returns the inner model, allowing to use it as a regular model.
