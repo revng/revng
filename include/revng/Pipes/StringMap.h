@@ -21,6 +21,7 @@
 #include "revng/Support/GzipTarFile.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
+#include "revng/Support/Tar.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"
 
@@ -184,7 +185,7 @@ public:
   }
 
   llvm::Error deserializeImpl(const llvm::MemoryBuffer &Buffer) override {
-    GzipTarReader Reader(Buffer);
+    TarReader Reader(Buffer, TarFormat::Gzip);
     deserializeImpl(Reader);
     return llvm::Error::success();
   }
@@ -231,7 +232,7 @@ public:
     if (not MaybeBuffer)
       return MaybeBuffer.takeError();
 
-    GzipTarReader Reader(MaybeBuffer.get()->buffer());
+    TarReader Reader(MaybeBuffer.get()->buffer(), TarFormat::Gzip);
     deserializeImpl(Reader);
     return llvm::Error::success();
   }
@@ -312,8 +313,8 @@ public:
   auto end() const { return revng::map_iterator(Map.end(), this->mapCIt); }
 
 private:
-  void deserializeImpl(GzipTarReader &Reader) {
-    for (ArchiveEntry &Entry : Reader.entries()) {
+  void deserializeImpl(TarReader &Reader) {
+    for (TarReader::Entry &Entry : Reader.entries()) {
       llvm::StringRef Name = Entry.Filename;
       revng_assert(Name.consume_back(ArchiveSuffix));
       KeyType Key = keyFromString(Name);

@@ -6,6 +6,7 @@
 
 #include "revng/Support/GzipStream.h"
 #include "revng/Support/GzipTarFile.h"
+#include "revng/Support/Tar.h"
 
 #define BOOST_TEST_MODULE GzipTarFile
 bool init_unit_test();
@@ -23,8 +24,8 @@ static void checkOffset(llvm::SmallVector<char> &Buffer,
 }
 
 BOOST_AUTO_TEST_CASE(GzipTarFileTest) {
-  using revng::ArchiveEntry;
   using revng::OffsetDescriptor;
+  using revng::TarReader;
 
   llvm::SmallVector<char> Buffer;
   llvm::raw_svector_ostream OS(Buffer);
@@ -44,10 +45,10 @@ BOOST_AUTO_TEST_CASE(GzipTarFileTest) {
   BOOST_TEST(Offset2.Start == Offset1.End);
 
   {
-    revng::GzipTarReader Reader({ Buffer.data(), Buffer.size() });
+    TarReader Reader({ Buffer.data(), Buffer.size() }, revng::TarFormat::Gzip);
 
-    cppcoro::generator<ArchiveEntry> Gen = Reader.entries();
-    std::vector<ArchiveEntry> Entries(Gen.begin(), Gen.end());
+    cppcoro::generator<TarReader::Entry> Gen = Reader.entries();
+    std::vector<TarReader::Entry> Entries(Gen.begin(), Gen.end());
     BOOST_TEST(Entries.size() == 2ULL);
 
     llvm::StringRef RefData1(Entries[0].Data.data(), Entries[0].Data.size());

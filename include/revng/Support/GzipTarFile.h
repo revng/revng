@@ -5,14 +5,9 @@
 //
 
 #include "llvm/ADT/StringSet.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/ADT/CUniquePtr.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/Generator.h"
-
-#include "archive.h"
 
 namespace revng {
 
@@ -67,23 +62,6 @@ public:
 
   OffsetDescriptor append(llvm::StringRef Name, llvm::ArrayRef<char> Data);
   void close();
-};
-
-struct ArchiveEntry {
-  std::string Filename;
-  llvm::SmallVector<char> Data;
-};
-
-class GzipTarReader {
-private:
-  CUniquePtr<archive_read_free, ARCHIVE_OK> Archive;
-
-public:
-  GzipTarReader(llvm::ArrayRef<char> Ref);
-  GzipTarReader(const llvm::MemoryBuffer &Buffer) :
-    GzipTarReader({ Buffer.getBufferStart(), Buffer.getBufferSize() }){};
-
-  cppcoro::generator<ArchiveEntry> entries();
 };
 
 } // namespace revng
