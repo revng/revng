@@ -661,13 +661,26 @@ class CheckCommitPass(Pass):
         # Check commit message with codespell
         codespell_cmd = await run_with_capture(["codespell", "-c", "-"], input_=commit_joined)
 
-        output = "\n".join(problems) + "\n" if len(problems) > 0 else ""
-        if codespell_cmd.returncode != 0:
-            output += colored("Detected typos in the commit message:\n", "blue")
-            output += codespell_cmd.output
-        status_ok = len(problems) == 0 and codespell_cmd.returncode == 0
+        if len(problems) != 0 or codespell_cmd.returncode != 0:
+            output = colored("Found an invalid commit message", "blue") + ":\n"
+            output += subject + "\n"
+            if len(message_lines) > 0:
+                for line in message_lines:
+                    output += line + "\n"
+            output += "\n"
 
-        return PassResult(output, status_ok)
+            if len(problems) != 0:
+                output += colored("Detected problems", "blue") + ":\n"
+                output += "  - " + "\n  - ".join(problems) + "\n"
+            if codespell_cmd.returncode != 0:
+                output += colored("Detected typos", "blue") + ":\n"
+                output += codespell_cmd.output
+            output += "\n\n"
+
+        else:
+            output = ""
+
+        return PassResult(output, len(output) == 0)
 
 
 def suffix_or_shebang(suffixes: Sequence[str] = (), shebang: str = "") -> FileFilter:
