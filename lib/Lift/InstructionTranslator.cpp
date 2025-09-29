@@ -769,6 +769,7 @@ IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
 
   // Check if there was an error while translating the instruction
   if (!Result) {
+    // TODO: log
     llvm::consumeError(Result.takeError());
     return Abort;
   }
