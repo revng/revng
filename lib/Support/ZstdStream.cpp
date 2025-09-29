@@ -15,16 +15,6 @@
 constexpr size_t BufferSize = 16 * 1024;
 static_assert(BufferSize <= UINT_MAX);
 
-static void zstdContextFree(ZSTD_CCtx *Ctx) {
-  size_t RC = ZSTD_freeCCtx(Ctx);
-  revng_assert(ZSTD_isError(RC) == 0);
-}
-
-static void zstdContextFree(ZSTD_DCtx *Ctx) {
-  size_t RC = ZSTD_freeDCtx(Ctx);
-  revng_assert(ZSTD_isError(RC) == 0);
-}
-
 struct ZSTDCompress {
   using Context = ZSTD_CCtx;
   static constexpr auto readInput = ZSTD_compressStream;
@@ -96,8 +86,7 @@ void zstdCompress(llvm::raw_ostream &OS,
                   llvm::ArrayRef<uint8_t> InputBuffer,
                   int CompressionLevel) {
   revng_assert(CompressionLevel >= 1 and CompressionLevel <= 19);
-  std::unique_ptr<ZSTD_CCtx, void (*)(ZSTD_CCtx *)> Ctx(ZSTD_createCCtx(),
-                                                        zstdContextFree);
+  CUniquePtr<zstdCContextFree> Ctx(ZSTD_createCCtx());
   size_t RC = ZSTD_initCStream(&*Ctx, CompressionLevel);
   revng_assert(ZSTD_isError(RC) == 0);
 
@@ -109,8 +98,7 @@ void zstdCompress(llvm::raw_ostream &OS,
 
 void zstdDecompress(llvm::raw_ostream &OS,
                     llvm::ArrayRef<uint8_t> InputBuffer) {
-  std::unique_ptr<ZSTD_DCtx, void (*)(ZSTD_DCtx *)> Ctx(ZSTD_createDCtx(),
-                                                        zstdContextFree);
+  CUniquePtr<zstdDContextFree> Ctx(ZSTD_createDCtx());
   size_t RC = ZSTD_initDStream(&*Ctx);
   revng_assert(ZSTD_isError(RC) == 0);
 
@@ -122,10 +110,7 @@ void zstdDecompress(llvm::raw_ostream &OS,
 
 ZstdCompressedOstream::ZstdCompressedOstream(llvm::raw_ostream &DestOS,
                                              int CompressionLevel) :
-  llvm::raw_ostream(),
-  OS(DestOS),
-  OutBuffer(),
-  Ctx(ZSTD_createCCtx(), zstdContextFree) {
+  llvm::raw_ostream(), OS(DestOS), OutBuffer(), Ctx(ZSTD_createCCtx()) {
   revng_assert(CompressionLevel >= 1 and CompressionLevel <= 19);
   OutBuffer.resize_for_overwrite(BufferSize);
   size_t RC = ZSTD_initCStream(&*Ctx, CompressionLevel);
