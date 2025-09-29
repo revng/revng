@@ -86,7 +86,7 @@ llvm::Error ContainerSet::store(const revng::DirectoryPath &Directory) const {
     if (not Container->isDirty())
       continue;
 
-    if (auto Error = Container->store(Filename); !!Error)
+    if (auto Error = Container->store(Filename); Error)
       return Error;
 
     Container->resetDirtiness();
@@ -106,7 +106,7 @@ llvm::Error ContainerSet::load(const revng::DirectoryPath &Directory) {
       continue;
     }
 
-    if (auto Error = (*this)[Pair.first()].load(Filename); !!Error)
+    if (auto Error = (*this)[Pair.first()].load(Filename); Error)
       return Error;
   }
   return Error::success();
