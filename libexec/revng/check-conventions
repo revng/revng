@@ -633,6 +633,12 @@ class CheckCommitPass(Pass):
         if len(subject) > 50:
             problems.append("Commit subject line exceeds 50 characters")
 
+        if re.search(r"\bwip\b", subject, re.IGNORECASE):
+            problems.append("Commit subject line contains 'WIP'")
+
+        if subject[0] in "([{":
+            problems.append("Commit is marked WIP by parenthesizing its subject")
+
         if subject[-1] == ".":
             problems.append("Commit subject should not end with a period")
 
