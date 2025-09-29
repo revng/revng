@@ -8,12 +8,11 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/CUniquePtr.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Generator.h"
 
-extern "C" {
-struct archive;
-}
+#include "archive.h"
 
 namespace revng {
 
@@ -77,19 +76,12 @@ struct ArchiveEntry {
 
 class GzipTarReader {
 private:
-  archive *Archive = nullptr;
+  CUniquePtr<archive_read_free, ARCHIVE_OK> Archive;
 
 public:
   GzipTarReader(llvm::ArrayRef<char> Ref);
   GzipTarReader(const llvm::MemoryBuffer &Buffer) :
     GzipTarReader({ Buffer.getBufferStart(), Buffer.getBufferSize() }){};
-  ~GzipTarReader();
-
-  GzipTarReader(const GzipTarReader &Other) = delete;
-  GzipTarReader &operator=(const GzipTarReader &Other) = delete;
-
-  GzipTarReader(GzipTarReader &&Other) = default;
-  GzipTarReader &operator=(GzipTarReader &&Other) = default;
 
   cppcoro::generator<ArchiveEntry> entries();
 };

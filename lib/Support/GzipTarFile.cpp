@@ -172,24 +172,20 @@ void GzipTarWriter::close() {
 }
 
 GzipTarReader::GzipTarReader(llvm::ArrayRef<char> Ref) {
-  Archive = archive_read_new();
-  revng_assert(Archive != NULL);
+  Archive.reset(archive_read_new());
+  revng_assert(Archive.get() != NULL);
 
-  revng_assert(archive_read_support_filter_gzip(Archive) == ARCHIVE_OK);
-  revng_assert(archive_read_support_format_tar(Archive) == ARCHIVE_OK);
+  revng_assert(archive_read_support_filter_gzip(Archive.get()) == ARCHIVE_OK);
+  revng_assert(archive_read_support_format_tar(Archive.get()) == ARCHIVE_OK);
 
-  int EC = archive_read_open_memory(Archive, Ref.data(), Ref.size());
+  int EC = archive_read_open_memory(Archive.get(), Ref.data(), Ref.size());
   revng_assert(EC == ARCHIVE_OK);
-}
-
-GzipTarReader::~GzipTarReader() {
-  revng_assert(archive_read_free(Archive) == ARCHIVE_OK);
 }
 
 cppcoro::generator<ArchiveEntry> GzipTarReader::entries() {
   archive_entry *Entry;
   while (true) {
-    int Res = archive_read_next_header(Archive, &Entry);
+    int Res = archive_read_next_header(Archive.get(), &Entry);
     if (Res == ARCHIVE_EOF)
       co_return;
 
@@ -200,7 +196,7 @@ cppcoro::generator<ArchiveEntry> GzipTarReader::entries() {
     llvm::SmallVector<char, 0> Data;
     if (Size > 0) {
       Data.resize_for_overwrite(Size);
-      size_t SizeRead = archive_read_data(Archive, Data.data(), Size);
+      size_t SizeRead = archive_read_data(Archive.get(), Data.data(), Size);
       revng_assert(SizeRead == static_cast<size_t>(Size));
     }
 

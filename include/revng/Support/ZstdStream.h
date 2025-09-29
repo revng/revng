@@ -7,9 +7,20 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/CUniquePtr.h"
 #include "revng/ADT/STLExtras.h"
 
 #include "zstd.h"
+
+inline void zstdCContextFree(ZSTD_CCtx *Ctx) {
+  size_t RC = ZSTD_freeCCtx(Ctx);
+  revng_assert(ZSTD_isError(RC) == 0);
+}
+
+inline void zstdDContextFree(ZSTD_DCtx *Ctx) {
+  size_t RC = ZSTD_freeDCtx(Ctx);
+  revng_assert(ZSTD_isError(RC) == 0);
+}
 
 void zstdCompress(llvm::raw_ostream &OS,
                   llvm::ArrayRef<uint8_t> Buffer,
@@ -54,7 +65,7 @@ class ZstdCompressedOstream : public llvm::raw_ostream {
 private:
   llvm::raw_ostream &OS;
   llvm::SmallVector<char> OutBuffer;
-  std::unique_ptr<ZSTD_CCtx, void (*)(ZSTD_CCtx *)> Ctx;
+  CUniquePtr<zstdCContextFree> Ctx;
 
 public:
   ZstdCompressedOstream(llvm::raw_ostream &DestOS, int CompressionLevel = 3);
