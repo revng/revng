@@ -70,7 +70,7 @@ static void compileModuleRunImpl(const Context &Context,
   std::string Error;
   Triple TheTriple(M->getTargetTriple());
   const auto *TheTarget = TargetRegistry::lookupTarget("", TheTriple, Error);
-  revng_assert(TheTarget);
+  revng_assert(TheTarget, Error.c_str());
 
   TargetOptions Options = InitTargetOptionsFromCodeGenFlags(TheTriple);
 
