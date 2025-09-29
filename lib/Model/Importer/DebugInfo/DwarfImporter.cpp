@@ -1214,7 +1214,9 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
           return true;
 
       } else {
-        llvm::consumeError(NameOrErr.takeError());
+        llvm::Error Error = NameOrErr.takeError();
+        revng_log(DILogger, "Cannot access section name: " << Error);
+        llvm::consumeError(std::move(Error));
         continue;
       }
     }
@@ -1333,15 +1335,19 @@ computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
     auto MaybeFlags = Symbol.getFlags();
 
     if (auto Error = MaybeType.takeError()) {
+      revng_log(DILogger, "Cannot access symbol type: " << Error);
       consumeError(std::move(Error));
       continue;
     } else if (auto Error = MaybeAddress.takeError()) {
+      revng_log(DILogger, "Cannot access symbol address: " << Error);
       consumeError(std::move(Error));
       continue;
     } else if (auto Error = MaybeName.takeError()) {
+      revng_log(DILogger, "Cannot access symbol name: " << Error);
       consumeError(std::move(Error));
       continue;
     } else if (auto Error = MaybeFlags.takeError()) {
+      revng_log(DILogger, "Cannot access symbol flags: " << Error);
       consumeError(std::move(Error));
       continue;
     }

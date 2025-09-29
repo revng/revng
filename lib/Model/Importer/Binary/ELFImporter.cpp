@@ -225,6 +225,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
       auto MaybeSectionName = TheELF.getSectionName(SectionHeader);
       if (auto Error = MaybeSectionName.takeError()) {
+        revng_log(ELFImporterLog, "Cannot access section name: " << Error);
         consumeError(std::move(Error));
       } else {
         SectionName = *MaybeSectionName;
@@ -1226,6 +1227,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
       auto MaybeName = Symbol.getName(Dynstr.extractString());
 
       if (auto Error = MaybeName.takeError()) {
+        revng_log(ELFImporterLog, "Cannot access symbol name: " << Error);
         consumeError(std::move(Error));
       } else {
         SymbolName = *MaybeName;
