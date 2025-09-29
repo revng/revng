@@ -215,6 +215,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   SmallVector<Section, 16> Sections;
   auto ELFSections = TheELF.sections();
   if (auto Error = ELFSections.takeError()) {
+    // TODO: emit a diagnostic message for the user.
     revng_log(ELFImporterLog, "Sections unavailable: " << Error);
     llvm::consumeError(std::move(Error));
   } else {
@@ -461,6 +462,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
       revng_log(ELFImporterLog, " Importing Model for: " << DependencyLibrary);
       auto BinaryOrErr = llvm::object::createBinary(DependencyLibrary);
       if (auto Error = BinaryOrErr.takeError()) {
+        // TODO: emit a diagnostic message for the user.
         revng_log(ELFImporterLog,
                   "Can't create object for " << DependencyLibrary << " due to "
                                              << Error);
@@ -471,6 +473,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
       auto &Object = *cast<llvm::object::ObjectFile>(BinaryOrErr->getBinary());
       auto *TheBinary = dyn_cast<ELFObjectFileBase>(&Object);
       if (!TheBinary) {
+        // TODO: emit a diagnostic message for the user.
         revng_log(ELFImporterLog, "Can't parse the binary");
         continue;
       }
@@ -485,6 +488,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
         .AdditionalDebugInfoPaths = Opts.AdditionalDebugInfoPaths
       };
       if (auto Error = importELF(DepModel, *TheBinary, AdjustedOptions)) {
+        // TODO: emit a diagnostic message for the user.
         revng_log(ELFImporterLog,
                   "Can't import model for " << DependencyLibrary << " due to "
                                             << Error);
@@ -617,6 +621,8 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
   }
 }
 
+// TODO: we might want to return an error from here so we can propagate it
+//       further up.
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
                                              ConstElf_Shdr *SymtabShdr) {
@@ -713,6 +719,7 @@ void ELFImporter<T, HasAddend>::parseSegments(ELFFile<T> &TheELF) {
       }
 
       if (VirtualSize >= std::numeric_limits<int64_t>::max()) {
+        // TODO: emit a diagnostic message for the user.
         revng_log(ELFImporterLog,
                   "Ignoring too large segment: " << VirtualSize << " bytes");
         continue;
@@ -725,6 +732,7 @@ void ELFImporter<T, HasAddend>::parseSegments(ELFFile<T> &TheELF) {
       auto MaybeEndOffset = (OverflowSafeInt(u64(ProgramHeader.p_offset))
                              + u64(ProgramHeader.p_filesz));
       if (not MaybeEndOffset) {
+        // TODO: emit a diagnostic message for the user.
         revng_log(ELFImporterLog,
                   "Invalid segment found: overflow in computing end offset");
         continue;
@@ -976,6 +984,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
       // Ensure the version is the one we expect
       uint32_t Version = EHFrameReader.readNextU8();
       if (Version != 1) {
+        // TODO: emit a diagnostic message for the user.
         revng_log(ELFImporterLog, "Unexpected version: " << Version);
         return;
       }
