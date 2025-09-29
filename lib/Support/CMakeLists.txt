@@ -30,6 +30,7 @@ revng_add_library_internal(
   Statistics.cpp
   Tag.cpp
   GzipTarFile.cpp
+  TarIO.cpp
   GzipStream.cpp
   ZstdStream.cpp)
 
