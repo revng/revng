@@ -101,6 +101,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
     Expected<const object::coff_section *> MaybeSection = TheBinary
                                                             .getSection(Id);
     if (auto Error = MaybeSection.takeError()) {
+      // TODO: emit a diagnostic message for the user.
       revng_log(Log, "Error in section with ID " << Id << ": " << Error);
       consumeError(std::move(Error));
       continue;
@@ -338,6 +339,7 @@ static RecursiveCoroutine<void> getDependenciesHelper(StringRef FileName,
                                                       unsigned Level) {
   auto BinaryOrErr = object::createBinary(FileName);
   if (not BinaryOrErr) {
+    // TODO: emit a diagnostic message for the user.
     revng_log(Log,
               "Can't create object for " << FileName << " due to "
                                          << toString(BinaryOrErr.takeError()));
@@ -419,6 +421,7 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
       revng_log(Log, " Importing Model for: " << DependencyLibrary);
       auto BinaryOrErr = llvm::object::createBinary(DependencyLibrary);
       if (not BinaryOrErr) {
+        // TODO: emit a diagnostic message for the user.
         revng_log(Log,
                   "Can't create object for "
                     << DependencyLibrary << " due to "
@@ -443,6 +446,7 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
         .AdditionalDebugInfoPaths = Opts.AdditionalDebugInfoPaths
       };
       if (auto E = importPECOFF(DepModel, *TheBinary, AdjustedOptions)) {
+        // TODO: emit a diagnostic message for the user.
         revng_log(Log,
                   "Can't import model for " << DependencyLibrary << " due to "
                                             << E);

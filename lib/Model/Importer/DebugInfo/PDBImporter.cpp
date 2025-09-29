@@ -185,6 +185,7 @@ public:
 void PDBImporterImpl::populateTypes() {
   auto MaybeInputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
   if (not MaybeInputFile) {
+    // TODO: emit a diagnostic message for the user.
     revng_log(Log, "Unable to open PDB file " << MaybeInputFile.takeError());
     consumeError(MaybeInputFile.takeError());
     return;
@@ -206,7 +207,8 @@ void PDBImporterImpl::populateTypes() {
                                      ForwardReferencedTypes,
                                      *MaybeTpiStream);
   if (auto Error = visitTypeStream(MaybeInputFile->types(), TypeVisitor)) {
-    revng_log(Log, "Error during visiting types: " << Error);
+    // TODO: emit a diagnostic message for the user.
+    revng_log(Log, "Error while visiting types: " << Error);
     consumeError(std::move(Error));
   }
 }
@@ -252,6 +254,8 @@ public:
     } else {
       // If the module stream does not exist, it is not an
       // error condition.
+
+      // TODO: emit a diagnostic message for the user.
       consumeError(MaybeDebugStream.takeError());
     }
 
@@ -262,6 +266,7 @@ public:
 void PDBImporterImpl::populateSymbolsWithTypes(NativeSession &Session) {
   auto MaybeInputFile = InputFile::open(Importer.getPDBFile()->getFilePath());
   if (not MaybeInputFile) {
+    // TODO: emit a diagnostic message for the user.
     revng_log(Log, "Unable to open PDB file: " << MaybeInputFile.takeError());
     consumeError(MaybeInputFile.takeError());
     return;
@@ -277,6 +282,7 @@ void PDBImporterImpl::populateSymbolsWithTypes(NativeSession &Session) {
   if (auto Error = iterateSymbolGroups(*MaybeInputFile,
                                        HeaderScope,
                                        SymbolHandler)) {
+    // TODO: emit a diagnostic message for the user.
     revng_log(Log, "Unable to parse symbols: " << Error);
     consumeError(std::move(Error));
     return;
@@ -298,6 +304,7 @@ void PDBImporterImpl::run(NativeSession &Session) {
 bool PDBImporter::loadDataFromPDB(StringRef PDBFileName) {
   auto Err = loadDataForPDB(PDB_ReaderType::Native, PDBFileName, Session);
   if (Err) {
+    // TODO: emit a diagnostic message for the user.
     revng_log(Log, "Unable to read PDB file: " << Err);
     consumeError(std::move(Err));
     return false;
@@ -315,6 +322,7 @@ bool PDBImporter::loadDataFromPDB(StringRef PDBFileName) {
   if (ExpectedGUID) {
     auto MaybePDBInfoStream = ThePDBFile->getPDBInfoStream();
     if (auto Error = MaybePDBInfoStream.takeError()) {
+      // TODO: emit a diagnostic message for the user.
       consumeError(std::move(Error));
       // TODO: is it correct to ignore this error?
       return true;
@@ -322,6 +330,7 @@ bool PDBImporter::loadDataFromPDB(StringRef PDBFileName) {
 
     codeview::GUID GUIDFromPDBFile = MaybePDBInfoStream->getGuid();
     if (ExpectedGUID != GUIDFromPDBFile) {
+      // TODO: emit a diagnostic message for the user.
       revng_log(Log, "Signatures from exe and PDB file mismatch");
       return false;
     }
@@ -336,6 +345,7 @@ static bool fileExists(const Twine &Path) {
   if (Result) {
     revng_log(Log, "Found: " << Path.str());
   } else {
+    // TODO: emit a diagnostic message for the user.
     revng_log(Log, "The following path does not exist: " << Path.str());
   }
 
@@ -424,7 +434,9 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
   // Consider the --use-pdb argument
   if (not UsePDB.empty()) {
     if (not fileExists(UsePDB)) {
-      revng_log(Log, "Argument --use-pdb does not exist, ignoring.");
+      // TODO: emit a diagnostic message for the user.
+      revng_log(Log,
+                "The file passed to `--use-pdb` does not exist, ignoring.");
     } else {
       return UsePDB;
     }
@@ -437,6 +449,7 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
     StringRef InternalPDBStringReference;
     auto EC = TheBinary.getDebugPDBInfo(DebugInfo, InternalPDBStringReference);
     if (EC) {
+      // TODO: emit a diagnostic message for the user.
       revng_log(Log, "getDebugPDBInfo failed: " << EC);
       consumeError(std::move(EC));
       return std::nullopt;
@@ -450,7 +463,8 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
 
   // TODO: Handle PDB signature types other then PDB70, e.g. PDB20.
   if (DebugInfo->Signature.CVSignature != OMF::Signature::PDB70) {
-    revng_log(Log, "A non-PDB70 signature was find, ignore.");
+    // TODO: emit a diagnostic message for the user.
+    revng_log(Log, "A non-PDB70 signature was found, ignore.");
     return std::nullopt;
   }
 
@@ -462,6 +476,7 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
   llvm::copy(DebugInfo->PDB70.Signature, std::begin(ExpectedGUID->Guid));
 
   if (InternalPDBPath.empty()) {
+    // TODO: emit a diagnostic message for the user.
     revng_log(Log, "The internal PDB path is empty");
     return std::nullopt;
   }
