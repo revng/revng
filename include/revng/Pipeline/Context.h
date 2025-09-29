@@ -12,7 +12,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Error.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Pipeline/Container.h"
@@ -81,7 +80,7 @@ public:
   llvm::Expected<T *> getExternalContext(llvm::StringRef Name) const {
     auto Iter = Contexts.find(Name);
     if (Iter == Contexts.end()) {
-      auto *Message = "pipeline loader context did not contained object ";
+      auto *Message = "pipeline loader context did not contain the object ";
       return revng::createError(Message + Name);
     }
 

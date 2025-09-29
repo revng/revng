@@ -534,6 +534,9 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineCanBeRunned) {
   Targets[CName].emplace_back(Target(RootKind2));
   auto Error = Pip.run("end", Targets);
   BOOST_TEST(!Error);
+  if (Error)
+    llvm::consumeError(std::move(Error));
+
   ContainerSet &BC = Pip["end"].containers();
   BOOST_TEST(cast<MapContainer>(BC.at(CName)).get(Target(RootKind2)) == 1);
 }
@@ -612,6 +615,9 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineBackwardFinedGrained) {
 
   auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!Error);
+  if (Error)
+    llvm::consumeError(std::move(Error));
+
   auto &FinalContainer = Pipeline["end"].containers().get<MapContainer>(CName);
   Target FinalTarget({ "f1" }, FunctionKind);
   auto Val = FinalContainer.get(FinalTarget);
@@ -657,7 +663,8 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineFailure) {
 
   auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!!Error);
-  consumeError(std::move(Error));
+  if (Error)
+    consumeError(std::move(Error));
 }
 
 static void makeF(llvm::Module &M, llvm::StringRef FName) {
@@ -756,6 +763,8 @@ BOOST_AUTO_TEST_CASE(SingleElementLLVMPipelineBackwardFinedGrained) {
 
   auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!Error);
+  if (Error)
+    consumeError(std::move(Error));
 
   const auto &Final = Pipeline["end"].containers().get<LLVMContainer>(CName);
   const auto *F = Final.getModule().getFunction("f1");
@@ -791,6 +800,8 @@ BOOST_AUTO_TEST_CASE(LLVMPurePipe) {
 
   auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!Error);
+  if (Error)
+    consumeError(std::move(Error));
 
   const auto &Final = Pipeline["end"].containers().get<LLVMContainer>(CName);
   const auto *F = Final.getModule().getFunction("f1");
@@ -822,9 +833,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
   Invalidations[Name].add(CName, {}, RootKind);
 
-  auto Error = Pipeline.getInvalidations(Invalidations);
-  BOOST_TEST(!Error);
-
+  Pipeline.getInvalidations(Invalidations);
   const auto &EndContainerInvalidations = Invalidations["end"][CName];
   BOOST_TEST(not EndContainerInvalidations.empty());
   BOOST_TEST((EndContainerInvalidations == TargetsList({ T, T2 })));
@@ -854,8 +863,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   Target ToKill({}, RootKind);
 
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
-  auto Error = Pipeline.getInvalidations(ToKill, Invalidations);
-  BOOST_TEST(!Error);
+  Pipeline.getInvalidations(ToKill, Invalidations);
   const auto &QuantifOfInvalidated = Invalidations["end"][CName]
                                        .front()
                                        .getPathComponents();
@@ -880,6 +888,8 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineWithRemove) {
   Target ToKill(RootKind);
   auto Error = Pipeline.invalidate(ToKill);
   BOOST_TEST(!Error);
+  if (Error)
+    consumeError(std::move(Error));
 
   auto &C2 = Pipeline[Name].containers().getOrCreate<MapContainer>(CName);
   auto IsIn = C2.contains(ToKill);
@@ -913,6 +923,9 @@ BOOST_AUTO_TEST_CASE(LoaderTest) {
 
   auto Error = Pipeline.run(Name, Targets);
   BOOST_TEST(!Error);
+  if (Error)
+    consumeError(std::move(Error));
+
   auto &FinalContainer = Pipeline[Name].containers().get<MapContainer>(CName);
   Target FinalTarget({ "f1" }, FunctionKind);
   auto Val = FinalContainer.get(FinalTarget);
@@ -1240,6 +1253,8 @@ BOOST_AUTO_TEST_CASE(LLVMKindTest) {
 
   auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!Error);
+  if (Error)
+    consumeError(std::move(Error));
 
   const auto &Final = Pipeline["end"].containers().get<Cont>(CName);
   const auto *F = Final.getModule().getFunction("f1");
@@ -1320,12 +1335,11 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
   pipeline::TargetInStepSet Invalidations;
   Invalidations[Name][CName].push_back(T);
 
-  auto Error = Pipeline.getInvalidations(Invalidations);
+  Pipeline.getInvalidations(Invalidations);
+  llvm::Error Error = Pipeline.invalidate(Invalidations);
   BOOST_TEST(!Error);
-
-  Error = Pipeline.invalidate(Invalidations);
-
-  BOOST_TEST(!Error);
+  if (Error)
+    consumeError(std::move(Error));
 
   BOOST_TEST(C1.get(T) == 0);
   BOOST_TEST(C1End.get(T) == 0);

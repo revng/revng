@@ -61,8 +61,8 @@ int main(int argc, char *argv[]) {
   revng::InitRevng X(argc, argv, "", { &Options::ThisToolCategory });
 
   if (Options::ListBuffers xor Options::ExtractBuffer.empty()) {
-    dbg << "Please specify either --list-buffers or --extract-buffer\n";
-    return EXIT_FAILURE;
+    AbortOnError(revng::createError("Please specify either --list-buffers or "
+                                    "--extract-buffer"));
   }
 
   if (Options::ListBuffers) {
@@ -77,10 +77,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (!Options::ExtractBuffer.empty()) {
-    if (Options::Output.empty()) {
-      dbg << "Please specify an output file\n";
-      return EXIT_FAILURE;
-    }
+    if (Options::Output.empty())
+      AbortOnError(revng::createError("Please specify an output file"));
 
     size_t CommandNo = 0;
     size_t ArgNo = 0;
@@ -88,8 +86,7 @@ int main(int argc, char *argv[]) {
             ArgNoStr] = StringRef(Options::ExtractBuffer).split(":");
     if (CommandNoStr.getAsInteger(10, CommandNo)
         || ArgNoStr.getAsInteger(10, ArgNo)) {
-      dbg << "Error parsing extract value\n";
-      return EXIT_FAILURE;
+      AbortOnError(revng::createError("Error parsing extract value"));
     }
 
     Trace TheTrace = AbortOnError(Trace::fromFile(Options::Input));

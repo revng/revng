@@ -48,7 +48,7 @@ public:
   std::vector<std::vector<pipeline::Kind *>> AcceptedKinds;
 
 public:
-  llvm::Error run(pipeline::ExecutionContext &Context) {
+  void run(pipeline::ExecutionContext &Context) {
     std::vector<std::unique_ptr<WellKnownModel>> WellKnownModels;
     std::map<WellKnownFunctionKey,
              std::pair<WellKnownModel *, model::Function *>>
@@ -58,10 +58,8 @@ public:
     // Load all well-known models
     for (const std::string &Path :
          revng::ResourceFinder.list("share/revng/well-known-models", ".yml")) {
-      auto MaybeModel = TupleTree<model::Binary>::fromFile(Path);
-      revng_assert(MaybeModel);
-      using namespace std;
-      auto NewWKM = make_unique<WellKnownModel>(std::move(*MaybeModel), Model);
+      auto Model = llvm::cantFail(TupleTree<model::Binary>::fromFile(Path));
+      auto NewWKM = std::make_unique<WellKnownModel>(std::move(Model), Model);
       WellKnownModels.push_back(std::move(NewWKM));
     }
 
@@ -106,8 +104,6 @@ public:
 
     model::flattenPrimitiveTypedefs(Model);
     model::deduplicateCollidingNames(Model);
-
-    return llvm::Error::success();
   }
 };
 

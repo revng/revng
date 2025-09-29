@@ -159,10 +159,13 @@ getInitialPC(Architecture::Values Arch, bool Swap, ArrayRef<uint8_t> Command) {
     break;
   }
 
-  if (Reader.eof() and PC)
+  if (Reader.eof() and PC) {
     return MetaAddress::fromPC(Architecture::toLLVMArchitecture(Arch), *PC);
-  else
+
+  } else {
+    // TODO: emit a diagnostic message for the user.
     return MetaAddress::invalid();
+  }
 }
 
 class MachOImporter : public BinaryImporterHelper {
@@ -281,7 +284,10 @@ Error MachOImporter::import() {
     setEntryPoint(EntryPoint);
   }
 
+  // TODO: emit following errors as diagnostic messages for the user.
+
   Error TheError = Error::success();
+  revng_check(TheError);
 
   for (const MachOBindEntry &U : MachO.bindTable(TheError))
     registerBindEntry(&U);

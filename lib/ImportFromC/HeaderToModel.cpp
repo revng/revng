@@ -1262,7 +1262,6 @@ void HeaderToModelDiagnosticConsumer::HandleDiagnostic(Level DiagLevel,
   llvm::raw_svector_ostream DiagMessageStream(OutStr);
 
   std::string Text;
-  std::string ErrorLocation;
   llvm::raw_string_ostream OS(Text);
   auto *DiagOpts = &Info.getDiags()->getDiagnosticOptions();
 
