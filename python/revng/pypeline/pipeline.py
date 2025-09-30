@@ -19,7 +19,7 @@ from .object import ObjectID, ObjectSet
 from .pipeline_node import PipelineConfiguration, PipelineNode
 from .schedule.schedule import Schedule
 from .schedule.scheduled_task import ScheduledTask
-from .storage.storage_provider import SavePointsRange, StorageProvider
+from .storage.storage_provider import Invalidated, SavePointsRange, StorageProvider
 from .task.pipe import Pipe
 from .task.requests import Requests
 from .task.savepoint import SavePoint
@@ -60,11 +60,11 @@ class Pipeline(Generic[C]):
     that fulfills the requests.
     """
 
-    __slots__ = ("declarations", "root", "artifacts", "analyses")
+    __slots__ = ("declarations", "root", "artifacts", "analyses", "savepoint_id_to_artifact")
 
     def __init__(
         self,
-        declarations: Set[ContainerDeclaration],
+        declarations: set[ContainerDeclaration],
         root: PipelineNode,
         artifacts: Optional[set[Artifact]] = None,
         analyses: Optional[set[AnalysisBinding]] = None,
@@ -72,6 +72,9 @@ class Pipeline(Generic[C]):
         self.root = root
         self.declarations = set(declarations)
 
+        self.savepoint_id_to_artifact: dict[int, Artifact] = {}
+        """
+        """
         self.artifacts: Mapping[str, Artifact] = {}
         """
         The artifacts, indexed by their name for easy access.
@@ -113,6 +116,7 @@ class Pipeline(Generic[C]):
                 node.pipe_dependencies.add(node.task)
 
         for name, artifact in self.artifacts.items():
+            self.savepoint_id_to_artifact[artifact.node.id] = artifact
             if name != artifact.name:
                 raise ValueError(
                     f"Artifact name {artifact.name} does not match the key "
@@ -308,7 +312,7 @@ class Pipeline(Generic[C]):
         analysis_configuration: str,
         pipeline_configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
-    ) -> Model:
+    ) -> tuple[Model, Invalidated]:
         """
         Run an analysis on the pipeline, given a model and a set of requests.
         The analysis will return the new potentially modified model, and set it
@@ -353,9 +357,9 @@ class Pipeline(Generic[C]):
             ],
             configuration=analysis_configuration,
         )
-        storage_provider.invalidate(ReadOnlyModel(new_model).diff(model))
+        invalidated = storage_provider.invalidate(ReadOnlyModel(new_model).diff(model))
         storage_provider.set_model(new_model.serialize())
-        return new_model
+        return new_model, invalidated
 
     def deserialize_schedule(self, schedule: str) -> Schedule:
         schedule_dict = yaml.safe_load(schedule)

@@ -14,8 +14,8 @@ from revng.pypeline.model import ModelPath, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 
-from .storage_provider import ConfigurationId, ContainerLocation, ProjectID, ProjectMetadata
-from .storage_provider import SavepointID, SavePointsRange, StorageProvider
+from .storage_provider import ConfigurationId, ContainerLocation, Invalidated, ProjectID
+from .storage_provider import ProjectMetadata, SavepointID, SavePointsRange, StorageProvider
 from .storage_provider import StorageProviderFactory
 from .util import _REVNG_VERSION_PLACEHOLDER
 
@@ -110,7 +110,7 @@ class InMemoryStorageProvider(StorageProvider):
             self.storage[location][key] = value
         self.last_change = datetime.now()
 
-    def _invalidate(self, path: ModelPath) -> None:
+    def _invalidate(self, path: ModelPath, invalidated: Invalidated) -> None:
         for key, entries in self.dependencies.items():
             if key != path:
                 continue
@@ -127,11 +127,15 @@ class InMemoryStorageProvider(StorageProvider):
                         continue
                     if entry.object_id in objects:
                         del objects[entry.object_id]
+                        # sign the object as invalidated
+                        invalidated.setdefault(container_loc, []).append(entry.object_id)
 
-    def invalidate(self, invalidation_list: ModelPathSet) -> None:
+    def invalidate(self, invalidation_list: ModelPathSet) -> Invalidated:
+        invalidated: Invalidated = {}
         for path in invalidation_list:
-            self._invalidate(path)
+            self._invalidate(path, invalidated)
         self.last_change = datetime.now()
+        return invalidated
 
     def get_model(self) -> bytes:
         return self.model

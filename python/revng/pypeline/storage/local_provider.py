@@ -17,8 +17,8 @@ from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 from revng.pypeline.utils.registry import get_singleton
 
-from .storage_provider import ContainerLocation, ProjectID, ProjectMetadata, SavePointsRange
-from .storage_provider import StorageProvider, StorageProviderFactory
+from .storage_provider import ContainerLocation, Invalidated, ProjectID, ProjectMetadata
+from .storage_provider import SavePointsRange, StorageProvider, StorageProviderFactory
 from .util import _REVNG_VERSION_PLACEHOLDER
 
 logger = logging.getLogger(__name__)
@@ -86,11 +86,13 @@ WHERE rowid IN (
     FROM objects
     JOIN dependencies
     WHERE dependencies.model_path_hash IN ({model_paths})
+          AND objects.object_id = dependencies.object_id
           AND objects.container_id = dependencies.container_id
           AND objects.configuration_hash = dependencies.configuration_hash
           AND objects.savepoint_id >= dependencies.savepoint_id_start
           AND objects.savepoint_id <= dependencies.savepoint_id_end
-);
+)
+RETURNING object_id, container_id, savepoint_id, configuration_hash;
 
 DELETE FROM dependencies
 WHERE dependencies.model_path_hash IN ({model_paths});
@@ -262,14 +264,25 @@ class LocalStorageProvider(StorageProvider):
                 )
             self._write_metadata(cursor)
 
-    def invalidate(self, invalidation_list: ModelPathSet) -> None:
+    def invalidate(self, invalidation_list: ModelPathSet) -> Invalidated:
         with self._cursor() as cursor:
             cursor.executescript(
                 INVALIDATE_QUERY.format(
                     model_paths=",".join(f"'{path}'" for path in invalidation_list)
                 )
             )
+            result = cursor.fetchall()
             self._write_metadata(cursor)
+        invalidated: Invalidated = {}
+        for obj in result:
+            obj_id = obj[0]
+            location = ContainerLocation(
+                savepoint_id=obj[1],
+                container_id=obj[2],
+                configuration_id=obj[3],
+            )
+            invalidated.setdefault(location, []).append(obj_id)
+        return invalidated
 
     def prune_objects(self):
         with self._cursor() as cursor:

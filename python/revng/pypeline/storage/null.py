@@ -12,8 +12,8 @@ from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 
-from .storage_provider import ContainerLocation, ProjectID, ProjectMetadata, SavePointsRange
-from .storage_provider import StorageProvider, StorageProviderFactory
+from .storage_provider import ContainerLocation, Invalidated, ProjectID, ProjectMetadata
+from .storage_provider import SavePointsRange, StorageProvider, StorageProviderFactory
 from .util import _REVNG_VERSION_PLACEHOLDER
 
 
@@ -74,8 +74,9 @@ class NullStorageProvider(StorageProvider):
     ) -> None:
         self.last_change = datetime.now()
 
-    def invalidate(self, invalidation_list: ModelPathSet) -> None:
+    def invalidate(self, invalidation_list: ModelPathSet) -> Invalidated:
         self.last_change = datetime.now()
+        return {}
 
     def get_model(self) -> bytes:
         return self.model

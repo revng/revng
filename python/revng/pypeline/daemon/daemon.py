@@ -255,7 +255,7 @@ class Daemon:
             requests.insert(binding, compute_objects(ReadOnlyModel(model), kind, objects))
 
         # Run the analysis
-        new_model = self.pipeline.run_analysis(
+        new_model, invalidated = self.pipeline.run_analysis(
             model=ReadOnlyModel(model),
             analysis_name=analysis,
             requests=requests,
@@ -271,6 +271,20 @@ class Daemon:
         if len(diff) != 0:
             new_epoch = epoch + 1
 
+        # Only return cacheable artifacts invalidations
+        invalidated_artifacts: list[dict[str, Any]] = []
+        for container_location, object_ids in invalidated.items():
+            artifact = self.pipeline.savepoint_id_to_artifact.get(container_location.savepoint_id)
+            if artifact is None:
+                continue
+            invalidated_artifacts.append(
+                {
+                    "name": artifact.name,
+                    "configuration": artifact.configuration,
+                    "object_ids": [object_id.serialize() for object_id in object_ids],
+                }
+            )
+
         # Return the updated model
         return Response(
             code=200,
@@ -284,9 +298,7 @@ class Daemon:
                     "analysis": analysis,
                     "epoch": new_epoch,
                     "diff": diff,
-                    "invalidated": [
-                        # WIP List of invalidated cacheable artifacts (and the objects inside it)
-                    ],
+                    "invalidated": invalidated_artifacts,
                 }
             ],
         )

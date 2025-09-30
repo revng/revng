@@ -110,9 +110,10 @@ class Container(ABC):
         """
 
     @abstractmethod
-    def serialize(self, objects: ObjectSet) -> Mapping[ObjectID, bytes]:
+    def serialize(self, objects: ObjectSet | None = None) -> Mapping[ObjectID, bytes]:
         """
-        Dump objects from this container into a serialized format.
+        Dump objects from this container into a serialized format, dump all
+        objects if none are specified.
         """
 
     @classmethod
