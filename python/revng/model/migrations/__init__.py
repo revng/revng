@@ -50,3 +50,4 @@ def migrate(model: dict):
         migration_libray = importlib.import_module(f".versions.v{i}", __package__)
         migration = migration_libray.Migration()
         migration.migrate(model)
+        model["Version"] = i
