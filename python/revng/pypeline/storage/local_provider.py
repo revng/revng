@@ -337,7 +337,6 @@ class LocalStorageProvider(StorageProvider):
 
             cursor.execute(DELETE_MODEL_PATHS.format(model_paths=joined_paths))
             self._write_metadata(cursor)
-
         return dict(invalidated)
 
     def prune_objects(self):

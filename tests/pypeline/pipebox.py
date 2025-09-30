@@ -267,6 +267,9 @@ class DictModel(Model):
         for key, value in self.items():
             if key not in other or other[key] != value:
                 diff.add(key)
+        for key, value in other.items():
+            if key not in self:
+                diff.add(key)
         return diff
 
     def clone(self) -> DictModel:
