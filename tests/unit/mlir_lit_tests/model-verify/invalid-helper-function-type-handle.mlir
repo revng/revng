@@ -5,7 +5,7 @@
 // RUN: not %revngpipe model-verify-clift %S/model.yml %s /dev/null 2>&1 | FileCheck %s
 
 !t = !clift.union<"/helper-function/foo" : {
-  !clift.primitive<signed 4>
+  "/helper-struct-field/foo/field_0" : !clift.primitive<signed 4>
 }>
 
 // CHECK: non-function type with HelperFunction handle: '/helper-function/foo'

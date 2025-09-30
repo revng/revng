@@ -8,7 +8,7 @@
 
 module attributes {clift.module} {
   // CHECK: global variable with invalid segment handle: '/segment/0x40005000:Generic64-4'
-  clift.global !int32_t @g {
+  clift.global @g : !int32_t attributes {
     handle = "/segment/0x40005000:Generic64-4"
   }
 }

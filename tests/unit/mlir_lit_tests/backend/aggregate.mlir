@@ -2,15 +2,16 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngpipe emit-c %S/model.yml %s <(tar -czT /dev/null) /dev/stdout | tar -zxO
+// RUN: %revngcliftopt --emit-c %s | FileCheck %s
+// RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
 !void = !clift.primitive<void 0>
 !int32_t = !clift.primitive<signed 4>
 
 !s = !clift.struct<
-  "/type-definition/2002-StructDefinition" : size(8) {
-    offset(0) : !int32_t,
-    offset(4) : !int32_t
+  "/type-definition/2002-StructDefinition" as "my_struct" : size(8) {
+    "/struct-field/2002-StructDefinition/0" : offset(0) !int32_t,
+    "/struct-field/2002-StructDefinition/4" : offset(4) !int32_t
   }
 >
 
@@ -20,10 +21,10 @@
 
 module attributes {clift.module} {
   // CHECK: void fun_0x40001001(void) {
-  clift.func @f<!f>() attributes {
+  clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: (struct my_struct){0, 1};
+    // CHECK: (my_struct){0, 1};
     clift.expr {
       %0 = clift.imm 0 : !int32_t
       %1 = clift.imm 1 : !int32_t

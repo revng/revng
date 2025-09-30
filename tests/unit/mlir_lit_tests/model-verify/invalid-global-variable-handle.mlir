@@ -8,7 +8,7 @@
 
 module attributes {clift.module} {
   // CHECK: global variable with invalid handle: '/made-up-kind/something'
-  clift.global !int32_t @g {
+  clift.global @g : !int32_t attributes {
     handle = "/made-up-kind/something"
   }
 }

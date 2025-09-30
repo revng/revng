@@ -6,13 +6,13 @@
 Architecture: x86_64
 
 TypeDefinitions:
-  # CHECK: !my_struct = !clift.struct<
+  # CHECK: !_type_definition_1001_StructDefinition = !clift.struct<
   # CHECK:   "/type-definition/1001-StructDefinition"
-  # CHECK:   as "my_struct"
   # CHECK:   : size(4)
   # CHECK:   {
-  # CHECK:     offset(0)
-  # CHECK:     : !clift.ptr<4 to
+  # CHECK:     "/struct-field/1001-StructDefinition/0"
+  # CHECK:     : offset(0)
+  # CHECK:     !clift.ptr<4 to
   # CHECK:       !clift.struct<"/type-definition/1001-StructDefinition">
   # CHECK:     >
   # CHECK:   }

@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 5
+version: 6
 root_type: Binary
 
 definitions:
@@ -1632,14 +1632,6 @@ definitions:
           The prefix for a goto label without a name.
 
           The default value is `label_`.
-        type: string
-        optional: true
-
-      - name: UndefinedValuePrefix
-        doc: |-
-          The prefix for an undefined value.
-
-          The default value is `undef_`.
         type: string
         optional: true
 

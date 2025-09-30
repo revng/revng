@@ -2,7 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngpipe emit-c %S/model.yml %s <(tar -czT /dev/null) /dev/stdout | tar -zxO
+// RUN: %revngcliftopt --emit-c %s | FileCheck %s
+// RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
 !void = !clift.primitive<void 0>
 !int32_t = !clift.primitive<signed 4>
@@ -14,14 +15,20 @@
 
 module attributes {clift.module} {
   // CHECK: void fun_0x40001001(void) {
-  clift.func @f<!f>() attributes {
+  clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: int32_t var_0;
-    %x = clift.local !int32_t
+    %x = clift.local : !int32_t attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/0",
+      clift.name = "var_0"
+    }
 
     // CHECK: int32_t *var_1;
-    %p = clift.local !int32_t$p
+    %p = clift.local : !int32_t$p attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/1",
+      clift.name = "var_1"
+    }
 
     // CHECK: -var_0;
     clift.expr {

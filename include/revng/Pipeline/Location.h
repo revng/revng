@@ -66,12 +66,11 @@ public:
     return std::get<AnotherRank::Depth - 1>(tuple());
   }
 
-  template<RankConvertibleTo<Rank> AnotherRank>
-  auto &back() {
+  auto &back() { return std::get<std::tuple_size_v<Tuple> - 1>(tuple()); }
+
+  const auto &back() const {
     return std::get<std::tuple_size_v<Tuple> - 1>(tuple());
   }
-
-  const auto &back() { return std::get<std::tuple_size_v<Tuple> - 1>(tuple()); }
 
   auto parent() const
     requires(not std::is_same_v<typename Rank::Parent, void>)
@@ -96,6 +95,45 @@ public:
     constexpr auto Common = std::min(Rank::Depth, AnotherRank::Depth);
     compile_time::repeat<Common>([&Result, &Another]<size_t I> {
       std::get<I>(Result.tuple()) = std::get<I>(Another.tuple());
+    });
+
+    return Result;
+  }
+
+  /// Converts the location to a different rank with the same data tuple.
+  /// The location data is not affected. Only its kind.
+  ///
+  /// For example, `/type-definition/23-RawFunctionDefinition` can be converted
+  /// into `/artificial-struct/23-RawFunctionDefinition`.
+  template<typename OtherRankT, typename... ArgsT>
+    requires std::is_same_v<typename OtherRankT::Tuple, typename Rank::Tuple>
+  constexpr Location<OtherRankT> transmute(const OtherRankT &) {
+    Location<OtherRankT> Result;
+    Result.tuple() = this->tuple();
+    return Result;
+  }
+
+  /// Converts the location to a different rank with an extended data tuple.
+  /// The existing location data is not affected. The kind is changed and more
+  /// data members are added.
+  ///
+  /// For example, `/type-definition/10-CABIFunctionDefinition` can be converted
+  /// into `/cabi-argument/10-CABIFunctionDefinition/0` by adding an integer
+  /// indicating the index of the parameter.
+  template<typename OtherRankT, typename... ArgsT>
+    requires(Rank::Depth < OtherRankT::Depth)
+            && (Rank::Depth + sizeof...(ArgsT) == OtherRankT::Depth)
+            && RankConvertibleTo<Rank, OtherRankT>
+  constexpr Location<OtherRankT> extend(const OtherRankT &, ArgsT &&...Args) {
+    Location<OtherRankT> Result;
+
+    compile_time::repeat<Rank::Depth>([&]<size_t I> {
+      std::get<I>(Result.tuple()) = std::get<I>(this->tuple());
+    });
+
+    compile_time::repeat<sizeof...(ArgsT)>([&]<size_t I> {
+      std::get<Rank::Depth + I>(Result.tuple()) = std::get<
+        I>(std::tuple<ArgsT &&...>(std::forward<ArgsT>(Args)...));
     });
 
     return Result;

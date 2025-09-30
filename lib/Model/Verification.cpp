@@ -805,8 +805,6 @@ bool Configuration::verify(VerifyHelper &VH) const {
   if (Configuration().Naming().structPaddingPrefix().empty())
     return VH.fail("Padding prefix must not be empty.");
 
-  if (Configuration().Naming().undefinedValuePrefix().empty())
-    return VH.fail("Undefined value prefix must not be empty.");
   if (Configuration().Naming().opaqueCSVValuePrefix().empty())
     return VH.fail("Undefined value prefix must not be empty.");
   if (Configuration().Naming().maximumEnumValuePrefix().empty())

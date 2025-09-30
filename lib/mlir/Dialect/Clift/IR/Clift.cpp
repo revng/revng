@@ -2,13 +2,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "mlir/IR/AsmState.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
 
 #include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
-#include "revng/mlir/Dialect/Clift/Utils/ModuleValidator.h"
+#include "revng/mlir/Dialect/Clift/Utils/ModuleVisitor.h"
 
 #include "CliftBytecode.h"
 
@@ -68,7 +69,7 @@ public:
   }
 };
 
-class ModuleVerifier : public ModuleValidator<ModuleVerifier> {
+class ModuleVerifier : public ModuleVisitor<ModuleVerifier> {
   enum class LoopOrSwitch : uint8_t {
     Loop,
     Switch,
@@ -219,7 +220,7 @@ static mlir::LogicalResult verifyModuleAttr(mlir::Operation *Op,
               "attribute to be attached to '"
            << mlir::ModuleOp::getOperationName() << "'";
 
-  return ModuleVerifier::validate(Module);
+  return ModuleVerifier::visit(Module);
 }
 
 } // namespace
@@ -238,4 +239,20 @@ CliftDialect::verifyOperationAttribute(mlir::Operation *Op,
     return verifyModuleAttr(Op, Attr.getValue());
 
   return mlir::success();
+}
+
+void dumpMlirOp(mlir::Operation *Op, const char *Path) {
+  mlir::AsmState AsmState(Op);
+
+  std::error_code EC;
+  llvm::raw_fd_ostream OS(Path, EC);
+
+  if (EC)
+    llvm::errs() << EC.message() << "\n";
+  else
+    Op->print(OS, AsmState);
+}
+
+void dumpMlirModule(mlir::ModuleOp Module, const char *Path) {
+  dumpMlirOp(Module, Path);
 }

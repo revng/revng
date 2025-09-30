@@ -13,6 +13,6 @@
 // CHECK: field types must be object types
 !s = !clift.struct<
   "/type-definition/1-StructDefinition" : size(1) {
-    offset(0) : !f
+    "/struct-field/1-StructDefinition/0" : offset(0) !f
   }
 >

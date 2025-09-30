@@ -136,6 +136,50 @@ def Clift_FunctionOp : Clift_Op<"func",
       return mlir::cast<clift::ValueType>(getCliftFunctionType().getReturnType());
     }
 
+    unsigned getArgCount() {
+      return getCliftFunctionType().getArgumentTypes().size();
+    }
+
+
+    mlir::DictionaryAttr getArgAttrs(unsigned Index) {
+      if (auto Attrs = getArgAttrs())
+        return mlir::cast<mlir::DictionaryAttr>((*Attrs)[Index]);
+      return {};
+    }
+
+    mlir::Attribute getArgAttr(unsigned Index, llvm::StringRef Name) {
+      if (auto Attrs = getArgAttrs(Index))
+        return Attrs.get(Name);
+      return {};
+    }
+
+    template<typename AttrT>
+    AttrT getArgAttrOfType(unsigned Index, llvm::StringRef Name) {
+      if (auto Attr = getArgAttr(Index, Name))
+        return mlir::dyn_cast<AttrT>(Attr);
+      return {};
+    }
+
+
+    mlir::DictionaryAttr getResAttrs(unsigned Index) {
+      if (auto Attrs = getResAttrs())
+        return mlir::cast<mlir::DictionaryAttr>((*Attrs)[Index]);
+      return {};
+    }
+
+    mlir::Attribute getResAttr(unsigned Index, llvm::StringRef Name) {
+      if (auto Attrs = getResAttrs(Index))
+        return Attrs.get(Name);
+      return {};
+    }
+
+    template<typename AttrT>
+    AttrT getResAttrOfType(unsigned Index, llvm::StringRef Name) {
+      if (auto Attr = getResAttr(Index, Name))
+        return mlir::dyn_cast<AttrT>(Attr);
+      return {};
+    }
+
 
     mlir::Region::BlockListType& getBlocks() {
         return getBody().getBlocks();
@@ -193,7 +237,7 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
   let regions = (region Clift_OptionalExpressionRegion:$initializer);
 
   let assemblyFormat = [{
-    $type $sym_name (`=` $initializer^)? attr-dict
+    $sym_name `:` $type (`=` $initializer^)? attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
@@ -210,6 +254,8 @@ class Clift_StatementOp<string mnemonic, list<Trait> traits = []>
 def Clift_MakeLabelOp
   : Clift_StatementOp<"make_label",
                       [Clift_OneUseOfType<"mlir::clift::AssignLabelOp">]> {
+
+  let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let results = (outs Clift_LabelType:$result);
 
@@ -298,12 +344,14 @@ def Clift_IfOp : Clift_StatementOp<"if"> {
 }
 
 def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
+  let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$handle);
+
   let results = (outs Clift_AnyValueType:$result);
 
   let regions = (region Clift_OptionalExpressionRegion:$initializer);
 
   let assemblyFormat = [{
-    type($result) (`=` $initializer^)? attr-dict
+    `:` type($result) (`=` $initializer^)? attr-dict-with-keyword
   }];
 
   let extraClassDeclaration = [{

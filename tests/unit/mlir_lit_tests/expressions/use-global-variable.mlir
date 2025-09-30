@@ -18,5 +18,5 @@ module attributes {clift.module} {
     }
   }
 
-  clift.global !int32_t @x
+  clift.global @x : !int32_t
 }

@@ -12,7 +12,7 @@
 
 !enum = !clift.enum<
   "/type-definition/1-EnumDefinition" : !int32_t {
-    0
+    "/enum-entry/1-EnumDefinition/0" : 0
   }
 >
 
