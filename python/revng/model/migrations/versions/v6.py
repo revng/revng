@@ -13,4 +13,3 @@ class Migration(MigrationBase):
         naming_config = model.get("Configuration", {}).get("Naming", {})
         if "UndefinedValuePrefix" in naming_config:
             del naming_config["UndefinedValuePrefix"]
-        model["Version"] = 6
