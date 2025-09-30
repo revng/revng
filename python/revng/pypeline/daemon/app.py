@@ -16,11 +16,13 @@ from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket
 
 from .daemon import Daemon, Response
-from .postoffice import PostOffice
+from .notification_broker import WebSocketStream
+from .notification_broker.local_broker import LocalNotificationBroker
 
 # Global instances
 logger = logging.getLogger(__name__)
-post_office = PostOffice()
+notification_broker = LocalNotificationBroker()
+notification_publisher = notification_broker.get_publisher()
 
 
 class BasicHTTPException(HTTPException):
@@ -54,7 +56,7 @@ async def invalidation_websocket(websocket: WebSocket):
     try:
         project_id = get_project_id(dict(websocket.headers))
         assert project_id is not None, "Project ID is required"
-        subscriber = await post_office.subscribe(project_id, websocket)
+        subscriber = await notification_broker.subscribe(project_id, WebSocketStream(websocket))
         await subscriber.listen_for_messages()
     except BasicHTTPException as e:
         await websocket.close(code=400, reason=json.dumps(e.data))
@@ -64,7 +66,7 @@ async def invalidation_websocket(websocket: WebSocket):
     finally:
         # Clean up the subscription
         if subscriber:
-            await post_office.unsubscribe(subscriber)
+            await notification_broker.unsubscribe(subscriber)
 
 
 def prepare_endpoint(func):
@@ -78,14 +80,13 @@ def prepare_endpoint(func):
         # from the headers
         data = {
             "project_id": project_id,
-            # WIP add auth token forwarding
+            # TODO add auth token forwarding
         }
         response = await func(request, request.app.state.daemon, data)
         # Forward any websocket notification
-        for websocket_data in response.websocket:
-            # WIP: What to do when project_id is None?
+        for notification in response.notifications:
             assert project_id is not None, "Project ID is required"
-            await post_office.notify(project_id, json.dumps(websocket_data))
+            await notification_publisher.notify(project_id, json.dumps(notification))
         # Convert the daemon response to a JSON response
         return JSONResponse(
             status_code=response.code,

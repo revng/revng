@@ -30,8 +30,8 @@ class Response:
     """
     headers: dict[str, str] = field(default_factory=dict)
     """The headers of the response."""
-    websocket: list[Any] = field(default_factory=list)
-    """List of notifications to send through the websockets"""
+    notifications: list[Any] = field(default_factory=list)
+    """List of notifications to send through the NotificationPublisher"""
 
     def to_dict(self):
         result = {
@@ -40,8 +40,8 @@ class Response:
         }
         if len(self.headers) != 0:
             result["headers"] = self.headers
-        if len(self.websocket) != 0:
-            result["websocket"] = self.websocket
+        if len(self.notifications) != 0:
+            result["notifications"] = self.notifications
         return result
 
 
@@ -278,7 +278,7 @@ class Daemon:
                 "epoch": new_epoch,
                 "diff": diff,
             },
-            websocket=[
+            notifications=[
                 {
                     "type": "analysis",
                     "analysis": analysis,
