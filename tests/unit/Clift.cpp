@@ -21,7 +21,7 @@ bool init_unit_test();
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 #include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
-#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftDialect.h"
 
 using namespace mlir::clift;
 

@@ -4,7 +4,7 @@
 
 #include "mlir/IR/Diagnostics.h"
 
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftDialect.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportModel.h"
 
 template<typename CallableType>

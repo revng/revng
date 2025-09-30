@@ -12,7 +12,7 @@
 #include "mlir/Parser/Parser.h"
 
 #include "revng/Pipeline/RegisterContainerFactory.h"
-#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
+#include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/Utils/Helpers.h"
 #include "revng/mlir/Pipes/CliftContainer.h"
 

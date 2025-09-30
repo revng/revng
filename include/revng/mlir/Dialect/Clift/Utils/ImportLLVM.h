@@ -7,7 +7,7 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/Model/Binary.h"
-#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
+#include "revng/mlir/Dialect/Clift/IR/Clift.h"
 
 namespace mlir::clift {
 

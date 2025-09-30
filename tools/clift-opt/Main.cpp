@@ -12,7 +12,7 @@
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/InitRevng.h"
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftDialect.h"
 #include "revng/mlir/Dialect/Clift/Transforms/Passes.h"
 
 using namespace llvm::cl;

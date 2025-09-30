@@ -13,13 +13,13 @@
 #include "mlir/IR/Types.h"
 
 #include "revng/Support/Assert.h"
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftDialect.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.h"
 
 // This include should stay here for correct build procedure
 #define GET_TYPEDEF_CLASSES
-#include "revng/mlir/Dialect/Clift/IR/CliftOpsTypes.h.inc"
+#include "revng/mlir/Dialect/Clift/IR/CliftTypes.h.inc"
 
 namespace mlir::clift {
 

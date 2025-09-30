@@ -10,7 +10,7 @@
 #include "mlir/IR/Types.h"
 
 #include "revng/Model/Binary.h"
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftDialect.h"
 
 namespace mlir::clift {
 

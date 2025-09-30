@@ -5,7 +5,7 @@
 //
 
 #include "revng/Support/CTarget.h"
-#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
+#include "revng/mlir/Dialect/Clift/IR/Clift.h"
 
 namespace mlir::clift {
 

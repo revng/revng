@@ -14,8 +14,8 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
 
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftDialect.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
 

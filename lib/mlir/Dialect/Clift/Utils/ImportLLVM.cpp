@@ -18,7 +18,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/Identifier.h"
-#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
+#include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportLLVM.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportModel.h"
 

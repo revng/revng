@@ -8,8 +8,8 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftDialect.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportModel.h"
 

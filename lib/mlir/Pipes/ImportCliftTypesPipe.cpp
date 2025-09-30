@@ -5,7 +5,7 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
+#include "revng/mlir/Dialect/Clift/IR/Clift.h"
 #include "revng/mlir/Dialect/Clift/Utils/Helpers.h"
 #include "revng/mlir/Dialect/Clift/Utils/ImportModel.h"
 #include "revng/mlir/Pipes/CliftContainer.h"
