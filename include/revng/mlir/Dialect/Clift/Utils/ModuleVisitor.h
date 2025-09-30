@@ -7,7 +7,7 @@
 #include "llvm/ADT/SmallPtrSet.h"
 
 #include "revng/ADT/ScopedExchange.h"
-#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
+#include "revng/mlir/Dialect/Clift/IR/Clift.h"
 
 namespace mlir::clift {
 

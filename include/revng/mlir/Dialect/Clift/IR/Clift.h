@@ -4,14 +4,58 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "mlir/IR/BuiltinOps.h"
-#include "mlir/IR/Dialect.h"
+#include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
+#include "mlir/Interfaces/CallInterfaces.h"
+#include "mlir/Interfaces/InferTypeOpInterface.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 
-#include "revng/Support/Debug.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftDialect.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftEnums.h"
 #include "revng/mlir/Dialect/Clift/IR/CliftInterfaces.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftOpTraits.h"
+#include "revng/mlir/Dialect/Clift/IR/CliftTypes.h"
 
-// Preserve ordering:
-#include "revng/mlir/Dialect/Clift/IR/CliftOpsDialect.h.inc"
+namespace mlir::clift::impl {
 
-void dumpMlirOp(mlir::Operation *Module, const char *Path) debug_function;
-void dumpMlirModule(mlir::ModuleOp Module, const char *Path) debug_function;
+bool verifyStatementRegion(Region &R);
+bool verifyExpressionRegion(Region &R, bool Required);
+
+bool verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind);
+
+unsigned getPointerArithmeticPointerOperandIndex(mlir::Operation *Op);
+unsigned getPointerArithmeticOffsetOperandIndex(mlir::Operation *Op);
+
+mlir::LogicalResult verifyUnaryIntegerMutationOp(Operation *Op);
+
+} // namespace mlir::clift::impl
+
+// This include should stay here for correct build procedure
+#define GET_OP_CLASSES
+#include "revng/mlir/Dialect/Clift/IR/Clift.h.inc"
+
+namespace mlir::clift {
+
+/// Returns true if the module has a Clift module attribute.
+bool hasModuleAttr(mlir::ModuleOp Module);
+
+/// Sets the Clift module attribute on the specified module.
+void setModuleAttr(mlir::ModuleOp Module);
+
+/// Returns the terminating YieldOp of the expression represented by the region,
+/// or a operation if the region is not a valid expression region.
+YieldOp getExpressionYieldOp(Region &R);
+
+/// Returns the value of the expression represented by the region region, or a
+/// null value if the region is not a valid expression region.
+mlir::Value getExpressionValue(Region &R);
+
+/// Returns the type of the expression represented by the region, or a null type
+/// if region is not a valid expression region.
+clift::ValueType getExpressionType(Region &R);
+
+} // namespace mlir::clift

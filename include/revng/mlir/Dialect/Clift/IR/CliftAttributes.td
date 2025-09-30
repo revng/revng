@@ -7,7 +7,7 @@
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/SubElementInterfaces.td"
 
-include "revng/mlir/Dialect/Clift/IR/Clift.td"
+include "revng/mlir/Dialect/Clift/IR/CliftDialect.td"
 include "revng/mlir/Dialect/Clift/IR/CliftAttrInterfaces.td"
 include "revng/mlir/Dialect/Clift/IR/CliftEnums.td"
 

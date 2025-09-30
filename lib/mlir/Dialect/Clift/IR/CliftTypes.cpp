@@ -26,7 +26,7 @@ static void printCliftDebugName(AsmPrinter &Printer, llvm::StringRef Name);
 } // namespace mlir
 
 #define GET_TYPEDEF_CLASSES
-#include "revng/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
+#include "revng/mlir/Dialect/Clift/IR/CliftTypes.cpp.inc"
 
 using namespace mlir::clift;
 namespace clift = mlir::clift;
@@ -1382,7 +1382,7 @@ mlir::LogicalResult clift::verifyReturnType(EmitErrorType EmitError,
 void CliftDialect::registerTypes() {
   addTypes</* Include the auto-generated clift types */
 #define GET_TYPEDEF_LIST
-#include "revng/mlir/Dialect/Clift/IR/CliftOpsTypes.cpp.inc"
+#include "revng/mlir/Dialect/Clift/IR/CliftTypes.cpp.inc"
            /* End of auto-generated list */>();
 }
 

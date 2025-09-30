@@ -5,7 +5,7 @@
 include "mlir/IR/EnumAttr.td"
 include "mlir/IR/OpBase.td"
 
-include "revng/mlir/Dialect/Clift/IR/Clift.td"
+include "revng/mlir/Dialect/Clift/IR/CliftDialect.td"
 
 def Clift_PrimitiveKind: I32EnumAttr<"PrimitiveKind", "primitive type kinds", [
     I32EnumAttrCase<"VoidKind",                 1,      "void">,

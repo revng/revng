@@ -7,7 +7,7 @@
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/SubElementInterfaces.td"
 
-include "revng/mlir/Dialect/Clift/IR/Clift.td"
+include "revng/mlir/Dialect/Clift/IR/CliftDialect.td"
 include "revng/mlir/Dialect/Clift/IR/CliftAttributes.td"
 include "revng/mlir/Dialect/Clift/IR/CliftTypeInterfaces.td"
 

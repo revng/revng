@@ -9,7 +9,7 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Support/MetaAddress.h"
-#include "revng/mlir/Dialect/Clift/IR/CliftOps.h"
+#include "revng/mlir/Dialect/Clift/IR/Clift.h"
 
 namespace mlir::clift {
 
