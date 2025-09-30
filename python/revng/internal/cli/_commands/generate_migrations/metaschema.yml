@@ -98,29 +98,33 @@ definitions:
       - "$ref": "#/definitions/SequenceStructField"
       - "$ref": "#/definitions/ReferenceStructField"
 
-  SimpleStructField:
-    type: object
-    additionalProperties: false
-    properties:
-      name:
-        type: string
-      type:
-        type: string
-      doc:
-        type: string
-      optional:
-        type: boolean
-        default: false
-      is_guid:
-        type: boolean
-        default: false
-      const:
-        type: boolean
-        default: false
-    required:
-      - name
-      - type
-      - doc
+  # DANGER!!!!!
+  # This commit doesn't break anything, how was metaschema supposed to be used?!!
+  # DANGER!!!!!
+
+  # SimpleStructField:
+  #   type: object
+  #   additionalProperties: false
+  #   properties:
+  #     name:
+  #       type: string
+  #     type:
+  #       type: string
+  #     doc:
+  #       type: string
+  #     optional:
+  #       type: boolean
+  #       default: false
+  #     is_guid:
+  #       type: boolean
+  #       default: false
+  #     const:
+  #       type: boolean
+  #       default: false
+  #   required:
+  #     - name
+  #     - type
+  #     - doc
 
   SequenceStructField:
     type: object
