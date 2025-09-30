@@ -56,6 +56,7 @@ target_tuple_tree_generator(
   SCHEMA_PATH
   "${CMAKE_SOURCE_DIR}/include/revng/Yield/yield-internal-schema.yml"
   SEPARATE_STRING_TYPES
+  "BasicBlockID"
   "MetaAddress"
   SCALAR_TYPES
   "BasicBlockID"

@@ -64,6 +64,8 @@ function(tuple_tree_generator_impl)
     "${GENERATOR_INCLUDE_PATH_PREFIX}"
     "${LOCAL_GENERATED_HEADERS}"
     "${LOCAL_GENERATED_IMPLS}"
+    "${GENERATOR_STRING_TYPES}"
+    "${GENERATOR_SEPARATE_STRING_TYPES}"
     "${GENERATOR_SCALAR_TYPES}"
     "${GENERATOR_EMIT_TRACKING}")
 
@@ -242,8 +244,18 @@ function(
   EXPECTED_GENERATED_HEADERS
   # List of implementation files expected to be generated
   EXPECTED_GENERATED_IMPLS
+  STRING_TYPES
+  SEPARATE_STRING_TYPES
   SCALAR_TYPES
   EMIT_TRACKING)
+
+  set(STRING_TYPE_ARGS)
+  foreach(ST ${STRING_TYPES})
+    list(APPEND STRING_TYPE_ARGS --string-type "${ST}")
+  endforeach()
+  foreach(ST ${SEPARATE_STRING_TYPES})
+    list(APPEND STRING_TYPE_ARGS --string-type "${ST}")
+  endforeach()
 
   set(SCALAR_TYPE_ARGS)
   foreach(ST ${SCALAR_TYPES})
@@ -260,8 +272,8 @@ function(
     COMMAND
       "${SCRIPTS_ROOT_DIR}/tuple-tree-generate.py" cpp --namespace
       "${NAMESPACE}" --include-path-prefix "${INCLUDE_PATH_PREFIX}"
-      ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}" "${OUTPUT_DIR}" ${TRACKING}
-      ${TRACKING_DEBUG}
+      ${STRING_TYPE_ARGS} ${SCALAR_TYPE_ARGS} "${YAML_DEFINITIONS}"
+      "${OUTPUT_DIR}" ${TRACKING} ${TRACKING_DEBUG}
     OUTPUT ${EXPECTED_GENERATED_HEADERS} ${EXPECTED_GENERATED_IMPLS}
     DEPENDS "${YAML_DEFINITIONS}" ${CPP_TEMPLATES}
             ${TUPLE_TREE_GENERATOR_SOURCES})

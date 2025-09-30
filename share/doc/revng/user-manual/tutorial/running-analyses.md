@@ -25,12 +25,14 @@ $ grep -A7 'Segments:' example.yml
 Segments:
   - StartAddress:    "0x400000:Generic64"
     VirtualSize:     2528
-    StartOffset:     0
     FileSize:        2528
     IsReadable:      true
-    IsWriteable:     false
     IsExecutable:    true
+    Relocations:
+      - Address:         "0x401d88:Generic64"
 ```
+
+**ivan**: no clue where `Relocations` came from. Do you have an idea? Or should I go looking for it blindly?
 
 However, the typical workflow does not require the user to manually specify what analyses to run, but there's a set of predefined analyses that should be run on a new project, the *initial autoanalyses*.
 

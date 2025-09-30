@@ -30,9 +30,9 @@ public:
   }
 
 public:
-  void run(pipeline::ExecutionContext &Context,
-           const CrossRelationsFileContainer &InputFile,
-           CallGraphSVGFileContainer &OutputFile);
+  llvm::Error run(pipeline::ExecutionContext &Context,
+                  const CrossRelationsFileContainer &InputFile,
+                  CallGraphSVGFileContainer &OutputFile);
 };
 
 } // namespace revng::pipes

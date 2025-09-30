@@ -453,7 +453,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
     revng_check(Union.Fields().at(It->Index()).Name() == "fld1");
     revng_check(not verify(*T, false));
 
-    // But removing goes back to good again
+    // But removing the field, makes the union valid again
     revng_check(Union.Fields().erase(It->Index()));
     revng_check(verify(Union, *T, true));
     revng_check(verify(*T, true));
@@ -467,7 +467,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
 
   // Union x cannot have a field with type x
   Union.Fields().clear();
-  UnionField Same;
+  UnionField Same(0);
   Same.Type() = std::move(UnionType);
   revng_check(Union.Fields().insert(Same).second);
   revng_check(not verify(Union, *T, false));
@@ -482,7 +482,7 @@ BOOST_AUTO_TEST_CASE(UnionTypes) {
 
   // Adding a void field is not valid either
   Union.Fields().clear();
-  UnionField VoidField;
+  UnionField VoidField(0);
   VoidField.Type() = model::PrimitiveType::makeVoid();
   revng_check(Union.Fields().insert(VoidField).second);
   revng_check(not verify(Union, *T, false));

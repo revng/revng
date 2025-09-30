@@ -27,7 +27,6 @@ TypeDefinitions:
       Kind: PrimitiveType
       PrimitiveKind: Signed
       Size: 4
-    Arguments: []
   - Kind: CABIFunctionDefinition
     ID: 1818
     Arguments:

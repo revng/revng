@@ -23,7 +23,6 @@ TypeDefinitions:
   - # stack_frame_array stack frame
     Kind: StructDefinition
     ID: 10059356012972557344
-    Fields: []
     Size: 80
   - # stack_arguments_64 prototype
     Kind: RawFunctionDefinition

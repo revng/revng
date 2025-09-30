@@ -478,7 +478,7 @@ public:
 
   RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
     auto T = mlir::cast<clift::PrimitiveType>(V.getType());
-    Out << C.Binary.Configuration().Naming().undefinedValuePrefix().str()
+    Out << C.Binary.Configuration().Naming().UndefinedValuePrefix()
         << getPrimitiveTypeCName(T) << "()";
     rc_return;
   }
