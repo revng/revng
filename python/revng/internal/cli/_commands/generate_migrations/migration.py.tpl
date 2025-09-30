@@ -6,9 +6,6 @@ from revng.model.migrations import MigrationBase
 
 
 class Migration(MigrationBase):
-    def __init__(self):
-        pass
-
     def migrate(self, model):
         {%- for comment in comments %}
         {{ comment }}
