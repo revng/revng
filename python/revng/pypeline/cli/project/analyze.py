@@ -144,7 +144,7 @@ def build_analysis_command(
             )
 
         # Finally, run the analysis
-        new_model = pipeline.run_analysis(
+        new_model, invalidated = pipeline.run_analysis(
             model=ReadOnlyModel(loaded_model),
             analysis_name=analysis_name,
             requests=incoming,
@@ -155,6 +155,12 @@ def build_analysis_command(
         logger.debug("Analysis run completed")
         # Print on stdout the raw bytes of the modified model
         sys.stdout.buffer.write(new_model.serialize())
+
+        for container_location, object_ids in invalidated.items():
+            serialized_ids = (object_id.serialize() for object_id in object_ids)
+            print(
+                f"Invalidated {container_location}: [{', '.join(serialized_ids)}]", file=sys.stderr
+            )
 
     return run_analysis_command
 

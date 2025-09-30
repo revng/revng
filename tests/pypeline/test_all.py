@@ -486,7 +486,7 @@ def test_analysis(model, storage_provider):
     assert savepoint.savepoint_range == SavePointsRange(start=1, end=1)
 
     orig_model = model.clone()
-    new_model = pipeline.run_analysis(
+    new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         analysis_name="null_analysis",
         requests=Requests({child: expected_output}),
@@ -497,8 +497,9 @@ def test_analysis(model, storage_provider):
 
     assert model == orig_model, "Model should not be modified by the analysis"
     assert new_model == orig_model, "This analysis doesn't invalidate anything"
+    assert not invalidated, "This analysis doesn't invalidate anything"
 
-    new_model = pipeline.run_analysis(
+    new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         analysis_name="purge_all_analysis",
         requests=Requests({child: expected_output}),
@@ -510,7 +511,7 @@ def test_analysis(model, storage_provider):
     assert model == orig_model, "Model should not be modified by the analysis"
     assert new_model == DictModel(), "This analysis invalidates everything"
 
-    new_model = pipeline.run_analysis(
+    new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         analysis_name="purge_one_analysis",
         requests=Requests({child: expected_output}),
@@ -552,7 +553,7 @@ def test_pipeline(storage_provider):
     )
     assert res.objects() == ObjectSet(MyKind.ROOT, {MyObjectID.root()})
 
-    new_model = pipeline.run_analysis(
+    new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         analysis_name="NullAnalysis",
         requests=Requests(
@@ -570,7 +571,7 @@ def test_pipeline(storage_provider):
     assert isinstance(new_model, DictModel), "The analysis should return the same model type"
     assert new_model == model, "NullAnalysis should not change the model"
 
-    new_model = pipeline.run_analysis(
+    new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         # An alias of PurgeAllAnalysis
         analysis_name="blackhole",

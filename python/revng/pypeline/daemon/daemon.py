@@ -259,8 +259,7 @@ class Daemon:
                 cache_dir=self.cache_dir,
             )
             # Load the model
-            model = model_type()
-            model.deserialize(storage_provider.get_model())
+            model = model_type.deserialize(storage_provider.get_model())
 
             # Setup the requests
             requests = Requests()
@@ -280,7 +279,7 @@ class Daemon:
                 requests.insert(binding, compute_objects(ReadOnlyModel(model), kind, objects))
 
             # Run the analysis
-            new_model = self.pipeline.run_analysis(
+            new_model, invalidated = self.pipeline.run_analysis(
                 model=ReadOnlyModel(model),
                 analysis_name=analysis,
                 requests=requests,
@@ -297,6 +296,20 @@ class Daemon:
                 new_epoch = epoch + 1
                 epochs[project_id] = new_epoch
 
+        # Only return cacheable artifacts invalidations
+        invalidated_artifacts: list[dict[str, Any]] = []
+        for container_location, object_ids in invalidated.items():
+            artifact = self.pipeline.savepoint_id_to_artifact.get(container_location.savepoint_id)
+            if artifact is None:
+                continue
+            invalidated_artifacts.append(
+                {
+                    "name": artifact.name,
+                    "configuration": artifact.configuration,
+                    "object_ids": [object_id.serialize() for object_id in object_ids],
+                }
+            )
+
         # Return the updated model
         return Response(
             code=200,
@@ -310,9 +323,7 @@ class Daemon:
                     "analysis": analysis,
                     "epoch": new_epoch,
                     "diff": diff,
-                    "invalidated": [
-                        # TODO List of invalidated cacheable artifacts (and the objects inside it)
-                    ],
+                    "invalidated": invalidated_artifacts,
                 }
             ],
         )
