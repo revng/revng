@@ -18,10 +18,9 @@ bool init_unit_test();
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/Passes.h"
 
+#include "revng/Clift/Clift.h"
+#include "revng/Clift/CliftAttributes.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
-#include "revng/mlir/Dialect/Clift/IR/CliftAttributes.h"
-#include "revng/mlir/Dialect/Clift/IR/CliftDialect.h"
 
 using namespace mlir::clift;
 
