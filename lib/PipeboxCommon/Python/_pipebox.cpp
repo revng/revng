@@ -51,6 +51,18 @@ NB_MODULE(_pipebox, m) {
     .def_static("root", &ObjectID::root)
     .def("serialize", &ObjectID::serialize)
     .def_static("deserialize", &ObjectID::deserialize)
+    .def("to_bytes",
+         [](ObjectID &Handle) {
+           std::vector<uint8_t> Result = Handle.toBytes();
+           return nanobind::bytes(reinterpret_cast<void *>(Result.data()),
+                                  Result.size());
+         })
+    .def_static("from_bytes",
+                [](nanobind::bytes Bytes) {
+                  const uint8_t
+                    *Ptr = reinterpret_cast<const uint8_t *>(Bytes.data());
+                  return ObjectID::fromBytes({ Ptr, Bytes.size() });
+                })
     .def("__eq__",
          [](ObjectID &Handle, nanobind::object Other) {
            ObjectID *OtherHandle;
@@ -68,6 +80,7 @@ NB_MODULE(_pipebox, m) {
     .def("parent", &Kind::parent)
     .def_static("deserialize", &Kind::deserialize)
     .def("serialize", &Kind::serlialize)
+    .def("byte_size", &Kind::byteSize)
     .def("__eq__",
          [](Kind &Handle, nanobind::object Other) {
            Kind *OtherHandle;
