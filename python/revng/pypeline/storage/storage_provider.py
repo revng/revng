@@ -6,14 +6,17 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Buffer
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, Iterable, Mapping
 
 from revng.pypeline.container import ConfigurationId, ContainerID
 from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
+
+from .file_storage import FileRequest, FileStorage
 
 SavepointID = Annotated[
     int,
@@ -69,6 +72,16 @@ class SavePointsRange:
     def __len__(self) -> int:
         """The number of savepoints in the range."""
         return self.end - self.start + 1
+
+
+@dataclass
+class FileStorageEntry:
+    name: str
+    path: Path | None = field(default=None)
+    contents: bytes | None = field(default=None)
+
+    def __post_init__(self):
+        assert int(self.path is not None) + int(self.contents is not None) == 1
 
 
 class StorageProvider(ABC):
@@ -157,3 +170,26 @@ class StorageProvider(ABC):
         """
         Prunes all the objects (except metadata) from storage
         """
+
+    @abstractmethod
+    def put_files_in_file_storage(self, files: list[FileStorageEntry]) -> list[str]:
+        """
+        Put a file in storage, which can be later retrieved with the
+        `get_files_from_file_storage` method. This method returns a list of
+        hashes of the submitted files.
+        """
+
+    @abstractmethod
+    def get_files_from_file_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        """
+        Get a file from storage, given a list of requests. Returns a dictionary
+        mapping the hash to the contents.
+        """
+
+
+class StorageProviderFileStorage(FileStorage):
+    def __init__(self, provider: StorageProvider):
+        self._provider = provider
+
+    def get_files(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        return self._provider.get_files_from_file_storage(requests)

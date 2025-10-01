@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections import defaultdict
 from collections.abc import Buffer
 from dataclasses import dataclass
@@ -15,8 +16,9 @@ from revng.pypeline.model import ModelPath, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 
-from .storage_provider import ConfigurationId, ContainerLocation, ProjectMetadata, SavepointID
-from .storage_provider import SavePointsRange, StorageProvider
+from .file_storage import FileRequest
+from .storage_provider import ConfigurationId, ContainerLocation, FileStorageEntry
+from .storage_provider import ProjectMetadata, SavepointID, SavePointsRange, StorageProvider
 from .util import _REVNG_VERSION_PLACEHOLDER
 
 
@@ -39,6 +41,7 @@ class InMemoryStorageProvider(StorageProvider):
         self.storage: dict[ContainerLocation, dict[ObjectID, bytes]] = {}
         self.dependencies: dict[str, list[DependencyEntry]] = defaultdict(list)
         self.last_change = datetime.now()
+        self.files: dict[str, bytes] = {}
 
     def has(
         self,
@@ -133,3 +136,22 @@ class InMemoryStorageProvider(StorageProvider):
         """
         self.storage.clear()
         self.dependencies.clear()
+
+    def put_files_in_file_storage(self, files: list[FileStorageEntry]) -> list[str]:
+        result = []
+        for file in files:
+            contents = None
+            if file.contents is not None:
+                contents = file.contents
+            elif file.path is not None:
+                contents = file.path.read_bytes()
+
+            assert contents is not None
+            hash_ = hashlib.sha256(contents).hexdigest()
+            self.files[hash_] = contents
+            result.append(hash_)
+
+        return result
+
+    def get_files_from_file_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        return {r.hash: self.files[r.hash] for r in requests}

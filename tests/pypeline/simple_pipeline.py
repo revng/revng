@@ -16,6 +16,7 @@ from revng.pypeline.analysis import Analysis
 from revng.pypeline.container import Configuration, Container
 from revng.pypeline.model import Model, ModelPath, ModelPathSet, ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
+from revng.pypeline.storage.file_storage import FileStorage
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.task import PipeObjectDependencies, TaskArgument, TaskArgumentAccess
 
@@ -276,6 +277,7 @@ class InPlacePipe(Pipe):
 
     def run(
         self,
+        file_storage: FileStorage,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],
@@ -306,6 +308,7 @@ class SameKindPipe(Pipe):
 
     def run(
         self,
+        file_storage: FileStorage,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],
@@ -344,6 +347,7 @@ class ToHigherKindPipe(Pipe):
 
     def run(
         self,
+        file_storage: FileStorage,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],
@@ -389,6 +393,7 @@ class ToLowerKindPipe(Pipe):
 
     def run(
         self,
+        file_storage: FileStorage,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],
@@ -434,6 +439,7 @@ class GeneratorPipe(Pipe):
 
     def run(
         self,
+        file_storage: FileStorage,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],

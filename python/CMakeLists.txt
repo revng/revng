@@ -404,6 +404,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/schedule/__init__.py
     revng/pypeline/schedule/scheduled_task.py
     revng/pypeline/schedule/schedule.py
+    revng/pypeline/storage/file_storage.py
     revng/pypeline/storage/memory.py
     revng/pypeline/storage/null.py
     revng/pypeline/storage/sqlite3.py

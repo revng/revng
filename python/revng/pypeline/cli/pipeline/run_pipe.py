@@ -3,6 +3,7 @@
 #
 
 import logging
+from pathlib import Path
 
 import click
 
@@ -11,11 +12,24 @@ from revng.pypeline.cli.utils import normalize_whitespace
 from revng.pypeline.container import dump_container, load_container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
+from revng.pypeline.storage.file_storage import FileRequest, FileStorage
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils.registry import get_registry, get_singleton
 
 logger = logging.getLogger(__name__)
+
+
+class DirectoryFileStorage(FileStorage):
+    def __init__(self, directory: Path | None):
+        self._directory = directory
+
+    def get_files(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        if len(requests) == 0:
+            return {}
+        if self._directory is None:
+            raise ValueError("Requested file while --file-storage was not specified")
+        return {r.hash: (self._directory / r.hash).read_bytes() for r in requests}
 
 
 class RunPipeGroup(click.Group):
@@ -139,8 +153,17 @@ def build_pipe_command(
         default=False,
         help="List the available objects for each argument.",
     )
+    @click.option(
+        "--file-storage",
+        type=click.Path(exists=True, file_okay=False, path_type=Path),
+        default=None,
+    )
     def run_pipe_command(
-        model: str, static_configuration: str, configuration: str, **kwargs
+        model: str,
+        static_configuration: str,
+        configuration: str,
+        file_storage: Path | None,
+        **kwargs,
     ) -> None:
         logger.debug("Running pipe: %s", pipe_name)
         logger.debug("with static configuration: %s", static_configuration)
@@ -210,6 +233,7 @@ def build_pipe_command(
 
         # Finally, run the pipe
         object_deps = pipe.run(
+            file_storage=DirectoryFileStorage(file_storage),
             model=ReadOnlyModel(loaded_model),
             containers=containers,
             incoming=incoming,
