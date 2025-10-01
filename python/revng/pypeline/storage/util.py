@@ -3,6 +3,10 @@
 #
 
 import graphlib
+import hashlib
+from collections.abc import Buffer
+from io import BufferedIOBase
+from pathlib import Path
 
 from revng.pypeline.object import Kind, ObjectID
 from revng.pypeline.utils.registry import get_singleton
@@ -57,3 +61,17 @@ def check_kind_structure():
 def check_object_id_supported_by_sql(object_id: ObjectID):
     if object_id.kind().rank() >= 2:
         raise NotImplementedError("Objects with rank >= 2 are not supported")
+
+
+# Compute the hash of the specified object, conformant to the hash
+# specification of `FileRequest`
+def compute_hash(input_: Path | BufferedIOBase | bytes | Buffer) -> str:
+    if isinstance(input_, Path):
+        with open(input_, "rb") as f:
+            return hashlib.file_digest(f, "sha256").hexdigest()
+    elif isinstance(input_, BufferedIOBase):
+        return hashlib.file_digest(input_, "sha256").hexdigest()
+    elif isinstance(input_, (bytes, Buffer)):
+        return hashlib.sha256(input_).hexdigest()
+    else:
+        raise ValueError(f"Unknown input, {type(input_)}")

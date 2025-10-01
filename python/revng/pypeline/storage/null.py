@@ -13,9 +13,10 @@ from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 
-from .storage_provider import ContainerLocation, InvalidatedObjects, ProjectMetadata
-from .storage_provider import SavePointsRange, StorageProvider
-from .util import _REVNG_VERSION_PLACEHOLDER
+from .file_provider import FileRequest
+from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
+from .storage_provider import ProjectMetadata, SavePointsRange, StorageProvider
+from .util import _REVNG_VERSION_PLACEHOLDER, compute_hash
 
 
 class NullStorageProvider(StorageProvider):
@@ -82,3 +83,15 @@ class NullStorageProvider(StorageProvider):
         """
         Prunes all the objects (except metadata) from storage
         """
+
+    def put_files_in_storage(self, files: list[FileStorageEntry]) -> list[str]:
+        result = []
+        for file in files:
+            if file.path is not None:
+                result.append(compute_hash(file.path))
+            elif file.contents is not None:
+                result.append(compute_hash(file.contents))
+        return result
+
+    def get_files_from_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        raise ValueError("Unsupported")

@@ -105,6 +105,7 @@ struct RegisterPipe {
                      [](T &Handle) { return Handle.StaticConfiguration; })
         .def("run",
              &python::runPipe<T>,
+             "file_provider"_a,
              "model"_a,
              "containers"_a,
              "incoming"_a,

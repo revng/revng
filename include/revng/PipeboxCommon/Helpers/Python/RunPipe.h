@@ -15,6 +15,7 @@ namespace revng::pypeline::helpers::python {
 
 template<typename T>
 inline ObjectDependencies runPipe(T &Handle,
+                                  nanobind::object FileStorage,
                                   nanobind::object TheModel,
                                   nanobind::list Containers,
                                   Request Incoming,

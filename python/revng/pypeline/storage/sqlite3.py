@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import sqlite3
 from collections import defaultdict
 from collections.abc import Buffer
@@ -11,16 +13,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Collection, Mapping
 
+import yaml
+
 from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
+from revng.pypeline.utils import cache_directory
 from revng.pypeline.utils.registry import get_singleton
 
-from .storage_provider import ContainerLocation, InvalidatedObjects, ProjectMetadata
-from .storage_provider import SavePointsRange, StorageProvider
+from .file_provider import FileRequest
+from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
+from .storage_provider import ProjectMetadata, SavePointsRange, StorageProvider
 from .util import _OBJECTID_MAXSIZE, _REVNG_VERSION_PLACEHOLDER, check_kind_structure
-from .util import check_object_id_supported_by_sql
+from .util import check_object_id_supported_by_sql, compute_hash
 
 # This is a binary mask that will be used for invalidation, thanks to the
 # binary structure of ObjectID, all children are guaranteed to have the parent
@@ -154,6 +160,7 @@ class SQlite3StorageProvider(StorageProvider):
     def __init__(self, db_path: str, model_path: str | Path):
         check_kind_structure()
         self._model_path = Path(model_path)
+        self._model_directory = self._model_path.parent.resolve()
         self._connection = sqlite3.connect(db_path, autocommit=False)
         self._connection.commit()
         self._init_tables()
@@ -299,4 +306,106 @@ class SQlite3StorageProvider(StorageProvider):
         return ProjectMetadata(
             last_change=datetime.fromtimestamp(result[0], timezone.utc),
             revng_version=result[1],
+        )
+
+    def put_files_in_storage(self, files: list[FileStorageEntry]) -> list[str]:
+        result = []
+        for file in files:
+            if file.contents is not None:
+                file_path = self._model_directory / file.name
+                file_path.write_bytes(file.contents)
+                hash_ = compute_hash(file.contents)
+
+            elif file.path is not None:
+                if file_path.parent.resolve() != self._model_directory:
+                    # If here, the file is not in the directory where the model
+                    # is present, copy it there
+                    file_path = self._model_directory / file.path.name
+                    shutil.copy2(file.path, file_path)
+                else:
+                    file_path = file.path
+
+                hash_ = compute_hash(file_path)
+
+            self._write_link_file(file_path, hash_)
+            result.append(hash_)
+
+        return result
+
+    def get_files_from_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        return {r.hash: self._find_file(r).read_bytes() for r in requests}
+
+    def _write_link_file(self, path: Path, hash_: str):
+        link_file = cache_directory() / f"resources/{hash_}.link"
+        link_file.parent.mkdir(parents=True, exist_ok=True)
+
+        data = {}
+        if link_file.is_file():
+            data = yaml.safe_load(link_file.read_text())
+
+        paths = {Path(p) for p in data.get("PathHints", [])}
+        paths.add(path.resolve())
+        paths.add(path.relative_to(self._model_directory, walk_up=True))
+
+        mtimes = []
+        for path_element in paths:
+            mtimes.append(path_element.stat().st_mtime)
+
+        data = {"PathHints": [str(p) for p in paths], "ModifiedTime": max(mtimes)}
+        link_file.write_text(yaml.safe_dump(data))
+
+    def _find_file(self, request: FileRequest) -> Path:
+        link_file = cache_directory() / f"resources/{request.hash}.link"
+        if link_file.is_file():
+            data = yaml.safe_load(link_file.read_text())
+
+            # Read the `PathHints` list, normalize the entries to all absolute paths
+            found_paths: list[Path] = []
+            for path in data["PathHints"]:
+                path_path = Path(path)
+                if not path_path.is_absolute():
+                    path_path = (self._model_directory / path_path).resolve()
+
+                if path_path.is_file():
+                    found_paths.append(path_path)
+
+            # Try and find a file from found_paths that matches the `ModifiedTime`
+            mtime = data["ModifiedTime"]
+            for path in found_paths:
+                if path.stat().st_mtime == mtime:
+                    return path
+
+            # If here none of the found_paths matched mtime, try and update it
+            for path in found_paths:
+                if compute_hash(path) == request.hash:
+                    data["ModifiedTime"] = path.stat().st_mtime
+                    link_file.write_text(yaml.safe_dump(data))
+                    return path
+
+        # If here, none of the paths in found_paths had a matching hash
+        # First check if there is a file in the model directory that matches
+        if request.name is not None:
+            maybe_file = self._model_directory / request.name
+            if self._compare_file(maybe_file, request):
+                self._write_link_file(maybe_file, request.hash)
+                return maybe_file
+
+        # If here, as a last resort, scan the entire model directory to try and
+        # find the file
+        with os.scandir(self._model_directory) as scan_iter:
+            for entry in scan_iter:
+                entry_path = Path(entry.path)
+                if entry.is_file() and self._compare_file(entry_path, request):
+                    self._write_link_file(entry_path, request.hash)
+                    return entry_path
+
+        # If here, no file has been found, throw an exception
+        raise ValueError("Could not find a suitable file")
+
+    @staticmethod
+    def _compare_file(path: Path, request: FileRequest) -> bool:
+        return (
+            path.is_file()
+            and (request.size is None or path.stat().st_size == request.size)
+            and compute_hash(path) == request.hash
         )
