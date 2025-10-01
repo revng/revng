@@ -14,14 +14,16 @@
 #include "revng/Support/MetaAddress.h"
 
 struct Kinds;
+class ObjectID;
 
 class Kind {
 private:
-  enum class ValueType {
+  enum class ValueType : uint8_t {
     Binary = 0,
     Function,
     TypeDefinition,
   };
+  friend ObjectID;
 
 public:
   ValueType Value;
@@ -66,6 +68,18 @@ public:
       return "function";
     } else if (Value == ValueType::TypeDefinition) {
       return "type-definition";
+    } else {
+      revng_abort();
+    }
+  }
+
+  uint64_t byteSize() {
+    if (Value == ValueType::Binary) {
+      return 0;
+    } else if (Value == ValueType::Function) {
+      return MetaAddress::BytesSize;
+    } else if (Value == ValueType::TypeDefinition) {
+      return packedSize<model::TypeDefinition::Key>;
     } else {
       revng_abort();
     }
@@ -164,6 +178,50 @@ public:
       if (not MaybeKey.has_value())
         return revng::createError("Failed deserializing ObjectID");
       TypeDefinitionKey Key = std::get<0>(MaybeKey->tuple());
+      return ObjectID(Key);
+    } else {
+      return revng::createError("Failed deserializing ObjectID");
+    }
+  }
+
+private:
+  static uint8_t kindByte(const Kind &TheKind) {
+    return static_cast<uint8_t>(TheKind.Value);
+  }
+
+public:
+  std::vector<uint8_t> toBytes() const {
+    const Kind &TheKind = kind();
+    std::vector<uint8_t> Result;
+
+    if (TheKind == Kinds::Binary) {
+      return {};
+    } else if (TheKind == Kinds::Function) {
+      Result.push_back(kindByte(TheKind));
+      append(std::get<MetaAddress>(Key).toBytes(), Result);
+      return Result;
+    } else if (TheKind == Kinds::TypeDefinition) {
+      Result.push_back(kindByte(TheKind));
+      append(::toBytes(std::get<TypeDefinitionKey>(Key)), Result);
+      return Result;
+    } else {
+      revng_abort();
+    }
+  }
+
+  static llvm::Expected<ObjectID> fromBytes(llvm::ArrayRef<uint8_t> Bytes) {
+    constexpr size_t TDKSize = packedSize<TypeDefinitionKey>;
+
+    if (Bytes.empty()) {
+      return ObjectID();
+    } else if (Bytes.size() == (1 + MetaAddress::BytesSize)
+               and Bytes[0] == kindByte(Kinds::Function)) {
+      auto Key = MetaAddress::fromBytes({ &Bytes[1], MetaAddress::BytesSize });
+      return ObjectID(Key);
+    } else if (Bytes.size() == (1 + TDKSize)
+               and Bytes[0] == kindByte(Kinds::TypeDefinition)) {
+      TypeDefinitionKey Key;
+      ::fromBytes({ &Bytes[1], TDKSize }, Key);
       return ObjectID(Key);
     } else {
       return revng::createError("Failed deserializing ObjectID");
