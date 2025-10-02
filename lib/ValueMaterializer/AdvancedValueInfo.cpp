@@ -204,11 +204,21 @@ runAVI(const DataFlowGraph &DFG,
   SmallPtrSet<BasicBlock *, 4> DFGEntryPoints;
 
   // Collect in a set all the blocks of the target instructions
-  SmallPtrSet<BasicBlock *, 16> InstructionBlocks;
-  for (Instruction *I : Targets) {
-    auto *BB = I->getParent();
-    InstructionBlocks.insert(BB);
-  }
+  SmallVector<BasicBlock *> InstructionBlocks;
+  for (Instruction *I : Targets)
+    InstructionBlocks.push_back(I->getParent());
+
+  // Ensure we start from nodes dominating others
+  llvm::sort(InstructionBlocks, [&DT](BasicBlock *LHS, BasicBlock *RHS) {
+    if (LHS == RHS)
+      return false;
+    else if (DT.dominates(LHS, RHS))
+      return true;
+    else if (DT.dominates(RHS, LHS))
+      return false;
+    else
+      return LHS < RHS;
+  });
 
   SmallPtrSet<BasicBlock *, 16> NodeSet;
   for (BasicBlock *BB : InstructionBlocks) {
