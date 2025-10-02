@@ -10,7 +10,8 @@ revng_add_analyses_library_internal(
   LLVMToCliftPipe.cpp
   ModelVerifyPipe.cpp
   Legalization.cpp
-  LoopPromotionPipe.cpp)
+  LoopPromotionPipe.cpp
+  OptimizePipe.cpp)
 
 target_link_libraries(
   revngMLIRPipes
