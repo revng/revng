@@ -21,6 +21,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Debug.h"
@@ -133,16 +134,39 @@ using MFPResult = AEA<IsLegacy>::MFPResult;
 template<bool IsLegacy>
 using ResultMap = std::map<ProgramPointNode *, MFPResult<IsLegacy>>;
 
-template<bool IsLegacy>
-static bool isStatement(const Instruction *I) {
-  // TODO: this is workaround for SelectInst being often involved in nasty
-  // huge dataflows.
-  // In the future we should drop this from here and add a separate pass after
-  // this, that takes care of forcing local variables for nasty dataflows.
+static bool causesExponentialDataflowPaths(const Instruction *I) {
+  // This forces all various kinds of instructions to get their value stored
+  // into a local variable.
+  // The reason for doing this is that these instructions often contribute to
+  // the formation of pathological dataflows, causing exponential path explosion
+  // when expanded into C expressions during decompilation.
+  // Serializing their value into a dedicated local variable breaks such an
+  // exponential path explosion.
+  //
+  // This is a temporary workaround, that we've already put in place for
+  // SelectInst too, and that will be replaced in the future by a more
+  // principled approach for splitting pathological dataflows that lead to
+  // exponential path esplosion.
+
   if (isa<SelectInst>(I))
     return true;
 
-  return hasSideEffects(*I);
+  llvm::Value *Op0 = nullptr;
+  llvm::Value *Op1 = nullptr;
+  llvm::Value *Op2 = nullptr;
+
+  using namespace llvm::PatternMatch;
+  if (match(I, m_FShl(m_Value(Op0), m_Value(Op1), m_Value(Op2))))
+    return true;
+  if (match(I, m_FShr(m_Value(Op0), m_Value(Op1), m_Value(Op2))))
+    return true;
+
+  return false;
+}
+
+template<bool IsLegacy>
+static bool isStatement(const Instruction *I) {
+  return causesExponentialDataflowPaths(I) or hasSideEffects(*I);
 }
 
 template<bool IsLegacy>
