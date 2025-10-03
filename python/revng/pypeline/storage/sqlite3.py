@@ -45,12 +45,12 @@ CREATE TABLE IF NOT EXISTS dependencies(
     container_id         TEXT NOT NULL,
     configuration_hash   TEXT NOT NULL,
     object_id            TEXT NOT NULL,
-    model_path_hash      TEXT NOT NULL,
+    model_path           TEXT NOT NULL,
     PRIMARY KEY (savepoint_id_start, savepoint_id_end, container_id,
-                 configuration_hash, object_id, model_path_hash)
+                 configuration_hash, object_id, model_path)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS model_path_hash_on_dependencies ON dependencies(model_path_hash);
+CREATE INDEX IF NOT EXISTS model_path_on_dependencies ON dependencies(model_path);
 """
 
 HAS_QUERY = """
@@ -80,7 +80,7 @@ WHERE rowid IN (
     SELECT objects.rowid
     FROM objects
     JOIN dependencies
-    WHERE dependencies.model_path_hash IN ({model_paths})
+    WHERE dependencies.model_path IN ({model_paths})
           AND objects.container_id = dependencies.container_id
           AND objects.configuration_hash = dependencies.configuration_hash
           AND objects.savepoint_id >= dependencies.savepoint_id_start
@@ -88,7 +88,7 @@ WHERE rowid IN (
 );
 
 DELETE FROM dependencies
-WHERE dependencies.model_path_hash IN ({model_paths});
+WHERE dependencies.model_path IN ({model_paths});
 """
 
 
