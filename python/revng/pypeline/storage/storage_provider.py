@@ -32,6 +32,9 @@ class ContainerLocation:
     configuration_id: ConfigurationId
 
 
+InvalidatedObjects = dict[ContainerLocation, set[ObjectID]]
+
+
 @dataclass(frozen=True, slots=True)
 class ProjectMetadata:
     last_change: datetime
@@ -126,11 +129,12 @@ class StorageProvider(ABC):
         """
 
     @abstractmethod
-    def invalidate(self, invalidation_list: ModelPathSet) -> None:
+    def invalidate(self, invalidation_list: ModelPathSet) -> InvalidatedObjects:
         """
         Inform the storage that certain model paths are no longer valid.
         The storage should use the stored dependencies to determine which objects
         need to be invalidated.
+        It returns the list of invalidated objects, in each savepoint.
         """
 
     @abstractmethod

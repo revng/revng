@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Collection, Mapping
@@ -15,7 +16,8 @@ from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 from revng.pypeline.utils.registry import get_singleton
 
-from .storage_provider import ContainerLocation, ProjectMetadata, SavePointsRange, StorageProvider
+from .storage_provider import ContainerLocation, InvalidatedObjects, ProjectMetadata
+from .storage_provider import SavePointsRange, StorageProvider
 from .util import _OBJECTID_MAXSIZE, _REVNG_VERSION_PLACEHOLDER, check_kind_structure
 from .util import check_object_id_supported_by_sql
 
@@ -116,9 +118,11 @@ WHERE rowid IN (
           AND objects.configuration_hash = dependencies.configuration_hash
           AND objects.savepoint_id >= dependencies.savepoint_id_start
           AND objects.savepoint_id <= dependencies.savepoint_id_end
-);
+)
+RETURNING object_id, container_id, savepoint_id, configuration_hash;
+"""
 
-DELETE FROM dependencies
+DELETE_MODEL_PATHS = """DELETE FROM dependencies
 WHERE dependencies.model_path IN ({model_paths});
 """
 
@@ -247,18 +251,30 @@ class SQlite3StorageProvider(StorageProvider):
                 )
             self._write_metadata(cursor)
 
-    def invalidate(self, invalidation_list: ModelPathSet) -> None:
+    def invalidate(self, invalidation_list: ModelPathSet) -> InvalidatedObjects:
         if len(invalidation_list) == 0:
-            return
+            return {}
 
+        object_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
+        invalidated: InvalidatedObjects = defaultdict(set)
+        joined_paths = ",".join(f"'{path}'" for path in invalidation_list)
         with self._cursor() as cursor:
-            cursor.executescript(
-                INVALIDATE_QUERY.format(
-                    model_paths=",".join(f"'{path}'" for path in invalidation_list),
-                    objectid_mask=_OBJECTID_MASK,
-                )
+            cursor.execute(
+                INVALIDATE_QUERY.format(model_paths=joined_paths, objectid_mask=_OBJECTID_MASK)
             )
+            for row in cursor:
+                object_id = row[0]
+                location = ContainerLocation(
+                    container_id=row[1],
+                    savepoint_id=row[2],
+                    configuration_id=row[3],
+                )
+                invalidated[location].add(object_id_type.from_bytes(object_id))
+
+            cursor.execute(DELETE_MODEL_PATHS.format(model_paths=joined_paths))
             self._write_metadata(cursor)
+
+        return dict(invalidated)
 
     def prune_objects(self):
         with self._cursor() as cursor:

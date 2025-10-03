@@ -14,8 +14,8 @@ from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 
-from .storage_provider import ConfigurationId, ContainerLocation, ProjectMetadata, SavepointID
-from .storage_provider import SavePointsRange, StorageProvider
+from .storage_provider import ConfigurationId, ContainerLocation, InvalidatedObjects
+from .storage_provider import ProjectMetadata, SavepointID, SavePointsRange, StorageProvider
 from .util import _REVNG_VERSION_PLACEHOLDER, check_kind_structure
 
 
@@ -88,8 +88,8 @@ class InMemoryStorageProvider(StorageProvider):
             self.storage[location][key] = value
         self.last_change = datetime.now()
 
-    def invalidate(self, invalidation_list: ModelPathSet):
-        invalidated: dict[ContainerLocation, set[ObjectID]] = defaultdict(set)
+    def invalidate(self, invalidation_list: ModelPathSet) -> InvalidatedObjects:
+        invalidated: InvalidatedObjects = defaultdict(set)
 
         # Set of entries that will be collected from self.dependencies
         object_to_delete: set[DependencyEntry] = set()
@@ -132,6 +132,7 @@ class InMemoryStorageProvider(StorageProvider):
             del self.dependencies[path]
 
         self.last_change = datetime.now()
+        return dict(invalidated)
 
     def get_model(self) -> bytes:
         return self.model
