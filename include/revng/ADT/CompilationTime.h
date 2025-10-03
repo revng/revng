@@ -15,50 +15,42 @@
 
 namespace compile_time {
 
+/// Calls \ref Callable with unpacked sequence of \ref IterationCount.
+/// Example:
+/// ```cpp
+/// compile_time::callWithIndexSequence<3>([]<size_t ...I>() {
+///   // The parameter pack I is composed of 0, 1, 2 in this example
+/// });
+/// ```
+template<size_t IterationCount, typename CallableType>
+constexpr auto callWithIndexSequence(CallableType &&Callable) {
+  auto Runner = [&Callable]<size_t... I>(std::index_sequence<I...>) {
+    return Callable.template operator()<I...>();
+  };
+  return Runner(std::make_index_sequence<IterationCount>{});
+}
+
+/// Calls \ref Callable with unpacked sequence of the size of tuple-like
+/// \ref TupleType. See the documentation for the size_t counterpart for usage.
+template<TupleSizeCompatible TupleType, typename CallableType>
+constexpr auto callWithIndexSequence(CallableType &&Callable) {
+  return callWithIndexSequence<std::tuple_size_v<TupleType>>(Callable);
+}
+
 namespace detail {
 
 template<typename T>
 using RVHelper = decltype(std::declval<T>().template operator()<0>());
 
-template<typename TemplatedCallableType, size_t... Indices>
-  requires(std::is_same_v<RVHelper<TemplatedCallableType>, void>)
-constexpr void
-repeat(std::index_sequence<Indices...>, TemplatedCallableType &&Callable) {
-  (Callable.template operator()<Indices>(), ...);
-}
-
-template<typename TemplatedCallableType, size_t... Indices>
-  requires(!std::is_same_v<RVHelper<TemplatedCallableType>, void>)
-constexpr auto
-repeat(std::index_sequence<Indices...>, TemplatedCallableType &&Callable) {
-  return std::tie(Callable.template operator()<Indices>()...);
-}
-
-template<typename TemplatedCallableType, size_t... Indices>
-constexpr bool
-repeatAnd(std::index_sequence<Indices...>, TemplatedCallableType &&Callable) {
-  return (Callable.template operator()<Indices>() && ...);
-}
-
-template<typename TemplatedCallableType, size_t... Indices>
-constexpr bool
-repeatOr(std::index_sequence<Indices...>, TemplatedCallableType &&Callable) {
-  return (Callable.template operator()<Indices>() || ...);
-}
-
-template<typename TemplatedCallableType, size_t... Indices>
-constexpr size_t
-count(std::index_sequence<Indices...>, TemplatedCallableType &&Callable) {
-  return ((Callable.template operator()<Indices>() ? 1 : 0) + ...);
-}
-
-template<typename TemplatedCallableType, size_t... Indices>
-constexpr std::optional<size_t>
-select(std::index_sequence<Indices...> Is, TemplatedCallableType &&Callable) {
-  if (count(Is, Callable) == 1)
-    return ((Callable.template operator()<Indices>() ? Indices : 0) + ...);
-  else
-    return std::nullopt;
+template<size_t IterationCount, typename CallableType>
+  requires(IterationCount > 0)
+constexpr auto repeat(CallableType &&Callable) {
+  return callWithIndexSequence<IterationCount>([&Callable]<size_t... I>() {
+    if constexpr (std::is_same_v<RVHelper<CallableType>, void>)
+      (Callable.template operator()<I>(), ...);
+    else
+      return std::tie(Callable.template operator()<I>()...);
+  });
 }
 
 } // namespace detail
@@ -66,25 +58,37 @@ select(std::index_sequence<Indices...> Is, TemplatedCallableType &&Callable) {
 /// Calls \ref Callable \ref IterationCount times.
 template<size_t IterationCount, typename CallableType>
 constexpr auto repeat(CallableType &&Callable) {
-  if constexpr (IterationCount > 0)
-    return detail::repeat(std::make_index_sequence<IterationCount>(),
-                          std::forward<CallableType>(Callable));
+  if constexpr (IterationCount == 0)
+    return;
+  else
+    return detail::repeat<IterationCount>(std::forward<CallableType>(Callable));
 }
 
 /// Calls \ref Callable \ref IterationCount times, while applying logical AND
 /// operation to the return values.
 template<size_t IterationCount, typename CallableType>
 constexpr bool repeatAnd(CallableType &&Callable) {
-  return detail::repeatAnd(std::make_index_sequence<IterationCount>(),
-                           std::forward<CallableType>(Callable));
+  return callWithIndexSequence<IterationCount>([&Callable]<size_t... I>() {
+    return (Callable.template operator()<I>() && ...);
+  });
 }
 
 /// Calls \ref Callable \ref IterationCount times, while applying logical OR
 /// operation to the return values.
 template<size_t IterationCount, typename CallableType>
 constexpr bool repeatOr(CallableType &&Callable) {
-  return detail::repeatOr(std::make_index_sequence<IterationCount>(),
-                          std::forward<CallableType>(Callable));
+  return callWithIndexSequence<IterationCount>([&Callable]<size_t... I>() {
+    return (Callable.template operator()<I>() || ...);
+  });
+}
+
+/// Calls \ref Callable \ref IterationCount times, returns the amount of times
+/// the \ref Callable returned a truthy value.
+template<size_t IterationCount, typename CallableType>
+constexpr size_t count(CallableType &&Callable) {
+  return callWithIndexSequence<IterationCount>([&Callable]<size_t... I>() {
+    return ((Callable.template operator()<I>() ? 1 : 0) + ...);
+  });
 }
 
 /// Calls \ref Callable \ref IterationCount times, makes sure at most one of
@@ -92,8 +96,16 @@ constexpr bool repeatOr(CallableType &&Callable) {
 /// there is one, or `std::nullopt` if there's none.
 template<size_t IterationCount, typename CallableType>
 constexpr std::optional<size_t> select(CallableType &&Callable) {
-  return detail::select(std::make_index_sequence<IterationCount>(),
-                        std::forward<CallableType>(Callable));
+  return callWithIndexSequence<IterationCount>([&Callable]<size_t... I>() {
+    std::array<bool, IterationCount> Results;
+    ((Results[I] = Callable.template operator()<I>()), ...);
+    if constexpr (std::ranges::count(Results, true) == 1) {
+      auto It = std::ranges::find(Results, true);
+      return std::distance(Results.begin(), It);
+    } else {
+      return std::nullopt;
+    }
+  });
 }
 
 namespace detail {

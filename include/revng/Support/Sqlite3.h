@@ -9,6 +9,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/ADT/CompilationTime.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Generator.h"
 
@@ -82,11 +83,10 @@ public:
         co_return;
 
       revng_assert(sqlite3_column_count(Statement.get()) == sizeof...(T));
-      std::integer_sequence
-        IS = std::make_integer_sequence<int, sizeof...(T)>();
-      co_yield ([this]<int... I>(std::integer_sequence<int, I...>) {
+      co_yield compile_time::callWithIndexSequence<
+        sizeof...(T)>([this]<size_t... I>() {
         return std::make_tuple(this->unpackRow<T, I>()...);
-      })(IS);
+      });
     }
   }
 

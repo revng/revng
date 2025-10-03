@@ -242,10 +242,9 @@ using AddReference = decltype(addReference(std::declval<T>()));
 /// constructor.
 template<typename T, SpecializationOf<TypeList> TL>
 constexpr bool hasConstructor() {
-  auto Runner = []<size_t... I>(std::index_sequence<I...>) {
+  return compile_time::callWithIndexSequence<TL>([]<size_t... I>() {
     return detail::HasConstructor<T, TL, I...>;
-  };
-  return Runner(std::make_index_sequence<std::tuple_size_v<TL>>());
+  });
 };
 
 /// Helper using that will return a TypeList of ContainerTypes with `&` added
