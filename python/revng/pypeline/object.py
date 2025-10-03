@@ -252,6 +252,17 @@ class ObjectID(ABC):
         """Convert a bytes representation back to an ObjectID"""
         raise NotImplementedError()
 
+    def is_related(self, to: ObjectID) -> bool:
+        def test(source: ObjectID, target: ObjectID):
+            test_object: ObjectID | None = target
+            while test_object is not None:
+                if test_object == source:
+                    return True
+                test_object = test_object.parent()
+            return False
+
+        return test(self, to) or test(to, self)
+
     def __eq__(self, other) -> bool:
         return hash(self) == hash(other)
 

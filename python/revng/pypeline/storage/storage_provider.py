@@ -7,7 +7,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, Iterable, Mapping
+from typing import Annotated, Collection, Iterable, Mapping
 
 from revng.pypeline.container import ConfigurationId, ContainerID
 from revng.pypeline.model import ModelPathSet
@@ -80,7 +80,7 @@ class StorageProvider(ABC):
     def has(
         self,
         location: ContainerLocation,
-        keys: Iterable[ObjectID],
+        keys: Collection[ObjectID],
     ) -> Iterable[ObjectID]:
         """
         Get the available objects from the storage.
@@ -91,7 +91,7 @@ class StorageProvider(ABC):
     def get(
         self,
         location: ContainerLocation,
-        keys: Iterable[ObjectID],
+        keys: Collection[ObjectID],
     ) -> Mapping[ObjectID, bytes]:
         """
         For each objects, return bytes that the container can ingest to
