@@ -96,6 +96,28 @@ constexpr std::optional<size_t> select(CallableType &&Callable) {
                         std::forward<CallableType>(Callable));
 }
 
+/// Calls \ref Callable with unpacked sequence of \ref IterationCount.
+/// Example:
+/// ```cpp
+/// compile_time::callWithIndexSequence<3>([]<size_t ...I>() {
+///   // The parameter pack I is composed of 0, 1, 2 in this example
+/// });
+/// ```
+template<size_t IterationCount, typename CallableType>
+constexpr auto callWithIndexSequence(CallableType &&Callable) {
+  auto Runner = [&Callable]<size_t... I>(std::index_sequence<I...>) {
+    return Callable.template operator()<I...>();
+  };
+  return Runner(std::make_index_sequence<IterationCount>{});
+}
+
+/// Calls \ref Callable with unpacked sequence of the size of tuple-like
+/// \ref TupleType. See the documentation for the size_t counterpart for usage.
+template<TupleSizeCompatible TupleType, typename CallableType>
+constexpr auto callWithIndexSequence(CallableType &&Callable) {
+  return callWithIndexSequence<std::tuple_size_v<TupleType>>(Callable);
+}
+
 namespace detail {
 
 template<size_t N, size_t I = 0>
