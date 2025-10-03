@@ -2,6 +2,11 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from . import run_analysis, run_pipe  # noqa: F401
+
 import click
 
 from revng.pypeline.cli.utils import LazyGroup

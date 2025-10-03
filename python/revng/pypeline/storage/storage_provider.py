@@ -13,6 +13,7 @@ from revng.pypeline.container import ConfigurationId, ContainerID
 from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
+from revng.pypeline.utils.registry import get_registry
 
 SavepointID = Annotated[
     int,
@@ -24,12 +25,22 @@ SavepointID = Annotated[
     """,
 ]
 
+ProjectID = Annotated[
+    str,
+    """
+    An unique identifier for a project.
+    """,
+]
+
 
 @dataclass(frozen=True, slots=True)
 class ContainerLocation:
     savepoint_id: SavepointID
     container_id: ContainerID
     configuration_id: ConfigurationId
+
+
+Invalidated = dict[ContainerLocation, list[ObjectID]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +79,64 @@ class SavePointsRange:
     def __len__(self) -> int:
         """The number of savepoints in the range."""
         return self.end - self.start + 1
+
+
+class StorageProviderFactory(ABC):
+    """
+    A possibly stateful factory for a specific storage provider.
+    This abstraction is needed to optimize daemon, as the cloud version needs to
+    be stateless and instantiate a new storage provider client each time, while
+    the local version can reuse the same client.
+    """
+
+    @abstractmethod
+    def __init__(self, route: str):
+        """
+        The cli will decide how to instantiate the factory using an route argument
+        so this route has to contain all the information needed to instantiate the
+        factory.
+        """
+
+    @classmethod
+    @abstractmethod
+    def protocol(cls) -> str:
+        """
+        The protocol that identifies this storage provider.
+        For example if the protocol of an implementation is `local`
+        the code has to instantiate it when it receives an url in
+        the form `local://<route>`.
+        """
+
+    @abstractmethod
+    def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> StorageProvider:
+        """
+        Get a storage provider instance for the given project.
+        This method has to receive all the arguments needed by all possible
+        implementations, so it's common that the implementation will ignore some
+        of them. The methods are not supposed to be thread-safe, and it's
+        responsibility of the user to ensure that this method is not called
+        concurrently.
+        """
+
+
+# WIP: find a more suitable name
+def storage_provider_factory_factory(url: str) -> StorageProviderFactory:
+    """Create a storage provider factory from an url."""
+    protocol, route = url.split("://", 1)
+    factories = get_registry(StorageProviderFactory)  # type: ignore [type-abstract]
+    for factory_ty in factories.values():
+        if factory_ty.protocol() == protocol:
+            return factory_ty(route)
+    available_protocols = ", ".join(factories.keys())
+    raise ValueError(
+        f"Unknown storage provider protocol {protocol}."
+        f" The available protocols are: {available_protocols}."
+    )
 
 
 class StorageProvider(ABC):
@@ -126,11 +195,12 @@ class StorageProvider(ABC):
         """
 
     @abstractmethod
-    def invalidate(self, invalidation_list: ModelPathSet) -> None:
+    def invalidate(self, invalidation_list: ModelPathSet) -> Invalidated:
         """
         Inform the storage that certain model paths are no longer valid.
         The storage should use the stored dependencies to determine which objects
         need to be invalidated.
+        It returns the list of invalidated objects, in each savepoint.
         """
 
     @abstractmethod

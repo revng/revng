@@ -4,19 +4,24 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
 
 from revng.pypeline.container import ConfigurationId
-from revng.pypeline.model import ModelPathSet
+from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 from revng.pypeline.utils.registry import get_singleton
 
-from .storage_provider import ContainerLocation, ProjectMetadata, SavePointsRange, StorageProvider
+from .storage_provider import ContainerLocation, Invalidated, ProjectID, ProjectMetadata
+from .storage_provider import SavePointsRange, StorageProvider, StorageProviderFactory
 from .util import _REVNG_VERSION_PLACEHOLDER
+
+logger = logging.getLogger(__name__)
 
 CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS project(
@@ -81,11 +86,13 @@ WHERE rowid IN (
     FROM objects
     JOIN dependencies
     WHERE dependencies.model_path_hash IN ({model_paths})
+          AND objects.object_id = dependencies.object_id
           AND objects.container_id = dependencies.container_id
           AND objects.configuration_hash = dependencies.configuration_hash
           AND objects.savepoint_id >= dependencies.savepoint_id_start
           AND objects.savepoint_id <= dependencies.savepoint_id_end
-);
+)
+RETURNING object_id, container_id, savepoint_id, configuration_hash;
 
 DELETE FROM dependencies
 WHERE dependencies.model_path_hash IN ({model_paths});
@@ -112,7 +119,56 @@ class CursorWrapper:
         return False
 
 
-class SQlite3StorageProvider(StorageProvider):
+class LocalStorageProviderFactory(StorageProviderFactory):
+    def __init__(self, url: str):
+        assert url == ""
+        self.providers: dict[ProjectID | None, LocalStorageProvider] = {}
+
+    @classmethod
+    def protocol(cls) -> str:
+        return "local"
+
+    def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> StorageProvider:
+        assert cache_dir is not None, "Cache directory must be provided"
+
+        if project_id in self.providers:
+            return self.providers[project_id]
+
+        # Figure out how the model should be name
+        model_ty = get_singleton(Model)  # type: ignore [type-abstract]
+        model_name = model_ty.model_name()
+
+        # Find the model in the current directory or any of its parents
+        folder = Path.cwd().resolve()
+        while True:
+            logger.debug("Searching for model at '%s'", folder / model_name)
+            if (folder / model_name).exists():
+                break
+            if folder == folder.parent:
+                raise FileNotFoundError(f"Model '{model_name}' not found")
+            folder = folder.parent
+
+        model_path = folder / model_name
+        logger.info("Model '%s' found at '%s'", model_name, model_path)
+        # Compute the hash of the model path as a tentative unique identifier
+        # for the project
+        hasher = hashlib.sha256()
+        hasher.update(str(model_path).encode())
+        db_name = hasher.hexdigest() + ".sqlite"
+        db_path = Path(cache_dir) / db_name
+        logger.info("Using DB '%s'", db_path)
+
+        provider = LocalStorageProvider(str(db_path), str(model_path))
+        self.providers[project_id] = provider
+        return provider
+
+
+class LocalStorageProvider(StorageProvider):
     """StorageProvider implementation with backing sqlite3 db"""
 
     def __init__(self, db_path: str, model_path: str | Path):
@@ -208,14 +264,25 @@ class SQlite3StorageProvider(StorageProvider):
                 )
             self._write_metadata(cursor)
 
-    def invalidate(self, invalidation_list: ModelPathSet) -> None:
+    def invalidate(self, invalidation_list: ModelPathSet) -> Invalidated:
         with self._cursor() as cursor:
             cursor.executescript(
                 INVALIDATE_QUERY.format(
                     model_paths=",".join(f"'{path}'" for path in invalidation_list)
                 )
             )
+            result = cursor.fetchall()
             self._write_metadata(cursor)
+        invalidated: Invalidated = {}
+        for obj in result:
+            obj_id = obj[0]
+            location = ContainerLocation(
+                savepoint_id=obj[1],
+                container_id=obj[2],
+                configuration_id=obj[3],
+            )
+            invalidated.setdefault(location, []).append(obj_id)
+        return invalidated
 
     def prune_objects(self):
         with self._cursor() as cursor:
