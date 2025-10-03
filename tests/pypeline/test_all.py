@@ -14,6 +14,8 @@ from simple_pipeline import ChildDictContainer, DictModel, GeneratorPipe, InPlac
 from simple_pipeline import MyObjectID, NullAnalysis, PurgeAllAnalysis, PurgeOneAnalysis
 from simple_pipeline import RootDictContainer, SameKindPipe, ToHigherKindPipe, ToLowerKindPipe
 
+import revng.pypeline.storage.memory as _storage_memory_module
+import revng.pypeline.storage.sqlite3 as _storage_sqlite3_module
 from revng.pypeline import initialize_pypeline
 from revng.pypeline.analysis import AnalysisBinding
 from revng.pypeline.container import ContainerDeclaration
@@ -29,6 +31,11 @@ from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.savepoint import SavePoint
+
+# Patch away the check for the kind structure, this is needed because, unlike
+# the actual implementation, we have the GRANDCHILD kind which fails the check
+setattr(_storage_memory_module, "check_kind_structure", lambda: None)
+setattr(_storage_sqlite3_module, "check_kind_structure", lambda: None)
 
 # Fill the registries
 initialize_pypeline()

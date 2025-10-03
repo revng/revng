@@ -7,7 +7,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Collection, Mapping
 
 from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import ModelPathSet
@@ -16,7 +16,9 @@ from revng.pypeline.task.task import ObjectDependencies
 from revng.pypeline.utils.registry import get_singleton
 
 from .storage_provider import ContainerLocation, ProjectMetadata, SavePointsRange, StorageProvider
-from .util import _REVNG_VERSION_PLACEHOLDER
+from .util import _KIND_MAXDEPTH, _REVNG_VERSION_PLACEHOLDER, check_kind_structure
+
+_KIND_MASK = f"x'{"ff" * _KIND_MAXDEPTH}'"
 
 CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS project(
@@ -29,7 +31,7 @@ CREATE TABLE IF NOT EXISTS objects(
     savepoint_id         INT NOT NULL,
     container_id         TEXT NOT NULL,
     configuration_hash   TEXT NOT NULL,
-    object_id            TEXT NOT NULL,
+    object_id            BLOB NOT NULL,
     content              BLOB NOT NULL,
     PRIMARY KEY (savepoint_id, container_id, configuration_hash, object_id)
 ) STRICT;
@@ -44,7 +46,7 @@ CREATE TABLE IF NOT EXISTS dependencies(
     savepoint_id_end     INT NOT NULL,
     container_id         TEXT NOT NULL,
     configuration_hash   TEXT NOT NULL,
-    object_id            TEXT NOT NULL,
+    object_id            BLOB NOT NULL,
     model_path           TEXT NOT NULL,
     PRIMARY KEY (savepoint_id_start, savepoint_id_end, container_id,
                  configuration_hash, object_id, model_path)
@@ -74,6 +76,8 @@ REPLACE INTO objects(savepoint_id, container_id, configuration_hash, object_id, 
 VALUES (?, ?, ?, ?, ?)
 """
 
+PUT_DEPENDENCIES_QUERY = "REPLACE INTO dependencies VALUES (?, ?, ?, ?, ?, ?)"
+
 INVALIDATE_QUERY = """
 DELETE FROM objects
 WHERE rowid IN (
@@ -81,7 +85,14 @@ WHERE rowid IN (
     FROM objects
     JOIN dependencies
     WHERE dependencies.model_path IN ({model_paths})
-          AND objects.container_id = dependencies.container_id
+          AND (
+            (
+              objects.object_id >= dependencies.object_id
+              AND objects.object_id <= CAST((dependencies.object_id || {kind_mask}) AS BLOB)
+            ) OR (
+              dependencies.object_id != x'' AND objects.object_id = x''
+            )
+          )
           AND objects.configuration_hash = dependencies.configuration_hash
           AND objects.savepoint_id >= dependencies.savepoint_id_start
           AND objects.savepoint_id <= dependencies.savepoint_id_end
@@ -116,6 +127,7 @@ class SQlite3StorageProvider(StorageProvider):
     """StorageProvider implementation with backing sqlite3 db"""
 
     def __init__(self, db_path: str, model_path: str | Path):
+        check_kind_structure()
         self._model_path = Path(model_path)
         self._connection = sqlite3.connect(db_path, autocommit=False)
         self._connection.commit()
@@ -137,11 +149,14 @@ class SQlite3StorageProvider(StorageProvider):
     def has(
         self,
         location: ContainerLocation,
-        keys: Iterable[ObjectID],
-    ) -> Iterable[ObjectID]:
+        keys: Collection[ObjectID],
+    ) -> list[ObjectID]:
+        if len(keys) == 0:
+            return []
+
         # NOTE: possible SQL injection, sqlite has a limit on parameters. If it
         # can't be avoided chunk selects by 999 values
-        id_list = ",".join([f"'{key!s}'" for key in keys])
+        id_list = ",".join([f"x'{key.to_bytes().hex()}'" for key in keys])
         with self._cursor() as cursor:
             cursor.execute(
                 HAS_QUERY.format(id_list=id_list),
@@ -149,16 +164,19 @@ class SQlite3StorageProvider(StorageProvider):
             )
             result = cursor.fetchall()
         obj_id_ty: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
-        return [obj_id_ty.deserialize(x[0]) for x in result]
+        return [obj_id_ty.from_bytes(x[0]) for x in result]
 
     def get(
         self,
         location: ContainerLocation,
-        keys: Iterable[ObjectID],
-    ) -> Mapping[ObjectID, bytes]:
+        keys: Collection[ObjectID],
+    ) -> dict[ObjectID, bytes]:
+        if len(keys) == 0:
+            return {}
+
         # NOTE: possible SQL injection, sqlite has a limit on parameters. If it
         # can't be avoided chunk selects by 999 values
-        id_list = ",".join([f"'{key!s}'" for key in keys])
+        id_list = ",".join([f"x'{key.to_bytes().hex()}'" for key in keys])
         with self._cursor() as cursor:
             cursor.execute(
                 GET_QUERY.format(id_list=id_list),
@@ -166,7 +184,7 @@ class SQlite3StorageProvider(StorageProvider):
             )
             result = cursor.fetchall()
         obj_id_ty: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
-        return {obj_id_ty.deserialize(x[0]): x[1] for x in result}
+        return {obj_id_ty.from_bytes(x[0]): x[1] for x in result}
 
     def add_dependencies(
         self,
@@ -177,13 +195,13 @@ class SQlite3StorageProvider(StorageProvider):
         with self._cursor() as cursor:
             for container_id, object_id, model_path in deps:
                 cursor.execute(
-                    "REPLACE INTO dependencies VALUES (?, ?, ?, ?, ?, ?)",
+                    PUT_DEPENDENCIES_QUERY,
                     (
                         savepoint_range.start,
                         savepoint_range.end,
                         container_id,
                         configuration_id,
-                        object_id.serialize(),
+                        object_id.to_bytes(),
                         model_path,
                     ),
                 )
@@ -202,17 +220,21 @@ class SQlite3StorageProvider(StorageProvider):
                         location.savepoint_id,
                         location.container_id,
                         location.configuration_id,
-                        object_id.serialize(),
+                        object_id.to_bytes(),
                         content,
                     ),
                 )
             self._write_metadata(cursor)
 
     def invalidate(self, invalidation_list: ModelPathSet) -> None:
+        if len(invalidation_list) == 0:
+            return
+
         with self._cursor() as cursor:
             cursor.executescript(
                 INVALIDATE_QUERY.format(
-                    model_paths=",".join(f"'{path}'" for path in invalidation_list)
+                    model_paths=",".join(f"'{path}'" for path in invalidation_list),
+                    kind_mask=_KIND_MASK,
                 )
             )
             self._write_metadata(cursor)
