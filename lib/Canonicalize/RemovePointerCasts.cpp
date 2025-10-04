@@ -2,7 +2,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -10,6 +9,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 
 struct RemovePointerCasts : public llvm::FunctionPass {
 public:
@@ -51,7 +51,7 @@ bool RemovePointerCasts::runOnFunction(llvm::Function &F) {
 
   // Initialize the IR builder to inject instructions
   llvm::LLVMContext &LLVMCtx = F.getContext();
-  llvm::IRBuilder<> Builder(LLVMCtx);
+  revng::IRBuilder Builder(LLVMCtx);
   bool Modified = false;
 
   // TODO: Maybe we should check if the size is compatible with the size of a

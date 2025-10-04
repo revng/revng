@@ -45,7 +45,7 @@ public:
 
 public:
   void handleCall(MetaAddress CallerBlock,
-                  llvm::IRBuilder<> &Builder,
+                  revng::IRBuilder &Builder,
                   MetaAddress Callee,
                   const CSVSet &ClobberedRegisters,
                   const std::optional<int64_t> &MaybeFSO,
@@ -53,10 +53,10 @@ public:
                   bool IsTailCall,
                   llvm::Value *SymbolNamePointer) final;
 
-  void handlePostNoReturn(llvm::IRBuilder<> &Builder,
+  void handlePostNoReturn(revng::IRBuilder &Builder,
                           const llvm::DebugLoc &DbgLocation) final;
 
-  void handleIndirectJump(llvm::IRBuilder<> &Builder,
+  void handleIndirectJump(revng::IRBuilder &Builder,
                           MetaAddress Block,
                           const CSVSet &ClobberedRegisters,
                           llvm::Value *SymbolNamePointer) final;
@@ -118,9 +118,9 @@ private:
 
   void createIBIMarker(OutlinedFunction *F);
 
-  void opaqueBranchConditions(llvm::Function *F, llvm::IRBuilder<> &);
+  void opaqueBranchConditions(llvm::Function *F, revng::IRBuilder &);
 
-  void materializePCValues(llvm::Function *F, llvm::IRBuilder<> &);
+  void materializePCValues(llvm::Function *F, revng::IRBuilder &);
 
   void runOptimizationPipeline(llvm::Function *F);
 
@@ -132,7 +132,7 @@ private:
     llvm::Value *ReturnPC;
     llvm::SmallVector<llvm::Value *, 16> CSVs;
   };
-  State loadState(llvm::IRBuilder<> &Builder) const;
+  State loadState(revng::IRBuilder &Builder) const;
 };
 
 } // namespace efa

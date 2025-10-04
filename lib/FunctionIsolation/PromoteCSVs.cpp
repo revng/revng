@@ -177,7 +177,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   //
   // Populate the helper wrapper function
   //
-  IRBuilder<> Builder(Entry);
+  revng::IRBuilder Builder(Entry);
 
   // Serialize read CSV
   auto It = HelperWrapper->arg_begin();
@@ -244,8 +244,8 @@ void PromoteCSVs::wrap(CallInst *Call,
   // Emit call to the helper wrapper
   //
   auto EntryIt = Call->getParent()->getParent()->getEntryBlock().begin();
-  IRBuilder<> AllocaBuilder(&*EntryIt);
-  IRBuilder<> Builder(Call);
+  revng::IRBuilder AllocaBuilder(&*EntryIt);
+  revng::IRBuilder Builder(Call);
 
   // Initialize the new set of arguments with the old ones
   SmallVector<Value *, 16> NewArguments;
@@ -321,9 +321,9 @@ void PromoteCSVs::promoteCSVs(Function *F) {
   Instruction *NonAlloca = findFirstNonAlloca(&Entry);
   revng_assert(NonAlloca != nullptr);
 
-  IRBuilder<> InitializersBuilder(NonAlloca);
+  revng::IRBuilder InitializersBuilder(NonAlloca);
   auto *Separator = InitializersBuilder.CreateUnreachable();
-  IRBuilder<> AllocaBuilder(&Entry, Entry.begin());
+  revng::IRBuilder AllocaBuilder(&Entry, Entry.begin());
 
   // For each GlobalVariable representing a CSV used in F, create a dedicated
   // alloca and save it in CSVMaps.
