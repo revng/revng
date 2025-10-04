@@ -10,10 +10,10 @@
 #include "mlir/Dialect/LLVMIR/Transforms/Passes.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
+#include "revng/Clift/Clift.h"
+#include "revng/CliftTransforms/Passes.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/InitRevng.h"
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
-#include "revng/mlir/Dialect/Clift/Transforms/Passes.h"
 
 using namespace llvm::cl;
 

@@ -4,8 +4,8 @@
 
 #include "mlir/IR/Diagnostics.h"
 
-#include "revng/mlir/Dialect/Clift/IR/Clift.h"
-#include "revng/mlir/Dialect/Clift/Utils/ImportModel.h"
+#include "revng/Clift/Clift.h"
+#include "revng/CliftImportModel/ImportModel.h"
 
 template<typename CallableType>
 static auto withContext(CallableType Callable) {
