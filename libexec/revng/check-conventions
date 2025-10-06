@@ -689,8 +689,12 @@ class CheckCommitPass(Pass):
         return PassResult(output, len(output) == 0)
 
 
-def suffix_or_shebang(suffixes: Sequence[str] = (), shebang: str = "") -> FileFilter:
+def suffix_or_shebang(
+    suffixes: Sequence[str] = (), shebang: str = "", exclude: Sequence[str] = ()
+) -> FileFilter:
     def matcher(path: Path, content: str) -> bool:
+        if str(path) in exclude:
+            return False
         if len(suffixes) > 0 and path.suffix.startswith(".") and path.suffix[1:] in suffixes:
             return True
         if shebang != "" and content != "":
