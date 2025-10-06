@@ -646,3 +646,64 @@ def test_schedule_serdes(model):
     )
     schedule_str = schedule.serialize()
     pipeline.deserialize_schedule(schedule_str)
+
+
+def test_storage_invalidation(storage_provider: StorageProvider):
+    configuration_id = ""
+    container_id = "a"
+
+    """
+    Structure of the savepoints IDs used in this test
+
+        0
+    v---|---v
+    1       2
+            |
+            v
+            4
+
+    1, 4 - root
+    2, 3 - function
+    """
+
+    root = MyObjectID(MyKind.ROOT)
+    function1 = MyObjectID(MyKind.CHILD, "func1")
+    function2 = MyObjectID(MyKind.CHILD, "func2")
+
+    def add_object(save_start: int, save_end: int, object_id, path: str):
+        storage_provider.put(
+            ContainerLocation(save_start, container_id, configuration_id), {object_id: b""}
+        )
+        storage_provider.add_dependencies(
+            SavePointsRange(save_start, save_end),
+            configuration_id,
+            [(container_id, object_id, path)],
+        )
+
+    # Check basic invalidation
+    add_object(0, 4, root, "/root")
+    assert storage_provider.invalidate({"/root"}) == {
+        ContainerLocation(0, container_id, configuration_id): {root}
+    }
+
+    # Check downward invalidation
+    storage_provider.prune_objects()
+    add_object(0, 4, root, "/root")
+    add_object(2, 4, function1, "/function1")
+    invalidation = storage_provider.invalidate({"/root"})
+    assert invalidation == {
+        ContainerLocation(0, container_id, configuration_id): {root},
+        ContainerLocation(2, container_id, configuration_id): {function1},
+    }
+
+    # Check upward invalidation
+    storage_provider.prune_objects()
+    add_object(0, 4, root, "/root")
+    add_object(2, 4, function1, "/function1")
+    add_object(2, 4, function2, "/function2")
+    add_object(3, 3, root, "/root")
+    invalidation = storage_provider.invalidate({"/function1"})
+    assert invalidation == {
+        ContainerLocation(2, container_id, configuration_id): {function1},
+        ContainerLocation(3, container_id, configuration_id): {root},
+    }
