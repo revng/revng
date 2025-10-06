@@ -14,8 +14,9 @@ from revng.pypeline.model import ModelPath, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 
-from .storage_provider import ConfigurationId, ContainerLocation, ProjectMetadata, SavepointID
-from .storage_provider import SavePointsRange, StorageProvider
+from .storage_provider import ConfigurationId, ContainerLocation, Invalidated, ProjectID
+from .storage_provider import ProjectMetadata, SavepointID, SavePointsRange, StorageProvider
+from .storage_provider import StorageProviderFactory
 from .util import _REVNG_VERSION_PLACEHOLDER
 
 
@@ -26,6 +27,28 @@ class DependencyEntry:
     container_id: ContainerID
     configuration_id: ConfigurationId
     object_id: ObjectID
+
+
+class InMemoryStorageProviderFactory(StorageProviderFactory):
+    def __init__(self, url: str):
+        assert url == ""
+        self.providers: dict[ProjectID | None, InMemoryStorageProvider] = {}
+
+    @classmethod
+    def protocol(cls) -> str:
+        return "memory"
+
+    def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> StorageProvider:
+        if project_id in self.providers:
+            return self.providers[project_id]
+        provider = InMemoryStorageProvider()
+        self.providers[project_id] = provider
+        return provider
 
 
 class InMemoryStorageProvider(StorageProvider):
@@ -87,7 +110,7 @@ class InMemoryStorageProvider(StorageProvider):
             self.storage[location][key] = value
         self.last_change = datetime.now()
 
-    def _invalidate(self, path: ModelPath) -> None:
+    def _invalidate(self, path: ModelPath, invalidated: Invalidated) -> None:
         for key, entries in self.dependencies.items():
             if key != path:
                 continue
@@ -104,11 +127,15 @@ class InMemoryStorageProvider(StorageProvider):
                         continue
                     if entry.object_id in objects:
                         del objects[entry.object_id]
+                        # sign the object as invalidated
+                        invalidated.setdefault(container_loc, []).append(entry.object_id)
 
-    def invalidate(self, invalidation_list: ModelPathSet) -> None:
+    def invalidate(self, invalidation_list: ModelPathSet) -> Invalidated:
+        invalidated: Invalidated = {}
         for path in invalidation_list:
-            self._invalidate(path)
+            self._invalidate(path, invalidated)
         self.last_change = datetime.now()
+        return invalidated
 
     def get_model(self) -> bytes:
         return self.model

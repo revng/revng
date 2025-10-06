@@ -3,3 +3,8 @@
 #
 
 # This is deliberately empty for lazy loading of subcommands
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from . import pipeline, project, utils  # noqa: F401
