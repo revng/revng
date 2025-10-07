@@ -191,7 +191,7 @@ def build_arg_objects(
     object_id = container_decl.container_type.kind
     return click.option(
         f"--{arg_name}-objects",
-        metavar=f"/{object_id.__name__}1,/{object_id.__name__}2,...",
+        metavar=f"/{object_id.serialize()}1,/{object_id.serialize()}2,...",
         type=str,
         help=(
             f"The objects to require from container {arg_name.upper()}"
