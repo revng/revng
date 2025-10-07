@@ -71,7 +71,7 @@ struct AnalysisRunTraits<llvm::Error (C::*)(Model &,
                                             llvm::StringRef,
                                             Args...)> {
   using ContainerTypes = TypeList<std::remove_reference_t<Args>...>;
-  static constexpr size_t Size = sizeof...(Args);
+  static constexpr size_t ContainerCount = sizeof...(Args);
 };
 
 } // namespace detail
@@ -83,7 +83,7 @@ template<typename T>
 concept IsAnalysis = requires(T &A) {
   requires HasName<T>;
   { T() } -> std::same_as<T>;
-  requires AnalysisRunTraits<T>::Size >= 0;
+  requires AnalysisRunTraits<T>::ContainerCount >= 0;
 };
 
 //

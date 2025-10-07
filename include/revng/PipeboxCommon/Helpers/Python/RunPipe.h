@@ -26,12 +26,12 @@ inline ObjectDependencies runPipe(T &Handle,
   nanobind::object ActualModel = nanobind::getattr(TheModel, "downcast")();
   const Model *CppModel = nanobind::cast<Model *>(ActualModel);
 
-  return PipeRunner<ContainerListUnwrapper>::run(Handle,
-                                                 *CppModel,
-                                                 Incoming,
-                                                 Outgoing,
-                                                 Configuration,
-                                                 Containers);
+  return revng::pypeline::helpers::runPipe(Handle,
+                                           *CppModel,
+                                           Incoming,
+                                           Outgoing,
+                                           Configuration,
+                                           Containers);
 }
 
 } // namespace revng::pypeline::helpers::python
