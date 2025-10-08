@@ -272,19 +272,16 @@ class DictModel(Model):
         result._data = dict(self._data)  # pylint: disable=protected-access
         return result
 
-    def children(self, obj: ObjectID, kind: Kind) -> ObjectSet:
+    def children(self, obj: ObjectID, kind: Kind) -> set[ObjectID]:
         if obj.kind() == MyKind.ROOT:
             if kind == MyKind.CHILD:
-                return ObjectSet(
-                    MyKind.CHILD,
-                    {
-                        MyObjectID(MyKind.CHILD, "one"),
-                        MyObjectID(MyKind.CHILD, "two"),
-                        MyObjectID(MyKind.CHILD, "three"),
-                    },
-                )
+                return {
+                    MyObjectID(MyKind.CHILD, "one"),
+                    MyObjectID(MyKind.CHILD, "two"),
+                    MyObjectID(MyKind.CHILD, "three"),
+                }
             elif kind == MyKind.ROOT:
-                return ObjectSet(MyKind.ROOT, {MyObjectID(MyKind.ROOT)})
+                return {MyObjectID(MyKind.ROOT)}
 
         raise NotImplementedError()
 

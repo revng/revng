@@ -36,7 +36,7 @@ class Model(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def children(self, obj: ObjectID, kind: Kind) -> ObjectSet:
+    def children(self, obj: ObjectID, kind: Kind) -> set[ObjectID]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -49,7 +49,9 @@ class Model(ABC):
         """
         obj_id_ty: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
         root: ObjectID = obj_id_ty.root()
-        return ObjectSet(root.kind(), self.children(root, kind).objects)
+        if kind == root.kind():
+            return ObjectSet(root.kind(), {root})
+        return ObjectSet(root.kind(), self.children(root, kind))
 
     def move_to_kind(self, objects: ObjectSet, destination_kind: Kind) -> ObjectSet:
         if not objects:
@@ -89,7 +91,7 @@ class Model(ABC):
                     children = ObjectSet(kind=child_kind)
 
                     for obj in result:
-                        children.update(self.children(obj, child_kind))
+                        children.objects.update(self.children(obj, child_kind))
 
                     # Make children become the source for the next iteration
                     result = children
@@ -132,7 +134,7 @@ class ReadOnlyModel[M: Model]:
         return self._context.clone()
 
     def children(self, obj: ObjectID, kind: Kind) -> ObjectSet:
-        return self._context.children(obj, kind)
+        return ObjectSet(kind, self._context.children(obj, kind))
 
     def all_objects(self, kind: Kind) -> ObjectSet:
         return self._context.all_objects(kind)
