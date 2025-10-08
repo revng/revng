@@ -43,9 +43,9 @@ public:
     revng_abort();
   }
 
-  revng::pypeline::Buffer serialize() const {
-    revng::pypeline::Buffer Out;
-    llvm::raw_svector_ostream OS(Out.data());
+  llvm::SmallVector<char, 0> serialize() const {
+    llvm::SmallVector<char, 0> Out;
+    llvm::raw_svector_ostream OS(Out);
     TheModel.serialize(OS);
     return Out;
   }
