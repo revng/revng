@@ -9,9 +9,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
-namespace model::Architecture {
-enum Values;
-}
+#include "revng/Model/Architecture.h"
+#include "revng/Model/Register.h"
 
 namespace abi::runtime_test {
 

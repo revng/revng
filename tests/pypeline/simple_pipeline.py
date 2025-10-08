@@ -68,6 +68,9 @@ class MyKind(Kind, Enum, metaclass=KindEnumMeta):
     def deserialize(cls, obj: str) -> Kind:
         return MyKind[obj]
 
+    def byte_size(self) -> int:
+        return 0 if self == self.ROOT else 6
+
 
 class MyObjectID(ObjectID):
     """An object ID that is a sequence of strings."""
@@ -110,6 +113,50 @@ class MyObjectID(ObjectID):
         """Deserialize an object id of this class"""
         kind, *components = obj.strip("/").split("/")
         return cls(MyKind.deserialize(kind), *components)
+
+    def to_bytes(self) -> bytes:
+        if self._kind == MyKind.ROOT:
+            return b""
+
+        def pad_null(string: str) -> bytes:
+            bytes_ = string.encode()
+            assert len(bytes_) <= 6
+            return b"\x00" * (6 - len(bytes_)) + bytes_
+
+        components = [pad_null(c) for c in self._components]
+        if self._kind == MyKind.CHILD:
+            return b"\x01" + components[0]
+        elif self._kind == MyKind.GRANDCHILD:
+            return b"\x01" + components[0] + b"\x03" + components[1]
+        elif self._kind == MyKind.CHILD2:
+            return b"\x02" + components[0]
+
+        raise ValueError
+
+    @classmethod
+    def from_bytes(cls, bytes_: bytes) -> ObjectID:
+        if len(bytes_) == 0:
+            return MyObjectID(MyKind.ROOT)
+
+        def parse_string(bytes2: bytes) -> str:
+            string_bytes = b""
+            for index, byte in enumerate(bytes2):
+                if byte != 0:
+                    string_bytes = bytes2[index:]
+                    break
+            return string_bytes.decode()
+
+        if len(bytes_) == 7:
+            if bytes_[0:1] == b"\x01":
+                return MyObjectID(MyKind.CHILD, parse_string(bytes_[1:]))
+            elif bytes_[0:1] == b"\x02":
+                return MyObjectID(MyKind.CHILD2, parse_string(bytes_[1:]))
+        elif len(bytes_) == 14 and bytes_[0:1] == b"\x01" and bytes_[7:8] == b"\x03":
+            return MyObjectID(
+                MyKind.GRANDCHILD, parse_string(bytes_[1:7]), parse_string(bytes_[8:])
+            )
+
+        raise ValueError
 
 
 class DictContainer(Container, ABC):

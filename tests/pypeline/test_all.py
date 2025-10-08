@@ -14,6 +14,8 @@ from simple_pipeline import ChildDictContainer, DictModel, GeneratorPipe, InPlac
 from simple_pipeline import MyObjectID, NullAnalysis, PurgeAllAnalysis, PurgeOneAnalysis
 from simple_pipeline import RootDictContainer, SameKindPipe, ToHigherKindPipe, ToLowerKindPipe
 
+import revng.pypeline.storage.memory as _storage_memory_module
+import revng.pypeline.storage.sqlite3 as _storage_sqlite3_module
 from revng.pypeline import initialize_pypeline
 from revng.pypeline.analysis import AnalysisBinding
 from revng.pypeline.container import ContainerDeclaration
@@ -29,6 +31,11 @@ from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.savepoint import SavePoint
+
+# Patch away the check for the kind structure, this is needed because, unlike
+# the actual implementation, we have the GRANDCHILD kind which fails the check
+setattr(_storage_memory_module, "check_kind_structure", lambda: None)
+setattr(_storage_sqlite3_module, "check_kind_structure", lambda: None)
 
 # Fill the registries
 initialize_pypeline()
@@ -646,3 +653,58 @@ def test_schedule_serdes(model):
     )
     schedule_str = schedule.serialize()
     pipeline.deserialize_schedule(schedule_str)
+
+
+def test_storage_invalidation(storage_provider: StorageProvider):
+    configuration_id = ""
+    container_id = "a"
+
+    """
+    Structure of the savepoints IDs used in this test
+
+        0
+    v---|---v
+    1       2
+         v--|--v
+         3     4
+
+    1, 4 - root
+    2, 3 - function
+    5 - basicblock
+    """
+
+    root = MyObjectID(MyKind.ROOT)
+    function1 = MyObjectID(MyKind.CHILD, "func1")
+    function2 = MyObjectID(MyKind.CHILD, "func2")
+    basicblock1 = MyObjectID(MyKind.GRANDCHILD, "func1", "bb1")
+
+    def add_object(save_start: int, save_end: int, object_id, path: str):
+        storage_provider.put(
+            ContainerLocation(save_start, container_id, configuration_id), {object_id: b""}
+        )
+        storage_provider.add_dependencies(
+            SavePointsRange(save_start, save_end),
+            configuration_id,
+            [(container_id, object_id, path)],
+        )
+
+    # Check basic invalidation
+    add_object(0, 4, root, "/root")
+    assert storage_provider.invalidate({"/root"}) == {
+        ContainerLocation(0, container_id, configuration_id): {root}
+    }
+
+    # Check both upward and downward invalidation
+    storage_provider.prune_objects()
+    add_object(0, 4, root, "/root")
+    add_object(2, 4, function1, "/function1")
+    add_object(2, 4, function2, "/function2")
+    add_object(3, 3, root, "/root")
+    add_object(4, 4, basicblock1, "/function1/detail")
+    invalidation = storage_provider.invalidate({"/function1"})
+    print(invalidation)
+    assert invalidation == {
+        ContainerLocation(2, container_id, configuration_id): {function1},
+        ContainerLocation(3, container_id, configuration_id): {root},
+        ContainerLocation(4, container_id, configuration_id): {basicblock1},
+    }

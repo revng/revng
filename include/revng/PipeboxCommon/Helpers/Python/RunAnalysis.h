@@ -21,12 +21,11 @@ inline llvm::Error runAnalysis(T &Handle,
   using namespace revng::pypeline::helpers::python;
   Model *CppModel = nanobind::cast<Model *>(TheModel);
 
-  return AnalysisRunner<ContainerListUnwrapper>::run(Handle,
-                                                     &T::run,
-                                                     *CppModel,
-                                                     Incoming,
-                                                     Configuration,
-                                                     Containers);
+  return revng::pypeline::helpers::runAnalysis(Handle,
+                                               *CppModel,
+                                               Incoming,
+                                               Configuration,
+                                               Containers);
 }
 
 } // namespace revng::pypeline::helpers::python

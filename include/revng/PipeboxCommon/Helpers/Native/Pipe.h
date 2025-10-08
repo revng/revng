@@ -36,12 +36,12 @@ public:
       const pypeline::Request &Incoming,
       const pypeline::Request &Outgoing,
       llvm::StringRef Configuration) override {
-    return PipeRunner<ContainerListUnwrapper>::run(Instance,
-                                                   TheModel,
-                                                   Incoming,
-                                                   Outgoing,
-                                                   Configuration,
-                                                   Containers);
+    return runPipe(Instance,
+                   TheModel,
+                   Incoming,
+                   Outgoing,
+                   Configuration,
+                   Containers);
   }
 };
 
