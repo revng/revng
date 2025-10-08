@@ -180,6 +180,14 @@ def normalize_pos_arg_name(name: str) -> str:
     return normalize_whitespace(name).replace(" ", "_").replace("-", "_").upper()
 
 
+def normalize_kwarg_name(name: str) -> str:
+    """
+    Normalize the provided name to the convention used by click on naming
+    command handler variable arguments.
+    """
+    return name.replace("-", "_").lower()
+
+
 def build_arg_objects(
     container_decl: ContainerDeclaration,
 ) -> Callable:
