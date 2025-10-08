@@ -99,7 +99,16 @@ NB_MODULE(_pipebox, m) {
            return Handle.diff(*nanobind::cast<Model *>(Other));
          })
     .def("clone", &Model::clone)
-    .def("serialize", &Model::serialize)
+    .def("serialize",
+         [](Model &Handle) {
+           llvm::SmallVector<char, 0> Buffer = Handle.serialize();
+           // TODO: this copies the data from the buffer, this cannot be
+           //       avoided as Python does not have a way to "move" data into
+           //       a bytes object. We could return `Buffer` but then a lot of
+           //       libraries (e.g. `yaml`) would need to convert to bytes and
+           //       copy anyways.
+           return nanobind::bytes(Buffer.data(), Buffer.size());
+         })
     .def_static("deserialize", &Model::deserialize);
 
   // Register all Pipes, Analyses and Containers
