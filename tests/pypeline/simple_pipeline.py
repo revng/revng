@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, ABCMeta
+from collections.abc import Buffer
 from enum import Enum, EnumMeta, auto, unique
 from typing import Any, Dict, Iterable, Mapping, Optional, TypeVar, Union, cast
 
@@ -204,11 +205,11 @@ class DictContainer(Container, ABC):
     def mime_type(cls) -> str:
         return "text"
 
-    def deserialize(self, data: Mapping[ObjectID, bytes]) -> None:
+    def deserialize(self, data: Mapping[ObjectID, Buffer]) -> None:
         for oid, _ in data.items():
             self.add_object(oid)
 
-    def serialize(self, objects: Optional[ObjectSet] = None) -> dict[ObjectID, bytes]:
+    def serialize(self, objects: Optional[ObjectSet] = None) -> dict[ObjectID, Buffer]:
         if objects is None:
             return dict.fromkeys(self._object_list, b"")
         return dict.fromkeys(objects.objects, b"")

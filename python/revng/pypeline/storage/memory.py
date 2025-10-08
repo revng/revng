@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Buffer
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, Mapping
@@ -81,11 +82,11 @@ class InMemoryStorageProvider(StorageProvider):
     def put(
         self,
         location: ContainerLocation,
-        values: Mapping[ObjectID, bytes],
+        values: Mapping[ObjectID, Buffer],
     ) -> None:
         self.storage.setdefault(location, {})
         for key, value in values.items():
-            self.storage[location][key] = value
+            self.storage[location][key] = bytes(value)
         self.last_change = datetime.now()
 
     def invalidate(self, invalidation_list: ModelPathSet) -> InvalidatedObjects:

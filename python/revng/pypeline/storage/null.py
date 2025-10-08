@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Buffer
 from datetime import datetime
 from typing import Iterable, Mapping
 
@@ -53,7 +54,7 @@ class NullStorageProvider(StorageProvider):
     def put(
         self,
         location: ContainerLocation,
-        values: Mapping[ObjectID, bytes],
+        values: Mapping[ObjectID, Buffer],
     ) -> None:
         self.last_change = datetime.now()
 

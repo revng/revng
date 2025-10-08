@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Buffer
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Collection, Iterable, Mapping
@@ -121,7 +122,7 @@ class StorageProvider(ABC):
     def put(
         self,
         location: ContainerLocation,
-        values: Mapping[ObjectID, bytes],
+        values: Mapping[ObjectID, Buffer],
     ) -> None:
         """
         Put a set of serialized objects into the storage.

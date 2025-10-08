@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Buffer, Mapping
 from dataclasses import dataclass
 from typing import Annotated, Dict, Generator, Tuple, Type
 
@@ -102,14 +102,14 @@ class Container(ABC):
         pass
 
     @abstractmethod
-    def deserialize(self, data: Mapping[ObjectID, bytes]) -> None:
+    def deserialize(self, data: Mapping[ObjectID, Buffer]) -> None:
         """
         Ingest data from a serialized format into this container.
         This is used to **add** cached objects to this container.
         """
 
     @abstractmethod
-    def serialize(self, objects: ObjectSet) -> Mapping[ObjectID, bytes]:
+    def serialize(self, objects: ObjectSet) -> Mapping[ObjectID, Buffer]:
         """
         Dump objects from this container into a serialized format.
         """
@@ -180,7 +180,10 @@ def dump_container(
     """
     with open(path, "w", encoding="utf-8") as f:
         json.dump(
-            {k.serialize(): v.hex() for k, v in container.serialize(container.objects()).items()},
+            {
+                k.serialize(): bytes(v).hex()
+                for k, v in container.serialize(container.objects()).items()
+            },
             f,
             indent=4,
             sort_keys=True,
