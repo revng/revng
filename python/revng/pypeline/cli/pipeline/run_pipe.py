@@ -160,6 +160,7 @@ def build_pipe_command(
         # Load the containers with args form the command line
         containers = []
         for arg in pipe.arguments:
+            arg_name = arg.name.replace("-", "_")
             # Write-only containers can be empty
             if arg.access == TaskArgumentAccess.WRITE:
                 containers.append(arg.container_type())
@@ -167,9 +168,9 @@ def build_pipe_command(
 
             # Otherwise we need to load the container from the filesystem
             if arg.access == TaskArgumentAccess.READ_WRITE:
-                path = kwargs[f"{arg.name}-input"]
+                path = kwargs[f"{arg_name}_input"]
             else:
-                path = kwargs[arg.name]
+                path = kwargs[arg_name]
             containers.append(
                 load_container(
                     arg.container_type,
@@ -222,12 +223,14 @@ def build_pipe_command(
         for arg, container in zip(pipe.signature(), containers):
             if arg.access == TaskArgumentAccess.READ:
                 continue
+
+            arg_name = arg.name.replace("-", "_")
             # If the argument is writable, we dump the container
             # to the filesystem
             if arg.access == TaskArgumentAccess.READ_WRITE:
-                path = kwargs[f"{arg.name}-output"]
+                path = kwargs[f"{arg_name}_output"]
             else:
-                path = kwargs[arg.name]
+                path = kwargs[arg_name]
             logger.info("Dumping container %s to %s", arg.name, path)
             dump_container(
                 container,
