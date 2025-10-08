@@ -69,6 +69,18 @@ struct type_caster<llvm::StringRef> {
   }
 };
 
+/// This is a caster class for bytes
+template<>
+struct type_caster<llvm::ArrayRef<uint8_t>> {
+  NB_TYPE_CASTER(llvm::ArrayRef<uint8_t>, const_name("bytes"))
+
+  bool from_python(handle Source, uint8_t, cleanup_list *) {
+    auto Bytes = nanobind::cast<nanobind::bytes>(Source);
+    value = { reinterpret_cast<const uint8_t *>(Bytes.data()), Bytes.size() };
+    return true;
+  }
+};
+
 namespace detail {
 
 inline void llvmErrorToPythonException(llvm::Error &&Error) {

@@ -154,9 +154,8 @@ def build_pipe_command(
             static_configuration=static_configuration,
         )
         # Load the model
-        loaded_model: Model = model_ty()
         with open(model, "rb") as model_file:
-            loaded_model.deserialize(model_file.read())
+            loaded_model = model_ty.deserialize(model_file.read())
         # Load the containers with args form the command line
         containers = []
         for arg in pipe.arguments:

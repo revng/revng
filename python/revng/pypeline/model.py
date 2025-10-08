@@ -103,8 +103,9 @@ class Model(ABC):
     def serialize(self) -> bytes:
         pass
 
+    @classmethod
     @abstractmethod
-    def deserialize(self, data: bytes):
+    def deserialize(cls, data: bytes) -> Model:
         pass
 
     @classmethod
