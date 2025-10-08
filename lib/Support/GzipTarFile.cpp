@@ -16,9 +16,6 @@
 #include "revng/Support/GzipStream.h"
 #include "revng/Support/GzipTarFile.h"
 
-#include "archive.h"
-#include "archive_entry.h"
-
 // Each file in an archive must be aligned to this block size.
 static constexpr size_t BlockSize = 512;
 
@@ -169,43 +166,6 @@ void GzipTarWriter::close() {
   compressedPadding(*OS, BlockSize * 2);
   OS->flush();
   OS = nullptr;
-}
-
-GzipTarReader::GzipTarReader(llvm::ArrayRef<char> Ref) {
-  Archive = archive_read_new();
-  revng_assert(Archive != NULL);
-
-  revng_assert(archive_read_support_filter_gzip(Archive) == ARCHIVE_OK);
-  revng_assert(archive_read_support_format_tar(Archive) == ARCHIVE_OK);
-
-  int EC = archive_read_open_memory(Archive, Ref.data(), Ref.size());
-  revng_assert(EC == ARCHIVE_OK);
-}
-
-GzipTarReader::~GzipTarReader() {
-  revng_assert(archive_read_free(Archive) == ARCHIVE_OK);
-}
-
-cppcoro::generator<ArchiveEntry> GzipTarReader::entries() {
-  archive_entry *Entry;
-  while (true) {
-    int Res = archive_read_next_header(Archive, &Entry);
-    if (Res == ARCHIVE_EOF)
-      co_return;
-
-    revng_assert(Res == ARCHIVE_OK);
-    int64_t Size = archive_entry_size(Entry);
-    revng_assert(Size >= 0);
-
-    llvm::SmallVector<char, 0> Data;
-    if (Size > 0) {
-      Data.resize_for_overwrite(Size);
-      size_t SizeRead = archive_read_data(Archive, Data.data(), Size);
-      revng_assert(SizeRead == static_cast<size_t>(Size));
-    }
-
-    co_yield ArchiveEntry{ archive_entry_pathname(Entry), std::move(Data) };
-  }
 }
 
 } // namespace revng

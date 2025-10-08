@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Buffer
 from datetime import datetime
 from typing import Iterable, Mapping
 
@@ -12,7 +13,9 @@ from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 
-from .storage_provider import ContainerLocation, ProjectMetadata, SavePointsRange, StorageProvider
+from .file_storage import FileRequest
+from .storage_provider import ContainerLocation, FileStorageEntry, ProjectMetadata
+from .storage_provider import SavePointsRange, StorageProvider
 from .util import _REVNG_VERSION_PLACEHOLDER
 
 
@@ -52,7 +55,7 @@ class NullStorageProvider(StorageProvider):
     def put(
         self,
         location: ContainerLocation,
-        values: Mapping[ObjectID, bytes],
+        values: Mapping[ObjectID, Buffer],
     ) -> None:
         self.last_change = datetime.now()
 
@@ -79,3 +82,9 @@ class NullStorageProvider(StorageProvider):
         """
         Prunes all the objects (except metadata) from storage
         """
+
+    def put_files_in_file_storage(self, files: list[FileStorageEntry]) -> list[str]:
+        raise ValueError("Unsupported")
+
+    def get_files_from_file_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        raise ValueError("Unsupported")

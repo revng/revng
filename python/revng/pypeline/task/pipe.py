@@ -7,6 +7,7 @@ from typing import Optional, final
 from revng.pypeline.container import Configuration, Container
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import ObjectSet
+from revng.pypeline.storage.file_storage import FileStorage
 from revng.pypeline.utils.cabc import ABC, abstractmethod
 
 from .task import PipeObjectDependencies, TaskArgument, TaskArgumentAccess
@@ -107,6 +108,7 @@ class Pipe(ABC):
     @abstractmethod
     def run(
         self,
+        file_storage: FileStorage,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],

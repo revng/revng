@@ -3,6 +3,7 @@
 #
 
 import logging
+from pathlib import Path
 
 import click
 
@@ -11,11 +12,24 @@ from revng.pypeline.cli.utils import normalize_whitespace
 from revng.pypeline.container import dump_container, load_container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
+from revng.pypeline.storage.file_storage import FileRequest, FileStorage
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils.registry import get_registry, get_singleton
 
 logger = logging.getLogger(__name__)
+
+
+class DirectoryFileStorage(FileStorage):
+    def __init__(self, directory: Path | None):
+        self._directory = directory
+
+    def get_files(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        if len(requests) == 0:
+            return {}
+        if self._directory is None:
+            raise ValueError("Requested file while --file-storage was not specified")
+        return {r.hash: (self._directory / r.hash).read_bytes() for r in requests}
 
 
 class RunPipeGroup(click.Group):
@@ -139,8 +153,17 @@ def build_pipe_command(
         default=False,
         help="List the available objects for each argument.",
     )
+    @click.option(
+        "--file-storage",
+        type=click.Path(exists=True, file_okay=False, path_type=Path),
+        default=None,
+    )
     def run_pipe_command(
-        model: str, static_configuration: str, configuration: str, **kwargs
+        model: str,
+        static_configuration: str,
+        configuration: str,
+        file_storage: Path | None,
+        **kwargs,
     ) -> None:
         logger.debug("Running pipe: %s", pipe_name)
         logger.debug("with static configuration: %s", static_configuration)
@@ -154,12 +177,12 @@ def build_pipe_command(
             static_configuration=static_configuration,
         )
         # Load the model
-        loaded_model: Model = model_ty()
         with open(model, "rb") as model_file:
-            loaded_model.deserialize(model_file.read())
+            loaded_model = model_ty.deserialize(model_file.read())
         # Load the containers with args form the command line
         containers = []
         for arg in pipe.arguments:
+            arg_name = arg.name.replace("-", "_")
             # Write-only containers can be empty
             if arg.access == TaskArgumentAccess.WRITE:
                 containers.append(arg.container_type())
@@ -167,9 +190,9 @@ def build_pipe_command(
 
             # Otherwise we need to load the container from the filesystem
             if arg.access == TaskArgumentAccess.READ_WRITE:
-                path = kwargs[f"{arg.name}-input"]
+                path = kwargs[f"{arg_name}_input"]
             else:
-                path = kwargs[arg.name]
+                path = kwargs[arg_name]
             containers.append(
                 load_container(
                     arg.container_type,
@@ -210,6 +233,7 @@ def build_pipe_command(
 
         # Finally, run the pipe
         object_deps = pipe.run(
+            file_storage=DirectoryFileStorage(file_storage),
             model=ReadOnlyModel(loaded_model),
             containers=containers,
             incoming=incoming,
@@ -222,12 +246,14 @@ def build_pipe_command(
         for arg, container in zip(pipe.signature(), containers):
             if arg.access == TaskArgumentAccess.READ:
                 continue
+
+            arg_name = arg.name.replace("-", "_")
             # If the argument is writable, we dump the container
             # to the filesystem
             if arg.access == TaskArgumentAccess.READ_WRITE:
-                path = kwargs[f"{arg.name}-output"]
+                path = kwargs[f"{arg_name}_output"]
             else:
-                path = kwargs[arg.name]
+                path = kwargs[arg_name]
             logger.info("Dumping container %s to %s", arg.name, path)
             dump_container(
                 container,

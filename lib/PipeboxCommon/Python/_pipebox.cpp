@@ -85,9 +85,14 @@ NB_MODULE(_pipebox, m) {
          [](Model &Handle, nanobind::handle_t<Model> Other) {
            return Handle.diff(*nanobind::cast<Model *>(Other));
          })
+    .def("children", &Model::children)
     .def("clone", &Model::clone)
-    .def("serialize", &Model::serialize)
-    .def("deserialize", &Model::deserialize);
+    .def("serialize",
+         [](Model &Handle) {
+           llvm::SmallVector<char, 0> Buffer = Handle.serialize();
+           return nanobind::bytes(Buffer.data(), Buffer.size());
+         })
+    .def_static("deserialize", &Model::deserialize);
 
   // Register all Pipes, Analyses and Containers
   BaseClasses BC{

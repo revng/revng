@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 6
+version: 7
 root_type: Binary
 
 definitions:
@@ -106,6 +106,14 @@ definitions:
           type: SortedVector
           upcastable: true
           elementType: TypeDefinition
+        optional: true
+
+      - name: Binaries
+        doc: |-
+          A list of binaries used in this project.
+        sequence:
+          type: SortedVector
+          elementType: BinaryIdentifier
         optional: true
 
   #
@@ -741,6 +749,13 @@ definitions:
           Informally, each field of such a `struct` is a global variable.
         type: Type
         upcastable: true
+        optional: true
+
+      - name: Binary
+        doc: The binary from where the segment is loaded from
+        reference:
+          pointeeType: BinaryIdentifier
+          rootType: Binary
         optional: true
 
   - name: Function
@@ -1859,3 +1874,31 @@ definitions:
         doc: |-
           Print all the addresses exactly how disassembler emitted them
           in PC-relative mode.
+
+  - name: BinaryIdentifier
+    type: struct
+
+    doc: |-
+      Information needed to identify a single binary in the project
+
+    key:
+      - Index
+
+    fields:
+      - name: Index
+        doc: The identifier index
+        type: uint64_t
+
+      - name: Hash
+        doc: The sha256 hash of the binary (in hexadecimal)
+        type: string
+
+      - name: Size
+        doc: The size of the binary (in bytes)
+        type: uint64_t
+
+      - name: Name
+        doc: |-
+          The binary's filename at the time when it was imported. This is kept
+          as an heuristic to re-search the file if it is missing.
+        type: string

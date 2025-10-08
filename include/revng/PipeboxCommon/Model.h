@@ -26,6 +26,9 @@ public:
   Model clone() const { return *this; }
 
   std::set<ObjectID> children(const ObjectID &Obj, Kind Kind) const {
+    if (Obj.kind() == Kind)
+      return { Obj };
+
     if (Obj.kind() == Kinds::Binary and Kind == Kinds::Function) {
       std::set<ObjectID> Result;
       for (const model::Function &F : TheModel->Functions())
@@ -43,20 +46,23 @@ public:
     revng_abort();
   }
 
-  revng::pypeline::Buffer serialize() const {
-    revng::pypeline::Buffer Out;
-    llvm::raw_svector_ostream OS(Out.data());
+  llvm::SmallVector<char, 0> serialize() const {
+    llvm::SmallVector<char, 0> Out;
+    llvm::raw_svector_ostream OS(Out);
     TheModel.serialize(OS);
     return Out;
   }
 
-  llvm::Error deserialize(llvm::StringRef Input) {
-    auto MaybeModel = TupleTree<model::Binary>::fromString(Input);
+  static llvm::Expected<Model> deserialize(llvm::ArrayRef<uint8_t> Input) {
+    llvm::StringRef String{ reinterpret_cast<const char *>(Input.data()),
+                            Input.size() };
+    auto MaybeModel = TupleTree<model::Binary>::fromString(String);
     if (not MaybeModel)
       return MaybeModel.takeError();
 
-    TheModel = std::move(*MaybeModel);
-    return llvm::Error::success();
+    Model Result;
+    Result.TheModel = std::move(*MaybeModel);
+    return Result;
   }
 
 public:

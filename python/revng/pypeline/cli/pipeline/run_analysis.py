@@ -131,9 +131,8 @@ def build_run_analysis_command(
             name=analysis_name,
         )
         # Load the model
-        loaded_model: Model = model_ty()
         with open(model, "rb") as model_file:
-            loaded_model.deserialize(model_file.read())
+            loaded_model = model_ty.deserialize(model_file.read())
 
         logger.debug("Model loaded: `%s`", loaded_model)
 

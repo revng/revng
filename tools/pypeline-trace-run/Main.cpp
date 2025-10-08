@@ -42,8 +42,8 @@ int main(int Argc, const char *Argv[]) {
   TraceFile Trace = AbortOnError(TraceFile::fromFile(Options::TraceFile));
 
   auto ModelBuffer = revng::cantFail(MemoryBuffer::getFile(Options::ModelFile));
-  Model TheModel;
-  AbortOnError(TheModel.deserialize(ModelBuffer->getBuffer()));
+  auto BufferRef = llvm::arrayRefFromStringRef(ModelBuffer->getBuffer());
+  Model TheModel = AbortOnError(Model::deserialize(BufferRef));
 
   SavePoint SP(Options::StorageFile);
 
