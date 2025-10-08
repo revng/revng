@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Buffer
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable, Mapping
@@ -192,7 +193,7 @@ class SQlite3StorageProvider(StorageProvider):
     def put(
         self,
         location: ContainerLocation,
-        values: Mapping[ObjectID, bytes],
+        values: Mapping[ObjectID, Buffer],
     ) -> None:
         with self._cursor() as cursor:
             for object_id, content in values.items():
@@ -203,7 +204,7 @@ class SQlite3StorageProvider(StorageProvider):
                         location.container_id,
                         location.configuration_id,
                         object_id.serialize(),
-                        content,
+                        bytes(content),
                     ),
                 )
             self._write_metadata(cursor)
