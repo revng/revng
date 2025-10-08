@@ -26,6 +26,9 @@ public:
   Model clone() const { return *this; }
 
   std::set<ObjectID> children(const ObjectID &Obj, Kind Kind) const {
+    if (Obj.kind() == Kind)
+      return { Obj };
+
     if (Obj.kind() == Kinds::Binary and Kind == Kinds::Function) {
       std::set<ObjectID> Result;
       for (const model::Function &F : TheModel->Functions())
