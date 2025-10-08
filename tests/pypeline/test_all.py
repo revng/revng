@@ -531,9 +531,8 @@ def test_pipeline(storage_provider):
     pipeline = load_pipeline_yaml_file(os.path.join(root, "pipeline.yml"))
     pipeline_configuration: PipelineConfiguration = {}
 
-    model = DictModel()
     with open(os.path.join(root, "model.yml"), "rb") as model_file:
-        model.deserialize(model_file.read())
+        model = DictModel.deserialize(model_file.read())
 
     res = pipeline.get_artifact(
         model=ReadOnlyModel(model),

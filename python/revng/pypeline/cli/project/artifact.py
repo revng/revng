@@ -128,8 +128,7 @@ def build_artifact_command(
 
         # Load the model
         storage_provider = storage_provider_factory(model_path=model)
-        loaded_model: Model = model_ty()
-        loaded_model.deserialize(storage_provider.get_model())
+        loaded_model = model_ty.deserialize(storage_provider.get_model())
 
         logger.debug("Model loaded: `%s`", loaded_model)
 

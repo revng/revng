@@ -296,8 +296,11 @@ class DictModel(Model):
     def serialize(self):
         return yaml.safe_dump(self._data).encode()
 
-    def deserialize(self, data: bytes):
-        self._data = yaml.safe_load(data)
+    @classmethod
+    def deserialize(cls, data: bytes):
+        result = DictModel()
+        result._data = yaml.safe_load(data)
+        return result
 
     def __repr__(self):
         return f"DictModel({self._data!r})"

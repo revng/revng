@@ -100,7 +100,7 @@ NB_MODULE(_pipebox, m) {
          })
     .def("clone", &Model::clone)
     .def("serialize", &Model::serialize)
-    .def("deserialize", &Model::deserialize);
+    .def_static("deserialize", &Model::deserialize);
 
   // Register all Pipes, Analyses and Containers
   BaseClasses BC{
