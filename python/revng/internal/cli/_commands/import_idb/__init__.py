@@ -42,7 +42,7 @@ class ImportIDBCommand(Command):
 
         with idb.from_file(idb_path) as db:
             idb_converter = IDBConverter(db, base_address, options.parsed_args.verbose)
-            revng_model = idb_converter.get_model()
+            revng_model = idb_converter.resulting_binary
 
         yaml_model = yaml.dump(revng_model, Dumper=YamlDumper)
         temporary_file = temporary_file_gen("revng-import-idb-", options)

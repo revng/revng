@@ -148,6 +148,86 @@ class #{ struct.name }#(
             return yaml.dump(self, Dumper=YamlDumper)
         else:
             return yaml.dump(self, output, Dumper=YamlDumper)
+
+    ###- Auto-increment helpers ###
+    ## for field in struct.fields ##
+    ##- if field.__class__.__name__ == "SequenceStructField" ##
+    ##- if field.resolved_element_type.autoincrement_field ##
+    def _get_next_available_#{ field.resolved_element_type.autoincrement_field.name }#_for_#{ field.name }#(self):
+        # TODO: if there is a constant-complexity way of getting the element of
+        # `#{ field.name }#` with the highest index, we should use it instead.
+
+        if not hasattr(self, '_next_#{ field.name }#_index'):
+            self._next_#{ field.name }#_index = (
+                max(element.#{ field.resolved_element_type.autoincrement_field.name }#
+                for element in self.TypeDefinitions)
+                if len(self.TypeDefinitions)
+                else 0
+            )
+
+        self._next_#{ field.name }#_index = self._next_#{ field.name }#_index + 1
+        return self._next_TypeDefinitions_index - 1
+
+    def _record_new_#{ field.element_type }#(self, element_to_record:
+        ##- if field.resolved_element_type.abstract ##
+        #{ field.resolved_element_type.base.name }#
+        ##- else ##
+        #{ field.resolved_element_type.name }#
+        ##- endif ##
+    ):
+        """
+        Record a new element into `#{ field.name }#` while ensuring its autoincrement field is set
+        correctly.
+        """
+
+        if element_to_record.#{ field.resolved_element_type.autoincrement_field.name }# != #{ field.resolved_element_type.autoincrement_field.default }#:
+            raise ValueError("Autoincrement fields must not have a non-default value before they are inserted.\n"
+                             f"{element_to_record}")
+
+        # Assign progressive ID
+        element_to_record.#{ field.resolved_element_type.autoincrement_field.name }# = self._get_next_available_#{ field.resolved_element_type.autoincrement_field.name }#_for_#{ field.name }#()
+
+        self.#{ field.name }#.append(element_to_record)
+        return self.#{ field.name }#[element_to_record.key()]
+
+    ## if field.resolved_element_type.abstract -##
+
+    ## for struct in structs -##
+    ## if struct._inherits -##
+    ## if struct._inherits == field.resolved_element_type.base.name -##
+    def make#{ struct.name }#(self, *args, **kwargs):
+        """
+        Record a newly created `#{ struct.name }#` into `#{ field.name }#` while ensuring its
+        autoincrement field is set correctly.
+
+        Notice that this helper passes all its arguments directly to
+        the constructor of `#{ struct.name }#`.
+        """
+
+        result = #{ struct.name }#(*args, **kwargs)
+        return self._record_new_#{ field.element_type }#(result)
+
+    ## endif ##
+    ## endif ##
+    ## endfor ##
+
+    ##- else -##
+    def make#{ field.element_type }#(self, *args, **kwargs):
+        """
+        Record a newly created element into `#{ field.name }#` while ensuring its autoincrement
+        field is set correctly.
+
+        Notice that this helper passes all its arguments directly to
+        the constructor of the given type.
+        """
+
+        result = #{ field.resolved_element_type | python_type }#(*args, **kwargs)
+        return self._record_new_#{ field.element_type }#(result)
+  ## endif ##
+
+  ##- endif ##
+  ##- endif ##
+  ##- endfor ##
 ## endfor ##
 
 ## for struct in structs ##
