@@ -79,33 +79,6 @@ void fieldAccessed(llvm::StringRef FieldName, llvm::StringRef StructName) {
   onFieldAccess(FieldName, StructName);
 }
 
-std::pair<model::TypeDefinition &, model::UpcastableType>
-model::Binary::recordNewType(model::UpcastableTypeDefinition &&T) {
-  revng_assert(!T.isEmpty());
-
-  // Assign progressive ID
-  if (T->ID() != uint64_t(-1)) {
-    std::string Error = "Types must not have an ID before they are a part of "
-                        "a binary.\n"
-                        + ::toString(T);
-    revng_abort(Error.c_str());
-  }
-
-  T->ID() = getAvailableTypeID();
-
-  auto &&[It, Success] = TypeDefinitions().insert(T);
-  revng_assert(Success);
-
-  return { **It, makeType((*It)->key()) };
-}
-
-uint64_t model::Binary::getAvailableTypeID() const {
-  if (TypeDefinitions().empty())
-    return 0;
-
-  return TypeDefinitions().rbegin()->get()->ID() + 1;
-}
-
 namespace model {
 
 MetaAddressRangeSet Binary::executableRanges() const {
