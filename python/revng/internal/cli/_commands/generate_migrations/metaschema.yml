@@ -118,6 +118,9 @@ definitions:
   #     incomparable:
   #       type: boolean
   #       default: false
+  #     autoincrement:
+  #       type: boolean
+  #       default: false
   #     const:
   #       type: boolean
   #       default: false

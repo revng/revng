@@ -71,18 +71,23 @@ class SimpleStructField(StructField):
         doc=None,
         const=False,
         default=None,
+        autoincrement=False,
         incomparable=False,
     ):
         super().__init__(name=name, doc=doc, const=const)
         self.type = type
         self.default = default
-        self.incomparable = incomparable
+        self.autoincrement = autoincrement
+        self.incomparable = autoincrement or incomparable
 
     def resolve_references(self, schema):
         self.resolved_type = schema.get_definition_for(self.type)
 
         if isinstance(self.resolved_type, StructDefinition) and self.resolved_type.abstract:
+            self.resolved_type.resolve_references(schema)
+            autoincrement_field = self.resolved_type.autoincrement_field
             self.resolved_type = UpcastableDefinition(self.resolved_type)
+            self.resolved_type.autoincrement_field = autoincrement_field
             self.upcastable = True
 
         assert self.resolved_type
@@ -109,7 +114,10 @@ class SequenceStructField(StructField):
             isinstance(self.resolved_element_type, StructDefinition)
             and self.resolved_element_type.abstract
         ):
+            self.resolved_element_type.resolve_references(schema)
+            autoincrement_field = self.resolved_element_type.autoincrement_field
             self.resolved_element_type = UpcastableDefinition(self.resolved_element_type)
+            self.resolved_element_type.autoincrement_field = autoincrement_field
             self.upcastable = True
         self.resolved_type = SequenceDefinition(self.sequence_type, self.resolved_element_type)
 
@@ -149,6 +157,7 @@ class StructDefinition(Definition):
         self._inherits = inherits
 
         # These fields will be populated by resolve_references()
+        self.autoincrement_field = None
         self.inherits = None
         self._key_kind_index = None
         # None, "simple" or "composite"
@@ -180,8 +189,16 @@ class StructDefinition(Definition):
 
             if isinstance(field, SimpleStructField):
                 self.dependencies.add(field.type)
+
+                if field.autoincrement:
+                    assert (
+                        not self.autoincrement_field
+                    ), "Only one autoincrement field is allowed per struct"
+                    self.autoincrement_field = field
+
             elif isinstance(field, SequenceStructField):
                 self.dependencies.add(field.element_type)
+
             elif isinstance(field, ReferenceStructField):
                 self.dependencies.add(field.pointee_type)
                 # TODO: technically, every reference also depends on the root
@@ -189,6 +206,7 @@ class StructDefinition(Definition):
                 # dependency.
                 #
                 # self.dependencies.add(schema.root_type)  # noqa: E800
+
             else:
                 raise ValueError()
 

@@ -123,7 +123,7 @@ definitions:
         doc: |-
           A unique numeric identifier for this type.
         type: uint64_t
-        incomparable: true
+        autoincrement: true
         default: -1
 
       - name: Kind
