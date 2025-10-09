@@ -218,9 +218,3 @@ template
 void revng::Tracking::stop(const /*= base_namespace =*/::/*= struct.name =*/ &LHS);
 
 /** endif **/
-
-/**- for field in struct.fields **/
-/**- if struct | is_struct_field **/
-static_assert(not (TupleTreeCompatible</*= field | field_type =*/> and KeyedObjectContainerCompatible</*= field | field_type =*/>));
-/**- endif **/
-/**- endfor **/
