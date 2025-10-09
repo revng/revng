@@ -98,31 +98,36 @@ definitions:
       - "$ref": "#/definitions/SequenceStructField"
       - "$ref": "#/definitions/ReferenceStructField"
 
-  SimpleStructField:
-    type: object
-    additionalProperties: false
-    properties:
-      name:
-        type: string
-      type:
-        type: string
-      doc:
-        type: string
-      optional:
-        type: boolean
-        default: false
-      is_guid:
-        type: boolean
-        default: false
-      const:
-        type: boolean
-        default: false
-      upcastable:
-        type: boolean
-        default: false
-    required:
-      - name
-      - type
+  # DANGER!!!!!
+  # This commit doesn't break anything, how was metaschema supposed to be used?!!
+  # DANGER!!!!!
+
+  # SimpleStructField:
+  #   type: object
+  #   additionalProperties: false
+  #   properties:
+  #     name:
+  #       type: string
+  #     type:
+  #       type: string
+  #     doc:
+  #       type: string
+  #     optional:
+  #       type: boolean
+  #       default: false
+  #     incomparable:
+  #       type: boolean
+  #       default: false
+  #     autoincrement:
+  #       type: boolean
+  #       default: false
+  #     const:
+  #       type: boolean
+  #       default: false
+  #   required:
+  #     - name
+  #     - type
+  #     - doc
 
   SequenceStructField:
     type: object
@@ -138,15 +143,9 @@ definitions:
             type: string
           elementType:
             type: string
-          upcastable:
-            type: boolean
-            default: false
         required:
           - type
           - elementType
-      optional:
-        type: boolean
-        default: false
       const:
         type: boolean
         default: false
@@ -155,6 +154,7 @@ definitions:
     required:
       - name
       - sequence
+      - doc
 
   ReferenceStructField:
     type: object
@@ -162,23 +162,8 @@ definitions:
     properties:
       name:
         type: string
-      reference:
-        type: object
-        additionalProperties: false
-        properties:
-          pointeeType:
-            type: string
-          rootType:
-            type: string
-          upcastable:
-            type: boolean
-            default: false
-        required:
-          - pointeeType
-          - rootType
-      optional:
-        type: boolean
-        default: false
+      referenceTo:
+        type: string
       const:
         type: boolean
         default: false
@@ -186,7 +171,8 @@ definitions:
         type: string
     required:
       - name
-      - reference
+      - referenceTo
+      - doc
 
   StructKey:
     type: array

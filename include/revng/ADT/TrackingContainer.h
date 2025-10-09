@@ -41,6 +41,9 @@ concept HasName = requires() {
 template<KeyedObjectContainer T>
 class TrackingContainer {
 public:
+  using UnderlyingContainer = T;
+
+public:
   friend struct revng::TrackingImpl;
 
   using key_type = typename T::key_type;
@@ -129,6 +132,8 @@ public:
   ///           semantically much sense.
   /// @{
   TrackingContainer() {}
+
+  TrackingContainer(T &&Underlying) : T(std::move(Underlying)) {}
 
   TrackingContainer(std::initializer_list<T> List) : T(std::move(List)) {}
 

@@ -125,7 +125,7 @@ std::string getScalarTypeTag(const llvm::Type *LLVMType,
 
 static std::string getReturnedStructName(llvm::StringRef FunctionName,
                                          const ModelCBuilder &B) {
-  return B.NameBuilder.Configuration.artificialReturnValuePrefix().str()
+  return B.NameBuilder.Configuration.ArtificialReturnValuePrefix()
          + sanitizeIdentifier(FunctionName);
 }
 

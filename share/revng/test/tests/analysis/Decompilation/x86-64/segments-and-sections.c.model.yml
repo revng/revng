@@ -4,7 +4,6 @@
 #
 Segments:
   - IsReadable: true
-    IsWriteable: false
     Type:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1812-StructDefinition"

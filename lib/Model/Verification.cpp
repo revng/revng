@@ -24,8 +24,11 @@ namespace model {
 bool Relocation::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  if (Type() == model::RelocationType::Invalid)
-    return VH.fail("Invalid relocation", *this);
+  if (Address().isInvalid())
+    return VH.fail("Every relocation must have a valid address.", *this);
+
+  if (not model::RelocationType::isValid(Type()))
+    return VH.fail("Every relocation must have a valid type.", *this);
 
   return true;
 }
@@ -35,14 +38,17 @@ bool Segment::verify(VerifyHelper &VH) const {
 
   using OverflowSafeInt = OverflowSafeInt<uint64_t>;
 
-  if (not StartAddress().isGeneric())
-    return VH.fail("StartAddress is not Generic32 or Generic64", *this);
-
-  if (FileSize() > VirtualSize())
-    return VH.fail("FileSize cannot be larger than VirtualSize", *this);
+  if (StartAddress().isInvalid())
+    return VH.fail("Every segment must have a valid start address.", *this);
 
   if (not StartAddress().isGeneric())
     return VH.fail("The segment start address must be generic", *this);
+
+  if (VirtualSize() == 0)
+    return VH.fail("The virtual size of a segment must not be 0.", *this);
+
+  if (FileSize() > VirtualSize())
+    return VH.fail("FileSize cannot be larger than VirtualSize", *this);
 
   auto EndOffset = OverflowSafeInt(StartOffset()) + FileSize();
   if (not EndOffset)
@@ -51,6 +57,15 @@ bool Segment::verify(VerifyHelper &VH) const {
   auto EndAddress = StartAddress() + VirtualSize();
   if (not EndAddress.isValid())
     return VH.fail("Computing the end address leads to overflow", *this);
+
+  for (const auto &CanonicalValue : CanonicalRegisterValues()) {
+    if (not model::Register::isValid(CanonicalValue.Register()))
+      return VH.fail("Canonical values can only be assigned to valid "
+                     "registers.",
+                     *this);
+
+    // TODO: check that the register architecture makes sense.
+  }
 
   for (const model::Relocation &Relocation : Relocations())
     if (not Relocation.verify(VH))
@@ -97,14 +112,21 @@ bool Segment::verify(VerifyHelper &VH) const {
 bool CallSitePrototype::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
+  if (not CallerBlockAddress().isValid())
+    return VH.fail("Every call site must have a caller block address.", *this);
+
   if (Prototype().isEmpty())
-    return VH.fail("Call sites must have a prototype.", *this);
+    return VH.fail("Every call site must have a prototype.", *this);
 
   if (not Prototype()->isPrototype())
     return VH.fail("`Prototype()` must be a prototype.", *this);
 
   if (not Prototype()->verify(VH))
     return VH.fail();
+
+  for (model::FunctionAttribute::Values Attribute : Attributes())
+    if (not model::FunctionAttribute::isValid(Attribute))
+      return VH.fail("Every call site attribute must be valid.", *this);
 
   return true;
 }
@@ -142,6 +164,9 @@ bool StatementComment::verify(VerifyHelper &VH) const {
 bool LocalIdentifier::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
+  if (Name().size() == 0)
+    return VH.fail("Every local identifier must have a name.", *this);
+
   return verifyAddressSet(VH, Location(), *this);
 }
 
@@ -149,7 +174,7 @@ bool Function::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
   if (not Entry().isValid())
-    return VH.fail("Invalid Function Entry", *this);
+    return VH.fail("Every function must have a valid entry point.", *this);
 
   if (not Entry().isCode())
     return VH.fail("Function Entry is not a code address", *this);
@@ -175,6 +200,10 @@ bool Function::verify(VerifyHelper &VH) const {
   for (auto &CallSitePrototype : CallSitePrototypes())
     if (not CallSitePrototype.verify(VH))
       return VH.fail();
+
+  for (model::FunctionAttribute::Values Attribute : Attributes())
+    if (not model::FunctionAttribute::isValid(Attribute))
+      return VH.fail("Every function attribute must be valid.", *this);
 
   for (const auto &[Index, Comment] : llvm::enumerate(Comments())) {
     if (Index != Comment.Index())
@@ -214,9 +243,8 @@ bool Function::verify(VerifyHelper &VH) const {
 bool DynamicFunction::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
-  // Ensure we have a name
   if (Name().size() == 0)
-    return VH.fail("Dynamic functions must have a name.", *this);
+    return VH.fail("Every dynamic function must have a name.", *this);
 
   if (not VH.isNameAllowed(Name()))
     return VH.fail();
@@ -229,9 +257,12 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
       return VH.fail();
   }
 
-  for (auto &Attribute : Attributes())
+  for (auto &Attribute : Attributes()) {
+    if (not model::FunctionAttribute::isValid(Attribute))
+      return VH.fail("Every dynamic function attribute must be valid.", *this);
     if (Attribute == model::FunctionAttribute::Inline)
       return VH.fail("Dynamic function cannot have Inline attribute", *this);
+  }
 
   return true;
 }
@@ -278,6 +309,9 @@ static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values Kind,
 
 RecursiveCoroutine<bool> model::Type::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
+
+  if (not model::TypeKind::isValid(Kind()))
+    rc_return VH.fail("Every type must have a valid kind.");
 
   bool PointerBeforeDefinition = false;
   const model::Type *Active = this;
@@ -336,6 +370,10 @@ RecursiveCoroutine<bool> model::Type::verify(VerifyHelper &VH) const {
       Active = Pointer->PointeeType().get();
 
     } else if (auto *Primitive = llvm::dyn_cast<model::PrimitiveType>(Active)) {
+      if (not model::PrimitiveKind::isValid(Primitive->PrimitiveKind()))
+        rc_return VH.fail("Every primitive must have a valid kind.",
+                          *Primitive);
+
       if (not isValidPrimitiveSize(Primitive->PrimitiveKind(),
                                    Primitive->Size()))
         rc_return VH.fail("Primitive size is not allowed.", *Primitive);
@@ -361,11 +399,16 @@ bool EnumEntry::verify(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const EnumDefinition &T) {
-  if (T.Entries().empty() or not VH.isNameAllowed(T.Name()))
-    rc_return VH.fail();
+  revng_assert(T.Kind() == model::TypeDefinitionKind::EnumDefinition);
+
+  if (T.Entries().empty())
+    rc_return VH.fail("Every enum definition must have at least one entry.");
 
   if (T.UnderlyingType().isEmpty())
-    rc_return VH.fail("Enum must have an underlying type.", T);
+    rc_return VH.fail("Every enum must have an underlying type.", T);
+
+  if (not VH.isNameAllowed(T.Name()))
+    rc_return VH.fail();
 
   if (not rc_recur T.UnderlyingType()->verify(VH))
     rc_return VH.fail();
@@ -390,9 +433,12 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const TypedefDefinition &T) {
+  revng_assert(T.Kind() == TypeDefinitionKind::TypedefDefinition);
+
+  if (T.UnderlyingType().isEmpty())
+    rc_return VH.fail("Every typedef definition requires an underlying type.");
+
   rc_return VH.maybeFail(VH.isNameAllowed(T.Name())
-                         and T.Kind() == TypeDefinitionKind::TypedefDefinition
-                         and not T.UnderlyingType().isEmpty()
                          and rc_recur T.UnderlyingType()->verify(VH));
 }
 
@@ -415,10 +461,9 @@ RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const StructDefinition &T) {
+  revng_assert(T.Kind() == model::TypeDefinitionKind::StructDefinition);
 
   using namespace llvm;
-
-  revng_assert(T.Kind() == TypeDefinitionKind::StructDefinition);
 
   if (not VH.isNameAllowed(T.Name()))
     rc_return VH.fail();
@@ -492,7 +537,7 @@ RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const UnionDefinition &T) {
-  revng_assert(T.Kind() == TypeDefinitionKind::UnionDefinition);
+  revng_assert(T.Kind() == model::TypeDefinitionKind::UnionDefinition);
 
   if (not VH.isNameAllowed(T.Name()))
     rc_return VH.fail();
@@ -539,6 +584,11 @@ RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const CABIFunctionDefinition &T) {
+  revng_assert(T.Kind() == model::TypeDefinitionKind::CABIFunctionDefinition);
+
+  if (not model::ABI::isValid(T.ABI()))
+    rc_return VH.fail("Every C-ABI function must have a valid ABI.", T);
+
   if (not VH.isNameAllowed(T.Name()))
     rc_return VH.fail();
 
@@ -575,9 +625,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
     if (not rc_recur T.ReturnType()->size(VH))
       rc_return VH.fail("Return value has no size", T);
   }
-
-  if (T.ABI() == model::ABI::Invalid)
-    rc_return VH.fail("An invalid ABI", T);
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
   for (auto &Group : llvm::enumerate(T.Arguments())) {
@@ -619,7 +666,7 @@ RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
   if (not Type()->isScalar())
     rc_return VH.fail("Only scalars are allowed in RFTs", Type());
 
-  if (Location() == Register::Invalid)
+  if (not model::Register::isValid(Location()))
     rc_return VH.fail("NamedTypedRegister must have a location", *this);
 
   // Zero-sized types are not allowed
@@ -644,19 +691,20 @@ RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const RawFunctionDefinition &T) {
-  const model::Architecture::Values Architecture = T.Architecture();
+  revng_assert(T.Kind() == model::TypeDefinitionKind::RawFunctionDefinition);
 
-  if (Architecture == model::Architecture::Invalid)
-    rc_return VH.fail("RFTs must have a valid architecture");
+  if (not model::Architecture::isValid(T.Architecture()))
+    rc_return VH.fail("RFTs must have a valid architecture", T);
 
   llvm::SmallSet<llvm::StringRef, 8> Names;
   for (const NamedTypedRegister &Argument : T.Arguments()) {
     if (not rc_recur Argument.verify(VH))
       rc_return VH.fail();
-    if (not isUsedInArchitecture(Argument.Location(), Architecture))
+    if (not isUsedInArchitecture(Argument.Location(), T.Architecture()))
       rc_return VH.fail("Register '" + toString(Argument.Location())
-                        + "' is not allowed to be used in '"
-                        + toString(Architecture) + "' functions.");
+                          + "' must not be an argument of a raw '"
+                          + toString(T.Architecture()) + "' function.",
+                        T);
     if (not VH.isNameAllowed(Argument.Name()))
       rc_return VH.fail();
   }
@@ -664,19 +712,23 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   for (const NamedTypedRegister &Returned : T.ReturnValues()) {
     if (not rc_recur Returned.verify(VH))
       rc_return VH.fail();
-    if (not isUsedInArchitecture(Returned.Location(), Architecture))
+    if (not isUsedInArchitecture(Returned.Location(), T.Architecture()))
       rc_return VH.fail("Register '" + toString(Returned.Location())
-                        + "' is not allowed to be used in '"
-                        + toString(Architecture) + "' functions.");
+                          + "' must not be returned from a raw '"
+                          + toString(T.Architecture()) + "' function.",
+                        T);
   }
 
   for (const Register::Values &Preserved : T.PreservedRegisters()) {
-    if (Preserved == Register::Invalid)
-      rc_return VH.fail("Specified register is Invalid");
-    if (not isUsedInArchitecture(Preserved, Architecture))
+    if (not model::Register::isValid(Preserved))
+      rc_return VH.fail("Only valid registers can be preserved by raw "
+                        "functions",
+                        T);
+    if (not isUsedInArchitecture(Preserved, T.Architecture()))
       rc_return VH.fail("Register '" + toString(Preserved)
-                        + "' is not allowed to be used in '"
-                        + toString(Architecture) + "' functions.");
+                          + "' must not be preserved by a raw '"
+                          + toString(T.Architecture()) + "' function.",
+                        T);
   }
 
   // TODO: neither arguments nor return values should be preserved.
@@ -704,11 +756,14 @@ RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {
   // TODO: make the id of a default constructed type `-1` once we have default
   //       value support in the model.
   if (ID() == size_t(-1))
-    rc_return VH.fail("A type cannot have ID -1");
+    rc_return VH.fail("No type definition can have ID of -1u.");
+
+  if (not model::TypeDefinitionKind::isValid(Kind()))
+    rc_return VH.fail("Every type definition must have a valid kind.");
 
   bool Result = false;
 
-  // We could use upcast() but we'd need to workaround coroutines.
+  // We could use upcast() but we'd need to work around coroutines.
   if (auto *F = llvm::dyn_cast<model::CABIFunctionDefinition>(this))
     Result = rc_recur verifyImpl(VH, *F);
   else if (auto *F = llvm::dyn_cast<model::RawFunctionDefinition>(this))
@@ -769,55 +824,55 @@ bool Configuration::verify(VerifyHelper &VH) const {
   //
   // As such, let's add them now so that they don't end up forgotten.
 
-  if (Configuration().Naming().unnamedSegmentPrefix().empty())
+  if (Configuration().Naming().UnnamedSegmentPrefix().empty())
     return VH.fail("Segment prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedFunctionPrefix().empty())
+  if (Configuration().Naming().UnnamedFunctionPrefix().empty())
     return VH.fail("Function prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedDynamicFunctionPrefix().empty())
+  if (Configuration().Naming().UnnamedDynamicFunctionPrefix().empty())
     return VH.fail("Dynamic function prefix must not be empty.");
 
-  // `unnamedTypeDefinitionPrefix` can be empty.
+  // `UnnamedTypeDefinitionPrefix` can be empty.
 
-  if (Configuration().Naming().unnamedEnumEntryPrefix().empty())
+  if (Configuration().Naming().UnnamedEnumEntryPrefix().empty())
     return VH.fail("Enum entry prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedStructFieldPrefix().empty())
+  if (Configuration().Naming().UnnamedStructFieldPrefix().empty())
     return VH.fail("Struct field prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedUnionFieldPrefix().empty())
+  if (Configuration().Naming().UnnamedUnionFieldPrefix().empty())
     return VH.fail("Union field prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedFunctionArgumentPrefix().empty())
+  if (Configuration().Naming().UnnamedFunctionArgumentPrefix().empty())
     return VH.fail("Argument prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedFunctionRegisterPrefix().empty())
+  if (Configuration().Naming().UnnamedFunctionRegisterPrefix().empty())
     return VH.fail("Register prefix must not be empty.");
 
-  if (Configuration().Naming().unnamedLocalVariablePrefix().empty())
+  if (Configuration().Naming().UnnamedLocalVariablePrefix().empty())
     return VH.fail("Local variable prefix must not be empty.");
-  if (Configuration().Naming().unnamedBreakFromLoopVariablePrefix().empty())
+  if (Configuration().Naming().UnnamedBreakFromLoopVariablePrefix().empty())
     return VH.fail("\"Break from loop\" variable prefix must not be empty.");
-  if (Configuration().Naming().unnamedGotoLabelPrefix().empty())
+  if (Configuration().Naming().UnnamedGotoLabelPrefix().empty())
     return VH.fail("Goto label prefix must not be empty.");
 
-  if (Configuration().Naming().structPaddingPrefix().empty())
+  if (Configuration().Naming().StructPaddingPrefix().empty())
     return VH.fail("Padding prefix must not be empty.");
 
-  if (Configuration().Naming().opaqueCSVValuePrefix().empty())
-    return VH.fail("Undefined value prefix must not be empty.");
-  if (Configuration().Naming().maximumEnumValuePrefix().empty())
+  if (Configuration().Naming().OpaqueCSVValuePrefix().empty())
+    return VH.fail("Opaque CSV prefix must not be empty.");
+  if (Configuration().Naming().MaximumEnumValuePrefix().empty())
     return VH.fail("Maximum enum value prefix must not be empty.");
 
-  if (Configuration().Naming().stackFrameVariableName().empty())
+  if (Configuration().Naming().StackFrameVariableName().empty())
     return VH.fail("Stack frame variable name must not be empty.");
-  if (Configuration().Naming().rawStackArgumentName().empty())
+  if (Configuration().Naming().RawStackArgumentName().empty())
     return VH.fail("Raw stack argument name must not be empty.");
-  if (Configuration().Naming().loopStateVariableName().empty())
+  if (Configuration().Naming().LoopStateVariableName().empty())
     return VH.fail("Loop state variable name must not be empty.");
 
-  if (Configuration().Naming().artificialReturnValuePrefix().empty())
+  if (Configuration().Naming().ArtificialReturnValuePrefix().empty())
     return VH.fail("Artificial return value prefix must not be empty.");
 
   return true;

@@ -23,7 +23,7 @@
     - End: "5"
       ID: "4"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
 - Name: prologue
   # Note: this function is inline, if necessary, we can add it here.
@@ -31,7 +31,7 @@
     - ID: "3"
       End: "4"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: BrokenReturn
 - Name: epilogue
   # Note: this function is noreturn, if necessary, we can add it here.
@@ -39,5 +39,5 @@
     - End: "5"
       ID: "4"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: LongJmp

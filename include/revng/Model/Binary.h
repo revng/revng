@@ -59,14 +59,12 @@ public:
   ///          - the reference to the newly made definition which can be used
   ///            to modify it right away,
   ///          - the corresponding defined type ready to be attached to others.
-  template<derived_from<model::TypeDefinition> NewType,
-           typename... ArgumentTypes>
+  template<derived_from<model::TypeDefinition> NewType, typename... ArgTs>
   [[nodiscard]] std::pair<NewType &, model::UpcastableType>
-  makeTypeDefinition(ArgumentTypes &&...Arguments) {
-    using UTD = model::UpcastableTypeDefinition;
-    UTD New = UTD::make<NewType>(std::forward<ArgumentTypes>(Arguments)...);
-    auto &&[Reference, Result] = recordNewType(std::move(New));
-    return { llvm::cast<NewType>(Reference), std::move(Result) };
+  makeTypeDefinition(ArgTs &&...Args) {
+    using GB = generated::Binary;
+    auto &New = GB::makeTypeDefinition<NewType>(std::forward<ArgTs>(Args)...);
+    return { New, makeType(New.key()) };
   }
 
   template<typename... Ts>
@@ -102,7 +100,10 @@ public:
   ///            used to modify it right away,
   ///          - the corresponding defined type ready to be attached to others.
   std::pair<TypeDefinition &, model::UpcastableType>
-  recordNewType(model::UpcastableTypeDefinition &&T);
+  recordNewType(model::UpcastableTypeDefinition &&T) {
+    model::TypeDefinition &Result = recordNewTypeDefinition(std::move(T));
+    return { Result, makeType(Result.key()) };
+  }
 
   /// Uses `SortedVector::batch_insert()` to emplace all the elements from
   /// \ref NewTypes range into the `TypeDefinitions()` set.
@@ -111,8 +112,7 @@ public:
   /// then triggers sorting, instead of conventional searching for the position
   /// of each element on its insertion.
   ///
-  /// \note Unlike recordNewTypeDefinitions, this method does not assign type
-  /// IDs.
+  /// \note Unlike recordNewType, this method does not assign type IDs.
   ///
   /// \note It takes advantage of `std::move_iterator` to ensure all
   ///       the elements are accessed strictly as r-values, so the original
@@ -167,9 +167,6 @@ public:
   makeConstType(const model::TypeDefinition::Key &Key) const {
     return model::DefinedType::makeConst(getDefinitionReference(Key));
   }
-
-  /// Return the first available type ID
-  uint64_t getAvailableTypeID() const;
 
 public:
   /// The helper for the prototype unwrapping.

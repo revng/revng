@@ -49,7 +49,7 @@ public:
         model::UpcastableTypeDefinition NewType = P;
 
         // Reset type ID: recordNewType will set it for us
-        NewType->ID() = 0;
+        NewType->ID() = uint64_t(-1);
 
         // Record the type
         auto &&[D, Type] = DestinationModel->recordNewType(std::move(NewType));

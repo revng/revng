@@ -9,11 +9,11 @@
     - ID: "1"
       End: "2"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: FunctionCall
           DynamicFunction: strlen
     - ID: "2"
       End: "3"
       Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return

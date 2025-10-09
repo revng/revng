@@ -82,15 +82,17 @@ class IDBConverter:
     def __init__(self, input_idb: idb.fileformat.IDB, base_addr, verbose):
         self.idb: idb.fileformat.IDB = input_idb
         self.api = idb.IDAPython(self.idb)
-
         self.arch: m.Architecture = self._get_arch()
         self.is64bit: bool = self._is_64_bit()
-        self.segments: List[m.Segment] = []
-        self.revng_types_by_id: Dict[str, RevngTypeDefinitions] = {}
+
+        self.resulting_binary: m.Binary = m.Binary(
+            # NOTE: We assume that the EntryPoint can be obtained from binary itself, so we use an
+            # invalid address for it here.
+            EntryPoint=m.MetaAddress(Address=0x0, Type=MetaAddressType.Invalid),
+            Architecture=self.arch,
+        )
+
         self.idb_types_to_revng_types: Dict[int, m.Type] = {}
-        self.functions: Set[m.Function] = set()
-        self.dynamic_functions: List[m.DynamicFunction] = []
-        self.imported_libraries: List[str] = []
         self.base_addr = base_addr
         self.verbose = verbose
 
@@ -153,7 +155,7 @@ class IDBConverter:
                     Attributes=function_attributes,
                 )
 
-            self.functions.add(revng_function)
+            self.resulting_binary.Functions.append(revng_function)
 
     def _get_arch(self):
         inf_structure = self.api.idaapi.get_inf_structure()
@@ -189,17 +191,16 @@ class IDBConverter:
         if function_type is not None:
             prototype = self._convert_idb_type_to_revng_type(function_type)
         else:
-            prototype_definition = m.CABIFunctionDefinition(
+            prototype_definition = self.resulting_binary.makeCABIFunctionDefinition(
                 ABI=revng_arch_to_abiname[self.arch],
                 Arguments=[],
             )
-            self.revng_types_by_id[prototype_definition.key()] = prototype_definition
             prototype = self._type_for_definition(prototype_definition)
         dynamic_function = m.DynamicFunction(
             Name=function_name,
             Prototype=prototype,
         )
-        self.dynamic_functions.append(dynamic_function)
+        self.resulting_binary.ImportedDynamicFunctions.append(dynamic_function)
         return True
 
     def _collect_imports(self):
@@ -228,7 +229,7 @@ class IDBConverter:
             # NOTE: IDA 7 has a bug when reporting imported library names - prints `.dynsym` for
             # each import.
             if mod_name and mod_name != ".dynsym":
-                self.imported_libraries.append(mod_name)
+                self.resulting_binary.ImportedLibraries.append(mod_name)
             self.api.ida_nalt.enum_import_names(mod_index, import_names_callback)
 
     def _fixup_ordinal_types(self):
@@ -365,7 +366,7 @@ class IDBConverter:
                 # skip unnecessary typedefs
                 resulting_definition = self.unwrap_definition(underlying)
             else:
-                resulting_definition = m.TypedefDefinition(
+                resulting_definition = self.resulting_binary.makeTypedefDefinition(
                     Name=type_name, UnderlyingType=underlying
                 )
 
@@ -392,11 +393,11 @@ class IDBConverter:
 
             if len(entries) == 0:
                 self.log(f"warning: An empty enum type: {type_name}, emitting a typedef instead.")
-                resulting_definition = m.TypedefDefinition(
+                resulting_definition = self.resulting_binary.makeTypedefDefinition(
                     Name=type_name, UnderlyingType=underlying
                 )
             else:
-                resulting_definition = m.EnumDefinition(
+                resulting_definition = self.resulting_binary.makeEnumDefinition(
                     Name=type_name,
                     Entries=entries,
                     UnderlyingType=underlying,
@@ -406,9 +407,9 @@ class IDBConverter:
             if type.type_details.ref is not None and type.type_details.ref.type_details.is_ordref:
                 if type.type_details.ref.type_details.ordinal not in self.idb_types_to_revng_types:
                     # This is just a forward declaration. Make a placeholder for now.
-                    resulting_definition = m.StructDefinition(Name="", Size=0, Fields=[])
-                    self.revng_types_by_id[resulting_definition.key()] = resulting_definition
-
+                    resulting_definition = self.resulting_binary.makeStructDefinition(
+                        Name="", Size=0, Fields=[]
+                    )
                     wrapped = self._type_for_definition(resulting_definition, type.is_decl_const())
 
                     self._ordinal_types_to_fixup.add(
@@ -422,25 +423,27 @@ class IDBConverter:
                 # Empty structs are not valid in the revng type system.
                 if len(type.type_details.members) == 0:
                     self.log(f"warning: Ignoring empty struct {type_name}, typedef it to `void`")
-                    typedef = m.TypedefDefinition(
+                    typedef = self.resulting_binary.makeTypedefDefinition(
                         Name=type_name,
                         UnderlyingType=m.PrimitiveType(
                             PrimitiveKind=m.PrimitiveKind.Void, Size=0, IsConst=False
                         ),
                     )
-                    self.revng_types_by_id[typedef.key()] = typedef
                     return self._type_for_definition(typedef, type.is_decl_const())
                 else:
                     # Struct members and size will be computed later.
-                    resulting_definition = m.StructDefinition(Name=type_name, Size=0, Fields=[])
+                    resulting_definition = self.resulting_binary.makeStructDefinition(
+                        Name=type_name, Size=0, Fields=[]
+                    )
                     self._structs_to_fixup.add((resulting_definition, type))
 
         elif type.is_decl_union():
             if type.type_details.ref is not None and type.type_details.ref.type_details.is_ordref:
                 if type.type_details.ref.type_details.ordinal not in self.idb_types_to_revng_types:
                     # This is just a forward declaration. Make a placeholder for now.
-                    resulting_definition = m.UnionDefinition(Name="", Fields=[])
-                    self.revng_types_by_id[resulting_definition.key()] = resulting_definition
+                    resulting_definition = self.resulting_binary.makeUnionDefinition(
+                        Name="", Fields=[]
+                    )
 
                     wrapped = self._type_for_definition(resulting_definition, type.is_decl_const())
                     self._ordinal_types_to_fixup.add(
@@ -454,17 +457,18 @@ class IDBConverter:
                 # Empty unions are not valid in the revng type system.
                 if len(type.type_details.members) == 0:
                     self.log(f"warning: Ignoring empty union {type_name}, typedef it to `void`")
-                    typedef = m.TypedefDefinition(
+                    typedef = self.resulting_binary.makeTypedefDefinition(
                         Name=type_name,
                         UnderlyingType=m.PrimitiveType(
                             PrimitiveKind=m.PrimitiveKind.Void, Size=0, IsConst=False
                         ),
                     )
-                    self.revng_types_by_id[typedef.key()] = typedef
                     return self._type_for_definition(typedef, type.is_decl_const())
                 else:
                     # Union members will be computed later.
-                    resulting_definition = m.UnionDefinition(Name=type_name, Fields=[])
+                    resulting_definition = self.resulting_binary.makeUnionDefinition(
+                        Name=type_name, Fields=[]
+                    )
                     self._unions_to_fixup.add((resulting_definition, type))
 
         elif type.is_decl_ptr():
@@ -521,7 +525,7 @@ class IDBConverter:
 
             if type.get_name() != "":
                 # Treat this as `typedef void someothername`.
-                result = m.TypedefDefinition(
+                result = self.resulting_binary.makeTypedefDefinition(
                     Name=type_name, UnderlyingType=result, IsConst=type.is_decl_const()
                 )
 
@@ -549,7 +553,7 @@ class IDBConverter:
             if isinstance(rt, m.PrimitiveType) and rt.PrimitiveKind == m.PrimitiveKind.Void:
                 rt = None
 
-            resulting_definition = m.CABIFunctionDefinition(
+            resulting_definition = self.resulting_binary.makeCABIFunctionDefinition(
                 ABI=revng_arch_to_abi[self.arch],
                 ReturnType=rt,
                 Arguments=arguments,
@@ -605,9 +609,6 @@ class IDBConverter:
         if ordinal is not None:
             self.idb_types_to_revng_types[ordinal] = result
 
-        if resulting_definition.key() not in self.revng_types_by_id:
-            self.revng_types_by_id[resulting_definition.key()] = resulting_definition
-
         return result
 
     def _type_for_definition(self, definition: m.TypeDefinition, is_const: bool = False) -> m.Type:
@@ -615,21 +616,8 @@ class IDBConverter:
             Definition=m.Reference("/TypeDefinitions/" + definition.key()), IsConst=is_const
         )
 
-    def get_model(self) -> m.Binary:
-        return m.Binary(
-            # NOTE: We assume that the EntryPoint can be obtained from binary itself, so we use an
-            # invalid address for it here.
-            EntryPoint=m.MetaAddress(Address=0x0, Type=MetaAddressType.Invalid),
-            Functions=list(self.functions),
-            ImportedDynamicFunctions=list(self.dynamic_functions),
-            TypeDefinitions=list(self.revng_types_by_id.values()),
-            Architecture=self.arch,
-            Segments=self.segments,
-            ImportedLibraries=self.imported_libraries,
-        )
-
     def get_revng_type_by_name(self, name):
-        for revng_type in self.revng_types_by_id.values():
+        for revng_type in self.resulting_binary.TypeDefinitions:
             if revng_type.Name == name:
                 return revng_type
         return None
@@ -638,7 +626,7 @@ class IDBConverter:
         if not isinstance(defined_type, m.DefinedType):
             raise ValueError("Trying to unwrap a nested definition:\n" + str(defined_type))
 
-        return self.revng_types_by_id.get(defined_type.Definition.id)
+        return self.resulting_binary.TypeDefinitions[defined_type.Definition.id]
 
 
 def get_primitive_kind(idb_type: idb.typeinf.TInfo) -> m.PrimitiveKind:

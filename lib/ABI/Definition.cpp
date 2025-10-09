@@ -44,7 +44,7 @@ static bool isVectorRegister(model::Register::Values Register) {
 ///
 /// \return `true` if the ABI is valid, `false` otherwise.
 static bool verifyReturnValueLocation(const abi::Definition &D) {
-  if (D.ReturnValueLocationRegister() == model::Register::Invalid) {
+  if (not model::Register::isValid(D.ReturnValueLocationRegister())) {
     // Skip ABIs that do not allow returning big values.
     // They do not benefit from this check.
     return true;
@@ -79,7 +79,13 @@ static bool verifyReturnValueLocation(const abi::Definition &D) {
 namespace abi {
 
 bool Definition::verify() const {
-  if (ABI() == model::ABI::Invalid)
+  if (not model::ABI::isValid(ABI()))
+    return false;
+
+  if (StackAlignment() == 0)
+    return false;
+
+  if (MinimumStackArgumentSize() == 0)
     return false;
 
   const auto Architecture = model::ABI::getRegisterArchitecture(ABI());
@@ -99,6 +105,17 @@ bool Definition::verify() const {
 
   if (ScalarTypes().empty())
     return false;
+
+  for (const abi::ScalarType &Type : ScalarTypes())
+    if (Type.Size() == 0)
+      return false;
+
+  if (FloatingPointScalarTypes().empty())
+    return false;
+
+  for (const abi::ScalarType &Type : FloatingPointScalarTypes())
+    if (Type.Size() == 0)
+      return false;
 
   return true;
 }

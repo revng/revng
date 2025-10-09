@@ -24,30 +24,24 @@ definitions:
       - name: Architecture
         doc: The architecture for this binary.
         type: Architecture
-        optional: true
 
       - name: EntryPoint
         doc: The program entry point, if any.
         type: MetaAddress
-        optional: true
 
       - name: DefaultABI
         doc: The default ABI to adopt for analysis purposes.
         type: ABI
-        optional: true
 
       - name: DefaultPrototype
         doc: |-
           The default function prototype to adopt for functions that do not provide
           it explicitly.
         type: Type
-        optional: true
-        upcastable: true
 
       - name: Configuration
         doc: Project-level artifact configuration options
         type: Configuration
-        optional: true
 
       - name: Segments
         doc: |-
@@ -56,7 +50,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: Segment
-        optional: true
 
       - name: ExtraCodeAddresses
         doc: |-
@@ -69,7 +62,6 @@ definitions:
           handlers: no code ever directly jumps there and their address is not
           stored in jump tables. Their address can only be obtained by interpreting
           metadata in the ELF.
-        optional: true
         sequence:
           type: SortedVector
           elementType: MetaAddress
@@ -82,21 +74,18 @@ definitions:
         sequence:
           type: SortedVector
           elementType: string
-        optional: true
 
       - name: ImportedDynamicFunctions
         doc: List of functions imported from dynamic libraries (`.so`, `.dll`).
         sequence:
           type: SortedVector
           elementType: DynamicFunction
-        optional: true
 
       - name: Functions
         doc: List of the functions present in the binary.
         sequence:
           type: SortedVector
           elementType: Function
-        optional: true
 
       - name: TypeDefinitions
         doc: |-
@@ -104,9 +93,7 @@ definitions:
           It contains `struct`, `union`, `typedef`, `enum` and function prototypes.
         sequence:
           type: SortedVector
-          upcastable: true
           elementType: TypeDefinition
-        optional: true
 
   #
   # Type definition system
@@ -136,7 +123,8 @@ definitions:
         doc: |-
           A unique numeric identifier for this type.
         type: uint64_t
-        is_guid: true
+        autoincrement: true
+        default: -1
 
       - name: Kind
         doc: |-
@@ -146,13 +134,11 @@ definitions:
       - name: Name
         doc: A user-chosen identifier for this type.
         type: string
-        optional: true
 
       - name: Comment
         doc: |-
           A comment attached to the *definition* of this type.
         type: string
-        optional: true
 
   - name: CABIFunctionDefinition
     inherits: TypeDefinition
@@ -178,15 +164,12 @@ definitions:
       - name: ReturnType
         doc: The function return type.
         type: Type
-        optional: true
-        upcastable: true
 
       - name: ReturnValueComment
         doc: |-
           A comment that will be emitted as part of this function's definiktion
           in the `\returns ${COMMENT_TEXT}` shape.
         type: string
-        optional: true
 
       - name: Arguments
         doc: The list of formal arguments of the function type.
@@ -207,23 +190,21 @@ definitions:
       - name: Index
         doc: The argument index.
         type: uint64_t
+        default: -1
 
       - name: Type
         doc: The type of the argument.
         type: Type
-        upcastable: true
 
       - name: Name
         doc: The name of the argument.
         type: string
-        optional: true
 
       - name: Comment
         doc: |-
           A comment that will be emitted as part of this function's definition
           in the `\param ${NAME} ${COMMENT}` shape.
         type: string
-        optional: true
 
   - name: EnumDefinition
     inherits: TypeDefinition
@@ -240,7 +221,6 @@ definitions:
           This must only ever be set to a `PrimitiveType` with either
           an `Unsigned` or a `Signed` kind.
         type: Type
-        upcastable: true
 
       - name: Entries
         doc: |-
@@ -271,14 +251,12 @@ definitions:
         doc: |-
           A user-chosen identifier for this `enum` entry.
         type: string
-        optional: true
 
       - name: Comment
         doc: |-
           A comment that will be emitted right before the *definition* of this
           `enum` entry.
         type: string
-        optional: true
 
   - name: RawFunctionDefinition
     inherits: TypeDefinition
@@ -308,7 +286,6 @@ definitions:
           The list of registers used to pass arguments.
 
           The registers must belong to the `Architecture`.
-        optional: true
         sequence:
           type: SortedVector
           elementType: NamedTypedRegister
@@ -318,7 +295,6 @@ definitions:
           The list of registers used to return values.
 
           The registers must belong to the `Architecture`.
-        optional: true
         sequence:
           type: SortedVector
           elementType: NamedTypedRegister
@@ -328,14 +304,12 @@ definitions:
           A comment that will be emitted as part of this function's definition
           in the `\returns ${COMMENT}` shape.
         type: string
-        optional: true
 
       - name: PreservedRegisters
         doc: |-
           The list of registers preserved by functions using this function type.
 
           The registers must belong to `Architecture`.
-        optional: true
         sequence:
           type: SortedVector
           elementType: Register
@@ -350,13 +324,10 @@ definitions:
           This is due to the fact that `ret` instruction increase the stack pointer
           by 8.
         type: uint64_t
-        optional: true
 
       - name: StackArgumentsType
         doc: The type of the `struct` representing all of the stack arguments.
         type: Type
-        optional: true
-        upcastable: true
 
   - name: NamedTypedRegister
     type: struct
@@ -377,17 +348,14 @@ definitions:
       - name: Type
         doc: The type of this argument or return value.
         type: Type
-        upcastable: true
 
       - name: Name
         doc: The name for this argument or return value.
         type: string
-        optional: true
 
       - name: Comment
         doc: The comment for this argument or return value.
         type: string
-        optional: true
 
   - name: TypedefDefinition
     inherits: TypeDefinition
@@ -403,7 +371,6 @@ definitions:
       - name: UnderlyingType
         doc: The type this `typedef` is aliasing.
         type: Type
-        upcastable: true
 
   - name: StructDefinition
     inherits: TypeDefinition
@@ -423,7 +390,6 @@ definitions:
           a segment's root type without traversing pointer, arrays or other
           qualifiers, the padding of the struct is treated at if it contains code.
         type: bool
-        optional: true
 
       - name: Fields
         doc: The list of fields of this `struct`.
@@ -450,17 +416,14 @@ definitions:
       - name: Name
         doc: The name of this field.
         type: string
-        optional: true
 
       - name: Comment
         doc: The comment that will be emitted before this field's *definition*.
         type: string
-        optional: true
 
       - name: Type
         doc: The type of the field.
         type: Type
-        upcastable: true
 
   - name: UnionDefinition
     inherits: TypeDefinition
@@ -495,23 +458,21 @@ definitions:
           Note that indexing is dense, so if a given union has a type with
           index 4, it must also have types indexed 0-3.
         type: uint64_t
+        default: -1
 
       - name: Name
         doc: The name of this "field" (union alternative).
         type: string
-        optional: true
 
       - name: Comment
         doc: |-
           The comment that will be emitted right before the *definition*
           of the given "field" (union alternative).
         type: string
-        optional: true
 
       - name: Type
         doc: The name of this "field" (union alternative).
         type: Type
-        upcastable: true
 
   #
   # Type wrapping system (pointers / arrays / primitives)
@@ -534,7 +495,6 @@ definitions:
       - name: IsConst
         doc: Specifies whether the type this object denotes is `const` or not.
         type: bool
-        optional: true
 
   - name: PrimitiveType
     inherits: Type
@@ -570,7 +530,7 @@ definitions:
 
           Note that `Void` *must* have size of 0.
         type: uint64_t
-        optional: true
+        default: -1
 
   - name: PrimitiveKind
     type: enum
@@ -621,11 +581,11 @@ definitions:
 
           As of now, only 4 and 8 byte pointers are supported.
         type: uint64_t
+        default: -1
 
       - name: PointeeType
         doc: The pointee type.
         type: Type
-        upcastable: true
 
   - name: DefinedType
     inherits: Type
@@ -636,9 +596,7 @@ definitions:
     fields:
       - name: Definition
         doc: The definition of the type this object represents.
-        reference:
-          pointeeType: TypeDefinition
-          rootType: Binary
+        referenceTo: TypeDefinition
 
   - name: ArrayType
     inherits: Type
@@ -651,11 +609,11 @@ definitions:
       - name: ElementCount
         doc: The number of elements in this array.
         type: uint64_t
+        default: -1
 
       - name: ElementType
         doc: The type of the elements in this array.
         type: Type
-        upcastable: true
 
   #
   # Segments and function in the binary
@@ -708,20 +666,17 @@ definitions:
       - name: Name
         doc: The name of the segment.
         type: string
-        optional: true
 
       - name: Comment
         doc: |-
           The comment to emit right before the global variable that will be
           created for this segment.
         type: string
-        optional: true
 
       - name: CanonicalRegisterValues
         doc: |-
           The list of registers that are assumed to have a canonical value set
           upon an entry into a function contained within this segment.
-        optional: true
         sequence:
           type: SortedVector
           elementType: CanonicalRegisterValue
@@ -730,7 +685,6 @@ definitions:
         doc: |-
           A list of locations where the address of this segment should be
           placed.
-        optional: true
         sequence:
           type: SortedVector
           elementType: Relocation
@@ -740,8 +694,6 @@ definitions:
           The struct type associated to this segment.
           Informally, each field of such a `struct` is a global variable.
         type: Type
-        upcastable: true
-        optional: true
 
   - name: Function
     type: struct
@@ -763,31 +715,24 @@ definitions:
       - name: Name
         doc: The user-provided name for this function.
         type: string
-        optional: true
 
       - name: Comment
         doc: The user-provided comment for this function.
         type: string
-        optional: true
 
       - name: StackFrameType
         doc: The type of the stack frame.
         type: Type
-        upcastable: true
-        optional: true
 
       - name: Prototype
         doc: The prototype of the function.
         type: Type
-        upcastable: true
-        optional: true
 
       - name: Attributes
         doc: Attributes for *every* call site.
         sequence:
           type: MutableSet
           elementType: FunctionAttribute
-        optional: true
 
       - name: CallSitePrototypes
         doc: |-
@@ -795,7 +740,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: CallSitePrototype
-        optional: true
 
       - name: ExportedNames
         doc: |-
@@ -804,7 +748,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: string
-        optional: true
 
       - name: Comments
         doc: |-
@@ -813,7 +756,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: StatementComment
-        optional: true
 
       - name: LocalVariables
         doc: |-
@@ -821,7 +763,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: LocalIdentifier
-        optional: true
 
       - name: GotoLabels
         doc: |-
@@ -829,7 +770,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: LocalIdentifier
-        optional: true
 
   - name: DynamicFunction
     type: struct
@@ -851,20 +791,16 @@ definitions:
       - name: Comment
         doc: The user-provided comment for this dynamic function.
         type: string
-        optional: true
 
       - name: Prototype
         doc: The prototype of this dynamic function.
         type: Type
-        upcastable: true
-        optional: true
 
       - name: Attributes
         doc: The attributes of this dynamic function.
         sequence:
           type: MutableSet
           elementType: FunctionAttribute
-        optional: true
 
       - name: Relocations
         doc: |-
@@ -873,7 +809,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: Relocation
-        optional: true
 
   - name: LocalIdentifier
     type: struct
@@ -989,19 +924,16 @@ definitions:
       - name: Prototype
         doc: The prototype specific to *this* call site.
         type: Type
-        upcastable: true
 
       - name: IsTailCall
         doc: Whether this call site is a tail call or not.
         type: bool
-        optional: true
 
       - name: Attributes
         doc: Attributes for this call site.
         sequence:
           type: MutableSet
           elementType: FunctionAttribute
-        optional: true
 
   - name: FunctionAttribute
     type: enum
@@ -1037,6 +969,7 @@ definitions:
         # encoded in the location and any emitted comment can be looked up (and,
         # consecutively, edited) based on this index alone.
         type: uint64_t
+        default: -1
 
       - name: Location
         doc: |-
@@ -1507,12 +1440,10 @@ definitions:
       - name: Disassembly
         doc: The options specific to the disassembly artifact.
         type: DisassemblyConfiguration
-        optional: true
 
       - name: Naming
         doc: The options specific to the naming conventions
         type: NamingConfiguration
-        optional: true
 
       # Configuration options that don't belong anywhere else find themselves
       # under this comment (in this struct).
@@ -1522,11 +1453,9 @@ definitions:
         doc: |-
           Sets a recommended comment line width to improve their readability.
 
-          The default value is `80`.
-
           Set to `-1` for unlimited line size.
         type: uint64_t
-        optional: true
+        default: 80
 
   - name: NamingConfiguration
     type: struct
@@ -1537,166 +1466,110 @@ definitions:
 
     fields:
       - name: UnnamedSegmentPrefix
-        doc: |-
-          The prefix for a segment without a name.
-
-          The default value is `segment_`.
+        doc: The prefix for a segment without a name.
         type: string
-        optional: true
+        default: segment_
 
       - name: UnnamedDynamicFunctionPrefix
-        doc: |-
-          The prefix for a dynamic function with an invalid name.
-
-          The default value is `dynamic_function_`.
+        doc: The prefix for a dynamic function with an invalid name.
         type: string
-        optional: true
+        default: dynamic_function_
 
       - name: UnnamedFunctionPrefix
-        doc: |-
-          The prefix for a local function without a name.
-
-          The default value is `function_`.
+        doc: The prefix for a local function without a name.
         type: string
-        optional: true
+        default: function_
 
       - name: UnnamedTypeDefinitionPrefix
         doc: |-
           The prefix for a type definition without a name.
 
-          The default value is "".
-
           Note that the type kind (like `struct`, or `typedef`) is going to be
           inserted automatically after this prefix.
         type: string
-        optional: true
+        default: ""
 
       - name: UnnamedEnumEntryPrefix
-        doc: |-
-          The prefix for an enum entry without a name.
-
-          The default value is `enum_entry_`.
+        doc: The prefix for an enum entry without a name.
         type: string
-        optional: true
+        default: enum_entry_
 
       - name: UnnamedStructFieldPrefix
-        doc: |-
-          The prefix for a struct field without a name.
-
-          The default value is `offset_`.
+        doc: The prefix for a struct field without a name.
         type: string
-        optional: true
+        default: offset_
 
       - name: UnnamedUnionFieldPrefix
-        doc: |-
-          The prefix for a union member without a name.
-
-          The default value is `member_`.
+        doc: The prefix for a union member without a name.
         type: string
-        optional: true
+        default: member_
 
       - name: UnnamedFunctionArgumentPrefix
-        doc: |-
-          The prefix for a cabi function argument without a name.
-
-          The default value is `argument_`.
+        doc: The prefix for a cabi function argument without a name.
         type: string
-        optional: true
+        default: argument_
 
       - name: UnnamedFunctionRegisterPrefix
-        doc: |-
-          The prefix for a raw function register without a name.
-
-          The default value is `register_`.
+        doc: The prefix for a raw function register without a name.
         type: string
-        optional: true
+        default: register_
 
       - name: UnnamedLocalVariablePrefix
-        doc: |-
-          The prefix for a local variable without a name.
-
-          The default value is `var_`.
+        doc: The prefix for a local variable without a name.
         type: string
-        optional: true
+        default: var_
 
       - name: UnnamedBreakFromLoopVariablePrefix
-        doc: |-
-          The prefix for a local variable without a name.
-
-          The default value is `break_from_loop_`.
+        doc: The prefix for a local variable without a name.
         type: string
-        optional: true
+        default: break_from_loop_
 
       - name: UnnamedGotoLabelPrefix
-        doc: |-
-          The prefix for a goto label without a name.
-
-          The default value is `label_`.
+        doc: The prefix for a goto label without a name.
         type: string
-        optional: true
+        default: label_
 
       - name: OpaqueCSVValuePrefix
-        doc: |-
-          The prefix for accessing an opaque CSV Value.
-
-          The default value is `undef_`.
+        doc: The prefix for accessing an opaque CSV Value.
         type: string
-        optional: true
+        default: revng_undefined_
 
       - name: MaximumEnumValuePrefix
-        doc: |-
-          The prefix for the maximum enum value.
-
-          The default value is `enum_max_value_`.
+        doc: The prefix for the maximum enum value.
         type: string
-        optional: true
+        default: enum_max_value_
 
       - name: StackFrameVariableName
-        doc: |-
-          The name of the variable representing stack.
-
-          The default value is `stack`.
+        doc: The name of the variable representing stack.
         type: string
-        optional: true
+        default: stack
 
       - name: RawStackArgumentName
-        doc: |-
-          The name of the variable representing stack.
-
-          The default value is `stack_arguments`.
+        doc: The name of the variable representing stack.
         type: string
-        optional: true
+        default: stack_arguments
 
       - name: LoopStateVariableName
-        doc: |-
-          The name of the variable representing stack.
-
-          The default value is `loop_state_var`.
+        doc: The name of the variable representing stack.
         type: string
-        optional: true
+        default: loop_state_var
 
       - name: StructPaddingPrefix
-        doc: |-
-          The prefix for a padding struct field.
-
-          The default value is `padding_at_`.
+        doc: The prefix for a padding struct field.
         type: string
-        optional: true
+        default: padding_at_
 
       - name: ArtificialReturnValuePrefix
-        doc: |-
-          The prefix for an artificial raw function return value.
-
-          The default value is `artificial_struct_returned_by_`.
+        doc: The prefix for an artificial raw function return value.
         type: string
-        optional: true
+        default: artificial_struct_returned_by_
 
       - name: ReserveNamesStartingWithUnderscore
         doc: |-
           When this is set to `true`, all the names starting with underscores will
-          have a \ref ReservedNamePrefix prefix attached.
+          be replaced by an automatic name.
         type: bool
-        optional: true
+        default: false
 
   - name: DisassemblyConfiguration
     type: struct
@@ -1718,7 +1591,7 @@ definitions:
           This part
           ```
         type: bool
-        optional: true
+        default: false
 
       - name: DisableEmissionOfRawBytes
         doc: |-
@@ -1733,7 +1606,7 @@ definitions:
                      This part
           ```
         type: bool
-        optional: true
+        default: false
 
       - name: UseX86ATTSyntax
         doc: |-
@@ -1757,17 +1630,15 @@ definitions:
 
           Note that this option has no effect on non-x86 binaries.
         type: bool
-        optional: true
+        default: false
 
       - name: AddressStyle
         doc: |-
           This describes the way labels / addresses should be printed in
           the disassembly view.
           See the related enum for further explanation and examples.
-
-          The default value is `Smart`.
         type: DisassemblyConfigurationAddressStyle
-        optional: true
+        default: Smart
 
       - name: ImmediateStyle
         doc: |-
@@ -1777,7 +1648,7 @@ definitions:
 
           The default value is `CHexadecimal`.
         type: DisassemblyConfigurationImmediateStyle
-        optional: true
+        default: CHexadecimal
 
       - name: PrintFullMetaAddress
         doc: |-
@@ -1795,12 +1666,11 @@ definitions:
           ```
 
         type: bool
-        optional: true
+        default: false
 
       - name: BasicBlockPrefix
         doc: |-
           The prefix attached to the basic block address in the disassembly views.
-          The default value is `bb_`.
 
           `my_value_`:
           ```
@@ -1811,7 +1681,7 @@ definitions:
           80491a7:    e9 ec fe ff ff       jmp bb_0x8049098
           ```
         type: string
-        optional: true
+        default: bb_
 
   - name: DisassemblyConfigurationImmediateStyle
     type: enum

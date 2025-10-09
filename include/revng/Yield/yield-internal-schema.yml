@@ -7,34 +7,42 @@ root_type: Function
 definitions:
   - name: Function
     type: struct
+
+    key:
+      - Entry
+
     fields:
       - name: Entry
         type: MetaAddress
+        default: ":Invalid"
 
       - name: Blocks
         sequence:
           type: SortedVector
           elementType: BasicBlock
 
-    key:
-      - Entry
-
   - name: BasicBlock
     type: struct
+
+    key:
+      - ID
+
     fields:
       - name: ID
         type: BasicBlockID
+        default: ":Invalid"
 
       - name: End
         doc: |
           End address of the basic block, i.e., the address where the last
           instruction ends
         type: MetaAddress
+        default: ":Invalid"
 
       - name: InlinedFrom
         type: MetaAddress
-        optional: true
         doc: Address of the function this basic block has been inlined from
+        default: ":Invalid"
 
       - name: Label
         type: TaggedString
@@ -43,7 +51,6 @@ definitions:
         doc: List of successor edges
         sequence:
           type: SortedVector
-          upcastable: true
           elementType: FunctionEdgeBase
 
       - name: Instructions
@@ -59,6 +66,7 @@ definitions:
           This lets us dynamically decide whether we want to show labels like this
           or not.
         type: bool
+        default: false
 
       - name: HasDelaySlot
         doc: >
@@ -67,16 +75,19 @@ definitions:
           \note: This is always equal to `false` on architectures that do not
           support delay slots.
         type: bool
-        optional: true
+        default: false
 
-    key:
-      - ID
   - name: FunctionEdgeBase
     doc: An edge on the CFG
     type: struct
+    abstract: true
+
+    key:
+      - Destination
+      - Kind
+
     fields:
       - name: Destination
-        optional: true
         doc: |
           Target of the CFG edge
 
@@ -86,34 +97,33 @@ definitions:
           branch, or, in case of a function call, the address of the callee.
           TODO: switch to TupleTreeReference
         type: BasicBlockID
+        default: ":Invalid"
       - name: Kind
         type: FunctionEdgeBaseKind
       - name: Type
         doc: Type of the CFG edge
         type: FunctionEdgeType
-    key:
-      - Destination
-      - Kind
-    abstract: true
+
   - name: FunctionEdge
     doc: An edge on the CFG
     type: struct
     inherits: FunctionEdgeBase
     fields: []
+
   - name: CallEdge
     doc: A CFG edge to represent function calls (direct, indirect and tail calls)
     type: struct
     inherits: FunctionEdgeBase
+
     fields:
       - name: DynamicFunction
         doc: |
           Name of the dynamic function being called, or empty if not a dynamic call
         type: string
-        optional: true
       - name: IsTailCall
         doc: Is this a tail call?
         type: bool
-        optional: true
+        default: false
       - name: Attributes
         doc: |
           Attributes for this function
@@ -124,10 +134,11 @@ definitions:
         sequence:
           type: MutableSet
           elementType: model::FunctionAttribute::Values
-        optional: true
+
   - name: FunctionEdgeType
     doc: Type of edge on the CFG
     type: enum
+
     members:
       - name: DirectBranch
         doc: Branch due to function-local CFG (a regular branch)
@@ -145,13 +156,19 @@ definitions:
         doc: A killer basic block (killer syscall or endless loop)
       - name: Unreachable
         doc: The basic block ends with an unreachable instruction
+
   - name: Instruction
     type: struct
+
+    key:
+      - Address
+
     fields:
       - name: Address
         doc: >
           Indicates the address of the first byte of the instruction.
         type: MetaAddress
+        default: ":Invalid"
 
       - name: RawBytes
         type: yield::ByteContainer
@@ -173,30 +190,26 @@ definitions:
 
       - name: OpcodeIdentifier
         type: string
-        optional: true
+        default: ""
 
       - name: Comment
         doc: >
           Contains any extra information deduced based on the disassembly of this
           instruction that could be relevant for the user.
         type: string
-        optional: true
 
       - name: Error
         doc: >
           Contains any extra extra warning/error style information deduced based on
           the disassembly of this instruction that could be relevant for the user.
         type: string
-        optional: true
-
-    key:
-      - Address
 
   - name: TaggedLine
     type: struct
     fields:
       - name: Index
         type: uint64_t
+        default: -1
 
       - name: Tags
         sequence:
@@ -208,39 +221,46 @@ definitions:
 
   - name: TaggedString
     type: struct
+
+    key:
+      - Index
+
     fields:
       - name: Index
         type: uint64_t
+        default: -1
 
       - name: Type
         type: TagType
 
       - name: Content
         type: string
+        default: ""
 
       - name: Attributes
         sequence:
           type: SortedVector
           elementType: TagAttribute
-        optional: true
-    key:
-      - Index
 
   - name: TagAttribute
     type: struct
-    fields:
-      - name: Name
-        type: string
-
-      - name: Value
-        type: string
 
     key:
       - Name
 
+    fields:
+      - name: Name
+        type: string
+        default: ""
+
+      - name: Value
+        type: string
+        default: ""
+
   - name: TagType
     doc: Enum for identifying different instruction markup tag types
     type: enum
+
     members:
       - name: Untagged
       - name: Helper

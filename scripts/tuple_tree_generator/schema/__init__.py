@@ -10,5 +10,4 @@ from .scalar import ScalarDefinition
 from .schema import Schema
 from .sequence import SequenceDefinition
 from .struct import ReferenceStructField, SequenceStructField, SimpleStructField, StructDefinition
-from .struct import StructField
-from .upcastable import UpcastableDefinition
+from .struct import StructField, UpcastableDefinition

@@ -60,17 +60,17 @@ private:
   // Member list
   //
   /**- for field in struct.fields **/
-  /*= field | field_type =*/ The/*= field.name =*/ = /*= field | field_type =*/{};
+  /*= field | field_type =*/ The/*= field.name =*/ = /*= field | get_default_value =*/;
   /**- endfor **/
 
   /** for field in struct.fields **/
   static_assert(Yamlizable</*= field | field_type =*/>);
   /**- endfor **/
 
+  /** if emit_tracking -**/
   //
   // Tracking helpers
   //
-  /**- if emit_tracking **/
   /**- for field in struct.fields **/
   mutable revng::AccessTracker /*= field.name =*/Tracker = revng::AccessTracker(false);
   /**- endfor **/
@@ -123,6 +123,8 @@ public:
     /**- if not loop.first or struct.inherits **/, /** endif **/The/*= field.name =*/(
       /**- if struct.name == root_type and field.name == "Version" -**/
         SchemaVersion
+      /**- else -**/
+        /*= field | get_default_value =*/
       /**- endif -**/
     )
     /**- endfor **/ {
@@ -216,6 +218,87 @@ public:
     ) /** if not loop.last **/, /** endif **/
     /**- endfor **/ {}
   /** endif **/
+
+  /*#- Auto-increment helpers #*/
+  /** for field in struct.fields **/
+  /**- if field.__class__.__name__ == "SequenceStructField" **/
+  /**- if field.resolved_element_type.autoincrement_field **/
+public:
+  //
+  // Helpers for an autoincrement field: `/*= field.name =*/()./*= field.resolved_element_type.autoincrement_field.name =*/()`.
+  //
+
+  uint64_t getNextAvailable/*= field.resolved_element_type.autoincrement_field.name =*/For/*= field.name =*/() const {
+    static_assert(StrictSpecializationOf</*= field | field_type =*/::UnderlyingContainer, SortedVector>,
+                  "As of now, auto-increment types are only allowed in "
+                  "`SortedVector` fields");
+    if (/*= field.name =*/().empty())
+      return 0;
+
+    return /*= field.name =*/().rbegin()->get()->ID() + 1;
+  }
+
+  /// Record a new element into `/*= field.name =*/` while ensuring its
+  /// autoincrement field is set correctly.
+  ///
+  /// \returns a reference to the newly inserted element.
+  /*= field.resolved_element_type.base | user_fullname =*/ &
+  recordNew/*= field.element_type =*/(
+    /**- if field.resolved_element_type.abstract **/
+      /*= field.resolved_element_type | user_fullname =*/ &&T) {
+    revng_assert(!T.isEmpty());
+    /*= field.resolved_element_type.base | user_fullname =*/ &V = *T;
+    /**- else **/
+      /*= field.resolved_element_type | user_fullname =*/ &&T) {
+    /*= field.resolved_element_type | user_fullname =*/ &V = T;
+    /**- endif **/
+
+    if (V./*= field.resolved_element_type.autoincrement_field.name =*/() !=
+        /*= field.resolved_element_type.autoincrement_field.type =*/(
+          /*= field.resolved_element_type.autoincrement_field.default =*/)) {
+      std::string Error = "Autoincrement fields must not have a non-default"
+                          "value before they are inserted.\n"
+                          + ::toString(T);
+      revng_abort(Error.c_str());
+    }
+
+    // Assign progressive ID
+    V./*= field.resolved_element_type.autoincrement_field.name =*/() =
+      getNextAvailable/*= field.resolved_element_type.autoincrement_field.name =*/For/*= field.name =*/();
+
+    auto &&[It, Success] = /*= field.name =*/().insert(std::move(T));
+    revng_assert(Success);
+
+    return **It;
+  }
+
+  /// Record a newly created element into `/*= field.name =*/()` while ensuring
+  /// its autoincrement field is set correctly.
+  ///
+  /// Notice that this helper passes all its arguments directly to
+  /// the constructor of the given type.
+  /**- if field.resolved_element_type.abstract **/
+  template<derived_from</*= field.resolved_element_type.base | user_fullname =*/> NewType,
+           typename ...ArgumentTypes>
+  NewType &make/*= field.element_type =*/(ArgumentTypes &&...Arguments) {
+    using U = /*= field.resolved_element_type | user_fullname =*/;
+    U Result = U::make<NewType>(std::forward<ArgumentTypes>(Arguments)...);
+    return llvm::cast<NewType>(recordNew/*= field.element_type =*/(std::move(Result)));
+  }
+
+  /**- else **/
+  template<typename ...ArgumentTypes>
+  /*= field.resolved_element_type | user_fullname =*/ &
+  make/*= field.element_type =*/(ArgumentTypes &&...Arguments) {
+    /*= field.resolved_element_type | user_fullname =*/ Result { std::forward<ArgumentTypes>(Arguments)... };
+    return llvm::cast<NewType>(recordNew/*= field.element_type =*/(std::move(Result)));
+  }
+  /**- endif **/
+  /**- endif **/
+  /**- endif **/
+  /**- endfor **/
+
+public:
 
   /** if struct._key **/
   // Key definition for KeyedObjectTraits

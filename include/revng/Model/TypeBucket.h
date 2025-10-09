@@ -20,7 +20,7 @@ private:
 public:
   TypeBucket(model::Binary &Binary) :
     Binary(Binary),
-    FirstAvailableID(Binary.getAvailableTypeID()),
+    FirstAvailableID(Binary.getNextAvailableIDForTypeDefinitions()),
     NextAvailableID(FirstAvailableID) {}
   TypeBucket(const TypeBucket &Another) = delete;
   TypeBucket(TypeBucket &&Another) = default;
@@ -34,11 +34,14 @@ public:
   ///
   /// The managed model is the one \ref Binary points to.
   void commit() {
-    revng_assert(Binary.getAvailableTypeID() == FirstAvailableID,
+    uint64_t ActualNextID = Binary.getNextAvailableIDForTypeDefinitions();
+    revng_assert(ActualNextID == FirstAvailableID,
                  "Unable to commit: owner's id requirements have changed");
 
     Binary.recordNewTypeDefinitions(std::move(Definitions));
-    NextAvailableID = FirstAvailableID = Binary.getAvailableTypeID();
+
+    ActualNextID = Binary.getNextAvailableIDForTypeDefinitions();
+    NextAvailableID = FirstAvailableID = ActualNextID;
     Definitions.clear();
   }
 
@@ -47,7 +50,8 @@ public:
   ///
   /// The managed model is the one \ref Binary points to.
   void drop() {
-    NextAvailableID = FirstAvailableID;
+    uint64_t ActualNextID = Binary.getNextAvailableIDForTypeDefinitions();
+    NextAvailableID = FirstAvailableID = ActualNextID;
     Definitions.clear();
   }
 
@@ -67,7 +71,7 @@ public:
     NewD *Upcasted = llvm::cast<NewD>(D.get());
 
     // Assign the ID
-    revng_assert(Upcasted->ID() == 0);
+    revng_assert(Upcasted->ID() == uint64_t(-1));
     Upcasted->ID() = NextAvailableID++;
 
     return { *Upcasted, Binary.makeType(Upcasted->key()) };

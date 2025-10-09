@@ -64,43 +64,6 @@ export class Reference<T, M> {
     }
 }
 
-/**
- * Generate a random hexadecimal string
- * @param length output string length
- * @returns a random string
- */
-function randomBytes(length: number): string {
-    let value = "";
-    for (let i = 0; i < length; i++) {
-        value += (Math.random() * 16).toString(16);
-    }
-    return value;
-}
-
-/**
- * Generate a random bigint, between [start, end)
- * @param start lower bound
- * @param end upper bound
- * @returns random bigint
- */
-function randomBigint(start: bigint, end: bigint): bigint {
-    const diff = end - start;
-    let value = end;
-    do {
-        const randomLength = diff.toString().length * Math.random();
-        value = BigInt(`0x${randomBytes(randomLength)}`);
-    } while (value > diff);
-    return value + start;
-}
-
-/**
- * Utility function that returns a bigint suitable for IDs
- * @returns guid ID
- */
-export function genGuid(): bigint {
-    return randomBigint(2n ** 10n + 1n, 2n ** 64n - 1n);
-}
-
 // Tree traversal
 
 function getElementByPathArray<T>(path: string[], obj: any): T | undefined {
@@ -303,7 +266,6 @@ export function _makeDiff<T>(
         type: rootType,
         ctor: "class",
         isArray: false,
-        optional: false,
         isAbstract: false,
     };
     return new DiffSet(
@@ -584,7 +546,6 @@ type NativeParsable = (rawObject: any) => any;
 export type TupleTreeType = Constructor | Parsable;
 
 interface CommonTypeInfo {
-    optional: boolean;
     isArray: boolean;
     isAbstract: boolean;
 }
