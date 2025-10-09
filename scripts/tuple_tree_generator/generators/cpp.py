@@ -276,6 +276,8 @@ class CppGenerator:
     def fullname(self, resolved_type: Definition):
         if isinstance(resolved_type, StructDefinition):
             return f"{self.generated_namespace}::{resolved_type.name}"
+        elif isinstance(resolved_type, UpcastableDefinition):
+            return f"{self.base_namespace}::Upcastable{resolved_type.base.name}"
         elif isinstance(resolved_type, EnumDefinition):
             return f"{self.base_namespace}::{resolved_type.name}::Values"
         else:
@@ -284,6 +286,8 @@ class CppGenerator:
     def user_fullname(self, resolved_type: Definition):
         if isinstance(resolved_type, StructDefinition):
             return f"{self.base_namespace}::{resolved_type.name}"
+        elif isinstance(resolved_type, UpcastableDefinition):
+            return f"{self.base_namespace}::Upcastable{resolved_type.base.name}"
         elif isinstance(resolved_type, EnumDefinition):
             return f"{self.base_namespace}::{resolved_type.name}::Values"
         else:
