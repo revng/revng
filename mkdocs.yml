@@ -5,7 +5,7 @@
 site_name: rev.ng docs
 docs_dir: share/doc/revng
 theme:
-  name: material
+  name: mkdocs
   palette:
     scheme: revng
   font:
