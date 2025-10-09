@@ -64,12 +64,12 @@ class SimpleStructField(StructField):
         doc=None,
         const=False,
         default=None,
-        is_guid=False,
+        incomparable=False,
     ):
         super().__init__(name=name, doc=doc, const=const)
         self.type = type
         self.default = default
-        self.is_guid = is_guid
+        self.incomparable = incomparable
 
     def resolve_references(self, schema):
         self.resolved_type = schema.get_definition_for(self.type)

@@ -102,9 +102,9 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
 
   /**- elif field.__class__.__name__ == "SimpleStructField" **/
 
-  /**- if field.is_guid **/
+  /**- if field.incomparable **/
   // The following field will not be compared as it's declared as
-  // a global index: `/*= field.name =*/`.
+  // such: `/*= field.name =*/`.
 
   /**- elif schema.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
   /**- if field.upcastable -**/

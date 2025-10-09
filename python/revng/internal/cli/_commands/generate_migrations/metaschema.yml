@@ -115,7 +115,7 @@ definitions:
   #     optional:
   #       type: boolean
   #       default: false
-  #     is_guid:
+  #     incomparable:
   #       type: boolean
   #       default: false
   #     const:
