@@ -10,7 +10,12 @@ from .definition import Definition
 from .enum import EnumDefinition
 from .reference import ReferenceDefinition
 from .sequence import SequenceDefinition
-from .upcastable import UpcastableDefinition
+
+
+class UpcastableDefinition(Definition):
+    def __init__(self, base: Definition):
+        super().__init__(False)
+        self.base = base
 
 
 def is_enum(resolved_type):
