@@ -45,7 +45,6 @@ class CppGenerator:
         )
 
         # More convenient than escaping the double braces
-        self.environment.globals["nodiscard"] = "[[ nodiscard ]]"
         self.environment.filters["docstring"] = self.render_docstring
         self.environment.filters["field_type"] = self.field_type
         self.environment.filters["fullname"] = self.fullname
