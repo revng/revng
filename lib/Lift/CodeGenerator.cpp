@@ -21,7 +21,6 @@
 #include "llvm/ExecutionEngine/RuntimeDyld.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/DiagnosticPrinter.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Module.h"
@@ -47,6 +46,7 @@
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/ProgramCounterHandler.h"
 
 #include "CodeGenerator.h"
@@ -115,7 +115,7 @@ public:
     Map.clear();
   }
 
-  Instruction *wrap(IRBuilder<> &Builder, Value *V) {
+  Instruction *wrap(revng::IRBuilder &Builder, Value *V) {
     Type *ResultType = V->getType();
     Function *F = nullptr;
     auto It = Map.find(ResultType);
@@ -132,7 +132,8 @@ public:
   }
 
   Instruction *wrap(Instruction *I) {
-    IRBuilder<> Builder(I->getParent(), ++I->getIterator());
+    revng::IRBuilder Builder(I->getParent(), ++I->getIterator());
+    Builder.ChecksEnabled = false; // Debug information hasn't been attached yet.
     return wrap(Builder, I);
   }
 };
@@ -385,7 +386,9 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   Value *CPUState = Call->getArgOperand(0);
   Type *TargetType = CpuExec.getReturnType();
 
-  IRBuilder<> Builder(Call);
+  revng::IRBuilder Builder(Call);
+  Builder.ChecksEnabled = false; // Debug information hasn't been attached yet.
+
   Type *IntPtrTy = Builder.getIntPtrTy(M.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
   using CI = ConstantInt;
@@ -660,7 +663,10 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
       if (not OldFunction->empty())
         DLocation = OldFunction->getEntryBlock().getTerminator()->getDebugLoc();
 
-      emitAbort(replaceFunction(OldFunction),
+      revng::IRBuilder Builder(replaceFunction(OldFunction), DLocation);
+      Builder.ChecksEnabled = false; // Debug information hasn't been attached yet.
+
+      emitAbort(Builder,
                 llvm::Twine("Abort instead of calling `") + Name + "`",
                 std::move(DLocation));
     }
@@ -777,7 +783,8 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
                                                TheModule,
                                                Factory);
 
-  IRBuilder<> Builder(Context);
+  revng::IRBuilder Builder(Context);
+  Builder.ChecksEnabled = false; // Debug information hasn't been attached yet.
 
   // Create main function
   auto *MainType = FT::get(Builder.getVoidTy(),

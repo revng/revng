@@ -373,6 +373,7 @@ extractSegmentKeyFromMetadata(const llvm::Function &F) {
 
   auto *SAMD = cast<MDString>(Node->getOperand(0));
   MetaAddress StartAddress = MetaAddress::fromString(SAMD->getString());
+  revng_assert(StartAddress.isValid());
   auto *VSMD = cast<ConstantAsMetadata>(Node->getOperand(1))->getValue();
   uint64_t VirtualSize = cast<ConstantInt>(VSMD)->getZExtValue();
 
@@ -432,6 +433,7 @@ extractStringLiteralFromMetadata(const llvm::Function &F) {
 
   StringRef SAMD = cast<MDString>(Node->getOperand(0))->getString();
   MetaAddress StartAddress = MetaAddress::fromString(SAMD);
+  revng_assert(StartAddress.isValid());
 
   auto ExtractInteger = [](const MDOperand &Operand) {
     auto *MD = cast<ConstantAsMetadata>(Operand)->getValue();
@@ -454,7 +456,7 @@ extractStringLiteralFromMetadata(const llvm::Function &F) {
 RegisterIRHelper RevngAbortHelper(AbortFunctionName.str());
 
 template<bool ShouldTerminateTheBlock>
-llvm::CallInst &emitMessageImpl(llvm::IRBuilderBase &Builder,
+llvm::CallInst &emitMessageImpl(revng::IRBuilder &Builder,
                                 const llvm::Twine &Message,
                                 const llvm::DebugLoc &DbgLocation,
                                 const ProgramCounterHandler *PCH) {
@@ -508,14 +510,14 @@ llvm::CallInst &emitMessageImpl(llvm::IRBuilderBase &Builder,
   return *NewCall;
 }
 
-llvm::CallInst &emitAbort(llvm::IRBuilderBase &Builder,
+llvm::CallInst &emitAbort(revng::IRBuilder &Builder,
                           const llvm::Twine &Message,
                           const llvm::DebugLoc &DbgLocation,
                           const ProgramCounterHandler *PCH) {
   return emitMessageImpl<true>(Builder, Message, DbgLocation, PCH);
 }
 
-llvm::CallInst &emitMessage(llvm::IRBuilderBase &Builder,
+llvm::CallInst &emitMessage(revng::IRBuilder &Builder,
                             const llvm::Twine &Message,
                             const llvm::DebugLoc &DbgLocation,
                             const ProgramCounterHandler *PCH) {

@@ -28,7 +28,6 @@ public:
 
 public:
   bool run() {
-    ExitOnError ExitOnError;
     std::error_code EC;
 
     llvm::ToolOutputFile OutputFile(OutputPath, EC, llvm::sys::fs::OF_Text);

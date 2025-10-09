@@ -65,14 +65,14 @@ std::unique_ptr<ContainerBase>
 LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
   using InspectorT = LLVMKind;
   auto ToClone = InspectorT::functions(Targets, *this->self());
-  auto ToClonedNotOwned = InspectorT::untrackedFunctions(*this->self());
+  auto ToCloneUntracked = InspectorT::untrackedFunctions(*this->self());
 
-  const auto Filter = [&ToClone, &ToClonedNotOwned](const auto &GlobalSym) {
+  const auto Filter = [&ToClone, &ToCloneUntracked](const auto &GlobalSym) {
     if (not llvm::isa<llvm::Function>(GlobalSym))
       return true;
 
     const auto &F = llvm::cast<llvm::Function>(GlobalSym);
-    return ToClone.contains(F) or ToClonedNotOwned.contains(F);
+    return ToClone.contains(F) or ToCloneUntracked.contains(F);
   };
 
   llvm::ValueToValueMapTy Map;
@@ -94,6 +94,16 @@ LLVMContainer::cloneFiltered(const TargetsList &Targets) const {
   return std::make_unique<ThisType>(this->name(),
                                     this->TheContext,
                                     std::move(Cloned));
+}
+
+LLVMContainer &LLVMContainer::cloneFrom(const LLVMContainer &Another) {
+  Module = llvm::CloneModule(Another.getModule());
+  return *this;
+}
+
+LLVMContainer &LLVMContainer::swapWith(LLVMContainer &Another) {
+  std::swap(Module, Another.Module);
+  return *this;
 }
 
 using LinkageRestoreMap = std::map<std::string,

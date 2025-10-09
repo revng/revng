@@ -2,8 +2,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/Support/ErrorHandling.h"
-
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/IndentedOstream.h"
 #include "revng/PTML/Tag.h"

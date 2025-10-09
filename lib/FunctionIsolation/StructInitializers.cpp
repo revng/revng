@@ -23,7 +23,7 @@ StructInitializers::StructInitializers(llvm::Module *M) :
   Pool.initializeFromReturnType(FunctionTags::StructInitializer);
 }
 
-Instruction *StructInitializers::createReturn(IRBuilder<> &Builder,
+Instruction *StructInitializers::createReturn(revng::IRBuilder &Builder,
                                               ArrayRef<Value *> Values) {
   // Obtain return StructType
   auto *FT = Builder.GetInsertBlock()->getParent()->getFunctionType();
@@ -41,7 +41,7 @@ Instruction *StructInitializers::createReturn(IRBuilder<> &Builder,
   // Lazily populate its body
   if (Initializer->isDeclaration()) {
     auto *Entry = BasicBlock::Create(Context, "", Initializer);
-    IRBuilder<> InitializerBuilder(Entry);
+    revng::IRBuilder InitializerBuilder(Entry);
 
     SmallVector<Value *, 8> Arguments;
     for (Argument &Arg : Initializer->args())

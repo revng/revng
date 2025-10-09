@@ -6,7 +6,6 @@
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/DynamicLibrary.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "revng/Support/CommandLine.h"

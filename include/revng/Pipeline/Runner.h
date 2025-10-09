@@ -127,12 +127,12 @@ public:
   /// Given a target, all occurrences of that target from every container in
   /// every step will be registered in the returned invalidation map. The
   /// propagations will not be calculated.
-  llvm::Error getInvalidations(const Target &Target,
-                               pipeline::TargetInStepSet &Invalidations) const;
+  void getInvalidations(const Target &Target,
+                        pipeline::TargetInStepSet &Invalidations) const;
 
   /// Deduces and register in the invalidation map all the targets that have
   /// been produced starting from targets already presents in the map.
-  llvm::Error getInvalidations(pipeline::TargetInStepSet &Invalidated) const;
+  void getInvalidations(pipeline::TargetInStepSet &Invalidated) const;
 
 public:
   template<typename... PipeWrappers>

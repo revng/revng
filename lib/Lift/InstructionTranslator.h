@@ -9,9 +9,9 @@
 #include <vector>
 
 #include "llvm/ADT/SmallSet.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/Pass.h"
 
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/ProgramCounterHandler.h"
 
 #include "JumpTargetManager.h"
@@ -34,14 +34,14 @@ class InstructionTranslator {
 public:
   using LabeledBlocksMap = std::map<std::string, llvm::BasicBlock *>;
 
-  /// \param Builder the IRBuilder to be used to create the translated
+  /// \param Builder the revng::IRBuilder to be used to create the translated
   ///                code.
   /// \param Variables reference to the VariableManager.
   /// \param JumpTargets reference to the JumpTargetManager.
   /// \param Blocks reference to a `vector` of `BasicBlock`s used to keep track
   ///        on which `BasicBlock`s the InstructionTranslator worked on, for
   ///        further processing.
-  InstructionTranslator(llvm::IRBuilder<> &Builder,
+  InstructionTranslator(revng::IRBuilder &Builder,
                         VariableManager &Variables,
                         JumpTargetManager &JumpTargets,
                         std::vector<llvm::BasicBlock *> Blocks,
@@ -49,7 +49,7 @@ public:
                         ProgramCounterHandler *PCH);
 
   // Emit a call to newpc
-  llvm::CallInst *emitNewPCCall(llvm::IRBuilder<> &Builder,
+  llvm::CallInst *emitNewPCCall(revng::IRBuilder &Builder,
                                 MetaAddress PC,
                                 uint64_t Size,
                                 llvm::Value *String) const;
@@ -126,7 +126,7 @@ private:
                   std::vector<llvm::Value *> InArguments);
 
 private:
-  llvm::IRBuilder<> &Builder;
+  revng::IRBuilder &Builder;
   VariableManager &Variables;
   JumpTargetManager &JumpTargets;
   std::map<std::string, llvm::BasicBlock *> LabeledBasicBlocks;

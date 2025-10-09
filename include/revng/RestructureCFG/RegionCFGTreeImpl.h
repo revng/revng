@@ -17,7 +17,6 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Dominators.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"

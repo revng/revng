@@ -15,6 +15,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/Linker/Linker.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_os_ostream.h"
 
@@ -612,5 +613,67 @@ void sortModule(llvm::Module &M) {
     // Re-add blocks in the correct order
     for (auto *BB : SortedBlocks)
       BB->insertInto(F);
+  }
+}
+
+void linkModules(std::unique_ptr<llvm::Module> &&Source,
+                 llvm::Module &Destination,
+                 std::optional<llvm::GlobalValue::LinkageTypes> FinalLinkage) {
+  std::map<std::string, llvm::GlobalValue::LinkageTypes> HelperGlobals;
+
+  auto HandleGlobals = [&HelperGlobals, &Destination](auto &&GlobalsRange) {
+    using T = std::decay_t<decltype(*GlobalsRange.begin())>;
+    for (T &HelperGlobal : GlobalsRange) {
+      auto GlobalName = HelperGlobal.getName();
+
+      if (GlobalName.empty() or GlobalName.startswith("llvm."))
+        continue;
+
+      // Register so we can change its linkage later
+      HelperGlobals[GlobalName.str()] = HelperGlobal.getLinkage();
+
+      llvm::GlobalObject *LocalGlobal = nullptr;
+      if constexpr (std::is_same_v<T, llvm::GlobalVariable>) {
+        LocalGlobal = Destination.getGlobalVariable(GlobalName, true);
+      } else {
+        static_assert(std::is_same_v<T, llvm::Function>);
+        LocalGlobal = Destination.getFunction(GlobalName);
+      }
+
+      if (LocalGlobal != nullptr) {
+        // We have a global with the same name
+        HelperGlobal.setLinkage(llvm::GlobalValue::ExternalLinkage);
+        LocalGlobal->setLinkage(llvm::GlobalValue::ExternalLinkage);
+
+        bool AlreadyAvailable = not LocalGlobal->isDeclaration();
+        if (AlreadyAvailable) {
+          // Turn helper global into declaration
+          if constexpr (std::is_same_v<T, llvm::GlobalVariable>) {
+            HelperGlobal.setInitializer(nullptr);
+          } else {
+            static_assert(std::is_same_v<T, llvm::Function>);
+            HelperGlobal.deleteBody();
+          }
+        }
+      }
+    }
+  };
+
+  HandleGlobals(Source->globals());
+  HandleGlobals(Source->functions());
+
+  llvm::Linker TheLinker(Destination);
+  bool Failed = TheLinker.linkInModule(std::move(Source),
+                                       llvm::Linker::LinkOnlyNeeded);
+  revng_assert(not Failed, "Linking failed");
+
+  for (auto [GlobalName, Linkage] : HelperGlobals) {
+    if (auto *GV = Destination.getGlobalVariable(GlobalName))
+      if (not GV->isDeclaration())
+        GV->setLinkage(FinalLinkage.value_or(Linkage));
+
+    if (auto *F = Destination.getFunction(GlobalName))
+      if (not F->isDeclaration())
+        F->setLinkage(FinalLinkage.value_or(Linkage));
   }
 }

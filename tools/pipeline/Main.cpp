@@ -194,9 +194,8 @@ int main(int argc, char *argv[]) {
   else if (ProduceAllPossibleTargetsSingle)
     AbortOnError(Manager.produceAllPossibleSingleTargets());
 
-  if (InvalidateAll) {
+  if (InvalidateAll)
     AbortOnError(Manager.invalidateAllPossibleTargets());
-  }
 
   AbortOnError(Manager.store(StoresOverrides));
   AbortOnError(Manager.store());

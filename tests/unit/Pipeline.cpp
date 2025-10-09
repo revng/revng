@@ -12,7 +12,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/InitializePasses.h"
@@ -41,6 +40,7 @@
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/IRBuilder.h"
 
 #define BOOST_TEST_MODULE Pipeline
 bool init_unit_test();
@@ -657,7 +657,6 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineFailure) {
 
   auto Error = Pipeline.run("end", Targets);
   BOOST_TEST(!!Error);
-  consumeError(std::move(Error));
 }
 
 static void makeF(llvm::Module &M, llvm::StringRef FName) {
@@ -667,8 +666,8 @@ static void makeF(llvm::Module &M, llvm::StringRef FName) {
   auto F = M.getOrInsertFunction(FName, FType);
   auto *Fun = llvm::dyn_cast<llvm::Function>(F.getCallee());
   auto *BB = llvm::BasicBlock::Create(M.getContext(), "bb", Fun);
-  llvm::IRBuilder<> Builder(BB);
-  Builder.SetInsertPoint(BB);
+  revng::IRBuilder Builder(BB);
+  Builder.ChecksEnabled = false;
   Builder.CreateRet(nullptr);
 }
 
@@ -822,9 +821,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineForwardFinedGrained) {
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
   Invalidations[Name].add(CName, {}, RootKind);
 
-  auto Error = Pipeline.getInvalidations(Invalidations);
-  BOOST_TEST(!Error);
-
+  Pipeline.getInvalidations(Invalidations);
   const auto &EndContainerInvalidations = Invalidations["end"][CName];
   BOOST_TEST(not EndContainerInvalidations.empty());
   BOOST_TEST((EndContainerInvalidations == TargetsList({ T, T2 })));
@@ -854,8 +851,7 @@ BOOST_AUTO_TEST_CASE(SingleElementPipelineInvalidation) {
   Target ToKill({}, RootKind);
 
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
-  auto Error = Pipeline.getInvalidations(ToKill, Invalidations);
-  BOOST_TEST(!Error);
+  Pipeline.getInvalidations(ToKill, Invalidations);
   const auto &QuantifOfInvalidated = Invalidations["end"][CName]
                                        .front()
                                        .getPathComponents();
@@ -1320,11 +1316,8 @@ BOOST_AUTO_TEST_CASE(MultiStepInvalidationTest) {
   pipeline::TargetInStepSet Invalidations;
   Invalidations[Name][CName].push_back(T);
 
-  auto Error = Pipeline.getInvalidations(Invalidations);
-  BOOST_TEST(!Error);
-
-  Error = Pipeline.invalidate(Invalidations);
-
+  Pipeline.getInvalidations(Invalidations);
+  llvm::Error Error = Pipeline.invalidate(Invalidations);
   BOOST_TEST(!Error);
 
   BOOST_TEST(C1.get(T) == 0);

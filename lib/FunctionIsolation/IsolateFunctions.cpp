@@ -15,11 +15,11 @@
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
+#include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
@@ -52,6 +52,7 @@
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
@@ -83,27 +84,63 @@ struct IsolatePipe {
     return { ContractGroup({ Contract(kinds::Root,
                                       1,
                                       kinds::Isolated,
-                                      1,
+                                      2,
                                       InputPreservation::Preserve),
                              Contract(kinds::CFG,
                                       0,
                                       kinds::Isolated,
-                                      1,
+                                      2,
                                       InputPreservation::Preserve) }) };
   }
 
+private:
+  static void cleanTheModuleUp(llvm::Module &Module) {
+    // Is there something in LLVM that does this already?
+
+    // WARNING: this removes way too much, breaking some assumptions
+    // we have about the module.
+    // TODO: investigate the proper way to do this.
+
+    // llvm::legacy::PassManager PM;
+    // PM.add(llvm::createStripDeadPrototypesPass());
+    // PM.add(llvm::createGlobalDCEPass());
+    // PM.add(llvm::createDeadArgEliminationPass());
+    // PM.add(llvm::createStripDeadDebugInfoPass());
+    // for (int i = 0; i < 3; ++i) {
+    //   PM.add(llvm::createGlobalDCEPass());
+    //   PM.add(llvm::createStripDeadPrototypesPass());
+    // }
+
+    // PM.run(Module);
+  }
+
+public:
   void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
-           pipeline::LLVMContainer &ModuleContainer) {
+           pipeline::LLVMContainer &RootContainer,
+           pipeline::LLVMContainer &OutputContainer) {
+    // Clone the container
+    OutputContainer.cloneFrom(RootContainer);
+
+    // Do the isolation
     using namespace revng;
     llvm::legacy::PassManager Manager;
     Manager.add(new pipeline::LoadExecutionContextPass(&EC,
-                                                       ModuleContainer.name()));
+                                                       OutputContainer.name()));
     Manager
       .add(new LoadModelWrapperPass(ModelWrapper(getModelFromContext(EC))));
     Manager.add(new ControlFlowGraphCachePass(CFGMap));
     Manager.add(new IsolateFunctions());
-    Manager.run(ModuleContainer.getModule());
+    Manager.run(OutputContainer.getModule());
+
+    // Remove "root" from the output container.
+    namespace FT = FunctionTags;
+    for (Function &F : FT::Root.functions(&OutputContainer.getModule()))
+      F.deleteBody();
+
+    // Finally, do some basic cleanup, removing unused stuff.
+    cleanTheModuleUp(RootContainer.getModule());
+    cleanTheModuleUp(OutputContainer.getModule());
   }
 };
 
@@ -217,7 +254,7 @@ public:
 public:
   void run();
 
-  void emitAbort(IRBuilder<> &Builder,
+  void emitAbort(revng::IRBuilder &Builder,
                  const Twine &Reason,
                  const DebugLoc &DbgLocation) {
     ::emitAbort(Builder, Reason, DbgLocation, GCBI.programCounterHandler());
@@ -225,11 +262,11 @@ public:
 
   void
   emitAbort(BasicBlock *BB, const Twine &Reason, const DebugLoc &DbgLocation) {
-    IRBuilder<> Builder(BB);
+    revng::IRBuilder Builder(BB);
     emitAbort(Builder, Reason, DbgLocation);
   }
 
-  void emitUnreachable(IRBuilder<> &Builder,
+  void emitUnreachable(revng::IRBuilder &Builder,
                        const Twine &Reason,
                        const DebugLoc &DbgLocation) {
     // Emitting any long-lasting messages here prevents switch detection,
@@ -240,7 +277,7 @@ public:
   void emitUnreachable(BasicBlock *BB,
                        const Twine &Reason,
                        const DebugLoc &DbgLocation) {
-    IRBuilder<> Builder(BB);
+    revng::IRBuilder Builder(BB);
     emitUnreachable(Builder, Reason, DbgLocation);
   }
 
@@ -268,7 +305,7 @@ void IFI::populateFunctionDispatcher() {
   emitUnreachable(Unexpected, "An unexpected function has been called", Dbg);
   setBlockType(Unexpected->getTerminator(), BlockType::UnexpectedPCBlock);
 
-  IRBuilder<> Builder(Context);
+  revng::IRBuilder Builder(Context);
 
   // Create all the entries of the dispatcher
   ProgramCounterHandler::DispatcherTargets Targets;
@@ -377,7 +414,7 @@ public:
 
 public:
   void handleCall(MetaAddress CallerBlock,
-                  llvm::IRBuilder<> &Builder,
+                  revng::IRBuilder &Builder,
                   MetaAddress Callee,
                   const efa::CSVSet &ClobberedRegisters,
                   const std::optional<int64_t> &MaybeFSO,
@@ -390,14 +427,14 @@ public:
     handleCall(Builder, Callee, SymbolNamePointer);
   }
 
-  void handlePostNoReturn(llvm::IRBuilder<> &Builder,
+  void handlePostNoReturn(revng::IRBuilder &Builder,
                           const llvm::DebugLoc &DbgLocation) final {
     IFI.emitUnreachable(Builder,
                         "We return from a noreturn function call",
                         DbgLocation);
   }
 
-  void handleIndirectJump(llvm::IRBuilder<> &Builder,
+  void handleIndirectJump(revng::IRBuilder &Builder,
                           MetaAddress Block,
                           const efa::CSVSet &ClobberedRegisters,
                           llvm::Value *SymbolNamePointer) final {
@@ -407,7 +444,7 @@ public:
   }
 
 private:
-  void handleCall(llvm::IRBuilder<> &Builder,
+  void handleCall(revng::IRBuilder &Builder,
                   MetaAddress Callee,
                   llvm::Value *SymbolNamePointer) {
     // Identify caller block
@@ -565,6 +602,7 @@ void IsolateFunctionsImpl::run() {
     Context.getContext().pushReadFields();
 
     auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
+    revng_assert(Entry.isValid());
     const efa::ControlFlowGraph &FM = Cache->getControlFlowGraph(Entry);
 
     // Get or create the llvm::Function
@@ -639,7 +677,7 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
       Instruction *T = AnyPCPredecessor->getTerminator();
       revng_assert(not cast<BranchInst>(T)->isConditional());
       T->eraseFromParent();
-      IRBuilder<> Builder(AnyPCPredecessor);
+      revng::IRBuilder Builder(AnyPCPredecessor);
 
       // Get the only outgoing edge jumping to anypc
       if (Block == nullptr) {
