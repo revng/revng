@@ -29,10 +29,6 @@ public:
     // Commit
     EC.commitAllFor(T);
   }
-
-  llvm::Error checkPrecondition(const pipeline::Context &Ctx) const {
-    return llvm::Error::success();
-  }
 };
 
 } // namespace pipeline

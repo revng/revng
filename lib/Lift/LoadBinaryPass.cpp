@@ -27,16 +27,3 @@ bool LoadBinaryWrapperPass::runOnModule(llvm::Module &M) {
   BinaryView.emplace(*Model, Data);
   return false;
 }
-
-llvm::Expected<std::pair<RawBinaryView, std::unique_ptr<llvm::MemoryBuffer>>>
-loadBinary(const model::Binary &Model, llvm::StringRef BinaryPath) {
-  revng_assert(Model.verify(true));
-
-  auto FileContentsBuffer = llvm::MemoryBuffer::getFileOrSTDIN(BinaryPath);
-  if (auto ErrorCode = FileContentsBuffer.getError())
-    return llvm::errorCodeToError(std::move(ErrorCode));
-
-  std::unique_ptr<llvm::MemoryBuffer> Result = std::move(*FileContentsBuffer);
-  RawBinaryView ResultView(Model, toArrayRef(Result->getBuffer()));
-  return std::pair{ std::move(ResultView), std::move(Result) };
-}

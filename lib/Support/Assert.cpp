@@ -8,10 +8,6 @@
 #include <cassert>
 #include <iostream>
 
-#include "llvm/Support/Error.h"
-#include "llvm/Support/Signals.h"
-#include "llvm/Support/raw_os_ostream.h"
-
 #include "revng/Support/Assert.h"
 
 [[noreturn]] static void terminate(void) {

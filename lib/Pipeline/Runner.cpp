@@ -106,7 +106,7 @@ static void explainPipeline(const ContainerToTargetsMap &Targets,
   ExplanationLogger << DoLog;
 }
 
-Error Runner::getInvalidations(TargetInStepSet &Invalidated) const {
+void Runner::getInvalidations(TargetInStepSet &Invalidated) const {
 
   for (const Step &NextS : *this) {
     if (not NextS.hasPredecessor())
@@ -123,8 +123,6 @@ Error Runner::getInvalidations(TargetInStepSet &Invalidated) const {
     NextS.containers().intersect(Deduced);
     Outputs.merge(Deduced);
   }
-
-  return Error::success();
 }
 
 Step &Runner::addStep(Step &&NewStep) {
@@ -135,8 +133,8 @@ Step &Runner::addStep(Step &&NewStep) {
   return *ReversePostOrderIndexes.back();
 }
 
-llvm::Error Runner::getInvalidations(const Target &Target,
-                                     TargetInStepSet &Invalidations) const {
+void Runner::getInvalidations(const Target &Target,
+                              TargetInStepSet &Invalidations) const {
   for (const Step &Step : *this)
     for (const auto &Container : Step.containers()) {
       if (Container.second == nullptr)
@@ -146,16 +144,13 @@ llvm::Error Runner::getInvalidations(const Target &Target,
         Invalidations[Step.getName()].add(Container.first(), Target);
       }
     }
-  if (llvm::Error Error = getInvalidations(Invalidations); !!Error)
-    return Error;
 
-  return llvm::Error::success();
+  getInvalidations(Invalidations);
 }
 
 Error Runner::invalidate(const Target &Target) {
   llvm::StringMap<ContainerToTargetsMap> Invalidations;
-  if (llvm::Error Error = getInvalidations(Target, Invalidations); !!Error)
-    return Error;
+  getInvalidations(Target, Invalidations);
   return invalidate(Invalidations);
 }
 
@@ -209,7 +204,7 @@ Error Runner::store(const revng::DirectoryPath &DirPath) const {
     return Error;
 
   for (const auto &StepName : Steps.keys()) {
-    if (llvm::Error Error = storeStepToDisk(StepName, DirPath); !!Error) {
+    if (llvm::Error Error = storeStepToDisk(StepName, DirPath); Error) {
       return Error;
     }
   }
@@ -227,7 +222,7 @@ Error Runner::storeStepToDisk(llvm::StringRef StepName,
   if (auto Error = StepDir.create())
     return Error;
 
-  if (auto Error = Step->second.store(StepDir); !!Error)
+  if (auto Error = Step->second.store(StepDir); Error)
     return Error;
 
   return Error::success();
@@ -235,7 +230,7 @@ Error Runner::storeStepToDisk(llvm::StringRef StepName,
 
 Error Runner::loadContextDirectory(const revng::DirectoryPath &DirPath) {
   revng::DirectoryPath ContextDir = DirPath.getDirectory("context");
-  if (auto Error = TheContext->load(ContextDir); !!Error)
+  if (auto Error = TheContext->load(ContextDir); Error)
     return Error;
   return llvm::Error::success();
 }
@@ -243,17 +238,17 @@ Error Runner::loadContextDirectory(const revng::DirectoryPath &DirPath) {
 Error Runner::loadContainers(const revng::DirectoryPath &DirPath) {
   for (auto &Step : Steps) {
     revng::DirectoryPath StepDir = DirPath.getDirectory(Step.first());
-    if (auto Error = Step.second.load(StepDir); !!Error)
+    if (auto Error = Step.second.load(StepDir); Error)
       return Error;
   }
   return llvm::Error::success();
 }
 
 Error Runner::load(const revng::DirectoryPath &DirPath) {
-  if (auto Error = loadContextDirectory(DirPath); !!Error)
+  if (auto Error = loadContextDirectory(DirPath); Error)
     return Error;
 
-  if (auto Error = loadContainers(DirPath); !!Error)
+  if (auto Error = loadContainers(DirPath); Error)
     return Error;
 
   return Error::success();
@@ -482,8 +477,6 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
 llvm::Error Runner::apply(const GlobalTupleTreeDiff &Diff,
                           TargetInStepSet &Map) {
   getDiffInvalidations(Diff, Map);
-  if (auto Error = getInvalidations(Map))
-    return Error;
-
+  getInvalidations(Map);
   return invalidate(Map);
 }
