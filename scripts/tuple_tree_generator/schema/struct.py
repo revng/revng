@@ -16,6 +16,8 @@ class UpcastableDefinition(Definition):
     def __init__(self, base: Definition):
         super().__init__(False)
         self.base = base
+        if isinstance(base, StructDefinition):
+            self.abstract = base.abstract
 
 
 def is_enum(resolved_type):
