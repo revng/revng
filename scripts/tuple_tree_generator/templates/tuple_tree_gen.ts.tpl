@@ -107,14 +107,7 @@ export /** if class_.abstract **/abstract/** endif **/ class /*= class_.name =*/
 
     constructor(
         rawObject/*= '?' if completely_optional(class_) else '' =*/: I/*= class_.name =*/
-        /**- if class_ | get_guid **/
-        ,genGuid: (rawObject: I/*= class_.name =*/) => /*= class_ | get_guid | ts_type =*/) {
-            if (rawObject./*= class_ | get_guid | get_attr('name') =*/ === undefined) {
-                rawObject./*= class_ | get_guid | get_attr('name') =*/ = genGuid(rawObject);
-            }
-        /**- else **/
         ) {
-        /**- endif **/
         /**- if completely_optional(class_) **/
         if (rawObject === undefined) {
             rawObject = {};
@@ -126,11 +119,7 @@ export /** if class_.abstract **/abstract/** endif **/ class /*= class_.name =*/
         /** endif **/
         /**- endif **/
         /**- if class_.inherits **/
-        /**- if class_.inherits | get_guid **/
-        super(rawObject, genGuid);
-        /**- else **/
         super(rawObject)
-        /**- endif **/
         /**- endif **/
         /**- for field in class_.fields if not (class_.name == metadata["root"] and field.name == "Version") **/
             /*= field | gen_assignment =*/

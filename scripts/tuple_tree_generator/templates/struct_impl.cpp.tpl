@@ -96,17 +96,17 @@ bool /*= struct | fullname =*/::localCompare(const /*= struct | user_fullname =*
 
   /** for field in struct.all_fields **/
 
-  /**- if field.is_guid **/
-  // The following field will not be compared here as it's
-  // a guid field: `/*= field.name =*/`.
-
-  /**- elif field.__class__.__name__ == "ReferenceStructField" **/
+  /**- if field.__class__.__name__ == "ReferenceStructField" **/
   // The following field will not be compared here as it's
   // a reference field: `/*= field.name =*/`.
 
   /**- elif field.__class__.__name__ == "SimpleStructField" **/
 
-  /**- if schema.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
+  /**- if field.is_guid **/
+  // The following field will not be compared as it's declared as
+  // a global index: `/*= field.name =*/`.
+
+  /**- elif schema.get_definition_for(field.type).__class__.__name__ == "StructDefinition" -**/
   /**- if field.upcastable -**/
   if (this->/*= field.name =*/().isEmpty() || Other./*= field.name =*/().isEmpty()) {
     if (this->/*= field.name =*/() != Other./*= field.name =*/())

@@ -18,13 +18,12 @@ def is_enum(resolved_type):
 
 
 class StructField(ABC):
-    def __init__(self, *, name, doc=None, const=False, is_guid=False):
+    def __init__(self, *, name, doc=None, const=False):
         self.name = name
         self.doc = doc
         self.is_key = False
         self.upcastable = False
         self.const = const
-        self.is_guid = is_guid
         self.resolved_type = None
 
     @staticmethod
@@ -67,9 +66,10 @@ class SimpleStructField(StructField):
         default=None,
         is_guid=False,
     ):
-        super().__init__(name=name, doc=doc, const=const, is_guid=is_guid)
+        super().__init__(name=name, doc=doc, const=const)
         self.type = type
         self.default = default
+        self.is_guid = is_guid
 
     def resolve_references(self, schema):
         self.resolved_type = schema.get_definition_for(self.type)

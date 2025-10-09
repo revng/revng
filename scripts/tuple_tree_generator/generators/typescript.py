@@ -52,7 +52,6 @@ class TypeScriptGenerator:
         self.jinja_environment.filters["ts_doc"] = self.ts_doc
         self.jinja_environment.filters["ts_type"] = self.ts_type
         self.jinja_environment.filters["ts_itype"] = self.ts_itype
-        self.jinja_environment.filters["get_guid"] = self.get_guid_field
         self.jinja_environment.filters["get_attr"] = self.get_attr
         self.jinja_environment.filters["gen_assignment"] = self.gen_assignment
         self.jinja_environment.filters["gen_key"] = self.gen_key
@@ -138,10 +137,6 @@ class TypeScriptGenerator:
                 if (not only_concrete) or (not s.abstract)
             ]
         )
-
-    @classmethod
-    def get_guid_field(cls, class_: StructDefinition) -> Optional[StructField]:
-        return next((field for field in class_.fields if field.is_guid), None)
 
     def gen_assignment(self, field: StructField) -> str:
         if self._is_simple_type(field):
