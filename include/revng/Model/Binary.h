@@ -111,8 +111,7 @@ public:
   /// then triggers sorting, instead of conventional searching for the position
   /// of each element on its insertion.
   ///
-  /// \note Unlike recordNewTypeDefinitions, this method does not assign type
-  /// IDs.
+  /// \note Unlike recordNewType, this method does not assign type IDs.
   ///
   /// \note It takes advantage of `std::move_iterator` to ensure all
   ///       the elements are accessed strictly as r-values, so the original
