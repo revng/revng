@@ -6,7 +6,7 @@
 - Name: "strlen_2"
   Blocks:
     - Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: FunctionCall
           DynamicFunction: strlen
           IsTailCall: true
@@ -22,7 +22,7 @@
 - Name: do_not_use_plt
   Blocks:
     - Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: FunctionCall
           DynamicFunction: strlen
     - Successors:

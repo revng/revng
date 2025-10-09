@@ -56,6 +56,7 @@ target_tuple_tree_generator(
   SCHEMA_PATH
   ${SCHEMA_PATH}
   SEPARATE_STRING_TYPES
+  "BasicBlockID"
   "MetaAddress"
   SCALAR_TYPES
   "BasicBlockID"

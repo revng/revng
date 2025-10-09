@@ -305,7 +305,7 @@ private:
                                            HelperName.str());
 
     std::string
-      Name = Model.Configuration().Naming().artificialReturnValuePrefix().str()
+      Name = Model.Configuration().Naming().ArtificialReturnValuePrefix()
              + sanitizeIdentifier(HelperName);
 
     auto Definition = StructAttr::get(Context,

@@ -58,6 +58,12 @@ inline Values fromName(llvm::StringRef Name) {
     return Invalid;
   }
 }
+
+inline bool isValid(/*= base_namespace =*/::/*= enum.name =*/::Values Value) {
+  revng_assert(Value < Values::Count);
+  return Value != Values::Invalid;
+}
+
 } // namespace /*= base_namespace =*/::/*= enum.name =*/
 
 template<>

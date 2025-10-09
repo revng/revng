@@ -309,7 +309,7 @@ public:
 
     // TODO: don't use a global loop state variable
     const auto &Configuration = B.NameBuilder.Configuration;
-    llvm::StringRef LoopStateVariable = Configuration.loopStateVariableName();
+    llvm::StringRef LoopStateVariable = Configuration.LoopStateVariableName();
     auto [Definition, Reference] = B.getReservedVariableTags(ModelFunction,
                                                              LoopStateVariable);
     LoopStateVarDeclaration = std::move(Definition);
@@ -394,7 +394,7 @@ private:
     revng_assert(not TokenMap.contains(I));
 
     const auto &Configuration = Model.Configuration().Naming();
-    llvm::StringRef VarName = Configuration.stackFrameVariableName();
+    llvm::StringRef VarName = Configuration.StackFrameVariableName();
     auto [Definition, Reference] = B.getReservedVariableTags(ModelFunction,
                                                              VarName);
     TokenMap[I] = std::move(Reference);

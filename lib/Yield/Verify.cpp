@@ -11,17 +11,20 @@
 #include "revng/Yield/Instruction.h"
 
 bool yield::TaggedString::verify(model::VerifyHelper &VH) const {
-  if (Type() == TagType::Invalid)
-    return VH.fail("The type of this tag is not valid.");
+  if (not yield::TagType::isValid(Type()))
+    return VH.fail("Every tag must have a valid type.", *this);
+
   if (Content().empty())
     return VH.fail("This tag doesn't have any data.");
+
   if (Content().find('\n') != std::string::npos)
     return VH.fail("String is not allowed to break the line, "
                    "use multiple strings instead.");
+
   for (const yield::TagAttribute &Attribute : Attributes()) {
     if (Attribute.Name().empty())
       return VH.fail("Attributes without names are not allowed.");
-    if (Attribute.Name().empty())
+    if (Attribute.Value().empty())
       return VH.fail("Attributes without values are not allowed.");
   }
 
@@ -76,20 +79,19 @@ bool yield::Instruction::verify(model::VerifyHelper &VH) const {
 
 bool yield::BasicBlock::verify(model::VerifyHelper &VH) const {
   if (not ID().isValid())
-    return VH.fail("A basic block has to have a valid start address.");
+    return VH.fail("Every basic block must have a valid start address.");
   if (End().isInvalid())
-    return VH.fail("A basic block has to have a valid end address.");
+    return VH.fail("Every basic block must have a valid end address.");
   if (Instructions().empty())
-    return VH.fail("A basic block has to store at least a single instruction.");
+    return VH.fail("Every basic block must store at least one instruction.");
 
-  if (IsLabelAlwaysRequired())
-    if (!Label().verify())
-      return false;
+  if (!Label().verify())
+    return VH.fail();
 
   MetaAddress PreviousAddress = MetaAddress::invalid();
   for (const auto &Instruction : Instructions()) {
     if (!Instruction.verify(VH))
-      return VH.fail("Instruction verification failed.");
+      return VH.fail();
 
     if (PreviousAddress.isValid() && Instruction.Address() < PreviousAddress) {
       return VH.fail("Instructions must be strongly ordered and their size "
@@ -113,11 +115,14 @@ bool yield::BasicBlock::verify(model::VerifyHelper &VH) const {
 
 bool yield::Function::verify(model::VerifyHelper &VH) const {
   if (Entry().isInvalid())
-    return VH.fail("A function has to have a valid entry point.");
+    return VH.fail("Every function must have a valid entry point.");
+
+  if (Blocks().empty())
+    return VH.fail("Every function must have at lease one basic block.");
 
   for (const auto &BasicBlock : Blocks())
     if (!BasicBlock.verify(VH))
-      return VH.fail("Basic block verification failed.");
+      return VH.fail();
 
   return true;
 }

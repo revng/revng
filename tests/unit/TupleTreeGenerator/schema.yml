@@ -9,7 +9,6 @@ definitions:
       - name: RequiredField
         type: uint64_t
       - name: OptionalField
-        optional: true
         type: uint64_t
       - name: EnumField
         type: TestEnum
@@ -18,9 +17,7 @@ definitions:
           elementType: uint64_t
           type: SortedVector
       - name: ReferenceField
-        reference:
-          pointeeType: uint64_t
-          rootType: TestClass
+        referenceTo: uint64_t
     key:
       - RequiredField
     name: TestClass

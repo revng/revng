@@ -5,7 +5,7 @@
 ---
 - Blocks:
     - Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: FunctionCall
           DynamicFunction: strlen
           IsTailCall: true

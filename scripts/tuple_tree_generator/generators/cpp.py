@@ -10,10 +10,10 @@ from jinja2 import Environment
 
 from tuple_tree_generator.schema import Definition, EnumDefinition, ReferenceDefinition
 from tuple_tree_generator.schema import ScalarDefinition, Schema, SequenceDefinition
-from tuple_tree_generator.schema import SequenceStructField, StructDefinition, StructField
-from tuple_tree_generator.schema import UpcastableDefinition
+from tuple_tree_generator.schema import SequenceStructField, SimpleStructField, StructDefinition
+from tuple_tree_generator.schema import StructField, UpcastableDefinition
 
-from .jinja_utils import loader
+from .jinja_utils import int_re, loader
 
 
 class CppGenerator:
@@ -22,9 +22,11 @@ class CppGenerator:
         schema: Schema,
         base_namespace: str,
         emit_tracking: bool,
+        string_types=[],
         user_include_path: Optional[str] = None,
     ):
         self.schema = schema
+        self.string_types = string_types
         self.emit_tracking = emit_tracking
         self.base_namespace = base_namespace
         self.generated_namespace = f"{base_namespace}::generated"
@@ -45,9 +47,9 @@ class CppGenerator:
         )
 
         # More convenient than escaping the double braces
-        self.environment.globals["nodiscard"] = "[[ nodiscard ]]"
         self.environment.filters["docstring"] = self.render_docstring
         self.environment.filters["field_type"] = self.field_type
+        self.environment.filters["get_default_value"] = self.get_default_value
         self.environment.filters["fullname"] = self.fullname
         self.environment.filters["user_fullname"] = self.user_fullname
         self.environment.filters["is_struct_field"] = self.is_struct_field
@@ -299,3 +301,45 @@ class CppGenerator:
         if not rendered_docstring.endswith("\n"):
             rendered_docstring = rendered_docstring + "\n"
         return rendered_docstring
+
+    def get_default_value(self, field: StructField):
+        if isinstance(field.resolved_type, SequenceDefinition):
+            return f"{self.field_type(field)}()"
+
+        elif isinstance(field.resolved_type, ReferenceDefinition):
+            return "{}"
+
+        elif isinstance(field, SimpleStructField):
+            if field.type == "string" and field.default:
+                assert isinstance(field.default, str)
+                return f'"{field.default}"'
+
+            elif field.type in self.string_types and field.default:
+                assert isinstance(field.default, str)
+                return f'{self.field_type(field)}::fromString("{field.default}")'
+
+            elif field.type == "bool":
+                assert not field.default or isinstance(field.default, bool)
+                return "true" if field.default else "false"
+
+            elif int_re.match(field.type):
+                assert not field.default or isinstance(field.default, int)
+                return f"{field.default if field.default else 0}"
+
+            elif isinstance(field.resolved_type, EnumDefinition):
+                assert not field.default or isinstance(field.default, str)
+                return (
+                    f"{self.base_namespace}::{field.resolved_type.name}::"
+                    f"{field.default if field.default else "Invalid"}"
+                )
+
+            assert not field.default, (
+                "Currently `default:` is only allowed on simple types: "
+                "integers, booleans, strings and enums."
+            )
+
+            if isinstance(field, SimpleStructField):
+                return f"{self.field_type(field)}()"
+
+        else:
+            raise ValueError()

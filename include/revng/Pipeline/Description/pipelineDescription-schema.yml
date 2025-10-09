@@ -49,11 +49,9 @@ definitions:
       - name: Component
         doc: Step's component
         type: string
-        optional: true
       - name: Parent
         doc: The Step's parent (if present)
         type: string
-        optional: true
       - name: Analyses
         doc: List of Analyses that the Step provides
         sequence:
@@ -62,7 +60,6 @@ definitions:
       - name: Artifacts
         doc: The artifacts that this step provides
         type: Artifacts
-        optional: true
     key:
       - Name
 
@@ -79,11 +76,9 @@ definitions:
       - name: Parent
         doc: The Rank's parent (if present)
         type: string
-        optional: true
       - name: TupleTreePath
         doc: The model path corresponding to this rank.
         type: string
-        optional: true
     key:
       - Name
   - name: Kind
@@ -99,7 +94,6 @@ definitions:
       - name: Parent
         doc: The Kind's parent (if present)
         type: string
-        optional: true
       - name: DefinedLocations
         doc: List of locations that the Kind provides
         sequence:
@@ -133,15 +127,12 @@ definitions:
       - name: Kind
         doc: Artifacts's kind
         type: string
-        optional: true
       - name: Container
         doc: Artifacts's container
         type: string
-        optional: true
       - name: SingleTargetFilename
         doc: The Artifacts's filename to use for a single element
         type: string
-        optional: true
   - name: Analysis
     doc: Data structure representing an analysis
     type: struct

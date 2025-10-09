@@ -267,9 +267,8 @@ private:
     revng_assert(ST.getFields().size() == FMT.ReturnValues().size());
 
     std::string
-      Name = (Model.Configuration().Naming().artificialReturnValuePrefix()
-              + NameBuilder.name(FMT))
-               .str();
+      Name = (Model.Configuration().Naming().ArtificialReturnValuePrefix()
+              + NameBuilder.name(FMT));
 
     ST.getMutableName().setValue(Name);
 
@@ -296,9 +295,8 @@ private:
                         const pipeline::Location<decltype(rr::HelperStructType)>
                           &L) {
     std::string
-      Name = (Model.Configuration().Naming().artificialReturnValuePrefix()
-              + sanitizeIdentifier(L.back()))
-               .str();
+      Name = (Model.Configuration().Naming().ArtificialReturnValuePrefix()
+              + sanitizeIdentifier(L.back()));
 
     ST.getMutableName().setValue(Name);
 
@@ -437,7 +435,7 @@ private:
           unsigned I = T->Arguments().size();
 
           auto AL = TL.transmute(rr::RawStackArguments);
-          auto Name = Model.Configuration().Naming().rawStackArgumentName();
+          auto Name = Model.Configuration().Naming().RawStackArgumentName();
 
           Attrs.setString(I, "clift.handle", AL.toString());
           Attrs.setString(I, "clift.name", Name);

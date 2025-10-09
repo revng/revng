@@ -18,16 +18,16 @@
         # TODO: we don't recognize this since we cannot track the jump table since
         #       we cannot prove the value of the register containing it is
         #       preserved across the function call
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: LongJmp
     - Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return
     - Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: LongJmp
 - Name: function
   Blocks:
     - Successors:
-        - "-Destination": ""
+        - Destination: ":Invalid"
           Type: Return

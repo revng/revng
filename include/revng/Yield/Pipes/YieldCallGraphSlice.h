@@ -36,10 +36,10 @@ public:
   }
 
 public:
-  void run(pipeline::ExecutionContext &Context,
-           const CFGMap &CFGMap,
-           const CrossRelationsFileContainer &InputFile,
-           CallGraphSliceSVGStringMap &Output);
+  llvm::Error run(pipeline::ExecutionContext &Context,
+                  const CFGMap &CFGMap,
+                  const CrossRelationsFileContainer &InputFile,
+                  CallGraphSliceSVGStringMap &Output);
 };
 
 } // namespace revng::pipes
