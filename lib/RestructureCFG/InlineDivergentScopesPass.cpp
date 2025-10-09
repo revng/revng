@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
@@ -403,7 +404,9 @@ tryMultipleIDS(const ScopeGraphBuilder &SGBuilder,
                const SmallVector<DivergenceDescriptor> &DivergenceDescriptors,
                BasicBlock *PlaceHolderTarget) {
 
-  // We attempt to perform multiple IDS transformations all at once
+  // We attempt to perform multiple IDS transformations all at once, processing
+  // the `Conditional` nodes in post order.
+
   // We start by collecting all the `Conditional`s involved in at least one
   // divergence
   SmallSetVector<BasicBlock *, 4> Conditionals;
@@ -411,9 +414,21 @@ tryMultipleIDS(const ScopeGraphBuilder &SGBuilder,
     Conditionals.insert(DivergenceDescriptor.Conditional);
   }
 
-  // For each `Conditional`, we collect all the multiple divergences involving
-  // it
-  for (BasicBlock *Conditional : Conditionals) {
+  // Iterating in post order over the nodes in the `ScopeGraph`, we select all
+  // the `Conditional`s that will be processed by IDS, therefore ensuring that
+  // they will be processed in `post_order`.
+  Function *F = PlaceHolderTarget->getParent();
+  Scope<Function *> ScopeGraph(F);
+  SmallVector<BasicBlock *> SortedConditionals;
+  for (auto *P : llvm::post_order(ScopeGraph)) {
+    if (Conditionals.contains(P)) {
+      SortedConditionals.push_back(P);
+    }
+  }
+
+  // For each `Conditional`, in post order, we collect all the multiple
+  // divergences involving it
+  for (BasicBlock *Conditional : SortedConditionals) {
 
     // Support variables used to understand when we need to restart the
     // collection
