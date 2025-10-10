@@ -544,23 +544,31 @@ mlir::LogicalResult LocalVariableOp::verify() {
 
 //===----------------------------- MakeLabelOp ----------------------------===//
 
+LabelAssignmentOpInterface MakeLabelOp::getAssignment() {
+  for (mlir::OpOperand &Use : getResult().getUses()) {
+    if (auto Op = mlir::dyn_cast<LabelAssignmentOpInterface>(Use.getOwner()))
+      return Op;
+  }
+  return {};
+}
+
 static std::pair<size_t, size_t> getNumLabelUsers(MakeLabelOp Op) {
   size_t Assignments = 0;
-  size_t GoTos = 0;
+  size_t Jumps = 0;
   for (mlir::OpOperand &Operand : Op.getResult().getUses()) {
-    if (mlir::isa<AssignLabelOp>(Operand.getOwner()))
+    if (mlir::isa<LabelAssignmentOpInterface>(Operand.getOwner()))
       ++Assignments;
-    else if (mlir::isa<GoToOp>(Operand.getOwner()))
-      ++GoTos;
+    else if (mlir::isa<JumpStatementOpInterface>(Operand.getOwner()))
+      ++Jumps;
   }
-  return { Assignments, GoTos };
+  return { Assignments, Jumps };
 }
 
 mlir::LogicalResult MakeLabelOp::canonicalize(MakeLabelOp Op,
                                               PatternRewriter &Rewriter) {
-  const auto [Assignments, GoTos] = getNumLabelUsers(Op);
+  const auto [Assignments, Jumps] = getNumLabelUsers(Op);
 
-  if (GoTos != 0)
+  if (Jumps != 0)
     return mlir::failure();
 
   for (mlir::OpOperand &Operand : Op.getResult().getUses()) {
@@ -573,16 +581,16 @@ mlir::LogicalResult MakeLabelOp::canonicalize(MakeLabelOp Op,
 }
 
 mlir::LogicalResult MakeLabelOp::verify() {
-  const auto [Assignments, GoTos] = getNumLabelUsers(*this);
+  const auto [Assignments, Jumps] = getNumLabelUsers(*this);
 
   if (Assignments > 1)
     return emitOpError() << getOperationName()
                          << " may only have one assignment.";
 
-  if (GoTos != 0 and Assignments == 0)
-    return emitOpError() << getOperationName() << " with a use by "
-                         << GoToOp::getOperationName()
-                         << " must have an assignment.";
+  if (Jumps != 0 and Assignments == 0)
+    return emitOpError() << getOperationName()
+                         << " with a use by a jump operation must have an"
+                            " assignment.";
 
   return mlir::success();
 }

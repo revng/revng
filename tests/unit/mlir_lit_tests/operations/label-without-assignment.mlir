@@ -11,7 +11,7 @@
 >
 
 clift.func @f<!f>() {
-  // CHECK: clift.make_label with a use by clift.goto must have an assignment
+  // CHECK: clift.make_label with a use by a jump operation must have an assignment
   %label = clift.make_label
   clift.goto %label
 }

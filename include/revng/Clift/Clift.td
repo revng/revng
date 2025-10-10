@@ -245,16 +245,20 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
 
 //===----------------------------- Statements -----------------------------===//
 
+class Clift_BasicStatementOp<string mnemonic,
+                             Trait interface = Clift_StatementOpInterface,
+                             list<Trait> traits = []>
+  : Clift_Op<mnemonic, !listconcat(traits, [interface, NoRegionArguments])>;
+
 class Clift_StatementOp<string mnemonic, list<Trait> traits = []>
-  : Clift_Op<mnemonic,
-             !listconcat(traits,
-                         [Clift_StatementOpInterface,
-                          NoRegionArguments])>;
+  : Clift_BasicStatementOp<mnemonic, Clift_StatementOpInterface, traits>;
 
-def Clift_MakeLabelOp
-  : Clift_StatementOp<"make_label",
-                      [Clift_OneUseOfType<"mlir::clift::AssignLabelOp">]> {
+class Clift_JumpStatementOp<string mnemonic>
+  : Clift_BasicStatementOp<mnemonic,
+                           Clift_JumpStatementOpInterface,
+                           [Clift_NoFallthrough]>;
 
+def Clift_MakeLabelOp : Clift_StatementOp<"make_label"> {
   let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let results = (outs Clift_LabelType:$result);
@@ -273,9 +277,16 @@ def Clift_MakeLabelOp
             mlir::clift::LabelType::get($_builder.getContext()));
     }]>
   ];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] LabelAssignmentOpInterface getAssignment();
+  }];
 }
 
-def Clift_AssignLabelOp : Clift_StatementOp<"assign_label"> {
+def Clift_AssignLabelOp
+  : Clift_BasicStatementOp<"assign_label",
+                           Clift_LabelAssignmentOpInterface> {
+
   let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{
@@ -284,6 +295,14 @@ def Clift_AssignLabelOp : Clift_StatementOp<"assign_label"> {
 
   let extraClassDeclaration = [{
     [[nodiscard]] MakeLabelOp getLabelOp();
+
+    unsigned getLabelAssignmentCount() {
+      return 1;
+    }
+
+    mlir::Value getLabelAssignment(unsigned Index) {
+      return getLabel();
+    }
   }];
 }
 
@@ -319,7 +338,7 @@ def Clift_ForOp : Clift_StatementOp<"for"> {
   let hasVerifier = 1;
 }
 
-def Clift_GoToOp : Clift_StatementOp<"goto", [Clift_NoFallthrough]> {
+def Clift_GoToOp : Clift_JumpStatementOp<"goto"> {
   let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{

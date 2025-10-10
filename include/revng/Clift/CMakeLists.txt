@@ -26,8 +26,16 @@ set(LLVM_TARGET_DEFINITIONS CliftAttrInterfaces.td)
 mlir_tablegen(CliftAttrInterfaces.h.inc -gen-attr-interface-decls)
 mlir_tablegen(CliftAttrInterfaces.cpp.inc -gen-attr-interface-defs)
 
-set(LLVM_TARGET_DEFINITIONS CliftOpInterfaces.td)
-mlir_tablegen(CliftOpInterfaces.h.inc -gen-op-interface-decls)
-mlir_tablegen(CliftOpInterfaces.cpp.inc -gen-op-interface-defs)
+set(LLVM_TARGET_DEFINITIONS CliftOpInterfacesBasic.td)
+mlir_tablegen(CliftOpInterfacesBasic.h.inc -gen-op-interface-decls)
+mlir_tablegen(CliftOpInterfacesBasic.cpp.inc -gen-op-interface-defs)
+
+set(LLVM_TARGET_DEFINITIONS CliftOpInterfacesLabel.td)
+mlir_tablegen(CliftOpInterfacesLabel.h.inc -gen-op-interface-decls)
+mlir_tablegen(CliftOpInterfacesLabel.cpp.inc -gen-op-interface-defs)
+
+set(LLVM_TARGET_DEFINITIONS CliftOpInterfacesJump.td)
+mlir_tablegen(CliftOpInterfacesJump.h.inc -gen-op-interface-decls)
+mlir_tablegen(CliftOpInterfacesJump.cpp.inc -gen-op-interface-defs)
 
 add_mlir_dialect(Clift clift)

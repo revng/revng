@@ -8,10 +8,25 @@
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/SymbolTable.h"
 
+namespace mlir::clift {
+
+class LabelAssignmentOpInterface;
+
+namespace impl {
+
+LabelAssignmentOpInterface getLabelAssignment(mlir::Value Label);
+
+} // namespace impl
+} // namespace mlir::clift
+
 #include "revng/Clift/CliftTypes.h"
 
-// This comment prevents reordering this include before the others.
-#include "revng/Clift/CliftOpInterfaces.h.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftOpInterfacesBasic.h.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftOpInterfacesLabel.h.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftOpInterfacesJump.h.inc"
 
 namespace mlir::clift {
 
