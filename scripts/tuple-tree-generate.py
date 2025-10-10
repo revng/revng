@@ -13,6 +13,7 @@ from shutil import which
 from subprocess import DEVNULL, check_output, run
 from tempfile import NamedTemporaryFile
 
+import jsonschema
 import yaml
 
 from tuple_tree_generator.generators import CppGenerator, DocsGenerator, JSONSchemaGenerator
@@ -189,6 +190,11 @@ def main():
     args = parse_args()
     with open(args.schema, encoding="utf-8") as f:
         raw_schema = yaml.safe_load(f)
+
+    metaschema_path = Path(__file__).parent / "../share/revng/tuple-tree-generator/metaschema.yml"
+    with metaschema_path.open(encoding="utf-8") as f:
+        metaschema = yaml.safe_load(f)
+        jsonschema.validate(instance=raw_schema, schema=metaschema)
 
     schema = Schema(raw_schema, args.scalar_type)
     args.handler(args, schema)
