@@ -19,19 +19,23 @@
 clift.if {
   %0 = clift.undef : !int32_t
   clift.yield %0 : !int32_t
-} {}
+} then {
+}
 
 clift.if {
   %0 = clift.undef : !float
   clift.yield %0 : !float
-} {}
+} then {
+}
 
 clift.if {
   %0 = clift.undef : !pointer
   clift.yield %0 : !pointer
-} {}
+} then {
+}
 
 clift.if {
   %0 = clift.undef : !enum
   clift.yield %0 : !enum
-} {}
+} then {
+}

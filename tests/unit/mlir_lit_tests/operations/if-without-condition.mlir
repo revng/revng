@@ -5,4 +5,4 @@
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
 // CHECK: failed to verify constraint: Region representing an expression
-clift.if {} {}
+clift.if {} then {}

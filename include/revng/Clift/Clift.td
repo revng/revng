@@ -356,7 +356,7 @@ def Clift_IfOp : Clift_StatementOp<"if"> {
                         Clift_StatementRegion:$else);
 
   let assemblyFormat = [{
-    $condition $then (`else` $else^)? attr-dict-with-keyword
+    $condition `then` $then (`else` $else^)? attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;

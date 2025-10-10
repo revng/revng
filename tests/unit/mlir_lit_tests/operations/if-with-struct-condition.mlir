@@ -14,4 +14,5 @@
 clift.if {
   %0 = clift.undef : !s
   clift.yield %0 : !s
-} {}
+} then {
+}
