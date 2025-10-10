@@ -9,7 +9,11 @@ Containers:
   - Name: cross-relations.yml
     Type: binary-cross-relations
     Role: cross-relations
-  - Name: module.bc.zstd
+  - Name: functions.bc.zstd
+    Type: llvm-container
+  - Name: root.bc.zstd
+    Type: llvm-container
+  - Name: root-with-functions.bc.zstd
     Type: llvm-container
   - Name: input
     Type: binary
@@ -39,7 +43,7 @@ Containers:
     Type: decompile
   - Name: recompilable-archive.tar.gz
     Type: recompilable-archive
-  - Name: module.mlir
+  - Name: functions.mlir
     Type: clift-module
   - Name: model-type-definitions.tar.gz
     Type: model-type-definitions
@@ -99,14 +103,14 @@ Branches:
       - Name: lift
         Pipes:
           - Type: lift
-            UsedContainers: [input, module.bc.zstd]
+            UsedContainers: [input, root.bc.zstd]
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [root.bc.zstd]
             Passes: [globaldce]
         Artifacts:
-          Container: module.bc.zstd
+          Container: root.bc.zstd
           Kind: root
-          SingleTargetFilename: module_lifted.ll
+          SingleTargetFilename: lifted.ll
           Docs: |-
             The `root` function produced by the lifting phase.
             It's a single large function containing all of the executable code
@@ -114,7 +118,7 @@ Branches:
         Analyses:
           - Name: detect-abi
             Type: detect-abi
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [root.bc.zstd]
             Docs: |-
               This analysis creates new functions from targets of function calls
               and from code addresses found in the code or in memory that would
@@ -129,17 +133,17 @@ Branches:
       - Name: isolate
         Pipes:
           - Type: collect-cfg
-            UsedContainers: [module.bc.zstd, cfg.yml.tar.gz]
+            UsedContainers: [root.bc.zstd, cfg.yml.tar.gz]
           - Type: isolate
-            UsedContainers: [cfg.yml.tar.gz, module.bc.zstd]
+            UsedContainers: [cfg.yml.tar.gz, root.bc.zstd, functions.bc.zstd]
           - Type: attach-debug-info-to-isolated
-            UsedContainers: [cfg.yml.tar.gz, module.bc.zstd]
+            UsedContainers: [cfg.yml.tar.gz, functions.bc.zstd]
           - Type: process-call-graph
             UsedContainers: [cfg.yml.tar.gz, cross-relations.yml]
         Artifacts:
-          Container: module.bc.zstd
+          Container: functions.bc.zstd
           Kind: isolated
-          SingleTargetFilename: module_isolated.ll
+          SingleTargetFilename: isolated.ll
           Docs: |-
             This artifact contains an LLVM function for each function in the
             input program.
@@ -148,14 +152,10 @@ Branches:
             Therefore, they lack arguments and return values.
       - Name: enforce-abi
         Pipes:
-          - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
-            Passes:
-              - drop-root
           - Type: enforce-abi
-            UsedContainers: [cfg.yml.tar.gz, module.bc.zstd]
+            UsedContainers: [cfg.yml.tar.gz, functions.bc.zstd]
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - strip-debug-info-from-helpers
               # Note: we're running promote-csvs twice: it is important to run
@@ -167,17 +167,17 @@ Branches:
               - mem2reg
               - inline-helpers
           - Type: attach-debug-info-to-abi-enforced
-            UsedContainers: [cfg.yml.tar.gz, module.bc.zstd]
+            UsedContainers: [cfg.yml.tar.gz, functions.bc.zstd]
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - promote-csvs
               - remove-exceptional-functions
 
         Artifacts:
-          Container: module.bc.zstd
+          Container: functions.bc.zstd
           Kind: csvs-promoted
-          SingleTargetFilename: module_abienforced.ll
+          SingleTargetFilename: abi_enforced.ll
           Docs: |-
             This artifact contains an LLVM function for each function in the
             input program.
@@ -213,7 +213,7 @@ Branches:
       - Name: hexdump
         Pipes:
           - Type: hex-dump
-            UsedContainers: [input, module.bc.zstd, cfg.yml.tar.gz, hex.dump]
+            UsedContainers: [input, functions.bc.zstd, cfg.yml.tar.gz, hex.dump]
         Artifacts:
           Container: hex.dump
           Kind: hex-dump
@@ -283,16 +283,16 @@ Branches:
       - Name: recompile
         Pipes:
           - Type: link-support
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [root.bc.zstd]
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [root.bc.zstd]
             Passes: [O2]
             EnabledWhen: [O2]
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [root.bc.zstd]
             Passes: [drop-opaque-return-address]
           - Type: compile
-            UsedContainers: [module.bc.zstd, object.o]
+            UsedContainers: [root.bc.zstd, object.o]
           - Type: link-for-translation
             UsedContainers: [input, object.o, output]
         Artifacts:
@@ -307,20 +307,20 @@ Branches:
     Steps:
       - Name: recompile-isolated
         Pipes:
-          - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
-            Passes: [invoke-isolated-functions]
+          - Type: invoke-isolated-functions
+            # TODO: rename
+            UsedContainers: [root.bc.zstd, functions.bc.zstd, root-with-functions.bc.zstd]
           - Type: link-support
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [root-with-functions.bc.zstd]
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [root-with-functions.bc.zstd]
             Passes: [O2]
             EnabledWhen: [O2]
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [root-with-functions.bc.zstd]
             Passes: [drop-opaque-return-address]
           - Type: compile-isolated
-            UsedContainers: [module.bc.zstd, object.o]
+            UsedContainers: [root-with-functions.bc.zstd, object.o]
           - Type: link-for-translation
             UsedContainers: [input, object.o, output]
         Artifacts:
@@ -337,7 +337,7 @@ Branches:
       - Name: remove-lifting-artifacts
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - dce
               - remove-lifting-artifacts
@@ -345,14 +345,14 @@ Branches:
       - Name: promote-stack-pointer
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - measure-stack-size-at-call-sites
               - promote-stack-pointer
       - Name: early-optimize
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - dce
               - remove-extractvalues
@@ -387,9 +387,9 @@ Branches:
       - Name: simplify-switch
         Pipes:
           - Type: simplify-switch
-            UsedContainers: [input, module.bc.zstd]
+            UsedContainers: [input, functions.bc.zstd]
         Artifacts:
-          Container: module.bc.zstd
+          Container: functions.bc.zstd
           Kind: stack-pointer-promoted
           SingleTargetFilename: simplify-switch.ll
           Docs: |-
@@ -400,7 +400,7 @@ Branches:
       - Name: detect-stack-size
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - remove-stack-alignment
               - instrument-stack-accesses
@@ -412,14 +412,14 @@ Branches:
         Analyses:
           - Name: detect-stack-size
             Type: detect-stack-size
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Docs: |-
               This analysis, for each function, identifies the size of the stack
               frame and the amount of stack used to pass arguments.
       - Name: legacy-segregate-stack-accesses
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - hoist-struct-phis
               - legacy-segregate-stack-accesses
@@ -450,11 +450,11 @@ Branches:
       - Name: make-segment-ref
         Pipes:
           - Type: make-segment-ref
-            UsedContainers: [input, module.bc.zstd]
+            UsedContainers: [input, functions.bc.zstd]
         Artifacts:
-          Container: module.bc.zstd
+          Container: functions.bc.zstd
           Kind: stack-accesses-segregated
-          SingleTargetFilename: legacy_stack_access_segregate.ll
+          SingleTargetFilename: legacy_stack_accesses_segregated.ll
           Docs: |-
             This artifact contains an LLVM function for each function in the
             input program.
@@ -472,7 +472,7 @@ Branches:
         Analyses:
           - Name: analyze-data-layout
             Type: analyze-data-layout
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Docs: |-
               This analysis inspects the memory accesses performed by the input
               program and detects the layout of data structures.
@@ -481,7 +481,7 @@ Branches:
       - Name: canonicalize
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - hoist-struct-phis
               - remove-llvmassume-calls
@@ -506,15 +506,15 @@ Branches:
       - Name: embed-statement-comments
         Pipes:
           - Type: embed-statement-comments
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
       - Name: decompile
         Pipes:
           - Type: helpers-to-header
-            UsedContainers: [module.bc.zstd, helpers.h]
+            UsedContainers: [functions.bc.zstd, helpers.h]
           - Type: model-to-header
             UsedContainers: [input, types-and-globals.h]
           - Type: decompile
-            UsedContainers: [module.bc.zstd, cfg.yml.tar.gz, decompiled.tar.gz]
+            UsedContainers: [functions.bc.zstd, cfg.yml.tar.gz, decompiled.tar.gz]
         Artifacts:
           Container: decompiled.tar.gz
           Kind: decompiled
@@ -552,7 +552,7 @@ Branches:
       - Name: emit-recompilable-archive
         Pipes:
           - Type: decompile-to-directory
-            UsedContainers: [module.bc.zstd, cfg.yml.tar.gz, recompilable-archive.tar.gz]
+            UsedContainers: [functions.bc.zstd, cfg.yml.tar.gz, recompilable-archive.tar.gz]
         Artifacts:
           Container: recompilable-archive.tar.gz
           Kind: recompilable-archive
@@ -575,7 +575,7 @@ Branches:
       - Name: emit-helpers-header
         Pipes:
           - Type: helpers-to-header
-            UsedContainers: [module.bc.zstd, helpers.h]
+            UsedContainers: [functions.bc.zstd, helpers.h]
         Artifacts:
           Container: helpers.h
           Kind: helpers-header
@@ -619,15 +619,15 @@ Branches:
       - Name: cleanup-ir
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - instcombine
               - cleanup-ir
               - dce
         Artifacts:
-          Container: module.bc.zstd
+          Container: functions.bc.zstd
           Kind: stack-accesses-segregated
-          SingleTargetFilename: cleanup-ir.ll
+          SingleTargetFilename: clean-ir.ll
           Docs: |-
             This artifact contains one LLVM function for each function defined
             in this binary.
@@ -645,7 +645,7 @@ Branches:
       - Name: segregate-stack-accesses
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - hoist-struct-phis
               - segregate-stack-accesses
@@ -675,7 +675,7 @@ Branches:
       - Name: emit-c
         Pipes:
           - Type: llvm-pipe
-            UsedContainers: [module.bc.zstd]
+            UsedContainers: [functions.bc.zstd]
             Passes:
               - remove-llvmassume-calls
               - dce
@@ -691,15 +691,15 @@ Branches:
               - enforce-single-exit
               - materialize-trivial-goto
           - Type: llvm-to-clift
-            UsedContainers: [module.bc.zstd, module.mlir]
+            UsedContainers: [functions.bc.zstd, functions.mlir]
           - Type: clift-legalization
-            UsedContainers: [module.mlir]
+            UsedContainers: [functions.mlir]
           - Type: model-verify-clift
-            UsedContainers: [module.mlir]
+            UsedContainers: [functions.mlir]
           - Type: import-model-names
-            UsedContainers: [module.mlir]
+            UsedContainers: [functions.mlir]
           - Type: emit-c
-            UsedContainers: [module.mlir, decompiled.tar.gz]
+            UsedContainers: [functions.mlir, decompiled.tar.gz]
         Artifacts:
           Container: decompiled.tar.gz
           Kind: decompiled

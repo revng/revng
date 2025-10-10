@@ -373,6 +373,7 @@ extractSegmentKeyFromMetadata(const llvm::Function &F) {
 
   auto *SAMD = cast<MDString>(Node->getOperand(0));
   MetaAddress StartAddress = MetaAddress::fromString(SAMD->getString());
+  revng_assert(StartAddress.isValid());
   auto *VSMD = cast<ConstantAsMetadata>(Node->getOperand(1))->getValue();
   uint64_t VirtualSize = cast<ConstantInt>(VSMD)->getZExtValue();
 
@@ -432,6 +433,7 @@ extractStringLiteralFromMetadata(const llvm::Function &F) {
 
   StringRef SAMD = cast<MDString>(Node->getOperand(0))->getString();
   MetaAddress StartAddress = MetaAddress::fromString(SAMD);
+  revng_assert(StartAddress.isValid());
 
   auto ExtractInteger = [](const MDOperand &Operand) {
     auto *MD = cast<ConstantAsMetadata>(Operand)->getValue();

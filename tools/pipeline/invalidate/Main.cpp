@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
   auto Manager = AbortOnError(BaseOptions.makeManager());
 
   auto Map = getTargetInStepSet(Manager.getRunner());
-  AbortOnError(Manager.getRunner().getInvalidations(Map));
+  Manager.getRunner().getInvalidations(Map);
 
   if (DumpPredictedRemovals) {
     dumpTargetInStepSet(llvm::outs(), Map);
