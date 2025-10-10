@@ -11,6 +11,7 @@ import jsonschema
 import yaml
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry
+from revng.support import get_root
 
 Change = (
     Tuple[Literal["definition"], Literal["add", "remove"], str]
@@ -38,10 +39,12 @@ class GenerateMigrationCommand(Command):
         )
 
     def _get_metaschema(self):
-        metaschema_path = Path(__file__).parent / "metaschema.yml"
+        metaschema_path = get_root() / "share/revng/tuple-tree-generator/metaschema.yml"
 
         with open(metaschema_path) as file:
             metaschema = yaml.safe_load(file)
+
+        assert len(metaschema)
 
         return metaschema
 
