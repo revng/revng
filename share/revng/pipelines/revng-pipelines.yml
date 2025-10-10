@@ -692,7 +692,7 @@ Branches:
               - materialize-trivial-goto
           - Type: llvm-to-clift
             UsedContainers: [functions.bc.zstd, functions.mlir]
-          - Type: clift-legalization
+          - Type: clift-optimization
             UsedContainers: [functions.mlir]
           - Type: model-verify-clift
             UsedContainers: [functions.mlir]

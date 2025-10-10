@@ -10,7 +10,8 @@ revng_add_analyses_library_internal(
   ImportCliftTypesPipe.cpp
   ImportModelNamesPipe.cpp
   LegalizationPipe.cpp
-  ModelVerifyPipe.cpp)
+  ModelVerifyPipe.cpp
+  OptimizationPipe.cpp)
 
 target_link_libraries(
   revngCliftPipes
@@ -20,4 +21,5 @@ target_link_libraries(
   revngCliftImportModel
   revngCliftTransforms
   revngPipeline
-  revngPipes)
+  revngPipes
+  MLIRTransforms)
