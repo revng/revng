@@ -654,7 +654,7 @@ mlir::ParseResult SwitchOp::parse(OpAsmParser &Parser, OperationState &Result) {
                         DenseI64ArrayAttr::get(Parser.getContext(),
                                                CaseValues));
 
-  if (Parser.parseOptionalAttrDict(Result.attributes).failed())
+  if (Parser.parseOptionalAttrDictWithKeyword(Result.attributes).failed())
     return mlir::failure();
 
   return mlir::success();
@@ -678,7 +678,7 @@ void SwitchOp::print(OpAsmPrinter &Printer) {
     "case_values",
   };
 
-  Printer.printOptionalAttrDict(getOperation()->getAttrs(), Elided);
+  Printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(), Elided);
 }
 
 mlir::LogicalResult SwitchOp::verify() {

@@ -292,7 +292,7 @@ def Clift_DoWhileOp : Clift_StatementOp<"do_while"> {
                         Clift_ExpressionRegion:$condition);
 
   let assemblyFormat = [{
-    $body $condition attr-dict
+    $body $condition attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
@@ -302,7 +302,7 @@ def Clift_ExpressionStatementOp : Clift_StatementOp<"expr"> {
   let regions = (region Clift_OptionalExpressionRegion:$expression);
 
   let assemblyFormat = [{
-    $expression attr-dict
+    $expression attr-dict-with-keyword
   }];
 }
 
@@ -313,7 +313,7 @@ def Clift_ForOp : Clift_StatementOp<"for"> {
                         Clift_StatementRegion:$body);
 
   let assemblyFormat = [{
-    $initializer $condition $expression $body attr-dict
+    $initializer $condition $expression $body attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
@@ -337,7 +337,7 @@ def Clift_IfOp : Clift_StatementOp<"if"> {
                         Clift_StatementRegion:$else);
 
   let assemblyFormat = [{
-    $condition $then (`else` $else^)? attr-dict
+    $condition $then (`else` $else^)? attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
@@ -368,7 +368,7 @@ def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
   let regions = (region Clift_OptionalExpressionRegion:$result);
 
   let assemblyFormat = [{
-    $result attr-dict
+    $result attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
@@ -428,7 +428,7 @@ def Clift_WhileOp : Clift_StatementOp<"while"> {
                         Clift_StatementRegion:$body);
 
   let assemblyFormat = [{
-    $condition $body attr-dict
+    $condition $body attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
