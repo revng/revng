@@ -6,6 +6,14 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "revng/CliftTransforms/Legalization.h"
+#include "revng/CliftTransforms/Passes.h"
+
+namespace mlir {
+namespace clift {
+#define GEN_PASS_DEF_CLIFTCLEGALIZATION
+#include "revng/CliftTransforms/Passes.h.inc"
+} // namespace clift
+} // namespace mlir
 
 namespace clift = mlir::clift;
 
@@ -265,6 +273,20 @@ struct ShiftPromotionPattern : IntegerPromotionPattern<OpT> {
   }
 };
 
+struct CLegalizationPass
+  : clift::impl::CliftCLegalizationBase<CLegalizationPass> {
+
+  const TargetCImplementation &Target;
+
+  explicit CLegalizationPass(const TargetCImplementation &Target) :
+    Target(Target) {}
+
+  void runOnOperation() override {
+    if (legalizeForC(getOperation(), Target).failed())
+      signalPassFailure();
+  }
+};
+
 } // namespace
 
 mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function,
@@ -303,4 +325,9 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function,
 
   auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
   return mlir::applyPatternsAndFoldGreedily(Function, Patterns);
+}
+
+clift::PassPtr<clift::FunctionOp>
+clift::createCLegalizationPass(const TargetCImplementation &Target) {
+  return std::make_unique<CLegalizationPass>(Target);
 }

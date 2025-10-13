@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngpipe clift-legalization %S/model.yml %s /dev/stdout | %revngcliftopt | FileCheck %s
+// RUN: %revngcliftopt %s --c-legalization | FileCheck %s
 
 !void = !clift.primitive<void 0>
 !int16_t = !clift.primitive<signed 2>

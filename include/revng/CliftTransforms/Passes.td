@@ -11,6 +11,13 @@ class Clift_Pass<string arg, string operation> : Pass<arg, operation> {
   let dependentDialects = ["clift::CliftDialect"];
 }
 
+def CliftCLegalization : Clift_Pass<"c-legalization", "clift::FunctionOp"> {
+  let summary = "Legalize the input for emitting C code.";
+
+  // Use the default target C implementation for clift-opt:
+  let constructor = "mlir::clift::createCLegalizationPass(TargetCImplementation::Default)";
+}
+
 def CliftVerifyC : Clift_Pass<"verify-c", "mlir::ModuleOp"> {
   let summary = "Verify that the Clift semantics correspond to C semantics " #
                 "in the specified target implementation.";
