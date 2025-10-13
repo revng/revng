@@ -310,6 +310,8 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   // Support library
   "undef",
   "undef_value",
+  "break_to",
+  "continue_to",
 };
 
 /// Returns `true` iff the identifier is exactly the given prefix + a decimal

@@ -24,7 +24,7 @@ namespace mlir {
 namespace clift = mlir::clift;
 using namespace clift;
 
-LabelAssignmentOpInterface clift::impl::getLabelAssignment(mlir::Value Label) {
+LabelAssignmentOpInterface clift::impl::getAssignedLabel(mlir::Value Label) {
   return Label.getDefiningOp<MakeLabelOp>().getAssignment();
 }
 

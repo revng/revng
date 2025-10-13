@@ -19,3 +19,18 @@ LogicalResult traits_impl::verifyNoFallthroughTrait(Operation *const Op) {
   }
   return mlir::success();
 }
+
+LogicalResult traits_impl::verifyAssignsLoopLabelsTrait(Operation *const Op) {
+  auto LabelMaskAttr = Op->getAttrOfType<mlir::IntegerAttr>("label_mask");
+  revng_assert(LabelMaskAttr);
+
+  unsigned LabelMask = LabelMaskAttr.getValue().getZExtValue();
+  revng_assert(LabelMask <= 0b11);
+
+  if (Op->getNumOperands() != static_cast<unsigned>(std::popcount(LabelMask))) {
+    return Op->emitOpError() << "The number of operation operands must equal "
+                                "the number of set label_mask flags.";
+  }
+
+  return mlir::success();
+}

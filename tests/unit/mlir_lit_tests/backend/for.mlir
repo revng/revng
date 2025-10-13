@@ -18,7 +18,7 @@ module attributes {clift.module} {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: for (;;)
-    clift.for {} {} {} {
+    clift.for body {
       // CHECK: 1;
       clift.expr {
         %1 = clift.imm 1 : !int32_t
@@ -27,13 +27,13 @@ module attributes {clift.module} {
     }
 
     // CHECK: for (; 2; 3) {
-    clift.for {} {
+    clift.for cond {
       %2 = clift.imm 2 : !int32_t
       clift.yield %2 : !int32_t
-    }{
+    } next {
       %3 = clift.imm 3 : !int32_t
       clift.yield %3 : !int32_t
-    } {
+    } body {
       // CHECK: 4;
       clift.expr {
         %4 = clift.imm 4 : !int32_t

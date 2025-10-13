@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <bit>
+
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Operation.h"
@@ -22,6 +24,9 @@
 #include "revng/Clift/CliftTypes.h"
 
 namespace mlir::clift::impl {
+
+inline constexpr unsigned BreakLabelFlag = 1 << 0;
+inline constexpr unsigned ContinueLabelFlag = 1 << 1;
 
 bool verifyStatementRegion(Region &R);
 bool verifyExpressionRegion(Region &R, bool Required);

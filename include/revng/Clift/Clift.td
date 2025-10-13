@@ -248,15 +248,37 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
 class Clift_BasicStatementOp<string mnemonic,
                              Trait interface = Clift_StatementOpInterface,
                              list<Trait> traits = []>
-  : Clift_Op<mnemonic, !listconcat(traits, [interface, NoRegionArguments])>;
+  : Clift_Op<mnemonic, !listconcat(traits, [interface])>;
 
 class Clift_StatementOp<string mnemonic, list<Trait> traits = []>
-  : Clift_BasicStatementOp<mnemonic, Clift_StatementOpInterface, traits>;
+  : Clift_BasicStatementOp<mnemonic,
+                           Clift_StatementOpInterface,
+                           !listconcat(traits, [NoRegionArguments])>;
 
 class Clift_JumpStatementOp<string mnemonic>
   : Clift_BasicStatementOp<mnemonic,
                            Clift_JumpStatementOpInterface,
-                           [Clift_NoFallthrough]>;
+                           [NoRegionArguments, Clift_NoFallthrough]>;
+
+// Two bit integer used to represent two flags, each indicating the presence of
+// the break and continue label assignments respectively.
+def LoopLabelMaskAttr : TypedUnsignedIntegerAttrBase<UI<2>,
+                                                     "uint8_t",
+                                                     "Loop label mask">;
+
+class Clift_LoopStatementOp<string mnemonic, list<Trait> traits = []>
+  : Clift_BasicStatementOp<mnemonic,
+                           Clift_LoopOpInterface,
+                           !listconcat(traits, [Clift_AssignsLoopLabels])> {
+
+  let arguments = (ins LoopLabelMaskAttr:$label_mask,
+                       Variadic<Clift_LabelType>:$labels);
+
+  // The generation of default builders for loop operations is skipped to avoid
+  // mistakes, as building a valid loop with explicit label mask and operands
+  // would be error prone.
+  let skipDefaultBuilders = 1;
+}
 
 def Clift_MakeLabelOp : Clift_StatementOp<"make_label"> {
   let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$handle);
@@ -296,22 +318,56 @@ def Clift_AssignLabelOp
   let extraClassDeclaration = [{
     [[nodiscard]] MakeLabelOp getLabelOp();
 
-    unsigned getLabelAssignmentCount() {
+    unsigned getAssignedLabelCount() {
       return 1;
     }
 
-    mlir::Value getLabelAssignment(unsigned Index) {
+    mlir::Value getAssignedLabel(unsigned Index) {
+      revng_assert(Index == 0);
       return getLabel();
     }
   }];
 }
 
-def Clift_DoWhileOp : Clift_StatementOp<"do_while"> {
+def Clift_BreakToOp : Clift_JumpStatementOp<"break_to"> {
+  let arguments = (ins Clift_LabelType:$label);
+
+  let assemblyFormat = [{
+    $label attr-dict
+  }];
+
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] MakeLabelOp getLabelOp();
+  }];
+}
+
+def Clift_ContinueToOp : Clift_JumpStatementOp<"continue_to"> {
+  let arguments = (ins Clift_LabelType:$label);
+
+  let assemblyFormat = [{
+    $label attr-dict
+  }];
+
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] MakeLabelOp getLabelOp();
+  }];
+}
+
+def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
   let regions = (region Clift_StatementRegion:$body,
                         Clift_ExpressionRegion:$condition);
 
+  let builders = [
+    OpBuilder<(ins)>
+  ];
+
   let assemblyFormat = [{
-    $body $condition attr-dict-with-keyword
+    custom<CliftLoopLabels>($label_mask, $labels)
+    `body` $body `cond` $condition attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
@@ -325,14 +381,23 @@ def Clift_ExpressionStatementOp : Clift_StatementOp<"expr"> {
   }];
 }
 
-def Clift_ForOp : Clift_StatementOp<"for"> {
+def Clift_ForOp : Clift_LoopStatementOp<"for"> {
   let regions = (region Clift_StatementRegion:$initializer,
                         Clift_OptionalExpressionRegion:$condition,
                         Clift_OptionalExpressionRegion:$expression,
                         Clift_StatementRegion:$body);
 
+  let builders = [
+    OpBuilder<(ins)>
+  ];
+
   let assemblyFormat = [{
-    $initializer $condition $expression $body attr-dict-with-keyword
+    custom<CliftLoopLabels>($label_mask, $labels)
+    (`init` $initializer^)?
+    (`cond` $condition^)?
+    (`next` $expression^)?
+    `body` $body
+    attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
@@ -344,6 +409,8 @@ def Clift_GoToOp : Clift_JumpStatementOp<"goto"> {
   let assemblyFormat = [{
     $label attr-dict
   }];
+
+  let hasVerifier = 1;
 
   let extraClassDeclaration = [{
     [[nodiscard]] MakeLabelOp getLabelOp();
@@ -442,12 +509,17 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
   }];
 }
 
-def Clift_WhileOp : Clift_StatementOp<"while"> {
+def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$body);
 
+  let builders = [
+    OpBuilder<(ins)>
+  ];
+
   let assemblyFormat = [{
-    $condition $body attr-dict-with-keyword
+    custom<CliftLoopLabels>($label_mask, $labels)
+    `cond` $condition `body` $body attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;

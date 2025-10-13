@@ -30,4 +30,51 @@ def Clift_BranchOpInterface : Clift_OpInterface<"BranchOpInterface",
   ];
 }
 
+def Clift_LoopOpInterface
+  : Clift_OpInterface<"LoopOpInterface", [Clift_LabelAssignmentOpInterface]> {
+
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Returns the loop break label (if any).",
+      "mlir::Value", "getBreakLabel", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        return mlir::clift::impl::getLoopLabel($_op, 0);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Replaces the loop break label (if any).",
+      "void", "setBreakLabel", (ins "mlir::Value":$Label),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        return mlir::clift::impl::setLoopLabel($_op, 0, Label);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the loop continue label (if any).",
+      "mlir::Value", "getContinueLabel", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        return mlir::clift::impl::getLoopLabel($_op, 1);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Replaces the loop continue label (if any).",
+      "void", "setContinueLabel", (ins "mlir::Value":$Label),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        return mlir::clift::impl::setLoopLabel($_op, 1, Label);
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the loop body region.",
+      "mlir::Region &", "getBody", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        return $_op.getBody();
+      }]
+    >,
+  ];
+}
+
 #endif

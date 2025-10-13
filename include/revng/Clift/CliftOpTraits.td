@@ -10,6 +10,9 @@ include "mlir/IR/OpBase.td"
 def Clift_NoFallthrough :
   NativeOpTrait<"clift::NoFallthrough">;
 
+def Clift_AssignsLoopLabels :
+  NativeOpTrait<"clift::AssignsLoopLabels">;
+
 def Clift_ReturnsBoolean :
   NativeOpTrait<"clift::ReturnsBoolean">;
 

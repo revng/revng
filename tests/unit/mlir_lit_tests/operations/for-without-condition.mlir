@@ -4,4 +4,4 @@
 
 // RUN: %revngcliftopt %s
 
-clift.for {} {} {} {}
+clift.for init {} cond {} next {} body {}

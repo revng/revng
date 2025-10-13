@@ -18,20 +18,20 @@ module attributes {clift.module} {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: do
-    clift.do_while {
+    clift.do_while body {
       // CHECK: 0;
       clift.expr {
         %0 = clift.imm 0 : !int32_t
         clift.yield %0 : !int32_t
       }
-    // while (1);
-    } {
+    // CHECK: while (1);
+    } cond {
       %1 = clift.imm 1 : !int32_t
       clift.yield %1 : !int32_t
     }
 
     // CHECK: do {
-    clift.do_while {
+    clift.do_while body {
       // CHECK: 2;
       clift.expr {
         %2 = clift.imm 2 : !int32_t
@@ -42,8 +42,8 @@ module attributes {clift.module} {
         %3 = clift.imm 3 : !int32_t
         clift.yield %3 : !int32_t
       }
-    // } while (4);
-    } {
+    // CHECK: } while (4);
+    } cond {
       %4 = clift.imm 4 : !int32_t
       clift.yield %4 : !int32_t
     }

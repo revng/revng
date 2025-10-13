@@ -47,6 +47,15 @@ struct BlockPosition {
 
 inline BlockPosition getJumpTarget(JumpStatementOpInterface Jump) {
   mlir::Operation *Op = Jump.getLabelAssignmentOp();
+
+  if (auto Loop = mlir::dyn_cast<LoopOpInterface>(Op)) {
+    auto Label = Jump.getLabel();
+    if (Label == Loop.getBreakLabel())
+      return BlockPosition::getNext(Loop);
+    if (Label == Loop.getContinueLabel())
+      return BlockPosition::getEnd(Loop.getBody());
+  }
+
   return BlockPosition::get(Op);
 }
 

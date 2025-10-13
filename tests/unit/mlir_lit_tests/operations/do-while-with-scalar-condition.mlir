@@ -16,22 +16,22 @@
   }
 >
 
-clift.do_while {} {
+clift.do_while body {} cond {
   %0 = clift.undef : !int32_t
   clift.yield %0 : !int32_t
 }
 
-clift.do_while {} {
+clift.do_while body {} cond {
   %0 = clift.undef : !float
   clift.yield %0 : !float
 }
 
-clift.do_while {} {
+clift.do_while body {} cond {
   %0 = clift.undef : !pointer
   clift.yield %0 : !pointer
 }
 
-clift.do_while {} {
+clift.do_while body {} cond {
   %0 = clift.undef : !enum
   clift.yield %0 : !enum
 }

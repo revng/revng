@@ -9,8 +9,21 @@
 #include "mlir/IR/RegionGraphTraits.h"
 
 #include "revng/Clift/Clift.h"
+#include "revng/Clift/CliftOpHelpers.h"
+
+using UnresolvedOperand = mlir::OpAsmParser::UnresolvedOperand;
 
 namespace mlir {
+
+static ParseResult
+parseCliftLoopLabels(OpAsmParser &Parser,
+                     mlir::IntegerAttr &LabelMask,
+                     llvm::SmallVectorImpl<UnresolvedOperand> &Labels);
+
+static void printCliftLoopLabels(OpAsmPrinter &Printer,
+                                 mlir::Operation *Op,
+                                 mlir::IntegerAttr LabelMask,
+                                 mlir::OperandRange Labels);
 
 static ParseResult parseCliftOpTypesImpl(OpAsmParser &Parser,
                                          Type *Result,
@@ -477,13 +490,117 @@ mlir::LogicalResult GlobalVariableOp::verify() {
 
 //===----------------------------- Statements -----------------------------===//
 
+static mlir::IntegerAttr makeLoopLabelMask(mlir::MLIRContext *Context,
+                                           unsigned Mask) {
+  return mlir::IntegerAttr::get(Context, llvm::APSInt(llvm::APInt(2, Mask)));
+}
+
+static void
+buildLoop(OpBuilder &Builder, OperationState &State, unsigned RegionCount) {
+  State.addAttribute("label_mask", makeLoopLabelMask(Builder.getContext(), 0));
+
+  for (unsigned I = 0; I < RegionCount; ++I)
+    State.addRegion();
+}
+
+ParseResult
+mlir::parseCliftLoopLabels(OpAsmParser &Parser,
+                           mlir::IntegerAttr &LabelMask,
+                           llvm::SmallVectorImpl<UnresolvedOperand> &Labels) {
+  unsigned Mask = 0;
+
+  if (Parser.parseOptionalKeyword("break").succeeded()) {
+    UnresolvedOperand Operand;
+    if (Parser.parseOperand(Operand).failed())
+      return mlir::failure();
+    Labels.push_back(Operand);
+    Mask |= clift::impl::BreakLabelFlag;
+  }
+
+  if (Parser.parseOptionalKeyword("continue").succeeded()) {
+    UnresolvedOperand Operand;
+    if (Parser.parseOperand(Operand).failed())
+      return mlir::failure();
+    Labels.push_back(Operand);
+    Mask |= clift::impl::ContinueLabelFlag;
+  }
+
+  LabelMask = makeLoopLabelMask(Parser.getContext(), Mask);
+
+  return mlir::success();
+}
+
+void mlir::printCliftLoopLabels(OpAsmPrinter &Printer,
+                                mlir::Operation *Op,
+                                mlir::IntegerAttr LabelMask,
+                                mlir::OperandRange Labels) {
+  unsigned Mask = LabelMask.getValue().getZExtValue();
+
+  unsigned Next = 0;
+
+  if (Mask & clift::impl::BreakLabelFlag) {
+    Printer << "break ";
+    Printer.printOperand(Labels[Next++]);
+  }
+
+  if (Mask & clift::impl::ContinueLabelFlag) {
+    if (Next != 0)
+      Printer << " ";
+
+    Printer << "continue ";
+    Printer.printOperand(Labels[Next++]);
+  }
+}
+
 //===---------------------------- AssignLabelOp ---------------------------===//
 
 MakeLabelOp AssignLabelOp::getLabelOp() {
   return getLabel().getDefiningOp<MakeLabelOp>();
 }
 
+//===------------------------------ BreakToOp -----------------------------===//
+
+mlir::LogicalResult BreakToOp::verify() {
+  mlir::Operation *Assignment = getLabelAssignmentOp();
+  auto Loop = mlir::dyn_cast<LoopOpInterface>(Assignment);
+
+  if (not Loop or getLabel() != Loop.getBreakLabel()) {
+    return emitOpError() << getOperationName()
+                         << " must target a loop break label.";
+  }
+
+  if (not Loop->isAncestor(getOperation())) {
+    return emitOpError() << getOperationName()
+                         << " must target a nesting loop label.";
+  }
+
+  return mlir::success();
+}
+
+//===---------------------------- ContinueToOp ----------------------------===//
+
+mlir::LogicalResult ContinueToOp::verify() {
+  mlir::Operation *Assignment = getLabelAssignmentOp();
+  auto Loop = mlir::dyn_cast<LoopOpInterface>(Assignment);
+
+  if (not Loop or getLabel() != Loop.getContinueLabel()) {
+    return emitOpError() << getOperationName()
+                         << " must target a loop continue label.";
+  }
+
+  if (not Loop->isAncestor(getOperation())) {
+    return emitOpError() << getOperationName()
+                         << " must target a nesting loop label.";
+  }
+
+  return mlir::success();
+}
+
 //===------------------------------ DoWhileOp -----------------------------===//
+
+void DoWhileOp::build(OpBuilder &Builder, OperationState &State) {
+  buildLoop(Builder, State, 2);
+}
 
 mlir::LogicalResult DoWhileOp::verify() {
   if (not isScalarType(getExpressionType(getCondition())))
@@ -494,6 +611,10 @@ mlir::LogicalResult DoWhileOp::verify() {
 }
 
 //===-------------------------------- ForOp -------------------------------===//
+
+void ForOp::build(OpBuilder &Builder, OperationState &State) {
+  buildLoop(Builder, State, 4);
+}
 
 mlir::LogicalResult ForOp::verify() {
   Region &Initializer = getInitializer();
@@ -518,6 +639,18 @@ mlir::LogicalResult ForOp::verify() {
 
 MakeLabelOp GoToOp::getLabelOp() {
   return getLabel().getDefiningOp<MakeLabelOp>();
+}
+
+mlir::LogicalResult GoToOp::verify() {
+  mlir::Operation *Assignment = getLabelAssignmentOp();
+
+  if (mlir::isa<LoopOpInterface>(Assignment)) {
+    if (Assignment->isAncestor(getOperation()))
+      return emitOpError() << getOperationName()
+                           << " may not target a nesting loop label.";
+  }
+
+  return mlir::success();
 }
 
 //===-------------------------------- IfOp --------------------------------===//
@@ -710,6 +843,10 @@ mlir::LogicalResult SwitchOp::verify() {
 }
 
 //===------------------------------- WhileOp ------------------------------===//
+
+void WhileOp::build(OpBuilder &Builder, OperationState &State) {
+  buildLoop(Builder, State, 4);
+}
 
 mlir::LogicalResult WhileOp::verify() {
   if (not isScalarType(getExpressionType(getCondition())))
