@@ -29,7 +29,7 @@ def fetch_pdb(file_path, urls):
 
     for e in pe.DIRECTORY_ENTRY_DEBUG:
         if isinstance(e.entry, pefile.Structure):
-            pdb_file_name_raw = e.entry.PdbFileName.decode("utf-8").replace("\x00", "")
+            pdb_file_name_raw = e.entry.PdbFileName.split(b"\x00")[0].decode("utf-8")
             pdb_file_name = PureWindowsPath(pdb_file_name_raw).name
 
             guid = f"{e.entry.Signature_Data1:08x}"
