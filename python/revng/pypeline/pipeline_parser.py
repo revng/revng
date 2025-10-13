@@ -43,14 +43,14 @@ def parse_pipe(
         raise ValueError(
             f"Pipe {pipe_name} is not registered, available pipes: " f"{sorted(pipes.keys())}"
         )
-    pipe_ty = pipes[pipe_name]
+    pipe_type = pipes[pipe_name]
 
     pipe_args = task.get("arguments", [])
     bindings = []
     for arg in pipe_args:
         if arg not in container_decls:
             raise ValueError(
-                f"While parsing {pipe_name}'s arguments found container `{arg}` "
+                f'While parsing {pipe_name}\'s arguments found container "{arg}" '
                 "that is not declared in the pipeline"
             )
         bindings.append(container_decls[arg])
@@ -59,7 +59,7 @@ def parse_pipe(
     configuration = task.get("configuration", "")
 
     return PipelineNode(
-        task=pipe_ty(
+        task=pipe_type(
             name=name,
             static_configuration=configuration,
         ),
@@ -137,13 +137,13 @@ def parse_analyses(
                 f"Analysis {analysis_name} is not registered, available analyses: "
                 f"{sorted(analyses_registry.keys())}"
             )
-        analysis_ty: type[Analysis] = analyses_registry[analysis_name]
+        analysis_type: type[Analysis] = analyses_registry[analysis_name]
 
         name = analysis.get("name", analysis_name)
 
         analyses.add(
             AnalysisBinding(
-                analysis=analysis_ty(name),
+                analysis=analysis_type(name),
                 bindings=tuple(bindings),
                 node=target_node,
             )

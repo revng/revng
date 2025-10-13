@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class AnalyzeGroup(click.Group):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.model_ty: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
+        self.model_type: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
 
     def list_commands(self, ctx):
         base = super().list_commands(ctx)
@@ -58,14 +58,14 @@ class AnalyzeGroup(click.Group):
         run_analysis_command = build_analysis_command(
             analysis_binding=analysis_binding,
             help_text=help_text,
-            model_ty=self.model_ty,
+            model_type=self.model_type,
             pipeline=pipeline,
         )
 
         config = getattr(
             analysis_binding.analysis,
             "configuration_help",
-            f"Configuration for the analysis '{analysis_name}'.",
+            f'Configuration for the analysis "{analysis_name}".',
         )
         if config is not None:
             run_analysis_command = click.option(
@@ -87,7 +87,7 @@ class AnalyzeGroup(click.Group):
 def build_analysis_command(
     analysis_binding: AnalysisBinding,
     help_text: str,
-    model_ty: type[Model],
+    model_type: type[Model],
     pipeline: Pipeline,
 ):
     analysis_name: str = analysis_binding.analysis.name
@@ -110,16 +110,16 @@ def build_analysis_command(
         configuration: str,
         **kwargs,
     ) -> None:
-        logger.debug("Running analysis: `%s`", analysis_name)
-        logger.debug("configuration: `%s`", configuration)
-        logger.debug("model: `%s`", model)
-        logger.debug("and kwargs: `%s`", kwargs)
+        logger.debug('Running analysis: "%s"', analysis_name)
+        logger.debug('configuration: "%s"', configuration)
+        logger.debug('model: "%s"', model)
+        logger.debug('and kwargs: "%s"', kwargs)
 
         # Load the model
         storage_provider = storage_provider_factory(model_path=model)
-        loaded_model = model_ty.deserialize(storage_provider.get_model())
+        loaded_model = model_type.deserialize(storage_provider.get_model())
 
-        logger.debug("Model loaded: `%s`", loaded_model)
+        logger.debug('Model loaded: "%s"', loaded_model)
 
         if kwargs["list"]:
             # If the user requested to list the available objects, we print them

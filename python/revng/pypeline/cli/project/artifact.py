@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class ArtifactGroup(click.Group):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.model_ty: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
+        self.model_type: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
 
     def list_commands(self, ctx):
         base = super().list_commands(ctx)
@@ -66,14 +66,14 @@ class ArtifactGroup(click.Group):
         run_artifact_command = build_artifact_command(
             artifact=artifact,
             help_text=help_text,
-            model_ty=self.model_ty,
+            model_type=self.model_type,
             pipeline=pipeline,
         )
 
         config = getattr(
             artifact,
             "configuration_help",
-            f"Configuration for the artifact '{artifact_name}'.",
+            f'Configuration for the artifact "{artifact_name}".',
         )
         if config is not None:
             run_artifact_command = click.option(
@@ -98,7 +98,7 @@ class ArtifactGroup(click.Group):
 def build_artifact_command(
     artifact: Artifact,
     help_text: str,
-    model_ty: type[Model],
+    model_type: type[Model],
     pipeline: Pipeline,
 ):
     artifact_name: str = artifact.name
@@ -121,23 +121,23 @@ def build_artifact_command(
         configuration: str,
         **kwargs,
     ) -> None:
-        logger.debug("Running artifact: `%s`", artifact_name)
-        logger.debug("configuration: `%s`", configuration)
-        logger.debug("model: `%s`", model)
-        logger.debug("and kwargs: `%s`", kwargs)
+        logger.debug('Running artifact: "%s"', artifact_name)
+        logger.debug('configuration: "%s"', configuration)
+        logger.debug('model: "%s"', model)
+        logger.debug('and kwargs: "%s"', kwargs)
 
         # Load the model
         storage_provider = storage_provider_factory(model_path=model)
-        loaded_model = model_ty.deserialize(storage_provider.get_model())
+        loaded_model = model_type.deserialize(storage_provider.get_model())
 
-        logger.debug("Model loaded: `%s`", loaded_model)
+        logger.debug('Model loaded: "%s"', loaded_model)
 
         arg_name = artifact.container.name
         artifact_kind = artifact.container.container_type.kind
         if kwargs["list"]:
             # If the user requested to list the available objects, we print them
             # and exit
-            print(f"Available objects for `{arg_name}` kind: {artifact_kind.__name__}")
+            print(f'Available objects for "{arg_name}" kind: {artifact_kind.__name__}')
             for obj in loaded_model.all_objects(artifact_kind):
                 print(f" - {obj}")
             return
@@ -166,7 +166,7 @@ def build_artifact_command(
         logger.debug("Artifact computed")
 
         res_path = kwargs[arg_name]
-        logger.debug("Writing result to: `%s`", res_path)
+        logger.debug('Writing result to: "%s"', res_path)
         dump_container(
             res_container,
             res_path,

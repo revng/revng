@@ -28,8 +28,8 @@ def storage_provider_factory(
     if storage_url.startswith("sqlite://"):
         # Create an empty file if it does not exist
         if not resolved_model_path.exists():
-            model_ty: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
-            empty_model = model_ty()
+            model_type: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
+            empty_model = model_type()
             with resolved_model_path.open("wb") as f:
                 f.write(empty_model.serialize())
 
@@ -43,6 +43,6 @@ def storage_provider_factory(
         return NullStorageProvider()
     else:
         raise ValueError(
-            "Unknown storage provider `%s`. "
+            'Unknown storage provider "%s". '
             "Please set the PYPELINE_STORAGE environment variable." % storage_url,
         )

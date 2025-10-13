@@ -195,8 +195,9 @@ class SQlite3StorageProvider(StorageProvider):
                 (location.savepoint_id, location.container_id, location.configuration_id),
             )
             result = cursor.fetchall()
-        obj_id_ty: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
-        return [obj_id_ty.from_bytes(x[0]) for x in result]
+
+        obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
+        return [obj_id_type.from_bytes(x[0]) for x in result]
 
     def get(
         self,
@@ -215,8 +216,8 @@ class SQlite3StorageProvider(StorageProvider):
                 (location.savepoint_id, location.container_id, location.configuration_id),
             )
             result = cursor.fetchall()
-        obj_id_ty: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
-        return {obj_id_ty.from_bytes(x[0]): x[1] for x in result}
+        obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
+        return {obj_id_type.from_bytes(x[0]): x[1] for x in result}
 
     def add_dependencies(
         self,
