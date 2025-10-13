@@ -58,6 +58,6 @@ struct EmitCPass : clift::impl::CliftEmitCBase<EmitCPass> {
 
 } // namespace
 
-std::unique_ptr<mlir::OperationPass<mlir::ModuleOp>> clift::createEmitCPass() {
+clift::PassPtr<mlir::ModuleOp> clift::createEmitCPass() {
   return std::make_unique<EmitCPass>();
 }
