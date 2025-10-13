@@ -911,6 +911,8 @@ public:
                                 CTE::Delimiter::Braces,
                                 /*Indented=*/false);
 
+      C.emitNewline();
+
       ValueType Type = S.getConditionType();
       for (unsigned I = 0, Count = S.getNumCases(); I < Count; ++I) {
         C.emitKeyword(CTE::Keyword::Case);

@@ -17,27 +17,27 @@ module attributes {clift.module} {
   clift.func @fun_0x40001001<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: switch (0) {
+    // CHECK-NEXT: switch (0) {
     clift.switch {
       %0 = clift.imm 0 : !int32_t
       clift.yield %0 : !int32_t
-    // CHECK: case 0:
+    // CHECK-NEXT: case 0:
     } case 0 {
-      // CHECK: 1;
+      // CHECK-NEXT: 1;
       clift.expr {
         %1 = clift.imm 1 : !int32_t
         clift.yield %1 : !int32_t
       }
-    // CHECK: break;
-    // CHECK: default:
+    // CHECK-NEXT: break;
+    // CHECK-NEXT: default:
     } default {
-      // CHECK: 2;
+      // CHECK-NEXT: 2;
       clift.expr {
         %2 = clift.imm 2 : !int32_t
         clift.yield %2 : !int32_t
       }
     }
-    // CHECK: break;
+    // CHECK-NEXT: break;
   }
-  // CHECK: }
+  // CHECK-NEXT: }
 }
