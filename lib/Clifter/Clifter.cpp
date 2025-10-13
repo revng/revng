@@ -1344,7 +1344,7 @@ private:
       Iterator->second.HasAssignLabel = true;
     }
 
-    Builder.create<GoToOp>(Loc, Iterator->second.Label);
+    Builder.create<GotoOp>(Loc, Iterator->second.Label);
   }
 
   // Returns: { RequiresFullExpression, RequiresIndirection }

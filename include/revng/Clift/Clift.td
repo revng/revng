@@ -409,7 +409,7 @@ def Clift_ForOp : Clift_LoopStatementOp<"for"> {
   let hasVerifier = 1;
 }
 
-def Clift_GoToOp : Clift_JumpStatementOp<"goto"> {
+def Clift_GotoOp : Clift_JumpStatementOp<"goto"> {
   let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{

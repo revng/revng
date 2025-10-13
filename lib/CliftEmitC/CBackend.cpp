@@ -781,7 +781,7 @@ public:
   emitLabeledJumpStatement(JumpStatementOpInterface S) {
     auto LabelOp = S.getLabel().getDefiningOp<MakeLabelOp>();
 
-    if (mlir::isa<GoToOp>(S))
+    if (mlir::isa<GotoOp>(S))
       C.emitKeyword(CTE::Keyword::Goto);
     else if (mlir::isa<BreakToOp>(S))
       C.emitLiteralIdentifier("break_to");
@@ -1056,7 +1056,7 @@ public:
 
   static bool mayElideBraces(mlir::Operation *Operation) {
     return mlir::isa<ExpressionStatementOp,
-                     GoToOp,
+                     GotoOp,
                      ReturnOp,
                      BreakToOp,
                      ContinueToOp>(Operation);

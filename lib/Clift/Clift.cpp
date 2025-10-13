@@ -833,11 +833,11 @@ mlir::LogicalResult ForOp::verify() {
 
 //===------------------------------- GotoOp -------------------------------===//
 
-MakeLabelOp GoToOp::getLabelOp() {
+MakeLabelOp GotoOp::getLabelOp() {
   return getLabel().getDefiningOp<MakeLabelOp>();
 }
 
-mlir::LogicalResult GoToOp::verify() {
+mlir::LogicalResult GotoOp::verify() {
   mlir::Operation *Assignment = getLabelAssignmentOp();
 
   if (mlir::isa<LoopOpInterface>(Assignment)) {
