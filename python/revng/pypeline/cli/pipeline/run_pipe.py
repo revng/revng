@@ -49,7 +49,7 @@ class RunPipeGroup(click.Group):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.registry: dict[str, type[Pipe]] = get_registry(Pipe)
-        self.model_ty: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
+        self.model_type: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
 
     def list_commands(self, ctx):
         base = super().list_commands(ctx)
@@ -62,31 +62,31 @@ class RunPipeGroup(click.Group):
 
     def _build_pipe_command(self, pipe_name: str):
         """Dynamically create a command for running a pipe."""
-        pipe_ty: type[Pipe] = self.registry[pipe_name]
+        pipe_type: type[Pipe] = self.registry[pipe_name]
 
-        if pipe_ty.__doc__:
-            help_text = click.wrap_text(f"\n{normalize_whitespace(pipe_ty.__doc__)}")
+        if pipe_type.__doc__:
+            help_text = click.wrap_text(f"\n{normalize_whitespace(pipe_type.__doc__)}")
         else:
             help_text = f"Run the pipe: {pipe_name}"
 
         help_text = build_help_text(
             prologue=help_text,
-            args=pipe_ty.signature(),
+            args=pipe_type.signature(),
         )
 
         # Add options for static configuration and configuration, only if the
         # pipe doesn't disable them by defining them as None
         static_config = (
-            pipe_ty.static_configuration_help()
-            or f"Static configuration for the pipe '{pipe_name}'."
+            pipe_type.static_configuration_help()
+            or f'Static configuration for the pipe "{pipe_name}".'
         )
 
         # Build the actual function that will be the command
         run_pipe_command = build_pipe_command(
             pipe_name=pipe_name,
             help_text=help_text,
-            pipe_ty=pipe_ty,
-            model_ty=self.model_ty,
+            pipe_type=pipe_type,
+            model_type=self.model_type,
         )
 
         # Decorate it to add the arguments it needs
@@ -99,7 +99,7 @@ class RunPipeGroup(click.Group):
                 help=normalize_whitespace(static_config),
             )(run_pipe_command)
         config = getattr(
-            pipe_ty, "configuration_help", f"Configuration for the pipe '{pipe_name}'."
+            pipe_type, "configuration_help", f'Configuration for the pipe "{pipe_name}".'
         )
         if config is not None:
             run_pipe_command = click.option(
@@ -112,7 +112,7 @@ class RunPipeGroup(click.Group):
 
         # For each argument, call the `click.argument` decorator to dynamically add
         # them to the command
-        for arg in pipe_ty.signature():
+        for arg in pipe_type.signature():
             if arg.access == TaskArgumentAccess.READ_WRITE:
                 run_pipe_command = click.argument(
                     f"{arg.name}-input",
@@ -145,8 +145,8 @@ class RunPipeGroup(click.Group):
 def build_pipe_command(
     pipe_name: str,
     help_text: str,
-    pipe_ty: type[Pipe],
-    model_ty: type[Model],
+    pipe_type: type[Pipe],
+    model_type: type[Model],
 ):
     @click.command(name=pipe_name, help=help_text)
     @click.argument(
@@ -180,13 +180,13 @@ def build_pipe_command(
         logger.debug("and kwargs: %s", kwargs)
 
         # Create the pipe
-        pipe = pipe_ty(
+        pipe = pipe_type(
             name=pipe_name,
             static_configuration=static_configuration,
         )
         # Load the model
         with open(model, "rb") as model_file:
-            loaded_model = model_ty.deserialize(model_file.read())
+            loaded_model = model_type.deserialize(model_file.read())
         # Load the containers with args form the command line
         containers = []
         for arg in pipe.arguments:
@@ -248,7 +248,7 @@ def build_pipe_command(
             outgoing=outgoing,
             configuration=configuration,
         )
-        logger.debug("Pipe run completed, object dependencies: `%s`", object_deps)
+        logger.debug('Pipe run completed, object dependencies: "%s"', object_deps)
 
         # Dump back the modified containers to the filesystem
         for arg, container in zip(pipe.signature(), containers):

@@ -35,7 +35,7 @@ def import_pipebox(module_path: str, is_complete: bool) -> object:
             return object()
         logger.error(
             (
-                "Pipebox file `%s` does not exist. Either set it using the "
+                'Pipebox file "%s" does not exist. Either set it using the '
                 "PIPEBOX env var, or pass the --pipebox option."
             ),
             module_abspath,
@@ -48,13 +48,13 @@ def import_pipebox(module_path: str, is_complete: bool) -> object:
     if spec is None:
         if is_complete:
             return object()
-        logger.error("Could not load module `%s` from `%s`", module_name, module_abspath)
+        logger.error('Could not load module "%s" from "%s"', module_name, module_abspath)
         sys.exit(1)
     module = importlib.util.module_from_spec(spec)
     if spec.loader is None:
         if is_complete:
             return object()
-        logger.error("Could not load module `%s` from `%s`", module_name, module_abspath)
+        logger.error('Could not load module "%s" from "%s"', module_name, module_abspath)
         sys.exit(1)
     # Execute the module to load it
     spec.loader.exec_module(module)
@@ -77,8 +77,8 @@ def import_pipebox(module_path: str, is_complete: bool) -> object:
         parser=lambda path: import_pipebox(path, "_PYPE_COMPLETE" in os.environ),
     ),
     help=(
-        "Path to the pipebox file. Defaults to the `PIPEBOX` environment "
-        "variable, then 'pipebox.py'."
+        'Path to the pipebox file. Defaults to the "PIPEBOX" environment '
+        'variable, then "pipebox.py".'
     ),
     default=os.environ.get("PIPEBOX", "pipebox.py"),
     expose_value=False,

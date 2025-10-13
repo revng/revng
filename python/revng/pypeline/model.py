@@ -47,8 +47,8 @@ class Model(ABC):
         """
         Returns all the objects of a certain kind in the model.
         """
-        obj_id_ty: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
-        root: ObjectID = obj_id_ty.root()
+        obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
+        root: ObjectID = obj_id_type.root()
         if kind == root.kind():
             return ObjectSet(root.kind(), {root})
         return ObjectSet(root.kind(), self.children(root, kind))

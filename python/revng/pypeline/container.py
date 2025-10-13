@@ -162,10 +162,10 @@ def load_container(
     This is used to **load** cached objects into this container.
     """
     container = container_type()
-    obj_id_ty = get_singleton(ObjectID)  # type: ignore[type-abstract]
+    obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
     with open(path, "r", encoding="utf-8") as f:
         container.deserialize(
-            {obj_id_ty.deserialize(k): bytes.fromhex(v) for k, v in json.load(f).items()}
+            {obj_id_type.deserialize(k): bytes.fromhex(v) for k, v in json.load(f).items()}
         )
     return container
 

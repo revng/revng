@@ -28,7 +28,7 @@ class RunAnalysisGroup(click.Group):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.registry: dict[str, type[Analysis]] = get_registry(Analysis)
-        self.model_ty: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
+        self.model_type: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
 
     def list_commands(self, ctx):
         base = super().list_commands(ctx)
@@ -41,10 +41,10 @@ class RunAnalysisGroup(click.Group):
 
     def _build_analysis_command(self, analysis_name: str):
         """Dynamically create a command for running an analysis."""
-        analysis_ty: type[Analysis] = self.registry[analysis_name]
+        analysis_type: type[Analysis] = self.registry[analysis_name]
 
-        if analysis_ty.__doc__:
-            help_text = click.wrap_text(f"\n{normalize_whitespace(analysis_ty.__doc__)}")
+        if analysis_type.__doc__:
+            help_text = click.wrap_text(f"\n{normalize_whitespace(analysis_type.__doc__)}")
         else:
             help_text = f"Run the analysis: {analysis_name}"
 
@@ -57,7 +57,7 @@ class RunAnalysisGroup(click.Group):
                     access=TaskArgumentAccess.READ,
                     help_text=normalize_whitespace(container_type.__doc__ or ""),
                 )
-                for container_type in analysis_ty.signature()
+                for container_type in analysis_type.signature()
             ],
         )
 
@@ -65,12 +65,14 @@ class RunAnalysisGroup(click.Group):
         run_analysis_command = build_run_analysis_command(
             analysis_name=analysis_name,
             help_text=help_text,
-            analysis_ty=analysis_ty,
-            model_ty=self.model_ty,
+            analysis_type=analysis_type,
+            model_type=self.model_type,
         )
 
         config = getattr(
-            analysis_ty, "configuration_help", f"Configuration for the analysis '{analysis_name}'."
+            analysis_type,
+            "configuration_help",
+            f'Configuration for the analysis "{analysis_name}".',
         )
         if config is not None:
             run_analysis_command = click.option(
@@ -83,7 +85,7 @@ class RunAnalysisGroup(click.Group):
 
         # For each argument, call the `click.argument` decorator to dynamically add
         # them to the command
-        for arg in analysis_ty.signature():
+        for arg in analysis_type.signature():
             run_analysis_command = click.argument(
                 arg.__name__,
                 type=click.Path(exists=True, dir_okay=False, readable=True),
@@ -101,8 +103,8 @@ class RunAnalysisGroup(click.Group):
 def build_run_analysis_command(
     analysis_name: str,
     help_text: str,
-    analysis_ty: type[Analysis],
-    model_ty: type[Model],
+    analysis_type: type[Analysis],
+    model_type: type[Model],
 ):
     @click.command(name=analysis_name, help=help_text)
     @click.argument(
@@ -122,19 +124,20 @@ def build_run_analysis_command(
         configuration: str,
         **kwargs,
     ) -> None:
-        logger.debug("Running analysis: `%s`", analysis_name)
-        logger.debug("configuration: `%s`", configuration)
-        logger.debug("model: `%s`", model)
-        logger.debug("and kwargs: `%s`", kwargs)
+        logger.debug('Running analysis: "%s"', analysis_name)
+        logger.debug('configuration: "%s"', configuration)
+        logger.debug('model: "%s"', model)
+        logger.debug('and kwargs: "%s"', kwargs)
 
-        analysis = analysis_ty(
+        analysis = analysis_type(
             name=analysis_name,
         )
         # Load the model
+        loaded_model: Model = model_type()
         with open(model, "rb") as model_file:
-            loaded_model = model_ty.deserialize(model_file.read())
+            loaded_model = model_type.deserialize(model_file.read())
 
-        logger.debug("Model loaded: `%s`", loaded_model)
+        logger.debug('Model loaded: "%s"', loaded_model)
 
         # Load the containers with args form the command line
         containers = []
@@ -143,7 +146,7 @@ def build_run_analysis_command(
             path = kwargs[arg_name]
             container = load_container(arg, path)
             logger.debug(
-                "Loaded container from `%s` for argument `%s`: `%r`", path, arg_name, container
+                'Loaded container from "%s" for argument "%s": "%r"', path, arg_name, container
             )
             containers.append(container)
 

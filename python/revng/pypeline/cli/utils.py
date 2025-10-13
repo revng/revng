@@ -100,7 +100,7 @@ class EagerParsedPath(click.Path):
                     ctx.obj = {}
                 if self.name in ctx.obj:
                     raise ValueError(
-                        f"Argument `{self.name}` already set in context, "
+                        f'Argument "{self.name}" already set in context, '
                         "this is likely a bug in the code."
                     )
                 # Store the parsed value in the context object
@@ -262,7 +262,7 @@ def list_objects_for_container(
     """
     Print all available objects for a given container kind in the model.
     """
-    print(f"Available objects for `{arg_name}` kind: {kind.__name__}")
+    print(f'Available objects for "{arg_name}" kind: {kind.__name__}')
     for obj in model.all_objects(kind):
         print(f" - {obj}")
 
@@ -280,12 +280,12 @@ def compute_objects(
     Otherwise, return all objects of the given kind from the model.
     """
     arg_name = normalize_flag(arg_name)
-    obj_id_ty = get_singleton(ObjectID)  # type: ignore[type-abstract]
+    obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
     if f"{arg_name}_objects" in kwargs:
         objects = kwargs.get(f"{arg_name}_objects", "")
         if objects:
             return ObjectSet(
                 kind=kind,
-                objects={obj_id_ty.deserialize(obj) for obj in objects.split(",") if obj.strip()},
+                objects={obj_id_type.deserialize(obj) for obj in objects.split(",") if obj.strip()},
             )
     return model.all_objects(kind)

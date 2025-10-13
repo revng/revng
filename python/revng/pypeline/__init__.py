@@ -31,5 +31,5 @@ def initialize_pypeline() -> None:
     register_all_subclasses(Model, singleton=True)
     register_all_subclasses(Kind, singleton=True)
     register_all_subclasses(ObjectID, singleton=True)
-    kind_ty = get_singleton(Kind)  # type: ignore[type-abstract]
-    kind_ty._init_type()
+    kind_type = get_singleton(Kind)  # type: ignore[type-abstract]
+    kind_type._init_type()

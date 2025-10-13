@@ -367,7 +367,7 @@ class Pipeline(Generic[C]):
         pipeline_nodes = list(self.walk_pipeline(stable=True))
         container_map = {x.name: x for x in self.declarations}
 
-        obj_id_ty = get_singleton(ObjectID)  # type: ignore[type-abstract]
+        obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
         configuration = {}
         scheduled_tasks: list[ScheduledTask] = []
         for task in schedule_dict["tasks"]:
@@ -386,10 +386,10 @@ class Pipeline(Generic[C]):
                     container_kind = container_declaration.container_type.kind
 
                     incoming[container_declaration] = ObjectSet(
-                        container_kind, {obj_id_ty.deserialize(x) for x in arg["incoming"]}
+                        container_kind, {obj_id_type.deserialize(x) for x in arg["incoming"]}
                     )
                     outgoing[container_declaration] = ObjectSet(
-                        container_kind, {obj_id_ty.deserialize(x) for x in arg["outgoing"]}
+                        container_kind, {obj_id_type.deserialize(x) for x in arg["outgoing"]}
                     )
             elif task["type"] == "SavePoint":
                 assert isinstance(pipeline_node.task, SavePoint)
@@ -400,13 +400,13 @@ class Pipeline(Generic[C]):
                     container_kind = container_declaration.container_type.kind
 
                     incoming[container_declaration] = ObjectSet(
-                        container_kind, {obj_id_ty.deserialize(x) for x in container["incoming"]}
+                        container_kind, {obj_id_type.deserialize(x) for x in container["incoming"]}
                     )
                     outgoing[container_declaration] = ObjectSet(
-                        container_kind, {obj_id_ty.deserialize(x) for x in container["outgoing"]}
+                        container_kind, {obj_id_type.deserialize(x) for x in container["outgoing"]}
                     )
             else:
-                raise ValueError(f"Unknown task type: {task['type']}")
+                raise ValueError(f"Unknown task type: \"{task['type']}\"")
 
             depends_on = [scheduled_tasks[i] for i in task["depends_on"]]
             scheduled_task = ScheduledTask(pipeline_node, False, outgoing, incoming, depends_on)

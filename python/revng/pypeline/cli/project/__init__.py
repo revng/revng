@@ -25,8 +25,8 @@ from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
         parser=load_pipeline_yaml_file,
     ),
     help=(
-        "Path to the pipeline file. Defaults to the `PIPELINE` environment "
-        "variable, then 'pipeline.yml'."
+        'Path to the pipeline file. Defaults to the "PIPELINE" environment '
+        'variable, then "pipeline.yml".'
     ),
     default=os.environ.get("PIPELINE", "pipeline.yml"),
     expose_value=False,
