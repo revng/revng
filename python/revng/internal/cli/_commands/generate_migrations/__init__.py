@@ -182,25 +182,8 @@ class GenerateMigrationCommand(Command):
         return f"# TODO: Handle {action}"
 
     def _emit_migration_template(self, changes: List[Change]) -> str:
-        template_str = """#
-# This file is distributed under the MIT License. See LICENSE.md for details.
-#
-
-from revng.model.migrations.migration_base import MigrationBase
-
-
-class Migration(MigrationBase):
-    def __init__(self):
-        pass
-
-    def migrate(self, model):
-        {%- for comment in comments %}
-        {{ comment }}
-        {%- endfor %}
-        pass
-
-"""
-        template = jinja2.Template(template_str)
+        template_file = Path(__file__).parent / "migration.py.tpl"
+        template = jinja2.Template(template_file.read_text())
         return template.render(comments=[self._todo_comment(change) for change in changes])
 
     def run(self, options):
