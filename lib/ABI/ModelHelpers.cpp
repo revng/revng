@@ -110,7 +110,7 @@ model::UpcastableType fromLLVMString(llvm::Value *V,
     std::string Error = "Could not deserialize the model type from LLVM "
                         "constant string \""
                         + BaseTypeString.str()
-                        + "\2: " + consumeToString(ParsedType) + ".";
+                        + "\": " + consumeToString(ParsedType) + ".";
     revng_abort(Error.c_str());
   }
 

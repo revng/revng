@@ -52,6 +52,15 @@ concept UpcastablePointerLike = Dereferenceable<T> and Upcastable<pointee<T>>;
 template<typename T>
 concept NotUpcastablePointerLike = not UpcastablePointerLike<T>;
 
+/// This is an upcasting helper, `UpcastablePointer` below takes advantage of
+/// heavily. When possible, prefer the member function instead.
+///
+/// That being said, this free function is not tied to the object and can be
+/// used on normal pointers, as long as LLVM-style RTTI conventions
+/// are adhered to.
+///
+/// \note \param IfNull can be an `llvm::Error`. In such case, in case of
+///       a successful upcast, \param IfNull will be consumed.
 template<typename ReturnT, typename L, UpcastablePointerLike P, size_t I = 0>
   requires(not std::is_void_v<ReturnT>)
 ReturnT upcast(P &&Upcastable, const L &Callable, ReturnT &&IfNull) {
@@ -64,32 +73,16 @@ ReturnT upcast(P &&Upcastable, const L &Callable, ReturnT &&IfNull) {
   if constexpr (I < std::tuple_size_v<concrete_types>) {
     using type = std::tuple_element_t<I, concrete_types>;
     if (auto *Upcasted = llvm::dyn_cast<type>(Pointer)) {
+      if constexpr (std::same_as<std::decay_t<ReturnT>, llvm::Error>)
+        llvm::consumeError(std::move(IfNull));
+      static_assert(not SpecializationOf<std::decay_t<ReturnT>,
+                                         llvm::Expected>);
+
       return Callable(*Upcasted);
     } else {
       return upcast<ReturnT, L, P, I + 1>(std::forward<P>(Upcastable),
                                           Callable,
                                           std::forward<ReturnT>(IfNull));
-    }
-  } else {
-    revng_abort();
-  }
-}
-
-template<typename L, UpcastablePointerLike P, size_t I = 0>
-llvm::Error upcast(P &&Upcastable, const L &Callable, llvm::Error IfNull) {
-  using pointee = std::remove_reference_t<decltype(*Upcastable)>;
-  using concrete_types = concrete_types_traits_t<pointee>;
-  auto *Pointer = &*Upcastable;
-  if (Pointer == nullptr)
-    return IfNull;
-
-  if constexpr (I < std::tuple_size_v<concrete_types>) {
-    using type = std::tuple_element_t<I, concrete_types>;
-    if (auto *Upcasted = llvm::dyn_cast<type>(Pointer)) {
-      llvm::consumeError(std::move(IfNull));
-      return Callable(*Upcasted);
-    } else {
-      return upcast<L, P, I + 1>(Upcastable, Callable, std::move(IfNull));
     }
   } else {
     revng_abort();

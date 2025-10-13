@@ -768,8 +768,11 @@ IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
                                 InArgs);
 
   // Check if there was an error while translating the instruction
-  if (!Result)
+  if (!Result) {
+    // TODO: log
+    llvm::consumeError(Result.takeError());
     return Abort;
+  }
 
   size_t OutSize = TheInstruction.OutArguments.size();
   revng_assert(Result->size() == OutSize);

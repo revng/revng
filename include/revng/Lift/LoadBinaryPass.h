@@ -12,9 +12,6 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawBinaryView.h"
 
-llvm::Expected<std::pair<RawBinaryView, std::unique_ptr<llvm::MemoryBuffer>>>
-loadBinary(const model::Binary &Model, llvm::StringRef BinaryPath);
-
 class LoadBinaryWrapperPass : public llvm::ModulePass {
 public:
   static char ID;

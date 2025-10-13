@@ -55,6 +55,7 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
     DecompileStringMap DecompiledFunctions("tmp");
     for (pipeline::Target &Target : CFGMap.enumerate()) {
       auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
+      revng_assert(Entry.isValid());
       const model::Function &Function = Model.Functions().at(Entry);
       auto *F = Module.getFunction(B.NameBuilder.llvmName(Function));
       std::string CCode = decompile(Cache, *F, Model, B);

@@ -459,10 +459,10 @@ Step::loadInvalidationMetadataImpl(const revng::DirectoryPath &Path,
     for (NamedPathTargetBimapVector &Entry : *Parsed) {
       Global *Global = llvm::cantFail(TheContext->getGlobals()
                                         .get(Entry.GlobalName));
-      auto Parsed(Entry.Map.deserialize(*TheContext,
-                                        *Global,
-                                        Pipe.Pipe->getName(),
-                                        Container.first()));
+      auto Parsed = Entry.Map.deserialize(*TheContext,
+                                          *Global,
+                                          Pipe.Pipe->getName(),
+                                          Container.first());
       if (not Parsed)
         return Parsed.takeError();
       Pipe.InvalidationMetadata.getPathCache(Global->getName())

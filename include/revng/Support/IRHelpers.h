@@ -1533,3 +1533,13 @@ public:
 };
 
 void sortModule(llvm::Module &M);
+
+/// \p FinalLinkage final linkage for all the globals. Use std::nullopt to
+///    preserve the original one.
+void linkModules(std::unique_ptr<llvm::Module> &&Source,
+                 llvm::Module &Destination,
+                 std::optional<llvm::GlobalValue::LinkageTypes> FinalLinkage);
+inline void linkModules(std::unique_ptr<llvm::Module> &&Source,
+                        llvm::Module &Destination) {
+  return linkModules(std::move(Source), Destination, std::nullopt);
+}

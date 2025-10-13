@@ -51,7 +51,7 @@ public:
   llvm::Error overrideModel(revng::FilePath ModelOverride,
                             PipelineManager &Manager) {
     const auto &Name = ModelGlobalName;
-    auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));
+    auto *Model = cantFail(Manager.context().getGlobal<ModelGlobal>(Name));
     return Model->load(ModelOverride);
   }
 

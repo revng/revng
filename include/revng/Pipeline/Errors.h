@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -62,13 +63,7 @@ private:
 
 public:
   AnnotatedError(llvm::Error Error, const llvm::Twine &ExtraData) :
-    ExtraData(ExtraData.str()) {
-    revng_assert(Error);
-    llvm::raw_string_ostream S(Inner);
-    S << Error;
-    S.flush();
-    llvm::consumeError(std::move(Error));
-  }
+    Inner(consumeToString(std::move(Error))), ExtraData(ExtraData.str()) {}
 
 public:
   std::error_code convertToErrorCode() const override;

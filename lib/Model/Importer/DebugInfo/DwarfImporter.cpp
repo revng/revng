@@ -912,6 +912,7 @@ private:
 
     unsigned DroppedTypes = dropTypesDependingOnDefinitions(Model, ToDrop);
     if (DroppedTypes > 0) {
+      // TODO: emit a diagnostic message for the user.
       revng_log(DILogger,
                 "Purging " << DroppedTypes << " types (out of "
                            << TypesWithIdentityCount << ") due to "
@@ -951,6 +952,7 @@ template<typename T>
 ArrayRef<uint8_t> getSectionsContents(StringRef Name, T &ELF) {
   auto MaybeSections = ELF.sections();
   if (auto Error = MaybeSections.takeError()) {
+    // TODO: emit a diagnostic message for the user.
     revng_log(DILogger, "Failed to get sections: " << Error);
     consumeError(std::move(Error));
     return {};
@@ -1049,6 +1051,7 @@ static bool fileExists(const Twine &Path) {
   if (Result) {
     revng_log(DILogger, "Found: " << Path.str());
   } else {
+    // TODO: emit a diagnostic message for the user.
     revng_log(DILogger, "The following path does not exist: " << Path.str());
   }
 
@@ -1149,6 +1152,8 @@ findDebugInfoFileByName(StringRef FileName,
           if (fileExists(ResultPath.str())) {
             return ResultPath.str().str();
           }
+
+          // TODO: emit a diagnostic message for the user.
           revng_log(DILogger, "Can't find " << DebugFileName);
         } else {
           revng_log(DILogger, "Can't parse build-id.");
@@ -1178,6 +1183,7 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
     MaybeBuffer = MemoryBuffer::getFileOrSTDIN(FileName);
 
   if (not MaybeBuffer) {
+    // TODO: emit a diagnostic message for the user.
     revng_log(DILogger,
               "Couldn't open file " << FileName << " "
                                     << MaybeBuffer.getError().message());
@@ -1188,6 +1194,7 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
   Expected<std::unique_ptr<Binary>> MaybeBinary = object::createBinary(*Buffer);
 
   if (auto Error = MaybeBinary.takeError()) {
+    // TODO: emit a diagnostic message for the user.
     revng_log(DILogger, "Couldn't load binary: " << Error);
     consumeError(std::move(Error));
     return;
@@ -1200,26 +1207,27 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
   // improvement.
   auto HasDebugInfo = [](ObjectFile *Object) {
     for (const SectionRef &Section : Object->sections()) {
-      StringRef SectionName;
       if (Expected<StringRef> NameOrErr = Section.getName()) {
-        SectionName = *NameOrErr;
+        // TODO: When adding support for Split dwarf, there will be
+        // .debug_info.dwo section, so we need to handle it.
+        if (*NameOrErr == ".debug_info")
+          return true;
+
       } else {
-        llvm::consumeError(NameOrErr.takeError());
+        llvm::Error Error = NameOrErr.takeError();
+        revng_log(DILogger, "Cannot access section name: " << Error);
+        llvm::consumeError(std::move(Error));
         continue;
       }
-
-      // TODO: When adding support for Split dwarf, there will be
-      // .debug_info.dwo section, so we need to handle it.
-      if (SectionName == ".debug_info")
-        return true;
     }
     return false;
   };
 
   auto PerformImport = [this, &T, &Options](StringRef FilePath,
                                             StringRef TheDebugFile) {
-    auto ExpectedBinary = object::createBinary(FilePath);
+    llvm::Expected ExpectedBinary = object::createBinary(FilePath);
     if (!ExpectedBinary) {
+      // TODO: emit a diagnostic message for the user.
       revng_log(DILogger, "Can't create binary for " << FilePath);
       llvm::consumeError(ExpectedBinary.takeError());
     } else {
@@ -1246,12 +1254,6 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
 
       auto DebugFilePath = findDebugInfoFileByName(FileName, DebugFile, ELF);
       if (!DebugFilePath) {
-        if (!::Runner.isProgramAvailable("revng")) {
-          revng_log(DILogger,
-                    "Can't find `revng` binary to run `fetch-debuginfo`.");
-          return;
-        }
-
         int ExitCode = runFetchDebugInfo(FileName, DILogger.isEnabled());
         if (ExitCode != 0) {
           revng_log(DILogger,
@@ -1327,15 +1329,19 @@ computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
     auto MaybeFlags = Symbol.getFlags();
 
     if (auto Error = MaybeType.takeError()) {
+      revng_log(DILogger, "Cannot access symbol type: " << Error);
       consumeError(std::move(Error));
       continue;
     } else if (auto Error = MaybeAddress.takeError()) {
+      revng_log(DILogger, "Cannot access symbol address: " << Error);
       consumeError(std::move(Error));
       continue;
     } else if (auto Error = MaybeName.takeError()) {
+      revng_log(DILogger, "Cannot access symbol name: " << Error);
       consumeError(std::move(Error));
       continue;
     } else if (auto Error = MaybeFlags.takeError()) {
+      revng_log(DILogger, "Cannot access symbol flags: " << Error);
       consumeError(std::move(Error));
       continue;
     }

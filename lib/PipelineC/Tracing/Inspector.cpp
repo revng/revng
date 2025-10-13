@@ -67,7 +67,6 @@ extractBuffer(const revng::tracing::Argument &Arg) {
   if (Err)
     return std::move(Err);
 
-  llvm::consumeError(std::move(Err));
   return Result;
 }
 

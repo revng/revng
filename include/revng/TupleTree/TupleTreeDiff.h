@@ -438,8 +438,6 @@ public:
   revng::DiffError *EL;
 
 private:
-  void generateError() { generateError(""); }
-
   void generateError(const llvm::StringRef Reason,
                      revng::DiffLocation::KindType Kind) {
     std::string Description = "Error in applying diff";

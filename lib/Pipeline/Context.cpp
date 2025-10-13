@@ -44,6 +44,9 @@ llvm::Error Context::load(const revng::DirectoryPath &Path) {
   if (not MaybeExists)
     return MaybeExists.takeError();
 
+  // In the context of `lib/Pipeline`, both context and containers are default
+  // constructible. As such, we just skip loading files that do not exist,
+  // ending up with the default state.
   if (not MaybeExists.get())
     return llvm::Error::success();
 
