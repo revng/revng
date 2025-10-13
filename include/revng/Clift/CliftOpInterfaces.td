@@ -8,6 +8,6 @@
 // The MLIR tablegen tool emits declarations in alphabetical order, causing
 // incorrect emission of interface hierarchies.
 
-include "revng/Clift/CliftOpInterfacesJump.td"
+include "revng/Clift/CliftOpInterfacesControlFlow.td"
 
 #endif

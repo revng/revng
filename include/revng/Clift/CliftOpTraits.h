@@ -6,8 +6,6 @@
 
 #include "mlir/IR/OpDefinition.h"
 
-#include "revng/Clift/CliftOpInterfaces.h"
-
 namespace mlir {
 namespace OpTrait {
 namespace clift {

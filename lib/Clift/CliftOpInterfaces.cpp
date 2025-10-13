@@ -16,6 +16,8 @@ namespace mlir {
 #include "revng/Clift/CliftOpInterfacesLabel.cpp.inc"
 // Prevent reordering:
 #include "revng/Clift/CliftOpInterfacesJump.cpp.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftOpInterfacesControlFlow.cpp.inc"
 
 } // namespace mlir
 

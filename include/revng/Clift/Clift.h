@@ -17,6 +17,7 @@
 #include "revng/Clift/CliftDialect.h"
 #include "revng/Clift/CliftEnums.h"
 #include "revng/Clift/CliftInterfaces.h"
+#include "revng/Clift/CliftOpInterfaces.h"
 #include "revng/Clift/CliftOpTraits.h"
 #include "revng/Clift/CliftTypes.h"
 
