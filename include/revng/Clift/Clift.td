@@ -391,15 +391,7 @@ def Clift_ForOp : Clift_LoopStatementOp<"for"> {
     OpBuilder<(ins)>
   ];
 
-  let assemblyFormat = [{
-    custom<CliftLoopLabels>($label_mask, $labels)
-    (`init` $initializer^)?
-    (`cond` $condition^)?
-    (`next` $expression^)?
-    `body` $body
-    attr-dict-with-keyword
-  }];
-
+  let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
 }
 

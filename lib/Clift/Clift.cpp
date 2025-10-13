@@ -616,15 +616,196 @@ void ForOp::build(OpBuilder &Builder, OperationState &State) {
   buildLoop(Builder, State, 4);
 }
 
+mlir::ParseResult ForOp::parse(OpAsmParser &Parser, OperationState &Result) {
+  mlir::IntegerAttr LabelMaskAttr;
+  llvm::SmallVector<UnresolvedOperand, 2> LabelOperands;
+  llvm::SMLoc LabelOperandsLoc = Parser.getCurrentLocation();
+
+  if (parseCliftLoopLabels(Parser, LabelMaskAttr, LabelOperands))
+    return mlir::failure();
+
+  mlir::Type InitType = {};
+
+  auto InitRegion = std::make_unique<mlir::Region>();
+  if (Parser.parseOptionalKeyword("init").succeeded()) {
+    if (Parser.parseOptionalColon().succeeded()) {
+      if (Parser.parseType(InitType).failed())
+        return mlir::failure();
+    }
+
+    if (Parser.parseRegion(*InitRegion).failed())
+      return mlir::failure();
+  }
+
+  auto ParseRegion = [&Parser,
+                      &InitType](mlir::Region &R) -> mlir::LogicalResult {
+    llvm::SmallVector<OpAsmParser::Argument, 1> Arguments;
+
+    llvm::SMLoc OperandLoc = Parser.getCurrentLocation();
+    UnresolvedOperand Operand;
+
+    if (Parser.parseOptionalLParen().succeeded()) {
+      if (Parser.parseOperand(Operand).failed())
+        return mlir::failure();
+      if (Parser.parseRParen().failed())
+        return mlir::failure();
+
+      if (not InitType) {
+        return Parser.emitError(OperandLoc,
+                                "Region operand requires specifying the type "
+                                "of the variable declared in the init region "
+                                "of this operation.");
+      }
+
+      Arguments.emplace_back(Operand, InitType);
+    }
+
+    if (Parser.parseRegion(R, Arguments).failed())
+      return mlir::failure();
+
+    return mlir::success();
+  };
+
+  auto CondRegion = std::make_unique<mlir::Region>();
+  if (Parser.parseOptionalKeyword("cond").succeeded()) {
+    if (ParseRegion(*CondRegion).failed())
+      return mlir::failure();
+  }
+
+  auto NextRegion = std::make_unique<mlir::Region>();
+  if (Parser.parseOptionalKeyword("next").succeeded()) {
+    if (ParseRegion(*NextRegion).failed())
+      return mlir::failure();
+  }
+
+  if (Parser.parseKeyword("body").failed())
+    return mlir::failure();
+
+  auto BodyRegion = std::make_unique<mlir::Region>();
+  if (ParseRegion(*BodyRegion).failed())
+    return mlir::failure();
+
+  if (Parser.parseOptionalAttrDictWithKeyword(Result.attributes))
+    return mlir::failure();
+
+  if (Parser
+        .resolveOperands(LabelOperands,
+                         LabelType::get(Parser.getContext()),
+                         LabelOperandsLoc,
+                         Result.operands)
+        .failed())
+    return mlir::failure();
+
+  Result.addAttribute("label_mask", LabelMaskAttr);
+  Result.addRegion(std::move(InitRegion));
+  Result.addRegion(std::move(CondRegion));
+  Result.addRegion(std::move(NextRegion));
+  Result.addRegion(std::move(BodyRegion));
+
+  return mlir::success();
+}
+
+void ForOp::print(OpAsmPrinter &Printer) {
+  mlir::Type InitType = {};
+
+  auto SetInitType = [&InitType](mlir::Region &R) {
+    if (not InitType and R.getNumArguments() != 0)
+      InitType = R.getArgument(0).getType();
+  };
+
+  SetInitType(getCondition());
+  SetInitType(getExpression());
+  SetInitType(getBody());
+
+  Printer << ' ';
+  printCliftLoopLabels(Printer, *this, getLabelMaskAttr(), getLabels());
+  Printer << ' ';
+
+  if (InitType or not getInitializer().empty()) {
+    Printer << " init ";
+
+    if (InitType) {
+      Printer << ':';
+      Printer << ' ';
+      Printer.printType(InitType);
+      Printer << ' ';
+    }
+
+    Printer.printRegion(getInitializer());
+  }
+
+  auto PrintRegion = [&Printer](mlir::Region &R) {
+    if (R.getNumArguments() != 0) {
+      Printer << '(';
+      Printer.printOperand(R.getArgument(0));
+      Printer << ')';
+      Printer << ' ';
+    }
+
+    Printer.printRegion(R, /*printEntryBlockArgs=*/false);
+  };
+
+  if (not getCondition().empty()) {
+    Printer << " cond ";
+    PrintRegion(getCondition());
+  }
+
+  if (not getExpression().empty()) {
+    Printer << " next ";
+    PrintRegion(getExpression());
+  }
+
+  Printer << " body ";
+  PrintRegion(getBody());
+
+  Printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
+                                           llvm::StringRef("label_mask"));
+}
+
 mlir::LogicalResult ForOp::verify() {
   Region &Initializer = getInitializer();
 
+  clift::ValueType InitType = {};
   if (not Initializer.empty()) {
-    // TODO: Decide what should be accepted in a for-loop init-statement and
-    //       Implement verification of it.
-    return emitOpError() << getOperationName()
-                         << " init statements are not yet supported.";
+    mlir::Operation *Op = getOnlyOp(Initializer);
+
+    if (not Op or not mlir::isa<ExpressionStatementOp, LocalVariableOp>(Op)) {
+      return emitOpError() << getOperationName()
+                           << " initializer region must be empty or contain"
+                              " exactly one expression statement or local"
+                              " variable declaration.";
+    }
+
+    if (auto Local = mlir::dyn_cast<LocalVariableOp>(Op))
+      InitType = Local.getType();
   }
+
+  auto CheckRegionArguments =
+    [this, &InitType](llvm::StringRef Name,
+                      mlir::Region &R) -> mlir::LogicalResult {
+    if (R.getNumArguments() != 0) {
+      if (R.getNumArguments() != 1) {
+        return emitOpError() << getOperationName() << " " << Name
+                             << " region may have no more than one argument.";
+      }
+
+      if (R.getArgument(0).getType() != InitType) {
+        return emitOpError() << getOperationName() << " " << Name
+                             << " region argument type must match the type of"
+                                " the local variable declaration contained in "
+                                " the init region.";
+      }
+    }
+
+    return mlir::success();
+  };
+
+  if (CheckRegionArguments("condition", getCondition()).failed())
+    return mlir::failure();
+  if (CheckRegionArguments("expression", getExpression()).failed())
+    return mlir::failure();
+  if (CheckRegionArguments("body", getBody()).failed())
+    return mlir::failure();
 
   if (auto ConditionType = getExpressionType(getCondition())) {
     if (not isScalarType(ConditionType))

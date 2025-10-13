@@ -43,8 +43,6 @@ enum class OperatorPrecedence {
 };
 
 class CliftToCEmitter : CEmitter {
-  FunctionOp CurrentFunction = {};
-
   // Ambient precedence of the current expression.
   OperatorPrecedence CurrentPrecedence = {};
 
@@ -158,19 +156,24 @@ public:
     rc_recur emitAggregateInitializer(E);
   }
 
-  RecursiveCoroutine<void> emitParameterExpression(mlir::Value V) {
+  RecursiveCoroutine<void> emitBlockArgumentExpression(mlir::Value V) {
     auto E = mlir::cast<mlir::BlockArgument>(V);
+    mlir::Operation *Op = E.getOwner()->getParentOp();
 
-    const auto &ArgAttrs = CurrentFunction.getArgAttrs(E.getArgNumber());
-    const auto GetStringAttr = [&ArgAttrs](llvm::StringRef Name) {
-      return mlir::cast<mlir::StringAttr>(ArgAttrs.get(Name)).getValue();
-    };
+    if (auto Function = mlir::dyn_cast<FunctionOp>(Op)) {
+      const auto &ArgAttrs = Function.getArgAttrs(E.getArgNumber());
+      const auto GetStringAttr = [&ArgAttrs](llvm::StringRef Name) {
+        return mlir::cast<mlir::StringAttr>(ArgAttrs.get(Name)).getValue();
+      };
 
-    C.emitIdentifier(GetStringAttr("clift.name"),
-                     GetStringAttr("clift.handle"),
-                     CTE::EntityKind::FunctionParameter,
-                     CTE::IdentifierKind::Reference);
-    rc_return;
+      C.emitIdentifier(GetStringAttr("clift.name"),
+                       GetStringAttr("clift.handle"),
+                       CTE::EntityKind::FunctionParameter,
+                       CTE::IdentifierKind::Reference);
+    } else if (auto For = mlir::dyn_cast<ForOp>(Op)) {
+      auto Local = getOnlyOp<LocalVariableOp>(For.getInitializer());
+      rc_recur emitLocalVariableExpression(Local.getResult());
+    }
   }
 
   RecursiveCoroutine<void> emitLocalVariableExpression(mlir::Value V) {
@@ -461,7 +464,7 @@ public:
       if (mlir::isa<mlir::BlockArgument>(V)) {
         return {
           .Precedence = OperatorPrecedence::Primary,
-          .Emit = &CliftToCEmitter::emitParameterExpression,
+          .Emit = &CliftToCEmitter::emitBlockArgumentExpression,
         };
       }
 
@@ -695,7 +698,8 @@ public:
 
   //===---------------------------- Statements ----------------------------===//
 
-  RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S) {
+  RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S,
+                                                        bool EmitNewline) {
     emitDeclaration(S.getResult().getType(),
                     DeclaratorInfo{
                       .Identifier = getNameAttr(S),
@@ -721,7 +725,9 @@ public:
     }
 
     C.emitPunctuator(CTE::Punctuator::Semicolon);
-    C.emitNewline();
+
+    if (EmitNewline)
+      C.emitNewline();
   }
 
   bool labelRequiresEmptyExpression(LabelAssignmentOpInterface Op) {
@@ -939,7 +945,16 @@ public:
     C.emitKeyword(CTE::Keyword::For);
     C.emitSpace();
     C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-    C.emitPunctuator(CTE::Punctuator::Semicolon);
+
+    if (mlir::Region &R = S.getInitializer(); not R.empty()) {
+      mlir::Operation *Op = getOnlyOp(R);
+      if (auto L = mlir::dyn_cast<LocalVariableOp>(Op))
+        rc_recur emitLocalVariableDeclaration(L, /*Newline=*/false);
+      else
+        rc_recur emitExpressionStatement(mlir::cast<ExpressionStatementOp>(Op));
+    } else {
+      C.emitPunctuator(CTE::Punctuator::Semicolon);
+    }
 
     if (mlir::Region &R = S.getCondition(); not R.empty()) {
       C.emitSpace();
@@ -999,7 +1014,7 @@ public:
     mlir::Operation *Op = Stmt.getOperation();
 
     if (auto S = mlir::dyn_cast<LocalVariableOp>(Op))
-      return emitLocalVariableDeclaration(S);
+      return emitLocalVariableDeclaration(S, /*Newline=*/true);
 
     if (auto S = mlir::dyn_cast<MakeLabelOp>(Op))
       return noopCoroutine();
@@ -1084,8 +1099,6 @@ public:
   //===----------------------------- Functions ----------------------------===//
 
   RecursiveCoroutine<void> emitFunction(FunctionOp Op) {
-    CurrentFunction = Op;
-
     // Scope tags are applied within this scope:
     {
       auto OuterScope = C.enterScope(CTE::ScopeKind::FunctionDeclaration,

@@ -38,7 +38,7 @@ bool clift::isLvalueExpression(mlir::Value Value) {
     if (Op == nullptr)
       return false;
 
-    return mlir::isa<FunctionOp>(Op);
+    return mlir::isa<FunctionOp, LoopOpInterface>(Op);
   } else {
     mlir::Operation *Op = Value.getDefiningOp();
 
