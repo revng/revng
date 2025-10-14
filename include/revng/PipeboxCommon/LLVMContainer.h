@@ -21,6 +21,7 @@ class LLVMRootContainer {
 public:
   static constexpr llvm::StringRef Name = "LLVMRootContainer";
   static constexpr Kind Kind = Kinds::Binary;
+  static constexpr llvm::StringRef MimeType = "application/x.llvm.bc+zstd";
 
 private:
   llvm::LLVMContext Context;

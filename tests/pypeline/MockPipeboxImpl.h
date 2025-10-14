@@ -16,6 +16,8 @@ private:
 public:
   static constexpr llvm::StringRef Name = "StringContainer";
   static constexpr Kind Kind = Kinds::Function;
+  static constexpr llvm::StringRef MimeType = "application/x-unknown";
+
   std::set<ObjectID> objects() const;
 
   void deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data);

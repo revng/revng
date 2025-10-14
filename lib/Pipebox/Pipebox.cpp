@@ -12,8 +12,5 @@ using namespace revng::pypeline;
 // Containers
 //
 
-static RegisterContainer<BytesContainer> C1;
-static RegisterContainer<FunctionToBytesContainer> C2;
-static RegisterContainer<TypeDefinitionToBytesContainer> C3;
 static RegisterContainer<LLVMRootContainer> C4;
 static RegisterContainer<BinariesContainer> C5;
