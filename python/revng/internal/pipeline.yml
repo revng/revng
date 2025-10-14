@@ -2,4 +2,12 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# Placeholder for the revng pipeline
+containers:
+  - name: binaries-container
+    type: BinariesContainer
+
+branches:
+  files-imported:
+    tasks:
+      - pipe: ImportFiles
+        arguments: [binaries-container]
