@@ -94,6 +94,9 @@ NB_MODULE(_pipebox, m) {
   nanobind::object ModelBaseClass = importObject("revng.pypeline.model.Model");
   nanobind::class_<Model>(m, "Model", ModelBaseClass)
     .def(nanobind::init<>())
+    .def_static("model_name", []() { return nanobind::str("model.yml"); })
+    .def_static("mime_type",
+                []() { return nanobind::str("application/x-yaml"); })
     .def("diff",
          [](Model &Handle, nanobind::handle_t<Model> Other) {
            return Handle.diff(*nanobind::cast<Model *>(Other));
