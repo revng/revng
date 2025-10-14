@@ -23,6 +23,9 @@ private:
   static inline bool Initialized = false;
 
 public:
+  InitRevng(int &Argc, auto **&Argv, const char *Overview) :
+    InitRevng(Argc, Argv, Overview, {}) {}
+
   InitRevng(int &Argc,
             auto **&Argv,
             const char *Overview,

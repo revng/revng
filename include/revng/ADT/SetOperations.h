@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/SetOperations.h"
+
 template<class S1Ty, class S2Ty>
 bool intersects(const S1Ty &S1, const S2Ty &S2) {
   S1Ty Intersection = llvm::set_intersection(S1, S2);

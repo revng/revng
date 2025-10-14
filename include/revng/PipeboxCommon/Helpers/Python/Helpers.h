@@ -80,6 +80,14 @@ inline Model &convertReadOnlyModel(nanobind::object &TheModel) {
   return *nanobind::cast<Model *>(ActualModel);
 }
 
+template<typename T, typename... ArgsT>
+inline nanobind::capsule makeCapsule(ArgsT &&...Args) {
+  return nanobind::capsule(new T(std::forward<ArgsT>(Args)...),
+                           [](void *Ptr) noexcept {
+                             delete static_cast<T *>(Ptr);
+                           });
+}
+
 } // namespace python
 
 } // namespace revng::pypeline::helpers
