@@ -93,8 +93,8 @@ struct RegisterPipe {
     // Python
     python::Registry.registerModuleInitializer([](nanobind::module_ &M,
                                                   python::BaseClasses &BC) {
-      nanobind::class_<T>(M, T::Name.data(), BC.BasePipe)
-        .def_ro_static("name", &T::Name)
+      auto PipeClass = nanobind::class_<T>(M, T::Name.data(), BC.BasePipe);
+      PipeClass.def_ro_static("name", &T::Name)
         .def_static("signature",
                     &python::SignatureHelper<T>::getSignature,
                     nanobind::sig("def signature() -> "
@@ -111,6 +111,14 @@ struct RegisterPipe {
              "incoming"_a,
              "outgoing"_a,
              "configuration"_a);
+
+      if constexpr (HasCheckPrecondition<T>) {
+        PipeClass
+          .def("check_precondition", [](T &Handle, nanobind::object TheModel) {
+            const Model &CppModel = python::convertReadOnlyModel(TheModel);
+            return Handle.checkPrecondition(CppModel);
+          });
+      }
     });
 
     // Native

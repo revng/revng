@@ -105,6 +105,10 @@ class Schedule:
         model: ReadOnlyModel,
         storage_provider: StorageProvider,
     ) -> ContainerSet:
+        for task in self.tasks:
+            if isinstance(task.node.task, Pipe):
+                task.node.task.check_precondition(model)
+
         # Produce a set of working containers
         working_containers: ContainerSet = {
             declaration: declaration.instance() for declaration in self.declarations

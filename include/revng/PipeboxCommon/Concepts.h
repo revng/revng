@@ -163,3 +163,9 @@ concept IsPipe = requires(T &A, llvm::StringRef StaticConfig) {
   requires HasArgumentsDocumenation<T>;
   requires PipeRunTraits<T>::ContainerCount == detail::DocSize<T>;
 };
+
+/// Optional method that a pipe can implement
+template<typename T>
+concept HasCheckPrecondition = requires(const T &A, const Model &Model) {
+  { A.checkPrecondition(Model) } -> std::same_as<llvm::Error>;
+};
