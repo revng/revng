@@ -696,6 +696,10 @@ Branches:
             UsedContainers: [module.mlir]
           - Type: model-verify-clift
             UsedContainers: [module.mlir]
+          - Type: loop-promotion-clift
+            UsedContainers: [module.mlir]
+          # - Type: optimize-clift
+          #   UsedContainers: [module.mlir]
           - Type: emit-c
             UsedContainers: [module.mlir, decompiled.tar.gz]
         Artifacts:

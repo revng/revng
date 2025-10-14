@@ -627,7 +627,7 @@ mlir::LogicalResult ReturnOp::verify() {
   return mlir::success();
 }
 
-//===------------------------------ BreakOp ------------------------------===//
+//===------------------------------ BreakOp -------------------------------===//
 
 mlir::LogicalResult BreakOp::verify() {
 
@@ -635,7 +635,7 @@ mlir::LogicalResult BreakOp::verify() {
   return mlir::success();
 }
 
-//===------------------------------ ContinueOp ------------------------------===//
+//===------------------------------ ContinueOp ----------------------------===//
 
 mlir::LogicalResult ContinueOp::verify() {
 
