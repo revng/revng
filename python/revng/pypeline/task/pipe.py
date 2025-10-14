@@ -93,6 +93,14 @@ class Pipe(ABC):
 
         return result
 
+    def check_precondition(self, model: ReadOnlyModel):
+        """
+        Checks that the pipe can be run successfully with the provided model.
+        Subclasses can optionally override this method if they wish to perform
+        checks before the `run` method. An exception should be thrown if some
+        property of the model would not allow running the pipe correctly.
+        """
+
     @abstractmethod
     def run(
         self,

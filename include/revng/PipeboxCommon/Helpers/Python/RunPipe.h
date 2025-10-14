@@ -21,14 +21,9 @@ inline ObjectDependencies runPipe(T &Handle,
                                   Request Incoming,
                                   Request Outgoing,
                                   llvm::StringRef Configuration) {
-  nanobind::object ReadOnlyModel = importObject("revng.pypeline.model."
-                                                "ReadOnlyModel");
-  revng_assert(nanobind::isinstance(TheModel, ReadOnlyModel));
-  nanobind::object ActualModel = nanobind::getattr(TheModel, "downcast")();
-  const Model *CppModel = nanobind::cast<Model *>(ActualModel);
-
+  const Model &CppModel = convertReadOnlyModel(TheModel);
   return revng::pypeline::helpers::runPipe(Handle,
-                                           *CppModel,
+                                           CppModel,
                                            Incoming,
                                            Outgoing,
                                            Configuration,

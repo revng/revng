@@ -34,6 +34,21 @@ constexpr size_t writableContainerIndex() {
   return Result;
 }
 
+template<typename T>
+concept HasPipeRunCheckPrecondition = requires(const Model &Model) {
+  { T::checkPrecondition(Model) } -> std::same_as<llvm::Error>;
+};
+
+template<typename T>
+struct CheckPreconditionMixin {};
+
+template<HasPipeRunCheckPrecondition T>
+struct CheckPreconditionMixin<T> {
+  llvm::Error checkPrecondition(const Model &Model) const {
+    return T::checkPrecondition(Model);
+  }
+};
+
 } // namespace detail
 
 template<typename T>
@@ -43,7 +58,7 @@ concept SingleOutputPipeBaseCompatible = requires {
 };
 
 template<SingleOutputPipeBaseCompatible T>
-class SingleOutputPipeBase {
+class SingleOutputPipeBase : public detail::CheckPreconditionMixin<T> {
 public:
   static constexpr llvm::StringRef Name = T::Name;
   using ContainerTypes = PipeRunContainerTypes<T>;
