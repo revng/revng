@@ -28,6 +28,7 @@ concept IsContainer = requires(T &A, const T &AConst) {
   requires HasName<T>;
   { T() } -> std::same_as<T>;
   { T::Kind } -> std::same_as<const Kind &>;
+  { T::MimeType } -> std::same_as<const llvm::StringRef &>;
   { AConst.objects() } -> std::same_as<std::set<ObjectID>>;
   { AConst.verify() } -> std::same_as<bool>;
   {

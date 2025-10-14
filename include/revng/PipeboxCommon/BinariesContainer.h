@@ -24,6 +24,7 @@ class BinariesContainer {
 public:
   static constexpr llvm::StringRef Name = "BinariesContainer";
   static constexpr Kind Kind = Kinds::Binary;
+  static constexpr llvm::StringRef MimeType = "application/x-tar";
 
 private:
   struct File {

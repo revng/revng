@@ -70,6 +70,7 @@ struct RegisterContainer {
       std::string Name = T::Name.str();
       nanobind::class_<T>(M, Name.c_str(), BC.BaseContainer)
         .def_ro_static("kind", &T::Kind)
+        .def_static("mime_type", []() { return T::MimeType; })
         .def(nanobind::init<>())
         .def("objects", &python::ContainerIO<T>::objects)
         .def("verify", &T::verify)
