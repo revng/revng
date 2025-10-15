@@ -281,4 +281,15 @@ OpT getOnlyUser(mlir::Value Value) {
   return nullptr;
 }
 
+//===-------------------------- Expression usage --------------------------===//
+
+/// Returns true if the value is discarded. A value might be discarded by for
+/// instance by an expression statement or a comma expression.
+bool isDiscarded(mlir::Value Value);
+
+/// Returns true if the value is boolean-tested. A value might be boolean-tested
+/// for instance by a control flow condition, a ternary expression or a logical
+/// expression.
+bool isBooleanTested(mlir::Value Value);
+
 } // namespace mlir::clift
