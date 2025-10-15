@@ -11,6 +11,7 @@
 #include "revng/Support/ResourceFinder.h"
 
 #include "CodeGenerator.h"
+#include "PostLiftVerifyPass.h"
 
 using namespace llvm::cl;
 
@@ -100,3 +101,61 @@ bool LiftPass::runOnModule(llvm::Module &M) {
 
   return false;
 }
+
+namespace revng::pypeline::piperuns {
+
+void Lift::run(const class Model &TheModel,
+               llvm::StringRef Config,
+               llvm::StringRef DynamicConfig,
+               const BinariesContainer &Binary,
+               LLVMRootContainer &ModuleContainer) {
+  llvm::Task T(6, "Lift");
+  const TupleTree<model::Binary> &Model = TheModel.get();
+
+  T.advance("findFiles", false);
+  const auto Paths = findExternalFilePaths(Model->Architecture());
+
+  // Look for the library in the system's paths
+  T.advance("Load libtcg", false);
+  auto TheLibTcg = LibTcg::get(Model->Architecture());
+
+  // Get access to raw binary data
+  revng_assert(Binary.size() == 1);
+  llvm::ArrayRef<char> File = Binary.getFile(0);
+  RawBinaryView RawBinary(*Model, { File.data(), File.size() });
+  llvm::Module &Module = ModuleContainer.getModule();
+
+  T.advance("Construct CodeGenerator", false);
+  CodeGenerator Generator(RawBinary,
+                          &Module,
+                          Model,
+                          Paths.LibHelpers,
+                          Paths.EarlyLinked,
+                          model::Architecture::x86_64);
+
+  std::optional<uint64_t> EntryPointAddressOptional;
+  if (EntryPointAddress.getNumOccurrences() != 0)
+    EntryPointAddressOptional = EntryPointAddress;
+  T.advance("Translate", true);
+
+  Generator.translate(TheLibTcg, EntryPointAddressOptional);
+
+  T.advance("Sort Module", true);
+  sortModule(Module);
+
+  T.advance("Verify Module", true);
+  // TODO: convert this from a pass to a free-standing function
+  PostLiftVerifyPass{}.runOnModule(Module);
+
+  // TODO: substitute with strip-dead-debug-info once the old pipeline
+  //       is dropped
+  pruneDICompileUnits(Module);
+}
+
+llvm::Error Lift::checkPrecondition(const class Model &Model) {
+  const model::Binary &Binary = *Model.get().get();
+  return revng::joinErrors(::detail::liftCheckPrecondition(Binary),
+                           RawBinaryView::checkPrecondition(Binary));
+}
+
+} // namespace revng::pypeline::piperuns

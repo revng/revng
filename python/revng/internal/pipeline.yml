@@ -5,9 +5,17 @@
 containers:
   - name: binaries-container
     type: BinariesContainer
+  - name: llvm-root
+    type: LLVMRootContainer
 
 branches:
   files-imported:
     tasks:
       - pipe: ImportFiles
         arguments: [binaries-container]
+
+  lift:
+    from: files-imported
+    tasks:
+      - pipe: Lift
+        arguments: [binaries-container, llvm-root]
