@@ -44,7 +44,6 @@ revng = [
   "internal/py.typed",
   "internal/_pipebox.so",
   "internal/daemon/schema.graphql",
-  "internal/cli/_commands/generate_migrations/metaschema.yml",
   "internal/cli/_commands/generate_migrations/migration.py.tpl",
   "internal/cli/_commands/llm_rename/prompt.tpl",
 ]

@@ -25,6 +25,32 @@ public:
 
   GenericGraph<Node, 16, true> toCallGraph() const;
   yield::calls::PreLayoutGraph toYieldGraph() const;
+
+  llvm::Error verify() const {
+    if (Relations().empty())
+      return revng::createError("Relocation map must not be empty.");
+
+    for (const RelationDescription &Relation : Relations()) {
+      using pipeline::locationFromString;
+      bool IsCalleeValid = locationFromString(revng::ranks::DynamicFunction,
+                                              Relation.Location())
+                           || locationFromString(revng::ranks::Function,
+                                                 Relation.Location());
+      if (not IsCalleeValid)
+        return revng::createError("Relocation map has an invalid callee: '"
+                                  + Relation.Location() + "'.");
+
+      for (std::string SerializedCaller : Relation.IsCalledFrom()) {
+        auto IsCallerValid = locationFromString(revng::ranks::BasicBlock,
+                                                SerializedCaller);
+        if (not IsCallerValid)
+          return revng::createError("Relocation map has an invalid caller: '"
+                                    + SerializedCaller + "'.");
+      }
+    }
+
+    return llvm::Error::success();
+  }
 };
 
 } // namespace yield::crossrelations

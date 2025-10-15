@@ -13,6 +13,7 @@ from shutil import which
 from subprocess import DEVNULL, check_output, run
 from tempfile import NamedTemporaryFile
 
+import jsonschema
 import yaml
 
 from tuple_tree_generator.generators import CppGenerator, DocsGenerator, JSONSchemaGenerator
@@ -51,7 +52,7 @@ class Subcommand(abc.ABC):
 
 class CppSubcommand(Subcommand):
     def __init__(self, subparser):
-        super().__init__("cpp", subparser)
+        super().__init__("cpp", subparser, True)
         self.parser.add_argument("output_dir", help="Output to this directory")
         self.parser.add_argument(
             "--namespace", required=True, help="Base namespace for generated types"
@@ -64,7 +65,9 @@ class CppSubcommand(Subcommand):
         )
 
     def handle(self, args, schema: Schema):
-        generator = CppGenerator(schema, args.namespace, args.tracking, args.include_path_prefix)
+        generator = CppGenerator(
+            schema, args.namespace, args.tracking, args.string_type, args.include_path_prefix
+        )
         sources = generator.emit()
 
         if which("clang-format") is not None:
@@ -189,6 +192,11 @@ def main():
     args = parse_args()
     with open(args.schema, encoding="utf-8") as f:
         raw_schema = yaml.safe_load(f)
+
+    metaschema_path = Path(__file__).parent / "../share/revng/tuple-tree-generator/metaschema.yml"
+    with metaschema_path.open(encoding="utf-8") as f:
+        metaschema = yaml.safe_load(f)
+        jsonschema.validate(instance=raw_schema, schema=metaschema)
 
     schema = Schema(raw_schema, args.scalar_type)
     args.handler(args, schema)

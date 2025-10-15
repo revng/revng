@@ -99,11 +99,6 @@ DI::LLVMDisassemblerInterface(MetaAddressType::Values AddrType,
 
   namespace Style = model::DisassemblyConfigurationImmediateStyle;
   Style::Values ImmediateStyle = Config.ImmediateStyle();
-  if (ImmediateStyle == Style::Invalid) {
-    // TODO: introduce a better way to handle default configuration values.
-    ImmediateStyle = Style::CHexadecimal;
-  }
-
   if (ImmediateStyle == Style::Decimal)
     Printer->setPrintImmHex(false);
   else

@@ -1,0 +1,171 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+"$schema": http://json-schema.org/draft-07/schema#
+"$ref": "#/definitions/Schema"
+definitions:
+  Schema:
+    type: object
+    additionalProperties: false
+    properties:
+      version:
+        type: integer
+        minimum: 1
+      root_type:
+        type: string
+      definitions:
+        type: array
+        additionalItems: false
+        items:
+          oneOf:
+            - "$ref": "#/definitions/Enum"
+            - "$ref": "#/definitions/Struct"
+    title: Schema
+
+  # Enums
+  Enum:
+    type: object
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+      doc:
+        type: string
+      type:
+        const: "enum"
+      members:
+        type: array
+        additionalItems: false
+        items:
+          "$ref": "#/definitions/EnumMember"
+    required:
+      - name
+      - type
+      - members
+
+  EnumMember:
+    type: object
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+      doc:
+        type: string
+    required:
+      - name
+
+  # Structs
+  Struct:
+    type: object
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+      doc:
+        type: string
+      type:
+        const: "struct"
+      inherits:
+        type: string
+      abstract:
+        type: boolean
+      fields:
+        type: array
+        additionalItems: false
+        items:
+          "$ref": "#/definitions/StructField"
+      key:
+        "$ref": "#/definitions/StructKey"
+    propertyOrder:
+      - name
+      - doc
+      - type
+      - inherits
+      - abstract
+      - fields
+      - key
+    required:
+      - name
+      - type
+      - fields
+
+  StructField:
+    type: object
+    # additionalProperties: false
+    oneOf:
+      - "$ref": "#/definitions/SimpleStructField"
+      - "$ref": "#/definitions/SequenceStructField"
+      - "$ref": "#/definitions/ReferenceStructField"
+
+  SimpleStructField:
+    type: object
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+      type:
+        type: string
+      doc:
+        type: string
+      is_guid:
+        type: boolean
+        default: false
+      const:
+        type: boolean
+        default: false
+      default:
+        type: ["string", "integer", "boolean"]
+        default: ""
+    required:
+      - name
+      - type
+
+  SequenceStructField:
+    type: object
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+      sequence:
+        type: object
+        additionalProperties: false
+        properties:
+          type:
+            type: string
+          elementType:
+            type: string
+        required:
+          - type
+          - elementType
+      const:
+        type: boolean
+        default: false
+      doc:
+        type: string
+    required:
+      - name
+      - sequence
+
+  ReferenceStructField:
+    type: object
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+      referenceTo:
+        type: string
+      const:
+        type: boolean
+        default: false
+      doc:
+        type: string
+    required:
+      - name
+      - referenceTo
+
+  StructKey:
+    type: array
+    additionalItems: false
+    items:
+      type: string

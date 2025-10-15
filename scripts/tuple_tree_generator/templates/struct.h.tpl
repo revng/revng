@@ -60,17 +60,17 @@ private:
   // Member list
   //
   /**- for field in struct.fields **/
-  /*= field | field_type =*/ The/*= field.name =*/ = /*= field | field_type =*/{};
+  /*= field | field_type =*/ The/*= field.name =*/ = /*= field | get_default_value =*/;
   /**- endfor **/
 
   /** for field in struct.fields **/
   static_assert(Yamlizable</*= field | field_type =*/>);
   /**- endfor **/
 
+  /** if emit_tracking -**/
   //
   // Tracking helpers
   //
-  /**- if emit_tracking **/
   /**- for field in struct.fields **/
   mutable revng::AccessTracker /*= field.name =*/Tracker = revng::AccessTracker(false);
   /**- endfor **/
@@ -123,6 +123,8 @@ public:
     /**- if not loop.first or struct.inherits **/, /** endif **/The/*= field.name =*/(
       /**- if struct.name == root_type and field.name == "Version" -**/
         SchemaVersion
+      /**- else -**/
+        /*= field | get_default_value =*/
       /**- endif -**/
     )
     /**- endfor **/ {
