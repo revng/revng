@@ -97,14 +97,14 @@ private:
                                   &Function);
       }
 
-      auto Maker = [&]<size_t... I>(std::index_sequence<I...>) {
+      T Instance = compile_time::callWithIndexSequence<
+        Base::ContainerCount>([&]<size_t... I>() {
         return T{ *this,
                   Model,
                   this->StaticConfiguration,
                   Configuration,
                   std::get<I>(Containers)... };
-      };
-      T Instance = Maker(std::make_index_sequence<Base::ContainerCount>());
+      });
 
       const model::Binary &Binary = *Model.get().get();
       for (const ObjectID *Object : Outgoing.at(Base::OutputContainerIndex)) {

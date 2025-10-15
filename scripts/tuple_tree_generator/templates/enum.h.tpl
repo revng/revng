@@ -18,8 +18,7 @@ The notice below applies to the generated files.
 
 namespace /*= base_namespace =*/::/*= enum.name =*/ {
 /*= enum.doc | docstring =*/
-enum Values
-/**- if enum.underlying_type is defined **/ : /*= enum.underlying_type =*//** endif **/{
+enum Values : /*= enum | enum_underlying_type =*/ {
   Invalid,
   /** for member in enum.members **/
   /*=- member.doc | docstring =*/

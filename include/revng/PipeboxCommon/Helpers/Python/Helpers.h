@@ -11,9 +11,21 @@
 #include "llvm/ADT/StringRef.h"
 
 #include "revng/PipeboxCommon/Common.h"
+#include "revng/PipeboxCommon/Helpers/Helpers.h"
 #include "revng/PipeboxCommon/ObjectID.h"
 
-namespace revng::pypeline::helpers::python {
+namespace revng::pypeline::helpers {
+
+// Helper struct to unpack containers from a nanobind::list.
+// To be used in conjunction with PipeRunner or AnalysisRunner
+template<typename C, size_t I>
+struct ExtractContainerFromList<C, I, nanobind::list> {
+  static C &get(nanobind::list &Containers) {
+    return *nanobind::cast<C *>(Containers[I]);
+  }
+};
+
+namespace python {
 
 inline nanobind::object importObject(llvm::StringRef String) {
   auto [ModulePath, ObjectName] = String.rsplit('.');
@@ -21,19 +33,6 @@ inline nanobind::object importObject(llvm::StringRef String) {
                                                           .c_str());
   return Module.attr(ObjectName.str().c_str());
 }
-
-// Helper class to unpack containers from a nanobind::list.
-// To be used in conjunction with PipeRunner or AnalysisRunner
-class ContainerListUnwrapper {
-public:
-  using ListType = nanobind::list &;
-
-  template<typename C, size_t I>
-  static C unwrap(ListType ContainerList) {
-    using C_ref_removed = std::remove_reference_t<C>;
-    return *nanobind::cast<C_ref_removed *>(ContainerList[I]);
-  }
-};
 
 class ManagedPyBuffer {
 private:
@@ -72,4 +71,6 @@ public:
   const Py_buffer *operator->() { return &Buffer; }
 };
 
-} // namespace revng::pypeline::helpers::python
+} // namespace python
+
+} // namespace revng::pypeline::helpers

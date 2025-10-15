@@ -53,7 +53,7 @@ class CppGenerator:
         self.environment.filters["fullname"] = self.fullname
         self.environment.filters["user_fullname"] = self.user_fullname
         self.environment.filters["is_struct_field"] = self.is_struct_field
-        self.environment.filters["len"] = len
+        self.environment.filters["enum_underlying_type"] = self.enum_underlying_type
         self.enum_template = self.environment.get_template("enum.h.tpl")
         self.struct_template = self.environment.get_template("struct.h.tpl")
         self.struct_late_template = self.environment.get_template("struct_late.h.tpl")
@@ -343,3 +343,13 @@ class CppGenerator:
 
         else:
             raise ValueError()
+
+    @staticmethod
+    def enum_underlying_type(enum: EnumDefinition):
+        # The 2 accounts for `Invalid` and `Count`
+        total_members = len(enum.members) + 2
+        for size in (8, 16, 32, 64):
+            if total_members <= 2**size:
+                return f"uint{size}_t"
+        else:
+            raise ValueError("Enum too big")

@@ -101,17 +101,11 @@ static void purgeTypesImpl(TupleTree<model::Binary> &Model,
                            bool KeepTypesWithName);
 }
 
-template<typename V, typename T, size_t... Indices>
-static void
-visitTuple(V &&Visitor, T &Tuple, const std::index_sequence<Indices...> &) {
-  (Visitor(get<Indices>(Tuple)), ...);
-}
-
 template<typename V, TupleLike T>
 static void visitTuple(V &&Visitor, T &Tuple) {
-  visitTuple(std::forward<V>(Visitor),
-             Tuple,
-             std::make_index_sequence<std::tuple_size_v<T>>{});
+  compile_time::callWithIndexSequence<T>([&Visitor, &Tuple]<size_t... I>() {
+    (Visitor(get<I>(Tuple)), ...);
+  });
 }
 
 template<typename V, TupleLike T, typename E>

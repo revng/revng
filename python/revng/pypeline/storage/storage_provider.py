@@ -7,7 +7,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, Iterable, Mapping
+from typing import Annotated, Collection, Iterable, Mapping
 
 from revng.pypeline.container import ConfigurationId, ContainerID
 from revng.pypeline.model import ModelPathSet
@@ -30,6 +30,9 @@ class ContainerLocation:
     savepoint_id: SavepointID
     container_id: ContainerID
     configuration_id: ConfigurationId
+
+
+InvalidatedObjects = dict[ContainerLocation, set[ObjectID]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,7 +83,7 @@ class StorageProvider(ABC):
     def has(
         self,
         location: ContainerLocation,
-        keys: Iterable[ObjectID],
+        keys: Collection[ObjectID],
     ) -> Iterable[ObjectID]:
         """
         Get the available objects from the storage.
@@ -91,7 +94,7 @@ class StorageProvider(ABC):
     def get(
         self,
         location: ContainerLocation,
-        keys: Iterable[ObjectID],
+        keys: Collection[ObjectID],
     ) -> Mapping[ObjectID, bytes]:
         """
         For each objects, return bytes that the container can ingest to
@@ -126,11 +129,12 @@ class StorageProvider(ABC):
         """
 
     @abstractmethod
-    def invalidate(self, invalidation_list: ModelPathSet) -> None:
+    def invalidate(self, invalidation_list: ModelPathSet) -> InvalidatedObjects:
         """
         Inform the storage that certain model paths are no longer valid.
         The storage should use the stored dependencies to determine which objects
         need to be invalidated.
+        It returns the list of invalidated objects, in each savepoint.
         """
 
     @abstractmethod

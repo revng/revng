@@ -9,6 +9,7 @@
 
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IntegerSerialization.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 extern "C" {
@@ -855,6 +856,24 @@ public:
   }
 
   /// @}
+
+public:
+  static constexpr size_t BytesSize = sizeof(PlainMetaAddress);
+
+  std::array<uint8_t, BytesSize> toBytes() const {
+    return ::toBytes(Epoch, AddressSpace, Type, Address);
+  }
+
+  static MetaAddress fromBytes(llvm::ArrayRef<uint8_t> Data) {
+    MetaAddress Result;
+    ::fromBytes(Data,
+                Result.Epoch,
+                Result.AddressSpace,
+                Result.Type,
+                Result.Address);
+    Result.validate();
+    return Result;
+  }
 
 public:
   constexpr bool isIn(const MetaAddress &Start, const MetaAddress &End) const {

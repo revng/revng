@@ -46,6 +46,11 @@ class Kind(ABC):
         """Convert the kind to a string representation that can be later be deserialized"""
         raise NotImplementedError()
 
+    @abstractmethod
+    def byte_size(self) -> int:
+        """Report the size, in bytes, of kind key"""
+        raise NotImplementedError()
+
     @classmethod
     @abstractmethod
     def deserialize(cls, value: str) -> Kind:
@@ -224,6 +229,39 @@ class ObjectID(ABC):
     def deserialize(cls, obj: str) -> ObjectID:
         """Convert a string representation back to an object"""
         raise NotImplementedError()
+
+    @abstractmethod
+    def to_bytes(self) -> bytes:
+        """Convert the object to a bytes representation that can be later be deserialized.
+        The format is the following:
+        * The root ObjectID is the empty byte string, b""
+        * Children of root have the following format:
+          ```
+          | byte identifying kind_type | kind key, of kind().byte_size() bytes |
+          ```
+        * Subsequent children have the same format, with the parent prefixed, e.g.
+          ```
+          | kind_type(0) | kind_key(0) | kind_type(1) | kind_key(1) | ...
+          ```
+        """
+        raise NotImplementedError()
+
+    @classmethod
+    @abstractmethod
+    def from_bytes(cls, obj: bytes) -> ObjectID:
+        """Convert a bytes representation back to an ObjectID"""
+        raise NotImplementedError()
+
+    def is_related(self, to: ObjectID) -> bool:
+        def test(source: ObjectID, target: ObjectID):
+            test_object: ObjectID | None = target
+            while test_object is not None:
+                if test_object == source:
+                    return True
+                test_object = test_object.parent()
+            return False
+
+        return test(self, to) or test(to, self)
 
     def __eq__(self, other) -> bool:
         return hash(self) == hash(other)

@@ -125,3 +125,9 @@ template<typename T, typename... Types>
 inline constexpr bool anyOf() {
   return (std::is_same_v<T, Types> || ...);
 }
+
+template<typename T>
+concept IsIntegralOrEnum = std::is_integral_v<T>
+                           or (std::is_enum_v<T>
+                               and std::is_integral_v<
+                                 std::underlying_type_t<T>>);
