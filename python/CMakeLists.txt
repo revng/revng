@@ -176,9 +176,13 @@ python_module(
 # Install revng.model.migrations
 #
 set(PYTHON_MODEL_MIGRATIONS_FILES
-    revng/model/migrations/__init__.py revng/model/migrations/versions/v2.py
-    revng/model/migrations/versions/v3.py revng/model/migrations/versions/v4.py
-    revng/model/migrations/versions/v5.py revng/model/migrations/versions/v6.py)
+    revng/model/migrations/__init__.py
+    revng/model/migrations/versions/v2.py
+    revng/model/migrations/versions/v3.py
+    revng/model/migrations/versions/v4.py
+    revng/model/migrations/versions/v5.py
+    revng/model/migrations/versions/v6.py
+    revng/model/migrations/versions/v7.py)
 python_module(TARGET_NAME python-model-migrations WHEEL revng MODULE_FILES
               ${PYTHON_MODEL_MIGRATIONS_FILES})
 
@@ -399,6 +403,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/schedule/__init__.py
     revng/pypeline/schedule/scheduled_task.py
     revng/pypeline/schedule/schedule.py
+    revng/pypeline/storage/file_provider.py
     revng/pypeline/storage/memory.py
     revng/pypeline/storage/null.py
     revng/pypeline/storage/sqlite3.py

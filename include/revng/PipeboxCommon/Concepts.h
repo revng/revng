@@ -31,8 +31,8 @@ concept IsContainer = requires(T &A, const T &AConst) {
   { AConst.objects() } -> std::same_as<std::set<ObjectID>>;
   { AConst.verify() } -> std::same_as<bool>;
   {
-    A.deserialize(std::declval<const std::map<const ObjectID *,
-                                              llvm::ArrayRef<const char>>>())
+    A.deserialize(std::declval<
+                  const std::map<const ObjectID *, llvm::ArrayRef<char>>>())
   } -> std::same_as<void>;
   {
     AConst.serialize(std::declval<const std::vector<const ObjectID *>>())

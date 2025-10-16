@@ -14,9 +14,8 @@ class Container {
 public:
   virtual ~Container() = default;
 
-  virtual void
-  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<const char>>
-                &Input) = 0;
+  virtual void deserialize(const std::map<const ObjectID *,
+                                          llvm::ArrayRef<char>> &Input) = 0;
 
   virtual std::map<ObjectID, pypeline::Buffer>
   serialize(llvm::ArrayRef<const ObjectID> ToSave) const = 0;
@@ -35,8 +34,8 @@ public:
 
 public:
   virtual void
-  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<const char>>
-                &Input) override {
+  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> &Input)
+    override {
     Instance.deserialize(Input);
   }
 

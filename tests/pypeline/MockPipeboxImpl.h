@@ -18,8 +18,7 @@ public:
   static constexpr Kind Kind = Kinds::Function;
   std::set<ObjectID> objects() const;
 
-  void deserialize(const std::map<const ObjectID *, llvm::ArrayRef<const char>>
-                     Data);
+  void deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data);
   std::map<ObjectID, revng::pypeline::Buffer>
   serialize(const std::vector<const ObjectID *> Objects) const;
   bool verify() const;

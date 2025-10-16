@@ -128,10 +128,14 @@ public:
 
   template<StrictSpecializationOf<TupleTreeReference> TTR>
   void replaceReferences(const std::map<TTR, TTR> &Map) {
-    auto Visitor = [&Map](TTR &Reference) {
-      auto It = Map.find(Reference);
-      if (It != Map.end())
-        Reference = It->second;
+    auto Visitor = [&Map]<typename TTRA>(TTRA &Reference) {
+      // Here TTRA can be any TupleTreeReference<X, Binary>, actually check
+      // that it is of the type we want to replace
+      if constexpr (std::is_same_v<TTRA, TTR>) {
+        auto It = Map.find(Reference);
+        if (It != Map.end())
+          Reference = It->second;
+      }
     };
     visitReferences(Visitor);
     evictCachedReferences();
@@ -140,9 +144,11 @@ public:
   template<StrictSpecializationOf<TupleTreeReference> TTR,
            std::predicate<const TTR &> PredicateType>
   void replaceReferencesIf(const TTR &NewReference, PredicateType &&Predicate) {
-    auto Visitor = [&Predicate, &NewReference](TTR &Reference) {
-      if (Predicate(Reference))
-        Reference = NewReference;
+    auto Visitor = [&Predicate, &NewReference]<typename TTRA>(TTRA &Reference) {
+      if constexpr (std::is_same_v<TTR, TTRA>) {
+        if (Predicate(Reference))
+          Reference = NewReference;
+      }
     };
     visitReferences(Visitor);
     evictCachedReferences();

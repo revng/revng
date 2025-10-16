@@ -5,14 +5,18 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from collections.abc import Buffer
+from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, Collection, Iterable, Mapping
 
 from revng.pypeline.container import ConfigurationId, ContainerID
 from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
+
+from .file_provider import FileProvider, FileRequest
 
 SavepointID = Annotated[
     int,
@@ -73,6 +77,20 @@ class SavePointsRange:
         return self.end - self.start + 1
 
 
+@dataclass
+class FileStorageEntry:
+    # Name to use for the file in case it needs to be stored on disk
+    name: str
+    # Path of the file to store, this will avoid loading the file contents in
+    # memory all at once
+    path: Path | None = field(default=None)
+    # Contents of the file to store
+    contents: bytes | None = field(default=None)
+
+    def __post_init__(self):
+        assert int(self.path is not None) + int(self.contents is not None) == 1
+
+
 class StorageProvider(ABC):
     """This is the general interface for something that caches containers.
     This can be in memory, on disk, in a database, etc.
@@ -121,7 +139,7 @@ class StorageProvider(ABC):
     def put(
         self,
         location: ContainerLocation,
-        values: Mapping[ObjectID, bytes],
+        values: Mapping[ObjectID, Buffer],
     ) -> None:
         """
         Put a set of serialized objects into the storage.
@@ -160,3 +178,26 @@ class StorageProvider(ABC):
         """
         Prunes all the objects (except metadata) from storage
         """
+
+    @abstractmethod
+    def put_files_in_storage(self, files: list[FileStorageEntry]) -> list[str]:
+        """
+        Put a file in storage, which can be later retrieved with the
+        `get_files_from_storage` method. This method returns a list of
+        hashes of the submitted files.
+        """
+
+    @abstractmethod
+    def get_files_from_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        """
+        Get a file from storage, given a list of requests. Returns a dictionary
+        mapping the hash to the contents.
+        """
+
+
+class StorageProviderFileProvider(FileProvider):
+    def __init__(self, provider: StorageProvider):
+        self._provider = provider
+
+    def get_files(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        return self._provider.get_files_from_storage(requests)

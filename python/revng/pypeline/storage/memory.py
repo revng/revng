@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Buffer
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable, Mapping
@@ -14,9 +15,11 @@ from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 
-from .storage_provider import ConfigurationId, ContainerLocation, InvalidatedObjects
-from .storage_provider import ProjectMetadata, SavepointID, SavePointsRange, StorageProvider
-from .util import _REVNG_VERSION_PLACEHOLDER, check_kind_structure
+from .file_provider import FileRequest
+from .storage_provider import ConfigurationId, ContainerLocation, FileStorageEntry
+from .storage_provider import InvalidatedObjects, ProjectMetadata, SavepointID, SavePointsRange
+from .storage_provider import StorageProvider
+from .util import _REVNG_VERSION_PLACEHOLDER, check_kind_structure, compute_hash
 
 
 @dataclass(frozen=True)
@@ -39,6 +42,7 @@ class InMemoryStorageProvider(StorageProvider):
         self.storage: dict[ContainerLocation, dict[ObjectID, bytes]] = {}
         self.dependencies: dict[str, list[DependencyEntry]] = defaultdict(list)
         self.last_change = datetime.now()
+        self.files: dict[str, bytes] = {}
 
     def has(
         self,
@@ -81,11 +85,11 @@ class InMemoryStorageProvider(StorageProvider):
     def put(
         self,
         location: ContainerLocation,
-        values: Mapping[ObjectID, bytes],
+        values: Mapping[ObjectID, Buffer],
     ) -> None:
         self.storage.setdefault(location, {})
         for key, value in values.items():
-            self.storage[location][key] = value
+            self.storage[location][key] = bytes(value)
         self.last_change = datetime.now()
 
     def invalidate(self, invalidation_list: ModelPathSet) -> InvalidatedObjects:
@@ -156,3 +160,22 @@ class InMemoryStorageProvider(StorageProvider):
         """
         self.storage.clear()
         self.dependencies.clear()
+
+    def put_files_in_storage(self, files: list[FileStorageEntry]) -> list[str]:
+        result = []
+        for file in files:
+            contents = None
+            if file.contents is not None:
+                contents = file.contents
+            elif file.path is not None:
+                contents = file.path.read_bytes()
+
+            assert contents is not None
+            hash_ = compute_hash(contents)
+            self.files[hash_] = contents
+            result.append(hash_)
+
+        return result
+
+    def get_files_from_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        return {r.hash: self.files[r.hash] for r in requests}

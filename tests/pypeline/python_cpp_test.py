@@ -97,6 +97,7 @@ def check_pipeline():
     )
     pipe = AppendFooPipe("{}")
     pipe.run(
+        file_provider=object(),
         model=ReadOnlyModel(model),
         containers=[container],
         incoming=[ObjectSet(foo.kind())],

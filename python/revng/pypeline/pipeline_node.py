@@ -11,7 +11,7 @@ from typing import overload
 from .container import Configuration, ConfigurationId, ContainerDeclaration, ContainerSet
 from .model import ReadOnlyModel
 from .object import ObjectSet
-from .storage.storage_provider import SavePointsRange, StorageProvider
+from .storage.storage_provider import SavePointsRange, StorageProvider, StorageProviderFileProvider
 from .task.pipe import Pipe
 from .task.requests import Requests
 from .task.savepoint import SavePoint
@@ -222,6 +222,7 @@ class PipelineNode:
                 for decl in self.bindings
             ]
             deps = self.task.run(
+                file_provider=StorageProviderFileProvider(storage_provider),
                 model=model,
                 containers=pipe_containers,
                 incoming=pipe_incoming,

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, ABCMeta
+from collections.abc import Buffer
 from enum import Enum, EnumMeta, auto, unique
 from typing import Any, Dict, Iterable, Mapping, Optional, TypeVar, Union, cast
 
@@ -15,6 +16,7 @@ from revng.pypeline.analysis import Analysis
 from revng.pypeline.container import Configuration, Container
 from revng.pypeline.model import Model, ModelPath, ModelPathSet, ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
+from revng.pypeline.storage.file_provider import FileProvider
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.task import PipeObjectDependencies, TaskArgument, TaskArgumentAccess
 
@@ -204,11 +206,11 @@ class DictContainer(Container, ABC):
     def mime_type(cls) -> str:
         return "text"
 
-    def deserialize(self, data: Mapping[ObjectID, bytes]) -> None:
+    def deserialize(self, data: Mapping[ObjectID, Buffer]) -> None:
         for oid, _ in data.items():
             self.add_object(oid)
 
-    def serialize(self, objects: Optional[ObjectSet] = None) -> dict[ObjectID, bytes]:
+    def serialize(self, objects: Optional[ObjectSet] = None) -> dict[ObjectID, Buffer]:
         if objects is None:
             return dict.fromkeys(self._object_list, b"")
         return dict.fromkeys(objects.objects, b"")
@@ -272,19 +274,16 @@ class DictModel(Model):
         result._data = dict(self._data)  # pylint: disable=protected-access
         return result
 
-    def children(self, obj: ObjectID, kind: Kind) -> ObjectSet:
+    def children(self, obj: ObjectID, kind: Kind) -> set[ObjectID]:
         if obj.kind() == MyKind.ROOT:
             if kind == MyKind.CHILD:
-                return ObjectSet(
-                    MyKind.CHILD,
-                    {
-                        MyObjectID(MyKind.CHILD, "one"),
-                        MyObjectID(MyKind.CHILD, "two"),
-                        MyObjectID(MyKind.CHILD, "three"),
-                    },
-                )
+                return {
+                    MyObjectID(MyKind.CHILD, "one"),
+                    MyObjectID(MyKind.CHILD, "two"),
+                    MyObjectID(MyKind.CHILD, "three"),
+                }
             elif kind == MyKind.ROOT:
-                return ObjectSet(MyKind.ROOT, {MyObjectID(MyKind.ROOT)})
+                return {MyObjectID(MyKind.ROOT)}
 
         raise NotImplementedError()
 
@@ -296,8 +295,11 @@ class DictModel(Model):
     def serialize(self):
         return yaml.safe_dump(self._data).encode()
 
-    def deserialize(self, data: bytes):
-        self._data = yaml.safe_load(data)
+    @classmethod
+    def deserialize(cls, data: bytes):
+        result = DictModel()
+        result._data = yaml.safe_load(data)
+        return result
 
     def __repr__(self):
         return f"DictModel({self._data!r})"
@@ -322,6 +324,7 @@ class InPlacePipe(Pipe):
 
     def run(
         self,
+        file_provider: FileProvider,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],
@@ -352,6 +355,7 @@ class SameKindPipe(Pipe):
 
     def run(
         self,
+        file_provider: FileProvider,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],
@@ -390,6 +394,7 @@ class ToHigherKindPipe(Pipe):
 
     def run(
         self,
+        file_provider: FileProvider,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],
@@ -435,6 +440,7 @@ class ToLowerKindPipe(Pipe):
 
     def run(
         self,
+        file_provider: FileProvider,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],
@@ -480,6 +486,7 @@ class GeneratorPipe(Pipe):
 
     def run(
         self,
+        file_provider: FileProvider,
         model: ReadOnlyModel,
         containers: list[Container],
         incoming: list[ObjectSet],

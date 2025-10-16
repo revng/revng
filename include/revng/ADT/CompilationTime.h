@@ -12,6 +12,7 @@
 #include "llvm/ADT/StringRef.h"
 
 #include "revng/ADT/Concepts.h"
+#include "revng/ADT/TypeList.h"
 
 namespace compile_time {
 
@@ -171,5 +172,32 @@ struct ArrayTraits<std::array<T, N>> {
 /// compile-time
 template<auto &T>
 using ArrayTraits = detail::ArrayTraits<std::remove_cvref_t<decltype(T)>>;
+
+namespace detail {
+
+template<typename T>
+struct FunctionTraits {};
+
+template<typename ReturnT, typename... Args>
+struct FunctionTraits<ReturnT (&)(Args...)> {
+  using ReturnType = ReturnT;
+  using Arguments = TypeList<Args...>;
+};
+
+template<typename ReturnT, typename... Args>
+struct FunctionTraits<ReturnT (*)(Args...)> {
+  using ReturnType = ReturnT;
+  using Arguments = TypeList<Args...>;
+};
+
+} // namespace detail
+
+/// Helper using that will return a struct defining the return type and
+/// arguments of a function. Supports both function references and function
+/// pointers.
+template<auto &V>
+  requires std::is_function_v<std::remove_reference_t<decltype(V)>>
+             or std::is_function_v<std::remove_pointer_t<decltype(V)>>
+using FunctionTraits = detail::FunctionTraits<decltype(V)>;
 
 } // namespace compile_time

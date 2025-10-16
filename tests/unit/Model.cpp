@@ -101,13 +101,15 @@ BOOST_AUTO_TEST_CASE(TestStringPathConversion) {
   revng_check(stringAsPath<Binary>("/Version").value() == Zero);
 
   TupleTreePath InvalidFunctionPath;
-  InvalidFunctionPath.push_back(size_t(10));
+  auto FunctionIndex = TupleLikeTraits<model::Binary>::Fields::Functions;
+  InvalidFunctionPath.push_back(static_cast<size_t>(FunctionIndex));
   InvalidFunctionPath.push_back(MetaAddress::invalid());
   auto MaybeInvalidFunctionPath = stringAsPath<Binary>("/Functions/:Invalid");
   revng_check(MaybeInvalidFunctionPath.value() == InvalidFunctionPath);
 
   TupleTreePath InvalidFunctionNamePath = InvalidFunctionPath;
-  InvalidFunctionNamePath.push_back(size_t(1));
+  auto NameIndex = TupleLikeTraits<model::Function>::Fields::Name;
+  InvalidFunctionNamePath.push_back(static_cast<size_t>(NameIndex));
   auto MaybePath = stringAsPath<Binary>("/Functions/:Invalid/Name");
   revng_check(MaybePath.value() == InvalidFunctionNamePath);
 

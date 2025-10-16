@@ -9,6 +9,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/ADT/CUniquePtr.h"
 #include "revng/ADT/CompilationTime.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Generator.h"
@@ -19,11 +20,21 @@ class Sqlite3Db;
 
 class Sqlite3Statement {
 private:
-  std::unique_ptr<sqlite3_stmt, void (*)(sqlite3_stmt *)> Statement;
+  static void close(sqlite3_stmt *Ptr) {
+    int Result;
+    Result = sqlite3_clear_bindings(Ptr);
+    revng_assert(Result == SQLITE_OK);
+    Result = sqlite3_reset(Ptr);
+    revng_assert(Result == SQLITE_OK);
+    Result = sqlite3_finalize(Ptr);
+    revng_assert(Result == SQLITE_OK);
+  }
+
+private:
+  CUniquePtr<close> Statement;
   friend Sqlite3Db;
 
-  Sqlite3Statement(sqlite3 *Db, llvm::StringRef SQLStatement) :
-    Statement(nullptr, &close) {
+  Sqlite3Statement(sqlite3 *Db, llvm::StringRef SQLStatement) {
     sqlite3_stmt *Ptr = nullptr;
     int Result = sqlite3_prepare_v3(Db,
                                     SQLStatement.data(),
@@ -32,7 +43,7 @@ private:
                                     &Ptr,
                                     NULL);
     revng_assert(Result == SQLITE_OK);
-    Statement = decltype(Statement)(Ptr, &close);
+    Statement.reset(Ptr);
   }
 
 public:
@@ -98,28 +109,18 @@ public:
   }
 
 private:
-  static void close(sqlite3_stmt *Ptr) {
-    int Result;
-    Result = sqlite3_clear_bindings(Ptr);
-    revng_assert(Result == SQLITE_OK);
-    Result = sqlite3_reset(Ptr);
-    revng_assert(Result == SQLITE_OK);
-    Result = sqlite3_finalize(Ptr);
-    revng_assert(Result == SQLITE_OK);
-  }
-
   void assertType(int I, int TargetType) {
     int Type = sqlite3_column_type(Statement.get(), I);
     revng_assert(Type == TargetType);
   }
 
-  template<std::same_as<llvm::ArrayRef<const char>> T, int I>
-  llvm::ArrayRef<const char> unpackRow() {
+  template<std::same_as<llvm::ArrayRef<char>> T, int I>
+  llvm::ArrayRef<char> unpackRow() {
     assertType(I, SQLITE_BLOB);
     const void *Ptr = sqlite3_column_blob(Statement.get(), I);
     int Size = sqlite3_column_bytes(Statement.get(), I);
-    return llvm::ArrayRef<const char>{ static_cast<const char *>(Ptr),
-                                       static_cast<size_t>(Size) };
+    return llvm::ArrayRef<char>{ static_cast<const char *>(Ptr),
+                                 static_cast<size_t>(Size) };
   }
 
   template<std::same_as<llvm::StringRef> T, int I>
@@ -134,10 +135,10 @@ private:
 
 class Sqlite3Db {
 private:
-  std::unique_ptr<sqlite3, void (*)(sqlite3 *)> Connection;
+  CUniquePtr<sqlite3_close_v2, SQLITE_OK> Connection;
 
 public:
-  Sqlite3Db(llvm::StringRef Path) : Connection(nullptr, &close) {
+  Sqlite3Db(llvm::StringRef Path) {
     sqlite3 *Ptr = nullptr;
     int Result;
 
@@ -153,16 +154,10 @@ public:
                                NULL);
     revng_assert(Result == SQLITE_OK);
 
-    Connection = decltype(Connection)(Ptr, &close);
+    Connection.reset(Ptr);
   }
 
   Sqlite3Statement makeStatement(llvm::StringRef SQL) {
     return Sqlite3Statement(Connection.get(), SQL);
-  }
-
-private:
-  static inline void close(sqlite3 *Ptr) {
-    int Result = sqlite3_close_v2(Ptr);
-    revng_assert(Result == SQLITE_OK);
   }
 };
