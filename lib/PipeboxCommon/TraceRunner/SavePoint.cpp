@@ -52,9 +52,9 @@ void SavePoint::load(Container &TheContainer,
   Statement.bind(2, ContainerName);
   Statement.bind(3, Hash);
 
-  std::map<const ObjectID *, llvm::ArrayRef<const char>> Input;
+  std::map<const ObjectID *, llvm::ArrayRef<char>> Input;
   for (auto &[Key, BufferRef] :
-       Statement.execute<llvm::StringRef, llvm::ArrayRef<const char>>()) {
+       Statement.execute<llvm::StringRef, llvm::ArrayRef<char>>()) {
     ObjectID Obj = llvm::cantFail(ObjectID::deserialize(Key));
 
     Input.clear();

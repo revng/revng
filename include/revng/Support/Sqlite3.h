@@ -113,13 +113,13 @@ private:
     revng_assert(Type == TargetType);
   }
 
-  template<std::same_as<llvm::ArrayRef<const char>> T, int I>
-  llvm::ArrayRef<const char> unpackRow() {
+  template<std::same_as<llvm::ArrayRef<char>> T, int I>
+  llvm::ArrayRef<char> unpackRow() {
     assertType(I, SQLITE_BLOB);
     const void *Ptr = sqlite3_column_blob(Statement.get(), I);
     int Size = sqlite3_column_bytes(Statement.get(), I);
-    return llvm::ArrayRef<const char>{ static_cast<const char *>(Ptr),
-                                       static_cast<size_t>(Size) };
+    return llvm::ArrayRef<char>{ static_cast<const char *>(Ptr),
+                                 static_cast<size_t>(Size) };
   }
 
   template<std::same_as<llvm::StringRef> T, int I>

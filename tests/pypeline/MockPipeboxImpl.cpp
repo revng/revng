@@ -23,8 +23,7 @@ std::set<ObjectID> StringContainer::objects() const {
 }
 
 void StringContainer::deserialize(const std::map<const ObjectID *,
-                                                 llvm::ArrayRef<const char>>
-                                    Data) {
+                                                 llvm::ArrayRef<char>> Data) {
   for (auto &Entry : Data) {
     revng_assert(Entry.first->kind() == Kind);
     std::string EntryData(Entry.second.data(), Entry.second.size());

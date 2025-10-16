@@ -39,8 +39,8 @@ public:
       return std::set{ ObjectID() };
   }
 
-  void deserialize(const std::map<const ObjectID *, llvm::ArrayRef<const char>>
-                     Data) {
+  void
+  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
     if (Data.size() == 0)
       return;
 

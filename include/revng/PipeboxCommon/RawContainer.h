@@ -25,8 +25,8 @@ public:
     return std::views::keys(Map) | revng::to<std::set<ObjectID>>();
   }
 
-  void deserialize(const std::map<const ObjectID *, llvm::ArrayRef<const char>>
-                     Data) {
+  void
+  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
     for (const auto &[Key, Value] : Data) {
       revng_assert(Key->kind() == Kind);
       // TODO: investigate later if ownership can be passed from the caller
