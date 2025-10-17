@@ -351,8 +351,12 @@ static bool noAlias(const Instruction *I, const Instruction *J) {
   revng_log(Log, "J: " << dumpToString(J));
   LoggerIndent XX{ Log };
   // If either instruction doesn't access memory, they are noAlias for sure.
-  if (not I->mayReadOrWriteMemory() or not J->mayReadFromMemory()) {
-    revng_log(Log, "I or J doesNotAccessMemory");
+  if (not I->mayReadOrWriteMemory()) {
+    revng_log(Log, "I->mayReadOrWriteMemory() == false");
+    return true;
+  }
+  if (not J->mayReadOrWriteMemory()) {
+    revng_log(Log, "J->mayReadOrWriteMemory() == false");
     return true;
   }
 
