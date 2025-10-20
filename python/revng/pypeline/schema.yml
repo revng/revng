@@ -76,10 +76,11 @@ $defs:
         description: The name of the pipe.
         example: my_pipe
       configuration:
-        type: string
-        description: The static configuration for the pipe, if any.
-        default: ""
-        example: intel_asm=1
+        type: [string, object]
+        description: |
+          The static configuration for the pipe, if any. Can be either a string
+          or an object. If an object the content will be re-serialized in YAML
+          and passed to the pipe constructor as a string.
       arguments:
         $ref: "#/$defs/args"
         description: The names of the containers to pass to the pipe.
