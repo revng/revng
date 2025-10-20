@@ -138,7 +138,7 @@ def pid_has_signal(pid: int, signalno: int) -> bool:
     return signal_bits & (2 ** (signalno - 1)) > 0
 
 
-def handle_timeout(root_process):
+def handle_timeout(root_process: Popen):
     main_pid = None
     for process in walk_process_tree(root_process.pid):
         if pid_has_signal(process.pid, signal.SIGABRT):
