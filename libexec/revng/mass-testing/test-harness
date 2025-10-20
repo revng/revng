@@ -67,6 +67,14 @@ def kill(pid: int, signal: int):
         os.kill(pid, signal)
 
 
+def _get_children(parent: psutil.Process) -> list[psutil.Process]:
+    try:
+        return parent.children()
+    except psutil.NoSuchProcess:
+        # If here, the parent died in the meantime, so it cannot have any children
+        return []
+
+
 def walk_process_tree(pid: int, include_root=True) -> Generator[psutil.Process, None, None]:
     # Walk the process tree starting from pid, with a breadth-first search.
     # If include_root=False, the process with 'pid' is not returned.
@@ -74,13 +82,13 @@ def walk_process_tree(pid: int, include_root=True) -> Generator[psutil.Process, 
     if include_root:
         pool = [root_process]
     else:
-        pool = [*root_process.children()]
+        pool = [*_get_children(root_process)]
 
     while len(pool) > 0:
         new_pool = []
         for element in pool:
             yield element
-            new_pool.extend(element.children())
+            new_pool.extend(_get_children(element))
         pool = new_pool
 
 
@@ -138,7 +146,7 @@ def pid_has_signal(pid: int, signalno: int) -> bool:
     return signal_bits & (2 ** (signalno - 1)) > 0
 
 
-def handle_timeout(root_process):
+def handle_timeout(root_process: Popen):
     main_pid = None
     for process in walk_process_tree(root_process.pid):
         if pid_has_signal(process.pid, signal.SIGABRT):
