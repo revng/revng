@@ -19,3 +19,8 @@ branches:
     tasks:
       - pipe: Lift
         arguments: [binaries-container, llvm-root]
+      - pipe: PureLLVMPassesRootPipe
+        arguments: [llvm-root]
+        configuration:
+          Passes:
+            - globaldce
