@@ -485,15 +485,8 @@ class GeneratorPipe(Pipe):
             ),
         )
 
-    def __init__(
-        self,
-        static_configuration: str = "",
-        name: str | None = None,
-    ):
-        super().__init__(
-            name=name,
-            static_configuration=static_configuration,
-        )
+    def __init__(self, static_configuration: str = ""):
+        super().__init__(static_configuration)
 
     def run(
         self,

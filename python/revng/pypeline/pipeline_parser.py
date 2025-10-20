@@ -55,14 +55,9 @@ def parse_pipe(
             )
         bindings.append(container_decls[arg])
 
-    name = task.get("name")
     configuration = task.get("configuration", "")
-
     return PipelineNode(
-        task=pipe_type(
-            name=name,
-            static_configuration=configuration,
-        ),
+        task=pipe_type(configuration),
         bindings=bindings,
     )
 
