@@ -38,12 +38,8 @@ class Pipe(ABC):
         argument should not be added.
         """
 
-    def __init__(
-        self,
-        static_configuration: str = "",
-        name: str | None = None,
-    ):
-        self.name: str = name or self.__class__.__name__
+    def __init__(self, static_configuration: str = ""):
+        self.name = self.__class__.__name__
         self.static_configuration: str = static_configuration
 
     @property
