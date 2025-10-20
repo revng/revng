@@ -168,7 +168,7 @@ def build_artifact_command(
         ),
     )
     @click.pass_context
-    def run_analysis_command(
+    def run_artifact_command(
         ctx: click.Context,
         configuration: str,
         project_id: str,
@@ -198,7 +198,7 @@ def build_artifact_command(
             )
         )
 
-    return run_analysis_command
+    return run_artifact_command
 
 
 @click.group(
