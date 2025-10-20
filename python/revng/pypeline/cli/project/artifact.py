@@ -84,6 +84,7 @@ class ArtifactGroup(PypeGroup):
             "objects",
             type=str,
             default=None,
+            required=False,
         )(run_artifact_command)
 
         return run_artifact_command
