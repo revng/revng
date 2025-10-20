@@ -179,8 +179,8 @@ class LocalStorageProviderFactory(StorageProviderFactory):
             return self.providers[project_id]
 
         # Figure out how the model should be name
-        model_ty = get_singleton(Model)  # type: ignore [type-abstract]
-        model_name = model_ty.model_name()
+        model_type = get_singleton(Model)  # type: ignore [type-abstract]
+        model_name = model_type.model_name()
 
         # Find the model in the current directory or any of its parents
         directory = Path.cwd().resolve()

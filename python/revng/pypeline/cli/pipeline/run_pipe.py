@@ -10,7 +10,6 @@ import click
 from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
 from revng.pypeline.cli.utils import list_objects_option, normalize_kwarg_name
 from revng.pypeline.cli.utils import normalize_whitespace
-from revng.pypeline.container import dump_container, load_container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.storage.file_provider import FileProvider, FileRequest
@@ -177,12 +176,7 @@ def build_pipe_command(
 
             # Otherwise we need to load the container from the filesystem
             path = kwargs[f"{arg_name}_input"]
-            containers.append(
-                load_container(
-                    arg.container_type,
-                    path,
-                )
-            )
+            containers.append(arg.container_type.from_file(path))
 
         # From the command line figure out the requests for each argument
         outgoing: list[ObjectSet] = []
@@ -236,10 +230,7 @@ def build_pipe_command(
             # to the filesystem
             path = kwargs[f"{arg_name}_output"]
             logger.info("Dumping container %s to %s", arg.name, path)
-            dump_container(
-                container,
-                path,
-            )
+            container.to_file(path)
 
     return run_pipe_command
 

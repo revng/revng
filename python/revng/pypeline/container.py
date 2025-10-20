@@ -9,7 +9,7 @@ import json
 from collections.abc import Buffer, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated, Dict, Generator, Tuple, Type
+from typing import Annotated, Dict, Generator, Tuple, Type, final
 
 from .object import Kind, ObjectID, ObjectSet
 from .utils import is_mime_type_text
@@ -151,62 +151,56 @@ class Container(ABC):
         ), f"Container {self} has kind {self.kind}, but the object set has kind {obj.kind}."
         return self.objects().issubset(obj)
 
+    @classmethod
+    @final
+    def from_string(
+        cls,
+        data: str,
+    ) -> Container:
+        container = cls()
+        obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
+        container.deserialize(
+            {
+                obj_id_type.deserialize(obj_id): (
+                    content if container.is_text() else base64.b64decode(content)
+                )
+                for obj_id, content in json.loads(data).items()
+            }
+        )
+        return container
 
-def loads_container(
-    container_type: type[Container],
-    data: str,
-) -> Container:
-    container = container_type()
-    obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
-    container.deserialize(
-        {
-            obj_id_type.deserialize(obj_id): (
-                content if container.is_text() else base64.b64decode(content)
-            )
-            for obj_id, content in json.loads(data).items()
-        }
-    )
-    return container
+    @classmethod
+    @final
+    def from_file(
+        cls,
+        path: str | Path,
+    ) -> Container:
+        """
+        Load a container from a serialized format.
+        This is used to **load** cached objects into this container.
+        """
+        with open(path, "r", encoding="utf-8") as f:
+            return cls.from_string(f.read())
 
+    @final
+    def to_string(self) -> str:
+        """
+        Dump a container into a serialized format.
+        """
+        return json.dumps(
+            {k.serialize(): bytes(v).hex() for k, v in self.serialize(self.objects()).items()},
+            indent=4,
+            sort_keys=True,
+        )
 
-def load_container(
-    container_type: type[Container],
-    path: str | Path,
-) -> Container:
-    """
-    Load a container from a serialized format.
-    This is used to **load** cached objects into this container.
-    """
-    with open(path, "r", encoding="utf-8") as f:
-        return loads_container(container_type, f.read())
-
-
-def dumps_container(
-    container: Container,
-) -> str:
-    """
-    Dump a container into a serialized format.
-    """
-    return json.dumps(
-        {
-            k.serialize(): bytes(v).hex()
-            for k, v in container.serialize(container.objects()).items()
-        },
-        indent=4,
-        sort_keys=True,
-    )
-
-
-def dump_container(
-    container: Container,
-    path: str | Path,
-) -> None:
-    """
-    Dump a container into a serialized format.
-    This is used to **save** cached objects from this container.
-    """
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(dumps_container(container))
+    @final
+    def to_file(self, path: str | Path) -> None:
+        """
+        Dump a container into a serialized format.
+        This is used to **save** cached objects from this container.
+        """
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(self.to_string())
 
 
 ContainerSet = Annotated[

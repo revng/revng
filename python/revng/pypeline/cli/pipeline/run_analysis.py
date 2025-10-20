@@ -10,7 +10,7 @@ import click
 from revng.pypeline.analysis import Analysis
 from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
 from revng.pypeline.cli.utils import list_objects_option, normalize_whitespace
-from revng.pypeline.container import ContainerDeclaration, load_container
+from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.task.task import TaskArgument, TaskArgumentAccess
@@ -136,7 +136,7 @@ def build_run_analysis_command(
         for arg in analysis.signature():
             arg_name = arg.__name__
             path = kwargs[arg_name]
-            container = load_container(arg, path)
+            container = arg.from_file(path)
             logger.debug(
                 'Loaded container from "%s" for argument "%s": "%r"', path, arg_name, container
             )

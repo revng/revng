@@ -9,7 +9,6 @@ import click
 
 from revng.pypeline.cli.utils import build_help_text, list_objects_option, normalize_whitespace
 from revng.pypeline.cli.utils import project_id_option, token_option
-from revng.pypeline.container import dump_container, dumps_container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
@@ -171,12 +170,10 @@ def build_artifact_command(
 
         if result_path is not None:
             logger.debug('Writing result to: "%s"', result_path)
-            dump_container(
-                res_container,
-                result_path,
-            )
+
+            res_container.to_file(result_path)
         else:
-            print(dumps_container(res_container), end="", flush=True)
+            print(res_container.to_string(), end="", flush=True)
 
     return run_analysis_command
 
