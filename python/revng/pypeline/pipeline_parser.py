@@ -55,9 +55,16 @@ def parse_pipe(
             )
         bindings.append(container_decls[arg])
 
-    configuration = task.get("configuration", "")
+    configuration = task.get("configuration")
+    if configuration is None:
+        configuration_string = ""
+    elif isinstance(configuration, str):
+        configuration_string = configuration
+    else:
+        configuration_string = yaml.safe_dump(configuration)
+
     return PipelineNode(
-        task=pipe_type(configuration),
+        task=pipe_type(configuration_string),
         bindings=bindings,
     )
 
