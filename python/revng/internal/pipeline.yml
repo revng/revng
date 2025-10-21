@@ -11,6 +11,8 @@ containers:
     type: CBytesContainer
   - name: model-types
     type: PTMLCTypeContainer
+  - name: cfg-map
+    type: CFGMap
 
 branches:
   files-imported:
@@ -33,6 +35,14 @@ branches:
         artifacts:
           - name: lift
             container: llvm-root
+
+  collect-cfg:
+    from: lift
+    tasks:
+      - pipe: CollectCFG
+        arguments: [llvm-root, cfg-map]
+      - savepoint: cfg-computed
+        containers: [cfg-map]
 
   emit-model-header:
     tasks:
