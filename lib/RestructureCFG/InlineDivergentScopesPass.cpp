@@ -220,7 +220,9 @@ static void createHead(BasicBlock *Conditional,
                                         Conditional->getName() + "_head_ids",
                                         F);
   Instruction *HeadTerminator = ConditionalTerminator->clone();
-  revng::IRBuilder HeadBuilder(Head);
+
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder HeadBuilder(Head);
   HeadBuilder.Insert(HeadTerminator);
 
   // Collect the `Successor`s composing the local `Divergence`
@@ -271,7 +273,9 @@ performMultipleIDS(const ScopeGraphBuilder &SGBuilder,
   // `Tail`.
   Instruction *ConditionalTerminator = Conditional->getTerminator();
   Instruction *TailTerminator = ConditionalTerminator->clone();
-  revng::IRBuilder TailBuilder(Tail);
+
+  // TODO: we shouldn't be losing debug information here!
+  revng::NonDebugInfoCheckingIRBuilder TailBuilder(Tail);
   TailBuilder.Insert(TailTerminator);
 
   // Populate the `DivergentSuccessors` summing all ones present in each

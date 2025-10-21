@@ -2476,7 +2476,7 @@ private:
 private:
   const DataLayout &DL;
   int64_t EnvStructSize;
-  revng::IRBuilder Builder;
+  revng::NonDebugInfoCheckingIRBuilder Builder;
   Type *Int64Ty = nullptr;
   Constant *SizeOfEnv = nullptr;
   Constant *Zero = nullptr;

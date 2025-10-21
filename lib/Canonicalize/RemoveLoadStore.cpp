@@ -87,7 +87,10 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
   // Initialize the IR builder to inject functions
   llvm::LLVMContext &LLVMCtx = F.getContext();
   llvm::Module &M = *F.getParent();
-  revng::IRBuilder Builder(LLVMCtx);
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(LLVMCtx);
 
   // Initialize function pool
   auto AssignPool = FunctionTags::Assign.getPool(M);

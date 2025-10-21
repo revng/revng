@@ -80,7 +80,10 @@ public:
   void run(pipeline::ExecutionContext &Context,
            pipeline::LLVMContainer &ModuleContainer) {
     llvm::Module &M = ModuleContainer.getModule();
-    revng::IRBuilder B(M.getContext());
+
+    // Here we should definitely use the builder that checks the debug info,
+    // but since this going to go away soon, let it stay as is.
+    revng::NonDebugInfoCheckingIRBuilder B(M.getContext());
 
     llvm::FunctionCallee IRComment = makeIRComment(M);
 

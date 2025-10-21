@@ -30,7 +30,9 @@ public:
 };
 
 class TernaryReductionImpl {
-  revng::IRBuilder Builder;
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder;
   OpaqueFunctionsPool<llvm::Type *> BooleanNotPool;
 
 public:

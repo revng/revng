@@ -262,7 +262,7 @@ public:
 
   void
   emitAbort(BasicBlock *BB, const Twine &Reason, const DebugLoc &DbgLocation) {
-    revng::IRBuilder Builder(BB);
+    revng::NonDebugInfoCheckingIRBuilder Builder(BB);
     emitAbort(Builder, Reason, DbgLocation);
   }
 
@@ -277,7 +277,7 @@ public:
   void emitUnreachable(BasicBlock *BB,
                        const Twine &Reason,
                        const DebugLoc &DbgLocation) {
-    revng::IRBuilder Builder(BB);
+    revng::NonDebugInfoCheckingIRBuilder Builder(BB);
     emitUnreachable(Builder, Reason, DbgLocation);
   }
 
@@ -305,7 +305,8 @@ void IFI::populateFunctionDispatcher() {
   emitUnreachable(Unexpected, "An unexpected function has been called", Dbg);
   setBlockType(Unexpected->getTerminator(), BlockType::UnexpectedPCBlock);
 
-  revng::IRBuilder Builder(Context);
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
 
   // Create all the entries of the dispatcher
   ProgramCounterHandler::DispatcherTargets Targets;
@@ -677,7 +678,9 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
       Instruction *T = AnyPCPredecessor->getTerminator();
       revng_assert(not cast<BranchInst>(T)->isConditional());
       T->eraseFromParent();
-      revng::IRBuilder Builder(AnyPCPredecessor);
+
+      // TODO: the checks should be enabled conditionally based on the user.
+      revng::NonDebugInfoCheckingIRBuilder Builder(AnyPCPredecessor);
 
       // Get the only outgoing edge jumping to anypc
       if (Block == nullptr) {

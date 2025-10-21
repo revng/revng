@@ -365,7 +365,7 @@ void VariableManager::finalize() {
       P.second->setLinkage(GlobalValue::InternalLinkage);
   }
 
-  revng::IRBuilder Builder(Context);
+  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
 
   // Create the setRegister function
   auto *SetRegisterTy = FunctionType::get(Builder.getVoidTy(),
@@ -608,7 +608,7 @@ Value *VariableManager::cpuStateToEnv(Value *CPUState,
                                       Instruction *InsertBefore) const {
   using CI = ConstantInt;
 
-  revng::IRBuilder Builder(InsertBefore);
+  revng::NonDebugInfoCheckingIRBuilder Builder(InsertBefore);
   auto *OpaquePointer = PointerType::get(TheModule.getContext(), 0);
   auto *IntPtrTy = Builder.getIntPtrTy(TheModule.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);

@@ -41,7 +41,9 @@ Instruction *StructInitializers::createReturn(revng::IRBuilder &Builder,
   // Lazily populate its body
   if (Initializer->isDeclaration()) {
     auto *Entry = BasicBlock::Create(Context, "", Initializer);
-    revng::IRBuilder InitializerBuilder(Entry);
+
+    // TODO: the checks should be enabled conditionally based on the user.
+    revng::NonDebugInfoCheckingIRBuilder InitializerBuilder(Entry);
 
     SmallVector<Value *, 8> Arguments;
     for (Argument &Arg : Initializer->args())

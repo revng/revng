@@ -93,8 +93,9 @@ public:
                                              &RootFunction,
                                              nullptr);
 
-    // Create a builder object
-    revng::IRBuilder Builder(Context);
+    // Create a builder object (this pipeline branch never leads to decompiled
+    // code, so who cares about the debug information).
+    revng::NonDebugInfoCheckingIRBuilder Builder(Context);
     Builder.SetInsertPoint(CatchBB);
 
     // Create the StructType necessary for the landingpad
@@ -152,7 +153,9 @@ public:
       NewBB->getTerminator()->eraseFromParent();
       NewBB->takeName(BB);
 
-      revng::IRBuilder Builder(NewBB);
+      // This pipeline branch never leads to decompiled code, so who cares about
+      // the debug information.
+      revng::NonDebugInfoCheckingIRBuilder Builder(NewBB);
 
       // In case the isolated functions has arguments, provide them
       SmallVector<Value *, 4> Arguments;

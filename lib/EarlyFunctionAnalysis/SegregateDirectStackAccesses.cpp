@@ -85,7 +85,9 @@ void SDSAPI::segregateAccesses(Function &F) {
   auto It = F.getEntryBlock().begin();
   while (It->getOpcode() == Instruction::Alloca)
     It++;
-  revng::IRBuilder Builder(&(*It));
+
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(&(*It));
 
   // Context: inttoptr instructions basically inhibits all optimizations. In
   // particular, when an integer is inttoptr'd twice with different destination

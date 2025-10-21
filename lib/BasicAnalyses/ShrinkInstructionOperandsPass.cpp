@@ -51,7 +51,8 @@ static void replaceAndResizeOperand(llvm::Instruction *I,
   if (getSize(I) == NewSize)
     return;
 
-  revng::IRBuilder Builder(I);
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(I);
   llvm::Type *NewType = Builder.getIntNTy(NewSize);
   llvm::Value *NewOperand = nullptr;
   if (S == Signed) {

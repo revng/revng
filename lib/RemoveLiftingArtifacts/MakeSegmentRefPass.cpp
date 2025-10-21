@@ -135,8 +135,10 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
   for (const model::Function &Function : Binary.Functions())
     FunctionEntries[Function.Entry().toGeneric()] = Function.Entry();
 
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder IRB(Context);
+
   bool Changed = false;
-  revng::IRBuilder IRB(Context);
   llvm::Type *PtrSizedInteger = getPointerSizedInteger(Context, Binary);
 
   for (Instruction &I : instructions(F)) {

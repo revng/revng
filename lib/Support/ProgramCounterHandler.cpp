@@ -604,7 +604,7 @@ public:
 
     bool Empty = Root->case_begin() == Root->case_end();
     if (Empty) {
-      revng::IRBuilder Builder(Root);
+      revng::NonDebugInfoCheckingIRBuilder Builder(Root);
       CurrentEpoch = createLoad(Builder, EpochCSV);
       CurrentAddressSpace = createLoad(Builder, AddressSpaceCSV);
       CurrentType = createLoad(Builder, TypeCSV);
@@ -748,7 +748,7 @@ private:
       NewBlocksRegistry->push_back(NewSwitchBB);
 
     ::addCase(Switch, NewCaseValue, NewSwitchBB);
-    revng::IRBuilder Builder(NewSwitchBB);
+    revng::NonDebugInfoCheckingIRBuilder Builder(NewSwitchBB);
     SwitchInst *Result = createSwitch(SwitchOn, Builder);
     if (SetBlockType)
       setBlockType(Result, *SetBlockType);

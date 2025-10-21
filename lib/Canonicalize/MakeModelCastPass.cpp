@@ -217,7 +217,10 @@ void MakeModelCastPass::makeModelCast(const CastToEmit &ToEmit,
   const model::Type &OperandModelType = *TypeMap.at(Operand);
 
   auto *I = cast<Instruction>(OperandUse.getUser());
-  revng::IRBuilder Builder(I);
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(I);
   Type *OperandType = Operand->getType();
   CallInst *CallToModelCast = createCallToModelCast(Builder,
                                                     { OperandType,
@@ -278,8 +281,10 @@ bool MakeModelCastPass::runOnFunction(Function &F) {
     LoggerIndent Indent{ Log };
     revng_log(Log, "replacing sext/zext/trunc with ModelCast");
 
-    LLVMContext &LLVMCtxt = F.getContext();
-    revng::IRBuilder Builder(LLVMCtxt);
+    // Here we should definitely use the builder that checks the debug info,
+    // but since this going to go away soon, let it stay as is.
+    revng::NonDebugInfoCheckingIRBuilder Builder(F.getContext());
+
     for (BasicBlock &BB : F) {
       for (Instruction &I : llvm::make_early_inc_range(BB)) {
         auto *SExt = dyn_cast<llvm::SExtInst>(&I);

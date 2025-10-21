@@ -98,7 +98,9 @@ static bool reusePHIIncomings(PHINode &PHI, const DominatorTree &DT) {
   if (not PHI.getType()->isIntegerTy())
     return false;
 
-  revng::IRBuilder Builder(PHI.getContext());
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(PHI.getContext());
 
   revng_log(Log, "Decompilation: " << dumpToString(PHI));
   revng_log(Log, "uses: ");

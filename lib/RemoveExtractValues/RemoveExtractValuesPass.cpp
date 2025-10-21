@@ -42,7 +42,10 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
   auto OpaqueEVPool = FunctionTags::OpaqueExtractValue.getPool(*F.getParent());
 
   llvm::LLVMContext &LLVMCtx = F.getContext();
-  revng::IRBuilder Builder(LLVMCtx);
+
+  // TODO: checks are only omitted here because of unit tests.
+  revng::NonDebugInfoCheckingIRBuilder Builder(LLVMCtx);
+
   for (ExtractValueInst *I : ToReplace) {
     Builder.SetInsertPoint(I);
 

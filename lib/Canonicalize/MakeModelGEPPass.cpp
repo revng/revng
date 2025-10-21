@@ -2085,8 +2085,11 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
   llvm::Module &M = *F.getParent();
   LLVMContext &Context = M.getContext();
-  revng::IRBuilder Builder(Context);
   ModelGEPArgCache TypeArgCache;
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
 
   // Create a function pool for AddressOf calls
   auto AddressOfPool = FunctionTags::AddressOf.getPool(M);

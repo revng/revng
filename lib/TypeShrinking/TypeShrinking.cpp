@@ -82,7 +82,8 @@ static bool runTypeShrinking(Function &F,
                              const BitLivenessAnalysisResults &FixedPoints) {
   bool HasChanges = false;
 
-  revng::IRBuilder B(F.getParent()->getContext());
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder B(F.getParent()->getContext());
   const std::array<uint32_t, 4> Ranks = { 8, 16, 32, 64 };
   for (auto &[I, Result] : FixedPoints) {
     // Find the closest rank that contains all the alive bits.
@@ -196,7 +197,9 @@ static bool runTypeShrinking(Function &F,
 
     // Replace the compare trunc'ing the constant and skipping over the zext
     HasChanges = true;
-    revng::IRBuilder B(ICmp);
+
+    // TODO: the checks should be enabled conditionally based on the user.
+    revng::NonDebugInfoCheckingIRBuilder B(ICmp);
     auto *NewICmp = B.CreateICmp(ICmp->getPredicate(),
                                  PreExtension,
                                  ConstantInt::get(PreExtensionType,

@@ -49,7 +49,10 @@ public:
       // same type and initialise it using stores for each defined aggregate
       // initialiser found in the array constant.
 
-      revng::IRBuilder Builder(&BB, BasicBlock::iterator(Return));
+      // TODO: the checks should be enabled conditionally based on the user.
+      revng::NonDebugInfoCheckingIRBuilder
+        Builder(&BB, BasicBlock::iterator(Return));
+
       auto *Alloca = Builder.CreateAlloca(ArrayT);
       auto *AllocaInt = Builder.CreatePtrToInt(Alloca, IntPtrT);
 

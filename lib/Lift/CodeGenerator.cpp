@@ -132,7 +132,8 @@ public:
   }
 
   Instruction *wrap(Instruction *I) {
-    revng::IRBuilder Builder(I->getParent(), ++I->getIterator());
+    revng::NonDebugInfoCheckingIRBuilder Builder(I->getParent(),
+                                                 ++I->getIterator());
     return wrap(Builder, I);
   }
 };
@@ -385,7 +386,8 @@ bool CpuLoopFunctionPass::runOnModule(Module &M) {
   Value *CPUState = Call->getArgOperand(0);
   Type *TargetType = CpuExec.getReturnType();
 
-  revng::IRBuilder Builder(Call);
+  revng::NonDebugInfoCheckingIRBuilder Builder(Call);
+
   Type *IntPtrTy = Builder.getIntPtrTy(M.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
   using CI = ConstantInt;
@@ -654,13 +656,15 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
                                                      "do_arm_semihosting",
                                                      "EmulateAll");
   for (auto Name : AbortFunctionNames) {
-    Function *OldFunction = HelpersModule->getFunction(Name);
-    if (OldFunction != nullptr) {
+    Function *OldFunc = HelpersModule->getFunction(Name);
+    if (OldFunc != nullptr) {
       llvm::DebugLoc DLocation;
-      if (not OldFunction->empty())
-        DLocation = OldFunction->getEntryBlock().getTerminator()->getDebugLoc();
+      if (not OldFunc->empty())
+        DLocation = OldFunc->getEntryBlock().getTerminator()->getDebugLoc();
 
-      emitAbort(replaceFunction(OldFunction),
+      revng::NonDebugInfoCheckingIRBuilder Builder(replaceFunction(OldFunc),
+                                                   DLocation);
+      emitAbort(Builder,
                 llvm::Twine("Abort instead of calling `") + Name + "`",
                 std::move(DLocation));
     }
@@ -777,7 +781,7 @@ void CodeGenerator::translate(optional<uint64_t> RawVirtualAddress) {
                                                TheModule,
                                                Factory);
 
-  revng::IRBuilder Builder(Context);
+  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
 
   // Create main function
   auto *MainType = FT::get(Builder.getVoidTy(),

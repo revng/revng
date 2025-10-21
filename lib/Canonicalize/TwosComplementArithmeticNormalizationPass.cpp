@@ -34,7 +34,10 @@ using TANP = TwosComplementArithmeticNormalizationPass;
 class UnaryMinusBuilder {
 
   OpaqueFunctionsPool<llvm::Type *> Pool;
-  revng::IRBuilder Builder;
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder;
 
 public:
   UnaryMinusBuilder(llvm::Function &F) :
@@ -55,7 +58,10 @@ public:
 class BinaryNotBuilder {
 
   OpaqueFunctionsPool<llvm::Type *> Pool;
-  revng::IRBuilder Builder;
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder;
 
 public:
   BinaryNotBuilder(llvm::Function &F) :
@@ -74,7 +80,10 @@ public:
 class BooleanNotBuilder {
 
   OpaqueFunctionsPool<llvm::Type *> Pool;
-  revng::IRBuilder Builder;
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder;
 
 public:
   BooleanNotBuilder(llvm::Function &F) :
@@ -102,7 +111,10 @@ bool TANP::runOnFunction(llvm::Function &F) {
   UnaryMinusBuilder BuildUnaryMinus{ F };
   BinaryNotBuilder BuildBinaryNot{ F };
   BooleanNotBuilder BuildBooleanNot{ F };
-  revng::IRBuilder Builder{ F.getContext() };
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder{ F.getContext() };
 
   bool Changed = false;
 

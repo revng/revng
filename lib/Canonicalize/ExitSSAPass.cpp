@@ -264,7 +264,8 @@ using EdgeToNewBlockMap = std::map<std::pair<BasicBlock *, BasicBlock *>,
 
 static void
 buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
-  revng::IRBuilder Builder(StoreBlock->getContext());
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(StoreBlock->getContext());
 
   auto *IncomingInst = dyn_cast<Instruction>(Incoming);
   if (IncomingInst and IncomingInst->getParent() == StoreBlock) {
@@ -272,15 +273,15 @@ buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
     if (isa<AllocaInst>(IncomingInst)) {
       Function *ParentFunction = StoreBlock->getParent();
       revng_assert(IncomingParentBlock == &ParentFunction->getEntryBlock());
-      Builder.SetInsertPointPastAllocas(ParentFunction);
+      Builder.SetInsertPointPastAllocas(ParentFunction, Alloca->getDebugLoc());
     } else {
       Builder.SetInsertPoint(StoreBlock,
-                             std::next(IncomingInst->getIterator()));
+                             std::next(IncomingInst->getIterator()),
+                             Alloca->getDebugLoc());
     }
   } else {
-    Builder.SetInsertPoint(StoreBlock->getTerminator());
+    Builder.SetInsertPoint(StoreBlock->getTerminator(), Alloca->getDebugLoc());
   }
-  Builder.SetCurrentDebugLocation(Alloca->getDebugLoc());
 
   auto *S = Builder.CreateStore(Incoming, Alloca);
   revng_log(Log,
@@ -312,11 +313,12 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
   revng_log(Log, "New PHIGroup ================");
   LoggerIndent FirstIndent{ Log };
 
-  revng::IRBuilder Builder(F.getContext());
-  Builder.SetInsertPointPastAllocas(&F);
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(F.getContext());
   const DebugLoc &PHIDebugLoc = (*PHIs.begin())->getDebugLoc();
+  Builder.SetInsertPointPastAllocas(&F, PHIDebugLoc);
+
   AllocaInst *Alloca = Builder.CreateAlloca((*PHIs.begin())->getType());
-  Alloca->setDebugLoc(PHIDebugLoc);
   revng_log(Log, "Created Alloca: " << dumpToString(Alloca));
 
   {

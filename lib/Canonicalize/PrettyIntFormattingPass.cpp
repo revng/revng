@@ -78,7 +78,10 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
     }
   }
 
-  revng::IRBuilder Builder(F.getContext());
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(F.getContext());
+
   for (const auto &[Format, Operand] : IntsToBeFormatted) {
     auto *Val = llvm::cast<llvm::ConstantInt>(Operand->get());
     llvm::Type *IntType = Val->getType();

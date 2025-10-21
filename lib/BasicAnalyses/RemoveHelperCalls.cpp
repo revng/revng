@@ -73,7 +73,8 @@ RemoveHelperCallsPass::run(llvm::Function &F,
   OFPOriginalHelper.addFnAttribute(Attribute::WillReturn);
   OFPOriginalHelper.setTags({ &FunctionTags::UniquedByPrototype });
 
-  revng::IRBuilder Builder(F.getContext());
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(F.getContext());
   for (auto *I : ToReplace) {
     Builder.SetInsertPoint(I);
 

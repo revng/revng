@@ -176,7 +176,7 @@ private:
 
 private:
   llvm::Module &TheModule;
-  revng::IRBuilder AllocaBuilder;
+  revng::NonDebugInfoCheckingIRBuilder AllocaBuilder;
   using TemporariesMap = std::map<unsigned int, llvm::AllocaInst *>;
   using GlobalsMap = std::map<intptr_t, llvm::GlobalVariable *>;
   GlobalsMap CPUStateGlobals;

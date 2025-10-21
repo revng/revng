@@ -558,7 +558,8 @@ private:
       }
     }
 
-    revng::IRBuilder B(&NewFunction->getEntryBlock());
+    // TODO: the checks should be enabled conditionally based on the user.
+    revng::NonDebugInfoCheckingIRBuilder B(NewFunction->getContext());
     setInsertPointToFirstNonAlloca(B, *NewFunction);
 
     // Handle arguments

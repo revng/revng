@@ -98,7 +98,10 @@ public:
       OverflowPool.initializeFromName(BinaryOperationOverflows);
     }
 
-    revng::IRBuilder Builder(F.getParent()->getContext());
+    // Here we should definitely use the builder that checks the debug info,
+    // but since this going to go away soon, let it stay as is.
+    revng::NonDebugInfoCheckingIRBuilder Builder(F.getParent()->getContext());
+
     for (WithOverflowInst *Call : Calls) {
       Changed = true;
 

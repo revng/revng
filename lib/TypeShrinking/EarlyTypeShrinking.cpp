@@ -30,7 +30,8 @@ char EarlyTypeShrinking::ID = 0;
 bool EarlyTypeShrinking::runOnFunction(Function &F) {
   bool Changed = false;
 
-  revng::IRBuilder B(F.getContext());
+  // TODO: checks are only omitted here because of unit tests.
+  revng::NonDebugInfoCheckingIRBuilder B(F.getContext());
 
   for (Instruction &I : llvm::make_early_inc_range(llvm::instructions(F))) {
     using namespace PatternMatch;

@@ -48,10 +48,9 @@ static Instruction *getExtOrTrunc(Value *V) {
 }
 
 bool RemovePointerCasts::runOnFunction(llvm::Function &F) {
-
-  // Initialize the IR builder to inject instructions
-  llvm::LLVMContext &LLVMCtx = F.getContext();
-  revng::IRBuilder Builder(LLVMCtx);
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(F.getContext());
   bool Modified = false;
 
   // TODO: Maybe we should check if the size is compatible with the size of a

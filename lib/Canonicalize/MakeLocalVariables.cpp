@@ -56,8 +56,11 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
 
   llvm::LLVMContext &LLVMCtx = F.getContext();
   llvm::Module &M = *F.getParent();
-  revng::IRBuilder Builder(LLVMCtx);
   llvm::Type *PtrSizedInteger = getPointerSizedInteger(LLVMCtx, *Model);
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(LLVMCtx);
 
   // Initialize function pools
   auto AddressOfPool = FunctionTags::AddressOf.getPool(M);
