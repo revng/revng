@@ -12,7 +12,7 @@
 template<typename T>
 concept IsSingleOutputPipeRun = requires {
   requires IsSingleObjectPipeRun<T>;
-  requires HasArgumentsDocumenation<T>;
+  requires HasArguments<T>;
   requires SpecializationOf<PipeRunContainerTypes<T>, TypeList>;
 };
 
@@ -22,7 +22,7 @@ private:
   using Base = SingleOutputPipeBase<T>;
 
 public:
-  using ArgumentsDocumentation = T::ArgumentsDocumentation;
+  using Arguments = T::Arguments;
 
 public:
   template<typename... Args>

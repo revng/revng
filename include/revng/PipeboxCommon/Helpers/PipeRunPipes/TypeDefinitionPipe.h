@@ -28,7 +28,7 @@ private:
   static_assert(Base::OutputContainerType::Kind == Kinds::TypeDefinition);
 
 public:
-  using ArgumentsDocumentation = T::Arguments;
+  using Arguments = T::Arguments;
 
 public:
   template<typename... Args>

@@ -131,7 +131,7 @@ private:
                                                           true };
 
 public:
-  using ArgumentsDocumentation = T::Arguments;
+  using Arguments = T::Arguments;
 
 public:
   template<typename... Args>

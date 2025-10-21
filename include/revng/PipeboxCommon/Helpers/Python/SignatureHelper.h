@@ -62,8 +62,7 @@ private:
     forEach<CT>([&Result,
                  &TaskArgument,
                  &TaskArgumentAccess]<typename A, size_t I>() {
-      using Argument = std::tuple_element_t<I,
-                                            typename T::ArgumentsDocumentation>;
+      using Argument = std::tuple_element_t<I, typename T::Arguments>;
       // Create a Kwargs dictionary, this will be passed to the constructor of
       // TaskArgument
       nanobind::dict Kwargs;
@@ -75,11 +74,8 @@ private:
       // nanobind::type<T> returns a reference, so we need to borrow it and
       // increase the reference count
       Kwargs["container_type"] = nanobind::borrow(nanobind::type<A>());
-      // If the argument is const then the access is READ, otherwise READ_WRITE
-      if constexpr (std::is_const_v<A>)
-        Kwargs["access"] = nanobind::getattr(TaskArgumentAccess, "READ");
-      else
-        Kwargs["access"] = nanobind::getattr(TaskArgumentAccess, "READ_WRITE");
+      Kwargs["access"] = nanobind::getattr(TaskArgumentAccess,
+                                           getAccess<A>(Argument::Access));
 
       // kwargs_proxy is a special nanobind class that allows passing a
       // nanobind::dict as kwargs, this is equivalent to doing
@@ -90,6 +86,26 @@ private:
     // This version of the nanobind::tuple constructor automatically converts
     // the nanobind::list to a tuple.
     return nanobind::tuple(Result);
+  }
+
+  /// Given a container type A and a pipe's Access, determine the correct member
+  /// of the `TaskArgumentAccess` python enum.
+  template<typename A>
+  static const char *getAccess(const Access &Access) {
+    switch (Access) {
+    case Access::Read:
+      return "READ";
+    case Access::Write:
+      return "WRITE";
+    case Access::ReadWrite:
+      return "READ_WRITE";
+    case Access::Auto:
+      // If the argument is const then the access is READ, otherwise READ_WRITE
+      if constexpr (std::is_const_v<A>)
+        return "READ";
+      else
+        return "READ_WRITE";
+    }
   }
 
   /// Given an analysis type T, compute its signature
