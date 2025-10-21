@@ -30,10 +30,12 @@ public:
 };
 
 class AppendFooPipe {
+private:
+  using Access = revng::pypeline::Access;
+
 public:
   static constexpr llvm::StringRef Name = "AppendFooPipe";
-  using ArgumentsDocumentation = TypeList<
-    revng::pypeline::PipeArgumentDocumentation<"Container", "">>;
+  using Arguments = TypeList<revng::pypeline::PipeArgument<"Container", "">>;
 
   const std::string StaticConfiguration;
 

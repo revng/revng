@@ -24,6 +24,8 @@
 #include "revng/PipeboxCommon/Helpers/Python/RunPipe.h"
 #include "revng/PipeboxCommon/Helpers/Python/SignatureHelper.h"
 
+inline Logger PypelineRegisterLogger("pypeline-register");
+
 template<IsAnalysis T>
 struct RegisterAnalysis {
   RegisterAnalysis() {
@@ -87,11 +89,34 @@ struct RegisterContainer {
   }
 };
 
+namespace detail {
+
+template<typename T>
+void checkPipeArgumentAccess() {
+  if (not PypelineRegisterLogger.isEnabled())
+    return;
+
+  using CT = PipeRunTraits<T>::ContainerTypes;
+  using AccessEnum = revng::pypeline::Access;
+  forEach<CT>([]<typename A, size_t I>() {
+    using Argument = std::tuple_element_t<I, typename T::Arguments>;
+    if (Argument::Access == AccessEnum::Read and not std::is_const_v<A>) {
+      revng_log(PypelineRegisterLogger,
+                T::Name << " has the " << I
+                        << "th argument with READ access but marked non-const");
+    }
+  });
+}
+
+} // namespace detail
+
 template<IsPipe T>
 struct RegisterPipe {
   RegisterPipe() {
     using namespace nanobind::literals;
     using namespace revng::pypeline::helpers;
+
+    detail::checkPipeArgumentAccess<T>();
 
     // Python
     python::Registry.registerModuleInitializer([](nanobind::module_ &M,

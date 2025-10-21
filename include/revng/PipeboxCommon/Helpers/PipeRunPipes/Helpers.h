@@ -135,23 +135,23 @@ private:
 namespace detail {
 
 template<typename T>
-concept IsPipeArgument = requires {
-  requires IsPipeArgumentDocumentation<T>;
+concept IsPipeRunArgument = requires {
+  requires IsPipeArgument<T>;
   requires IsContainerArgument<typename T::Type>;
 };
 
 template<SpecializationOf<TypeList> List>
-inline constexpr bool checkArguments() {
+inline constexpr bool checkPipeRunArguments() {
   constexpr bool Size = std::tuple_size_v<List>;
   return compile_time::repeatAnd<Size>([]<size_t I>() {
-    return IsPipeArgument<std::tuple_element_t<I, List>>;
+    return IsPipeRunArgument<std::tuple_element_t<I, List>>;
   });
 }
 
 template<typename T>
-concept HasArguments = requires {
+concept HasPipeRunArguments = requires {
   requires StrictSpecializationOf<typename T::Arguments, TypeList>;
-  requires checkArguments<typename T::Arguments>();
+  requires checkPipeRunArguments<typename T::Arguments>();
 };
 
 template<typename T>
@@ -164,13 +164,13 @@ template<typename T>
 concept IsSingleObjectPipeRun = requires {
   requires HasName<T>;
   requires detail::HasStaticRun<T>;
-  requires not detail::HasArguments<T>;
+  requires not detail::HasPipeRunArguments<T>;
 };
 
 template<typename T>
 concept IsMultipleObjectsPipeRun = requires {
   requires HasName<T>;
-  requires detail::HasArguments<T>;
+  requires detail::HasPipeRunArguments<T>;
   requires not detail::HasStaticRun<T>;
 };
 
