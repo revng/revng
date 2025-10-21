@@ -4,6 +4,7 @@
 
 #include "llvm/ADT/ScopeExit.h"
 
+#include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CEmitter.h"
 
@@ -16,43 +17,8 @@ static RecursiveCoroutine<void> noopCoroutine() {
   rc_return;
 }
 
-template<typename Operation = mlir::Operation *>
-static Operation getOnlyOperation(mlir::Region &R) {
-  if (R.empty())
-    return {};
-
-  revng_assert(R.hasOneBlock());
-  mlir::Block &B = R.front();
-  auto Beg = B.begin();
-  auto End = B.end();
-
-  if (Beg == End)
-    return {};
-
-  mlir::Operation *Op = &*Beg;
-
-  if (++Beg != End)
-    return {};
-
-  if constexpr (std::is_same_v<Operation, mlir::Operation *>) {
-    return Op;
-  } else {
-    return mlir::dyn_cast<Operation>(Op);
-  }
-}
-
 static bool hasFallthrough(mlir::Region &R) {
-  // TODO: Refactor the logic of getting the last statement operation in a
-  // region into a separate getTrailingStatement helper function.
-
-  if (R.empty())
-    return true;
-
-  mlir::Block &B = R.front();
-  if (B.empty())
-    return true;
-
-  return not B.back().hasTrait<mlir::OpTrait::clift::NoFallthrough>();
+  return not getLastNoFallthroughStatement(R);
 }
 
 enum class OperatorPrecedence {
@@ -77,8 +43,6 @@ enum class OperatorPrecedence {
 };
 
 class CliftToCEmitter : CEmitter {
-  FunctionOp CurrentFunction = {};
-
   // Ambient precedence of the current expression.
   OperatorPrecedence CurrentPrecedence = {};
 
@@ -192,19 +156,24 @@ public:
     rc_recur emitAggregateInitializer(E);
   }
 
-  RecursiveCoroutine<void> emitParameterExpression(mlir::Value V) {
+  RecursiveCoroutine<void> emitBlockArgumentExpression(mlir::Value V) {
     auto E = mlir::cast<mlir::BlockArgument>(V);
+    mlir::Operation *Op = E.getOwner()->getParentOp();
 
-    const auto &ArgAttrs = CurrentFunction.getArgAttrs(E.getArgNumber());
-    const auto GetStringAttr = [&ArgAttrs](llvm::StringRef Name) {
-      return mlir::cast<mlir::StringAttr>(ArgAttrs.get(Name)).getValue();
-    };
+    if (auto Function = mlir::dyn_cast<FunctionOp>(Op)) {
+      const auto &ArgAttrs = Function.getArgAttrs(E.getArgNumber());
+      const auto GetStringAttr = [&ArgAttrs](llvm::StringRef Name) {
+        return mlir::cast<mlir::StringAttr>(ArgAttrs.get(Name)).getValue();
+      };
 
-    C.emitIdentifier(GetStringAttr("clift.name"),
-                     GetStringAttr("clift.handle"),
-                     CTE::EntityKind::FunctionParameter,
-                     CTE::IdentifierKind::Reference);
-    rc_return;
+      C.emitIdentifier(GetStringAttr("clift.name"),
+                       GetStringAttr("clift.handle"),
+                       CTE::EntityKind::FunctionParameter,
+                       CTE::IdentifierKind::Reference);
+    } else if (auto For = mlir::dyn_cast<ForOp>(Op)) {
+      auto Local = getOnlyOp<LocalVariableOp>(For.getInitializer());
+      rc_recur emitLocalVariableExpression(Local.getResult());
+    }
   }
 
   RecursiveCoroutine<void> emitLocalVariableExpression(mlir::Value V) {
@@ -495,7 +464,7 @@ public:
       if (mlir::isa<mlir::BlockArgument>(V)) {
         return {
           .Precedence = OperatorPrecedence::Primary,
-          .Emit = &CliftToCEmitter::emitParameterExpression,
+          .Emit = &CliftToCEmitter::emitBlockArgumentExpression,
         };
       }
 
@@ -729,7 +698,8 @@ public:
 
   //===---------------------------- Statements ----------------------------===//
 
-  RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S) {
+  RecursiveCoroutine<void> emitLocalVariableDeclaration(LocalVariableOp S,
+                                                        bool EmitNewline) {
     emitDeclaration(S.getResult().getType(),
                     DeclaratorInfo{
                       .Identifier = getNameAttr(S),
@@ -755,10 +725,12 @@ public:
     }
 
     C.emitPunctuator(CTE::Punctuator::Semicolon);
-    C.emitNewline();
+
+    if (EmitNewline)
+      C.emitNewline();
   }
 
-  bool labelRequiresEmptyExpression(AssignLabelOp Op) {
+  bool labelRequiresEmptyExpression(LabelAssignmentOpInterface Op) {
     // Prior to C23, labels cannot be placed at the end of a block:
     if (Op.getOperation() == &Op->getBlock()->back())
       return true;
@@ -770,25 +742,32 @@ public:
     return false;
   }
 
-  RecursiveCoroutine<void> emitLabelStatement(AssignLabelOp S) {
+  void emitLabelStatementImpl(MakeLabelOp Label, bool RequiresEmptyExpression) {
     auto Scope = C.enterScope(CTE::ScopeKind::None,
                               CTE::Delimiter::None,
                               /*Indent=*/-1);
 
-    C.emitIdentifier(getNameAttr(S.getLabelOp()),
-                     getLocationAttr(S.getLabelOp()),
+    C.emitIdentifier(getNameAttr(Label),
+                     getLocationAttr(Label),
                      CTE::EntityKind::Label,
                      CTE::IdentifierKind::Definition);
 
     C.emitPunctuator(CTE::Punctuator::Colon);
 
-    if (labelRequiresEmptyExpression(S)) {
+    if (RequiresEmptyExpression) {
       C.emitSpace();
       C.emitPunctuator(CTE::Punctuator::Semicolon);
     }
 
     C.emitNewline();
+  }
 
+  void emitLabelStatement(MakeLabelOp Label, LabelAssignmentOpInterface Op) {
+    emitLabelStatementImpl(Label, labelRequiresEmptyExpression(Op));
+  }
+
+  RecursiveCoroutine<void> emitLabelStatement(AssignLabelOp S) {
+    emitLabelStatement(S.getLabelOp(), LabelAssignmentOpInterface(S));
     rc_return;
   }
 
@@ -798,12 +777,22 @@ public:
     C.emitNewline();
   }
 
-  RecursiveCoroutine<void> emitGotoStatement(GoToOp S) {
-    C.emitKeyword(CTE::Keyword::Goto);
-    C.emitSpace();
+  RecursiveCoroutine<void>
+  emitLabeledJumpStatement(JumpStatementOpInterface S) {
+    auto LabelOp = S.getLabel().getDefiningOp<MakeLabelOp>();
 
-    C.emitIdentifier(getNameAttr(S.getLabelOp()),
-                     getLocationAttr(S.getLabelOp()),
+    if (mlir::isa<GoToOp>(S))
+      C.emitKeyword(CTE::Keyword::Goto);
+    else if (mlir::isa<BreakToOp>(S))
+      C.emitLiteralIdentifier("break_to");
+    else if (mlir::isa<ContinueToOp>(S))
+      C.emitLiteralIdentifier("continue_to");
+    else
+      revng_abort("Unsupported jump statement");
+
+    C.emitSpace();
+    C.emitIdentifier(getNameAttr(LabelOp),
+                     getLocationAttr(LabelOp),
                      CTE::EntityKind::Label,
                      CTE::IdentifierKind::Reference);
 
@@ -833,7 +822,7 @@ public:
       if (If.getElse().empty())
         return true;
 
-      auto ElseIf = getOnlyOperation<IfOp>(If.getElse());
+      auto ElseIf = getOnlyOp<IfOp>(If.getElse());
 
       if (not ElseIf)
         return mayElideBraces(If.getElse());
@@ -865,7 +854,7 @@ public:
 
       C.emitKeyword(CTE::Keyword::Else);
 
-      if (auto ElseIf = getOnlyOperation<IfOp>(S.getElse())) {
+      if (auto ElseIf = getOnlyOp<IfOp>(S.getElse())) {
         S = ElseIf;
         C.emitSpace();
       } else {
@@ -911,6 +900,8 @@ public:
                                 CTE::Delimiter::Braces,
                                 /*Indented=*/false);
 
+      C.emitNewline();
+
       ValueType Type = S.getConditionType();
       for (unsigned I = 0, Count = S.getNumCases(); I < Count; ++I) {
         C.emitKeyword(CTE::Keyword::Case);
@@ -930,26 +921,58 @@ public:
     C.emitNewline();
   }
 
+  RecursiveCoroutine<bool> emitLoopBodyWithContinueLabel(mlir::Region &Region,
+                                                         MakeLabelOp Continue) {
+    auto Emit = [this, Continue](mlir::Region &R) -> RecursiveCoroutine<void> {
+      rc_recur emitStatementRegion(R);
+      emitLabelStatementImpl(Continue, /*RequiresEmptyExpression=*/true);
+    };
+
+    return emitImplicitBlockStatement(Region, true, Emit);
+  }
+
+  RecursiveCoroutine<bool> emitLoopBody(LoopOpInterface Loop,
+                                        mlir::Region &Region) {
+    if (auto Continue = Loop.getContinueLabel()) {
+      auto Label = Continue.getDefiningOp<MakeLabelOp>();
+      return emitLoopBodyWithContinueLabel(Region, Label);
+    }
+
+    return emitImplicitBlockStatement(Region);
+  }
+
   RecursiveCoroutine<void> emitForStatement(ForOp S) {
     C.emitKeyword(CTE::Keyword::For);
     C.emitSpace();
     C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-    C.emitPunctuator(CTE::Punctuator::Semicolon);
 
-    if (not S.getCondition().empty()) {
-      C.emitSpace();
-      rc_recur emitExpressionRegion(S.getCondition());
+    if (mlir::Region &R = S.getInitializer(); not R.empty()) {
+      mlir::Operation *Op = getOnlyOp(R);
+      if (auto L = mlir::dyn_cast<LocalVariableOp>(Op))
+        rc_recur emitLocalVariableDeclaration(L, /*Newline=*/false);
+      else
+        rc_recur emitExpressionStatement(mlir::cast<ExpressionStatementOp>(Op));
+    } else {
+      C.emitPunctuator(CTE::Punctuator::Semicolon);
     }
 
-    C.emitPunctuator(CTE::Punctuator::Semicolon);
-    if (not S.getExpression().empty()) {
+    if (mlir::Region &R = S.getCondition(); not R.empty()) {
       C.emitSpace();
-      rc_recur emitExpressionRegion(S.getExpression());
+      rc_recur emitExpressionRegion(R);
+    }
+    C.emitPunctuator(CTE::Punctuator::Semicolon);
+
+    if (mlir::Region &R = S.getExpression(); not R.empty()) {
+      C.emitSpace();
+      rc_recur emitExpressionRegion(R);
     }
     C.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
-    if (rc_recur emitImplicitBlockStatement(S.getBody()))
+    if (rc_recur emitLoopBody(S, S.getBody()))
       C.emitNewline();
+
+    if (auto Break = S.getBreakLabel())
+      emitLabelStatement(Break.getDefiningOp<MakeLabelOp>(), S);
   }
 
   RecursiveCoroutine<void> emitWhileStatement(WhileOp S) {
@@ -960,14 +983,17 @@ public:
     rc_recur emitExpressionRegion(S.getCondition());
     C.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
-    if (rc_recur emitImplicitBlockStatement(S.getBody()))
+    if (rc_recur emitLoopBody(S, S.getBody()))
       C.emitNewline();
+
+    if (auto Break = S.getBreakLabel())
+      emitLabelStatement(Break.getDefiningOp<MakeLabelOp>(), S);
   }
 
   RecursiveCoroutine<void> emitDoWhileStatement(DoWhileOp S) {
     C.emitKeyword(CTE::Keyword::Do);
 
-    if (rc_recur emitImplicitBlockStatement(S.getBody()))
+    if (rc_recur emitLoopBody(S, S.getBody()))
       C.emitSpace();
 
     C.emitKeyword(CTE::Keyword::While);
@@ -979,13 +1005,16 @@ public:
     C.emitPunctuator(CTE::Punctuator::RightParenthesis);
     C.emitPunctuator(CTE::Punctuator::Semicolon);
     C.emitNewline();
+
+    if (auto Break = S.getBreakLabel())
+      emitLabelStatement(Break.getDefiningOp<MakeLabelOp>(), S);
   }
 
   RecursiveCoroutine<void> emitStatement(StatementOpInterface Stmt) {
     mlir::Operation *Op = Stmt.getOperation();
 
     if (auto S = mlir::dyn_cast<LocalVariableOp>(Op))
-      return emitLocalVariableDeclaration(S);
+      return emitLocalVariableDeclaration(S, /*Newline=*/true);
 
     if (auto S = mlir::dyn_cast<MakeLabelOp>(Op))
       return noopCoroutine();
@@ -996,8 +1025,8 @@ public:
     if (auto S = mlir::dyn_cast<ExpressionStatementOp>(Op))
       return emitExpressionStatement(S);
 
-    if (auto S = mlir::dyn_cast<GoToOp>(Op))
-      return emitGotoStatement(S);
+    if (auto S = mlir::dyn_cast<JumpStatementOpInterface>(Op))
+      return emitLabeledJumpStatement(S);
 
     if (auto S = mlir::dyn_cast<ReturnOp>(Op))
       return emitReturnStatement(S);
@@ -1025,17 +1054,21 @@ public:
       rc_recur emitStatement(mlir::cast<StatementOpInterface>(&Stmt));
   }
 
-  static bool mayElideBraces(mlir::Operation *Op) {
-    return mlir::isa<ExpressionStatementOp, GoToOp, ReturnOp>(Op);
+  static bool mayElideBraces(mlir::Operation *Operation) {
+    return mlir::isa<ExpressionStatementOp,
+                     GoToOp,
+                     ReturnOp,
+                     BreakToOp,
+                     ContinueToOp>(Operation);
   }
 
   static bool mayElideBraces(mlir::Region &R) {
-    mlir::Operation *OnlyOp = getOnlyOperation(R);
+    mlir::Operation *OnlyOp = getOnlyOp(R);
     return OnlyOp != nullptr and mayElideBraces(OnlyOp);
   }
 
-  RecursiveCoroutine<void> emitImplicitBlockStatement(mlir::Region &R,
-                                                      bool EmitBlock) {
+  RecursiveCoroutine<bool>
+  emitImplicitBlockStatement(mlir::Region &R, bool EmitBlock, auto EmitRegion) {
     auto ScopeKind = CTE::ScopeKind::None;
     auto Delimiter = CTE::Delimiter::None;
 
@@ -1048,20 +1081,24 @@ public:
     auto Scope = C.enterScope(ScopeKind, Delimiter);
     C.emitNewline();
 
-    rc_recur emitStatementRegion(R);
+    rc_recur EmitRegion(R);
+    rc_return EmitBlock;
+  }
+
+  RecursiveCoroutine<bool> emitImplicitBlockStatement(mlir::Region &R,
+                                                      bool EmitBlock) {
+    return emitImplicitBlockStatement(R, EmitBlock, [this](mlir::Region &R) {
+      return emitStatementRegion(R);
+    });
   }
 
   RecursiveCoroutine<bool> emitImplicitBlockStatement(mlir::Region &R) {
-    bool EmitBlock = not mayElideBraces(R);
-    rc_recur emitImplicitBlockStatement(R, EmitBlock);
-    rc_return EmitBlock;
+    return emitImplicitBlockStatement(R, not mayElideBraces(R));
   }
 
   //===----------------------------- Functions ----------------------------===//
 
   RecursiveCoroutine<void> emitFunction(FunctionOp Op) {
-    CurrentFunction = Op;
-
     // Scope tags are applied within this scope:
     {
       auto OuterScope = C.enterScope(CTE::ScopeKind::FunctionDeclaration,

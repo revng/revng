@@ -7,12 +7,11 @@
 
 include "mlir/IR/OpBase.td"
 
-class Clift_OneUseOfType<string op> :
-  ParamNativeOpTrait<"clift::OneUseOfType", op>,
-  StructuralOpTrait;
-
 def Clift_NoFallthrough :
   NativeOpTrait<"clift::NoFallthrough">;
+
+def Clift_AssignsLoopLabels :
+  NativeOpTrait<"clift::AssignsLoopLabels">;
 
 def Clift_ReturnsBoolean :
   NativeOpTrait<"clift::ReturnsBoolean">;

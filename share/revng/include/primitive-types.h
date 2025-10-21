@@ -208,3 +208,10 @@ static_assert_size(float128_t, 16);
 extern uintmax_t undef_value(void);
 
 #define undef(T) ((T) undef_value())
+
+//
+// Break and continue
+//
+
+#define break_to goto
+#define continue_to goto

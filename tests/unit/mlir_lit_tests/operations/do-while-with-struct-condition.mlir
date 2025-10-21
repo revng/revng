@@ -11,7 +11,7 @@
 >
 
 // CHECK: condition requires a scalar type
-clift.do_while {} {
+clift.do_while body {} cond {
   %0 = clift.undef : !s
   clift.yield %0 : !s
 }

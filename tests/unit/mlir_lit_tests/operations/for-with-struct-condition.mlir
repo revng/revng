@@ -11,7 +11,8 @@
 >
 
 // CHECK: condition requires a scalar type
-clift.for {} {
+clift.for cond {
   %0 = clift.undef : !s
   clift.yield %0 : !s
-} {} {}
+} body {
+}

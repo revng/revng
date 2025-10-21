@@ -4,5 +4,8 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-// CHECK: failed to verify constraint: Region representing an expression
-clift.if {} then {}
+%label = clift.make_label
+clift.assign_label %label
+
+// CHECK: clift.break_to must target a loop break label
+clift.break_to %label

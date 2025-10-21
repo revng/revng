@@ -5,4 +5,4 @@
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
 // CHECK: failed to verify constraint: Region representing an expression
-clift.do_while {} {}
+clift.do_while body {} cond {}

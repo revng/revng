@@ -9,10 +9,26 @@
 #include "revng/Clift/CliftOpInterfaces.h"
 
 namespace mlir {
-#include "revng/Clift/CliftOpInterfaces.cpp.inc"
+
+// Prevent reordering:
+#include "revng/Clift/CliftOpInterfacesBasic.cpp.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftOpInterfacesLabel.cpp.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftOpInterfacesJump.cpp.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftOpInterfacesControlFlow.cpp.inc"
+
 } // namespace mlir
 
-bool mlir::clift::isLvalueExpression(mlir::Value Value) {
+namespace clift = mlir::clift;
+using namespace clift;
+
+LabelAssignmentOpInterface clift::impl::getAssignedLabel(mlir::Value Label) {
+  return Label.getDefiningOp<MakeLabelOp>().getAssignment();
+}
+
+bool clift::isLvalueExpression(mlir::Value Value) {
   if (auto Argument = mlir::dyn_cast<mlir::BlockArgument>(Value)) {
     Block *B = Argument.getOwner();
     if (B == nullptr)
@@ -22,7 +38,7 @@ bool mlir::clift::isLvalueExpression(mlir::Value Value) {
     if (Op == nullptr)
       return false;
 
-    return mlir::isa<FunctionOp>(Op);
+    return mlir::isa<FunctionOp, LoopOpInterface>(Op);
   } else {
     mlir::Operation *Op = Value.getDefiningOp();
 

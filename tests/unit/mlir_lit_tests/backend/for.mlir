@@ -18,7 +18,7 @@ module attributes {clift.module} {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     // CHECK: for (;;)
-    clift.for {} {} {} {
+    clift.for body {
       // CHECK: 1;
       clift.expr {
         %1 = clift.imm 1 : !int32_t
@@ -26,22 +26,27 @@ module attributes {clift.module} {
       }
     }
 
-    // CHECK: for (; 2; 3) {
-    clift.for {} {
-      %2 = clift.imm 2 : !int32_t
-      clift.yield %2 : !int32_t
-    }{
-      %3 = clift.imm 3 : !int32_t
-      clift.yield %3 : !int32_t
-    } {
-      // CHECK: 4;
-      clift.expr {
-        %4 = clift.imm 4 : !int32_t
-        clift.yield %4 : !int32_t
+    // CHECK: for (int32_t x = 2; x; x) {
+    clift.for init : !int32_t {
+      clift.local : !int32_t = {
+        %2 = clift.imm 2 : !int32_t
+        clift.yield %2 : !int32_t
+      } attributes {
+        handle = "/local-variable/0x40001001:Code_x86_64/0",
+        clift.name = "x"
       }
-      // CHECK: 5;
+    } cond (%x) {
+      clift.yield %x : !int32_t
+    } next (%x) {
+      clift.yield %x : !int32_t
+    } body (%x) {
+      // CHECK: x;
       clift.expr {
-        %5 = clift.imm 5 : !int32_t
+        clift.yield %x : !int32_t
+      }
+      // CHECK: 3;
+      clift.expr {
+        %5 = clift.imm 3 : !int32_t
         clift.yield %5 : !int32_t
       }
     }
