@@ -41,7 +41,7 @@ Configuration = Annotated[
 ]
 
 
-@dataclass(slots=True, frozen=True)
+@dataclass(slots=True, frozen=True, order=True)
 class ContainerDeclaration:
     """
     A ContainerDeclaration represents a container when describing a pipeline.
