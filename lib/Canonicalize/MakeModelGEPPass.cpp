@@ -2168,10 +2168,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       Builder.SetInsertPoint(UserInstr);
     }
 
-    if (auto *UsedInstructionToGEPify = dyn_cast<Instruction>(TheUseToGEPify
-                                                                ->get())) {
-      Builder.SetCurrentDebugLocation(UsedInstructionToGEPify->getDebugLoc());
-    }
+    if (auto *InstrToGEPify = dyn_cast<Instruction>(TheUseToGEPify->get()))
+      if (llvm::DebugLoc DebugLocation = InstrToGEPify->getDebugLoc())
+        Builder.SetCurrentDebugLocation(DebugLocation);
 
     // The other arguments are the indices in IndexVector
     for (auto &Group : llvm::enumerate(GEPArgs.IndexVector)) {
