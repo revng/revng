@@ -230,16 +230,17 @@ LegacyVB::getAssignedLocation(AssignType *Assign) const {
 template<>
 LegacyVB::CopyType *
 LegacyVB::createCopyOnUse(ReferenceType *LocationToCopy, Use &U) {
-  auto *InsertBefore = cast<Instruction>(U.getUser());
-  revng::IRBuilder B(InsertBefore);
+  auto *InsertBefore = llvm::cast<llvm::Instruction>(U.getUser());
+  llvm::DebugLoc DebugLocation = InsertBefore->getDebugLoc();
+  if (auto *Instruction = llvm::dyn_cast<llvm::Instruction>(LocationToCopy))
+    DebugLocation = Instruction->getDebugLoc();
+
+  revng::IRBuilder B(InsertBefore, DebugLocation);
 
   // Create a Copy to dereference the LocalVariable
   auto *CopyFnType = getCopyType(U->getType(), LocationToCopy->getType());
   auto *CopyFunction = CopyPool.get(U->getType(), CopyFnType, "Copy");
-  auto *Call = B.CreateCall(CopyFunction, { LocationToCopy });
-  if (auto *InstructionLocation = dyn_cast<Instruction>(LocationToCopy))
-    Call->setDebugLoc(InstructionLocation->getDebugLoc());
-  return Call;
+  return B.CreateCall(CopyFunction, { LocationToCopy });
 }
 
 template<>
@@ -254,8 +255,12 @@ LegacyVB::AssignType *
 LegacyVB::createAssignmentBefore(Value *LocationToAssign,
                                  Value *ValueToAssign,
                                  Instruction *InsertBefore) {
+  llvm::DebugLoc DebugLocation = InsertBefore->getDebugLoc();
+  if (auto *Instruction = llvm::dyn_cast<llvm::Instruction>(ValueToAssign))
+    DebugLocation = Instruction->getDebugLoc();
+
   // Create an assignment that assigns ValueToAssign to LocationToAssign.
-  revng::IRBuilder B(InsertBefore);
+  revng::IRBuilder B(InsertBefore, DebugLocation);
   auto *IRType = ValueToAssign->getType();
   auto *AssignFnType = getAssignFunctionType(IRType,
                                              LocationToAssign->getType());
@@ -326,13 +331,14 @@ VB::ReferenceType *VB::getAssignedLocation(AssignType *Assign) const {
 
 template<>
 VB::CopyType *VB::createCopyOnUse(ReferenceType *LocationToCopy, Use &U) {
+  auto *InsertBefore = llvm::cast<llvm::Instruction>(U.getUser());
+  llvm::DebugLoc DebugLocation = InsertBefore->getDebugLoc();
+  if (auto *Instruction = llvm::dyn_cast<llvm::Instruction>(LocationToCopy))
+    DebugLocation = Instruction->getDebugLoc();
+
   // Create a copy from the assigned location at the proper insertion point.
-  auto *InsertBefore = cast<Instruction>(U.getUser());
-  revng::IRBuilder B(InsertBefore);
-  auto *Load = B.CreateLoad(U->getType(), LocationToCopy);
-  if (auto *InstructionLocation = dyn_cast<Instruction>(LocationToCopy))
-    Load->setDebugLoc(InstructionLocation->getDebugLoc());
-  return Load;
+  revng::IRBuilder B(InsertBefore, DebugLocation);
+  return B.CreateLoad(U->getType(), LocationToCopy);
 }
 
 template<>
@@ -345,10 +351,12 @@ template<>
 VB::AssignType *VB::createAssignmentBefore(Value *LocationToAssign,
                                            Value *ValueToAssign,
                                            Instruction *InsertBefore) {
-  // Create a copy from the assigned location at the proper insertion point.
-  revng::IRBuilder B(InsertBefore);
+  llvm::DebugLoc DebugLocation = InsertBefore->getDebugLoc();
   if (auto *Instruction = llvm::dyn_cast<llvm::Instruction>(ValueToAssign))
-    B.SetCurrentDebugLocation(Instruction->getDebugLoc());
+    DebugLocation = Instruction->getDebugLoc();
+
+  // Create a copy from the assigned location at the proper insertion point.
+  revng::IRBuilder B(InsertBefore, DebugLocation);
   return B.CreateStore(ValueToAssign, LocationToAssign);
 }
 
