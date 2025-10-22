@@ -13,6 +13,8 @@ containers:
     type: PTMLCTypeContainer
   - name: cfg-map
     type: CFGMap
+  - name: llvm-functions
+    type: LLVMFunctionContainer
 
 branches:
   files-imported:
@@ -43,6 +45,12 @@ branches:
         arguments: [llvm-root, cfg-map]
       - savepoint: cfg-computed
         containers: [cfg-map]
+
+  isolate:
+    from: collect-cfg
+    tasks:
+      - pipe: Isolate
+        arguments: [cfg-map, llvm-root, llvm-functions]
 
   emit-model-header:
     tasks:
