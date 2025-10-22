@@ -83,15 +83,7 @@ class Pipe(ABC):
             if decl.access == TaskArgumentAccess.WRITE:
                 continue
 
-            for ridx, object_list in enumerate(requests):
-                # The requests must be for the writeable containers,
-                # otherwise it's not possible to satisfy them
-                if self.arguments[ridx].access == TaskArgumentAccess.READ:
-                    assert len(object_list) == 0, (
-                        f"Expected an empty request for {self.arguments[ridx].name}, "
-                        f"but got {object_list}."
-                    )
-
+            for object_list in requests:
                 result[idx].update(
                     model.move_to_kind(
                         object_list,
