@@ -3,6 +3,7 @@
 //
 
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
+#include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
 #include "revng/Lift/Lift.h"
@@ -37,3 +38,4 @@ static RegisterPipe<PureLLVMPassesPipe> P3;
 static RegisterSingleOutputPipe<ModelToHeader> P4;
 static RegisterTypeDefinitionPipe<GenerateModelTypeDefinition> P5;
 static RegisterFunctionPipe<CollectCFG> P6;
+static RegisterFunctionPipe<Isolate> P7;

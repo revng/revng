@@ -11,6 +11,7 @@ target_link_libraries(
   ${LLVM_LIBRARIES}
   revngModelToHeader
   revngLift
+  revngFunctionIsolation
   nanobind
   revngSupport)
 

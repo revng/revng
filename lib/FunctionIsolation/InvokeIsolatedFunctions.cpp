@@ -194,6 +194,56 @@ public:
   }
 };
 
+static void populateFunctionDispatcher(const model::Binary &Binary,
+                                       llvm::Module &Module) {
+  GeneratedCodeBasicInfo GCBI(Binary);
+  GCBI.run(Module);
+
+  llvm::LLVMContext &Context = Module.getContext();
+  llvm::Function *FunctionDispatcher = getIRHelper("function_dispatcher",
+                                                   Module);
+  BasicBlock *Dispatcher = BasicBlock::Create(Context,
+                                              "function_dispatcher",
+                                              FunctionDispatcher,
+                                              nullptr);
+
+  BasicBlock *Unexpected = BasicBlock::Create(Context,
+                                              "unexpectedpc",
+                                              FunctionDispatcher,
+                                              nullptr);
+  revng::NonDebugInfoCheckingIRBuilder UnreachableBuilder(Unexpected);
+  UnreachableBuilder.CreateUnreachable();
+  setBlockType(Unexpected->getTerminator(), BlockType::UnexpectedPCBlock);
+
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
+
+  // Create all the entries of the dispatcher
+  ProgramCounterHandler::DispatcherTargets Targets;
+  for (llvm::Function &F : Module.functions()) {
+    if (not FunctionTags::Isolated.isTagOf(&F))
+      continue;
+
+    MetaAddress Address = getMetaAddressOfIsolatedFunction(F);
+    BasicBlock *Trampoline = BasicBlock::Create(Context,
+                                                F.getName() + "_trampoline",
+                                                FunctionDispatcher,
+                                                nullptr);
+    Targets.emplace_back(Address, Trampoline);
+
+    Builder.SetInsertPoint(Trampoline);
+    Builder.CreateCall(&F);
+    Builder.CreateRetVoid();
+  }
+
+  // Create switch
+  Builder.SetInsertPoint(Dispatcher);
+  GCBI.programCounterHandler()->buildDispatcher(Targets,
+                                                Builder,
+                                                Unexpected,
+                                                {});
+}
+
 struct InvokeIsolatedPipe {
   static constexpr auto Name = "invoke-isolated-functions";
 
@@ -220,6 +270,8 @@ public:
     // Clone the container
     OutputRootContainer.cloneFrom(InputRootContainer);
 
+    populateFunctionDispatcher(*revng::getModelFromContext(EC),
+                               FunctionContainer.getModule());
     InvokeIsolatedFunctionsImpl Impl(*revng::getModelFromContext(EC),
                                      OutputRootContainer.getModule(),
                                      FunctionContainer.getModule());
