@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/Progress.h"
+
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Base.h"
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Helpers.h"
 
@@ -40,18 +42,29 @@ public:
       llvm::StringRef Configuration,
       Args &...Containers) {
     ObjectDependenciesHelper ODH(Model, Outgoing, this->ContainerCount);
+
+    llvm::Task T1(3, "Running " + this->Name);
+    T1.advance("prologue");
+
     T Instance(Model, this->StaticConfiguration, Configuration, Containers...);
     const model::Binary &Binary = *Model.get().get();
+    auto &RequestedTypeDefinitions = Outgoing.at(this->OutputContainerIndex);
 
-    for (const ObjectID *Object : Outgoing.at(this->OutputContainerIndex)) {
-      auto Committer = ODH.getCommitterFor(*Object, this->OutputContainerIndex);
-
+    T1.advance("run on type definitions", true);
+    llvm::Task T2(RequestedTypeDefinitions.size(),
+                  "Running pipe on type definitions");
+    for (const ObjectID *Object : RequestedTypeDefinitions) {
       using TDK = model::TypeDefinition::Key;
       const TDK &Entry = std::get<TDK>(Object->key());
+      T2.advance(toString(Entry), true);
+
+      auto Committer = ODH.getCommitterFor(*Object, this->OutputContainerIndex);
       const UpcastablePointer<model::TypeDefinition>
         &TypeDefinition = Binary.TypeDefinitions().at(Entry);
       Instance.runOnTypeDefinition(TypeDefinition);
     }
+
+    T1.advance("epilogue");
     return ODH.takeDependencies();
   }
 };

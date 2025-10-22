@@ -6,6 +6,7 @@
 
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Progress.h"
 
 #include "revng/Model/FunctionTags.h"
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Base.h"
@@ -116,11 +117,14 @@ private:
       }
 
       const model::Binary &Binary = *Model.get().get();
-      for (const ObjectID *Object : Outgoing.at(Base::OutputContainerIndex)) {
+      auto &RequestedFunctions = Outgoing.at(Base::OutputContainerIndex);
+      llvm::Task T1(RequestedFunctions.size(), "Running pipe on functions");
+      for (const ObjectID *Object : RequestedFunctions) {
+        const MetaAddress &Entry = std::get<MetaAddress>(Object->key());
+        T1.advance(Entry.toString(), true);
+
         auto Committer = ODH.getCommitterFor(*Object,
                                              Base::OutputContainerIndex);
-
-        const MetaAddress &Entry = std::get<MetaAddress>(Object->key());
         const model::Function &Function = Binary.Functions().at(Entry);
         llvm::Function *LLVMFunction = AddressToFunction.at(Function.Entry());
         PipeRun.runOnFunction(Function, *LLVMFunction);
@@ -185,6 +189,8 @@ public:
       Manager.add(new A());
     });
 
+    llvm::Task T1(3, "Running " + this->Name);
+    T1.advance("prologue", true);
     ContainerTypesRef ContainersRef(Containers...);
     Manager.add(new Pass(ODH,
                          Outgoing,
@@ -193,15 +199,22 @@ public:
                          Configuration,
                          ContainersRef));
     auto &ModuleContainer = std::get<Base::OutputContainerIndex>(ContainersRef);
+
+    T1.advance("run on functions", true);
     if constexpr (SingleModule) {
       Manager.run(ModuleContainer.getModule());
     } else {
-      for (const ObjectID *Object : Outgoing[this->OutputContainerIndex]) {
+      auto &RequestedFunctions = Outgoing[this->OutputContainerIndex];
+      llvm::Task T2(RequestedFunctions.size(), "Running pipe on functions");
+      for (const ObjectID *Object : RequestedFunctions) {
         MetaAddress Address = std::get<MetaAddress>(Object->key());
+        T2.advance(Address.toString(), true);
+
         Manager.run(ModuleContainer.getModule(Address));
       }
     }
 
+    T1.advance("epilogue", true);
     return ODH.takeDependencies();
   }
 };

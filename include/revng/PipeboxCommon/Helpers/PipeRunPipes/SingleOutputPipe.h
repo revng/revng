@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/Progress.h"
+
 #include "revng/PipeboxCommon/Concepts.h"
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Base.h"
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Helpers.h"
@@ -36,6 +38,9 @@ public:
     revng_assert(Outgoing.at(this->OutputContainerIndex).size() == 1);
 
     ObjectDependenciesHelper ODH(Model, Outgoing, this->ContainerCount);
+
+    llvm::Task T1(1, "Running " + this->Name);
+    T1.advance("Running 'run'", true);
     T::run(Model, this->StaticConfiguration, Configuration, Containers...);
     ODH.commitUniqueTarget(this->OutputContainerIndex);
     return ODH.takeDependencies();
