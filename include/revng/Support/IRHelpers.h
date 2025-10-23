@@ -1552,3 +1552,12 @@ inline void linkModules(std::unique_ptr<llvm::Module> &&Source,
 /// the metadata attached to the cloned functions is also preserved.
 std::unique_ptr<llvm::Module>
 cloneFiltered(llvm::Module &Module, std::set<const llvm::Function *> &ToClone);
+
+/// Serialize a module to bitcode, this is preferable over
+/// llvm::WriteBitcodeToFile as it does not create a redundant temporary buffer
+void writeBitcode(const llvm::Module &Module,
+                  llvm::SmallVectorImpl<char> &Output);
+
+/// Copy a module to a new LLVMContext.
+std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
+                                               llvm::LLVMContext &NewContext);

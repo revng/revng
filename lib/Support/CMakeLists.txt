@@ -39,6 +39,8 @@ endif()
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES
   Analysis
+  BitReader
+  BitWriter
   CodeGen
   Core
   GlobalISel

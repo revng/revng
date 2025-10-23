@@ -25,6 +25,13 @@ inline constexpr llvm::StringRef PassNamePrefix = "LLVMFunctionPassPipe "
 inline constexpr llvm::StringRef PassArgumentPrefix = "llvm-function-pass-pipe-"
                                                       "for-";
 
+template<StrictSpecializationOf<TypeList> TL>
+constexpr bool checkAnalyses() {
+  return compile_time::repeatAnd<std::tuple_size_v<TL>>([]<size_t I>() {
+    return std::is_base_of_v<llvm::Pass, std::tuple_element_t<I, TL>>;
+  });
+}
+
 } // namespace detail
 
 template<typename T>
@@ -32,6 +39,7 @@ concept IsLLVMFunctionPassPipe = requires(T &PipeRun,
                                           const model::Function &Function,
                                           llvm::Function &LLVMFunction) {
   requires IsMultipleObjectsPipeRun<T>;
+  requires detail::checkAnalyses<typename T::Analyses>();
   requires hasConstructor<
     T,
     // The Structure of the constructor is:
@@ -42,19 +50,23 @@ concept IsLLVMFunctionPassPipe = requires(T &PipeRun,
   { PipeRun.runOnFunction(Function, LLVMFunction) } -> std::same_as<void>;
 };
 
-template<typename T>
+template<IsLLVMFunctionPassPipe T>
 class LLVMFunctionPassPipe : public SingleOutputPipeBase<T> {
 private:
   using Base = SingleOutputPipeBase<T>;
-  using LLVMRootContainer = revng::pypeline::LLVMRootContainer;
-  static_assert(std::is_same_v<typename Base::OutputContainerType,
-                               LLVMRootContainer>);
+  static_assert(anyOf<typename Base::OutputContainerType,
+                      revng::pypeline::LLVMRootContainer,
+                      revng::pypeline::LLVMFunctionContainer>());
+  static constexpr bool
+    SingleModule = not std::is_same_v<typename Base::OutputContainerType,
+                                      revng::pypeline::LLVMFunctionContainer>;
   using ContainerTypesRef = detail::TupleWithRef<typename Base::ContainerTypes>;
 
   class Pass : public llvm::ModulePass {
   private:
     ObjectDependenciesHelper &ODH;
     const revng::pypeline::Request &Outgoing;
+    std::optional<T> PipeRun;
 
     const Model &Model;
     llvm::StringRef StaticConfiguration;
@@ -79,7 +91,17 @@ private:
       Model(Model),
       StaticConfiguration(StaticConfiguration),
       Configuration(Configuration),
-      Containers(Containers) {}
+      Containers(Containers) {
+
+      compile_time::callWithIndexSequence<
+        Base::ContainerCount>([&]<size_t... I>() {
+        PipeRun.emplace(*this,
+                        Model,
+                        StaticConfiguration,
+                        Configuration,
+                        std::get<I>(Containers)...);
+      });
+    }
 
     void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
       forEach<typename T::Analyses>([&AU]<typename A, size_t I>() {
@@ -88,23 +110,18 @@ private:
     }
 
     bool runOnModule(llvm::Module &Module) override {
+      if constexpr (SingleModule)
+        return runOnSingleModule(Module);
+      else
+        return runOnFunctionModule(Module);
+    }
+
+    bool runOnSingleModule(llvm::Module &Module) {
       std::map<MetaAddress, llvm::Function *> AddressToFunction;
-      for (llvm::Function &Function : Module.functions()) {
-        if (not FunctionTags::Isolated.isTagOf(&Function))
-          continue;
-
-        AddressToFunction.emplace(getMetaAddressOfIsolatedFunction(Function),
-                                  &Function);
+      for (llvm::Function *Function : getFunctions(Module)) {
+        AddressToFunction.emplace(getMetaAddressOfIsolatedFunction(*Function),
+                                  Function);
       }
-
-      T Instance = compile_time::callWithIndexSequence<
-        Base::ContainerCount>([&]<size_t... I>() {
-        return T{ *this,
-                  Model,
-                  this->StaticConfiguration,
-                  Configuration,
-                  std::get<I>(Containers)... };
-      });
 
       const model::Binary &Binary = *Model.get().get();
       for (const ObjectID *Object : Outgoing.at(Base::OutputContainerIndex)) {
@@ -114,10 +131,39 @@ private:
         const MetaAddress &Entry = std::get<MetaAddress>(Object->key());
         const model::Function &Function = Binary.Functions().at(Entry);
         llvm::Function *LLVMFunction = AddressToFunction.at(Function.Entry());
-        Instance.runOnFunction(Function, *LLVMFunction);
+        PipeRun->runOnFunction(Function, *LLVMFunction);
       }
 
       return true;
+    }
+
+    bool runOnFunctionModule(llvm::Module &Module) {
+      std::set<llvm::Function *> Functions = getFunctions(Module);
+      revng_assert(Functions.size() == 1);
+      llvm::Function &LLVMFunction = **Functions.begin();
+      MetaAddress Address = getMetaAddressOfIsolatedFunction(LLVMFunction);
+      ObjectID Object(Address);
+      const model::Binary &Binary = *Model.get().get();
+
+      {
+        auto Committer = ODH.getCommitterFor(Object,
+                                             Base::OutputContainerIndex);
+        const model::Function &Function = Binary.Functions().at(Address);
+        PipeRun->runOnFunction(Function, LLVMFunction);
+      }
+
+      return true;
+    }
+
+  private:
+    static std::set<llvm::Function *> getFunctions(llvm::Module &Module) {
+      std::set<llvm::Function *> Result;
+      for (llvm::Function &Function : Module.functions()) {
+        if (FunctionTags::Isolated.isTagOf(&Function)
+            and not Function.isDeclaration())
+          Result.insert(&Function);
+      }
+      return Result;
     }
   };
 
@@ -156,9 +202,15 @@ public:
                          this->StaticConfiguration,
                          Configuration,
                          ContainersRef));
-    LLVMRootContainer
-      &ModuleContainer = std::get<Base::OutputContainerIndex>(ContainersRef);
-    Manager.run(ModuleContainer.getModule());
+    auto &ModuleContainer = std::get<Base::OutputContainerIndex>(ContainersRef);
+    if constexpr (SingleModule) {
+      Manager.run(ModuleContainer.getModule());
+    } else {
+      for (const ObjectID *Object : Outgoing[this->OutputContainerIndex]) {
+        MetaAddress Address = std::get<MetaAddress>(Object->key());
+        Manager.run(ModuleContainer.getModule(Address));
+      }
+    }
 
     return ODH.takeDependencies();
   }
