@@ -64,6 +64,34 @@ branches:
     tasks:
       - pipe: EnforceABI
         arguments: [cfg-map, llvm-functions]
+      - pipe: PureLLVMPassesPipe
+        arguments: [llvm-functions]
+        configuration:
+          Passes:
+            - strip-debug-info-from-helpers
+      # Note: we're running promote-csvs twice: it is important to run
+      #       it before inline-helpers so that mem2reg can constant
+      #       propagate helper arguments that are constant. This enables
+      #       us to inline less code, in particular for helpers such as
+      #       `cc_compute_c` and `cc_compute_all`.
+      - pipe: PromoteCSVs
+        arguments: [llvm-functions]
+      - pipe: PureLLVMPassesPipe
+        arguments: [llvm-functions]
+        configuration:
+          Passes:
+            - mem2reg
+            - inline-helpers
+      - pipe: AttachDebugInfo
+        arguments: [cfg-map, llvm-functions]
+      - pipe: PromoteCSVs
+        arguments: [llvm-functions]
+      - pipe: PureLLVMPassesPipe
+        arguments: [llvm-functions]
+        configuration:
+          Passes:
+            - remove-exceptional-functions
+            - strip-dead-debug-info
 
   emit-model-header:
     tasks:
