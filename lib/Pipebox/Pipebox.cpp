@@ -6,6 +6,7 @@
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
+#include "revng/FunctionIsolation/PromoteCSVs.h"
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
 #include "revng/Lift/Lift.h"
@@ -44,3 +45,4 @@ static RegisterFunctionPipe<CollectCFG> P6;
 static RegisterFunctionPipe<Isolate> P7;
 static RegisterFunctionPipe<AttachDebugInfo> P8;
 static RegisterFunctionPipe<piperuns::EnforceABI> P9;
+static RegisterFunctionPipe<PromoteCSVs> P10;
