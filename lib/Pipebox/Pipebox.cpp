@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
@@ -39,3 +40,4 @@ static RegisterSingleOutputPipe<ModelToHeader> P4;
 static RegisterTypeDefinitionPipe<GenerateModelTypeDefinition> P5;
 static RegisterFunctionPipe<CollectCFG> P6;
 static RegisterFunctionPipe<Isolate> P7;
+static RegisterFunctionPipe<AttachDebugInfo> P8;
