@@ -26,6 +26,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
+#include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
@@ -48,6 +49,8 @@ using namespace llvm;
 class EnforceABI final : public pipeline::FunctionPassImpl {
 private:
   using UsedRegisters = abi::FunctionType::UsedRegisters;
+  using CFG = efa::ControlFlowGraph;
+  using CFGGetterType = std::function<const CFG &(const MetaAddress &)>;
 
 private:
   const model::Binary &Binary;
@@ -56,8 +59,7 @@ private:
   std::vector<Function *> OldFunctions;
   Function *FunctionDispatcher = nullptr;
   StructInitializers Initializers;
-  ControlFlowGraphCache &Cache;
-  pipeline::LoadExecutionContextPass &LECP;
+  CFGGetterType CFGGetter;
   GeneratedCodeBasicInfo &GCBI;
 
 public:
@@ -68,9 +70,25 @@ public:
     Binary(Binary),
     M(M),
     Initializers(&M),
-    Cache(getAnalysis<ControlFlowGraphCachePass>().get()),
-    LECP(getAnalysis<pipeline::LoadExecutionContextPass>()),
-    GCBI(getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI()) {}
+    GCBI(getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI()) {
+    ControlFlowGraphCache &Cache = getAnalysis<ControlFlowGraphCachePass>()
+                                     .get();
+    CFGGetter =
+      [&Cache](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
+      return Cache.getControlFlowGraph(Address);
+    };
+  }
+
+  EnforceABI(const model::Binary &Binary,
+             llvm::Module &M,
+             GeneratedCodeBasicInfo &GCBI,
+             CFGGetterType CFGGetter) :
+    pipeline::FunctionPassImpl(),
+    Binary(Binary),
+    M(M),
+    Initializers(&M),
+    CFGGetter(CFGGetter),
+    GCBI(GCBI) {}
 
   ~EnforceABI() final = default;
 
@@ -336,7 +354,8 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
 
   // Identify the corresponding call site in the model
   Function *CallerFunction = Call->getParent()->getParent();
-  const efa::ControlFlowGraph &FM = Cache.getControlFlowGraph(CallerFunction);
+  const efa::ControlFlowGraph
+    &FM = CFGGetter(getMetaAddressOfIsolatedFunction(*CallerFunction));
 
   const efa::BasicBlock *CallerBlock = FM.findBlock(GCBI, Call->getParent());
   revng_assert(CallerBlock != nullptr);
@@ -539,3 +558,26 @@ struct EnforceABIPipe {
 };
 
 static pipeline::RegisterPipe<EnforceABIPipe> Y;
+
+namespace revng::pypeline::piperuns {
+
+void EnforceABI::runOnFunction(const model::Function &TheFunction) {
+  llvm::Module &Module = Output.getModule(ObjectID(TheFunction.Entry()));
+  llvm::Function *LLVMFunction = Module.getFunction(NameBuilder
+                                                      .llvmName(TheFunction));
+
+  GeneratedCodeBasicInfo GCBI(Binary);
+  GCBI.run(Module);
+
+  auto CFGGetter =
+    [this](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
+    return *CFG.getElement(ObjectID(Address));
+  };
+
+  ::EnforceABI Impl(Binary, Module, GCBI, CFGGetter);
+  Impl.prologue();
+  Impl.runOnFunction(TheFunction, *LLVMFunction);
+  Impl.epilogue();
+}
+
+} // namespace revng::pypeline::piperuns

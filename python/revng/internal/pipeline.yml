@@ -59,6 +59,12 @@ branches:
           - name: isolate
             container: llvm-functions
 
+  enforce-abi:
+    from: isolate
+    tasks:
+      - pipe: EnforceABI
+        arguments: [cfg-map, llvm-functions]
+
   emit-model-header:
     tasks:
       - pipe: ModelToHeader

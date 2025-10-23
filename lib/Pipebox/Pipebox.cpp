@@ -4,6 +4,7 @@
 
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
+#include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
@@ -32,6 +33,7 @@ static RegisterContainer<CFGMap> C7;
 
 using namespace revng::pypeline::pipes;
 using namespace revng::pypeline::piperuns;
+namespace piperuns = revng::pypeline::piperuns;
 
 static RegisterSingleOutputPipe<Lift> P1;
 static RegisterPipe<PureLLVMPassesRootPipe> P2;
@@ -41,3 +43,4 @@ static RegisterTypeDefinitionPipe<GenerateModelTypeDefinition> P5;
 static RegisterFunctionPipe<CollectCFG> P6;
 static RegisterFunctionPipe<Isolate> P7;
 static RegisterFunctionPipe<AttachDebugInfo> P8;
+static RegisterFunctionPipe<piperuns::EnforceABI> P9;
