@@ -92,6 +92,11 @@ branches:
           Passes:
             - remove-exceptional-functions
             - strip-dead-debug-info
+      - savepoint: enforce-abi
+        containers: [llvm-functions]
+        artifacts:
+          - name: enforce-abi
+            container: llvm-functions
 
   emit-model-header:
     tasks:
