@@ -8,12 +8,10 @@
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
-#include "llvm/IR/Verifier.h"
 
 #include "revng/PipeboxCommon/Common.h"
 #include "revng/PipeboxCommon/ObjectID.h"
 #include "revng/Support/IRHelpers.h"
-#include "revng/Support/ZstdStream.h"
 
 namespace revng::pypeline {
 
@@ -21,7 +19,7 @@ class LLVMRootContainer {
 public:
   static constexpr llvm::StringRef Name = "LLVMRootContainer";
   static constexpr Kind Kind = Kinds::Binary;
-  static constexpr llvm::StringRef MimeType = "application/x.llvm.bc+zstd";
+  static constexpr llvm::StringRef MimeType = "application/x.llvm.bc";
 
 private:
   llvm::LLVMContext Context;
@@ -46,14 +44,9 @@ public:
       return;
 
     revng_assert(Data.size() == 1);
-    for (const auto &[Key, Value] : Data) {
-      revng_assert(Key->kind() == Kind);
-
-      llvm::SmallVector<char> DecompressedData = zstdDecompress(Value);
-      llvm::MemoryBufferRef Ref{
-        { DecompressedData.data(), DecompressedData.size() }, "input"
-      };
-
+    for (const auto &[Object, Buffer] : Data) {
+      revng_assert(Object->kind() == Kind);
+      llvm::MemoryBufferRef Ref{ { Buffer.data(), Buffer.size() }, "input" };
       Module = llvm::cantFail(llvm::parseBitcodeFile(Ref, Context));
     }
   }
@@ -65,10 +58,8 @@ public:
 
     revng_assert(Objects.size() == 1 and Objects[0]->kind() == Kind);
     std::map<ObjectID, Buffer> Result;
-    llvm::raw_svector_ostream OS(Result[*Objects[0]].data());
-    ZstdCompressedOstream CompressedOS(OS, 3);
-    llvm::WriteBitcodeToFile(*Module, CompressedOS);
-    CompressedOS.flush();
+    writeBitcode(*Module, Result[*Objects[0]].data());
+
     return Result;
   }
 
@@ -80,6 +71,63 @@ public:
 public:
   const llvm::Module &getModule() const { return *Module; }
   llvm::Module &getModule() { return *Module; }
+};
+
+class LLVMFunctionContainer {
+public:
+  static constexpr llvm::StringRef Name = "LLVMFunctionContainer";
+  static constexpr Kind Kind = Kinds::Function;
+  static constexpr llvm::StringRef MimeType = "application/x.llvm.bc";
+
+private:
+  llvm::LLVMContext Context;
+  std::map<ObjectID, std::unique_ptr<llvm::Module>> Modules;
+
+public:
+  LLVMFunctionContainer() {}
+
+public:
+  std::set<ObjectID> objects() const {
+    return std::views::keys(Modules) | revng::to<std::set<ObjectID>>();
+  }
+
+  void
+  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
+    for (auto const &[Object, Buffer] : Data) {
+      llvm::MemoryBufferRef BufferRef({ Buffer.data(), Buffer.size() },
+                                      "newBuffer");
+      Modules[*Object] = llvm::cantFail(llvm::parseBitcodeFile(BufferRef,
+                                                               Context));
+    }
+  }
+
+  std::map<ObjectID, Buffer>
+  serialize(const std::vector<const ObjectID *> Objects) const {
+    std::map<ObjectID, Buffer> Result;
+    for (const ObjectID *Object : Objects)
+      writeBitcode(*Modules.at(*Object), Result[*Object].data());
+    return Result;
+  }
+
+  bool verify() const {
+    for (auto const &[_, Module] : Modules)
+      revng::forceVerify(&*Module);
+    return true;
+  }
+
+public:
+  const llvm::Module &getModule(const ObjectID &ID) const {
+    return *Modules.at(ID);
+  }
+
+  llvm::Module &getModule(const ObjectID &ID) { return *Modules.at(ID); }
+
+  void assign(const ObjectID &ID, std::unique_ptr<llvm::Module> &&NewModule) {
+    if (&Context == &NewModule->getContext())
+      Modules[ID] = std::move(NewModule);
+    else
+      Modules[ID] = cloneIntoContext(*NewModule, Context);
+  }
 };
 
 } // namespace revng::pypeline

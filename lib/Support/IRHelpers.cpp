@@ -11,6 +11,8 @@
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallSet.h"
+#include "llvm/Bitcode/BitcodeReader.h"
+#include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/Dominators.h"
@@ -800,4 +802,23 @@ cloneFiltered(llvm::Module &Module, std::set<const llvm::Function *> &ToClone) {
   FunctionsMetadata::dropBackup(*Cloned.get());
 
   return Cloned;
+}
+
+void writeBitcode(const llvm::Module &Module,
+                  llvm::SmallVectorImpl<char> &Output) {
+  llvm::BitcodeWriter Writer(Output);
+  Writer.writeModule(Module);
+  Writer.writeSymtab();
+  Writer.writeStrtab();
+}
+
+std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
+                                               llvm::LLVMContext &NewContext) {
+  revng_assert(&Module.getContext() != &NewContext);
+
+  llvm::SmallVector<char, 0> Buffer;
+  writeBitcode(Module, Buffer);
+
+  llvm::MemoryBufferRef BufferRef{ { Buffer.data(), Buffer.size() }, "input" };
+  return llvm::cantFail(llvm::parseBitcodeFile(BufferRef, NewContext));
 }
