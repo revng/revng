@@ -51,6 +51,8 @@ branches:
     tasks:
       - pipe: Isolate
         arguments: [cfg-map, llvm-root, llvm-functions]
+      - pipe: AttachDebugInfo
+        arguments: [cfg-map, llvm-functions]
 
   emit-model-header:
     tasks:

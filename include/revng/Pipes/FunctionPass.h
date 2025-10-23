@@ -29,6 +29,7 @@ protected:
 
 public:
   FunctionPassImpl(llvm::ModulePass &Pass) : Pass(&Pass) {}
+  FunctionPassImpl() : Pass(nullptr){};
 
   virtual ~FunctionPassImpl() = default;
 
@@ -43,6 +44,7 @@ public:
 public:
   template<typename T, typename... ArgType>
   T &getAnalysis(ArgType &&...Arg) {
+    revng_check(Pass != nullptr);
     return Pass->getAnalysis<T>(std::forward<ArgType>(Arg)...);
   }
 };
