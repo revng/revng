@@ -44,12 +44,9 @@ public:
   MaterializedValue load(uint64_t LoadAddress, unsigned LoadSize) final {
     auto Address = MetaAddress::fromGeneric(toLLVMArchitecture(Architecture),
                                             LoadAddress);
-    bool IsLittleEndian = model::Architecture::isLittleEndian(Architecture);
-    auto MaybeValue = BinaryView.readInteger(Address, LoadSize, IsLittleEndian);
-    if (MaybeValue)
-      return MaterializedValue::fromConstant(APInt(LoadSize * 8, *MaybeValue));
-    else
-      return MaterializedValue::invalid();
+    return BinaryView.load(Address,
+                           LoadSize,
+                           model::Architecture::isLittleEndian(Architecture));
   }
 };
 
