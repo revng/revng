@@ -155,7 +155,6 @@ constexpr inline llvm::StringRef getSyscallHelper(Values V) {
 
   case systemz:
     return "helper_exception";
-
   default:
     revng_abort();
   }

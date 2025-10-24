@@ -181,10 +181,12 @@ void ValueMaterializer::electMaterializationStartingPoints() {
 
       if (N->SizeLowerBound == OracleRangeSize) {
         revng_log(ValueMaterializerLogger,
-                  "Setting UseOracle for " << N->valueToString()
-                                           << " since SizeLowerBound == "
-                                              "OracleRangeSize ("
-                                           << N->SizeLowerBound << ")");
+                  "Setting UseOracle for "
+                    << N->valueToString()
+                    << " since SizeLowerBound == "
+                       "OracleRangeSize ("
+                    << N->SizeLowerBound << "). The range is "
+                    << N->OracleRange.value_or(ConstantRangeSet()).toString());
         N->UseOracle = true;
       }
     }

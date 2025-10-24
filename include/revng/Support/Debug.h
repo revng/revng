@@ -198,7 +198,7 @@ private:
 
 #define revng_log(Logger, Expr)  \
   do {                           \
-    if (Logger.isEnabled()) {    \
+    if ((Logger).isEnabled()) {  \
       (Logger) << Expr << DoLog; \
     }                            \
   } while (0)

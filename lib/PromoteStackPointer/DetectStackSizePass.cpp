@@ -201,6 +201,20 @@ void DetectStackSize::collectStackBounds(Function &F) {
     }
   }
 
+  auto DumpBound = [](const char *Name, auto &BoundCollector) {
+    if (Log.isEnabled()) {
+      Log << Name << ": ";
+      if (BoundCollector.hasValue())
+        Log << std::to_string(BoundCollector.value().getLimitedValue());
+      else
+        Log << "n/a";
+      Log << DoLog;
+    }
+  };
+
+  DumpBound("UpperBound", UpperBound);
+  DumpBound("LowerBound", LowerBound);
+
   if (NeedsStackFrame) {
     if (LowerBound.hasValue()) {
       int64_t Size = -LowerBound.value().getLimitedValue();
@@ -209,13 +223,14 @@ void DetectStackSize::collectStackBounds(Function &F) {
     }
 
     // Record FSI for later processing
-    revng_log(Log, "Registering function");
+    revng_log(Log, "This function needs a stack frame for later processing");
     FunctionsStackInfo.push_back(std::move(FSI));
   }
 
   if (NeedsStackArguments and UpperBound.hasValue()) {
     // For stack arguments, we reason prototype-wise, not function-wise.
     // Record for processing later.
+    revng_log(Log, "Recording UpperBound for type " << RawPrototype->ID());
     FunctionTypeStackArguments[RawPrototype].record(UpperBound.value());
   }
 }

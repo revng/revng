@@ -71,8 +71,8 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
 
   for (llvm::Instruction &I : llvm::instructions(F)) {
     for (llvm::Use &U : I.operands()) {
-      if (auto formatting = getIntFormat(I, U, Model); formatting) {
-        IntsToBeFormatted.push_back(*formatting);
+      if (auto Formatting = getIntFormat(I, U, Model); Formatting) {
+        IntsToBeFormatted.push_back(*Formatting);
       }
     }
   }

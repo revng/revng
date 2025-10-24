@@ -65,6 +65,9 @@ public:
   constexpr bool operator>=(const BasicBlockID &Other) const {
     return tie() >= Other.tie();
   }
+  constexpr std::strong_ordering operator<=>(const BasicBlockID &Other) const {
+    return tie() <=> Other.tie();
+  }
 
   /// @}
 

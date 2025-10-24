@@ -262,7 +262,6 @@ SortedVector<efa::BasicBlock>
 CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
   using namespace llvm;
   using llvm::BasicBlock;
-
   revng_log(Log, "collectDirectCFG(" << OF->Function->getName().str() << ")");
   LoggerIndent<> Indent(Log);
 
@@ -739,14 +738,16 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   using namespace model::Architecture;
   int64_t CallPushSize = getCallPushSize(Binary->Architecture());
 
-  if (Log.isEnabled()) {
-    Log << "Milking info for " << OutlinedFunction->Address.toString();
-    Log << DoLog;
+  revng_log(Log, "Milking info for " << OutlinedFunction->Address.toString());
+  LoggerIndent<> Ident(Log);
 
-    Log << "CFG:\n";
-    for (const efa::BasicBlock &Block : CFG)
+  revng_log(Log, "Initial CFG:\n");
+  if (Log.isEnabled()) {
+    LoggerIndent<> Ident(Log);
+    for (const efa::BasicBlock &Block : CFG) {
       serialize(Log, Block);
-    Log << DoLog;
+      Log << DoLog;
+    }
   }
 
   using EdgeType = UpcastablePointer<efa::FunctionEdgeBase>;
@@ -775,7 +776,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
         JumpsToReturnAddress = ConstantOffset->getSExtValue() == 0;
     }
 
-    efa::BasicBlock Block = blockFromIndirectBranchInfo(CI, CFG);
+    const efa::BasicBlock &Block = blockFromIndirectBranchInfo(CI, CFG);
 
     // Is this a tail call? If so, we are very interested in the FSO since
     // it's useful to determine the FSO of the caller
@@ -1014,6 +1015,15 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
 
   for (efa::BasicBlock &Block : CFG)
     revng_assert(Block.Successors().size() > 0);
+
+  revng_log(Log, "Final CFG:\n");
+  if (Log.isEnabled()) {
+    LoggerIndent<> Ident(Log);
+    for (const efa::BasicBlock &Block : CFG) {
+      serialize(Log, Block);
+      Log << DoLog;
+    }
+  }
 
   FunctionSummary Result(Attributes,
                          ClobberedRegisters.getClobberedRegisters(),

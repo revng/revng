@@ -320,11 +320,15 @@ Runner::runAnalysis(llvm::StringRef AnalysisName,
     return std::move(Error);
 
   T.advance("Apply diff produced by the analysis", true);
+
   const GlobalsMap &After = getContext().getGlobals();
   DiffMap Map = Before.diff(After);
-  for (const auto &GlobalNameDiffPair : Map)
+  Task T2(Map.size(), "Applying diffs to globals");
+  for (const auto &GlobalNameDiffPair : Map) {
+    T2.advance(GlobalNameDiffPair.first(), true);
     if (llvm::Error Error = apply(GlobalNameDiffPair.second, InvalidationsMap))
       return std::move(Error);
+  }
 
   return std::move(Map);
 }
@@ -443,9 +447,11 @@ const KindsRegistry &Runner::getKindsRegistry() const {
 
 void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
                                   TargetInStepSet &Map) const {
+  Task T(this->size() - 1, "Computing step invalidations");
 
   // Iterate over each step, skipping the begin step
   for (const Step &Step : llvm::drop_begin(*this)) {
+    T.advance(Step.getName(), true);
     revng_log(InvalidationLog,
               "Computing invalidations in step " << Step.getName());
     LoggerIndent<> I(InvalidationLog);
@@ -462,8 +468,9 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
     // paths changed by Diff.
     // Also, this will invalidate all the targets depending on them and all the
     // targets depending on stuff that's already in Map.
-    revng_log(InvalidationLog, Diff.getPaths().size() << " paths have changed");
-    for (const TupleTreePath *Path : Diff.getPaths()) {
+    const auto &ChangedPaths = Diff.getPaths();
+    revng_log(InvalidationLog, ChangedPaths.size() << " paths have changed");
+    for (const TupleTreePath *Path : ChangedPaths) {
       revng_log(InvalidationLog, "Processing " << *Diff.pathAsString(*Path));
       LoggerIndent<> Indent(InvalidationLog);
       Step.registerTargetsDependingOn(Diff.getGlobalName(),
@@ -476,6 +483,8 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
 
 llvm::Error Runner::apply(const GlobalTupleTreeDiff &Diff,
                           TargetInStepSet &Map) {
+  Task T(3, "Computing invalidations");
+  T.advance("", true);
   getDiffInvalidations(Diff, Map);
   getInvalidations(Map);
   return invalidate(Map);

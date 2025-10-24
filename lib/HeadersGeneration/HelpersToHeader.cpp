@@ -122,9 +122,11 @@ bool ptml::HeaderBuilder::printHelpersHeader(const llvm::Module &M) {
     // These should never happen in revng-generated IR anyway, except for some
     // leftover unused declarations of custom helpers that are never used
     // (such as unknownPC)
+    // TODO: we should try to drop this check
     if (hasUnprintableArgsOrRetTypes(F))
       continue;
 
+    // TODO: this is a wrong usage of Log. Convert to cl::opt or drop.
     if (Log.isEnabled()) {
       auto CommentScope = B.getLineCommentScope();
       std::string Serialized{};

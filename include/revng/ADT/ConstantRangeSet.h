@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/ConstantRange.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/ZipMapIterator.h"
 #include "revng/Support/Debug.h"
@@ -133,12 +134,36 @@ public:
   }
 
 public:
+  ConstantRangeSet complement() const {
+    if (isEmptySet()) {
+      return ConstantRangeSet(BitWidth, true);
+    } else if (Bounds[0].isZero()) {
+      ConstantRangeSet Result = *this;
+      Result.Bounds.erase(Result.Bounds.begin());
+      return Result;
+    } else {
+      ConstantRangeSet Result = *this;
+      Result.Bounds.insert(Result.Bounds.begin(), { BitWidth, 0 });
+      return Result;
+    }
+  }
+
+  ConstantRangeSet operator~() const { return complement(); }
+
   ConstantRangeSet unionWith(const ConstantRangeSet &Other) const {
     return merge<false>(Other);
   }
 
+  ConstantRangeSet operator|(const ConstantRangeSet &Other) const {
+    return unionWith(Other);
+  }
+
   ConstantRangeSet intersectWith(const ConstantRangeSet &Other) const {
     return merge<true>(Other);
+  }
+
+  ConstantRangeSet operator&(const ConstantRangeSet &Other) const {
+    return intersectWith(Other);
   }
 
   bool contains(const ConstantRangeSet &Other) const {
@@ -245,6 +270,7 @@ public:
 
   template<typename T, typename F>
   void dump(T &Output, F &&Formatter) const {
+    Output << "i" << BitWidth << ": ";
     if (BitWidth == 0) {
       Output << "[)";
       return;
@@ -271,6 +297,13 @@ public:
     if (not Open) {
       Output << "," << Formatter(llvm::APInt::getMaxValue(BitWidth)) << ")";
     }
+  }
+
+  std::string toString() const {
+    std::string Result;
+    llvm::raw_string_ostream Stream(Result);
+    dump(Stream);
+    return Result;
   }
 
 private:

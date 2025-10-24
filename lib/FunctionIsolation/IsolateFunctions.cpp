@@ -37,7 +37,6 @@
 #include "revng/EarlyFunctionAnalysis/FunctionEdge.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
-#include "revng/EarlyFunctionAnalysis/Generated/ForwardDecls.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/Binary.h"

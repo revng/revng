@@ -115,8 +115,9 @@ void TDBP::pinExitTB(CallInst *ExitTBCall, DispatcherTargets &Destinations) {
 
   // Notify new branches only if the amount of possible targets actually
   // increased
-  if (Destinations.size() > OldTargetsCount)
+  if (Destinations.size() > OldTargetsCount) {
     JTM->recordNewBranches(Source, Destinations.size() - OldTargetsCount);
+  }
 }
 
 bool TDBP::pinMaterializedValues(Function &F) {

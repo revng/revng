@@ -13,6 +13,8 @@
 #include "revng/Yield/Assembly/DisassemblyHelper.h"
 #include "revng/Yield/Assembly/LLVMDisassemblerInterface.h"
 
+static Logger<> Log("disassemble");
+
 namespace detail {
 
 class DissassemblyHelperImpl
@@ -111,10 +113,18 @@ yield::Function DH::disassemble(const model::Function &Function,
                                 const RawBinaryView &BinaryView,
                                 const model::Binary &Binary,
                                 const model::AssemblyNameBuilder &NameBuilder) {
+  revng_log(Log, "Disassembling function at " << Function.Entry().toString());
+  LoggerIndent<> Indent(Log);
+
   yield::Function ResultFunction;
   ResultFunction.Entry() = Function.Entry();
   for (auto BasicBlockInserter = ResultFunction.Blocks().batch_insert();
        const efa::BasicBlock &BasicBlock : Metadata.Blocks()) {
+    revng_log(Log,
+              "Disassembling block " << BasicBlock.ID().toString() << "-"
+                                     << BasicBlock.End().toString());
+    LoggerIndent<> Indent2(Log);
+
     auto &Helper = getDisassemblerFor(BasicBlock.ID().start().type(),
                                       Binary.Configuration().Disassembly());
 
@@ -143,6 +153,9 @@ yield::Function DH::disassemble(const model::Function &Function,
     MetaAddress InstructionWithTheDelaySlot = MetaAddress::invalid();
     for (auto InstrInserter = ResultBasicBlock.Instructions().batch_insert();
          CurrentAddress < BasicBlock.End();) {
+      revng_log(Log,
+                "Disassembling instruction at " << CurrentAddress.toString());
+
       auto MaybeInstructionOffset = CurrentAddress - StartAddress;
       revng_assert(MaybeInstructionOffset.has_value());
       auto InstructionBytes = RawBytes->drop_front(*MaybeInstructionOffset);
