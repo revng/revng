@@ -140,13 +140,13 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
                   SaveRAFound = false;
                   return StopNow;
                 }
-                SaveRAFound = true;
 
                 // Find where the return address is being stored
                 revng_assert(LinkRegister == nullptr);
                 if (TargetCSV != nullptr) {
                   // The return address is being written to a register
                   LinkRegister = TargetCSV;
+                  SaveRAFound = true;
                 } else {
                   // The return address is likely being written on the stack, we
                   // have to check the last value on the stack and check if
@@ -175,12 +175,12 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
                       }
                     }
                   }
-                  revng_assert(LastStackPointer != nullptr);
-                  revng_assert(skipCasts(LastStackPointer) == Pointer);
 
-                  // If LinkRegister is nullptr it means the return address is
-                  // being pushed on the top of the stack
-                  LinkRegister = ConstantPointerNull::get(PCPtrTy);
+                  if (LastStackPointer != nullptr) {
+                    revng_assert(skipCasts(LastStackPointer) == Pointer);
+                    LinkRegister = ConstantPointerNull::get(PCPtrTy);
+                    SaveRAFound = true;
+                  }
                 }
               }
             }
