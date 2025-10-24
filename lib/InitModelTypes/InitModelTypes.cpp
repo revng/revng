@@ -948,15 +948,16 @@ ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
 
   // Refine the Result map, trying to upgrade types by looking at their uses and
   // see if they provide more accurate types.
-  for (const auto &[V, UT] : llvm::make_early_inc_range(Result)) {
-    if (not isa<Instruction>(V))
-      continue;
+  std::vector<ModelTypesMap::value_type> Upgraded;
 
-    if (V->getNumUses() == 0)
-      continue;
+  for (auto It = Result.begin(); It != Result.end();) {
+    const auto &[V, UT] = *It;
 
-    if (not isUpgradable(UT))
+    if (not isa<Instruction>(V) or V->getNumUses() == 0
+        or not isUpgradable(UT)) {
+      ++It;
       continue;
+    }
 
     revng_log(Log, "try to upgrade the type of: " << dumpToString(*V, MST));
     revng_log(Log, "initial type: " << UT->toString());
@@ -1012,6 +1013,7 @@ ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
 
     if (not UpgradedType.has_value()) {
       revng_log(Log, "Upgraded type cannot be computed. Next value.");
+      ++It;
       continue;
     }
 
@@ -1020,10 +1022,15 @@ ModelTypesMap initModelTypesConsideringUses(const llvm::Function &F,
         and isValidScalarUpgrade(UT, *UpgradedType)) { // the upgrade is valid
 
       revng_log(Log, "Upgraded to: " << (*UpgradedType)->toString());
-      Result.erase(V);
-      Result.insert({ V, UpgradedType->copy() });
+      Upgraded.emplace_back(V, UpgradedType->copy());
+      It = Result.erase(It);
+    } else {
+      ++It;
     }
   }
+
+  for (auto &Pair : Upgraded)
+    Result.insert({ Pair.first, Pair.second.copy() });
 
   revng_log(Log, "==== END initModelTypesConsideringUses on " << F.getName());
   return Result;
