@@ -289,6 +289,39 @@ inline uint64_t getSize(Values V) {
   switch (V) {
   case st0_x86:
     return 10;
+  case f0_mips:
+  case f1_mips:
+  case f2_mips:
+  case f3_mips:
+  case f4_mips:
+  case f5_mips:
+  case f6_mips:
+  case f7_mips:
+  case f8_mips:
+  case f9_mips:
+  case f10_mips:
+  case f11_mips:
+  case f12_mips:
+  case f13_mips:
+  case f14_mips:
+  case f15_mips:
+  case f16_mips:
+  case f17_mips:
+  case f18_mips:
+  case f19_mips:
+  case f20_mips:
+  case f21_mips:
+  case f22_mips:
+  case f23_mips:
+  case f24_mips:
+  case f25_mips:
+  case f26_mips:
+  case f27_mips:
+  case f28_mips:
+  case f29_mips:
+  case f30_mips:
+  case f31_mips:
+    return 8;
   default:
     break;
   }
