@@ -139,8 +139,10 @@ struct TrackingImpl {
            typename Visitor,
            StrictSpecializationOf<UpcastablePointer> T>
   static void visitImpl(T &UP) {
-    if (!UP.isEmpty())
+    if (!UP.isEmpty()) {
+      auto KindTrackingSuspender = UP.get()->KindTracker.suspend();
       UP.upcast([&](const auto &Upcasted) { visitImpl<M, Visitor>(Upcasted); });
+    }
   }
 
   template<typename M, typename Visitor, TupleSizeCompatible T>
