@@ -379,7 +379,7 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
   return CFG;
 }
 
-CFGAnalyzer::State CFGAnalyzer::loadState(llvm::IRBuilder<> &Builder) const {
+CFGAnalyzer::State CFGAnalyzer::loadState(revng::IRBuilder &Builder) const {
   using namespace llvm;
   LLVMContext &Context = M.getContext();
 
@@ -427,11 +427,13 @@ previousInstructions(llvm::BasicBlock *BB) {
   } while ((BB = BB->getSinglePredecessor()));
 }
 
-void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
+void CFGAnalyzer::createIBIMarker(OutlinedFunction *Outlined) {
   using namespace llvm;
   using llvm::BasicBlock;
 
-  IRBuilder<> Builder(&OutlinedFunction->Function->getEntryBlock().front());
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder
+    Builder(&Outlined->Function->getEntryBlock().front());
 
   State Initial = loadState(Builder);
 
@@ -456,9 +458,9 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
                              M,
                              FTy,
                              GlobalValue::ExternalLinkage);
-  OutlinedFunction->IndirectBranchInfoMarker = UniqueValuePtr<Function>(IBI);
-  OutlinedFunction->IndirectBranchInfoMarker->addFnAttr(Attribute::NoUnwind);
-  OutlinedFunction->IndirectBranchInfoMarker->addFnAttr(Attribute::NoReturn);
+  Outlined->IndirectBranchInfoMarker = UniqueValuePtr<Function>(IBI);
+  Outlined->IndirectBranchInfoMarker->addFnAttr(Attribute::NoUnwind);
+  Outlined->IndirectBranchInfoMarker->addFnAttr(Attribute::NoReturn);
 
   // When an indirect jump is encountered we load the state at that point and
   // compare it against the initial state
@@ -466,11 +468,11 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
   // Initialize markers for ABI analyses and set up the branches on which
   // `indirect_branch_info` will be installed.
   SmallVector<Instruction *, 16> BranchesToAnyPC;
-  if (OutlinedFunction->AnyPCCloned == nullptr)
+  if (Outlined->AnyPCCloned == nullptr)
     return;
 
   SmallVector<BasicBlock *, 16> Predecessors;
-  for (BasicBlock *Predecessor : predecessors(OutlinedFunction->AnyPCCloned))
+  for (BasicBlock *Predecessor : predecessors(Outlined->AnyPCCloned))
     Predecessors.push_back(Predecessor);
 
   for (BasicBlock *Predecessor : Predecessors) {
@@ -480,10 +482,10 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
     auto *IBIBlock = BasicBlock::Create(Context,
                                         Predecessor->getName()
                                           + Twine("_indirect_branch_info"),
-                                        OutlinedFunction->Function.get(),
+                                        Outlined->Function.get(),
                                         nullptr);
 
-    Term->replaceUsesOfWith(OutlinedFunction->AnyPCCloned, IBIBlock);
+    Term->replaceUsesOfWith(Outlined->AnyPCCloned, IBIBlock);
 
     Builder.SetInsertPoint(IBIBlock);
 
@@ -536,14 +538,13 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *OutlinedFunction) {
     }
 
     // Emit the `indirect_branch_info` call
-    Builder.CreateCall(OutlinedFunction->IndirectBranchInfoMarker.get(),
-                       ArgValues);
+    Builder.CreateCall(Outlined->IndirectBranchInfoMarker.get(), ArgValues);
     Builder.CreateUnreachable();
   }
 }
 
 void CFGAnalyzer::opaqueBranchConditions(llvm::Function *F,
-                                         llvm::IRBuilder<> &IRB) {
+                                         revng::IRBuilder &IRB) {
   using namespace llvm;
 
   for (auto &BB : *F) {
@@ -580,15 +581,13 @@ void CFGAnalyzer::opaqueBranchConditions(llvm::Function *F,
 }
 
 void CFGAnalyzer::materializePCValues(llvm::Function *F,
-                                      llvm::IRBuilder<> &IRB) {
-  using namespace llvm;
-
-  for (auto &BB : *F) {
-    for (auto &I : BB) {
-      if (auto *Call = getCallTo(&I, "newpc")) {
+                                      revng::IRBuilder &Builder) {
+  for (llvm::BasicBlock &BB : *F) {
+    for (llvm::Instruction &I : BB) {
+      if (llvm::CallInst *Call = getCallTo(&I, "newpc")) {
         MetaAddress NewPC = blockIDFromNewPC(Call).start();
-        IRB.SetInsertPoint(Call);
-        PCH->setPC(IRB, NewPC);
+        Builder.SetInsertPoint(Call);
+        PCH->setPC(Builder, NewPC);
       }
     }
   }
@@ -1035,7 +1034,8 @@ FunctionSummary CFGAnalyzer::analyze(const MetaAddress &Entry) {
   using namespace llvm;
   using llvm::BasicBlock;
 
-  IRBuilder<> Builder(M.getContext());
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(M.getContext());
 
   // Detect function boundaries
   OutlinedFunction OutlinedFunction = outline(Entry);
@@ -1113,7 +1113,7 @@ CallSummarizer::CallSummarizer(llvm::Module *M,
 }
 
 void CallSummarizer::handleCall(MetaAddress CallerBlock,
-                                llvm::IRBuilder<> &Builder,
+                                revng::IRBuilder &Builder,
                                 MetaAddress Callee,
                                 const CSVSet &ClobberedRegisters,
                                 const std::optional<int64_t> &MaybeFSO,
@@ -1153,12 +1153,12 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
   Builder.CreateCall(PostCallHook, Args);
 }
 
-void CallSummarizer::handlePostNoReturn(llvm::IRBuilder<> &Builder,
+void CallSummarizer::handlePostNoReturn(revng::IRBuilder &Builder,
                                         const llvm::DebugLoc &DbgLocation) {
   emitAbort(Builder, "", DbgLocation);
 }
 
-void CallSummarizer::handleIndirectJump(llvm::IRBuilder<> &Builder,
+void CallSummarizer::handleIndirectJump(revng::IRBuilder &Builder,
                                         MetaAddress Block,
                                         const CSVSet &ClobberedRegisters,
                                         llvm::Value *SymbolNamePointer) {

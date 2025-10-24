@@ -15,7 +15,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -23,6 +22,7 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "revng/Support/CommandLine.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/TypeShrinking/BitLiveness.h"
 #include "revng/TypeShrinking/DataFlowGraph.h"
@@ -82,7 +82,8 @@ static bool runTypeShrinking(Function &F,
                              const BitLivenessAnalysisResults &FixedPoints) {
   bool HasChanges = false;
 
-  IRBuilder<> B(F.getParent()->getContext());
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder B(F.getParent()->getContext());
   const std::array<uint32_t, 4> Ranks = { 8, 16, 32, 64 };
   for (auto &[I, Result] : FixedPoints) {
     // Find the closest rank that contains all the alive bits.
@@ -196,7 +197,9 @@ static bool runTypeShrinking(Function &F,
 
     // Replace the compare trunc'ing the constant and skipping over the zext
     HasChanges = true;
-    IRBuilder<> B(ICmp);
+
+    // TODO: the checks should be enabled conditionally based on the user.
+    revng::NonDebugInfoCheckingIRBuilder B(ICmp);
     auto *NewICmp = B.CreateICmp(ICmp->getPredicate(),
                                  PreExtension,
                                  ConstantInt::get(PreExtensionType,

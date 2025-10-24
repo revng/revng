@@ -4,10 +4,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 enum Signedness {
@@ -51,7 +51,8 @@ static void replaceAndResizeOperand(llvm::Instruction *I,
   if (getSize(I) == NewSize)
     return;
 
-  llvm::IRBuilder<> Builder(I);
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(I);
   llvm::Type *NewType = Builder.getIntNTy(NewSize);
   llvm::Value *NewOperand = nullptr;
   if (S == Signed) {

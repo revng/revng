@@ -3,12 +3,12 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 using namespace llvm;
@@ -98,7 +98,10 @@ public:
       OverflowPool.initializeFromName(BinaryOperationOverflows);
     }
 
-    IRBuilder<> Builder(F.getParent()->getContext());
+    // Here we should definitely use the builder that checks the debug info,
+    // but since this going to go away soon, let it stay as is.
+    revng::NonDebugInfoCheckingIRBuilder Builder(F.getParent()->getContext());
+
     for (WithOverflowInst *Call : Calls) {
       Changed = true;
 

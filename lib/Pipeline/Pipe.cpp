@@ -5,6 +5,7 @@
 //
 
 #include "revng/Pipeline/Pipe.h"
+#include "revng/Support/IRHelpers.h"
 
 using namespace pipeline;
 

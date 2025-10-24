@@ -2,12 +2,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/RemoveExtractValues/RemoveExtractValuesPass.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 using namespace llvm;
@@ -42,7 +42,10 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
   auto OpaqueEVPool = FunctionTags::OpaqueExtractValue.getPool(*F.getParent());
 
   llvm::LLVMContext &LLVMCtx = F.getContext();
-  IRBuilder<> Builder(LLVMCtx);
+
+  // TODO: checks are only omitted here because of unit tests.
+  revng::NonDebugInfoCheckingIRBuilder Builder(LLVMCtx);
+
   for (ExtractValueInst *I : ToReplace) {
     Builder.SetInsertPoint(I);
 

@@ -12,7 +12,6 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
@@ -40,6 +39,7 @@
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -97,7 +97,7 @@ private:
 
   void handleRegularFunctionCall(const MetaAddress &CallerAddress,
                                  CallInst *Call);
-  CallInst *generateCall(IRBuilder<> &Builder,
+  CallInst *generateCall(revng::IRBuilder &Builder,
                          MetaAddress Entry,
                          FunctionCallee Callee,
                          const efa::BasicBlock &CallSiteBlock,
@@ -267,7 +267,7 @@ static GlobalVariable *tryGetCSV(Module *M, model::Register::Values Register) {
   return M->getGlobalVariable(Name, true);
 }
 
-static Value *loadCSVOrUndef(IRBuilder<> &Builder,
+static Value *loadCSVOrUndef(revng::IRBuilder &Builder,
                              Module *M,
                              model::Register::Values Register) {
   GlobalVariable *CSV = tryGetCSV(M, Register);
@@ -307,7 +307,7 @@ void EnforceABI::createPrologue(Function *NewFunction,
 
   // Store arguments to CSVs
   BasicBlock &Entry = NewFunction->getEntryBlock();
-  IRBuilder<> StoreBuilder(Entry.getTerminator());
+  revng::NonDebugInfoCheckingIRBuilder StoreBuilder(Entry.getTerminator());
   for (const auto &[TheArgument, CSV] : zip(NewFunction->args(), ArgumentCSVs))
     StoreBuilder.CreateStore(&TheArgument, CSV);
 
@@ -315,7 +315,7 @@ void EnforceABI::createPrologue(Function *NewFunction,
   if (ReturnCSVs.size() != 0) {
     for (BasicBlock &BB : *NewFunction) {
       if (auto *Return = dyn_cast<ReturnInst>(BB.getTerminator())) {
-        IRBuilder<> Builder(Return);
+        revng::NonDebugInfoCheckingIRBuilder Builder(Return);
         std::vector<Value *> ReturnValues;
         for (auto &&[Type, ReturnCSV] : ReturnCSVs)
           ReturnValues.push_back(Builder.CreateLoad(Type, ReturnCSV));
@@ -388,7 +388,7 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
   ///   switch.
 
   // Generate the call
-  IRBuilder<> Builder(Call);
+  revng::IRBuilder Builder(Call);
   CallInst *NewCall = generateCall(Builder,
                                    CallerAddress,
                                    Callee,
@@ -405,7 +405,7 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
 }
 
 static FunctionCallee
-toFunctionPointer(IRBuilder<> &B, Value *V, FunctionType *FT) {
+toFunctionPointer(revng::IRBuilder &B, Value *V, FunctionType *FT) {
   Module *M = getModule(B.GetInsertBlock());
   const auto &DL = M->getDataLayout();
   IntegerType *IntPtrTy = DL.getIntPtrType(M->getContext());
@@ -413,7 +413,7 @@ toFunctionPointer(IRBuilder<> &B, Value *V, FunctionType *FT) {
   return FunctionCallee(FT, Callee);
 }
 
-CallInst *EnforceABI::generateCall(IRBuilder<> &Builder,
+CallInst *EnforceABI::generateCall(revng::IRBuilder &Builder,
                                    MetaAddress Entry,
                                    FunctionCallee Callee,
                                    const efa::BasicBlock &CallSiteBlock,

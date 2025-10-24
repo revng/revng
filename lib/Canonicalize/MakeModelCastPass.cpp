@@ -5,7 +5,6 @@
 #include <vector>
 
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
@@ -22,6 +21,7 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
@@ -189,7 +189,7 @@ getModelCastFunction(TypePair Key,
 
 // Create a call to explicit ModelCast. Later on, we run `ImplicitModelCastPass`
 // to detect implicit casts.
-static CallInst *createCallToModelCast(IRBuilder<> &Builder,
+static CallInst *createCallToModelCast(revng::IRBuilder &Builder,
                                        TypePair Key,
                                        const model::UpcastableType &TargetType,
                                        Value *Operand,
@@ -217,7 +217,10 @@ void MakeModelCastPass::makeModelCast(const CastToEmit &ToEmit,
   const model::Type &OperandModelType = *TypeMap.at(Operand);
 
   auto *I = cast<Instruction>(OperandUse.getUser());
-  IRBuilder<> Builder(I);
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(I);
   Type *OperandType = Operand->getType();
   CallInst *CallToModelCast = createCallToModelCast(Builder,
                                                     { OperandType,
@@ -278,8 +281,10 @@ bool MakeModelCastPass::runOnFunction(Function &F) {
     LoggerIndent Indent{ Log };
     revng_log(Log, "replacing sext/zext/trunc with ModelCast");
 
-    LLVMContext &LLVMCtxt = F.getContext();
-    IRBuilder<> Builder(LLVMCtxt);
+    // Here we should definitely use the builder that checks the debug info,
+    // but since this going to go away soon, let it stay as is.
+    revng::NonDebugInfoCheckingIRBuilder Builder(F.getContext());
+
     for (BasicBlock &BB : F) {
       for (Instruction &I : llvm::make_early_inc_range(BB)) {
         auto *SExt = dyn_cast<llvm::SExtInst>(&I);

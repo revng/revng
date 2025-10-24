@@ -6,7 +6,6 @@
 #include <optional>
 
 #include "llvm/ADT/StringExtras.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -33,6 +32,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -135,8 +135,10 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
   for (const model::Function &Function : Binary.Functions())
     FunctionEntries[Function.Entry().toGeneric()] = Function.Entry();
 
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder IRB(Context);
+
   bool Changed = false;
-  IRBuilder<> IRB(Context);
   llvm::Type *PtrSizedInteger = getPointerSizedInteger(Context, Binary);
 
   for (Instruction &I : instructions(F)) {

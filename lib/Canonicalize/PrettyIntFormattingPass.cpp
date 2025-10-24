@@ -9,7 +9,6 @@
 
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/IntrinsicInst.h"
@@ -21,6 +20,7 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
@@ -78,7 +78,10 @@ bool PrettyIntFormatting::runOnFunction(llvm::Function &F) {
     }
   }
 
-  llvm::IRBuilder<> Builder(F.getContext());
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(F.getContext());
+
   for (const auto &[Format, Operand] : IntsToBeFormatted) {
     auto *Val = llvm::cast<llvm::ConstantInt>(Operand->get());
     llvm::Type *IntType = Val->getType();

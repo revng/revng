@@ -9,7 +9,6 @@
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Type.h"
@@ -17,6 +16,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -44,7 +44,7 @@ static bool isICMPWithConstRHS(const Instruction &I) {
 
 static bool replaceNonConstantOperandWithAddSub(Instruction &I,
                                                 BinaryOperator *AddSub,
-                                                IRBuilder<> &Builder) {
+                                                revng::IRBuilder &Builder) {
   if (not isICMPWithConstRHS(I))
     return false;
 
@@ -98,7 +98,9 @@ static bool reusePHIIncomings(PHINode &PHI, const DominatorTree &DT) {
   if (not PHI.getType()->isIntegerTy())
     return false;
 
-  IRBuilder<> Builder(PHI.getContext());
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(PHI.getContext());
 
   revng_log(Log, "Decompilation: " << dumpToString(PHI));
   revng_log(Log, "uses: ");

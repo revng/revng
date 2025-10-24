@@ -12,7 +12,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/InitializePasses.h"
@@ -41,6 +40,7 @@
 #include "revng/Pipeline/Runner.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/IRBuilder.h"
 
 #define BOOST_TEST_MODULE Pipeline
 bool init_unit_test();
@@ -667,8 +667,7 @@ static void makeF(llvm::Module &M, llvm::StringRef FName) {
   auto F = M.getOrInsertFunction(FName, FType);
   auto *Fun = llvm::dyn_cast<llvm::Function>(F.getCallee());
   auto *BB = llvm::BasicBlock::Create(M.getContext(), "bb", Fun);
-  llvm::IRBuilder<> Builder(BB);
-  Builder.SetInsertPoint(BB);
+  revng::NonDebugInfoCheckingIRBuilder Builder(BB);
   Builder.CreateRet(nullptr);
 }
 

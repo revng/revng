@@ -4,7 +4,6 @@
 
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ADT/PostOrderIterator.h"
-#include "llvm/IR/IRBuilder.h"
 
 #include "revng/RestructureCFG/DAGifyPass.h"
 #include "revng/RestructureCFG/GenericRegionInfo.h"

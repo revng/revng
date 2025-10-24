@@ -116,6 +116,12 @@ read_passes:
               - "//+.* clang-format o(?:ff|n)"
               - "/\\*+.* clang-format o(?:ff|n)"
               - "/\\*+.* \\brief"
+              - "(?<!class )(?<!revng::)IRBuilder\b(?!\\.h)"
+                # this allows:
+                # - `class IRBuilder` for forward declarations,
+                # - `revng::IRBuilder` to emphasize the wrapper's existence,
+                # - `IRBuilder.h` for includes,
+                # and *no* other permutation of `IRBuilder` anywhere else.
         - name: Found snippets that shouldn't be at the end of a line
           matcher:
             type: regexes_matcher

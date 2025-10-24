@@ -124,9 +124,10 @@ public:
       LLVMContext &Context = getContext(&F);
       BasicBlock *SinkBlock = BasicBlock::Create(Context, "sink_block", &F);
 
+      // TODO: checks are only omitted here because of unit tests.
+      revng::NonDebugInfoCheckingIRBuilder Builder(SinkBlock);
+
       // Add an `UnreachableInst` to the end of the `SinkBlock`
-      IRBuilder<> Builder(Context);
-      Builder.SetInsertPoint(SinkBlock);
       Builder.CreateUnreachable();
 
       // 6: We need to create a new entry block, ending with a conditional

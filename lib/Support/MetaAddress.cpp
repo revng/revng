@@ -5,11 +5,11 @@
 //
 
 #include "llvm/IR/Constants.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
@@ -23,7 +23,7 @@ MetaAddress MetaAddress::fromValue(Value *V) {
   return MetaAddress::fromString(extractFromConstantStringPtr(V));
 }
 
-Instruction *MetaAddress::composeIntegerPC(IRBuilderBase &B,
+Instruction *MetaAddress::composeIntegerPC(revng::IRBuilder &B,
                                            Value *AddressValue,
                                            Value *EpochValue,
                                            Value *AddressSpaceValue,

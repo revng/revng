@@ -10,7 +10,6 @@
 #include <algorithm>
 
 #include "llvm/ADT/SetOperations.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Transforms/Utils/Local.h"

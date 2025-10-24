@@ -4,9 +4,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/IRBuilder.h"
-
 #include "revng/Support/OpaqueFunctionsPool.h"
+
+namespace revng {
+class IRBuilder;
+} // namespace revng
 
 class StructInitializers {
 private:
@@ -17,6 +19,6 @@ public:
   StructInitializers(llvm::Module *M);
 
 public:
-  llvm::Instruction *createReturn(llvm::IRBuilder<> &Builder,
+  llvm::Instruction *createReturn(revng::IRBuilder &Builder,
                                   llvm::ArrayRef<llvm::Value *> Values);
 };

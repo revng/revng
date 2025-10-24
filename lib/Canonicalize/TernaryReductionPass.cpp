@@ -4,7 +4,6 @@
 
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
@@ -14,6 +13,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 struct TernaryReductionPass : public llvm::FunctionPass {
@@ -30,7 +30,9 @@ public:
 };
 
 class TernaryReductionImpl {
-  llvm::IRBuilder<> Builder;
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder;
   OpaqueFunctionsPool<llvm::Type *> BooleanNotPool;
 
 public:
@@ -45,7 +47,6 @@ public:
                  "Both are constant booleans? Why is this even a select?");
 
     Builder.SetInsertPoint(&Select);
-    Builder.SetCurrentDebugLocation(Select.getDebugLoc());
     if (TrueBranch.has_value()) {
       if (TrueBranch.value()) {
         return Builder.CreateOr(Select.getCondition(), Select.getFalseValue());

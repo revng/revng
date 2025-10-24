@@ -7,10 +7,10 @@
 #include <map>
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/PassManager.h"
 
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using CSVToAllocaMap = llvm::DenseMap<llvm::GlobalVariable *,
@@ -27,7 +27,7 @@ public:
 
 public:
   llvm::CallInst *
-  buildCall(llvm::IRBuilder<> &Builder,
+  buildCall(revng::IRBuilder &Builder,
             llvm::Type *ReturnType,
             llvm::ArrayRef<llvm::Value *> BaseArguments,
             llvm::ArrayRef<llvm::GlobalVariable *> ReadCSVs,
@@ -129,7 +129,7 @@ DropHelperCallsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
 
   LLVMContext &Context = getContext(&F);
   QuickMetadata QMD(Context);
-  IRBuilder<> Builder(Context);
+  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
   std::vector<CallInst *> ToDelete;
 
   // TODO: iterating over users of helper functions would probably be faster

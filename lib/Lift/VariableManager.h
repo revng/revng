@@ -8,10 +8,10 @@
 #include <map>
 #include <string>
 
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/Pass.h"
 
 #include "revng/Support/CommandLine.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 #include "CPUStateAccessAnalysisPass.h"
@@ -47,7 +47,7 @@ public:
     AllocaBuilder.SetInsertPoint(I);
   }
 
-  llvm::Instruction *load(llvm::IRBuilder<> &Builder, unsigned TemporaryId) {
+  llvm::Instruction *load(revng::IRBuilder &Builder, unsigned TemporaryId) {
     using namespace llvm;
 
     auto &&[IsNew, V] = getOrCreate(TemporaryId, true);
@@ -122,13 +122,13 @@ public:
     return Locals;
   }
 
-  llvm::Value *loadFromEnvOffset(llvm::IRBuilder<> &Builder,
+  llvm::Value *loadFromEnvOffset(revng::IRBuilder &Builder,
                                  unsigned LoadSize,
                                  unsigned Offset) {
     return loadFromCPUStateOffset(Builder, LoadSize, EnvOffset + Offset);
   }
 
-  std::optional<llvm::StoreInst *> storeToEnvOffset(llvm::IRBuilder<> &Builder,
+  std::optional<llvm::StoreInst *> storeToEnvOffset(revng::IRBuilder &Builder,
                                                     unsigned StoreSize,
                                                     unsigned Offset,
                                                     llvm::Value *ToStore) {
@@ -136,7 +136,7 @@ public:
     return storeToCPUStateOffset(Builder, StoreSize, ActualOffset, ToStore);
   }
 
-  bool memcpyAtEnvOffset(llvm::IRBuilder<> &Builder,
+  bool memcpyAtEnvOffset(revng::IRBuilder &Builder,
                          llvm::CallInst *CallMemcpy,
                          unsigned Offset,
                          bool EnvIsSrc);
@@ -158,12 +158,12 @@ private:
   std::pair<bool, llvm::Value *> getOrCreate(unsigned TemporaryId,
                                              bool Reading);
 
-  llvm::Value *loadFromCPUStateOffset(llvm::IRBuilder<> &Builder,
+  llvm::Value *loadFromCPUStateOffset(revng::IRBuilder &Builder,
                                       unsigned LoadSize,
                                       unsigned Offset);
 
   std::optional<llvm::StoreInst *>
-  storeToCPUStateOffset(llvm::IRBuilder<> &Builder,
+  storeToCPUStateOffset(revng::IRBuilder &Builder,
                         unsigned StoreSize,
                         unsigned Offset,
                         llvm::Value *ToStore);
@@ -176,7 +176,7 @@ private:
 
 private:
   llvm::Module &TheModule;
-  llvm::IRBuilder<> AllocaBuilder;
+  revng::NonDebugInfoCheckingIRBuilder AllocaBuilder;
   using TemporariesMap = std::map<unsigned int, llvm::AllocaInst *>;
   using GlobalsMap = std::map<intptr_t, llvm::GlobalVariable *>;
   GlobalsMap CPUStateGlobals;

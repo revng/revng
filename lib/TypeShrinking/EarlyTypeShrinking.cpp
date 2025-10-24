@@ -6,12 +6,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/Pass.h"
 
 #include "revng/Support/Assert.h"
+#include "revng/Support/IRBuilder.h"
 
 using namespace llvm;
 
@@ -30,7 +30,8 @@ char EarlyTypeShrinking::ID = 0;
 bool EarlyTypeShrinking::runOnFunction(Function &F) {
   bool Changed = false;
 
-  IRBuilder<> B(F.getContext());
+  // TODO: checks are only omitted here because of unit tests.
+  revng::NonDebugInfoCheckingIRBuilder B(F.getContext());
 
   for (Instruction &I : llvm::make_early_inc_range(llvm::instructions(F))) {
     using namespace PatternMatch;

@@ -27,7 +27,7 @@ public:
   }
 
 public:
-  llvm::StoreInst *clobber(llvm::IRBuilder<> &Builder,
+  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
                            llvm::GlobalVariable *CSV) {
     auto *CSVTy = CSV->getValueType();
     std::string Name = "clobber_" + CSV->getName().str();
@@ -35,7 +35,7 @@ public:
     return Builder.CreateStore(Builder.CreateCall(Clobberer), CSV);
   }
 
-  llvm::StoreInst *clobber(llvm::IRBuilder<> &Builder,
+  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
                            model::Register::Values Value) {
     return clobber(Builder,
                    M->getGlobalVariable(model::Register::getCSVName(Value)));
@@ -73,7 +73,8 @@ RemoveHelperCallsPass::run(llvm::Function &F,
   OFPOriginalHelper.addFnAttribute(Attribute::WillReturn);
   OFPOriginalHelper.setTags({ &FunctionTags::UniquedByPrototype });
 
-  IRBuilder<> Builder(F.getContext());
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(F.getContext());
   for (auto *I : ToReplace) {
     Builder.SetInsertPoint(I);
 

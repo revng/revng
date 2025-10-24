@@ -15,7 +15,6 @@
 #include "llvm/IR/DIBuilder.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalValue.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Verifier.h"
@@ -53,6 +52,7 @@
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
@@ -254,7 +254,7 @@ public:
 public:
   void run();
 
-  void emitAbort(IRBuilder<> &Builder,
+  void emitAbort(revng::IRBuilder &Builder,
                  const Twine &Reason,
                  const DebugLoc &DbgLocation) {
     ::emitAbort(Builder, Reason, DbgLocation, GCBI.programCounterHandler());
@@ -262,11 +262,11 @@ public:
 
   void
   emitAbort(BasicBlock *BB, const Twine &Reason, const DebugLoc &DbgLocation) {
-    IRBuilder<> Builder(BB);
+    revng::NonDebugInfoCheckingIRBuilder Builder(BB);
     emitAbort(Builder, Reason, DbgLocation);
   }
 
-  void emitUnreachable(IRBuilder<> &Builder,
+  void emitUnreachable(revng::IRBuilder &Builder,
                        const Twine &Reason,
                        const DebugLoc &DbgLocation) {
     // Emitting any long-lasting messages here prevents switch detection,
@@ -277,7 +277,7 @@ public:
   void emitUnreachable(BasicBlock *BB,
                        const Twine &Reason,
                        const DebugLoc &DbgLocation) {
-    IRBuilder<> Builder(BB);
+    revng::NonDebugInfoCheckingIRBuilder Builder(BB);
     emitUnreachable(Builder, Reason, DbgLocation);
   }
 
@@ -305,7 +305,8 @@ void IFI::populateFunctionDispatcher() {
   emitUnreachable(Unexpected, "An unexpected function has been called", Dbg);
   setBlockType(Unexpected->getTerminator(), BlockType::UnexpectedPCBlock);
 
-  IRBuilder<> Builder(Context);
+  // TODO: the checks should be enabled conditionally based on the user.
+  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
 
   // Create all the entries of the dispatcher
   ProgramCounterHandler::DispatcherTargets Targets;
@@ -414,7 +415,7 @@ public:
 
 public:
   void handleCall(MetaAddress CallerBlock,
-                  llvm::IRBuilder<> &Builder,
+                  revng::IRBuilder &Builder,
                   MetaAddress Callee,
                   const efa::CSVSet &ClobberedRegisters,
                   const std::optional<int64_t> &MaybeFSO,
@@ -427,14 +428,14 @@ public:
     handleCall(Builder, Callee, SymbolNamePointer);
   }
 
-  void handlePostNoReturn(llvm::IRBuilder<> &Builder,
+  void handlePostNoReturn(revng::IRBuilder &Builder,
                           const llvm::DebugLoc &DbgLocation) final {
     IFI.emitUnreachable(Builder,
                         "We return from a noreturn function call",
                         DbgLocation);
   }
 
-  void handleIndirectJump(llvm::IRBuilder<> &Builder,
+  void handleIndirectJump(revng::IRBuilder &Builder,
                           MetaAddress Block,
                           const efa::CSVSet &ClobberedRegisters,
                           llvm::Value *SymbolNamePointer) final {
@@ -444,7 +445,7 @@ public:
   }
 
 private:
-  void handleCall(llvm::IRBuilder<> &Builder,
+  void handleCall(revng::IRBuilder &Builder,
                   MetaAddress Callee,
                   llvm::Value *SymbolNamePointer) {
     // Identify caller block
@@ -677,7 +678,9 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
       Instruction *T = AnyPCPredecessor->getTerminator();
       revng_assert(not cast<BranchInst>(T)->isConditional());
       T->eraseFromParent();
-      IRBuilder<> Builder(AnyPCPredecessor);
+
+      // TODO: the checks should be enabled conditionally based on the user.
+      revng::NonDebugInfoCheckingIRBuilder Builder(AnyPCPredecessor);
 
       // Get the only outgoing edge jumping to anypc
       if (Block == nullptr) {

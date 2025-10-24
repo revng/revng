@@ -58,7 +58,6 @@ using llvm::ConstantInt;
 using llvm::dyn_cast;
 using llvm::FunctionPass;
 using llvm::Instruction;
-using llvm::IRBuilder;
 using llvm::isa;
 using llvm::LLVMContext;
 using llvm::PHINode;
@@ -2086,8 +2085,11 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
 
   llvm::Module &M = *F.getParent();
   LLVMContext &Context = M.getContext();
-  IRBuilder<> Builder(Context);
   ModelGEPArgCache TypeArgCache;
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
 
   // Create a function pool for AddressOf calls
   auto AddressOfPool = FunctionTags::AddressOf.getPool(M);
@@ -2168,10 +2170,9 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
       Builder.SetInsertPoint(UserInstr);
     }
 
-    if (auto *UsedInstructionToGEPify = dyn_cast<Instruction>(TheUseToGEPify
-                                                                ->get())) {
-      Builder.SetCurrentDebugLocation(UsedInstructionToGEPify->getDebugLoc());
-    }
+    if (auto *InstrToGEPify = dyn_cast<Instruction>(TheUseToGEPify->get()))
+      if (llvm::DebugLoc DebugLocation = InstrToGEPify->getDebugLoc())
+        Builder.SetCurrentDebugLocation(DebugLocation);
 
     // The other arguments are the indices in IndexVector
     for (auto &Group : llvm::enumerate(GEPArgs.IndexVector)) {

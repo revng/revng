@@ -3,7 +3,6 @@
 //
 
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
@@ -16,6 +15,7 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 struct MakeLocalVariables : public llvm::FunctionPass {
@@ -56,8 +56,11 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
 
   llvm::LLVMContext &LLVMCtx = F.getContext();
   llvm::Module &M = *F.getParent();
-  llvm::IRBuilder<> Builder(LLVMCtx);
   llvm::Type *PtrSizedInteger = getPointerSizedInteger(LLVMCtx, *Model);
+
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder Builder(LLVMCtx);
 
   // Initialize function pools
   auto AddressOfPool = FunctionTags::AddressOf.getPool(M);

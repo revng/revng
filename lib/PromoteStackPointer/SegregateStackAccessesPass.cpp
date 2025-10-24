@@ -7,7 +7,6 @@
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Verifier.h"
 
@@ -27,6 +26,7 @@
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng/Support/FunctionTags.h"
 #include "revng/Support/Generator.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OverflowSafeInt.h"
 
@@ -36,7 +36,7 @@ using namespace llvm;
 
 static Logger<> Log("segregate-stack-accesses");
 
-static Value *createAdd(IRBuilder<> &B, Value *V, uint64_t Addend) {
+static Value *createAdd(revng::IRBuilder &B, Value *V, uint64_t Addend) {
   return B.CreateAdd(V, ConstantInt::get(V->getType(), Addend));
 }
 
@@ -252,8 +252,9 @@ struct SortByFunction {
   }
 };
 
-static CallInst *
-getAsModelGEP(IRBuilder<> &B, Value *Pointer, const model::Type &ModelType) {
+static CallInst *getAsModelGEP(revng::IRBuilder &B,
+                               Value *Pointer,
+                               const model::Type &ModelType) {
   Module &M = *B.GetInsertBlock()->getModule();
   llvm::Type *T = Pointer->getType();
   Function *ModelGEPFunction = getModelGEP(M, T, T);
@@ -383,11 +384,11 @@ public:
   }
 
 private:
-  Value *pointer(IRBuilder<> &B, Value *V) const {
+  Value *pointer(revng::IRBuilder &B, Value *V) const {
     return B.CreateIntToPtr(V, OpaquePointerType);
   }
 
-  CallInst *createAddressOf(IRBuilder<> &B,
+  CallInst *createAddressOf(revng::IRBuilder &B,
                             Value *V,
                             const model::UpcastableType &AllocatedType) {
     revng_assert(LegacyLocalVariables);
@@ -557,7 +558,8 @@ private:
       }
     }
 
-    IRBuilder<> B(&NewFunction->getEntryBlock());
+    // TODO: the checks should be enabled conditionally based on the user.
+    revng::NonDebugInfoCheckingIRBuilder B(NewFunction->getContext());
     setInsertPointToFirstNonAlloca(B, *NewFunction);
 
     // Handle arguments
@@ -890,7 +892,7 @@ private:
     CallInst *OldCall = findAssociatedCall(SSACSCall);
     revng_assert(OldCall != nullptr);
 
-    IRBuilder<> B(OldCall);
+    revng::IRBuilder B(OldCall);
 
     //
     // Map llvm::Argument * to model::Register
@@ -1374,7 +1376,7 @@ private:
       Instruction *StackFrameAddress = VariableBuilder
                                          .createStackFrameVariable();
 
-      IRBuilder<> Builder(InitLocalSPCall);
+      revng::IRBuilder Builder(InitLocalSPCall);
       auto *SP0 = Builder.CreateAdd(StackFrameAddress,
                                     getSPConstant(StackFrameSize));
       InitLocalSPCall->replaceAllUsesWith(SP0);
@@ -1392,14 +1394,15 @@ private:
     return ConstantInt::get(TargetPointerSizedInteger, Value);
   }
 
-  Value *computeAddress(IRBuilder<> &B, Value *Base, int64_t Offset) const {
+  Value *
+  computeAddress(revng::IRBuilder &B, Value *Base, int64_t Offset) const {
     return pointer(B, createAdd(B, Base, Offset));
   }
 
   void replace(Instruction *I, Value *Base, int64_t Offset) {
     ToPurge.insert(I);
 
-    IRBuilder<> B(I);
+    revng::IRBuilder B(I);
     auto *NewAddress = computeAddress(B, Base, Offset);
 
     Instruction *NewInstruction = nullptr;

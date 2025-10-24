@@ -467,7 +467,7 @@ static Value *createICmp(T &Builder,
 }
 
 using LBM = IT::LabeledBlocksMap;
-IT::InstructionTranslator(IRBuilder<> &Builder,
+IT::InstructionTranslator(revng::IRBuilder &Builder,
                           VariableManager &Variables,
                           JumpTargetManager &JumpTargets,
                           std::vector<BasicBlock *> Blocks,
@@ -589,7 +589,7 @@ SmallSet<unsigned, 1> IT::preprocess(PTCInstructionList *InstructionList) {
   return Result;
 }
 
-CallInst *IT::emitNewPCCall(IRBuilder<> &Builder,
+CallInst *IT::emitNewPCCall(revng::IRBuilder &Builder,
                             MetaAddress PC,
                             uint64_t Size,
                             Value *String) const {
