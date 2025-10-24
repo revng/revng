@@ -169,12 +169,8 @@ yield::Function DH::disassemble(const model::Function &Function,
       Result.Comment() = std::move(Disassembled.Comment);
       Result.Error() = std::move(Disassembled.Error);
 
-      if (Disassembled.HasDelaySlot) {
-        revng_assert(InstructionWithTheDelaySlot.isInvalid(),
-                     "Multiple instructions with delay slots are not allowed "
-                     "in the same basic block.");
+      if (Disassembled.HasDelaySlot)
         InstructionWithTheDelaySlot = Disassembled.Address;
-      }
 
       auto Bytes = BinaryView.getByAddress(CurrentAddress, Disassembled.Size);
       revng_assert(Bytes.has_value());
@@ -194,8 +190,6 @@ yield::Function DH::disassemble(const model::Function &Function,
     if (InstructionWithTheDelaySlot.isValid()) {
       revng_assert(ResultBasicBlock.Instructions().size() > 1);
       auto Last = std::prev(ResultBasicBlock.Instructions().end());
-      revng_assert(InstructionWithTheDelaySlot == std::prev(Last)->Address());
-
       ResultBasicBlock.HasDelaySlot() = true;
     }
 
