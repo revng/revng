@@ -18,12 +18,14 @@
 #include "llvm/Passes/PassBuilder.h"
 
 #include "revng/Lift/LoadBinaryPass.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/ValueMaterializer/DataFlowRangeAnalysis.h"
 #include "revng/ValueMaterializer/ValueMaterializer.h"
 
 using namespace llvm;
@@ -42,8 +44,7 @@ public:
     BinaryView(BinaryView), Architecture(Architecture) {}
 
   MaterializedValue load(uint64_t LoadAddress, unsigned LoadSize) final {
-    auto Address = MetaAddress::fromGeneric(toLLVMArchitecture(Architecture),
-                                            LoadAddress);
+    auto Address = MetaAddress::fromGeneric(Architecture, LoadAddress);
     return BinaryView.load(Address,
                            LoadSize,
                            model::Architecture::isLittleEndian(Architecture));
@@ -92,6 +93,7 @@ findStartNode(const DataFlowGraph &DFG) {
 
 static bool handleSwitch(SwitchInst *Switch,
                          LazyValueInfo &LVI,
+                         DataFlowRangeAnalysis &DFRA,
                          DominatorTree &DT,
                          RawBinaryMemoryOracle &MO) {
   // Skip empty switches.
@@ -100,14 +102,16 @@ static bool handleSwitch(SwitchInst *Switch,
 
   Value *Condition = Switch->getCondition();
   DataFlowGraph::Limits Limits(1000 /*MaxPhiLike*/, 1 /*MaxLoad*/);
-  ::ValueMaterializer
-    Results = ::ValueMaterializer::getValuesFor(Switch,
-                                                Condition,
-                                                MO,
-                                                LVI,
-                                                DT,
-                                                Limits,
-                                                Oracle::AdvancedValueInfo);
+
+  auto AVIOracle = Oracle::AdvancedValueInfo;
+  ::ValueMaterializer Results = ::ValueMaterializer::getValuesFor(Switch,
+                                                                  Condition,
+                                                                  MO,
+                                                                  LVI,
+                                                                  DFRA,
+                                                                  DT,
+                                                                  Limits,
+                                                                  AVIOracle);
   // We can not do too much without any values materialized.
   if (not Results.values())
     return false;
@@ -174,6 +178,7 @@ static bool handleSwitch(SwitchInst *Switch,
 
 static bool simplifySwitch(Function &F,
                            LazyValueInfo &LVI,
+                           DataFlowRangeAnalysis &DFRA,
                            DominatorTree &DT,
                            RawBinaryMemoryOracle &MO) {
   bool Result = false;
@@ -183,7 +188,7 @@ static bool simplifySwitch(Function &F,
       if (not Switch)
         continue;
 
-      if (handleSwitch(Switch, LVI, DT, MO)) {
+      if (handleSwitch(Switch, LVI, DFRA, DT, MO)) {
         Switch->eraseFromParent();
         Result |= true;
       }
@@ -196,12 +201,13 @@ static bool simplifySwitch(Function &F,
 struct SimplifySwitchPassImpl : public pipeline::FunctionPassImpl {
 private:
   const model::Binary &Binary;
+  DataFlowRangeAnalysis DFRA;
 
 public:
   SimplifySwitchPassImpl(llvm::ModulePass &Pass,
                          const model::Binary &Binary,
                          llvm::Module &M) :
-    pipeline::FunctionPassImpl(Pass), Binary(Binary) {}
+    pipeline::FunctionPassImpl(Pass), Binary(Binary), DFRA(M) {}
 
   bool runOnFunction(const model::Function &ModelFunction,
                      llvm::Function &Function) override;
@@ -216,7 +222,7 @@ bool SimplifySwitchPassImpl::runOnFunction(const model::Function &ModelFunction,
   auto &DT = getAnalysis<DominatorTreeWrapperPass>(Function).getDomTree();
   RawBinaryView &BinaryView = getAnalysis<LoadBinaryWrapperPass>().get();
   RawBinaryMemoryOracle MO(BinaryView, Binary.Architecture());
-  return simplifySwitch(Function, LVI, DT, MO);
+  return simplifySwitch(Function, LVI, DFRA, DT, MO);
 }
 
 void SimplifySwitchPassImpl::getAnalysisUsage(AnalysisUsage &AU) {

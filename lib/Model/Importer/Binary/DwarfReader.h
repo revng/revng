@@ -103,7 +103,7 @@ private:
 template<typename E>
 class DwarfReader {
 public:
-  DwarfReader(llvm::Triple::ArchType Architecture,
+  DwarfReader(model::Architecture::Values Architecture,
               llvm::ArrayRef<uint8_t> Buffer,
               MetaAddress Address) :
     Architecture(Architecture),
@@ -279,7 +279,7 @@ private:
   bool is64() const;
 
 private:
-  llvm::Triple::ArchType Architecture;
+  model::Architecture::Values Architecture;
   MetaAddress Address;
   const uint8_t *Start;
   const uint8_t *Cursor;

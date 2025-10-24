@@ -883,7 +883,7 @@ ELFImporter<T, HasAddend>::ehFrameFromEhFrameHdr() {
   ArrayRef<uint8_t> EHFrameHdr = *MaybeEHFrameHdr;
 
   using namespace model::Architecture;
-  DwarfReader<T> EHFrameHdrReader(toLLVMArchitecture(Binary.Architecture()),
+  DwarfReader<T> EHFrameHdrReader(Binary.Architecture(),
                                   EHFrameHdr,
                                   *EHFrameHdrAddress);
 
@@ -936,10 +936,7 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
     return;
   llvm::ArrayRef<uint8_t> EHFrame = *MaybeEHFrame;
 
-  using namespace model::Architecture;
-  auto Architecture = toLLVMArchitecture(Model->Architecture());
-
-  DwarfReader<T> EHFrameReader(Architecture, EHFrame, EHFrameAddress);
+  DwarfReader<T> EHFrameReader(Model->Architecture(), EHFrame, EHFrameAddress);
 
   // A few fields of the CIE are used when decoding the FDE's.  This struct
   // will cache those fields we need so that we don't have to decode it
@@ -1132,9 +1129,7 @@ void ELFImporter<T, HasAddend>::parseLSDA(MetaAddress FDEStart,
   }
   llvm::ArrayRef<uint8_t> LSDA = *MaybeLSDA;
 
-  using namespace model::Architecture;
-  auto Architecture = toLLVMArchitecture(Model->Architecture());
-  DwarfReader<T> LSDAReader(Architecture, LSDA, LSDAAddress);
+  DwarfReader<T> LSDAReader(Model->Architecture(), LSDA, LSDAAddress);
 
   uint32_t LandingPadBaseEncoding = LSDAReader.readNextU8();
   MetaAddress LandingPadBase = MetaAddress::invalid();

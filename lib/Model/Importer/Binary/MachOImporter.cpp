@@ -161,9 +161,7 @@ static MetaAddress getInitialPC(Architecture::Values Architecture,
   }
 
   if (Reader.eof() and PC) {
-    return MetaAddress::fromPC(Architecture::toLLVMArchitecture(Architecture),
-                               *PC);
-
+    return MetaAddress::fromPC(Architecture, *PC);
   } else {
     // TODO: emit a diagnostic message for the user.
     return MetaAddress::invalid();
@@ -279,10 +277,8 @@ Error MachOImporter::import() {
   }
 
   if (EntryPointOffset) {
-    using namespace model::Architecture;
-    auto LLVMArchitecture = toLLVMArchitecture(Model->Architecture());
     auto EntryPoint = File.offsetToAddress(*EntryPointOffset)
-                        .toPC(LLVMArchitecture);
+                        .toPC(Model->Architecture());
     setEntryPoint(EntryPoint);
   }
 

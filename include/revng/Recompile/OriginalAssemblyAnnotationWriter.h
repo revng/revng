@@ -11,7 +11,6 @@
 class OriginalAssemblyAnnotationWriter : public llvm::AssemblyAnnotationWriter {
 public:
   OriginalAssemblyAnnotationWriter(llvm::LLVMContext &Context) :
-    OriginalInstrMDKind(Context.getMDKindID("oi")),
     PTCInstrMDKind(Context.getMDKindID("pi")) {}
 
   ~OriginalAssemblyAnnotationWriter() override = default;
@@ -21,6 +20,5 @@ public:
                        llvm::formatted_raw_ostream &Output) override;
 
 private:
-  unsigned OriginalInstrMDKind;
   unsigned PTCInstrMDKind;
 };

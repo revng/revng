@@ -25,6 +25,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Model/RawBinaryView.h"
+#include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
@@ -149,8 +150,6 @@ inline const char *getName(Values V) {
 
 } // namespace CFGForm
 
-class CPUStateAccessAnalysisPass;
-
 class JumpTargetManager {
 private:
   using interval_set = boost::icl::interval_set<MetaAddress, CompareAddress>;
@@ -214,16 +213,12 @@ public:
 
 public:
   using BlockMap = std::map<MetaAddress, JumpTarget>;
-  using CSAAFactory = std::function<CPUStateAccessAnalysisPass *(void)>;
 
 public:
   /// \param TheFunction the translated function.
   /// \param PCH ProgramCounterHandler instance.
-  /// \param CreateCSAA a factory function able to create
-  ///        CPUStateAccessAnalysisPass.
   JumpTargetManager(llvm::Function *TheFunction,
                     ProgramCounterHandler *PCH,
-                    CSAAFactory CreateCSAA,
                     const TupleTree<model::Binary> &Model,
                     const RawBinaryView &BinaryView);
 
@@ -235,8 +230,6 @@ public:
 
   /// Collect jump targets from the program's segments
   void harvestGlobalData();
-
-  auto createCSAA() { return CreateCSAA(); }
 
   /// Handle a new program counter. We might already have a basic block for that
   /// program counter, or we could even have a translation for it. Return one
@@ -463,15 +456,11 @@ public:
   }
 
   MetaAddress fromPC(uint64_t PC) const {
-    using namespace model::Architecture;
-    auto Architecture = toLLVMArchitecture(Model->Architecture());
-    return MetaAddress::fromPC(Architecture, PC);
+    return MetaAddress::fromPC(Model->Architecture(), PC);
   }
 
   MetaAddress fromGeneric(uint64_t Address) const {
-    using namespace model::Architecture;
-    auto Architecture = toLLVMArchitecture(Model->Architecture());
-    return MetaAddress::fromGeneric(Architecture, Address);
+    return MetaAddress::fromGeneric(Model->Architecture(), Address);
   }
 
   MetaAddress fromPCStore(llvm::StoreInst *Store) {
@@ -607,7 +596,6 @@ private:
   CFGForm::Values CurrentCFGForm;
   std::set<llvm::BasicBlock *> ToPurge;
   std::set<MetaAddress> SimpleLiterals;
-  CSAAFactory CreateCSAA;
 
   ProgramCounterHandler *PCH = nullptr;
 

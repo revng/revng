@@ -12,9 +12,14 @@
 #include <stack>
 #include <string>
 
+#include "qemu/libtcg/libtcg.h"
+
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
@@ -22,28 +27,20 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
-#include "revng/Lift/PTCDump.h"
 #include "revng/Lift/VariableManager.h"
 #include "revng/Model/FunctionTags.h"
+#include "revng/Model/Register.h"
+#include "revng/Support/Assert.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
-
-#include "PTCInterface.h"
 
 // This name corresponds to a function in `early-linked`.
 RegisterIRHelper SetRegisterMarker("set_register");
 
-using namespace llvm;
+static Logger<> Log("csv-at-offset");
 
-// TODO: rename
-cl::opt<bool> External("external",
-                       cl::desc("set CSVs linkage to external, useful for "
-                                "debugging purposes"),
-                       cl::cat(MainCategory));
-static cl::alias A1("E",
-                    cl::desc("Alias for -external"),
-                    cl::aliasopt(External),
-                    cl::cat(MainCategory));
+using namespace llvm;
 
 class OffsetValueStack {
 
@@ -86,47 +83,29 @@ private:
 
 static std::pair<IntegerType *, unsigned>
 getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
-  static Logger<> Log("type-at-offset");
-
-  unsigned Depth = 0;
-  while (1) {
+  std::string Prefix = "";
+  while (true) {
     switch (VarType->getTypeID()) {
     case llvm::Type::TypeID::PointerTyID:
-      // BEWARE: here we return { nullptr, 0 } as an intended workaround for
-      // a specific situation.
-      //
-      // We can't use assertions on pointers, as we do for all the other
-      // unhandled types, because they will be inevitably triggered during the
-      // execution. Indeed, all the other types are not present in QEMU
-      // CPUState and we can safely assert it. This is not true for pointers
-      // that are used in different places in QEMU CPUState.
-      //
-      // Given that we have ruled out assertions, we need to handle the
-      // pointer case so that it keeps working. This function is expected to
-      // return { nullptr, 0 } when the offset points to a memory location
-      // associated to padding space. In principle, pointers are not padding
-      // space, but the result of returning { nullptr, 0 } here is that load
-      // and store operations treat pointers like padding. This means that
-      // pointers cannot be read or written, and memcpy simply skips over them
-      // leaving them alone.
-      //
-      // This behavior is intended, because a pointer into the CPUState could
-      // be used to modify CPU registers indirectly, which is against all the
-      // assumption of the analysis necessary for the translation, and also
-      // against what really happens in a CPU, where CPU state cannot be
-      // addressed.
+      // Ignore pointers
+      revng_log(Log, Prefix << "Found a pointer. Bailing out.");
       return { nullptr, 0 };
 
     case llvm::Type::TypeID::IntegerTyID:
+      revng_log(Log, Prefix << "Found a i" << VarType->getIntegerBitWidth());
       return { cast<IntegerType>(VarType), Offset };
 
-    case llvm::Type::TypeID::ArrayTyID:
+    case llvm::Type::TypeID::ArrayTyID: {
+      auto ElementsCount = VarType->getArrayNumElements();
       VarType = VarType->getArrayElementType();
-      Offset %= TheLayout->getTypeAllocSize(VarType);
+      auto TypeSize = TheLayout->getTypeAllocSize(VarType);
+      auto Index = Offset / TypeSize;
+      Offset %= TypeSize;
       revng_log(Log,
-                std::string(Depth++ * 2, ' ')
-                  << " Is an Array. Offset in Element: " << Offset);
-      break;
+                Prefix << "Element " << Index << " in an array of "
+                       << ElementsCount
+                       << " elements. Offset in Element: " << Offset);
+    } break;
 
     case llvm::Type::TypeID::StructTyID: {
       StructType *TheStruct = cast<StructType>(VarType);
@@ -137,41 +116,61 @@ getTypeAtOffset(const DataLayout *TheLayout, Type *VarType, intptr_t Offset) {
       intptr_t FieldEnd = FieldOffset + TheLayout->getTypeAllocSize(VarType);
 
       revng_log(Log,
-                std::string(Depth++ * 2, ' ')
-                  << " Offset: " << Offset
-                  << " Struct Name: " << TheStruct->getName().str()
-                  << " Field Index: " << FieldIndex << " Field offset: "
-                  << FieldOffset << " Field end: " << FieldEnd);
+                Prefix << "Offset: " << Offset
+                       << "; Struct Name: " << TheStruct->getName().str()
+                       << "; Field Index: " << FieldIndex << "; Field offset: "
+                       << FieldOffset << "; Field end: " << FieldEnd << ".");
 
-      if (Offset >= FieldEnd)
-        return { nullptr, 0 }; // It's padding
+      if (Offset >= FieldEnd) {
+        revng_log(Log, Prefix << "It's padding. Bailing out.");
+        return { nullptr, 0 };
+      }
 
       Offset -= FieldOffset;
     } break;
 
     default:
-      revng_abort("unexpected TypeID");
+      revng_abort("Unexpected TypeID");
     }
+
+    Prefix += "  ";
   }
 }
 
 VariableManager::VariableManager(Module &M,
                                  bool TargetIsLittleEndian,
-                                 StructType *CPUStruct,
-                                 unsigned EnvOffset) :
+                                 unsigned LibTcgEnvOffset,
+                                 uint8_t *LibTcgEnvPtr,
+                                 const std::map<intptr_t, StringRef>
+                                   &GlobalNames) :
   TheModule(M),
   AllocaBuilder(getContext(&M)),
-  CPUStateType(CPUStruct),
+  ArchCPUStruct(nullptr),
   ModuleLayout(&TheModule.getDataLayout()),
-  EnvOffset(EnvOffset),
+  LibTcgEnvOffset(LibTcgEnvOffset),
+  LibTcgEnvPtr(LibTcgEnvPtr),
   Env(nullptr),
-  TargetIsLittleEndian(TargetIsLittleEndian) {
+  TargetIsLittleEndian(TargetIsLittleEndian),
+  GlobalNames(GlobalNames) {
 
-  revng_assert(ptc.initialized_env != nullptr);
+  // Reminder:
+  //
+  // struct ArchCPU {
+  //   CPUState parent_obj;
+  //   CPUX86State /* aka CPUArchState */ env;
+  // };
+
+  // TODO: this not very robust. We should have a function with a sensible name
+  //       taking as argument ${ARCH}CPU so that we can easily identify the
+  //       struct.
+  ArchCPUStruct = StructType::getTypeByName(M.getContext(), "struct.ArchCPU");
+  revng_assert(ArchCPUStruct != nullptr);
+
+  revng_assert(LibTcgEnvPtr != nullptr);
 
   IntegerType *IntPtrTy = AllocaBuilder.getIntPtrTy(*ModuleLayout);
   Env = cast<GlobalVariable>(TheModule.getOrInsertGlobal("env", IntPtrTy));
-  Env->setInitializer(ConstantInt::getNullValue(IntPtrTy));
+  Env->setInitializer(ConstantInt::get(IntPtrTy, LibTcgEnvOffset));
 }
 
 std::optional<StoreInst *>
@@ -181,7 +180,7 @@ VariableManager::storeToCPUStateOffset(revng::IRBuilder &Builder,
                                        Value *ToStore) {
   GlobalVariable *Target = nullptr;
   unsigned Remaining;
-  std::tie(Target, Remaining) = getByCPUStateOffsetInternal(Offset);
+  std::tie(Target, Remaining) = getByCPUStateOffsetWithRemainder(Offset);
 
   if (Target == nullptr)
     return {};
@@ -213,7 +212,7 @@ VariableManager::storeToCPUStateOffset(revng::IRBuilder &Builder,
   if (StoreSize > FieldSize) {
     // If we're storing more than it fits and the following memory is not
     // padding the store is not valid.
-    if (getByCPUStateOffsetInternal(Offset + FieldSize).first != nullptr)
+    if (getByCPUStateOffsetWithRemainder(Offset + FieldSize).first != nullptr)
       return {};
   }
 
@@ -246,7 +245,7 @@ Value *VariableManager::loadFromCPUStateOffset(revng::IRBuilder &Builder,
                                                unsigned Offset) {
   GlobalVariable *Target = nullptr;
   unsigned Remaining;
-  std::tie(Target, Remaining) = getByCPUStateOffsetInternal(Offset);
+  std::tie(Target, Remaining) = getByCPUStateOffsetWithRemainder(Offset);
 
   if (Target == nullptr)
     return nullptr;
@@ -280,7 +279,7 @@ Value *VariableManager::loadFromCPUStateOffset(revng::IRBuilder &Builder,
     if (FieldSize < LoadSize) {
       // If after what we are loading there is something that is not padding we
       // cannot load safely
-      if (getByCPUStateOffsetInternal(Offset + FieldSize).first != nullptr)
+      if (getByCPUStateOffsetWithRemainder(Offset + FieldSize).first != nullptr)
         return nullptr;
       Result = Builder.CreateZExt(Result, LoadTy);
     }
@@ -290,19 +289,24 @@ Value *VariableManager::loadFromCPUStateOffset(revng::IRBuilder &Builder,
   return Builder.CreateTrunc(Result, LoadTy);
 }
 
-bool VariableManager::memcpyAtEnvOffset(revng::IRBuilder &Builder,
-                                        llvm::CallInst *CallMemcpy,
-                                        unsigned InitialEnvOffset,
-                                        bool EnvIsSrc) {
-  Function *Callee = getCallee(CallMemcpy);
+void VariableManager::memOpAtEnvOffset(revng::IRBuilder &Builder,
+                                       llvm::CallInst *Call,
+                                       unsigned InitialEnvOffset,
+                                       bool EnvIsSrc) {
+  Function *Callee = getCallee(Call);
   // We only support memcpys where the last parameter is constant
-  revng_assert(Callee != nullptr
-               and (Callee->getIntrinsicID() == Intrinsic::memcpy
-                    and isa<ConstantInt>(CallMemcpy->getArgOperand(2))));
+  revng_assert(Callee != nullptr);
+  bool IsMemset = Callee->getIntrinsicID() == Intrinsic::memset;
+  revng_assert(Callee->getIntrinsicID() == Intrinsic::memcpy
+               or Callee->getIntrinsicID() == Intrinsic::memmove or IsMemset);
+  revng_assert(isa<ConstantInt>(Call->getArgOperand(2)));
 
-  Value *OtherOp = CallMemcpy->getArgOperand(EnvIsSrc ? 0 : 1);
-  auto *MemcpySize = cast<Constant>(CallMemcpy->getArgOperand(2));
-  Value *OtherBasePtr = Builder.CreatePtrToInt(OtherOp, Builder.getInt64Ty());
+  Value *OtherOp = Call->getArgOperand(EnvIsSrc ? 0 : 1);
+  auto *MemcpySize = cast<Constant>(Call->getArgOperand(2));
+  Value *OtherBasePtr = nullptr;
+
+  if (not IsMemset)
+    OtherBasePtr = Builder.CreatePtrToInt(OtherOp, Builder.getInt64Ty());
 
   uint64_t TotalSize = getZExtValue(MemcpySize, *ModuleLayout);
   uint64_t Offset = 0;
@@ -313,32 +317,36 @@ bool VariableManager::memcpyAtEnvOffset(revng::IRBuilder &Builder,
 
     // Consider the case when there's simply nothing there (alignment space).
     if (EnvVar == nullptr) {
-      // TODO: remove "false and", but after adding type based stuff
-      if (false && EnvIsSrc) {
-        ConstantInt *ZeroByte = Builder.getInt8(0);
-        ConstantInt *OffsetInt = Builder.getInt64(Offset);
-        Value *NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);
-        Type *Int8PtrTy = Builder.getInt8Ty()->getPointerTo();
-        Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, Int8PtrTy);
-        Builder.CreateStore(ZeroByte, OtherPtr);
-        OnlyPointersAndPadding = false;
-      }
       Offset++;
       continue;
     }
     OnlyPointersAndPadding = false;
 
     ConstantInt *OffsetInt = Builder.getInt64(Offset);
-    Value *NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);
-    Value *OtherPtr = Builder.CreateIntToPtr(NewAddress, EnvVar->getType());
+    Value *NewAddress = nullptr;
+    Value *OtherPtr = nullptr;
+
+    if (not IsMemset) {
+      NewAddress = Builder.CreateAdd(OffsetInt, OtherBasePtr);
+      OtherPtr = Builder.CreateIntToPtr(NewAddress, EnvVar->getType());
+    }
 
     StoreInst *New = nullptr;
     if (EnvIsSrc) {
+      revng_assert(not IsMemset);
       New = Builder.CreateStore(createLoad(Builder, EnvVar), OtherPtr);
     } else {
-      New = Builder.CreateStore(Builder.CreateLoad(EnvVar->getValueType(),
-                                                   OtherPtr),
-                                EnvVar);
+      Type *CSVType = EnvVar->getValueType();
+      Value *ToStore = nullptr;
+      if (IsMemset) {
+        // TODO: handle non-zero memset
+        Value *SetValue = Call->getArgOperand(1);
+        revng_assert(cast<ConstantInt>(SetValue)->getValue().isZero());
+        ToStore = ConstantInt::get(CSVType, 0);
+      } else {
+        ToStore = Builder.CreateLoad(EnvVar->getValueType(), OtherPtr);
+      }
+      New = Builder.CreateStore(ToStore, EnvVar);
     }
 
     if (auto *GV = dyn_cast<GlobalVariable>(New->getPointerOperand())) {
@@ -352,18 +360,11 @@ bool VariableManager::memcpyAtEnvOffset(revng::IRBuilder &Builder,
   if (OnlyPointersAndPadding)
     eraseFromParent(cast<Instruction>(OtherBasePtr));
 
-  return Offset == TotalSize;
+  revng_assert(Offset == TotalSize);
 }
 
 void VariableManager::finalize() {
   LLVMContext &Context = getContext(&TheModule);
-
-  if (not External) {
-    for (auto &P : CPUStateGlobals)
-      P.second->setLinkage(GlobalValue::InternalLinkage);
-    for (auto &P : OtherGlobals)
-      P.second->setLinkage(GlobalValue::InternalLinkage);
-  }
 
   revng::NonDebugInfoCheckingIRBuilder Builder(Context);
 
@@ -423,14 +424,6 @@ void VariableManager::finalize() {
   Builder.CreateRetVoid();
 }
 
-// TODO: `newFunction` reflects the tcg terminology but in this context is
-//       highly misleading
-void VariableManager::newFunction(PTCInstructionList *Instructions) {
-  LocalTemporaries.clear();
-  this->Instructions = Instructions;
-  newBasicBlock();
-}
-
 bool VariableManager::isEnv(Value *TheValue) {
   auto *Load = dyn_cast<LoadInst>(TheValue);
   if (Load != nullptr)
@@ -455,136 +448,172 @@ static ConstantInt *fromBytes(IntegerType *Type, void *Data) {
 }
 
 // TODO: document that it can return nullptr
-GlobalVariable *VariableManager::getByCPUStateOffset(intptr_t Offset,
-                                                     std::string Name) {
+GlobalVariable *VariableManager::getByCPUStateOffset(intptr_t Offset) {
   GlobalVariable *Result = nullptr;
   unsigned Remaining;
-  std::tie(Result, Remaining) = getByCPUStateOffsetInternal(Offset, Name);
+  std::tie(Result, Remaining) = getByCPUStateOffsetWithRemainder(Offset);
   revng_assert(Remaining == 0);
   return Result;
 }
 
-std::pair<GlobalVariable *, unsigned>
-VariableManager::getByCPUStateOffsetInternal(intptr_t Offset,
-                                             std::string Name) {
-  GlobalsMap::iterator It = CPUStateGlobals.find(Offset);
-  static const char *UnknownCSVPref = "state_0x";
-  if (It == CPUStateGlobals.end()
-      || (Name.size() != 0
-          && It->second->getName().startswith(UnknownCSVPref))) {
-    Type *VariableType = nullptr;
-    unsigned Remaining;
-    std::tie(VariableType,
-             Remaining) = getTypeAtOffset(ModuleLayout, CPUStateType, Offset);
+std::optional<std::pair<GlobalVariable *, unsigned>>
+VariableManager::getGlobalByCPUStateOffset(intptr_t Offset) const {
+  auto It = CPUStateGlobals.upper_bound(Offset);
 
-    // Unsupported type, let the caller handle the situation
-    if (VariableType == nullptr)
-      return { nullptr, 0 };
+  // If we're earlier than the first one, bail out
+  if (It == CPUStateGlobals.begin())
+    return std::nullopt;
 
-    // Check we're not trying to go inside an existing variable
-    if (Remaining != 0) {
-      GlobalsMap::iterator It = CPUStateGlobals.find(Offset - Remaining);
-      if (It != CPUStateGlobals.end())
-        return { It->second, Remaining };
-    }
+  // Move back of one position
+  --It;
 
-    if (Name.size() == 0) {
-      std::stringstream NameStream;
-      NameStream << UnknownCSVPref << std::hex << Offset;
-      Name = NameStream.str();
-    }
+  // Compute GlobalVariable size
+  intptr_t Size = It->second->getValueType()->getIntegerBitWidth() / 8;
+  revng_assert(Size != 0);
 
-    // TODO: offset could be negative, we could segfault here
-    auto *InitialValue = fromBytes(cast<IntegerType>(VariableType),
-                                   ptc.initialized_env - EnvOffset + Offset);
-
-    auto *NewVariable = new GlobalVariable(TheModule,
-                                           VariableType,
-                                           false,
-                                           GlobalValue::ExternalLinkage,
-                                           InitialValue,
-                                           Name);
-    revng_assert(NewVariable != nullptr);
-    FunctionTags::CSV.addTo(NewVariable);
-
-    if (It != CPUStateGlobals.end()) {
-      It->second->replaceAllUsesWith(NewVariable);
-      eraseFromParent(It->second);
-    }
-
-    CPUStateGlobals[Offset] = NewVariable;
-
-    return { NewVariable, Remaining };
-  } else {
-    return { It->second, 0 };
+  // Check if we're within the variable
+  if (It->first <= Offset and Offset < (It->first + Size)) {
+    // Return the global + offset within it
+    return { { It->second, Offset - It->first } };
   }
+
+  return std::nullopt;
 }
 
-std::pair<bool, Value *> VariableManager::getOrCreate(unsigned TemporaryId,
-                                                      bool Reading) {
-  revng_assert(Instructions != nullptr);
+std::pair<GlobalVariable *, unsigned>
+VariableManager::getByCPUStateOffsetWithRemainder(intptr_t Offset) {
 
-  PTCTemp *Temporary = ptc_temp_get(Instructions, TemporaryId);
-  Type *VariableType = Temporary->type == PTC_TYPE_I32 ?
+  // Check if we already created a variable for this offset
+  if (auto MaybeResult = getGlobalByCPUStateOffset(Offset))
+    return MaybeResult.value();
+
+  revng_log(Log, "Considering offset " << Offset);
+  LoggerIndent<> Indent(Log);
+
+  // Get the type of the field at that offset (if any) and obtain the offset
+  // within the field
+  auto [VariableType,
+        Remaining] = getTypeAtOffset(ModuleLayout, ArchCPUStruct, Offset);
+
+  // Unsupported type, let the caller handle the situation
+  if (VariableType == nullptr) {
+    revng_log(Log, "Unsupported bailing out.");
+    return { nullptr, 0 };
+  }
+
+  // Compute the actual start offset (discarding the offset within the global)
+  auto GlobalOffset = Offset - Remaining;
+  revng_assert(not CPUStateGlobals.contains(GlobalOffset));
+
+  // Compute the name
+  auto NameIt = GlobalNames.find(GlobalOffset);
+  std::string Name;
+  if (NameIt != GlobalNames.end()) {
+    Name = "_" + NameIt->second.str();
+  } else {
+    static const char *UnknownCSVPrefix = "_state_0x";
+    Name = UnknownCSVPrefix + utohexstr(GlobalOffset, true);
+  }
+  revng_log(Log, "Name " << Name);
+
+  // TODO: if this is CSV, check it's of the correct size we expect
+
+  // Check if a previous VariableManager has already created this variable
+  if (auto *Result = TheModule.getGlobalVariable(Name, true)) {
+    revng_log(Log, "It already exists.");
+    // Check the variable looks like what we'd create
+    revng_assert(Result->getValueType() == VariableType);
+    revng_assert(FunctionTags::CSV.isTagOf(Result));
+    revng_assert(Result->hasInitializer());
+    revng_assert(not Result->isConstant());
+    revng_assert(Result->getLinkage() == GlobalValue::ExternalLinkage);
+
+    // Record and return it
+    CPUStateGlobals[GlobalOffset] = Result;
+    return { Result, Remaining };
+  }
+
+  revng_log(Log, "Creating.");
+
+  auto InitializerPointer = LibTcgEnvPtr - LibTcgEnvOffset + GlobalOffset;
+  revng_assert(InitializerPointer >= LibTcgEnvPtr - LibTcgEnvOffset);
+  auto *InitialValue = fromBytes(cast<IntegerType>(VariableType),
+                                 InitializerPointer);
+
+  // Create the global
+  auto *NewVariable = new GlobalVariable(TheModule,
+                                         VariableType,
+                                         false,
+                                         GlobalValue::ExternalLinkage,
+                                         InitialValue,
+                                         Name);
+  FunctionTags::CSV.addTo(NewVariable);
+
+  // Register the variable
+  CPUStateGlobals[GlobalOffset] = NewVariable;
+
+  return { NewVariable, Remaining };
+}
+
+std::pair<bool, Value *> VariableManager::getOrCreate(LibTcgArgument *Argument,
+                                                      bool Reading) {
+  Type *VariableType = Argument->temp->type == LIBTCG_TYPE_I32 ?
                          AllocaBuilder.getInt32Ty() :
                          AllocaBuilder.getInt64Ty();
 
-  if (ptc_temp_is_global(Instructions, TemporaryId)) {
-    // Basically we use fixed_reg to detect "env"
-    if (Temporary->fixed_reg == 0) {
-      Value *Result = getByCPUStateOffset(EnvOffset + Temporary->mem_offset,
-                                          Temporary->name);
-      revng_assert(Result != nullptr);
-      return { false, Result };
-    } else {
-      GlobalsMap::iterator It = OtherGlobals.find(TemporaryId);
-      if (It != OtherGlobals.end()) {
+  switch (Argument->kind) {
+  case LIBTCG_ARG_TEMP:
+    switch (Argument->temp->kind) {
+    case LIBTCG_TEMP_EBB: {
+      // Temporary is dead at the end of the Extended Basic Block (EBB), the
+      // single entry, multiple exit region that falls through basic blocks.
+      auto It = EBBTemporaries.find(Argument->temp);
+      if (It != EBBTemporaries.end()) {
         return { false, It->second };
       } else {
-        // TODO: what do we have here, apart from env?
-        auto InitialValue = ConstantInt::get(VariableType, 0);
-        StringRef Name(Temporary->name);
-        GlobalVariable *Result = nullptr;
+        // Can't read a temporary if it has never been written, we're probably
+        // translating rubbish
+        if (Reading)
+          return { false, nullptr };
 
-        if (Name == "env") {
-          revng_assert(Env != nullptr);
-          Result = Env;
-        } else {
-          Result = new GlobalVariable(TheModule,
-                                      VariableType,
-                                      false,
-                                      GlobalValue::CommonLinkage,
-                                      InitialValue,
-                                      Name);
-        }
-
-        OtherGlobals[TemporaryId] = Result;
-        return { false, Result };
+        AllocaInst *NewTemporary = AllocaBuilder.CreateAlloca(VariableType);
+        EBBTemporaries[Argument->temp] = NewTemporary;
+        return { true, NewTemporary };
       }
     }
-  } else if (Temporary->temp_local) {
-    auto It = LocalTemporaries.find(TemporaryId);
-    if (It != LocalTemporaries.end()) {
-      return { false, It->second };
-    } else {
-      AllocaInst *NewTemporary = AllocaBuilder.CreateAlloca(VariableType);
-      LocalTemporaries[TemporaryId] = NewTemporary;
-      return { true, NewTemporary };
+    case LIBTCG_TEMP_TB: {
+      // Temporary is dead at the end of the Translation Block (TB)
+      auto It = TBTemporaries.find(Argument->temp);
+      if (It != TBTemporaries.end()) {
+        return { false, It->second };
+      } else {
+        AllocaInst *NewTemporary = AllocaBuilder.CreateAlloca(VariableType);
+        TBTemporaries[Argument->temp] = NewTemporary;
+        return { true, NewTemporary };
+      }
     }
-  } else {
-    auto It = Temporaries.find(TemporaryId);
-    if (It != Temporaries.end()) {
-      return { false, It->second };
-    } else {
-      // Can't read a temporary if it has never been written, we're probably
-      // translating rubbish
-      if (Reading)
-        return { false, nullptr };
-
-      AllocaInst *NewTemporary = AllocaBuilder.CreateAlloca(VariableType);
-      Temporaries[TemporaryId] = NewTemporary;
-      return { true, NewTemporary };
+    case LIBTCG_TEMP_GLOBAL: {
+      // Temporary is alive at the end of a Translation Block (TB), and
+      // in between TBs
+      Value *Result = getByCPUStateOffset(LibTcgEnvOffset
+                                          + Argument->temp->mem_offset);
+      revng_assert(Result != nullptr);
+      return { false, Result };
     }
+    case LIBTCG_TEMP_FIXED: {
+      revng_assert(std::string(Argument->temp->name) == "env");
+      revng_assert(Env != nullptr);
+      return { false, Env };
+    }
+    case LIBTCG_TEMP_CONST: {
+      return { true, ConstantInt::get(VariableType, Argument->temp->val) };
+    }
+    default:
+      revng_unreachable("unhandled libtcg temp kind");
+    }
+    break;
+  default:
+    revng_unreachable("unhandled libtcg arg kind");
   }
 }
 
@@ -612,6 +641,7 @@ Value *VariableManager::cpuStateToEnv(Value *CPUState,
   auto *OpaquePointer = PointerType::get(TheModule.getContext(), 0);
   auto *IntPtrTy = Builder.getIntPtrTy(TheModule.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
-  Value *EnvIntPtr = Builder.CreateAdd(CPUIntPtr, CI::get(IntPtrTy, EnvOffset));
+  Value *EnvIntPtr = Builder.CreateAdd(CPUIntPtr,
+                                       CI::get(IntPtrTy, LibTcgEnvOffset));
   return Builder.CreateIntToPtr(EnvIntPtr, OpaquePointer);
 }

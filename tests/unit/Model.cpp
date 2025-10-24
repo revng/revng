@@ -23,6 +23,8 @@ bool init_unit_test();
 
 using namespace model;
 
+static_assert(revng::__any_imp::_IsSmallObject<MetaAddress>::value);
+
 auto ARM1000 = MetaAddress::fromString("0x1000:Code_arm");
 auto ARM2000 = MetaAddress::fromString("0x2000:Code_arm");
 auto ARM3000 = MetaAddress::fromString("0x3000:Code_arm");
@@ -346,7 +348,7 @@ BOOST_AUTO_TEST_CASE(TrackingPushAndPopperShouldCompile) {
 
 BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldBeEmptyAtFirst) {
   model::Binary Model;
-  auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64, 0);
+  auto MetaAddress = MetaAddress::fromPC(model::Architecture::x86_64, 0);
   Model.Segments().insert(Segment(MetaAddress, 1000));
   revng::Tracking::clearAndResume(Model);
 
@@ -362,10 +364,11 @@ toTupleTreePaths(const std::vector<std::string> &Strings) {
   return Result;
 }
 
+using TupleTreePathSet = decltype(ReadFields::Read);
+
 BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectSegments) {
   model::Binary Model;
-  const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
-                                               0);
+  const auto MetaAddress = MetaAddress::fromPC(model::Architecture::x86_64, 0);
   Model.Segments().insert(Segment(MetaAddress, 1000));
   revng::Tracking::clearAndResume(Model);
   const auto &ConstModel = Model;
@@ -381,8 +384,7 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectSegments) {
 
 BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectNotFoundSegments) {
   model::Binary Model;
-  const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
-                                               0);
+  const auto MetaAddress = MetaAddress::fromPC(model::Architecture::x86_64, 0);
   revng::Tracking::clearAndResume(Model);
   const auto &ConstModel = Model;
   ConstModel.Segments().tryGet(Segment::Key(MetaAddress, 1000));
@@ -396,8 +398,7 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectNotFoundSegments) {
 
 BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectAllSegments) {
   model::Binary Model;
-  const auto MetaAddress = MetaAddress::fromPC(llvm::Triple::ArchType::x86_64,
-                                               0);
+  const auto MetaAddress = MetaAddress::fromPC(model::Architecture::x86_64, 0);
   Model.Segments().insert(Segment(MetaAddress, 1000));
   revng::Tracking::clearAndResume(Model);
   const auto &ConstModel = Model;

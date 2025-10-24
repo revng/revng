@@ -39,6 +39,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/Generator.h"
+#include "revng/Support/MetaAddress.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
 // This name is not present after `lift`.
@@ -397,10 +398,9 @@ CFGAnalyzer::State CFGAnalyzer::loadState(revng::IRBuilder &Builder) const {
   }
 
   // Load the PC
-  auto LLVMArchitecture = toLLVMArchitecture(Binary->Architecture());
   auto DissectedPC = PCH->dissectJumpablePC(Builder,
                                             ReturnAddress,
-                                            LLVMArchitecture);
+                                            Binary->Architecture());
   Value *IntegerPC = MetaAddress::composeIntegerPC(Builder,
                                                    DissectedPC[0],
                                                    DissectedPC[1],
