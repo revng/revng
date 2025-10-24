@@ -112,7 +112,7 @@ bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
         LinkRegister(nullptr),
         ReturnPC(ReturnPC),
         LastPC(ReturnPC),
-        NewPCLeft(1),
+        NewPCLeft(1 + GCBI.hasDelaySlot()),
         PCPtrTy(PCPtrTy) {}
 
     public:
