@@ -363,9 +363,9 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
           // successor of the current basic block.
           revng_log(Log,
                     "No other successors other than UnexpectedPC, emitting "
-                    "LongJmp");
+                    "Unexpected");
           auto Edge = makeEdge(BasicBlockID::invalid(),
-                               efa::FunctionEdgeType::LongJmp);
+                               efa::FunctionEdgeType::Unexpected);
           Block.Successors().insert(Edge);
         }
       }

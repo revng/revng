@@ -695,6 +695,9 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
         AtLeastAMatch = true;
 
         switch (Edge->Type()) {
+        case efa::FunctionEdgeType::Unexpected:
+          // Ignore
+          continue;
         case efa::FunctionEdgeType::Return:
           Builder.CreateRetVoid();
           break;

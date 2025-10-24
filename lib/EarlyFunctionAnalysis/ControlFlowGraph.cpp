@@ -350,6 +350,7 @@ bool FunctionEdgeBase::verify(model::VerifyHelper &VH) const {
   case BrokenReturn:
   case LongJmp:
   case Killer:
+  case Unexpected:
   case Unreachable:
     if (Destination().isValid())
       return VH.fail("Unexpected destination, please use `:Invalid`.");
