@@ -17,13 +17,36 @@ static bool isLastBeforeTerminator(Instruction *I) {
   return It != End && ++It == End;
 }
 
+/// This pass hoists calls turns phis of calls returning a `StructType` into
+/// a single call (in place of the original phi) whose arguments are phis of the
+/// arguments of the original call.
+/// This is currently necessary since the backend does not handle well
+// `StructType`.
+///
+/// It turns:
+///
+/// a:
+///   %x1 = call x(1, 2)
+///   br c
+/// b:
+///   %x2 = call x(3, 4)
+///   br c
+/// c:
+///   %x3 = phi [(a, %x1), (b, %x2)]
+///
+/// Into:
+/// c:
+///   %arg1 = phi [(a, 1), (b, 3)]
+///   %arg2 = phi [(a, 2), (b, 4)]
+///   %x3 = call x(%arg1, %arg2)
+///
+/// \note This can be done only when x does not have side-effects.
 class HoistStructPhis : public llvm::FunctionPass {
 public:
   static char ID;
   HoistStructPhis() : llvm::FunctionPass(ID) {}
 
   bool runOnFunction(llvm::Function &F) override {
-
     llvm::SmallVector<PHINode *, 16> ToFix;
 
     // Collect phis that need fixing
@@ -45,6 +68,11 @@ public:
   void handlePhi(PHINode *Phi) {
     auto PhiSize = Phi->getNumIncomingValues();
 
+    if (PhiSize == 1) {
+      Phi->replaceAllUsesWith(Phi->getIncomingValue(0));
+      return;
+    }
+
     // Create all the phis
     CallInst *FirstCall = nullptr;
     Value *CalledValue = nullptr;
@@ -59,14 +87,13 @@ public:
           FirstCall = Call;
 
           Function *Callee = getCalledFunction(Call);
-          revng_assert(Callee != nullptr);
+
+          // Ignore isolated functions, they are not side-effect free
+          if (Callee == nullptr or FunctionTags::Isolated.isTagOf(Callee))
+            return;
 
           revng_assert(isLastBeforeTerminator(Call)
                        or Callee->onlyReadsMemory());
-
-          // Ignore isolated functions
-          if (FunctionTags::Isolated.isTagOf(Callee))
-            return;
 
           // First iteration, create phis
           for (Type *ArgumentType : Call->getFunctionType()->params()) {
@@ -120,7 +147,7 @@ public:
     Phi->eraseFromParent();
 
     for (CallInst *Call : Calls)
-      Call->eraseFromParent();
+      eraseFromParent(Call);
   }
 };
 
