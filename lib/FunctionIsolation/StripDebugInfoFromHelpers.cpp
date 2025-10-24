@@ -5,8 +5,8 @@
 #include "llvm/IR/DebugInfo.h"
 #include "llvm/Pass.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
-#include "revng/Support/FunctionTags.h"
 
 using namespace llvm;
 

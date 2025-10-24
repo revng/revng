@@ -15,12 +15,12 @@
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/RestructureCFG/ASTNode.h"
 #include "revng/RestructureCFG/ASTNodeUtils.h"
 #include "revng/RestructureCFG/ASTTree.h"
 #include "revng/RestructureCFG/ExprNode.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
 
 #include "FallThroughScopeAnalysis.h"
 #include "InlineDispatcherSwitch.h"

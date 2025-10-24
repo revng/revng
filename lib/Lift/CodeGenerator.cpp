@@ -40,21 +40,20 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
+#include "revng/Lift/VariableManager.h"
 #include "revng/Model/Architecture.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
-#include "revng/Support/ProgramCounterHandler.h"
 
 #include "CodeGenerator.h"
 #include "ExternalJumpsHandler.h"
 #include "InstructionTranslator.h"
 #include "JumpTargetManager.h"
 #include "PTCInterface.h"
-#include "VariableManager.h"
 
 // This name corresponds to a function in `libtinycode`.
 RegisterIRHelper CPULoopHelper("cpu_loop");

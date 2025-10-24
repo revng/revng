@@ -14,12 +14,12 @@
 #include "revng/Clifter/Clifter.h"
 #include "revng/LocalVariables/LocalVariableHelpers.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/Identifier.h"
 
 namespace clift = mlir::clift;
@@ -1043,6 +1043,17 @@ private:
           revng_abort("Unsupported LLVM comparison predicate.");
         }
       };
+
+      // Pointer comparisons are handled separately. Non-signed comparisons are
+      // emitted directly as pointer comparisons. For signed comparisons, the
+      // pointer operands are converted to integers before the comparison.
+      if (llvm::isa<llvm::PointerType>(I->getOperand(0)->getType())) {
+        if (not I->isSigned())
+          rc_return EmitOp(Lhs, Rhs);
+
+        Lhs = emitCast(Loc, Lhs, getIntptrType());
+        Rhs = emitCast(Loc, Rhs, getIntptrType());
+      }
 
       rc_return emitIntegerOp(Loc, Kind, EmitOp, Lhs, Rhs);
     }

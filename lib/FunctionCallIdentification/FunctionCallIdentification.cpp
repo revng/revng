@@ -7,8 +7,8 @@
 //
 
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 
 // This name is not present after `isolate`.
 RegisterIRHelper IBIMarker("function_call");

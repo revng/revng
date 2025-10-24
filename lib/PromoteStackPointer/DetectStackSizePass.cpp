@@ -7,6 +7,7 @@
 #include "llvm/IR/Constants.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/NameBuilder.h"
@@ -19,7 +20,6 @@
 #include "revng/PromoteStackPointer/DetectStackSizePass.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 
 #include "Helpers.h"
 

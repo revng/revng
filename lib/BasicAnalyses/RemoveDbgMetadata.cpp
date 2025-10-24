@@ -10,7 +10,7 @@
 #include "llvm/IR/Metadata.h"
 
 #include "revng/BasicAnalyses/RemoveDbgMetadata.h"
-#include "revng/Support/FunctionTags.h"
+#include "revng/Model/FunctionTags.h"
 
 using namespace llvm;
 

@@ -7,10 +7,12 @@ revng_add_analyses_library_internal(
   revngModel
   Binary.cpp
   CommonTypeMethods.cpp
+  FunctionTags.cpp
   LoadModelPass.cpp
   NameBuilder.cpp
   TypeSystemPrinter.cpp
   Processing.cpp
+  ProgramCounterHandler.cpp
   Type.cpp
   TypeDefinition.cpp
   Verification.cpp

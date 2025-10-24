@@ -22,13 +22,13 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
+#include "revng/Lift/PTCDump.h"
+#include "revng/Lift/VariableManager.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
-#include "PTCDump.h"
 #include "PTCInterface.h"
-#include "VariableManager.h"
 
 // This name corresponds to a function in `early-linked`.
 RegisterIRHelper SetRegisterMarker("set_register");

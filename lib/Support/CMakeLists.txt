@@ -14,19 +14,14 @@ revng_add_library_internal(
   CustomizedLLVMPasses.cpp
   Debug.cpp
   ExplicitSpecializations.cpp
-  IRAnnotators.cpp
-  FunctionTags.cpp
   IRHelpers.cpp
   LDDTree.cpp
   MetaAddress.cpp
   ModuleStatistics.cpp
   OnQuit.cpp
-  OriginalAssemblyAnnotationWriter.cpp
   PathList.cpp
   Progress.cpp
-  ProgramCounterHandler.cpp
   ResourceFinder.cpp
-  SelfReferencingDbgAnnotationWriter.cpp
   Statistics.cpp
   Tag.cpp
   GzipTarFile.cpp

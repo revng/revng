@@ -5,10 +5,9 @@
 #include "llvm/IR/Verifier.h"
 
 #include "revng/ADT/Queue.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 

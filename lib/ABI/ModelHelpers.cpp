@@ -20,11 +20,11 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/PrimitiveKind.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Support/Assert.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using llvm::dyn_cast;

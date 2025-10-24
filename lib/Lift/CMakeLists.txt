@@ -10,6 +10,7 @@ revng_add_library_internal(
   CSVOffsets.cpp
   ExternalJumpsHandler.cpp
   InstructionTranslator.cpp
+  IRAnnotators.cpp
   Lift.cpp
   LiftPipe.cpp
   LinkSupportPipe.cpp
@@ -17,6 +18,7 @@ revng_add_library_internal(
   JumpTargetManager.cpp
   PTCDump.cpp
   RootAnalyzer.cpp
+  SelfReferencingDbgAnnotationWriter.cpp
   ValueMaterializerPass.cpp
   VariableManager.cpp)
 

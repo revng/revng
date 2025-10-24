@@ -10,9 +10,8 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Lift/CSVOffsets.h"
 #include "revng/Support/Assert.h"
-
-#include "CSVOffsets.h"
 
 namespace llvm {
 class Instruction;

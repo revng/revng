@@ -8,8 +8,7 @@
 #include "llvm/IR/Value.h"
 #include "llvm/Pass.h"
 
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
+#include "revng/Model/FunctionTags.h"
 
 struct RemovePointerCasts : public llvm::FunctionPass {
 public:

@@ -9,6 +9,7 @@
 #include "llvm/Support/Error.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/Binary/Options.h"
@@ -16,7 +17,6 @@
 #include "revng/Model/Pass/FlattenPrimitiveTypedefs.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 #include "ELFImporter.h"

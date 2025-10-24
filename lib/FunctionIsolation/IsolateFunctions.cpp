@@ -41,6 +41,7 @@
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
@@ -51,8 +52,6 @@
 #include "revng/Pipes/StringMap.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 

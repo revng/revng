@@ -10,9 +10,9 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/MathExtras.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/PromoteStackPointer/RemoveStackAlignmentPass.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

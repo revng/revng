@@ -19,9 +19,8 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/IRBuilder.h"
-#include "revng/Support/ProgramCounterHandler.h"
 
 #include "ExternalJumpsHandler.h"
 

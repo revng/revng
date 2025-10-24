@@ -8,11 +8,11 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Module.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/Support/FunctionTags.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

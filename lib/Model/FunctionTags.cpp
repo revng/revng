@@ -2,15 +2,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Support/FunctionTags.h"
-#include "revng/Support/ProgramCounterHandler.h"
+#include "revng/Model/FunctionTags.h"
+#include "revng/Model/ProgramCounterHandler.h"
 
 namespace FunctionTags {
 
 Tag QEMU("qemu");
 Tag Helper("helper");
 
-Tag Isolated("isolated");
 Tag ABIEnforced("abi-enforced", Isolated);
 Tag CSVsPromoted("csvs-promoted", ABIEnforced);
 
@@ -29,10 +28,6 @@ Tag ReaderFunction("reader-function");
 Tag OpaqueReturnAddressFunction("opaque-return-address");
 
 Tag CSV("csv");
-
-Tag UniquedByPrototype("uniqued-by-prototype");
-
-Tag UniquedByMetadata("uniqued-by-metadata");
 
 Tag AllocatesLocalVariable("allocates-local-variable");
 Tag ReturnsPolymorphic("returns-polymorphic");
@@ -717,4 +712,36 @@ llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
   // pipeline, so it's temporary.
   SmallVector<llvm::Type *, 1> FixedArgs = { VariableReferenceType };
   return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
+}
+
+const llvm::CallInst *getCallToIsolatedFunction(const llvm::Value *V) {
+  if (const llvm::CallInst *Call = getCallToTagged(V, FunctionTags::Isolated)) {
+    // The callee is an isolated function
+    return Call;
+  } else if (const llvm::CallInst
+               *Call = getCallToTagged(V, FunctionTags::DynamicFunction)) {
+    // The callee is a dynamic function
+    return Call;
+  } else if (auto *Call = dyn_cast<llvm::CallInst>(V)) {
+    // It's a call to an isolated function if it's indirect
+    return getCalledFunction(Call) == nullptr ? Call : nullptr;
+  } else {
+    return nullptr;
+  }
+}
+
+llvm::CallInst *getCallToIsolatedFunction(llvm::Value *V) {
+  if (llvm::CallInst *Call = getCallToTagged(V, FunctionTags::Isolated)) {
+    // The callee is an isolated function
+    return Call;
+  } else if (llvm::CallInst
+               *Call = getCallToTagged(V, FunctionTags::DynamicFunction)) {
+    // The callee is a dynamic function
+    return Call;
+  } else if (auto *Call = dyn_cast<llvm::CallInst>(V)) {
+    // It's a call to an isolated function if it's indirect
+    return getCalledFunction(Call) == nullptr ? Call : nullptr;
+  } else {
+    return nullptr;
+  }
 }
