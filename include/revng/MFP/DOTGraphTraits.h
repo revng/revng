@@ -15,9 +15,6 @@ class Instruction;
 
 template<MFP::MonotoneFrameworkInstance MFI>
 struct llvm::DOTGraphTraits<const MFP::Graph<MFI> *> {
-
-  static_assert(MFP::SerializableLatticeElement<typename MFI::LatticeElement>);
-
   using GraphType = const MFP::Graph<MFI> *;
   using UnderlyingGraphType = MFI::GraphType;
   using UnderlyingDOTGraphTraits = llvm::DOTGraphTraits<UnderlyingGraphType>;
