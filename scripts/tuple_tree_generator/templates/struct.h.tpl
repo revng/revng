@@ -227,6 +227,7 @@ public:
     /**- endfor -**/
   >;
   struct Key : public KeyTuple {
+    static constexpr bool LastFieldIsKind = true;
     using KeyTuple::KeyTuple;
   };
   /** endif **/

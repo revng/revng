@@ -9,159 +9,125 @@
 #include "llvm/ADT/Twine.h"
 
 #include "revng/ADT/STLExtras.h"
+#include "revng/ADT/TraitfulAny.h"
 #include "revng/Support/Debug.h"
 
 template<typename T>
-char *typeID() {
-  static char ID;
-  return &ID;
+concept CheckLastFieldIsKind = requires {
+  { T::LastFieldIsKind };
+  requires T::LastFieldIsKind == true;
 };
 
-class TupleTreeKeyWrapper {
-protected:
-  void *Pointer;
-
-protected:
-  TupleTreeKeyWrapper(void *Pointer) : Pointer(Pointer) {}
-
-public:
-  TupleTreeKeyWrapper() : Pointer(nullptr) {}
-
-  TupleTreeKeyWrapper &operator=(const TupleTreeKeyWrapper &Other) {
-    if (&Other != this) {
-      Other.clone(this);
-    }
-    return *this;
-  }
-
-  TupleTreeKeyWrapper(const TupleTreeKeyWrapper &Other) { *this = Other; }
-
-  TupleTreeKeyWrapper &operator=(TupleTreeKeyWrapper &&Other) {
-    if (&Other != this) {
-      Other.clone(this);
-    }
-    return *this;
-  }
-
-  TupleTreeKeyWrapper(TupleTreeKeyWrapper &&Other) { *this = Other; }
-
-  virtual ~TupleTreeKeyWrapper(){};
-  virtual bool operator==(const TupleTreeKeyWrapper &) const {
-    revng_assert(Pointer == nullptr);
-    return true;
-  }
-
-  virtual std::strong_ordering operator<=>(const TupleTreeKeyWrapper &) const {
-    revng_assert(Pointer == nullptr);
-    return std::strong_ordering::greater;
-  }
-
-  virtual bool matches(const TupleTreeKeyWrapper &) const {
-    revng_assert(Pointer == nullptr);
-    return true;
-  }
-
-  virtual char *id() const {
-    revng_assert(Pointer == nullptr);
-    return nullptr;
-  }
-
-  virtual void clone(TupleTreeKeyWrapper *Target) const {
-    revng_assert(Pointer == nullptr);
-  }
+struct TupleTreeKeyAnyTrait {
+  enum class TraitAction {
+    Compare,
+    Matches
+  };
 
   template<typename T>
-  bool isa() const {
-    return id() == typeID<T>();
-  }
-
-  template<typename T>
-  T *tryGet() const {
-    if (isa<T>())
-      return reinterpret_cast<T *>(Pointer);
-    else
-      return nullptr;
-  }
-
-  template<typename T>
-  T &get() const {
-    if (T *Result = tryGet<T>())
-      return *Result;
-    else
-      revng_abort();
-  }
-};
-
-// TODO: optimize integral types
-template<typename T, bool LastFieldIsKind = false>
-class ConcreteTupleTreeKeyWrapper : public TupleTreeKeyWrapper {
-private:
-  static char ID;
-
-public:
-  T *get() const { return reinterpret_cast<T *>(Pointer); }
-
-public:
-  template<typename... Args>
-  ConcreteTupleTreeKeyWrapper(Args... A) : TupleTreeKeyWrapper(new T(A...)) {}
-
-  ~ConcreteTupleTreeKeyWrapper() override {
-    delete reinterpret_cast<T *>(Pointer);
-  }
-
-  bool operator==(const TupleTreeKeyWrapper &Other) const override {
-    if (id() == Other.id()) {
-      using ThisType = const ConcreteTupleTreeKeyWrapper &;
-      auto *OtherPointer = static_cast<ThisType>(Other).get();
-      return *get() == *OtherPointer;
-    } else {
-      return false;
+  static intptr_t handle(TraitAction Action,
+                         revng::TraitfulAny<TupleTreeKeyAnyTrait> *First,
+                         revng::TraitfulAny<TupleTreeKeyAnyTrait> *Second) {
+    switch (Action) {
+    case TraitAction::Compare: {
+      intptr_t Result = 0;
+      if (First->type_id() == Second->type_id()) {
+        const auto &LHS = *revng::any_cast<T>(First);
+        const auto &RHS = *revng::any_cast<T>(Second);
+        auto ComparisonResult = LHS <=> RHS;
+        *reinterpret_cast<std::strong_ordering *>(&Result) = ComparisonResult;
+      } else {
+        auto ComparisonResult = First->type_id() <=> Second->type_id();
+        *reinterpret_cast<std::strong_ordering *>(&Result) = ComparisonResult;
+      }
+      return Result;
     }
-  }
 
-  std::strong_ordering
-  operator<=>(const TupleTreeKeyWrapper &Other) const override {
-    if (id() == Other.id()) {
-      using ThisType = const ConcreteTupleTreeKeyWrapper &;
-      const auto &OtherKey = *static_cast<ThisType>(Other).get();
-      const auto &ThisKey = *get();
-      if (ThisKey < OtherKey)
-        return std::strong_ordering::less;
-      if (OtherKey < ThisKey)
-        return std::strong_ordering::greater;
-      return std::strong_ordering::equal;
-    } else {
-      return id() <=> Other.id();
-    }
-  }
+    case TraitAction::Matches: {
+      if (First->type_id() != Second->type_id())
+        return false;
 
-  bool matches(const TupleTreeKeyWrapper &Other) const override {
-    if (id() != Other.id())
-      return false;
+      if constexpr (CheckLastFieldIsKind<T>) {
+        constexpr auto Index = std::tuple_size_v<T> - 1;
+        const auto &LHS = *revng::any_cast<T>(First);
+        const auto &RHS = *revng::any_cast<T>(Second);
+        return std::get<Index>(LHS) == std::get<Index>(RHS);
+      }
 
-    if constexpr (LastFieldIsKind) {
-      // Compare kinds
-      using ThisType = const ConcreteTupleTreeKeyWrapper &;
-      const auto *OtherPointer = static_cast<ThisType>(Other).get();
-      constexpr auto Index = std::tuple_size_v<T> - 1;
-      return std::get<Index>(*get()) == std::get<Index>(*OtherPointer);
-    } else {
-      revng_assert(*get() == T());
+      revng_assert(*revng::any_cast<T>(First) == T());
       return true;
     }
+
+    default:
+      revng_abort();
+    }
+  }
+};
+
+static_assert(sizeof(std::strong_ordering) <= sizeof(intptr_t));
+
+class TupleTreeKeyWrapper : public revng::TraitfulAny<TupleTreeKeyAnyTrait> {
+public:
+  std::strong_ordering operator<=>(const TupleTreeKeyWrapper &Other) const {
+    void *Result = const_cast<TupleTreeKeyWrapper *>(this)
+                     ->call(TupleTreeKeyAnyTrait::TraitAction::Compare,
+                            const_cast<TupleTreeKeyWrapper *>(&Other));
+    return *reinterpret_cast<std::strong_ordering *>(&Result);
   }
 
-  char *id() const override { return typeID<T>(); }
+  bool matches(const TupleTreeKeyWrapper &Other) const {
+    if (not this->has_value())
+      return true;
+    void *Result = const_cast<TupleTreeKeyWrapper *>(this)
+                     ->call(TupleTreeKeyAnyTrait::TraitAction::Matches,
+                            const_cast<TupleTreeKeyWrapper *>(&Other));
+    return *reinterpret_cast<bool *>(&Result);
+  }
 
-  void clone(TupleTreeKeyWrapper *Target) const override {
-    Target->~TupleTreeKeyWrapper();
-    new (Target) ConcreteTupleTreeKeyWrapper(*get());
+  template<typename T>
+  const T &get() const {
+    return *revng::any_cast<const T>(this);
+  }
+
+  template<typename T>
+  T &get() {
+    return *revng::any_cast<T>(this);
+  }
+
+  template<typename T>
+  const T *tryGet() const {
+    return revng::any_cast<const T>(this);
+  }
+
+  template<typename T>
+  T *tryGet() {
+    return revng::any_cast<T>(this);
+  }
+
+  bool operator==(const TupleTreeKeyWrapper &Other) const {
+    return (*this <=> Other) == std::strong_ordering::equal;
   }
 };
 
 class TupleTreePath {
 private:
-  std::vector<TupleTreeKeyWrapper> Storage;
+  // Some performance results:
+  //   SmallVector<..., 0>
+  //     elapsed_time_total_seconds 332.34s
+  //     maximum_resident_set_size: 1466.68M
+  //
+  //   SmallVector<..., 1>
+  //     elapsed_time_total_seconds 322.78s
+  //     maximum_resident_set_size: 1471.01M
+  //
+  //   SmallVector<..., 2>
+  //     elapsed_time_total_seconds 323.03s
+  //     maximum_resident_set_size: 1476.1M
+  //
+  //   SmallVector<..., 4>
+  //     elapsed_time_total_seconds 320.26s
+  //     maximum_resident_set_size: 1483.88M
+  llvm::SmallVector<TupleTreeKeyWrapper, 1> Storage;
 
 public:
   TupleTreePath() = default;
@@ -175,7 +141,7 @@ public:
       for (auto &&[ThisElement, OtherElement] :
            llvm::zip(Storage, Other.Storage)) {
         static_assert(std::is_reference_v<decltype(ThisElement)>);
-        OtherElement.clone(&ThisElement);
+        ThisElement = OtherElement;
       }
     }
 
@@ -185,12 +151,9 @@ public:
   TupleTreePath(const TupleTreePath &Other) { *this = Other; }
 
 public:
-  template<typename T, bool FirstIsKind = false, typename... Args>
+  template<typename T, typename... Args>
   void emplace_back(Args... A) {
-    using ConcreteWrapper = ConcreteTupleTreeKeyWrapper<T, FirstIsKind>;
-    static_assert(sizeof(ConcreteWrapper) == sizeof(TupleTreeKeyWrapper));
-    Storage.resize(Storage.size() + 1);
-    new (&Storage.back()) ConcreteWrapper(A...);
+    Storage.emplace_back(std::forward<Args>(A)...);
   }
 
   template<typename T>

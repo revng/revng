@@ -105,7 +105,7 @@ bool polymorphicTupleImpl(Visitor &V,
                           llvm::ArrayRef<TupleTreeKeyWrapper> Path,
                           KindT Kind) {
   if constexpr (I < std::tuple_size_v<RootT>) {
-    if (Path[0].get<size_t>() == I) {
+    if (Path[0].get<unsigned long>() == I) {
       if constexpr (std::is_same_v<KindT, size_t>)
         V.template visitTupleElement<RootT, I>();
       else
@@ -502,7 +502,7 @@ private:
   template<size_t I, typename T>
   void depositKey(TupleTreePath &Result, T Arg) const {
     auto Index = Free.at(I);
-    Result[Index] = ConcreteTupleTreeKeyWrapper<T>(Arg);
+    Result[Index] = TupleTreeKeyWrapper(T(Arg));
   }
 
   template<size_t I, typename T>
@@ -633,7 +633,8 @@ bool PathMatcher::visitTupleTreeNode(llvm::StringRef String,
       using KindType = decltype(TheKind);
       static_assert(std::is_enum_v<std::decay_t<KindType>>);
       TheKind = MatcherKind;
-      Result.Path.emplace_back<Key, true>(Component);
+      static_assert(Key::LastFieldIsKind);
+      Result.Path.emplace_back<Key>(Component);
     } else {
       Result.Path.push_back(getValueFromYAMLScalar<Key>(Before));
     }
