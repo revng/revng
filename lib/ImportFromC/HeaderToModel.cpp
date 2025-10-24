@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "clang/AST/Decl.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/TextDiagnostic.h"
@@ -606,8 +607,8 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         return false;
       }
 
-      auto Location = model::Register::fromCSVName(*Register,
-                                                   Model->Architecture());
+      auto Location = model::Register::fromRegisterName(*Register,
+                                                        Model->Architecture());
       if (Location == model::Register::Invalid) {
         Errors.emplace_back("import-from-c: While parsing the return value:\n");
         Errors.emplace_back("import-from-c failed: Unknown register: `"
@@ -682,9 +683,10 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
           return false;
         }
 
-        auto Location = model::Register::fromCSVName(*Register,
-                                                     Model->Architecture());
-        if (Location == model::Register::Invalid) {
+        using namespace model;
+        auto Location = Register::fromRegisterName(*Register,
+                                                   Model->Architecture());
+        if (Location == Register::Invalid) {
           Errors.emplace_back("import-from-c: While parsing argument #"
                               + std::to_string(I) + ":\n");
           Errors.emplace_back("import-from-c failed: Unknown register: `"
@@ -906,7 +908,8 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
         return false;
       }
 
-      Location = model::Register::fromCSVName(*Register, Model->Architecture());
+      Location = model::Register::fromRegisterName(*Register,
+                                                   Model->Architecture());
       if (Location == model::Register::Invalid) {
         Errors.emplace_back("import-from-c: While parsing return value #"
                             + std::to_string(Struct->Fields().size()) + ":\n");

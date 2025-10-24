@@ -120,9 +120,10 @@ static pipeline::RegisterAnalysis<DetectABIAnalysis> A1;
 namespace efa {
 
 static model::Architecture::Values getCodeArchitecture(const MetaAddress &MA) {
-  const auto MaybeArch = MetaAddressType::arch(MA.type());
-  revng_assert(MaybeArch && "The architecture is available for code addresses");
-  return model::Architecture::fromLLVMArchitecture(*MaybeArch);
+  const auto Architecture = MetaAddressType::arch(MA.type());
+  revng_assert(Architecture != model::Architecture::Invalid,
+               "The architecture is available for code addresses");
+  return Architecture;
 }
 
 static bool isWritingToMemory(llvm::Instruction &I) {
@@ -598,7 +599,7 @@ void DetectABI::applyABIDeductions() {
     abi::Definition::RegisterSet RValues;
     model::Architecture::Values Architecture = Binary->Architecture();
     for (const auto &Register : model::Architecture::registers(Architecture)) {
-      llvm::StringRef Name = model::Register::getCSVName(Register);
+      auto Name = model::Register::getCSVName(Register);
       if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
         if (Summary.ABIResults.ArgumentsRegisters.contains(CSV))
           Arguments.emplace(Register);
@@ -626,7 +627,7 @@ void DetectABI::applyABIDeductions() {
     efa::CSVSet ResultingArguments;
     efa::CSVSet ResultingReturnValues;
     for (const auto &Register : model::Architecture::registers(Architecture)) {
-      llvm::StringRef Name = model::Register::getCSVName(Register);
+      auto Name = model::Register::getCSVName(Register);
       if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
         if (Arguments.contains(Register))
           ResultingArguments.insert(CSV);
@@ -900,7 +901,7 @@ static void combineCrossCallSites(auto &CallSite, auto &Callee) {
 bool DetectABI::getRegisterState(model::Register::Values RegisterValue,
                                  const CSVSet &ABIRegisterMap) {
 
-  llvm::StringRef Name = model::Register::getCSVName(RegisterValue);
+  auto Name = model::Register::getCSVName(RegisterValue);
   if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
     return ABIRegisterMap.contains(CSV);
   }

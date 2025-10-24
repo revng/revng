@@ -219,8 +219,36 @@ foreach(
     list(APPEND HELPER_MODULE_LIST "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
   endforeach()
 
-  list(APPEND HELPER_MODULE_LIST
-       "${CMAKE_INSTALL_PREFIX}/lib/libtinycode-helpers-${ARCH}.bc")
+  # Annotate libtcg-helpers-*.bc
+
+  set(LIBTCG_HELPERS
+      "${CMAKE_INSTALL_PREFIX}/share/libtcg/libtcg-helpers-${ARCH}.bc")
+  set(LIBTCG_HELPERS_ANNOTATED
+      "${CMAKE_BINARY_DIR}/share/revng/libtcg-helpers-annotated-${ARCH}.bc")
+  add_custom_command(
+    OUTPUT "${LIBTCG_HELPERS_ANNOTATED}"
+    DEPENDS "${LIBTCG_HELPERS}" revng-all-binaries
+    COMMAND
+      ./bin/revng opt -sroa -instsimplify -cpu-loop-exit
+      -analyze-helper-arguments -fix-helpers
+      -fix-helpers-architecture="${ARCH}" "${LIBTCG_HELPERS}" -o
+      "${LIBTCG_HELPERS_ANNOTATED}")
+  add_custom_target("annotated-libtcg-helpers-${ARCH}" ALL
+                    DEPENDS "${LIBTCG_HELPERS_ANNOTATED}")
+
+  # Drop all the functions *not* tagged with revng_inline
+  set(LIBTCG_HELPERS_ANNOTATED_SLIM
+      "${CMAKE_BINARY_DIR}/share/revng/libtcg-helpers-annotated-slim-${ARCH}.bc"
+  )
+  add_custom_command(
+    OUTPUT "${LIBTCG_HELPERS_ANNOTATED_SLIM}"
+    DEPENDS "${LIBTCG_HELPERS_ANNOTATED}" revng-all-binaries
+    COMMAND ./bin/revng opt -slim-down-helpers-module -globaldce
+            "${LIBTCG_HELPERS_ANNOTATED}" -o "${LIBTCG_HELPERS_ANNOTATED_SLIM}")
+  add_custom_target("annotated-libtcg-helpers-slim-${ARCH}" ALL
+                    DEPENDS "${LIBTCG_HELPERS_ANNOTATED_SLIM}")
+  list(APPEND HELPER_MODULE_LIST "${LIBTCG_HELPERS_ANNOTATED_SLIM}")
+
 endforeach()
 
 # Produce well-known-models

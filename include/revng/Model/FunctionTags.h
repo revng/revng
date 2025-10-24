@@ -125,27 +125,10 @@ inline bool isCallToHelper(const llvm::Instruction *I) {
   return getCallToHelper(I) != nullptr;
 }
 
-inline std::optional<CSVsUsage>
-getCSVUsedByHelperCallIfAvailable(llvm::Instruction *Call) {
-  revng_assert(isCallToHelper(Call));
-
-  const llvm::Module *M = getModule(Call);
-  const auto LoadMDKind = M->getMDKindID("revng.csvaccess.offsets.load");
-  const auto StoreMDKind = M->getMDKindID("revng.csvaccess.offsets.store");
-
-  if (Call->getMetadata(LoadMDKind) == nullptr
-      and Call->getMetadata(StoreMDKind) == nullptr) {
-    return {};
-  }
-
-  CSVsUsage Result;
-  Result.Read = extractCSVs(Call, LoadMDKind);
-  Result.Written = extractCSVs(Call, StoreMDKind);
-  return Result;
-}
+std::optional<CSVsUsage> tryGetCSVUsedByHelperCall(llvm::Instruction *Call);
 
 inline CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
-  return getCSVUsedByHelperCallIfAvailable(Call).value();
+  return tryGetCSVUsedByHelperCall(Call).value();
 }
 
 /// Checks if \p I is a marker

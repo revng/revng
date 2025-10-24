@@ -22,6 +22,8 @@ class LazyValueInfo;
 class DominatorTree;
 } // namespace llvm
 
+class DataFlowRangeAnalysis;
+
 namespace Oracle {
 enum Values {
   None,
@@ -45,6 +47,7 @@ private:
   llvm::Value *V;
   MemoryOracle &MO;
   llvm::LazyValueInfo &LVI;
+  DataFlowRangeAnalysis &DFRA;
   const llvm::DominatorTree &DT;
   DataFlowGraph::Limits TheLimits;
   Oracle::Values Oracle;
@@ -65,6 +68,7 @@ private:
                     llvm::Value *V,
                     MemoryOracle &MO,
                     llvm::LazyValueInfo &LVI,
+                    DataFlowRangeAnalysis &DFRA,
                     const llvm::DominatorTree &DT,
                     DataFlowGraph::Limits TheLimits,
                     Oracle::Values Oracle) :
@@ -72,6 +76,7 @@ private:
     V(V),
     MO(MO),
     LVI(LVI),
+    DFRA(DFRA),
     DT(DT),
     TheLimits(TheLimits),
     Oracle(Oracle) {}
@@ -81,10 +86,11 @@ public:
                                         llvm::Value *V,
                                         MemoryOracle &MO,
                                         llvm::LazyValueInfo &LVI,
+                                        DataFlowRangeAnalysis &DFRA,
                                         const llvm::DominatorTree &DT,
                                         DataFlowGraph::Limits TheLimits,
                                         Oracle::Values Oracle) {
-    ValueMaterializer Result(Context, V, MO, LVI, DT, TheLimits, Oracle);
+    ValueMaterializer Result(Context, V, MO, LVI, DFRA, DT, TheLimits, Oracle);
     Result.run();
     return Result;
   }

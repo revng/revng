@@ -38,7 +38,8 @@ public:
 
 public:
   static BasicBlockID fromString(llvm::StringRef Text);
-  std::string toString(std::optional<llvm::Triple::ArchType> Arch = {}) const;
+  std::string toString(model::Architecture::Values Architecture =
+                         model::Architecture::Invalid) const;
 
   static BasicBlockID fromValue(llvm::Value *V);
   llvm::Constant *toValue(llvm::Module *M) const;

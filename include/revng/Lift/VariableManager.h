@@ -10,8 +10,6 @@
 
 #include "llvm/Pass.h"
 
-#include "revng/Lift/CPUStateAccessAnalysisPass.h"
-#include "revng/Lift/PTCDump.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
@@ -26,10 +24,19 @@ class StructType;
 class Value;
 } // namespace llvm
 
-class VariableManager;
+struct LibTcgInstructionList;
+struct LibTcgInstruction;
+struct LibTcgArgument;
+struct LibTcgTemp;
 
-// TODO: rename
-extern llvm::cl::opt<bool> External;
+// TODO: this class is used by CodeGenerator and by fixHelpers.
+//       The latter only needs the part of this class that's related to the
+//       CPU state.
+//       There's an opportunity to split off this class in a class that only
+//       manages the CPU state and another that handles temporaries and the
+//       like. We should also likely have some RAII object that saves us from
+//       having to manually clean up temporary state by calling
+//       newTranslationBlock.
 
 /// Maintain the list of variables required by PTC
 ///
@@ -37,25 +44,30 @@ extern llvm::cl::opt<bool> External;
 /// created on the fly.
 class VariableManager {
 public:
+  using GlobalsMap = std::map<intptr_t, llvm::GlobalVariable *>;
+
+public:
   VariableManager(llvm::Module &M,
                   bool TargetIsLittleEndian,
-                  llvm::StructType *CPUStruct,
-                  unsigned EnvOffset);
+                  unsigned LibTcgEnvOffset,
+                  uint8_t *LibTcgEnvPtr,
+                  const std::map<intptr_t, llvm::StringRef> &GlobalNames);
 
   void setAllocaInsertPoint(llvm::Instruction *I) {
     AllocaBuilder.SetInsertPoint(I);
   }
 
-  llvm::Instruction *load(revng::IRBuilder &Builder, unsigned TemporaryId) {
-    using namespace llvm;
-
-    auto &&[IsNew, V] = getOrCreate(TemporaryId, true);
+  llvm::Value *load(revng::IRBuilder &Builder, LibTcgArgument *Arg) {
+    auto [IsNew, V] = getOrCreate(Arg, true);
 
     if (V == nullptr)
       return nullptr;
 
+    if (llvm::isa<llvm::ConstantInt>(V))
+      return V;
+
     if (IsNew) {
-      auto *Undef = UndefValue::get(getVariableType(V));
+      auto *Undef = llvm::UndefValue::get(getVariableType(V));
       Builder.CreateStore(Undef, V);
     }
 
@@ -70,38 +82,36 @@ public:
   /// \param TemporaryId the PTC temporary identifier.
   ///
   /// \return a `Value` wrapping the requested global or local variable.
-  llvm::Value *getOrCreate(unsigned TemporaryId) {
-    return getOrCreate(TemporaryId, false).second;
+  llvm::Value *getOrCreate(LibTcgArgument *Arg) {
+    return getOrCreate(Arg, false).second;
   }
 
   /// Return the global variable corresponding to \p Offset in the CPU state.
   ///
   /// \param Offset the offset in the CPU state (the `env` PTC variable).
-  /// \param Name an optional name to force for the associate global variable.
   ///
   /// \return a pair composed by the request global variable and the offset in
   ///         it corresponding to \p Offset. For instance, if you're accessing
   ///         the third byte of a 32-bit integer it will 2.
-  std::pair<llvm::GlobalVariable *, unsigned>
-  getByEnvOffset(intptr_t Offset, std::string Name = "") {
-    return getByCPUStateOffsetInternal(EnvOffset + Offset, Name);
+  std::pair<llvm::GlobalVariable *, unsigned> getByEnvOffset(intptr_t Offset) {
+    return getByCPUStateOffsetWithRemainder(LibTcgEnvOffset + Offset);
   }
 
-  /// Notify VariableManager to reset all the "function"-specific information
+  /// Notify VariableManager to reset all the Translation Block (TB) specific
+  /// information
   ///
-  /// Informs the VariableManager that a new function has begun, so it can
-  /// discard function- and basic block-level variables.
+  /// Note: A TB refers to a set of instructions that could be translated by
+  ///       QEMU in one shot, and might encompass multiple LLVM basic blocks.
   ///
-  /// Note: by "function" here we mean a function in PTC terms, i.e. a run of
-  ///       code translated in a single shot by the TCG. Do not confuse this
-  ///       function concept with other meanings.
-  ///
-  /// \param Instructions the new PTCInstructionList to use from now on.
-  void newFunction(PTCInstructionList *Instructions);
+  void newTranslationBlock() {
+    TBTemporaries.clear();
+    newExtendedBasicBlock();
+  }
 
-  /// Informs the VariableManager that a new basic block has begun, so it can
-  /// discard basic block-level variables.
-  void newBasicBlock() { Temporaries.clear(); }
+  /// Informs the VariableManager that a new Extended Basic Block (EBB) has
+  /// begun. An EBB is a single entry, multiple exit region that fallst through
+  /// conditional branches.
+  void newExtendedBasicBlock() { EBBTemporaries.clear(); }
 
   /// Returns true if the given variable is the env variable
   bool isEnv(llvm::Value *TheValue);
@@ -114,49 +124,54 @@ public:
     ModuleLayout = NewLayout;
   }
 
-  std::vector<llvm::AllocaInst *> locals() {
-    std::vector<llvm::AllocaInst *> Locals;
-    for (auto Pair : LocalTemporaries)
-      Locals.push_back(Pair.second);
-    return Locals;
+  std::vector<llvm::AllocaInst *> getLiveVariables() {
+    std::vector<llvm::AllocaInst *> LiveVariables;
+    for (auto Pair : TBTemporaries)
+      LiveVariables.push_back(Pair.second);
+    for (auto Pair : EBBTemporaries)
+      LiveVariables.push_back(Pair.second);
+    return LiveVariables;
   }
 
   llvm::Value *loadFromEnvOffset(revng::IRBuilder &Builder,
                                  unsigned LoadSize,
                                  unsigned Offset) {
-    return loadFromCPUStateOffset(Builder, LoadSize, EnvOffset + Offset);
+    return loadFromCPUStateOffset(Builder, LoadSize, LibTcgEnvOffset + Offset);
   }
 
   std::optional<llvm::StoreInst *> storeToEnvOffset(revng::IRBuilder &Builder,
                                                     unsigned StoreSize,
                                                     unsigned Offset,
                                                     llvm::Value *ToStore) {
-    unsigned ActualOffset = EnvOffset + Offset;
+    unsigned ActualOffset = LibTcgEnvOffset + Offset;
     return storeToCPUStateOffset(Builder, StoreSize, ActualOffset, ToStore);
   }
 
-  bool memcpyAtEnvOffset(revng::IRBuilder &Builder,
-                         llvm::CallInst *CallMemcpy,
-                         unsigned Offset,
-                         bool EnvIsSrc);
+  /// Handle memcpy, memmove and memset
+  void memOpAtEnvOffset(revng::IRBuilder &Builder,
+                        llvm::CallInst *Call,
+                        unsigned Offset,
+                        bool EnvIsSrc);
+
+  void memOpAtCPUStateOffset(revng::IRBuilder &Builder,
+                             llvm::CallInst *Call,
+                             unsigned Offset,
+                             bool EnvIsSrc) {
+    memOpAtEnvOffset(Builder, Call, Offset - LibTcgEnvOffset, EnvIsSrc);
+  }
 
   /// Perform finalization steps on variables
   void finalize();
 
   void rebuildCSVList();
 
-  /// Gets the CPUStateType
-  llvm::StructType *getCPUStateType() const { return CPUStateType; }
-
-  bool hasEnv() const { return Env != nullptr; }
-
   llvm::Value *cpuStateToEnv(llvm::Value *CPUState,
                              llvm::Instruction *InsertBefore) const;
 
 private:
-  std::pair<bool, llvm::Value *> getOrCreate(unsigned TemporaryId,
-                                             bool Reading);
+  std::pair<bool, llvm::Value *> getOrCreate(LibTcgArgument *Arg, bool Reading);
 
+public:
   llvm::Value *loadFromCPUStateOffset(revng::IRBuilder &Builder,
                                       unsigned LoadSize,
                                       unsigned Offset);
@@ -167,27 +182,34 @@ private:
                         unsigned Offset,
                         llvm::Value *ToStore);
 
-  llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset,
-                                            std::string Name = "");
+  llvm::GlobalVariable *getByCPUStateOffset(intptr_t Offset);
 
   std::pair<llvm::GlobalVariable *, unsigned>
-  getByCPUStateOffsetInternal(intptr_t Offset, std::string Name = "");
+  getByCPUStateOffsetWithRemainder(intptr_t Offset);
+
+  std::optional<std::pair<llvm::GlobalVariable *, unsigned>>
+  getGlobalByCPUStateOffset(intptr_t Offset) const;
 
 private:
   llvm::Module &TheModule;
   revng::NonDebugInfoCheckingIRBuilder AllocaBuilder;
-  using TemporariesMap = std::map<unsigned int, llvm::AllocaInst *>;
-  using GlobalsMap = std::map<intptr_t, llvm::GlobalVariable *>;
   GlobalsMap CPUStateGlobals;
-  GlobalsMap OtherGlobals;
-  TemporariesMap Temporaries;
-  TemporariesMap LocalTemporaries;
-  PTCInstructionList *Instructions = nullptr;
 
-  llvm::StructType *CPUStateType;
+  // QEMU terminology
+  // - Translation Block (TB): All instructions that could be translated in one
+  //   shot, might encompass multiple LLVM basic blocks.
+  // - Extended Basic Block (EBB): Single entry, multiple exit region that falls
+  //   through conditional branches, smaller than a TB.
+  using TemporariesMap = std::map<LibTcgTemp *, llvm::AllocaInst *>;
+  TemporariesMap TBTemporaries;
+  TemporariesMap EBBTemporaries;
+
+  llvm::StructType *ArchCPUStruct;
   const llvm::DataLayout *ModuleLayout;
-  unsigned EnvOffset;
+  unsigned LibTcgEnvOffset;
+  uint8_t *LibTcgEnvPtr;
 
   llvm::GlobalVariable *Env;
   bool TargetIsLittleEndian;
+  const std::map<intptr_t, llvm::StringRef> &GlobalNames;
 };

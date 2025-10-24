@@ -5,10 +5,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-extern "C" {
-#include "dlfcn.h"
-}
-
 #include "llvm/Support/Error.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
@@ -23,6 +19,8 @@ extern "C" {
 #include "revng/Pipes/RootKind.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ResourceFinder.h"
+
+#include "PostLiftVerifyPass.h"
 
 using namespace llvm;
 using namespace pipeline;
@@ -46,6 +44,7 @@ void Lift::run(ExecutionContext &EC,
   PM.add(new LoadExecutionContextPass(&EC, Output.name()));
   PM.add(new LoadBinaryWrapperPass(Buffer->getBuffer()));
   PM.add(new LiftPass);
+  PM.add(new PostLiftVerifyPass);
   PM.run(Output.getModule());
 
   EC.commitUniqueTarget(Output);

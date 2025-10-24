@@ -61,17 +61,18 @@ MetaAddress MetaAddress::decomposeIntegerPC(const APInt &Value) {
 }
 
 static std::string toStringImpl(const MetaAddress &Address,
-                                std::optional<llvm::Triple::ArchType> Arch,
+                                model::Architecture::Values Architecture,
                                 llvm::StringRef Separator) {
   if (Address.isInvalid())
     return Separator.str() += "Invalid";
 
   bool ShouldPrintTheType = true;
-  if (Arch.has_value()) {
+  if (Architecture != model::Architecture::Invalid) {
     // Assert if `Arch` is not supported.
-    static_cast<void>(MetaAddressType::genericFromArch(Arch.value()));
+    static_cast<void>(MetaAddressType::genericFromArch(Architecture));
 
-    if (Address.arch().has_value() && Address.arch().value() == Arch.value())
+    if (Address.arch() != model::Architecture::Invalid
+        and Address.arch() == Architecture)
       ShouldPrintTheType = false;
   }
 
@@ -91,13 +92,13 @@ static std::string toStringImpl(const MetaAddress &Address,
 }
 
 std::string
-MetaAddress::toString(std::optional<llvm::Triple::ArchType> Arch) const {
-  return toStringImpl(*this, Arch, Separator);
+MetaAddress::toString(model::Architecture::Values Architecture) const {
+  return toStringImpl(*this, Architecture, Separator);
 }
 
 std::string
-MetaAddress::toIdentifier(std::optional<llvm::Triple::ArchType> Arch) const {
-  return toStringImpl(*this, Arch, "_");
+MetaAddress::toIdentifier(model::Architecture::Values Architecture) const {
+  return toStringImpl(*this, Architecture, "_");
 }
 
 MetaAddress MetaAddress::fromString(StringRef Text) {

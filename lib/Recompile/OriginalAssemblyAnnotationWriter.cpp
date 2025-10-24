@@ -51,8 +51,7 @@ void OAAW::emitInstructionAnnot(const Instruction *I,
                                 formatted_raw_ostream &Output) {
 
   // Ignore whatever is outside the root and the isolated functions
+  writeMetadataIfNew(I, PTCInstrMDKind, Output, "\n  ; ");
   if (isRootOrLifted(I->getParent()->getParent())) {
-    writeMetadataIfNew(I, OriginalInstrMDKind, Output, "\n  ; ");
-    writeMetadataIfNew(I, PTCInstrMDKind, Output, "\n  ; ");
   }
 }

@@ -4,17 +4,39 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <algorithm>
+#include <bitset>
+#include <cmath>
+#include <compare>
+#include <iterator>
+#include <memory>
+#include <optional>
+#include <variant>
+
+#include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/LazyValueInfo.h"
+#include "llvm/IR/BasicBlock.h"
+#include "llvm/IR/CFG.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instruction.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/GraphWriter.h"
 
+#include "revng/ADT/ConstantRangeSet.h"
+#include "revng/ADT/Queue.h"
 #include "revng/MFP/DOTGraphTraits.h"
 #include "revng/MFP/Graph.h"
+#include "revng/MFP/MFP.h"
 #include "revng/Support/GraphAlgorithms.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/Statistics.h"
 #include "revng/ValueMaterializer/AdvancedValueInfo.h"
 #include "revng/ValueMaterializer/DataFlowGraph.h"
+#include "revng/ValueMaterializer/DataFlowRangeAnalysis.h"
+#include "revng/ValueMaterializer/Helpers.h"
 
 using namespace llvm;
 
@@ -109,12 +131,32 @@ AdvancedValueInfoMFI::applyTransferFunction(Label L,
         continue;
       }
 
-      ConstantRangeSet NewRange;
+      ConstantRangeSet NewRange(Candidate->getType()->getIntegerBitWidth(),
+                                true);
       if (L->Destination != nullptr) {
+        // TODO: extend DataFlowRangeAnalysis so we no longer need to rely on
+        //       LVI too.
         NewRange = LVI.getConstantRangeOnEdge(Candidate,
                                               L->Source,
                                               L->Destination,
                                               Context);
+
+        auto *Branch = dyn_cast<BranchInst>(L->Source->getTerminator());
+        if (Branch != nullptr and Branch->isConditional()) {
+          BasicBlock *TrueBranch = Branch->getSuccessor(0);
+          BasicBlock *FalseBranch = Branch->getSuccessor(1);
+          if (TrueBranch != FalseBranch) {
+            if (auto MaybeRange = DFRA.visit(*Branch->getCondition(),
+                                             *Candidate)) {
+
+              if (TrueBranch == L->Destination) {
+                NewRange = NewRange & *MaybeRange;
+              } else if (FalseBranch == L->Destination) {
+                NewRange = NewRange & ~*MaybeRange;
+              }
+            }
+          }
+        }
       } else {
         NewRange = LVI.getConstantRange(Candidate, L->Source->getTerminator());
       }
@@ -153,8 +195,8 @@ void AdvancedValueInfoMFI::dump(GraphType CFEG, const ResultsMap &AllResults) {
   llvm::WriteGraph(&MFPGraph, "cfeg");
 }
 
-/// \p DFG the data flow graph containing the instructions we're interested in.
-/// \p Context the position in the function for the current query.
+/// \p DFG the data flow graph containing the instructions we're interested
+/// in. \p Context the position in the function for the current query.
 std::tuple<std::map<llvm::Instruction *, ConstantRangeSet>,
            ControlFlowEdgesGraph,
            map<const ForwardNode<ControlFlowEdgesNode> *,
@@ -163,11 +205,13 @@ runAVI(const DataFlowGraph &DFG,
        llvm::Instruction *Context,
        const llvm::DominatorTree &DT,
        llvm::LazyValueInfo &LVI,
+       DataFlowRangeAnalysis &DFRA,
        bool ZeroExtendConstraints) {
   using namespace llvm;
 
   //
-  // Identify nodes from the root of the DFG to all the instructions in the DFG
+  // Identify nodes from the root of the DFG to all the instructions in the
+  // DFG
   //
 
   SmallPtrSet<BasicBlock *, 4> Whitelist;
@@ -260,7 +304,12 @@ runAVI(const DataFlowGraph &DFG,
   revng_assert(InitialNodes.size() > 0);
 
   // Run MFP
-  AdvancedValueInfoMFI AVIMFI(LVI, DT, Context, Targets, ZeroExtendConstraints);
+  AdvancedValueInfoMFI AVIMFI(LVI,
+                              DFRA,
+                              DT,
+                              Context,
+                              Targets,
+                              ZeroExtendConstraints);
 
   AdvancedValueInfoMFI::LatticeElement ExtremalValue;
   for (Instruction *I : Targets)
@@ -272,19 +321,13 @@ runAVI(const DataFlowGraph &DFG,
                                               {},
                                               ExtremalValue,
                                               InitialNodes,
-                                              InitialNodes);
+                                              InitialNodes,
+                                              AVILogger);
 
   if (AVILogger.isEnabled()) {
+    AVILogger << "Dumping MFP results:" << DoLog;
+    LoggerIndent<> Indent(AVILogger);
     for (const auto &[Node, AnalysisResults] : AllResults) {
-      auto Dump =
-        [&](const std::map<llvm::Instruction *, ConstantRangeSet> &Map) {
-          for (const auto &[I, Range] : Map) {
-            AVILogger << "    " << getName(I) << ": ";
-            Range.dump(AVILogger);
-            AVILogger << "\n";
-          }
-        };
-
       AVILogger << Node->toString() << ":\n";
       AVILogger << "  Initial value:\n";
       MFP::dump(*AVILogger.getAsLLVMStream().get(), 2, AnalysisResults.InValue);
@@ -312,4 +355,10 @@ void MFP::dump(llvm::raw_ostream &Stream,
     Range.dump(Stream, aviFormatter);
     Stream << "\n";
   }
+}
+
+template<>
+void MFP::dumpLabel(llvm::raw_ostream &Stream,
+                    const ControlFlowEdgesGraph::Node *const &Label) {
+  Stream << Label->toString();
 }

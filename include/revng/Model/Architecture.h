@@ -295,21 +295,7 @@ inline llvm::StringRef getJumpAssembly(Values V) {
   }
 }
 
-inline llvm::StringRef getPCCSVName(Values V) {
-  switch (V) {
-  case model::Architecture::x86_64:
-  case model::Architecture::systemz:
-  case model::Architecture::x86:
-  case model::Architecture::arm:
-  case model::Architecture::aarch64:
-  case model::Architecture::mips:
-  case model::Architecture::mipsel:
-    return "pc";
-
-  default:
-    revng_abort();
-  }
-}
+llvm::StringRef getPCCSVName(Values V);
 
 inline llvm::StringRef getQEMUName(Values V) {
   switch (V) {
@@ -332,18 +318,40 @@ inline llvm::StringRef getQEMUName(Values V) {
   }
 }
 
+inline Values fromQEMUName(llvm::StringRef Name) {
+  if (Name == "x86_64")
+    return model::Architecture::x86_64;
+  else if (Name == "s390x")
+    return model::Architecture::systemz;
+  else if (Name == "i386")
+    return model::Architecture::x86;
+  else if (Name == "arm")
+    return model::Architecture::arm;
+  else if (Name == "aarch64")
+    return model::Architecture::aarch64;
+  else if (Name == "mips")
+    return model::Architecture::mips;
+  else if (Name == "mipsel")
+    return model::Architecture::mipsel;
+  else
+    revng_abort();
+}
+
 inline unsigned getMinimalFinalStackOffset(Values V) {
   switch (V) {
   case model::Architecture::x86_64:
     return 8;
+
   case model::Architecture::x86:
     return 4;
+
   case model::Architecture::systemz:
   case model::Architecture::arm:
   case model::Architecture::aarch64:
   case model::Architecture::mips:
   case model::Architecture::mipsel:
     return 0;
+
   default:
     revng_abort();
   }

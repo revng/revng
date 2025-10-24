@@ -278,20 +278,10 @@ bool TDBP::pinConstantStore(Function &F) {
 static bool isPossiblyReturningHelper(ProgramCounterHandler *PCH,
                                       const MetaAddress &PC,
                                       llvm::Instruction *I) {
-  // Is this a helper?
-  auto *Call = getCallToHelper(I);
-  if (Call == nullptr)
+  if (not PCH->isPCAffectingHelper(I))
     return false;
 
-  // Does this helper write something?
-  auto UsedCSV = getCSVUsedByHelperCallIfAvailable(Call);
-  if (not UsedCSV.has_value() or UsedCSV->Written.empty())
-    return false;
-
-  // Does this helper affect PC?
-  auto AffectsPC = [PCH](GlobalVariable *CSV) { return PCH->affectsPC(CSV); };
-  if (not llvm::any_of(UsedCSV->Written, AffectsPC))
-    return false;
+  auto *Call = cast<CallInst>(I);
 
   // Obtain the name of the helper
   StringRef CalleeName;
@@ -465,7 +455,6 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
                                      ProgramCounterHandler *PCH,
-                                     CSAAFactory CreateCSAA,
                                      const TupleTree<model::Binary> &Model,
                                      const RawBinaryView &BinaryView) :
   TheModule(*TheFunction->getParent()),
@@ -477,7 +466,6 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
   Dispatcher(nullptr),
   DispatcherSwitch(nullptr),
   CurrentCFGForm(CFGForm::UnknownForm),
-  CreateCSAA(CreateCSAA),
   PCH(PCH),
   Model(Model),
   BinaryView(BinaryView) {
