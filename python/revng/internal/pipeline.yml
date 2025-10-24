@@ -53,6 +53,11 @@ branches:
         arguments: [cfg-map, llvm-root, llvm-functions]
       - pipe: AttachDebugInfo
         arguments: [cfg-map, llvm-functions]
+      - savepoint: isolate
+        containers: [llvm-functions]
+        artifacts:
+          - name: isolate
+            container: llvm-functions
 
   emit-model-header:
     tasks:
