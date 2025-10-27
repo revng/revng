@@ -22,6 +22,7 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress/IntervalContainers.h"
+#include "revng/Yield/HexDump.h"
 
 using namespace llvm;
 
@@ -33,21 +34,15 @@ static FormattedNumber formatNumber(uint64_t Number, unsigned Width = 8) {
   return FormattedNumber(Number, 0, Width, true, false, false);
 };
 
-static void outputHexDump(const TupleTree<model::Binary> &Binary,
-                          const pipeline::LLVMContainer &ModuleContainer,
-                          const CFGMap &CFGMap,
-                          const BinaryFileContainer &SourceBinary,
-                          StringRef OutputPath) {
-  auto BufferOrError = MemoryBuffer::getFileOrSTDIN(*SourceBinary.path());
-  auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
-  RawBinaryView BinaryView(*Binary.get(), Buffer->getBuffer());
+using CFG = efa::ControlFlowGraph;
+using CFGGetter = std::function<const CFG &(const MetaAddress &)>;
 
-  std::error_code ErrorCode;
-  raw_fd_ostream Output(OutputPath, ErrorCode, sys::fs::CD_CreateAlways);
-
-  revng_assert(not ErrorCode, "Could not open file!");
-
-  ControlFlowGraphCache ControlFlowGraphCache(CFGMap);
+static void outputHexDump(const model::Binary &Binary,
+                          llvm::ArrayRef<const llvm::Function *> Functions,
+                          CFGGetter CFGGetter,
+                          llvm::StringRef BinaryBuffer,
+                          llvm::raw_ostream &Output) {
+  RawBinaryView BinaryView(Binary, BinaryBuffer);
 
   using boost::icl::discrete_interval;
   using boost::icl::inplace_plus;
@@ -71,10 +66,9 @@ static void outputHexDump(const TupleTree<model::Binary> &Binary,
     return Tag;
   };
 
-  for (const Function &F :
-       FunctionTags::Isolated.functions(&ModuleContainer.getModule())) {
-    const efa::ControlFlowGraph &Metadata = ControlFlowGraphCache
-                                              .getControlFlowGraph(&F);
+  for (const Function *F : Functions) {
+    MetaAddress Address = getMetaAddressOfIsolatedFunction(*F);
+    const efa::ControlFlowGraph &Metadata = CFGGetter(Address);
     MetaAddress EntryAddress = Metadata.Entry();
 
     for (const Instruction &I : llvm::instructions(F)) {
@@ -281,12 +275,31 @@ public:
     if (not CFGList.contains(kinds::CFG.allTargets(EC.getContext())))
       return;
 
+    const model::Binary &Binary = *getModelFromContext(EC);
+
+    std::vector<const llvm::Function *> Functions;
+    for (const llvm::Function &F :
+         FunctionTags::Isolated.functions(&ModuleContainer.getModule())) {
+      Functions.push_back(&F);
+    }
+
+    ControlFlowGraphCache CFGCache(CFGMap);
+    auto CFGGetter =
+      [&CFGCache](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
+      return CFGCache.getControlFlowGraph(Address);
+    };
+
+    auto Buffer = revng::cantFail(MemoryBuffer::getFile(*SourceBinary.path()));
+
+    std::error_code ErrorCode;
+    raw_fd_ostream OutputOS(Output.getOrCreatePath(),
+                            ErrorCode,
+                            sys::fs::CD_CreateAlways);
+
+    revng_assert(not ErrorCode, "Could not open file!");
+
     // Proceed with emission
-    outputHexDump(getModelFromContext(EC),
-                  ModuleContainer,
-                  CFGMap,
-                  SourceBinary,
-                  Output.getOrCreatePath());
+    outputHexDump(Binary, Functions, CFGGetter, Buffer->getBuffer(), OutputOS);
 
     EC.commitUniqueTarget(Output);
   }
@@ -295,3 +308,42 @@ public:
 } // namespace revng::pipes
   //
 static pipeline::RegisterPipe<revng::pipes::HexDumpPipe> X;
+
+namespace revng::pypeline::piperuns {
+
+void HexDump::run(const class Model &Model,
+                  llvm::StringRef Config,
+                  llvm::StringRef DynamicConfig,
+                  const BinariesContainer &BinaryContainer,
+                  const LLVMFunctionContainer &ModuleContainer,
+                  const CFGMap &CFG,
+                  HexDumpContainer &Output) {
+
+  const model::Binary &Binary = *Model.get().get();
+
+  auto Buffer = BinaryContainer.getFile(0);
+  auto OutputOS = Output.getOStream(ObjectID{});
+
+  std::vector<const llvm::Function *> Functions;
+  for (const model::Function &Function : Binary.Functions()) {
+    const llvm::Module &Module = ModuleContainer
+                                   .getModule(ObjectID(Function.Entry()));
+    for (const llvm::Function &LLVMFunction :
+         FunctionTags::Isolated.functions(&Module)) {
+      Functions.push_back(&LLVMFunction);
+    }
+  }
+
+  auto CFGGetter =
+    [&CFG](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
+    return *CFG.getElement(ObjectID(Address));
+  };
+
+  ::revng::pipes::outputHexDump(Binary,
+                                Functions,
+                                CFGGetter,
+                                { Buffer.data(), Buffer.size() },
+                                *OutputOS);
+}
+
+} // namespace revng::pypeline::piperuns
