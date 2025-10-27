@@ -8,14 +8,16 @@ from hashlib import sha256
 from typing import TYPE_CHECKING, Annotated, List, Mapping, Optional, Sequence, Set, Union
 from typing import overload
 
-from .container import Configuration, ConfigurationId, ContainerDeclaration, ContainerSet
+from .container import Configuration, ConfigurationId, Container, ContainerDeclaration
+from .container import ContainerSet
 from .model import ReadOnlyModel
 from .object import ObjectSet
+from .storage.file_provider import FileProvider
 from .storage.storage_provider import SavePointsRange, StorageProvider, StorageProviderFileProvider
 from .task.pipe import Pipe
 from .task.requests import Requests
 from .task.savepoint import SavePoint
-from .task.task import ObjectDependencies, TaskArgumentAccess
+from .task.task import ObjectDependencies, PipeObjectDependencies, TaskArgument, TaskArgumentAccess
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
@@ -245,3 +247,31 @@ class PipelineNode:
 
     def __repr__(self):
         return f"<PipelineNode: {self.task!r}>"
+
+
+class DummyPipelineNode(PipelineNode):
+    """Dummy pipeline node, to be used in cases where multiple PipelineNode
+    branches need to be merged into one"""
+
+    class DummyPipe(Pipe):
+        def __init__(self, name: str):
+            self.name = name
+            self.static_configuration = ""
+
+        @classmethod
+        def signature(cls) -> tuple[TaskArgument, ...]:
+            return ()
+
+        def run(
+            self,
+            file_provider: FileProvider,
+            model: ReadOnlyModel,
+            containers: list[Container],
+            incoming: list[ObjectSet],
+            outgoing: list[ObjectSet],
+            configuration: Configuration,
+        ) -> PipeObjectDependencies:
+            return []
+
+    def __init__(self, name: str):
+        super().__init__(self.__class__.DummyPipe(name), [])

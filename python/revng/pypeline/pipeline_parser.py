@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Any, Optional
 
@@ -14,7 +15,7 @@ import yaml
 from .analysis import Analysis, AnalysisBinding
 from .container import Container, ContainerDeclaration
 from .pipeline import Artifact, Pipeline
-from .pipeline_node import PipelineNode
+from .pipeline_node import DummyPipelineNode, PipelineNode
 from .task.pipe import Pipe
 from .task.savepoint import SavePoint
 from .utils.registry import get_registry
@@ -208,7 +209,7 @@ def parse_branch(
     artifacts: set[Artifact],
     analyses: set[AnalysisBinding],
     container_decls: dict[str, ContainerDeclaration],
-) -> PipelineNode:
+) -> tuple[PipelineNode, PipelineNode]:
     """
     Parse the branch and return the last node in the branch.
     """
@@ -221,6 +222,7 @@ def parse_branch(
 
     # Parse the nodes
     tasks = node.content.get("tasks", [])
+    head = None
     for task in tasks:
         if "pipe" not in task and "savepoint" not in task:
             raise ValueError("Task must have either a pipe or a savepoint")
@@ -235,10 +237,13 @@ def parse_branch(
             container_decls=container_decls,
             parent=parent,
         )
+        if head is None:
+            head = res
         parent = res
 
     assert parent is not None, "A branch cannot be empty and not have a parent"
-    return parent
+    assert head is not None, "A branch needs to have at least one task"
+    return (head, parent)
 
 
 def parse_branches(
@@ -246,7 +251,7 @@ def parse_branches(
     artifacts: set[Artifact],
     analyses: set[AnalysisBinding],
     container_decls: dict[str, ContainerDeclaration],
-) -> PipelineNode:
+) -> list[PipelineNode]:
     """
     Parse the branches from the JSON value.
     The JSON value should contain a dictionary of branches with their names and tasks.
@@ -254,6 +259,7 @@ def parse_branches(
 
     # Find the root branch
     graph: dict[str, Node] = {}
+    roots: set[str] = set()
     for name, branch in branches.items():
         node = Node(content=branch)
         graph[name] = node
@@ -261,44 +267,31 @@ def parse_branches(
             node.is_root = False
             from_node = graph[branch["from"]]
             from_node.successors.add(name)
+        else:
+            roots.add(name)
 
-    # Check that there is only one root branch
-    roots = sorted(name for name, node in graph.items() if node.is_root)
-    if len(roots) != 1:
-        raise ValueError(f"There should be exactly one root branch but found {roots}")
-    root = roots[0]
+    sorter: TopologicalSorter[str] = TopologicalSorter()
+    for name, node in graph.items():
+        sorter.add(name)
+        for successor in node.successors:
+            sorter.add(successor, name)
 
     # Parse the branches in the correct order (DFS)
-    result: dict[str, PipelineNode] = {}
-    queue: list[str] = [root]
-    root_node: PipelineNode | None = None
-    while queue:
-        name = queue.pop(0)
-        node = graph[name]
-        # Parse the branch
-        result[name] = parse_branch(
-            node=node,
-            graph=result,
+    node_tips: dict[str, PipelineNode] = {}
+    result: list[PipelineNode] = []
+    for name in sorter.static_order():
+        first_node, last_node = parse_branch(
+            node=graph[name],
+            graph=node_tips,
             container_decls=container_decls,
             artifacts=artifacts,
             analyses=analyses,
         )
-        if root_node is None:
-            root_node = result[name]
-            # Result contains the END of each branch, so we need to find the root node
-            # by following the predecessors
-            while root_node.predecessors:
-                root_node = root_node.predecessors[0]
-        # Enqueue the successors
-        for successor in node.successors:
-            assert successor not in result, (
-                f"The pipeline has to be a tree, not a DAG. Branch {successor} "
-                "is defined multiple times"
-            )
-            queue.append(successor)
-    # Return the root node
-    assert root_node is not None, "The root node should be defined"
-    return root_node
+        node_tips[name] = last_node
+        if name in roots:
+            result.append(first_node)
+
+    return result
 
 
 def parse_container_decls(
@@ -354,12 +347,20 @@ def load_pipeline(values: Any) -> Pipeline:
     artifacts: set[Artifact] = set()
     analyses: set[AnalysisBinding] = set()
 
-    root: PipelineNode = parse_branches(
+    roots: list[PipelineNode] = parse_branches(
         branches=values["branches"],
         container_decls=container_decls,
         artifacts=artifacts,
         analyses=analyses,
     )
+
+    if len(roots) == 1:
+        root = roots[0]
+    else:
+        root = DummyPipelineNode("root")
+        for node in roots:
+            root.add_successor(node)
+
     return Pipeline(
         declarations=set(container_decls.values()),
         root=root,
