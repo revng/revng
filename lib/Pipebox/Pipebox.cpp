@@ -16,6 +16,7 @@
 #include "revng/PipeboxCommon/RawContainer.h"
 #include "revng/Yield/HexDump.h"
 #include "revng/Yield/Pipes/ProcessAssembly.h"
+#include "revng/Yield/Pipes/YieldAssembly.h"
 
 using namespace revng::pypeline;
 
@@ -31,6 +32,7 @@ static RegisterContainer<PTMLCTypeContainer> C6;
 static RegisterContainer<CFGMap> C7;
 static RegisterContainer<HexDumpContainer> C8;
 static RegisterContainer<AssemblyInternalContainer> C9;
+static RegisterContainer<AssemblyContainer> C10;
 
 //
 // Pipes
@@ -52,3 +54,4 @@ static RegisterFunctionPipe<piperuns::EnforceABI> P9;
 static RegisterFunctionPipe<PromoteCSVs> P10;
 static RegisterSingleOutputPipe<HexDump> P11;
 static RegisterFunctionPipe<ProcessAssembly> P12;
+static RegisterFunctionPipe<YieldAssembly> P13;

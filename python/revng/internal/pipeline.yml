@@ -19,6 +19,8 @@ containers:
     type: HexDumpContainer
   - name: assembly-internal
     type: AssemblyInternalContainer
+  - name: assembly
+    type: AssemblyContainer
 
 branches:
   files-imported:
@@ -142,3 +144,14 @@ branches:
     tasks:
       - pipe: ProcessAssembly
         arguments: [binaries-container, cfg-map, assembly-internal]
+
+  disassemble:
+    from: process-assembly
+    tasks:
+      - pipe: YieldAssembly
+        arguments: [assembly-internal, assembly]
+      - savepoint: disassemble
+        containers: [assembly]
+        artifacts:
+          - name: disassemble
+            container: assembly
