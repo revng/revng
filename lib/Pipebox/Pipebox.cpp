@@ -14,6 +14,7 @@
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
 #include "revng/PipeboxCommon/RawContainer.h"
+#include "revng/Yield/HexDump.h"
 
 using namespace revng::pypeline;
 
@@ -27,6 +28,7 @@ static RegisterContainer<CBytesContainer> C4;
 static RegisterContainer<BinariesContainer> C5;
 static RegisterContainer<PTMLCTypeContainer> C6;
 static RegisterContainer<CFGMap> C7;
+static RegisterContainer<HexDumpContainer> C8;
 
 //
 // Pipes
@@ -46,3 +48,4 @@ static RegisterFunctionPipe<Isolate> P7;
 static RegisterFunctionPipe<AttachDebugInfo> P8;
 static RegisterFunctionPipe<piperuns::EnforceABI> P9;
 static RegisterFunctionPipe<PromoteCSVs> P10;
+static RegisterSingleOutputPipe<HexDump> P11;

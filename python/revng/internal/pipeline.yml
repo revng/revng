@@ -15,6 +15,8 @@ containers:
     type: CFGMap
   - name: llvm-functions
     type: LLVMFunctionContainer
+  - name: hexdump
+    type: HexDumpContainer
 
 branches:
   files-imported:
@@ -117,3 +119,18 @@ branches:
         artifacts:
           - name: emit-type-definitions
             container: model-types
+
+  hexdump:
+    from: isolate
+    tasks:
+      - pipe: HexDump
+        arguments:
+          - binaries-container
+          - llvm-functions
+          - cfg-map
+          - hexdump
+      - savepoint: hexdump
+        containers: [hexdump]
+        artifacts:
+          - name: hexdump
+            container: hexdump
