@@ -147,3 +147,34 @@ static RegisterDefaultConstructibleContainer<FunctionAssemblyPTMLStringMap> X2;
 
 static pipeline::RegisterPipe<revng::pipes::ProcessAssembly> ProcessPipe;
 static pipeline::RegisterPipe<revng::pipes::YieldAssembly> YieldPipe;
+
+namespace revng::pypeline::piperuns {
+
+void YieldAssembly::runOnFunction(const model::Function &TheFunction) {
+  MetaAddress Address = TheFunction.Entry();
+  ObjectID Object(Address);
+  const TupleTree<yield::Function> &Function = Input.getElement(Object);
+
+  revng_assert(Function.verify());
+  revng_assert(Function->verify());
+  revng_assert(Function->Entry() == Address);
+
+  const model::Architecture::Values A = Model.Architecture();
+  auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
+
+  const model::Configuration &Configuration = Model.Configuration();
+  uint64_t LineWidth = Configuration.CommentLineWidth();
+
+  std::string R = ptml::functionComment(B,
+                                        TheFunction,
+                                        Model,
+                                        CommentIndicator,
+                                        0,
+                                        LineWidth,
+                                        NameBuilder);
+  R += yield::ptml::functionAssembly(B, *Function, Model);
+  R = B.getTag(ptml::tags::Div, std::move(R)).toString();
+  *Output.getOStream(Object) << R;
+}
+
+} // namespace revng::pypeline::piperuns
