@@ -2,23 +2,21 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import logging
 from pathlib import Path
 
 import click
 
-from revng.pypeline.cli.utils import build_help_text, list_objects_option, normalize_whitespace
-from revng.pypeline.cli.utils import project_id_option, token_option
+from revng.pypeline.cli.utils import PypeGroup, build_help_text, list_objects_option
+from revng.pypeline.cli.utils import normalize_whitespace, project_id_option, token_option
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
+from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
 
-logger = logging.getLogger(__name__)
 
-
-class ArtifactGroup(click.Group):
+class ArtifactGroup(PypeGroup):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -119,9 +117,9 @@ def build_artifact_command(
         result_path: Path | None,
         **kwargs,
     ) -> None:
-        logger.debug('Running artifact: "%s"', artifact_name)
-        logger.debug('configuration: "%s"', configuration)
-        logger.debug('and kwargs: "%s"', kwargs)
+        pypeline_logger.debug_log(f'Running artifact: "{artifact_name}"')
+        pypeline_logger.debug_log(f'configuration: "{configuration}"')
+        pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
 
         # Load the model
         storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
@@ -132,7 +130,7 @@ def build_artifact_command(
         )
         loaded_model = model_type.deserialize(storage_provider.get_model())
 
-        logger.debug('Model loaded: "%s"', loaded_model)
+        pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
         artifact_kind = artifact.container.container_type.kind
         if kwargs["list"]:
@@ -166,11 +164,10 @@ def build_artifact_command(
             pipeline_configuration={},
             storage_provider=storage_provider,
         )
-        logger.debug("Artifact computed")
+        pypeline_logger.debug_log("Artifact computed")
 
         if result_path is not None:
-            logger.debug('Writing result to: "%s"', result_path)
-
+            pypeline_logger.debug_log(f'Writing result to: "{result_path}"')
             res_container.to_file(result_path)
         else:
             print(res_container.to_string(), end="", flush=True)

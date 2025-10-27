@@ -8,26 +8,18 @@ The path is computed relatively to this file, so this should work regardless of
 where revng is installed.
 """
 
-import logging
 import os
-import sys
 from pathlib import Path
 
 import click
 from xdg import xdg_cache_home
 
 from revng.pypeline.cli.project import project
+from revng.pypeline.cli.utils import PypeGroup
 from revng.pypeline.main import pype, run
 
-logger = logging.getLogger(__name__)
-handler = logging.StreamHandler(sys.stderr)
-formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-logger.setLevel(logging.DEBUG)
 
-
-@click.group()
+@click.group(cls=PypeGroup)
 def quick():
     """Quick commands (japanese toilet)"""
     # TODO

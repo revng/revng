@@ -1,9 +1,9 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
+from __future__ import annotations
 
 import importlib.util
-import logging
 import os
 import sys
 from pathlib import Path
@@ -16,9 +16,8 @@ from click.shell_completion import get_completion_class
 from . import initialize_pypeline
 from .cli.pipeline import pipeline
 from .cli.project import project
-from .cli.utils import EagerParsedPath
-
-logger = logging.getLogger(__name__)
+from .cli.utils import EagerParsedPath, PypeGroup
+from .utils.logger import pypeline_logger
 
 
 def import_pipebox(module_path: str, is_complete: bool) -> object:
@@ -35,12 +34,11 @@ def import_pipebox(module_path: str, is_complete: bool) -> object:
         # without having a pipebox file
         if is_complete:
             return object()
-        logger.error(
+        pypeline_logger.log(
             (
-                'Pipebox file "%s" does not exist. Either set it using the '
+                f'Pipebox file "{module_abspath}" does not exist. Either set it using the '
                 "PIPEBOX env var, or pass the --pipebox option."
             ),
-            module_abspath,
         )
         sys.exit(1)
     # We guess that the module name is the file name without the extension
@@ -50,13 +48,13 @@ def import_pipebox(module_path: str, is_complete: bool) -> object:
     if spec is None:
         if is_complete:
             return object()
-        logger.error('Could not load module "%s" from "%s"', module_name, module_abspath)
+        pypeline_logger.log(f'Could not load module "{module_name}" from "{module_abspath}"')
         sys.exit(1)
     module = importlib.util.module_from_spec(spec)
     if spec.loader is None:
         if is_complete:
             return object()
-        logger.error('Could not load module "%s" from "%s"', module_name, module_abspath)
+        pypeline_logger.log(f'Could not load module "{module_name}" from "{module_abspath}"')
         sys.exit(1)
     # Execute the module to load it
     spec.loader.exec_module(module)
@@ -80,7 +78,7 @@ def detect_autocomplete(ctx: click.Context) -> bool:
     )
 
 
-@click.group()
+@click.group(cls=PypeGroup)
 @click.option(
     "-C",
     "--directory",
@@ -117,8 +115,18 @@ def detect_autocomplete(ctx: click.Context) -> bool:
     show_default=True,
     expose_value=False,
 )
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable debug logging for the pypeline related code.",
+)
 @click.pass_context
-def pype(ctx) -> None:
+def pype(ctx, verbose: bool) -> None:
+
+    # Enable debug logging for pypeline if requested
+    if verbose:
+        pypeline_logger.debug = True
+
     # Avoid initializing the pipebox if we are in auto-complete mode
     if detect_autocomplete(ctx):
         return
@@ -128,7 +136,7 @@ def pype(ctx) -> None:
     # Get its initialize function
     pipebox_initialize = getattr(pipebox, "initialize", None)
     if pipebox_initialize is None:
-        logger.error(
+        pypeline_logger.log(
             (
                 f'Pipebox file "{ctx.obj['pipebox_path']}" does not have an "initialize" function.'
                 " This is required to setup the pypeline."
@@ -176,13 +184,13 @@ def autocomplete(ctx, shell):
     - `zsh` : `pype autocomplete --shell zsh  > ~/.zsh/completions/_pype`
     - `fish`: `pype autocomplete --shell fish > ~/.config/fish/completions/pype.fish`
     """
-    logger.info("Detected shell: %s", shell)
+    pypeline_logger.log(f'Detected shell: "{shell}"')
 
     # Get the root command
     prog_name = get_current_root_name(ctx)
-    logger.debug("Program name: %s", prog_name)
+    pypeline_logger.debug_log(f'Program name: "{prog_name}"')
     complete_var = f"_{prog_name.upper()}_COMPLETE"
-    logger.debug("Complete variable: %s", complete_var)
+    pypeline_logger.debug_log(f'Complete variable: "{complete_var}"')
 
     # Requires Click 8.0+ for shell_complete
     # Create a completion context

@@ -2,22 +2,20 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import logging
 from pathlib import Path
 
 import click
 
-from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
-from revng.pypeline.cli.utils import list_objects_option, normalize_kwarg_name
+from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
+from revng.pypeline.cli.utils import compute_objects, list_objects_option, normalize_kwarg_name
 from revng.pypeline.cli.utils import normalize_whitespace
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.storage.file_provider import FileProvider, FileRequest
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.task import TaskArgumentAccess
+from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_registry, get_singleton
-
-logger = logging.getLogger(__name__)
 
 
 # A file storage implementation that works with a provided directory. Will look
@@ -40,7 +38,7 @@ class SimpleFileProvider(FileProvider):
         return {r.hash: (self._directory / r.hash).read_bytes() for r in requests}
 
 
-class RunPipeGroup(click.Group):
+class RunPipeGroup(PypeGroup):
     """We need to create a custom command for each pipe we loaded from the registry.
     Since we already have to generate the code dynamically, we do it lazily so
     we generate only the commands that are requested."""
@@ -151,11 +149,11 @@ def build_pipe_command(
         file_storage: Path,
         **kwargs,
     ) -> None:
-        logger.debug("Running pipe: %s", pipe_name)
-        logger.debug("with static configuration: %s", static_configuration)
-        logger.debug("configuration: %s", configuration)
-        logger.debug("model: %s", model)
-        logger.debug("and kwargs: %s", kwargs)
+        pypeline_logger.debug_log(f"Running pipe: {pipe_name}")
+        pypeline_logger.debug_log(f"with static configuration: {static_configuration}")
+        pypeline_logger.debug_log(f"configuration: {configuration}")
+        pypeline_logger.debug_log(f"model: {model}")
+        pypeline_logger.debug_log(f"and kwargs: {kwargs}")
 
         # Create the pipe
         pipe = pipe_type(
@@ -218,7 +216,7 @@ def build_pipe_command(
             outgoing=outgoing,
             configuration=configuration,
         )
-        logger.debug('Pipe run completed, object dependencies: "%s"', object_deps)
+        pypeline_logger.debug_log(f"Pipe run completed, object dependencies: {object_deps}")
 
         # Dump back the modified containers to the filesystem
         for arg, container in zip(pipe.signature(), containers):
@@ -229,7 +227,7 @@ def build_pipe_command(
             # If the argument is writable, we dump the container
             # to the filesystem
             path = kwargs[f"{arg_name}_output"]
-            logger.info("Dumping container %s to %s", arg.name, path)
+            pypeline_logger.log(f"Dumping container {arg_name} to {path}")
             container.to_file(path)
 
     return run_pipe_command

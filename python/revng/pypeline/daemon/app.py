@@ -3,7 +3,6 @@
 #
 
 import json
-import logging
 import os
 import traceback
 from functools import wraps
@@ -19,12 +18,14 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket
 
+from revng.pypeline.utils.logger import pypeline_logger
+
 from .daemon import Daemon, Response
 from .notification_broker import WebSocketStream
 from .notification_broker.local_broker import LocalNotificationBroker
 
 # Global instances
-logger = logging.getLogger(__name__)
+
 notification_broker = LocalNotificationBroker()
 
 
@@ -63,7 +64,7 @@ async def invalidation_websocket(websocket: WebSocket):
     except BasicHTTPException as e:
         await websocket.close(code=400, reason=json.dumps(e.data))
     except Exception as e:
-        logger.exception("Uncaught exception ")
+        pypeline_logger.log(f"Uncaught exception: {str(e)}")
         await websocket.close(code=500, reason=f"Internal server error: {str(e)}")
     finally:
         # Clean up the subscription

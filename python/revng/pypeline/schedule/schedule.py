@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import logging
 from graphlib import TopologicalSorter
 from typing import Any, Dict, List, Optional, Set
 
@@ -19,10 +18,9 @@ from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.savepoint import SavePoint
 from revng.pypeline.task.task import ObjectDependencies, TaskArgumentAccess
+from revng.pypeline.utils.logger import pypeline_logger
 
 from .scheduled_task import ScheduledTask
-
-logger = logging.getLogger(__name__)
 
 
 class Schedule:
@@ -114,7 +112,7 @@ class Schedule:
         ready: ScheduledTask | None = self._pick_task()
 
         while ready:
-            logger.info("Running %s", ready.node.task.name)
+            pypeline_logger.log(f"Running {ready.node.task.name}")
 
             configuration: ConfigurationId = ready.node.configuration_id(
                 self.pipeline_configuration
@@ -130,7 +128,7 @@ class Schedule:
             for declaration, container in sorted(
                 working_containers.items(), key=lambda item: item[0].name
             ):
-                logger.info("  %s: %s", declaration.name, str(container.objects()))
+                pypeline_logger.log(f"  {declaration.name}: {str(container.objects())}")
 
             if isinstance(ready.node.task, Pipe):
                 assert task_dependencies is not None
