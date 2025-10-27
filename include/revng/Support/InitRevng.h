@@ -33,6 +33,7 @@ public:
     Initialized = true;
 
     OnQuit->install();
+    initializeLLVMLibraries();
 
     llvm::setBugReportMsg("PLEASE submit a bug report to "
                           "https://github.com/revng/revng and include the "
@@ -69,6 +70,9 @@ public:
   }
 
   ~InitRevng() { OnQuit->quit(); }
+
+private:
+  void initializeLLVMLibraries();
 };
 
 } // namespace revng

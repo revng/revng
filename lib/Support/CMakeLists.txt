@@ -14,6 +14,7 @@ revng_add_library_internal(
   CustomizedLLVMPasses.cpp
   Debug.cpp
   ExplicitSpecializations.cpp
+  InitRevng.cpp
   IRHelpers.cpp
   LDDTree.cpp
   MetaAddress.cpp
@@ -35,6 +36,27 @@ if(NOT LibArchive_FOUND)
   message(FATAL_ERROR "libarchive not found")
 endif()
 
+llvm_map_components_to_libnames(
+  LLVM_LIBRARIES
+  Analysis
+  CodeGen
+  Core
+  GlobalISel
+  InstCombine
+  IPO
+  IRReader
+  Linker
+  Object
+  Passes
+  ScalarOpts
+  Support
+  Target
+  TransformUtils
+  Vectorize
+  X86AsmParser
+  X86CodeGen
+  X86Desc
+  X86Info)
 target_link_libraries(revngSupport z zstd ${LibArchive_LIBRARIES}
                       ${LLVM_LIBRARIES})
 
