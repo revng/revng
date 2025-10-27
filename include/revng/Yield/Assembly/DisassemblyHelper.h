@@ -33,7 +33,18 @@ public:
                               const efa::ControlFlowGraph &Metadata,
                               const RawBinaryView &BinaryView,
                               const model::Binary &Binary,
-                              const model::AssemblyNameBuilder &NameBuilder);
+                              const model::AssemblyNameBuilder &NameBuilder) {
+    yield::Function Result;
+    disassemble(Function, Metadata, BinaryView, Binary, NameBuilder, Result);
+    return Result;
+  }
+
+  void disassemble(const model::Function &Function,
+                   const efa::ControlFlowGraph &Metadata,
+                   const RawBinaryView &BinaryView,
+                   const model::Binary &Binary,
+                   const model::AssemblyNameBuilder &NameBuilder,
+                   yield::Function &ResultFunction);
 
 private:
   LLVMDisassemblerInterface &
