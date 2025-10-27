@@ -118,8 +118,26 @@ def detect_autocomplete(ctx: click.Context) -> bool:
     expose_value=False,
 )
 @click.pass_context
-def pype(ctx):
-    pass
+def pype(ctx) -> None:
+    # Avoid initializing the pipebox if we are in auto-complete mode
+    if detect_autocomplete(ctx):
+        return
+
+    # Get the already loaded pipebox module from the context
+    pipebox = ctx.obj["pipebox"]
+    # Get its initialize function
+    pipebox_initialize = getattr(pipebox, "initialize", None)
+    if pipebox_initialize is None:
+        logger.error(
+            (
+                f'Pipebox file "{ctx.obj['pipebox_path']}" does not have an "initialize" function.'
+                " This is required to setup the pypeline."
+            ),
+        )
+        sys.exit(1)
+
+    # Call the initialize
+    pipebox_initialize(ctx.obj["pipebox_args"])
 
 
 pype.add_command(pipeline)
@@ -183,9 +201,22 @@ def autocomplete(ctx, shell):
 
 
 def main(args: Sequence[str]) -> None:
-    # pylint: disable=E1120 no-value-for-parameter
+    # Divide click's argument from pipebox's arguments
+    if "--" in args:
+        position = args.index("--")
+        click_args = args[:position]
+        pipebox_args = args[position + 1 :]
+    else:
+        click_args = args
+        pipebox_args = []
+
     # This is ok as click will pass the pipebox argument automatically
-    pype(args=args)
+    pype(
+        args=click_args,
+        obj={
+            "pipebox_args": pipebox_args,
+        },
+    )
 
 
 def run():

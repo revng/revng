@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import sys
 from abc import ABC, ABCMeta
 from collections.abc import Buffer
 from enum import Enum, EnumMeta, auto, unique
@@ -22,6 +23,10 @@ from revng.pypeline.task.task import PipeObjectDependencies, TaskArgument, TaskA
 
 Value = Union[str, int]
 T = TypeVar("T")
+
+
+def initialize(args: list[str]) -> None:
+    print("Pipebox initialized with args:", args, file=sys.stderr)
 
 
 def mandatory(arg: Optional[T]) -> T:
