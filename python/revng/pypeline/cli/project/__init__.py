@@ -8,7 +8,7 @@ from pathlib import Path
 import click
 from xdg import xdg_cache_home
 
-from revng.pypeline.cli.utils import EagerParsedPath, StorageProviderUrl
+from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, StorageProviderUrl
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 
 from .analyze import analyze
@@ -17,6 +17,7 @@ from .daemon import run_daemon
 
 
 @click.group(
+    cls=PypeGroup,
     help="Project commands (porcelain)",
 )
 @click.option(

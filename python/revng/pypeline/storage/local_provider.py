@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import logging
 import os
 import shutil
 import sqlite3
@@ -21,6 +20,7 @@ from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 from revng.pypeline.utils import cache_directory, crypto_hash
+from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
@@ -35,8 +35,6 @@ from .util import check_object_id_supported_by_sql, compute_hash
 # prefixed, so, to check for all children the check will be
 # target_object_id <= checked_object_id <= CONCAT(target_object_id, _OBJECTID_MASK)  # noqa: E800
 _OBJECTID_MASK = f"x'{"ff" * _OBJECTID_MAXSIZE}'"
-
-logger = logging.getLogger(__name__)
 
 CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS project(
@@ -185,7 +183,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         # Find the model in the current directory or any of its parents
         directory = Path.cwd().resolve()
         while True:
-            logger.debug('Searching for model at "%s"', directory / model_name)
+            pypeline_logger.debug_log(f'Searching for model at "{directory / model_name}"')
             if (directory / model_name).exists():
                 break
             if directory == directory.parent:
@@ -193,7 +191,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
             directory = directory.parent
 
         model_path = directory / model_name
-        logger.info('Model "%s" found at "%s"', model_name, model_path)
+        pypeline_logger.log(f'Model "{model_name}" found at "{model_path}"')
         # Compute the hash of the model path as a tentative unique identifier for the project
         # TODO: we are relying on the *absolute* model path, which means that if the
         # user moves the project around, it will be treated as a different project
@@ -202,7 +200,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         # old cache.
         db_name = crypto_hash(str(model_path)) + ".sqlite"
         db_path = Path(cache_dir) / db_name
-        logger.info('Using DB "%s"', db_path)
+        pypeline_logger.log(f'Using DB "{db_path}"')
 
         provider = LocalStorageProvider(str(db_path), str(model_path))
         self.providers[project_id] = provider

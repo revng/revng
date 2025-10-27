@@ -2,7 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import logging
 import os
 import re
 from collections.abc import Sequence
@@ -19,7 +18,35 @@ from revng.pypeline.storage.storage_provider import StorageProviderFactory
 from revng.pypeline.task.task import TaskArgument
 from revng.pypeline.utils.registry import get_registry, get_singleton
 
-logger = logging.getLogger(__name__)
+
+class PypeCommand(click.Command):
+    """
+    An extension of click.Command that modifies the usage line to document that the arguments after
+    "--" are passed to the pipebox initialize function.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.help is None:
+            self.help = ""
+        self.help += (
+            "\n\nNote: All arguments after '--' are passed to the pipebox initialize function."
+        )
+
+    def collect_usage_pieces(self, ctx: click.Context) -> list[str]:
+        return super().collect_usage_pieces(ctx) + ["--", "[PIPEBOX ARGS...]"]
+
+
+class PypeGroup(click.Group, PypeCommand):
+    """
+    An extension of click.Group that inherits the changes from `PypeCommand`,
+    and verifies that all sub-commands inherit from `PypeCommand`.
+    """
+
+    def add_command(self, cmd: click.Command, name: str | None = None) -> None:
+        if isinstance(cmd, click.Group) and not isinstance(cmd, PypeGroup):
+            raise ValueError(f"All sub-groups must be of type PypeGroup, {name}: {type(cmd)}")
+        return super().add_command(cmd, name)
 
 
 class RegistryChoice(click.Choice):

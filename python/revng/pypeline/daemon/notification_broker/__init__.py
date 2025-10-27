@@ -3,15 +3,12 @@
 #
 
 import asyncio
-import logging
 from abc import ABC, abstractmethod
 from typing import Protocol
 
 from starlette.websockets import WebSocket
 
 from revng.pypeline.storage.storage_provider import ProjectID
-
-logger = logging.getLogger(__name__)
 
 
 class Stream(Protocol):

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from itertools import chain
 from typing import Dict, Generator, Generic, List, Mapping, Optional, Set, TypeVar
@@ -25,9 +24,8 @@ from .task.requests import Requests
 from .task.savepoint import SavePoint
 from .task.task import TaskArgumentAccess
 from .utils.default_dict_from_key import DefaultDictFromKey
+from .utils.logger import pypeline_logger
 from .utils.registry import get_singleton
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -245,8 +243,8 @@ class Pipeline(Generic[C]):
         node_outgoing_requests = requests
 
         while not node_outgoing_requests.empty():
-            logger.debug("Scheduling node %s", node)
-            logger.debug("Outgoing requests: %s", node_outgoing_requests)
+            pypeline_logger.debug_log(f"Scheduling node {node}")
+            pypeline_logger.debug_log(f"Outgoing requests: {node_outgoing_requests}")
             orig = repr(node_outgoing_requests)
             # Each node should remove the requests it can handle
             # and add the requests it needs to satisfy the task
@@ -260,7 +258,7 @@ class Pipeline(Generic[C]):
                 f"Node {node} modified the outgoing requests, which is not allowed. "
                 f"Original: {orig}, modified: {node_outgoing_requests}"
             )
-            logger.debug("Computed Ingoing requests: %s", node_ingoing_requests)
+            pypeline_logger.debug_log(f"Computed Ingoing requests: {node_ingoing_requests}")
             # Store the computed requests so that we can use them in the run method
             tasks[node].request(node_ingoing_requests, node_outgoing_requests)
             # If the node has no predecessors, we are done, but

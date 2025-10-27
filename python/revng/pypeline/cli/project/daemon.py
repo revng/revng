@@ -2,7 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import logging
 import os
 
 import click
@@ -12,8 +11,6 @@ import yaml
 import revng
 from revng.pypeline.daemon.app import make_starlette
 from revng.pypeline.daemon.daemon import Daemon
-
-logger = logging.getLogger(__name__)
 
 
 @click.command()

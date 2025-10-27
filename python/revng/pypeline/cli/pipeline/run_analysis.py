@@ -2,24 +2,22 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import logging
 import sys
 
 import click
 
 from revng.pypeline.analysis import Analysis
-from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
-from revng.pypeline.cli.utils import list_objects_option, normalize_whitespace
+from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
+from revng.pypeline.cli.utils import compute_objects, list_objects_option, normalize_whitespace
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.task.task import TaskArgument, TaskArgumentAccess
+from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_registry, get_singleton
 
-logger = logging.getLogger(__name__)
 
-
-class RunAnalysisGroup(click.Group):
+class RunAnalysisGroup(PypeGroup):
     """We need to create a custom command for each analysis we loaded from the registry.
     Since we already have to generate the code dynamically, we do it lazily so
     we generate only the commands that are requested."""
@@ -116,10 +114,10 @@ def build_run_analysis_command(
         configuration: str,
         **kwargs,
     ) -> None:
-        logger.debug('Running analysis: "%s"', analysis_name)
-        logger.debug('configuration: "%s"', configuration)
-        logger.debug('model: "%s"', model)
-        logger.debug('and kwargs: "%s"', kwargs)
+        pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
+        pypeline_logger.debug_log(f'configuration: "{configuration}"')
+        pypeline_logger.debug_log(f'model: "{model}"')
+        pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
 
         analysis = analysis_type(
             name=analysis_name,
@@ -129,7 +127,7 @@ def build_run_analysis_command(
         with open(model, "rb") as model_file:
             loaded_model = model_type.deserialize(model_file.read())
 
-        logger.debug('Model loaded: "%s"', loaded_model)
+        pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
         # Load the containers with args form the command line
         containers = []
@@ -137,8 +135,8 @@ def build_run_analysis_command(
             arg_name = arg.__name__
             path = kwargs[arg_name]
             container = arg.from_file(path)
-            logger.debug(
-                'Loaded container from "%s" for argument "%s": "%r"', path, arg_name, container
+            pypeline_logger.debug_log(
+                f'Loaded container from "{path}" for argument "{arg_name}": "{container}"'
             )
             containers.append(container)
 
@@ -163,7 +161,7 @@ def build_run_analysis_command(
             incoming=incoming,
             configuration=configuration,
         )
-        logger.debug("Analysis run completed")
+        pypeline_logger.debug_log("Analysis run completed")
         # Print on stdout the raw bytes of the modified model
         sys.stdout.buffer.write(loaded_model.serialize())
 

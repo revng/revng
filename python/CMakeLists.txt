@@ -426,6 +426,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/task/task.py
     revng/pypeline/utils/default_dict_from_key.py
     revng/pypeline/utils/registry.py
+    revng/pypeline/utils/logger.py
     revng/pypeline/utils/cabc.py
     revng/pypeline/utils/__init__.py)
 

@@ -2,24 +2,23 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import logging
 import sys
 
 import click
 
-from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
-from revng.pypeline.cli.utils import list_objects_for_container, list_objects_option
-from revng.pypeline.cli.utils import normalize_whitespace, project_id_option, token_option
+from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
+from revng.pypeline.cli.utils import compute_objects, list_objects_for_container
+from revng.pypeline.cli.utils import list_objects_option, normalize_whitespace, project_id_option
+from revng.pypeline.cli.utils import token_option
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, Pipeline
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
+from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
 
-logger = logging.getLogger(__name__)
 
-
-class AnalyzeGroup(click.Group):
+class AnalyzeGroup(PypeGroup):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -104,9 +103,9 @@ def build_analysis_command(
         token: str,
         **kwargs,
     ) -> None:
-        logger.debug('Running analysis: "%s"', analysis_name)
-        logger.debug('configuration: "%s"', configuration)
-        logger.debug('and kwargs: "%s"', kwargs)
+        pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
+        pypeline_logger.debug_log(f'configuration: "{configuration}"')
+        pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
 
         # Load the model
         storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
@@ -117,7 +116,7 @@ def build_analysis_command(
         )
         loaded_model = model_type.deserialize(storage_provider.get_model())
 
-        logger.debug('Model loaded: "%s"', loaded_model)
+        pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
         if kwargs["list"]:
             # If the user requested to list the available objects, we print them
@@ -152,15 +151,13 @@ def build_analysis_command(
             pipeline_configuration={},
             storage_provider=storage_provider,
         )
-        logger.debug("Analysis run completed")
+        pypeline_logger.debug_log("Analysis run completed")
         # Print on stdout the raw bytes of the modified model
         sys.stdout.buffer.write(new_model.serialize())
 
         for container_location, object_ids in invalidated.items():
             serialized_ids = (object_id.serialize() for object_id in object_ids)
-            print(
-                f"Invalidated {container_location}: [{', '.join(serialized_ids)}]", file=sys.stderr
-            )
+            pypeline_logger.log(f"Invalidated {container_location}: [{', '.join(serialized_ids)}]")
 
     return run_analysis_command
 
