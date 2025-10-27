@@ -17,6 +17,8 @@ containers:
     type: LLVMFunctionContainer
   - name: hexdump
     type: HexDumpContainer
+  - name: assembly-internal
+    type: AssemblyInternalContainer
 
 branches:
   files-imported:
@@ -134,3 +136,9 @@ branches:
         artifacts:
           - name: hexdump
             container: hexdump
+
+  process-assembly:
+    from: collect-cfg
+    tasks:
+      - pipe: ProcessAssembly
+        arguments: [binaries-container, cfg-map, assembly-internal]

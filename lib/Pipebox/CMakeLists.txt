@@ -13,6 +13,7 @@ target_link_libraries(
   revngLift
   revngFunctionIsolation
   revngYield
+  revngYieldPipes
   nanobind
   revngSupport)
 
