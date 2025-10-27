@@ -19,8 +19,6 @@ $defs:
           $ref: "#/$defs/container_decl"
       branches:
         type: object
-        required:
-          - root
         patternProperties:
           ^[a-zA-Z0-9_]+$:
             type: object
