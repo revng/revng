@@ -244,4 +244,4 @@ class PipelineNode:
             raise TypeError(f"Unsupported task type: {type(self.task)}")
 
     def __repr__(self):
-        return self.task.__repr__()
+        return f"<PipelineNode: {self.task!r}>"
