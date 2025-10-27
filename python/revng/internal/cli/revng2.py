@@ -17,7 +17,7 @@ import click
 from xdg import xdg_cache_home
 
 from revng.pypeline.cli.project import project
-from revng.pypeline.main import pype
+from revng.pypeline.main import pype, run
 
 logger = logging.getLogger(__name__)
 handler = logging.StreamHandler(sys.stderr)
@@ -70,7 +70,7 @@ def patch_pype():
 def main():
     """Entry point for revng2."""
     patch_pype()
-    pype()
+    run()
 
 
 if __name__ == "__main__":
