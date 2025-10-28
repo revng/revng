@@ -24,3 +24,8 @@ branches:
         configuration:
           Passes:
             - globaldce
+      - savepoint: lifted
+        containers: [llvm-root]
+        artifacts:
+          - name: lift
+            container: llvm-root
