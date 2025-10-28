@@ -4,8 +4,14 @@
 
 import json
 import os
+import sys
 from base64 import b64encode
 from typing import Dict, Optional
+
+
+def log(message: str):
+    sys.stderr.write(message + "\n")
+    sys.stderr.flush()
 
 
 def project_workdir() -> Optional[str]:

@@ -3,10 +3,8 @@
 #
 
 import asyncio
-import logging
 import os
 import signal
-import sys
 from datetime import timedelta
 from importlib import import_module
 from typing import Callable, List
@@ -33,7 +31,7 @@ from revng.internal.api.exceptions import RevngManagerInstantiationException
 from revng.internal.api.syncing_manager import SyncingManager
 
 from .graphql import get_schema
-from .util import project_workdir
+from .util import log, project_workdir
 
 config = Config()
 DEBUG = config("STARLETTE_DEBUG", cast=bool, default=False)
@@ -113,7 +111,7 @@ def get_middlewares(manager: Manager | None, hooks: PluginHooks) -> List[Middlew
 
 
 async def client_disconnect_handler(request: Request, exc: ClientDisconnect):
-    logging.warning("Client disconnected while request was being processed!")
+    log("Client disconnected while request was being processed!")
     return PlainTextResponse()
 
 
@@ -165,7 +163,7 @@ def make_startlette() -> Starlette:
     startup_done = False
 
     if DEBUG:
-        print(f"Manager workdir is: {manager.workdir}", file=sys.stderr)
+        log(f"Manager workdir is: {manager.workdir}")
         signal.signal(signal.SIGUSR2, lambda s, f: manager.save())
 
     async def index_page(request):
@@ -209,10 +207,17 @@ def make_startlette() -> Starlette:
         startup_done = True
 
     def shutdown():
+        log("Shutting down")
+
+        log("Saving to disk")
         if not manager.save():
-            logging.warning("Failed to store manager's containers")
+            log("Failed to store manager's containers")
+
+        log("Stopping the manager")
         manager.stop()
         manager._manager = None
+
+        log("Shutting down the C API")
         capi_shutdown()
 
     return Starlette(
