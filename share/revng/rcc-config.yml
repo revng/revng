@@ -7,6 +7,8 @@ matchers:
   c:
     type: suffix_or_shebang
     suffixes: ["c", "cc", "cpp", "h", "hpp", "inc"]
+    exclude:
+      - include/revng/ADT/TraitfulAny.h
   python:
     type: suffix_or_shebang
     suffixes: ["py"]

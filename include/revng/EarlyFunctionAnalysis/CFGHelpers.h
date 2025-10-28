@@ -39,6 +39,7 @@ inline ParsedSuccessor parseSuccessor(const T &Edge,
   case FunctionEdgeType::Return:
   case FunctionEdgeType::BrokenReturn:
   case FunctionEdgeType::LongJmp:
+  case FunctionEdgeType::Unexpected:
   case FunctionEdgeType::Unreachable:
     return ParsedSuccessor{ .NextInstructionAddress = Edge.Destination(),
                             .OptionalCallAddress = MetaAddress::invalid() };

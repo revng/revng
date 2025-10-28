@@ -4,7 +4,6 @@
 
 import asyncio
 import json
-import sys
 from base64 import b64decode
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -22,12 +21,7 @@ from revng.internal.api.manager import Manager
 from revng.internal.api.target import Target
 
 from .multiqueue import MultiQueue
-from .util import produce_serializer
-
-
-def log(message: str):
-    sys.stderr.write(message + "\n")
-    sys.stderr.flush()
+from .util import log, produce_serializer
 
 
 @dataclass

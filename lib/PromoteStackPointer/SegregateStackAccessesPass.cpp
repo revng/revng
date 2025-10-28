@@ -36,26 +36,26 @@ using namespace llvm;
 
 static Logger<> Log("segregate-stack-accesses");
 
-static Value *createAdd(revng::IRBuilder &B, Value *V, uint64_t Addend) {
+inline Value *createAdd(revng::IRBuilder &B, Value *V, uint64_t Addend) {
   return B.CreateAdd(V, ConstantInt::get(V->getType(), Addend));
 }
 
-static StringRef stripPrefix(StringRef Prefix, StringRef String) {
+inline StringRef stripPrefix(StringRef Prefix, StringRef String) {
   revng_assert(String.startswith(Prefix));
   return String.substr(Prefix.size());
 }
 
-static unsigned getCallPushSize(const model::Binary &Binary) {
+inline unsigned getCallPushSize(const model::Binary &Binary) {
   return model::Architecture::getCallPushSize(Binary.Architecture());
 }
 
-static auto snapshot(auto &&Range) {
+inline auto snapshot(auto &&Range) {
   SmallVector<std::decay_t<decltype(*Range.begin())>, 16> Result;
   llvm::copy(Range, std::back_inserter(Result));
   return Result;
 }
 
-static unsigned getBitOffsetAt(StructType *Struct, unsigned TargetFieldIndex) {
+inline unsigned getBitOffsetAt(StructType *Struct, unsigned TargetFieldIndex) {
   unsigned Result = 0;
   for (unsigned FieldIndex = 0; FieldIndex < TargetFieldIndex; ++FieldIndex) {
     Result += Struct->getTypeAtIndex(FieldIndex)->getIntegerBitWidth();
@@ -63,7 +63,7 @@ static unsigned getBitOffsetAt(StructType *Struct, unsigned TargetFieldIndex) {
   return Result;
 }
 
-static CallInst *findCallTo(Function *F, Function *ToSearch) {
+inline CallInst *findCallTo(Function *F, Function *ToSearch) {
   CallInst *Call = nullptr;
   for (BasicBlock &BB : *F)
     for (Instruction &I : BB)
@@ -252,7 +252,7 @@ struct SortByFunction {
   }
 };
 
-static CallInst *getAsModelGEP(revng::IRBuilder &B,
+inline CallInst *getAsModelGEP(revng::IRBuilder &B,
                                Value *Pointer,
                                const model::Type &ModelType) {
   Module &M = *B.GetInsertBlock()->getModule();

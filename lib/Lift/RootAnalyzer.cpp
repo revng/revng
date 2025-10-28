@@ -108,6 +108,17 @@ public:
 
 public:
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &) {
+    // TODO: we shouldn't create new functions in a function pass
+    auto *BoolType = llvm::IntegerType::getInt1Ty(F.getContext());
+    auto *RandomBoolType = FunctionType::get(BoolType, {});
+    FunctionCallee RandomBoolCallee = F.getParent()
+                                        ->getOrInsertFunction("random_bool",
+                                                              RandomBoolType);
+    Function *RandomBool = cast<Function>(RandomBoolCallee.getCallee());
+    RandomBool->setMemoryEffects(MemoryEffects::inaccessibleMemOnly());
+    RandomBool->addFnAttr(Attribute::NoUnwind);
+    RandomBool->addFnAttr(Attribute::WillReturn);
+
     for (Instruction &I : llvm::instructions(F)) {
       auto *Load = dyn_cast<LoadInst>(&I);
       if (Load == nullptr)
@@ -128,7 +139,21 @@ public:
       if (not Loaded.isValid() or Loaded.hasSymbol())
         continue;
 
-      Load->replaceAllUsesWith(ConstantInt::get(LoadType, Loaded.value()));
+      auto *ConstantValue = ConstantInt::get(LoadType, Loaded.value());
+
+      if (Loaded.isMutable()) {
+        IRBuilder<> Builder(Load->getNextNode());
+        auto *ReplaceWith = Builder.CreateSelect(Builder.CreateCall(RandomBool),
+                                                 Load,
+                                                 ConstantValue);
+        Load->replaceAllUsesWith(ReplaceWith);
+
+        // Fix the second operand of the select
+        cast<SelectInst>(ReplaceWith)->setOperand(1, Load);
+
+      } else {
+        Load->replaceAllUsesWith(ConstantValue);
+      }
     }
     return PreservedAnalyses::none();
   }

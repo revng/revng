@@ -155,7 +155,6 @@ constexpr inline llvm::StringRef getSyscallHelper(Values V) {
 
   case systemz:
     return "helper_exception";
-
   default:
     revng_abort();
   }
@@ -377,6 +376,22 @@ inline constexpr llvm::StringRef getAssemblyLabelIndicator(Values V) {
   case model::Architecture::mipsel:
   case model::Architecture::systemz:
     return ":";
+  default:
+    revng_abort();
+  }
+}
+
+inline constexpr bool hasDelaySlot(Values V) {
+  switch (V) {
+  case model::Architecture::x86:
+  case model::Architecture::x86_64:
+  case model::Architecture::arm:
+  case model::Architecture::aarch64:
+  case model::Architecture::systemz:
+    return false;
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
+    return true;
   default:
     revng_abort();
   }

@@ -112,7 +112,11 @@ struct TrackingImpl {
     for (auto &LHSElement : LHS.Content) {
       using value_type = typename T::value_type;
 
-      Stack.push_back(KeyedObjectTraits<value_type>::key(LHSElement));
+      using Type = decltype(LHSElement);
+      auto &Mutable = const_cast<std::remove_cvref_t<Type> &>(LHSElement);
+      static_assert(!std::is_const_v<
+                    std::remove_reference_t<decltype(Mutable)>>);
+      Stack.push_back(KeyedObjectTraits<value_type>::key(Mutable));
 
       collectImpl<M>(LHSElement, Stack, Info);
       Stack.pop_back();
@@ -139,8 +143,10 @@ struct TrackingImpl {
            typename Visitor,
            StrictSpecializationOf<UpcastablePointer> T>
   static void visitImpl(T &UP) {
-    if (!UP.isEmpty())
+    if (!UP.isEmpty()) {
+      auto KindTrackingSuspender = UP.get()->KindTracker.suspend();
       UP.upcast([&](const auto &Upcasted) { visitImpl<M, Visitor>(Upcasted); });
+    }
   }
 
   template<typename M, typename Visitor, TupleSizeCompatible T>

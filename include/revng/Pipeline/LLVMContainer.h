@@ -6,7 +6,6 @@
 
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/Pipe.h"
-#include "revng/Support/ModuleStatistics.h"
 
 inline Logger<> ModuleStatisticsLogger("module-statistics");
 

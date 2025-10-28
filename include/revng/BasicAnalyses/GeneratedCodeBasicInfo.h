@@ -313,6 +313,10 @@ public:
   llvm::SmallVector<std::pair<llvm::BasicBlock *, bool>, 4>
   blocksByPCRange(MetaAddress Start, MetaAddress End);
 
+  bool hasDelaySlot() const {
+    return model::Architecture::hasDelaySlot(Binary->Architecture());
+  }
+
 private:
   void parseRoot();
 

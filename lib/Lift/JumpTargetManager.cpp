@@ -115,8 +115,9 @@ void TDBP::pinExitTB(CallInst *ExitTBCall, DispatcherTargets &Destinations) {
 
   // Notify new branches only if the amount of possible targets actually
   // increased
-  if (Destinations.size() > OldTargetsCount)
+  if (Destinations.size() > OldTargetsCount) {
     JTM->recordNewBranches(Source, Destinations.size() - OldTargetsCount);
+  }
 }
 
 bool TDBP::pinMaterializedValues(Function &F) {
@@ -439,7 +440,11 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         MetaAddress Address = Segment.StartAddress() + Addend;
         if (Address.isValid()) {
-          Result = MaterializedValue::fromConstant(NewAPInt(Address.address()));
+          auto Value = NewAPInt(Address.address());
+          if (Segment.IsWriteable())
+            Result = MaterializedValue::fromMutable(Value);
+          else
+            Result = MaterializedValue::fromConstant(Value);
           ++MatchCount;
         } else {
           // TODO: log message
@@ -455,14 +460,7 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
   }
 
   // No labels found, fall back to read the raw value, if available
-  auto MaybeValue = BinaryView.readInteger(LoadAddress,
-                                           LoadSize,
-                                           IsLittleEndian);
-
-  if (MaybeValue)
-    return MaterializedValue::fromConstant(NewAPInt(*MaybeValue));
-  else
-    return MaterializedValue::invalid();
+  return BinaryView.load(LoadAddress, LoadSize, IsLittleEndian);
 }
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,

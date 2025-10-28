@@ -73,8 +73,10 @@ public:
       // Run final steps on the CFG
       New.simplify(*Binary);
 
-      if (New.Blocks().size() > 0)
+      if (New.Blocks().size() > 0) {
+        revng_assert(New.verify(*Binary));
         revng_assert(New.Blocks().contains(BasicBlockID(New.Entry())));
+      }
 
       // TODO: we'd need a function-wise TupleTreeContainer
       CFGs[EntryAddress] = toString(New);

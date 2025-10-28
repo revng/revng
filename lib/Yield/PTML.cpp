@@ -66,7 +66,7 @@ static std::string targetPath(const BasicBlockID &Target,
     }
   }
 
-  revng_abort(("Unknown target:\n" + toString(Target)).c_str());
+  revng_abort(("Unknown target: " + toString(Target)).c_str());
 }
 
 static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,

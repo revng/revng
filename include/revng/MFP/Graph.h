@@ -28,15 +28,6 @@ public:
   const auto &results() const { return Results; }
 };
 
-template<typename T>
-void dump(llvm::raw_ostream &Stream, unsigned Indent, const T &Element);
-
-template<typename T>
-concept SerializableLatticeElement = requires(llvm::raw_ostream &Stream,
-                                              const T &Element) {
-  { MFP::dump(Stream, 0, Element) } -> std::same_as<void>;
-};
-
 } // namespace MFP
 
 /// \note This implementation of GraphTraits forwards everything 1-to-1

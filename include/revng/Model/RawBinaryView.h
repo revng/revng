@@ -8,8 +8,11 @@
 #include <optional>
 #include <utility>
 
+#include "llvm/ADT/APInt.h"
 #include "llvm/ADT/ArrayRef.h"
 
+#include "revng/BasicAnalyses/MaterializedValue.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/OverflowSafeInt.h"
@@ -173,6 +176,24 @@ public:
       auto MaybeData = getByOffset(Segment.StartOffset(), Segment.FileSize());
       if (MaybeData)
         co_yield SegmentDataPair(Segment, *MaybeData);
+    }
+  }
+
+public:
+  MaterializedValue load(const MetaAddress &Address,
+                         unsigned LoadSize,
+                         bool IsLittleEndian) const {
+    using llvm::APInt;
+    auto MaybeValue = readInteger(Address, LoadSize, IsLittleEndian);
+    bool IsMutable = not isReadOnly(Address, LoadSize);
+    if (MaybeValue) {
+      if (IsMutable)
+        return MaterializedValue::fromMutable(APInt(LoadSize * 8, *MaybeValue));
+      else
+        return MaterializedValue::fromConstant(APInt(LoadSize * 8,
+                                                     *MaybeValue));
+    } else {
+      return MaterializedValue::invalid();
     }
   }
 

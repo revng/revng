@@ -132,7 +132,7 @@ commands:
       - type: revng.analyzed-model
     suffix: /
     command: |-
-      ./emit-and-check-c decompile-to-single-file "$INPUT1" "$INPUT2" "$OUTPUT" "$POINTER_SIZE"
+      ./emit-and-check-c decompile-to-single-file "$INPUT1" "$INPUT2" "$OUTPUT" "$POINTER_SIZE" -Wno-shift-count-overflow
 
   #
   # Produce the emit-c artifact and check the resulting C code
@@ -152,10 +152,15 @@ commands:
         set -euo pipefail
 
         ARTIFACT="$1"
-        BINARY="$2"
-        MODEL="$3"
-        RESUME="$4"
-        POINTER_SIZE="$5"
+        shift
+        BINARY="$1"
+        shift
+        MODEL="$1"
+        shift
+        RESUME="$1"
+        shift
+        POINTER_SIZE="$1"
+        shift
 
         OUTDIR="$RESUME/e2e-test-$ARTIFACT"
         mkdir -p "$OUTDIR"
@@ -186,5 +191,5 @@ commands:
           DEFINES="-DLEGACY_BACKEND"
         fi
 
-        revng check-decompiled-c "$OUTDIR/decompiled.c" -I"$OUTDIR" -m"$POINTER_SIZE" $DEFINES \
-          2> "$OUTDIR/check-decompiled-c.log"
+        revng check-decompiled-c "$OUTDIR/decompiled.c" -I"$OUTDIR" "$@" -m"$POINTER_SIZE" $DEFINES \
+          |& tee "$OUTDIR/check-decompiled-c.log"
