@@ -59,7 +59,8 @@ class Schedule:
         def get_node(node: ScheduledTask) -> Graph.Node:
             if node not in nodes_map:
                 new_node = Graph.Node(node.node.task.name)
-                new_node.completed = node.completed
+                if node.completed:
+                    new_node.bgcolor = "lightgreen"
                 for argument in node.node.arguments:
                     new_node.entries.append(argument.name)
 
