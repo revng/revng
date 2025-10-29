@@ -161,21 +161,19 @@ class Pipeline(Generic[C]):
         self, start: Optional[PipelineNode] = None, forward: bool = True, stable: bool = False
     ) -> Generator[PipelineNode, None, None]:
         """BFS walk of pipeline nodes"""
+        assert int(not forward) + int(stable) < 2, "forward=False,stable=True is unsupported"
+
         to_visit: List[PipelineNode] = [start or self.root]
         visited: Set[PipelineNode] = set()
 
         if forward:
 
             def successors(node):
-                if not stable:
-                    return node.successors
-                else:
-                    return node.sorted_successors()
+                return node.sorted_successors() if stable else node.successors
 
         else:
 
             def successors(node):
-                assert not stable
                 return node.predecessors
 
         while len(to_visit) > 0:
@@ -186,40 +184,77 @@ class Pipeline(Generic[C]):
                 if child_node not in visited:
                     to_visit.append(child_node)
 
-    def graph(self) -> Graph:
+    def graph(self, container_edges=False) -> Graph:
         """A graph for debugging purposes."""
 
         graph = Graph()
 
         nodes_map: Dict[PipelineNode, Graph.Node] = {}
 
-        def get_node(node: PipelineNode) -> Graph.Node:
-            if node not in nodes_map:
-                new_node = Graph.Node(node.task.name)
-                for argument in node.arguments:
-                    new_node.entries.append(argument.name)
-
-                nodes_map[node] = new_node
-                graph.nodes.add(new_node)
-
-            return nodes_map[node]
+        access_to_str = {
+            TaskArgumentAccess.READ: "R",
+            TaskArgumentAccess.WRITE: "W",
+            TaskArgumentAccess.READ_WRITE: "RW",
+        }
 
         for node in self.walk_pipeline():
-            graph_node = get_node(node)
-            node_inputs: List[ContainerDeclaration] = list(node.arguments)
+            if isinstance(node.task, Pipe):
+                new_node = Graph.Node(node.task.name)
+                for argument in node.arguments_with_access:
+                    new_node.entries.append(f"{argument.name} [{access_to_str[argument.access]}]")
+            else:
+                new_node = Graph.Node(node.task.name, color="#2A52BE", bgcolor="#6C83BE")
+                for argument in node.arguments_with_access:
+                    new_node.entries.append(argument.name)
+
+            nodes_map[node] = new_node
+            graph.nodes.add(new_node)
 
             for predecessor in node.predecessors:
-                for source_index, argument in enumerate(predecessor.task.arguments):
-                    if argument.access == TaskArgumentAccess.READ or argument not in node_inputs:
+                graph.edges.add(
+                    Graph.Edge(
+                        nodes_map[predecessor],
+                        new_node,
+                        source_port=-1,
+                        destination_port=-1,
+                        style="bold",
+                    )
+                )
+
+            if not container_edges:
+                continue
+
+            node_inputs: list[ContainerDeclaration] = list(node.arguments)
+            taken_inputs: set[int] = set()
+
+            for parent_node in self.walk_pipeline(node, forward=False):
+                if parent_node is node:
+                    continue
+
+                for source_index, parent_argument in enumerate(parent_node.arguments_with_access):
+                    parent_container_decl = parent_argument.to_container_decl()
+                    if (
+                        parent_argument.access == TaskArgumentAccess.READ
+                        or parent_container_decl not in node_inputs
+                    ):
                         continue
 
-                    destination_index = node_inputs.index(argument)
+                    destination_index = node_inputs.index(parent_container_decl)
+                    if destination_index in taken_inputs:
+                        continue
+
+                    taken_inputs.add(destination_index)
+                    if parent_node in node.predecessors:
+                        continue
+
                     graph.edges.add(
                         Graph.Edge(
-                            get_node(predecessor),
-                            graph_node,
+                            nodes_map[parent_node],
+                            new_node,
                             source_port=source_index,
                             destination_port=destination_index,
+                            style="dashed",
+                            color="#FD6D53",
                         )
                     )
 
