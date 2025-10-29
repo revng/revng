@@ -10,37 +10,7 @@
 
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
 #include "revng/Support/IRHelpers.h"
-
-class OpaqueRegisterUser {
-private:
-  llvm::Module *M;
-  OpaqueFunctionsPool<std::string> Clobberers;
-
-public:
-  OpaqueRegisterUser(llvm::Module *M) : M(M), Clobberers(M, false) {
-    using namespace llvm;
-    Clobberers.setMemoryEffects(MemoryEffects::readOnly());
-    Clobberers.addFnAttribute(Attribute::NoUnwind);
-    Clobberers.addFnAttribute(Attribute::WillReturn);
-    Clobberers.setTags({ &FunctionTags::ClobbererFunction });
-    Clobberers.initializeFromName(FunctionTags::ClobbererFunction);
-  }
-
-public:
-  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
-                           llvm::GlobalVariable *CSV) {
-    auto *CSVTy = CSV->getValueType();
-    std::string Name = "clobber_" + CSV->getName().str();
-    llvm::Function *Clobberer = Clobberers.get(Name, CSVTy, {}, Name);
-    return Builder.CreateStore(Builder.CreateCall(Clobberer), CSV);
-  }
-
-  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
-                           model::Register::Values Value) {
-    return clobber(Builder,
-                   M->getGlobalVariable(model::Register::getCSVName(Value)));
-  }
-};
+#include "revng/Support/OpaqueRegisterUser.h"
 
 static bool isCallToAbort(const llvm::Instruction *I) {
   const llvm::Function *Callee = getCallee(I);
