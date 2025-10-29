@@ -2,7 +2,9 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import asyncio
 from pathlib import Path
+from typing import AsyncContextManager
 
 import click
 
@@ -11,6 +13,7 @@ from revng.pypeline.cli.utils import normalize_whitespace, project_id_option, to
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
+from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
@@ -94,6 +97,62 @@ def build_artifact_command(
 ):
     artifact_name: str = artifact.name
 
+    async def async_part_of_command(
+        storage_provider_context: AsyncContextManager[StorageProvider],
+        objects: str | None,
+        result_path: Path | None,
+        kwargs,
+    ):
+        """Since the storage provider factory returns an async context manager,
+        we need the code that uses the storage_provider to be an async function.
+        """
+        async with storage_provider_context as storage_provider:
+            loaded_model = model_type.deserialize(storage_provider.get_model()[0])
+
+            pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
+
+            artifact_kind = artifact.container.container_type.kind
+            if kwargs["list"]:
+                # If the user requested to list the available objects, we print them
+                # and exit
+                print(f'Available objects for kind: "{artifact_kind.__name__}"')
+                for obj in loaded_model.all_objects(artifact_kind):
+                    print(f" - {obj}")
+                return
+
+            # Compute the requests for the incoming containers of the
+            # analysis
+            incoming: ObjectSet
+
+            if objects is None:
+                incoming = loaded_model.all_objects(artifact_kind)
+            else:
+                obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
+                incoming = ObjectSet(
+                    kind=artifact_kind,
+                    objects={
+                        obj_id_type.deserialize(obj)
+                        for obj in objects.split(",")
+                        if obj.strip() != ""
+                    },
+                )
+
+            # Finally, run the analysis
+            res_container = pipeline.get_artifact(
+                model=ReadOnlyModel(loaded_model),
+                artifact=artifact,
+                requests=incoming,
+                pipeline_configuration={},
+                storage_provider=storage_provider,
+            )
+            pypeline_logger.debug_log("Artifact computed")
+
+            if result_path is not None:
+                pypeline_logger.debug_log(f'Writing result to: "{result_path}"')
+                res_container.to_file(result_path)
+            else:
+                print(res_container.to_string(), end="", flush=True)
+
     @click.command(name=artifact_name, help=help_text)
     @list_objects_option
     @project_id_option
@@ -121,56 +180,22 @@ def build_artifact_command(
         pypeline_logger.debug_log(f'configuration: "{configuration}"')
         pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
 
-        # Load the model
+        # Setup the storage provider
         storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
-        storage_provider = storage_provider_factory.get(
+        storage_provider_context = storage_provider_factory.get(
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj["cache_dir"],
         )
-        loaded_model = model_type.deserialize(storage_provider.get_model())
-
-        pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
-
-        artifact_kind = artifact.container.container_type.kind
-        if kwargs["list"]:
-            # If the user requested to list the available objects, we print them
-            # and exit
-            print(f'Available objects for kind: "{artifact_kind.__name__}"')
-            for obj in loaded_model.all_objects(artifact_kind):
-                print(f" - {obj}")
-            return
-
-        # Compute the requests for the incoming containers of the
-        # analysis
-        incoming: ObjectSet
-
-        if objects is None:
-            incoming = loaded_model.all_objects(artifact_kind)
-        else:
-            obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
-            incoming = ObjectSet(
-                kind=artifact_kind,
-                objects={
-                    obj_id_type.deserialize(obj) for obj in objects.split(",") if obj.strip() != ""
-                },
+        # Switch to the async portion
+        asyncio.run(
+            async_part_of_command(
+                storage_provider_context=storage_provider_context,
+                objects=objects,
+                result_path=result_path,
+                kwargs=kwargs,
             )
-
-        # Finally, run the analysis
-        res_container = pipeline.get_artifact(
-            model=ReadOnlyModel(loaded_model),
-            artifact=artifact,
-            requests=incoming,
-            pipeline_configuration={},
-            storage_provider=storage_provider,
         )
-        pypeline_logger.debug_log("Artifact computed")
-
-        if result_path is not None:
-            pypeline_logger.debug_log(f'Writing result to: "{result_path}"')
-            res_container.to_file(result_path)
-        else:
-            print(res_container.to_string(), end="", flush=True)
 
     return run_analysis_command
 
