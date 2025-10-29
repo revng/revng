@@ -68,7 +68,7 @@ struct TrackingImpl {
 
       Stack.push_back(size_t(I));
       if (LHS.template getTracker<I>().isSet()) {
-        Info.Read.insert(Stack);
+        Info.Read.push_back(Stack);
       }
       collectImpl<M>(LHS.template untrackedGet<I>(), Stack, Info);
       Stack.pop_back();
@@ -104,12 +104,12 @@ struct TrackingImpl {
   collectImpl(const T &LHS, TupleTreePath &Stack, ReadFields &Info) {
     typename T::TrackingResult TrackingResult = LHS.getTrackingResult();
     if (TrackingResult.Exact)
-      Info.ExactVectors.insert(Stack);
+      Info.ExactVectors.push_back(Stack);
 
     using KeyType = std::remove_cv_t<typename T::key_type>;
     for (KeyType Key : TrackingResult.InspectedKeys) {
       Stack.push_back(Key);
-      Info.Read.insert(Stack);
+      Info.Read.push_back(Stack);
       Stack.pop_back();
     }
     for (auto &LHSElement : LHS.Content) {
@@ -176,6 +176,7 @@ ReadFields Tracking::collect(const M &LHS) {
   ReadFields Info;
   TrackingImpl::collectImpl<M>(LHS, Stack, Info);
   clearAndResume(LHS);
+  Info.deduplicate();
   return Info;
 }
 

@@ -351,7 +351,15 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldBeEmptyAtFirst) {
   revng::Tracking::clearAndResume(Model);
 
   auto Collected = revng::Tracking::collect(Model);
-  BOOST_TEST(Collected.Read.size() == 0);
+  BOOST_TEST(Collected.Read.size() == 0U);
+}
+
+static llvm::SmallVector<TupleTreePath>
+toTupleTreePaths(const std::vector<std::string> &Strings) {
+  llvm::SmallVector<TupleTreePath> Result;
+  for (const std::string &String : Strings)
+    Result.push_back(*stringAsPath<model::Binary>(String));
+  return Result;
 }
 
 BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectSegments) {
@@ -364,14 +372,11 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectSegments) {
   ConstModel.Segments().at(Segment::Key(MetaAddress, 1000)).StartAddress();
 
   auto Collected = revng::Tracking::collect(Model);
-  BOOST_TEST(Collected.Read.size() == 1);
-  std::vector StringPaths = { "/Segments/0x0:Code_x86_64-1000" };
+  BOOST_TEST(Collected.Read.size() == 1U);
 
-  std::set<TupleTreePath> Paths;
-  for (const auto &Path : StringPaths) {
-    Paths.insert(*stringAsPath<model::Binary>(Path));
-  }
-  BOOST_TEST(Collected.Read == Paths);
+  auto Expected = toTupleTreePaths({ "/Segments/0x0:Code_x86_64-1000" });
+
+  BOOST_TEST(Collected.Read == Expected);
 }
 
 BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectNotFoundSegments) {
@@ -383,11 +388,10 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectNotFoundSegments) {
   ConstModel.Segments().tryGet(Segment::Key(MetaAddress, 1000));
 
   auto Collected = revng::Tracking::collect(Model);
-  BOOST_TEST(Collected.Read.size() == 1);
-  std::set<TupleTreePath> Paths = {
-    *stringAsPath<model::Binary>("/Segments/0x0:Code_x86_64-1000"),
-  };
-  BOOST_TEST(Collected.Read == Paths);
+  BOOST_TEST(Collected.Read.size() == 1U);
+
+  auto Expected = toTupleTreePaths({ "/Segments/0x0:Code_x86_64-1000" });
+  BOOST_TEST(Collected.Read == Expected);
 }
 
 BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectAllSegments) {
@@ -401,10 +405,8 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectAllSegments) {
 
   auto Collected = revng::Tracking::collect(Model);
 
-  BOOST_TEST(Collected.Read.size() == 0);
+  BOOST_TEST(Collected.Read.size() == 0U);
 
-  std::set<TupleTreePath> Paths = {
-    *stringAsPath<model::Binary>("/Segments"),
-  };
-  BOOST_TEST(Collected.ExactVectors == Paths);
+  auto Expected = toTupleTreePaths({ "/Segments" });
+  BOOST_TEST(Collected.ExactVectors == Expected);
 }
