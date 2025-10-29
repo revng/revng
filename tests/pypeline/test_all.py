@@ -589,7 +589,7 @@ def test_pipeline(storage_provider):
     )
     assert isinstance(new_model, DictModel), "The analysis should return the same model type"
     assert len(new_model) == 0, "PurgeAllAnalysis should empty the model"
-    stored_model = storage_provider.get_model()
+    stored_model, epoch = storage_provider.get_model()
     assert stored_model == new_model.serialize(), "The model should be stored"
 
 

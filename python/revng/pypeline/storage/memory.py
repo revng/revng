@@ -6,20 +6,23 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Buffer
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterable, Mapping
+from typing import AsyncGenerator, Iterable, Mapping
 
+from revng import __version__ as revng_version
 from revng.pypeline.container import ContainerID
 from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
+from revng.pypeline.utils import Locked
 
 from .file_provider import FileRequest
 from .storage_provider import ConfigurationId, ContainerLocation, FileStorageEntry
 from .storage_provider import InvalidatedObjects, ProjectID, ProjectMetadata, SavepointID
 from .storage_provider import SavePointsRange, StorageProvider, StorageProviderFactory
-from .util import _REVNG_VERSION_PLACEHOLDER, check_kind_structure, compute_hash
+from .util import check_kind_structure, compute_hash
 
 
 @dataclass(frozen=True)
@@ -34,23 +37,29 @@ class DependencyEntry:
 class InMemoryStorageProviderFactory(StorageProviderFactory):
     def __init__(self, url: str):
         assert url == "memory://"
-        self.providers: dict[ProjectID | None, InMemoryStorageProvider] = {}
+        self.providers: Locked[dict[ProjectID | None, Locked[InMemoryStorageProvider]]] = Locked({})
 
     @classmethod
     def scheme(cls) -> str:
         return "memory"
 
-    def get(
+    @asynccontextmanager
+    async def get(
         self,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
-    ) -> StorageProvider:
-        if project_id in self.providers:
-            return self.providers[project_id]
-        provider = InMemoryStorageProvider()
-        self.providers[project_id] = provider
-        return provider
+    ) -> AsyncGenerator[StorageProvider]:
+        async with self.providers() as providers:
+            project_provider: Locked[InMemoryStorageProvider] | None = providers.get(project_id)
+            if project_provider is None:
+                project_provider = Locked(InMemoryStorageProvider())
+                providers[project_id] = project_provider
+
+        # Release the global lock and acquire the project-specific one so other
+        # projects can proceed in parallel
+        async with project_provider() as project_data:
+            yield project_data
 
 
 class InMemoryStorageProvider(StorageProvider):
@@ -65,6 +74,7 @@ class InMemoryStorageProvider(StorageProvider):
         self.dependencies: dict[str, list[DependencyEntry]] = defaultdict(list)
         self.last_change = datetime.now()
         self.files: dict[str, bytes] = {}
+        self.epoch = 0
 
     def has(
         self,
@@ -160,12 +170,18 @@ class InMemoryStorageProvider(StorageProvider):
         self.last_change = datetime.now()
         return dict(invalidated)
 
-    def get_model(self) -> bytes:
-        return self.model
+    def get_epoch(self) -> int:
+        return self.epoch
 
-    def set_model(self, new_model: bytes):
+    def get_model(self) -> tuple[bytes, int]:
+        return (self.model, self.epoch)
+
+    def set_model(self, new_model: bytes) -> int:
+        if self.model != new_model:
+            self.epoch += 1
         self.model = new_model
         self.last_change = datetime.now()
+        return self.epoch
 
     def metadata(self) -> ProjectMetadata:
         """
@@ -173,7 +189,7 @@ class InMemoryStorageProvider(StorageProvider):
         """
         return ProjectMetadata(
             last_change=self.last_change,
-            revng_version=_REVNG_VERSION_PLACEHOLDER,
+            revng_version=revng_version,
         )
 
     def prune_objects(self):

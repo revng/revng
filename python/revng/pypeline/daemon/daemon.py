@@ -2,17 +2,15 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 
 from revng.pypeline.container import Container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import Kind
-from revng.pypeline.storage.storage_provider import ProjectID, StorageProviderFactory
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
-from revng.pypeline.utils import Locked, bytes_to_string
+from revng.pypeline.utils import bytes_to_string
 from revng.pypeline.utils.registry import get_registry, get_singleton
 
 from .utils import compute_artifact, compute_objects
@@ -63,30 +61,27 @@ class Daemon:
         self.pipeline = pipeline
         self.debug = debug
         self.cache_dir = cache_dir
+        self.storage_provider_factory = storage_provider_factory_factory(storage_provider_url)
 
-        self.project_data: Locked[tuple[dict[ProjectID, int], StorageProviderFactory]] = Locked(
-            (defaultdict(lambda: 0), storage_provider_factory_factory(storage_provider_url))
+    def _get_storage_provider_context(self, request):
+        project_id = request["project_id"]
+        token = request.get("token")
+        return self.storage_provider_factory.get(
+            project_id=project_id,
+            token=token,
+            cache_dir=self.cache_dir,
         )
 
     async def get_epoch(self, request) -> Response:
-        async with self.project_data() as (epochs, _):
-            return Response(code=200, body={"epoch": epochs[request["project_id"]]})
+        storage_provider_context = self._get_storage_provider_context(request)
+        async with storage_provider_context as storage_provider:
+            return Response(code=200, body={"epoch": storage_provider.get_epoch()})
 
     async def get_model(self, request):
-        project_id = request["project_id"]
-        token = request.get("token")
-
-        async with self.project_data() as (epochs, storage_provider_factory):
-            epoch = epochs[project_id]
-
-            storage_provider = storage_provider_factory.get(
-                project_id=project_id,
-                token=token,
-                cache_dir=self.cache_dir,
-            )
-
+        storage_provider_context = self._get_storage_provider_context(request)
+        async with storage_provider_context as storage_provider:
             model_type: type[Model] = get_singleton(Model)
-            model: bytes = storage_provider.get_model()
+            model, epoch = storage_provider.get_model()
 
         return Response(
             code=200,
@@ -147,8 +142,6 @@ class Daemon:
 
     async def artifact(self, request) -> Response:
         model_type: type[Model] = get_singleton(Model)  # type: ignore [type-abstract]
-        project_id = request["project_id"]
-        token = request.get("token")
         artifacts = request["artifacts"]
         epoch = request["epoch"]
 
@@ -163,27 +156,23 @@ class Daemon:
                     },
                 )
 
-        async with self.project_data() as (epochs, storage_provider_factory):
-            if epochs[project_id] != epoch:
+        storage_provider_context = self._get_storage_provider_context(request)
+        async with storage_provider_context as storage_provider:
+            # Load the model
+            model = model_type()
+            model_bytes, real_epoch = storage_provider.get_model()
+            model.deserialize(model_bytes)
+
+            if real_epoch != epoch:
                 return Response(
                     code=409,
                     body={
                         "msg": (
                             f"Epoch mismatch: client has epoch {epoch}, "
-                            f"server has epoch {epochs[project_id]}."
+                            f"server has epoch {real_epoch}."
                         ),
                     },
                 )
-
-            # Create a storage provider
-            storage_provider = storage_provider_factory.get(
-                project_id=project_id,
-                token=token,
-                cache_dir=self.cache_dir,
-            )
-            # Load the model
-            model = model_type()
-            model.deserialize(storage_provider.get_model())
 
             # Process each artifact
             res = {}
@@ -202,13 +191,10 @@ class Daemon:
 
     async def analyze(self, request) -> Response:
         """Process analysis requests"""
-        project_id = request["project_id"]
-
         model_type: type[Model] = get_singleton(Model)  # type: ignore [type-abstract]
 
         # Extract the data
         epoch = request["epoch"]
-        token = request.get("token")
         analysis = request["analysis"]
         configuration = request.get("configuration", "")
         pipeline_configuration = request.get("pipeline_configuration", {})
@@ -239,27 +225,23 @@ class Daemon:
                     },
                 )
 
-        async with self.project_data() as (epochs, storage_provider_factory):
-            # Check epoch
-            if epochs[project_id] != epoch:
+        storage_provider_context = self._get_storage_provider_context(request)
+        async with storage_provider_context as storage_provider:
+            # Load the model
+            model = model_type()
+            model_bytes, real_epoch = storage_provider.get_model()
+            model.deserialize(model_bytes)
+
+            if real_epoch != epoch:
                 return Response(
                     code=409,
                     body={
                         "msg": (
                             f"Epoch mismatch: client has epoch {epoch}, "
-                            f"server has epoch {epochs[project_id]}."
+                            f"server has epoch {real_epoch}."
                         ),
                     },
                 )
-
-            # Create a storage provider
-            storage_provider = storage_provider_factory.get(
-                project_id=project_id,
-                token=token,
-                cache_dir=self.cache_dir,
-            )
-            # Load the model
-            model = model_type.deserialize(storage_provider.get_model())
 
             # Setup the requests
             requests = Requests()
@@ -289,12 +271,8 @@ class Daemon:
             )
 
             diff = str(model.diff(new_model))
-
-            # Decide whether to increment the epoch
-            new_epoch = epoch
-            if len(diff) != 0:
-                new_epoch = epoch + 1
-                epochs[project_id] = new_epoch
+            # TODO: this can be done much more efficiently
+            new_epoch = storage_provider.get_epoch()
 
         # Only return cacheable artifacts invalidations
         invalidated_artifacts: list[dict[str, Any]] = []

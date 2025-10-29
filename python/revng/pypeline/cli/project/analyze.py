@@ -2,7 +2,9 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import asyncio
 import sys
+from typing import AsyncContextManager
 
 import click
 
@@ -12,6 +14,7 @@ from revng.pypeline.cli.utils import list_objects_option, normalize_whitespace, 
 from revng.pypeline.cli.utils import token_option
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, Pipeline
+from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils.logger import pypeline_logger
@@ -91,6 +94,62 @@ def build_analysis_command(
 ):
     analysis_name: str = analysis_binding.analysis.name
 
+    async def async_part_of_command(
+        storage_provider_context: AsyncContextManager[StorageProvider],
+        configuration: str,
+        kwargs,
+    ):
+        """Since the storage provider factory returns an async context manager,
+        we need the code that uses the storage_provider to be an async function.
+        """
+        async with storage_provider_context as storage_provider:
+            loaded_model = model_type.deserialize(storage_provider.get_model()[0])
+
+            pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
+
+            if kwargs["list"]:
+                # If the user requested to list the available objects, we print them
+                # and exit
+                for container_decl in analysis_binding.bindings:
+                    list_objects_for_container(
+                        model=ReadOnlyModel(loaded_model),
+                        arg_name=container_decl.name,
+                        kind=container_decl.container_type.kind,
+                    )
+                    # Space between containers
+                    print()
+                return
+
+            # Compute the requests for the incoming containers of the
+            # analysis
+            incoming = Requests()
+            for container_decl in analysis_binding.bindings:
+                incoming[container_decl] = compute_objects(
+                    model=ReadOnlyModel(loaded_model),
+                    arg_name=container_decl.name,
+                    kind=container_decl.container_type.kind,
+                    kwargs=kwargs,
+                )
+
+            # Finally, run the analysis
+            new_model, invalidated = pipeline.run_analysis(
+                model=ReadOnlyModel(loaded_model),
+                analysis_name=analysis_name,
+                requests=incoming,
+                analysis_configuration=configuration,
+                pipeline_configuration={},
+                storage_provider=storage_provider,
+            )
+            pypeline_logger.debug_log("Analysis run completed")
+            # Print on stdout the raw bytes of the modified model
+            sys.stdout.buffer.write(new_model.serialize())
+
+            for container_location, object_ids in invalidated.items():
+                serialized_ids = (object_id.serialize() for object_id in object_ids)
+                pypeline_logger.log(
+                    f"Invalidated {container_location}: [{', '.join(serialized_ids)}]"
+                )
+
     @click.command(name=analysis_name, help=help_text)
     @list_objects_option
     @project_id_option
@@ -109,55 +168,18 @@ def build_analysis_command(
 
         # Load the model
         storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
-        storage_provider = storage_provider_factory.get(
+        storage_provider_context = storage_provider_factory.get(
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj["cache_dir"],
         )
-        loaded_model = model_type.deserialize(storage_provider.get_model())
-
-        pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
-
-        if kwargs["list"]:
-            # If the user requested to list the available objects, we print them
-            # and exit
-            for container_decl in analysis_binding.bindings:
-                list_objects_for_container(
-                    model=ReadOnlyModel(loaded_model),
-                    arg_name=container_decl.name,
-                    kind=container_decl.container_type.kind,
-                )
-                # Space between containers
-                print()
-            return
-
-        # Compute the requests for the incoming containers of the
-        # analysis
-        incoming = Requests()
-        for container_decl in analysis_binding.bindings:
-            incoming[container_decl] = compute_objects(
-                model=ReadOnlyModel(loaded_model),
-                arg_name=container_decl.name,
-                kind=container_decl.container_type.kind,
+        asyncio.run(
+            async_part_of_command(
+                storage_provider_context=storage_provider_context,
+                configuration=configuration,
                 kwargs=kwargs,
             )
-
-        # Finally, run the analysis
-        new_model, invalidated = pipeline.run_analysis(
-            model=ReadOnlyModel(loaded_model),
-            analysis_name=analysis_name,
-            requests=incoming,
-            analysis_configuration=configuration,
-            pipeline_configuration={},
-            storage_provider=storage_provider,
         )
-        pypeline_logger.debug_log("Analysis run completed")
-        # Print on stdout the raw bytes of the modified model
-        sys.stdout.buffer.write(new_model.serialize())
-
-        for container_location, object_ids in invalidated.items():
-            serialized_ids = (object_id.serialize() for object_id in object_ids)
-            pypeline_logger.log(f"Invalidated {container_location}: [{', '.join(serialized_ids)}]")
 
     return run_analysis_command
 

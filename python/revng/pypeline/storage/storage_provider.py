@@ -9,7 +9,7 @@ from collections.abc import Buffer
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Collection, Iterable, Mapping
+from typing import Annotated, AsyncContextManager, Collection, Iterable, Mapping
 from urllib.parse import urlparse
 
 from revng.pypeline.container import ConfigurationId, ContainerID
@@ -130,14 +130,14 @@ class StorageProviderFactory(ABC):
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
-    ) -> StorageProvider:
+    ) -> AsyncContextManager[StorageProvider]:
         """
         Get a storage provider instance for the given project.
         This method has to receive all the arguments needed by all possible
         implementations, so it's common that the implementation will ignore some
-        of them. The methods are not supposed to be thread-safe, and it's
-        responsibility of the user to ensure that this method is not called
-        concurrently.
+        of them. The method returns an async context manager that yields the
+        storage provider. This is done because we need to lock the storage provider
+        based on the project ID because only one user at time can modify a project.
         """
 
 
@@ -221,15 +221,19 @@ class StorageProvider(ABC):
         """
 
     @abstractmethod
-    def get_model(self) -> bytes:
-        """
-        Get the model
-        """
+    def get_epoch(self) -> int:
+        """Get the epoch, i.e. the model version number."""
 
     @abstractmethod
-    def set_model(self, new_model: bytes):
+    def get_model(self) -> tuple[bytes, int]:
+        """Get the model and the epoch."""
+
+    @abstractmethod
+    def set_model(self, new_model: bytes) -> int:
         """
-        Set the model
+        Set the model and return the new epoch (which will be current epoch + 1
+        if the model changed, or current epoch if it didn't, and 0 if there was no
+        model before).
         """
 
     @abstractmethod
