@@ -10,6 +10,7 @@
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
 #include "revng/Lift/Lift.h"
+#include "revng/Lift/LinkSupportPipe.h"
 #include "revng/Pipebox/LLVMPipe.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
@@ -55,3 +56,4 @@ static RegisterFunctionPipe<PromoteCSVs> P10;
 static RegisterSingleOutputPipe<HexDump> P11;
 static RegisterFunctionPipe<ProcessAssembly> P12;
 static RegisterFunctionPipe<YieldAssembly> P13;
+static RegisterSingleOutputPipe<LinkSupport> P14;
