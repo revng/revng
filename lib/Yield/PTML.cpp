@@ -87,7 +87,8 @@ static std::set<std::string> targets(const yield::BasicBlock &BasicBlock,
 
   // Explicitly remove the next target if there is only a single other target,
   // i.e. it's a conditional jump, call, etc.
-  if (Result.size() == 2) {
+  if (Result.size() == 2
+      and Function.Blocks().contains(BasicBlock.nextBlock())) {
     auto NextBlock = targetPath(BasicBlock.nextBlock(), Function, Binary);
     if (auto Iterator = llvm::find(Result, NextBlock); Iterator != Result.end())
       Result.erase(Iterator);
