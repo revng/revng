@@ -170,9 +170,10 @@ llvm::ManagedStatic<DebugLogOptionWrapper> DebugLogOption;
 template<>
 void Logger<true>::init() {
   Loggers->add(this);
-  DebugLogOption->TheOption.getParser().addLiteralOption(Name.data(),
-                                                         Loggers->size(),
-                                                         description().data());
+  if (Name.size() > 0) {
+    auto &Parser = DebugLogOption->TheOption.getParser();
+    Parser.addLiteralOption(Name.data(), Loggers->size(), description().data());
+  }
 }
 
 template<>

@@ -930,12 +930,10 @@ public:
 private:
   constexpr bool verify() const debug_function {
     // Invalid addresses are all the same
-    if (type() == MetaAddressType::Invalid) {
-      return *this == invalid();
-    }
-
-    if (static_cast<uint16_t>(Type) > MetaAddressType::Code_systemz)
+    if (type() == MetaAddressType::Invalid
+        or type() >= MetaAddressType::Count) {
       return false;
+    }
 
     // Check alignment
     if (Address % alignment() != 0)

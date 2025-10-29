@@ -13,6 +13,7 @@ void ValueMaterializer::run() {
   revng_log(ValueMaterializerLogger,
             "Evaluating " << getName(V) << " using " << getName(Context)
                           << " as context");
+  LoggerIndent<> Indent(ValueMaterializerLogger);
 
   DataFlowGraph = DataFlowGraph::fromValue(V, TheLimits);
 

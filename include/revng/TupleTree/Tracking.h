@@ -17,8 +17,16 @@
 /// cold start invalidation based on the hash, the hash will be different
 /// depending if they are just read or if they are vectors required to be exact.
 struct ReadFields {
-  std::set<TupleTreePath> Read;
-  std::set<TupleTreePath> ExactVectors;
+  llvm::SmallVector<TupleTreePath> Read;
+  llvm::SmallVector<TupleTreePath> ExactVectors;
+
+  void deduplicate() {
+    llvm::sort(Read);
+    Read.erase(std::unique(Read.begin(), Read.end()), Read.end());
+    llvm::sort(ExactVectors);
+    ExactVectors.erase(std::unique(ExactVectors.begin(), ExactVectors.end()),
+                       ExactVectors.end());
+  }
 };
 
 namespace revng {
