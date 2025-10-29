@@ -124,8 +124,10 @@ getIntFormat(llvm::Instruction &I, llvm::Use &U, const model::Binary &Model) {
 
   // Some intrinsic calls require ConstantInt as an argument so we are not able
   // to pass there any decorated value.
-  if (auto *Intrinsic = llvm::dyn_cast<llvm::IntrinsicInst>(&I)) {
-    if (Intrinsic->getIntrinsicID() == llvm::Intrinsic::abs) {
+  if (auto *Call = llvm::dyn_cast<llvm::CallBase>(&I)) {
+    if (Call->isArgOperand(&U)
+        and Call->paramHasAttr(Call->getArgOperandNo(&U),
+                               llvm::Attribute::ImmArg)) {
       return std::nullopt;
     }
   }
