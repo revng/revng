@@ -1546,3 +1546,9 @@ inline void linkModules(std::unique_ptr<llvm::Module> &&Source,
                         llvm::Module &Destination) {
   linkModules(std::move(Source), Destination, std::nullopt);
 }
+
+/// Clone the module, keeping only the functions specified in \p ToClone .
+/// This requires the source module to be writable in order to guarantee that
+/// the metadata attached to the cloned functions is also preserved.
+std::unique_ptr<llvm::Module>
+cloneFiltered(llvm::Module &Module, std::set<const llvm::Function *> &ToClone);
