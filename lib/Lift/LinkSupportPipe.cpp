@@ -59,11 +59,10 @@ static llvm::StringRef getSupportName(model::Architecture::Values V) {
   return "Invalid";
 }
 
-static std::string getSupportPath(const Context &Context) {
-  const auto &Model = getModelFromContext(Context);
+static std::string getSupportPath(const model::Binary &Model) {
   const char *SupportConfig = Tracing ? "trace" : "normal";
 
-  auto ArchName = getSupportName(Model->Architecture()).str();
+  auto ArchName = getSupportName(Model.Architecture()).str();
   std::string SupportSearchPath = ("/share/revng/support-" + ArchName + "-"
                                    + SupportConfig + ".ll");
 
@@ -80,7 +79,7 @@ void revng::pipes::LinkSupport::run(ExecutionContext &EC,
   if (ModuleContainer.enumerate().empty())
     return;
 
-  std::string SupportPath = getSupportPath(EC.getContext());
+  std::string SupportPath = getSupportPath(*getModelFromContext(EC));
 
   llvm::SMDiagnostic Err;
   auto Module = llvm::parseIRFile(SupportPath,
@@ -97,3 +96,23 @@ void revng::pipes::LinkSupport::run(ExecutionContext &EC,
 }
 
 static pipeline::RegisterPipe<LinkSupport> E4;
+
+namespace revng::pypeline::piperuns {
+
+void LinkSupport::run(const class Model &Model,
+                      llvm::StringRef Config,
+                      llvm::StringRef DynamicConfig,
+                      LLVMRootContainer &ModuleContainer) {
+  std::string SupportPath = getSupportPath(*Model.get().get());
+
+  llvm::SMDiagnostic Err;
+  llvm::LLVMContext &Context = ModuleContainer.getModule().getContext();
+  auto Module = llvm::parseIRFile(SupportPath, Err, Context);
+  revng_assert(Module != nullptr);
+
+  bool Failed = llvm::Linker::linkModules(ModuleContainer.getModule(),
+                                          std::move(Module));
+  revng_assert(not Failed);
+}
+
+} // namespace revng::pypeline::piperuns
