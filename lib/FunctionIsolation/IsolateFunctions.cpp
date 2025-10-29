@@ -668,10 +668,11 @@ void IsolateFunctionsImpl::handleUnexpectedPCCloned(efa::OutlinedFunction
 
 void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
                                             const efa::ControlFlowGraph &FM) {
+
   if (BasicBlock *AnyPC = Outlined.AnyPCCloned) {
     for (BasicBlock *AnyPCPredecessor : toVector(predecessors(AnyPC))) {
       // First of all, identify the basic block
-      const efa::BasicBlock *Block = FM.findBlock(GCBI, AnyPCPredecessor);
+      const efa::BasicBlock *JumpBlock = FM.findBlock(GCBI, AnyPCPredecessor);
 
       Instruction *T = AnyPCPredecessor->getTerminator();
       revng_assert(not cast<BranchInst>(T)->isConditional());
@@ -681,13 +682,13 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
       revng::NonDebugInfoCheckingIRBuilder Builder(AnyPCPredecessor);
 
       // Get the only outgoing edge jumping to anypc
-      if (Block == nullptr) {
+      if (JumpBlock == nullptr) {
         emitAbort(Builder, "Unexpected jump", DebugLoc());
         continue;
       }
 
       bool AtLeastAMatch = false;
-      for (auto &Edge : Block->Successors()) {
+      for (auto &Edge : JumpBlock->Successors()) {
         if (Edge->Type() == efa::FunctionEdgeType::DirectBranch)
           continue;
 

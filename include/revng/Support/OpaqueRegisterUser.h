@@ -7,6 +7,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/SmallVector.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 

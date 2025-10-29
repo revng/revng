@@ -16,7 +16,7 @@ using namespace llvm;
 
 using range_size_t = uint64_t;
 
-Logger<> &Log = ValueMaterializerLogger;
+static Logger<> &Log = ValueMaterializerLogger;
 
 const range_size_t MaxMaterializedValues = (1 << 16);
 
