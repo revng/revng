@@ -689,16 +689,13 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
 
       bool AtLeastAMatch = false;
       for (auto &Edge : JumpBlock->Successors()) {
-        if (Edge->Type() == efa::FunctionEdgeType::DirectBranch)
+        auto EdgeType = Edge->Type();
+        if (EdgeType == efa::FunctionEdgeType::DirectBranch
+            or EdgeType == efa::FunctionEdgeType::Unexpected) {
           continue;
+        }
 
-        revng_assert(not AtLeastAMatch);
-        AtLeastAMatch = true;
-
-        switch (Edge->Type()) {
-        case efa::FunctionEdgeType::Unexpected:
-          // Ignore
-          continue;
+        switch (EdgeType) {
         case efa::FunctionEdgeType::Return:
           Builder.CreateRetVoid();
           break;
@@ -726,10 +723,14 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
         } break;
         case efa::FunctionEdgeType::Invalid:
         case efa::FunctionEdgeType::DirectBranch:
+        case efa::FunctionEdgeType::Unexpected:
         case efa::FunctionEdgeType::Count:
           revng_abort();
           break;
         }
+
+        revng_assert(not AtLeastAMatch);
+        AtLeastAMatch = true;
       }
 
       if (not AtLeastAMatch) {
