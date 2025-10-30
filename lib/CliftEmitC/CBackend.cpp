@@ -1011,6 +1011,17 @@ public:
       emitLabelStatement(Break.getDefiningOp<MakeLabelOp>(), S);
   }
 
+  RecursiveCoroutine<void> emitBlockStatement(BlockStatementOp S) {
+    {
+      auto Scope = C.enterScope(CTE::ScopeKind::BlockStatement,
+                                CTE::Delimiter::Braces);
+
+      C.emitNewline();
+      rc_recur emitStatementRegion(S.getBlock());
+    }
+    C.emitNewline();
+  }
+
   RecursiveCoroutine<void> emitStatement(StatementOpInterface Stmt) {
     mlir::Operation *Op = Stmt.getOperation();
 
@@ -1047,6 +1058,9 @@ public:
     if (auto S = mlir::dyn_cast<DoWhileOp>(Op))
       return emitDoWhileStatement(S);
 
+    if (auto S = mlir::dyn_cast<BlockStatementOp>(Op))
+      return emitBlockStatement(S);
+
     revng_abort("Unsupported operation");
   }
 
@@ -1082,7 +1096,9 @@ public:
     auto Scope = C.enterScope(ScopeKind, Delimiter);
     C.emitNewline();
 
-    rc_recur EmitRegion(R);
+    auto ExplicitBlock = getOnlyOp<BlockStatementOp>(R);
+    rc_recur EmitRegion(ExplicitBlock ? ExplicitBlock.getBlock() : R);
+
     rc_return EmitBlock;
   }
 

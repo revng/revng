@@ -569,6 +569,12 @@ MakeLabelOp AssignLabelOp::getLabelOp() {
   return getLabel().getDefiningOp<MakeLabelOp>();
 }
 
+//===-------------------------- BlockStatementOp --------------------------===//
+
+bool BlockStatementOp::isIndirectlyNoFallthrough() {
+  return clift::isIndirectlyNoFallthrough(getBlock());
+}
+
 //===------------------------------ BreakToOp -----------------------------===//
 
 mlir::LogicalResult BreakToOp::verify() {

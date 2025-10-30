@@ -351,6 +351,24 @@ def Clift_AssignLabelOp
   }];
 }
 
+def Clift_BlockStatementOp
+  : Clift_StatementOp<"block", [Clift_StatementRegionOpInterface]> {
+
+  let regions = (region Clift_StatementRegion:$block);
+
+  let assemblyFormat = [{
+    $block attr-dict-with-keyword
+  }];
+
+  let extraClassDeclaration = [{
+    bool isIndirectlyNoFallthrough();
+
+    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
+      return getOperation()->getRegions();
+    }
+  }];
+}
+
 def Clift_BreakToOp : Clift_JumpStatementOp<"break_to"> {
   let arguments = (ins Clift_LabelType:$label);
 
