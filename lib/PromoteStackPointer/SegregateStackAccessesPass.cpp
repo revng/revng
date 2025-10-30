@@ -1366,7 +1366,7 @@ private:
     //
     uint64_t StackFrameSize = 0;
     if (const model::TypeDefinition *T = ModelFunction.stackFrameType())
-      StackFrameSize = *T->size(VH);
+      StackFrameSize = *rc_eval(T->size(VH));
 
     //
     // Create call and rebase SP0, if StackFrameSize is not zero

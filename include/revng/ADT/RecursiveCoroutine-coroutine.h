@@ -230,6 +230,12 @@ public:
     }
   }
 
+  // Implemented as a hidden friend function in order to reduce the member
+  // interface area.
+  friend ReturnT evaluateRecursiveCoroutine(RecursiveCoroutine &&RC) {
+    return RC.evaluateImpl();
+  }
+
   // Conversion operators are necessary to enable calling a recursive coroutine
   // that returns a value in the same way you would call a regular subroutine.
   // The RecursiveCoroutine is convertible to any type which ReturnT is also
@@ -248,8 +254,6 @@ public:
   // An implicit non-template conversion operator for ReturnT is necessary for
   // cases where a subsequent derived-to-base conversion is applied.
   operator ReturnT() && { return evaluateImpl(); }
-
-  auto operator*() && { return *evaluateImpl(); }
 
 private:
   ReturnT evaluateImpl() {
@@ -282,3 +286,5 @@ private:
 #define rc_return co_return
 
 #define rc_recur co_await
+
+#define rc_eval(...) (evaluateRecursiveCoroutine(__VA_ARGS__))
