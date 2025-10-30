@@ -42,7 +42,6 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
 
     revng_assert(not F.isVarArg());
 
-    // Check if a function with the same prototype has already been visited
     const model::TypeDefinition *Prototype = nullptr;
     if (FunctionTags::Isolated.isTagOf(&F)) {
       const model::Function *ModelFunc = llvmToModelFunction(Model, F);
@@ -54,29 +53,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       revng_assert(It != Model.ImportedDynamicFunctions().end());
       Prototype = Model.prototypeOrDefault(It->prototype());
     }
-
     revng_assert(Prototype);
-
-    FuncOrCallInst FuncWithSameProto;
-    auto It = VisitedPrototypes.find(Prototype);
-    if (It == VisitedPrototypes.end())
-      VisitedPrototypes.insert({ Prototype, &F });
-    else
-      FuncWithSameProto = It->second;
-
-    // Create the Function's return types
-    auto FRetTypes = getOrCreateLayoutTypes(F);
-    // Add equality links between return values of function with the same
-    // prototype
-    if (not FuncWithSameProto.isNull()) {
-      auto OtherRetVals = getLayoutTypes(*FuncWithSameProto.getVal());
-      revng_assert(FRetTypes.size() == OtherRetVals.size());
-      for (auto &&[N1, N2] : llvm::zip(OtherRetVals, FRetTypes))
-        TS.addEqualityLink(N1, N2.first);
-    }
-
-    revng_assert(FuncWithSameProto.isNull()
-                 or F.arg_size() == FuncWithSameProto.arg_size());
 
     const auto *RFT = dyn_cast<model::RawFunctionDefinition>(Prototype);
     const auto *CABIFT = dyn_cast<model::CABIFunctionDefinition>(Prototype);
@@ -88,6 +65,27 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
       revng_assert(CABIFT->Arguments().size() == F.arg_size());
     } else {
       revng_abort();
+    }
+
+    // Create the Function's return types
+    auto FRetTypes = getOrCreateLayoutTypes(F);
+
+    // Check if a function with the same prototype has already been visited
+    const auto [It, NewPrototype] = VisitedPrototypes.insert({ Prototype, &F });
+
+    // If it wasn't inserted, it means that we already have a function with the
+    // same Prototype. In that case we need to mark return types and argument
+    // types as equal, connecting them with equality links.
+    FuncOrCallInst FuncWithSameProto;
+    if (not NewPrototype) {
+      FuncOrCallInst FuncWithSameProto = It->second;
+      revng_assert(not FuncWithSameProto.isNull());
+      revng_assert(F.arg_size() == FuncWithSameProto.arg_size());
+
+      auto OtherRetVals = getLayoutTypes(*FuncWithSameProto.getVal());
+      revng_assert(FRetTypes.size() == OtherRetVals.size());
+      for (auto &&[N1, N2] : llvm::zip(OtherRetVals, FRetTypes))
+        TS.addEqualityLink(N1, N2.first);
     }
 
     // Create types for the Function's arguments
@@ -165,6 +163,17 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             const auto *ActualArg = ArgUse.get();
             revng_assert(isa<IntegerType>(ActualArg->getType())
                          or isa<PointerType>(ActualArg->getType()));
+
+            // TODO: current implementation DLA cannot reason about function
+            // pointers. Given this shortcoming, llvm::Functions are used (as a
+            // hack) to represent their Functions' return types.
+            // So if we ever hit a Function here, we have to bail out both
+            // because DLA would not be able to propagate anything meaningful on
+            // function types, but also because that would break the parts of
+            // the analysis that rely on the hack.
+            if (isa<Function>(ActualArg))
+              continue;
+
             auto ActualTypes = getOrCreateLayoutTypes(*ActualArg);
 
             // Create the layout for the formal arguments.
@@ -196,6 +205,17 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             revng_assert(isa<IntegerType>(Incoming->getType())
                          or isa<PointerType>(Incoming->getType())
                          or isa<StructType>(Incoming->getType()));
+
+            // TODO: current implementation DLA cannot reason about function
+            // pointers. Given this shortcoming, llvm::Functions are used (as a
+            // hack) to represent their Functions' return types.
+            // So if we ever hit a Function here, we have to bail out both
+            // because DLA would not be able to propagate anything meaningful on
+            // function types, but also because that would break the parts of
+            // the analysis that rely on the hack.
+            if (isa<Function>(Incoming.get()))
+              continue;
+
             auto InTypes = getOrCreateLayoutTypes(*Incoming.get());
             revng_assert(PHITypes.size() == InTypes.size());
             revng_assert((PHITypes.size() == 1ULL)
@@ -214,6 +234,17 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
             revng_assert(isa<StructType>(RetVal->getType())
                          or isa<IntegerType>(RetVal->getType())
                          or isa<PointerType>(RetVal->getType()));
+
+            // TODO: current implementation DLA cannot reason about function
+            // pointers. Given this shortcoming, llvm::Functions are used (as a
+            // hack) to represent their Functions' return types.
+            // So if we ever hit a Function here, we have to bail out both
+            // because DLA would not be able to propagate anything meaningful on
+            // function types, but also because that would break the parts of
+            // the analysis that rely on the hack.
+            if (isa<Function>(RetVal))
+              continue;
+
             auto RetTypes = getOrCreateLayoutTypes(*RetVal);
             revng_assert(RetTypes.size() == FRetTypes.size());
             auto FieldNum = RetTypes.size();
