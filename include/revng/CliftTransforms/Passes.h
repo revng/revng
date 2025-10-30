@@ -23,6 +23,7 @@ PassPtr<clift::FunctionOp> createLabelMergingPass();
 PassPtr<clift::FunctionOp> createLoopDetectionPass();
 
 PassPtr<clift::FunctionOp> createOptimizeStatementsPass();
+PassPtr<clift::FunctionOp> createOptimizeExpressionsPass();
 
 PassPtr<clift::FunctionOp>
 createCLegalizationPass(const TargetCImplementation &Target);

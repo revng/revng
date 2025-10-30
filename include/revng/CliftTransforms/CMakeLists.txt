@@ -4,4 +4,11 @@
 
 set(LLVM_TARGET_DEFINITIONS Passes.td)
 mlir_tablegen(Passes.h.inc -gen-pass-decls -name Clift)
+
+set(LLVM_TARGET_DEFINITIONS BooleanNegations.td)
+mlir_tablegen(BooleanNegations.h.inc -gen-rewriters)
+
+set(LLVM_TARGET_DEFINITIONS Expressions.td)
+mlir_tablegen(Expressions.h.inc -gen-rewriters)
+
 add_public_tablegen_target(MLIRCliftTransformsIncGen)

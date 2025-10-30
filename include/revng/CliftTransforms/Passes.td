@@ -36,6 +36,13 @@ def CliftOptimizeStatements : Clift_Pass<"optimize-statements",
   let options = RewritePassUtils.options;
 }
 
+def CliftOptimizeExpressions : Clift_Pass<"optimize-expressions",
+                                          "clift::FunctionOp"> {
+  let summary = "Optimize Clift expressions";
+  let constructor = "mlir::clift::createOptimizeExpressionsPass()";
+  let options = RewritePassUtils.options;
+}
+
 def CliftCLegalization : Clift_Pass<"c-legalization", "clift::FunctionOp"> {
   let summary = "Legalize the input for emitting C code.";
 
