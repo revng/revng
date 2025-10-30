@@ -22,6 +22,8 @@ PassPtr<clift::FunctionOp> createTrivialReturnEliminationPass();
 PassPtr<clift::FunctionOp> createLabelMergingPass();
 PassPtr<clift::FunctionOp> createLoopDetectionPass();
 
+PassPtr<clift::FunctionOp> createOptimizeStatementsPass();
+
 PassPtr<clift::FunctionOp>
 createCLegalizationPass(const TargetCImplementation &Target);
 

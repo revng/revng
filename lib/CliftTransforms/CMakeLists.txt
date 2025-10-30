@@ -10,6 +10,7 @@ revng_add_library_internal(
   LoopDetection.cpp
   PatternRewriter.cpp
   RewriteHelpers.cpp
+  Statements.cpp
   TrivialReturnElimination.cpp)
 
 target_link_libraries(revngCliftTransforms MLIRTransformUtils revngClift)

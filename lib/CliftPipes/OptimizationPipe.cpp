@@ -56,6 +56,9 @@ public:
     // labels at the end of, or following a loop.
     PM.addPass(clift::createLabelMergingPass());
     PM.addPass(clift::createLoopDetectionPass());
+
+    PM.addPass(clift::createOptimizeStatementsPass());
+    PM.addPass(clift::createLabelMergingPass());
     PM.addPass(clift::createCLegalizationPass(TargetCImplementation::Default));
 
     mlir::ModuleOp Module = CliftContainer.getModule();

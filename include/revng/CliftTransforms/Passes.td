@@ -6,6 +6,7 @@
 #define MLIR_CLIFT_PASSES
 
 include "mlir/Pass/PassBase.td"
+include "mlir/Rewrite/PassUtil.td"
 
 class Clift_Pass<string arg, string operation> : Pass<arg, operation> {
   let dependentDialects = ["clift::CliftDialect"];
@@ -26,6 +27,13 @@ def CliftLoopDetection : Clift_Pass<"loop-detection", "clift::FunctionOp"> {
 def CliftLabelMerging : Clift_Pass<"label-merging", "clift::FunctionOp"> {
   let summary = "Merge any two labels indicating the same statement.";
   let constructor = "mlir::clift::createLabelMergingPass()";
+}
+
+def CliftOptimizeStatements : Clift_Pass<"optimize-statements",
+                                         "clift::FunctionOp"> {
+  let summary = "Optimize Clift statements";
+  let constructor = "mlir::clift::createOptimizeStatementsPass()";
+  let options = RewritePassUtils.options;
 }
 
 def CliftCLegalization : Clift_Pass<"c-legalization", "clift::FunctionOp"> {
