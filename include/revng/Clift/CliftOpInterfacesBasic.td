@@ -96,4 +96,17 @@ def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
   ];
 }
 
+def Clift_StatementRegionOpInterface
+  : Clift_OpInterface<"StatementRegionOpInterface"> {
+
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Returns the statement regions of this operation.",
+      "llvm::MutableArrayRef<mlir::Region>", "getStatementRegions", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{}]
+    >,
+  ];
+}
+
 #endif
