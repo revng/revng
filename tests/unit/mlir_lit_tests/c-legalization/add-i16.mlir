@@ -16,6 +16,7 @@ module attributes {clift.module} {
   clift.func @f<!f>() attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
+    // CHECK: %0 = clift.local : !int16_t
     %0 = clift.local : !int16_t
     clift.expr {
       // CHECK: %1 = clift.cast<extend> %0 : !int16_t -> !int32_t
@@ -23,7 +24,12 @@ module attributes {clift.module} {
       // CHECK: %3 = clift.add %1, %2 : !int32_t
       %1 = clift.add %0, %0 : !int16_t
       // CHECK: %4 = clift.cast<truncate> %3 : !int32_t -> !int16_t
-      clift.yield %1 : !int16_t
+      // CHECK: %5 = clift.cast<extend> %4 : !int16_t -> !int32_t
+      // CHECK: %6 = clift.cast<extend> %0 : !int16_t -> !int32_t
+      // CHECK: %7 = clift.add %5, %6 : !int32_t
+      %2 = clift.add %1, %0 : !int16_t
+      // CHECK: clift.yield %7 : !int32_t
+      clift.yield %2 : !int16_t
     }
   }
 }
