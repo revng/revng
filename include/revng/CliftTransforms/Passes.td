@@ -11,6 +11,13 @@ class Clift_Pass<string arg, string operation> : Pass<arg, operation> {
   let dependentDialects = ["clift::CliftDialect"];
 }
 
+def CliftTrivialReturnElimination : Clift_Pass<"trivial-return-elimination",
+                                               "clift::FunctionOp"> {
+  let summary = "Remove any void return statements where control falls through "
+                "to the end of the function.";
+  let constructor = "mlir::clift::createTrivialReturnEliminationPass()";
+}
+
 def CliftLoopDetection : Clift_Pass<"loop-detection", "clift::FunctionOp"> {
   let summary = "Detect Clift loops";
   let constructor = "mlir::clift::createLoopDetectionPass()";

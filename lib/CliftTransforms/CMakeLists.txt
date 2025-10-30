@@ -3,8 +3,13 @@
 #
 
 revng_add_library_internal(
-  revngCliftTransforms SHARED Legalization.cpp LoopDetection.cpp
-  PatternRewriter.cpp RewriteHelpers.cpp)
+  revngCliftTransforms
+  SHARED
+  Legalization.cpp
+  LoopDetection.cpp
+  PatternRewriter.cpp
+  RewriteHelpers.cpp
+  TrivialReturnElimination.cpp)
 
 target_link_libraries(revngCliftTransforms MLIRTransformUtils revngClift)
 
