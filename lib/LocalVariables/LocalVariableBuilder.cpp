@@ -135,7 +135,9 @@ LegacyVB::createLocalVariable(const model::Type &VariableType) {
                                             LocalVarFunctionType,
                                             "LocalVariable");
 
-  revng::IRBuilder B(F->getContext());
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder B(F->getContext());
   setInsertPointToFirstNonAlloca(B, *F);
   Constant *ReferenceString = toLLVMString(VariableType, M);
   return B.CreateCall(LocalVarFunction, { ReferenceString });
@@ -148,7 +150,10 @@ LegacyVB::createLocalVariableAndTakeIntAddress(const model::Type
 
   LocalVarType *LocalVar = createLocalVariable(VariableType);
 
-  revng::IRBuilder B(LocalVar->getNextNonDebugInstruction());
+  // Here we should definitely use the builder that checks the debug info,
+  // but since this going to go away soon, let it stay as is.
+  revng::NonDebugInfoCheckingIRBuilder // formatting
+    B(LocalVar->getNextNonDebugInstruction());
 
   // Take the address
   llvm::Type *T = LocalVar->getType();
@@ -363,9 +368,9 @@ template<bool IsLegacy>
 std::pair<llvm::AllocaInst *, llvm::Value *>
 LocalVariableBuilder<IsLegacy>::createAllocaWithPtrToInt(llvm::Function *F,
                                                          llvm::Type *T) const {
-  revng::IRBuilder B(M.getContext());
+  // TODO: try re-enabling checks here after dropping the old pipeline.
+  revng::NonDebugInfoCheckingIRBuilder B(M.getContext());
   B.SetInsertPointPastAllocas(F);
-  B.SetCurrentDebugLocation(B.GetInsertPoint()->getDebugLoc());
   auto *Alloca = B.CreateAlloca(T);
   Value *PtrToInt = B.CreatePtrToInt(Alloca, TargetPointerSizedInteger);
 
