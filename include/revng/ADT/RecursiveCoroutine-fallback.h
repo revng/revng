@@ -10,3 +10,5 @@ using RecursiveCoroutine = ReturnT;
 #define rc_return return
 
 #define rc_recur
+
+#define rc_eval(...) (__VA_ARGS__)
