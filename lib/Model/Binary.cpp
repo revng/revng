@@ -158,7 +158,7 @@ MetaAddressRangeSet Binary::executableRanges() const {
           Queue.emplace(FieldStart, *Struct);
 
       // Set the next padding start
-      auto FieldSize = *Field.Type()->size(Helper);
+      auto FieldSize = *rc_eval(Field.Type()->size(Helper));
       PaddingStart = FieldStart + FieldSize;
     }
 
