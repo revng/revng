@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
@@ -286,7 +287,7 @@ inline llvm::CallInst &emitAbort(llvm::Instruction *InsertionPoint,
                                  const llvm::Twine &Message,
                                  const llvm::DebugLoc &DbgLocation = {},
                                  const ProgramCounterHandler *PCH = nullptr) {
-  revng::IRBuilder Builder(InsertionPoint);
+  revng::NonDebugInfoCheckingIRBuilder Builder(InsertionPoint);
   return emitAbort(Builder, Message, DbgLocation, PCH);
 }
 
@@ -294,7 +295,7 @@ inline llvm::CallInst &emitAbort(llvm::BasicBlock *InsertionPoint,
                                  const llvm::Twine &Message,
                                  const llvm::DebugLoc &DbgLocation = {},
                                  const ProgramCounterHandler *PCH = nullptr) {
-  revng::IRBuilder Builder(InsertionPoint, DbgLocation);
+  revng::NonDebugInfoCheckingIRBuilder Builder(InsertionPoint, DbgLocation);
   return emitAbort(Builder, Message, DbgLocation, PCH);
 }
 
@@ -311,7 +312,8 @@ llvm::CallInst &emitMessage(IPType &&InsertionPoint,
                             const llvm::Twine &Message,
                             const llvm::DebugLoc &DbgLocation = {},
                             const ProgramCounterHandler *PCH = nullptr) {
-  revng::IRBuilder Builder(std::forward<IPType>(InsertionPoint));
+  revng::NonDebugInfoCheckingIRBuilder
+    Builder(std::forward<IPType>(InsertionPoint));
   return emitMessage(Builder, Message, DbgLocation, PCH);
 }
 

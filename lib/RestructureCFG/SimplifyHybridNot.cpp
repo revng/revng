@@ -288,7 +288,9 @@ static void flipIRNot(BasicBlock *BB, const NotKind &NotKind) {
     // We manually forge the new `icmp ne 0` to represent the inversion of the
     // `@boolean_not` predicate semantics
     llvm::Value *OriginalLHS = Call->getArgOperand(0);
-    revng::IRBuilder Builder(BB);
+
+    // TODO: try re-enabling these checks after dropping the old pipeline.
+    revng::NonDebugInfoCheckingIRBuilder Builder(BB);
     Builder.SetInsertPoint(Call);
     llvm::Value *NewCondition = Builder.CreateIsNotNull(OriginalLHS);
 
