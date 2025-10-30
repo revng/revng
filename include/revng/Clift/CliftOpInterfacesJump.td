@@ -23,7 +23,7 @@ def Clift_JumpStatementOpInterface
       "mlir::clift::LabelAssignmentOpInterface", "getLabelAssignmentOp", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/ [{
-        return mlir::clift::impl::getAssignedLabel($_op.getLabel());
+        return mlir::clift::impl::getLabelAssignmentOp($_op.getLabel());
       }]
     >,
   ];

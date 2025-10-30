@@ -25,6 +25,8 @@
 
 namespace mlir::clift::impl {
 
+inline constexpr llvm::StringRef LoopLabelMaskAttrName = "label_mask";
+
 inline constexpr unsigned BreakLabelFlag = 1 << 0;
 inline constexpr unsigned ContinueLabelFlag = 1 << 1;
 

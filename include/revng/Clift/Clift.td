@@ -278,6 +278,10 @@ class Clift_LoopStatementOp<string mnemonic, list<Trait> traits = []>
   // mistakes, as building a valid loop with explicit label mask and operands
   // would be error prone.
   let skipDefaultBuilders = 1;
+
+  let builders = [
+    OpBuilder<(ins CArg<"mlir::clift::LoopOpInterface", "{}">:$OtherLoop)>
+  ];
 }
 
 def Clift_MakeLabelOp : Clift_StatementOp<"make_label"> {
@@ -361,10 +365,6 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
   let regions = (region Clift_StatementRegion:$body,
                         Clift_ExpressionRegion:$condition);
 
-  let builders = [
-    OpBuilder<(ins)>
-  ];
-
   let assemblyFormat = [{
     custom<CliftLoopLabels>($label_mask, $labels)
     `body` $body `cond` $condition attr-dict-with-keyword
@@ -386,10 +386,6 @@ def Clift_ForOp : Clift_LoopStatementOp<"for"> {
                         Clift_OptionalExpressionRegion:$condition,
                         Clift_OptionalExpressionRegion:$expression,
                         Clift_StatementRegion:$body);
-
-  let builders = [
-    OpBuilder<(ins)>
-  ];
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
@@ -504,10 +500,6 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
 def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$body);
-
-  let builders = [
-    OpBuilder<(ins)>
-  ];
 
   let assemblyFormat = [{
     custom<CliftLoopLabels>($label_mask, $labels)

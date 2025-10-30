@@ -495,9 +495,21 @@ static mlir::IntegerAttr makeLoopLabelMask(mlir::MLIRContext *Context,
   return mlir::IntegerAttr::get(Context, llvm::APSInt(llvm::APInt(2, Mask)));
 }
 
-static void
-buildLoop(OpBuilder &Builder, OperationState &State, unsigned RegionCount) {
-  State.addAttribute("label_mask", makeLoopLabelMask(Builder.getContext(), 0));
+/// If \p OtherLoop is non-null, assigned label operands are copied from it.
+/// This is useful for any transforms which change the type of a loop, and must
+/// preserve the assigned labels.
+static void buildLoop(OpBuilder &Builder,
+                      OperationState &State,
+                      unsigned RegionCount,
+                      LoopOpInterface OtherLoop = {}) {
+  if (OtherLoop) {
+    State.addOperands(OtherLoop->getOperands());
+    State.addAttribute(clift::impl::LoopLabelMaskAttrName,
+                       OtherLoop->getAttr(clift::impl::LoopLabelMaskAttrName));
+  } else {
+    State.addAttribute(clift::impl::LoopLabelMaskAttrName,
+                       makeLoopLabelMask(Builder.getContext(), 0));
+  }
 
   for (unsigned I = 0; I < RegionCount; ++I)
     State.addRegion();
@@ -598,8 +610,10 @@ mlir::LogicalResult ContinueToOp::verify() {
 
 //===------------------------------ DoWhileOp -----------------------------===//
 
-void DoWhileOp::build(OpBuilder &Builder, OperationState &State) {
-  buildLoop(Builder, State, 2);
+void DoWhileOp::build(OpBuilder &Builder,
+                      OperationState &State,
+                      LoopOpInterface OtherLoop) {
+  buildLoop(Builder, State, 2, OtherLoop);
 }
 
 mlir::LogicalResult DoWhileOp::verify() {
@@ -612,8 +626,10 @@ mlir::LogicalResult DoWhileOp::verify() {
 
 //===-------------------------------- ForOp -------------------------------===//
 
-void ForOp::build(OpBuilder &Builder, OperationState &State) {
-  buildLoop(Builder, State, 4);
+void ForOp::build(OpBuilder &Builder,
+                  OperationState &State,
+                  LoopOpInterface OtherLoop) {
+  buildLoop(Builder, State, 4, OtherLoop);
 }
 
 mlir::ParseResult ForOp::parse(OpAsmParser &Parser, OperationState &Result) {
@@ -696,7 +712,7 @@ mlir::ParseResult ForOp::parse(OpAsmParser &Parser, OperationState &Result) {
         .failed())
     return mlir::failure();
 
-  Result.addAttribute("label_mask", LabelMaskAttr);
+  Result.addAttribute(clift::impl::LoopLabelMaskAttrName, LabelMaskAttr);
   Result.addRegion(std::move(InitRegion));
   Result.addRegion(std::move(CondRegion));
   Result.addRegion(std::move(NextRegion));
@@ -759,7 +775,7 @@ void ForOp::print(OpAsmPrinter &Printer) {
   PrintRegion(getBody());
 
   Printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
-                                           llvm::StringRef("label_mask"));
+                                           clift::impl::LoopLabelMaskAttrName);
 }
 
 mlir::LogicalResult ForOp::verify() {
@@ -1025,8 +1041,10 @@ mlir::LogicalResult SwitchOp::verify() {
 
 //===------------------------------- WhileOp ------------------------------===//
 
-void WhileOp::build(OpBuilder &Builder, OperationState &State) {
-  buildLoop(Builder, State, 4);
+void WhileOp::build(OpBuilder &Builder,
+                    OperationState &State,
+                    LoopOpInterface OtherLoop) {
+  buildLoop(Builder, State, 2, OtherLoop);
 }
 
 mlir::LogicalResult WhileOp::verify() {

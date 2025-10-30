@@ -43,7 +43,7 @@ void setLoopLabel(LoopOpT Op, unsigned Index, mlir::Value Label) {
   bool HasLabelOperand = Mask & Flag;
 
   if (HasLabelOperand != static_cast<bool>(Label))
-    Op.setLabelMask(Mask);
+    Op.setLabelMask(Mask ^ Flag);
 
   if (Label) {
     if (HasLabelOperand)
@@ -55,7 +55,7 @@ void setLoopLabel(LoopOpT Op, unsigned Index, mlir::Value Label) {
   }
 }
 
-LabelAssignmentOpInterface getAssignedLabel(mlir::Value Label);
+LabelAssignmentOpInterface getLabelAssignmentOp(mlir::Value Label);
 
 } // namespace impl
 } // namespace mlir::clift
