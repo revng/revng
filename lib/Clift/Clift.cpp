@@ -901,9 +901,18 @@ mlir::LogicalResult MakeLabelOp::canonicalize(MakeLabelOp Op,
   if (Jumps != 0)
     return mlir::failure();
 
-  for (mlir::OpOperand &Operand : Op.getResult().getUses()) {
-    if (auto AssignOp = mlir::dyn_cast<AssignLabelOp>(Operand.getOwner()))
+  if (Assignments != 0) {
+    mlir::Operation *AssignmentOp = Op.getAssignment();
+    revng_assert(AssignmentOp != nullptr);
+
+    if (auto AssignOp = mlir::dyn_cast<AssignLabelOp>(AssignmentOp)) {
       Rewriter.eraseOp(AssignOp);
+    } else if (auto LoopOp = mlir::dyn_cast<LoopOpInterface>(AssignmentOp)) {
+      if (Op.getResult() == LoopOp.getBreakLabel())
+        LoopOp.setBreakLabel(nullptr);
+      else if (Op.getResult() == LoopOp.getContinueLabel())
+        LoopOp.setContinueLabel(nullptr);
+    }
   }
 
   Rewriter.eraseOp(Op);
