@@ -52,6 +52,9 @@ public:
     // function.
     PM.addPass(clift::createTrivialReturnEliminationPass());
 
+    // Labels are merged before loop detection to avoid any issues with multiple
+    // labels at the end of, or following a loop.
+    PM.addPass(clift::createLabelMergingPass());
     PM.addPass(clift::createLoopDetectionPass());
     PM.addPass(clift::createCLegalizationPass(TargetCImplementation::Default));
 

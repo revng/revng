@@ -23,6 +23,11 @@ def CliftLoopDetection : Clift_Pass<"loop-detection", "clift::FunctionOp"> {
   let constructor = "mlir::clift::createLoopDetectionPass()";
 }
 
+def CliftLabelMerging : Clift_Pass<"label-merging", "clift::FunctionOp"> {
+  let summary = "Merge any two labels indicating the same statement.";
+  let constructor = "mlir::clift::createLabelMergingPass()";
+}
+
 def CliftCLegalization : Clift_Pass<"c-legalization", "clift::FunctionOp"> {
   let summary = "Legalize the input for emitting C code.";
 

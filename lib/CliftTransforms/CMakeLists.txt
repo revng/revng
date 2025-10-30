@@ -5,6 +5,7 @@
 revng_add_library_internal(
   revngCliftTransforms
   SHARED
+  LabelMerging.cpp
   Legalization.cpp
   LoopDetection.cpp
   PatternRewriter.cpp

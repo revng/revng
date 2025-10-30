@@ -19,6 +19,7 @@ using PassPtr = std::unique_ptr<mlir::OperationPass<OpT>>;
 
 PassPtr<clift::FunctionOp> createTrivialReturnEliminationPass();
 
+PassPtr<clift::FunctionOp> createLabelMergingPass();
 PassPtr<clift::FunctionOp> createLoopDetectionPass();
 
 PassPtr<clift::FunctionOp>
