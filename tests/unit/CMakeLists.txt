@@ -614,3 +614,22 @@ target_link_libraries(
 revng_add_test(NAME test_statement_comment_placement COMMAND
                test_statement_comment_placement)
 set_tests_properties(test_statement_comment_placement PROPERTIES LABELS "unit")
+
+#
+# test_recursive_coroutine
+#
+
+revng_add_test_executable(test_recursive_coroutine
+                          "${SRC}/RecursiveCoroutine2.cpp")
+target_compile_definitions(test_recursive_coroutine
+                           PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(
+  test_recursive_coroutine PRIVATE "${CMAKE_SOURCE_DIR}"
+                                   "${Boost_INCLUDE_DIRS}")
+target_link_libraries(
+  test_recursive_coroutine
+  revngSupport
+  revngUnitTestHelpers
+  Boost::unit_test_framework
+  ${LLVM_LIBRARIES})
+add_test(NAME test_recursive_coroutine COMMAND test_recursive_coroutine)
