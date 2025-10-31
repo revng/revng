@@ -13,7 +13,7 @@
 #include "Context.h"
 #include "Value.h"
 
-inline Logger<> Log("argument-usage-analysis");
+inline Logger Log("argument-usage-analysis");
 
 template<typename O>
 void dumpCall(O &Output, const llvm::CallInst *Call) {

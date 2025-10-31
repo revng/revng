@@ -24,7 +24,7 @@
 using namespace llvm;
 using namespace llvm::object;
 
-static Logger<> Log("pecoff-importer");
+static Logger Log("pecoff-importer");
 
 using PELDDTree = std::map<std::string, std::vector<std::string>>;
 

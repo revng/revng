@@ -106,7 +106,7 @@ public:
   void registerTargetsDependingOn(llvm::StringRef GlobalName,
                                   const TupleTreePath &Path,
                                   TargetInStepSet &Out,
-                                  Logger<> &Log) const;
+                                  Logger &Log) const;
 
 private:
   llvm::Error loadInvalidationMetadataImpl(const revng::DirectoryPath &Path,

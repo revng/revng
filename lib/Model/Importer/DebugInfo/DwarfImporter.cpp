@@ -40,7 +40,7 @@
 using namespace llvm;
 using namespace llvm::dwarf;
 
-static Logger<> DILogger("dwarf-importer");
+static Logger DILogger("dwarf-importer");
 static const std::string GlobalDebugDirectory = "/usr/lib/debug/";
 
 template<typename M>
@@ -1064,7 +1064,7 @@ findDebugInfoFileByName(StringRef FileName,
                         llvm::object::ObjectFile *ELF) {
   revng_log(DILogger,
             "Looking for \"" << DebugFileName << "\" for " << FileName << "\"");
-  LoggerIndent<> Indent(DILogger);
+  LoggerIndent Indent(DILogger);
 
   // Let's find it in canonical places, where debug info was fetched.
   //  1) Look for a .gnu_debuglink/.gnu_debugaltlink/.debug_sup section.
@@ -1170,7 +1170,7 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
   revng_log(DILogger,
             "Importing DWARF information for "
               << llvm::sys::path::filename(FileName));
-  LoggerIndent<> Indent(DILogger);
+  LoggerIndent Indent(DILogger);
 
   Task T(3,
          "Importing DWARF information for "

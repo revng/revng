@@ -38,7 +38,7 @@ RegisterIRHelper NewPCHelper("newpc");
 
 using namespace llvm;
 
-static Logger<> Log("instruction-translator");
+static Logger Log("instruction-translator");
 
 using IT = InstructionTranslator;
 

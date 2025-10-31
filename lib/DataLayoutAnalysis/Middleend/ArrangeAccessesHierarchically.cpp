@@ -22,7 +22,7 @@
 #include "DLAStep.h"
 #include "FieldSizeComputation.h"
 
-static Logger<> Log{ "sort-accesses-hierarchically" };
+static Logger Log{ "sort-accesses-hierarchically" };
 
 namespace dla {
 

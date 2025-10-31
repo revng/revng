@@ -454,7 +454,7 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
     T.advance(Step.getName(), true);
     revng_log(InvalidationLog,
               "Computing invalidations in step " << Step.getName());
-    LoggerIndent<> I(InvalidationLog);
+    LoggerIndent I(InvalidationLog);
 
     ContainerToTargetsMap &StepInvalidations = Map[Step.getName()];
 
@@ -472,7 +472,7 @@ void Runner::getDiffInvalidations(const GlobalTupleTreeDiff &Diff,
     revng_log(InvalidationLog, ChangedPaths.size() << " paths have changed");
     for (const TupleTreePath *Path : ChangedPaths) {
       revng_log(InvalidationLog, "Processing " << *Diff.pathAsString(*Path));
-      LoggerIndent<> Indent(InvalidationLog);
+      LoggerIndent Indent(InvalidationLog);
       Step.registerTargetsDependingOn(Diff.getGlobalName(),
                                       *Path,
                                       Map,

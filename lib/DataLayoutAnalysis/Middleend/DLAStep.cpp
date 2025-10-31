@@ -68,8 +68,8 @@ static std::string getStepNameFromID(const void *ID) {
     revng_abort("Unexpected ID for DLAStep");
 }
 
-static Logger<> DLAStepManagerLog("dla-step-manager");
-static Logger<> DLADumpDot("dla-step-dump-dot");
+static Logger DLAStepManagerLog("dla-step-manager");
+static Logger DLADumpDot("dla-step-dump-dot");
 
 [[nodiscard]] bool StepManager::addStep(std::unique_ptr<Step> S) {
   const void *StepID = S->getStepID();

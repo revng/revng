@@ -40,7 +40,7 @@
 
 using namespace llvm;
 
-static Logger<> AVILogger("avi");
+static Logger AVILogger("avi");
 
 inline RunningStatistics AVICFEGSizeStatitistics("avi-cfeg-size");
 
@@ -82,7 +82,7 @@ AdvancedValueInfoMFI::applyTransferFunction(Label L,
                                             const LatticeElement &E) const {
 
   revng_log(AVILogger, "   " << L->toString());
-  LoggerIndent<> Indent(AVILogger);
+  LoggerIndent Indent(AVILogger);
 
   LatticeElement Result = E;
 
@@ -326,7 +326,7 @@ runAVI(const DataFlowGraph &DFG,
 
   if (AVILogger.isEnabled()) {
     AVILogger << "Dumping MFP results:" << DoLog;
-    LoggerIndent<> Indent(AVILogger);
+    LoggerIndent Indent(AVILogger);
     for (const auto &[Node, AnalysisResults] : AllResults) {
       AVILogger << Node->toString() << ":\n";
       AVILogger << "  Initial value:\n";

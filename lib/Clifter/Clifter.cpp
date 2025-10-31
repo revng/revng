@@ -27,8 +27,8 @@ using namespace clift;
 
 namespace {
 
-static Logger<> BasicBlockLog{ "llvm-to-clift-basic-blocks" };
-static Logger<> ExpressionLog{ "llvm-to-clift-expressions" };
+static Logger BasicBlockLog{ "llvm-to-clift-basic-blocks" };
+static Logger ExpressionLog{ "llvm-to-clift-expressions" };
 
 // These helper functions are used to save insertion points *after* an
 // operation, while the usual operating mode of `OpBuilder::InsertPoint` is

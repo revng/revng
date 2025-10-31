@@ -13,7 +13,7 @@ namespace llvm {
 class APInt;
 }
 
-inline Logger<> ValueMaterializerLogger("value-materializer");
+inline Logger ValueMaterializerLogger("value-materializer");
 
 std::string aviFormatter(const llvm::APInt &Value);
 

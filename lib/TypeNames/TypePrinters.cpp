@@ -273,7 +273,7 @@ void ptml::ModelCBuilder::printDefinition(const model::TypeDefinition &T) {
     revng_abort("Unsupported type definition.");
 }
 
-static Logger<> TypePrinterLog{ "type-definition-printer" };
+static Logger TypePrinterLog{ "type-definition-printer" };
 
 void ptml::ModelCBuilder::printTypeDefinitions() {
   if (not DependencyCache.has_value())

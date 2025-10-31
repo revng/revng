@@ -44,7 +44,7 @@
 
 using namespace llvm;
 
-static Logger<> Log("attach-debug-info");
+static Logger Log("attach-debug-info");
 
 class AttachDebugInfo : public pipeline::FunctionPassImpl {
 private:

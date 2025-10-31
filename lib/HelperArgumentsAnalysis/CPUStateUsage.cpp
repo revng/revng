@@ -111,7 +111,7 @@ CPUStateUsageAnalysis::computeAccessesInRoot(const Value &Offset) const {
 
   for (const PointerSet &Pointer : Pointers) {
     revng_log(Log, "Considering " << Pointer.toString());
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     // Collect the number of elements in arrays whose elements match the
     // strides in Pointer
@@ -248,7 +248,7 @@ void CPUStateUsageAnalysis::analyze(llvm::Function &Function) {
   llvm::Task T(2, "Analyze CPU state usage of " + Function.getName());
   FastValuePrinter Printer(*Function.getParent());
   revng_log(Log, "Collecting interprocedural data in " << Function.getName());
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   revng_log(Log, "Collecting global results");
   T.advance("Collecting global results");
@@ -257,7 +257,7 @@ void CPUStateUsageAnalysis::analyze(llvm::Function &Function) {
 
   T.advance("Processing arguments");
   revng_log(Log, "Processing arguments of " << Function.getName());
-  LoggerIndent<> Indent2(Log);
+  LoggerIndent Indent2(Log);
 
   for (auto &&[ArgumentIndex, Argument] : llvm::enumerate(Function.args())) {
     auto &Offsets = Initializer.getOffsetsFor(Argument);
@@ -277,7 +277,7 @@ void CPUStateUsageAnalysis::analyze(llvm::Function &Function) {
       Log << DoLog;
     }
 
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     // If the argument is escaping, bail out
     bool Escapes = false;
@@ -452,7 +452,7 @@ CPUStateUsageAnalysis::collectGlobalAUAResults(const llvm::Function &Function) {
       Callee.dump(Log, "    ");
       Log << DoLog;
     }
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     // Register escaped arguments replacing arguments
     for (const EscapedArgument &EscapedArgument :
@@ -548,7 +548,7 @@ void StructPointers::visitType(llvm::Type &Type, uint64_t StartingOffset) {
     revng_log(Log,
               "Registering an instance of " << Struct->getName()
                                             << " at offset " << StartingOffset);
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
     if (Struct->getName().size() != 0)
       OffsetsOfStructs[Struct].push_back(StartingOffset);
 
@@ -560,7 +560,7 @@ void StructPointers::visitType(llvm::Type &Type, uint64_t StartingOffset) {
   } else if (auto *Array = dyn_cast<llvm::ArrayType>(&Type)) {
     auto ElementsCount = Array->getNumElements();
     revng_log(Log, "Handling an array of " << ElementsCount << " elements");
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
     auto &ElementType = *Array->getElementType();
     auto ElementSize = DL.getTypeAllocSize(&ElementType);
     for (unsigned I = 0; I < ElementsCount; ++I)

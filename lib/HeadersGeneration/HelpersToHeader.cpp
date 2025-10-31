@@ -30,7 +30,7 @@
 
 using llvm::dyn_cast;
 
-static Logger<> Log{ "helpers-to-header" };
+static Logger Log{ "helpers-to-header" };
 
 /// Print the declaration a C struct corresponding to an LLVM struct
 /// type.

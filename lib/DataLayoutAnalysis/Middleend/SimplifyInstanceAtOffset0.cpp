@@ -32,7 +32,7 @@ using InverseInstanceT = llvm::Inverse<InstanceT>;
 using CPointerT = EdgeFilteredGraph<const dla::LayoutTypeSystemNode *,
                                     dla::isPointerEdge>;
 
-static Logger<> Log{ "dla-simplify-instance-off0" };
+static Logger Log{ "dla-simplify-instance-off0" };
 
 namespace dla {
 

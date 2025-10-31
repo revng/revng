@@ -224,10 +224,9 @@ struct llvm::yaml::ScalarTraits<T> {
 };
 
 /// Specialization for the std::variant we have in TupleTreeReference
-template<bool X, typename T>
-inline void writeToLog(Logger<X> &This,
-                       const std::variant<T *, const T *> &Var,
-                       int Ignored) {
+template<typename T>
+inline void
+writeToLog(Logger &This, const std::variant<T *, const T *> &Var, int Ignored) {
   if (Var.index() == std::variant_npos)
     writeToLog(This, llvm::StringRef("std::variant_npos"), Ignored);
   else if (std::holds_alternative<T *>(Var))

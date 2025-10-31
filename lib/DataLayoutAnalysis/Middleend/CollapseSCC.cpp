@@ -21,7 +21,7 @@
 
 using namespace llvm;
 
-static Logger<> LogVerbose("dla-collapse-verbose");
+static Logger LogVerbose("dla-collapse-verbose");
 
 namespace dla {
 

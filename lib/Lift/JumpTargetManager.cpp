@@ -32,8 +32,8 @@ using namespace llvm;
 
 namespace {
 
-Logger<> JTCountLog("jtcount");
-Logger<> RegisterJTLog("registerjt");
+Logger JTCountLog("jtcount");
+Logger RegisterJTLog("registerjt");
 
 CounterMap<std::string> HarvestingStats("harvesting");
 
@@ -918,7 +918,7 @@ BasicBlock *JumpTargetManager::registerJT(MetaAddress PC,
   revng_log(RegisterJTLog,
             "Registering bb." << nameForAddress(PC) << " for "
                               << JTReason::getName(Reason));
-  LoggerIndent<> Indent(RegisterJTLog);
+  LoggerIndent Indent(RegisterJTLog);
 
   // Do we already have a BasicBlock for this PC?
   BlockMap::iterator TargetIt = JumpTargets.find(PC);

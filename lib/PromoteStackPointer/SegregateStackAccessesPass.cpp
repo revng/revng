@@ -34,7 +34,7 @@
 
 using namespace llvm;
 
-static Logger<> Log("segregate-stack-accesses");
+static Logger Log("segregate-stack-accesses");
 
 inline Value *createAdd(revng::IRBuilder &B, Value *V, uint64_t Addend) {
   return B.CreateAdd(V, ConstantInt::get(V->getType(), Addend));
@@ -204,7 +204,7 @@ struct SegregateStackAccessesMFI : public SetUnionLattice<Lattice> {
                                               const LatticeElement &Value) {
     using namespace llvm;
     revng_log(Log, "Analyzing block " << getName(BB));
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     LatticeElement StackBytes = Value;
 
@@ -219,7 +219,7 @@ struct SegregateStackAccessesMFI : public SetUnionLattice<Lattice> {
         continue;
 
       revng_log(Log, "Analyzing instruction " << getName(&I));
-      LoggerIndent<> Indent(Log);
+      LoggerIndent Indent(Log);
 
       // Get stack offset, if available
       auto MaybeStartStackOffset = getStackOffset(&I);
@@ -795,7 +795,7 @@ private:
               "Segregating "
                 << model::CNameBuilder(Binary).name(ModelFunction));
 
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     // Lookup the redirector, if any
     auto It = StackArgumentsRedirectors.find(&F);
@@ -822,7 +822,7 @@ private:
     MFIResult AnalysisResult;
     {
       revng_log(Log, "Running SegregateStackAccessesMFI");
-      LoggerIndent<> Indent(Log);
+      LoggerIndent Indent(Log);
       using SSAMFI = SegregateStackAccessesMFI;
       BasicBlock *Entry = &F.getEntryBlock();
       AnalysisResult = MFP::getMaximalFixedPoint<SSAMFI>({},
@@ -873,7 +873,7 @@ private:
   }
 
   void handleCallSite(MFIResult &AnalysisResult, CallInst *SSACSCall) {
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     //
     // Find call to revng_undefined_local_sp
@@ -1114,7 +1114,7 @@ private:
 
     if (Log.isEnabled()) {
       Log << "Redirector data:\n";
-      LoggerIndent<> X(Log);
+      LoggerIndent X(Log);
       Redirector.dump(Log);
       Log << DoLog;
     }
@@ -1301,7 +1301,7 @@ private:
                                       - CallInstructionPushSize);
 
       revng_log(Log, "Considering " << getName(Store));
-      LoggerIndent<> Indent(Log);
+      LoggerIndent Indent(Log);
       revng_log(Log, "Size: " << Size);
       revng_log(Log, "Info.Count: " << Info.Count);
       revng_log(Log, "Info.Offset: " << Info.Count);
@@ -1339,7 +1339,7 @@ private:
   void handleMemoryAccess(const StackAccessRedirector &Redirector,
                           Instruction *I) {
     revng_log(Log, "Handling memory access " << getName(I));
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     auto MaybeStackOffset = getStackOffset(I);
     if (not MaybeStackOffset)

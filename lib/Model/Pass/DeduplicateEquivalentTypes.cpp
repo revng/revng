@@ -18,7 +18,7 @@
 using namespace llvm;
 using namespace model;
 
-static Logger<> Log("model-types-deduplication");
+static Logger Log("model-types-deduplication");
 
 static RegisterModelPass R("deduplicate-equivalent-types",
                            "Best-effort deduplication of types that are "

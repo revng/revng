@@ -24,7 +24,7 @@
 using namespace llvm;
 
 // Debug logger
-static Logger<> Log("select-scope");
+static Logger Log("select-scope");
 
 static std::map<BasicBlock *, size_t>
 initializeScopeMap(SmallSetVector<BasicBlock *, 2> &ConditionalSuccessors) {

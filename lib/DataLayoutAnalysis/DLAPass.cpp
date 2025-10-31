@@ -17,7 +17,7 @@
 
 char DLAPass::ID = 0;
 
-static Logger<> BuilderLog("dla-builder-log");
+static Logger BuilderLog("dla-builder-log");
 
 using Register = llvm::RegisterPass<DLAPass>;
 static ::Register X("dla", "Data Layout Analysis Pass", false, false);

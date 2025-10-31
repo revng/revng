@@ -15,7 +15,7 @@
 
 using namespace llvm;
 
-static Logger<> Log("dla-prune");
+static Logger Log("dla-prune");
 
 namespace dla {
 

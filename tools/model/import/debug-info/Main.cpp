@@ -22,7 +22,7 @@
 
 namespace cl = llvm::cl;
 
-static Logger<> Log("import-debug-info");
+static Logger Log("import-debug-info");
 
 static cl::OptionCategory ThisToolCategory("Tool options", "");
 

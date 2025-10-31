@@ -20,7 +20,7 @@
 
 using namespace llvm;
 
-static Logger<> Log("dla-compute-upper-member-access");
+static Logger Log("dla-compute-upper-member-access");
 
 namespace dla {
 

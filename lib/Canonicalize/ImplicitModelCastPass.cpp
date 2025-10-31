@@ -24,7 +24,7 @@
 #include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/ModelCBuilder.h"
 
-static Logger<> Log{ "implicit-model-cast" };
+static Logger Log{ "implicit-model-cast" };
 
 using ValueTypeMap = std::map<const llvm::Value *, const model::UpcastableType>;
 using ModelPromotedTypesMap = std::map<const llvm::Instruction *, ValueTypeMap>;

@@ -40,7 +40,7 @@ using namespace llvm;
 
 using std::string;
 
-static Logger<> Log("fix-helpers");
+static Logger Log("fix-helpers");
 
 static cl::opt<string> ArchitectureName("fix-helpers-architecture",
                                         cl::desc("architecture of the helper "
@@ -53,7 +53,7 @@ static void setMetadata(VariableManager &Variables,
                         StringRef MetadataName,
                         const aua::Annotation::OffsetAndSizeSet &Offsets) {
   revng_log(Log, "Parsing " << MetadataName << ":");
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   QuickMetadata QMD(getContext(&F));
   SmallVector<Metadata *, 2> CSVList;
@@ -97,7 +97,7 @@ static void convertToCSVAnnotation(VariableManager &Variables,
                                    Function &F,
                                    const aua::Annotation &Annotation) {
   revng_log(Log, "Converting CSV to annotations");
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
   setMetadata(Variables, F, "revng.csvaccess.offsets.load", Annotation.Reads);
   setMetadata(Variables, F, "revng.csvaccess.offsets.store", Annotation.Writes);
 }
@@ -253,7 +253,7 @@ void AccessFixer::handle(Instruction &I,
   revng_log(Log,
             "Handling " << getName(&I) << ", which has " << Targets.size()
                         << " targets");
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   // Handle the single-offset situation
   if (Targets.size() == 1) {
@@ -344,7 +344,7 @@ AccessFixer::decomposeMemcpy(llvm::Instruction &I) {
 void AccessFixer::fixMemoryAccess(Instruction &I,
                                   const aua::Annotation &Annotation) {
   revng_log(Log, "Handling memory access " << getName(&I));
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   revng_assert(not I.isTerminator());
   auto *Load = dyn_cast<LoadInst>(&I);
@@ -392,7 +392,7 @@ static void fixHelpers(VariableManager &Variables, Module &Module) {
 
   for (Function &F : Module) {
     revng_log(Log, "Handling " << F.getName());
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     auto Annotation = aua::Annotation::deserialize(F)
                         .value_or(aua::Annotation());

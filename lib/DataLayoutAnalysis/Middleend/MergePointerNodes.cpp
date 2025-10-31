@@ -10,7 +10,7 @@
 
 using namespace llvm;
 
-static Logger<> Log("dla-merge-pointer-nodes");
+static Logger Log("dla-merge-pointer-nodes");
 
 namespace dla {
 

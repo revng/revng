@@ -77,5 +77,4 @@ public:
 private:
   std::pair<const model::Segment *, uint64_t>
   findOffsetInSegment(MetaAddress Address, uint64_t Size) const;
-
 };

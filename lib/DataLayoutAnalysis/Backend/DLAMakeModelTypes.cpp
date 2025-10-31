@@ -25,9 +25,9 @@
 using namespace model;
 using namespace dla;
 
-static Logger<> Log("dla-make-model");
-static Logger<> ModelLog("dla-dump-model");
-static Logger<> TypeMapLog("dla-type-map");
+static Logger Log("dla-make-model");
+static Logger ModelLog("dla-dump-model");
+static Logger TypeMapLog("dla-type-map");
 
 using model::UpcastableType;
 using LTSN = LayoutTypeSystemNode;

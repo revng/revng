@@ -26,7 +26,7 @@ namespace aua {
 
 void ArgumentUsageAnalysis::run() {
   revng_log(Log, "Running ArgumentUsageAnalysis");
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   // Analyze functions in post order
   llvm::CallGraph CG(M);
@@ -39,7 +39,7 @@ void ArgumentUsageAnalysis::run() {
 
 void ArgumentUsageAnalysis::analyzeFunction(llvm::Function &F) {
   revng_log(Log, "Analyzing " << F.getName());
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   auto [It, New] = Results.insert({ &F, Function(TheContext) });
   revng_assert(New);
@@ -59,7 +59,7 @@ void ArgumentUsageAnalysis::analyzeFunction(llvm::Function &F) {
   // expressions
   {
     revng_log(Log, "Running analyzeInstruction");
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     // We do one sweep in reverse-post order. This means that, before we visit
     // an instruction all of its operands will have been visited already. The
@@ -77,7 +77,7 @@ void ArgumentUsageAnalysis::analyzeFunction(llvm::Function &F) {
     // Do a final pass to register memory accesses (load, store, memcpy),
     // function calls and escaped arguments
     revng_log(Log, "Running registerFunctionResults");
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
     for (llvm::BasicBlock &BB : F)
       for (llvm::Instruction &I : BB)
         if (not I.isDebugOrPseudoInst())
@@ -92,7 +92,7 @@ void ArgumentUsageAnalysis::analyzeFunction(llvm::Function &F) {
 void ArgumentUsageAnalysis::taintAnalysis(Function &FunctionResults,
                                           const llvm::Function &F) {
   revng_log(Log, "Running taint analysis");
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   revng_assert(not isVarArg(F));
   revng_assert(F.arg_size() <= 64);
@@ -334,7 +334,7 @@ void ArgumentUsageAnalysis::registerCall(Function &FunctionResults,
     Log << DoLog;
   }
 
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
   if (Log.isEnabled()) {
     CallSite.dump(Log);
     Log << DoLog;
