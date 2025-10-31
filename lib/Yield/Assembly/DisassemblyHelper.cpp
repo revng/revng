@@ -13,7 +13,7 @@
 #include "revng/Yield/Assembly/DisassemblyHelper.h"
 #include "revng/Yield/Assembly/LLVMDisassemblerInterface.h"
 
-static Logger<> Log("disassemble");
+static Logger Log("disassemble");
 
 namespace detail {
 
@@ -114,7 +114,7 @@ yield::Function DH::disassemble(const model::Function &Function,
                                 const model::Binary &Binary,
                                 const model::AssemblyNameBuilder &NameBuilder) {
   revng_log(Log, "Disassembling function at " << Function.Entry().toString());
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   yield::Function ResultFunction;
   ResultFunction.Entry() = Function.Entry();
@@ -123,7 +123,7 @@ yield::Function DH::disassemble(const model::Function &Function,
     revng_log(Log,
               "Disassembling block " << BasicBlock.ID().toString() << "-"
                                      << BasicBlock.End().toString());
-    LoggerIndent<> Indent2(Log);
+    LoggerIndent Indent2(Log);
 
     auto &Helper = getDisassemblerFor(BasicBlock.ID().start().type(),
                                       Binary.Configuration().Disassembly());

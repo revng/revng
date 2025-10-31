@@ -13,7 +13,7 @@ void ValueMaterializer::run() {
   revng_log(ValueMaterializerLogger,
             "Evaluating " << getName(V) << " using " << getName(Context)
                           << " as context");
-  LoggerIndent<> Indent(ValueMaterializerLogger);
+  LoggerIndent Indent(ValueMaterializerLogger);
 
   DataFlowGraph = DataFlowGraph::fromValue(V, TheLimits);
 
@@ -62,7 +62,7 @@ void ValueMaterializer::computeOracleConstraints() {
   case Oracle::AdvancedValueInfo:
     std::tie(OracleConstraints,
              CFEG,
-             MFIResults) = runAVI(DataFlowGraph, Context, DT, LVI, true);
+             MFIResults) = runAVI(DataFlowGraph, Context, DT, LVI, DFRA, true);
     break;
 
   default:

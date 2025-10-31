@@ -41,8 +41,8 @@ using std::string;
 
 // TODO: Move the initialization of the logger here from "Utils.h"
 // Debug logger.
-Logger<> CombLogger("restructure");
-Logger<> LogShortestPath("restructure-shortest-path");
+Logger CombLogger("restructure");
+Logger LogShortestPath("restructure-shortest-path");
 
 // EdgeDescriptor is a handy way to create and manipulate edges on the
 // RegionCFG.

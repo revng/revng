@@ -16,7 +16,7 @@
 
 // TODO: move the definition of this object in an unique place, to avoid using
 // an extern declaration
-extern Logger<> CombLogger;
+extern Logger CombLogger;
 
 template<class NodeT>
 using RegionCFGEdge = typename BasicBlockNode<NodeT>::EdgeDescriptor;

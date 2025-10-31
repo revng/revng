@@ -25,7 +25,7 @@
 
 using namespace llvm;
 
-static Logger<> Log("compute-stack-accesses-bounds");
+static Logger Log("compute-stack-accesses-bounds");
 
 template<typename T, std::ranges::range R>
 bool areAll(const R &Range) {
@@ -38,7 +38,7 @@ getSCEVBoundaries(ScalarEvolution &SE, PostDominatorTree &PDT, Instruction *I) {
   auto FullSet = ConstantRange::getFull(SCEV->getType()->getIntegerBitWidth());
 
   revng_log(Log, "getSCEVBoundaries on " << dumpToString(*SCEV));
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   auto *AddRec = dyn_cast<SCEVAddRecExpr>(SCEV);
   if (AddRec == nullptr)
@@ -106,7 +106,7 @@ getSCEVBoundaries(ScalarEvolution &SE, PostDominatorTree &PDT, Instruction *I) {
 
 bool ComputeStackAccessesBoundsPass::runOnFunction(Function &F) {
   revng_log(Log, "Running on " << F.getName().str());
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   ScalarEvolution &SE = getAnalysis<ScalarEvolutionWrapperPass>().getSE();
   PostDominatorTree &PDT = getAnalysis<PostDominatorTreeWrapperPass>()

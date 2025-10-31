@@ -17,13 +17,12 @@ template<yield::MetaAddressOrBasicBlockID T>
 std::string
 yield::sanitizedAddress(const T &Target, const model::Binary &Binary) {
   const auto &Configuration = Binary.Configuration().Disassembly();
-  std::optional<llvm::Triple::ArchType> SerializationStyle = std::nullopt;
+  auto SerializationStyle = model::Architecture::Invalid;
   if (!Configuration.PrintFullMetaAddress()) {
-    namespace Arch = model::Architecture;
-    SerializationStyle = Arch::toLLVMArchitecture(Binary.Architecture());
+    SerializationStyle = Binary.Architecture();
   }
 
-  std::string Result = Target.toString(std::move(SerializationStyle));
+  std::string Result = Target.toString(SerializationStyle);
 
   constexpr std::array ForbiddenCharacters = { ' ', ':', '!', '#',  '?',
                                                '<', '>', '/', '\\', '{',

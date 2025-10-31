@@ -21,7 +21,7 @@
 #include "revng/Support/ProgramRunner.h"
 #include "revng/Support/TemporaryFile.h"
 
-static Logger<> Log("program-runner");
+static Logger Log("program-runner");
 
 ProgramRunner Runner;
 

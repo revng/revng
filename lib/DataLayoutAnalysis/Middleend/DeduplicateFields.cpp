@@ -32,8 +32,8 @@ using NonPointerFilterT = EdgeFilteredGraph<LTSN *, dla::isNotPointerEdge>;
 
 using namespace llvm;
 
-static Logger<> Log("dla-deduplicate-union-fields");
-static Logger<> CmpLog("dla-duf-comparisons");
+static Logger Log("dla-deduplicate-union-fields");
+static Logger CmpLog("dla-duf-comparisons");
 
 namespace dla {
 

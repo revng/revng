@@ -10,6 +10,7 @@
 #include "revng/MFP/Graph.h"
 #include "revng/MFP/MFP.h"
 #include "revng/ValueMaterializer/ControlFlowEdgesGraph.h"
+#include "revng/ValueMaterializer/DataFlowRangeAnalysis.h"
 
 namespace llvm {
 class Instruction;
@@ -29,6 +30,7 @@ public:
 
 private:
   llvm::LazyValueInfo &LVI;
+  DataFlowRangeAnalysis &DFRA;
   const llvm::DominatorTree &DT;
   llvm::Instruction *Context;
   llvm::SmallPtrSetImpl<llvm::Instruction *> &Instructions;
@@ -36,11 +38,13 @@ private:
 
 public:
   AdvancedValueInfoMFI(llvm::LazyValueInfo &LVI,
+                       DataFlowRangeAnalysis &DFRA,
                        const llvm::DominatorTree &DT,
                        llvm::Instruction *Context,
                        InstructionsSet &Instructions,
                        bool ZeroExtendConstraints) :
     LVI(LVI),
+    DFRA(DFRA),
     DT(DT),
     Context(Context),
     Instructions(Instructions),
@@ -71,9 +75,14 @@ runAVI(const DataFlowGraph &DFG,
        llvm::Instruction *Context,
        const llvm::DominatorTree &DT,
        llvm::LazyValueInfo &LVI,
+       DataFlowRangeAnalysis &DFRA,
        bool ZeroExtendConstraints);
 
 template<>
 void MFP::dump(llvm::raw_ostream &Stream,
                unsigned Indent,
                const std::map<llvm::Instruction *, ConstantRangeSet> &Element);
+
+template<>
+void MFP::dumpLabel(llvm::raw_ostream &Stream,
+                    const ControlFlowEdgesGraph::Node *const &Label);

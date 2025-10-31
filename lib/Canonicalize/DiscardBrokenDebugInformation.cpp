@@ -11,7 +11,7 @@
 #include "revng/Support/Error.h"
 #include "revng/Support/IRHelpers.h"
 
-static Logger<> Log("discarded-debug-information");
+static Logger Log("discarded-debug-information");
 
 struct DiscardBrokenDebugInformation : public llvm::FunctionPass {
 public:

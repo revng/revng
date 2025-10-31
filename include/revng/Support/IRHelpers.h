@@ -503,7 +503,7 @@ inline llvm::BasicBlock *blockByName(llvm::Function *F, const char *Name) {
 /// Specialization of writeToLog for llvm::Value-derived types
 template<typename T>
   requires std::derived_from<llvm::Value, std::remove_const_t<T>>
-inline void writeToLog(Logger<true> &This, T *I, int) {
+inline void writeToLog(Logger &This, T *I, int) {
   if (I != nullptr)
     This << getName(I);
   else
@@ -930,26 +930,6 @@ inline const llvm::CallInst *getCallTo(const llvm::Instruction *I,
     return nullptr;
 }
 
-inline std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Instruction *Call,
-                                                       unsigned MDKindID) {
-  using namespace llvm;
-
-  std::vector<GlobalVariable *> Result;
-  auto *Tuple = cast_or_null<MDTuple>(Call->getMetadata(MDKindID));
-  if (Tuple == nullptr)
-    return Result;
-
-  QuickMetadata QMD(getContext(Call));
-
-  auto OperandsRange = QMD.extract<MDTuple *>(Tuple, 1)->operands();
-  for (const MDOperand &Operand : OperandsRange) {
-    auto *CSV = QMD.extract<Constant *>(Operand.get());
-    Result.push_back(cast<GlobalVariable>(CSV));
-  }
-
-  return Result;
-}
-
 inline bool CompareByName(const llvm::GlobalVariable *LHS,
                           const llvm::GlobalVariable *RHS) {
   revng_assert(LHS->hasName() and RHS->hasName());
@@ -1069,8 +1049,8 @@ concept LLVMRawOStreamDumpable = not ValueLikePrintable<T>
                                                  llvm::raw_ostream &>());
                                      };
 
-template<bool B, LLVMRawOStreamDumpable Dumpable>
-inline void writeToLog(Logger<B> &L, const Dumpable &P, int /* Ignore */) {
+template<LLVMRawOStreamDumpable Dumpable>
+inline void writeToLog(Logger &L, const Dumpable &P, int /* Ignore */) {
   if (L.isEnabled()) {
     llvm::SmallString<32> Buffer;
     {
@@ -1553,12 +1533,16 @@ public:
 
 void sortModule(llvm::Module &M);
 
+std::unique_ptr<llvm::Module> parseIR(llvm::LLVMContext &Context,
+                                      llvm::StringRef Path);
+
 /// \p FinalLinkage final linkage for all the globals. Use std::nullopt to
 ///    preserve the original one.
 void linkModules(std::unique_ptr<llvm::Module> &&Source,
                  llvm::Module &Destination,
                  std::optional<llvm::GlobalValue::LinkageTypes> FinalLinkage);
+
 inline void linkModules(std::unique_ptr<llvm::Module> &&Source,
                         llvm::Module &Destination) {
-  return linkModules(std::move(Source), Destination, std::nullopt);
+  linkModules(std::move(Source), Destination, std::nullopt);
 }

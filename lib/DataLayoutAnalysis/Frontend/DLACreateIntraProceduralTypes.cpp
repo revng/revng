@@ -61,8 +61,10 @@ protected:
                        const SCEV *BaseAddrSCEV,
                        const BasicBlock &B) {
     revng_assert(PointerVal != nullptr);
+    revng_assert(not isa<Function>(PointerVal));
     revng_assert(isa<IntegerType>(PointerVal->getType())
                  or isa<PointerType>(PointerVal->getType()));
+
     revng_assert(B.getParent() == F);
     bool Created = false; // Created LayoutTypeSystemNode, or Link
 
@@ -82,6 +84,7 @@ protected:
         // create it and add it.
         Value *BaseAddr = U->getValue();
         revng_assert(nullptr != BaseAddr);
+        revng_assert(not isa<Function>(BaseAddr));
         const auto &[Layout, NewType] = Builder.getOrCreateLayoutType(BaseAddr);
         Created |= NewType;
         auto P = std::make_pair(BaseAddrSCEV, Layout);
@@ -302,6 +305,11 @@ public:
 
                   for (const auto &[RetNodeNew, Arg] :
                        llvm::zip_first(StructTypeNodes, Call->args())) {
+
+                    // Avoid creating layouts for pointers to functions.
+                    if (isPointerToFunctionExpression(Arg))
+                      continue;
+
                     const auto &[ArgNode,
                                  New] = Builder.getOrCreateLayoutType(Arg);
                     Changed |= New;
@@ -313,6 +321,11 @@ public:
               }
 
             } else {
+
+              // Avoid creating layouts for pointers to functions.
+              if (isPointerToFunctionExpression(RetVal))
+                continue;
+
               LayoutTypeSystemNode *RetTy = Builder.getLayoutType(RetVal);
               const SCEV *S = SE->getSCEV(RetVal);
               SCEVToLayoutType.insert(std::make_pair(S, RetTy));
@@ -337,6 +350,11 @@ public:
             for (Value *In : PHI->incoming_values()) {
               revng_assert(isa<IntegerType>(In->getType())
                            or isa<PointerType>(In->getType()));
+
+              // Avoid creating layouts for pointers to functions.
+              if (isPointerToFunctionExpression(In))
+                continue;
+
               LayoutTypeSystemNode *InTy = Builder.getLayoutType(In);
               const SCEV *InSCEV = SE->getSCEV(In);
               SCEVToLayoutType.insert(std::make_pair(InSCEV, InTy));
@@ -365,6 +383,11 @@ public:
             Value *TrueV = Sel->getTrueValue();
             revng_assert(isa<IntegerType>(TrueV->getType())
                          or isa<PointerType>(TrueV->getType()));
+
+            // Avoid creating layouts for pointers to functions.
+            if (isPointerToFunctionExpression(TrueV))
+              continue;
+
             const auto &[TrueTy, NewT] = Builder.getOrCreateLayoutType(TrueV);
             Changed |= NewT;
             const SCEV *TrueSCEV = SE->getSCEV(TrueV);
@@ -379,6 +402,11 @@ public:
             Value *FalseV = Sel->getFalseValue();
             revng_assert(isa<IntegerType>(FalseV->getType())
                          or isa<PointerType>(FalseV->getType()));
+
+            // Avoid creating layouts for pointers to functions.
+            if (isPointerToFunctionExpression(FalseV))
+              continue;
+
             const auto &[FalseTy, NewT] = Builder.getOrCreateLayoutType(FalseV);
             Changed |= NewT;
             const SCEV *FalseSCEV = SE->getSCEV(FalseV);
@@ -420,6 +448,11 @@ public:
             // Add an equality edge between the `AddressOf` node and it's
             // pointee node
             auto *Arg = C->getArgOperand(1);
+
+            // Avoid creating layouts for pointers to functions.
+            if (isPointerToFunctionExpression(Arg))
+              continue;
+
             auto &&[PointedLayout,
                     ArgIsNew] = Builder.getOrCreateLayoutType(Arg);
             Changed |= ArgIsNew;
@@ -441,6 +474,11 @@ public:
 
             for (const auto &[RetTypeNodeNew, Arg] :
                  llvm::zip_first(StructTypeNodes, C->args())) {
+
+              // Avoid creating layouts for pointers to functions.
+              if (isPointerToFunctionExpression(Arg))
+                continue;
+
               const auto &[ArgTypeNode,
                            New] = Builder.getOrCreateLayoutType(Arg);
               Changed |= New;
@@ -525,6 +563,11 @@ public:
           for (Use &ArgU : C->args()) {
             revng_assert(isa<IntegerType>(ArgU->getType())
                          or isa<PointerType>(ArgU->getType()));
+
+            // Avoid creating layouts for pointers to functions.
+            if (isPointerToFunctionExpression(ArgU))
+              continue;
+
             const auto &[ArgTy, Created] = Builder.getOrCreateLayoutType(ArgU);
             Changed |= Created;
             const SCEV *ArgS = SE->getSCEV(ArgU);
@@ -595,6 +638,10 @@ public:
                    or isa<BitCastInst>(&I) or isa<ZExtInst>(&I)) {
           Value *Op = I.getOperand(0);
 
+          // Avoid creating layouts for pointers to functions.
+          if (isPointerToFunctionExpression(Op))
+            continue;
+
           bool New = false;
           LayoutTypeSystemNode *SrcLayout = nullptr;
           LayoutTypeSystemNode *TgtLayout = nullptr;
@@ -650,41 +697,46 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
   if (Prototype == nullptr)
     return false;
 
-  auto It = VisitedPrototypes.find(Prototype);
-  if (It == VisitedPrototypes.end()) {
-    VisitedPrototypes.insert({ Prototype, Call });
-  } else {
-    FuncOrCallInst OtherCall = It->second;
-    revng_assert(not OtherCall.isNull());
+  const auto [It, NewPrototype] = VisitedPrototypes.insert({ Prototype, Call });
+  if (NewPrototype)
+    return Changed;
 
-    if (Call->getType()->isVoidTy()) {
-      revng_assert(OtherCall.getRetType()->isVoidTy());
-    } else {
-      revng_assert(not OtherCall.getRetType()->isVoidTy());
-      // Connect return values
-      auto OtherRetVals = getLayoutTypes(*OtherCall.getVal());
-      auto RetVals = getLayoutTypes(*Call);
-      revng_assert(RetVals.size() == OtherRetVals.size());
-      for (auto &&[N1, N2] : llvm::zip(OtherRetVals, RetVals)) {
-        Changed = true;
-        TS.addEqualityLink(N1, N2);
-      }
-    }
+  FuncOrCallInst OtherCall = It->second;
+  revng_assert(not OtherCall.isNull());
 
-    // Connect arguments
-    for (const auto &ArgIt : llvm::enumerate(Call->args())) {
-      // Arguments can only be integers and pointers
-      const Value *Arg1 = ArgIt.value();
-      const Value *Arg2 = OtherCall.getArg(ArgIt.index());
-      revng_assert(Arg1->getType()->isIntOrPtrTy()
-                   and Arg2->getType()->isIntOrPtrTy());
+  bool ReturnsVoid = OtherCall.getRetType()->isVoidTy();
+  revng_assert(Call->getType()->isVoidTy() == ReturnsVoid);
 
-      auto *Arg1Node = getLayoutType(Arg1);
-      auto *Arg2Node = getLayoutType(Arg2);
-
+  if (not ReturnsVoid) {
+    // Connect return values
+    auto OtherRetVals = getLayoutTypes(*OtherCall.getVal());
+    auto RetVals = getLayoutTypes(*Call);
+    revng_assert(RetVals.size() == OtherRetVals.size());
+    for (auto &&[N1, N2] : llvm::zip(OtherRetVals, RetVals)) {
       Changed = true;
-      TS.addEqualityLink(Arg1Node, Arg2Node);
+      TS.addEqualityLink(N1, N2);
     }
+  }
+
+  // Connect arguments
+  for (const auto &ArgIt : llvm::enumerate(Call->args())) {
+    // Arguments can only be integers and pointers
+    const Value *Arg1 = ArgIt.value();
+    const Value *Arg2 = OtherCall.getArg(ArgIt.index());
+    revng_assert(Arg1->getType()->isIntOrPtrTy()
+                 and Arg2->getType()->isIntOrPtrTy());
+
+    // Avoid creating layouts for pointers to functions.
+    if (isPointerToFunctionExpression(Arg1))
+      continue;
+    if (isPointerToFunctionExpression(Arg2))
+      continue;
+
+    auto *Arg1Node = getLayoutType(Arg1);
+    auto *Arg2Node = getLayoutType(Arg2);
+
+    Changed = true;
+    TS.addEqualityLink(Arg1Node, Arg2Node);
   }
 
   return Changed;
@@ -739,6 +791,10 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
             continue;
           }
           revng_assert(PointerVal);
+
+          // Avoid creating layouts for pointers to functions.
+          if (isPointerToFunctionExpression(PointerVal))
+            continue;
 
           // But if the pointer operand is a global variable we have nothing to
           // do, because loading from it means reading from a register which has

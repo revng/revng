@@ -4,10 +4,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <compare>
+
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Triple.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IntegerSerialization.h"
 #include "revng/Support/OverflowSafeInt.h"
@@ -162,27 +164,27 @@ inline llvm::StringRef consumeFromString(llvm::StringRef String) {
   return String;
 }
 
-inline constexpr const std::optional<llvm::Triple::ArchType> arch(Values V) {
+inline constexpr model::Architecture::Values arch(Values V) {
   switch (V) {
   case Code_x86:
-    return { llvm::Triple::x86 };
+    return model::Architecture::x86;
   case Code_x86_64:
-    return { llvm::Triple::x86_64 };
+    return model::Architecture::x86_64;
   case Code_mips:
-    return { llvm::Triple::mips };
+    return model::Architecture::mips;
   case Code_mipsel:
-    return { llvm::Triple::mipsel };
+    return model::Architecture::mipsel;
   case Code_arm:
   case Code_arm_thumb:
-    return { llvm::Triple::arm };
+    return model::Architecture::arm;
   case Code_aarch64:
-    return { llvm::Triple::aarch64 };
+    return model::Architecture::aarch64;
   case Code_systemz:
-    return { llvm::Triple::systemz };
+    return model::Architecture::systemz;
   case Invalid:
   case Generic32:
   case Generic64:
-    return {};
+    return model::Architecture::Invalid;
   case Count:
   default:
     revng_abort();
@@ -190,16 +192,17 @@ inline constexpr const std::optional<llvm::Triple::ArchType> arch(Values V) {
 }
 
 /// Returns Generic32 or Generic64 depending on the size of addresses in \p Arch
-inline constexpr Values genericFromArch(llvm::Triple::ArchType Arch) {
-  switch (Arch) {
-  case llvm::Triple::x86:
-  case llvm::Triple::arm:
-  case llvm::Triple::mips:
-  case llvm::Triple::mipsel:
+inline constexpr Values
+genericFromArch(model::Architecture::Values Architecture) {
+  switch (Architecture) {
+  case model::Architecture::x86:
+  case model::Architecture::arm:
+  case model::Architecture::mips:
+  case model::Architecture::mipsel:
     return Generic32;
-  case llvm::Triple::x86_64:
-  case llvm::Triple::aarch64:
-  case llvm::Triple::systemz:
+  case model::Architecture::x86_64:
+  case model::Architecture::aarch64:
+  case model::Architecture::systemz:
     return Generic64;
   default:
     revng_abort("Unsupported architecture");
@@ -235,21 +238,21 @@ inline constexpr Values toGeneric(Values Type) {
 }
 
 /// Get the default type for code of the given architecture
-inline constexpr Values defaultCodeFromArch(llvm::Triple::ArchType Arch) {
+inline constexpr Values defaultCodeFromArch(model::Architecture::Values Arch) {
   switch (Arch) {
-  case llvm::Triple::x86:
+  case model::Architecture::x86:
     return Code_x86;
-  case llvm::Triple::arm:
+  case model::Architecture::arm:
     return Code_arm;
-  case llvm::Triple::mips:
+  case model::Architecture::mips:
     return Code_mips;
-  case llvm::Triple::mipsel:
+  case model::Architecture::mipsel:
     return Code_mipsel;
-  case llvm::Triple::x86_64:
+  case model::Architecture::x86_64:
     return Code_x86_64;
-  case llvm::Triple::aarch64:
+  case model::Architecture::aarch64:
     return Code_aarch64;
-  case llvm::Triple::systemz:
+  case model::Architecture::systemz:
     return Code_systemz;
   default:
     revng_abort("Unsupported architecture");
@@ -340,21 +343,21 @@ inline constexpr bool isCode(Values Type) {
 }
 
 /// Does \p Type represent an address pointing to \p Arch code?
-inline constexpr bool isCode(Values Type, llvm::Triple::ArchType Arch) {
+inline constexpr bool isCode(Values Type, model::Architecture::Values Arch) {
   switch (Arch) {
-  case llvm::Triple::x86:
+  case model::Architecture::x86:
     return Type == Code_x86;
-  case llvm::Triple::arm:
+  case model::Architecture::arm:
     return Type == Code_arm or Type == Code_arm_thumb;
-  case llvm::Triple::mips:
+  case model::Architecture::mips:
     return Type == Code_mips;
-  case llvm::Triple::mipsel:
+  case model::Architecture::mipsel:
     return Type == Code_mipsel;
-  case llvm::Triple::x86_64:
+  case model::Architecture::x86_64:
     return Type == Code_x86_64;
-  case llvm::Triple::aarch64:
+  case model::Architecture::aarch64:
     return Type == Code_aarch64;
-  case llvm::Triple::systemz:
+  case model::Architecture::systemz:
     return Type == Code_systemz;
   default:
     revng_abort("Unsupported architecture");
@@ -401,7 +404,6 @@ inline constexpr bool isDefaultCode(Values Type) {
   case Generic64:
   case Code_arm_thumb:
     return false;
-
   case Count:
   default:
     revng_abort("Unknown MetaAddressType value");
@@ -468,7 +470,7 @@ public:
 public:
   class Features {
   public:
-    llvm::Triple::ArchType Architecture = llvm::Triple::UnknownArch;
+    model::Architecture::Values Architecture = model::Architecture::Invalid;
     uint32_t Epoch = 0;
     uint16_t AddressSpace = 0;
 
@@ -514,7 +516,7 @@ public:
   static constexpr MetaAddress invalid() { return MetaAddress(); }
 
   /// Create a MetaAddress from a pointer to \p Arch code
-  static constexpr MetaAddress fromPC(llvm::Triple::ArchType Arch,
+  static constexpr MetaAddress fromPC(model::Architecture::Values Arch,
                                       uint64_t PC,
                                       uint32_t Epoch = 0,
                                       uint16_t AddressSpace = 0) {
@@ -528,7 +530,7 @@ public:
     // A code MetaAddress pointing at 0 should always be valid
     revng_assert(Result.isValid());
 
-    if (Arch == llvm::Triple::arm and (PC & 1) == 1) {
+    if (Arch == model::Architecture::arm and (PC & 1) == 1) {
       // A pointer to ARM code with the LSB turned on is Thumb code
 
       // Override the type
@@ -544,7 +546,7 @@ public:
   }
 
   static MetaAddress fromPC(MetaAddress Base, uint64_t Address) {
-    return fromPC(*Base.arch(), Address, Base.epoch(), Base.addressSpace());
+    return fromPC(Base.arch(), Address, Base.epoch(), Base.addressSpace());
   }
 
   static MetaAddress fromPC(uint64_t Address, const Features &Features) {
@@ -555,7 +557,7 @@ public:
   }
 
   /// Create a generic MetaAddress for architecture \p Arch
-  static constexpr MetaAddress fromGeneric(llvm::Triple::ArchType Arch,
+  static constexpr MetaAddress fromGeneric(model::Architecture::Values Arch,
                                            uint64_t Address,
                                            uint32_t Epoch = 0,
                                            uint16_t AddressSpace = 0) {
@@ -610,16 +612,16 @@ public:
     return Result;
   }
 
-  constexpr MetaAddress toPC(llvm::Triple::ArchType Arch) const {
+  constexpr MetaAddress toPC(model::Architecture::Values Arch) const {
     return fromPC(Arch, Address, Epoch, AddressSpace);
   }
 
   Features features() const {
-    return Features(*MetaAddressType::arch(type()), Epoch, AddressSpace);
+    return Features(MetaAddressType::arch(type()), Epoch, AddressSpace);
   }
 
 public:
-  constexpr auto operator<=>(const MetaAddress &Other) const {
+  constexpr std::strong_ordering operator<=>(const MetaAddress &Other) const {
     return tie() <=> Other.tie();
   }
   constexpr bool operator==(const MetaAddress &Other) const {
@@ -837,7 +839,7 @@ public:
   }
   constexpr bool isValid() const { return not isInvalid(); }
   constexpr bool isCode() const { return MetaAddressType::isCode(type()); }
-  constexpr bool isCode(llvm::Triple::ArchType Arch) const {
+  constexpr bool isCode(model::Architecture::Values Arch) const {
     return MetaAddressType::isCode(type(), Arch);
   }
   constexpr bool isGeneric() const {
@@ -850,7 +852,7 @@ public:
     return MetaAddressType::alignment(type());
   }
 
-  std::optional<llvm::Triple::ArchType> arch() const {
+  model::Architecture::Values arch() const {
     return MetaAddressType::arch(type());
   }
 
@@ -980,9 +982,10 @@ public:
   /// \param Arch specifying the "expected" architecture omits it from
   ///        the serialized string. But it also leads to inability
   ///        to deserialize it! So only use if you know what you're doing.
-  std::string toString(std::optional<llvm::Triple::ArchType> Arch = {}) const;
-  std::string
-  toIdentifier(std::optional<llvm::Triple::ArchType> Arch = {}) const;
+  std::string toString(model::Architecture::Values Arch =
+                         model::Architecture::Invalid) const;
+  std::string toIdentifier(model::Architecture::Values Arch =
+                             model::Architecture::Invalid) const;
   static MetaAddress fromString(llvm::StringRef Text);
 
 private:
@@ -1013,10 +1016,10 @@ struct KeyedObjectTraits<MetaAddress>
   : public IdentityKeyedObjectTraits<MetaAddress> {};
 
 inline llvm::hash_code hash_value(const MetaAddress &Address) {
-  return hash_combine(Address.arch(),
-                      Address.address(),
-                      Address.epoch(),
-                      Address.addressSpace());
+  return llvm::hash_combine(Address.arch(),
+                            Address.address(),
+                            Address.epoch(),
+                            Address.addressSpace());
 }
 
 namespace std {

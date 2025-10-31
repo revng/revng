@@ -21,7 +21,7 @@
 
 using namespace llvm;
 
-static Logger<> Log("peephole-opt-for-decompilation");
+static Logger Log("peephole-opt-for-decompilation");
 
 struct PeepholeOptimizationPass : public FunctionPass {
 public:

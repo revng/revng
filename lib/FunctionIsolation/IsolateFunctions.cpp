@@ -61,7 +61,7 @@ using namespace llvm;
 
 class IsolateFunctionsImpl;
 
-static Logger<> TheLogger("isolation");
+static Logger TheLogger("isolation");
 
 // Define an alias for the data structure that will contain the LLVM functions
 using FunctionsMap = std::map<MDString *, Function *>;

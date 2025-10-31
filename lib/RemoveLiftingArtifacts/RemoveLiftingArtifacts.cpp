@@ -51,7 +51,9 @@ static bool removeCallsToArtifacts(Function &F) {
 static bool removeStoresToCPULoopExiting(Function &F) {
   // Retrieve the global variable `cpu_loop_exiting`
   Module *M = F.getParent();
-  GlobalVariable *CpuLoop = M->getGlobalVariable("cpu_loop_exiting");
+  GlobalVariable *CpuLoop = M->getGlobalVariable("cpu_loop_exiting", true);
+  if (CpuLoop == nullptr)
+    return false;
 
   // Remove in bulk all the users of the global variable.
   SmallVector<LoadInst *, 8> Loads;

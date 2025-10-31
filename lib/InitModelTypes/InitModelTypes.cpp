@@ -57,7 +57,7 @@ using TypeVector = llvm::SmallVector<model::UpcastableType, 8>;
 using ModelTypesMap = std::map<const llvm::Value *,
                                const model::UpcastableType>;
 
-static Logger<> Log{ "init-model-types" };
+static Logger Log{ "init-model-types" };
 
 /// Map each llvm::Argument of the given llvm::Function to its type in the model
 static void addArgumentsTypes(const llvm::Function &LLVMFunc,

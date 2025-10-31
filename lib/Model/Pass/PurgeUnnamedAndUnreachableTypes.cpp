@@ -15,7 +15,7 @@
 
 using namespace llvm;
 
-static Logger<> Log("purge-model-types");
+static Logger Log("purge-model-types");
 
 static RegisterModelPass R0("purge-invalid-types",
                             "Remove all the types that do not verify",

@@ -18,7 +18,7 @@
 using namespace llvm;
 
 // Debug logger
-static Logger<> Log("dagify");
+static Logger Log("dagify");
 
 class DAGifyPassImpl {
   Function &F;

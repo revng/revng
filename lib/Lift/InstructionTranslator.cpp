@@ -1,5 +1,6 @@
 /// \file InstructionTranslator.cpp
-/// This file implements the logic to translate a PTC instruction in to LLVM IR.
+/// \brief This file implements the logic to translate a libtcg instruction in
+///        to LLVM IR.
 
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
@@ -15,6 +16,9 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/InstrTypes.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/Casting.h"
@@ -28,278 +32,110 @@
 #include "revng/Support/Range.h"
 
 #include "InstructionTranslator.h"
-#include "PTCInterface.h"
 
 // This name is not present after `remove-newpc-calls`.
 RegisterIRHelper NewPCHelper("newpc");
 
 using namespace llvm;
 
-static cl::opt<bool> RecordASM("record-asm",
-                               cl::desc("create metadata for assembly"),
-                               cl::cat(MainCategory));
+static Logger Log("instruction-translator");
 
 using IT = InstructionTranslator;
 
-namespace PTC {
-
-template<bool C>
-class InstructionImpl;
-
-enum ArgumentType {
-  In,
-  Out,
-  Const
-};
-
-template<typename T, typename Q, bool B>
-using RAI = RandomAccessIterator<T, Q, B>;
-
-template<ArgumentType Type, bool IsCall>
-class InstructionArgumentsIterator
-  : public RAI<uint64_t, InstructionArgumentsIterator<Type, IsCall>, false> {
-
-public:
-  using base = RandomAccessIterator<uint64_t,
-                                    InstructionArgumentsIterator,
-                                    false>;
-
-  InstructionArgumentsIterator &
-  operator=(const InstructionArgumentsIterator &R) {
-    base::operator=(R);
-    TheInstruction = R.TheInstruction;
-    return *this;
-  }
-
-  InstructionArgumentsIterator(const InstructionArgumentsIterator &R) :
-    base(R), TheInstruction(R.TheInstruction) {}
-
-  InstructionArgumentsIterator(const InstructionArgumentsIterator &R,
-                               unsigned Index) :
-    base(Index), TheInstruction(R.TheInstruction) {}
-
-  InstructionArgumentsIterator(PTCInstruction *TheInstruction, unsigned Index) :
-    base(Index), TheInstruction(TheInstruction) {}
-
-  bool isCompatible(const InstructionArgumentsIterator &R) const {
-    return TheInstruction == R.TheInstruction;
-  }
-
-public:
-  uint64_t get(unsigned Index) const;
-
-private:
-  PTCInstruction *TheInstruction = nullptr;
-};
-
-template<>
-inline uint64_t
-InstructionArgumentsIterator<In, true>::get(unsigned Index) const {
-  return ptc_call_instruction_in_arg(&ptc, TheInstruction, Index);
+static uint64_t pc(LibTcgInstruction *Instr) {
+  revng_assert(Instr->opcode == LIBTCG_op_insn_start);
+  uint64_t PC = Instr->constant_args[0].constant;
+  if (Instr->nb_cargs > 1)
+    PC |= Instr->constant_args[1].constant << 32;
+  return PC;
 }
 
-template<>
-inline uint64_t
-InstructionArgumentsIterator<Const, true>::get(unsigned Index) const {
-  return ptc_call_instruction_const_arg(&ptc, TheInstruction, Index);
-}
-
-template<>
-inline uint64_t
-InstructionArgumentsIterator<Out, true>::get(unsigned Index) const {
-  return ptc_call_instruction_out_arg(&ptc, TheInstruction, Index);
-}
-
-template<>
-inline uint64_t
-InstructionArgumentsIterator<In, false>::get(unsigned Index) const {
-  return ptc_instruction_in_arg(&ptc, TheInstruction, Index);
-}
-
-template<>
-inline uint64_t
-InstructionArgumentsIterator<Const, false>::get(unsigned Index) const {
-  return ptc_instruction_const_arg(&ptc, TheInstruction, Index);
-}
-
-template<>
-inline uint64_t
-InstructionArgumentsIterator<Out, false>::get(unsigned Index) const {
-  return ptc_instruction_out_arg(&ptc, TheInstruction, Index);
-}
-
-template<bool IsCall>
-class InstructionImpl {
-private:
-  template<ArgumentType Type>
-  using arguments = InstructionArgumentsIterator<Type, IsCall>;
-
-public:
-  InstructionImpl(PTCInstruction *TheInstruction) :
-    TheInstruction(TheInstruction),
-    InArguments(arguments<In>(TheInstruction, 0),
-                arguments<In>(TheInstruction, inArgCount())),
-    ConstArguments(arguments<Const>(TheInstruction, 0),
-                   arguments<Const>(TheInstruction, constArgCount())),
-    OutArguments(arguments<Out>(TheInstruction, 0),
-                 arguments<Out>(TheInstruction, outArgCount())) {}
-
-  PTCOpcode opcode() const { return TheInstruction->opc; }
-
-  std::string helperName() const {
-    revng_assert(IsCall);
-    PTCHelperDef *Helper = ptc_find_helper(&ptc, ConstArguments[0]);
-    revng_assert(Helper != nullptr && Helper->name != nullptr);
-    return std::string(Helper->name);
-  }
-
-  uint64_t pc() const {
-    revng_assert(opcode() == PTC_INSTRUCTION_op_debug_insn_start);
-    uint64_t PC = ConstArguments[0];
-    if (ConstArguments.size() > 1)
-      PC |= ConstArguments[1] << 32;
-    return PC;
-  }
-
-private:
-  PTCInstruction *TheInstruction = nullptr;
-
-public:
-  const Range<InstructionArgumentsIterator<In, IsCall>> InArguments;
-  const Range<InstructionArgumentsIterator<Const, IsCall>> ConstArguments;
-  const Range<InstructionArgumentsIterator<Out, IsCall>> OutArguments;
-
-private:
-  unsigned inArgCount() const;
-  unsigned constArgCount() const;
-  unsigned outArgCount() const;
-};
-
-using Instruction = InstructionImpl<false>;
-using CallInstruction = InstructionImpl<true>;
-
-template<>
-inline unsigned CallInstruction::inArgCount() const {
-  return ptc_call_instruction_in_arg_count(&ptc, TheInstruction);
-}
-
-template<>
-inline unsigned Instruction::inArgCount() const {
-  return ptc_instruction_in_arg_count(&ptc, TheInstruction);
-}
-
-template<>
-inline unsigned CallInstruction::constArgCount() const {
-  return ptc_call_instruction_const_arg_count(&ptc, TheInstruction);
-}
-
-template<>
-inline unsigned Instruction::constArgCount() const {
-  return ptc_instruction_const_arg_count(&ptc, TheInstruction);
-}
-
-template<>
-inline unsigned CallInstruction::outArgCount() const {
-  return ptc_call_instruction_out_arg_count(&ptc, TheInstruction);
-}
-
-template<>
-inline unsigned Instruction::outArgCount() const {
-  return ptc_instruction_out_arg_count(&ptc, TheInstruction);
-}
-
-} // namespace PTC
-
-/// Converts a PTC condition into an LLVM predicate
+/// Converts a libtcg condition into an LLVM predicate
 ///
-/// \param Condition the input PTC condition.
+/// \param Condition the input libtcg condition.
 ///
 /// \return the corresponding LLVM predicate.
-static CmpInst::Predicate conditionToPredicate(PTCCondition Condition) {
+
+static CmpInst::Predicate conditionToPredicate(LibTcgCond Condition) {
   switch (Condition) {
-  case PTC_COND_NEVER:
-    // TODO: this is probably wrong
-    return CmpInst::FCMP_FALSE;
-  case PTC_COND_ALWAYS:
-    // TODO: this is probably wrong
-    return CmpInst::FCMP_TRUE;
-  case PTC_COND_EQ:
+  case LIBTCG_COND_EQ:
     return CmpInst::ICMP_EQ;
-  case PTC_COND_NE:
+  case LIBTCG_COND_NE:
     return CmpInst::ICMP_NE;
-  case PTC_COND_LT:
+  case LIBTCG_COND_LT:
     return CmpInst::ICMP_SLT;
-  case PTC_COND_GE:
+  case LIBTCG_COND_GE:
     return CmpInst::ICMP_SGE;
-  case PTC_COND_LE:
+  case LIBTCG_COND_LE:
     return CmpInst::ICMP_SLE;
-  case PTC_COND_GT:
+  case LIBTCG_COND_GT:
     return CmpInst::ICMP_SGT;
-  case PTC_COND_LTU:
+  case LIBTCG_COND_LTU:
     return CmpInst::ICMP_ULT;
-  case PTC_COND_GEU:
+  case LIBTCG_COND_GEU:
     return CmpInst::ICMP_UGE;
-  case PTC_COND_LEU:
+  case LIBTCG_COND_LEU:
     return CmpInst::ICMP_ULE;
-  case PTC_COND_GTU:
+  case LIBTCG_COND_GTU:
     return CmpInst::ICMP_UGT;
   default:
-    revng_unreachable("Unknown comparison operator");
+    revng_abort("Unknown libtcg condition");
   }
 }
 
-/// Obtains the LLVM binary operation corresponding to the specified PTC opcode.
+/// Obtains the LLVM binary operation corresponding to the specified libtcg
+/// opcode.
 ///
-/// \param Opcode the PTC opcode.
+/// \param Opcode the libtcg opcode.
 ///
 /// \return the LLVM binary operation matching opcode.
-static Instruction::BinaryOps opcodeToBinaryOp(PTCOpcode Opcode) {
+static Instruction::BinaryOps opcodeToBinaryOp(LibTcgOpcode Opcode) {
   switch (Opcode) {
-  case PTC_INSTRUCTION_op_add_i32:
-  case PTC_INSTRUCTION_op_add_i64:
-  case PTC_INSTRUCTION_op_add2_i32:
-  case PTC_INSTRUCTION_op_add2_i64:
+  case LIBTCG_op_add_i32:
+  case LIBTCG_op_add_i64:
+  case LIBTCG_op_add2_i32:
+  case LIBTCG_op_add2_i64:
     return Instruction::Add;
-  case PTC_INSTRUCTION_op_sub_i32:
-  case PTC_INSTRUCTION_op_sub_i64:
-  case PTC_INSTRUCTION_op_sub2_i32:
-  case PTC_INSTRUCTION_op_sub2_i64:
+  case LIBTCG_op_sub_i32:
+  case LIBTCG_op_sub_i64:
+  case LIBTCG_op_sub2_i32:
+  case LIBTCG_op_sub2_i64:
     return Instruction::Sub;
-  case PTC_INSTRUCTION_op_mul_i32:
-  case PTC_INSTRUCTION_op_mul_i64:
+  case LIBTCG_op_mul_i32:
+  case LIBTCG_op_mul_i64:
     return Instruction::Mul;
-  case PTC_INSTRUCTION_op_div_i32:
-  case PTC_INSTRUCTION_op_div_i64:
+  case LIBTCG_op_div_i32:
+  case LIBTCG_op_div_i64:
     return Instruction::SDiv;
-  case PTC_INSTRUCTION_op_divu_i32:
-  case PTC_INSTRUCTION_op_divu_i64:
+  case LIBTCG_op_divu_i32:
+  case LIBTCG_op_divu_i64:
     return Instruction::UDiv;
-  case PTC_INSTRUCTION_op_rem_i32:
-  case PTC_INSTRUCTION_op_rem_i64:
+  case LIBTCG_op_rem_i32:
+  case LIBTCG_op_rem_i64:
     return Instruction::SRem;
-  case PTC_INSTRUCTION_op_remu_i32:
-  case PTC_INSTRUCTION_op_remu_i64:
+  case LIBTCG_op_remu_i32:
+  case LIBTCG_op_remu_i64:
     return Instruction::URem;
-  case PTC_INSTRUCTION_op_and_i32:
-  case PTC_INSTRUCTION_op_and_i64:
+  case LIBTCG_op_and_i32:
+  case LIBTCG_op_and_i64:
     return Instruction::And;
-  case PTC_INSTRUCTION_op_or_i32:
-  case PTC_INSTRUCTION_op_or_i64:
+  case LIBTCG_op_or_i32:
+  case LIBTCG_op_or_i64:
     return Instruction::Or;
-  case PTC_INSTRUCTION_op_xor_i32:
-  case PTC_INSTRUCTION_op_xor_i64:
+  case LIBTCG_op_xor_i32:
+  case LIBTCG_op_xor_i64:
     return Instruction::Xor;
-  case PTC_INSTRUCTION_op_shl_i32:
-  case PTC_INSTRUCTION_op_shl_i64:
+  case LIBTCG_op_shl_i32:
+  case LIBTCG_op_shl_i64:
     return Instruction::Shl;
-  case PTC_INSTRUCTION_op_shr_i32:
-  case PTC_INSTRUCTION_op_shr_i64:
+  case LIBTCG_op_shr_i32:
+  case LIBTCG_op_shr_i64:
     return Instruction::LShr;
-  case PTC_INSTRUCTION_op_sar_i32:
-  case PTC_INSTRUCTION_op_sar_i64:
+  case LIBTCG_op_sar_i32:
+  case LIBTCG_op_sar_i64:
     return Instruction::AShr;
   default:
-    revng_unreachable("PTC opcode is not a binary operator");
+    revng_unreachable("libtcg opcode is not a binary operator");
   }
 }
 
@@ -311,168 +147,224 @@ static uint64_t getMaxValue(unsigned Bits) {
   else if (Bits == 64)
     return 0xffffffffffffffff;
   else
-    revng_unreachable("Not the number of bits in a integer type");
+    revng_unreachable("Not the number of bits in an integer type");
 }
 
 /// Maps an opcode the corresponding input and output register size.
 ///
 /// \return the size, in bits, of the registers used by the opcode.
-static unsigned getRegisterSize(unsigned Opcode) {
+static unsigned getRegisterSize(LibTcg &LibTcg, LibTcgOpcode Opcode) {
   switch (Opcode) {
-  case PTC_INSTRUCTION_op_add2_i32:
-  case PTC_INSTRUCTION_op_add_i32:
-  case PTC_INSTRUCTION_op_andc_i32:
-  case PTC_INSTRUCTION_op_and_i32:
-  case PTC_INSTRUCTION_op_brcond2_i32:
-  case PTC_INSTRUCTION_op_brcond_i32:
-  case PTC_INSTRUCTION_op_bswap16_i32:
-  case PTC_INSTRUCTION_op_bswap32_i32:
-  case PTC_INSTRUCTION_op_deposit_i32:
-  case PTC_INSTRUCTION_op_div2_i32:
-  case PTC_INSTRUCTION_op_div_i32:
-  case PTC_INSTRUCTION_op_divu2_i32:
-  case PTC_INSTRUCTION_op_divu_i32:
-  case PTC_INSTRUCTION_op_eqv_i32:
-  case PTC_INSTRUCTION_op_ext16s_i32:
-  case PTC_INSTRUCTION_op_ext16u_i32:
-  case PTC_INSTRUCTION_op_ext8s_i32:
-  case PTC_INSTRUCTION_op_ext8u_i32:
-  case PTC_INSTRUCTION_op_ld16s_i32:
-  case PTC_INSTRUCTION_op_ld16u_i32:
-  case PTC_INSTRUCTION_op_ld8s_i32:
-  case PTC_INSTRUCTION_op_ld8u_i32:
-  case PTC_INSTRUCTION_op_ld_i32:
-  case PTC_INSTRUCTION_op_movcond_i32:
-  case PTC_INSTRUCTION_op_mov_i32:
-  case PTC_INSTRUCTION_op_movi_i32:
-  case PTC_INSTRUCTION_op_mul_i32:
-  case PTC_INSTRUCTION_op_muls2_i32:
-  case PTC_INSTRUCTION_op_mulsh_i32:
-  case PTC_INSTRUCTION_op_mulu2_i32:
-  case PTC_INSTRUCTION_op_muluh_i32:
-  case PTC_INSTRUCTION_op_nand_i32:
-  case PTC_INSTRUCTION_op_neg_i32:
-  case PTC_INSTRUCTION_op_nor_i32:
-  case PTC_INSTRUCTION_op_not_i32:
-  case PTC_INSTRUCTION_op_orc_i32:
-  case PTC_INSTRUCTION_op_or_i32:
-  case PTC_INSTRUCTION_op_qemu_ld_i32:
-  case PTC_INSTRUCTION_op_qemu_st_i32:
-  case PTC_INSTRUCTION_op_rem_i32:
-  case PTC_INSTRUCTION_op_remu_i32:
-  case PTC_INSTRUCTION_op_rotl_i32:
-  case PTC_INSTRUCTION_op_rotr_i32:
-  case PTC_INSTRUCTION_op_sar_i32:
-  case PTC_INSTRUCTION_op_setcond2_i32:
-  case PTC_INSTRUCTION_op_setcond_i32:
-  case PTC_INSTRUCTION_op_shl_i32:
-  case PTC_INSTRUCTION_op_shr_i32:
-  case PTC_INSTRUCTION_op_st16_i32:
-  case PTC_INSTRUCTION_op_st8_i32:
-  case PTC_INSTRUCTION_op_st_i32:
-  case PTC_INSTRUCTION_op_sub2_i32:
-  case PTC_INSTRUCTION_op_sub_i32:
-  case PTC_INSTRUCTION_op_trunc_shr_i32:
-  case PTC_INSTRUCTION_op_xor_i32:
+  case LIBTCG_op_add2_i32:
+  case LIBTCG_op_add_i32:
+  case LIBTCG_op_andc_i32:
+  case LIBTCG_op_and_i32:
+  case LIBTCG_op_brcond2_i32:
+  case LIBTCG_op_brcond_i32:
+  case LIBTCG_op_bswap16_i32:
+  case LIBTCG_op_bswap32_i32:
+  case LIBTCG_op_deposit_i32:
+  case LIBTCG_op_div2_i32:
+  case LIBTCG_op_div_i32:
+  case LIBTCG_op_divu2_i32:
+  case LIBTCG_op_divu_i32:
+  case LIBTCG_op_eqv_i32:
+  case LIBTCG_op_ext16s_i32:
+  case LIBTCG_op_ext16u_i32:
+  case LIBTCG_op_ext8s_i32:
+  case LIBTCG_op_ext8u_i32:
+  case LIBTCG_op_extrl_i64_i32:
+  case LIBTCG_op_extrh_i64_i32:
+  case LIBTCG_op_ld16s_i32:
+  case LIBTCG_op_ld16u_i32:
+  case LIBTCG_op_ld8s_i32:
+  case LIBTCG_op_ld8u_i32:
+  case LIBTCG_op_ld_i32:
+  case LIBTCG_op_movcond_i32:
+  case LIBTCG_op_mov_i32:
+  case LIBTCG_op_mul_i32:
+  case LIBTCG_op_muls2_i32:
+  case LIBTCG_op_mulsh_i32:
+  case LIBTCG_op_mulu2_i32:
+  case LIBTCG_op_muluh_i32:
+  case LIBTCG_op_nand_i32:
+  case LIBTCG_op_neg_i32:
+  case LIBTCG_op_nor_i32:
+  case LIBTCG_op_not_i32:
+  case LIBTCG_op_orc_i32:
+  case LIBTCG_op_or_i32:
+  case LIBTCG_op_qemu_ld_a32_i32:
+  case LIBTCG_op_qemu_ld_a64_i32:
+  case LIBTCG_op_qemu_st_a32_i32:
+  case LIBTCG_op_qemu_st_a64_i32:
+  case LIBTCG_op_rem_i32:
+  case LIBTCG_op_remu_i32:
+  case LIBTCG_op_rotl_i32:
+  case LIBTCG_op_rotr_i32:
+  case LIBTCG_op_sar_i32:
+  case LIBTCG_op_setcond2_i32:
+  case LIBTCG_op_setcond_i32:
+  case LIBTCG_op_negsetcond_i32:
+  case LIBTCG_op_shl_i32:
+  case LIBTCG_op_shr_i32:
+  case LIBTCG_op_st16_i32:
+  case LIBTCG_op_st8_i32:
+  case LIBTCG_op_st_i32:
+  case LIBTCG_op_sub2_i32:
+  case LIBTCG_op_sub_i32:
+  case LIBTCG_op_xor_i32:
+  case LIBTCG_op_extract_i32:
+  case LIBTCG_op_sextract_i32:
+  case LIBTCG_op_extract2_i32:
+  case LIBTCG_op_clz_i32:
+  case LIBTCG_op_ctz_i32:
     return 32;
-  case PTC_INSTRUCTION_op_add2_i64:
-  case PTC_INSTRUCTION_op_add_i64:
-  case PTC_INSTRUCTION_op_andc_i64:
-  case PTC_INSTRUCTION_op_and_i64:
-  case PTC_INSTRUCTION_op_brcond_i64:
-  case PTC_INSTRUCTION_op_bswap16_i64:
-  case PTC_INSTRUCTION_op_bswap32_i64:
-  case PTC_INSTRUCTION_op_bswap64_i64:
-  case PTC_INSTRUCTION_op_deposit_i64:
-  case PTC_INSTRUCTION_op_div2_i64:
-  case PTC_INSTRUCTION_op_div_i64:
-  case PTC_INSTRUCTION_op_divu2_i64:
-  case PTC_INSTRUCTION_op_divu_i64:
-  case PTC_INSTRUCTION_op_eqv_i64:
-  case PTC_INSTRUCTION_op_ext16s_i64:
-  case PTC_INSTRUCTION_op_ext16u_i64:
-  case PTC_INSTRUCTION_op_ext32s_i64:
-  case PTC_INSTRUCTION_op_ext32u_i64:
-  case PTC_INSTRUCTION_op_ext8s_i64:
-  case PTC_INSTRUCTION_op_ext8u_i64:
-  case PTC_INSTRUCTION_op_ld16s_i64:
-  case PTC_INSTRUCTION_op_ld16u_i64:
-  case PTC_INSTRUCTION_op_ld32s_i64:
-  case PTC_INSTRUCTION_op_ld32u_i64:
-  case PTC_INSTRUCTION_op_ld8s_i64:
-  case PTC_INSTRUCTION_op_ld8u_i64:
-  case PTC_INSTRUCTION_op_ld_i64:
-  case PTC_INSTRUCTION_op_movcond_i64:
-  case PTC_INSTRUCTION_op_mov_i64:
-  case PTC_INSTRUCTION_op_movi_i64:
-  case PTC_INSTRUCTION_op_mul_i64:
-  case PTC_INSTRUCTION_op_muls2_i64:
-  case PTC_INSTRUCTION_op_mulsh_i64:
-  case PTC_INSTRUCTION_op_mulu2_i64:
-  case PTC_INSTRUCTION_op_muluh_i64:
-  case PTC_INSTRUCTION_op_nand_i64:
-  case PTC_INSTRUCTION_op_neg_i64:
-  case PTC_INSTRUCTION_op_nor_i64:
-  case PTC_INSTRUCTION_op_not_i64:
-  case PTC_INSTRUCTION_op_orc_i64:
-  case PTC_INSTRUCTION_op_or_i64:
-  case PTC_INSTRUCTION_op_qemu_ld_i64:
-  case PTC_INSTRUCTION_op_qemu_st_i64:
-  case PTC_INSTRUCTION_op_rem_i64:
-  case PTC_INSTRUCTION_op_remu_i64:
-  case PTC_INSTRUCTION_op_rotl_i64:
-  case PTC_INSTRUCTION_op_rotr_i64:
-  case PTC_INSTRUCTION_op_sar_i64:
-  case PTC_INSTRUCTION_op_setcond_i64:
-  case PTC_INSTRUCTION_op_shl_i64:
-  case PTC_INSTRUCTION_op_shr_i64:
-  case PTC_INSTRUCTION_op_st16_i64:
-  case PTC_INSTRUCTION_op_st32_i64:
-  case PTC_INSTRUCTION_op_st8_i64:
-  case PTC_INSTRUCTION_op_st_i64:
-  case PTC_INSTRUCTION_op_sub2_i64:
-  case PTC_INSTRUCTION_op_sub_i64:
-  case PTC_INSTRUCTION_op_xor_i64:
+  case LIBTCG_op_add2_i64:
+  case LIBTCG_op_add_i64:
+  case LIBTCG_op_andc_i64:
+  case LIBTCG_op_and_i64:
+  case LIBTCG_op_brcond_i64:
+  case LIBTCG_op_bswap16_i64:
+  case LIBTCG_op_bswap32_i64:
+  case LIBTCG_op_bswap64_i64:
+  case LIBTCG_op_deposit_i64:
+  case LIBTCG_op_div2_i64:
+  case LIBTCG_op_div_i64:
+  case LIBTCG_op_divu2_i64:
+  case LIBTCG_op_divu_i64:
+  case LIBTCG_op_eqv_i64:
+  case LIBTCG_op_ext16s_i64:
+  case LIBTCG_op_ext16u_i64:
+  case LIBTCG_op_ext_i32_i64:
+  case LIBTCG_op_extu_i32_i64:
+  case LIBTCG_op_ext32s_i64:
+  case LIBTCG_op_ext32u_i64:
+  case LIBTCG_op_ext8s_i64:
+  case LIBTCG_op_ext8u_i64:
+  case LIBTCG_op_ld16s_i64:
+  case LIBTCG_op_ld16u_i64:
+  case LIBTCG_op_ld32s_i64:
+  case LIBTCG_op_ld32u_i64:
+  case LIBTCG_op_ld8s_i64:
+  case LIBTCG_op_ld8u_i64:
+  case LIBTCG_op_ld_i64:
+  case LIBTCG_op_movcond_i64:
+  case LIBTCG_op_mov_i64:
+  case LIBTCG_op_mul_i64:
+  case LIBTCG_op_muls2_i64:
+  case LIBTCG_op_mulsh_i64:
+  case LIBTCG_op_mulu2_i64:
+  case LIBTCG_op_muluh_i64:
+  case LIBTCG_op_nand_i64:
+  case LIBTCG_op_neg_i64:
+  case LIBTCG_op_nor_i64:
+  case LIBTCG_op_not_i64:
+  case LIBTCG_op_orc_i64:
+  case LIBTCG_op_or_i64:
+  case LIBTCG_op_qemu_ld_a32_i64:
+  case LIBTCG_op_qemu_ld_a64_i64:
+  case LIBTCG_op_qemu_st_a32_i64:
+  case LIBTCG_op_qemu_st_a64_i64:
+  case LIBTCG_op_rem_i64:
+  case LIBTCG_op_remu_i64:
+  case LIBTCG_op_rotl_i64:
+  case LIBTCG_op_rotr_i64:
+  case LIBTCG_op_sar_i64:
+  case LIBTCG_op_setcond_i64:
+  case LIBTCG_op_negsetcond_i64:
+  case LIBTCG_op_shl_i64:
+  case LIBTCG_op_shr_i64:
+  case LIBTCG_op_st16_i64:
+  case LIBTCG_op_st32_i64:
+  case LIBTCG_op_st8_i64:
+  case LIBTCG_op_st_i64:
+  case LIBTCG_op_sub2_i64:
+  case LIBTCG_op_sub_i64:
+  case LIBTCG_op_xor_i64:
+  case LIBTCG_op_clz_i64:
+  case LIBTCG_op_ctz_i64:
+  case LIBTCG_op_extract2_i64:
+  case LIBTCG_op_extract_i64:
+  case LIBTCG_op_sextract_i64:
     return 64;
-  case PTC_INSTRUCTION_op_br:
-  case PTC_INSTRUCTION_op_call:
-  case PTC_INSTRUCTION_op_debug_insn_start:
-  case PTC_INSTRUCTION_op_discard:
-  case PTC_INSTRUCTION_op_exit_tb:
-  case PTC_INSTRUCTION_op_goto_tb:
-  case PTC_INSTRUCTION_op_set_label:
+  case LIBTCG_op_br:
+  case LIBTCG_op_call:
+  case LIBTCG_op_insn_start:
+  case LIBTCG_op_discard:
+  case LIBTCG_op_exit_tb:
+  case LIBTCG_op_goto_tb:
+  case LIBTCG_op_goto_ptr:
+  case LIBTCG_op_set_label:
     return 0;
-  default:
-    revng_unreachable("Unexpected opcode");
+  default: {
+    // For debugging purposes printing the actual opcode
+    // really helps.
+    std::stringstream ErrSS;
+    ErrSS << "Unexpected libtcg opcode [" << Opcode
+          << "]: " << LibTcg.instructionName(Opcode);
+    revng_unreachable(ErrSS.str().c_str());
   }
+  }
+}
+
+static Value *genDeposit(revng::IRBuilder &Builder,
+                         unsigned RegisterSize,
+                         Value *Into,
+                         Value *From,
+                         Value *Offset,
+                         Value *Length) {
+  revng_assert(isa<ConstantInt>(Offset));
+  uint64_t ConstOffset = cast<ConstantInt>(Offset)->getLimitedValue();
+  if (ConstOffset == RegisterSize)
+    return Into;
+
+  revng_assert(isa<ConstantInt>(Length));
+  uint64_t ConstLength = cast<ConstantInt>(Length)->getLimitedValue();
+
+  uint64_t Bits = 0;
+  // Thou shall not << 32
+  if (ConstLength == RegisterSize)
+    Bits = getMaxValue(RegisterSize);
+  else
+    Bits = (1UL << ConstLength) - 1;
+
+  // result = (t1 & ~(bits << position)) | ((t2 & bits) << position)
+  uint64_t BaseMask = ~(Bits << ConstOffset);
+  Value *MaskedBase = Builder.CreateAnd(Into, BaseMask);
+  Value *Deposit = Builder.CreateAnd(From, Bits);
+  Value *ShiftedDeposit = Builder.CreateShl(Deposit, ConstOffset);
+  Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
+
+  return Result;
 }
 
 /// Create a compare instruction given a comparison operator and the operands
 ///
 /// \param Builder the builder to use to create the instruction.
-/// \param RawCondition the PTC condition.
+/// \param Condition the libtcg condition.
 /// \param FirstOperand the first operand of the comparison.
 /// \param SecondOperand the second operand of the comparison.
 ///
 /// \return a compare instruction.
 template<typename T>
 static Value *createICmp(T &Builder,
-                         uint64_t RawCondition,
+                         LibTcgCond Condition,
                          Value *FirstOperand,
                          Value *SecondOperand) {
-  PTCCondition Condition = static_cast<PTCCondition>(RawCondition);
   return Builder.CreateICmp(conditionToPredicate(Condition),
                             FirstOperand,
                             SecondOperand);
 }
 
 using LBM = IT::LabeledBlocksMap;
-IT::InstructionTranslator(revng::IRBuilder &Builder,
+IT::InstructionTranslator(class LibTcg &LibTcg,
+                          revng::IRBuilder &Builder,
                           VariableManager &Variables,
                           JumpTargetManager &JumpTargets,
                           std::vector<BasicBlock *> Blocks,
                           bool EndianessMismatch,
                           ProgramCounterHandler *PCH) :
+  LibTcg(LibTcg),
   Builder(Builder),
   Variables(Variables),
   JumpTargets(JumpTargets),
@@ -499,7 +391,6 @@ IT::InstructionTranslator(revng::IRBuilder &Builder,
                                   Type::getInt64Ty(Context),
                                   Type::getInt32Ty(Context),
                                   Type::getInt32Ty(Context),
-                                  Type::getInt8PtrTy(Context),
                                   Type::getInt8PtrTy(Context) },
                                 true);
   NewPCMarker = createIRHelper("newpc",
@@ -552,34 +443,32 @@ void IT::finalizeNewPCMarkers() {
     eraseFromParent(Call);
 }
 
-SmallSet<unsigned, 1> IT::preprocess(PTCInstructionList *InstructionList) {
+SmallSet<unsigned, 1> IT::preprocess(const LibTcgTranslationBlock &TB) {
   SmallSet<unsigned, 1> Result;
 
-  for (unsigned I = 0; I < InstructionList->instruction_count; I++) {
-    PTCInstruction &Instruction = InstructionList->instructions[I];
-    switch (Instruction.opc) {
-    case PTC_INSTRUCTION_op_movi_i32:
-    case PTC_INSTRUCTION_op_movi_i64:
-    case PTC_INSTRUCTION_op_mov_i32:
-    case PTC_INSTRUCTION_op_mov_i64:
+  for (unsigned I = 0; I < TB.instruction_count; ++I) {
+    LibTcgInstruction &Instruction = TB.list[I];
+    switch (Instruction.opcode) {
+    case LIBTCG_op_mov_i32:
+    case LIBTCG_op_mov_i64:
       break;
     default:
       continue;
     }
 
-    const PTC::Instruction TheInstruction(&Instruction);
-    unsigned OutArg = TheInstruction.OutArguments[0];
-    PTCTemp *Temporary = ptc_temp_get(InstructionList, OutArg);
+    LibTcgArgument Argument = Instruction.output_args[0];
+    revng_assert(Argument.kind == LIBTCG_ARG_TEMP);
+    LibTcgTemp *Temp = Argument.temp;
 
-    if (!ptc_temp_is_global(InstructionList, OutArg))
+    if (Temp->kind != LIBTCG_TEMP_GLOBAL)
       continue;
 
-    if (0 != strcmp("btarget", Temporary->name))
+    if (strcmp("btarget", Temp->name) != 0)
       continue;
 
-    for (unsigned J = I + 1; J < InstructionList->instruction_count; J++) {
-      unsigned Opcode = InstructionList->instructions[J].opc;
-      if (Opcode == PTC_INSTRUCTION_op_debug_insn_start)
+    for (unsigned J = I + 1; J < TB.instruction_count; ++J) {
+      LibTcgOpcode Opcode = TB.list[J].opcode;
+      if (Opcode == LIBTCG_op_insn_start)
         Result.insert(J);
     }
 
@@ -591,80 +480,50 @@ SmallSet<unsigned, 1> IT::preprocess(PTCInstructionList *InstructionList) {
 
 CallInst *IT::emitNewPCCall(revng::IRBuilder &Builder,
                             MetaAddress PC,
-                            uint64_t Size,
-                            Value *String) const {
+                            uint64_t Size) const {
   PointerType *Int8PtrTy = getStringPtrType(TheModule.getContext());
   auto *Int8NullPtr = ConstantPointerNull::get(Int8PtrTy);
   std::vector<Value *> Args = { BasicBlockID(PC).toValue(&TheModule),
                                 Builder.getInt64(Size),
                                 Builder.getInt32(-1),
                                 Builder.getInt32(0),
-                                String != nullptr ? String : Int8NullPtr,
                                 Int8NullPtr };
 
-  // Insert a call to NewPCMarker capturing all the local temporaries
-  // This prevents SROA from transforming them in SSA values, which is bad
-  // in case we have to split a basic block
-  for (AllocaInst *Local : Variables.locals())
-    Args.push_back(Local);
+  // Insert a call to NewPCMarker capturing all the currently live temporaries
+  // which might be alive across an instruction boundary. This prevents SROA
+  // from transforming them in SSA values, which is bad in case we have to
+  // split a basic block
+  for (AllocaInst *V : Variables.getLiveVariables())
+    Args.push_back(V);
 
   return Builder.CreateCall(NewPCMarker, Args);
 }
 
-std::tuple<IT::TranslationResult, MDNode *, MetaAddress, MetaAddress>
-IT::newInstruction(PTCInstruction *Instr,
-                   PTCInstruction *Next,
+std::tuple<IT::TranslationResult, MetaAddress, MetaAddress>
+IT::newInstruction(LibTcgInstruction *Instr,
+                   LibTcgInstruction *Next,
                    MetaAddress StartPC,
                    MetaAddress EndPC,
-                   bool IsFirst,
-                   MetaAddress AbortAt) {
-  using R = std::tuple<TranslationResult, MDNode *, MetaAddress, MetaAddress>;
+                   bool IsFirst) {
+  using R = std::tuple<TranslationResult, MetaAddress, MetaAddress>;
   revng_assert(Instr != nullptr);
 
   LLVMContext &Context = TheModule.getContext();
 
-  const PTC::Instruction TheInstruction(Instr);
   // A new original instruction, let's create a new metadata node
   // referencing it for all the next instructions to come
-  MetaAddress PC = StartPC.replaceAddress(TheInstruction.pc());
+  MetaAddress PC = StartPC.replaceAddress(pc(Instr));
 
   // Prevent translation of non-executable code
   if (not JumpTargets.isExecutableAddress(PC))
-    return R{ Abort, nullptr, MetaAddress::invalid(), MetaAddress::invalid() };
+    return R{ Abort, MetaAddress::invalid(), MetaAddress::invalid() };
 
   // Compute NextPC
   MetaAddress NextPC = MetaAddress::invalid();
   if (Next != nullptr)
-    NextPC = StartPC.replaceAddress(PTC::Instruction(Next).pc());
+    NextPC = StartPC.replaceAddress(pc(Next));
   else
     NextPC = EndPC;
-
-  PointerType *Int8PtrTy = getStringPtrType(Context);
-
-  if (AbortAt.isValid() and NextPC.addressGreaterThan(AbortAt)) {
-    emitNewPCCall(Builder, PC, 1, ConstantPointerNull::get(Int8PtrTy));
-    return R{ Abort, nullptr, MetaAddress::invalid(), MetaAddress::invalid() };
-  }
-
-  MDNode *MDOriginalInstr = nullptr;
-  Constant *String = nullptr;
-  if (RecordASM) {
-    std::stringstream OriginalStringStream;
-    revng_assert(NextPC - PC);
-    disassemble(OriginalStringStream, PC, *(NextPC - PC));
-    std::string OriginalString = OriginalStringStream.str();
-
-    // We don't deduplicate this string since performing a lookup each time is
-    // increasingly expensive and we should have relatively few collisions
-    std::string AddressName = JumpTargets.nameForAddress(PC);
-    String = getUniqueString(&TheModule, OriginalString);
-
-    auto *MDOriginalString = ConstantAsMetadata::get(String);
-    auto *MDPC = ConstantAsMetadata::get(PC.toValue(&TheModule));
-    MDOriginalInstr = MDNode::get(Context, { MDOriginalString, MDPC });
-  } else {
-    String = ConstantPointerNull::get(Int8PtrTy);
-  }
 
   if (!IsFirst) {
     // Check if this PC already has a block and use it
@@ -679,15 +538,15 @@ IT::newInstruction(PTCInstruction *Instr,
         Builder.SetInsertPoint(DivergeTo);
       } else {
         // The block contains already translated code, early exit
-        return R{ Stop, MDOriginalInstr, PC, NextPC };
+        return R{ Stop, PC, NextPC };
       }
     }
   }
 
-  Variables.newBasicBlock();
+  // Variables.newBasicBlock();
 
   revng_assert(NextPC - PC);
-  auto *Call = emitNewPCCall(Builder, PC, *(NextPC - PC), String);
+  auto *Call = emitNewPCCall(Builder, PC, *(NextPC - PC));
 
   if (!IsFirst) {
     // Inform the JumpTargetManager about the new PC we met
@@ -698,16 +557,16 @@ IT::newInstruction(PTCInstruction *Instr,
       JumpTargets.registerInstruction(PC, Call);
   }
 
-  return R{ Success, MDOriginalInstr, PC, NextPC };
+  return R{ Success, PC, NextPC };
 }
 
-IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
-  const PTC::CallInstruction TheCall(Instr);
-
+IT::TranslationResult IT::translateCall(LibTcgInstruction *Instruction,
+                                        MetaAddress PC,
+                                        unsigned SinceInstructionStart) {
   std::vector<Value *> InArgs;
 
-  for (uint64_t TemporaryId : TheCall.InArguments) {
-    auto *Load = Variables.load(Builder, TemporaryId);
+  for (uint8_t I = 0; I < Instruction->nb_iargs; ++I) {
+    auto *Load = Variables.load(Builder, &Instruction->input_args[I]);
     if (Load == nullptr)
       return Abort;
     InArgs.push_back(Load);
@@ -717,85 +576,139 @@ IT::TranslationResult IT::translateCall(PTCInstruction *Instr) {
   auto ValueTypes = llvm::map_range(InArgs, GetValueType);
   std::vector<Type *> InArgsType(ValueTypes.begin(), ValueTypes.end());
 
-  // TODO: handle multiple return arguments
-  revng_assert(TheCall.OutArguments.size() <= 1);
+  LibTcgHelperInfo Info = LibTcg.helperInfo(Instruction);
+  std::string HelperName = "helper_" + std::string(Info.func_name);
+  Function *Helper = TheModule.getFunction(HelperName);
+  revng_assert(Helper != nullptr);
 
-  Value *ResultDestination = nullptr;
-  Type *ResultType = nullptr;
+  FunctionTags::Helper.addTo(Helper);
 
-  if (TheCall.OutArguments.size() != 0) {
-    ResultDestination = Variables.getOrCreate(TheCall.OutArguments[0]);
-    if (ResultDestination == nullptr)
-      return Abort;
-    ResultType = getVariableType(ResultDestination);
-  } else {
-    ResultType = Builder.getVoidTy();
+  // Emit a call to the helper
+  FunctionType *HelperType = Helper->getFunctionType();
+  for (unsigned I = 0; I < InArgs.size(); ++I) {
+    Type *FormalArgumentType = HelperType->getFunctionParamType(I);
+    InArgs[I] = Builder.CreateBitOrPointerCast(InArgs[I], FormalArgumentType);
+  }
+  CallInst *Result = Builder.CreateCall(Helper, InArgs);
+
+  // Handle return values and perform sanity checks
+  Type *ReturnType = HelperType->getReturnType();
+  switch (Instruction->nb_oargs) {
+  case 0:
+    revng_assert(ReturnType->isVoidTy());
+    break;
+
+  case 1: {
+    revng_assert(ReturnType->isIntegerTy() or ReturnType->isPointerTy());
+    Value *ResultDestination = Variables
+                                 .getOrCreate(&Instruction->output_args[0]);
+    revng_assert(ResultDestination != nullptr);
+    Builder.CreateStore(Result, ResultDestination);
+  } break;
+
+  default: {
+    auto *ReturnStruct = cast<StructType>(ReturnType);
+    revng_assert(ReturnStruct->getNumElements() == Instruction->nb_oargs);
+
+    for (unsigned I = 0; I < Instruction->nb_oargs; ++I) {
+      Value *ResultDestination = Variables
+                                   .getOrCreate(&Instruction->output_args[I]);
+      revng_assert(ResultDestination != nullptr);
+      Builder.CreateStore(Builder.CreateExtractValue(Result, I),
+                          ResultDestination);
+    }
+  } break;
   }
 
-  auto *CalleeType = FunctionType::get(ResultType,
-                                       ArrayRef<Type *>(InArgsType),
-                                       false);
-
-  std::string HelperName = "helper_" + TheCall.helperName();
-  FunctionCallee FDecl = TheModule.getOrInsertFunction(HelperName, CalleeType);
-
-  FunctionTags::Helper.addTo(cast<Function>(skipCasts(FDecl.getCallee())));
-
-  CallInst *Result = Builder.CreateCall(FDecl, InArgs);
-
-  if (TheCall.OutArguments.size() != 0)
-    Builder.CreateStore(Result, ResultDestination);
+  if (Info.func_flags & LIBTCG_CALL_NO_RETURN) {
+    handleExitTB();
+  }
 
   return Success;
 }
 
-IT::TranslationResult
-IT::translate(PTCInstruction *Instr, MetaAddress PC, MetaAddress NextPC) {
-  const PTC::Instruction TheInstruction(Instr);
-
+IT::TranslationResult IT::translate(LibTcgInstruction *Instr,
+                                    MetaAddress PC,
+                                    unsigned SinceInstructionStart,
+                                    MetaAddress NextPC) {
   std::vector<Value *> InArgs;
-  for (uint64_t TemporaryId : TheInstruction.InArguments) {
-    auto *Load = Variables.load(Builder, TemporaryId);
-    if (Load == nullptr)
+  for (unsigned I = 0; I < Instr->nb_iargs; ++I) {
+    auto *Load = Variables.load(Builder, &Instr->input_args[I]);
+
+    if (Load == nullptr) {
+      revng_log(Log,
+                "Aborting translation of instruction #"
+                  << SinceInstructionStart << " in " << PC
+                  << " due to input argument " << I << ".");
       return Abort;
+    }
+
     InArgs.push_back(Load);
   }
 
-  auto ConstArgs = TheInstruction.ConstArguments;
-  LastPC = PC;
-  auto Result = translateOpcode(TheInstruction.opcode(),
-                                ConstArgs.toVector(),
-                                InArgs);
+  // TODO: constant args are not widely used. Consider accessing constant_args
+  //       directly in translateOpcode where needed.
+  std::vector<LibTcgArgument> ConstArgs;
+  {
+    unsigned RegisterSize = getRegisterSize(LibTcg, Instr->opcode);
+    Type *RegisterType = nullptr;
+    if (RegisterSize == 32)
+      RegisterType = Builder.getInt32Ty();
+    else if (RegisterSize == 64 or RegisterSize == 0)
+      RegisterType = Builder.getInt64Ty();
+    else if (RegisterSize != 0)
+      revng_unreachable("Unexpected register size");
 
-  // Check if there was an error while translating the instruction
-  if (!Result) {
-    // TODO: log
-    llvm::consumeError(Result.takeError());
-    return Abort;
+    for (unsigned I = 0; I < Instr->nb_cargs; ++I) {
+      if (Instr->constant_args[I].kind == LIBTCG_ARG_CONSTANT) {
+        InArgs.push_back(ConstantInt::get(RegisterType,
+                                          Instr->constant_args[I].constant));
+      } else {
+        ConstArgs.push_back(Instr->constant_args[I]);
+      }
+    }
   }
 
-  size_t OutSize = TheInstruction.OutArguments.size();
-  revng_assert(Result->size() == OutSize);
+  LastPC = PC;
+  auto Result = translateOpcode(Instr->opcode, ConstArgs, InArgs);
+
+  revng_assert(Result.size() == Instr->nb_oargs);
 
   // TODO: use ZipIterator here
-  for (unsigned I = 0; I < Result->size(); I++) {
-    auto *Destination = Variables.getOrCreate(TheInstruction.OutArguments[I]);
-    if (Destination == nullptr)
-      return Abort;
+  for (unsigned I = 0; I < Result.size(); I++) {
+    auto *Destination = Variables.getOrCreate(&Instr->output_args[I]);
 
-    auto *Store = Builder.CreateStore(Result.get()[I], Destination);
+    if (Destination == nullptr) {
+      revng_log(Log,
+                "Aborting translation of instruction #"
+                  << SinceInstructionStart << " in " << PC
+                  << " due to output argument " << I << ".");
+      return Abort;
+    }
+
+    auto *Store = Builder.CreateStore(Result[I], Destination);
 
     if (PCH->affectsPC(Store)) {
       // This is a PC-related store
       PCH->handleStore(Builder, Store);
-    } else {
-      // If we're writing somewhere an immediate, register it for exploration
-      if (auto *Constant = dyn_cast<ConstantInt>(Store->getValueOperand())) {
-        MetaAddress Address = JumpTargets.fromPC(Constant->getLimitedValue());
-        if (Address.isValid() and PC != Address and JumpTargets.isPC(Address)
-            and not JumpTargets.hasJT(Address)) {
-          JumpTargets.registerSimpleLiteral(Address);
-        }
+    }
+
+    Value *StoredValue = Store->getValueOperand();
+    SmallVector<ConstantInt *> Constants;
+    if (auto *Constant = dyn_cast<ConstantInt>(StoredValue)) {
+      Constants.push_back(Constant);
+    } else if (auto *Select = dyn_cast<SelectInst>(StoredValue)) {
+      if (auto *Constant = dyn_cast<ConstantInt>(Select->getTrueValue()))
+        Constants.push_back(Constant);
+      if (auto *Constant = dyn_cast<ConstantInt>(Select->getFalseValue()))
+        Constants.push_back(Constant);
+    }
+
+    for (auto *Constant : Constants) {
+      MetaAddress Address = JumpTargets.fromPC(Constant->getLimitedValue());
+      if (Address.isValid() and PC != Address and JumpTargets.isPC(Address)
+          and not JumpTargets.hasJT(Address)) {
+        JumpTargets.registerSimpleLiteral(Address);
       }
     }
   }
@@ -816,12 +729,59 @@ void IT::registerDirectJumps() {
   ExitBlocks.clear();
 }
 
-llvm::Expected<std::vector<Value *>>
-IT::translateOpcode(PTCOpcode Opcode,
-                    std::vector<uint64_t> ConstArguments,
+int64_t IT::getEnvOffset(Instruction &I, int64_t Offset) const {
+  Value *Pointer = nullptr;
+  if (auto *Load = dyn_cast<LoadInst>(&I))
+    Pointer = Load->getPointerOperand();
+  else if (auto *Store = dyn_cast<StoreInst>(&I))
+    Pointer = Store->getPointerOperand();
+
+  // Check if we're loading from env directly
+  if (Variables.isEnv(Pointer))
+    return Offset;
+
+  // Handle simple alloc
+  auto *Alloca = dyn_cast<AllocaInst>(Pointer);
+  revng_assert(Alloca != nullptr);
+  // Look for the last store there
+  bool AddendFound = false;
+  BasicBlock *Current = Builder.GetInsertBlock();
+  for (Instruction &I : llvm::make_range(Current->rbegin(), Current->rend())) {
+    if (auto *Store = dyn_cast<StoreInst>(&I)) {
+      Value *StorePointer = Store->getPointerOperand();
+
+      // Only accept store to allocas
+      revng_check(isa<AllocaInst>(StorePointer)
+                  or isa<GlobalVariable>(StorePointer));
+
+      // Check if we found a store targeting our alloca
+      if (StorePointer == Alloca) {
+        // Extract base and addend
+        auto *Add = cast<BinaryOperator>(Store->getValueOperand());
+        revng_check(Add->getOpcode() == llvm::Instruction::Add);
+        revng_check(isa<ConstantInt>(Add->getOperand(1)));
+        Pointer = Add->getOperand(0);
+        revng_assert(Variables.isEnv(Pointer));
+        Offset += cast<ConstantInt>(Add->getOperand(1))->getLimitedValue();
+        return Offset;
+      }
+    } else if (isa<CallBase>(&I)) {
+      // Abort in case we find a call
+      revng_abort();
+    } else {
+      // Skip over instructions without side effects
+    }
+  }
+
+  revng_abort();
+}
+
+std::vector<Value *>
+IT::translateOpcode(LibTcgOpcode Opcode,
+                    std::vector<LibTcgArgument> ConstArguments,
                     std::vector<Value *> InArguments) {
   LLVMContext &Context = TheModule.getContext();
-  unsigned RegisterSize = getRegisterSize(Opcode);
+  unsigned RegisterSize = getRegisterSize(LibTcg, Opcode);
   Type *RegisterType = nullptr;
   if (RegisterSize == 32)
     RegisterType = Builder.getInt32Ty();
@@ -830,62 +790,78 @@ IT::translateOpcode(PTCOpcode Opcode,
   else if (RegisterSize != 0)
     revng_unreachable("Unexpected register size");
 
-  using v = std::vector<Value *>;
   switch (Opcode) {
-  case PTC_INSTRUCTION_op_movi_i32:
-  case PTC_INSTRUCTION_op_movi_i64:
-    return v{ ConstantInt::get(RegisterType, ConstArguments[0]) };
-  case PTC_INSTRUCTION_op_discard:
+  case LIBTCG_op_discard:
     // Let's overwrite the discarded temporary with a 0
-    return v{ ConstantInt::get(RegisterType, 0) };
-  case PTC_INSTRUCTION_op_mov_i32:
-  case PTC_INSTRUCTION_op_mov_i64:
-    return v{ Builder.CreateTrunc(InArguments[0], RegisterType) };
-  case PTC_INSTRUCTION_op_setcond_i32:
-  case PTC_INSTRUCTION_op_setcond_i64: {
+    return { ConstantInt::get(RegisterType, 0) };
+  case LIBTCG_op_mov_i32:
+  case LIBTCG_op_mov_i64:
+    if (auto *Constant = dyn_cast<ConstantInt>(InArguments[0])) {
+      return { Constant };
+    } else {
+      return { Builder.CreateTrunc(InArguments[0], RegisterType) };
+    }
+  case LIBTCG_op_setcond_i32:
+  case LIBTCG_op_setcond_i64: {
+    revng_assert(ConstArguments.size() > 0
+                 and ConstArguments[0].kind == LIBTCG_ARG_COND);
     Value *Compare = createICmp(Builder,
-                                ConstArguments[0],
+                                ConstArguments[0].cond,
                                 InArguments[0],
                                 InArguments[1]);
-    // TODO: convert single-bit registers to i1
-    return v{ Builder.CreateZExt(Compare, RegisterType) };
+    return { Builder.CreateZExt(Compare, RegisterType) };
   }
-  case PTC_INSTRUCTION_op_movcond_i32: // Resist the fallthrough temptation
-  case PTC_INSTRUCTION_op_movcond_i64: {
+  case LIBTCG_op_negsetcond_i32:
+  case LIBTCG_op_negsetcond_i64: {
+    revng_assert(ConstArguments.size() > 0
+                 and ConstArguments[0].kind == LIBTCG_ARG_COND);
     Value *Compare = createICmp(Builder,
-                                ConstArguments[0],
+                                ConstArguments[0].cond,
+                                InArguments[0],
+                                InArguments[1]);
+    auto *Zero = ConstantInt::get(RegisterType, 0);
+    Value *Result = Builder.CreateZExt(Compare, RegisterType);
+    return { Builder.CreateSub(Zero, Result) };
+  }
+  case LIBTCG_op_movcond_i32: // Resist the fallthrough temptation
+  case LIBTCG_op_movcond_i64: {
+    revng_assert(ConstArguments[0].kind == LIBTCG_ARG_COND);
+    Value *Compare = createICmp(Builder,
+                                ConstArguments[0].cond,
                                 InArguments[0],
                                 InArguments[1]);
     Value *Select = Builder.CreateSelect(Compare,
                                          InArguments[2],
                                          InArguments[3]);
-    return v{ Select };
+    return { Select };
   }
-  case PTC_INSTRUCTION_op_qemu_ld_i32:
-  case PTC_INSTRUCTION_op_qemu_ld_i64:
-  case PTC_INSTRUCTION_op_qemu_st_i32:
-  case PTC_INSTRUCTION_op_qemu_st_i64: {
-    PTCLoadStoreArg MemoryAccess;
-    MemoryAccess = ptc.parse_load_store_arg(ConstArguments[0]);
-
-    // What are we supposed to do in this case?
-    revng_assert(MemoryAccess.access_type != PTC_MEMORY_ACCESS_UNKNOWN);
+  case LIBTCG_op_qemu_ld_a32_i32:
+  case LIBTCG_op_qemu_ld_a64_i32:
+  case LIBTCG_op_qemu_ld_a32_i64:
+  case LIBTCG_op_qemu_ld_a64_i64:
+  case LIBTCG_op_qemu_st_a32_i32:
+  case LIBTCG_op_qemu_st_a64_i32:
+  case LIBTCG_op_qemu_st_a32_i64:
+  case LIBTCG_op_qemu_st_a64_i64: {
+    revng_assert(ConstArguments[0].kind == LIBTCG_ARG_MEM_OP_INDEX);
+    LibTcgMemOp MemoryOp = ConstArguments[0].mem_op_index.op;
 
     unsigned Alignment = 1;
 
     // Load size
     IntegerType *MemoryType = nullptr;
-    switch (ptc_get_memory_access_size(MemoryAccess.type)) {
-    case PTC_MO_8:
+    auto MemoryOpSize = static_cast<LibTcgMemOp>(MemoryOp & LIBTCG_MO_SIZE);
+    switch (MemoryOpSize) {
+    case LIBTCG_MO_8:
       MemoryType = Builder.getInt8Ty();
       break;
-    case PTC_MO_16:
+    case LIBTCG_MO_16:
       MemoryType = Builder.getInt16Ty();
       break;
-    case PTC_MO_32:
+    case LIBTCG_MO_32:
       MemoryType = Builder.getInt32Ty();
       break;
-    case PTC_MO_64:
+    case LIBTCG_MO_64:
       MemoryType = Builder.getInt64Ty();
       break;
     default:
@@ -901,11 +877,14 @@ IT::translateOpcode(PTCOpcode Opcode,
                                                 Intrinsic::bswap,
                                                 { MemoryType });
 
-    bool SignExtend = ptc_is_sign_extended_load(MemoryAccess.type);
+    // Is the memory op a sign extended load?
+    bool SignExtend = (MemoryOp & LIBTCG_MO_SIGN) != 0;
 
     Value *Pointer = nullptr;
-    if (Opcode == PTC_INSTRUCTION_op_qemu_ld_i32
-        || Opcode == PTC_INSTRUCTION_op_qemu_ld_i64) {
+    if (Opcode == LIBTCG_op_qemu_ld_a32_i32
+        or Opcode == LIBTCG_op_qemu_ld_a64_i32
+        or Opcode == LIBTCG_op_qemu_ld_a32_i64
+        or Opcode == LIBTCG_op_qemu_ld_a64_i64) {
 
       Pointer = Builder.CreateIntToPtr(InArguments[0],
                                        MemoryType->getPointerTo());
@@ -918,12 +897,14 @@ IT::translateOpcode(PTCOpcode Opcode,
         Loaded = Builder.CreateCall(BSwapFunction, Load);
 
       if (SignExtend)
-        return v{ Builder.CreateSExt(Loaded, RegisterType) };
+        return { Builder.CreateSExt(Loaded, RegisterType) };
       else
-        return v{ Builder.CreateZExt(Loaded, RegisterType) };
+        return { Builder.CreateZExt(Loaded, RegisterType) };
 
-    } else if (Opcode == PTC_INSTRUCTION_op_qemu_st_i32
-               || Opcode == PTC_INSTRUCTION_op_qemu_st_i64) {
+    } else if (Opcode == LIBTCG_op_qemu_st_a32_i32
+               or Opcode == LIBTCG_op_qemu_st_a64_i32
+               or Opcode == LIBTCG_op_qemu_st_a32_i64
+               or Opcode == LIBTCG_op_qemu_st_a64_i64) {
 
       Pointer = Builder.CreateIntToPtr(InArguments[1],
                                        MemoryType->getPointerTo());
@@ -932,49 +913,53 @@ IT::translateOpcode(PTCOpcode Opcode,
       if (BSwapFunction != nullptr)
         Value = Builder.CreateCall(BSwapFunction, Value);
 
-      Builder.CreateAlignedStore(Value, Pointer, MaybeAlign(Alignment));
+      auto *Store = Builder.CreateAlignedStore(Value,
+                                               Pointer,
+                                               MaybeAlign(Alignment));
 
-      return v{};
+      // If we're writing somewhere an immediate, register it for exploration
+      if (auto *Constant = dyn_cast<ConstantInt>(Store->getValueOperand())) {
+        MetaAddress Address = JumpTargets.fromPC(Constant->getLimitedValue());
+        if (Address.isValid() and JumpTargets.isPC(Address)
+            and not JumpTargets.hasJT(Address)) {
+          JumpTargets.registerSimpleLiteral(Address);
+        }
+      }
+
+      return {};
     } else {
       revng_unreachable("Unknown load type");
     }
   }
-  case PTC_INSTRUCTION_op_ld8u_i32:
-  case PTC_INSTRUCTION_op_ld8s_i32:
-  case PTC_INSTRUCTION_op_ld16u_i32:
-  case PTC_INSTRUCTION_op_ld16s_i32:
-  case PTC_INSTRUCTION_op_ld_i32:
-  case PTC_INSTRUCTION_op_ld8u_i64:
-  case PTC_INSTRUCTION_op_ld8s_i64:
-  case PTC_INSTRUCTION_op_ld16u_i64:
-  case PTC_INSTRUCTION_op_ld16s_i64:
-  case PTC_INSTRUCTION_op_ld32u_i64:
-  case PTC_INSTRUCTION_op_ld32s_i64:
-  case PTC_INSTRUCTION_op_ld_i64: {
-    Value *Base = dyn_cast<LoadInst>(InArguments[0])->getPointerOperand();
-    if (Base == nullptr || !Variables.isEnv(Base)) {
-      // TODO: emit warning
-      return llvm::createStringError(std::errc::invalid_argument,
-                                     "Invalid argument");
-    }
-
-    bool Signed;
+  case LIBTCG_op_ld8u_i32:
+  case LIBTCG_op_ld8s_i32:
+  case LIBTCG_op_ld16u_i32:
+  case LIBTCG_op_ld16s_i32:
+  case LIBTCG_op_ld_i32:
+  case LIBTCG_op_ld8u_i64:
+  case LIBTCG_op_ld8s_i64:
+  case LIBTCG_op_ld16u_i64:
+  case LIBTCG_op_ld16s_i64:
+  case LIBTCG_op_ld32u_i64:
+  case LIBTCG_op_ld32s_i64:
+  case LIBTCG_op_ld_i64: {
+    bool Signed = false;
     switch (Opcode) {
-    case PTC_INSTRUCTION_op_ld_i32:
-    case PTC_INSTRUCTION_op_ld_i64:
+    case LIBTCG_op_ld_i32:
+    case LIBTCG_op_ld_i64:
 
-    case PTC_INSTRUCTION_op_ld8u_i32:
-    case PTC_INSTRUCTION_op_ld16u_i32:
-    case PTC_INSTRUCTION_op_ld8u_i64:
-    case PTC_INSTRUCTION_op_ld16u_i64:
-    case PTC_INSTRUCTION_op_ld32u_i64:
+    case LIBTCG_op_ld8u_i32:
+    case LIBTCG_op_ld16u_i32:
+    case LIBTCG_op_ld8u_i64:
+    case LIBTCG_op_ld16u_i64:
+    case LIBTCG_op_ld32u_i64:
       Signed = false;
       break;
-    case PTC_INSTRUCTION_op_ld8s_i32:
-    case PTC_INSTRUCTION_op_ld16s_i32:
-    case PTC_INSTRUCTION_op_ld8s_i64:
-    case PTC_INSTRUCTION_op_ld16s_i64:
-    case PTC_INSTRUCTION_op_ld32s_i64:
+    case LIBTCG_op_ld8s_i32:
+    case LIBTCG_op_ld16s_i32:
+    case LIBTCG_op_ld8s_i64:
+    case LIBTCG_op_ld16s_i64:
+    case LIBTCG_op_ld32s_i64:
       Signed = true;
       break;
     default:
@@ -983,129 +968,131 @@ IT::translateOpcode(PTCOpcode Opcode,
 
     unsigned LoadSize;
     switch (Opcode) {
-    case PTC_INSTRUCTION_op_ld8u_i32:
-    case PTC_INSTRUCTION_op_ld8s_i32:
-    case PTC_INSTRUCTION_op_ld8u_i64:
-    case PTC_INSTRUCTION_op_ld8s_i64:
+    case LIBTCG_op_ld8u_i32:
+    case LIBTCG_op_ld8s_i32:
+    case LIBTCG_op_ld8u_i64:
+    case LIBTCG_op_ld8s_i64:
       LoadSize = 1;
       break;
-    case PTC_INSTRUCTION_op_ld16u_i32:
-    case PTC_INSTRUCTION_op_ld16s_i32:
-    case PTC_INSTRUCTION_op_ld16u_i64:
-    case PTC_INSTRUCTION_op_ld16s_i64:
+    case LIBTCG_op_ld16u_i32:
+    case LIBTCG_op_ld16s_i32:
+    case LIBTCG_op_ld16u_i64:
+    case LIBTCG_op_ld16s_i64:
       LoadSize = 2;
       break;
-    case PTC_INSTRUCTION_op_ld_i32:
-    case PTC_INSTRUCTION_op_ld32u_i64:
-    case PTC_INSTRUCTION_op_ld32s_i64:
+    case LIBTCG_op_ld_i32:
+    case LIBTCG_op_ld32u_i64:
+    case LIBTCG_op_ld32s_i64:
       LoadSize = 4;
       break;
-    case PTC_INSTRUCTION_op_ld_i64:
+    case LIBTCG_op_ld_i64:
       LoadSize = 8;
       break;
     default:
       revng_unreachable("Unexpected opcode");
     }
 
-    Value *Result = Variables.loadFromEnvOffset(Builder,
-                                                LoadSize,
-                                                ConstArguments[0]);
+    auto *Base = dyn_cast<LoadInst>(InArguments[0]);
+    int64_t Offset = cast<ConstantInt>(InArguments[1])->getLimitedValue();
+    Offset = getEnvOffset(*Base, Offset);
+
+    Value *Result = Variables.loadFromEnvOffset(Builder, LoadSize, Offset);
     revng_assert(Result != nullptr);
 
     // Zero/sign extend in the target dimension
     if (Signed)
-      return v{ Builder.CreateSExt(Result, RegisterType) };
+      return { Builder.CreateSExt(Result, RegisterType) };
     else
-      return v{ Builder.CreateZExt(Result, RegisterType) };
+      return { Builder.CreateZExt(Result, RegisterType) };
   }
-  case PTC_INSTRUCTION_op_st8_i32:
-  case PTC_INSTRUCTION_op_st16_i32:
-  case PTC_INSTRUCTION_op_st_i32:
-  case PTC_INSTRUCTION_op_st8_i64:
-  case PTC_INSTRUCTION_op_st16_i64:
-  case PTC_INSTRUCTION_op_st32_i64:
-  case PTC_INSTRUCTION_op_st_i64: {
+  case LIBTCG_op_st8_i32:
+  case LIBTCG_op_st16_i32:
+  case LIBTCG_op_st_i32:
+  case LIBTCG_op_st8_i64:
+  case LIBTCG_op_st16_i64:
+  case LIBTCG_op_st32_i64:
+  case LIBTCG_op_st_i64: {
     unsigned StoreSize;
     switch (Opcode) {
-    case PTC_INSTRUCTION_op_st8_i32:
-    case PTC_INSTRUCTION_op_st8_i64:
+    case LIBTCG_op_st8_i32:
+    case LIBTCG_op_st8_i64:
       StoreSize = 1;
       break;
-    case PTC_INSTRUCTION_op_st16_i32:
-    case PTC_INSTRUCTION_op_st16_i64:
+    case LIBTCG_op_st16_i32:
+    case LIBTCG_op_st16_i64:
       StoreSize = 2;
       break;
-    case PTC_INSTRUCTION_op_st_i32:
-    case PTC_INSTRUCTION_op_st32_i64:
+    case LIBTCG_op_st_i32:
+    case LIBTCG_op_st32_i64:
       StoreSize = 4;
       break;
-    case PTC_INSTRUCTION_op_st_i64:
+    case LIBTCG_op_st_i64:
       StoreSize = 8;
       break;
     default:
       revng_unreachable("Unexpected opcode");
     }
 
-    Value *Base = dyn_cast<LoadInst>(InArguments[1])->getPointerOperand();
-    if (Base == nullptr || !Variables.isEnv(Base)) {
-      // TODO: emit warning
-      return llvm::createStringError(std::errc::invalid_argument,
-                                     "Invalid argument");
-    }
+    // For host stores, right now we handle a couple of simple situations.
+    // TODO: the more appropriate thing to do would be to leave these as memory
+    //       accesses relative to env, eventually run SROA and *then* promote
+    //       them to CSV accesses.
+    auto *Load = cast<LoadInst>(InArguments[1]);
+    int64_t Offset = cast<ConstantInt>(InArguments[2])->getLimitedValue();
+    Offset = getEnvOffset(*Load, Offset);
 
+    revng_assert(isa<ConstantInt>(InArguments[2]));
     auto Result = Variables.storeToEnvOffset(Builder,
                                              StoreSize,
-                                             ConstArguments[0],
+                                             Offset,
                                              InArguments[0]);
     PCH->handleStore(Builder, *Result);
 
-    return v{};
+    return {};
   }
-  case PTC_INSTRUCTION_op_add_i32:
-  case PTC_INSTRUCTION_op_sub_i32:
-  case PTC_INSTRUCTION_op_mul_i32:
-  case PTC_INSTRUCTION_op_div_i32:
-  case PTC_INSTRUCTION_op_divu_i32:
-  case PTC_INSTRUCTION_op_rem_i32:
-  case PTC_INSTRUCTION_op_remu_i32:
-  case PTC_INSTRUCTION_op_and_i32:
-  case PTC_INSTRUCTION_op_or_i32:
-  case PTC_INSTRUCTION_op_xor_i32:
-  case PTC_INSTRUCTION_op_shl_i32:
-  case PTC_INSTRUCTION_op_shr_i32:
-  case PTC_INSTRUCTION_op_sar_i32:
-  case PTC_INSTRUCTION_op_add_i64:
-  case PTC_INSTRUCTION_op_sub_i64:
-  case PTC_INSTRUCTION_op_mul_i64:
-  case PTC_INSTRUCTION_op_div_i64:
-  case PTC_INSTRUCTION_op_divu_i64:
-  case PTC_INSTRUCTION_op_rem_i64:
-  case PTC_INSTRUCTION_op_remu_i64:
-  case PTC_INSTRUCTION_op_and_i64:
-  case PTC_INSTRUCTION_op_or_i64:
-  case PTC_INSTRUCTION_op_xor_i64:
-  case PTC_INSTRUCTION_op_shl_i64:
-  case PTC_INSTRUCTION_op_shr_i64:
-  case PTC_INSTRUCTION_op_sar_i64: {
+  case LIBTCG_op_add_i32:
+  case LIBTCG_op_sub_i32:
+  case LIBTCG_op_mul_i32:
+  case LIBTCG_op_div_i32:
+  case LIBTCG_op_divu_i32:
+  case LIBTCG_op_rem_i32:
+  case LIBTCG_op_remu_i32:
+  case LIBTCG_op_and_i32:
+  case LIBTCG_op_or_i32:
+  case LIBTCG_op_xor_i32:
+  case LIBTCG_op_shl_i32:
+  case LIBTCG_op_shr_i32:
+  case LIBTCG_op_sar_i32:
+  case LIBTCG_op_add_i64:
+  case LIBTCG_op_sub_i64:
+  case LIBTCG_op_mul_i64:
+  case LIBTCG_op_div_i64:
+  case LIBTCG_op_divu_i64:
+  case LIBTCG_op_rem_i64:
+  case LIBTCG_op_remu_i64:
+  case LIBTCG_op_and_i64:
+  case LIBTCG_op_or_i64:
+  case LIBTCG_op_xor_i64:
+  case LIBTCG_op_shl_i64:
+  case LIBTCG_op_shr_i64:
+  case LIBTCG_op_sar_i64: {
     // TODO: assert on sizes?
     Instruction::BinaryOps BinaryOp = opcodeToBinaryOp(Opcode);
     Value *Operation = Builder.CreateBinOp(BinaryOp,
                                            InArguments[0],
                                            InArguments[1]);
-    return v{ Operation };
+    return { Operation };
   }
-  case PTC_INSTRUCTION_op_div2_i32:
-  case PTC_INSTRUCTION_op_divu2_i32:
-  case PTC_INSTRUCTION_op_div2_i64:
-  case PTC_INSTRUCTION_op_divu2_i64: {
+  case LIBTCG_op_div2_i32:
+  case LIBTCG_op_divu2_i32:
+  case LIBTCG_op_div2_i64:
+  case LIBTCG_op_divu2_i64: {
     Instruction::BinaryOps DivisionOp, RemainderOp;
 
-    if (Opcode == PTC_INSTRUCTION_op_div2_i32
-        || Opcode == PTC_INSTRUCTION_op_div2_i64) {
+    if (Opcode == LIBTCG_op_div2_i32 or Opcode == LIBTCG_op_div2_i64) {
       DivisionOp = Instruction::SDiv;
       RemainderOp = Instruction::SRem;
-    } else if (Opcode == PTC_INSTRUCTION_op_divu2_i32
-               || Opcode == PTC_INSTRUCTION_op_divu2_i64) {
+    } else if (Opcode == LIBTCG_op_divu2_i32 or Opcode == LIBTCG_op_divu2_i64) {
       DivisionOp = Instruction::UDiv;
       RemainderOp = Instruction::URem;
     } else {
@@ -1120,21 +1107,19 @@ IT::translateOpcode(PTCOpcode Opcode,
     Value *Remainder = Builder.CreateBinOp(RemainderOp,
                                            InArguments[0],
                                            InArguments[2]);
-    return v{ Division, Remainder };
+    return { Division, Remainder };
   }
-  case PTC_INSTRUCTION_op_rotr_i32:
-  case PTC_INSTRUCTION_op_rotr_i64:
-  case PTC_INSTRUCTION_op_rotl_i32:
-  case PTC_INSTRUCTION_op_rotl_i64: {
+  case LIBTCG_op_rotr_i32:
+  case LIBTCG_op_rotr_i64:
+  case LIBTCG_op_rotl_i32:
+  case LIBTCG_op_rotl_i64: {
     Value *Bits = ConstantInt::get(RegisterType, RegisterSize);
 
     Instruction::BinaryOps FirstShiftOp, SecondShiftOp;
-    if (Opcode == PTC_INSTRUCTION_op_rotl_i32
-        || Opcode == PTC_INSTRUCTION_op_rotl_i64) {
+    if (Opcode == LIBTCG_op_rotl_i32 or Opcode == LIBTCG_op_rotl_i64) {
       FirstShiftOp = Instruction::Shl;
       SecondShiftOp = Instruction::LShr;
-    } else if (Opcode == PTC_INSTRUCTION_op_rotr_i32
-               || Opcode == PTC_INSTRUCTION_op_rotr_i64) {
+    } else if (Opcode == LIBTCG_op_rotr_i32 or Opcode == LIBTCG_op_rotr_i64) {
       FirstShiftOp = Instruction::LShr;
       SecondShiftOp = Instruction::Shl;
     } else {
@@ -1149,58 +1134,48 @@ IT::translateOpcode(PTCOpcode Opcode,
                                              InArguments[0],
                                              SecondShiftAmount);
 
-    return v{ Builder.CreateOr(FirstShift, SecondShift) };
+    return { Builder.CreateOr(FirstShift, SecondShift) };
   }
-  case PTC_INSTRUCTION_op_deposit_i32:
-  case PTC_INSTRUCTION_op_deposit_i64: {
-    unsigned Position = ConstArguments[0];
-    if (Position == RegisterSize)
-      return v{ InArguments[0] };
-
-    unsigned Length = ConstArguments[1];
-    uint64_t Bits = 0;
-
-    // Thou shall not << 32
-    if (Length == RegisterSize)
-      Bits = getMaxValue(RegisterSize);
-    else
-      Bits = (1 << Length) - 1;
-
-    // result = (t1 & ~(bits << position)) | ((t2 & bits) << position)
-    uint64_t BaseMask = ~(Bits << Position);
-    Value *MaskedBase = Builder.CreateAnd(InArguments[0], BaseMask);
-    Value *Deposit = Builder.CreateAnd(InArguments[1], Bits);
-    Value *ShiftedDeposit = Builder.CreateShl(Deposit, Position);
-    Value *Result = Builder.CreateOr(MaskedBase, ShiftedDeposit);
-
-    return v{ Result };
+  case LIBTCG_op_deposit_i32:
+  case LIBTCG_op_deposit_i64: {
+    Value *Result = genDeposit(Builder,
+                               RegisterSize,
+                               InArguments[0],
+                               InArguments[1],
+                               InArguments[2],
+                               InArguments[3]);
+    return { Result };
   }
-  case PTC_INSTRUCTION_op_ext8s_i32:
-  case PTC_INSTRUCTION_op_ext16s_i32:
-  case PTC_INSTRUCTION_op_ext8u_i32:
-  case PTC_INSTRUCTION_op_ext16u_i32:
-  case PTC_INSTRUCTION_op_ext8s_i64:
-  case PTC_INSTRUCTION_op_ext16s_i64:
-  case PTC_INSTRUCTION_op_ext32s_i64:
-  case PTC_INSTRUCTION_op_ext8u_i64:
-  case PTC_INSTRUCTION_op_ext16u_i64:
-  case PTC_INSTRUCTION_op_ext32u_i64: {
+  case LIBTCG_op_ext8s_i32:
+  case LIBTCG_op_ext16s_i32:
+  case LIBTCG_op_ext8u_i32:
+  case LIBTCG_op_ext16u_i32:
+  case LIBTCG_op_ext8s_i64:
+  case LIBTCG_op_ext16s_i64:
+  case LIBTCG_op_ext32s_i64:
+  case LIBTCG_op_ext8u_i64:
+  case LIBTCG_op_ext16u_i64:
+  case LIBTCG_op_ext32u_i64:
+  case LIBTCG_op_ext_i32_i64:
+  case LIBTCG_op_extu_i32_i64: {
     Type *SourceType = nullptr;
     switch (Opcode) {
-    case PTC_INSTRUCTION_op_ext8s_i32:
-    case PTC_INSTRUCTION_op_ext8u_i32:
-    case PTC_INSTRUCTION_op_ext8s_i64:
-    case PTC_INSTRUCTION_op_ext8u_i64:
+    case LIBTCG_op_ext8s_i32:
+    case LIBTCG_op_ext8u_i32:
+    case LIBTCG_op_ext8s_i64:
+    case LIBTCG_op_ext8u_i64:
       SourceType = Builder.getInt8Ty();
       break;
-    case PTC_INSTRUCTION_op_ext16s_i32:
-    case PTC_INSTRUCTION_op_ext16u_i32:
-    case PTC_INSTRUCTION_op_ext16s_i64:
-    case PTC_INSTRUCTION_op_ext16u_i64:
+    case LIBTCG_op_ext16s_i32:
+    case LIBTCG_op_ext16u_i32:
+    case LIBTCG_op_ext16s_i64:
+    case LIBTCG_op_ext16u_i64:
       SourceType = Builder.getInt16Ty();
       break;
-    case PTC_INSTRUCTION_op_ext32s_i64:
-    case PTC_INSTRUCTION_op_ext32u_i64:
+    case LIBTCG_op_ext32s_i64:
+    case LIBTCG_op_ext32u_i64:
+    case LIBTCG_op_ext_i32_i64:
+    case LIBTCG_op_extu_i32_i64:
       SourceType = Builder.getInt32Ty();
       break;
     default:
@@ -1210,48 +1185,59 @@ IT::translateOpcode(PTCOpcode Opcode,
     Value *Truncated = Builder.CreateTrunc(InArguments[0], SourceType);
 
     switch (Opcode) {
-    case PTC_INSTRUCTION_op_ext8s_i32:
-    case PTC_INSTRUCTION_op_ext8s_i64:
-    case PTC_INSTRUCTION_op_ext16s_i32:
-    case PTC_INSTRUCTION_op_ext16s_i64:
-    case PTC_INSTRUCTION_op_ext32s_i64:
-      return v{ Builder.CreateSExt(Truncated, RegisterType) };
-    case PTC_INSTRUCTION_op_ext8u_i32:
-    case PTC_INSTRUCTION_op_ext8u_i64:
-    case PTC_INSTRUCTION_op_ext16u_i32:
-    case PTC_INSTRUCTION_op_ext16u_i64:
-    case PTC_INSTRUCTION_op_ext32u_i64:
-      return v{ Builder.CreateZExt(Truncated, RegisterType) };
+    case LIBTCG_op_ext8s_i32:
+    case LIBTCG_op_ext8s_i64:
+    case LIBTCG_op_ext16s_i32:
+    case LIBTCG_op_ext16s_i64:
+    case LIBTCG_op_ext32s_i64:
+    case LIBTCG_op_ext_i32_i64:
+      return { Builder.CreateSExt(Truncated, RegisterType) };
+    case LIBTCG_op_ext8u_i32:
+    case LIBTCG_op_ext8u_i64:
+    case LIBTCG_op_ext16u_i32:
+    case LIBTCG_op_ext16u_i64:
+    case LIBTCG_op_ext32u_i64:
+    case LIBTCG_op_extu_i32_i64:
+      return { Builder.CreateZExt(Truncated, RegisterType) };
     default:
       revng_unreachable("Unexpected opcode");
     }
   }
-  case PTC_INSTRUCTION_op_not_i32:
-  case PTC_INSTRUCTION_op_not_i64:
-    return v{ Builder.CreateXor(InArguments[0], getMaxValue(RegisterSize)) };
-  case PTC_INSTRUCTION_op_neg_i32:
-  case PTC_INSTRUCTION_op_neg_i64: {
-    auto *InitialValue = ConstantInt::get(RegisterType, 0);
-    return v{ Builder.CreateSub(InitialValue, InArguments[0]) };
+  case LIBTCG_op_extrl_i64_i32: {
+    return { Builder.CreateTrunc(InArguments[0], Builder.getInt32Ty()) };
   }
-  case PTC_INSTRUCTION_op_andc_i32:
-  case PTC_INSTRUCTION_op_andc_i64:
-  case PTC_INSTRUCTION_op_orc_i32:
-  case PTC_INSTRUCTION_op_orc_i64:
-  case PTC_INSTRUCTION_op_eqv_i32:
-  case PTC_INSTRUCTION_op_eqv_i64: {
+  case LIBTCG_op_extrh_i64_i32: {
+    Value *Shifted = Builder.CreateAShr(InArguments[0],
+                                        ConstantInt::get(Builder.getInt64Ty(),
+                                                         32));
+    return { Builder.CreateTrunc(Shifted, Builder.getInt32Ty()) };
+  }
+  case LIBTCG_op_not_i32:
+  case LIBTCG_op_not_i64:
+    return { Builder.CreateXor(InArguments[0], getMaxValue(RegisterSize)) };
+  case LIBTCG_op_neg_i32:
+  case LIBTCG_op_neg_i64: {
+    auto *InitialValue = ConstantInt::get(RegisterType, 0);
+    return { Builder.CreateSub(InitialValue, InArguments[0]) };
+  }
+  case LIBTCG_op_andc_i32:
+  case LIBTCG_op_andc_i64:
+  case LIBTCG_op_orc_i32:
+  case LIBTCG_op_orc_i64:
+  case LIBTCG_op_eqv_i32:
+  case LIBTCG_op_eqv_i64: {
     Instruction::BinaryOps ExternalOp;
     switch (Opcode) {
-    case PTC_INSTRUCTION_op_andc_i32:
-    case PTC_INSTRUCTION_op_andc_i64:
+    case LIBTCG_op_andc_i32:
+    case LIBTCG_op_andc_i64:
       ExternalOp = Instruction::And;
       break;
-    case PTC_INSTRUCTION_op_orc_i32:
-    case PTC_INSTRUCTION_op_orc_i64:
+    case LIBTCG_op_orc_i32:
+    case LIBTCG_op_orc_i64:
       ExternalOp = Instruction::Or;
       break;
-    case PTC_INSTRUCTION_op_eqv_i32:
-    case PTC_INSTRUCTION_op_eqv_i64:
+    case LIBTCG_op_eqv_i32:
+    case LIBTCG_op_eqv_i64:
       ExternalOp = Instruction::Xor;
       break;
     default:
@@ -1261,36 +1247,36 @@ IT::translateOpcode(PTCOpcode Opcode,
     Value *Negate = Builder.CreateXor(InArguments[1],
                                       getMaxValue(RegisterSize));
     Value *Result = Builder.CreateBinOp(ExternalOp, InArguments[0], Negate);
-    return v{ Result };
+    return { Result };
   }
-  case PTC_INSTRUCTION_op_nand_i32:
-  case PTC_INSTRUCTION_op_nand_i64: {
+  case LIBTCG_op_nand_i32:
+  case LIBTCG_op_nand_i64: {
     Value *AndValue = Builder.CreateAnd(InArguments[0], InArguments[1]);
     Value *Result = Builder.CreateXor(AndValue, getMaxValue(RegisterSize));
-    return v{ Result };
+    return { Result };
   }
-  case PTC_INSTRUCTION_op_nor_i32:
-  case PTC_INSTRUCTION_op_nor_i64: {
+  case LIBTCG_op_nor_i32:
+  case LIBTCG_op_nor_i64: {
     Value *OrValue = Builder.CreateOr(InArguments[0], InArguments[1]);
     Value *Result = Builder.CreateXor(OrValue, getMaxValue(RegisterSize));
-    return v{ Result };
+    return { Result };
   }
-  case PTC_INSTRUCTION_op_bswap16_i32:
-  case PTC_INSTRUCTION_op_bswap32_i32:
-  case PTC_INSTRUCTION_op_bswap16_i64:
-  case PTC_INSTRUCTION_op_bswap32_i64:
-  case PTC_INSTRUCTION_op_bswap64_i64: {
+  case LIBTCG_op_bswap16_i32:
+  case LIBTCG_op_bswap32_i32:
+  case LIBTCG_op_bswap16_i64:
+  case LIBTCG_op_bswap32_i64:
+  case LIBTCG_op_bswap64_i64: {
     Type *SwapType = nullptr;
     switch (Opcode) {
-    case PTC_INSTRUCTION_op_bswap16_i32:
-    case PTC_INSTRUCTION_op_bswap16_i64:
+    case LIBTCG_op_bswap16_i32:
+    case LIBTCG_op_bswap16_i64:
       SwapType = Builder.getInt16Ty();
       break;
-    case PTC_INSTRUCTION_op_bswap32_i32:
-    case PTC_INSTRUCTION_op_bswap32_i64:
+    case LIBTCG_op_bswap32_i32:
+    case LIBTCG_op_bswap32_i64:
       SwapType = Builder.getInt32Ty();
       break;
-    case PTC_INSTRUCTION_op_bswap64_i64:
+    case LIBTCG_op_bswap64_i64:
       SwapType = Builder.getInt64Ty();
       break;
     default:
@@ -1304,10 +1290,11 @@ IT::translateOpcode(PTCOpcode Opcode,
                                                         { SwapType });
     Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
 
-    return v{ Builder.CreateZExt(Swapped, RegisterType) };
+    return { Builder.CreateZExt(Swapped, RegisterType) };
   }
-  case PTC_INSTRUCTION_op_set_label: {
-    unsigned LabelId = ptc.get_arg_label_id(ConstArguments[0]);
+  case LIBTCG_op_set_label: {
+    revng_assert(ConstArguments[0].kind == LIBTCG_ARG_LABEL);
+    auto LabelId = ConstArguments[0].label->id;
 
     std::stringstream LabelSS;
     LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
@@ -1335,17 +1322,18 @@ IT::translateOpcode(PTCOpcode Opcode,
 
     Blocks.push_back(Fallthrough);
     Builder.SetInsertPoint(Fallthrough);
-    Variables.newBasicBlock();
+    Variables.newExtendedBasicBlock();
 
-    return v{};
+    return {};
   }
-  case PTC_INSTRUCTION_op_br:
-  case PTC_INSTRUCTION_op_brcond_i32:
-  case PTC_INSTRUCTION_op_brcond2_i32:
-  case PTC_INSTRUCTION_op_brcond_i64: {
+  case LIBTCG_op_br:
+  case LIBTCG_op_brcond_i32:
+  case LIBTCG_op_brcond2_i32:
+  case LIBTCG_op_brcond_i64: {
     // We take the last constant arguments, which is the LabelId both in
     // conditional and unconditional jumps
-    unsigned LabelId = ptc.get_arg_label_id(ConstArguments.back());
+    revng_assert(ConstArguments.back().kind == LIBTCG_ARG_LABEL);
+    auto LabelId = ConstArguments.back().label->id;
 
     std::stringstream LabelSS;
     LabelSS << "bb." << JumpTargets.nameForAddress(LastPC);
@@ -1366,14 +1354,15 @@ IT::translateOpcode(PTCOpcode Opcode,
       Target = LabeledBasicBlocks[Label];
     }
 
-    if (Opcode == PTC_INSTRUCTION_op_br) {
+    if (Opcode == LIBTCG_op_br) {
       // Unconditional jump
       Builder.CreateBr(Target);
-    } else if (Opcode == PTC_INSTRUCTION_op_brcond_i32
-               || Opcode == PTC_INSTRUCTION_op_brcond_i64) {
+    } else if (Opcode == LIBTCG_op_brcond_i32
+               or Opcode == LIBTCG_op_brcond_i64) {
       // Conditional jump
+      revng_assert(ConstArguments[0].kind == LIBTCG_ARG_COND);
       Value *Compare = createICmp(Builder,
-                                  ConstArguments[0],
+                                  ConstArguments[0].cond,
                                   InArguments[0],
                                   InArguments[1]);
       Builder.CreateCondBr(Compare, Target, Fallthrough);
@@ -1383,11 +1372,14 @@ IT::translateOpcode(PTCOpcode Opcode,
 
     Blocks.push_back(Fallthrough);
     Builder.SetInsertPoint(Fallthrough);
-    Variables.newBasicBlock();
 
-    return v{};
+    if (Opcode == LIBTCG_op_br) {
+      Variables.newExtendedBasicBlock();
+    }
+
+    return {};
   }
-  case PTC_INSTRUCTION_op_exit_tb: {
+  case LIBTCG_op_exit_tb: {
     auto *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
     Builder.CreateCall(JumpTargets.exitTB(), { Zero });
     Builder.CreateUnreachable();
@@ -1397,17 +1389,18 @@ IT::translateOpcode(PTCOpcode Opcode,
     auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
     Blocks.push_back(NextBB);
     Builder.SetInsertPoint(NextBB);
-    Variables.newBasicBlock();
+    Variables.newExtendedBasicBlock();
 
-    return v{};
+    return {};
   }
-  case PTC_INSTRUCTION_op_goto_tb:
+  case LIBTCG_op_goto_tb:
+  case LIBTCG_op_goto_ptr:
     // Nothing to do here
-    return v{};
-  case PTC_INSTRUCTION_op_add2_i32:
-  case PTC_INSTRUCTION_op_sub2_i32:
-  case PTC_INSTRUCTION_op_add2_i64:
-  case PTC_INSTRUCTION_op_sub2_i64: {
+    return {};
+  case LIBTCG_op_add2_i32:
+  case LIBTCG_op_sub2_i32:
+  case LIBTCG_op_add2_i64:
+  case LIBTCG_op_sub2_i64: {
     Value *FirstOpLow = nullptr;
     Value *FirstOpHigh = nullptr;
     Value *SecondOpLow = nullptr;
@@ -1434,23 +1427,21 @@ IT::translateOpcode(PTCOpcode Opcode,
     Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
     Value *ResultHigh = Builder.CreateTrunc(ShiftedResult, RegisterType);
 
-    return v{ ResultLow, ResultHigh };
+    return { ResultLow, ResultHigh };
   }
-  case PTC_INSTRUCTION_op_mulu2_i32:
-  case PTC_INSTRUCTION_op_mulu2_i64:
-  case PTC_INSTRUCTION_op_muls2_i32:
-  case PTC_INSTRUCTION_op_muls2_i64: {
+  case LIBTCG_op_mulu2_i32:
+  case LIBTCG_op_mulu2_i64:
+  case LIBTCG_op_muls2_i32:
+  case LIBTCG_op_muls2_i64: {
     IntegerType *DestinationType = Builder.getIntNTy(RegisterSize * 2);
 
     Value *FirstOp = nullptr;
     Value *SecondOp = nullptr;
 
-    if (Opcode == PTC_INSTRUCTION_op_mulu2_i32
-        || Opcode == PTC_INSTRUCTION_op_mulu2_i64) {
+    if (Opcode == LIBTCG_op_mulu2_i32 or Opcode == LIBTCG_op_mulu2_i64) {
       FirstOp = Builder.CreateZExt(InArguments[0], DestinationType);
       SecondOp = Builder.CreateZExt(InArguments[1], DestinationType);
-    } else if (Opcode == PTC_INSTRUCTION_op_muls2_i32
-               || Opcode == PTC_INSTRUCTION_op_muls2_i64) {
+    } else if (Opcode == LIBTCG_op_muls2_i32 or Opcode == LIBTCG_op_muls2_i64) {
       FirstOp = Builder.CreateSExt(InArguments[0], DestinationType);
       SecondOp = Builder.CreateSExt(InArguments[1], DestinationType);
     } else {
@@ -1463,18 +1454,135 @@ IT::translateOpcode(PTCOpcode Opcode,
     Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
     Value *ResultHigh = Builder.CreateTrunc(ShiftedResult, RegisterType);
 
-    return v{ ResultLow, ResultHigh };
+    return { ResultLow, ResultHigh };
   }
-  case PTC_INSTRUCTION_op_muluh_i32:
-  case PTC_INSTRUCTION_op_mulsh_i32:
-  case PTC_INSTRUCTION_op_muluh_i64:
-  case PTC_INSTRUCTION_op_mulsh_i64:
-
-  case PTC_INSTRUCTION_op_setcond2_i32:
-
-  case PTC_INSTRUCTION_op_trunc_shr_i32:
+  case LIBTCG_op_muluh_i32:
+  case LIBTCG_op_mulsh_i32:
+  case LIBTCG_op_muluh_i64:
+  case LIBTCG_op_mulsh_i64:
+  case LIBTCG_op_setcond2_i32:
     revng_unreachable("Instruction not implemented");
-  default:
-    revng_unreachable("Unknown opcode");
+  case LIBTCG_op_extract_i32: {
+    auto *Const32 = ConstantInt::get(Type::getInt32Ty(Context), 32);
+    Value *Length = InArguments[1];
+    Value *Offset = InArguments[2];
+    Value *ShlAmount = Builder.CreateSub(Const32,
+                                         Builder.CreateAdd(Offset, Length));
+    Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
+    Value *LShr = Builder.CreateLShr(Shl, Builder.CreateSub(Const32, Length));
+    return { LShr };
   }
+  case LIBTCG_op_sextract_i32: {
+    auto *Const32 = ConstantInt::get(Type::getInt32Ty(Context), 32);
+    Value *Length = InArguments[1];
+    Value *Offset = InArguments[2];
+    Value *ShlAmount = Builder.CreateSub(Const32,
+                                         Builder.CreateAdd(Offset, Length));
+    Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
+    Value *AShr = Builder.CreateAShr(Shl, Builder.CreateSub(Const32, Length));
+    return { AShr };
+  }
+  case LIBTCG_op_extract_i64: {
+    auto *Const64 = ConstantInt::get(Type::getInt64Ty(Context), 64);
+    Value *Length = InArguments[1];
+    Value *Offset = InArguments[2];
+    Value *ShlAmount = Builder.CreateSub(Const64,
+                                         Builder.CreateAdd(Offset, Length));
+    Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
+    Value *LShr = Builder.CreateLShr(Shl, Builder.CreateSub(Const64, Length));
+    return { LShr };
+  }
+  case LIBTCG_op_sextract_i64: {
+    auto *Const64 = ConstantInt::get(Type::getInt64Ty(Context), 64);
+    Value *Length = InArguments[1];
+    Value *Offset = InArguments[2];
+    Value *ShlAmount = Builder.CreateSub(Const64,
+                                         Builder.CreateAdd(Offset, Length));
+    Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
+    Value *AShr = Builder.CreateAShr(Shl, Builder.CreateSub(Const64, Length));
+    return { AShr };
+  }
+  case LIBTCG_op_extract2_i32:
+  case LIBTCG_op_extract2_i64: {
+    Value *Low = InArguments[0];
+    Value *High = InArguments[1];
+    Value *Offset = InArguments[2];
+
+    auto *ConstSize = ConstantInt::get(RegisterType, RegisterSize);
+    Value *Shift = Builder.CreateLShr(Low, Offset);
+    Value *Result = genDeposit(Builder,
+                               RegisterSize,
+                               Shift,
+                               High,
+                               Builder.CreateSub(ConstSize, Offset),
+                               Offset);
+
+    return { Result };
+  }
+  case LIBTCG_op_clz_i32: {
+    Type *Int1Ty = Type::getInt1Ty(Context);
+    auto *One = ConstantInt::get(Int1Ty, 1);
+    auto *Zero = ConstantInt::get(RegisterType, 0);
+    Value *Arg = InArguments[0];
+    Value *ZeroVal = InArguments[1];
+    CallInst *Ctlz = Builder.CreateBinaryIntrinsic(Intrinsic::ctlz, Arg, One);
+    Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
+    Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Ctlz);
+    return { Select };
+  }
+  case LIBTCG_op_clz_i64: {
+    Type *Int1Ty = Type::getInt1Ty(Context);
+    auto *One = ConstantInt::get(Int1Ty, 1);
+    auto *Zero = ConstantInt::get(RegisterType, 0);
+    Value *Arg = InArguments[0];
+    Value *ZeroVal = InArguments[1];
+    CallInst *Ctlz = Builder.CreateBinaryIntrinsic(Intrinsic::ctlz, Arg, One);
+    Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
+    Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Ctlz);
+    return { Select };
+  }
+  case LIBTCG_op_ctz_i32: {
+    Type *Int1Ty = Type::getInt1Ty(Context);
+    auto *One = ConstantInt::get(Int1Ty, 1);
+    auto *Zero = ConstantInt::get(RegisterType, 0);
+    Value *Arg = InArguments[0];
+    Value *ZeroVal = InArguments[1];
+    CallInst *Cttz = Builder.CreateBinaryIntrinsic(Intrinsic::cttz, Arg, One);
+    Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
+    Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Cttz);
+    return { Select };
+  }
+  case LIBTCG_op_ctz_i64: {
+    Type *Int1Ty = Type::getInt1Ty(Context);
+    auto *One = ConstantInt::get(Int1Ty, 1);
+    auto *Zero = ConstantInt::get(RegisterType, 0);
+    Value *Arg = InArguments[0];
+    Value *ZeroVal = InArguments[1];
+    CallInst *Cttz = Builder.CreateBinaryIntrinsic(Intrinsic::cttz, Arg, One);
+    Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
+    Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Cttz);
+    return { Select };
+  }
+  default:
+    // For debugging purposes printing the actual opcode
+    // really helps.
+    std::stringstream ErrSS;
+    ErrSS << "Unknown libtcg opcode [" << Opcode
+          << "]: " << LibTcg.instructionName(Opcode);
+    revng_unreachable(ErrSS.str().c_str());
+  }
+}
+
+void IT::handleExitTB() {
+  auto &Context = TheModule.getContext();
+  auto *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
+  Builder.CreateCall(JumpTargets.exitTB(), { Zero });
+  Builder.CreateUnreachable();
+
+  ExitBlocks.push_back(Builder.GetInsertBlock());
+
+  auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
+  Blocks.push_back(NextBB);
+  Builder.SetInsertPoint(NextBB);
+  Variables.newExtendedBasicBlock();
 }

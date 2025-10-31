@@ -19,7 +19,7 @@
 
 using namespace llvm;
 
-static Logger<> Log{ "loop-rewrite-with-canonical-induction-variable" };
+static Logger Log{ "loop-rewrite-with-canonical-induction-variable" };
 
 class LoopRewriteIV {
 public:

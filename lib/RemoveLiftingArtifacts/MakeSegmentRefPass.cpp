@@ -74,10 +74,10 @@ void MakeSegmentRefPassImpl::getAnalysisUsage(llvm::AnalysisUsage &AU) {
 static std::optional<std::pair<MetaAddress, uint64_t>>
 findLiteralInSegments(const model::Binary &Binary, uint64_t Literal) {
   std::optional<std::pair<MetaAddress, uint64_t>> Result = std::nullopt;
-  auto Arch = toLLVMArchitecture(Binary.Architecture());
+  auto Architecture = Binary.Architecture();
 
   for (const auto &Segment : Binary.Segments()) {
-    if (Segment.contains(MetaAddress::fromGeneric(Arch, Literal))) {
+    if (Segment.contains(MetaAddress::fromGeneric(Architecture, Literal))) {
       revng_assert(not Result.has_value());
       Result = { { Segment.StartAddress(), Segment.VirtualSize() } };
     }

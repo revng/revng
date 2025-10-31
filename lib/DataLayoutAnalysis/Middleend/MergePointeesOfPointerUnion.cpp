@@ -20,7 +20,7 @@
 
 using namespace llvm;
 
-static Logger<> Log("dla-merge-pointees-of-ptr-union");
+static Logger Log("dla-merge-pointees-of-ptr-union");
 
 namespace dla {
 

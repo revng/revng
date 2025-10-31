@@ -33,7 +33,7 @@
 
 using namespace llvm;
 
-static Logger<> Log{ "exit-ssa" };
+static Logger Log{ "exit-ssa" };
 
 struct ExitSSAPass : public FunctionPass {
 public:

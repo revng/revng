@@ -4,6 +4,7 @@
 
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/ProgramCounterHandler.h"
+#include "revng/Support/IRHelpers.h"
 
 namespace FunctionTags {
 
@@ -99,13 +100,13 @@ Tag ModelGEPRef("model-gep-ref");
 
 FunctionPoolTag<TypePair>
   OpaqueExtractValue("opaque-extract-value",
-                     { llvm::Attribute::OptimizeNone,
-                       llvm::Attribute::NoInline,
+                     { llvm::Attribute::NoInline,
                        llvm::Attribute::NoMerge,
                        llvm::Attribute::NoUnwind,
                        llvm::Attribute::WillReturn },
-                     llvm::MemoryEffects::inaccessibleMemOnly()
-                       | llvm::MemoryEffects::readOnly(),
+                     // The following is necessary to prevent the optimizer to
+                     // move these around.
+                     llvm::MemoryEffects::inaccessibleMemOnly(),
                      { &FunctionTags::UniquedByPrototype },
                      [](OpaqueFunctionsPool<TypePair> &Pool,
                         llvm::Module &M,
@@ -448,7 +449,7 @@ extractStringLiteralFromMetadata(const llvm::Function &F) {
 }
 
 // This name corresponds to a function in `early-linked`.
-RegisterIRHelper RevngAbortHelper(AbortFunctionName.str());
+RegisterIRHelper AbortHelper(AbortFunctionName.str());
 
 template<bool ShouldTerminateTheBlock>
 llvm::CallInst &emitMessageImpl(revng::IRBuilder &Builder,
@@ -712,6 +713,54 @@ llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
   // pipeline, so it's temporary.
   SmallVector<llvm::Type *, 1> FixedArgs = { VariableReferenceType };
   return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
+}
+
+static std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Function *F,
+                                                       unsigned MDKindID) {
+  using namespace llvm;
+
+  std::vector<GlobalVariable *> Result;
+  auto *Tuple = cast_or_null<MDTuple>(F->getMetadata(MDKindID));
+  if (Tuple == nullptr)
+    return Result;
+
+  llvm::Module *M = F->getParent();
+  QuickMetadata QMD(M->getContext());
+
+  auto OperandsRange = QMD.extract<MDTuple *>(Tuple, 1)->operands();
+  for (const MDOperand &Operand : OperandsRange) {
+    if (Metadata *MD = Operand.get()) {
+      auto CSVName = QMD.extract<StringRef>(MD);
+
+      // Note: here we record the *names* of CSVs as opposed to a
+      // ConstantAsMetadata pointing to the GlobalVariable because otherwise,
+      // during linking, these get null-ified.
+      if (auto *CSV = M->getGlobalVariable(CSVName, true))
+        Result.push_back(CSV);
+    }
+  }
+
+  return Result;
+}
+
+std::optional<CSVsUsage> tryGetCSVUsedByHelperCall(llvm::Instruction *Call) {
+  revng_assert(isCallToHelper(Call));
+
+  auto *Callee = getCalledFunction(cast<llvm::CallBase>(Call));
+
+  const llvm::Module *M = getModule(Call);
+  const auto LoadMDKind = M->getMDKindID("revng.csvaccess.offsets.load");
+  const auto StoreMDKind = M->getMDKindID("revng.csvaccess.offsets.store");
+
+  if (Callee->getMetadata(LoadMDKind) == nullptr
+      and Callee->getMetadata(StoreMDKind) == nullptr) {
+    return {};
+  }
+
+  CSVsUsage Result;
+  Result.Read = extractCSVs(Callee, LoadMDKind);
+  Result.Written = extractCSVs(Callee, StoreMDKind);
+  return Result;
 }
 
 const llvm::CallInst *getCallToIsolatedFunction(const llvm::Value *V) {

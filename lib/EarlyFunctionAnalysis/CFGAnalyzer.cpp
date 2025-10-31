@@ -39,6 +39,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/Generator.h"
+#include "revng/Support/MetaAddress.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
 // This name is not present after `lift`.
@@ -58,7 +59,7 @@ static opt<std::string> IndirectBranchInfoSummaryPath("indirect-branch-info-"
                                                            "of SA2 on disk."),
                                                       value_desc("filename"));
 
-static Logger<> Log("cfg-analyzer");
+static Logger Log("cfg-analyzer");
 
 static MetaAddress getFinalAddressOfBasicBlock(llvm::BasicBlock *BB) {
   auto &&[End, Size] = getPC(BB->getTerminator());
@@ -263,7 +264,7 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
   using namespace llvm;
   using llvm::BasicBlock;
   revng_log(Log, "collectDirectCFG(" << OF->Function->getName().str() << ")");
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   SortedVector<efa::BasicBlock> CFG;
 
@@ -284,7 +285,7 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
                 "Creating block starting at " << ID.toString()
                                               << " (preliminary ending is "
                                               << Block.End().toString() << ")");
-      LoggerIndent<> Indent(Log);
+      LoggerIndent Indent(Log);
 
       OnceQueue<BasicBlock *> Queue;
       Queue.insert(&BB);
@@ -311,7 +312,7 @@ CFGAnalyzer::collectDirectCFG(OutlinedFunction *OF) {
         }
 
         revng_log(Log, "Considering successors");
-        LoggerIndent<> Indent2(Log);
+        LoggerIndent Indent2(Log);
 
         for (BasicBlock *Succ : successors(Current)) {
           revng_log(Log, "Considering successor " << getName(Succ));
@@ -397,10 +398,9 @@ CFGAnalyzer::State CFGAnalyzer::loadState(revng::IRBuilder &Builder) const {
   }
 
   // Load the PC
-  auto LLVMArchitecture = toLLVMArchitecture(Binary->Architecture());
   auto DissectedPC = PCH->dissectJumpablePC(Builder,
                                             ReturnAddress,
-                                            LLVMArchitecture);
+                                            Binary->Architecture());
   Value *IntegerPC = MetaAddress::composeIntegerPC(Builder,
                                                    DissectedPC[0],
                                                    DissectedPC[1],
@@ -739,11 +739,11 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
   int64_t CallPushSize = getCallPushSize(Binary->Architecture());
 
   revng_log(Log, "Milking info for " << OutlinedFunction->Address.toString());
-  LoggerIndent<> Ident(Log);
+  LoggerIndent Ident(Log);
 
   revng_log(Log, "Initial CFG:\n");
   if (Log.isEnabled()) {
-    LoggerIndent<> Ident(Log);
+    LoggerIndent Ident(Log);
     for (const efa::BasicBlock &Block : CFG) {
       serialize(Log, Block);
       Log << DoLog;
@@ -1018,7 +1018,7 @@ FunctionSummary CFGAnalyzer::milkInfo(OutlinedFunction *OutlinedFunction,
 
   revng_log(Log, "Final CFG:\n");
   if (Log.isEnabled()) {
-    LoggerIndent<> Ident(Log);
+    LoggerIndent Ident(Log);
     for (const efa::BasicBlock &Block : CFG) {
       serialize(Log, Block);
       Log << DoLog;

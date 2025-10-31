@@ -68,8 +68,7 @@ public:
   void dump(T &Output, const char *Prefix = "") const;
 };
 
-extern template void RUAResults::dump<Logger<true>>(Logger<true> &,
-                                                    const char *) const;
+extern template void RUAResults::dump<Logger>(Logger &, const char *) const;
 
 RUAResults analyzeRegisterUsage(llvm::Function *F,
                                 const GeneratedCodeBasicInfo &,

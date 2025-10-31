@@ -13,6 +13,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Importer/DebugInfo/PDBImporter.h"
@@ -21,7 +22,7 @@
 
 namespace cl = llvm::cl;
 
-static Logger<> Log("import-debug-info");
+static Logger Log("import-debug-info");
 
 static cl::OptionCategory ThisToolCategory("Tool options", "");
 
@@ -87,8 +88,9 @@ int main(int Argc, char *Argv[]) {
     Model->DefaultPrototype() = abi::registerDefaultFunctionPrototype(*Model);
 
     const llvm::object::pe32_header *PE32Header = Binary->getPE32Header();
+    auto Architecture = model::Architecture::fromLLVMArchitecture(LLVMArch);
     if (PE32Header) {
-      ImageBase = MetaAddress::fromPC(LLVMArch, PE32Header->ImageBase);
+      ImageBase = MetaAddress::fromPC(Architecture, PE32Header->ImageBase);
     } else {
       const llvm::object::pe32plus_header
         *PE32PlusHeader = Binary->getPE32PlusHeader();
@@ -96,7 +98,7 @@ int main(int Argc, char *Argv[]) {
         return EXIT_FAILURE;
 
       // PE32+ Header.
-      ImageBase = MetaAddress::fromPC(LLVMArch, PE32PlusHeader->ImageBase);
+      ImageBase = MetaAddress::fromPC(Architecture, PE32PlusHeader->ImageBase);
     }
     PDBImporter Importer(Model, ImageBase);
     Importer.import(*Binary, Options);

@@ -9,7 +9,7 @@
 #include "DLAStep.h"
 #include "FieldSizeComputation.h"
 
-static Logger<> Log{ "dla-remove-stride-edges" };
+static Logger Log{ "dla-remove-stride-edges" };
 
 namespace dla {
 

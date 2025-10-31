@@ -4,18 +4,25 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <compare>
+
 #include "llvm/ADT/DepthFirstIterator.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/CodeGen/UnreachableBlockElim.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Metadata.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IRPrinter/IRPrintingPasses.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar/EarlyCSE.h"
 #include "llvm/Transforms/Scalar/JumpThreading.h"
+#include "llvm/Transforms/Scalar/SimplifyCFG.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
@@ -23,7 +30,6 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
-#include "revng/Lift/CPUStateAccessAnalysisPass.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 #include "revng/Support/Statistics.h"
@@ -43,8 +49,8 @@ RunningStatistics DetectedEdgesStatistics("detected-edges");
 RunningStatistics StoredInMemoryStatistics("stored-in-memory");
 RunningStatistics LoadAddressStatistics("load-address");
 
-Logger<> NewEdgesLog("new-edges");
-static Logger<> Log("root-analyzer");
+Logger NewEdgesLog("new-edges");
+static Logger Log("root-analyzer");
 
 // NOTE: Setting this to 1 gives us performance improvement. We have tested and
 // realized that there is an impact on performance if setting it to 2.
@@ -333,15 +339,6 @@ RootAnalyzer::MetaAddressSet RootAnalyzer::inflateValueMaterializerWhitelist() {
   return Result;
 }
 
-// Update CPUStateAccessAnalysisPass
-void RootAnalyzer::updateCSAA() {
-  legacy::PassManager PM;
-  PM.add(new LoadModelWrapperPass(ModelWrapper::createConst(Model)));
-  PM.add(JTM.createCSAA());
-  PM.add(new FunctionCallIdentification);
-  PM.run(TheModule);
-}
-
 static llvm::SmallSet<model::Register::Values, 16>
 getPreservedRegisters(const model::TypeDefinition &Prototype) {
   llvm::SmallSet<model::Register::Values, 16> Result;
@@ -361,22 +358,23 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
   llvm::DenseSet<BasicBlock *> Callees;
   llvm::DenseMap<Use *, BasicBlock *> Undo;
   auto *FunctionCall = getIRHelper("function_call", TheModule);
-  revng_assert(FunctionCall != nullptr);
-  for (CallBase *Call : callers(FunctionCall)) {
-    auto *T = Call->getParent()->getTerminator();
+  if (FunctionCall) {
+    for (CallBase *Call : callers(FunctionCall)) {
+      auto *T = Call->getParent()->getTerminator();
 
-    Callees.insert(getFunctionCallCallee(Call->getParent()));
+      Callees.insert(getFunctionCallCallee(Call->getParent()));
 
-    if (auto *Branch = dyn_cast<BranchInst>(T)) {
-      revng_assert(Branch->isUnconditional());
-      BasicBlock *Target = Branch->getSuccessor(0);
-      Use *U = &Branch->getOperandUse(0);
+      if (auto *Branch = dyn_cast<BranchInst>(T)) {
+        revng_assert(Branch->isUnconditional());
+        BasicBlock *Target = Branch->getSuccessor(0);
+        Use *U = &Branch->getOperandUse(0);
 
-      // We're after a function call: pretend we're jumping to anypc
-      U->set(JTM.anyPC());
+        // We're after a function call: pretend we're jumping to anypc
+        U->set(JTM.anyPC());
 
-      // Record Use for later undoing
-      Undo[U] = Target;
+        // Record Use for later undoing
+        Undo[U] = Target;
+      }
     }
   }
 
@@ -449,8 +447,12 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
 
     OpaqueRegisterUser Clobberer(M);
     SmallVector<CallBase *, 16> FunctionCallCalls;
-    llvm::copy(callersIn(FunctionCall, OptimizedFunction),
-               std::back_inserter(FunctionCallCalls));
+
+    if (FunctionCall != nullptr) {
+      llvm::copy(callersIn(FunctionCall, OptimizedFunction),
+                 std::back_inserter(FunctionCallCalls));
+    }
+
     for (CallBase *Call : FunctionCallCalls) {
       Builder.SetInsertPoint(Call);
 
@@ -528,17 +530,16 @@ RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
   GlobalToAllocaTy CSVMap;
 
   // Collect all the non-PC affecting CSVs
-  DenseSet<GlobalVariable *> NonPCCSVs;
+  DenseSet<GlobalVariable *> CSVs;
   for (GlobalVariable &CSV : FunctionTags::CSV.globals(&TheModule))
-    if (not JTM.programCounterHandler()->affectsPC(&CSV))
-      NonPCCSVs.insert(&CSV);
+    CSVs.insert(&CSV);
 
   // Create and initialize an alloca per CSV (except for the PC-affecting ones)
   BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
   revng::NonDebugInfoCheckingIRBuilder AllocaBuilder(&*EntryBB->begin());
   revng::NonDebugInfoCheckingIRBuilder InitBuilder(EntryBB->getTerminator());
 
-  for (GlobalVariable *CSV : toSortedByName(NonPCCSVs)) {
+  for (GlobalVariable *CSV : toSortedByName(CSVs)) {
     Type *CSVType = CSV->getValueType();
     auto *Alloca = AllocaBuilder.CreateAlloca(CSVType, nullptr, CSV->getName());
     CSVMap[CSV] = Alloca;
@@ -643,6 +644,8 @@ SummaryCallsBuilder RootAnalyzer::optimize(llvm::Function *OptimizedFunction,
     // instructions and have more accurate constraints.
     FPM.addPass(EarlyCSEPass(true));
 
+    FPM.addPass(SimplifyCFGPass());
+
     // Drop range metadata
     FPM.addPass(DropRangeMetadataPass());
 
@@ -676,26 +679,59 @@ SummaryCallsBuilder RootAnalyzer::optimize(llvm::Function *OptimizedFunction,
 }
 
 void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
+  auto &Context = TheModule.getContext();
+  QuickMetadata QMD(Context);
+
   // Iterate over all the ValueMaterializer markers
   Function *ValueMaterializerMarker = AR.aviMarker();
+
+  // TODO: we could use a better data structure here
+  struct Entry {
+    StringRef SymbolName;
+    ConstantInt *Value = nullptr;
+    std::strong_ordering operator<=>(const Entry &Other) const = default;
+  };
+  std::map<uint32_t, SmallVector<Entry>> MaterializedValuesById;
+
+  // Collect materialized values
+  // Note: there could be multiple calls to the marker with the same ID
   for (CallBase *Call : callers(ValueMaterializerMarker)) {
     revng_log(Log, "collectMaterializedValues on " << getName(Call));
-    LoggerIndent<> Indent(Log);
 
     // Get the ID from the marker, and then the original instruction and marker
     // type
     Value *LastArgument = Call->getArgOperand(Call->arg_size() - 1);
     uint32_t ValueMaterializerID = getLimitedValue(LastArgument);
-    auto TV = AR.rootInstructionById(ValueMaterializerID);
-    auto TIT = TV.Type;
-    Instruction *I = TV.I;
-
-    revng_log(Log, TrackedInstructionType::getName(TIT));
 
     // Did ValueMaterializer produce any info?
     auto *T = dyn_cast_or_null<MDTuple>(Call->getMetadata("revng.avi"));
     if (T == nullptr)
       continue;
+
+    auto &Operands = MaterializedValuesById[ValueMaterializerID];
+    for (const MDOperand &Operand : cast<MDTuple>(T)->operands()) {
+      // Extract the value
+      auto *Tuple = QMD.extract<MDTuple *>(Operand.get());
+      auto SymbolName = QMD.extract<StringRef>(Tuple->getOperand(0).get());
+      auto *Value = QMD.extract<ConstantInt *>(Tuple->getOperand(1).get());
+      Operands.push_back({ SymbolName, Value });
+    }
+  }
+
+  for (auto &[ValueMaterializerID, Operands] : MaterializedValuesById) {
+    revng_log(Log, "Parsing ID " << ValueMaterializerID);
+    LoggerIndent Indent(Log);
+
+    // Remove duplicates
+    llvm::sort(Operands);
+    Operands.erase(std::unique(Operands.begin(), Operands.end()),
+                   Operands.end());
+
+    auto TV = AR.rootInstructionById(ValueMaterializerID);
+    auto TIT = TV.Type;
+    Instruction *I = TV.I;
+
+    revng_log(Log, TrackedInstructionType::getName(TIT));
 
     // Is this a direct write to PC?
     bool IsComposedIntegerPC = (TIT == TrackedInstructionType::WrittenInPC);
@@ -705,15 +741,9 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
     bool AllPCs = true;
 
     SmallVector<MetaAddress, 16> Targets;
-    QuickMetadata QMD(TheModule.getContext());
 
     // Iterate over all the generated values
-    for (const MDOperand &Operand : cast<MDTuple>(T)->operands()) {
-      // Extract the value
-      auto *Tuple = QMD.extract<MDTuple *>(Operand.get());
-      auto SymbolName = QMD.extract<StringRef>(Tuple->getOperand(0).get());
-      auto *Value = QMD.extract<ConstantInt *>(Tuple->getOperand(1).get());
-
+    for (const auto &[SymbolName, Value] : Operands) {
       bool HasDynamicSymbol = SymbolName.size() != 0;
       if (not HasDynamicSymbol) {
         // Deserialize value into a MetaAddress, depending on the tracked
@@ -795,10 +825,17 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
       // This is a call to `exit_tb`, transfer the revng.avi metadata on the
       // call as revng.targets for later processing
       revng_assert(TV.I != nullptr);
-      TV.I->setMetadata("revng.targets", T);
+
+      // Compose the metadata for revng.targets
+      SmallVector<Metadata *> NewOperands;
+      for (const auto &[SymbolName, Value] : Operands)
+        NewOperands.push_back(QMD.tuple({ QMD.get(SymbolName),
+                                          QMD.get(Value) }));
+
+      TV.I->setMetadata("revng.targets", MDTuple::get(Context, NewOperands));
       DetectedEdgesStatistics.push(Targets.size());
       revng_log(NewEdgesLog,
-                Targets.size() << " targets from " << getName(Call));
+                Targets.size() << " targets from #" << ValueMaterializerID);
     }
   }
 }
@@ -843,7 +880,11 @@ static MetaAddress::Features findCommonFeatures(Function *F) {
 }
 
 void RootAnalyzer::cloneOptimizeAndHarvest(Function *TheFunction) {
-  updateCSAA();
+  // Re-run the identification of function calls
+  legacy::PassManager PM;
+  PM.add(new LoadModelWrapperPass(ModelWrapper::createConst(Model)));
+  PM.add(new FunctionCallIdentification);
+  PM.run(TheModule);
 
   ValueToValueMapTy OldToNew;
   Function *OptimizedFunction = createTemporaryRoot(TheFunction, OldToNew);

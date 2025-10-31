@@ -27,7 +27,7 @@ using ArgumentRef = const revng::tracing::Argument &;
 using ArgumentsRef = const llvm::ArrayRef<revng::tracing::Argument>;
 using ReturnRef = const llvm::StringRef;
 
-static Logger<> TraceRunnerLogger("trace-runner");
+static Logger TraceRunnerLogger("trace-runner");
 
 namespace utils {
 // Utility functions for decoding arguments

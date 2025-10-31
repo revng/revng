@@ -6,6 +6,7 @@
 //
 
 #include <fstream>
+#include <optional>
 
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SetVector.h"
@@ -15,6 +16,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
+#include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -25,7 +27,6 @@
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/StringOperations.h"
-#include "revng/Support/Tag.h"
 
 using namespace llvm;
 
@@ -530,7 +531,6 @@ bool deleteOnlyBody(llvm::Function &F) {
     // want them, we have to save them and re-add them after deleting the
     // body of the function.
     auto Attributes = F.getAttributes();
-    auto FTags = FunctionTags::TagsSet::from(&F);
 
     MetadataBackup SavedMetadata(&F);
 
@@ -538,7 +538,6 @@ bool deleteOnlyBody(llvm::Function &F) {
     F.deleteBody();
 
     // Restore tags and attributes
-    FTags.set(&F);
     F.setAttributes(Attributes);
 
     F.clearMetadata();
@@ -616,43 +615,58 @@ void sortModule(llvm::Module &M) {
   }
 }
 
-void linkModules(std::unique_ptr<llvm::Module> &&Source,
-                 llvm::Module &Destination,
-                 std::optional<llvm::GlobalValue::LinkageTypes> FinalLinkage) {
-  std::map<std::string, llvm::GlobalValue::LinkageTypes> HelperGlobals;
+std::unique_ptr<Module> parseIR(LLVMContext &Context, StringRef Path) {
+  std::unique_ptr<Module> Result;
+  SMDiagnostic Errors;
+  Result = parseIRFile(Path, Errors, Context);
+
+  if (Result.get() == nullptr) {
+    Errors.print("revng", dbgs());
+    revng_abort();
+  }
+
+  return Result;
+}
+
+void linkModules(std::unique_ptr<Module> &&Source,
+                 Module &Destination,
+                 std::optional<GlobalValue::LinkageTypes> FinalLinkage) {
+  std::map<std::string, GlobalValue::LinkageTypes> HelperGlobals;
 
   auto HandleGlobals = [&HelperGlobals, &Destination](auto &&GlobalsRange) {
     using T = std::decay_t<decltype(*GlobalsRange.begin())>;
     for (T &HelperGlobal : GlobalsRange) {
       auto GlobalName = HelperGlobal.getName();
 
-      if (GlobalName.empty() or GlobalName.startswith("llvm."))
-        continue;
+      if (not GlobalName.startswith("llvm.")) {
 
-      // Register so we can change its linkage later
-      HelperGlobals[GlobalName.str()] = HelperGlobal.getLinkage();
+        // Register so we can change its linkage later
+        HelperGlobals[GlobalName.str()] = HelperGlobal.getLinkage();
 
-      llvm::GlobalObject *LocalGlobal = nullptr;
-      if constexpr (std::is_same_v<T, llvm::GlobalVariable>) {
-        LocalGlobal = Destination.getGlobalVariable(GlobalName, true);
-      } else {
-        static_assert(std::is_same_v<T, llvm::Function>);
-        LocalGlobal = Destination.getFunction(GlobalName);
-      }
+        GlobalObject *LocalGlobal = nullptr;
+        if constexpr (std::is_same_v<T, GlobalVariable>) {
+          LocalGlobal = Destination.getGlobalVariable(GlobalName);
+        } else {
+          static_assert(std::is_same_v<T, Function>);
+          LocalGlobal = Destination.getFunction(GlobalName);
+        }
 
-      if (LocalGlobal != nullptr) {
-        // We have a global with the same name
-        HelperGlobal.setLinkage(llvm::GlobalValue::ExternalLinkage);
-        LocalGlobal->setLinkage(llvm::GlobalValue::ExternalLinkage);
+        if (LocalGlobal != nullptr) {
+          // We have a global with the same name
+          HelperGlobal.setLinkage(GlobalValue::ExternalLinkage);
 
-        bool AlreadyAvailable = not LocalGlobal->isDeclaration();
-        if (AlreadyAvailable) {
-          // Turn helper global into declaration
-          if constexpr (std::is_same_v<T, llvm::GlobalVariable>) {
-            HelperGlobal.setInitializer(nullptr);
+          bool AlreadyAvailable = not LocalGlobal->isDeclaration();
+          if (AlreadyAvailable) {
+            // Turn helper global into declaration
+            if constexpr (std::is_same_v<T, GlobalVariable>) {
+              HelperGlobal.setInitializer(nullptr);
+            } else {
+              static_assert(std::is_same_v<T, Function>);
+              HelperGlobal.deleteBody();
+            }
           } else {
-            static_assert(std::is_same_v<T, llvm::Function>);
-            HelperGlobal.deleteBody();
+            // Ensure it will be linked
+            LocalGlobal->setLinkage(GlobalValue::ExternalLinkage);
           }
         }
       }
@@ -662,9 +676,9 @@ void linkModules(std::unique_ptr<llvm::Module> &&Source,
   HandleGlobals(Source->globals());
   HandleGlobals(Source->functions());
 
-  llvm::Linker TheLinker(Destination);
+  Linker TheLinker(Destination);
   bool Failed = TheLinker.linkInModule(std::move(Source),
-                                       llvm::Linker::LinkOnlyNeeded);
+                                       Linker::LinkOnlyNeeded);
   revng_assert(not Failed, "Linking failed");
 
   for (auto [GlobalName, Linkage] : HelperGlobals) {

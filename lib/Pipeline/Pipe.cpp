@@ -16,7 +16,7 @@ void InvalidationMetadata::registerTargetsDependingOn(const Context &Context,
                                                       const TupleTreePath &Path,
                                                       ContainerToTargetsMap
                                                         &Out,
-                                                      Logger<> &Log) const {
+                                                      Logger &Log) const {
   if (auto Iter = PathCache.find(GlobalName); Iter != PathCache.end()) {
 
     auto &Bimap = Iter->second;

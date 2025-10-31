@@ -39,13 +39,12 @@ class LoggersRegistry {
 public:
   LoggersRegistry() {}
 
-  void add(Logger<true> *L) { Loggers.push_back(L); }
-  void add(Logger<false> *) {}
+  void add(Logger *L) { Loggers.push_back(L); }
 
   size_t size() const { return Loggers.size(); }
 
   void enable(llvm::StringRef Name) {
-    for (Logger<true> *L : Loggers) {
+    for (Logger *L : Loggers) {
       if (L->name() == Name) {
         L->enable();
         return;
@@ -56,7 +55,7 @@ public:
   }
 
   void disable(llvm::StringRef Name) {
-    for (Logger<true> *L : Loggers) {
+    for (Logger *L : Loggers) {
       if (L->name() == Name) {
         L->disable();
         return;
@@ -69,7 +68,7 @@ public:
   void registerArguments() const;
 
 private:
-  std::vector<Logger<true> *> Loggers;
+  std::vector<Logger *> Loggers;
 };
 
 static llvm::ManagedStatic<LoggersRegistry> Loggers;
@@ -87,13 +86,12 @@ ScopedDebugFeature::~ScopedDebugFeature() {
 
 std::ostream &dbg(std::cerr);
 
-Logger<> PassesLog("passes");
-Logger<> ReleaseLog("release");
-Logger<> VerifyLog("verify");
+Logger PassesLog("passes");
+Logger ReleaseLog("release");
+Logger VerifyLog("verify");
 
-template<bool X>
-void Logger<X>::flush(const LogTerminator &LineInfo) {
-  if (X && Enabled) {
+void Logger::flush(const LogTerminator &LineInfo) {
+  if (Enabled) {
     std::string Pad;
 
     if (MaxLocationLength != 0) {
@@ -167,8 +165,7 @@ static std::unique_ptr<cl::alias> DebugLoggingAlias;
 
 llvm::ManagedStatic<DebugLogOptionWrapper> DebugLogOption;
 
-template<>
-void Logger<true>::init() {
+void Logger::init() {
   Loggers->add(this);
   if (Name.size() > 0) {
     auto &Parser = DebugLogOption->TheOption.getParser();
@@ -176,36 +173,24 @@ void Logger<true>::init() {
   }
 }
 
-template<>
-void Logger<false>::init() {
-}
+unsigned Logger::IndentLevel;
 
-template<bool X>
-unsigned Logger<X>::IndentLevel;
-
-template<bool X>
-void Logger<X>::indent(unsigned Level) {
+void Logger::indent(unsigned Level) {
   if (isEnabled())
     IndentLevel += Level;
 }
 
-template<bool X>
-void Logger<X>::unindent(unsigned Level) {
+void Logger::unindent(unsigned Level) {
   if (isEnabled()) {
     revng_assert(IndentLevel - Level >= 0);
     IndentLevel -= Level;
   }
 }
 
-template<bool X>
-void Logger<X>::setIndentation(unsigned Level) {
+void Logger::setIndentation(unsigned Level) {
   if (isEnabled())
     IndentLevel = Level;
 }
-
-// Force instantiation
-template class Logger<true>;
-template class Logger<false>;
 
 void writeToFile(llvm::StringRef What, llvm::StringRef Path) {
   std::error_code EC;

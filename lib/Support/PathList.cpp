@@ -22,7 +22,7 @@ extern "C" {
 #include "revng/Support/Debug.h"
 #include "revng/Support/PathList.h"
 
-static Logger<> Log("find-resources");
+static Logger Log("find-resources");
 
 struct Resources {
   bool FirstCall = true;
@@ -103,7 +103,7 @@ findFileInPaths(llvm::StringRef FileName,
     llvm::SmallString<64> FullFileName;
     llvm::sys::path::append(FullFileName, Path, FileName);
 
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     if (not llvm::sys::fs::exists(FullFileName)) {
       revng_log(Log, "File not found: " << FullFileName.str().str());

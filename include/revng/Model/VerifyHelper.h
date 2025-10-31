@@ -16,7 +16,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/TupleTree/TupleTree.h"
 
-inline Logger<> ModelVerifyLogger("model-verify");
+inline Logger ModelVerifyLogger("model-verify");
 
 namespace model {
 class TypeDefinition;

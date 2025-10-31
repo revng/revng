@@ -110,7 +110,7 @@ using Register = RegisterPass<pipeline::FunctionPass<EnforceABI>>;
 
 static Register X("enforce-abi", "Enforce ABI Pass", true, true);
 
-static Logger<> EnforceABILog("enforce-abi");
+static Logger EnforceABILog("enforce-abi");
 
 bool EnforceABI::prologue() {
   FunctionDispatcher = getIRHelper("function_dispatcher", M);

@@ -7,7 +7,7 @@
 #include "revng/Pipeline/ContainerEnumerator.h"
 #include "revng/Pipeline/Pipe.h"
 
-inline Logger<> ModuleStatisticsLogger("module-statistics");
+inline Logger ModuleStatisticsLogger("module-statistics");
 
 namespace pipeline {
 

@@ -16,7 +16,7 @@
 
 using namespace llvm;
 
-Logger<> DotLogger("parsedot");
+Logger DotLogger("parsedot");
 
 void DotNode::addSuccessor(DotNode *NewSuccessor) {
 

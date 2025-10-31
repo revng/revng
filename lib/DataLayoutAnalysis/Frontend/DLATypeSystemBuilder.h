@@ -16,6 +16,37 @@ namespace dla {
 
 using LayoutTypePtrVec = std::vector<LayoutTypePtr>;
 
+inline bool isPointerToFunctionExpression(const llvm::Value *V) {
+  // TODO: the current implementation DLA cannot reason about function
+  // pointers, because function types have zero size.
+  // Given this shortcoming, llvm::Functions are used (as a hack) to represent
+  // their Functions' return types.
+  // This representation is a key factor of how DLA is able to piece information
+  // together interprocedurally.
+  //
+  // This hack has consequences.
+  // Assume we're setting up the DLA graph, and we're looking at a use of an
+  // llvm::Function that is inside the body of an llvm::Function and is not the
+  // callee-operand of a Call.
+  // That use is obviously function-pointer typed.
+  // But if we try to create a LayoutTypeSystemNode for the llvm::Value of the
+  // used llvm::Function, the inner machinery of how the DLA graph is set up
+  // will treat is as the return type of the function, which is obviously wrong.
+  // So we have to prevent that creation at all costs.
+  // Basically creation of LayoutTypeSystemNodes in the DLA graph associated
+  // with llvm::Functions are valid only for representing return types.
+  //
+  // This shortcoming does not affect the power of DLA. In its current form, it
+  // doesn't represent function types at all.
+  // The problem is that until we undo this hack we will not be able to properly
+  // support function types in DLA. This will have to be fixed in the future.
+  //
+  // In the meantime, we provide this helper function to centralize how we
+  // detect the offending uses of llvm::Functions. In this way, all the points
+  // of the codebase that are affected by this hack are clearly marked.
+  return isa<llvm::Function>(V);
+}
+
 /// This class is used to print LLVM information when debugging the TS
 ///
 /// Since nodes in the TypeSystem graph only have IDs, which are grouped into

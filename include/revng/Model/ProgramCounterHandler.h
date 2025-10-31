@@ -7,6 +7,7 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Value.h"
 
+#include "revng/Model/Architecture.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -42,8 +43,8 @@ namespace revng::detail {
 
 using namespace llvm;
 
-using CSVFactory = std::function<GlobalVariable *(PCAffectingCSV::Values CSVID,
-                                                  StringRef Name)>;
+using CSVFactory = std::function<
+  GlobalVariable *(PCAffectingCSV::Values CSVID)>;
 
 }; // namespace revng::detail
 
@@ -51,7 +52,6 @@ using CSVFactory = revng::detail::CSVFactory;
 
 class ProgramCounterHandler {
 protected:
-  static constexpr const char *AddressName = "pc";
   static constexpr const char *AddressSpaceName = "pc_address_space";
   static constexpr const char *EpochName = "pc_epoch";
   static constexpr const char *TypeName = "pc_type";
@@ -77,12 +77,12 @@ public:
 
 public:
   static std::unique_ptr<ProgramCounterHandler>
-  create(llvm::Triple::ArchType Architecture,
+  create(model::Architecture::Values Architecture,
          llvm::Module *M,
          const CSVFactory &Factory);
 
   static std::unique_ptr<ProgramCounterHandler>
-  fromModule(llvm::Triple::ArchType Architecture, llvm::Module *M);
+  fromModule(model::Architecture::Values Architecture, llvm::Module *M);
 
 public:
   std::array<llvm::GlobalVariable *, 4> pcCSVs() const {
@@ -149,6 +149,8 @@ public:
       return false;
   }
 
+  bool isPCAffectingHelper(llvm::Instruction *I) const;
+
   /// \return an empty optional if the PC has not changed on at least one path,
   ///         an invalid MetaAddress in case there isn't a single next PC, or,
   ///         finally, a valid MetaAddress representing the only possible next
@@ -180,7 +182,7 @@ public:
   virtual std::array<llvm::Value *, 4>
   dissectJumpablePC(revng::IRBuilder &Builder,
                     llvm::Value *ToDissect,
-                    llvm::Triple::ArchType Arch) const = 0;
+                    model::Architecture::Values Arch) const = 0;
 
   virtual void
   deserializePCFromSignalContext(revng::IRBuilder &Builder,
@@ -235,8 +237,6 @@ public:
 
 protected:
   void createMissingVariables(llvm::Module *M) {
-    if (AddressCSV == nullptr)
-      AddressCSV = createAddress(M);
     if (EpochCSV == nullptr)
       EpochCSV = createEpoch(M);
     if (AddressSpaceCSV == nullptr)
@@ -258,8 +258,8 @@ protected:
     return Builder.CreateAnd(V, Mask);
   }
 
-public:
-  void setMissingVariables(llvm::Module *M) {
+protected:
+  void setMissingVariables(llvm::Module *M, llvm::StringRef AddressName) {
     AddressCSV = M->getGlobalVariable(AddressName, true);
     EpochCSV = M->getGlobalVariable(EpochName, true);
     AddressSpaceCSV = M->getGlobalVariable(AddressSpaceName, true);
@@ -270,12 +270,6 @@ public:
   }
 
 private:
-  bool isPCAffectingHelper(llvm::Instruction *I) const;
-
-  static llvm::GlobalVariable *createAddress(llvm::Module *M) {
-    return createVariable(M, AddressName, sizeof(MetaAddress::Address));
-  }
-
   static llvm::GlobalVariable *createEpoch(llvm::Module *M) {
     return createVariable(M, EpochName, sizeof(MetaAddress::Epoch));
   }

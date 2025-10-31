@@ -51,7 +51,7 @@ using namespace llvm::codeview;
 using namespace llvm::object;
 using namespace llvm::pdb;
 
-static Logger<> Log("pdb-importer");
+static Logger Log("pdb-importer");
 
 // Force using a specific PDB.
 static llvm::cl::opt<std::string> UsePDB("use-pdb",

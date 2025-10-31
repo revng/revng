@@ -28,12 +28,11 @@
 
 using namespace llvm;
 
-static Logger<> Log("rua-analyses");
+static Logger Log("rua-analyses");
 
 namespace efa {
 
-template void RUAResults::dump<Logger<true>>(Logger<true> &,
-                                             const char *) const;
+template void RUAResults::dump<Logger>(Logger &, const char *) const;
 
 struct CallSite {
   using Node = rua::Function::Node;

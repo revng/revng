@@ -16,7 +16,7 @@ using namespace llvm;
 
 using range_size_t = uint64_t;
 
-static Logger<> &Log = ValueMaterializerLogger;
+static Logger &Log = ValueMaterializerLogger;
 
 const range_size_t MaxMaterializedValues = (1 << 16);
 
@@ -291,7 +291,7 @@ DataFlowGraph::materializeImpl(DataFlowGraph::Node *N,
     rc_return It->second;
 
   revng_log(Log, "Materializing " << N->valueToString());
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   // Prevent attempting to materialize more than MaxMaterializedValues
   if (N->SizeLowerBound > MaxMaterializedValues) {

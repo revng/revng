@@ -443,7 +443,7 @@ void ptml::ModelCBuilder::printSegmentType(const model::Segment &Segment) {
   *Out << getCommentableTag(std::move(Result) + ";\n", Binary, Segment);
 }
 
-Logger<> VariableNamingLog("variable-naming");
+Logger VariableNamingLog("variable-naming");
 
 ptml::ModelCBuilder::TagPair
 ptml::ModelCBuilder::getVariableTags(VariableNameBuilder &VariableNameBuilder,

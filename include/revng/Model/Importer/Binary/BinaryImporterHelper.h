@@ -16,14 +16,14 @@ class BinaryImporterHelper {
 protected:
   model::Binary &Binary;
   uint64_t BaseAddress = 0;
-  Logger<> &Logger;
+  Logger &Logger;
   llvm::SmallVector<const model::Segment *> ExecutableSegments;
   bool SegmentsInitialized = false;
 
 public:
   BinaryImporterHelper(model::Binary &Binary,
                        uint64_t BaseAddress,
-                       ::Logger<> &Logger) :
+                       ::Logger &Logger) :
     Binary(Binary), BaseAddress(BaseAddress), Logger(Logger) {}
 
 public:
@@ -38,14 +38,13 @@ public:
   MetaAddress fromPC(uint64_t PC) const {
     using namespace model::Architecture;
     revng_assert(Binary.Architecture() != Invalid);
-    return MetaAddress::fromPC(toLLVMArchitecture(Binary.Architecture()), PC);
+    return MetaAddress::fromPC(Binary.Architecture(), PC);
   }
 
   MetaAddress fromGeneric(uint64_t Address) const {
     using namespace model::Architecture;
     revng_assert(Binary.Architecture() != Invalid);
-    return MetaAddress::fromGeneric(toLLVMArchitecture(Binary.Architecture()),
-                                    Address);
+    return MetaAddress::fromGeneric(Binary.Architecture(), Address);
   }
 
 public:

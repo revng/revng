@@ -25,7 +25,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/YAMLTraits.h"
 
-static Logger<> Log{ "model-to-header" };
+static Logger Log{ "model-to-header" };
 
 bool ptml::HeaderBuilder::printModelHeader() {
 
