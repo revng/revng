@@ -46,6 +46,29 @@ class VariableManager {
 public:
   using GlobalsMap = std::map<intptr_t, llvm::GlobalVariable *>;
 
+private:
+  llvm::Module &TheModule;
+  revng::NonDebugInfoCheckingIRBuilder AllocaBuilder;
+  GlobalsMap CPUStateGlobals;
+
+  // QEMU terminology
+  // - Translation Block (TB): All instructions that could be translated in one
+  //   shot, might encompass multiple LLVM basic blocks.
+  // - Extended Basic Block (EBB): Single entry, multiple exit region that falls
+  //   through conditional branches, smaller than a TB.
+  using TemporariesMap = std::map<LibTcgTemp *, llvm::AllocaInst *>;
+  TemporariesMap TBTemporaries;
+  TemporariesMap EBBTemporaries;
+
+  llvm::StructType *ArchCPUStruct;
+  const llvm::DataLayout *ModuleLayout;
+  unsigned LibTcgEnvOffset;
+  uint8_t *LibTcgEnvPtr;
+
+  llvm::GlobalVariable *Env;
+  bool TargetIsLittleEndian;
+  const std::map<intptr_t, llvm::StringRef> &GlobalNames;
+
 public:
   VariableManager(llvm::Module &M,
                   bool TargetIsLittleEndian,
@@ -189,27 +212,4 @@ public:
 
   std::optional<std::pair<llvm::GlobalVariable *, unsigned>>
   getGlobalByCPUStateOffset(intptr_t Offset) const;
-
-private:
-  llvm::Module &TheModule;
-  revng::NonDebugInfoCheckingIRBuilder AllocaBuilder;
-  GlobalsMap CPUStateGlobals;
-
-  // QEMU terminology
-  // - Translation Block (TB): All instructions that could be translated in one
-  //   shot, might encompass multiple LLVM basic blocks.
-  // - Extended Basic Block (EBB): Single entry, multiple exit region that falls
-  //   through conditional branches, smaller than a TB.
-  using TemporariesMap = std::map<LibTcgTemp *, llvm::AllocaInst *>;
-  TemporariesMap TBTemporaries;
-  TemporariesMap EBBTemporaries;
-
-  llvm::StructType *ArchCPUStruct;
-  const llvm::DataLayout *ModuleLayout;
-  unsigned LibTcgEnvOffset;
-  uint8_t *LibTcgEnvPtr;
-
-  llvm::GlobalVariable *Env;
-  bool TargetIsLittleEndian;
-  const std::map<intptr_t, llvm::StringRef> &GlobalNames;
 };
