@@ -13,6 +13,7 @@ revng_add_analyses_library_internal(
   TypeSystemPrinter.cpp
   Processing.cpp
   ProgramCounterHandler.cpp
+  RawBinaryView.cpp
   Type.cpp
   TypeDefinition.cpp
   Verification.cpp
