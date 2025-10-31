@@ -49,8 +49,8 @@ RunningStatistics DetectedEdgesStatistics("detected-edges");
 RunningStatistics StoredInMemoryStatistics("stored-in-memory");
 RunningStatistics LoadAddressStatistics("load-address");
 
-Logger<> NewEdgesLog("new-edges");
-static Logger<> Log("root-analyzer");
+Logger NewEdgesLog("new-edges");
+static Logger Log("root-analyzer");
 
 // NOTE: Setting this to 1 gives us performance improvement. We have tested and
 // realized that there is an impact on performance if setting it to 2.
@@ -720,7 +720,7 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
 
   for (auto &[ValueMaterializerID, Operands] : MaterializedValuesById) {
     revng_log(Log, "Parsing ID " << ValueMaterializerID);
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     // Remove duplicates
     llvm::sort(Operands);

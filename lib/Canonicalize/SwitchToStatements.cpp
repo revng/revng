@@ -41,7 +41,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/DecompilationHelpers.h"
 
-static Logger<> Log{ "switch-to-statements" };
+static Logger Log{ "switch-to-statements" };
 
 using namespace llvm;
 

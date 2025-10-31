@@ -7,7 +7,7 @@
 #include "revng/Lift/CSVOffsets.h"
 #include "revng/Support/Debug.h"
 
-void writeToLog(Logger<true> &L, const CSVOffsets &O, int /*Ignore*/) {
+void writeToLog(Logger &L, const CSVOffsets &O, int /*Ignore*/) {
   L << "Kind: " << CSVOffsets::toString(O.OffsetKind);
   L << " Offsets = { ";
   for (const auto &Offset : O)

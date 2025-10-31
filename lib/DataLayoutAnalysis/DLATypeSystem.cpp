@@ -25,7 +25,7 @@ using namespace llvm;
 
 using NodeAllocatorT = SpecificBumpPtrAllocator<dla::LayoutTypeSystemNode>;
 
-static Logger<> CollapsedNodePrinter("dla-print-collapsed-in-dot");
+static Logger CollapsedNodePrinter("dla-print-collapsed-in-dot");
 
 void *operator new(size_t, NodeAllocatorT &NodeAllocator);
 void *operator new(size_t, NodeAllocatorT &NodeAllocator) {
@@ -289,7 +289,7 @@ static void fixPredSucc(LayoutTypeSystemNode *From,
   }
 }
 
-static Logger<> MergeLog("dla-merge-nodes");
+static Logger MergeLog("dla-merge-nodes");
 
 void LayoutTypeSystem::mergeNodes(llvm::ArrayRef<LayoutTypeSystemNode *>
                                     ToMerge) {
@@ -489,7 +489,7 @@ void LayoutTypeSystem::dropOutgoingEdges(LayoutTypeSystemNode *N) {
     It = eraseEdge(N, It);
 }
 
-static Logger<> VerifyDLALog("dla-verify-strict");
+static Logger VerifyDLALog("dla-verify-strict");
 
 bool LayoutTypeSystem::verifyConsistency() const {
   for (LayoutTypeSystemNode *NodePtr : Layouts) {
@@ -805,7 +805,7 @@ void TSDebugPrinter::printNodeContent(const LayoutTypeSystem &TS,
   File << "]" << DoRet;
 }
 
-void writeToLog(Logger<true> &Log, const TypeLinkTag &Tag, int /* Ignore */) {
+void writeToLog(Logger &Log, const TypeLinkTag &Tag, int /* Ignore */) {
 
   switch (Tag.getKind()) {
   case TypeLinkTag::LK_Equality: {

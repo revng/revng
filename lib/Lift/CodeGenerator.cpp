@@ -73,8 +73,8 @@ static cl::opt<bool> RecordTCG("record-tcg",
                                cl::desc("create metadata for TCG"),
                                cl::cat(MainCategory));
 
-static Logger<> LibTcgLog("libtcg");
-static Logger<> Log("lift");
+static Logger LibTcgLog("libtcg");
+static Logger Log("lift");
 
 template<typename T, typename... ArgTypes>
 constexpr std::array<T, sizeof...(ArgTypes)> make_array(ArgTypes &&...Args) {
@@ -411,7 +411,7 @@ void CodeGenerator::translate(LibTcg &LibTcg,
       static std::array<char, 128> DumpBuf{ 0 };
       LibTcgLog << "Translation starting from " << VirtualAddress.toGeneric()
                 << " (size: " << ConsumedSize << " bytes)" << DoLog;
-      LoggerIndent<> Indent(LibTcgLog);
+      LoggerIndent Indent(LibTcgLog);
       LibTcgLog.indent();
       for (size_t I = 0; I < TranslationBlock->instruction_count; ++I) {
         auto Opcode = TranslationBlock->list[I].opcode;

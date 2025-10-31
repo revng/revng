@@ -22,7 +22,7 @@
 
 namespace MFP {
 
-inline Logger<> NullLogger("");
+inline Logger NullLogger("");
 
 template<typename T>
 void dump(llvm::raw_ostream &Stream, unsigned Indent, const T &Element) {
@@ -87,7 +87,7 @@ getMaximalFixedPoint(const MFIType &MFI,
                      typename MFIType::LatticeElement ExtremalValue,
                      const std::vector<typename MFIType::Label> &ExtremalLabels,
                      const std::vector<typename MFIType::Label> &InitialNodes,
-                     Logger<> &Logger = NullLogger) {
+                     Logger &Logger = NullLogger) {
   using Label = typename MFIType::Label;
   using LatticeElement = typename MFIType::LatticeElement;
 
@@ -111,13 +111,13 @@ getMaximalFixedPoint(const MFIType &MFI,
 
   if (Logger.isEnabled()) {
     revng_log(Logger, "Initializing extremal labels");
-    LoggerIndent<> Indent(Logger);
+    LoggerIndent Indent(Logger);
     Logger << "Extremal value:\n";
     MFP::dump(*Logger.getAsLLVMStream(), 1, ExtremalValue);
     Logger << DoLog;
 
     Logger << "Extremal labels:" << DoLog;
-    LoggerIndent<> Indent2(Logger);
+    LoggerIndent Indent2(Logger);
     for (Label ExtremalLabel : ExtremalLabels) {
       MFP::dumpLabel(*Logger.getAsLLVMStream(), ExtremalLabel);
       Logger << DoLog;
@@ -129,13 +129,13 @@ getMaximalFixedPoint(const MFIType &MFI,
 
   if (Logger.isEnabled()) {
     revng_log(Logger, "Initializing initial nodes");
-    LoggerIndent<> Indent(Logger);
+    LoggerIndent Indent(Logger);
     Logger << "Initial value:\n";
     MFP::dump(*Logger.getAsLLVMStream(), 1, InitialValue);
     Logger << DoLog;
 
     Logger << "Initial labels:" << DoLog;
-    LoggerIndent<> Indent2(Logger);
+    LoggerIndent Indent2(Logger);
     for (Label InitialNode : InitialNodes) {
       MFP::dumpLabel(*Logger.getAsLLVMStream(), InitialNode);
       Logger << DoLog;
@@ -163,7 +163,7 @@ getMaximalFixedPoint(const MFIType &MFI,
 
   // Step 2 iterations
   revng_log(Logger, "Starting the iterations");
-  LoggerIndent<> Indent(Logger);
+  LoggerIndent Indent(Logger);
 
   unsigned IterationIndex = 0;
   while (not Worklist.empty()) {
@@ -180,7 +180,7 @@ getMaximalFixedPoint(const MFIType &MFI,
       Logger << DoLog;
     }
 
-    LoggerIndent<> Indent(Logger);
+    LoggerIndent Indent(Logger);
 
     if (Logger.isEnabled()) {
       Logger << "Initial value:\n";
@@ -199,7 +199,7 @@ getMaximalFixedPoint(const MFIType &MFI,
     Logger.unindent();
 
     if (Logger.isEnabled()) {
-      LoggerIndent<> Indent(Logger);
+      LoggerIndent Indent(Logger);
       Logger << "New final value:\n";
       MFP::dump(*Logger.getAsLLVMStream(), 1, New);
       Logger << DoLog;
@@ -212,7 +212,7 @@ getMaximalFixedPoint(const MFIType &MFI,
 
     // Enqueue successors that need to be recomputed
     revng_log(Logger, "Processing successors:");
-    LoggerIndent<> Indent2(Logger);
+    LoggerIndent Indent2(Logger);
     for (Label Successor : successors<GT>(Start)) {
       auto &SuccessorResults = AnalysisResult.at(Successor);
 
@@ -222,12 +222,12 @@ getMaximalFixedPoint(const MFIType &MFI,
         Logger << DoLog;
 
         Logger << "Initial value:\n";
-        LoggerIndent<> Indent(Logger);
+        LoggerIndent Indent(Logger);
         Logger << DoLog;
         MFP::dump(*Logger.getAsLLVMStream(), 1, SuccessorResults.InValue);
         Logger << DoLog;
       }
-      LoggerIndent<> Indent(Logger);
+      LoggerIndent Indent(Logger);
 
       if (not MFI.isLessOrEqual(LabelAnalysis.OutValue,
                                 SuccessorResults.InValue)) {
@@ -265,7 +265,7 @@ getMaximalFixedPoint(const MFI &Instance,
                      typename MFI::LatticeElement InitialValue,
                      typename MFI::LatticeElement ExtremalValue,
                      const std::vector<typename MFI::Label> &ExtremalLabels,
-                     Logger<> &Logger = NullLogger) {
+                     Logger &Logger = NullLogger) {
   using Label = typename MFI::Label;
   std::vector<Label> InitialNodes(ExtremalLabels);
 

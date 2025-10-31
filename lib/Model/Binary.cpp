@@ -20,7 +20,7 @@
 namespace {
 
 // TODO: all this logic should be moved to lib/TupleTree
-Logger<> FieldAccessedLogger("field-accessed");
+Logger FieldAccessedLogger("field-accessed");
 
 constexpr const char *StructNameHelpText = "regex that will make the program "
                                            "assert when a model struct which "

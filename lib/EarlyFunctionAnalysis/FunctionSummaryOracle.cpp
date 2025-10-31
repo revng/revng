@@ -10,7 +10,7 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 
-static Logger<> Log("efa-import-model");
+static Logger Log("efa-import-model");
 
 namespace efa {
 

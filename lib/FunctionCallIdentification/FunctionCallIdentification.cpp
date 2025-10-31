@@ -22,7 +22,7 @@ static RegisterPass<FunctionCallIdentification> X("fci",
                                                   true,
                                                   true);
 
-static Logger<> FilteredCFGLog("filtered-cfg");
+static Logger FilteredCFGLog("filtered-cfg");
 
 bool FunctionCallIdentification::runOnModule(llvm::Module &M) {
   revng_log(PassesLog, "Starting FunctionCallIdentification");

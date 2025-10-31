@@ -11,7 +11,7 @@
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/ValueMaterializer/DataFlowRangeAnalysis.h"
 
-static Logger<> Log("data-flow-range-analysis");
+static Logger Log("data-flow-range-analysis");
 
 static bool isSigned(llvm::ICmpInst::Predicate Predicate) {
   switch (Predicate) {
@@ -217,7 +217,7 @@ private:
 std::optional<ConstantRangeSet>
 DataFlowRangeAnalysis::visit(llvm::Value &Constraint, llvm::Value &Variable) {
   revng_log(Log, "New analysis");
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   if (Log.isEnabled()) {
     Log << "Constraint: ";
@@ -242,7 +242,7 @@ revng::detail::Visitor::visit(llvm::Value &Constraint) {
     Constraint.print(*Log.getAsLLVMStream(), MST, true);
     Log << DoLog;
   }
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   // Check cache
   if (auto *Ranges = tryGet(Constraint)) {

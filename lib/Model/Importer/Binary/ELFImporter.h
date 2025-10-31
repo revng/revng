@@ -14,7 +14,7 @@
 #include "DwarfReader.h"
 #include "SegmentImportHelpers.h"
 
-extern Logger<> ELFImporterLog;
+extern Logger ELFImporterLog;
 
 namespace {
 

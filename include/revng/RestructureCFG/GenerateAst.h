@@ -37,13 +37,13 @@
 
 class GHASTDumper {
   size_t GraphLogCounter;
-  Logger<> &Logger;
+  Logger &Logger;
   std::string FunctionName;
   const ASTTree &AST;
   std::string FolderName;
 
 public:
-  GHASTDumper(::Logger<> &Logger,
+  GHASTDumper(::Logger &Logger,
               const llvm::Function &F,
               const ASTTree &TheAST,
               const std::string &FolderName) :

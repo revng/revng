@@ -37,7 +37,7 @@ RegisterIRHelper IBIMarker("revng_undefined_local_sp");
 
 using namespace llvm;
 
-static Logger<> Log("promote-stack-pointer");
+static Logger Log("promote-stack-pointer");
 
 struct PromoteStackPointerPassImpl : public pipeline::FunctionPassImpl {
 private:

@@ -69,7 +69,7 @@ static aua::StructPointers collectOffsetTypes(Module &Module,
       revng_log(Log,
                 "Considering argument " << Argument->getArgNo() << " of "
                                         << F.getName().str());
-      LoggerIndent<> Indent(Log);
+      LoggerIndent Indent(Log);
 
       auto *DIArgumentType = dyn_cast_or_null<DIDerivedType>(Type);
       if (DIArgumentType == nullptr

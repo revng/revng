@@ -30,7 +30,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Support/Debug.h"
 
-inline Logger<> InvalidationLog("invalidation");
+inline Logger InvalidationLog("invalidation");
 
 namespace pipeline {
 
@@ -179,7 +179,7 @@ public:
                   const ContainerToTargetsMap &Target) const override {
     revng_log(InvalidationLog,
               "Computing requirements for " << this->Invokable.getName());
-    LoggerIndent<> Imdent(InvalidationLog);
+    LoggerIndent Imdent(InvalidationLog);
 
     const auto &Contracts = Invokable.getPipe().getContract();
     ContainerToTargetsMap Input = Target;
@@ -327,7 +327,7 @@ public:
                                   llvm::StringRef GlobalName,
                                   const TupleTreePath &Path,
                                   ContainerToTargetsMap &Out,
-                                  Logger<> &Log) const;
+                                  Logger &Log) const;
 
   void remove(const ContainerToTargetsMap &Map);
 

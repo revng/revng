@@ -40,8 +40,8 @@ using namespace dla;
 
 using llvm::dyn_cast;
 
-static Logger<> Log("dla-update-model-funcs");
-static Logger<> ModelLog("dla-dump-model-with-funcs");
+static Logger Log("dla-update-model-funcs");
+static Logger ModelLog("dla-dump-model-with-funcs");
 
 using model::PrimitiveKind::Generic;
 using model::PrimitiveKind::PointerOrNumber;

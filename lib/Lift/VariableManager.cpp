@@ -38,7 +38,7 @@
 // This name corresponds to a function in `early-linked`.
 RegisterIRHelper SetRegisterMarker("set_register");
 
-static Logger<> Log("csv-at-offset");
+static Logger Log("csv-at-offset");
 
 using namespace llvm;
 
@@ -488,7 +488,7 @@ VariableManager::getByCPUStateOffsetWithRemainder(intptr_t Offset) {
     return MaybeResult.value();
 
   revng_log(Log, "Considering offset " << Offset);
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   // Get the type of the field at that offset (if any) and obtain the offset
   // within the field

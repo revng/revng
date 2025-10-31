@@ -16,7 +16,7 @@ using PointerFilterT = EdgeFilteredGraph<LTSN *, dla::isPointerEdge>;
 
 using namespace llvm;
 
-static Logger<> Log("dla-collapse-single-child");
+static Logger Log("dla-collapse-single-child");
 
 namespace dla {
 bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,

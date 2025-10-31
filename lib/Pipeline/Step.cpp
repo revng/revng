@@ -411,7 +411,7 @@ Error Step::load(const revng::DirectoryPath &DirPath) {
 void Step::registerTargetsDependingOn(llvm::StringRef GlobalName,
                                       const TupleTreePath &Path,
                                       TargetInStepSet &Out,
-                                      Logger<> &Log) const {
+                                      Logger &Log) const {
   ContainerToTargetsMap ToInvalidateMap;
 
   Task T(3, "Computing invalidation for step " + getName());
@@ -422,7 +422,7 @@ void Step::registerTargetsDependingOn(llvm::StringRef GlobalName,
   for (const PipeWrapper &Pipe : Pipes) {
     T2.advance(Pipe.Pipe->getName(), true);
     revng_log(Log, "Handling the " << Pipe.Pipe->getName() << " pipe");
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
     Pipe.InvalidationMetadata.registerTargetsDependingOn(*TheContext,
                                                          GlobalName,
                                                          Path,

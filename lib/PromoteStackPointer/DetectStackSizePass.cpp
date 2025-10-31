@@ -26,7 +26,7 @@
 using namespace llvm;
 using model::RawFunctionDefinition;
 
-static Logger<> Log("detect-stack-size");
+static Logger Log("detect-stack-size");
 
 static bool isValidStackSize(uint64_t Size) {
   return 0 < Size and Size < 10 * 1024 * 1024;
@@ -147,7 +147,7 @@ void DetectStackSize::collectStackBounds(Function &F) {
             "Collecting stack bounds for "
               << model::CNameBuilder(*Binary).name(ModelFunction));
 
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   // Check if this function already has information about stack
   // frame/arguments
@@ -265,7 +265,7 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
             "electFunctionStackFrameSize: "
               << model::CNameBuilder(*Binary).name(ModelFunction));
 
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   if (FSI.MaxStackSize)
     revng_log(Log, "MaxStackSize: " << *FSI.MaxStackSize);
@@ -302,7 +302,7 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
 std::optional<uint64_t>
 DetectStackSize::handleCallSite(const CallSite &CallSite) {
   revng_log(Log, "CallSite");
-  LoggerIndent<> Indent2(Log);
+  LoggerIndent Indent2(Log);
   revng_log(Log, "CallSite.StackSize: " << CallSite.StackSize.value_or(0));
   revng_log(Log, "StackArgumentsSize: " << std::get<0>(CallSite.CallType));
 

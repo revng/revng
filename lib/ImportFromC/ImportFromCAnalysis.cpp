@@ -72,7 +72,7 @@ static std::optional<std::string> findHeaderFile(const std::string &File) {
   return (*MaybeHeaderPath).substr(0, Index);
 }
 
-static Logger<> Log("header-to-model-errors");
+static Logger Log("header-to-model-errors");
 
 struct ImportFromCAnalysis {
   static constexpr auto Name = "import-from-c";

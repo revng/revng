@@ -23,7 +23,7 @@
 #include "revng/TypeNames/DependencyGraph.h"
 #include "revng/TypeNames/ModelCBuilder.h"
 
-static Logger<> Log{ "type-dependency-graph" };
+static Logger Log{ "type-dependency-graph" };
 
 using namespace llvm;
 

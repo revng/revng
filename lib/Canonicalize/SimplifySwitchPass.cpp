@@ -31,7 +31,7 @@
 using namespace llvm;
 using namespace ::revng::kinds;
 
-static Logger<> Log("switch-opt");
+static Logger Log("switch-opt");
 
 class RawBinaryMemoryOracle final : public MemoryOracle {
 private:

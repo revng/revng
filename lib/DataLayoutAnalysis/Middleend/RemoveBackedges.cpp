@@ -21,7 +21,7 @@
 
 #include "RemoveBackedges.h"
 
-static Logger<> Log("dla-remove-backedges");
+static Logger Log("dla-remove-backedges");
 
 namespace dla {
 

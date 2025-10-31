@@ -16,14 +16,14 @@ class BinaryImporterHelper {
 protected:
   model::Binary &Binary;
   uint64_t BaseAddress = 0;
-  Logger<> &Logger;
+  Logger &Logger;
   llvm::SmallVector<const model::Segment *> ExecutableSegments;
   bool SegmentsInitialized = false;
 
 public:
   BinaryImporterHelper(model::Binary &Binary,
                        uint64_t BaseAddress,
-                       ::Logger<> &Logger) :
+                       ::Logger &Logger) :
     Binary(Binary), BaseAddress(BaseAddress), Logger(Logger) {}
 
 public:

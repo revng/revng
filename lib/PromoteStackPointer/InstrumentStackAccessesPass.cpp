@@ -13,7 +13,7 @@
 
 using namespace llvm;
 
-static Logger<> Log("instrument-stack-accesses");
+static Logger Log("instrument-stack-accesses");
 
 class InstrumentStackAccesses {
 private:
@@ -32,7 +32,7 @@ public:
 public:
   void run(Function &F) {
     revng_log(Log, "Instrumenting " << F.getName());
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     reset();
 

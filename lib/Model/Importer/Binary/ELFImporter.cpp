@@ -35,7 +35,7 @@
 using namespace llvm;
 using namespace llvm::object;
 
-Logger<> ELFImporterLog("elf-importer");
+Logger ELFImporterLog("elf-importer");
 
 template<typename A, typename B>
 static bool hasFlag(A Flag, B Value) {

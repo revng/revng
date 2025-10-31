@@ -25,7 +25,7 @@ static Register Y("collect-functions-from-unused-addresses",
                   true,
                   true);
 
-static Logger<> Log("functions-from-unused-addresses-collection");
+static Logger Log("functions-from-unused-addresses-collection");
 
 class CFFUAImpl {
 public:

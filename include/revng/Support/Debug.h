@@ -38,7 +38,6 @@ struct LogTerminator {
 ///
 /// The typical usage of this class is to be a static global variable in a
 /// translation unit.
-template<bool StaticEnabled = true>
 class Logger {
 private:
   static unsigned IndentLevel;
@@ -50,7 +49,7 @@ public:
   void unindent(unsigned Level = 1);
   void setIndentation(unsigned Level);
 
-  bool isEnabled() const { return StaticEnabled && Enabled; }
+  bool isEnabled() const { return Enabled; }
   llvm::StringRef name() const { return Name; }
   // TODO: allow optional description
   llvm::StringRef description() const { return ""; }
@@ -74,11 +73,10 @@ public:
     return *this;
   }
 
-  template<bool X>
-  friend void writeToLog(Logger<X> &This, const LogTerminator &T, int Ignore);
+  friend void writeToLog(Logger &This, const LogTerminator &T, int Ignore);
 
-  template<bool X, typename T, typename LowPrio>
-  friend void writeToLog(Logger<X> &This, const T Other, LowPrio Ignore);
+  template<typename T, typename LowPrio>
+  friend void writeToLog(Logger &This, const T Other, LowPrio Ignore);
 
   std::unique_ptr<llvm::raw_ostream> getAsLLVMStream() {
     if (Enabled)
@@ -96,14 +94,13 @@ private:
 };
 
 /// Indent all loggers within the scope of this object
-template<bool StaticEnabled = true>
 class LoggerIndent {
 public:
-  LoggerIndent(Logger<StaticEnabled> &L) : L(L) { L.indent(); }
+  LoggerIndent(Logger &L) : L(L) { L.indent(); }
   ~LoggerIndent() { L.unindent(); }
 
 private:
-  Logger<StaticEnabled> &L;
+  Logger &L;
 };
 
 /// Emit a message for the specified logger upon return
@@ -111,14 +108,13 @@ private:
 /// You can create an instance of this object associated to a Logger, so that
 /// when the object goes out of scope (typically, on return), the emit method
 /// will be invoked.
-template<bool StaticEnabled = true>
 class LogOnReturn {
 public:
-  LogOnReturn(Logger<StaticEnabled> &L) : L(L) {}
+  LogOnReturn(Logger &L) : L(L) {}
   ~LogOnReturn() { L.flush(); }
 
 private:
-  Logger<StaticEnabled> &L;
+  Logger &L;
 };
 
 /// The catch-all function for logging, it can log any type not already handled
@@ -135,27 +131,24 @@ private:
 /// overloads should never have overlapping types for \p Other.
 ///
 /// For an example see the next specialization.
-template<bool X, typename T, typename LowPrio>
-inline void writeToLog(Logger<X> &This, const T Other, LowPrio) {
+template<typename T, typename LowPrio>
+inline void writeToLog(Logger &This, const T Other, LowPrio) {
   if (This.isEnabled())
     This.Buffer << Other;
 }
 
 /// Specialization of writeToLog to emit a message
-template<bool X>
-inline void writeToLog(Logger<X> &This, const LogTerminator &LineInfo, int) {
+inline void writeToLog(Logger &This, const LogTerminator &LineInfo, int) {
   This.flush(LineInfo);
 }
 
 /// Specialization for llvm::StringRef
-template<bool X>
-inline void writeToLog(Logger<X> &This, const llvm::StringRef &S, int Ign) {
+inline void writeToLog(Logger &This, const llvm::StringRef &S, int Ign) {
   writeToLog(This, S.str(), Ign);
 }
 
 /// Specialization for llvm::Error
-template<bool X>
-inline void writeToLog(Logger<X> &This, const llvm::Error &Error, int Ign) {
+inline void writeToLog(Logger &This, const llvm::Error &Error, int Ign) {
   std::string Message;
   {
     llvm::raw_string_ostream Stream(Message);
@@ -203,9 +196,9 @@ private:
     }                            \
   } while (0)
 
-extern Logger<> NRALog;
-extern Logger<> PassesLog;
-extern Logger<> ReleaseLog;
-extern Logger<> VerifyLog;
+extern Logger NRALog;
+extern Logger PassesLog;
+extern Logger ReleaseLog;
+extern Logger VerifyLog;
 
 void writeToFile(llvm::StringRef What, llvm::StringRef Path) debug_function;

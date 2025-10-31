@@ -17,7 +17,7 @@
 using namespace llvm;
 
 // Debug logger
-Logger<> MaterializeTrivialGotoLogger("materialize-trivial-goto");
+Logger MaterializeTrivialGotoLogger("materialize-trivial-goto");
 
 static void eraseGoto(ScopeGraphBuilder &SGBuilder, BasicBlock &BB) {
 

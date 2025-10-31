@@ -37,7 +37,7 @@ using std::unique_ptr;
 
 using namespace llvm;
 
-static Logger<> BeautifyLogger("beautify");
+static Logger BeautifyLogger("beautify");
 
 // Prefix for the short circuit metrics dir.
 static cl::opt<std::string> OutputPath("short-circuit-metrics-output-dir",

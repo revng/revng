@@ -83,7 +83,7 @@ static opt<ABIOpt> ABIEnforcement("abi-enforcement-level",
                                                     "found.")),
                                   init(ABIOpt::FullABIEnforcement));
 
-static Logger<> Log("detect-abi");
+static Logger Log("detect-abi");
 
 struct Changes {
   bool Function = false;
@@ -323,7 +323,7 @@ void DetectABI::computeApproximateCallGraph() {
 
 void DetectABI::preliminaryFunctionAnalysis() {
   revng_log(Log, "Running the preliminary function analysis");
-  LoggerIndent<> LodIndent(Log);
+  LoggerIndent LodIndent(Log);
 
   BasicBlockQueue EntrypointsQueue;
 
@@ -354,7 +354,7 @@ void DetectABI::preliminaryFunctionAnalysis() {
     const BasicBlockNode *EntryNode = EntrypointsQueue.pop();
     MetaAddress EntryPointAddress = EntryNode->Address;
     revng_log(Log, "Analyzing " << EntryPointAddress.toString());
-    LoggerIndent<> Indent(Log);
+    LoggerIndent Indent(Log);
 
     FunctionSummary AnalysisResult = Analyzer.analyze(EntryNode->Address);
 
@@ -392,7 +392,7 @@ void DetectABI::preliminaryFunctionAnalysis() {
     if (Changed) {
       revng_log(Log,
                 "Entry " << EntryPointAddress.toString() << " has changed");
-      LoggerIndent<> Indent(Log);
+      LoggerIndent Indent(Log);
       OnceQueue<const BasicBlockNode *> InlineFunctionWorklist;
       InlineFunctionWorklist.insert(EntryNode);
 
@@ -401,7 +401,7 @@ void DetectABI::preliminaryFunctionAnalysis() {
         MetaAddress NodeAddress = Node->Address;
         revng_log(Log,
                   "Re-enqueuing callers of " << NodeAddress.toString() << ":");
-        LoggerIndent<> Indent(Log);
+        LoggerIndent Indent(Log);
         for (auto *Caller : Node->predecessors()) {
           // Root node?
           if (Caller->Address.isInvalid())
@@ -450,7 +450,7 @@ void DetectABI::preliminaryFunctionAnalysis() {
 
 void DetectABI::analyzeABI() {
   revng_log(Log, "Running ABI analyses");
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   llvm::Task Task(2, "analyzeABI");
   std::map<MetaAddress, std::unique_ptr<OutlinedFunction>> Functions;
@@ -494,7 +494,7 @@ void DetectABI::analyzeABI() {
 
     if (Changes.Function) {
       revng_log(Log, "The function has changed, re-enqueing all callers:");
-      LoggerIndent<> Indent(Log);
+      LoggerIndent Indent(Log);
       // The prototype of the function we analyzed has changed, reanalyze
       // callers
       auto &FunctionNode = BasicBlockNodeMap[GCBI.getBlockAt(Function.Entry())];
@@ -758,7 +758,7 @@ void DetectABI::propagatePrototypesInFunction(model::Function &Function) {
   const MetaAddress &Entry = Function.Entry();
 
   revng_log(Log, "Trying to propagate prototypes for " << Entry.toString());
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   FunctionSummary &Summary = Oracle.getLocalFunction(Entry);
   RUAResults &ABI = Summary.ABIResults;

@@ -94,8 +94,8 @@ using TokenMapT = std::map<const llvm::Value *, std::string>;
 using ModelTypesMap = std::map<const llvm::Value *,
                                const model::UpcastableType>;
 
-static Logger<> Log{ "c-backend" };
-static Logger<> VisitLog{ "c-backend-visit-order" };
+static Logger Log{ "c-backend" };
+static Logger VisitLog{ "c-backend-visit-order" };
 
 static bool isStackFrameDecl(const llvm::Value *I) {
   auto *Call = dyn_cast_or_null<llvm::CallInst>(I);

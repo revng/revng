@@ -25,7 +25,7 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 
-static Logger<> Log{ "make-model-cast" };
+static Logger Log{ "make-model-cast" };
 
 using namespace llvm;
 

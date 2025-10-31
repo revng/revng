@@ -27,7 +27,7 @@ extern "C" {
 #include "revng/Support/LDDTree.h"
 #include "revng/Support/OverflowSafeInt.h"
 
-static Logger<> Log("lddtree");
+static Logger Log("lddtree");
 
 using namespace llvm;
 
@@ -165,7 +165,7 @@ findLibrary(StringRef ToImport,
             std::optional<StringRef> RPath,
             std::optional<StringRef> RunPath) {
   revng_log(Log, "Looking for " << ToImport);
-  LoggerIndent<> Indent(Log);
+  LoggerIndent Indent(Log);
 
   SmallVector<std::string, 16> SearchPaths;
 
@@ -414,7 +414,7 @@ static RecursiveCoroutine<void> lddtreeHelper(LDDTree &Dependencies,
                                               unsigned CurrentLevel,
                                               unsigned DepthLevel) {
   revng_log(Log, "lddtree for " << Path << "\n");
-  LoggerIndent<> Ident(Log);
+  LoggerIndent Ident(Log);
 
   using namespace object;
   auto MaybeBinary = createBinary(Path);

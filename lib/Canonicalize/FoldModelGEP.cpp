@@ -18,7 +18,7 @@
 #include "revng/Support/DecompilationHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 
-static Logger<> Log{ "fold-model-gep" };
+static Logger Log{ "fold-model-gep" };
 
 struct FoldModelGEP : public llvm::FunctionPass {
 public:

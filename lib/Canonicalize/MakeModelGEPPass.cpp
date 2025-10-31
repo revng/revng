@@ -70,7 +70,7 @@ using llvm::Value;
 using model::CABIFunctionDefinition;
 using model::RawFunctionDefinition;
 
-static Logger<> ModelGEPLog{ "make-model-gep" };
+static Logger ModelGEPLog{ "make-model-gep" };
 
 // This struct represents an llvm::Value for which it has been determined that
 // it has pointer semantic on the model, along with the type of the pointee.

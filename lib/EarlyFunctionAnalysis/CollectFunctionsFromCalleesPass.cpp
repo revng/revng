@@ -19,7 +19,7 @@ static Register Y("collect-functions-from-callees",
                   true,
                   true);
 
-static Logger<> Log("functions-from-callees-collection");
+static Logger Log("functions-from-callees-collection");
 
 using CFFCWP = CollectFunctionsFromCalleesWrapperPass;
 void CFFCWP::getAnalysisUsage(AnalysisUsage &AU) const {

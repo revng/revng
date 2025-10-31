@@ -8,7 +8,6 @@
 
 #include "revng/Support/Assert.h"
 
-template<bool StaticallyEnabled>
 class Logger;
 
 /// Different types of accesses to the CPU State Variables (CSVs), with a set of
@@ -72,7 +71,7 @@ public:
   }
 
 public:
-  friend void writeToLog(Logger<true> &L, const CSVOffsets &O, int /*Ignore*/);
+  friend void writeToLog(Logger &L, const CSVOffsets &O, int /*Ignore*/);
 
 private:
   explicit operator Kind() const { return OffsetKind; }

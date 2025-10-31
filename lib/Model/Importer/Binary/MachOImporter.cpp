@@ -27,7 +27,7 @@ using namespace llvm::object;
 using namespace llvm;
 using namespace model;
 
-static Logger<> Log("macho-importer");
+static Logger Log("macho-importer");
 
 template<typename R>
 void swapBytes(R &Value) {
