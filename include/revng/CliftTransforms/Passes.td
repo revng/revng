@@ -43,6 +43,14 @@ def CliftOptimizeExpressions : Clift_Pass<"optimize-expressions",
   let options = RewritePassUtils.options;
 }
 
+def CliftTerminalBranchComplementHoisting
+  : Clift_Pass<"terminal-branch-complement-hoisting", "clift::FunctionOp"> {
+
+  let summary = "Hoist one side of a two-way branch operation, where at least "
+                "one of the branches is non-fallthrough.";
+  let constructor = "mlir::clift::createTerminalBranchComplementHoistingPass()";
+}
+
 def CliftCLegalization : Clift_Pass<"c-legalization", "clift::FunctionOp"> {
   let summary = "Legalize the input for emitting C code.";
 

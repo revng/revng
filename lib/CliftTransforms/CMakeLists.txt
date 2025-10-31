@@ -13,6 +13,7 @@ revng_add_library_internal(
   PatternRewriter.cpp
   RewriteHelpers.cpp
   Statements.cpp
+  TerminalBranchComplementHoisting.cpp
   TrivialReturnElimination.cpp)
 
 target_link_libraries(revngCliftTransforms MLIRTransformUtils revngClift)

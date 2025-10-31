@@ -60,6 +60,8 @@ public:
     PM.addPass(clift::createOptimizeStatementsPass());
     PM.addPass(clift::createLabelMergingPass());
     PM.addPass(clift::createOptimizeExpressionsPass());
+    PM.addPass(clift::createTerminalBranchComplementHoistingPass());
+
     PM.addPass(clift::createCLegalizationPass(TargetCImplementation::Default));
 
     mlir::ModuleOp Module = CliftContainer.getModule();
