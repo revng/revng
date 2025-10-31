@@ -955,7 +955,7 @@ static DifferenceScore lowerBound(const ModelGEPReplacementInfo &GEPInfo,
   // We cannot foresee how big will be the Mismatched part.
   // But we're estimating a lower bound, so we know that it will be out of bound
   // for at least BaseOffset + AccessedSizeOnIR - BaseSize
-  uint64_t BaseSize = *GEPInfo.BaseType->size(VH);
+  uint64_t BaseSize = *rc_eval(GEPInfo.BaseType->size(VH));
   if ((BaseOffset + AccessedSizeOnIR).ugt(BaseSize))
     return DifferenceScore::nestedOutOfBound(IRSummation(BaseOffset
                                                          + AccessedSizeOnIR
@@ -1056,7 +1056,7 @@ computeBestInArray(const model::UpcastableType &BaseType,
   auto ArrayIndent = LoggerIndent{ ModelGEPLog };
 
   const model::ArrayType &Array = BaseType->toArray();
-  uint64_t ElementSize = *Array.ElementType()->size(VH);
+  uint64_t ElementSize = *rc_eval(Array.ElementType()->size(VH));
   uint64_t ArraySize = ElementSize * Array.ElementCount();
 
   const auto &[BaseOffset, Indices] = IRSum;
@@ -1256,7 +1256,7 @@ computeBestInStruct(const model::UpcastableType &BaseStruct,
 
   const auto &[BaseOffset, Indices] = IRSum;
 
-  uint64_t StructSize = *StructDefinition.size(VH);
+  uint64_t StructSize = *rc_eval(StructDefinition.size(VH));
   if ((BaseOffset + AccessedSizeOnIR).ugt(StructSize)) {
     revng_log(ModelGEPLog,
               "Struct not traversed for large offset. BestInStruct: "
@@ -1372,7 +1372,7 @@ computeBestInUnion(const model::UpcastableType &BaseUnion,
 
   const auto &[BaseOffset, Indices] = IRSum;
 
-  uint64_t UnionSize = *UnionDefinition.size(VH);
+  uint64_t UnionSize = *rc_eval(UnionDefinition.size(VH));
   if ((BaseOffset + AccessedSizeOnIR).ugt(UnionSize)) {
     revng_log(ModelGEPLog,
               "Union not traversed for large offset. BestInUnion: "
