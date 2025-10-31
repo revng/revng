@@ -627,9 +627,6 @@ target_include_directories(
   test_recursive_coroutine PRIVATE "${CMAKE_SOURCE_DIR}"
                                    "${Boost_INCLUDE_DIRS}")
 target_link_libraries(
-  test_recursive_coroutine
-  revngSupport
-  revngUnitTestHelpers
-  Boost::unit_test_framework
-  ${LLVM_LIBRARIES})
+  test_recursive_coroutine revngSupport revngUnitTestHelpers
+  Boost::unit_test_framework ${LLVM_LIBRARIES})
 add_test(NAME test_recursive_coroutine COMMAND test_recursive_coroutine)

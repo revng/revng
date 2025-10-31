@@ -306,13 +306,14 @@ public:
                   for (const auto &[RetNodeNew, Arg] :
                        llvm::zip_first(StructTypeNodes, Call->args())) {
 
-                    // TODO: current implementation DLA cannot reason about function
-                    // pointers. Given this shortcoming, llvm::Functions are used (as
-                    // a hack) to represent their Functions' return types.
-                    // So if we ever hit a Function here, we have to bail out both
-                    // because DLA would not be able to propagate anything meaningful
-                    // on function types, but also because that would break the parts
-                    // of the analysis that rely on the hack.
+                    // TODO: current implementation DLA cannot reason about
+                    // function pointers. Given this shortcoming,
+                    // llvm::Functions are used (as a hack) to represent their
+                    // Functions' return types. So if we ever hit a Function
+                    // here, we have to bail out both because DLA would not be
+                    // able to propagate anything meaningful on function types,
+                    // but also because that would break the parts of the
+                    // analysis that rely on the hack.
                     if (isa<Function>(Arg))
                       continue;
 
@@ -405,10 +406,10 @@ public:
             // TODO: current implementation DLA cannot reason about function
             // pointers. Given this shortcoming, llvm::Functions are used (as a
             // hack) to represent their Functions' return types.
-            // So if we ever hit an actual argument that is a Function, we have to bail
-            // out both because DLA would not be able to propagate anything meaningful
-            // on function types, but also because that would break the parts of
-            // the analysis that rely on the hack.
+            // So if we ever hit an actual argument that is a Function, we have
+            // to bail out both because DLA would not be able to propagate
+            // anything meaningful on function types, but also because that
+            // would break the parts of the analysis that rely on the hack.
             if (isa<Function>(TrueV))
               continue;
 
@@ -430,10 +431,10 @@ public:
             // TODO: current implementation DLA cannot reason about function
             // pointers. Given this shortcoming, llvm::Functions are used (as a
             // hack) to represent their Functions' return types.
-            // So if we ever hit an actual argument that is a Function, we have to bail
-            // out both because DLA would not be able to propagate anything meaningful
-            // on function types, but also because that would break the parts of
-            // the analysis that rely on the hack.
+            // So if we ever hit an actual argument that is a Function, we have
+            // to bail out both because DLA would not be able to propagate
+            // anything meaningful on function types, but also because that
+            // would break the parts of the analysis that rely on the hack.
             if (isa<Function>(FalseV))
               continue;
 
@@ -482,10 +483,10 @@ public:
             // TODO: current implementation DLA cannot reason about function
             // pointers. Given this shortcoming, llvm::Functions are used (as a
             // hack) to represent their Functions' return types.
-            // So if we ever hit an actual argument that is a Function, we have to bail
-            // out both because DLA would not be able to propagate anything meaningful
-            // on function types, but also because that would break the parts of
-            // the analysis that rely on the hack.
+            // So if we ever hit an actual argument that is a Function, we have
+            // to bail out both because DLA would not be able to propagate
+            // anything meaningful on function types, but also because that
+            // would break the parts of the analysis that rely on the hack.
             if (isa<Function>(Arg))
               continue;
 
@@ -512,12 +513,12 @@ public:
                  llvm::zip_first(StructTypeNodes, C->args())) {
 
               // TODO: current implementation DLA cannot reason about function
-              // pointers. Given this shortcoming, llvm::Functions are used (as a
-              // hack) to represent their Functions' return types.
-              // So if we ever hit an actual argument that is a Function, we have to bail
-              // out both because DLA would not be able to propagate anything meaningful
-              // on function types, but also because that would break the parts of
-              // the analysis that rely on the hack.
+              // pointers. Given this shortcoming, llvm::Functions are used (as
+              // a hack) to represent their Functions' return types. So if we
+              // ever hit an actual argument that is a Function, we have to bail
+              // out both because DLA would not be able to propagate anything
+              // meaningful on function types, but also because that would break
+              // the parts of the analysis that rely on the hack.
               if (isa<Function>(Arg))
                 continue;
 
@@ -609,10 +610,10 @@ public:
             // TODO: current implementation DLA cannot reason about function
             // pointers. Given this shortcoming, llvm::Functions are used (as a
             // hack) to represent their Functions' return types.
-            // So if we ever hit an actual argument that is a Function, we have to bail
-            // out both because DLA would not be able to propagate anything meaningful
-            // on function types, but also because that would break the parts of
-            // the analysis that rely on the hack.
+            // So if we ever hit an actual argument that is a Function, we have
+            // to bail out both because DLA would not be able to propagate
+            // anything meaningful on function types, but also because that
+            // would break the parts of the analysis that rely on the hack.
             if (isa<Function>(ArgU.get()))
               continue;
 
@@ -689,10 +690,10 @@ public:
           // TODO: current implementation DLA cannot reason about function
           // pointers. Given this shortcoming, llvm::Functions are used (as a
           // hack) to represent their Functions' return types.
-          // So if we ever hit an actual argument that is a Function, we have to bail
-          // out both because DLA would not be able to propagate anything meaningful
-          // on function types, but also because that would break the parts of
-          // the analysis that rely on the hack.
+          // So if we ever hit an actual argument that is a Function, we have to
+          // bail out both because DLA would not be able to propagate anything
+          // meaningful on function types, but also because that would break the
+          // parts of the analysis that rely on the hack.
           if (isa<Function>(Op))
             continue;
 
@@ -751,7 +752,7 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
   if (Prototype == nullptr)
     return false;
 
-  const auto [It, NewPrototype] =  VisitedPrototypes.insert({ Prototype, Call });
+  const auto [It, NewPrototype] = VisitedPrototypes.insert({ Prototype, Call });
   if (NewPrototype)
     return Changed;
 
@@ -853,10 +854,10 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
           // TODO: current implementation DLA cannot reason about function
           // pointers. Given this shortcoming, llvm::Functions are used (as a
           // hack) to represent their Functions' return types.
-          // So if we ever hit an actual argument that is a Function, we have to bail
-          // out both because DLA would not be able to propagate anything meaningful
-          // on function types, but also because that would break the parts of
-          // the analysis that rely on the hack.
+          // So if we ever hit an actual argument that is a Function, we have to
+          // bail out both because DLA would not be able to propagate anything
+          // meaningful on function types, but also because that would break the
+          // parts of the analysis that rely on the hack.
           if (isa<Function>(PointerVal))
             continue;
 

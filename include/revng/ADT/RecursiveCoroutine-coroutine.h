@@ -86,8 +86,8 @@ struct RecursivePromise : public ReturnBase<ReturnT> {
     //   aborts).
     struct Awaiter {
 
-      Awaiter(std::coroutine_handle<> Continuation)
-        : Continuation(Continuation) {}
+      Awaiter(std::coroutine_handle<> Continuation) :
+        Continuation(Continuation) {}
 
       bool await_ready() const noexcept { return false; }
 

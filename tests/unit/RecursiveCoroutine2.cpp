@@ -17,9 +17,7 @@ class InstanceCounter {
   int *Counter;
 
 public:
-  InstanceCounter(int &Counter) : Counter(&Counter) {
-    ++*this->Counter;
-  }
+  InstanceCounter(int &Counter) : Counter(&Counter) { ++*this->Counter; }
 
   InstanceCounter(const InstanceCounter &Other) : Counter(Other.Counter) {
     ++*this->Counter;
@@ -32,9 +30,7 @@ public:
     return *this;
   }
 
-  ~InstanceCounter() {
-    --*this->Counter;
-  }
+  ~InstanceCounter() { --*this->Counter; }
 };
 
 class TestMutex {
@@ -84,7 +80,7 @@ BOOST_AUTO_TEST_CASE(RecursiveCoroutineEvaluationOrder2) {
 
   auto G = [&](int Value) -> RecursiveCoroutine<std::pair<int, int>> {
     std::lock_guard Lock(Mutex);
-    rc_return { Value, GuardedValue++ };
+    rc_return{ Value, GuardedValue++ };
   };
 
   auto H = [&]() -> RecursiveCoroutine<std::pair<int, int>> {
@@ -99,13 +95,9 @@ BOOST_AUTO_TEST_CASE(RecursiveCoroutineEvaluationOrder2) {
 BOOST_AUTO_TEST_CASE(RecursiveCoroutineEvaluationOrder3) {
   int Counter = 0;
 
-  auto F = [&]() -> RecursiveCoroutine<InstanceCounter> {
-    rc_return Counter;
-  };
+  auto F = [&]() -> RecursiveCoroutine<InstanceCounter> { rc_return Counter; };
 
-  auto G = [&](InstanceCounter) {
-    revng_check(Counter == 1);
-  };
+  auto G = [&](InstanceCounter) { revng_check(Counter == 1); };
 
   G(F());
 }
