@@ -90,4 +90,7 @@ class ImportFiles(Pipe):
 
         containers[0].deserialize({root_object: buffer.getvalue()})
 
-        return [[(root_object, f"/Binaries/{i}/Hash") for i in indexes]]
+        dependencies = [(root_object, f"/Binaries/{i}/Hash") for i in indexes]
+        dependencies.append((root_object, "/Binaries"))
+
+        return [dependencies]
