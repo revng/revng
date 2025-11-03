@@ -23,6 +23,8 @@ containers:
     type: AssemblyContainer
   - name: object-file
     type: ObjectFileContainer
+  - name: translated
+    type: TranslatedContainer
 
 branches:
   files-imported:
@@ -169,3 +171,5 @@ branches:
           Passes: [drop-opaque-return-address]
       - pipe: CompileRootModule
         arguments: [llvm-root, object-file]
+      - pipe: LinkForTranslation
+        arguments: [binaries-container, object-file, translated]

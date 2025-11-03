@@ -8,6 +8,9 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
+#include "revng/PipeboxCommon/BinariesContainer.h"
+#include "revng/PipeboxCommon/Model.h"
+#include "revng/PipeboxCommon/RawContainer.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
@@ -16,6 +19,7 @@
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/Recompile/CompileModulePipe.h"
 
 namespace revng::pipes {
 
@@ -44,3 +48,32 @@ public:
 };
 
 } // namespace revng::pipes
+
+namespace revng::pypeline {
+
+using TranslatedContainer = BytesContainer<"TranslatedContainer",
+                                           "application/x-executable">;
+
+namespace piperuns {
+
+class LinkForTranslation {
+public:
+  static constexpr llvm::StringRef Name = "LinkForTranslation";
+  using Arguments = TypeList<
+    PipeArgument<"Binaries", "The input binaries">,
+    PipeArgument<"ObjectFile", "The complied object file">,
+    PipeArgument<"Output", "The output executable", Access::Write>>;
+
+  static llvm::Error checkPrecondition(const class Model &Model);
+
+  static void run(const Model &TheModel,
+                  llvm::StringRef StaticConfig,
+                  llvm::StringRef DynamicConfig,
+                  const BinariesContainer &Binaries,
+                  const ObjectFileContainer &ObjectFile,
+                  TranslatedContainer &Output);
+};
+
+} // namespace piperuns
+
+} // namespace revng::pypeline
