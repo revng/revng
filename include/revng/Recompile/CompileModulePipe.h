@@ -8,6 +8,9 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
+#include "revng/PipeboxCommon/LLVMContainer.h"
+#include "revng/PipeboxCommon/Model.h"
+#include "revng/PipeboxCommon/RawContainer.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
@@ -52,3 +55,30 @@ public:
 };
 
 } // namespace revng::pipes
+
+namespace revng::pypeline {
+
+using ObjectFileContainer = BytesContainer<"ObjectFileContainer",
+                                           "application/x-object">;
+
+namespace piperuns {
+
+class CompileRootModule {
+public:
+  static constexpr llvm::StringRef Name = "CompileRootModule";
+  using Arguments = TypeList<
+    PipeArgument<"Input",
+                 "The LLVM module that will be compiled",
+                 Access::Read>,
+    PipeArgument<"Output", "The compiled object file", Access::Write>>;
+
+  static void run(const Model &TheModel,
+                  llvm::StringRef StaticConfig,
+                  llvm::StringRef DynamicConfig,
+                  LLVMRootContainer &Input,
+                  ObjectFileContainer &Output);
+};
+
+} // namespace piperuns
+
+} // namespace revng::pypeline

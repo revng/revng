@@ -12,6 +12,7 @@ target_link_libraries(
   revngModelToHeader
   revngLift
   revngFunctionIsolation
+  revngRecompile
   revngYield
   revngYieldPipes
   nanobind

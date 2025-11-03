@@ -21,6 +21,8 @@ containers:
     type: AssemblyInternalContainer
   - name: assembly
     type: AssemblyContainer
+  - name: object-file
+    type: ObjectFileContainer
 
 branches:
   files-imported:
@@ -165,3 +167,5 @@ branches:
         arguments: [llvm-root]
         configuration:
           Passes: [drop-opaque-return-address]
+      - pipe: CompileRootModule
+        arguments: [llvm-root, object-file]

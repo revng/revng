@@ -50,7 +50,7 @@ public:
 public:
   bool contains(const ObjectID &Key) const { return Map.contains(Key); }
 
-  std::unique_ptr<llvm::raw_ostream> getOStream(const ObjectID &Key) {
+  std::unique_ptr<llvm::raw_pwrite_stream> getOStream(const ObjectID &Key) {
     revng_assert(Key.kind() == Kind);
     revng_assert(not Map.contains(Key));
     return std::make_unique<llvm::raw_svector_ostream>(Map[Key].data());
