@@ -15,6 +15,7 @@
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
 #include "revng/PipeboxCommon/RawContainer.h"
+#include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Yield/HexDump.h"
 #include "revng/Yield/Pipes/ProcessAssembly.h"
 #include "revng/Yield/Pipes/YieldAssembly.h"
@@ -34,6 +35,7 @@ static RegisterContainer<CFGMap> C7;
 static RegisterContainer<HexDumpContainer> C8;
 static RegisterContainer<AssemblyInternalContainer> C9;
 static RegisterContainer<AssemblyContainer> C10;
+static RegisterContainer<ObjectFileContainer> C11;
 
 //
 // Pipes
@@ -57,3 +59,4 @@ static RegisterSingleOutputPipe<HexDump> P11;
 static RegisterFunctionPipe<ProcessAssembly> P12;
 static RegisterFunctionPipe<YieldAssembly> P13;
 static RegisterSingleOutputPipe<LinkSupport> P14;
+static RegisterSingleOutputPipe<CompileRootModule> P15;
