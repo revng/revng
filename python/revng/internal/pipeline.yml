@@ -173,3 +173,8 @@ branches:
         arguments: [llvm-root, object-file]
       - pipe: LinkForTranslation
         arguments: [binaries-container, object-file, translated]
+      - savepoint: recompile
+        containers: [translated]
+        artifacts:
+          - name: recompile
+            container: translated
