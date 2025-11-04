@@ -14,6 +14,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
+#include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -28,15 +29,14 @@ using namespace llvm;
 
 class InvokeIsolatedFunctionsImpl {
 private:
-  using FunctionInfo = tuple<const model::Function *,
-                             BasicBlock *,
-                             const Function *>;
+  using FunctionInfo = tuple<const model::Function *, BasicBlock *, Function *>;
   using FunctionMap = std::map<model::Function::Key, FunctionInfo>;
 
 private:
   const model::Binary &Binary;
   Function &RootFunction;
   Module &RootModule;
+  const Module *FunctionModule;
   LLVMContext &Context;
   GeneratedCodeBasicInfo GCBI;
   FunctionMap Map;
@@ -44,10 +44,11 @@ private:
 public:
   InvokeIsolatedFunctionsImpl(const model::Binary &Binary,
                               llvm::Module &RootModule,
-                              const llvm::Module &FunctionModule) :
+                              const llvm::Module *FunctionModule) :
     Binary(Binary),
     RootFunction(*RootModule.getFunction("root")),
     RootModule(RootModule),
+    FunctionModule(FunctionModule),
     Context(RootModule.getContext()),
     GCBI(Binary) {
 
@@ -55,7 +56,7 @@ public:
 
     model::CNameBuilder NameBuilder = Binary;
     for (const model::Function &Function : Binary.Functions()) {
-      auto *F = FunctionModule.getFunction(NameBuilder.llvmName(Function));
+      auto *F = FunctionModule->getFunction(NameBuilder.llvmName(Function));
       revng_assert(F != nullptr);
       Map[Function.key()] = { &Function, nullptr, F };
     }
@@ -172,11 +173,15 @@ public:
         }
       }
 
-      llvm::Function *
+      llvm::Function *NewDeclaration = nullptr;
+      if (&RootModule != FunctionModule) {
         NewDeclaration = llvm::Function::Create(F->getFunctionType(),
                                                 llvm::Function::ExternalLinkage,
                                                 F->getName(),
                                                 RootModule);
+      } else {
+        NewDeclaration = F;
+      }
 
       // Emit the invoke instruction, propagating debug info
       auto *NewInvoke = Builder.CreateInvoke(NewDeclaration,
@@ -274,7 +279,7 @@ public:
                                FunctionContainer.getModule());
     InvokeIsolatedFunctionsImpl Impl(*revng::getModelFromContext(EC),
                                      OutputRootContainer.getModule(),
-                                     FunctionContainer.getModule());
+                                     &FunctionContainer.getModule());
     Impl.run();
 
     const llvm::Module &FunctionModule = FunctionContainer.getModule();
@@ -287,3 +292,35 @@ public:
 };
 
 static pipeline::RegisterPipe<InvokeIsolatedPipe> Y;
+
+namespace revng::pypeline::piperuns {
+
+void InvokeIsolatedFunctions::run(const class Model &Model,
+                                  llvm::StringRef Config,
+                                  llvm::StringRef DynamicConfig,
+                                  const LLVMRootContainer &Root,
+                                  const LLVMFunctionContainer &Functions,
+                                  LLVMRootContainer &Output) {
+  const model::Binary &Binary = *Model.get().get();
+
+  // Clone the container
+  llvm::LLVMContext &OutputContext = Output.getModule().getContext();
+  std::unique_ptr<llvm::Module>
+    OutputModule = cloneIntoContext(Root.getModule(), OutputContext);
+
+  // Merge all the functions into a single Module
+  llvm::Linker Linker(*OutputModule);
+  for (auto &Object : Functions.objects()) {
+    const llvm::Module &Module = Functions.getModule(Object);
+    Linker.linkInModule(cloneIntoContext(Module, OutputContext),
+                        llvm::Linker::OverrideFromSrc);
+  }
+
+  populateFunctionDispatcher(Binary, *OutputModule);
+  InvokeIsolatedFunctionsImpl Impl(Binary, *OutputModule, OutputModule.get());
+  Impl.run();
+
+  Output.assign(std::move(OutputModule));
+}
+
+} // namespace revng::pypeline::piperuns

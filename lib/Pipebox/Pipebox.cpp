@@ -5,6 +5,7 @@
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
+#include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
@@ -63,3 +64,4 @@ static RegisterFunctionPipe<YieldAssembly> P13;
 static RegisterSingleOutputPipe<LinkSupport> P14;
 static RegisterSingleOutputPipe<CompileRootModule> P15;
 static RegisterSingleOutputPipe<LinkForTranslation> P16;
+static RegisterSingleOutputPipe<InvokeIsolatedFunctions> P17;
