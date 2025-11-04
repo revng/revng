@@ -104,3 +104,7 @@ class Requests(MutableMapping[ContainerDeclaration, ObjectSet]):
 
     def __eq__(self, other) -> bool:
         return self.requests == other.requests
+
+    def minimize(self) -> Requests:
+        """Return the same request object, but with all the empty values removed"""
+        return Requests({k: v for k, v in self.requests.items() if len(v) > 0})

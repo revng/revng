@@ -266,7 +266,7 @@ class Pipeline(Generic[C]):
             if not node.predecessors:
                 assert node_ingoing_requests.empty(), (
                     f"Node {node} has no predecessors, but it still has "
-                    f"requests: {node_ingoing_requests}"
+                    f"requests: {node_ingoing_requests.minimize()}"
                 )
                 break
 
