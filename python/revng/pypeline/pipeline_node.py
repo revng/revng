@@ -109,22 +109,26 @@ class PipelineNode:
             assert len(self.bindings) == len(task.arguments)
 
     @property
-    def arguments(self) -> list[ContainerDeclaration]:
+    def arguments_with_access(self) -> list[TaskArgument]:
         if isinstance(self.task, SavePoint):
             # SavePoints do not have bindings, so we return the task arguments directly
-            return [
-                ContainerDeclaration(
-                    name=x.name,
-                    container_type=x.container_type,
-                )
-                for x in self.task.arguments
-            ]
+            return self.task.arguments
         elif isinstance(self.task, Pipe):
             # For Pipes, we return the bindings, which are the pipeline declarations
             # that map to the task arguments
-            return self.bindings
+            result = []
+            for index, argument in enumerate(self.bindings):
+                pipe_arguments = self.task.arguments[index]
+                result.append(
+                    TaskArgument(argument.name, argument.container_type, pipe_arguments.access)
+                )
+            return result
         else:
             raise TypeError(f"Unsupported task type: {type(self.task)}")
+
+    @property
+    def arguments(self) -> list[ContainerDeclaration]:
+        return [x.to_container_decl() for x in self.arguments_with_access]
 
     def add_successor(self, node: PipelineNode) -> PipelineNode:
         node.predecessors.append(self)

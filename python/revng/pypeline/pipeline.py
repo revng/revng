@@ -281,7 +281,59 @@ class Pipeline(Generic[C]):
             node = predecessor
             node_outgoing_requests = node_ingoing_requests
 
-        return Schedule(self.declarations, tasks[target_node], pipeline_configuration)
+        # Here the task list has been decided, these are now iterated to apply
+        # the following optimizations:
+        # * Reduce the set of container declarations to those that are actually
+        #   necessary to run the schedule
+        # * Compact incoming and outgoing of each task to their reduced version
+        # * Skip tasks where nothing in outgoing is actually written by the task
+        #
+        # These could be derived by using a dataflow-based approach to the
+        # pipeline, where each pipe binds its inputs to the predecessor's pipe
+        # output, but in the general case (with RW pipes) this turns into
+        # having a mini-programming language and applying SSA analysis and the
+        # like to deduplicate the containers (that, in the general case, need
+        # to be duplicated at each node of the dataflow).
+        scheduled_task: ScheduledTask | None = tasks[target_node]
+        parent_scheduled_task: ScheduledTask | None = None
+        used_declatations: set[str] = set()
+
+        while scheduled_task is not None:
+            # Assume that the schedule is a straight line, so a task has at
+            # most one dependency
+            assert len(scheduled_task.depends_on) in (0, 1)
+
+            # Reduce incoming and outgoing
+            scheduled_task.incoming = scheduled_task.incoming.minimize()
+            scheduled_task.outgoing = scheduled_task.outgoing.minimize()
+
+            # Figure out if a task will actually produce outputs
+            written_out = Requests()
+            for argument in scheduled_task.node.arguments_with_access:
+                if argument.access != TaskArgumentAccess.READ:
+                    container_decl = argument.to_container_decl()
+                    if container_decl in scheduled_task.outgoing:
+                        written_out[container_decl] = scheduled_task.outgoing[container_decl]
+
+            if written_out.empty() and parent_scheduled_task is not None:
+                # If here the task does not actually need to produce anything
+                # and can be skipped, by "glueing" its dependencies onto the parent
+                assert [scheduled_task] == parent_scheduled_task.depends_on
+                parent_scheduled_task.depends_on = scheduled_task.depends_on
+            else:
+                used_declatations.update(x.name for x in scheduled_task.node.arguments)
+                parent_scheduled_task = scheduled_task
+
+            if len(scheduled_task.depends_on) == 1:
+                scheduled_task = scheduled_task.depends_on[0]
+            else:
+                scheduled_task = None
+
+        return Schedule(
+            {v for v in self.declarations if v.name in used_declatations},
+            tasks[target_node],
+            pipeline_configuration,
+        )
 
     def get_artifact(
         self,

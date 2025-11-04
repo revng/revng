@@ -51,7 +51,7 @@ class ScheduledTask:
     to check that the task can run.
     """
 
-    depends_on: list[ScheduledTask] = field(default_factory=list)
+    depends_on: list[ScheduledTask] = field(default_factory=list, repr=False)
     """
     These are the scheduled tasks that this task depends on, after the scheduling
     phase this list will contain only 0 or 1 elements as it's a path, but
