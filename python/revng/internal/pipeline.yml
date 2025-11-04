@@ -25,6 +25,8 @@ containers:
     type: ObjectFileContainer
   - name: translated
     type: TranslatedContainer
+  - name: llvm-root-with-functions
+    type: LLVMRootContainer
 
 branches:
   files-imported:
@@ -177,4 +179,25 @@ branches:
         containers: [translated]
         artifacts:
           - name: recompile
+            container: translated
+
+  recompile-isolated:
+    from: isolate
+    tasks:
+      - pipe: InvokeIsolatedFunctions
+        arguments: [llvm-root, llvm-functions, llvm-root-with-functions]
+      - pipe: LinkSupport
+        arguments: [llvm-root-with-functions]
+      - pipe: PureLLVMPassesRootPipe
+        arguments: [llvm-root-with-functions]
+        configuration:
+          Passes: [drop-opaque-return-address]
+      - pipe: CompileRootModule
+        arguments: [llvm-root-with-functions, object-file]
+      - pipe: LinkForTranslation
+        arguments: [binaries-container, object-file, translated]
+      - savepoint: recompile-isolated
+        containers: [translated]
+        artifacts:
+          - name: recompile-isolated
             container: translated

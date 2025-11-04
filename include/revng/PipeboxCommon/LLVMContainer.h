@@ -71,6 +71,13 @@ public:
 public:
   const llvm::Module &getModule() const { return *Module; }
   llvm::Module &getModule() { return *Module; }
+
+  void assign(std::unique_ptr<llvm::Module> &&NewModule) {
+    if (&Context == &NewModule->getContext())
+      Module = std::move(NewModule);
+    else
+      Module = cloneIntoContext(*NewModule, Context);
+  }
 };
 
 class LLVMFunctionContainer {
@@ -116,6 +123,9 @@ public:
   }
 
 public:
+  llvm::LLVMContext &getContext() { return Context; }
+  const llvm::LLVMContext &getContext() const { return Context; }
+
   const llvm::Module &getModule(const ObjectID &ID) const {
     return *Modules.at(ID);
   }
