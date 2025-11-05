@@ -676,7 +676,13 @@ IT::TranslationResult IT::translate(LibTcgInstruction *Instr,
 
   // TODO: use ZipIterator here
   for (unsigned I = 0; I < Result.size(); I++) {
+    // Ignore constant output variables
+    if (Instr->output_args[I].kind == LIBTCG_ARG_TEMP
+        and Instr->output_args[I].temp->kind == LIBTCG_TEMP_CONST)
+      continue;
+
     auto *Destination = Variables.getOrCreate(&Instr->output_args[I]);
+    revng_assert(Destination->getType()->isPointerTy());
 
     if (Destination == nullptr) {
       revng_log(Log,
