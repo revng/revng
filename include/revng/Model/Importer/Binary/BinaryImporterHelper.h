@@ -105,7 +105,7 @@ private:
   bool isExecutable(const MetaAddress &Address) const {
     revng_assert(SegmentsInitialized);
     auto ContainsAddress = [Address](const model::Segment *Segment) -> bool {
-      return Segment->contains(Address);
+      return Segment->hasDataFor(Address);
     };
     return llvm::any_of(ExecutableSegments, ContainsAddress);
   }

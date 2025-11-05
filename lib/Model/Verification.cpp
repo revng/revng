@@ -956,7 +956,7 @@ bool Binary::verify(VerifyHelper &VH) const {
 
   auto IsExecutable = [&ExecutableSegments](const MetaAddress &Address) {
     auto ContainsAddress = [Address](const model::Segment *Segment) -> bool {
-      return Segment->contains(Address);
+      return Segment->hasDataFor(Address);
     };
     return llvm::any_of(ExecutableSegments, ContainsAddress);
   };

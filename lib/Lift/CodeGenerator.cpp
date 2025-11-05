@@ -371,12 +371,8 @@ void CodeGenerator::translate(LibTcg &LibTcg,
 
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
-  auto MaybeData = RawBinary.getFromAddressOn(VirtualAddress);
-  revng_assert(MaybeData);
-  llvm::ArrayRef<uint8_t> CodeBuffer = *MaybeData;
-  MetaAddress CodeBufferStartAddress = VirtualAddress;
-
   while (Entry != nullptr) {
+    llvm::ArrayRef<uint8_t> CodeBuffer;
     CodeBuffer = RawBinary.getFromAddressOn(VirtualAddress).value();
 
     LiftTask.advance(VirtualAddress.toString(), true);

@@ -43,13 +43,22 @@ public:
 
 public:
   bool contains(MetaAddress Address) const {
-    auto EndAddress = StartAddress() + VirtualSize();
     return (Address.isValid()
             and StartAddress().addressLowerThanOrEqual(Address)
-            and Address.addressLowerThan(EndAddress));
+            and Address.addressLowerThan(endAddress()));
   }
 
   bool contains(MetaAddress Start, uint64_t Size) const {
+    return contains(Start) and (Size <= 1 or contains(Start + Size - 1));
+  }
+
+  bool hasDataFor(MetaAddress Address) const {
+    return (Address.isValid()
+            and StartAddress().addressLowerThanOrEqual(Address)
+            and Address.addressLowerThan(endDataAddress()));
+  }
+
+  bool hasDataFor(MetaAddress Start, uint64_t Size) const {
     return contains(Start) and (Size <= 1 or contains(Start + Size - 1));
   }
 
@@ -57,7 +66,10 @@ public:
   auto endOffset() const { return StartOffset() + FileSize(); }
 
   /// \return a valid MetaAddress.
-  auto endAddress() const { return StartAddress() + VirtualSize(); }
+  MetaAddress endAddress() const { return StartAddress() + VirtualSize(); }
+
+  /// \return a valid MetaAddress.
+  MetaAddress endDataAddress() const { return StartAddress() + FileSize(); }
 
   std::pair<MetaAddress, MetaAddress> pagesRange() const {
     MetaAddress Start = StartAddress();
