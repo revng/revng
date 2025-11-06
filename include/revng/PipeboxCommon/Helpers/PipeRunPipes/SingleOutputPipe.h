@@ -35,10 +35,12 @@ public:
       const revng::pypeline::Request &Outgoing,
       llvm::StringRef Configuration,
       Args &...Containers) {
-    revng_assert(Outgoing.at(this->OutputContainerIndex).size() == 1);
-
     ObjectDependenciesHelper ODH(Model, Outgoing, this->ContainerCount);
+    auto &RequestedOutputs = Outgoing.at(this->OutputContainerIndex);
+    if (RequestedOutputs.size() == 0)
+      return ODH.takeDependencies();
 
+    revng_assert(RequestedOutputs.size() == 1);
     llvm::Task T1(1, "Running " + this->Name);
     T1.advance("Running 'run'", true);
     T::run(Model, this->StaticConfiguration, Configuration, Containers...);
