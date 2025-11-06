@@ -209,10 +209,15 @@ electDivergence(BasicBlock *Candidate,
 }
 
 /// Simplifies the terminator of `BB` treating `UnreachableSuccessor` as
-/// unreachable. To not break the semantic, `UnreachableSuccessor` must be
-/// guaranteed to be unreachable.
+/// unreachable. `UnreachableSuccessor` must be a successor of `BB`.
 static void simplifyTerminator(llvm::BasicBlock *BB,
                                const llvm::BasicBlock *UnreachableSuccessor) {
+
+  revng_assert(llvm::any_of(llvm::successors(BB),
+                            [UnreachableSuccessor](const llvm::BasicBlock *B) {
+                              return B == UnreachableSuccessor;
+                            }));
+
   Instruction *Terminator = BB->getTerminator();
 
   if (auto *Branch = dyn_cast<BranchInst>(Terminator)) {
@@ -246,26 +251,8 @@ static void simplifyTerminator(llvm::BasicBlock *BB,
     }
   } else if (auto *Switch = dyn_cast<SwitchInst>(Terminator)) {
 
-    // Handle the simplification when `PlaceHolderTager` is the default
-    // destination of the `SwitchInst`
-    BasicBlock *DefaultTarget = Switch->getDefaultDest();
-    if (DefaultTarget == UnreachableSuccessor) {
-
-      // We promote the first case, not pointing to `UnreachableSuccessor`. If
-      // we promote a case already pointing to `UnreachableSuccessor`, this
-      // would, in turn, cause the `default` case to not be simplified ever.
-      for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();
-           ++CaseIt) {
-        if (CaseIt->getCaseSuccessor() != UnreachableSuccessor) {
-          Switch->setDefaultDest(CaseIt->getCaseSuccessor());
-          Switch->removeCase(CaseIt);
-          break;
-        }
-      }
-    }
-
-    // Handle the simplification when `UnreachableSuccessor` is part the
-    // standard `case`s
+    // Handle the simplification for non-default cases jumping to
+    // `UnreachableSuccessor`.
     for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();) {
       if (CaseIt->getCaseSuccessor() == UnreachableSuccessor) {
 
@@ -278,11 +265,18 @@ static void simplifyTerminator(llvm::BasicBlock *BB,
       }
     }
 
-    // It should never be the case that we end up with a `switch` having only
-    // `UnreachableSuccessor` as its successor
-    if (Switch->getNumCases() == 0
-        and Switch->getDefaultDest() == UnreachableSuccessor) {
-      revng_abort();
+    // Handle the simplification when `UnreachableSuccessor` is the default.
+    BasicBlock *DefaultTarget = Switch->getDefaultDest();
+    if (DefaultTarget == UnreachableSuccessor) {
+      // It should never be the case that we end up with a `switch` having only
+      // `UnreachableSuccessor` as its default successor.
+      revng_assert(Switch->getNumCases() != 0);
+
+      // We redirect the default to point to the same case of the first case.
+      // This is arbitrary, but the contract of this function is that
+      // `UnreachableSuccessor` should be guaranteed to be unreachable, so we
+      // can redirect any path that would reach it to wherever we want.
+      Switch->setDefaultDest(Switch->case_begin()->getCaseSuccessor());
     }
   }
 }
