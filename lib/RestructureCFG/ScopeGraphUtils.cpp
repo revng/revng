@@ -296,22 +296,23 @@ void verifyScopeGraphAnnotations(const BasicBlock *BB) {
   verifyScopeGraphAnnotationsImpl(FunctionTags::GotoBlockMarker, BB);
 }
 
-void simplifyTerminator(BasicBlock *BB, const BasicBlock *PlaceHolderTarget) {
+void simplifyTerminator(BasicBlock *BB,
+                        const BasicBlock *UnreachableSuccessor) {
   Instruction *Terminator = BB->getTerminator();
 
   if (auto *Branch = dyn_cast<BranchInst>(Terminator)) {
     if (Branch->isConditional()) {
 
       // We want to transform a conditional branch with one of the destination
-      // set to `PlaceHolderTarget` to a non conditional branch
+      // set to `UnreachableSuccessor` to a non conditional branch
       BasicBlock *SingleDestination = nullptr;
 
-      if (Branch->getSuccessor(0) == PlaceHolderTarget) {
+      if (Branch->getSuccessor(0) == UnreachableSuccessor) {
         SingleDestination = Branch->getSuccessor(1);
-        revng_assert(SingleDestination != PlaceHolderTarget);
-      } else if (Branch->getSuccessor(1) == PlaceHolderTarget) {
+        revng_assert(SingleDestination != UnreachableSuccessor);
+      } else if (Branch->getSuccessor(1) == UnreachableSuccessor) {
         SingleDestination = Branch->getSuccessor(0);
-        revng_assert(SingleDestination != PlaceHolderTarget);
+        revng_assert(SingleDestination != UnreachableSuccessor);
       }
 
       // If we found a `BranchInst` candidate for promotion, we substitute it
@@ -333,14 +334,14 @@ void simplifyTerminator(BasicBlock *BB, const BasicBlock *PlaceHolderTarget) {
     // Handle the simplification when `PlaceHolderTager` is the default
     // destination of the `SwitchInst`
     BasicBlock *DefaultTarget = Switch->getDefaultDest();
-    if (DefaultTarget == PlaceHolderTarget) {
+    if (DefaultTarget == UnreachableSuccessor) {
 
-      // We promote the first case, not pointing to `PlaceHolderTarget`. If we
-      // promote a case already pointing to `PlaceHolderTarget`, this would, in
-      // turn, cause the `default` case to not be simplified ever.
+      // We promote the first case, not pointing to `UnreachableSuccessor`. If
+      // we promote a case already pointing to `UnreachableSuccessor`, this
+      // would, in turn, cause the `default` case to not be simplified ever.
       for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();
            ++CaseIt) {
-        if (CaseIt->getCaseSuccessor() != PlaceHolderTarget) {
+        if (CaseIt->getCaseSuccessor() != UnreachableSuccessor) {
           Switch->setDefaultDest(CaseIt->getCaseSuccessor());
           Switch->removeCase(CaseIt);
           break;
@@ -348,13 +349,13 @@ void simplifyTerminator(BasicBlock *BB, const BasicBlock *PlaceHolderTarget) {
       }
     }
 
-    // Handle the simplification when `PlaceHolderTarget` is part the standard
-    // `case`s
+    // Handle the simplification when `UnreachableSuccessor` is part the
+    // standard `case`s
     for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();) {
-      if (CaseIt->getCaseSuccessor() == PlaceHolderTarget) {
+      if (CaseIt->getCaseSuccessor() == UnreachableSuccessor) {
 
-        // We do not want to have a situation where the `PlaceHolderTarget` is
-        // both the `default` successor of a `switch` and one of its standard
+        // We do not want to have a situation where the `UnreachableSuccessor`
+        // is both the `default` successor of a `switch` and one of its standard
         // case
         CaseIt = Switch->removeCase(CaseIt);
       } else {
@@ -363,9 +364,9 @@ void simplifyTerminator(BasicBlock *BB, const BasicBlock *PlaceHolderTarget) {
     }
 
     // It should never be the case that we end up with a `switch` having only
-    // `PlaceHolderTarget` as its successor
+    // `UnreachableSuccessor` as its successor
     if (Switch->getNumCases() == 0
-        and Switch->getDefaultDest() == PlaceHolderTarget) {
+        and Switch->getDefaultDest() == UnreachableSuccessor) {
       revng_abort();
     }
   }

@@ -90,7 +90,8 @@ void replaceSuccessors(llvm::Instruction *Terminator,
   }
 }
 
-/// Helper function which simplifies all the terminators containing
-/// `PlaceHolderTarget`, by removing it
+/// Simplifies the terminator of `BB` treating `UnreachableSuccessor` as
+/// unreachable. To not break the semantic, `UnreachableSuccessor` must be
+/// guaranteed to be unreachable.
 void simplifyTerminator(llvm::BasicBlock *BB,
-                        const llvm::BasicBlock *PlaceHolderTarget);
+                        const llvm::BasicBlock *UnreachableSuccessor);
