@@ -89,8 +89,3 @@ void replaceSuccessors(llvm::Instruction *Terminator,
     Terminator->replaceSuccessorWith(Successor, NewTarget);
   }
 }
-
-/// Helper function which simplifies all the terminators containing
-/// `PlaceHolderTarget`, by removing it
-void simplifyTerminator(llvm::BasicBlock *BB,
-                        const llvm::BasicBlock *PlaceHolderTarget);
