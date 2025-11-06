@@ -89,9 +89,3 @@ void replaceSuccessors(llvm::Instruction *Terminator,
     Terminator->replaceSuccessorWith(Successor, NewTarget);
   }
 }
-
-/// Simplifies the terminator of `BB` treating `UnreachableSuccessor` as
-/// unreachable. To not break the semantic, `UnreachableSuccessor` must be
-/// guaranteed to be unreachable.
-void simplifyTerminator(llvm::BasicBlock *BB,
-                        const llvm::BasicBlock *UnreachableSuccessor);

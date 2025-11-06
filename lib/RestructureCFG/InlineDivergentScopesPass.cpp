@@ -208,6 +208,85 @@ electDivergence(BasicBlock *Candidate,
   return std::nullopt;
 }
 
+/// Simplifies the terminator of `BB` treating `UnreachableSuccessor` as
+/// unreachable. To not break the semantic, `UnreachableSuccessor` must be
+/// guaranteed to be unreachable.
+static void simplifyTerminator(llvm::BasicBlock *BB,
+                               const llvm::BasicBlock *UnreachableSuccessor) {
+  Instruction *Terminator = BB->getTerminator();
+
+  if (auto *Branch = dyn_cast<BranchInst>(Terminator)) {
+    if (Branch->isConditional()) {
+
+      // We want to transform a conditional branch with one of the destination
+      // set to `UnreachableSuccessor` to a non conditional branch
+      BasicBlock *SingleDestination = nullptr;
+
+      if (Branch->getSuccessor(0) == UnreachableSuccessor) {
+        SingleDestination = Branch->getSuccessor(1);
+        revng_assert(SingleDestination != UnreachableSuccessor);
+      } else if (Branch->getSuccessor(1) == UnreachableSuccessor) {
+        SingleDestination = Branch->getSuccessor(0);
+        revng_assert(SingleDestination != UnreachableSuccessor);
+      }
+
+      // If we found a `BranchInst` candidate for promotion, we substitute it
+      // with an unconditional branch
+      if (SingleDestination) {
+        // TODO: checks are only omitted here because of unit tests.
+        revng::NonDebugInfoCheckingIRBuilder Builder(Terminator);
+
+        // We set the debug metadata of the promoted `Branch` instruction to the
+        // same value it has before the promotion is performed
+        Builder.CreateBr(SingleDestination);
+
+        // We remove the old conditional branch
+        Terminator->eraseFromParent();
+      }
+    }
+  } else if (auto *Switch = dyn_cast<SwitchInst>(Terminator)) {
+
+    // Handle the simplification when `PlaceHolderTager` is the default
+    // destination of the `SwitchInst`
+    BasicBlock *DefaultTarget = Switch->getDefaultDest();
+    if (DefaultTarget == UnreachableSuccessor) {
+
+      // We promote the first case, not pointing to `UnreachableSuccessor`. If
+      // we promote a case already pointing to `UnreachableSuccessor`, this
+      // would, in turn, cause the `default` case to not be simplified ever.
+      for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();
+           ++CaseIt) {
+        if (CaseIt->getCaseSuccessor() != UnreachableSuccessor) {
+          Switch->setDefaultDest(CaseIt->getCaseSuccessor());
+          Switch->removeCase(CaseIt);
+          break;
+        }
+      }
+    }
+
+    // Handle the simplification when `UnreachableSuccessor` is part the
+    // standard `case`s
+    for (auto CaseIt = Switch->case_begin(); CaseIt != Switch->case_end();) {
+      if (CaseIt->getCaseSuccessor() == UnreachableSuccessor) {
+
+        // We do not want to have a situation where the `UnreachableSuccessor`
+        // is both the `default` successor of a `switch` and one of its standard
+        // case
+        CaseIt = Switch->removeCase(CaseIt);
+      } else {
+        ++CaseIt;
+      }
+    }
+
+    // It should never be the case that we end up with a `switch` having only
+    // `UnreachableSuccessor` as its successor
+    if (Switch->getNumCases() == 0
+        and Switch->getDefaultDest() == UnreachableSuccessor) {
+      revng_abort();
+    }
+  }
+}
+
 /// Helper function which create a single entry point block where a divergence
 /// is entered into by multiple successors of a `Conditional`
 static void createHead(BasicBlock *Conditional,
