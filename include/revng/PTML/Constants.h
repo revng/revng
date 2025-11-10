@@ -62,6 +62,7 @@ inline constexpr llvm::StringRef StringLiteral = "c.string_literal";
 inline constexpr llvm::StringRef Type = "c.type";
 inline constexpr llvm::StringRef Variable = "c.variable";
 inline constexpr llvm::StringRef GotoLabel = "c.goto_label";
+inline constexpr llvm::StringRef Macro = "c.macro";
 
 } // namespace tokens
 
