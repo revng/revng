@@ -4,6 +4,7 @@
 
 #include "llvm/ADT/ScopeExit.h"
 
+#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CEmitter.h"

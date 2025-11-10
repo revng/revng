@@ -9,16 +9,16 @@
 
 namespace ptml {
 
-// Attribute in this context is a revng-specific macro that gets unrolled into
-// an `__attribute__(($something))` for the compiler.
+/// Attribute in this context is a revng-specific macro that gets unrolled into
+/// an `__attribute__(($something))` for the compiler.
 struct Attribute {
   std::string_view Macro;
   std::string_view Value;
   bool IsReal = false;
 };
 
-// Annotation is an attribute that can also encode a value
-// (for example an abi name).
+/// Annotation is an attribute that can also encode a value
+/// (for example an abi name).
 struct Annotation {
   std::string_view Macro;
   std::string_view Prefix;

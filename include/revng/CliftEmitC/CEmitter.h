@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Clift/Clift.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Support/CTarget.h"

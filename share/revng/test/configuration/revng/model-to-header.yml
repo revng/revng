@@ -4,6 +4,7 @@
 
 tags:
   - name: model-to-header
+
 sources:
   - tags: [model-to-header]
     prefix: share/revng/test/tests/model-to-header
@@ -13,8 +14,9 @@ sources:
       - union.h.model.yml
       - pointer-to-struct.h.model.yml
       - annotate-attibutes.model.yml
+
 commands:
-  - type: revng.model-to-header-unit-test
+  - type: revng.model-to-header-test
     from:
       - type: source
         filter: model-to-header

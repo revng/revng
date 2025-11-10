@@ -223,7 +223,7 @@ locationFromString(const Rank &, llvm::StringRef String) {
 
 /// A helper interface for location conversion.
 ///
-/// It discloses the static `convert` member in an easier-to-access fashion.
+/// This exposes the static `convert` member in an easier-to-access fashion.
 template<typename ResultRank, typename InputRank>
   requires(RankConvertibleTo<ResultRank, InputRank>)
 inline constexpr Location<ResultRank>

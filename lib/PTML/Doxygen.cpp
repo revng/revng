@@ -17,7 +17,8 @@ static constexpr auto Identifier = "doxygen.identifier";
 } // namespace ptml::tokens
 
 struct Attribute {
-  std::string Name, Value;
+  std::string Name;
+  std::string Value;
 };
 
 struct DoxygenToken {

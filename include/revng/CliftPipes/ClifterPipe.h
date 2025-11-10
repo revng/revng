@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Model/NameBuilder.h"
 #include "revng/PipeboxCommon/CliftContainer.h"
 #include "revng/PipeboxCommon/Common.h"
 #include "revng/PipeboxCommon/LLVMContainer.h"
