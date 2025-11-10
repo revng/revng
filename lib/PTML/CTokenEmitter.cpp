@@ -382,6 +382,10 @@ void ptml::CTokenEmitter::emitOperator(Operator O) {
     return Emit(">>");
   case Operator::GreaterGreaterEquals:
     return Emit(">>=");
+  case Operator::Hash:
+    return Emit("#");
+  case Operator::HashHash:
+    return Emit("##");
   case Operator::LeftBracket:
     return Emit("[");
   case Operator::LeftParenthesis:
