@@ -83,6 +83,7 @@ inline constexpr llvm::StringRef DynamicFunctionDeclarationsList = "c.dynamic_"
                                                                    "s_list";
 inline constexpr llvm::StringRef SegmentDeclarationsList = "c.segment_"
                                                            "declarations_list";
+inline constexpr llvm::StringRef MacroIfBody = "c.macro_if_body";
 
 } // namespace scopes
 
