@@ -354,7 +354,7 @@ struct BidirectionalNodeBaseTCalc {
 using revng::detail::BidirectionalNodeBaseTCalc;
 
 /// Same as ForwardNode, but with backward links too
-/// TODO: Make edge labels immutable
+// TODO: Make edge labels immutable
 template<typename Node,
          typename EdgeLabel = Empty,
          bool NeedsParent = true,

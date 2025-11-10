@@ -141,9 +141,9 @@ public:
 
 public:
   /// Serializes a location into a string.
-  ///
-  /// TODO: look into the constexpr implementation once constexpr strings are
-  /// implemented (clang-15+)
+  //
+  // TODO: look into the constexpr implementation once constexpr strings are
+  // implemented (clang-15+)
   std::string toString() const {
     std::string Result;
 

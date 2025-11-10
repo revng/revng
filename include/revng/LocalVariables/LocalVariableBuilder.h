@@ -44,9 +44,9 @@ class Type;
 /// - IsLegacy == true: uses the old FunctionTags and dedicated functions to
 ///   represent dedicated opcodes
 /// - IsLegacy == false: uses regular LLVM alloca/load/store instructions
-///
-/// TODO: when the migration is over, the IsLegacy field can be dropped to
-/// fully embrace the new ways.
+//
+// TODO: when the migration is over, the IsLegacy field can be dropped to
+// fully embrace the new ways.
 template<bool IsLegacy>
 class LocalVariableBuilder {
 public:
@@ -85,9 +85,10 @@ private:
 
   /// \name Data members used only for Legacy mode.
   ///
-  /// TODO: drop these when we drop legacy mode
-  ///
   ///@{
+
+  // TODO: drop these when we drop legacy mode
+  //
 
   /// Pool of functions that represent allocation of local variables
   OpaqueFunctionsPool<llvm::Type *> LocalVarPool;
@@ -136,10 +137,11 @@ public:
 public:
   /// Factories to create LocalVariableBuilders
   ///
-  /// TODO: drop these when we drop legacy mode, in favor of just using the only
-  /// constructor left.
   ///
   ///@{
+
+  // TODO: drop these when we drop legacy mode, in favor of just using the only
+  // constructor left.
 
   static LocalVariableBuilder
   makeLegacyStackBuilder(const model::Binary &TheBinary,
@@ -176,7 +178,8 @@ public:
   /// The created instruction is inserted at the beginning of the function F.
   /// This is typically an alloca, but it's a call to LocalVariable in legacy
   /// mode.
-  /// TODO: this method can become const when we drop legacy mode.
+  //
+  // TODO: this method can become const when we drop legacy mode.
   LocalVarType *createLocalVariable(const model::Type &VariableType);
 
   /// Creates an llvm::Instruction that models the allocation of a local
@@ -194,8 +197,8 @@ public:
   /// In non-legacy mode:
   /// - the instruction to allocate the local variable is a regular alloca
   /// - the alloca is ptr-to-int casted to a pointer-sized integer.custom opaque
-  ///
-  /// TODO: this method can become const when we drop legacy mode.
+  //
+  // TODO: this method can become const when we drop legacy mode.
   std::pair<LocalVarType *, llvm::Instruction *>
   createLocalVariableAndTakeIntAddress(const model::Type &VariableType);
 
@@ -215,8 +218,8 @@ public:
   /// In non-legacy mode:
   /// - the instruction to allocate the local variable is a regular alloca
   /// - the alloca is ptr-to-int casted to a pointer-sized integer.custom opaque
-  ///
-  /// TODO: this method can become const when we drop legacy mode.
+  //
+  // TODO: this method can become const when we drop legacy mode.
   llvm::Instruction *createStackFrameVariable();
 
   /// Creates an llvm::Instruction that models the allocation of a local
@@ -236,8 +239,8 @@ public:
   /// In non-legacy mode:
   /// - the instruction to allocate the local variable is a regular alloca
   /// - the alloca is ptr-to-int casted to a pointer-sized integer.custom opaque
-  ///
-  /// TODO: this method can be dropped when we drop legacy mode, because the
+  //
+  // TODO: this method can be dropped when we drop legacy mode, because the
   /// callers can just switch to call createLocalVariableAndTakeAddress
   llvm::Instruction *
   createCallStackArgumentVariable(const model::Type &VariableType);
@@ -252,8 +255,8 @@ public:
   /// instruction is a call to Copy.
   /// In non-legacy mode an instruction representing a variable location should
   /// be a ptr-typed instruction, and copy is a LoadInst.
-  ///
-  /// TODO: This method can be made const whenever we drop legacy mode.
+  //
+  // TODO: This method can be made const whenever we drop legacy mode.
   CopyType *createCopyOnUse(ReferenceType *LocationToCopy, llvm::Use &U);
 
   /// Takes an assignment instruction and a Use and replaces the Use with a
@@ -263,8 +266,8 @@ public:
   /// instruction is a call to Copy.
   /// In non-legacy mode an assignment instruction is just a StoreInst, and copy
   /// a LoadInst.
-  ///
-  /// TODO: This method can be made const whenever we drop legacy mode.
+  //
+  // TODO: This method can be made const whenever we drop legacy mode.
   CopyType *createCopyFromAssignedOnUse(AssignType *Assign, llvm::Use &U);
 
   /// Creates an assignment instruction, at the location specified by
@@ -273,8 +276,8 @@ public:
   ///
   /// In legacy mode an assignment instruction is a call to Assign.
   /// In non-legacy mode an assignment instruction is just a StoreInst.
-  ///
-  /// TODO: This method can be made const whenever we drop legacy mode.
+  //
+  // TODO: This method can be made const whenever we drop legacy mode.
   AssignType *createAssignmentBefore(llvm::Value *LocationToAssign,
                                      llvm::Value *ValueToAssign,
                                      llvm::Instruction *InsertBefore);
@@ -296,8 +299,9 @@ private:
   /// Legacy methods for lazily initializing the StackFrameAllocator and
   /// CallStackArgumentsAllocator, in Legacy mode.
   ///
-  /// TODO: drop these when we drop legacy mode
   ///@{
+
+  // TODO: drop these when we drop legacy mode
 
   llvm::Function *getStackFrameAllocator();
 

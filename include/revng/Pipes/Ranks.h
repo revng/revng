@@ -393,7 +393,6 @@ inline auto HelperStructType = defineRank<"helper-struct-type", // formatting
 /// QEMU and LLVM helper functions.
 ///
 /// The key is the name of the field.
-/// TODO: consider using indexes instead.
 ///
 /// Examples:
 /// ```
@@ -402,6 +401,7 @@ inline auto HelperStructType = defineRank<"helper-struct-type", // formatting
 /// /helper-struct-field/aarch64_save_sp/field_2
 /// /helper-struct-field/qemu_strnlen/field_3
 /// ```
+// TODO: consider using indexes instead.
 inline auto HelperStructField = defineRank<"helper-struct-field",
                                            std::string>(HelperStructType);
 
