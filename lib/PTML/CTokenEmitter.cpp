@@ -456,12 +456,13 @@ void ptml::CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
     Tag.emitAttribute(ptml::attributes::Token, *Attribute);
   if (not Location.empty()) {
     Tag.emitAttribute(LocationAttribute, Location);
-    Tag.emitAttribute(ptml::attributes::ActionContextLocation,
-                      getActionContextLocation(Location));
 
     auto Actions = getAllowedActions(Location);
-    if (not Actions.empty())
+    if (not Actions.empty()) {
+      Tag.emitAttribute(ptml::attributes::ActionContextLocation,
+                        getActionContextLocation(Location));
       Tag.emitListAttribute(ptml::attributes::AllowedActions, Actions);
+    }
   }
   Tag.finalizeOpenTag();
 
