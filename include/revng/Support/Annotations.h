@@ -40,9 +40,9 @@ struct AttributeRegistry {
 
   // TODO: add dynamic containers if the need ever arises.
 
-private:
+public:
   template<ConstexprString Macro>
-  static consteval std::optional<Attribute> getAttributeImpl() {
+  static consteval std::optional<Attribute> getAttribute() {
     auto Result = std::ranges::find_if(StaticAttributes, [](auto &&A) {
       return *Macro == A.Macro;
     });
@@ -52,7 +52,7 @@ private:
   }
 
   template<ConstexprString Macro>
-  static consteval std::optional<Annotation> getAnnotationImpl() {
+  static consteval std::optional<Annotation> getAnnotation() {
     auto Result = std::ranges::find_if(StaticAnnotations, [](auto &&A) {
       return *Macro == A.Macro;
     });
@@ -61,10 +61,9 @@ private:
     return *Result;
   }
 
-public:
   template<ConstexprString Macro>
-  static std::string getAttribute() {
-    constexpr std::optional Attribute = getAttributeImpl<Macro>();
+  static std::string getAttributeString() {
+    constexpr std::optional Attribute = getAttribute<Macro>();
     if constexpr (Attribute) {
       return std::string(Attribute->Macro);
     } else {
@@ -72,8 +71,8 @@ public:
     }
   }
   template<ConstexprString Macro>
-  static std::string getAnnotation(std::string_view Value) {
-    constexpr std::optional Annotation = getAnnotationImpl<Macro>();
+  static std::string getAnnotationString(std::string_view Value) {
+    constexpr std::optional Annotation = getAnnotation<Macro>();
     if constexpr (Annotation) {
       return std::string(Annotation->Macro) + "(" + std::string(Value) + ")";
     } else {
@@ -81,17 +80,17 @@ public:
     }
   }
   template<ConstexprString Macro>
-  static std::string getAnnotation(uint64_t Value) {
-    return getAnnotation<Macro>(std::to_string(Value));
+  static std::string getAnnotationString(uint64_t Value) {
+    return getAnnotationString<Macro>(std::to_string(Value));
   }
 
   template<ConstexprString Macro>
   static consteval std::string_view getPrefix() {
-    constexpr std::optional Annotation = getAnnotationImpl<Macro>();
+    constexpr std::optional Annotation = getAnnotation<Macro>();
     if constexpr (Annotation) {
       return Annotation->Prefix;
     } else {
-      constexpr std::optional Attribute = getAttributeImpl<Macro>();
+      constexpr std::optional Attribute = getAttribute<Macro>();
       if constexpr (Attribute) {
         return Attribute->Value;
       } else {
@@ -101,26 +100,15 @@ public:
     }
   }
 
-  // TODO: Generate `attributes.h` header instead of providing a static one,
-  //       which would enable users to Ctrl + click these macros.
-  static std::string getDefinitions() {
-    std::string Result;
-    for (Attribute const &Attribute : StaticAttributes) {
-      Result += "#define " + std::string(Attribute.Macro) + " __attribute__((";
-      if (Attribute.IsReal)
-        Result += std::string(Attribute.Value);
-      else
-        Result += "annotate(\"" + std::string(Attribute.Value) + "\")";
-      Result += "))\n";
-    }
-
-    for (Annotation const &Annotation : StaticAnnotations) {
-      Result += "#define " + std::string(Annotation.Macro)
-                + "(value) __attribute__((annotate(\""
-                + std::string(Annotation.Prefix) + "value\")))\n";
-    }
-
-    return Result;
+  template<typename CallableType>
+  void forEachAttribute(CallableType &&Callable) const {
+    for (const Attribute &Attribute : StaticAttributes)
+      std::invoke(std::forward<CallableType>(Callable), Attribute);
+  }
+  template<typename CallableType>
+  void forEachAnnotation(CallableType &&Callable) const {
+    for (const Annotation &Annotation : StaticAnnotations)
+      std::invoke(std::forward<CallableType>(Callable), Annotation);
   }
 
 public:
