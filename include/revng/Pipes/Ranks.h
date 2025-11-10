@@ -405,4 +405,27 @@ inline auto HelperStructType = defineRank<"helper-struct-type", // formatting
 inline auto HelperStructField = defineRank<"helper-struct-field",
                                            std::string>(HelperStructType);
 
+/// This is the rank for representing c macros introduced in our headers.
+///
+/// The key is the name of the macro.
+///
+/// Examples:
+/// ```
+/// /macro/__attribute__
+/// /macro/_PACKED
+/// /macro/_ABI
+/// ```
+inline auto Macro = defineRank<"macro", std::string>(Binary);
+
+/// This is the rank for representing c macros introduced in our headers.
+///
+/// The key is the name of the macro.
+///
+/// Examples:
+/// ```
+/// /macro-argument/_ABI/Value
+/// /macro-argument/_REG/Value
+/// ```
+inline auto MacroArgument = defineRank<"macro-argument", std::string>(Macro);
+
 } // namespace revng::ranks
