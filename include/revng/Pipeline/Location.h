@@ -141,9 +141,9 @@ public:
 
 public:
   /// Serializes a location into a string.
-  ///
-  /// TODO: look into the constexpr implementation once constexpr strings are
-  /// implemented (clang-15+)
+  //
+  // TODO: look into the constexpr implementation once constexpr strings are
+  // implemented (clang-15+)
   std::string toString() const {
     std::string Result;
 
@@ -223,7 +223,7 @@ locationFromString(const Rank &, llvm::StringRef String) {
 
 /// A helper interface for location conversion.
 ///
-/// It discloses the static `convert` member in an easier-to-access fashion.
+/// This exposes the static `convert` member in an easier-to-access fashion.
 template<typename ResultRank, typename InputRank>
   requires(RankConvertibleTo<ResultRank, InputRank>)
 inline constexpr Location<ResultRank>

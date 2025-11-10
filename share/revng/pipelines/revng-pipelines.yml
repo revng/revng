@@ -47,6 +47,14 @@ Containers:
     Type: clift-module
   - Name: model-type-definitions.tar.gz
     Type: model-type-definitions
+  - Name: attribute-header.h.ptml
+    Type: attribute-header
+  - Name: primitive-header.h.ptml
+    Type: primitive-header
+  - Name: helper-header.h.ptml
+    Type: new-helper-header
+  - Name: model-header.h.ptml
+    Type: new-model-header
 Branches:
   - Steps:
       - Name: initial
@@ -719,6 +727,58 @@ Branches:
             This artifact is a single PTML file representing the decompiled C
             code of the whole program, including the body of all of program's
             functions. (Clift backend)
+  - From: initial
+    Steps:
+      - Name: emit-attribute-header
+        Pipes:
+          - Type: emit-attribute-header
+            UsedContainers: [input, attribute-header.h.ptml]
+        Artifacts:
+          Container: attribute-header.h.ptml
+          Kind: attribute-header
+          SingleTargetFilename: attributes.h
+          Docs: |-
+            This artifact contains all the declarations of attributes used by
+            other headers and the decompiled code.
+  - From: initial
+    Steps:
+      - Name: emit-primitive-header
+        Pipes:
+          - Type: emit-primitive-header
+            UsedContainers: [input, primitive-header.h.ptml]
+        Artifacts:
+          Container: primitive-header.h.ptml
+          Kind: primitive-header
+          SingleTargetFilename: primitive-types.h
+          Docs: |-
+            This artifact contains all the declarations of primitive types used
+            by other headers and the decompiled code.
+  - From: emit-c
+    Steps:
+      - Name: emit-new-model-header
+        Pipes:
+          - Type: emit-new-model-header
+            UsedContainers: [functions.mlir, model-header.h.ptml]
+        Artifacts:
+          Container: model-header.h.ptml
+          Kind: new-model-header
+          SingleTargetFilename: new-types-and-globals.h
+          Docs: |-
+            This artifact contains all the declarations of non-primitive types,
+            functions and segment globals.
+  - From: emit-c
+    Steps:
+      - Name: emit-new-helper-header
+        Pipes:
+          - Type: emit-new-helper-header
+            UsedContainers: [functions.mlir, helper-header.h.ptml]
+        Artifacts:
+          Container: helper-header.h.ptml
+          Kind: new-helper-header
+          SingleTargetFilename: new-helpers.h
+          Docs: |-
+            This artifact contains all the declarations of llvm and qemu helpers
+            that survived until the decompiled code.
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:

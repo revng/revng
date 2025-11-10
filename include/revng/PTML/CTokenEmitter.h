@@ -8,7 +8,12 @@
 #include "llvm/ADT/StringRef.h"
 
 #include "revng/PTML/Emitter.h"
+#include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
+#include "revng/Support/Annotations.h"
 #include "revng/Support/CTarget.h"
+
+namespace ptml {
 
 class CTokenEmitter {
   ptml::Emitter PTML;
@@ -17,9 +22,19 @@ public:
   explicit CTokenEmitter(llvm::raw_ostream &OS, ptml::Tagging Tags) :
     PTML(OS, Tags) {}
 
+  [[nodiscard]] TagEmitter initializeOpenTag(llvm::StringRef Tag) {
+    return PTML.initializeOpenTag(Tag);
+  }
+
   void emitSpace() { PTML.emitLiteralContent(" "); }
 
   void emitNewline() { PTML.emitContentNewline(); }
+
+  // TODO: group this with something else! Operators maybe?
+  void emitBackslash() {
+    // TODO: does this need escaping in ptml?
+    PTML.emitLiteralContent("\\");
+  }
 
   enum class Keyword {
     Auto,
@@ -96,6 +111,8 @@ public:
     GreaterEquals,
     GreaterGreater,
     GreaterGreaterEquals,
+    Hash,
+    HashHash,
     LeftBracket,
     LeftParenthesis,
     Less,
@@ -146,6 +163,8 @@ public:
 
     Attribute,
     AttributeArgument,
+
+    Macro,
   };
 
   enum class IdentifierKind : bool {
@@ -159,6 +178,35 @@ public:
                       EntityKind Kind,
                       IdentifierKind IsDefinition);
 
+  void emitPrimitive(llvm::StringRef Name,
+                     IdentifierKind IsDefinition = IdentifierKind::Reference) {
+    emitIdentifier(Name,
+                   pipeline::locationString(revng::ranks::PrimitiveType,
+                                            Name.str()),
+                   EntityKind::Primitive,
+                   IsDefinition);
+  }
+
+  void emitMacro(llvm::StringRef Name,
+                 IdentifierKind IsDefinition = IdentifierKind::Reference) {
+    emitIdentifier(Name,
+                   pipeline::locationString(revng::ranks::Macro, Name.str()),
+                   EntityKind::Macro,
+                   IsDefinition);
+  }
+
+  void
+  emitMacroArgument(llvm::StringRef MacroName,
+                    llvm::StringRef ArgumentName,
+                    IdentifierKind IsDefinition = IdentifierKind::Reference) {
+    emitIdentifier(ArgumentName,
+                   pipeline::locationString(revng::ranks::MacroArgument,
+                                            MacroName.str(),
+                                            ArgumentName.str()),
+                   EntityKind::FunctionParameter,
+                   IsDefinition);
+  }
+
   /// \pre \param Identifier matches `[_a-zA-Z][_a-zA-Z0-9]*`.
   void emitLiteralIdentifier(llvm::StringRef Identifier);
 
@@ -171,14 +219,40 @@ public:
   void
   emitIntegerLiteral(llvm::APSInt Value, CIntegerKind Type, unsigned Radix);
 
-  void emitStringLiteral(llvm::StringRef Content);
+  void emitSignedIntegerLiteral(int64_t Value);
+  void emitUnsignedIntegerLiteral(uint64_t Value);
 
-  enum class CommentKind : bool {
+  void emitStringLiteralImpl(llvm::StringRef Content,
+                             llvm::StringRef Delimiter);
+  void emitStringLiteral(llvm::StringRef Content) {
+    emitStringLiteralImpl(Content, "\"");
+  }
+
+  enum class CommentKind : uint8_t {
     Line,
     Block,
+    Category, // WIP: better name?
   };
 
-  void emitComment(llvm::StringRef Content, CommentKind Kind);
+  void emitComment(llvm::StringRef Content,
+                   CommentKind Kind = CommentKind::Line);
+
+  enum class PreprocessorDirective : uint8_t {
+    Include,
+    Pragma,
+    Define,
+    Undef,
+    If,
+    Ifdef,
+    Else,
+    Endif,
+
+    // This one doesn't really belong in here BUT we want to syntax-highlight
+    // it as one (that's what vscode does by default).
+    Defined,
+  };
+
+  void emitDirective(PreprocessorDirective Directive);
 
   enum class IncludeMode : bool {
     Quote,
@@ -189,6 +263,70 @@ public:
                             llvm::StringRef Location,
                             IncludeMode Mode);
 
+  void emitPragmaDirective(llvm::StringRef Content);
+  void emitPragmaOnceDirective() { return emitPragmaDirective("once"); }
+
+  void emitDefineDirective(llvm::StringRef DefinedName,
+                           IdentifierKind IsDef = IdentifierKind::Definition) {
+    emitDirective(PreprocessorDirective::Define);
+    PTML.emitLiteralContent(" ");
+    emitMacro(DefinedName, IsDef);
+  }
+  void emitUndefDirective(llvm::StringRef DefinedName) {
+    emitDirective(PreprocessorDirective::Undef);
+    PTML.emitLiteralContent(" ");
+    emitMacro(DefinedName);
+  }
+
+public:
+  template<ConstexprString Macro>
+  void emitAttribute() {
+    constexpr std::optional Attribute = Attributes.getAttribute<Macro>();
+    if constexpr (Attribute) {
+      emitMacro(Attribute->Macro);
+    } else {
+      static_assert(value_always_false_v<Macro>, "Unknown attribute.");
+    }
+  }
+
+  template<ConstexprString Macro>
+  void emitAnnotation(std::string_view Value) {
+    constexpr std::optional Annotation = Attributes.getAnnotation<Macro>();
+    if constexpr (Annotation) {
+      emitMacro(Annotation->Macro);
+      emitPunctuator(ptml::CTokenEmitter::Punctuator::LeftParenthesis);
+      emitStringLiteralImpl(Value, ""); // TODO: we can do better here
+      emitPunctuator(ptml::CTokenEmitter::Punctuator::RightParenthesis);
+    } else {
+      static_assert(value_always_false_v<Macro>, "Unknown annotation.");
+    }
+  }
+
+  template<ConstexprString Macro>
+  void emitAnnotation(uint64_t Value) {
+    emitAnnotation<Macro>(std::to_string(Value));
+  }
+
+  struct ComplexAnnotationGuard {
+    CTokenEmitter &PTML;
+
+    ~ComplexAnnotationGuard() {
+      PTML.emitPunctuator(ptml::CTokenEmitter::Punctuator::RightParenthesis);
+    }
+  };
+  template<ConstexprString Macro>
+  ComplexAnnotationGuard emitComplexAnnotation() {
+    constexpr std::optional Annotation = Attributes.getAnnotation<Macro>();
+    if constexpr (Annotation) {
+      emitMacro(Annotation->Macro);
+      emitPunctuator(ptml::CTokenEmitter::Punctuator::LeftParenthesis);
+      return ComplexAnnotationGuard{ *this };
+    } else {
+      static_assert(value_always_false_v<Macro>, "Unknown annotation.");
+    }
+  }
+
+public:
   enum class ScopeKind : uint8_t {
     None,
     EnumDefinition,
@@ -197,6 +335,12 @@ public:
     FunctionDeclaration,
     FunctionDefinition,
     BlockStatement,
+    MacroIf,
+    MacroIfDef,
+
+    // `revng ptml` requires a simple top level scope no matter the file type.
+    // WIP: note-to-self: this was a stupid idea, don't forget to get rid of it.
+    Header,
   };
 
   enum class Delimiter : uint8_t {
@@ -204,24 +348,32 @@ public:
     Braces,
   };
 
+  void indent(int64_t LevelDifference) { PTML.indent(LevelDifference); }
+
   class Scope {
   public:
     explicit Scope(CTokenEmitter &Emitter,
                    ScopeKind Kind,
                    Delimiter Delimiter,
                    int Indent) :
-      Emitter(Emitter), Delimiter(Delimiter), Indent(Indent), Tag() {
+      Emitter(Emitter),
+      Kind(Kind),
+      Delimiter(Delimiter),
+      Indent(Indent),
+      Tag() {
+
       Emitter.enterScopeImpl(Tag, Delimiter, Indent, Kind);
     }
 
     Scope(const Scope &) = delete;
-    Scope &operator=(const Scope &) = delete;
+    Scope(Scope &&) = default;
 
-    ~Scope() { Emitter.leaveScopeImpl(Tag, Delimiter, Indent); }
+    ~Scope() { Emitter.leaveScopeImpl(Tag, Delimiter, Indent, Kind); }
 
   private:
     CTokenEmitter &Emitter;
 
+    ScopeKind Kind;
     Delimiter Delimiter;
     int Indent;
 
@@ -241,5 +393,8 @@ private:
 
   void leaveScopeImpl(ptml::Emitter::TagEmitter &Tag,
                       Delimiter Delimiter,
-                      int Indent);
+                      int Indent,
+                      ScopeKind Kind);
 };
+
+} // namespace ptml

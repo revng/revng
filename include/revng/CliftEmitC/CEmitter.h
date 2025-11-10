@@ -14,15 +14,21 @@ namespace mlir::clift {
 /// Base class with common utilities for emitters emitting C from Clift.
 class CEmitter {
 protected:
-  using CTE = CTokenEmitter;
+  using CTE = ptml::CTokenEmitter;
 
-  CTokenEmitter &C;
+  // WIP: make public instead of providing a getter? A better name?
+  //      Maybe `PTML`?
+  ptml::CTokenEmitter &C;
+
+public:
   const TargetCImplementation &Target;
 
 public:
-  explicit CEmitter(CTokenEmitter &Emitter,
+  explicit CEmitter(ptml::CTokenEmitter &Emitter,
                     const TargetCImplementation &Target) :
     C(Emitter), Target(Target) {}
+
+  ptml::CTokenEmitter &tokenEmitter() { return C; }
 
   //===------------------------------- Types ------------------------------===//
 
@@ -33,6 +39,14 @@ public:
   }
 
   void emitType(ValueType Type);
+
+  static bool isDeclarationTheSameAsDefinition(mlir::clift::DefinedType Type);
+  static bool hasSeparateForwardDeclaration(mlir::clift::DefinedType Type) {
+    return not isDeclarationTheSameAsDefinition(Type);
+  }
+
+  void emitTypeDeclaration(mlir::clift::DefinedType Type);
+  void emitTypeDefinition(mlir::clift::DefinedType Type);
 
   //===---------------------------- Attributes ----------------------------===//
 
@@ -66,6 +80,9 @@ public:
 
   /// Emit a function or variable declaration of the specified type.
   void emitDeclaration(ValueType Type, DeclaratorInfo const &Declarator);
+
+public:
+  void emitFunctionPrototype(FunctionOp Function);
 
 private:
   class DeclarationEmitter;

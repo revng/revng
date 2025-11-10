@@ -62,6 +62,7 @@ inline constexpr llvm::StringRef StringLiteral = "c.string_literal";
 inline constexpr llvm::StringRef Type = "c.type";
 inline constexpr llvm::StringRef Variable = "c.variable";
 inline constexpr llvm::StringRef GotoLabel = "c.goto_label";
+inline constexpr llvm::StringRef Macro = "c.macro";
 
 } // namespace tokens
 
@@ -82,6 +83,7 @@ inline constexpr llvm::StringRef DynamicFunctionDeclarationsList = "c.dynamic_"
                                                                    "s_list";
 inline constexpr llvm::StringRef SegmentDeclarationsList = "c.segment_"
                                                            "declarations_list";
+inline constexpr llvm::StringRef MacroIfBody = "c.macro_if_body";
 
 } // namespace scopes
 

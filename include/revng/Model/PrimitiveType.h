@@ -101,6 +101,7 @@ public:
   /// @{
 
   std::string getCName() const {
+    revng_assert(isSizeValid());
     if (PrimitiveKind() == model::PrimitiveKind::Void) {
       revng_assert(Size() == 0);
       return "void";
@@ -150,6 +151,85 @@ public:
 
   static bool isCName(llvm::StringRef Name) {
     return not fromCName(Name).isEmpty();
+  }
+
+  /// @}
+
+public:
+  ///
+  /// \name size-related helpers (including verification)
+  /// @{
+
+  static constexpr uint64_t ValidVoidSize = 0;
+  static constexpr std::array<uint64_t, 5> ValidIntegerSizes{ 1, 2, 4, 8, 16 };
+  static constexpr std::array<uint64_t, 6> ValidFloatSizes{
+    2, 4, 8, 10, 12, 16
+  };
+
+  static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values Kind,
+                                             uint8_t Size) {
+    // NOTE: We are supporting floats that are 10 bytes long, since we found
+    // such
+    //       cases in some PDB files by using VS on Windows platforms. The
+    //       source code of those cases could be written in some language other
+    //       than C/C++ (probably Swift). We faced some struct fields by using
+    //       this (10b long float) type, so by ignoring it we would not have
+    //       accurate layout for the structs.
+
+    switch (Kind) {
+    case PrimitiveKind::Invalid:
+      return false;
+
+    case PrimitiveKind::Void:
+      return Size == ValidVoidSize;
+
+    case PrimitiveKind::PointerOrNumber:
+    case PrimitiveKind::Number:
+    case PrimitiveKind::Unsigned:
+    case PrimitiveKind::Signed:
+      return std::ranges::binary_search(ValidIntegerSizes, Size);
+
+    case PrimitiveKind::Float:
+      return std::ranges::binary_search(ValidFloatSizes, Size);
+
+    case PrimitiveKind::Generic:
+      return std::ranges::binary_search(ValidIntegerSizes, Size)
+             || std::ranges::binary_search(ValidFloatSizes, Size);
+
+    default:
+      revng_abort("Unsupported primitive kind");
+    }
+  }
+
+  bool isSizeValid() const {
+    return isValidPrimitiveSize(PrimitiveKind(), Size());
+  }
+
+  static constexpr std::span<const uint64_t>
+  staticValidSizes(PrimitiveKind::Values Kind) {
+    revng_assert(Kind != PrimitiveKind::Generic,
+                 "Unable to give static size list for generics, please use the "
+                 "dynamic version");
+    if (Kind == PrimitiveKind::Values::Void)
+      return std::span<const uint64_t>{ &ValidVoidSize, 1 };
+    if (Kind == PrimitiveKind::Values::Float)
+      return ValidFloatSizes;
+    else
+      return ValidIntegerSizes;
+  }
+
+  static std::vector<uint64_t> validSizes(PrimitiveKind::Values Kind) {
+    if (Kind == PrimitiveKind::Values::Generic) {
+      std::vector<uint64_t> Result;
+
+      std::ranges::set_union(ValidIntegerSizes,
+                             ValidFloatSizes,
+                             std::back_inserter(Result));
+      return Result;
+    }
+
+    std::span Result = staticValidSizes(Kind);
+    return std::vector(Result.begin(), Result.end());
   }
 
   /// @}

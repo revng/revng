@@ -1105,33 +1105,7 @@ public:
                                      CTE::Delimiter::None,
                                      /*Indented=*/false);
 
-      llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
-      for (unsigned I = 0; I < Op.getArgCount(); ++I) {
-        auto Attrs = Op.getArgAttrs(I);
-
-        auto GetStringAttr = [&Attrs](llvm::StringRef Name) {
-          return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
-        };
-
-        mlir::ArrayAttr Attributes = {};
-        if (auto Attr = Attrs.get("clift.attributes")) {
-          Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
-          revng_assert(isValidAttributeArray(Attributes));
-        }
-
-        ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
-                                          GetStringAttr("clift.handle"),
-                                          Attributes);
-      }
-
-      emitDeclaration(Op.getCliftFunctionType(),
-                      DeclaratorInfo{
-                        .Identifier = Op.getName(),
-                        .Location = Op.getHandle(),
-                        .Attributes = getDeclarationOpAttributes(Op),
-                        .Kind = CTE::EntityKind::Function,
-                        .Parameters = ParameterDeclarators,
-                      });
+      emitFunctionPrototype(Op);
 
       C.emitSpace();
 
@@ -1155,7 +1129,7 @@ public:
 } // namespace
 
 void clift::decompile(FunctionOp Function,
-                      CTokenEmitter &Emitter,
+                      ptml::CTokenEmitter &Emitter,
                       const TargetCImplementation &Target) {
   CliftToCEmitter(Emitter, Target).emitFunction(Function);
 }

@@ -14,7 +14,7 @@
 namespace mlir::clift {
 
 void decompile(FunctionOp Function,
-               CTokenEmitter &Emitter,
+               ptml::CTokenEmitter &Emitter,
                const TargetCImplementation &Target);
 
 } // namespace mlir::clift

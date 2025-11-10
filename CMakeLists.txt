@@ -21,7 +21,7 @@ include_directories("${CMAKE_BINARY_DIR}/include")
 add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 
 # Uncomment the following line if recursive coroutines make debugging hard
-# add_definitions("-DDISABLE_RECURSIVE_COROUTINES")
+add_definitions("-DDISABLE_RECURSIVE_COROUTINES")
 
 # Remove -rdynamic
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)

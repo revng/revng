@@ -123,8 +123,9 @@ static const model::Function &getModelFunction(Function *F,
 /// Specialization of methods for creating different kinds of local variables in
 /// legacy mode.
 ///
-/// TODO: drop these when we drop legacy mode
 ///@{
+
+// TODO: drop these when we drop legacy mode
 
 template<>
 LegacyVB::LocalVarType *

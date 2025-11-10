@@ -286,42 +286,6 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 // Types
 //
 
-static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values Kind,
-                                           uint8_t Size) {
-  constexpr std::array ValidGenericPrimitives{ 1, 2, 4, 8, 16 };
-  constexpr std::array ValidFloatPrimitives{ 2, 4, 8, 10, 12, 16 };
-  // NOTE: We are supporting floats that are 10 bytes long, since we found such
-  //       cases in some PDB files by using VS on Windows platforms. The source
-  //       code of those cases could be written in some language other than
-  //       C/C++ (probably Swift). We faced some struct fields by using this
-  //       (10b long float) type, so by ignoring it we would not have accurate
-  //       layout for the structs.
-
-  switch (Kind) {
-  case PrimitiveKind::Invalid:
-    return false;
-
-  case PrimitiveKind::Void:
-    return Size == 0;
-
-  case PrimitiveKind::PointerOrNumber:
-  case PrimitiveKind::Number:
-  case PrimitiveKind::Unsigned:
-  case PrimitiveKind::Signed:
-    return std::ranges::binary_search(ValidGenericPrimitives, Size);
-
-  case PrimitiveKind::Float:
-    return std::ranges::binary_search(ValidFloatPrimitives, Size);
-
-  case PrimitiveKind::Generic:
-    return std::ranges::binary_search(ValidGenericPrimitives, Size)
-           || std::ranges::binary_search(ValidFloatPrimitives, Size);
-
-  default:
-    revng_abort("Unsupported primitive kind");
-  }
-}
-
 RecursiveCoroutine<bool> model::Type::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
 
@@ -389,8 +353,7 @@ RecursiveCoroutine<bool> model::Type::verify(VerifyHelper &VH) const {
         rc_return VH.fail("Every primitive must have a valid kind.",
                           *Primitive);
 
-      if (not isValidPrimitiveSize(Primitive->PrimitiveKind(),
-                                   Primitive->Size()))
+      if (not Primitive->isSizeValid())
         rc_return VH.fail("Primitive size is not allowed.", *Primitive);
 
       rc_return true;
