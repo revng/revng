@@ -63,7 +63,7 @@ public:
       std::string Code;
       {
         llvm::raw_string_ostream OS(Code);
-        CTokenEmitter Emitter(OS, ptml::Tagging::Enabled);
+        ptml::CTokenEmitter Emitter(OS, ptml::Tagging::Enabled);
         clift::decompile(It->second, Emitter, Target);
       }
 

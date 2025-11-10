@@ -19,10 +19,10 @@
 
 namespace {
 
-using EntityKind = CTokenEmitter::EntityKind;
-using ScopeKind = CTokenEmitter::ScopeKind;
-using Punctuator = CTokenEmitter::Punctuator;
-using Operator = CTokenEmitter::Operator;
+using EntityKind = ptml::CTokenEmitter::EntityKind;
+using ScopeKind = ptml::CTokenEmitter::ScopeKind;
+using Punctuator = ptml::CTokenEmitter::Punctuator;
+using Operator = ptml::CTokenEmitter::Operator;
 
 static std::optional<llvm::StringRef> getEntityKindAttribute(EntityKind Kind) {
   switch (Kind) {
@@ -224,7 +224,7 @@ static StringEscape getStringEscape(char Character) {
 
 } // namespace
 
-void CTokenEmitter::emitKeyword(Keyword K) {
+void ptml::CTokenEmitter::emitKeyword(Keyword K) {
   auto Emit = [this](llvm::StringRef String) {
     auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
     Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Keyword);
@@ -308,7 +308,7 @@ void CTokenEmitter::emitKeyword(Keyword K) {
   revng_abort("Invalid CTokenEmitter::Keyword");
 }
 
-void CTokenEmitter::emitPunctuator(Punctuator P) {
+void ptml::CTokenEmitter::emitPunctuator(Punctuator P) {
   switch (P) {
   case Punctuator::Colon:
     return PTML.emitContent(":");
@@ -338,7 +338,7 @@ void CTokenEmitter::emitPunctuator(Punctuator P) {
   revng_abort("Invalid CTokenEmitter::Punctuator");
 }
 
-void CTokenEmitter::emitOperator(Operator O) {
+void ptml::CTokenEmitter::emitOperator(Operator O) {
   auto Emit = [this](llvm::StringRef String) {
     auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
     Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Operator);
@@ -436,7 +436,7 @@ void CTokenEmitter::emitOperator(Operator O) {
   revng_abort("Invalid CTokenEmitter::Operator");
 }
 
-void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
+void ptml::CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
                                    llvm::StringRef Location,
                                    EntityKind Kind,
                                    IdentifierKind IsDefinition) {
@@ -464,14 +464,14 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
   PTML.emitLiteralContent(Identifier);
 }
 
-void CTokenEmitter::emitLiteralIdentifier(llvm::StringRef Identifier) {
+void ptml::CTokenEmitter::emitLiteralIdentifier(llvm::StringRef Identifier) {
   revng_assert(validateIdentifier(Identifier),
                "The specified identifier is not a valid C identifier.");
 
   PTML.emitLiteralContent(Identifier);
 }
 
-void CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
+void ptml::CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
                                        CIntegerKind Type,
                                        unsigned Radix) {
   constexpr auto IsValidRadix = [](unsigned Radix) {
@@ -504,7 +504,7 @@ void CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
   PTML.emitLiteralContent(String);
 }
 
-void CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
+void ptml::CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
   auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
   Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::StringLiteral);
   Tag.finalizeOpenTag();
@@ -530,7 +530,8 @@ void CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
   PTML.emitLiteralContent("\"");
 }
 
-void CTokenEmitter::emitComment(llvm::StringRef Content, CommentKind Kind) {
+void ptml::CTokenEmitter::emitComment(llvm::StringRef Content,
+                                      CommentKind Kind) {
   auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
   Tag.emitAttribute(ptml::attributes::Token, ptml::tokens::Comment);
   Tag.finalizeOpenTag();
@@ -551,7 +552,7 @@ void CTokenEmitter::emitComment(llvm::StringRef Content, CommentKind Kind) {
   }
 }
 
-void CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
+void ptml::CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
                                          llvm::StringRef Location,
                                          IncludeMode Mode) {
   // Emit include directive token:
@@ -579,7 +580,7 @@ void CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
   PTML.emitContentNewline();
 }
 
-void CTokenEmitter::enterScopeImpl(ptml::Emitter::TagEmitter &Tag,
+void ptml::CTokenEmitter::enterScopeImpl(ptml::Emitter::TagEmitter &Tag,
                                    Delimiter Delimiter,
                                    int Indent,
                                    ScopeKind Kind) {
@@ -594,7 +595,7 @@ void CTokenEmitter::enterScopeImpl(ptml::Emitter::TagEmitter &Tag,
   PTML.indent(Indent);
 }
 
-void CTokenEmitter::leaveScopeImpl(ptml::Emitter::TagEmitter &Tag,
+void ptml::CTokenEmitter::leaveScopeImpl(ptml::Emitter::TagEmitter &Tag,
                                    Delimiter Delimiter,
                                    int Indent) {
   PTML.indent(-Indent);
