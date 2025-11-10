@@ -336,6 +336,7 @@ The *supported actions* for various locations are the following:
 * `helper-function`: doesn't support any actions as of now.
 * `helper-struct-type`: doesn't support any actions as of now.
 * `helper-structs-field`: doesn't support any actions as of now.
+* `macro`: doesn't support any actions as of now.
 
 An action is defined by the following attributes:
 
