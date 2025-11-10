@@ -39,7 +39,7 @@ static void printLLVMTypeDeclaration(const llvm::StructType *S,
                                      ptml::ModelCBuilder &B) {
   B.append(B.getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
            + B.getKeyword(ptml::CBuilder::Keyword::Struct) + " "
-           + ptml::AttributeRegistry::getAttribute<"_PACKED">() + " ");
+           + ptml::AttributeRegistry::getAttributeString<"_PACKED">() + " ");
 
   {
     auto Scope = B.getCurvedBracketScope(ptml::c::scopes::StructBody.str());

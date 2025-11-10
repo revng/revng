@@ -15,7 +15,7 @@ void ptml::ModelCBuilder::printForwardDeclaration(const T &Type) {
   auto TypeNameReference = getReferenceTag(Type);
   *Out << getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
        << getTypeKeyword(Type) << " "
-       << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
+       << ptml::Attributes.getAttributeString<"_PACKED">() << " "
        << TypeNameReference << " " << TypeNameReference << ";\n";
 }
 
@@ -30,11 +30,11 @@ void ptml::ModelCBuilder::printDefinition(const model::EnumDefinition &E,
                                  ((FullMask) xor (FullMask << (8 * ByteSize)));
 
   std::string UndTag = getReferenceTag(E.underlyingType());
-  auto U = ptml::AttributeRegistry::getAnnotation<"_ENUM_UNDERLYING">(UndTag);
+  auto U = ptml::Attributes.getAnnotationString<"_ENUM_UNDERLYING">(UndTag);
   std::string EnumLine = getModelCommentWithoutLeadingNewline(E)
                          + getKeyword(ptml::CBuilder::Keyword::Enum) + " " + U
                          + " "
-                         + ptml::AttributeRegistry::getAttribute<"_PACKED">()
+                         + ptml::Attributes.getAttributeString<"_PACKED">()
                          + " " + getDefinitionTag(E) + " ";
   *Out << getCommentableTag(std::move(EnumLine), E);
 
@@ -81,14 +81,14 @@ void ptml::ModelCBuilder::printDefinition(const model::StructDefinition &S,
 
   std::string StructLine = getModelCommentWithoutLeadingNewline(S)
                            + getKeyword(ptml::CBuilder::Keyword::Struct) + " "
-                           + ptml::AttributeRegistry::getAttribute<"_PACKED">()
+                           + ptml::Attributes.getAttributeString<"_PACKED">()
                            + " ";
 
   if (S.CanContainCode())
-    StructLine += ptml::AttributeRegistry::getAttribute<"_CAN_CONTAIN_CODE">()
+    StructLine += ptml::Attributes.getAttributeString<"_CAN_CONTAIN_CODE">()
                   + " ";
 
-  StructLine += ptml::AttributeRegistry::getAnnotation<"_SIZE">(S.Size()) + " "
+  StructLine += ptml::Attributes.getAnnotationString<"_SIZE">(S.Size()) + " "
                 + getDefinitionTag(S) + " ";
 
   *Out << getCommentableTag(std::move(StructLine), S);
@@ -104,8 +104,9 @@ void ptml::ModelCBuilder::printDefinition(const model::StructDefinition &S,
       std::string Result = getModelComment(Field)
                            + getNamedCInstance(*Field.Type(), F);
       if (not NameBuilder.shouldUseAutomaticName(Field)) {
-        using AttributeR = ptml::AttributeRegistry;
-        Result += ' ' + AttributeR::getAnnotation<"_STARTS_AT">(Field.Offset());
+        Result += ' '
+                  + ptml::Attributes
+                      .getAnnotationString<"_STARTS_AT">(Field.Offset());
       }
       *Out << getCommentableTag(std::move(Result += ';'), S, Field) << '\n';
 
@@ -122,7 +123,7 @@ void ptml::ModelCBuilder::printDefinition(const model::UnionDefinition &U,
                                           std::string &&Suffix) {
   std::string UnionLine = getModelCommentWithoutLeadingNewline(U)
                           + getKeyword(ptml::CBuilder::Keyword::Union) + " "
-                          + ptml::AttributeRegistry::getAttribute<"_PACKED">()
+                          + ptml::Attributes.getAttributeString<"_PACKED">()
                           + " " + getDefinitionTag(U) + " ";
   *Out << getCommentableTag(std::move(UnionLine), U);
   {
@@ -163,7 +164,7 @@ void ptml::ModelCBuilder::printReturnTypeWrapperDefinition(const RFT &F) {
 
   std::string StructLine = getWrapperStructComment(F)
                            + getKeyword(ptml::CBuilder::Keyword::Struct) + " "
-                           + ptml::AttributeRegistry::getAttribute<"_PACKED">()
+                           + ptml::Attributes.getAttributeString<"_PACKED">()
                            + " ";
 
   StructLine += getArtificialStructTag</*IsDefinition*/ true>(F) + " ";
@@ -199,7 +200,7 @@ void ptml::ModelCBuilder::printReturnTypeWrapperDeclaration(const RFT &F) {
 
   *Out << getKeyword(ptml::CBuilder::Keyword::Typedef) << " "
        << getKeyword(ptml::CBuilder::Keyword::Struct) + " "
-       << ptml::AttributeRegistry::getAttribute<"_PACKED">() << " "
+       << ptml::Attributes.getAttributeString<"_PACKED">() << " "
        << TypeNameReference << " " << TypeNameReference << ";\n";
 }
 
