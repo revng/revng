@@ -67,6 +67,9 @@ public:
   /// Emit a function or variable declaration of the specified type.
   void emitDeclaration(ValueType Type, DeclaratorInfo const &Declarator);
 
+public:
+  void emitFunctionPrototype(FunctionOp Function);
+
 private:
   class DeclarationEmitter;
 };
