@@ -475,8 +475,8 @@ static bool _rp_target_is_ready(const rp_target *target,
   return container->second->enumerate().contains(*target);
 }
 
-/// TODO Remove the redundant copy by writing a custom string stream that writes
-/// directly to a buffer to return.
+// TODO Remove the redundant copy by writing a custom string stream that writes
+// directly to a buffer to return.
 static char *_rp_manager_create_global_copy(const rp_manager *manager,
                                             const char *global_name) {
   revng_check(manager != nullptr);

@@ -306,9 +306,9 @@ makeVariableBuilder(const model::Binary &Binary,
 /// - when LegacyLocalVariables is false it represents local variables as
 ///   regular LLVM allocas, while accesses are modeled as regular load/store
 ///   instructions
-///
-/// TODO: At some point the legacy mode will be discontinued and we can remove
-/// the template parameter.
+//
+// TODO: At some point the legacy mode will be discontinued and we can remove
+// the template parameter.
 template<bool LegacyLocalVariables>
 class SegregateStackAccesses : public pipeline::FunctionPassImpl {
 private:
