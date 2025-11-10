@@ -7,6 +7,7 @@ revng_add_analyses_library_internal(
   CBackendPipe.cpp
   CliftContainer.cpp
   ClifterPipe.cpp
+  Headers.cpp
   ImportCliftTypesPipe.cpp
   ImportModelNamesPipe.cpp
   LegalizationPipe.cpp

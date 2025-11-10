@@ -16,15 +16,19 @@ class CEmitter {
 protected:
   using CTE = ptml::CTokenEmitter;
 
+  // WIP: make public instead of providing a getter? A better name?
+  //      Maybe `PTML`?
   ptml::CTokenEmitter &C;
 
-  CTokenEmitter &C;
+public:
   const TargetCImplementation &Target;
 
 public:
   explicit CEmitter(ptml::CTokenEmitter &Emitter,
                     const TargetCImplementation &Target) :
     C(Emitter), Target(Target) {}
+
+  ptml::CTokenEmitter &tokenEmitter() { return C; }
 
   //===------------------------------- Types ------------------------------===//
 
@@ -35,6 +39,14 @@ public:
   }
 
   void emitType(ValueType Type);
+
+  static bool isDeclarationTheSameAsDefinition(mlir::clift::DefinedType Type);
+  static bool hasSeparateForwardDeclaration(mlir::clift::DefinedType Type) {
+    return not isDeclarationTheSameAsDefinition(Type);
+  }
+
+  void emitTypeDeclaration(mlir::clift::DefinedType Type);
+  void emitTypeDefinition(mlir::clift::DefinedType Type);
 
   //===---------------------------- Attributes ----------------------------===//
 

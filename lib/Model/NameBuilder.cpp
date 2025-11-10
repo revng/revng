@@ -552,6 +552,13 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   if (Name.starts_with("__builtin_"))
     return revng::createError("it is reserved for a builtin intrinsic");
 
+  // Temporarily ban the following due to limitations of the new model-agnostic
+  // header emitter.
+  if (Name.starts_with("padding_at_"))
+    return revng::createError("it is reserved for padding fields");
+  if (Name.starts_with("enum_max_value_"))
+    return revng::createError("it is reserved for the maximum enum value");
+
   //
   // Exact names
   //

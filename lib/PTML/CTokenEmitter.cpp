@@ -53,6 +53,8 @@ static std::optional<llvm::StringRef> getEntityKindAttribute(EntityKind Kind) {
   case EntityKind::Attribute:
   case EntityKind::AttributeArgument:
     return std::nullopt;
+  case EntityKind::Macro:
+    return ptml::c::tokens::Macro;
   default:
     revng_abort("Invalid CTokenEmitter::EntityKind");
   }
@@ -74,8 +76,9 @@ static llvm::StringRef getCIntegerLiteralSuffix(const CIntegerKind Type,
 static std::optional<llvm::StringRef> getScopeKindAttribute(ScopeKind Kind) {
   switch (Kind) {
   case ScopeKind::None:
-    break;
+    return std::nullopt;
   case ScopeKind::EnumDefinition:
+    // [ivan]: why is enum special?
     return std::nullopt;
   case ScopeKind::StructDefinition:
     return ptml::c::scopes::StructBody;
@@ -87,10 +90,18 @@ static std::optional<llvm::StringRef> getScopeKindAttribute(ScopeKind Kind) {
     return ptml::c::scopes::FunctionBody;
   case ScopeKind::BlockStatement:
     return ptml::c::scopes::Scope;
+  case ScopeKind::MacroIf:
+  case ScopeKind::MacroIfDef:
+    return ptml::c::scopes::MacroIfBody;
+  case ScopeKind::Header:
+    return std::nullopt;
+  default:
+    revng_abort("Unknown `ScopeKind`");
   }
-  return std::nullopt;
 }
 
+// WIP: rework this map to support different actions depending on whether
+//      we're emitting a reference or a definition.
 static llvm::SmallVector<llvm::StringRef, 2>
 getAllowedActions(llvm::StringRef Location) {
   namespace rr = revng::ranks;
@@ -126,6 +137,10 @@ getAllowedActions(llvm::StringRef Location) {
   if (auto L = pipeline::locationFromString(rr::HelperStructField, Location))
     return {};
 
+  return {};
+
+  // [ivan]: huh? Why are we using this as the default for all the future
+  // entities?
   return { pa::Rename, pa::EditType };
 }
 
@@ -139,11 +154,11 @@ static std::string getActionContextLocation(llvm::StringRef Location) {
 }
 
 static std::optional<std::pair<Punctuator, Punctuator>>
-getDelimiterPunctuators(CTokenEmitter::Delimiter Delimiter) {
+getDelimiterPunctuators(ptml::CTokenEmitter::Delimiter Delimiter) {
   switch (Delimiter) {
-  case CTokenEmitter::Delimiter::None:
+  case ptml::CTokenEmitter::Delimiter::None:
     break;
-  case CTokenEmitter::Delimiter::Braces:
+  case ptml::CTokenEmitter::Delimiter::Braces:
     return std::pair<Punctuator, Punctuator>(Punctuator::LeftBrace,
                                              Punctuator::RightBrace);
   }
@@ -441,11 +456,39 @@ void ptml::CTokenEmitter::emitOperator(Operator O) {
 }
 
 void ptml::CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
-                                   llvm::StringRef Location,
-                                   EntityKind Kind,
-                                   IdentifierKind IsDefinition) {
-  revng_assert(validateIdentifier(Identifier),
-               "The specified identifier is not a valid C identifier.");
+                                         llvm::StringRef Location,
+                                         EntityKind Kind,
+                                         IdentifierKind IsDefinition) {
+  revng_assert(not Identifier.empty());
+
+  {
+    llvm::StringRef IdentifierToValidate = Identifier;
+
+    if (Kind == EntityKind::Primitive) {
+      // Some c primitive identifiers are valid despite being multi-word.
+      // Account for that here.
+      static constexpr std::array<llvm::StringRef, 3> AllowedPrefixes = {
+        "unsigned ", "signed ", "long "
+      };
+
+      bool ChangedInLastIteration = false;
+      do {
+        ChangedInLastIteration = false;
+        for (llvm::StringRef Prefix : AllowedPrefixes) {
+          if (IdentifierToValidate.consume_front(Prefix)) {
+            ChangedInLastIteration = true;
+            break;
+          }
+        }
+      } while (ChangedInLastIteration);
+    }
+
+    if (!validateIdentifier(IdentifierToValidate)) {
+      std::string Error = "`" + IdentifierToValidate.str()
+                          + "` is not a valid C identifier.";
+      revng_abort(Error.c_str());
+    }
+  }
 
   auto LocationAttribute = IsDefinition == IdentifierKind::Definition ?
                              ptml::attributes::LocationDefinition :
@@ -477,8 +520,8 @@ void ptml::CTokenEmitter::emitLiteralIdentifier(llvm::StringRef Identifier) {
 }
 
 void ptml::CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
-                                       CIntegerKind Type,
-                                       unsigned Radix) {
+                                             CIntegerKind Type,
+                                             unsigned Radix) {
   constexpr auto IsValidRadix = [](unsigned Radix) {
     switch (Radix) {
     case 2:
@@ -509,12 +552,28 @@ void ptml::CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
   PTML.emitLiteralContent(String);
 }
 
-void ptml::CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
+void ptml::CTokenEmitter::emitSignedIntegerLiteral(int64_t Value) {
+  auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
+  Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Constant);
+  Tag.finalizeOpenTag();
+
+  PTML.emitLiteralContent(std::to_string(Value));
+}
+void ptml::CTokenEmitter::emitUnsignedIntegerLiteral(uint64_t Value) {
+  auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
+  Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Constant);
+  Tag.finalizeOpenTag();
+
+  PTML.emitLiteralContent(std::to_string(Value) + "u");
+}
+
+void ptml::CTokenEmitter::emitStringLiteralImpl(llvm::StringRef String,
+                                                llvm::StringRef Delimiter) {
   auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
   Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::StringLiteral);
   Tag.finalizeOpenTag();
 
-  PTML.emitLiteralContent("\"");
+  PTML.emitLiteralContent(Delimiter);
 
   auto Begin = String.data();
   auto End = Begin + String.size();
@@ -532,7 +591,7 @@ void ptml::CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
     Begin = Pos;
   }
 
-  PTML.emitLiteralContent("\"");
+  PTML.emitLiteralContent(Delimiter);
 }
 
 void ptml::CTokenEmitter::emitComment(llvm::StringRef Content,
@@ -541,34 +600,72 @@ void ptml::CTokenEmitter::emitComment(llvm::StringRef Content,
   Tag.emitAttribute(ptml::attributes::Token, ptml::tokens::Comment);
   Tag.finalizeOpenTag();
 
-  if (Kind == CommentKind::Line) {
+  if (Kind == CommentKind::Line || Kind == CommentKind::Category) {
     while (not Content.empty() and Content.back() == '\n')
       Content = Content.substr(0, Content.size() - 1);
 
-    for (const auto &R : std::views::split(Content, '\n')) {
+    if (Kind == CommentKind::Category) {
       PTML.emitLiteralContent("//");
-      PTML.emitContent(std::string_view(R.begin(), R.end()));
       PTML.emitContentNewline();
     }
+
+    for (const auto &R : std::views::split(Content, '\n')) {
+      PTML.emitLiteralContent("// ");
+
+      // TODO: use existing comment logic to introduce more new-lines.
+      PTML.emitContent(std::string_view(R.begin(), R.end()));
+
+      PTML.emitContentNewline();
+    }
+
+    if (Kind == CommentKind::Category) {
+      PTML.emitLiteralContent("//");
+      PTML.emitContentNewline();
+    }
+
   } else {
-    PTML.emitLiteralContent("/*");
+    PTML.emitLiteralContent("/* ");
+
+    // TODO: use existing comment logic to introduce more new-lines.
     PTML.emitContent(Content);
-    PTML.emitLiteralContent("*/");
+
+    PTML.emitLiteralContent(" */");
+  }
+}
+
+void ptml::CTokenEmitter::emitDirective(PreprocessorDirective Directive) {
+  auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
+  Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Directive);
+  Tag.finalizeOpenTag();
+
+  switch (Directive) {
+  case PreprocessorDirective::Include:
+    return PTML.emitLiteralContent("#include");
+  case PreprocessorDirective::Pragma:
+    return PTML.emitLiteralContent("#pragma");
+  case PreprocessorDirective::Define:
+    return PTML.emitLiteralContent("#define");
+  case PreprocessorDirective::Undef:
+    return PTML.emitLiteralContent("#undef");
+  case PreprocessorDirective::If:
+    return PTML.emitLiteralContent("#if");
+  case PreprocessorDirective::Ifdef:
+    return PTML.emitLiteralContent("#ifdef");
+  case PreprocessorDirective::Else:
+    return PTML.emitLiteralContent("#else");
+  case PreprocessorDirective::Endif:
+    return PTML.emitLiteralContent("#endif");
+  case PreprocessorDirective::Defined:
+    return PTML.emitLiteralContent("defined");
+  default:
+    revng_abort("Unknown preprocessor directive.");
   }
 }
 
 void ptml::CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
-                                         llvm::StringRef Location,
-                                         IncludeMode Mode) {
-  // Emit include directive token:
-  {
-    auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
-    Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Directive);
-    Tag.finalizeOpenTag();
-
-    PTML.emitLiteralContent("#include");
-  }
-
+                                               llvm::StringRef Location,
+                                               IncludeMode Mode) {
+  emitDirective(PreprocessorDirective::Include);
   PTML.emitLiteralContent(" ");
 
   // Emit include path:
@@ -585,10 +682,31 @@ void ptml::CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
   PTML.emitContentNewline();
 }
 
+void ptml::CTokenEmitter::emitPragmaDirective(llvm::StringRef Content) {
+  emitDirective(PreprocessorDirective::Pragma);
+  PTML.emitLiteralContent(" ");
+
+  // Emit its value:
+  {
+    auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
+    Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Constant);
+    Tag.finalizeOpenTag();
+
+    revng_assert(!Content.contains('\n'));
+    for (const auto &Word : std::views::split(Content, ' '))
+      revng_assert(validateIdentifier(llvm::StringRef{ Word.begin(),
+                                                       Word.size() }));
+
+    PTML.emitContent(Content);
+  }
+
+  PTML.emitContentNewline();
+}
+
 void ptml::CTokenEmitter::enterScopeImpl(ptml::Emitter::TagEmitter &Tag,
-                                   Delimiter Delimiter,
-                                   int Indent,
-                                   ScopeKind Kind) {
+                                         Delimiter Delimiter,
+                                         int Indent,
+                                         ScopeKind Kind) {
   if (auto Symbols = getDelimiterPunctuators(Delimiter))
     emitPunctuator(Symbols->first);
 
@@ -597,13 +715,27 @@ void ptml::CTokenEmitter::enterScopeImpl(ptml::Emitter::TagEmitter &Tag,
     Tag.emitAttribute(ptml::attributes::Scope, *Attribute);
   Tag.finalizeOpenTag();
 
+  if (Kind == ScopeKind::MacroIf) {
+    emitDirective(PreprocessorDirective::If);
+    emitSpace();
+  } else if (Kind == ScopeKind::MacroIfDef) {
+    emitDirective(PreprocessorDirective::Ifdef);
+    emitSpace();
+  }
+
   PTML.indent(Indent);
 }
 
 void ptml::CTokenEmitter::leaveScopeImpl(ptml::Emitter::TagEmitter &Tag,
-                                   Delimiter Delimiter,
-                                   int Indent) {
+                                         Delimiter Delimiter,
+                                         int Indent,
+                                         ScopeKind Kind) {
   PTML.indent(-Indent);
+
+  if (Kind == ScopeKind::MacroIf || Kind == ScopeKind::MacroIfDef) {
+    emitDirective(PreprocessorDirective::Endif);
+    emitNewline();
+  }
 
   Tag.close();
 
