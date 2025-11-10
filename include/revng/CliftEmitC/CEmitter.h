@@ -41,6 +41,10 @@ public:
   void emitAttribute(AttributeAttr Attribute);
   void emitAttributes(mlir::ArrayAttr Attributes);
 
+  //===---------------------------- Prototype -----------------------------===//
+
+  void emitFunctionPrototype(FunctionOp Function);
+
   //===--------------------------- Declarations ---------------------------===//
 
   /// Describes a function parameter declarator.

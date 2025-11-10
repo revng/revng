@@ -364,3 +364,33 @@ void CEmitter::emitDeclaration(ValueType Type,
                                DeclaratorInfo const &Declarator) {
   DeclarationEmitter::emit(*this, Type, &Declarator);
 }
+
+void CEmitter::emitFunctionPrototype(FunctionOp Op) {
+  llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
+  for (unsigned I = 0; I < Op.getArgCount(); ++I) {
+    auto Attrs = Op.getArgAttrs(I);
+
+    auto GetStringAttr = [&Attrs](llvm::StringRef Name) {
+      return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
+    };
+
+    mlir::ArrayAttr Attributes = {};
+    if (auto Attr = Attrs.get("clift.attributes")) {
+      Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
+      revng_assert(isValidAttributeArray(Attributes));
+    }
+
+    ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
+                                      GetStringAttr("clift.handle"),
+                                      Attributes);
+  }
+
+  emitDeclaration(Op.getFunctionType(),
+                  mlir::clift::CEmitter::DeclaratorInfo{
+                    .Identifier = Op.getName(),
+                    .Location = Op.getHandle(),
+                    .Attributes = getDeclarationOpAttributes(Op),
+                    .Kind = ptml::CTokenEmitter::EntityKind::Function,
+                    .Parameters = ParameterDeclarators,
+                  });
+}
