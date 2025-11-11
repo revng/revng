@@ -4,29 +4,8 @@
 
 from dataclasses import dataclass
 from enum import Flag, auto
-from typing import Annotated
 
-from revng.pypeline.container import ContainerDeclaration, ContainerID
-from revng.pypeline.model import ModelPath
-from revng.pypeline.object import ObjectID
-
-PipeObjectDependencies = Annotated[
-    list[list[tuple[ObjectID, ModelPath]]],
-    """
-    A list representing the dependencies between the an object (in a certain container) produced
-    by a Pipe. As the Pipe doesn't know the container names, it just returns
-    the index of the container in the Pipe's signature. And then it's
-    up to `PipelineNode` to remap the index to the container name.
-    """,
-]
-
-ObjectDependencies = Annotated[
-    list[tuple[ContainerID, ObjectID, ModelPath]],
-    """
-    A list representing the dependencies between the an object (in a certain container) produced
-    by a certain task and the model.
-    """,
-]
+from revng.pypeline.container import ContainerDeclaration
 
 
 class TaskArgumentAccess(Flag):

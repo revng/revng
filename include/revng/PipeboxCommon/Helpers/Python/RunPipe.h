@@ -14,13 +14,13 @@
 namespace revng::pypeline::helpers::python {
 
 template<typename T>
-inline ObjectDependencies runPipe(T &Handle,
-                                  nanobind::object FileStorage,
-                                  nanobind::object TheModel,
-                                  nanobind::list Containers,
-                                  Request Incoming,
-                                  Request Outgoing,
-                                  llvm::StringRef Configuration) {
+inline PipeOutput runPipe(T &Handle,
+                          nanobind::object FileStorage,
+                          nanobind::object TheModel,
+                          nanobind::list Containers,
+                          Request Incoming,
+                          Request Outgoing,
+                          llvm::StringRef Configuration) {
   const Model &CppModel = convertReadOnlyModel(TheModel);
   auto ContainerTuple = containerVectorToTuple<T>(Containers);
 

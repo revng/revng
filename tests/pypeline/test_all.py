@@ -412,7 +412,7 @@ def test_invalidation(model, storage_provider):
         )
     ) == set(expected_output)
 
-    storage_provider.invalidate({"/two"})
+    storage_provider.invalidate({"/two"}, [])
 
     assert set(
         storage_provider.has(
@@ -426,7 +426,7 @@ def test_invalidation(model, storage_provider):
     ) == set(expected_output)
 
     # Change something we depend on
-    storage_provider.invalidate({"/one"})
+    storage_provider.invalidate({"/one"}, [])
 
     assert not list(
         storage_provider.has(
@@ -682,7 +682,7 @@ def test_storage_invalidation(storage_provider: StorageProvider):
 
     # Check basic invalidation
     add_object(0, 4, root, "/root")
-    assert storage_provider.invalidate({"/root"}) == {
+    assert storage_provider.invalidate({"/root"}, []) == {
         ContainerLocation(0, container_id, configuration_id): {root}
     }
 
@@ -690,7 +690,7 @@ def test_storage_invalidation(storage_provider: StorageProvider):
     storage_provider.prune_objects()
     add_object(0, 4, root, "/root")
     add_object(2, 4, function1, "/function1")
-    invalidation = storage_provider.invalidate({"/root"})
+    invalidation = storage_provider.invalidate({"/root"}, [])
     assert invalidation == {
         ContainerLocation(0, container_id, configuration_id): {root},
         ContainerLocation(2, container_id, configuration_id): {function1},
@@ -702,7 +702,7 @@ def test_storage_invalidation(storage_provider: StorageProvider):
     add_object(2, 4, function1, "/function1")
     add_object(2, 4, function2, "/function2")
     add_object(3, 3, root, "/root")
-    invalidation = storage_provider.invalidate({"/function1"})
+    invalidation = storage_provider.invalidate({"/function1"}, [])
     assert invalidation == {
         ContainerLocation(2, container_id, configuration_id): {function1},
         ContainerLocation(3, container_id, configuration_id): {root},

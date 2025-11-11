@@ -9,6 +9,7 @@
 #include "nanobind/stl/pair.h"
 #include "nanobind/stl/set.h"
 #include "nanobind/stl/string.h"
+#include "nanobind/stl/tuple.h"
 #include "nanobind/stl/vector.h"
 
 #include "revng/PipeboxCommon/Concepts.h"
@@ -19,6 +20,7 @@
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/TypeDefinitionPipe.h"
 #include "revng/PipeboxCommon/Helpers/Python/Casters.h"
 #include "revng/PipeboxCommon/Helpers/Python/ContainerIO.h"
+#include "revng/PipeboxCommon/Helpers/Python/Invalidate.h"
 #include "revng/PipeboxCommon/Helpers/Python/Registry.h"
 #include "revng/PipeboxCommon/Helpers/Python/RunAnalysis.h"
 #include "revng/PipeboxCommon/Helpers/Python/RunPipe.h"
@@ -168,6 +170,9 @@ struct RegisterPipe {
             return Handle.checkPrecondition(CppModel);
           });
       }
+
+      if constexpr (HasInvalidate<T>)
+        PipeClass.def("invalidate", &python::invalidate<T>);
     });
 
     // Native

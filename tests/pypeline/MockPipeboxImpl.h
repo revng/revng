@@ -41,12 +41,11 @@ public:
 
   AppendFooPipe(llvm::StringRef Config) : StaticConfiguration(Config.str()) {}
 
-  revng::pypeline::ObjectDependencies
-  run(const Model &TheModel,
-      const revng::pypeline::Request &Incoming,
-      const revng::pypeline::Request &Outgoing,
-      llvm::StringRef Configuration,
-      StringContainer &Container);
+  revng::pypeline::PipeOutput run(const Model &TheModel,
+                                  const revng::pypeline::Request &Incoming,
+                                  const revng::pypeline::Request &Outgoing,
+                                  llvm::StringRef Configuration,
+                                  StringContainer &Container);
 };
 
 class AppendFooLibAnalysis {

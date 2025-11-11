@@ -12,8 +12,8 @@ from revng.pypeline.container import Configuration, Container
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.storage.file_provider import FileProvider, FileRequest
-from revng.pypeline.task.pipe import Pipe
-from revng.pypeline.task.task import PipeObjectDependencies, TaskArgument, TaskArgumentAccess
+from revng.pypeline.task.pipe import Pipe, PipeDependencies
+from revng.pypeline.task.task import TaskArgument, TaskArgumentAccess
 from revng.support import get_root
 
 _module, _handles = import_pipebox([get_root() / "lib/librevngPipebox.so"])
@@ -59,9 +59,9 @@ class ImportFiles(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         if len(outgoing[0]) == 0:
-            return [[]]
+            return PipeDependencies([[]])
 
         assert len(outgoing[0]) == 1
         root_object = list(outgoing[0].objects)[0]
@@ -95,4 +95,4 @@ class ImportFiles(Pipe):
         dependencies = [(root_object, f"/Binaries/{i}/Hash") for i in indexes]
         dependencies.append((root_object, "/Binaries"))
 
-        return [dependencies]
+        return PipeDependencies([dependencies])

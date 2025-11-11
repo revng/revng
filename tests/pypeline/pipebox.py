@@ -15,11 +15,11 @@ import yaml
 
 from revng.pypeline.analysis import Analysis
 from revng.pypeline.container import Configuration, Container
-from revng.pypeline.model import Model, ModelPath, ModelPathSet, ReadOnlyModel
+from revng.pypeline.model import Model, ModelDiff, ModelPath, ModelPathSet, ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.storage.file_provider import FileProvider
-from revng.pypeline.task.pipe import Pipe
-from revng.pypeline.task.task import PipeObjectDependencies, TaskArgument, TaskArgumentAccess
+from revng.pypeline.task.pipe import Pipe, PipeDependencies, PipeObjectDependencies
+from revng.pypeline.task.task import TaskArgument, TaskArgumentAccess
 
 Value = Union[str, int]
 T = TypeVar("T")
@@ -231,6 +231,17 @@ class ChildDictContainer(DictContainer):
     kind = MyKind.CHILD
 
 
+class DictModelDiff(ModelDiff):
+    def __init__(self, paths: set[str]):
+        self._paths = paths
+
+    def paths(self) -> ModelPathSet:
+        return self._paths
+
+    def serialize(self) -> bytes:
+        raise NotImplementedError()
+
+
 class DictModel(Model):
     def __init__(self):
         self._data: Dict[ModelPath, Value] = {}
@@ -269,7 +280,7 @@ class DictModel(Model):
     def values(self) -> list[Value]:
         return list(self._data.values())
 
-    def diff(self, other: DictModel) -> ModelPathSet:
+    def diff(self, other: DictModel) -> ModelDiff:
         diff: ModelPathSet = set()
         for key, value in self.items():
             if key not in other or other[key] != value:
@@ -277,7 +288,7 @@ class DictModel(Model):
         for key, value in other.items():
             if key not in self:
                 diff.add(key)
-        return diff
+        return DictModelDiff(diff)
 
     def clone(self) -> DictModel:
         result = DictModel()
@@ -345,9 +356,9 @@ class InPlacePipe(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         # Nothing to do
-        return [[]]
+        return PipeDependencies([[]])
 
 
 class SameKindPipe(Pipe):
@@ -378,14 +389,14 @@ class SameKindPipe(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         input_container: ChildDictContainer = cast(ChildDictContainer, containers[0])
         output_container: ChildDictContainer = cast(ChildDictContainer, containers[1])
 
         for obj in input_container.objects().objects:
             output_container.add_object(obj)
 
-        return [[], []]
+        return PipeDependencies([[], []])
 
 
 class ToHigherKindPipe(Pipe):
@@ -419,7 +430,7 @@ class ToHigherKindPipe(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         input_container: RootDictContainer = cast(RootDictContainer, containers[0])
         input_kind = RootDictContainer.kind
 
@@ -436,7 +447,7 @@ class ToHigherKindPipe(Pipe):
         for obj in model.children(root_object, output_kind).objects:
             output_container.add_object(obj)
 
-        return [[], []]
+        return PipeDependencies([[], []])
 
 
 class ToLowerKindPipe(Pipe):
@@ -467,7 +478,7 @@ class ToLowerKindPipe(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         input_container: ChildDictContainer = cast(ChildDictContainer, containers[0])
         input_kind = input_container.kind
         root_object = MyObjectID.root()
@@ -480,7 +491,7 @@ class ToLowerKindPipe(Pipe):
         # Add to the output the root object
         output_container.add_object(MyObjectID.root())
 
-        return [[], []]
+        return PipeDependencies([[], []])
 
 
 class GeneratorPipe(Pipe):
@@ -508,7 +519,7 @@ class GeneratorPipe(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         dependencies: PipeObjectDependencies = []
         model = model.downcast()
         assert isinstance(model, DictModel), f"Model must be a DictModel got: {model!r}"
@@ -518,7 +529,7 @@ class GeneratorPipe(Pipe):
             for obj in objects:
                 container.add_object(obj)
                 dependencies.append((obj, "/one"))
-        return [dependencies]
+        return PipeDependencies([dependencies])
 
 
 class NullAnalysis(Analysis):

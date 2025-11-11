@@ -13,12 +13,13 @@ import yaml
 from .analysis import AnalysisBinding, AnalysisList
 from .container import Container, ContainerDeclaration
 from .graph import Graph
-from .model import Model, ReadOnlyModel
+from .model import Model, ModelDiff, ReadOnlyModel
 from .object import ObjectID, ObjectSet
 from .pipeline_node import PipelineConfiguration, PipelineNode
 from .schedule.schedule import Schedule
 from .schedule.scheduled_task import ScheduledTask
-from .storage.storage_provider import InvalidatedObjects, SavePointsRange, StorageProvider
+from .storage.storage_provider import InvalidatedObjects, ObjectsToInvalidate, SavePointsRange
+from .storage.storage_provider import StorageProvider
 from .task.pipe import Pipe
 from .task.requests import Requests
 from .task.savepoint import SavePoint
@@ -527,9 +528,58 @@ class Pipeline(Generic[C]):
             incoming=[requests.get(decl) for decl in analysis_info.bindings],
             configuration=analysis_configuration,
         )
-        invalidated = storage_provider.invalidate(ReadOnlyModel(new_model).diff(model))
+
+        diff = model.diff(ReadOnlyModel(new_model))
+        custom_invalidated_objects = self._compute_custom_invalidation(
+            pipeline_configuration, storage_provider, diff
+        )
+        invalidated = storage_provider.invalidate(diff.paths(), custom_invalidated_objects)
         storage_provider.set_model(new_model.serialize())
         return new_model, invalidated
+
+    def _compute_custom_invalidation(
+        self,
+        pipeline_configuration: PipelineConfiguration,
+        storage_provider: StorageProvider,
+        diff: ModelDiff,
+    ) -> list[ObjectsToInvalidate]:
+        result: list[ObjectsToInvalidate] = []
+        for node in self.walk_pipeline():
+            if not isinstance(node.task, Pipe):
+                continue
+
+            assert node.savepoint_range is not None
+
+            # Optimization: since few pipes actually implement advanced
+            # invalidation and it requires querying storage, check that the
+            # method has actually been overridden.
+            if not node.task.has_custom_invalidation():
+                continue
+
+            # Fetch the custom invalidation data from storage
+            configuration_id = node.configuration_id(pipeline_configuration)
+            invalidation_data = storage_provider.get_custom_invalidation_data(
+                node.id, configuration_id
+            )
+            # If the data returned is empty, it means that:
+            # * The pipe did not return any invalidation data
+            # * The pipe returned it, but it happened to be empty
+            # In both cases it means that the pipe is opting-out of custom invalidation
+            if all(len(x) == 0 for x in invalidation_data):
+                continue
+
+            # Run the pipe's invalidate
+            objects_to_invalidate = node.task.invalidate(invalidation_data, diff)
+            # Convert the invalidated objects in a pipeline-friendly format
+            for index, objects in enumerate(objects_to_invalidate):
+                container_decl = node.arguments[index]
+                result.append(
+                    ObjectsToInvalidate(
+                        node.savepoint_range, container_decl.name, configuration_id, objects
+                    )
+                )
+
+        return result
 
     def deserialize_schedule(self, schedule: str) -> Schedule:
         schedule_dict = yaml.safe_load(schedule)

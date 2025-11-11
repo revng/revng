@@ -50,7 +50,7 @@ bool StringContainer::verify() const {
 // AppendFooPipe
 //
 
-revng::pypeline::ObjectDependencies
+revng::pypeline::PipeOutput
 AppendFooPipe::run(const Model &TheModel,
                    const revng::pypeline::Request &Incoming,
                    const revng::pypeline::Request &Outgoing,
@@ -67,7 +67,7 @@ AppendFooPipe::run(const Model &TheModel,
     }
   }
 
-  return {};
+  return { {}, {} };
 }
 
 //

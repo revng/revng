@@ -49,13 +49,11 @@ concept HasPipeRunCheckPrecondition = requires(const Model &Model) {
 };
 
 template<typename T>
-struct CheckPreconditionMixin {};
-
-template<HasPipeRunCheckPrecondition T>
-struct CheckPreconditionMixin<T> {
-  llvm::Error checkPrecondition(const Model &Model) const {
-    return T::checkPrecondition(Model);
-  }
+concept HasPipeRunInvalidate = requires(const T &A,
+                                        const revng::pypeline::InvalidationData
+                                          &ID,
+                                        const ModelDiff &Diff) {
+  { T::invalidate(ID, Diff) } -> std::same_as<std::vector<std::set<ObjectID>>>;
 };
 
 } // namespace detail
@@ -67,7 +65,7 @@ concept SingleOutputPipeBaseCompatible = requires {
 };
 
 template<SingleOutputPipeBaseCompatible T>
-class SingleOutputPipeBase : public detail::CheckPreconditionMixin<T> {
+class SingleOutputPipeBase {
 public:
   static constexpr llvm::StringRef Name = T::Name;
   using ContainerTypes = PipeRunContainerTypes<T>;
@@ -76,6 +74,20 @@ public:
 
   SingleOutputPipeBase(llvm::StringRef Configuration) :
     StaticConfiguration(Configuration.str()) {}
+
+  llvm::Error checkPrecondition(const Model &Model) const
+    requires detail::HasPipeRunCheckPrecondition<T>
+  {
+    return T::checkPrecondition(Model);
+  }
+
+  std::vector<std::set<ObjectID>>
+  invalidate(const revng::pypeline::InvalidationData &ID,
+             const ModelDiff &Diff) const
+    requires detail::HasPipeRunInvalidate<T>
+  {
+    return T::invalidate(ID, Diff);
+  }
 
 protected:
   static constexpr size_t ContainerCount = std::tuple_size_v<ContainerTypes>;

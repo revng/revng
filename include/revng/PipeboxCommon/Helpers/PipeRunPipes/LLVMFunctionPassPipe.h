@@ -186,12 +186,11 @@ public:
 public:
   template<typename... Args>
     requires std::is_same_v<typename Base::ContainerTypes, TypeList<Args...>>
-  revng::pypeline::ObjectDependencies
-  run(const Model &Model,
-      const revng::pypeline::Request &Incoming,
-      const revng::pypeline::Request &Outgoing,
-      llvm::StringRef Configuration,
-      Args &...Containers) {
+  revng::pypeline::PipeOutput run(const Model &Model,
+                                  const revng::pypeline::Request &Incoming,
+                                  const revng::pypeline::Request &Outgoing,
+                                  llvm::StringRef Configuration,
+                                  Args &...Containers) {
     ObjectDependenciesHelper ODH(Model, Outgoing, this->ContainerCount);
 
     llvm::legacy::PassManager Manager;
@@ -225,6 +224,6 @@ public:
     }
 
     T1.advance("epilogue", true);
-    return ODH.takeDependencies();
+    return { ODH.takeDependencies(), {} };
   }
 };

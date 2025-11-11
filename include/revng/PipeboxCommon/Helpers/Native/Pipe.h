@@ -14,11 +14,11 @@ class Pipe {
 public:
   virtual ~Pipe() = default;
 
-  virtual pypeline::ObjectDependencies run(const Model &TheModel,
-                                           std::vector<Container *> Containers,
-                                           const pypeline::Request &Incoming,
-                                           const pypeline::Request &Outgoing,
-                                           llvm::StringRef Configuration) = 0;
+  virtual PipeOutput run(const Model &TheModel,
+                         std::vector<Container *> Containers,
+                         const pypeline::Request &Incoming,
+                         const pypeline::Request &Outgoing,
+                         llvm::StringRef Configuration) = 0;
 };
 
 template<IsPipe T>
@@ -30,12 +30,11 @@ public:
   PipeImpl(llvm::StringRef Conf) : Instance(Conf) {}
   ~PipeImpl() override = default;
 
-  virtual pypeline::ObjectDependencies
-  run(const Model &TheModel,
-      std::vector<Container *> Containers,
-      const pypeline::Request &Incoming,
-      const pypeline::Request &Outgoing,
-      llvm::StringRef Configuration) override {
+  virtual PipeOutput run(const Model &TheModel,
+                         std::vector<Container *> Containers,
+                         const pypeline::Request &Incoming,
+                         const pypeline::Request &Outgoing,
+                         llvm::StringRef Configuration) override {
     auto ContainerTuple = containerVectorToTuple<T>(Containers);
     return runPipe(Instance,
                    TheModel,

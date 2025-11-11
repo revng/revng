@@ -54,12 +54,11 @@ public:
     PipeArgument<"Module", "LLVM Module to apply the LLVM passes to">>;
 
 public:
-  revng::pypeline::ObjectDependencies
-  run(const Model &TheModel,
-      const revng::pypeline::Request &Incoming,
-      const revng::pypeline::Request &Outgoing,
-      llvm::StringRef Configuration,
-      LLVMRootContainer &Container) {
+  PipeOutput run(const Model &TheModel,
+                 const revng::pypeline::Request &Incoming,
+                 const revng::pypeline::Request &Outgoing,
+                 llvm::StringRef Configuration,
+                 LLVMRootContainer &Container) {
     if (Outgoing[0].size() == 0)
       return {};
 
@@ -71,7 +70,7 @@ public:
     llvm::legacy::PassManager Manager = makePassManager();
     Manager.run(Container.getModule());
 
-    return {};
+    return { {}, {} };
   }
 };
 
@@ -82,13 +81,11 @@ public:
     PipeArgument<"Module", "LLVM Modules to apply the LLVM passes to">>;
 
 public:
-  revng::pypeline::ObjectDependencies
-  run(const Model &TheModel,
-      const revng::pypeline::Request &Incoming,
-      const revng::pypeline::Request &Outgoing,
-      llvm::StringRef Configuration,
-      LLVMFunctionContainer &Container) {
-
+  PipeOutput run(const Model &TheModel,
+                 const revng::pypeline::Request &Incoming,
+                 const revng::pypeline::Request &Outgoing,
+                 llvm::StringRef Configuration,
+                 LLVMFunctionContainer &Container) {
     llvm::Task T(Outgoing[0].size(), TaskName);
     llvm::legacy::PassManager Manager = makePassManager();
     for (const ObjectID *Object : Outgoing[0]) {
@@ -98,7 +95,7 @@ public:
       Manager.run(Container.getModule(*Object));
     }
 
-    return {};
+    return { {}, {} };
   }
 };
 

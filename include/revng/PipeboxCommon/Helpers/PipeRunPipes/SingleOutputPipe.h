@@ -29,22 +29,32 @@ public:
 public:
   template<typename... Args>
     requires std::is_same_v<typename Base::ContainerTypes, TypeList<Args...>>
-  revng::pypeline::ObjectDependencies
-  run(const Model &Model,
-      const revng::pypeline::Request &Incoming,
-      const revng::pypeline::Request &Outgoing,
-      llvm::StringRef Configuration,
-      Args &...Containers) {
+  revng::pypeline::PipeOutput run(const Model &Model,
+                                  const revng::pypeline::Request &Incoming,
+                                  const revng::pypeline::Request &Outgoing,
+                                  llvm::StringRef Configuration,
+                                  Args &...Containers) {
+    using ReturnT = SingleOutputPipeTraits<T>::ReturnType;
     ObjectDependenciesHelper ODH(Model, Outgoing, this->ContainerCount);
     auto &RequestedOutputs = Outgoing.at(this->OutputContainerIndex);
     if (RequestedOutputs.size() == 0)
-      return ODH.takeDependencies();
+      return { ODH.takeDependencies(), {} };
 
     revng_assert(RequestedOutputs.size() == 1);
     llvm::Task T1(1, "Running " + this->Name);
     T1.advance("Running 'run'", true);
-    T::run(Model, this->StaticConfiguration, Configuration, Containers...);
+
+    revng::pypeline::CustomInvalidationData CustomInvalidation;
+    if constexpr (std::is_void_v<ReturnT>) {
+      T::run(Model, this->StaticConfiguration, Configuration, Containers...);
+    } else {
+      CustomInvalidation = T::run(Model,
+                                  this->StaticConfiguration,
+                                  Configuration,
+                                  Containers...);
+    }
+
     ODH.commitUniqueTarget(this->OutputContainerIndex);
-    return ODH.takeDependencies();
+    return { ODH.takeDependencies(), std::move(CustomInvalidation) };
   }
 };

@@ -127,6 +127,16 @@ NB_MODULE(_pipebox, m) {
          })
     .def("__hash__", [](Kind &Handle) { return std::hash<Kind>{}(Handle); });
 
+  // Register ModelDiff
+  nanobind::object ModelDiffBaseClass = importObject("revng.pypeline.model."
+                                                     "ModelDiff");
+  nanobind::class_<ModelDiff>(m, "ModelDiff", ModelDiffBaseClass)
+    .def("paths", &ModelDiff::paths)
+    .def("serialize", [](ModelDiff &Handle) {
+      llvm::SmallVector<char, 0> Buffer = Handle.serialize();
+      return nanobind::bytes(Buffer.data(), Buffer.size());
+    });
+
   // Register Model
   nanobind::object ModelBaseClass = importObject("revng.pypeline.model.Model");
   nanobind::class_<Model>(m, "Model", ModelBaseClass)

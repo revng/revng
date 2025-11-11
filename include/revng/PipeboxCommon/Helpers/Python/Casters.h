@@ -44,6 +44,36 @@ struct type_caster<revng::pypeline::Request> {
   // from C++
 };
 
+template<>
+struct type_caster<revng::pypeline::PipeOutput> {
+  NB_TYPE_CASTER(revng::pypeline::PipeOutput,
+                 const_name("revng.pypeline.task.pipe.PipeDependencies"))
+
+  // from_python is intentionally not defined because we do not support passing
+  // `PipeDependencies`s as arguments
+
+  static handle from_cpp(revng::pypeline::PipeOutput Value,
+                         rv_policy Policy,
+                         cleanup_list *Cleanup) {
+    using namespace revng::pypeline;
+    using namespace revng::pypeline::helpers::python;
+    using ODCaster = make_caster<ObjectDependencies>;
+    using CIDCaster = make_caster<CustomInvalidationData>;
+
+    nanobind::object PipeDependenciesCls = importObject("revng.pypeline.task."
+                                                        "pipe."
+                                                        "PipeDependencies");
+    nanobind::object Dependencies = steal(ODCaster::from_cpp(Value.Dependencies,
+                                                             Policy,
+                                                             Cleanup));
+    nanobind::object
+      CustomInvalidation = steal(CIDCaster::from_cpp(Value.CustomInvalidation,
+                                                     Policy,
+                                                     Cleanup));
+    return PipeDependenciesCls(Dependencies, CustomInvalidation).release();
+  }
+};
+
 /// This is a caster class, it allows nanobind to automatically convert python
 /// strings to `llvm::StringRef`s and back
 ///

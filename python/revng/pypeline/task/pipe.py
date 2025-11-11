@@ -2,15 +2,57 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from typing import Optional, final
+from collections.abc import Buffer, Sequence
+from dataclasses import dataclass, field
+from typing import Annotated, Optional, final
 
-from revng.pypeline.container import Configuration, Container
-from revng.pypeline.model import ReadOnlyModel
-from revng.pypeline.object import ObjectSet
+from revng.pypeline.container import Configuration, Container, ContainerID
+from revng.pypeline.model import ModelDiff, ModelPath, ReadOnlyModel
+from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.storage.file_provider import FileProvider
 from revng.pypeline.utils.cabc import ABC, abstractmethod
 
-from .task import PipeObjectDependencies, TaskArgument, TaskArgumentAccess
+from .task import TaskArgument, TaskArgumentAccess
+
+PipeObjectDependencies = Annotated[
+    list[list[tuple[ObjectID, ModelPath]]],
+    """
+    A list representing the dependencies between the an object (in a certain
+    container) produced by a Pipe. As the Pipe doesn't know the container
+    names, it just returns the index of the container in the Pipe's signature.
+    And then it's up to `PipelineNode` to remap the index to the container name.
+    """,
+]
+
+PipeCustomInvalidation = Annotated[
+    Sequence[Sequence[tuple[ObjectID, Buffer]]],
+    """
+    Additional opaque invalidation data returned by the Pipe, this will be fed
+    back to the pipe's `invalidation` method to gather a list of `ObjectID`s to
+    additionally purge.
+    """,
+]
+
+
+@dataclass
+class PipeDependencies:
+    dependencies: PipeObjectDependencies
+    custom_invalidation: PipeCustomInvalidation = field(default_factory=list)
+
+
+ObjectDependencies = Annotated[
+    list[tuple[ContainerID, ObjectID, ModelPath]],
+    """
+    A list representing the dependencies between the an object (in a certain container) produced
+    by a certain task and the model.
+    """,
+]
+
+
+@dataclass
+class ScheduledTaskDependencies:
+    dependencies: ObjectDependencies
+    custom_invalidation: PipeCustomInvalidation = field(default_factory=list)
 
 
 class Pipe(ABC):
@@ -111,7 +153,7 @@ class Pipe(ABC):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         """
         Run the pipe with the given model.
         The containers set is the set of ephemeral containers used for this run,
@@ -123,3 +165,17 @@ class Pipe(ABC):
         `containers`, `incoming`, and `outgoing` are all lists with the same
         length as `SIGNATURE`.
         """
+
+    def invalidate(
+        self, invalidation_data: PipeCustomInvalidation, diff: ModelDiff
+    ) -> list[ObjectSet]:
+        """
+        Optional method that subclasses can override.
+        Query the pipe for additional objects to purge, based on the model diff
+        and the opaque invalidation data returned by a previous execution of the
+        pipe's run method.
+        """
+        return []
+
+    def has_custom_invalidation(self):
+        return self.__class__.invalidate is not Pipe.invalidate

@@ -17,12 +17,12 @@ namespace revng::pypeline::helpers {
 /// container list to multiple parameters that will be passed to the run
 /// function to of the Pipe.
 template<IsPipe T, typename... Args>
-inline ObjectDependencies runPipe(T &Pipe,
-                                  const Model &TheModel,
-                                  const Request &Incoming,
-                                  const Request &Outgoing,
-                                  llvm::StringRef Configuration,
-                                  std::tuple<Args...> &Containers) {
+inline PipeOutput runPipe(T &Pipe,
+                          const Model &TheModel,
+                          const Request &Incoming,
+                          const Request &Outgoing,
+                          llvm::StringRef Configuration,
+                          std::tuple<Args...> &Containers) {
   using Traits = PipeRunTraits<T>;
   revng_assert(Incoming.size() == Traits::ContainerCount);
   revng_assert(Outgoing.size() == Traits::ContainerCount);
