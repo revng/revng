@@ -182,13 +182,15 @@ VariableManager::storeToCPUStateOffset(revng::IRBuilder &Builder,
   unsigned Remaining;
   std::tie(Target, Remaining) = getByCPUStateOffsetWithRemainder(Offset);
 
-  if (Target == nullptr)
+  if (Target == nullptr) {
+    revng_log(Log, "getByCPUStateOffsetWithRemainder failed");
     return {};
+  }
 
   unsigned ShiftAmount = 0;
-  if (TargetIsLittleEndian)
+  if (TargetIsLittleEndian) {
     ShiftAmount = Remaining;
-  else {
+  } else {
     // >> (Size1 - Size2) - Remaining;
     Type *PointeeTy = Target->getValueType();
     unsigned GlobalSize = cast<IntegerType>(PointeeTy)->getBitWidth() / 8;
@@ -210,10 +212,19 @@ VariableManager::storeToCPUStateOffset(revng::IRBuilder &Builder,
 
   // Are we trying to store more than it fits?
   if (StoreSize > FieldSize) {
+    revng_log(Log,
+              "Trying to store " << StoreSize << " bytes into a field of "
+                                 << FieldSize
+                                 << " bytes. Checking the next "
+                                    "field.");
+    LoggerIndent Indent(Log);
+
     // If we're storing more than it fits and the following memory is not
     // padding the store is not valid.
-    if (getByCPUStateOffsetWithRemainder(Offset + FieldSize).first != nullptr)
+    if (getByCPUStateOffsetWithRemainder(Offset + FieldSize).first != nullptr) {
+      revng_log(Log, "The following field is not padding, bailing out.");
       return {};
+    }
   }
 
   // Truncate value to store
@@ -487,7 +498,10 @@ VariableManager::getByCPUStateOffsetWithRemainder(intptr_t Offset) {
   if (auto MaybeResult = getGlobalByCPUStateOffset(Offset))
     return MaybeResult.value();
 
-  revng_log(Log, "Considering offset " << Offset);
+  revng_log(Log,
+            "Considering offset " << Offset << " (aka " << LibTcgEnvOffset
+                                  << " + " << (Offset - LibTcgEnvOffset)
+                                  << ")");
   LoggerIndent Indent(Log);
 
   // Get the type of the field at that offset (if any) and obtain the offset

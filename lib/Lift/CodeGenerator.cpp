@@ -292,6 +292,7 @@ void CodeGenerator::translate(LibTcg &LibTcg,
                                         "root",
                                         TheModule);
   FunctionTags::Root.addTo(RootFunction);
+  RootFunction->addFnAttr(Attribute::NullPointerIsValid);
 
   // Create the first basic block and create a placeholder for variable
   // allocations
@@ -675,6 +676,13 @@ void CodeGenerator::translate(LibTcg &LibTcg,
   InstCombinePM.doInitialization();
   InstCombinePM.run(*RootFunction);
   InstCombinePM.doFinalization();
+
+  // Ensure we don't have phis in the dispatcher. This can happen if a tiny code
+  // local variable has an uninitialized read, which is usually a bug on our
+  // part.
+  auto Phis = JumpTargets.dispatcher()->phis();
+  revng_assert(Phis.begin() == Phis.end(),
+               "A phi has appeared in the dispatcher");
 
   legacy::PassManager PostInstCombinePM;
   PostInstCombinePM.add(new LoadModelWrapperPass(Model));

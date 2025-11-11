@@ -100,6 +100,7 @@ bool PostLiftVerifyPass::runOnModule(Module &M) {
         case Intrinsic::smax:
         case Intrinsic::ctlz:
         case Intrinsic::cttz:
+        case Intrinsic::ctpop:
           Good = true;
         }
 

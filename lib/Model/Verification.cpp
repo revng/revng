@@ -182,6 +182,10 @@ bool LocalIdentifier::verify(VerifyHelper &VH) const {
   if (Name().size() == 0)
     return VH.fail("Every local identifier must have a name.", *this);
 
+  // TODO: drop this once we escape / from locations
+  if (StringRef(Name()).contains("/"))
+    return VH.fail("\"/\" is not allowed", Name());
+
   return verifyAddressSet(VH, Location(), *this);
 }
 
@@ -261,8 +265,9 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
   if (Name().size() == 0)
     return VH.fail("Every dynamic function must have a name.", *this);
 
-  if (not VH.isNameAllowed(Name()))
-    return VH.fail();
+  // TODO: drop this once we escape / from locations
+  if (StringRef(Name()).contains("/"))
+    return VH.fail("\"/\" is not allowed", Name());
 
   if (not Prototype().isEmpty()) {
     if (not Prototype()->isPrototype())
@@ -409,7 +414,7 @@ RecursiveCoroutine<bool> model::Type::verify(VerifyHelper &VH) const {
 
 bool EnumEntry::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
-  return VH.isNameAllowed(Name());
+  return true;
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
@@ -421,9 +426,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
   if (T.UnderlyingType().isEmpty())
     rc_return VH.fail("Every enum must have an underlying type.", T);
-
-  if (not VH.isNameAllowed(T.Name()))
-    rc_return VH.fail();
 
   if (not rc_recur T.UnderlyingType()->verify(VH))
     rc_return VH.fail();
@@ -453,8 +455,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   if (T.UnderlyingType().isEmpty())
     rc_return VH.fail("Every typedef definition requires an underlying type.");
 
-  rc_return VH.maybeFail(VH.isNameAllowed(T.Name())
-                         and rc_recur T.UnderlyingType()->verify(VH));
+  rc_return VH.maybeFail(rc_recur T.UnderlyingType()->verify(VH));
 }
 
 RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
@@ -471,7 +472,7 @@ RecursiveCoroutine<bool> StructField::verify(VerifyHelper &VH) const {
   if (not MaybeSize)
     rc_return VH.fail("Struct field is zero-sized", Type());
 
-  rc_return VH.isNameAllowed(Name());
+  rc_return true;
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
@@ -479,9 +480,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   revng_assert(T.Kind() == model::TypeDefinitionKind::StructDefinition);
 
   using namespace llvm;
-
-  if (not VH.isNameAllowed(T.Name()))
-    rc_return VH.fail();
 
   if (T.Size() == 0)
     rc_return VH.fail("Struct size must be greater than zero.", T);
@@ -525,9 +523,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       // size.
       rc_return VH.fail("Last field ends outside the struct", T);
     }
-
-    if (not VH.isNameAllowed(Field.Name()))
-      rc_return VH.fail();
   }
 
   rc_return true;
@@ -547,15 +542,12 @@ RecursiveCoroutine<bool> UnionField::verify(VerifyHelper &VH) const {
   if (not MaybeSize)
     rc_return VH.fail("Union field is zero-sized", Type());
 
-  rc_return VH.isNameAllowed(Name());
+  rc_return true;
 }
 
 static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                                            const UnionDefinition &T) {
   revng_assert(T.Kind() == model::TypeDefinitionKind::UnionDefinition);
-
-  if (not VH.isNameAllowed(T.Name()))
-    rc_return VH.fail();
 
   if (T.Fields().empty())
     rc_return VH.fail("Union must have at least one field.", T);
@@ -573,18 +565,12 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
     if (not rc_recur Field.verify(VH))
       rc_return VH.fail();
-
-    if (not VH.isNameAllowed(Field.Name()))
-      rc_return VH.fail();
   }
 
   rc_return true;
 }
 
 RecursiveCoroutine<bool> Argument::verify(VerifyHelper &VH) const {
-  if (not VH.isNameAllowed(Name()))
-    rc_return VH.fail();
-
   if (Type().isEmpty())
     rc_return VH.fail("A function argument must have a type", *this);
 
@@ -603,9 +589,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
   if (not model::ABI::isValid(T.ABI()))
     rc_return VH.fail("Every C-ABI function must have a valid ABI.", T);
-
-  if (not VH.isNameAllowed(T.Name()))
-    rc_return VH.fail();
 
   if (not T.ReturnType().isEmpty()) {
     if (not rc_recur T.ReturnType()->verify(VH))
@@ -656,9 +639,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       rc_return VH.fail("Array argument is not allowed in CABI functions, "
                         "wrap it in a `struct` type instead.",
                         Argument);
-
-    if (not VH.isNameAllowed(Argument.Name()))
-      rc_return VH.fail();
   }
 
   rc_return true;
@@ -666,10 +646,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
 
 RecursiveCoroutine<bool> NamedTypedRegister::verify(VerifyHelper &VH) const {
   auto Guard = VH.suspendTracking(*this);
-
-  // Ensure the name is valid
-  if (not VH.isNameAllowed(Name()))
-    rc_return VH.fail();
 
   if (Type().isEmpty())
     rc_return VH.fail("NamedTypedRegister must have a type", *this);
@@ -720,8 +696,6 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
                           + "' must not be an argument of a raw '"
                           + toString(T.Architecture()) + "' function.",
                         T);
-    if (not VH.isNameAllowed(Argument.Name()))
-      rc_return VH.fail();
   }
 
   for (const NamedTypedRegister &Returned : T.ReturnValues()) {
@@ -753,7 +727,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
       and not rc_recur StackArgumentsType->verify(VH))
     rc_return VH.fail();
 
-  rc_return VH.isNameAllowed(T.Name());
+  rc_return true;
 }
 
 RecursiveCoroutine<bool> TypeDefinition::verify(VerifyHelper &VH) const {

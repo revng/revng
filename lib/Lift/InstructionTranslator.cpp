@@ -218,6 +218,7 @@ static unsigned getRegisterSize(LibTcg &LibTcg, LibTcgOpcode Opcode) {
   case LIBTCG_op_extract2_i32:
   case LIBTCG_op_clz_i32:
   case LIBTCG_op_ctz_i32:
+  case LIBTCG_op_ctpop_i32:
     return 32;
   case LIBTCG_op_add2_i64:
   case LIBTCG_op_add_i64:
@@ -286,6 +287,7 @@ static unsigned getRegisterSize(LibTcg &LibTcg, LibTcgOpcode Opcode) {
   case LIBTCG_op_extract2_i64:
   case LIBTCG_op_extract_i64:
   case LIBTCG_op_sextract_i64:
+  case LIBTCG_op_ctpop_i64:
     return 64;
   case LIBTCG_op_br:
   case LIBTCG_op_call:
@@ -505,6 +507,7 @@ IT::newInstruction(LibTcgInstruction *Instr,
                    MetaAddress StartPC,
                    MetaAddress EndPC,
                    bool IsFirst) {
+  revng_log(Log, "Starting translation of instruction at " << StartPC);
   using R = std::tuple<TranslationResult, MetaAddress, MetaAddress>;
   revng_assert(Instr != nullptr);
 
@@ -670,8 +673,12 @@ IT::TranslationResult IT::translate(LibTcgInstruction *Instr,
   }
 
   LastPC = PC;
-  auto Result = translateOpcode(Instr->opcode, ConstArgs, InArgs);
+  auto MaybeResult = translateOpcode(Instr->opcode, ConstArgs, InArgs);
 
+  if (not MaybeResult.has_value())
+    return Abort;
+
+  auto &Result = *MaybeResult;
   revng_assert(Result.size() == Instr->nb_oargs);
 
   // TODO: use ZipIterator here
@@ -782,10 +789,11 @@ int64_t IT::getEnvOffset(Instruction &I, int64_t Offset) const {
   revng_abort();
 }
 
-std::vector<Value *>
+std::optional<std::vector<Value *>>
 IT::translateOpcode(LibTcgOpcode Opcode,
                     std::vector<LibTcgArgument> ConstArguments,
                     std::vector<Value *> InArguments) {
+  using Values = std::vector<Value *>;
   LLVMContext &Context = TheModule.getContext();
   unsigned RegisterSize = getRegisterSize(LibTcg, Opcode);
   Type *RegisterType = nullptr;
@@ -799,13 +807,13 @@ IT::translateOpcode(LibTcgOpcode Opcode,
   switch (Opcode) {
   case LIBTCG_op_discard:
     // Let's overwrite the discarded temporary with a 0
-    return { ConstantInt::get(RegisterType, 0) };
+    return Values{ ConstantInt::get(RegisterType, 0) };
   case LIBTCG_op_mov_i32:
   case LIBTCG_op_mov_i64:
     if (auto *Constant = dyn_cast<ConstantInt>(InArguments[0])) {
-      return { Constant };
+      return Values{ Constant };
     } else {
-      return { Builder.CreateTrunc(InArguments[0], RegisterType) };
+      return Values{ Builder.CreateTrunc(InArguments[0], RegisterType) };
     }
   case LIBTCG_op_setcond_i32:
   case LIBTCG_op_setcond_i64: {
@@ -815,7 +823,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                 ConstArguments[0].cond,
                                 InArguments[0],
                                 InArguments[1]);
-    return { Builder.CreateZExt(Compare, RegisterType) };
+    return Values{ Builder.CreateZExt(Compare, RegisterType) };
   }
   case LIBTCG_op_negsetcond_i32:
   case LIBTCG_op_negsetcond_i64: {
@@ -827,7 +835,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                 InArguments[1]);
     auto *Zero = ConstantInt::get(RegisterType, 0);
     Value *Result = Builder.CreateZExt(Compare, RegisterType);
-    return { Builder.CreateSub(Zero, Result) };
+    return Values{ Builder.CreateSub(Zero, Result) };
   }
   case LIBTCG_op_movcond_i32: // Resist the fallthrough temptation
   case LIBTCG_op_movcond_i64: {
@@ -839,7 +847,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Value *Select = Builder.CreateSelect(Compare,
                                          InArguments[2],
                                          InArguments[3]);
-    return { Select };
+    return Values{ Select };
   }
   case LIBTCG_op_qemu_ld_a32_i32:
   case LIBTCG_op_qemu_ld_a64_i32:
@@ -903,9 +911,9 @@ IT::translateOpcode(LibTcgOpcode Opcode,
         Loaded = Builder.CreateCall(BSwapFunction, Load);
 
       if (SignExtend)
-        return { Builder.CreateSExt(Loaded, RegisterType) };
+        return Values{ Builder.CreateSExt(Loaded, RegisterType) };
       else
-        return { Builder.CreateZExt(Loaded, RegisterType) };
+        return Values{ Builder.CreateZExt(Loaded, RegisterType) };
 
     } else if (Opcode == LIBTCG_op_qemu_st_a32_i32
                or Opcode == LIBTCG_op_qemu_st_a64_i32
@@ -932,7 +940,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
         }
       }
 
-      return {};
+      return Values{};
     } else {
       revng_unreachable("Unknown load type");
     }
@@ -1003,13 +1011,16 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Offset = getEnvOffset(*Base, Offset);
 
     Value *Result = Variables.loadFromEnvOffset(Builder, LoadSize, Offset);
-    revng_assert(Result != nullptr);
+    if (Result == nullptr) {
+      revng_log(Log, "Cannot load from offset " << Offset);
+      return std::nullopt;
+    }
 
     // Zero/sign extend in the target dimension
     if (Signed)
-      return { Builder.CreateSExt(Result, RegisterType) };
+      return Values{ Builder.CreateSExt(Result, RegisterType) };
     else
-      return { Builder.CreateZExt(Result, RegisterType) };
+      return Values{ Builder.CreateZExt(Result, RegisterType) };
   }
   case LIBTCG_op_st8_i32:
   case LIBTCG_op_st16_i32:
@@ -1052,9 +1063,15 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                              StoreSize,
                                              Offset,
                                              InArguments[0]);
-    PCH->handleStore(Builder, *Result);
 
-    return {};
+    if (Result.has_value()) {
+      PCH->handleStore(Builder, *Result);
+    } else {
+      revng_log(Log, "Cannot store at offset " << Offset);
+      return std::nullopt;
+    }
+
+    return Values{};
   }
   case LIBTCG_op_add_i32:
   case LIBTCG_op_sub_i32:
@@ -1087,7 +1104,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Value *Operation = Builder.CreateBinOp(BinaryOp,
                                            InArguments[0],
                                            InArguments[1]);
-    return { Operation };
+    return Values{ Operation };
   }
   case LIBTCG_op_div2_i32:
   case LIBTCG_op_divu2_i32:
@@ -1113,7 +1130,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Value *Remainder = Builder.CreateBinOp(RemainderOp,
                                            InArguments[0],
                                            InArguments[2]);
-    return { Division, Remainder };
+    return Values{ Division, Remainder };
   }
   case LIBTCG_op_rotr_i32:
   case LIBTCG_op_rotr_i64:
@@ -1140,7 +1157,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                              InArguments[0],
                                              SecondShiftAmount);
 
-    return { Builder.CreateOr(FirstShift, SecondShift) };
+    return Values{ Builder.CreateOr(FirstShift, SecondShift) };
   }
   case LIBTCG_op_deposit_i32:
   case LIBTCG_op_deposit_i64: {
@@ -1150,7 +1167,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                InArguments[1],
                                InArguments[2],
                                InArguments[3]);
-    return { Result };
+    return Values{ Result };
   }
   case LIBTCG_op_ext8s_i32:
   case LIBTCG_op_ext16s_i32:
@@ -1197,34 +1214,35 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     case LIBTCG_op_ext16s_i64:
     case LIBTCG_op_ext32s_i64:
     case LIBTCG_op_ext_i32_i64:
-      return { Builder.CreateSExt(Truncated, RegisterType) };
+      return Values{ Builder.CreateSExt(Truncated, RegisterType) };
     case LIBTCG_op_ext8u_i32:
     case LIBTCG_op_ext8u_i64:
     case LIBTCG_op_ext16u_i32:
     case LIBTCG_op_ext16u_i64:
     case LIBTCG_op_ext32u_i64:
     case LIBTCG_op_extu_i32_i64:
-      return { Builder.CreateZExt(Truncated, RegisterType) };
+      return Values{ Builder.CreateZExt(Truncated, RegisterType) };
     default:
       revng_unreachable("Unexpected opcode");
     }
   }
   case LIBTCG_op_extrl_i64_i32: {
-    return { Builder.CreateTrunc(InArguments[0], Builder.getInt32Ty()) };
+    return Values{ Builder.CreateTrunc(InArguments[0], Builder.getInt32Ty()) };
   }
   case LIBTCG_op_extrh_i64_i32: {
     Value *Shifted = Builder.CreateAShr(InArguments[0],
                                         ConstantInt::get(Builder.getInt64Ty(),
                                                          32));
-    return { Builder.CreateTrunc(Shifted, Builder.getInt32Ty()) };
+    return Values{ Builder.CreateTrunc(Shifted, Builder.getInt32Ty()) };
   }
   case LIBTCG_op_not_i32:
   case LIBTCG_op_not_i64:
-    return { Builder.CreateXor(InArguments[0], getMaxValue(RegisterSize)) };
+    return Values{ Builder.CreateXor(InArguments[0],
+                                     getMaxValue(RegisterSize)) };
   case LIBTCG_op_neg_i32:
   case LIBTCG_op_neg_i64: {
     auto *InitialValue = ConstantInt::get(RegisterType, 0);
-    return { Builder.CreateSub(InitialValue, InArguments[0]) };
+    return Values{ Builder.CreateSub(InitialValue, InArguments[0]) };
   }
   case LIBTCG_op_andc_i32:
   case LIBTCG_op_andc_i64:
@@ -1253,19 +1271,19 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Value *Negate = Builder.CreateXor(InArguments[1],
                                       getMaxValue(RegisterSize));
     Value *Result = Builder.CreateBinOp(ExternalOp, InArguments[0], Negate);
-    return { Result };
+    return Values{ Result };
   }
   case LIBTCG_op_nand_i32:
   case LIBTCG_op_nand_i64: {
     Value *AndValue = Builder.CreateAnd(InArguments[0], InArguments[1]);
     Value *Result = Builder.CreateXor(AndValue, getMaxValue(RegisterSize));
-    return { Result };
+    return Values{ Result };
   }
   case LIBTCG_op_nor_i32:
   case LIBTCG_op_nor_i64: {
     Value *OrValue = Builder.CreateOr(InArguments[0], InArguments[1]);
     Value *Result = Builder.CreateXor(OrValue, getMaxValue(RegisterSize));
-    return { Result };
+    return Values{ Result };
   }
   case LIBTCG_op_bswap16_i32:
   case LIBTCG_op_bswap32_i32:
@@ -1296,7 +1314,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                                         { SwapType });
     Value *Swapped = Builder.CreateCall(BSwapFunction, Truncated);
 
-    return { Builder.CreateZExt(Swapped, RegisterType) };
+    return Values{ Builder.CreateZExt(Swapped, RegisterType) };
   }
   case LIBTCG_op_set_label: {
     revng_assert(ConstArguments[0].kind == LIBTCG_ARG_LABEL);
@@ -1330,7 +1348,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Builder.SetInsertPoint(Fallthrough);
     Variables.newExtendedBasicBlock();
 
-    return {};
+    return Values{};
   }
   case LIBTCG_op_br:
   case LIBTCG_op_brcond_i32:
@@ -1383,7 +1401,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
       Variables.newExtendedBasicBlock();
     }
 
-    return {};
+    return Values{};
   }
   case LIBTCG_op_exit_tb: {
     auto *Zero = ConstantInt::get(Type::getInt32Ty(Context), 0);
@@ -1397,12 +1415,12 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Builder.SetInsertPoint(NextBB);
     Variables.newExtendedBasicBlock();
 
-    return {};
+    return Values{};
   }
   case LIBTCG_op_goto_tb:
   case LIBTCG_op_goto_ptr:
     // Nothing to do here
-    return {};
+    return Values{};
   case LIBTCG_op_add2_i32:
   case LIBTCG_op_sub2_i32:
   case LIBTCG_op_add2_i64:
@@ -1433,7 +1451,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
     Value *ResultHigh = Builder.CreateTrunc(ShiftedResult, RegisterType);
 
-    return { ResultLow, ResultHigh };
+    return Values{ ResultLow, ResultHigh };
   }
   case LIBTCG_op_mulu2_i32:
   case LIBTCG_op_mulu2_i64:
@@ -1460,7 +1478,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Value *ShiftedResult = Builder.CreateLShr(Result, RegisterSize);
     Value *ResultHigh = Builder.CreateTrunc(ShiftedResult, RegisterType);
 
-    return { ResultLow, ResultHigh };
+    return Values{ ResultLow, ResultHigh };
   }
   case LIBTCG_op_muluh_i32:
   case LIBTCG_op_mulsh_i32:
@@ -1476,7 +1494,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                          Builder.CreateAdd(Offset, Length));
     Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
     Value *LShr = Builder.CreateLShr(Shl, Builder.CreateSub(Const32, Length));
-    return { LShr };
+    return Values{ LShr };
   }
   case LIBTCG_op_sextract_i32: {
     auto *Const32 = ConstantInt::get(Type::getInt32Ty(Context), 32);
@@ -1486,7 +1504,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                          Builder.CreateAdd(Offset, Length));
     Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
     Value *AShr = Builder.CreateAShr(Shl, Builder.CreateSub(Const32, Length));
-    return { AShr };
+    return Values{ AShr };
   }
   case LIBTCG_op_extract_i64: {
     auto *Const64 = ConstantInt::get(Type::getInt64Ty(Context), 64);
@@ -1496,7 +1514,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                          Builder.CreateAdd(Offset, Length));
     Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
     Value *LShr = Builder.CreateLShr(Shl, Builder.CreateSub(Const64, Length));
-    return { LShr };
+    return Values{ LShr };
   }
   case LIBTCG_op_sextract_i64: {
     auto *Const64 = ConstantInt::get(Type::getInt64Ty(Context), 64);
@@ -1506,7 +1524,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                          Builder.CreateAdd(Offset, Length));
     Value *Shl = Builder.CreateShl(InArguments[0], ShlAmount);
     Value *AShr = Builder.CreateAShr(Shl, Builder.CreateSub(Const64, Length));
-    return { AShr };
+    return Values{ AShr };
   }
   case LIBTCG_op_extract2_i32:
   case LIBTCG_op_extract2_i64: {
@@ -1523,7 +1541,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
                                Builder.CreateSub(ConstSize, Offset),
                                Offset);
 
-    return { Result };
+    return Values{ Result };
   }
   case LIBTCG_op_clz_i32: {
     Type *Int1Ty = Type::getInt1Ty(Context);
@@ -1534,7 +1552,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     CallInst *Ctlz = Builder.CreateBinaryIntrinsic(Intrinsic::ctlz, Arg, One);
     Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
     Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Ctlz);
-    return { Select };
+    return Values{ Select };
   }
   case LIBTCG_op_clz_i64: {
     Type *Int1Ty = Type::getInt1Ty(Context);
@@ -1545,7 +1563,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     CallInst *Ctlz = Builder.CreateBinaryIntrinsic(Intrinsic::ctlz, Arg, One);
     Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
     Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Ctlz);
-    return { Select };
+    return Values{ Select };
   }
   case LIBTCG_op_ctz_i32: {
     Type *Int1Ty = Type::getInt1Ty(Context);
@@ -1556,7 +1574,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     CallInst *Cttz = Builder.CreateBinaryIntrinsic(Intrinsic::cttz, Arg, One);
     Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
     Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Cttz);
-    return { Select };
+    return Values{ Select };
   }
   case LIBTCG_op_ctz_i64: {
     Type *Int1Ty = Type::getInt1Ty(Context);
@@ -1567,7 +1585,12 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     CallInst *Cttz = Builder.CreateBinaryIntrinsic(Intrinsic::cttz, Arg, One);
     Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
     Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Cttz);
-    return { Select };
+    return Values{ Select };
+  }
+  case LIBTCG_op_ctpop_i32:
+  case LIBTCG_op_ctpop_i64: {
+    return Values{ Builder.CreateUnaryIntrinsic(Intrinsic::ctpop,
+                                                InArguments[0]) };
   }
   default:
     // For debugging purposes printing the actual opcode
