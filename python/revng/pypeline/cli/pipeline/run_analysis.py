@@ -2,33 +2,29 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import logging
 import sys
 
 import click
 
 from revng.pypeline.analysis import Analysis
-from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
-from revng.pypeline.cli.utils import normalize_whitespace
-from revng.pypeline.container import ContainerDeclaration, load_container
+from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
+from revng.pypeline.cli.utils import compute_objects, list_objects_option, normalize_whitespace
+from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.task.task import TaskArgument, TaskArgumentAccess
+from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_registry, get_singleton
 
-logger = logging.getLogger(__name__)
 
-
-class RunAnalysisGroup(click.Group):
+class RunAnalysisGroup(PypeGroup):
     """We need to create a custom command for each analysis we loaded from the registry.
     Since we already have to generate the code dynamically, we do it lazily so
-    we generate only the commands that are requested.
-    This is based on the LazyGroup from revng.pypeline.cli.utils."""
+    we generate only the commands that are requested."""
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.registry: dict[str, type[Analysis]] = get_registry(Analysis)
-        self.model_ty: type[Model] = get_singleton(Model)  # type: ignore[type-abstract]
+    @property
+    def registry(self) -> dict[str, type[Analysis]]:
+        return get_registry(Analysis)  # type: ignore[type-abstract]
 
     def list_commands(self, ctx):
         base = super().list_commands(ctx)
@@ -41,10 +37,10 @@ class RunAnalysisGroup(click.Group):
 
     def _build_analysis_command(self, analysis_name: str):
         """Dynamically create a command for running an analysis."""
-        analysis_ty: type[Analysis] = self.registry[analysis_name]
+        analysis_type: type[Analysis] = self.registry[analysis_name]
 
-        if analysis_ty.__doc__:
-            help_text = click.wrap_text(f"\n{normalize_whitespace(analysis_ty.__doc__)}")
+        if analysis_type.__doc__:
+            help_text = click.wrap_text(f"\n{normalize_whitespace(analysis_type.__doc__)}")
         else:
             help_text = f"Run the analysis: {analysis_name}"
 
@@ -57,7 +53,7 @@ class RunAnalysisGroup(click.Group):
                     access=TaskArgumentAccess.READ,
                     help_text=normalize_whitespace(container_type.__doc__ or ""),
                 )
-                for container_type in analysis_ty.signature()
+                for container_type in analysis_type.signature()
             ],
         )
 
@@ -65,12 +61,14 @@ class RunAnalysisGroup(click.Group):
         run_analysis_command = build_run_analysis_command(
             analysis_name=analysis_name,
             help_text=help_text,
-            analysis_ty=analysis_ty,
-            model_ty=self.model_ty,
+            analysis_type=analysis_type,
+            model_type=get_singleton(Model),  # type: ignore[type-abstract]
         )
 
         config = getattr(
-            analysis_ty, "configuration_help", f"Configuration for the analysis '{analysis_name}'."
+            analysis_type,
+            "configuration_help",
+            f'Configuration for the analysis "{analysis_name}".',
         )
         if config is not None:
             run_analysis_command = click.option(
@@ -83,7 +81,7 @@ class RunAnalysisGroup(click.Group):
 
         # For each argument, call the `click.argument` decorator to dynamically add
         # them to the command
-        for arg in analysis_ty.signature():
+        for arg in analysis_type.signature():
             run_analysis_command = click.argument(
                 arg.__name__,
                 type=click.Path(exists=True, dir_okay=False, readable=True),
@@ -101,8 +99,8 @@ class RunAnalysisGroup(click.Group):
 def build_run_analysis_command(
     analysis_name: str,
     help_text: str,
-    analysis_ty: type[Analysis],
-    model_ty: type[Model],
+    analysis_type: type[Analysis],
+    model_type: type[Model],
 ):
     @click.command(name=analysis_name, help=help_text)
     @click.argument(
@@ -110,40 +108,35 @@ def build_run_analysis_command(
         type=click.Path(exists=True, dir_okay=False, readable=True),
         required=True,
     )
-    @click.option(
-        "--list",
-        type=bool,
-        is_flag=True,
-        default=False,
-        help="List the available objects for each argument.",
-    )
+    @list_objects_option
     def run_analysis_command(
         model: str,
         configuration: str,
         **kwargs,
     ) -> None:
-        logger.debug("Running analysis: `%s`", analysis_name)
-        logger.debug("configuration: `%s`", configuration)
-        logger.debug("model: `%s`", model)
-        logger.debug("and kwargs: `%s`", kwargs)
+        pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
+        pypeline_logger.debug_log(f'configuration: "{configuration}"')
+        pypeline_logger.debug_log(f'model: "{model}"')
+        pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
 
-        analysis = analysis_ty(
+        analysis = analysis_type(
             name=analysis_name,
         )
         # Load the model
+        loaded_model: Model = model_type()
         with open(model, "rb") as model_file:
-            loaded_model = model_ty.deserialize(model_file.read())
+            loaded_model = model_type.deserialize(model_file.read())
 
-        logger.debug("Model loaded: `%s`", loaded_model)
+        pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
         # Load the containers with args form the command line
         containers = []
         for arg in analysis.signature():
             arg_name = arg.__name__
             path = kwargs[arg_name]
-            container = load_container(arg, path)
-            logger.debug(
-                "Loaded container from `%s` for argument `%s`: `%r`", path, arg_name, container
+            container = arg.from_file(path)
+            pypeline_logger.debug_log(
+                f'Loaded container from "{path}" for argument "{arg_name}": "{container}"'
             )
             containers.append(container)
 
@@ -168,7 +161,7 @@ def build_run_analysis_command(
             incoming=incoming,
             configuration=configuration,
         )
-        logger.debug("Analysis run completed")
+        pypeline_logger.debug_log("Analysis run completed")
         # Print on stdout the raw bytes of the modified model
         sys.stdout.buffer.write(loaded_model.serialize())
 

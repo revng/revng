@@ -5,18 +5,39 @@
 from __future__ import annotations
 
 from collections.abc import Buffer
+from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Iterable, Mapping
+from typing import AsyncGenerator, Iterable, Mapping
 
+from revng import __version__ as revng_version
 from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
+from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects, ProjectID
 from .storage_provider import ProjectMetadata, SavePointsRange, StorageProvider
-from .util import _REVNG_VERSION_PLACEHOLDER, compute_hash
+from .storage_provider import StorageProviderFactory
+from .util import compute_hash
+
+
+class NullStorageProviderFactory(StorageProviderFactory):
+    def __init__(self, url: str):
+        assert url == "null://"
+
+    @classmethod
+    def scheme(cls) -> str:
+        return "null"
+
+    @asynccontextmanager
+    async def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> AsyncGenerator[StorageProvider]:
+        yield NullStorageProvider()
 
 
 class NullStorageProvider(StorageProvider):
@@ -63,12 +84,16 @@ class NullStorageProvider(StorageProvider):
         self.last_change = datetime.now()
         return {}
 
-    def get_model(self) -> bytes:
-        return self.model
+    def get_epoch(self) -> int:
+        return 0
+
+    def get_model(self) -> tuple[bytes, int]:
+        return (self.model, self.get_epoch())
 
     def set_model(self, new_model: bytes):
         self.model = new_model
         self.last_change = datetime.now()
+        return 0
 
     def metadata(self) -> ProjectMetadata:
         """
@@ -76,7 +101,7 @@ class NullStorageProvider(StorageProvider):
         """
         return ProjectMetadata(
             last_change=self.last_change,
-            revng_version=_REVNG_VERSION_PLACEHOLDER,
+            revng_version=revng_version,
         )
 
     def prune_objects(self):

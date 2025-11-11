@@ -4,16 +4,19 @@
 
 import click
 
-from revng.pypeline.cli.utils import LazyGroup
+from revng.pypeline.cli.utils import PypeGroup
+
+from .run_analysis import run_analysis
+from .run_pipe import run_pipe
 
 
 @click.group(
-    cls=LazyGroup,
-    lazy_subcommands={
-        "run_pipe": "revng.pypeline.cli.pipeline.run_pipe:run_pipe",
-        "run_analysis": "revng.pypeline.cli.pipeline.run_analysis:run_analysis",
-    },
+    cls=PypeGroup,
     help="Low-level pipeline commands (plumbing)",
 )
 def pipeline() -> None:
     pass
+
+
+pipeline.add_command(run_pipe)
+pipeline.add_command(run_analysis)

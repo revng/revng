@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import sys
 from abc import ABC, ABCMeta
 from collections.abc import Buffer
 from enum import Enum, EnumMeta, auto, unique
@@ -22,6 +23,10 @@ from revng.pypeline.task.task import PipeObjectDependencies, TaskArgument, TaskA
 
 Value = Union[str, int]
 T = TypeVar("T")
+
+
+def initialize(args: list[str]) -> None:
+    print("Pipebox initialized with args:", args, file=sys.stderr)
 
 
 def mandatory(arg: Optional[T]) -> T:
@@ -267,6 +272,9 @@ class DictModel(Model):
         for key, value in self.items():
             if key not in other or other[key] != value:
                 diff.add(key)
+        for key, value in other.items():
+            if key not in self:
+                diff.add(key)
         return diff
 
     def clone(self) -> DictModel:
@@ -288,9 +296,12 @@ class DictModel(Model):
         raise NotImplementedError()
 
     @classmethod
-    def is_text(cls) -> bool:
-        # We serialize already as json
-        return True
+    def mime_type(cls) -> str:
+        return "application/x-yaml"
+
+    @classmethod
+    def model_name(cls) -> str:
+        return "model.yml"
 
     def serialize(self):
         return yaml.safe_dump(self._data).encode()

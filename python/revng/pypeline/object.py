@@ -8,7 +8,7 @@ from collections.abc import MutableSet
 from dataclasses import dataclass, field
 from enum import Enum
 
-# builtin since python 3.9
+# Builtin since python 3.9
 from graphlib import TopologicalSorter
 from typing import Iterator, Optional, Sequence, Set, cast
 
@@ -94,7 +94,7 @@ class Kind(ABC):
                 assert parent in kinds, (
                     "The parent of each kind should be a known kind. "
                     f"Got parent {parent} which is not in the "
-                    f"known kinds '{kinds}'"
+                    f'known kinds "{kinds}"'
                 )
         assert (
             cls._root is not None

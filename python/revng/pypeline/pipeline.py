@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from itertools import chain
 from typing import Dict, Generator, Generic, List, Mapping, Optional, Set, TypeVar
@@ -19,15 +18,14 @@ from .object import ObjectID, ObjectSet
 from .pipeline_node import PipelineConfiguration, PipelineNode
 from .schedule.schedule import Schedule
 from .schedule.scheduled_task import ScheduledTask
-from .storage.storage_provider import SavePointsRange, StorageProvider
+from .storage.storage_provider import InvalidatedObjects, SavePointsRange, StorageProvider
 from .task.pipe import Pipe
 from .task.requests import Requests
 from .task.savepoint import SavePoint
 from .task.task import TaskArgumentAccess
 from .utils.default_dict_from_key import DefaultDictFromKey
+from .utils.logger import pypeline_logger
 from .utils.registry import get_singleton
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +41,11 @@ class Artifact:
     name: str
     node: PipelineNode
     container: ContainerDeclaration
+    description: Optional[str] = None
+
+    def is_cacheable(self) -> bool:
+        """An artifact is cacheable if it's backed by a savepoint."""
+        return isinstance(self.node.task, SavePoint)
 
 
 C = TypeVar("C", bound=Model)
@@ -56,11 +59,11 @@ class Pipeline(Generic[C]):
     that fulfills the requests.
     """
 
-    __slots__ = ("declarations", "root", "artifacts", "analyses")
+    __slots__ = ("declarations", "root", "artifacts", "analyses", "savepoint_id_to_artifact")
 
     def __init__(
         self,
-        declarations: Set[ContainerDeclaration],
+        declarations: set[ContainerDeclaration],
         root: PipelineNode,
         artifacts: Optional[set[Artifact]] = None,
         analyses: Optional[set[AnalysisBinding]] = None,
@@ -68,6 +71,9 @@ class Pipeline(Generic[C]):
         self.root = root
         self.declarations = set(declarations)
 
+        self.savepoint_id_to_artifact: dict[int, Artifact] = {}
+        """
+        """
         self.artifacts: Mapping[str, Artifact] = {}
         """
         The artifacts, indexed by their name for easy access.
@@ -109,6 +115,7 @@ class Pipeline(Generic[C]):
                 node.pipe_dependencies.add(node.task)
 
         for name, artifact in self.artifacts.items():
+            self.savepoint_id_to_artifact[artifact.node.id] = artifact
             if name != artifact.name:
                 raise ValueError(
                     f"Artifact name {artifact.name} does not match the key "
@@ -236,8 +243,8 @@ class Pipeline(Generic[C]):
         node_outgoing_requests = requests
 
         while not node_outgoing_requests.empty():
-            logger.debug("Scheduling node %s", node)
-            logger.debug("Outgoing requests: %s", node_outgoing_requests)
+            pypeline_logger.debug_log(f"Scheduling node {node}")
+            pypeline_logger.debug_log(f"Outgoing requests: {node_outgoing_requests}")
             orig = repr(node_outgoing_requests)
             # Each node should remove the requests it can handle
             # and add the requests it needs to satisfy the task
@@ -251,7 +258,7 @@ class Pipeline(Generic[C]):
                 f"Node {node} modified the outgoing requests, which is not allowed. "
                 f"Original: {orig}, modified: {node_outgoing_requests}"
             )
-            logger.debug("Computed Ingoing requests: %s", node_ingoing_requests)
+            pypeline_logger.debug_log(f"Computed Ingoing requests: {node_ingoing_requests}")
             # Store the computed requests so that we can use them in the run method
             tasks[node].request(node_ingoing_requests, node_outgoing_requests)
             # If the node has no predecessors, we are done, but
@@ -304,7 +311,7 @@ class Pipeline(Generic[C]):
         analysis_configuration: str,
         pipeline_configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
-    ) -> Model:
+    ) -> tuple[Model, InvalidatedObjects]:
         """
         Run an analysis on the pipeline, given a model and a set of requests.
         The analysis will return the new potentially modified model, and set it
@@ -349,9 +356,9 @@ class Pipeline(Generic[C]):
             ],
             configuration=analysis_configuration,
         )
-        storage_provider.invalidate(ReadOnlyModel(new_model).diff(model))
+        invalidated = storage_provider.invalidate(ReadOnlyModel(new_model).diff(model))
         storage_provider.set_model(new_model.serialize())
-        return new_model
+        return new_model, invalidated
 
     def deserialize_schedule(self, schedule: str) -> Schedule:
         schedule_dict = yaml.safe_load(schedule)
@@ -367,7 +374,7 @@ class Pipeline(Generic[C]):
         pipeline_nodes = list(self.walk_pipeline(stable=True))
         container_map = {x.name: x for x in self.declarations}
 
-        obj_id_ty = get_singleton(ObjectID)  # type: ignore[type-abstract]
+        obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
         configuration = {}
         scheduled_tasks: list[ScheduledTask] = []
         for task in schedule_dict["tasks"]:
@@ -386,10 +393,10 @@ class Pipeline(Generic[C]):
                     container_kind = container_declaration.container_type.kind
 
                     incoming[container_declaration] = ObjectSet(
-                        container_kind, {obj_id_ty.deserialize(x) for x in arg["incoming"]}
+                        container_kind, {obj_id_type.deserialize(x) for x in arg["incoming"]}
                     )
                     outgoing[container_declaration] = ObjectSet(
-                        container_kind, {obj_id_ty.deserialize(x) for x in arg["outgoing"]}
+                        container_kind, {obj_id_type.deserialize(x) for x in arg["outgoing"]}
                     )
             elif task["type"] == "SavePoint":
                 assert isinstance(pipeline_node.task, SavePoint)
@@ -400,13 +407,13 @@ class Pipeline(Generic[C]):
                     container_kind = container_declaration.container_type.kind
 
                     incoming[container_declaration] = ObjectSet(
-                        container_kind, {obj_id_ty.deserialize(x) for x in container["incoming"]}
+                        container_kind, {obj_id_type.deserialize(x) for x in container["incoming"]}
                     )
                     outgoing[container_declaration] = ObjectSet(
-                        container_kind, {obj_id_ty.deserialize(x) for x in container["outgoing"]}
+                        container_kind, {obj_id_type.deserialize(x) for x in container["outgoing"]}
                     )
             else:
-                raise ValueError(f"Unknown task type: {task['type']}")
+                raise ValueError(f"Unknown task type: \"{task['type']}\"")
 
             depends_on = [scheduled_tasks[i] for i in task["depends_on"]]
             scheduled_task = ScheduledTask(pipeline_node, False, outgoing, incoming, depends_on)

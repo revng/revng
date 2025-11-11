@@ -11,9 +11,7 @@ from pathlib import Path
 from revng.pypeline.object import Kind, ObjectID
 from revng.pypeline.utils.registry import get_singleton
 
-__all__ = ("_REVNG_VERSION_PLACEHOLDER", "_OBJECTID_MAXSIZE", "check_kind_structure")
-
-_REVNG_VERSION_PLACEHOLDER = "1.0.0"
+__all__ = ("_OBJECTID_MAXSIZE", "check_kind_structure")
 
 # Number of bytes that the biggest ObjectID will contain when serialized to bytes
 # Currently fixed to 17 because 1 byte for kind + 16 bytes for MetaAddress

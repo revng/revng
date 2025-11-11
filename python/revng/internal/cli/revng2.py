@@ -8,46 +8,62 @@ The path is computed relatively to this file, so this should work regardless of
 where revng is installed.
 """
 
-import logging
 import os
-import sys
 from pathlib import Path
-from typing import Sequence
 
 import click
+from xdg import xdg_cache_home
 
-from revng.pypeline.cli.utils import LazyGroup
-from revng.pypeline.main import import_pipebox
-
-logger = logging.getLogger("revng2")
-logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stderr))
+from revng.pypeline.cli.project import project
+from revng.pypeline.cli.utils import PypeGroup
+from revng.pypeline.main import pype, run
 
 
-@click.group(
-    cls=LazyGroup,
-    lazy_subcommands={
-        "pipeline": "revng.pypeline.cli.pipeline:pipeline",
-        "project": "revng.pypeline.cli.project:project",
-    },
-)
-def cli():
-    pass
+@click.group(cls=PypeGroup)
+def quick():
+    """Quick commands (japanese toilet)"""
+    # TODO
 
 
-def main(args: Sequence[str]) -> None:
-    # This should resolve to the full path of revng/internal/pipebox.py
-    pipebox_path = Path(__file__).parent.parent / "pipebox.py"
-    import_pipebox(str(pipebox_path), "_REVNG2_COMPLETE" in os.environ)
-    # pylint: disable=E1120 no-value-for-parameter
-    # This is ok as click will pass the pipebox argument automatically
-    cli(args=args)
+@click.command()
+def init():
+    """Initialize a new project."""
+    # TODO
 
 
-def run():
-    """Run the pipeline from the command line using the shell environment."""
-    main(sys.argv[1:])
+def patch_pype():
+    """
+    revng2 is based on `pype`, but we want to change some defaults to be revng specific,
+    and we want to add some commands.
+    """
+    # Replace the name (needed for autocompletion and usage)
+    pype.name = "revng2"
+    pype.add_command(quick)
+    # Replace the default for pipebox
+    for param in pype.params:
+        if param.name == "pipebox":
+            param.default = os.environ.get("PIPEBOX", Path(__file__).parent.parent / "pipebox.py")
+
+    # Add `init` to project subcommand
+    project.add_command(init)
+    # Change the default for pipeline
+    for param in project.params:
+        if param.name == "pipeline":
+            param.default = os.environ.get(
+                "PIPELINE", Path(__file__).parent.parent / "pipeline.yml"
+            )
+        elif param.name == "cache_dir":
+            param.default = os.environ.get(
+                "CACHE_DIR",
+                xdg_cache_home() / "revng",
+            )
+
+
+def main():
+    """Entry point for revng2."""
+    patch_pype()
+    run()
 
 
 if __name__ == "__main__":
-    run()
+    main()

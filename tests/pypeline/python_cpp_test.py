@@ -191,7 +191,7 @@ def check_simple_pipeline():
     compare_dicts(storage_provider.storage[container_location_end], {foo: b"foofoo"})
 
     # Run analysis
-    new_model = pipeline.run_analysis(
+    new_model, _ = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         analysis_name="AppendFooLibAnalysis",
         requests=Requests({child_cont: ObjectSet(foo.kind())}),

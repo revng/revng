@@ -9,24 +9,28 @@ import shutil
 import sqlite3
 from collections import defaultdict
 from collections.abc import Buffer
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Collection, Mapping
+from typing import AsyncGenerator, Collection, Mapping
 
 import yaml
 
+from revng import __version__ as revng_version
 from revng.pypeline.container import ConfigurationId
-from revng.pypeline.model import ModelPathSet
+from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
-from revng.pypeline.utils import cache_directory
+from revng.pypeline.utils import Locked, cache_directory, crypto_hash
+from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
+from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects, ProjectID
 from .storage_provider import ProjectMetadata, SavePointsRange, StorageProvider
-from .util import _OBJECTID_MAXSIZE, _REVNG_VERSION_PLACEHOLDER, check_kind_structure
-from .util import check_object_id_supported_by_sql, compute_hash
+from .storage_provider import StorageProviderFactory
+from .util import _OBJECTID_MAXSIZE, check_kind_structure, check_object_id_supported_by_sql
+from .util import compute_hash
 
 # This is a binary mask that will be used for invalidation, thanks to the
 # binary structure of ObjectID, all children are guaranteed to have the parent
@@ -38,6 +42,7 @@ CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS project(
     id              TEXT PRIMARY KEY CHECK (id = 0),
     last_change     REAL,
+    epoch           INT NOT NULL,
     revng_version   TEXT
 ) STRICT;
 
@@ -154,7 +159,74 @@ class CursorWrapper:
         return False
 
 
-class SQlite3StorageProvider(StorageProvider):
+class LocalStorageProviderFactory(StorageProviderFactory):
+    def __init__(self, url: str):
+        assert url == "local://"
+        self.providers: Locked[dict[ProjectID | None, Locked[LocalStorageProvider]]] = Locked({})
+
+    @classmethod
+    def scheme(cls) -> str:
+        return "local"
+
+    def _create_provider(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str,
+    ) -> LocalStorageProvider:
+        # Figure out how the model should be name
+        model_type = get_singleton(Model)  # type: ignore [type-abstract]
+        model_name = model_type.model_name()
+
+        # Find the model in the current directory or any of its parents
+        directory = Path.cwd().resolve()
+        while True:
+            pypeline_logger.debug_log(f'Searching for model at "{directory / model_name}"')
+            if (directory / model_name).exists():
+                break
+            if directory == directory.parent:
+                raise FileNotFoundError(f'Model "{model_name}" not found')
+            directory = directory.parent
+
+        model_path = directory / model_name
+        pypeline_logger.log(f'Model "{model_name}" found at "{model_path}"')
+        # Compute the hash of the model path as a tentative unique identifier for the project
+        # TODO: we are relying on the *absolute* model path, which means that if the
+        # user moves the project around, it will be treated as a different project
+        # and caches will be recomputed, and most importantly, if someone deletes
+        # the project and creates a new one at the same path, it will reuse the
+        # old cache.
+        db_name = crypto_hash(str(model_path)) + ".sqlite"
+        db_path = Path(cache_dir) / db_name
+        pypeline_logger.log(f'Using DB "{db_path}"')
+        return LocalStorageProvider(str(db_path), str(model_path))
+
+    @asynccontextmanager
+    async def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> AsyncGenerator[StorageProvider]:
+        assert cache_dir is not None, "Cache directory must be provided"
+
+        # Get or create the provider for the given project ID
+        async with self.providers() as providers:
+            project_provider: Locked[LocalStorageProvider] | None = providers.get(project_id)
+            # If the provider is not found, create a new one and put it in a lock
+            if project_provider is None:
+                project_provider = Locked(
+                    self._create_provider(project_id=project_id, token=token, cache_dir=cache_dir)
+                )
+                providers[project_id] = project_provider
+
+        # Release the global lock and acquire the project-specific one so other
+        # projects can proceed in parallel
+        async with project_provider() as provider:
+            yield provider
+
+
+class LocalStorageProvider(StorageProvider):
     """StorageProvider implementation with backing sqlite3 db"""
 
     def __init__(self, db_path: str, model_path: str | Path):
@@ -164,6 +236,7 @@ class SQlite3StorageProvider(StorageProvider):
         self._connection = sqlite3.connect(db_path, autocommit=False)
         self._connection.commit()
         self._init_tables()
+        self.epoch = self._get_epoch()
 
     def _cursor(self) -> CursorWrapper:
         return CursorWrapper(self._connection)
@@ -174,9 +247,21 @@ class SQlite3StorageProvider(StorageProvider):
 
     def _write_metadata(self, cursor: sqlite3.Cursor):
         cursor.execute(
-            "REPLACE INTO project VALUES (0, ?, ?)",
-            (datetime.now().timestamp(), _REVNG_VERSION_PLACEHOLDER),
+            "REPLACE INTO project VALUES (0, ?, ?, ?)",
+            (datetime.now().timestamp(), self.epoch, revng_version),
         )
+
+    def _get_epoch(self) -> int:
+        # Try to get the epoch from the DB
+        with self._cursor() as cursor:
+            cursor.execute("SELECT epoch FROM project WHERE id is 0")
+            result = cursor.fetchone()
+            if result is not None:
+                return result[0]
+            # Otherwise we have to write the metadata at least once
+            self.epoch = 0
+            self._write_metadata(cursor)
+            return self.epoch
 
     def has(
         self,
@@ -195,8 +280,9 @@ class SQlite3StorageProvider(StorageProvider):
                 (location.savepoint_id, location.container_id, location.configuration_id),
             )
             result = cursor.fetchall()
-        obj_id_ty: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
-        return [obj_id_ty.from_bytes(x[0]) for x in result]
+
+        obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
+        return [obj_id_type.from_bytes(x[0]) for x in result]
 
     def get(
         self,
@@ -215,8 +301,8 @@ class SQlite3StorageProvider(StorageProvider):
                 (location.savepoint_id, location.container_id, location.configuration_id),
             )
             result = cursor.fetchall()
-        obj_id_ty: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
-        return {obj_id_ty.from_bytes(x[0]): x[1] for x in result}
+        obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
+        return {obj_id_type.from_bytes(x[0]): x[1] for x in result}
 
     def add_dependencies(
         self,
@@ -281,7 +367,6 @@ class SQlite3StorageProvider(StorageProvider):
 
             cursor.execute(DELETE_MODEL_PATHS.format(model_paths=joined_paths))
             self._write_metadata(cursor)
-
         return dict(invalidated)
 
     def prune_objects(self):
@@ -290,13 +375,23 @@ class SQlite3StorageProvider(StorageProvider):
             cursor.execute("DELETE FROM dependencies")
             self._write_metadata(cursor)
 
-    def get_model(self) -> bytes:
-        return self._model_path.read_bytes()
+    def get_epoch(self) -> int:
+        return self.epoch
 
-    def set_model(self, new_model: bytes):
+    def get_model(self) -> tuple[bytes, int]:
+        return (self._model_path.read_bytes(), self.epoch)
+
+    def set_model(self, new_model: bytes) -> int:
+        # Check if the model was modified
+        current_model = self._model_path.read_bytes()
+        if current_model == new_model:
+            return self.epoch
+        # if so, write the new model and update the epoch
         self._model_path.write_bytes(new_model)
         with self._cursor() as cursor:
+            self.epoch += 1
             self._write_metadata(cursor)
+            return self.epoch
 
     def metadata(self) -> ProjectMetadata:
         with self._cursor() as cursor:

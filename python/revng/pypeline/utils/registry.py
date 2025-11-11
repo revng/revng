@@ -12,7 +12,7 @@ def get_registry[T](cls: type[T]) -> dict[str, type[T]]:
     `registry`.
     """
     if cls not in _REGISTRY_SINGLETON:
-        raise TypeError("`cls` is not a registered class")
+        raise TypeError(f'"{cls}" is not a registered class')
     # Clone to avoid mutation
     return dict(_REGISTRY_SINGLETON[cls])
 

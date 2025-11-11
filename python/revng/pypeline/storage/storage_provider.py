@@ -9,12 +9,14 @@ from collections.abc import Buffer
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Collection, Iterable, Mapping
+from typing import Annotated, AsyncContextManager, Collection, Iterable, Mapping
+from urllib.parse import urlparse
 
 from revng.pypeline.container import ConfigurationId, ContainerID
 from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.task import ObjectDependencies
+from revng.pypeline.utils.registry import get_registry
 
 from .file_provider import FileProvider, FileRequest
 
@@ -25,6 +27,13 @@ SavepointID = Annotated[
     can assign them doing a DFS traversal of the pipeline, which in turns allows
     to efficiently represent a subtree of savepoints as a continuous range of
     integers to avoid storing the dependencies multiple times.
+    """,
+]
+
+ProjectID = Annotated[
+    str,
+    """
+    An unique identifier for a project.
     """,
 ]
 
@@ -89,6 +98,62 @@ class FileStorageEntry:
 
     def __post_init__(self):
         assert int(self.path is not None) + int(self.contents is not None) == 1
+
+
+class StorageProviderFactory(ABC):
+    """
+    A possibly stateful factory for a specific storage provider.
+    This abstraction is needed to optimize daemon, as the cloud version needs to
+    be stateless and instantiate a new storage provider client each time, while
+    the local version can reuse the same client.
+    """
+
+    @abstractmethod
+    def __init__(self, url: str):
+        """
+        The cli will decide how to instantiate the factory using a url argument
+        so this url has to contain all the information needed to instantiate the
+        factory.
+        """
+
+    @classmethod
+    @abstractmethod
+    def scheme(cls) -> str:
+        """
+        The scheme that identifies this storage provider, i.e. the initial part
+        of the URL before the "://".
+        """
+
+    @abstractmethod
+    def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> AsyncContextManager[StorageProvider]:
+        """
+        Get a storage provider instance for the given project.
+        This method has to receive all the arguments needed by all possible
+        implementations, so it's common that the implementation will ignore some
+        of them. The method returns an async context manager that yields the
+        storage provider. This is done because we need to lock the storage provider
+        based on the project ID because only one user at time can modify a project.
+        """
+
+
+# TODO: find a more suitable name
+def storage_provider_factory_factory(url: str) -> StorageProviderFactory:
+    """Create a storage provider factory from an url."""
+    scheme = urlparse(url).scheme
+    factories = get_registry(StorageProviderFactory)  # type: ignore [type-abstract]
+    for factory_type in factories.values():
+        if factory_type.scheme() == scheme:
+            return factory_type(url)
+    available_schemes = ", ".join(factories.keys())
+    raise ValueError(
+        f"Unknown storage provider scheme {scheme}."
+        f" The available schemes are: {available_schemes}."
+    )
 
 
 class StorageProvider(ABC):
@@ -156,15 +221,19 @@ class StorageProvider(ABC):
         """
 
     @abstractmethod
-    def get_model(self) -> bytes:
-        """
-        Get the model
-        """
+    def get_epoch(self) -> int:
+        """Get the epoch, i.e. the model version number."""
 
     @abstractmethod
-    def set_model(self, new_model: bytes):
+    def get_model(self) -> tuple[bytes, int]:
+        """Get the model and the epoch."""
+
+    @abstractmethod
+    def set_model(self, new_model: bytes) -> int:
         """
-        Set the model
+        Set the model and return the new epoch (which will be current epoch + 1
+        if the model changed, or current epoch if it didn't, and 0 if there was no
+        model before).
         """
 
     @abstractmethod

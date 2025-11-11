@@ -10,9 +10,9 @@ from tempfile import NamedTemporaryFile
 from typing import Optional, TypeVar, Union
 
 import pytest
-from simple_pipeline import ChildDictContainer, DictModel, GeneratorPipe, InPlacePipe, MyKind
-from simple_pipeline import MyObjectID, NullAnalysis, PurgeAllAnalysis, PurgeOneAnalysis
-from simple_pipeline import RootDictContainer, SameKindPipe, ToHigherKindPipe, ToLowerKindPipe
+from pipebox import ChildDictContainer, DictModel, GeneratorPipe, InPlacePipe, MyKind, MyObjectID
+from pipebox import NullAnalysis, PurgeAllAnalysis, PurgeOneAnalysis, RootDictContainer
+from pipebox import SameKindPipe, ToHigherKindPipe, ToLowerKindPipe
 
 from revng.pypeline import initialize_pypeline
 from revng.pypeline.analysis import AnalysisBinding
@@ -22,8 +22,8 @@ from revng.pypeline.object import Kind, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
+from revng.pypeline.storage.local_provider import LocalStorageProvider
 from revng.pypeline.storage.memory import InMemoryStorageProvider
-from revng.pypeline.storage.sqlite3 import SQlite3StorageProvider
 from revng.pypeline.storage.storage_provider import ContainerLocation, SavePointsRange
 from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.task.pipe import Pipe
@@ -49,15 +49,15 @@ def model():
     return DictModel()
 
 
-@pytest.fixture(params=["memory", "sqlite3"])
+@pytest.fixture(params=["memory", "local"])
 def storage_provider(request):
     storage_provider: StorageProvider
     if request.param == "memory":
         storage_provider = InMemoryStorageProvider()
         yield storage_provider
-    elif request.param == "sqlite3":
+    elif request.param == "local":
         with NamedTemporaryFile() as f:
-            storage_provider = SQlite3StorageProvider(":memory:", f.name)
+            storage_provider = LocalStorageProvider(":memory:", f.name)
             yield storage_provider
     else:
         raise ValueError()
@@ -486,7 +486,7 @@ def test_analysis(model, storage_provider):
     assert savepoint.savepoint_range == SavePointsRange(start=1, end=1)
 
     orig_model = model.clone()
-    new_model = pipeline.run_analysis(
+    new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         analysis_name="null_analysis",
         requests=Requests({child: expected_output}),
@@ -497,8 +497,9 @@ def test_analysis(model, storage_provider):
 
     assert model == orig_model, "Model should not be modified by the analysis"
     assert new_model == orig_model, "This analysis doesn't invalidate anything"
+    assert not invalidated, "This analysis doesn't invalidate anything"
 
-    new_model = pipeline.run_analysis(
+    new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         analysis_name="purge_all_analysis",
         requests=Requests({child: expected_output}),
@@ -510,7 +511,7 @@ def test_analysis(model, storage_provider):
     assert model == orig_model, "Model should not be modified by the analysis"
     assert new_model == DictModel(), "This analysis invalidates everything"
 
-    new_model = pipeline.run_analysis(
+    new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         analysis_name="purge_one_analysis",
         requests=Requests({child: expected_output}),
@@ -552,7 +553,7 @@ def test_pipeline(storage_provider):
     )
     assert res.objects() == ObjectSet(MyKind.ROOT, {MyObjectID.root()})
 
-    new_model = pipeline.run_analysis(
+    new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         analysis_name="NullAnalysis",
         requests=Requests(
@@ -570,7 +571,7 @@ def test_pipeline(storage_provider):
     assert isinstance(new_model, DictModel), "The analysis should return the same model type"
     assert new_model == model, "NullAnalysis should not change the model"
 
-    new_model = pipeline.run_analysis(
+    new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         # An alias of PurgeAllAnalysis
         analysis_name="blackhole",
@@ -588,7 +589,7 @@ def test_pipeline(storage_provider):
     )
     assert isinstance(new_model, DictModel), "The analysis should return the same model type"
     assert len(new_model) == 0, "PurgeAllAnalysis should empty the model"
-    stored_model = storage_provider.get_model()
+    stored_model, epoch = storage_provider.get_model()
     assert stored_model == new_model.serialize(), "The model should be stored"
 
 

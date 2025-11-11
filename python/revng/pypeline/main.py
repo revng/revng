@@ -1,22 +1,23 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
+from __future__ import annotations
 
 import importlib.util
-import logging
 import os
 import sys
 from pathlib import Path
 from typing import Sequence
 
 import click
+import psutil
+from click.shell_completion import get_completion_class
 
 from . import initialize_pypeline
-from .cli.utils import EagerParsedPath, LazyGroup
-
-logger = logging.getLogger("pypeline")
-logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler(sys.stderr))
+from .cli.pipeline import pipeline
+from .cli.project import project
+from .cli.utils import EagerParsedPath, PypeGroup
+from .utils.logger import pypeline_logger
 
 
 def import_pipebox(module_path: str, is_complete: bool) -> object:
@@ -33,12 +34,11 @@ def import_pipebox(module_path: str, is_complete: bool) -> object:
         # without having a pipebox file
         if is_complete:
             return object()
-        logger.error(
+        pypeline_logger.log(
             (
-                "Pipebox file `%s` does not exist. Either set it using the "
+                f'Pipebox file "{module_abspath}" does not exist. Either set it using the '
                 "PIPEBOX env var, or pass the --pipebox option."
             ),
-            module_abspath,
         )
         sys.exit(1)
     # We guess that the module name is the file name without the extension
@@ -48,13 +48,13 @@ def import_pipebox(module_path: str, is_complete: bool) -> object:
     if spec is None:
         if is_complete:
             return object()
-        logger.error("Could not load module `%s` from `%s`", module_name, module_abspath)
+        pypeline_logger.log(f'Could not load module "{module_name}" from "{module_abspath}"')
         sys.exit(1)
     module = importlib.util.module_from_spec(spec)
     if spec.loader is None:
         if is_complete:
             return object()
-        logger.error("Could not load module `%s` from `%s`", module_name, module_abspath)
+        pypeline_logger.log(f'Could not load module "{module_name}" from "{module_abspath}"')
         sys.exit(1)
     # Execute the module to load it
     spec.loader.exec_module(module)
@@ -63,34 +63,168 @@ def import_pipebox(module_path: str, is_complete: bool) -> object:
     return module
 
 
-@click.group(
-    cls=LazyGroup,
-    lazy_subcommands={
-        "pipeline": "revng.pypeline.cli.pipeline:pipeline",
-        "project": "revng.pypeline.cli.project:project",
-    },
+def get_current_root_name(ctx: click.Context) -> str:
+    root = ctx.find_root()
+    command = root.command
+    assert command.name is not None, "Command name should not be None"
+    return command.name
+
+
+def detect_autocomplete(ctx: click.Context) -> bool:
+    """Detect if we are in auto-complete mode."""
+    return (
+        "_{}_COMPLETE".format(get_current_root_name(ctx).upper()) in os.environ
+        or "autocomplete" in sys.argv
+    )
+
+
+@click.group(cls=PypeGroup)
+@click.option(
+    "-C",
+    "--directory",
+    # This impacts `--pipebox` as well, so we need to change the cwd before
+    # parsing any other argument
+    type=EagerParsedPath(
+        name="directory",
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+        parser=lambda path, _ctx: os.chdir(path) if path else None,
+    ),
+    help=(
+        'Change the current working directory, equivalent to running "cd" before executing any'
+        " command."
+    ),
+    expose_value=False,
 )
 @click.option(
     "--pipebox",
+    # The pypebox needs to be imported before the arguments of the subcommands are parsed
+    # so we use an eager option to import it as soon as possible
     type=EagerParsedPath(
         name="pipebox",
-        parser=lambda path: import_pipebox(path, "_PYPE_COMPLETE" in os.environ),
+        # During auto-completion we don't want to fail if the file does not exist
+        exists=False,
+        parser=lambda path, ctx: import_pipebox(path, detect_autocomplete(ctx)),
     ),
     help=(
-        "Path to the pipebox file. Defaults to the `PIPEBOX` environment "
-        "variable, then 'pipebox.py'."
+        'Path to the pipebox file. Defaults to the "PIPEBOX" environment '
+        'variable, then "pipebox.py".'
     ),
     default=os.environ.get("PIPEBOX", "pipebox.py"),
+    show_default=True,
     expose_value=False,
 )
-def cli():
-    pass
+@click.option(
+    "--verbose",
+    is_flag=True,
+    help="Enable debug logging for the pypeline related code.",
+)
+@click.pass_context
+def pype(ctx, verbose: bool) -> None:
+
+    # Enable debug logging for pypeline if requested
+    if verbose:
+        pypeline_logger.debug = True
+
+    # Avoid initializing the pipebox if we are in auto-complete mode
+    if detect_autocomplete(ctx):
+        return
+
+    # Get the already loaded pipebox module from the context
+    pipebox = ctx.obj["pipebox"]
+    # Get its initialize function
+    pipebox_initialize = getattr(pipebox, "initialize", None)
+    if pipebox_initialize is None:
+        pypeline_logger.log(
+            (
+                f'Pipebox file "{ctx.obj['pipebox_path']}" does not have an "initialize" function.'
+                " This is required to setup the pypeline."
+            ),
+        )
+        sys.exit(1)
+
+    # Call the initialize
+    pipebox_initialize(ctx.obj["pipebox_args"])
+
+
+pype.add_command(pipeline)
+pype.add_command(project)
+
+
+def detect_shell() -> str:
+    """Detect the current shell."""
+    try:
+        # Get the parent process ID (PPID) of the current Python script
+        ppid = os.getppid()
+        # Get the process object from the PPID
+        parent_process = psutil.Process(ppid)
+        # The name of the executable of the parent process is our shell
+        return parent_process.name()
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        # Handle cases where the parent process might not exist or is inaccessible
+        return Path(os.environ.get("SHELL", "bash")).name
+
+
+@pype.command()
+@click.option(
+    "--shell",
+    type=click.Choice(["bash", "zsh", "fish"]),
+    default=detect_shell(),
+    help="Shell type",
+)
+@click.pass_context
+def autocomplete(ctx, shell):
+    """
+    Generate shell completion script for the CLI.
+
+    To temporary enable autocomplete run `eval "$(pype autocomplete)"`.
+    To install them, depending on your shell, run:
+    - `bash`: `pype autocomplete --shell bash > ~/.bash_completion.d/pype`
+    - `zsh` : `pype autocomplete --shell zsh  > ~/.zsh/completions/_pype`
+    - `fish`: `pype autocomplete --shell fish > ~/.config/fish/completions/pype.fish`
+    """
+    pypeline_logger.log(f'Detected shell: "{shell}"')
+
+    # Get the root command
+    prog_name = get_current_root_name(ctx)
+    pypeline_logger.debug_log(f'Program name: "{prog_name}"')
+    complete_var = f"_{prog_name.upper()}_COMPLETE"
+    pypeline_logger.debug_log(f'Complete variable: "{complete_var}"')
+
+    # Requires Click 8.0+ for shell_complete
+    # Create a completion context
+    completion_cls = get_completion_class(shell)
+    if completion_cls is None:
+        click.echo(f'Shell "{shell}" is not supported', err=True)
+        return
+
+    completion = completion_cls(
+        cli=ctx.find_root().command,
+        ctx_args={},
+        prog_name=prog_name,
+        complete_var=complete_var,
+    )
+    click.echo(completion.source())
 
 
 def main(args: Sequence[str]) -> None:
-    # pylint: disable=E1120 no-value-for-parameter
+    # Divide click's argument from pipebox's arguments
+    if "--" in args:
+        position = args.index("--")
+        click_args = args[:position]
+        pipebox_args = args[position + 1 :]
+    else:
+        click_args = args
+        pipebox_args = []
+
     # This is ok as click will pass the pipebox argument automatically
-    cli(args=args)
+    pype(
+        args=click_args,
+        obj={
+            "pipebox_args": pipebox_args,
+        },
+    )
 
 
 def run():
