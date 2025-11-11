@@ -437,10 +437,7 @@ class Pipeline(Generic[C]):
         analysis_info.analysis.run(
             model=new_model,
             containers=[all_containers[decl] for decl in analysis_info.bindings],
-            incoming=[
-                requests.get(decl, ObjectSet(decl.container_type.kind, set()))
-                for decl in analysis_info.bindings
-            ],
+            incoming=[requests.get(decl) for decl in analysis_info.bindings],
             configuration=analysis_configuration,
         )
         invalidated = storage_provider.invalidate(ReadOnlyModel(new_model).diff(model))
