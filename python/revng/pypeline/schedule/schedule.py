@@ -182,8 +182,8 @@ class Schedule:
 
                 args = []
                 for declaration in task.node.bindings:
-                    incoming = [x.serialize() for x in task.incoming.get(declaration, [])]
-                    outgoing = [x.serialize() for x in task.outgoing.get(declaration, [])]
+                    incoming = [x.serialize() for x in task.incoming.get(declaration)]
+                    outgoing = [x.serialize() for x in task.outgoing.get(declaration)]
                     args.append(
                         {"name": declaration.name, "incoming": incoming, "outgoing": outgoing}
                     )
@@ -204,8 +204,8 @@ class Schedule:
 
                 sp_containers = []
                 for declaration in self.declarations:
-                    incoming = [x.serialize() for x in task.incoming.get(declaration, [])]
-                    outgoing = [x.serialize() for x in task.outgoing.get(declaration, [])]
+                    incoming = [x.serialize() for x in task.incoming.get(declaration)]
+                    outgoing = [x.serialize() for x in task.outgoing.get(declaration)]
                     if len(incoming) == 0 and len(outgoing) == 0:
                         continue
 

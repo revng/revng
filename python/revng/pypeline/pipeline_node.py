@@ -167,10 +167,7 @@ class PipelineNode:
             )
         elif isinstance(self.task, Pipe):
             # Use the bindings to map the requests to the pipe arguments
-            pipe_requests: list[ObjectSet] = [
-                requests.get(decl, ObjectSet(decl.container_type.kind, set()))
-                for decl in self.bindings
-            ]
+            pipe_requests: list[ObjectSet] = [requests.get(decl) for decl in self.bindings]
             # Ask the pipe for its prerequisites
             outgoing = self.task.prerequisites_for(
                 model=model,
@@ -219,14 +216,8 @@ class PipelineNode:
             return None
         elif isinstance(self.task, Pipe):
             pipe_containers = [containers[decl] for decl in self.bindings]
-            pipe_incoming = [
-                incoming.get(decl, ObjectSet(decl.container_type.kind, set()))
-                for decl in self.bindings
-            ]
-            pipe_outgoing = [
-                outgoing.get(decl, ObjectSet(decl.container_type.kind, set()))
-                for decl in self.bindings
-            ]
+            pipe_incoming = [incoming.get(decl) for decl in self.bindings]
+            pipe_outgoing = [outgoing.get(decl) for decl in self.bindings]
             deps = self.task.run(
                 file_provider=StorageProviderFileProvider(storage_provider),
                 model=model,
