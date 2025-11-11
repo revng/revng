@@ -366,7 +366,8 @@ revng::detail::Visitor::visit(llvm::Value &Constraint) {
       case llvm::Instruction::Or:
         rc_return record(Constraint, *MaybeLHSRange | *MaybeRHSRange);
       default:
-        revng_abort();
+        // Do nothing
+        break;
       }
     }
   }
