@@ -218,6 +218,7 @@ static unsigned getRegisterSize(LibTcg &LibTcg, LibTcgOpcode Opcode) {
   case LIBTCG_op_extract2_i32:
   case LIBTCG_op_clz_i32:
   case LIBTCG_op_ctz_i32:
+  case LIBTCG_op_ctpop_i32:
     return 32;
   case LIBTCG_op_add2_i64:
   case LIBTCG_op_add_i64:
@@ -286,6 +287,7 @@ static unsigned getRegisterSize(LibTcg &LibTcg, LibTcgOpcode Opcode) {
   case LIBTCG_op_extract2_i64:
   case LIBTCG_op_extract_i64:
   case LIBTCG_op_sextract_i64:
+  case LIBTCG_op_ctpop_i64:
     return 64;
   case LIBTCG_op_br:
   case LIBTCG_op_call:
@@ -1568,6 +1570,10 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Value *ICmp = Builder.CreateICmp(CmpInst::ICMP_EQ, Arg, Zero);
     Value *Select = Builder.CreateSelect(ICmp, ZeroVal, Cttz);
     return { Select };
+  }
+  case LIBTCG_op_ctpop_i32:
+  case LIBTCG_op_ctpop_i64: {
+    return { Builder.CreateUnaryIntrinsic(Intrinsic::ctpop, InArguments[0]) };
   }
   default:
     // For debugging purposes printing the actual opcode
