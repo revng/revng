@@ -45,7 +45,7 @@ DefaultABI: SystemV_x86_64
 
 !!! tip
 
-    You can check out the [model reference](../../../references/model.md) to see what each field is for.
+    You can check out the [model reference](../../references/model.md) to see what each field is for.
 
 Then, we need to describe how to load the program.
 Let's pretend we want to load this code at address `0x400000`.
