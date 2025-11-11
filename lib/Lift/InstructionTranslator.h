@@ -126,7 +126,7 @@ public:
   void registerDirectJumps();
 
 private:
-  std::vector<llvm::Value *>
+  std::optional<std::vector<llvm::Value *>>
   translateOpcode(LibTcgOpcode Opcode,
                   std::vector<LibTcgArgument> ConstArguments,
                   std::vector<llvm::Value *> InArguments);
