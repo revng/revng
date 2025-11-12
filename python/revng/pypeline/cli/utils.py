@@ -10,8 +10,9 @@ from typing import Any, Callable, Optional
 from urllib.parse import urlparse
 
 import click
+from click.core import ParameterSource
 
-from revng.pypeline.container import ContainerDeclaration
+from revng.pypeline.container import ContainerDeclaration, ContainerFormat
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.storage.storage_provider import StorageProviderFactory
@@ -315,3 +316,61 @@ token_option = click.option(
     required=False,
     help="The token to pass to the storage provider.",
 )
+
+
+def handle_format_option(ctx, param, value):
+    """
+    Handles mutual exclusivity, converts strings to Enums,
+    and manages precedence between flags and defaults.
+    """
+    # Handle shortcuts the value is boolean here
+    if param.name in [f.value for f in ContainerFormat]:
+        if not value:
+            return None
+
+        if ctx.params.get("format") is not None:
+            raise click.BadOptionUsage(
+                param.name, f"Mutually exclusive: --{param.name} cannot be used with other formats."
+            )
+
+        ctx.params["format"] = ContainerFormat(param.name)
+        return None
+
+    # Handle --format, value is a string passed from click.Choice or default
+
+    # Check if a shortcut already populated the format
+    existing_format = ctx.params.get("format")
+    if existing_format is not None:
+        # If the user EXPLICITLY typed --format AND used a flag -> Error
+        if ctx.get_parameter_source(param.name) != ParameterSource.DEFAULT:
+            raise click.BadOptionUsage(
+                param.name,
+                "Mutually exclusive: Cannot specify "
+                f"--format when --{existing_format.value} is used.",
+            )
+        # If --format is just running its default 'yaml', let the Flag win
+        return existing_format
+
+    # If no flag was used, convert the string value to Enum and return
+    return ContainerFormat(value)
+
+
+def container_format_options(func):
+    func = click.option(
+        "--format",
+        "container_format",
+        type=click.Choice([x.value for x in ContainerFormat]),
+        default=ContainerFormat.YAML.value,
+        show_default=True,
+        callback=handle_format_option,
+        help=("Format to use for the output container, either on stdout or in the result path."),
+    )(func)
+    for member in ContainerFormat:
+        func = click.option(
+            f"--{member.value}",
+            is_flag=True,
+            expose_value=False,
+            help=f"Shortcut for --format={member.value}.",
+            callback=handle_format_option,
+        )(func)
+    return func

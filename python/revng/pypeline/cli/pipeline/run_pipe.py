@@ -7,8 +7,10 @@ from pathlib import Path
 import click
 
 from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
-from revng.pypeline.cli.utils import compute_objects, list_objects_option, normalize_kwarg_name
+from revng.pypeline.cli.utils import compute_objects, container_format_options
+from revng.pypeline.cli.utils import list_objects_option, normalize_kwarg_name
 from revng.pypeline.cli.utils import normalize_whitespace
+from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.storage.file_provider import FileProvider, FileRequest
@@ -141,18 +143,21 @@ def build_pipe_command(
         type=click.Path(exists=True, file_okay=False, path_type=Path),
         default=Path.cwd(),
     )
+    @container_format_options
     @list_objects_option
     def run_pipe_command(
         model: str,
         static_configuration: str,
         configuration: str,
         file_storage: Path,
+        container_format: ContainerFormat,
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f"Running pipe: {pipe_name}")
         pypeline_logger.debug_log(f"with static configuration: {static_configuration}")
         pypeline_logger.debug_log(f"configuration: {configuration}")
         pypeline_logger.debug_log(f"model: {model}")
+        pypeline_logger.debug_log(f'container_format: "{container_format}"')
         pypeline_logger.debug_log(f"and kwargs: {kwargs}")
 
         # Create the pipe
@@ -171,6 +176,7 @@ def build_pipe_command(
 
             # Otherwise we need to load the container from the filesystem
             path = kwargs[f"{arg_name}_input"]
+            pypeline_logger.debug_log(f"Loading container {path} for argument {arg_name}")
             containers.append(arg.container_type.from_file(path))
 
         # From the command line figure out the requests for each argument
@@ -178,6 +184,7 @@ def build_pipe_command(
         for arg in pipe.signature():
             if arg.access == TaskArgumentAccess.READ:
                 # If the argument is read-only, we don't need to request anything
+                outgoing.append(ObjectSet(kind=arg.container_type.kind))
                 continue
             # If the argument is writable, we need to request the objects
             outgoing.append(
@@ -189,17 +196,21 @@ def build_pipe_command(
                 )
             )
 
+        pypeline_logger.debug_log(f"Outgoing requests: {outgoing}")
+
         # Ask the pipe for the requests it needs
         incoming = pipe.prerequisites_for(
             model=ReadOnlyModel(loaded_model),
             requests=outgoing,
         )
+        pypeline_logger.debug_log(f"Incoming requests: {incoming}")
+
         # Ensure that the user provided all the required arguments
         for container, request in zip(containers, incoming):
             if not request:
                 # If the request is empty, we don't need to load anything
                 continue
-            if container.kind not in request:
+            if not request.issubset(container.objects()):
                 raise click.UsageError(
                     f"Container {container} does not have the required objects: {request}"
                 )
@@ -225,7 +236,7 @@ def build_pipe_command(
             # to the filesystem
             path = kwargs[f"{arg_name}_output"]
             pypeline_logger.log(f"Dumping container {arg_name} to {path}")
-            container.to_file(path)
+            container.to_file(path, container_format=container_format)
 
     return run_pipe_command
 
