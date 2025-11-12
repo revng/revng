@@ -1,15 +1,17 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-
 import asyncio
+import sys
 from pathlib import Path
 from typing import AsyncContextManager
 
 import click
 
-from revng.pypeline.cli.utils import PypeGroup, build_help_text, list_objects_option
+from revng.pypeline.cli.utils import PypeGroup, build_help_text, container_format_option
+from revng.pypeline.cli.utils import is_json_option, is_tar_option, list_objects_option
 from revng.pypeline.cli.utils import normalize_whitespace, project_id_option, token_option
+from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
@@ -84,6 +86,7 @@ class ArtifactGroup(PypeGroup):
             "objects",
             type=str,
             default=None,
+            required=False,
         )(run_artifact_command)
 
         return run_artifact_command
@@ -101,6 +104,7 @@ def build_artifact_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
         objects: str | None,
         result_path: Path | None,
+        container_format: ContainerFormat,
         kwargs,
     ):
         """Since the storage provider factory returns an async context manager,
@@ -149,11 +153,24 @@ def build_artifact_command(
 
             if result_path is not None:
                 pypeline_logger.debug_log(f'Writing result to: "{result_path}"')
-                res_container.to_file(result_path)
+                res_container.to_file(result_path, container_format)
             else:
-                print(res_container.to_string(), end="", flush=True)
+                # While "auto" works great when writing to a file, when writing to stdout we cannot
+                # infer the format, so we need to take a decision.
+                # We default to json as it's the easiest to read on the terminal.
+                if container_format == "auto":
+                    container_format = "json"
+                # Write to stdout the bytes of the container
+                sys.stdout.buffer.write(res_container.to_bytes(container_format=container_format))
+                sys.stdout.buffer.flush()
 
-    @click.command(name=artifact_name, help=help_text)
+    @click.command(
+        name=artifact_name,
+        help=help_text,
+        context_settings={
+            "show_default": True,
+        },
+    )
     @list_objects_option
     @project_id_option
     @token_option
@@ -163,9 +180,13 @@ def build_artifact_command(
         type=click.Path(dir_okay=False, writable=True),
         help=(
             "Path to write the computed artifacts to, if not specified, the "
-            "result will be printed to stdout"
+            "result will be printed to stdout. "
+            "The default container_format when printing to stdout is json."
         ),
     )
+    @container_format_option
+    @is_tar_option
+    @is_json_option
     @click.pass_context
     def run_analysis_command(
         ctx: click.Context,
@@ -174,11 +195,19 @@ def build_artifact_command(
         token: str,
         objects: str | None,
         result_path: Path | None,
+        container_format: ContainerFormat,
+        is_tar: bool,
+        is_json: bool,
         **kwargs,
     ) -> None:
+        if is_tar:
+            container_format = "tar"
+        if is_json:
+            container_format = "json"
         pypeline_logger.debug_log(f'Running artifact: "{artifact_name}"')
         pypeline_logger.debug_log(f'configuration: "{configuration}"')
-        pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
+        pypeline_logger.debug_log(f'container_format: "{container_format}"')
+        pypeline_logger.debug_log(f'kwargs: "{kwargs}"')
 
         # Setup the storage provider
         storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
@@ -193,6 +222,7 @@ def build_artifact_command(
                 storage_provider_context=storage_provider_context,
                 objects=objects,
                 result_path=result_path,
+                container_format=container_format,
                 kwargs=kwargs,
             )
         )

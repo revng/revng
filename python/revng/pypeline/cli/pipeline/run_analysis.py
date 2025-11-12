@@ -133,7 +133,8 @@ def build_run_analysis_command(
         containers = []
         for arg in analysis.signature():
             arg_name = arg.__name__
-            path = kwargs[arg_name]
+            # Click automatically makes the argument uppercase and make the variable lowercase
+            path = kwargs[arg_name.lower()]
             container = arg.from_file(path)
             pypeline_logger.debug_log(
                 f'Loaded container from "{path}" for argument "{arg_name}": "{container}"'
