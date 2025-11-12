@@ -6,12 +6,12 @@ import os
 import re
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, get_args
 from urllib.parse import urlparse
 
 import click
 
-from revng.pypeline.container import ContainerDeclaration
+from revng.pypeline.container import ContainerDeclaration, ContainerFormat
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.storage.storage_provider import StorageProviderFactory
@@ -314,4 +314,32 @@ token_option = click.option(
     type=str,
     required=False,
     help="The token to pass to the storage provider.",
+)
+
+
+container_format_option = click.option(
+    "--format",
+    "container_format",
+    type=click.Choice(get_args(ContainerFormat) + ("auto",)),
+    default="auto",
+    show_default=True,
+    help=(
+        "Format to use for the output container, either on stdout or in the result path."
+        'It defaults to "auto" which will guess it from the file extension.'
+    ),
+)
+# The more elegant way would be to make it also write on `container_format`, so
+# we don't need to manually handle the `--tar` option, but if we don't pass `--tar`
+# it overrides the default value of `container_format` with None
+is_tar_option = click.option(
+    "--tar",
+    "is_tar",
+    flag_value="tar",
+    help="Shortcut for --format=tar.",
+)
+is_json_option = click.option(
+    "--json",
+    "is_json",
+    flag_value="json",
+    help="Shortcut for --format=j.",
 )
