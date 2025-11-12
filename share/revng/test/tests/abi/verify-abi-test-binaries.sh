@@ -18,8 +18,7 @@ test -n "$OUTPUT_DIRECTORY"
 
 SCRIPT_DIRECTORY="$( dirname -- "$( readlink -f -- "$0"; )"; )"
 
-orc shell \
-  llvm-dwarfdump \
+llvm-dwarfdump \
   "$BINARY" \
   > "$OUTPUT_DIRECTORY/dwarf.dump"
 
