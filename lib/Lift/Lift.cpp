@@ -102,13 +102,32 @@ bool LiftPass::runOnModule(llvm::Module &M) {
   return false;
 }
 
+/// Map describing the jump targets in the LLVM module, each one is identified
+/// by its MetaAddress. The boolean value represents if the jump target has been
+/// discovered through harvesting (false) or successively through the list of
+/// model functions (true).
+using JumpTargetMap = std::map<MetaAddress, bool>;
+
+template<>
+struct llvm::yaml::CustomMappingTraits<JumpTargetMap> {
+  static void inputOne(IO &IO, StringRef Key, JumpTargetMap &Data) {
+    MetaAddress Address = MetaAddress::fromString(Key);
+    IO.mapRequired(Key.str().c_str(), Data[Address]);
+  }
+
+  static void output(IO &IO, JumpTargetMap &Data) {
+    for (auto &[Key, Value] : Data)
+      IO.mapRequired(Key.toString().c_str(), Value);
+  }
+};
+
 namespace revng::pypeline::piperuns {
 
-void Lift::run(const class Model &TheModel,
-               llvm::StringRef Config,
-               llvm::StringRef DynamicConfig,
-               const BinariesContainer &Binary,
-               LLVMRootContainer &ModuleContainer) {
+CustomInvalidationData Lift::run(const class Model &TheModel,
+                                 llvm::StringRef Config,
+                                 llvm::StringRef DynamicConfig,
+                                 const BinariesContainer &Binary,
+                                 LLVMRootContainer &ModuleContainer) {
   llvm::Task T(6, "Lift");
   const TupleTree<model::Binary> &Model = TheModel.get();
 
@@ -150,12 +169,42 @@ void Lift::run(const class Model &TheModel,
   // TODO: substitute with strip-dead-debug-info once the old pipeline
   //       is dropped
   pruneDICompileUnits(Module);
+
+  // Compute invalidation data
+  Buffer SerializedInvalidation;
+
+  {
+    auto [HasRootAndNewPc,
+          JumpTargets] = lift::internal::collectJumpTargets(Module);
+    revng_assert(HasRootAndNewPc);
+    llvm::raw_svector_ostream OS(SerializedInvalidation.data());
+    serialize(OS, JumpTargets);
+  }
+
+  return { {}, { { ObjectID(), SerializedInvalidation } } };
 }
 
 llvm::Error Lift::checkPrecondition(const class Model &Model) {
   const model::Binary &Binary = *Model.get().get();
-  return revng::joinErrors(::detail::liftCheckPrecondition(Binary),
+  return revng::joinErrors(lift::internal::checkPrecondition(Binary),
                            RawBinaryView::checkPrecondition(Binary));
+}
+
+std::vector<std::set<ObjectID>> Lift::invalidate(const InvalidationData &Data,
+                                                 const ModelDiff &Diff) {
+  auto LLVMModuleData = Data.at(1);
+  revng_assert(LLVMModuleData.size() == 1);
+  revng_assert(*std::get<0>(LLVMModuleData[0]) == ObjectID());
+
+  auto DataBuffer = std::get<1>(LLVMModuleData[0]);
+  llvm::StringRef String(reinterpret_cast<const char *>(DataBuffer.data()),
+                         DataBuffer.size());
+  auto JumpTargets = llvm::cantFail(fromString<JumpTargetMap>(String));
+
+  if (lift::internal::shouldInvalidateRoot(JumpTargets, Diff.get()))
+    return { {}, { ObjectID() } };
+  else
+    return {};
 }
 
 } // namespace revng::pypeline::piperuns
