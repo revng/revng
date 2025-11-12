@@ -12,9 +12,7 @@
 #include "llvm/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
-#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/InitModelTypes/InitModelTypes.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
