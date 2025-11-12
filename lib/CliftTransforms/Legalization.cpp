@@ -5,6 +5,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+#include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftTransforms/Legalization.h"
 #include "revng/CliftTransforms/Passes.h"
 
@@ -24,9 +25,17 @@ static mlir::OpOperand &getOnlyUse(mlir::Value Value) {
   return *Value.use_begin();
 }
 
+/// Changes the type of the first result of the expression \p Op to \p NewType.
+///
+/// If \p PreserveExpressionType is true and the result is not discarded, a
+/// truncating or extending cast (depending on relative sizes of the two types)
+/// is inserted between \p Op and its user. The caller may set this to false
+/// when it is known that the change in type has no effect on the semantics of
+/// the user of the result.
 static void modifyResultType(mlir::PatternRewriter &Rewriter,
                              mlir::Operation *Op,
-                             clift::ValueType NewType) {
+                             clift::ValueType NewType,
+                             bool PreserveExpressionType = true) {
   mlir::OpResult Result = Op->getOpResult(0);
   mlir::OpOperand &OnlyUse = getOnlyUse(Result);
 
@@ -37,11 +46,13 @@ static void modifyResultType(mlir::PatternRewriter &Rewriter,
 
   Result.setType(NewType);
 
-  Rewriter.setInsertionPointAfter(Op);
-  OnlyUse.set(Rewriter.create<clift::CastOp>(Op->getLoc(),
-                                             OldType,
-                                             Result,
-                                             CastKind));
+  if (PreserveExpressionType and not clift::isDiscarded(Result)) {
+    Rewriter.setInsertionPointAfter(Op);
+    OnlyUse.set(Rewriter.create<clift::CastOp>(Op->getLoc(),
+                                               OldType,
+                                               Result,
+                                               CastKind));
+  }
 }
 
 static void modifyOperandType(mlir::PatternRewriter &Rewriter,
@@ -206,7 +217,11 @@ struct BooleanCanonicalizationPattern
     if (T.getSize() == CanonicalBooleanType.getSize())
       return mlir::failure();
 
-    modifyResultType(Rewriter, Op, CanonicalBooleanType);
+    modifyResultType(Rewriter,
+                     Op,
+                     CanonicalBooleanType,
+                     not clift::isBooleanTested(Result));
+
     return mlir::success();
   }
 };

@@ -39,6 +39,7 @@ public:
                          clift::FunctionOp::getOperationName());
 
     PM.addPass(mlir::createCanonicalizerPass());
+    PM.addPass(clift::createLoopDetectionPass());
     PM.addPass(clift::createCLegalizationPass(TargetCImplementation::Default));
 
     mlir::ModuleOp Module = CliftContainer.getModule();

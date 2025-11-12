@@ -367,7 +367,7 @@ private:
 
       Iterator->second = Op;
     } else {
-      revng_assert(Iterator->second.getCliftFunctionType() == FunctionType);
+      revng_assert(Iterator->second.getFunctionType() == FunctionType);
     }
 
     return Iterator->second;
@@ -436,7 +436,7 @@ private:
 
   clift::ValueType emitGlobalObject(const llvm::GlobalObject *G) {
     if (const auto *F = llvm::dyn_cast<llvm::Function>(G))
-      return emitFunctionDeclaration(F).getCliftFunctionType();
+      return emitFunctionDeclaration(F).getFunctionType();
 
     revng_abort("Unsupported global object kind");
   }
@@ -551,7 +551,7 @@ private:
   mlir::Value emitHelperCall(mlir::Location Loc,
                              FunctionOp Function,
                              llvm::ArrayRef<mlir::Value> Arguments) {
-    auto FunctionType = Function.getCliftFunctionType();
+    auto FunctionType = Function.getFunctionType();
 
     llvm::SmallVector<mlir::Value> CastArgs;
     CastArgs.reserve(Arguments.size());
@@ -603,7 +603,7 @@ private:
     revng_assert(llvm::isa<llvm::ReturnInst>(UseBegin->getUser()));
     revng_assert(std::next(UseBegin) == UseEnd);
 
-    auto T = mlir::dyn_cast<StructType>(CurrentFunction.getCliftReturnType());
+    auto T = mlir::dyn_cast<StructType>(CurrentFunction.getReturnType());
     revng_assert(Call->arg_size() == T.getFields().size());
 
     llvm::SmallVector<mlir::Value> Initializers;
@@ -754,7 +754,7 @@ private:
         revng_log(ExpressionLog, "llvm::Function -> UseOp");
         auto Function = emitFunctionDeclaration(F);
         rc_return Builder.create<UseOp>(SurroundingLocation,
-                                        Function.getCliftFunctionType(),
+                                        Function.getFunctionType(),
                                         Function.getSymNameAttr());
       }
 
@@ -1344,7 +1344,7 @@ private:
       Iterator->second.HasAssignLabel = true;
     }
 
-    Builder.create<GoToOp>(Loc, Iterator->second.Label);
+    Builder.create<GotoOp>(Loc, Iterator->second.Label);
   }
 
   // Returns: { RequiresFullExpression, RequiresIndirection }
@@ -1493,8 +1493,7 @@ private:
       auto Op = Builder.create<ReturnOp>(TerminalLoc);
 
       if (const llvm::Value *Value = Return->getReturnValue()) {
-        clift::FunctionType FunctionType = CurrentFunction
-                                             .getCliftFunctionType();
+        clift::FunctionType FunctionType = CurrentFunction.getFunctionType();
 
         clift::ValueType FuncReturnType = FunctionType.getReturnType();
         clift::ValueType LLVMReturnType = FuncReturnType;

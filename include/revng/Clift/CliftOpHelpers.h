@@ -45,20 +45,6 @@ struct BlockPosition {
                          BlockPosition const &) = default;
 };
 
-inline BlockPosition getJumpTarget(JumpStatementOpInterface Jump) {
-  mlir::Operation *Op = Jump.getLabelAssignmentOp();
-
-  if (auto Loop = mlir::dyn_cast<LoopOpInterface>(Op)) {
-    auto Label = Jump.getLabel();
-    if (Label == Loop.getBreakLabel())
-      return BlockPosition::getNext(Loop);
-    if (Label == Loop.getContinueLabel())
-      return BlockPosition::getEnd(Loop.getBody());
-  }
-
-  return BlockPosition::get(Op);
-}
-
 inline bool isEmptyRegionOrBlock(mlir::Region &R) {
   return R.empty() or R.front().empty();
 }
@@ -73,6 +59,24 @@ inline bool isFirstInBlock(mlir::Operation *Op) {
 
 inline bool isLastInBlock(mlir::Operation *Op) {
   return std::next(Op->getIterator()) == Op->getBlock()->end();
+}
+
+inline mlir::Block *getOnlyBlock(mlir::Region &R) {
+  return R.hasOneBlock() ? &R.front() : nullptr;
+}
+
+inline mlir::Block *extractOnlyBlock(mlir::Region &R) {
+  mlir::Block *Block = getOnlyBlock(R);
+  if (Block != nullptr)
+    R.getBlocks().remove(Block);
+  return Block;
+}
+
+inline void setOnlyBlock(mlir::Region &R, mlir::Block *Block) {
+  if (not R.empty())
+    R.getBlocks().clear();
+  if (Block != nullptr)
+    R.push_back(Block);
 }
 
 template<typename OpT = mlir::Operation *, typename PredicateT>
@@ -171,8 +175,45 @@ OpT getLastOp(mlir::Region &Region) {
   return getLastOpIf<OpT>(Region, [](OpT) { return true; });
 }
 
-inline YieldOp getYieldOp(mlir::Region &R) {
-  return getLastOp<YieldOp>(R);
+template<typename OpT = mlir::Operation *, typename PredicateT>
+OpT getNextOpIf(mlir::Operation *Op, PredicateT &&Predicate) {
+  auto NextIterator = std::next(Op->getIterator());
+  if (NextIterator == Op->getBlock()->end())
+    return {};
+
+  mlir::Operation *NextOp = &*NextIterator;
+  if constexpr (std::is_same_v<OpT, mlir::Operation *>) {
+    if (Predicate(NextOp))
+      return NextOp;
+  } else {
+    if (auto NextOp2 = mlir::dyn_cast<OpT>(NextOp)) {
+      if (Predicate(NextOp2))
+        return NextOp2;
+    }
+  }
+
+  return {};
+}
+
+template<typename OpT = mlir::Operation *>
+OpT getNextOp(mlir::Operation *Op) {
+  return getNextOpIf<OpT>(Op, [](OpT) { return true; });
+}
+
+//===----------------------------- Statements -----------------------------===//
+
+inline BlockPosition getJumpTarget(JumpStatementOpInterface Jump) {
+  mlir::Operation *Op = Jump.getLabelAssignmentOp();
+
+  if (auto Loop = mlir::dyn_cast<LoopOpInterface>(Op)) {
+    auto Label = Jump.getLabel();
+    if (Label == Loop.getBreakLabel())
+      return BlockPosition::getNext(Loop);
+    if (Label == Loop.getContinueLabel())
+      return BlockPosition::getEnd(Loop.getBody());
+  }
+
+  return BlockPosition::get(Op);
 }
 
 template<typename PredicateT>
@@ -191,5 +232,64 @@ inline StatementOpInterface getLastNoFallthroughStatement(mlir::Region &R) {
     return Op->template hasTrait<mlir::OpTrait::clift::NoFallthrough>();
   });
 }
+
+inline bool isIndirectlyNoFallthrough(mlir::Region &R) {
+  StatementOpInterface Op = getLastStatement(R);
+  if (not Op)
+    return false;
+  if (Op->template hasTrait<mlir::OpTrait::clift::NoFallthrough>())
+    return true;
+  return Op.isIndirectlyNoFallthrough();
+}
+
+//===----------------------------- Expressions ----------------------------===//
+
+inline YieldOp getYieldOp(mlir::Region &R) {
+  return getLastOp<YieldOp>(R);
+}
+
+inline ExpressionOpInterface getRootExpression(mlir::Region &R) {
+  if (auto Yield = getYieldOp(R))
+    return Yield.getValue().getDefiningOp<ExpressionOpInterface>();
+  return {};
+}
+
+inline bool isBooleanExpression(mlir::Value Value) {
+  mlir::Operation *Op = Value.getDefiningOp();
+  return Op and Op->hasTrait<mlir::OpTrait::clift::ReturnsBoolean>();
+}
+
+inline mlir::OpOperand *getOnlyUse(mlir::Value Value) {
+  auto Begin = Value.use_begin();
+  auto End = Value.use_end();
+
+  if (Begin == End)
+    return nullptr;
+
+  return &*Begin;
+}
+
+template<typename OpT = mlir::Operation *>
+OpT getOnlyUser(mlir::Value Value) {
+  if (mlir::OpOperand *Operand = getOnlyUse(Value)) {
+    if constexpr (std::is_same_v<Operation, mlir::Operation *>) {
+      return Operand->getOwner();
+    } else {
+      return mlir::dyn_cast<OpT>(Operand->getOwner());
+    }
+  }
+  return nullptr;
+}
+
+//===-------------------------- Expression usage --------------------------===//
+
+/// Returns true if the value is discarded. A value might be discarded by for
+/// instance by an expression statement or a comma expression.
+bool isDiscarded(mlir::Value Value);
+
+/// Returns true if the value is boolean-tested. A value might be boolean-tested
+/// for instance by a control flow condition, a ternary expression or a logical
+/// expression.
+bool isBooleanTested(mlir::Value Value);
 
 } // namespace mlir::clift

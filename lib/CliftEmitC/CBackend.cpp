@@ -74,6 +74,13 @@ public:
                         not Signed);
   }
 
+  void emitCast(ValueType Type) {
+    C.emitOperator(CTE::Operator::LeftParenthesis);
+    emitType(Type);
+    C.emitOperator(CTE::Operator::RightParenthesis);
+    C.emitSpace();
+  }
+
   void emitIntegerImmediate(uint64_t Value, ValueType Type) {
     Type = dealias(Type, /*IgnoreQualifiers=*/true);
 
@@ -83,11 +90,7 @@ public:
       if (not Integer) {
         // Emit explicit cast if the standard integer type is not known. Emit
         // the literal itself without a suffix (as if int).
-
-        C.emitOperator(CTE::Operator::LeftParenthesis);
-        emitPrimitiveType(T);
-        C.emitOperator(CTE::Operator::RightParenthesis);
-
+        emitCast(T);
         Integer = CIntegerKind::Int;
       }
 
@@ -293,9 +296,7 @@ public:
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOp>();
 
-    C.emitOperator(CTE::Operator::LeftParenthesis);
-    emitType(E.getResult().getType());
-    C.emitOperator(CTE::Operator::RightParenthesis);
+    emitCast(E.getResult().getType());
 
     // Parenthesizing a nested unary prefix expression is not necessary.
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
@@ -781,7 +782,7 @@ public:
   emitLabeledJumpStatement(JumpStatementOpInterface S) {
     auto LabelOp = S.getLabel().getDefiningOp<MakeLabelOp>();
 
-    if (mlir::isa<GoToOp>(S))
+    if (mlir::isa<GotoOp>(S))
       C.emitKeyword(CTE::Keyword::Goto);
     else if (mlir::isa<BreakToOp>(S))
       C.emitLiteralIdentifier("break_to");
@@ -1056,7 +1057,7 @@ public:
 
   static bool mayElideBraces(mlir::Operation *Operation) {
     return mlir::isa<ExpressionStatementOp,
-                     GoToOp,
+                     GotoOp,
                      ReturnOp,
                      BreakToOp,
                      ContinueToOp>(Operation);
@@ -1124,7 +1125,7 @@ public:
                                           Attributes);
       }
 
-      emitDeclaration(Op.getCliftFunctionType(),
+      emitDeclaration(Op.getFunctionType(),
                       DeclaratorInfo{
                         .Identifier = Op.getName(),
                         .Location = Op.getHandle(),

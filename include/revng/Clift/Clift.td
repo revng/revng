@@ -108,7 +108,7 @@ def Clift_FunctionOp : Clift_Op<"func",
                                  AutomaticAllocationScope,
                                  IsolatedFromAbove]> {
   let arguments = (ins StrAttr:$sym_name,
-                       TypeAttrOf<Clift_AnyFunctionType>:$function_type,
+                       TypeAttrOf<Clift_AnyFunctionType>:$function_value_type,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs,
                        DefaultValuedStrAttr<StrAttr, "">:$handle);
@@ -128,16 +128,34 @@ def Clift_FunctionOp : Clift_Op<"func",
   let hasCustomAssemblyFormat = 1;
 
   code extraClassDeclaration = [{
-    clift::FunctionType getCliftFunctionType() {
-      return mlir::cast<clift::FunctionType>(getFunctionType());
+    static mlir::StringAttr getFunctionTypeAttrName(mlir::OperationName Name) {
+      return getFunctionValueTypeAttrName(Name);
     }
 
-    clift::ValueType getCliftReturnType() {
-      return mlir::cast<clift::ValueType>(getCliftFunctionType().getReturnType());
+    mlir::StringAttr getFunctionTypeAttrName() {
+      return getFunctionValueTypeAttrName();
+    }
+
+    mlir::TypeAttr getFunctionTypeAttr() {
+      return getFunctionValueTypeAttr();
+    }
+
+    void setFunctionTypeAttr(mlir::TypeAttr Attr) {
+      return setFunctionValueTypeAttr(Attr);
+    }
+
+    clift::FunctionType getFunctionType() {
+      return mlir::cast<clift::FunctionType>(dealias(getFunctionValueType(),
+                                                     /*IgnoreQualifiers=*/true));
+    }
+
+
+    clift::ValueType getReturnType() {
+      return mlir::cast<clift::ValueType>(getFunctionType().getReturnType());
     }
 
     unsigned getArgCount() {
-      return getCliftFunctionType().getArgumentTypes().size();
+      return getFunctionType().getArgumentTypes().size();
     }
 
 
@@ -278,6 +296,10 @@ class Clift_LoopStatementOp<string mnemonic, list<Trait> traits = []>
   // mistakes, as building a valid loop with explicit label mask and operands
   // would be error prone.
   let skipDefaultBuilders = 1;
+
+  let builders = [
+    OpBuilder<(ins CArg<"mlir::clift::LoopOpInterface", "{}">:$OtherLoop)>
+  ];
 }
 
 def Clift_MakeLabelOp : Clift_StatementOp<"make_label"> {
@@ -361,16 +383,18 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
   let regions = (region Clift_StatementRegion:$body,
                         Clift_ExpressionRegion:$condition);
 
-  let builders = [
-    OpBuilder<(ins)>
-  ];
-
   let assemblyFormat = [{
     custom<CliftLoopLabels>($label_mask, $labels)
     `body` $body `cond` $condition attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
+      return &R == &getCondition();
+    }
+  }];
 }
 
 def Clift_ExpressionStatementOp : Clift_StatementOp<"expr"> {
@@ -378,6 +402,12 @@ def Clift_ExpressionStatementOp : Clift_StatementOp<"expr"> {
 
   let assemblyFormat = [{
     $expression attr-dict-with-keyword
+  }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] bool isDiscardedExpression(mlir::Region &R) {
+      return true;
+    }
   }];
 }
 
@@ -387,15 +417,19 @@ def Clift_ForOp : Clift_LoopStatementOp<"for"> {
                         Clift_OptionalExpressionRegion:$expression,
                         Clift_StatementRegion:$body);
 
-  let builders = [
-    OpBuilder<(ins)>
-  ];
-
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] bool isDiscardedExpression(mlir::Region &R);
+
+    [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
+      return &R == &getCondition();
+    }
+  }];
 }
 
-def Clift_GoToOp : Clift_JumpStatementOp<"goto"> {
+def Clift_GotoOp : Clift_JumpStatementOp<"goto"> {
   let arguments = (ins Clift_LabelType:$label);
 
   let assemblyFormat = [{
@@ -419,6 +453,14 @@ def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
   }];
 
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    bool isIndirectlyNoFallthrough() const;
+
+    [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
+      return &R == &getCondition();
+    }
+  }];
 }
 
 def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
@@ -467,6 +509,8 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
   ];
 
   code extraClassDeclaration = [{
+    bool isIndirectlyNoFallthrough() const;
+
     [[nodiscard]] mlir::clift::ValueType getConditionType();
 
     [[nodiscard]] Region &getConditionRegion() {
@@ -505,16 +549,18 @@ def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
   let regions = (region Clift_ExpressionRegion:$condition,
                         Clift_StatementRegion:$body);
 
-  let builders = [
-    OpBuilder<(ins)>
-  ];
-
   let assemblyFormat = [{
     custom<CliftLoopLabels>($label_mask, $labels)
     `cond` $condition `body` $body attr-dict-with-keyword
   }];
 
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
+      return &R == &getCondition();
+    }
+  }];
 }
 
 //===----------------------------- Expressions ----------------------------===//
@@ -538,6 +584,11 @@ def Clift_YieldOp : Clift_ExpressionOp<"yield", [Terminator]> {
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value)
+  }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] bool isDiscardedOperand(mlir::OpOperand &Operand);
+    [[nodiscard]] bool isBooleanTestedOperand(mlir::OpOperand &Operand);
   }];
 }
 
@@ -578,15 +629,22 @@ class Clift_UnaryArithmeticOp<string mnemonic>
   }];
 }
 
-class Clift_BinaryArithmeticOp<string mnemonic>
+class Clift_BinaryArithmeticOp<string mnemonic, list<Trait> traits = []>
   : Clift_ExpressionOp<mnemonic,
-                       [NoMemoryEffect,
-                        Clift_AllTypesMatch<["lhs", "rhs", "result"]>]> {
+                       !listconcat(traits,
+                                   [NoMemoryEffect,
+                                    Clift_AllTypesMatch<["lhs", "rhs", "result"]>])> {
 
   let arguments = (ins Clift_AnyPrimitiveIntegerType:$lhs,
                        Clift_AnyPrimitiveIntegerType:$rhs);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveIntegerType>:$result);
+
+  let builders = [
+    OpBuilder<(ins "mlir::Value":$Lhs, "mlir::Value":$Rhs), [{
+      build($_builder, $_state, Lhs.getType(), Lhs, Rhs);
+    }]>
+  ];
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:`
@@ -594,8 +652,10 @@ class Clift_BinaryArithmeticOp<string mnemonic>
   }];
 }
 
-class Clift_PointerArithmeticOp<string mnemonic>
-  : Clift_ExpressionOp<mnemonic, [NoMemoryEffect]> {
+class Clift_PointerArithmeticOp<string mnemonic, list<Trait> traits = []>
+  : Clift_ExpressionOp<mnemonic,
+                       !listconcat(traits,
+                                   [NoMemoryEffect])> {
 
   let arguments = (ins Clift_AnyValueType:$lhs, Clift_AnyValueType:$rhs);
   let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
@@ -641,6 +701,12 @@ class Clift_BinaryLogicalOp<string mnemonic>
     $lhs `,` $rhs attr-dict `:`
     custom<CliftOpOperandTypes>(type($lhs), type($rhs)) `->` type($result)
   }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] bool isBooleanTestedOperand(mlir::OpOperand &Operand) {
+      return true;
+    }
+  }];
 }
 
 class Clift_ShiftOp<string mnemonic>
@@ -664,6 +730,7 @@ class Clift_ShiftOp<string mnemonic>
 class Clift_ComparisonOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
                        [NoMemoryEffect,
+                        Commutative,
                         Clift_ReturnsBoolean,
                         Clift_AllTypesMatch<["lhs", "rhs"]>]> {
 
@@ -702,13 +769,13 @@ class Clift_UnaryIntegerMutationOp<string mnemonic>
 }
 
 def Clift_NegOp : Clift_UnaryArithmeticOp<"neg">;
-def Clift_AddOp : Clift_BinaryArithmeticOp<"add">;
+def Clift_AddOp : Clift_BinaryArithmeticOp<"add", [Commutative]>;
 def Clift_SubOp : Clift_BinaryArithmeticOp<"sub">;
-def Clift_MulOp : Clift_BinaryArithmeticOp<"mul">;
+def Clift_MulOp : Clift_BinaryArithmeticOp<"mul", [Commutative]>;
 def Clift_DivOp : Clift_BinaryArithmeticOp<"div">;
 def Clift_RemOp : Clift_BinaryArithmeticOp<"rem">;
 
-def Clift_PtrAddOp : Clift_PointerArithmeticOp<"ptr_add">;
+def Clift_PtrAddOp : Clift_PointerArithmeticOp<"ptr_add", [Commutative]>;
 def Clift_PtrSubOp : Clift_PointerArithmeticOp<"ptr_sub">;
 
 def Clift_PtrDiffOp
@@ -738,15 +805,21 @@ def Clift_LogicalNotOp
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
   }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] bool isBooleanTestedOperand(mlir::OpOperand &Operand) {
+      return true;
+    }
+  }];
 }
 
 def Clift_LogicalAndOp : Clift_BinaryLogicalOp<"and">;
 def Clift_LogicalOrOp : Clift_BinaryLogicalOp<"or">;
 
 def Clift_BitwiseNotOp : Clift_UnaryArithmeticOp<"bitnot">;
-def Clift_BitwiseAndOp : Clift_BinaryArithmeticOp<"bitand">;
-def Clift_BitwiseOrOp : Clift_BinaryArithmeticOp<"bitor">;
-def Clift_BitwiseXorOp : Clift_BinaryArithmeticOp<"bitxor">;
+def Clift_BitwiseAndOp : Clift_BinaryArithmeticOp<"bitand", [Commutative]>;
+def Clift_BitwiseOrOp : Clift_BinaryArithmeticOp<"bitor", [Commutative]>;
+def Clift_BitwiseXorOp : Clift_BinaryArithmeticOp<"bitxor", [Commutative]>;
 
 def Clift_ShiftLeftOp : Clift_ShiftOp<"shl">;
 def Clift_ShiftRightOp : Clift_ShiftOp<"shr">;
@@ -861,6 +934,7 @@ def Clift_AccessOp : Clift_ExpressionOp<"access", [NoMemoryEffect]> {
     }
 
     [[nodiscard]] bool isLvalueExpression();
+
     [[nodiscard]] clift::ClassType getClassType();
     [[nodiscard]] clift::FieldAttr getFieldAttr();
   }];
@@ -908,6 +982,10 @@ def Clift_CommaOp : Clift_ExpressionOp<"comma",
   let extraClassDeclaration = [{
     bool isLvalueExpression() {
       return mlir::clift::isLvalueExpression(getRhs());
+    }
+
+    [[nodiscard]] bool isDiscardedOperand(mlir::OpOperand &Operand) {
+      return &Operand == &getOperation()->getOpOperand(0);
     }
   }];
 }
@@ -959,6 +1037,12 @@ def Clift_TernaryOp
   let assemblyFormat = [{
     $condition `,` $lhs `,` $rhs attr-dict `:` `(`
     custom<CliftTernaryOpTypes>(type($condition), type($lhs), type($rhs)) `)`
+  }];
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] bool isBooleanTestedOperand(mlir::OpOperand &Operand) {
+      return &Operand == &getOperation()->getOpOperand(0);
+    }
   }];
 }
 

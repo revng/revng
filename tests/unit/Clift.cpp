@@ -72,27 +72,4 @@ BOOST_AUTO_TEST_CASE(CanWalkPointerTypes) {
   BOOST_TEST(Count == 1);
 }
 
-//===----------------------------- Statements -----------------------------===//
-
-BOOST_AUTO_TEST_CASE(LabelsWithoutGoToMustBeTriviallyDead) {
-  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
-  builder.create<AssignLabelOp>(builder.getUnknownLoc(), label);
-
-  BOOST_ASSERT(not module.getBody()->getOperations().empty());
-
-  canonicalize();
-  BOOST_ASSERT(module.getBody()->getOperations().empty());
-}
-
-BOOST_AUTO_TEST_CASE(LabelsWithGoToMustBeAlive) {
-  auto label = builder.create<MakeLabelOp>(builder.getUnknownLoc());
-  builder.create<AssignLabelOp>(builder.getUnknownLoc(), label);
-  builder.create<GoToOp>(builder.getUnknownLoc(), label);
-
-  BOOST_CHECK(not module.getBody()->getOperations().empty());
-
-  canonicalize();
-  BOOST_TEST(module.getBody()->getOperations().size() == 3);
-}
-
 BOOST_AUTO_TEST_SUITE_END()

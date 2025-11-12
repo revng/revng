@@ -26,14 +26,14 @@ module attributes {clift.module} {
       clift.name = "var_0"
     }
 
-    // CHECK: (uint64_t)0L;
+    // CHECK: (uint64_t) 0L;
     clift.expr {
       %0 = clift.imm 0 : !int64_t
       %1 = clift.cast<bitcast> %0 : !int64_t -> !uint64_t
       clift.yield %1 : !uint64_t
     }
 
-    // CHECK: (uint64_t)&var_0;
+    // CHECK: (uint64_t) &var_0;
     clift.expr {
       %0 = clift.addressof %x : !uint64_t$ptr
       %1 = clift.cast<bitcast> %0 : !uint64_t$ptr -> !uint64_t

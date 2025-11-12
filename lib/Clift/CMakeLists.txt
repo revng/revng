@@ -10,6 +10,7 @@ revng_add_library_internal(
   CliftDialect.cpp
   CliftEnums.cpp
   CliftInterfaces.cpp
+  CliftOpHelpers.cpp
   CliftOpInterfaces.cpp
   CliftOpTraits.cpp
   CliftTypes.cpp)

@@ -21,7 +21,8 @@ LogicalResult traits_impl::verifyNoFallthroughTrait(Operation *const Op) {
 }
 
 LogicalResult traits_impl::verifyAssignsLoopLabelsTrait(Operation *const Op) {
-  auto LabelMaskAttr = Op->getAttrOfType<mlir::IntegerAttr>("label_mask");
+  constexpr auto AttrName = mlir::clift::impl::LoopLabelMaskAttrName;
+  auto LabelMaskAttr = Op->getAttrOfType<mlir::IntegerAttr>(AttrName);
   revng_assert(LabelMaskAttr);
 
   unsigned LabelMask = LabelMaskAttr.getValue().getZExtValue();

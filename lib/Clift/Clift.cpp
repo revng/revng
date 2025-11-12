@@ -408,13 +408,13 @@ mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
 }
 
 void FunctionOp::print(OpAsmPrinter &Printer) {
+  auto FunctionType = getFunctionType();
+
   Printer << ' ';
   Printer.printSymbolName(getSymName());
   Printer << '<';
-  Printer.printType(getCliftFunctionType());
+  Printer.printType(FunctionType);
   Printer << '>';
-
-  auto FunctionType = getCliftFunctionType();
 
   function_interface_impl::printFunctionSignature(Printer,
                                                   *this,
@@ -439,8 +439,7 @@ void FunctionOp::print(OpAsmPrinter &Printer) {
 }
 
 mlir::LogicalResult FunctionOp::verify() {
-  auto ReturnType = mlir::cast<ValueType>(getCliftFunctionType()
-                                            .getReturnType());
+  auto ReturnType = getReturnType();
 
   bool IsVoid = isVoid(ReturnType);
   auto Result = (*this)->walk([&](ReturnOp Op) -> mlir::WalkResult {
@@ -465,11 +464,11 @@ mlir::LogicalResult FunctionOp::verify() {
 }
 
 ArrayRef<Type> FunctionOp::getArgumentTypes() {
-  return getCliftFunctionType().getArgumentTypes();
+  return getFunctionType().getArgumentTypes();
 }
 
 ArrayRef<Type> FunctionOp::getResultTypes() {
-  return getCliftFunctionType().getResultTypes();
+  return getFunctionType().getResultTypes();
 }
 
 Type FunctionOp::cloneTypeWith(TypeRange inputs, TypeRange results) {
@@ -495,9 +494,21 @@ static mlir::IntegerAttr makeLoopLabelMask(mlir::MLIRContext *Context,
   return mlir::IntegerAttr::get(Context, llvm::APSInt(llvm::APInt(2, Mask)));
 }
 
-static void
-buildLoop(OpBuilder &Builder, OperationState &State, unsigned RegionCount) {
-  State.addAttribute("label_mask", makeLoopLabelMask(Builder.getContext(), 0));
+/// If \p OtherLoop is non-null, assigned label operands are copied from it.
+/// This is useful for any transforms which change the type of a loop, and must
+/// preserve the assigned labels.
+static void buildLoop(OpBuilder &Builder,
+                      OperationState &State,
+                      unsigned RegionCount,
+                      LoopOpInterface OtherLoop = {}) {
+  if (OtherLoop) {
+    State.addOperands(OtherLoop->getOperands());
+    State.addAttribute(clift::impl::LoopLabelMaskAttrName,
+                       OtherLoop->getAttr(clift::impl::LoopLabelMaskAttrName));
+  } else {
+    State.addAttribute(clift::impl::LoopLabelMaskAttrName,
+                       makeLoopLabelMask(Builder.getContext(), 0));
+  }
 
   for (unsigned I = 0; I < RegionCount; ++I)
     State.addRegion();
@@ -598,8 +609,10 @@ mlir::LogicalResult ContinueToOp::verify() {
 
 //===------------------------------ DoWhileOp -----------------------------===//
 
-void DoWhileOp::build(OpBuilder &Builder, OperationState &State) {
-  buildLoop(Builder, State, 2);
+void DoWhileOp::build(OpBuilder &Builder,
+                      OperationState &State,
+                      LoopOpInterface OtherLoop) {
+  buildLoop(Builder, State, 2, OtherLoop);
 }
 
 mlir::LogicalResult DoWhileOp::verify() {
@@ -612,8 +625,17 @@ mlir::LogicalResult DoWhileOp::verify() {
 
 //===-------------------------------- ForOp -------------------------------===//
 
-void ForOp::build(OpBuilder &Builder, OperationState &State) {
-  buildLoop(Builder, State, 4);
+bool ForOp::isDiscardedExpression(mlir::Region &R) {
+  if (&R == &getInitializer())
+    return not getOnlyOp<LocalVariableOp>(R);
+
+  return &R == &getExpression();
+}
+
+void ForOp::build(OpBuilder &Builder,
+                  OperationState &State,
+                  LoopOpInterface OtherLoop) {
+  buildLoop(Builder, State, 4, OtherLoop);
 }
 
 mlir::ParseResult ForOp::parse(OpAsmParser &Parser, OperationState &Result) {
@@ -696,7 +718,7 @@ mlir::ParseResult ForOp::parse(OpAsmParser &Parser, OperationState &Result) {
         .failed())
     return mlir::failure();
 
-  Result.addAttribute("label_mask", LabelMaskAttr);
+  Result.addAttribute(clift::impl::LoopLabelMaskAttrName, LabelMaskAttr);
   Result.addRegion(std::move(InitRegion));
   Result.addRegion(std::move(CondRegion));
   Result.addRegion(std::move(NextRegion));
@@ -759,7 +781,7 @@ void ForOp::print(OpAsmPrinter &Printer) {
   PrintRegion(getBody());
 
   Printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
-                                           llvm::StringRef("label_mask"));
+                                           clift::impl::LoopLabelMaskAttrName);
 }
 
 mlir::LogicalResult ForOp::verify() {
@@ -818,11 +840,11 @@ mlir::LogicalResult ForOp::verify() {
 
 //===------------------------------- GotoOp -------------------------------===//
 
-MakeLabelOp GoToOp::getLabelOp() {
+MakeLabelOp GotoOp::getLabelOp() {
   return getLabel().getDefiningOp<MakeLabelOp>();
 }
 
-mlir::LogicalResult GoToOp::verify() {
+mlir::LogicalResult GotoOp::verify() {
   mlir::Operation *Assignment = getLabelAssignmentOp();
 
   if (mlir::isa<LoopOpInterface>(Assignment)) {
@@ -835,6 +857,18 @@ mlir::LogicalResult GoToOp::verify() {
 }
 
 //===-------------------------------- IfOp --------------------------------===//
+
+static bool isIndirectlyNoFallthroughImpl(BranchOpInterface Branch) {
+  for (mlir::Region &R : Branch.getBranchRegions()) {
+    if (not clift::isIndirectlyNoFallthrough(R))
+      return false;
+  }
+  return true;
+}
+
+bool IfOp::isIndirectlyNoFallthrough() const {
+  return isIndirectlyNoFallthroughImpl(*this);
+}
 
 mlir::LogicalResult IfOp::verify() {
   if (not isScalarType(getExpressionType(getCondition())))
@@ -885,9 +919,18 @@ mlir::LogicalResult MakeLabelOp::canonicalize(MakeLabelOp Op,
   if (Jumps != 0)
     return mlir::failure();
 
-  for (mlir::OpOperand &Operand : Op.getResult().getUses()) {
-    if (auto AssignOp = mlir::dyn_cast<AssignLabelOp>(Operand.getOwner()))
+  if (Assignments != 0) {
+    mlir::Operation *AssignmentOp = Op.getAssignment();
+    revng_assert(AssignmentOp != nullptr);
+
+    if (auto AssignOp = mlir::dyn_cast<AssignLabelOp>(AssignmentOp)) {
       Rewriter.eraseOp(AssignOp);
+    } else if (auto LoopOp = mlir::dyn_cast<LoopOpInterface>(AssignmentOp)) {
+      if (Op.getResult() == LoopOp.getBreakLabel())
+        LoopOp.setBreakLabel(nullptr);
+      else if (Op.getResult() == LoopOp.getContinueLabel())
+        LoopOp.setContinueLabel(nullptr);
+    }
   }
 
   Rewriter.eraseOp(Op);
@@ -925,6 +968,10 @@ mlir::LogicalResult ReturnOp::verify() {
 }
 
 //===------------------------------ SwitchOp ------------------------------===//
+
+bool SwitchOp::isIndirectlyNoFallthrough() const {
+  return isIndirectlyNoFallthroughImpl(*this);
+}
 
 ValueType SwitchOp::getConditionType() {
   return getExpressionType(getConditionRegion());
@@ -1025,8 +1072,10 @@ mlir::LogicalResult SwitchOp::verify() {
 
 //===------------------------------- WhileOp ------------------------------===//
 
-void WhileOp::build(OpBuilder &Builder, OperationState &State) {
-  buildLoop(Builder, State, 4);
+void WhileOp::build(OpBuilder &Builder,
+                    OperationState &State,
+                    LoopOpInterface OtherLoop) {
+  buildLoop(Builder, State, 2, OtherLoop);
 }
 
 mlir::LogicalResult WhileOp::verify() {
@@ -1038,6 +1087,24 @@ mlir::LogicalResult WhileOp::verify() {
 }
 
 //===----------------------------- Expressions ----------------------------===//
+
+//===------------------------------- YieldOp ------------------------------===//
+
+bool YieldOp::isDiscardedOperand(mlir::OpOperand &Operand) {
+  mlir::Region *R = getOperation()->getParentRegion();
+  revng_assert(R != nullptr);
+
+  auto Statement = mlir::cast<StatementOpInterface>(R->getParentOp());
+  return Statement.isDiscardedExpression(*R);
+}
+
+bool YieldOp::isBooleanTestedOperand(mlir::OpOperand &Operand) {
+  mlir::Region *R = getOperation()->getParentRegion();
+  revng_assert(R != nullptr);
+
+  auto Statement = mlir::cast<StatementOpInterface>(R->getParentOp());
+  return Statement.isBooleanTestedExpression(*R);
+}
 
 //===------------------------------ StringOp ------------------------------===//
 

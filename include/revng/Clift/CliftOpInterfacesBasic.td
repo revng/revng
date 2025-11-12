@@ -31,6 +31,38 @@ def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface", [Symbol]> {
 }
 
 def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Returns true if the operation is indirectly non-fallthrough."
+               "This is as opposed to being directly marked with the "
+               "NoFallthrough trait. For example, an if-else operation whose "
+               "both branches end in non-fallthrough operations is considered "
+               "indirectly non-fallthrough.",
+      "bool", "isIndirectlyNoFallthrough", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return ConcreteOp::template hasTrait<mlir::OpTrait::clift::NoFallthrough>();
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns true if the specified region represents a discarded "
+               "expression.",
+      "bool", "isDiscardedExpression", (ins "mlir::Region &":$region),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return false;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns true if the specified region represents a "
+               "boolean-tested expression.",
+      "bool", "isBooleanTestedExpression", (ins "mlir::Region &":$region),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return false;
+      }]
+    >,
+  ];
 }
 
 def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
@@ -38,6 +70,24 @@ def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
     InterfaceMethod<
       /*desc=*/"Returns true if the operation represents an lvalue expression.",
       "bool", "isLvalueExpression", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return false;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns true if the specified operand represents a discarded "
+               "subexpression.",
+      "bool", "isDiscardedOperand", (ins "mlir::OpOperand &":$operand),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return false;
+      }]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns true if the specified operand represents a "
+               "boolean-tested subexpression.",
+      "bool", "isBooleanTestedOperand", (ins "mlir::OpOperand &":$operand),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/ [{
         return false;

@@ -17,6 +17,8 @@ using PassPtr = std::unique_ptr<mlir::OperationPass<OpT>>;
 #define GEN_PASS_DECL
 #include "revng/CliftTransforms/Passes.h.inc"
 
+PassPtr<clift::FunctionOp> createLoopDetectionPass();
+
 PassPtr<clift::FunctionOp>
 createCLegalizationPass(const TargetCImplementation &Target);
 
