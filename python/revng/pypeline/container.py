@@ -4,17 +4,22 @@
 
 from __future__ import annotations
 
+import base64
+import io
 import json
+import tarfile
 from collections.abc import Buffer, Mapping
 from dataclasses import dataclass
 from io import StringIO
 from pathlib import Path
-from typing import Annotated, Dict, Generator, TextIO, Tuple, Type, final
+from typing import Annotated, Generator, Literal, Tuple, Type, final
 
 from .object import Kind, ObjectID, ObjectSet
 from .utils import bytes_to_string, is_mime_type_text, string_to_bytes
 from .utils.cabc import ABC, abstractmethod
 from .utils.registry import get_singleton
+
+ContainerFormat = Literal["tar", "json"]
 
 ContainerID = Annotated[
     str,
@@ -154,84 +159,159 @@ class Container(ABC):
 
     @classmethod
     @final
-    def from_dict(cls, data: dict[str, str]) -> Container:
+    def from_dict(cls, data: dict[str, bytes]) -> Container:
         # Feed the data in the container
         container = cls()
         obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
         container.deserialize(
-            {
-                obj_id_type.deserialize(obj_id): string_to_bytes(content, container.is_text())
-                for obj_id, content in data.items()
-            }
+            {obj_id_type.deserialize(obj_id): content for obj_id, content in data.items()}
         )
         return container
+
+    @classmethod
+    @final
+    def from_bytes(
+        cls,
+        data: bytes,
+        container_format: ContainerFormat = "json",
+    ) -> Container:
+        """
+        Load a container into a serialized format.
+        """
+        match container_format:
+            case "json":
+                return cls.from_dict(
+                    {
+                        obj_id: string_to_bytes(content, cls.is_text())
+                        for obj_id, content in json.loads(data.decode("utf-8")).items()
+                    }
+                )
+            case "tar":
+                data_dict: dict[str, bytes] = {}
+                with tarfile.open(fileobj=io.BytesIO(data), mode="r") as tar:
+                    for member in tar.getmembers():
+                        f = tar.extractfile(member)
+                        if f is None:
+                            continue
+                        data_dict[member.name] = f.read()
+                return cls.from_dict(data_dict)
+        raise ValueError(f"Unknown container format: {container_format}")
 
     @classmethod
     @final
     def from_string(
         cls,
         data: str,
+        container_format: ContainerFormat = "json",
     ) -> Container:
         """
         Load a container into a serialized format.
         """
-        return cls.from_file(StringIO(data))
+        match container_format:
+            case "json":
+                return cls.from_bytes(data.encode("utf-8"), container_format="json")
+            case "tar":
+                return cls.from_bytes(base64.b64decode(data), container_format="tar")
+        raise ValueError(f"Unknown container format: {container_format}")
+
+    @classmethod
+    def container_format_from_bytes(cls, data: bytes) -> ContainerFormat:
+        is_tar = tarfile.is_tarfile(io.BytesIO(data))
+        if is_tar:
+            return "tar"
+        elif data.startswith(b"{"):
+            return "json"
+        else:
+            raise ValueError(f"Cannot detect the container format for {data[:20]!r}")
 
     @classmethod
     @final
     def from_file(
         cls,
-        path_or_file: str | Path | TextIO,
+        path_or_file: str | Path,
+        container_format: ContainerFormat | Literal["auto"] = "auto",
     ) -> Container:
         """
         Load a container from a serialized format.
         This is used to **load** cached objects into this container.
+        Container format "auto" will guess the format automatically.
         """
-        if isinstance(path_or_file, (str, Path)):
-            path: str | Path = path_or_file
-            with open(path, "r", encoding="utf-8") as f:
-                return cls.from_file(f)
-
-        # Read the file
-        file: TextIO = path_or_file
-        return cls.from_dict(json.load(file))
+        with open(path_or_file, "rb") as f:
+            data = f.read()
+            if container_format == "auto":
+                container_format = cls.container_format_from_bytes(data)
+            return cls.from_bytes(data, container_format=container_format)
 
     @final
-    def to_dict(self) -> dict[str, str]:
-        return {
-            k.serialize(): bytes_to_string(v, self.is_text())
-            for k, v in self.serialize(self.objects()).items()
-        }
+    def to_dict(self) -> dict[str, Buffer]:
+        return {k.serialize(): v for k, v in self.serialize(self.objects()).items()}
 
     @final
-    def to_string(self) -> str:
+    def to_bytes(self, container_format: ContainerFormat = "json") -> bytes:
         """
         Dump a container into a serialized format.
         """
-        data = StringIO()
-        self.to_file(data)
-        return data.getvalue()
+        match container_format:
+            case "json":
+                with StringIO() as string_stream:
+                    data = {
+                        key: bytes_to_string(buffer, self.is_text())
+                        for key, buffer in self.to_dict().items()
+                    }
+                    json.dump(
+                        data,
+                        string_stream,
+                        indent=4,
+                        sort_keys=True,
+                    )
+                    return string_stream.getvalue().encode("utf-8")
+            case "tar":
+                with io.BytesIO() as byte_stream:
+                    with tarfile.open(fileobj=byte_stream, mode="w") as tar:
+                        for obj_id, buffer in self.to_dict().items():
+                            info = tarfile.TarInfo(name=obj_id)
+                            data_bytes = bytes(buffer)
+                            info.size = len(data_bytes)
+                            tar.addfile(tarinfo=info, fileobj=io.BytesIO(data_bytes))
+                    return byte_stream.getvalue()
+        raise ValueError(f"Unknown container format: {container_format}")
 
     @final
-    def to_file(self, path_or_file: str | Path | TextIO) -> None:
+    def to_string(self, container_format: ContainerFormat = "json") -> str:
+        """
+        Dump a container into a serialized format.
+        """
+        match container_format:
+            case "json":
+                return self.to_bytes(container_format="json").decode("utf-8")
+            case "tar":
+                return base64.b64encode(self.to_bytes(container_format="tar")).decode("utf-8")
+        raise ValueError(f"Unknown container format: {container_format}")
+
+    @final
+    def to_file(
+        self, path: str | Path, container_format: ContainerFormat | Literal["auto"] = "auto"
+    ) -> None:
         """
         Dump a container into a serialized format.
         This is used to **save** cached objects from this container.
+        ContainerFormat "auto" will guess the format from the path.
         """
-        if isinstance(path_or_file, (str, Path)):
-            with open(path_or_file, "w", encoding="utf-8") as f:
-                self.to_file(f)
-                return
-        else:
-            json.dump(
-                self.to_dict(),
-                path_or_file,
-                indent=4,
-                sort_keys=True,
-            )
+        if container_format == "auto":
+            if str(path).endswith(".json"):
+                container_format = "json"
+            elif str(path).endswith(".tar"):
+                container_format = "tar"
+            else:
+                raise ValueError(
+                    f"Cannot determine the container_format for {path}.",
+                )
+
+        with open(path, "wb") as f:
+            f.write(self.to_bytes(container_format=container_format))
 
 
 ContainerSet = Annotated[
-    Dict[ContainerDeclaration, Container],
+    dict[ContainerDeclaration, Container],
     """A set of bindings between container declarations and container instances.""",
 ]
