@@ -7,6 +7,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
+#include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/Model/Binary.h"
@@ -89,3 +90,50 @@ static pipeline::RegisterPipe<CollectCFGPipe> X;
 } // namespace revng::pipes
 
 static pipeline::RegisterDefaultConstructibleContainer<revng::pipes::CFGMap> X2;
+
+namespace revng::pypeline::piperuns {
+
+using FSO = efa::FunctionSummaryOracle;
+
+CollectCFG::CollectCFG(const class Model &Model,
+                       llvm::StringRef Config,
+                       llvm::StringRef DynamicConfig,
+                       LLVMRootContainer &Input,
+                       CFGMap &Output) :
+  Model(Model),
+  Output(Output),
+  GCBI(*Model.get().get()),
+  GCBIRun(GCBI, Input.getModule()),
+  Oracle(FSO::importBasicPrototypeData(Input.getModule(),
+                                       GCBI,
+                                       *Model.get().get())),
+  Analyzer(Input.getModule(), GCBI, Model.get(), Oracle) {
+}
+
+void CollectCFG::runOnFunction(const model::Function &Function) {
+  MetaAddress EntryAddress = Function.Entry();
+  const model::Binary &Binary = *Model.get().get();
+
+  // Recover the control-flow graph of the function
+  TupleTree<efa::ControlFlowGraph> New;
+  New->Entry() = EntryAddress;
+  New->Blocks() = std::move(Analyzer.analyze(EntryAddress).CFG);
+
+  if (DebugNames) {
+    auto Function = Binary.Functions().at(EntryAddress);
+    New->Name() = Function.Name();
+  }
+
+  if (New->Blocks().size() > 0)
+    revng_assert(New->Blocks().contains(BasicBlockID(New->Entry())));
+
+  // Run final steps on the CFG
+  New->simplify(Binary);
+
+  if (New->Blocks().size() > 0)
+    revng_assert(New->Blocks().contains(BasicBlockID(New->Entry())));
+
+  Output.getElement(ObjectID(EntryAddress)) = std::move(New);
+}
+
+} // namespace revng::pypeline::piperuns

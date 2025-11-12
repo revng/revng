@@ -4,10 +4,13 @@
 
 from __future__ import annotations
 
-from typing import Dict, MutableMapping, Optional, Set
+from typing import Dict, MutableMapping, Optional, Set, TypeVar, cast, overload
 
 from revng.pypeline.container import ContainerDeclaration, ContainerSet
 from revng.pypeline.object import ObjectSet
+
+_DUMMY = object()
+T = TypeVar("T")
 
 
 class Requests(MutableMapping[ContainerDeclaration, ObjectSet]):
@@ -76,6 +79,20 @@ class Requests(MutableMapping[ContainerDeclaration, ObjectSet]):
     def __getitem__(self, key: ContainerDeclaration) -> ObjectSet:
         return self.requests[key]
 
+    @overload
+    def get(self, key: ContainerDeclaration, /) -> ObjectSet: ...
+
+    @overload
+    def get(self, key: ContainerDeclaration, default: T, /) -> ObjectSet | T: ...
+
+    def get(self, key: ContainerDeclaration, default: T | object = _DUMMY, /) -> ObjectSet | T:
+        if key in self.requests:
+            return self.requests[key]
+        elif default is _DUMMY:
+            return ObjectSet(key.container_type.kind)
+        else:
+            return cast(T, default)
+
     def __setitem__(self, key: ContainerDeclaration, value: ObjectSet) -> None:
         if not isinstance(value, ObjectSet):
             raise TypeError(f"Expected ObjectSet, got {type(value)}")
@@ -104,3 +121,7 @@ class Requests(MutableMapping[ContainerDeclaration, ObjectSet]):
 
     def __eq__(self, other) -> bool:
         return self.requests == other.requests
+
+    def minimize(self) -> Requests:
+        """Return the same request object, but with all the empty values removed"""
+        return Requests({k: v for k, v in self.requests.items() if len(v) > 0})

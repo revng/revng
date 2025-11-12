@@ -84,31 +84,20 @@ class SavePoint:
             set(incoming.keys()) | set(outgoing.keys())
         ), "SavePoint containers must be a subset of incoming and outgoing requests."
 
-        # Cache the containers present for this configuration
         for decl in self.to_save:
-            if decl not in incoming:
-                continue
-            if len(incoming[decl]) == 0:
-                continue
-            storage_provider.put(
-                ContainerLocation(
-                    savepoint_id=savepoint_range.start,
-                    container_id=decl.name,
-                    configuration_id=configuration_id,
-                ),
-                containers[decl].serialize(incoming[decl]),
-            )
-
-        # Fill the containers from our cache
-        for decl in self.to_save:
-            if decl not in outgoing:
-                continue
-            # Empty requests do not need to be restored
-            if len(outgoing[decl]) == 0:
-                continue
             location = ContainerLocation(
                 savepoint_id=savepoint_range.start,
                 container_id=decl.name,
                 configuration_id=configuration_id,
             )
-            containers[decl].deserialize(storage_provider.get(location, outgoing[decl]))
+
+            container_incoming = incoming.get(decl)
+            if len(container_incoming) > 0:
+                storage_provider.put(location, containers[decl].serialize(container_incoming))
+
+            # Compute the actual set of objects to load, if an object has
+            # already been saved from incoming do not re-load it from storage
+            container_outgoing = outgoing.get(decl) - container_incoming
+
+            if len(container_outgoing) > 0:
+                containers[decl].deserialize(storage_provider.get(location, container_outgoing))

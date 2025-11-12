@@ -190,3 +190,19 @@ RawBinaryView::findOffsetInSegment(MetaAddress Address, uint64_t Size) const {
 
   return { nullptr, 0 };
 }
+
+llvm::Error RawBinaryView::checkPrecondition(const model::Binary &Binary) {
+  llvm::SmallVector<llvm::Error, 0> Errors;
+  if (Binary.Binaries().size() != 1)
+    Errors.push_back(revng::createError("Binaries should contain exactly 1 "
+                                        "entry"));
+
+  for (const model::Segment &Segment : Binary.Segments()) {
+    if (not Segment.Binary().isValid())
+      Errors.push_back(revng::createError("Segment " + toString(Segment.key())
+                                          + " does not reference a valid "
+                                            "entry in Binaries"));
+  }
+
+  return revng::joinErrors(Errors);
+}

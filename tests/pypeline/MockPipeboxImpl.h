@@ -16,6 +16,8 @@ private:
 public:
   static constexpr llvm::StringRef Name = "StringContainer";
   static constexpr Kind Kind = Kinds::Function;
+  static constexpr llvm::StringRef MimeType = "application/x-unknown";
+
   std::set<ObjectID> objects() const;
 
   void deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data);
@@ -28,10 +30,12 @@ public:
 };
 
 class AppendFooPipe {
+private:
+  using Access = revng::pypeline::Access;
+
 public:
   static constexpr llvm::StringRef Name = "AppendFooPipe";
-  using ArgumentsDocumentation = TypeList<
-    revng::pypeline::PipeArgumentDocumentation<"Container", "">>;
+  using Arguments = TypeList<revng::pypeline::PipeArgument<"Container", "">>;
 
   const std::string StaticConfiguration;
 

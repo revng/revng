@@ -25,14 +25,42 @@ using ModelPath = std::string;
 using ObjectDependencies = std::vector<
   std::vector<std::pair<ObjectID, ModelPath>>>;
 
-template<ConstexprString N, ConstexprString HT>
-struct PipeArgumentDocumentation {
-  static constexpr llvm::StringRef Name = N;
-  static constexpr llvm::StringRef HelpText = HT;
+/// Defines the access of a container when declaring a Pipe{,Run}Argument. In
+/// PipeRuns there needs to be exactly one container with either Write or
+/// ReadWrite as that will be the one where the model dependencies will be
+/// tracked upon.
+enum class Access {
+  /// The requested container will only be read (request objects as a
+  /// dependency). Note that specifying this allows the container to be used
+  /// without `const`, this is intended but should really be used as a
+  /// last-resort in situations where the container remains conceptually const
+  /// but cannot be for performance reasons.
+  Read,
+  /// The requested container will be written (don't request objects as a
+  /// dependency, the pipe will produce them). This is required when a pipe is
+  /// the first to write to a container.
+  Write,
+  /// The requested container will be overwritten in-place (e.g. LLVM Pipe).
+  /// This still requests objects as a dependency.
+  ReadWrite,
+  /// Automatically detect the access based on const-ness
+  /// * const -> Read
+  /// * non-const -> ReadWrite
+  Auto,
 };
 
-template<typename T, ConstexprString N, ConstexprString HT>
-struct PipeArgument : public PipeArgumentDocumentation<N, HT> {
+template<ConstexprString N, ConstexprString HT, Access A = Access::Auto>
+struct PipeArgument {
+  static constexpr llvm::StringRef Name = N;
+  static constexpr llvm::StringRef HelpText = HT;
+  static constexpr Access Access = A;
+};
+
+template<typename T,
+         ConstexprString N,
+         ConstexprString HT,
+         Access A = Access::Auto>
+struct PipeRunArgument : public PipeArgument<N, HT, A> {
   using Type = T;
 };
 

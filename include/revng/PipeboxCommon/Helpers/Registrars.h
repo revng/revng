@@ -24,6 +24,8 @@
 #include "revng/PipeboxCommon/Helpers/Python/RunPipe.h"
 #include "revng/PipeboxCommon/Helpers/Python/SignatureHelper.h"
 
+inline Logger PypelineRegisterLogger("pypeline-register");
+
 template<IsAnalysis T>
 struct RegisterAnalysis {
   RegisterAnalysis() {
@@ -33,7 +35,8 @@ struct RegisterAnalysis {
     // Python
     python::Registry.registerModuleInitializer([](nanobind::module_ &M,
                                                   python::BaseClasses &BC) {
-      nanobind::class_<T>(M, T::Name.data(), BC.BaseAnalysis)
+      std::string Name = T::Name.str();
+      nanobind::class_<T>(M, Name.c_str(), BC.BaseAnalysis)
         .def_ro_static("name", &T::Name)
         .def(nanobind::init<>())
         .def_static("signature",
@@ -66,8 +69,10 @@ struct RegisterContainer {
     // Python
     python::Registry.registerModuleInitializer([](nanobind::module_ &M,
                                                   python::BaseClasses &BC) {
-      nanobind::class_<T>(M, T::Name.data(), BC.BaseContainer)
+      std::string Name = T::Name.str();
+      nanobind::class_<T>(M, Name.c_str(), BC.BaseContainer)
         .def_ro_static("kind", &T::Kind)
+        .def_static("mime_type", []() { return T::MimeType; })
         .def(nanobind::init<>())
         .def("objects", &python::ContainerIO<T>::objects)
         .def("verify", &T::verify)
@@ -84,17 +89,41 @@ struct RegisterContainer {
   }
 };
 
+namespace detail {
+
+template<typename T>
+void checkPipeArgumentAccess() {
+  if (not PypelineRegisterLogger.isEnabled())
+    return;
+
+  using CT = PipeRunTraits<T>::ContainerTypes;
+  using AccessEnum = revng::pypeline::Access;
+  forEach<CT>([]<typename A, size_t I>() {
+    using Argument = std::tuple_element_t<I, typename T::Arguments>;
+    if (Argument::Access == AccessEnum::Read and not std::is_const_v<A>) {
+      revng_log(PypelineRegisterLogger,
+                T::Name << " has the " << I
+                        << "th argument with READ access but marked non-const");
+    }
+  });
+}
+
+} // namespace detail
+
 template<IsPipe T>
 struct RegisterPipe {
   RegisterPipe() {
     using namespace nanobind::literals;
     using namespace revng::pypeline::helpers;
 
+    detail::checkPipeArgumentAccess<T>();
+
     // Python
     python::Registry.registerModuleInitializer([](nanobind::module_ &M,
                                                   python::BaseClasses &BC) {
-      nanobind::class_<T>(M, T::Name.data(), BC.BasePipe)
-        .def_ro_static("name", &T::Name)
+      std::string Name = T::Name.str();
+      auto PipeClass = nanobind::class_<T>(M, Name.c_str(), BC.BasePipe);
+      PipeClass.def_ro_static("name", &T::Name)
         .def_static("signature",
                     &python::SignatureHelper<T>::getSignature,
                     nanobind::sig("def signature() -> "
@@ -111,6 +140,14 @@ struct RegisterPipe {
              "incoming"_a,
              "outgoing"_a,
              "configuration"_a);
+
+      if constexpr (HasCheckPrecondition<T>) {
+        PipeClass
+          .def("check_precondition", [](T &Handle, nanobind::object TheModel) {
+            const Model &CppModel = python::convertReadOnlyModel(TheModel);
+            return Handle.checkPrecondition(CppModel);
+          });
+      }
     });
 
     // Native

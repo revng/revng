@@ -13,7 +13,8 @@ def escape(string: str) -> str:
 @dataclass(slots=True)
 class Node:
     label: str
-    completed: bool = False
+    color: str = ""
+    bgcolor: str = ""
     entries: List[str] = field(default_factory=list)
 
     def name(self) -> str:
@@ -26,23 +27,25 @@ class Node:
         result += """    <table border="0" cellborder="1" cellspacing="0">\n"""
 
         cell_properties = ""
-        if self.completed:
-            cell_properties = ' bgcolor="lightgreen"'
+        if self.bgcolor:
+            cell_properties = f' bgcolor="{self.bgcolor}"'
 
         result += f"""      <tr><td{cell_properties}><b>{escape(self.label)}</b></td></tr>\n"""
 
         for index, entry in enumerate(self.entries):
             result += f"""      <tr><td port="entry_{index}">{escape(entry)}</td></tr>\n"""
         result += "    </table>\n"
-        result += "  >];\n"
-        result += "\n"
+        result += "  >"
+        if self.color:
+            result += f', color="{self.color}"'
+        result += "];\n\n"
         return result
 
     def __hash__(self) -> int:
         return hash(self.name())
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class Edge:
     source: Node
     destination: Node
@@ -50,22 +53,37 @@ class Edge:
     destination_port: int = 0
     head_label: str = ""
     tail_label: str = ""
+    style: str = ""
+    color: str = ""
 
     def to_graphviz(self) -> str:
         result = ""
         result += "  "
-        result += f"{escape(self.source.name())}:entry_{self.source_port}"
+        if self.source_port >= 0:
+            result += f"{escape(self.source.name())}:entry_{self.source_port}"
+        else:
+            result += f"{escape(self.source.name())}"
+
         result += " -> "
-        result += f"{escape(self.destination.name())}:entry_{self.destination_port}"
-        if self.head_label or self.tail_label:
-            result += " ["
-            if self.head_label:
-                result += f'headlabel="{escape(self.head_label)}"'
-            if self.tail_label:
-                if self.head_label:
-                    result += ","
-                result += f'taillabel="{escape(self.tail_label)}"'
-            result += "]"
+
+        if self.destination_port >= 0:
+            result += f"{escape(self.destination.name())}:entry_{self.destination_port}"
+        else:
+            result += f"{escape(self.destination.name())}"
+
+        attributes = []
+        if self.head_label:
+            attributes.append(f'headlabel="{escape(self.head_label)}"')
+        if self.tail_label:
+            attributes.append(f'taillabel="{escape(self.tail_label)}"')
+        if self.style:
+            attributes.append(f'style="{escape(self.style)}"')
+        if self.color:
+            attributes.append(f'color="{escape(self.color)}"')
+
+        if len(attributes) > 0:
+            result += f" [{','.join(attributes)}]"
+
         result += ";\n"
         return result
 

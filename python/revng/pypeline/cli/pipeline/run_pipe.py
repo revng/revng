@@ -156,10 +156,7 @@ def build_pipe_command(
         pypeline_logger.debug_log(f"and kwargs: {kwargs}")
 
         # Create the pipe
-        pipe = pipe_type(
-            name=pipe_name,
-            static_configuration=static_configuration,
-        )
+        pipe = pipe_type(static_configuration)
         # Load the model
         with open(model, "rb") as model_file:
             loaded_model = model_type.deserialize(model_file.read())

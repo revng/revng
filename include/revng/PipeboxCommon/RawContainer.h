@@ -11,11 +11,12 @@ namespace revng::pypeline {
 
 namespace detail {
 
-template<Kind TheKind, ConstexprString TheName>
+template<Kind TheKind, ConstexprString TheName, ConstexprString TheMime>
 class RawContainer {
 public:
   static constexpr llvm::StringRef Name = TheName;
   static constexpr Kind Kind = TheKind;
+  static constexpr llvm::StringRef MimeType = TheMime;
 
 private:
   std::map<ObjectID, Buffer> Map;
@@ -49,7 +50,7 @@ public:
 public:
   bool contains(const ObjectID &Key) const { return Map.contains(Key); }
 
-  std::unique_ptr<llvm::raw_ostream> getOStream(const ObjectID &Key) {
+  std::unique_ptr<llvm::raw_pwrite_stream> getOStream(const ObjectID &Key) {
     revng_assert(Key.kind() == Kind);
     revng_assert(not Map.contains(Key));
     return std::make_unique<llvm::raw_svector_ostream>(Map[Key].data());
@@ -63,19 +64,20 @@ public:
   }
 };
 
-template<Kind K, ConstexprString S>
-using RC = RawContainer<K, S>;
+template<Kind K, ConstexprString S, ConstexprString S2>
+using RC = RawContainer<K, S, S2>;
+
+constexpr auto TD = Kinds::TypeDefinition;
 
 } // namespace detail
 
-using BytesContainer = detail::RC<Kinds::Binary, "BytesContainer">;
+template<ConstexprString Name, ConstexprString Mime>
+using BytesContainer = detail::RC<Kinds::Binary, Name, Mime>;
 
-using FunctionToBytesContainer = detail::RC<Kinds::Function,
-                                            "FunctionToBytesContaine"
-                                            "r">;
+template<ConstexprString Name, ConstexprString Mime>
+using FunctionToBytesContainer = detail::RC<Kinds::Function, Name, Mime>;
 
-using TypeDefinitionToBytesContainer = detail::RC<Kinds::TypeDefinition,
-                                                  "TypeDefinitionToBytesContain"
-                                                  "er">;
+template<ConstexprString Name, ConstexprString Mime>
+using TypeDefinitionToBytesContainer = detail::RC<detail::TD, Name, Mime>;
 
 } // namespace revng::pypeline

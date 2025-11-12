@@ -28,6 +28,7 @@ concept IsContainer = requires(T &A, const T &AConst) {
   requires HasName<T>;
   { T() } -> std::same_as<T>;
   { T::Kind } -> std::same_as<const Kind &>;
+  { T::MimeType } -> std::same_as<const llvm::StringRef &>;
   { AConst.objects() } -> std::same_as<std::set<ObjectID>>;
   { AConst.verify() } -> std::same_as<bool>;
   {
@@ -127,29 +128,29 @@ struct PipeRunTraits<T> {
 };
 
 template<typename T>
-concept IsPipeArgumentDocumentation = requires {
+concept IsPipeArgument = requires {
+  { T::Access } -> std::same_as<const revng::pypeline::Access &>;
   { T::Name } -> std::same_as<const llvm::StringRef &>;
   { T::HelpText } -> std::same_as<const llvm::StringRef &>;
 };
 
 template<SpecializationOf<TypeList> List>
-inline constexpr bool checkDocumentation() {
+inline constexpr bool checkArguments() {
   constexpr bool Size = std::tuple_size_v<List>;
   return compile_time::repeatAnd<Size>([]<size_t I>() {
-    return IsPipeArgumentDocumentation<std::tuple_element_t<I, List>>;
+    return IsPipeArgument<std::tuple_element_t<I, List>>;
   });
 }
 
 template<typename T>
-inline constexpr size_t
-  DocSize = std::tuple_size_v<typename T::ArgumentsDocumentation>;
+inline constexpr size_t ArgSize = std::tuple_size_v<typename T::Arguments>;
 
 } // namespace detail
 
 template<typename T>
-concept HasArgumentsDocumenation = requires {
-  requires StrictSpecializationOf<typename T::ArgumentsDocumentation, TypeList>;
-  requires detail::checkDocumentation<typename T::ArgumentsDocumentation>();
+concept HasArguments = requires {
+  requires StrictSpecializationOf<typename T::Arguments, TypeList>;
+  requires detail::checkArguments<typename T::Arguments>();
 };
 
 template<typename T>
@@ -160,6 +161,12 @@ concept IsPipe = requires(T &A, llvm::StringRef StaticConfig) {
   requires HasName<T>;
   { T(StaticConfig) } -> std::same_as<T>;
   { A.StaticConfiguration } -> std::same_as<const std::string &>;
-  requires HasArgumentsDocumenation<T>;
-  requires PipeRunTraits<T>::ContainerCount == detail::DocSize<T>;
+  requires HasArguments<T>;
+  requires PipeRunTraits<T>::ContainerCount == detail::ArgSize<T>;
+};
+
+/// Optional method that a pipe can implement
+template<typename T>
+concept HasCheckPrecondition = requires(const T &A, const Model &Model) {
+  { A.checkPrecondition(Model) } -> std::same_as<llvm::Error>;
 };

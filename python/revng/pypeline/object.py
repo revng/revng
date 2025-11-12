@@ -10,7 +10,7 @@ from enum import Enum
 
 # Builtin since python 3.9
 from graphlib import TopologicalSorter
-from typing import Iterator, Optional, Sequence, Set, cast
+from typing import Any, Callable, Iterator, Optional, Sequence, Set, cast
 
 from .graph import Graph
 from .utils.cabc import ABC, abstractmethod
@@ -303,6 +303,7 @@ class ObjectSet(MutableSet[ObjectID]):
         return result
 
     def __post_init__(self):
+        assert isinstance(self.kind, Kind)
         for obj in self.objects:
             assert isinstance(obj, ObjectID), f"Expected ObjectID, got {obj}"
             assert obj.kind() == self.kind
@@ -324,6 +325,35 @@ class ObjectSet(MutableSet[ObjectID]):
         if self.kind != other.kind:
             return False
         return self.objects == other.objects
+
+    @classmethod
+    def _from_iterable(cls, it):
+        # This functions is called by various collections.abc.Set functions to
+        # compose the container for merge operations (e.g. `&`). These are
+        # overridden below. Throw an error in the offchance that we forgot to
+        # implement one of them.
+        raise NotImplementedError()
+
+    def _merge(
+        self,
+        other: Any,
+        merge_fun: Callable[[set[ObjectID], set[ObjectID]], set[ObjectID]],
+    ) -> ObjectSet:
+        assert isinstance(other, ObjectSet)
+        assert other.kind == self.kind
+        return ObjectSet(self.kind, merge_fun(self.objects, other.objects))
+
+    def __and__(self, other: Any) -> ObjectSet:
+        return self._merge(other, lambda x, y: x & y)
+
+    def __or__(self, other: Any) -> ObjectSet:
+        return self._merge(other, lambda x, y: x | y)
+
+    def __sub__(self, other: Any) -> ObjectSet:
+        return self._merge(other, lambda x, y: x - y)
+
+    def __xor__(self, other: Any) -> ObjectSet:
+        return self._merge(other, lambda x, y: x ^ y)
 
     def __repr__(self) -> str:
         return f"ObjectSet(kind={self.kind.serialize()}, objects={self.objects})"

@@ -24,6 +24,7 @@ class BinariesContainer {
 public:
   static constexpr llvm::StringRef Name = "BinariesContainer";
   static constexpr Kind Kind = Kinds::Binary;
+  static constexpr llvm::StringRef MimeType = "application/x-tar";
 
 private:
   struct File {
@@ -85,6 +86,8 @@ public:
   bool verify() const { return true; }
 
 public:
+  size_t size() const { return Files.size(); }
+
   llvm::ArrayRef<char> getFile(size_t Index) const {
     revng_assert(Index < Files.size());
     return Files[Index].Contents.data();

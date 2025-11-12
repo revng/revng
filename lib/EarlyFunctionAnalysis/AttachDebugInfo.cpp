@@ -30,6 +30,7 @@
 #include "llvm/IR/Metadata.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/LoadModelPass.h"
@@ -48,15 +49,42 @@ static Logger Log("attach-debug-info");
 
 class AttachDebugInfo : public pipeline::FunctionPassImpl {
 private:
+  using CFG = efa::ControlFlowGraph;
+  using CFGGetterType = std::function<const CFG &(const MetaAddress &)>;
+
+private:
   llvm::Module &M;
   DIBuilder DIB;
   DICompileUnit *CU = nullptr;
+
+  GeneratedCodeBasicInfo &GCBI;
+  CFGGetterType CFGGetter;
 
 public:
   AttachDebugInfo(llvm::ModulePass &Pass,
                   const model::Binary &Binary,
                   llvm::Module &M) :
-    pipeline::FunctionPassImpl(Pass), M(M), DIB(M) {}
+    pipeline::FunctionPassImpl(Pass),
+    M(M),
+    DIB(M),
+    GCBI(getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI()) {
+    ControlFlowGraphCache &Cache = getAnalysis<ControlFlowGraphCachePass>()
+                                     .get();
+    CFGGetter =
+      [&Cache](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
+      return Cache.getControlFlowGraph(Address);
+    };
+  }
+
+  AttachDebugInfo(const model::Binary &Binary,
+                  llvm::Module &M,
+                  GeneratedCodeBasicInfo &GCBI,
+                  CFGGetterType CFGGetter) :
+    pipeline::FunctionPassImpl(),
+    M(M),
+    DIB(M),
+    GCBI(GCBI),
+    CFGGetter(CFGGetter) {}
 
   static void getAnalysisUsage(llvm::AnalysisUsage &AU) {
     AU.setPreservesAll();
@@ -231,10 +259,6 @@ bool AttachDebugInfo::prologue() {
 
 bool AttachDebugInfo::runOnFunction(const model::Function &ModelFunction,
                                     llvm::Function &F) {
-  ControlFlowGraphCache *Cache = &getAnalysis<ControlFlowGraphCachePass>()
-                                    .get();
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-
   // Skip functions with debug-info.
   if (F.getSubprogram())
     return true;
@@ -242,7 +266,7 @@ bool AttachDebugInfo::runOnFunction(const model::Function &ModelFunction,
   // Skip declarations
   revng_assert(not F.isDeclaration());
 
-  auto FM = Cache->getControlFlowGraph(&F);
+  auto FM = CFGGetter(ModelFunction.Entry());
   revng_log(Log,
             "Metadata for Function " << F.getName() << ":"
                                      << FM.Entry().toString());
@@ -321,3 +345,36 @@ struct AttachDebugInfoToABIEnforcedPipe {
 };
 
 static pipeline::RegisterPipe<AttachDebugInfoToABIEnforcedPipe> Y2;
+
+namespace revng::pypeline::piperuns {
+
+void AttachDebugInfo::runOnFunction(const model::Function &TheFunction) {
+  const MetaAddress &Address = TheFunction.Entry();
+  llvm::Module &Module = ModuleContainer.getModule(ObjectID(Address));
+
+  GeneratedCodeBasicInfo GCBI(Binary);
+  GCBI.run(Module);
+
+  auto CFGGetter =
+    [*this](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
+    return *CFG.getElement(ObjectID(Address));
+  };
+
+  llvm::Function *LLVMFunction = nullptr;
+  for (llvm::Function &Function : Module) {
+    if (FunctionTags::Isolated.isTagOf(&Function)
+        and not Function.isDeclaration()) {
+      revng_assert(LLVMFunction == nullptr);
+      LLVMFunction = &Function;
+    }
+  }
+  revng_assert(LLVMFunction != nullptr);
+
+  // TODO: inline the body of prologue and epilogue here
+  ::AttachDebugInfo Impl(Binary, Module, GCBI, CFGGetter);
+  Impl.prologue();
+  Impl.runOnFunction(TheFunction, *LLVMFunction);
+  Impl.epilogue();
+}
+
+} // namespace revng::pypeline::piperuns

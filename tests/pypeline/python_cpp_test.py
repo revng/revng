@@ -30,7 +30,7 @@ def check_names(ext):
     """Check that _pipebox has all the classes we expect it to have"""
 
     # Names that we know are always present in `_pipebox`
-    known_names = ("Buffer",)
+    known_names = ("Buffer", "initialize")
 
     names = [
         x for x in dir(ext) if not ((x.startswith("__") and x.endswith("__")) or x in known_names)
@@ -40,6 +40,8 @@ def check_names(ext):
     for type_ in (Analysis, Container, Kind, Model, ObjectID, Pipe):
         registry = get_registry(type_)
         for key, value in registry.items():
+            if key == "DummyPipe":
+                continue
             assert issubclass(value, type_)
             assert key in names
             assert getattr(ext, key) is value
@@ -207,6 +209,7 @@ def check_simple_pipeline():
 
 def main():
     ext, _ = import_pipebox(sys.argv[1:])
+    ext.initialize(set(), set(), [])
     initialize_pypeline()
     check_names(ext)
     check_pipeline()

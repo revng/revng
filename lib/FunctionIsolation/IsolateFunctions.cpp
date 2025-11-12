@@ -194,6 +194,8 @@ public:
 class IsolateFunctionsImpl {
 private:
   using SuccessorsContainer = std::map<const efa::FunctionEdgeBase *, int>;
+  using CFG = efa::ControlFlowGraph;
+  using CFGGetterType = std::function<const CFG &(const MetaAddress &)>;
 
 private:
   Function *RootFunction = nullptr;
@@ -206,24 +208,21 @@ private:
   std::map<MetaAddress, Function *> IsolatedFunctionsMap;
   std::map<StringRef, Function *> DynamicFunctionsMap;
 
-  ControlFlowGraphCache *Cache = nullptr;
+  CFGGetterType CFGGetter;
   FunctionType *IsolatedFunctionType = nullptr;
-  pipeline::LoadExecutionContextPass &LECP;
 
 public:
   IsolateFunctionsImpl(Function *RootFunction,
                        GeneratedCodeBasicInfo &GCBI,
                        const model::Binary &Binary,
-                       ControlFlowGraphCache &Cache,
-                       pipeline::LoadExecutionContextPass &LECP) :
+                       CFGGetterType CFGGetter) :
     RootFunction(RootFunction),
     TheModule(RootFunction->getParent()),
     Context(TheModule->getContext()),
     GCBI(GCBI),
     Binary(Binary),
     NameBuilder(Binary),
-    Cache(&Cache),
-    LECP(LECP) {
+    CFGGetter(CFGGetter) {
     IsolatedFunctionType = createFunctionType<void>(Context);
   }
 
@@ -250,7 +249,9 @@ public:
   auto &gcbi() const { return GCBI; }
 
 public:
-  void run();
+  void prologue();
+  llvm::Function *runOnFunction(const MetaAddress &Address);
+  void epilogue();
 
   void emitAbort(revng::IRBuilder &Builder,
                  const Twine &Reason,
@@ -280,53 +281,10 @@ public:
   }
 
 private:
-  /// Populate the function_dispatcher, needed to handle the indirect calls
-  void populateFunctionDispatcher();
-
   void handleUnexpectedPCCloned(efa::OutlinedFunction &Outlined);
   void handleAnyPCJumps(efa::OutlinedFunction &Outlined,
                         const efa::ControlFlowGraph &FM);
 };
-
-void IFI::populateFunctionDispatcher() {
-
-  BasicBlock *Dispatcher = BasicBlock::Create(Context,
-                                              "function_dispatcher",
-                                              FunctionDispatcher,
-                                              nullptr);
-
-  BasicBlock *Unexpected = BasicBlock::Create(Context,
-                                              "unexpectedpc",
-                                              FunctionDispatcher,
-                                              nullptr);
-  const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
-  emitUnreachable(Unexpected, "An unexpected function has been called", Dbg);
-  setBlockType(Unexpected->getTerminator(), BlockType::UnexpectedPCBlock);
-
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
-
-  // Create all the entries of the dispatcher
-  ProgramCounterHandler::DispatcherTargets Targets;
-  for (auto &[Address, F] : IsolatedFunctionsMap) {
-    BasicBlock *Trampoline = BasicBlock::Create(Context,
-                                                F->getName() + "_trampoline",
-                                                FunctionDispatcher,
-                                                nullptr);
-    Targets.emplace_back(Address, Trampoline);
-
-    Builder.SetInsertPoint(Trampoline);
-    Builder.CreateCall(F);
-    Builder.CreateRetVoid();
-  }
-
-  // Create switch
-  Builder.SetInsertPoint(Dispatcher);
-  GCBI.programCounterHandler()->buildDispatcher(Targets,
-                                                Builder,
-                                                Unexpected,
-                                                {});
-}
 
 template<typename T, typename F>
 static bool
@@ -533,9 +491,7 @@ public:
   }
 };
 
-void IsolateFunctionsImpl::run() {
-  Task T(6, "IsolateFunctions");
-
+void IsolateFunctionsImpl::prologue() {
   auto SimpleFunctionType = createFunctionType<void>(Context);
   FunctionDispatcher = createIRHelper("function_dispatcher",
                                       *TheModule,
@@ -548,7 +504,6 @@ void IsolateFunctionsImpl::run() {
   //
   // TODO: we can (and should) push processing of dynamic functions into the
   //       loop emitting individual local functions, and make it lazy
-  T.advance("Create dynamic functions", true);
   Task DynamicFunctionsTask(Binary.ImportedDynamicFunctions().size(),
                             "Dynamic functions creation");
   for (const model::DynamicFunction &Function :
@@ -585,65 +540,45 @@ void IsolateFunctionsImpl::run() {
 
     DynamicFunctionsMap[Name] = NewFunction;
   }
+}
 
-  using namespace efa;
-  using llvm::BasicBlock;
+llvm::Function *IsolateFunctionsImpl::runOnFunction(const MetaAddress &Entry) {
 
-  T.advance("Create dynamic functions", true);
+  revng_assert(Entry.isValid());
+  const efa::ControlFlowGraph &FM = CFGGetter(Entry);
 
-  // Obtain the set of requested targets
-  pipeline::ExecutionContext &Context = *LECP.get();
-  const pipeline::TargetsList &RequestedTargets = LECP.getRequestedTargets();
+  // Get or create the llvm::Function
+  Function *F = getLocalFunction(Entry);
 
-  Task IsolateTask(RequestedTargets.size(), "Isolating functions");
-  for (const pipeline::Target &Target : RequestedTargets) {
-    IsolateTask.advance(Target.toString(), true);
-    Context.getContext().pushReadFields();
+  // Decorate the function as appropriate
+  F->addFnAttr(Attribute::NullPointerIsValid);
+  F->addFnAttr(Attribute::NoMerge);
+  IsolatedFunctionsMap[Entry] = F;
+  revng_assert(F != nullptr);
 
-    auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
-    revng_assert(Entry.isValid());
-    const efa::ControlFlowGraph &FM = Cache->getControlFlowGraph(Entry);
+  // Outline the function (later on we'll steal its body and move it into F)
+  CallIsolatedFunction CallHandler(*this, FM);
+  FunctionOutliner Outliner(*TheModule, Binary, GCBI);
+  efa::OutlinedFunction Outlined = Outliner.outline(Entry, &CallHandler);
 
-    // Get or create the llvm::Function
-    Function *F = getLocalFunction(Entry);
+  handleUnexpectedPCCloned(Outlined);
 
-    // Decorate the function as appropriate
-    F->addFnAttr(Attribute::NullPointerIsValid);
-    F->addFnAttr(Attribute::NoMerge);
-    IsolatedFunctionsMap[Entry] = F;
-    revng_assert(F != nullptr);
+  handleAnyPCJumps(Outlined, FM);
 
-    // Outline the function (later on we'll steal its body and move it into F)
-    CallIsolatedFunction CallHandler(*this, FM);
-    FunctionOutliner Outliner(*TheModule, Binary, GCBI);
-    OutlinedFunction Outlined = Outliner.outline(Entry, &CallHandler);
+  if (Outlined.Function)
+    for (BasicBlock &BB : *Outlined.Function)
+      revng_assert(BB.getTerminator() != nullptr);
 
-    handleUnexpectedPCCloned(Outlined);
+  // Steal the function body and let the outlined function be destroyed
+  moveBlocksInto(*Outlined.Function, *F);
 
-    handleAnyPCJumps(Outlined, FM);
+  return F;
+}
 
-    if (Outlined.Function)
-      for (BasicBlock &BB : *Outlined.Function)
-        revng_assert(BB.getTerminator() != nullptr);
-
-    // Steal the function body and let the outlined function be destroyed
-    moveBlocksInto(*Outlined.Function, *F);
-
-    // Commit the produced target
-    Context.commit(Target, LECP.getContainerName());
-
-    Context.getContext().popReadFields();
-  }
-
+void IsolateFunctionsImpl::epilogue() {
+  llvm::Task T(3, "Isolate: epilogue");
   T.advance("Verify module", true);
   revng::verify(TheModule);
-
-  // Create the functions and basic blocks needed for the correct execution of
-  // the exception handling mechanism
-
-  // Populate the function_dispatcher
-  T.advance("Populate function_dispatcher", true);
-  populateFunctionDispatcher();
 
   // Cleanup root
   T.advance("Cleanup", true);
@@ -753,16 +688,99 @@ bool IF::runOnModule(Module &TheModule) {
   const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
   const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
 
+  auto &LECP = getAnalysis<pipeline::LoadExecutionContextPass>();
+  pipeline::ExecutionContext &Context = *LECP.get();
+  const pipeline::TargetsList &RequestedTargets = LECP.getRequestedTargets();
+
+  auto &CFGC = getAnalysis<ControlFlowGraphCachePass>().get();
+  auto CFGGetter =
+    [&CFGC](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
+    return CFGC.getControlFlowGraph(Address);
+  };
+
+  llvm::Task MainTask(3, "Isolate functions");
+  MainTask.advance("Isolate: prologue");
+
   // Create an object of type IsolateFunctionsImpl and run the pass
-  IFI Impl(TheModule.getFunction("root"),
-           GCBI,
-           Binary,
-           getAnalysis<ControlFlowGraphCachePass>().get(),
-           getAnalysis<pipeline::LoadExecutionContextPass>());
-  Impl.run();
+  IFI Impl(TheModule.getFunction("root"), GCBI, Binary, CFGGetter);
+
+  Impl.prologue();
+
+  MainTask.advance("Isolate: run on functions");
+  Task IsolateTask(RequestedTargets.size(), "Isolating functions");
+  for (const pipeline::Target &Target : RequestedTargets) {
+    Context.getContext().pushReadFields();
+
+    auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
+    IsolateTask.advance(Entry.toString(), true);
+    Impl.runOnFunction(Entry);
+
+    // Commit the produced target
+    Context.commit(Target, LECP.getContainerName());
+    Context.getContext().popReadFields();
+  }
+
+  MainTask.advance("Isolate: epilogue");
+  Impl.epilogue();
 
   return false;
 }
+
+namespace revng::pypeline::piperuns {
+
+Isolate::Isolate(const class Model &Model,
+                 llvm::StringRef Config,
+                 llvm::StringRef DynamicConfig,
+                 const CFGMap &CFG,
+                 LLVMRootContainer &Root,
+                 LLVMFunctionContainer &Output) :
+  Root(Root), Output(Output), GCBI(*Model.get().get()) {
+  llvm::Module &Module = Root.getModule();
+  GCBI.run(Module);
+
+  auto CFGGetter =
+    [&CFG](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
+    return *CFG.getElement(ObjectID(Address));
+  };
+
+  // TODO: inline Impl
+  Impl = std::make_unique<IFI>(Module.getFunction("root"),
+                               GCBI,
+                               *Model.get().get(),
+                               CFGGetter);
+  Impl->prologue();
+}
+
+void Isolate::runOnFunction(const model::Function &TheFunction) {
+  llvm::Function *Function = Impl->runOnFunction(TheFunction.Entry());
+  IsolatedFunctions.push_back({ TheFunction.Entry(), Function });
+}
+
+Isolate::~Isolate() {
+  Impl->epilogue();
+
+  llvm::Module &Module = Root.getModule();
+  std::set<const llvm::Function *> ExternalFunctions;
+  for (llvm::Function &ModuleFunction : Module.functions()) {
+    if (not FunctionTags::Root.isTagOf(&ModuleFunction)
+        and not FunctionTags::Isolated.isTagOf(&ModuleFunction)) {
+      ExternalFunctions.insert(&ModuleFunction);
+    }
+  }
+
+  llvm::Task T(IsolatedFunctions.size(),
+               "Splitting functions into individual modules");
+  for (auto &[Address, Function] : IsolatedFunctions) {
+    T.advance(Address.toString(), true);
+    std::set<const llvm::Function *> ToClone;
+    ToClone.insert(Function);
+    ToClone.insert(ExternalFunctions.begin(), ExternalFunctions.end());
+
+    Output.assign(ObjectID(Address), ::cloneFiltered(Module, ToClone));
+  }
+}
+
+} // namespace revng::pypeline::piperuns
 
 void IsolateFunctions::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();

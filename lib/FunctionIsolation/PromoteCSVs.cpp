@@ -66,12 +66,17 @@ private:
   SetVector<GlobalVariable *> CSVs;
   model::Architecture::Values Architecture;
   const model::NamingConfiguration &Configuration;
+  GeneratedCodeBasicInfo &GCBI;
+  llvm::Module &Module;
 
 public:
-  PromoteCSVs(ModulePass &Pass, const model::Binary &Binary, Module &M);
+  PromoteCSVs(ModulePass &Pass, const model::Binary &Binary, llvm::Module &M);
+  PromoteCSVs(const model::Binary &Binary,
+              llvm::Module &M,
+              GeneratedCodeBasicInfo &GCBI);
 
 public:
-  bool prologue() final { return false; }
+  bool prologue();
 
   bool runOnFunction(const model::Function &ModelFunction,
                      llvm::Function &Function) final;
@@ -98,20 +103,35 @@ private:
 
 PromoteCSVs::PromoteCSVs(ModulePass &Pass,
                          const model::Binary &Binary,
-                         Module &M) :
+                         llvm::Module &M) :
   pipeline::FunctionPassImpl(Pass),
   Initializers(&M),
   CSVInitializers(&M, false),
   Architecture(Binary.Architecture()),
-  Configuration(Binary.Configuration().Naming()) {
+  Configuration(Binary.Configuration().Naming()),
+  GCBI(getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI()),
+  Module(M) {
+}
 
+PromoteCSVs::PromoteCSVs(const model::Binary &Binary,
+                         llvm::Module &M,
+                         GeneratedCodeBasicInfo &GCBI) :
+  pipeline::FunctionPassImpl(),
+  Initializers(&M),
+  CSVInitializers(&M, false),
+  Architecture(Binary.Architecture()),
+  Configuration(Binary.Configuration().Naming()),
+  GCBI(GCBI),
+  Module(M) {
+}
+
+bool PromoteCSVs::prologue() {
   CSVInitializers.setMemoryEffects(MemoryEffects::readOnly());
   CSVInitializers.addFnAttribute(Attribute::NoUnwind);
   CSVInitializers.addFnAttribute(Attribute::WillReturn);
   CSVInitializers.setTags({ &FunctionTags::OpaqueCSVValue });
 
   // Record existing initializers
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   const auto &PCCSVs = GCBI.programCounterHandler()->pcCSVs();
   const auto &R = llvm::concat<GlobalVariable *const>(GCBI.csvs(), PCCSVs);
   SmallVector<GlobalVariable *> CSVsToSort{ R.begin(), R.end() };
@@ -121,11 +141,13 @@ PromoteCSVs::PromoteCSVs(ModulePass &Pass,
       continue;
 
     CSVs.insert(CSV);
-    if (auto *F = M.getFunction(Configuration.OpaqueCSVValuePrefix()
-                                + CSV->getName().str()))
+    if (auto *F = Module.getFunction(Configuration.OpaqueCSVValuePrefix()
+                                     + CSV->getName().str()))
       if (FunctionTags::OpaqueCSVValue.isTagOf(F))
         CSVInitializers.record(CSV->getName(), F);
   }
+
+  return false;
 }
 
 // TODO: assign alias information
@@ -610,3 +632,29 @@ struct PromoteCSVsPipe {
 };
 
 static pipeline::RegisterLLVMPass<PromoteCSVsPipe> Y;
+
+namespace revng::pypeline::piperuns {
+
+void PromoteCSVs::runOnFunction(const model::Function &TheFunction) {
+  llvm::Module &Module = ModuleContainer
+                           .getModule(ObjectID(TheFunction.Entry()));
+  GeneratedCodeBasicInfo GCBI(Binary);
+  GCBI.run(Module);
+
+  ::PromoteCSVs Impl(Binary, Module, GCBI);
+  Impl.prologue();
+
+  llvm::Function *LLVMFunction = nullptr;
+  for (llvm::Function &Function : Module.functions()) {
+    if (FunctionTags::Isolated.isTagOf(&Function)
+        and not Function.isDeclaration()) {
+      revng_assert(LLVMFunction == nullptr);
+      LLVMFunction = &Function;
+    }
+  }
+
+  Impl.runOnFunction(TheFunction, *LLVMFunction);
+  Impl.epilogue();
+}
+
+} // namespace revng::pypeline::piperuns

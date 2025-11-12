@@ -8,6 +8,9 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
+#include "revng/PipeboxCommon/Common.h"
+#include "revng/PipeboxCommon/LLVMContainer.h"
+#include "revng/PipeboxCommon/Model.h"
 #include "revng/Pipeline/ContainerSet.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/LLVMContainer.h"
@@ -32,3 +35,20 @@ public:
 };
 
 } // namespace revng::pipes
+
+namespace revng::pypeline::piperuns {
+
+class LinkSupport {
+public:
+  static constexpr llvm::StringRef Name = "LinkSupport";
+  using Arguments = TypeList<
+    PipeArgument<"Module", "Module to link support into">>;
+
+public:
+  static void run(const class Model &Model,
+                  llvm::StringRef Config,
+                  llvm::StringRef DynamicConfig,
+                  LLVMRootContainer &ModuleContainer);
+};
+
+} // namespace revng::pypeline::piperuns

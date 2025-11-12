@@ -2,33 +2,70 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <csignal>
+
 #include "nanobind/nanobind.h"
 #include "nanobind/stl/optional.h"
 #include "nanobind/stl/set.h"
 #include "nanobind/stl/string.h"
 #include "nanobind/stl/vector.h"
 
+#include "llvm/Support/Signals.h"
+
+#include "revng/ADT/SetOperations.h"
 #include "revng/PipeboxCommon/Helpers/Python/Casters.h"
 #include "revng/PipeboxCommon/Helpers/Python/Helpers.h"
 #include "revng/PipeboxCommon/Helpers/Python/Registry.h"
 #include "revng/PipeboxCommon/Model.h"
 #include "revng/Support/InitRevng.h"
 
-NB_MODULE(_pipebox, m) {
-  {
-    // Do InitRevng, use a capsule to call the destructor when the Python module
-    // is unloaded
-    int Argc = 1;
-    const char *Argv[] = { "" };
-    const char **ArgvPtr = Argv;
-    nanobind::capsule Capsule(new revng::InitRevng(Argc, ArgvPtr, "", {}),
-                              [](void *Ptr) noexcept {
-                                delete static_cast<revng::InitRevng *>(Ptr);
-                              });
-    nanobind::setattr(m, "__init_revng__", Capsule);
-  }
+struct SignalHandler {
+  bool IsTerminating;
+  sighandler_t Handler;
+};
 
+static std::map<int, SignalHandler> SavedSignals;
+
+static void handleSignal(int SigNo) {
+  const SignalHandler &Handler = SavedSignals[SigNo];
+  if (Handler.IsTerminating)
+    llvm::sys::RunInterruptHandlers();
+  Handler.Handler(SigNo);
+}
+
+NB_MODULE(_pipebox, m) {
   using namespace revng::pypeline::helpers::python;
+
+  auto Initialize = [m](std::set<int> TerminatingSignals,
+                        std::set<int> NonterminatingSignals,
+                        std::vector<std::string> ArgVector) {
+    revng_assert(not nanobind::hasattr(m, "__init_revng__"));
+    revng_assert(not intersects(TerminatingSignals, NonterminatingSignals));
+
+    // Save the signal pointers for later
+    for (int SigNumber :
+         llvm::concat<const int>(TerminatingSignals, NonterminatingSignals)) {
+      sighandler_t Handler = signal(SigNumber, SIG_DFL);
+      if (Handler != SIG_ERR && Handler != NULL) {
+        bool IsTerminating = TerminatingSignals.contains(SigNumber);
+        SavedSignals[SigNumber] = { IsTerminating, Handler };
+      }
+    }
+
+    int Argc = ArgVector.size() + 1;
+    const char *Argv[Argc];
+    Argv[0] = "";
+    for (size_t I = 0; I < ArgVector.size(); I++)
+      Argv[I + 1] = ArgVector[I].c_str();
+
+    const char **ArgvPtr = Argv;
+    // use a capsule to call the destructor when the Python module is unloaded
+    m.attr("__init_revng__") = makeCapsule<revng::InitRevng>(Argc, ArgvPtr, "");
+
+    for (int SigNumber : std::ranges::views::keys(SavedSignals))
+      signal(SigNumber, &handleSignal);
+  };
+  m.def("initialize", Initialize);
 
   // Register the Buffer class
   nanobind::class_<revng::pypeline::Buffer>(m, "Buffer")
@@ -94,6 +131,9 @@ NB_MODULE(_pipebox, m) {
   nanobind::object ModelBaseClass = importObject("revng.pypeline.model.Model");
   nanobind::class_<Model>(m, "Model", ModelBaseClass)
     .def(nanobind::init<>())
+    .def_static("model_name", []() { return nanobind::str("model.yml"); })
+    .def_static("mime_type",
+                []() { return nanobind::str("application/x-yaml"); })
     .def("diff",
          [](Model &Handle, nanobind::handle_t<Model> Other) {
            return Handle.diff(*nanobind::cast<Model *>(Other));

@@ -161,21 +161,19 @@ class Pipeline(Generic[C]):
         self, start: Optional[PipelineNode] = None, forward: bool = True, stable: bool = False
     ) -> Generator[PipelineNode, None, None]:
         """BFS walk of pipeline nodes"""
+        assert int(not forward) + int(stable) < 2, "forward=False,stable=True is unsupported"
+
         to_visit: List[PipelineNode] = [start or self.root]
         visited: Set[PipelineNode] = set()
 
         if forward:
 
             def successors(node):
-                if not stable:
-                    return node.successors
-                else:
-                    return node.sorted_successors()
+                return node.sorted_successors() if stable else node.successors
 
         else:
 
             def successors(node):
-                assert not stable
                 return node.predecessors
 
         while len(to_visit) > 0:
@@ -186,40 +184,77 @@ class Pipeline(Generic[C]):
                 if child_node not in visited:
                     to_visit.append(child_node)
 
-    def graph(self) -> Graph:
+    def graph(self, container_edges=False) -> Graph:
         """A graph for debugging purposes."""
 
         graph = Graph()
 
         nodes_map: Dict[PipelineNode, Graph.Node] = {}
 
-        def get_node(node: PipelineNode) -> Graph.Node:
-            if node not in nodes_map:
-                new_node = Graph.Node(node.task.name)
-                for argument in node.arguments:
-                    new_node.entries.append(argument.name)
-
-                nodes_map[node] = new_node
-                graph.nodes.add(new_node)
-
-            return nodes_map[node]
+        access_to_str = {
+            TaskArgumentAccess.READ: "R",
+            TaskArgumentAccess.WRITE: "W",
+            TaskArgumentAccess.READ_WRITE: "RW",
+        }
 
         for node in self.walk_pipeline():
-            graph_node = get_node(node)
-            node_inputs: List[ContainerDeclaration] = list(node.arguments)
+            if isinstance(node.task, Pipe):
+                new_node = Graph.Node(node.task.name)
+                for argument in node.arguments_with_access:
+                    new_node.entries.append(f"{argument.name} [{access_to_str[argument.access]}]")
+            else:
+                new_node = Graph.Node(node.task.name, color="#2A52BE", bgcolor="#6C83BE")
+                for argument in node.arguments_with_access:
+                    new_node.entries.append(argument.name)
+
+            nodes_map[node] = new_node
+            graph.nodes.add(new_node)
 
             for predecessor in node.predecessors:
-                for source_index, argument in enumerate(predecessor.task.arguments):
-                    if argument.access == TaskArgumentAccess.READ or argument not in node_inputs:
+                graph.edges.add(
+                    Graph.Edge(
+                        nodes_map[predecessor],
+                        new_node,
+                        source_port=-1,
+                        destination_port=-1,
+                        style="bold",
+                    )
+                )
+
+            if not container_edges:
+                continue
+
+            node_inputs: list[ContainerDeclaration] = list(node.arguments)
+            taken_inputs: set[int] = set()
+
+            for parent_node in self.walk_pipeline(node, forward=False):
+                if parent_node is node:
+                    continue
+
+                for source_index, parent_argument in enumerate(parent_node.arguments_with_access):
+                    parent_container_decl = parent_argument.to_container_decl()
+                    if (
+                        parent_argument.access == TaskArgumentAccess.READ
+                        or parent_container_decl not in node_inputs
+                    ):
                         continue
 
-                    destination_index = node_inputs.index(argument)
+                    destination_index = node_inputs.index(parent_container_decl)
+                    if destination_index in taken_inputs:
+                        continue
+
+                    taken_inputs.add(destination_index)
+                    if parent_node in node.predecessors:
+                        continue
+
                     graph.edges.add(
                         Graph.Edge(
-                            get_node(predecessor),
-                            graph_node,
+                            nodes_map[parent_node],
+                            new_node,
                             source_port=source_index,
                             destination_port=destination_index,
+                            style="dashed",
+                            color="#FD6D53",
                         )
                     )
 
@@ -266,7 +301,7 @@ class Pipeline(Generic[C]):
             if not node.predecessors:
                 assert node_ingoing_requests.empty(), (
                     f"Node {node} has no predecessors, but it still has "
-                    f"requests: {node_ingoing_requests}"
+                    f"requests: {node_ingoing_requests.minimize()}"
                 )
                 break
 
@@ -281,7 +316,59 @@ class Pipeline(Generic[C]):
             node = predecessor
             node_outgoing_requests = node_ingoing_requests
 
-        return Schedule(self.declarations, tasks[target_node], pipeline_configuration)
+        # Here the task list has been decided, these are now iterated to apply
+        # the following optimizations:
+        # * Reduce the set of container declarations to those that are actually
+        #   necessary to run the schedule
+        # * Compact incoming and outgoing of each task to their reduced version
+        # * Skip tasks where nothing in outgoing is actually written by the task
+        #
+        # These could be derived by using a dataflow-based approach to the
+        # pipeline, where each pipe binds its inputs to the predecessor's pipe
+        # output, but in the general case (with RW pipes) this turns into
+        # having a mini-programming language and applying SSA analysis and the
+        # like to deduplicate the containers (that, in the general case, need
+        # to be duplicated at each node of the dataflow).
+        scheduled_task: ScheduledTask | None = tasks[target_node]
+        parent_scheduled_task: ScheduledTask | None = None
+        used_declatations: set[str] = set()
+
+        while scheduled_task is not None:
+            # Assume that the schedule is a straight line, so a task has at
+            # most one dependency
+            assert len(scheduled_task.depends_on) in (0, 1)
+
+            # Reduce incoming and outgoing
+            scheduled_task.incoming = scheduled_task.incoming.minimize()
+            scheduled_task.outgoing = scheduled_task.outgoing.minimize()
+
+            # Figure out if a task will actually produce outputs
+            written_out = Requests()
+            for argument in scheduled_task.node.arguments_with_access:
+                if argument.access != TaskArgumentAccess.READ:
+                    container_decl = argument.to_container_decl()
+                    if container_decl in scheduled_task.outgoing:
+                        written_out[container_decl] = scheduled_task.outgoing[container_decl]
+
+            if written_out.empty() and parent_scheduled_task is not None:
+                # If here the task does not actually need to produce anything
+                # and can be skipped, by "glueing" its dependencies onto the parent
+                assert [scheduled_task] == parent_scheduled_task.depends_on
+                parent_scheduled_task.depends_on = scheduled_task.depends_on
+            else:
+                used_declatations.update(x.name for x in scheduled_task.node.arguments)
+                parent_scheduled_task = scheduled_task
+
+            if len(scheduled_task.depends_on) == 1:
+                scheduled_task = scheduled_task.depends_on[0]
+            else:
+                scheduled_task = None
+
+        return Schedule(
+            {v for v in self.declarations if v.name in used_declatations},
+            tasks[target_node],
+            pipeline_configuration,
+        )
 
     def get_artifact(
         self,
@@ -350,10 +437,7 @@ class Pipeline(Generic[C]):
         analysis_info.analysis.run(
             model=new_model,
             containers=[all_containers[decl] for decl in analysis_info.bindings],
-            incoming=[
-                requests.get(decl, ObjectSet(decl.container_type.kind, set()))
-                for decl in analysis_info.bindings
-            ],
+            incoming=[requests.get(decl) for decl in analysis_info.bindings],
             configuration=analysis_configuration,
         )
         invalidated = storage_provider.invalidate(ReadOnlyModel(new_model).diff(model))

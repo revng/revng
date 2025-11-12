@@ -74,6 +74,10 @@ public:
                          unsigned LoadSize,
                          bool IsLittleEndian) const;
 
+  // Factored-out checkPrecondition, should be added to each pipe that uses
+  // this class. Eventually this will be moved into Binary::verify.
+  static llvm::Error checkPrecondition(const model::Binary &Binary);
+
 private:
   std::pair<const model::Segment *, uint64_t>
   findOffsetInSegment(MetaAddress Address, uint64_t Size) const;
