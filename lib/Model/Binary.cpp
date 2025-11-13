@@ -493,11 +493,13 @@ model::Register::fromCSVName(llvm::StringRef Name,
 
   Name = Name.substr(1);
 
-  if (Architecture == model::Architecture::x86_64) {
-    // TODO: handle xmm0_x86
+  if (Architecture == model::Architecture::x86) {
     if (Name == UnknownCSVPrefix "0x2960") {
       return st0_x86;
-    } else if (Name == UnknownCSVPrefix "0x2b10") {
+    }
+  } else if (Architecture == model::Architecture::x86_64) {
+    // TODO: handle xmm0_x86
+    if (Name == UnknownCSVPrefix "0x2b10") {
       return xmm0_x86_64;
     } else if (Name == UnknownCSVPrefix "0x2b50") {
       return xmm1_x86_64;
