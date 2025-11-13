@@ -362,12 +362,17 @@ def load_pipeline(values: Any) -> Pipeline:
         analyses=analyses,
     )
 
-    if len(roots) == 1:
+    root_analyses_raw = values.get("analyses", [])
+    if len(roots) == 1 and len(root_analyses_raw) == 0:
         root = roots[0]
     else:
         root = DummyPipelineNode("root")
         for node in roots:
             root.add_successor(node)
+        root_analyses: set[AnalysisBinding] = set()
+        root_analyses_dict = [{"analysis": x, "containers": []} for x in root_analyses_raw]
+        parse_analyses(root_analyses_dict, root_analyses, root, container_decls)
+        analyses.update(root_analyses)
 
     return Pipeline(
         declarations=set(container_decls.values()),

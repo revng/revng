@@ -19,6 +19,10 @@ $defs:
           $ref: "#/$defs/container_decl"
       analysis_lists:
         $ref: "#/$defs/analysis_lists"
+      analyses:
+        type: array
+        items:
+          type: string
       branches:
         type: object
         patternProperties:
