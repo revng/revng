@@ -110,11 +110,13 @@ namespace model {
 
 MetaAddressRangeSet Binary::executableRanges() const {
   MetaAddressRangeSet ExecutableRanges;
-
   struct Entry {
-    Entry(MetaAddress Start, const model::StructDefinition &Type) :
-      Start(Start), Type(Type) {}
+    Entry(MetaAddress Start,
+          MetaAddress End,
+          const model::StructDefinition &Type) :
+      Start(Start), End(End), Type(Type) {}
     MetaAddress Start;
+    MetaAddress End;
     const model::StructDefinition &Type;
   };
   std::queue<Entry> Queue;
@@ -122,9 +124,11 @@ MetaAddressRangeSet Binary::executableRanges() const {
   for (const model::Segment &Segment : Segments()) {
     if (Segment.IsExecutable()) {
       if (const auto *SegmentType = Segment.type()) {
-        Queue.emplace(Segment.StartAddress(), *SegmentType);
+        Queue.emplace(Segment.StartAddress(),
+                      Segment.endDataAddress(),
+                      *SegmentType);
       } else {
-        ExecutableRanges.add(Segment.StartAddress(), Segment.endAddress());
+        ExecutableRanges.add(Segment.StartAddress(), Segment.endDataAddress());
       }
     }
   }
@@ -132,6 +136,28 @@ MetaAddressRangeSet Binary::executableRanges() const {
   while (not Queue.empty()) {
     auto QueueEntry = Queue.front();
     Queue.pop();
+
+    // This function record an entry in ExecutableRanges, keeping into account
+    // what data is actually on disk. In practice, we avoid marking executable
+    // .bss.
+    auto Register = [&QueueEntry, &ExecutableRanges](const MetaAddress &Start,
+                                                     const MetaAddress &End) {
+      revng_assert(Start >= QueueEntry.Start);
+
+      if (Start >= QueueEntry.End) {
+        // Ignoring this range: it starts after the end of the data available on
+        // disk
+        return;
+      }
+
+      if (End > QueueEntry.End) {
+        // The range we're trying to add ends *after* the data available on
+        // disk. Limit the range accordingly.
+        ExecutableRanges.add(Start, QueueEntry.End);
+      } else {
+        ExecutableRanges.add(Start, End);
+      }
+    };
 
     MetaAddress PaddingStart = QueueEntry.Start;
     MetaAddress PaddingEnd;
@@ -147,7 +173,7 @@ MetaAddressRangeSet Binary::executableRanges() const {
 
       // Register the padding as an executable range
       if (PaddingStart != PaddingEnd)
-        ExecutableRanges.add(PaddingStart, PaddingEnd);
+        Register(PaddingStart, PaddingEnd);
 
       // Enqueue the field type for processing
       //
@@ -155,7 +181,7 @@ MetaAddressRangeSet Binary::executableRanges() const {
       //       the way, the traversal stops.
       if (const model::StructDefinition *Struct = Field.Type()->getStruct())
         if (Struct->CanContainCode())
-          Queue.emplace(FieldStart, *Struct);
+          Queue.emplace(FieldStart, QueueEntry.End, *Struct);
 
       // Set the next padding start
       auto FieldSize = *rc_eval(Field.Type()->size(Helper));
@@ -165,7 +191,7 @@ MetaAddressRangeSet Binary::executableRanges() const {
     // Record the trailing padding, if any
     PaddingEnd = QueueEntry.Start + QueueEntry.Type.Size();
     if (PaddingStart != PaddingEnd)
-      ExecutableRanges.add(PaddingStart, PaddingEnd);
+      Register(PaddingStart, PaddingEnd);
   }
 
   return ExecutableRanges;
