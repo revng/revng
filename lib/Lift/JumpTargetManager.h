@@ -345,6 +345,10 @@ public:
 
   BlockMap::const_iterator end() const { return JumpTargets.end(); }
 
+  const JumpTarget &at(const MetaAddress &Address) {
+    return JumpTargets.at(Address);
+  }
+
   void registerJT(llvm::BasicBlock *BB, JTReason::Values Reason) {
     registerJT(getBasicBlockAddress(&notNull(BB)), Reason);
   }

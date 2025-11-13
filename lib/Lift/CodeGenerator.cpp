@@ -373,6 +373,17 @@ void CodeGenerator::translate(LibTcg &LibTcg,
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
 
   while (Entry != nullptr) {
+    if (Log.isEnabled()) {
+      Log << "Processing " << VirtualAddress.toString() << " due to ";
+      const char *Separator = "";
+      for (const char *Reason :
+           JumpTargets.at(VirtualAddress).getReasonNames()) {
+        Log << Separator << Reason;
+        Separator = ", ";
+      }
+      Log << DoLog;
+    }
+
     llvm::ArrayRef<uint8_t> CodeBuffer;
     CodeBuffer = RawBinary.getFromAddressOn(VirtualAddress).value();
 
