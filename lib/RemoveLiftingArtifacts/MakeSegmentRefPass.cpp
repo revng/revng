@@ -6,6 +6,7 @@
 #include <optional>
 
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -72,7 +73,7 @@ void MakeSegmentRefPassImpl::getAnalysisUsage(llvm::AnalysisUsage &AU) {
 }
 
 static std::optional<std::pair<MetaAddress, uint64_t>>
-findLiteralInSegments(const model::Binary &Binary, uint64_t Literal) {
+findSegmentContainingLiteral(const model::Binary &Binary, uint64_t Literal) {
   std::optional<std::pair<MetaAddress, uint64_t>> Result = std::nullopt;
   auto Architecture = Binary.Architecture();
 
@@ -127,8 +128,13 @@ getStringLiteral(RawBinaryView &BinaryView,
 
 bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
                                            llvm::Function &F) {
+
   model::CNameBuilder NameBuilder(Binary);
   RawBinaryView &BinaryView = getAnalysis<LoadBinaryWrapperPass>().get();
+
+  using llvm::DominatorTree;
+  DominatorTree DT;
+  DT.recalculate(F);
 
   std::map<MetaAddress, MetaAddress> FunctionEntries;
   for (const model::Function &Function : Binary.Functions())
@@ -145,6 +151,35 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
     if (isCallToTagged(&I, FunctionTags::AllocatesLocalVariable))
       continue;
 
+    // In the following loop we're going to look at each constant operand of I,
+    // and see if it can be replaced either with a string literal or with a
+    // reference to a segment, or with a reference to a function.
+    //
+    // If we do the replacement blindly, and the same constant is used many
+    // times in the same instruction, we will end up replacing that constant
+    // many times in the same instruction, replacing it with redundant
+    // instructions that could be CSE's.
+    //
+    // In addition, if I is a PHINode, we could end up generating invalid IR, if
+    // the PHI has the same constant incoming value many times coming from the
+    // same predecessor block. In that case, the IR would be valid, but if we
+    // replace the same incoming constant with many different expressions (even
+    // if equivalent), the IR doesn't verify anymore, because now we have many
+    // different incoming values (the replacement instructions) from the same
+    // predecessor block.
+    //
+    // To avoid this problem, we need map to track how we replace each constant
+    // operand in a given instruction. In this way, if an instruction uses the
+    // same constant many times, we we'll emit a single expression as a
+    // replacement, that will have many uses in the user instruction.
+    // Given that we have to do this for PHINodes for verification reasons, we
+    // might as well do it for all instructions, to keep the generated IR
+    // somewhat smaller.
+    //
+    // This is correct only if all the Values we generate as a replacement
+    // don't have any side effects.
+    DenseMap<ConstantInt *, Value *> ConstantOpReplacements;
+
     for (Use &Op : I.operands()) {
 
       // Operands of calls to OpaqueExtractValue should never be promoted to
@@ -160,38 +195,64 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
           if (BI->getCondition() != Op)
             continue;
 
+      // If Op is not a constant it cannot be a reference to a segment, nor
+      // a string literal, nor a function.
+      // TODO: this will change when we properly support PIE code. But when that
+      // happens this part of the code should be gone already.
       ConstantInt *ConstOp = dyn_cast<ConstantInt>(skipCasts(Op));
+      if (nullptr == ConstOp)
+        continue;
+
+      // Skip stuff that is not pointer-sized
       using namespace model::Architecture;
       auto PointerSize = getPointerSize(Binary.Architecture());
-      if (ConstOp != nullptr
-          and (ConstOp->getBitWidth() == (8 * PointerSize))) {
-        uint64_t ConstantAddress = ConstOp->getZExtValue();
+      if (ConstOp->getBitWidth() != (8 * PointerSize))
+        continue;
 
-        if (auto Segment = findLiteralInSegments(Binary, ConstantAddress);
-            Segment) {
+      // We've already this very same constant used as another operand of this
+      // very same instruction. Just reuse the replacement that we've computed
+      // earlier.
+      if (auto It = ConstantOpReplacements.find(ConstOp);
+          It != ConstantOpReplacements.end()) {
+        I.setOperand(Op.getOperandNo(), It->second);
+        Changed = true;
+        revng::verify(&M);
+        continue;
+      }
 
-          const auto &[StartAddress, VirtualSize] = *Segment;
-          auto OffsetInSegment = ConstantAddress - StartAddress.address();
-          MetaAddress Address = StartAddress + OffsetInSegment;
+      uint64_t ConstantAddress = ConstOp->getZExtValue();
 
-          if (isa<PHINode>(&I)) {
-            auto *BB = cast<PHINode>(&I)->getIncomingBlock(Op);
-            IRB.SetInsertPoint(BB->getTerminator());
-          } else {
-            IRB.SetInsertPoint(&I);
-          }
+      if (auto Segment = findSegmentContainingLiteral(Binary, ConstantAddress);
+          Segment) {
 
-          auto It = FunctionEntries.find(Address);
-          if (It != FunctionEntries.end()) {
-            auto Name = NameBuilder.llvmName(Binary.Functions().at(It->second));
+        const auto &[StartAddress, VirtualSize] = *Segment;
+        auto OffsetInSegment = ConstantAddress - StartAddress.address();
+        MetaAddress Address = StartAddress + OffsetInSegment;
 
-            auto *ReferencedFunction = M.getFunction(Name);
-            revng_assert(ReferencedFunction != nullptr);
-            I.setOperand(Op.getOperandNo(),
-                         IRB.CreatePtrToInt(ReferencedFunction, Op->getType()));
-            Changed = true;
-            continue;
-          }
+        auto *PHI = dyn_cast<PHINode>(&I);
+        if (PHI) {
+          BasicBlock
+            *InsertionBlock = DT[PHI->getParent()]->getIDom()->getBlock();
+          IRB.SetInsertPoint(InsertionBlock->getTerminator());
+        } else {
+          IRB.SetInsertPoint(&I);
+        }
+
+        Value *ConstantOpReplacement = nullptr;
+
+        // If Address matches a function entry, the constant operand must be
+        // replaced with a function reference.
+        auto It = FunctionEntries.find(Address);
+        if (It != FunctionEntries.end()) {
+          auto Name = NameBuilder.llvmName(Binary.Functions().at(It->second));
+
+          auto *ReferencedFunction = M.getFunction(Name);
+          revng_assert(ReferencedFunction != nullptr);
+          ConstantOpReplacement = IRB.CreatePtrToInt(ReferencedFunction,
+                                                     Op->getType());
+        } else {
+
+          // Then we we check to see if the address matches a string literal.
 
           IntegerType *OperandType = ConstOp->getType();
 
@@ -232,11 +293,13 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
                                        RealOpType);
             }
 
-            Value *Call = IRB.CreateCall(LiteralFunction, { ConstExpr });
-            I.setOperand(Op.getOperandNo(), Call);
+            CallInst *Call = IRB.CreateCall(LiteralFunction, { ConstExpr });
+            ConstantOpReplacement = Call;
 
-            revng::verify(&M);
           } else {
+            // If it cannot be emitted as a string literal we emit it as a
+            // reference to a segment.
+
             FunctionTags::SegmentRefPoolKey Key = { StartAddress,
                                                     VirtualSize,
                                                     OperandType };
@@ -288,11 +351,16 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
                 AddressOfCall = IRB.CreateIntToPtr(AddressOfCall,
                                                    CE->getType());
 
-            I.setOperand(Op.getOperandNo(), AddressOfCall);
+            ConstantOpReplacement = AddressOfCall;
           }
-
-          Changed = true;
         }
+
+        revng_assert(nullptr != ConstantOpReplacement);
+        I.setOperand(Op.getOperandNo(), ConstantOpReplacement);
+        Changed = true;
+        revng::verify(&M);
+
+        ConstantOpReplacements[ConstOp] = ConstantOpReplacement;
       }
     }
   }
