@@ -6,11 +6,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import chain
-from typing import Dict, Generator, Generic, List, Mapping, Optional, Set, TypeVar
+from typing import Dict, Generator, Generic, Iterable, List, Mapping, Optional, Set, TypeVar
 
 import yaml
 
-from .analysis import AnalysisBinding
+from .analysis import AnalysisBinding, AnalysisList
 from .container import Container, ContainerDeclaration
 from .graph import Graph
 from .model import Model, ReadOnlyModel
@@ -59,7 +59,14 @@ class Pipeline(Generic[C]):
     that fulfills the requests.
     """
 
-    __slots__ = ("declarations", "root", "artifacts", "analyses", "savepoint_id_to_artifact")
+    __slots__ = (
+        "declarations",
+        "root",
+        "artifacts",
+        "analyses",
+        "analysis_lists",
+        "savepoint_id_to_artifact",
+    )
 
     def __init__(
         self,
@@ -67,13 +74,13 @@ class Pipeline(Generic[C]):
         root: PipelineNode,
         artifacts: Optional[set[Artifact]] = None,
         analyses: Optional[set[AnalysisBinding]] = None,
+        analysis_lists: Optional[Iterable[AnalysisList]] = None,
     ):
         self.root = root
         self.declarations = set(declarations)
 
         self.savepoint_id_to_artifact: dict[int, Artifact] = {}
-        """
-        """
+
         self.artifacts: Mapping[str, Artifact] = {}
         """
         The artifacts, indexed by their name for easy access.
@@ -95,6 +102,31 @@ class Pipeline(Generic[C]):
                     f"Analysis {analysis.analysis.name} is defined multiple times in the pipeline"
                 )
             self.analyses[analysis.analysis.name] = analysis
+
+        self.analysis_lists: dict[str, AnalysisList] = {}
+        """
+        Aliases for lists of analyses to execute sequentially.
+        """
+        for analysis_list in analysis_lists or set():
+            # Check that the given analysis list is valid
+            if analysis_list.name in self.analyses:
+                raise ValueError(
+                    f"Analyses list alias {analysis_list.name} conflicts with an existing analysis"
+                    " name"
+                )
+            for analysis_name in analysis_list.analyses:
+                if analysis_name not in self.analyses:
+                    raise ValueError(
+                        f"Analysis {analysis_name} in analyses list {analysis_list.name} is not "
+                        "defined in the pipeline"
+                    )
+            if analysis_list.name in self.analysis_lists:
+                raise ValueError(
+                    f"Analyses list alias {analysis_list.name} is defined multiple times in the "
+                    "pipeline"
+                )
+            # Add the analysis list
+            self.analysis_lists[analysis_list.name] = analysis_list
 
         Pipeline.assign_savepoint_ranges(root)
 
@@ -390,6 +422,52 @@ class Pipeline(Generic[C]):
             storage_provider=storage_provider,
         )[artifact.container]
 
+    def run_analysis_list(
+        self,
+        model: ReadOnlyModel,
+        analysis_list: AnalysisList,
+        analysis_configuration: list[str],
+        pipeline_configuration: PipelineConfiguration,
+        storage_provider: StorageProvider,
+    ) -> tuple[Model, InvalidatedObjects]:
+        """
+        Run a list of analyses on the pipeline, given a model and a set of requests.
+        The analyses will return the new potentially modified model, and set it
+        in the storage provider.
+        """
+        new_model: Model = model.clone()
+        total_invalidated: InvalidatedObjects = InvalidatedObjects()
+
+        pypeline_logger.debug_log(f"Running analysis list {analysis_list.name}")
+
+        assert len(analysis_list.analyses) == len(analysis_configuration), (
+            "Analysis configuration list length does not match the number of analyses in the list."
+            f" Expected {(analysis_list.analyses)}, got {len(analysis_configuration)}."
+        )
+
+        for analysis_name, analysis_config in zip(analysis_list.analyses, analysis_configuration):
+            pypeline_logger.debug_log(f"Running analysis {analysis_name}")
+            if analysis_name not in self.analyses:
+                raise ValueError(f"Analysis {analysis_name} not found in the pipeline")
+            analysis = self.analyses[analysis_name]
+            # Build the requests for the analysis
+            requests = Requests()
+            for container_decl in analysis.bindings:
+                requests[container_decl] = model.all_objects(container_decl.container_type.kind)
+
+            new_model, invalidated = self.run_analysis(
+                model=model,
+                analysis_name=analysis_name,
+                requests=requests,
+                analysis_configuration=analysis_config,
+                pipeline_configuration=pipeline_configuration,
+                storage_provider=storage_provider,
+            )
+            total_invalidated.update(invalidated)
+            model = ReadOnlyModel(new_model)
+
+        return new_model, total_invalidated
+
     def run_analysis(
         self,
         model: ReadOnlyModel,
@@ -503,4 +581,4 @@ class Pipeline(Generic[C]):
             scheduled_task = ScheduledTask(pipeline_node, False, outgoing, incoming, depends_on)
             scheduled_tasks.append(scheduled_task)
 
-        return Schedule(declarations, scheduled_tasks[-1], configuration)
+        return Schedule(declarations, scheduled_tasks[-1], configuration)  #

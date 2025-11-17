@@ -61,3 +61,19 @@ class AnalysisBinding:
     analysis: Analysis
     bindings: tuple[ContainerDeclaration, ...]
     node: PipelineNode
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisList:
+    """A named list of analysis to run in sequence."""
+
+    name: str
+    analyses: list[str]
+    description: str | None = None
+
+    def __post_init__(self):
+        if len(self.analyses) == 0:
+            raise ValueError("An analysis list must contain at least one analysis.")
+
+        if len(set(self.analyses)) != len(self.analyses):
+            raise ValueError("An analysis list cannot contain duplicate analyses.")

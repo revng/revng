@@ -200,16 +200,20 @@ class Daemon:
         pipeline_configuration = request.get("pipeline_configuration", {})
         containers = request.get("containers", {})
 
-        # Validate data
-        if analysis not in self.pipeline.analyses:
+        # Validate data and normalize to analysis list
+        if analysis not in self.pipeline.analyses and analysis not in self.pipeline.analysis_lists:
             return Response(
                 code=400,
                 body={
                     "msg": f"Analysis {analysis} not found in the pipeline.",
-                    "available_analyses": list(self.pipeline.analyses.keys()),
+                    "available_analyses": sorted(
+                        list(self.pipeline.analyses.keys())
+                        + list(self.pipeline.analysis_lists.keys())
+                    ),
                 },
             )
 
+        # Check that the given containers are declared in the pipeline
         for container_name, objects in containers.items():
             for decl in self.pipeline.declarations:
                 if container_name == decl.name:
@@ -243,33 +247,46 @@ class Daemon:
                     },
                 )
 
-            # Setup the requests
-            requests = Requests()
-            for binding in self.pipeline.analyses[analysis].bindings:
-                kind: Kind = binding.container_type.kind
-                objects = containers.get(binding.name)
-                if objects is not None and not isinstance(objects, list):
-                    return Response(
-                        code=400,
-                        body={
-                            "msg": (
-                                f"Objects for container {binding.name} must be a "
-                                f"list, got {type(objects)}",
-                            ),
-                        },
-                    )
-                requests.insert(binding, compute_objects(ReadOnlyModel(model), kind, objects))
+            # Run an analysis
+            if analysis in self.pipeline.analyses:
+                current_model = ReadOnlyModel(model)
+                # Setup the requests
+                requests = Requests()
+                for binding in self.pipeline.analyses[analysis].bindings:
+                    kind: Kind = binding.container_type.kind
+                    objects = containers.get(binding.name)
+                    if objects is not None and not isinstance(objects, list):
+                        return Response(
+                            code=400,
+                            body={
+                                "msg": (
+                                    f"Objects for container {binding.name} must be a "
+                                    f"list, got {type(objects)}",
+                                ),
+                            },
+                        )
+                    requests.insert(binding, compute_objects(current_model, kind, objects))
 
-            # Run the analysis
-            new_model, invalidated = self.pipeline.run_analysis(
-                model=ReadOnlyModel(model),
-                analysis_name=analysis,
-                requests=requests,
-                analysis_configuration=configuration,
-                pipeline_configuration=pipeline_configuration,
-                storage_provider=storage_provider,
-            )
+                # Run the analysis
+                new_model, invalidated = self.pipeline.run_analysis(
+                    model=current_model,
+                    analysis_name=analysis,
+                    requests=requests,
+                    analysis_configuration=configuration,
+                    pipeline_configuration=pipeline_configuration,
+                    storage_provider=storage_provider,
+                )
+            else:
+                analysis_list = self.pipeline.analysis_lists[analysis]
+                new_model, invalidated = self.pipeline.run_analysis_list(
+                    model=ReadOnlyModel(model),
+                    analysis_list=analysis_list,
+                    analysis_configuration=configuration,
+                    pipeline_configuration=pipeline_configuration,
+                    storage_provider=storage_provider,
+                )
 
+            # Compute the diff between the original model and the final one
             diff = str(model.diff(new_model))
             # TODO: this can be done much more efficiently
             new_epoch = storage_provider.get_epoch()

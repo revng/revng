@@ -232,7 +232,8 @@ def build_help_text(
     Build a standardized help text for a command.
     """
     help_text: str = prologue
-    help_text += "\n\n\b\nArguments:"
+    if args or model_help or extra_args is not None:
+        help_text += "\n\n\b\nArguments:"
     if model_help:
         help_text += "\n - MODEL : Path - The path to the model file to use."
 

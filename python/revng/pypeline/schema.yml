@@ -17,6 +17,8 @@ $defs:
         uniqueItems: true
         items:
           $ref: "#/$defs/container_decl"
+      analysis_lists:
+        $ref: "#/$defs/analysis_lists"
       branches:
         type: object
         patternProperties:
@@ -38,6 +40,31 @@ $defs:
                     - $ref: "#/$defs/savepoint"
                 description: A list of tasks in the branch, each task is a pipe.
                 minItems: 1
+  analysis_lists:
+    type: array
+    additionalProperties: false
+    items:
+      $ref: "#/$defs/analysis_list"
+  analysis_list:
+    type: object
+    required:
+      - name
+      - analyses
+    additionalProperties: false
+    properties:
+      name:
+        type: string
+        description: The name of the analyses list.
+        example: all_analyses
+      analyses:
+        type: array
+        items:
+          type: string
+        description: A list of analysis names.
+        minItems: 1
+      description:
+        type: string
+        description: A description of the analyses list that will appear in the CLI help.
   container_decl:
     type: object
     required:
