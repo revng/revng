@@ -28,6 +28,12 @@ containers:
   - name: llvm-root-with-functions
     type: LLVMRootContainer
 
+analyses:
+  - apply-diff
+  - verify-diff
+  - set-model
+  - verify-model
+
 branches:
   files-imported:
     tasks:
