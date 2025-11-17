@@ -142,12 +142,9 @@ def parse_analyses(
                 f"{sorted(analyses_registry.keys())}"
             )
         analysis_type: type[Analysis] = analyses_registry[analysis_name]
-
-        name = analysis.get("name", analysis_name)
-
         analyses.add(
             AnalysisBinding(
-                analysis=analysis_type(name),
+                analysis=analysis_type(),
                 bindings=tuple(bindings),
                 node=target_node,
             )

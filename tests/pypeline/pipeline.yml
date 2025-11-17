@@ -18,8 +18,8 @@ containers:
 analysis_lists:
   - name: "all_analyses"
     analyses:
-      - "init_analysis"
-      - "blackhole"
+      - AddStuffAnalysis
+      - PurgeAllAnalysis
       - "NullAnalysis"
     description: "Alias for all analyses in the pipeline for testing purposes."
 
@@ -30,8 +30,7 @@ branches:
         arguments: [child_source]
         configuration: ""
         analyses:
-          - name: init_analysis
-            analysis: AddStuffAnalysis
+          - analysis: AddStuffAnalysis
             containers: [child_source]
       - pipe: InPlacePipe
         arguments: [child_source]
@@ -49,8 +48,7 @@ branches:
           - name: RootArtifact
             container: root_source
         analyses:
-          - name: blackhole
-            analysis: PurgeAllAnalysis
+          - analysis: PurgeAllAnalysis
             containers: [root_source]
       - pipe: ToHigherKindPipe
         arguments: [root_source, child_destination]

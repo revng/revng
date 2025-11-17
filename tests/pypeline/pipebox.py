@@ -550,8 +550,8 @@ class PurgeOneAnalysis(Analysis):
     def signature(cls) -> tuple[type[Container], ...]:
         return (ChildDictContainer,)
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self):
+        super().__init__()
         self.what_to_purge: list[ModelPath] = [
             "/one",
             "/test/test",
@@ -601,8 +601,8 @@ class AddStuffAnalysis(Analysis):
     def signature(cls) -> tuple[type[Container], ...]:
         return (ChildDictContainer,)
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self):
+        super().__init__()
         self.what_to_add: list[ModelPath] = [
             "/one",
             "/test/test",

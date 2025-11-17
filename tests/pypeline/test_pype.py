@@ -176,8 +176,8 @@ def test_project(runner: CliRunner, container_format: str):
 
     # Run analysis
     run("project", "analyze", "NullAnalysis")
-    run("project", "analyze", "blackhole")
-    run("project", "analyze", "init_analysis")
+    run("project", "analyze", "PurgeAllAnalysis")
+    run("project", "analyze", "AddStuffAnalysis")
 
     # Run an analysis list
     run("project", "analyze", "all_analyses")

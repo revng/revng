@@ -466,17 +466,17 @@ def test_analysis(model, storage_provider):
         pipe,
         analyses={
             AnalysisBinding(
-                NullAnalysis(name="null_analysis"),
+                NullAnalysis(),
                 (child,),
                 savepoint,
             ),
             AnalysisBinding(
-                PurgeAllAnalysis(name="purge_all_analysis"),
+                PurgeAllAnalysis(),
                 (child,),
                 savepoint,
             ),
             AnalysisBinding(
-                PurgeOneAnalysis(name="purge_one_analysis"),
+                PurgeOneAnalysis(),
                 (child,),
                 savepoint,
             ),
@@ -488,7 +488,7 @@ def test_analysis(model, storage_provider):
     orig_model = model.clone()
     new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
-        analysis_name="null_analysis",
+        analysis_name="NullAnalysis",
         requests=Requests({child: expected_output}),
         analysis_configuration="",
         pipeline_configuration=pipeline_configuration,
@@ -501,7 +501,7 @@ def test_analysis(model, storage_provider):
 
     new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
-        analysis_name="purge_all_analysis",
+        analysis_name="PurgeAllAnalysis",
         requests=Requests({child: expected_output}),
         analysis_configuration="",
         pipeline_configuration=pipeline_configuration,
@@ -513,7 +513,7 @@ def test_analysis(model, storage_provider):
 
     new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
-        analysis_name="purge_one_analysis",
+        analysis_name="PurgeOneAnalysis",
         requests=Requests({child: expected_output}),
         analysis_configuration="",
         pipeline_configuration=pipeline_configuration,
@@ -574,7 +574,7 @@ def test_pipeline(storage_provider):
     new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         # An alias of PurgeAllAnalysis
-        analysis_name="blackhole",
+        analysis_name="PurgeAllAnalysis",
         requests=Requests(
             {
                 ContainerDeclaration(

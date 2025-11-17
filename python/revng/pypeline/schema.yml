@@ -149,11 +149,6 @@ $defs:
       - containers
     additionalProperties: false
     properties:
-      name:
-        type: string
-        description: The name that can be used from the CLI to refer to the analysis
-          in this point of the pipeline. If not passed it defaults to the name of
-          the analysis.
       analysis:
         type: string
         description: The name of the analysis to run.

@@ -23,12 +23,8 @@ class Analysis(ABC):
 
     name: str
 
-    def __init__(self, name: str):
-        """
-        Initialize the analysis with a name.
-        The name is used for debugging and logging purposes.
-        """
-        self.name = name
+    def __init__(self):
+        pass
 
     @classmethod
     @abstractmethod
