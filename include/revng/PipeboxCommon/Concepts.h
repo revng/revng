@@ -170,3 +170,18 @@ template<typename T>
 concept HasCheckPrecondition = requires(const T &A, const Model &Model) {
   { A.checkPrecondition(Model) } -> std::same_as<llvm::Error>;
 };
+
+//
+// Generic helpers
+//
+
+/// Helper struct that dispatches to PipeRunTraits<T> or AnalysisRunTraits<T> as
+/// needed.
+template<typename T>
+struct GenericRunTraits {};
+
+template<IsPipe T>
+struct GenericRunTraits<T> : public PipeRunTraits<T> {};
+
+template<IsAnalysis T>
+struct GenericRunTraits<T> : public AnalysisRunTraits<T> {};

@@ -18,14 +18,17 @@ inline llvm::Error runAnalysis(T &Handle,
                                nanobind::list Containers,
                                Request Incoming,
                                llvm::StringRef Configuration) {
-  using namespace revng::pypeline::helpers::python;
   Model *CppModel = nanobind::cast<Model *>(TheModel);
+  auto ContainerTuple = containerVectorToTuple<T>(Containers);
 
-  return revng::pypeline::helpers::runAnalysis(Handle,
-                                               *CppModel,
-                                               Incoming,
-                                               Configuration,
-                                               Containers);
+  {
+    nanobind::gil_scoped_release X;
+    return revng::pypeline::helpers::runAnalysis(Handle,
+                                                 *CppModel,
+                                                 Incoming,
+                                                 Configuration,
+                                                 ContainerTuple);
+  }
 }
 
 } // namespace revng::pypeline::helpers::python

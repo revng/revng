@@ -22,12 +22,17 @@ inline ObjectDependencies runPipe(T &Handle,
                                   Request Outgoing,
                                   llvm::StringRef Configuration) {
   const Model &CppModel = convertReadOnlyModel(TheModel);
-  return revng::pypeline::helpers::runPipe(Handle,
-                                           CppModel,
-                                           Incoming,
-                                           Outgoing,
-                                           Configuration,
-                                           Containers);
+  auto ContainerTuple = containerVectorToTuple<T>(Containers);
+
+  {
+    nanobind::gil_scoped_release X;
+    return revng::pypeline::helpers::runPipe(Handle,
+                                             CppModel,
+                                             Incoming,
+                                             Outgoing,
+                                             Configuration,
+                                             ContainerTuple);
+  }
 }
 
 } // namespace revng::pypeline::helpers::python

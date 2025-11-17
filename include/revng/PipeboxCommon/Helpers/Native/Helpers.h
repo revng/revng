@@ -10,7 +10,7 @@
 namespace revng::pypeline::helpers {
 
 // Helper struct to unpack containers from an ArrayRef.
-// To be used in conjunction with PipeRunner or AnalysisRunner
+// To be used in conjunction with containerVectorToTuple.
 template<typename C, size_t I>
 struct ExtractContainerFromList<C, I, std::vector<native::Container *>> {
   static C &get(std::vector<native::Container *> &Containers) {

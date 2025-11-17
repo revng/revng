@@ -16,17 +16,16 @@ namespace revng::pypeline::helpers {
 /// Helper function that allows running a pipe, deals with unpacking the
 /// container list to multiple parameters that will be passed to the run
 /// function to of the Pipe.
-template<IsPipe T, typename ListType>
+template<IsPipe T, typename... Args>
 inline ObjectDependencies runPipe(T &Pipe,
                                   const Model &TheModel,
                                   const Request &Incoming,
                                   const Request &Outgoing,
                                   llvm::StringRef Configuration,
-                                  ListType &Containers) {
+                                  std::tuple<Args...> &Containers) {
   using Traits = PipeRunTraits<T>;
   revng_assert(Incoming.size() == Traits::ContainerCount);
   revng_assert(Outgoing.size() == Traits::ContainerCount);
-  revng_assert(Containers.size() == Traits::ContainerCount);
 
   using CT = Traits::ContainerTypes;
   return compile_time::callWithIndexSequence<CT>([&]<size_t... I>() {
@@ -34,9 +33,7 @@ inline ObjectDependencies runPipe(T &Pipe,
                     Incoming,
                     Outgoing,
                     Configuration,
-                    ExtractContainerFromList<std::tuple_element_t<I, CT>,
-                                             I,
-                                             ListType>::get(Containers)...);
+                    std::get<I>(Containers)...);
   });
 }
 

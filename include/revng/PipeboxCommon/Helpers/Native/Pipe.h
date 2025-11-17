@@ -36,12 +36,13 @@ public:
       const pypeline::Request &Incoming,
       const pypeline::Request &Outgoing,
       llvm::StringRef Configuration) override {
+    auto ContainerTuple = containerVectorToTuple<T>(Containers);
     return runPipe(Instance,
                    TheModel,
                    Incoming,
                    Outgoing,
                    Configuration,
-                   Containers);
+                   ContainerTuple);
   }
 };
 
