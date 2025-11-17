@@ -226,9 +226,10 @@ struct BooleanCanonicalizationPattern
   }
 };
 
-template<typename OpT>
+/// If TreatAsBoolean is true, the expression type is not preserved in
+/// boolean-tested contexts. See modifyResultType documentation above.
+template<typename OpT, bool TreatAsBoolean = false>
 struct IntegerPromotionPattern : mlir::OpRewritePattern<OpT> {
-
   explicit IntegerPromotionPattern(mlir::MLIRContext *Context,
                                    const TargetCImplementation &Target) :
     mlir::OpRewritePattern<OpT>(Context), PromotionSize(Target.getIntSize()) {}
@@ -252,7 +253,10 @@ struct IntegerPromotionPattern : mlir::OpRewritePattern<OpT> {
       return mlir::failure();
 
     auto NewType = makePromotedType(OldType);
-    modifyResultType(Rewriter, Op, NewType);
+    modifyResultType(Rewriter,
+                     Op,
+                     NewType,
+                     not TreatAsBoolean or not clift::isBooleanTested(Result));
 
     for (unsigned Index : Indices) {
       mlir::OpOperand &Operand = Op->getOpOperand(Index);
@@ -313,10 +317,10 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function,
   Set.add<ResizePtrAddPattern>(Context, Target);
   Set.add<ResizePtrSubPattern>(Context, Target);
   Set.add<ResizePtrDiffPattern>(Context, Target);
-  Set.add<PointerResizePattern<clift::IndirectionOp>>(Context, Target);
-  Set.add<PointerResizePattern<clift::SubscriptOp>>(Context, Target);
-  Set.add<PointerResizePattern<clift::AccessOp>>(Context, Target);
-  Set.add<PointerResizePattern<clift::CallOp>>(Context, Target);
+  Set.add<PointerResizePattern<IndirectionOp>>(Context, Target);
+  Set.add<PointerResizePattern<SubscriptOp>>(Context, Target);
+  Set.add<PointerResizePattern<AccessOp>>(Context, Target);
+  Set.add<PointerResizePattern<CallOp>>(Context, Target);
   Set.add<ResizeAddressofPattern>(Context, Target);
   Set.add<ResizeDecayCastPattern>(Context, Target);
 
@@ -324,19 +328,20 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function,
   Set.add<BooleanCanonicalizationPattern>(Context, Target);
 
   // Integer promotion
-  Set.add<IntegerPromotionPattern<clift::ImmediateOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::NegOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::AddOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::SubOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::MulOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::DivOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::RemOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::BitwiseNotOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::BitwiseAndOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::BitwiseOrOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::BitwiseXorOp>>(Context, Target);
-  Set.add<ShiftPromotionPattern<clift::ShiftLeftOp>>(Context, Target);
-  Set.add<ShiftPromotionPattern<clift::ShiftRightOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<ImmediateOp,
+                                  /*TreatAsBoolean=*/true>>(Context, Target);
+  Set.add<IntegerPromotionPattern<NegOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<AddOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<SubOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<MulOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<DivOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<RemOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<BitwiseNotOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<BitwiseAndOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<BitwiseOrOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<BitwiseXorOp>>(Context, Target);
+  Set.add<ShiftPromotionPattern<ShiftLeftOp>>(Context, Target);
+  Set.add<ShiftPromotionPattern<ShiftRightOp>>(Context, Target);
 
   auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
   return mlir::applyPatternsAndFoldGreedily(Function, Patterns);
