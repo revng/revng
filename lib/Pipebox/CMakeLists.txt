@@ -15,6 +15,7 @@ target_link_libraries(
   revngModelToHeader
   revngPromoteStackPointer
   revngRecompile
+  revngRemoveExtractValues
   revngRemoveLiftingArtifacts
   revngYield
   revngYieldPipes

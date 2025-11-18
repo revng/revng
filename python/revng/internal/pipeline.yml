@@ -116,6 +116,77 @@ branches:
           - name: enforce-abi
             container: llvm-functions
 
+  detect-stack-size:
+    from: enforce-abi
+    tasks:
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes: [dce]
+      - pipe: remove-lifting-artifacts
+        arguments: [llvm-functions]
+      - pipe: promote-init-csv-to-undef
+        arguments: [llvm-functions]
+      - pipe: inject-stack-size-probes-at-callsites
+        arguments: [llvm-functions]
+      - pipe: promote-stack-pointer
+        arguments: [llvm-functions]
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes:
+            - dce
+            - remove-extractvalues
+            - simplify-cfg-with-hoist-and-sink
+            - dse
+            - instcombine
+            - remove-extractvalues
+            - sroa
+            - instsimplify
+            - jump-threading
+            - licm
+            - unreachableblockelim
+            - instcombine
+            - remove-extractvalues
+            - early-cse
+            - simplify-cfg-with-hoist-and-sink
+            - early-type-shrinking
+            - type-shrinking
+            - early-cse
+            - instsimplify
+            - gvn
+            - instsimplify
+            - dse
+            - dce
+            # In Outliner we inject some store of opaque values before calls
+            # targeting the link register/top of the stack: the goal is make
+            # sure the stores writing the return address are dead.
+            # After the previous optimization pipeline, dead store elimination
+            # should have removed such stores, therefore, we can now drop
+            # those injected by us too.
+            - drop-opaque-return-address
+            - globaldce
+      - pipe: simplify-switch
+        arguments: [binaries-container, llvm-functions]
+      - savepoint: simplify-switch
+        containers: [llvm-functions]
+        artifacts:
+          - name: simplify-switch
+            container: llvm-functions
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes:
+            - remove-stack-alignment
+            - instrument-stack-accesses
+            - instcombine
+            - remove-extractvalues
+            - loop-rotate
+            - loop-simplify
+            - compute-stack-accesses-bounds
+      - savepoint: detect-stack-size
+        containers: [llvm-functions]
+
   emit-model-header:
     tasks:
       - pipe: model-to-header
