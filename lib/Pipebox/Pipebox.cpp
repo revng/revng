@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
@@ -74,6 +75,7 @@ static RegisterFunctionPipeRun<RemoveLiftingArtifacts> P18;
 static RegisterFunctionPipeRun<PromoteInitCSVToUndef> P19;
 static RegisterFunctionPipeRun<InjectStackSizeProbesAtCallSites> P20;
 static RegisterFunctionPipeRun<PromoteStackPointer> P21;
+static RegisterFunctionPipeRun<SimplifySwitch> P22;
 
 //
 // Analyses
