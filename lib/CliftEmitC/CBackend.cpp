@@ -293,15 +293,41 @@ public:
     return Cast.getValue();
   }
 
+  static bool requiresExplicitBitCast(CastOp Op) {
+    if (Op.getKind() != CastKind::Bitcast)
+      return false;
+
+    auto IsCastableType = [](ValueType T) {
+      return mlir::isa<EnumType, PointerType, PrimitiveType>(dealias(T));
+    };
+
+    return not IsCastableType(Op.getValue().getType())
+           or not IsCastableType(Op.getResult().getType());
+  }
+
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOp>();
 
-    emitCast(E.getResult().getType());
+    if (requiresExplicitBitCast(E)) {
+      C.emitLiteralIdentifier("bit_cast");
+      C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
-    // Parenthesizing a nested unary prefix expression is not necessary.
-    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
+      emitType(E.getResult().getType());
+      C.emitPunctuator(CTE::Punctuator::Comma);
+      C.emitSpace();
 
-    rc_recur emitExpression(E.getValue());
+      CurrentPrecedence = OperatorPrecedence::Parentheses;
+      rc_recur emitExpression(E.getValue());
+
+      C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    } else {
+      emitCast(E.getResult().getType());
+
+      // Parenthesizing a nested unary prefix expression is not necessary.
+      CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
+
+      rc_recur emitExpression(E.getValue());
+    }
   }
 
   RecursiveCoroutine<void> emitHiddenCastExpression(mlir::Value V) {
