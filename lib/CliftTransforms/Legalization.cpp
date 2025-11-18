@@ -88,6 +88,14 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
                                    TargetPointerSize);
   }
 
+  clift::PrimitiveType
+  makeTargetIntegerType(mlir::PatternRewriter &Rewriter,
+                        clift::PrimitiveType OldIntegerType) const {
+    return clift::PrimitiveType::get(Rewriter.getContext(),
+                                     OldIntegerType.getKind(),
+                                     TargetPointerSize);
+  }
+
   mlir::LogicalResult replacePointerOperand(mlir::PatternRewriter &Rewriter,
                                             clift::ExpressionOpInterface Op,
                                             unsigned Index = 0) const {
@@ -103,12 +111,25 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
     return mlir::success();
   }
 
+  mlir::LogicalResult replaceIntegerOperand(mlir::PatternRewriter &Rewriter,
+                                            clift::ExpressionOpInterface Op,
+                                            unsigned Index = 0) const {
+    mlir::OpOperand &Operand = Op->getOpOperand(Index);
+
+    auto OldType = clift::getPrimitiveIntegerType(Operand.get().getType());
+    if (not OldType or OldType.getSize() == TargetPointerSize)
+      return mlir::failure();
+
+    auto NewType = makeTargetIntegerType(Rewriter, OldType);
+    modifyOperandType(Rewriter, Operand, NewType);
+
+    return mlir::success();
+  }
+
   mlir::LogicalResult
   replacePointerResult(mlir::PatternRewriter &Rewriter,
                        clift::ExpressionOpInterface Op) const {
-    auto Result = Op->getResult(0);
-
-    auto OldType = clift::getPointerType(Result.getType());
+    auto OldType = clift::getPointerType(Op->getResult(0).getType());
     revng_assert(OldType);
 
     if (OldType.getPointerSize() == TargetPointerSize)
@@ -136,8 +157,11 @@ struct ResizePointerArithmeticPattern : PointerResizePattern<OpT> {
     if (this->replacePointerOperand(Rewriter, Op, Index).failed())
       return mlir::failure();
 
-    auto R = this->replacePointerResult(Rewriter, Op);
-    revng_assert(R.succeeded());
+    auto R1 = this->replaceIntegerOperand(Rewriter, Op, Index ^ 1);
+    revng_assert(R1.succeeded());
+
+    auto R2 = this->replacePointerResult(Rewriter, Op);
+    revng_assert(R2.succeeded());
 
     return mlir::success();
   }
@@ -149,14 +173,31 @@ using ResizePtrSubPattern = ResizePointerArithmeticPattern<clift::PtrSubOp>;
 struct ResizePtrDiffPattern : PointerResizePattern<clift::PtrDiffOp> {
   using PointerResizePattern::PointerResizePattern;
 
+  mlir::LogicalResult replaceIntegerResult(mlir::PatternRewriter &Rewriter,
+                                           clift::PtrDiffOp Op) const {
+    auto OldType = clift::getPrimitiveIntegerType(Op->getResult(0).getType());
+    revng_assert(OldType);
+
+    if (OldType.getSize() == TargetPointerSize)
+      return mlir::failure();
+
+    auto NewType = makeTargetIntegerType(Rewriter, OldType);
+    modifyResultType(Rewriter, Op, NewType);
+
+    return mlir::success();
+  }
+
   mlir::LogicalResult
   matchAndRewrite(clift::PtrDiffOp Op,
                   mlir::PatternRewriter &Rewriter) const override {
     if (replacePointerOperand(Rewriter, Op, 0).failed())
       return mlir::failure();
 
-    auto R = replacePointerOperand(Rewriter, Op, 1);
-    revng_assert(R.succeeded());
+    auto R1 = replacePointerOperand(Rewriter, Op, 1);
+    revng_assert(R1.succeeded());
+
+    auto R2 = replaceIntegerResult(Rewriter, Op);
+    revng_assert(R2.succeeded());
 
     return mlir::success();
   }
