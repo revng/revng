@@ -13,6 +13,7 @@
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/RemoveLiftingArtifacts/RemoveLiftingArtifacts.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -153,6 +154,7 @@ public:
                          const model::Binary &Binary,
                          llvm::Module &M) :
     pipeline::FunctionPassImpl(Pass), M(M) {}
+  RemoveLiftingArtifacts(llvm::Module &M) : M(M) {}
 
   bool runOnFunction(const model::Function &ModelFunction,
                      llvm::Function &Function) override;
@@ -225,3 +227,14 @@ struct RemoveLiftingArtifactsPipe {
 };
 
 static pipeline::RegisterLLVMPass<RemoveLiftingArtifactsPipe> Y;
+
+namespace revng::pypeline::piperuns {
+
+void RemoveLiftingArtifacts::runOnLLVMFunction(const model::Function &Function,
+                                               llvm::Function &LLVMFunction) {
+  ::RemoveLiftingArtifacts Impl(*LLVMFunction.getParent());
+  Impl.prologue();
+  Impl.runOnFunction(Function, LLVMFunction);
+}
+
+} // namespace revng::pypeline::piperuns

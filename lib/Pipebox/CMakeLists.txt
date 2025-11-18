@@ -13,6 +13,7 @@ target_link_libraries(
   revngLift
   revngModelToHeader
   revngRecompile
+  revngRemoveLiftingArtifacts
   revngYield
   revngYieldPipes
   nanobind
