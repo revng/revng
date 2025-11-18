@@ -18,6 +18,7 @@
 #include "revng/PipeboxCommon/ModelManipulationAnalyses.h"
 #include "revng/PipeboxCommon/RawContainer.h"
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSites.h"
+#include "revng/PromoteStackPointer/PromoteStackPointer.h"
 #include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Recompile/LinkForTranslationPipe.h"
 #include "revng/RemoveLiftingArtifacts/PromoteInitCSVToUndef.h"
@@ -72,6 +73,7 @@ static RegisterSingleOutputPipeRun<InvokeIsolatedFunctions> P17;
 static RegisterFunctionPipeRun<RemoveLiftingArtifacts> P18;
 static RegisterFunctionPipeRun<PromoteInitCSVToUndef> P19;
 static RegisterFunctionPipeRun<InjectStackSizeProbesAtCallSites> P20;
+static RegisterFunctionPipeRun<PromoteStackPointer> P21;
 
 //
 // Analyses
