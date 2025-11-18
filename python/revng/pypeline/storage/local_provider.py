@@ -87,7 +87,11 @@ CREATE INDEX IF NOT EXISTS custom_dependencies_index
     ON custom_dependencies(pipe_id, configuration_hash);
 """
 
-CREATE_TABLE_ADDITIONAL_OBJECTS = """
+CREATE_TABLE_INVALIDATE = """
+CREATE TEMPORARY TABLE model_paths_{uuid}(
+    path   TEXT NOT NULL
+) STRICT;
+
 CREATE TEMPORARY TABLE additional_objects_{uuid}(
     savepoint_id_start   INT NOT NULL,
     savepoint_id_end     INT NOT NULL,
@@ -145,7 +149,7 @@ WHERE rowid IN (
     JOIN (
             SELECT savepoint_id_start, savepoint_id_end, configuration_hash, object_id
             FROM dependencies
-            WHERE dependencies.model_path IN ({model_paths})
+            WHERE dependencies.model_path IN (SELECT path FROM model_paths_{uuid})
         UNION
             SELECT savepoint_id_start, savepoint_id_end, configuration_hash, object_id
             FROM additional_objects_{uuid}
@@ -166,7 +170,7 @@ RETURNING object_id, container_id, savepoint_id, configuration_hash;
 """
 
 DELETE_MODEL_PATHS = """DELETE FROM dependencies
-WHERE dependencies.model_path IN ({model_paths});
+WHERE dependencies.model_path IN (SELECT path FROM model_paths_{uuid});
 """
 
 
@@ -385,9 +389,10 @@ class LocalStorageProvider(StorageProvider):
         table_uuid = uuid4().hex
         object_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
         invalidated: InvalidatedObjects = defaultdict(set)
-        joined_paths = ",".join(f"'{path}'" for path in invalidation_list)
         with self._cursor() as cursor:
-            cursor.execute(CREATE_TABLE_ADDITIONAL_OBJECTS.format(uuid=table_uuid))
+            cursor.executescript(CREATE_TABLE_INVALIDATE.format(uuid=table_uuid))
+            for path in invalidation_list:
+                cursor.execute(f"REPLACE INTO model_paths_{table_uuid} VALUES (?)", (path,))
             for object_set in additional_objects:
                 for object_ in object_set.objects:
                     cursor.execute(
@@ -401,13 +406,7 @@ class LocalStorageProvider(StorageProvider):
                         ),
                     )
 
-            cursor.execute(
-                INVALIDATE_QUERY.format(
-                    model_paths=joined_paths,
-                    objectid_mask=_OBJECTID_MASK,
-                    uuid=table_uuid,
-                )
-            )
+            cursor.execute(INVALIDATE_QUERY.format(objectid_mask=_OBJECTID_MASK, uuid=table_uuid))
             for row in cursor:
                 object_id = row[0]
                 location = ContainerLocation(
@@ -417,8 +416,9 @@ class LocalStorageProvider(StorageProvider):
                 )
                 invalidated[location].add(object_id_type.from_bytes(object_id))
 
-            cursor.execute(DELETE_MODEL_PATHS.format(model_paths=joined_paths))
+            cursor.execute(DELETE_MODEL_PATHS.format(uuid=table_uuid))
             cursor.execute(f"DROP TABLE additional_objects_{table_uuid};")
+            cursor.execute(f"DROP TABLE model_paths_{table_uuid};")
             self._write_metadata(cursor)
         return dict(invalidated)
 
