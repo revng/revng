@@ -4,6 +4,7 @@
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/FunctionTags.h"
+#include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSites.h"
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSitesPass.h"
 
 // This name is not present after `CleanupStackSizeMarkers`.
@@ -11,12 +12,12 @@ RegisterIRHelper StackSizeAtCallSite("stack_size_at_call_site");
 
 using namespace llvm;
 
-bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
+static bool injectStackSizeProbesAtCallSites(llvm::Module &M,
+                                             GeneratedCodeBasicInfo &GCBI) {
   bool Changed = false;
   revng::IRBuilder B(M.getContext());
 
   // Get the stack pointer CSV
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   auto *SP = GCBI.spReg();
   auto *SPType = SP->getValueType();
 
@@ -54,6 +55,11 @@ bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
   return Changed;
 }
 
+bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
+  return injectStackSizeProbesAtCallSites(M, GCBI);
+}
+
 using MSSACSP = InjectStackSizeProbesAtCallSitesPass;
 void MSSACSP::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
@@ -65,3 +71,15 @@ char InjectStackSizeProbesAtCallSitesPass::ID = 0;
 using RegisterMSSACS = RegisterPass<InjectStackSizeProbesAtCallSitesPass>;
 static RegisterMSSACS R("measure-stack-size-at-call-sites",
                         "Measure Stack Size At Call Sites Pass");
+
+namespace revng::pypeline::piperuns {
+
+void InjectStackSizeProbesAtCallSites::runOnFunction(const model::Function
+                                                       &Function) {
+  llvm::Module &Module = ModuleContainer.getModule(ObjectID(Function.Entry()));
+  GeneratedCodeBasicInfo GCBI(Binary);
+  GCBI.run(Module);
+  injectStackSizeProbesAtCallSites(Module, GCBI);
+}
+
+} // namespace revng::pypeline::piperuns

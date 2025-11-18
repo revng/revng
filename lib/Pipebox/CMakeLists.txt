@@ -12,6 +12,7 @@ target_link_libraries(
   revngFunctionIsolation
   revngLift
   revngModelToHeader
+  revngPromoteStackPointer
   revngRecompile
   revngRemoveLiftingArtifacts
   revngYield
