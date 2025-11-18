@@ -19,6 +19,7 @@
 #include "revng/PipeboxCommon/RawContainer.h"
 #include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Recompile/LinkForTranslationPipe.h"
+#include "revng/RemoveLiftingArtifacts/PromoteInitCSVToUndef.h"
 #include "revng/RemoveLiftingArtifacts/RemoveLiftingArtifacts.h"
 #include "revng/Yield/HexDump.h"
 #include "revng/Yield/Pipes/ProcessAssembly.h"
@@ -68,6 +69,7 @@ static RegisterSingleOutputPipeRun<CompileRootModule> P15;
 static RegisterSingleOutputPipeRun<LinkForTranslation> P16;
 static RegisterSingleOutputPipeRun<InvokeIsolatedFunctions> P17;
 static RegisterFunctionPipeRun<RemoveLiftingArtifacts> P18;
+static RegisterFunctionPipeRun<PromoteInitCSVToUndef> P19;
 
 //
 // Analyses
