@@ -7,6 +7,7 @@ revng_add_library_internal(
   SHARED
   BooleanNegations.cpp
   Expressions.cpp
+  ImmediateRadixDeduction.cpp
   LabelMerging.cpp
   Legalization.cpp
   LoopDetection.cpp

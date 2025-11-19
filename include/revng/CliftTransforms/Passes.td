@@ -58,6 +58,12 @@ def CliftCLegalization : Clift_Pass<"c-legalization", "clift::FunctionOp"> {
   let constructor = "mlir::clift::createCLegalizationPass(TargetCImplementation::Default)";
 }
 
+def CliftImmediateRadixDeduction : Clift_Pass<"deduce-immediate-radices",
+                                              "clift::FunctionOp"> {
+  let summary = "Deduce most readable radices for integer immediates.";
+  let constructor = "mlir::clift::createImmediateRadixDeductionPass()";
+}
+
 def CliftVerifyC : Clift_Pass<"verify-c", "mlir::ModuleOp"> {
   let summary = "Verify that the Clift semantics correspond to C semantics " #
                 "in the specified target implementation.";

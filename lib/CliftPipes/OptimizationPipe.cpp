@@ -63,6 +63,7 @@ public:
     PM.addPass(clift::createTerminalBranchComplementHoistingPass());
 
     PM.addPass(clift::createCLegalizationPass(TargetCImplementation::Default));
+    PM.addPass(clift::createImmediateRadixDeductionPass());
 
     mlir::ModuleOp Module = CliftContainer.getModule();
 
