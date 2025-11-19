@@ -222,10 +222,12 @@ class DictContainer(Container, ABC):
 
 
 class RootDictContainer(DictContainer):
+    name = "RootDictContainer"
     kind = MyKind.ROOT
 
 
 class ChildDictContainer(DictContainer):
+    name = "ChildDictContainer"
     kind = MyKind.CHILD
 
 
@@ -322,6 +324,8 @@ class DictModel(Model):
 class InPlacePipe(Pipe):
     """Modifies the input container in place."""
 
+    name = "InPlacePipe"
+
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
         return (
@@ -347,6 +351,8 @@ class InPlacePipe(Pipe):
 
 
 class SameKindPipe(Pipe):
+    name = "SameKindPipe"
+
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
         return (
@@ -385,6 +391,8 @@ class SameKindPipe(Pipe):
 class ToHigherKindPipe(Pipe):
     """Take the root object from the input container and adds all
     its children to the output container."""
+
+    name = "ToHigherKindPipe"
 
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
@@ -432,6 +440,8 @@ class ToHigherKindPipe(Pipe):
 
 
 class ToLowerKindPipe(Pipe):
+    name = "ToLowerKindPipe"
+
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
         return (
@@ -474,6 +484,8 @@ class ToLowerKindPipe(Pipe):
 
 
 class GeneratorPipe(Pipe):
+    name = "GeneratorPipe"
+
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
         return (
@@ -512,6 +524,8 @@ class GeneratorPipe(Pipe):
 class NullAnalysis(Analysis):
     """An analysis that does nothing and returns an empty list of invalidations."""
 
+    name = "NullAnalysis"
+
     @classmethod
     def signature(cls) -> tuple[type[Container], ...]:
         return (ChildDictContainer,)
@@ -529,6 +543,8 @@ class NullAnalysis(Analysis):
 
 class PurgeOneAnalysis(Analysis):
     """An analysis that invalidates everything."""
+
+    name = "PurgeOneAnalysis"
 
     @classmethod
     def signature(cls) -> tuple[type[Container], ...]:
@@ -557,6 +573,8 @@ class PurgeOneAnalysis(Analysis):
 class PurgeAllAnalysis(Analysis):
     """An analysis that invalidates everything."""
 
+    name = "PurgeAllAnalysis"
+
     @classmethod
     def signature(cls) -> tuple[type[Container], ...]:
         return (ChildDictContainer,)
@@ -576,6 +594,8 @@ class PurgeAllAnalysis(Analysis):
 
 class AddStuffAnalysis(Analysis):
     """An analysis that invalidates everything."""
+
+    name = "AddStuffAnalysis"
 
     @classmethod
     def signature(cls) -> tuple[type[Container], ...]:

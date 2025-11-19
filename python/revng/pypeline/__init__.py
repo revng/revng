@@ -26,9 +26,9 @@ def initialize_pypeline() -> None:
     but it's not well supported by nanobind, so we are forced to do it
     manually here.
     """
-    register_all_subclasses(Analysis)
-    register_all_subclasses(Pipe)
-    register_all_subclasses(Container)
+    register_all_subclasses(Analysis, use_name=True)
+    register_all_subclasses(Pipe, use_name=True)
+    register_all_subclasses(Container, use_name=True)
     register_all_subclasses(Model, singleton=True)
     register_all_subclasses(Kind, singleton=True)
     register_all_subclasses(ObjectID, singleton=True)

@@ -32,7 +32,7 @@ def get_singleton[T](cls: type[T]) -> type[T]:
     return next(iter(ty_registry.values()))
 
 
-def register_all_subclasses(cls: type, *, singleton: bool = False) -> None:
+def register_all_subclasses(cls: type, *, singleton: bool = False, use_name: bool = False) -> None:
     """
     Register all subclasses of the given class `cls` in the global registry.
     """
@@ -52,7 +52,8 @@ def register_all_subclasses(cls: type, *, singleton: bool = False) -> None:
         return leafs
 
     for leaf in find_leafs(cls):
-        _REGISTRY_SINGLETON[cls][leaf.__name__] = leaf
+        key = leaf.name if use_name else leaf.__name__  # type: ignore[attr-defined]
+        _REGISTRY_SINGLETON[cls][key] = leaf
 
     if singleton and len(_REGISTRY_SINGLETON[cls]) > 1:
         raise ValueError(

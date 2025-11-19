@@ -124,6 +124,7 @@ class Container(ABC):
     A Container contains objects of a certain kind.
     """
 
+    name: str
     kind: Kind
 
     def __init__(self):

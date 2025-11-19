@@ -38,6 +38,8 @@ def initialize(argv: list[str] = []):
 
 
 class ImportFiles(Pipe):
+    name = "ImportFiles"
+
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
         return (

@@ -26,6 +26,25 @@
 
 inline Logger PypelineRegisterLogger("pypeline-register");
 
+inline std::string pascalCaseName(llvm::StringRef Name) {
+  std::string Result;
+  bool ShouldCapitalizeNextCharacter = true;
+  for (size_t I = 0; I < Name.size(); I++) {
+    if (Name[I] == '-') {
+      ShouldCapitalizeNextCharacter = true;
+      continue;
+    }
+
+    if (ShouldCapitalizeNextCharacter) {
+      Result.push_back(llvm::toUpper(Name[I]));
+      ShouldCapitalizeNextCharacter = false;
+    } else {
+      Result.push_back(Name[I]);
+    }
+  }
+  return Result;
+}
+
 template<IsAnalysis T>
 struct RegisterAnalysis {
   RegisterAnalysis() {
@@ -35,7 +54,7 @@ struct RegisterAnalysis {
     // Python
     python::Registry.registerModuleInitializer([](nanobind::module_ &M,
                                                   python::BaseClasses &BC) {
-      std::string Name = T::Name.str();
+      std::string Name = pascalCaseName(T::Name);
       nanobind::class_<T>(M, Name.c_str(), BC.BaseAnalysis)
         .def_ro_static("name", &T::Name)
         .def(nanobind::init<>())
@@ -69,8 +88,9 @@ struct RegisterContainer {
     // Python
     python::Registry.registerModuleInitializer([](nanobind::module_ &M,
                                                   python::BaseClasses &BC) {
-      std::string Name = T::Name.str();
+      std::string Name = pascalCaseName(T::Name);
       nanobind::class_<T>(M, Name.c_str(), BC.BaseContainer)
+        .def_ro_static("name", &T::Name)
         .def_ro_static("kind", &T::Kind)
         .def_static("mime_type", []() { return T::MimeType; })
         .def(nanobind::init<>())
@@ -121,7 +141,7 @@ struct RegisterPipe {
     // Python
     python::Registry.registerModuleInitializer([](nanobind::module_ &M,
                                                   python::BaseClasses &BC) {
-      std::string Name = T::Name.str();
+      std::string Name = pascalCaseName(T::Name);
       auto PipeClass = nanobind::class_<T>(M, Name.c_str(), BC.BasePipe);
       PipeClass.def_ro_static("name", &T::Name)
         .def_static("signature",

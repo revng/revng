@@ -19,6 +19,8 @@ class Pipe(ABC):
     some new objects.
     """
 
+    name: str
+
     @classmethod
     @abstractmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
@@ -39,7 +41,6 @@ class Pipe(ABC):
         """
 
     def __init__(self, static_configuration: str = ""):
-        self.name = self.__class__.__name__
         self.static_configuration: str = static_configuration
 
     @property

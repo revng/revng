@@ -21,6 +21,8 @@ class Analysis(ABC):
     objects in save points.
     """
 
+    name: str
+
     def __init__(self, name: str):
         """
         Initialize the analysis with a name.

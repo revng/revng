@@ -268,8 +268,9 @@ class DummyPipelineNode(PipelineNode):
     branches need to be merged into one"""
 
     class DummyPipe(Pipe):
-        def __init__(self, name: str):
-            self.name = name
+        name = "DummyPipe"
+
+        def __init__(self, static_configuration: str):
             self.static_configuration = ""
 
         @classmethod
@@ -288,4 +289,7 @@ class DummyPipelineNode(PipelineNode):
             return []
 
     def __init__(self, name: str):
-        super().__init__(self.__class__.DummyPipe(name), [])
+        # Create a new class object of DummyPipe, with the `name` class
+        # attribute changed with the provided one
+        new_pipe_class = type("NewPipe", (self.__class__.DummyPipe,), {"name": name})
+        super().__init__(new_pipe_class(""), [])
