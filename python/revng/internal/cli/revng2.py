@@ -12,8 +12,8 @@ import os
 from pathlib import Path
 
 import click
-from xdg import xdg_cache_home
 
+from revng.internal.support import cache_directory
 from revng.pypeline.cli.project import project
 from revng.pypeline.cli.utils import PypeGroup
 from revng.pypeline.main import pype, run
@@ -53,10 +53,7 @@ def patch_pype():
                 "PIPELINE", Path(__file__).parent.parent / "pipeline.yml"
             )
         elif param.name == "cache_dir":
-            param.default = os.environ.get(
-                "CACHE_DIR",
-                xdg_cache_home() / "revng",
-            )
+            param.default = cache_directory()
 
 
 def main():

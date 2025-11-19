@@ -108,15 +108,15 @@ static void analyzeBasicBlocks(yield::Function &Function,
   }
 }
 
-yield::Function DH::disassemble(const model::Function &Function,
-                                const efa::ControlFlowGraph &Metadata,
-                                const RawBinaryView &BinaryView,
-                                const model::Binary &Binary,
-                                const model::AssemblyNameBuilder &NameBuilder) {
+void DH::disassemble(const model::Function &Function,
+                     const efa::ControlFlowGraph &Metadata,
+                     const RawBinaryView &BinaryView,
+                     const model::Binary &Binary,
+                     const model::AssemblyNameBuilder &NameBuilder,
+                     yield::Function &ResultFunction) {
   revng_log(Log, "Disassembling function at " << Function.Entry().toString());
   LoggerIndent Indent(Log);
 
-  yield::Function ResultFunction;
   ResultFunction.Entry() = Function.Entry();
   for (auto BasicBlockInserter = ResultFunction.Blocks().batch_insert();
        const efa::BasicBlock &BasicBlock : Metadata.Blocks()) {
@@ -208,8 +208,6 @@ yield::Function DH::disassemble(const model::Function &Function,
   }
 
   ResultFunction.verify(true);
-
-  return ResultFunction;
 }
 
 LLVMDisassemblerInterface &

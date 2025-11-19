@@ -2,4 +2,202 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-# Placeholder for the revng pipeline
+containers:
+  - name: binaries-container
+    type: BinariesContainer
+  - name: llvm-root
+    type: LLVMRootContainer
+  - name: model-header
+    type: CBytesContainer
+  - name: model-types
+    type: PTMLCTypeContainer
+  - name: cfg-map
+    type: CFGMap
+  - name: llvm-functions
+    type: LLVMFunctionContainer
+  - name: hexdump
+    type: HexDumpContainer
+  - name: assembly-internal
+    type: AssemblyInternalContainer
+  - name: assembly
+    type: AssemblyContainer
+  - name: object-file
+    type: ObjectFileContainer
+  - name: translated
+    type: TranslatedContainer
+  - name: llvm-root-with-functions
+    type: LLVMRootContainer
+
+branches:
+  files-imported:
+    tasks:
+      - pipe: ImportFiles
+        arguments: [binaries-container]
+
+  lift:
+    from: files-imported
+    tasks:
+      - pipe: Lift
+        arguments: [binaries-container, llvm-root]
+      - pipe: PureLLVMPassesRootPipe
+        arguments: [llvm-root]
+        configuration:
+          Passes:
+            - globaldce
+      - savepoint: lifted
+        containers: [llvm-root]
+        artifacts:
+          - name: lift
+            container: llvm-root
+
+  collect-cfg:
+    from: lift
+    tasks:
+      - pipe: CollectCFG
+        arguments: [llvm-root, cfg-map]
+      - savepoint: cfg-computed
+        containers: [cfg-map]
+
+  isolate:
+    from: collect-cfg
+    tasks:
+      - pipe: Isolate
+        arguments: [cfg-map, llvm-root, llvm-functions]
+      - pipe: AttachDebugInfo
+        arguments: [cfg-map, llvm-functions]
+      - savepoint: isolate
+        containers: [llvm-functions]
+        artifacts:
+          - name: isolate
+            container: llvm-functions
+
+  enforce-abi:
+    from: isolate
+    tasks:
+      - pipe: EnforceABI
+        arguments: [cfg-map, llvm-functions]
+      - pipe: PureLLVMPassesPipe
+        arguments: [llvm-functions]
+        configuration:
+          Passes:
+            - strip-debug-info-from-helpers
+      # Note: we're running promote-csvs twice: it is important to run
+      #       it before inline-helpers so that mem2reg can constant
+      #       propagate helper arguments that are constant. This enables
+      #       us to inline less code, in particular for helpers such as
+      #       `cc_compute_c` and `cc_compute_all`.
+      - pipe: PromoteCSVs
+        arguments: [llvm-functions]
+      - pipe: PureLLVMPassesPipe
+        arguments: [llvm-functions]
+        configuration:
+          Passes:
+            - mem2reg
+            - inline-helpers
+      - pipe: AttachDebugInfo
+        arguments: [cfg-map, llvm-functions]
+      - pipe: PromoteCSVs
+        arguments: [llvm-functions]
+      - pipe: PureLLVMPassesPipe
+        arguments: [llvm-functions]
+        configuration:
+          Passes:
+            - remove-exceptional-functions
+            - strip-dead-debug-info
+      - savepoint: enforce-abi
+        containers: [llvm-functions]
+        artifacts:
+          - name: enforce-abi
+            container: llvm-functions
+
+  emit-model-header:
+    tasks:
+      - pipe: ModelToHeader
+        arguments: [model-header]
+      - savepoint: model-header
+        containers: [model-header]
+        artifacts:
+          - name: emit-model-header
+            container: model-header
+
+  emit-type-definition:
+    tasks:
+      - pipe: GenerateModelTypeDefinition
+        arguments: [model-types]
+      - savepoint: model-types
+        containers: [model-types]
+        artifacts:
+          - name: emit-type-definitions
+            container: model-types
+
+  hexdump:
+    from: isolate
+    tasks:
+      - pipe: HexDump
+        arguments:
+          - binaries-container
+          - llvm-functions
+          - cfg-map
+          - hexdump
+      - savepoint: hexdump
+        containers: [hexdump]
+        artifacts:
+          - name: hexdump
+            container: hexdump
+
+  process-assembly:
+    from: collect-cfg
+    tasks:
+      - pipe: ProcessAssembly
+        arguments: [binaries-container, cfg-map, assembly-internal]
+
+  disassemble:
+    from: process-assembly
+    tasks:
+      - pipe: YieldAssembly
+        arguments: [assembly-internal, assembly]
+      - savepoint: disassemble
+        containers: [assembly]
+        artifacts:
+          - name: disassemble
+            container: assembly
+
+  recompile:
+    from: lift
+    tasks:
+      - pipe: LinkSupport
+        arguments: [llvm-root]
+      - pipe: PureLLVMPassesRootPipe
+        arguments: [llvm-root]
+        configuration:
+          Passes: [drop-opaque-return-address]
+      - pipe: CompileRootModule
+        arguments: [llvm-root, object-file]
+      - pipe: LinkForTranslation
+        arguments: [binaries-container, object-file, translated]
+      - savepoint: recompile
+        containers: [translated]
+        artifacts:
+          - name: recompile
+            container: translated
+
+  recompile-isolated:
+    from: isolate
+    tasks:
+      - pipe: InvokeIsolatedFunctions
+        arguments: [llvm-root, llvm-functions, llvm-root-with-functions]
+      - pipe: LinkSupport
+        arguments: [llvm-root-with-functions]
+      - pipe: PureLLVMPassesRootPipe
+        arguments: [llvm-root-with-functions]
+        configuration:
+          Passes: [drop-opaque-return-address]
+      - pipe: CompileRootModule
+        arguments: [llvm-root-with-functions, object-file]
+      - pipe: LinkForTranslation
+        arguments: [binaries-container, object-file, translated]
+      - savepoint: recompile-isolated
+        containers: [translated]
+        artifacts:
+          - name: recompile-isolated
+            container: translated

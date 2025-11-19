@@ -8,6 +8,9 @@
 #include "llvm/Pass.h"
 
 #include "revng/Lift/LoadBinaryPass.h"
+#include "revng/PipeboxCommon/BinariesContainer.h"
+#include "revng/PipeboxCommon/LLVMContainer.h"
+#include "revng/PipeboxCommon/Model.h"
 #include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Support/Debug.h"
@@ -172,3 +175,31 @@ public:
 
   bool runOnModule(llvm::Module &M) override;
 };
+
+namespace detail {
+
+llvm::Error liftCheckPrecondition(const model::Binary &Model);
+
+}
+
+namespace revng::pypeline::piperuns {
+
+class Lift {
+public:
+  static constexpr llvm::StringRef Name = "Lift";
+  using Arguments = TypeList<PipeArgument<"Input", "Input binaries to lift">,
+                             PipeArgument<"Output",
+                                          "LLVM Module containing the lifted "
+                                          "binaries",
+                                          Access::Write>>;
+
+public:
+  static llvm::Error checkPrecondition(const class Model &Model);
+  static void run(const class Model &Model,
+                  llvm::StringRef Config,
+                  llvm::StringRef DynamicConfig,
+                  const BinariesContainer &Binary,
+                  LLVMRootContainer &ModuleContainer);
+};
+
+} // namespace revng::pypeline::piperuns

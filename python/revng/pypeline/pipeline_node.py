@@ -8,14 +8,16 @@ from hashlib import sha256
 from typing import TYPE_CHECKING, Annotated, List, Mapping, Optional, Sequence, Set, Union
 from typing import overload
 
-from .container import Configuration, ConfigurationId, ContainerDeclaration, ContainerSet
+from .container import Configuration, ConfigurationId, Container, ContainerDeclaration
+from .container import ContainerSet
 from .model import ReadOnlyModel
 from .object import ObjectSet
+from .storage.file_provider import FileProvider
 from .storage.storage_provider import SavePointsRange, StorageProvider, StorageProviderFileProvider
 from .task.pipe import Pipe
 from .task.requests import Requests
 from .task.savepoint import SavePoint
-from .task.task import ObjectDependencies, TaskArgumentAccess
+from .task.task import ObjectDependencies, PipeObjectDependencies, TaskArgument, TaskArgumentAccess
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
@@ -107,22 +109,26 @@ class PipelineNode:
             assert len(self.bindings) == len(task.arguments)
 
     @property
-    def arguments(self) -> list[ContainerDeclaration]:
+    def arguments_with_access(self) -> list[TaskArgument]:
         if isinstance(self.task, SavePoint):
             # SavePoints do not have bindings, so we return the task arguments directly
-            return [
-                ContainerDeclaration(
-                    name=x.name,
-                    container_type=x.container_type,
-                )
-                for x in self.task.arguments
-            ]
+            return self.task.arguments
         elif isinstance(self.task, Pipe):
             # For Pipes, we return the bindings, which are the pipeline declarations
             # that map to the task arguments
-            return self.bindings
+            result = []
+            for index, argument in enumerate(self.bindings):
+                pipe_arguments = self.task.arguments[index]
+                result.append(
+                    TaskArgument(argument.name, argument.container_type, pipe_arguments.access)
+                )
+            return result
         else:
             raise TypeError(f"Unsupported task type: {type(self.task)}")
+
+    @property
+    def arguments(self) -> list[ContainerDeclaration]:
+        return [x.to_container_decl() for x in self.arguments_with_access]
 
     def add_successor(self, node: PipelineNode) -> PipelineNode:
         node.predecessors.append(self)
@@ -161,10 +167,7 @@ class PipelineNode:
             )
         elif isinstance(self.task, Pipe):
             # Use the bindings to map the requests to the pipe arguments
-            pipe_requests: list[ObjectSet] = [
-                requests.get(decl, ObjectSet(decl.container_type.kind, set()))
-                for decl in self.bindings
-            ]
+            pipe_requests: list[ObjectSet] = [requests.get(decl) for decl in self.bindings]
             # Ask the pipe for its prerequisites
             outgoing = self.task.prerequisites_for(
                 model=model,
@@ -213,14 +216,8 @@ class PipelineNode:
             return None
         elif isinstance(self.task, Pipe):
             pipe_containers = [containers[decl] for decl in self.bindings]
-            pipe_incoming = [
-                incoming.get(decl, ObjectSet(decl.container_type.kind, set()))
-                for decl in self.bindings
-            ]
-            pipe_outgoing = [
-                outgoing.get(decl, ObjectSet(decl.container_type.kind, set()))
-                for decl in self.bindings
-            ]
+            pipe_incoming = [incoming.get(decl) for decl in self.bindings]
+            pipe_outgoing = [outgoing.get(decl) for decl in self.bindings]
             deps = self.task.run(
                 file_provider=StorageProviderFileProvider(storage_provider),
                 model=model,
@@ -244,4 +241,32 @@ class PipelineNode:
             raise TypeError(f"Unsupported task type: {type(self.task)}")
 
     def __repr__(self):
-        return self.task.__repr__()
+        return f"<PipelineNode: {self.task!r}>"
+
+
+class DummyPipelineNode(PipelineNode):
+    """Dummy pipeline node, to be used in cases where multiple PipelineNode
+    branches need to be merged into one"""
+
+    class DummyPipe(Pipe):
+        def __init__(self, name: str):
+            self.name = name
+            self.static_configuration = ""
+
+        @classmethod
+        def signature(cls) -> tuple[TaskArgument, ...]:
+            return ()
+
+        def run(
+            self,
+            file_provider: FileProvider,
+            model: ReadOnlyModel,
+            containers: list[Container],
+            incoming: list[ObjectSet],
+            outgoing: list[ObjectSet],
+            configuration: Configuration,
+        ) -> PipeObjectDependencies:
+            return []
+
+    def __init__(self, name: str):
+        super().__init__(self.__class__.DummyPipe(name), [])

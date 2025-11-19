@@ -12,27 +12,51 @@
 
 namespace detail {
 
-template<StrictSpecializationOf<TypeList> T>
+template<typename ContainerType>
+constexpr bool isReadOnly(const revng::pypeline::Access &Access) {
+  using AccessEnum = revng::pypeline::Access;
+  return Access == AccessEnum::Read
+         or (Access == AccessEnum::Auto and std::is_const_v<ContainerType>);
+}
+
+template<StrictSpecializationOf<TypeList> T, typename PipeRunT>
 constexpr size_t writableContainersCount() {
   size_t Result = 0;
   forEach<T>([&Result]<typename A, size_t I>() {
-    if constexpr (not std::is_const_v<A>)
+    using Argument = std::tuple_element_t<I, typename PipeRunT::Arguments>;
+    if constexpr (not isReadOnly<A>(Argument::Access))
       Result += 1;
   });
   return Result;
 }
 
-template<StrictSpecializationOf<TypeList> T>
-  requires(writableContainersCount<T>() == 1)
+template<StrictSpecializationOf<TypeList> T, typename PipeRunT>
+  requires(writableContainersCount<T, PipeRunT>() == 1)
 constexpr size_t writableContainerIndex() {
   int Result = -1;
   forEach<T>([&Result]<typename A, size_t I>() {
-    if constexpr (not std::is_const_v<A>) {
+    using Argument = std::tuple_element_t<I, typename PipeRunT::Arguments>;
+    if constexpr (not isReadOnly<A>(Argument::Access)) {
       Result = I;
     }
   });
   return Result;
 }
+
+template<typename T>
+concept HasPipeRunCheckPrecondition = requires(const Model &Model) {
+  { T::checkPrecondition(Model) } -> std::same_as<llvm::Error>;
+};
+
+template<typename T>
+struct CheckPreconditionMixin {};
+
+template<HasPipeRunCheckPrecondition T>
+struct CheckPreconditionMixin<T> {
+  llvm::Error checkPrecondition(const Model &Model) const {
+    return T::checkPrecondition(Model);
+  }
+};
 
 } // namespace detail
 
@@ -43,7 +67,7 @@ concept SingleOutputPipeBaseCompatible = requires {
 };
 
 template<SingleOutputPipeBaseCompatible T>
-class SingleOutputPipeBase {
+class SingleOutputPipeBase : public detail::CheckPreconditionMixin<T> {
 public:
   static constexpr llvm::StringRef Name = T::Name;
   using ContainerTypes = PipeRunContainerTypes<T>;
@@ -56,7 +80,7 @@ public:
 protected:
   static constexpr size_t ContainerCount = std::tuple_size_v<ContainerTypes>;
   static constexpr size_t
-    OutputContainerIndex = detail::writableContainerIndex<ContainerTypes>();
+    OutputContainerIndex = detail::writableContainerIndex<ContainerTypes, T>();
   using OutputContainerType = std::tuple_element_t<OutputContainerIndex,
                                                    ContainerTypes>;
 };

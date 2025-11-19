@@ -33,16 +33,17 @@ inline T cantFail(llvm::ErrorOr<T> Obj) {
 template<RangeOf<llvm::Error> T>
 inline llvm::Error joinErrors(T &Container) {
   auto Size = std::ranges::distance(Container);
-  revng_check(Size > 0);
+  if (Size == 0)
+    return llvm::Error::success();
 
   auto Iter = Container.begin();
   llvm::Error Result{ std::move(*Iter) };
-  if (Size == 1) {
+  if (Size == 1)
     return Result;
-  }
-  for (Iter++; Iter < Container.end(); Iter++) {
+
+  for (Iter++; Iter < Container.end(); Iter++)
     Result = llvm::joinErrors(std::move(Result), std::move(*Iter));
-  }
+
   return Result;
 }
 

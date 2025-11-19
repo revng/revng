@@ -132,9 +132,9 @@ Lift::invalidate(const BinaryFileContainer &SourceBinary,
   return {};
 }
 
-llvm::Error Lift::checkPrecondition(const pipeline::Context &Context) const {
-  const auto &Model = *getModelFromContext(Context);
+namespace detail {
 
+llvm::Error liftCheckPrecondition(const model::Binary &Model) {
   if (Model.Architecture() == model::Architecture::Invalid) {
     return revng::createError("Cannot lift binary with architecture invalid.");
   }
@@ -146,6 +146,13 @@ llvm::Error Lift::checkPrecondition(const pipeline::Context &Context) const {
   }
 
   return llvm::Error::success();
+}
+
+} // namespace detail
+
+llvm::Error Lift::checkPrecondition(const pipeline::Context &Context) const {
+  const auto &Model = *getModelFromContext(Context);
+  return ::detail::liftCheckPrecondition(Model);
 }
 
 static_assert(pipeline::HasInvalidate<Lift>);

@@ -1,0 +1,61 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  # Prepare a project directory to run the tests
+  - type: revng.test-pypeline-comparison-prepare
+    from:
+      - type: revng-qa.compiled
+        filter: example-executable-1 and with-debug-info
+    suffix: /
+    command: |-
+      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/prepare.py" "$INPUT" "$OUTPUT";
+
+  # Run lift comparison
+  - type: revng.test-pypeline-comparison-lift
+    from:
+      - type: revng.test-pypeline-comparison-prepare
+    command: |-
+      cd "$INPUT";
+      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare.sh" model.yml input lift;
+
+  # Run disassemble comparison
+  - type: revng.test-pypeline-comparison-disassemble
+    from:
+      - type: revng.test-pypeline-comparison-prepare
+    command: |-
+      cd "$INPUT";
+      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare.sh" model.yml input disassemble;
+
+  # Run emit-model-header comparison
+  - type: revng.test-pypeline-comparison-emit-model-header
+    from:
+      - type: revng.test-pypeline-comparison-prepare
+    command: |-
+      cd "$INPUT";
+      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare.sh" model.yml input emit-model-header;
+
+  # Run emit-type-definitions comparison
+  - type: revng.test-pypeline-comparison-emit-type-definitions
+    from:
+      - type: revng.test-pypeline-comparison-prepare
+    command: |-
+      cd "$INPUT";
+      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare.sh" model.yml input emit-type-definitions;
+
+  # Run hexdump comparison
+  - type: revng.test-pypeline-comparison-hexdump
+    from:
+      - type: revng.test-pypeline-comparison-prepare
+    command: |-
+      cd "$INPUT";
+      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare.sh" model.yml input hexdump;
+
+  # Run isolate comparison
+  - type: revng.test-pypeline-comparison-isolate
+    from:
+      - type: revng.test-pypeline-comparison-prepare
+    command: |-
+      cd "$INPUT";
+      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare_isolate.sh" model.yml input;

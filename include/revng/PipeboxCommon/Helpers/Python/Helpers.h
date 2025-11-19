@@ -12,6 +12,7 @@
 
 #include "revng/PipeboxCommon/Common.h"
 #include "revng/PipeboxCommon/Helpers/Helpers.h"
+#include "revng/PipeboxCommon/Model.h"
 #include "revng/PipeboxCommon/ObjectID.h"
 
 namespace revng::pypeline::helpers {
@@ -70,6 +71,22 @@ public:
   const Py_buffer &operator*() { return Buffer; }
   const Py_buffer *operator->() { return &Buffer; }
 };
+
+inline Model &convertReadOnlyModel(nanobind::object &TheModel) {
+  nanobind::object ReadOnlyModel = importObject("revng.pypeline.model."
+                                                "ReadOnlyModel");
+  revng_assert(nanobind::isinstance(TheModel, ReadOnlyModel));
+  nanobind::object ActualModel = nanobind::getattr(TheModel, "downcast")();
+  return *nanobind::cast<Model *>(ActualModel);
+}
+
+template<typename T, typename... ArgsT>
+inline nanobind::capsule makeCapsule(ArgsT &&...Args) {
+  return nanobind::capsule(new T(std::forward<ArgsT>(Args)...),
+                           [](void *Ptr) noexcept {
+                             delete static_cast<T *>(Ptr);
+                           });
+}
 
 } // namespace python
 

@@ -3,6 +3,7 @@
 //
 
 #include "revng/HeadersGeneration/ConfigurationHelpers.h"
+#include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/HeadersGeneration/Options.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -76,3 +77,24 @@ static pipeline::RegisterDefaultConstructibleContainer<ModelHeaderFileContainer>
 } // namespace revng::pipes
 
 static pipeline::RegisterPipe<revng::pipes::ModelToHeader> Y;
+
+namespace revng::pypeline::piperuns {
+
+void ModelToHeader::run(const Model &TheModel,
+                        llvm::StringRef StaticConfig,
+                        llvm::StringRef DynamicConfig,
+                        CBytesContainer &Buffer) {
+  const model::Binary &Binary = *TheModel.get().get();
+  std::unique_ptr<llvm::raw_ostream> Out = Buffer.getOStream(ObjectID());
+  ptml::ModelCBuilder
+    B(*Out,
+      Binary,
+      /* EnableTaglessMode = */ false,
+      { .EnableStackFrameInlining = revng::options::EnableStackFrameInlining,
+        .EnablePrintingOfTheMaximumEnumValue = true,
+        .ExplicitTargetPointerSize = getExplicitPointerSize(Binary) });
+  ptml::HeaderBuilder(B).printModelHeader();
+  Out->flush();
+}
+
+} // namespace revng::pypeline::piperuns

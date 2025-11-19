@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import signal
 import tarfile
 from io import BytesIO
 
@@ -16,6 +17,24 @@ from revng.pypeline.task.task import PipeObjectDependencies, TaskArgument, TaskA
 from revng.support import get_root
 
 _module, _handles = import_pipebox([get_root() / "lib/librevngPipebox.so"])
+
+
+def initialize(argv: list[str] = []):
+    _module.initialize(
+        {
+            signal.SIGINT,
+            signal.SIGTERM,
+            signal.SIGHUP,
+            signal.SIGQUIT,
+        },
+        {
+            signal.SIGCHLD,
+            signal.SIGPIPE,
+            signal.SIGUSR1,
+            signal.SIGUSR2,
+        },
+        argv,
+    )
 
 
 class ImportFiles(Pipe):
@@ -71,4 +90,7 @@ class ImportFiles(Pipe):
 
         containers[0].deserialize({root_object: buffer.getvalue()})
 
-        return [[(root_object, f"/Binaries/{i}/Hash") for i in indexes]]
+        dependencies = [(root_object, f"/Binaries/{i}/Hash") for i in indexes]
+        dependencies.append((root_object, "/Binaries"))
+
+        return [dependencies]

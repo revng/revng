@@ -38,12 +38,8 @@ class Pipe(ABC):
         argument should not be added.
         """
 
-    def __init__(
-        self,
-        static_configuration: str = "",
-        name: str | None = None,
-    ):
-        self.name: str = name or self.__class__.__name__
+    def __init__(self, static_configuration: str = ""):
+        self.name = self.__class__.__name__
         self.static_configuration: str = static_configuration
 
     @property
@@ -87,15 +83,7 @@ class Pipe(ABC):
             if decl.access == TaskArgumentAccess.WRITE:
                 continue
 
-            for ridx, object_list in enumerate(requests):
-                # The requests must be for the writeable containers,
-                # otherwise it's not possible to satisfy them
-                if self.arguments[ridx].access == TaskArgumentAccess.READ:
-                    assert len(object_list) == 0, (
-                        f"Expected an empty request for {self.arguments[ridx].name}, "
-                        f"but got {object_list}."
-                    )
-
+            for object_list in requests:
                 result[idx].update(
                     model.move_to_kind(
                         object_list,
@@ -104,6 +92,14 @@ class Pipe(ABC):
                 )
 
         return result
+
+    def check_precondition(self, model: ReadOnlyModel):
+        """
+        Checks that the pipe can be run successfully with the provided model.
+        Subclasses can optionally override this method if they wish to perform
+        checks before the `run` method. An exception should be thrown if some
+        property of the model would not allow running the pipe correctly.
+        """
 
     @abstractmethod
     def run(

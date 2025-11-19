@@ -62,6 +62,45 @@ void ProcessAssembly::run(pipeline::ExecutionContext &Context,
   }
 }
 
+} // namespace revng::pipes
+
+namespace revng::pypeline::piperuns {
+
+ProcessAssembly::ProcessAssembly(const class Model &Model,
+                                 llvm::StringRef Config,
+                                 llvm::StringRef DynamicConfig,
+                                 const BinariesContainer &BinariesContainer,
+                                 const CFGMap &CFG,
+                                 AssemblyInternalContainer &Output) :
+  Binary(*Model.get().get()), CFG(CFG), Output(Output), NameBuilder(Binary) {
+  Helper = std::make_unique<DissassemblyHelper>();
+
+  auto BinaryBuffer = BinariesContainer.getFile(0);
+  BinaryView = std::make_unique<RawBinaryView>(Binary,
+                                               llvm::StringRef{
+                                                 BinaryBuffer.data(),
+                                                 BinaryBuffer.size() });
+};
+
+ProcessAssembly::~ProcessAssembly() = default;
+
+void ProcessAssembly::runOnFunction(const model::Function &TheFunction) {
+  ObjectID Object(TheFunction.Entry());
+  const auto &Metadata = CFG.getElement(Object);
+
+  TupleTree<yield::Function> &OutputFunction = Output.getElement(Object);
+  Helper->disassemble(TheFunction,
+                      *Metadata,
+                      *BinaryView,
+                      Binary,
+                      NameBuilder,
+                      *OutputFunction);
+}
+
+} // namespace revng::pypeline::piperuns
+
+namespace revng::pipes {
+
 void YieldAssembly::run(pipeline::ExecutionContext &Context,
                         const FunctionAssemblyStringMap &Input,
                         FunctionAssemblyPTMLStringMap &Output) {
@@ -108,3 +147,34 @@ static RegisterDefaultConstructibleContainer<FunctionAssemblyPTMLStringMap> X2;
 
 static pipeline::RegisterPipe<revng::pipes::ProcessAssembly> ProcessPipe;
 static pipeline::RegisterPipe<revng::pipes::YieldAssembly> YieldPipe;
+
+namespace revng::pypeline::piperuns {
+
+void YieldAssembly::runOnFunction(const model::Function &TheFunction) {
+  MetaAddress Address = TheFunction.Entry();
+  ObjectID Object(Address);
+  const TupleTree<yield::Function> &Function = Input.getElement(Object);
+
+  revng_assert(Function.verify());
+  revng_assert(Function->verify());
+  revng_assert(Function->Entry() == Address);
+
+  const model::Architecture::Values A = Model.Architecture();
+  auto CommentIndicator = model::Architecture::getAssemblyCommentIndicator(A);
+
+  const model::Configuration &Configuration = Model.Configuration();
+  uint64_t LineWidth = Configuration.CommentLineWidth();
+
+  std::string R = ptml::functionComment(B,
+                                        TheFunction,
+                                        Model,
+                                        CommentIndicator,
+                                        0,
+                                        LineWidth,
+                                        NameBuilder);
+  R += yield::ptml::functionAssembly(B, *Function, Model);
+  R = B.getTag(ptml::tags::Div, std::move(R)).toString();
+  *Output.getOStream(Object) << R;
+}
+
+} // namespace revng::pypeline::piperuns

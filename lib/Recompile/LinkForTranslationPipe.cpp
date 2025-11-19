@@ -34,3 +34,50 @@ void LinkForTranslation::run(ExecutionContext &EC,
 }
 
 static RegisterPipe<LinkForTranslation> E5;
+
+namespace revng::pypeline::piperuns {
+
+llvm::Error LinkForTranslation::checkPrecondition(const class Model &Model) {
+  if (Model.get().get()->Binaries().size() != 1)
+    return revng::createError("Binaries must have exactly one element");
+  return llvm::Error::success();
+}
+
+static void writeToFile(llvm::StringRef Path, llvm::StringRef Buffer) {
+  std::error_code EC;
+  llvm::raw_fd_ostream OS(Path, EC);
+  revng_assert(not EC);
+  OS << Buffer;
+}
+
+void LinkForTranslation::run(const Model &TheModel,
+                             llvm::StringRef StaticConfig,
+                             llvm::StringRef DynamicConfig,
+                             const BinariesContainer &Binaries,
+                             const ObjectFileContainer &ObjectFile,
+                             TranslatedContainer &Output) {
+  // TODO: some of the operations in linkForTranslation should be converted to
+  //       in-memory counterparts to avoid serializing everything.
+  TemporaryFile Binary("revng-lft-binary");
+  auto BinaryArrayRef = Binaries.getFile(0);
+  writeToFile(Binary.path(), { BinaryArrayRef.begin(), BinaryArrayRef.size() });
+
+  TemporaryFile Object("revng-lft-object", "o");
+  writeToFile(Object.path(),
+              ObjectFile.getMemoryBuffer(ObjectID{})->getBuffer());
+
+  TemporaryFile TempOutput("revng-lft-output");
+
+  linkForTranslation(*TheModel.get().get(),
+                     Binary.path(),
+                     Object.path(),
+                     TempOutput.path());
+
+  auto Buffer = revng::cantFail(llvm::MemoryBuffer::getFile(TempOutput.path()));
+  {
+    auto OutputOS = Output.getOStream(ObjectID{});
+    *OutputOS << Buffer->getBuffer();
+  }
+}
+
+} // namespace revng::pypeline::piperuns

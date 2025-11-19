@@ -82,30 +82,19 @@ public:
   }
 };
 
-static void compileModuleRunImpl(const Context &Context,
-                                 LLVMContainer &Module,
-                                 ObjectFileContainer &TargetBinary) {
+// This function is used by both the old and the new pipeline
+static void compileModuleRunImpl(const model::Binary &Binary,
+                                 llvm::Module *M,
+                                 llvm::raw_pwrite_stream &Output) {
   using namespace revng;
-
-  auto Enumeration = Module.enumerate();
-  if (not Enumeration.contains(pipeline::Target(kinds::Root))
-      and not Enumeration.contains(pipeline::Target(kinds::IsolatedRoot)))
-    return;
-
-  if (Enumeration.contains(pipeline::Target(kinds::IsolatedRoot))
-      and not Enumeration.contains(kinds::Isolated.allTargets(Context)))
-    return;
-
   StringMap<llvm::cl::Option *> &RegOptions(getRegisteredOptions());
   getOption<bool>(RegOptions, "disable-machine-licm")->setInitialValue(true);
-
-  llvm::Module *M = &Module.getModule();
 
   M->getContext()
     .setDiagnosticHandler(std::make_unique<CustomDiagnosticHandler>());
 
   {
-    auto Architecture = getModelFromContext(Context)->Architecture();
+    auto Architecture = Binary.Architecture();
     auto ArchName = model::Architecture::getQEMUName(Architecture).str();
 
     // Note: here we use the full version of the helpers, i.e., where we all the
@@ -127,7 +116,7 @@ static void compileModuleRunImpl(const Context &Context,
     F.setSection("");
 
   OriginalAssemblyAnnotationWriter OAAW(M->getContext());
-  createSelfReferencingDebugInfo(M, Module.name(), &OAAW);
+  createSelfReferencingDebugInfo(M, "llvm-container", &OAAW);
 
   // Get the target specific parser.
   std::string Error;
@@ -186,12 +175,8 @@ static void compileModuleRunImpl(const Context &Context,
   TargetLibraryInfoImpl TLII(Triple(M->getTargetTriple()));
   PM.add(new TargetLibraryInfoWrapperPass(TLII));
 
-  std::error_code EC;
-  raw_fd_ostream OutputStream(TargetBinary.getOrCreatePath(), EC);
-  revng_assert(!EC);
-
   bool Err = Target->addPassesToEmitFile(PM,
-                                         OutputStream,
+                                         Output,
                                          nullptr,
                                          CGFT_ObjectFile,
                                          true);
@@ -200,6 +185,32 @@ static void compileModuleRunImpl(const Context &Context,
   revng::verify(M);
   PM.run(*M);
   revng::verify(M);
+}
+
+// This function is a wrapper of the previous `compileModuleRunImpl` and it's
+// used only by the old pipeline in both `CompileModule::run` and
+// `CompileIsolatedModule::run`
+static void compileModuleRunImpl(const Context &Context,
+                                 LLVMContainer &Module,
+                                 ObjectFileContainer &TargetBinary) {
+  using namespace revng;
+
+  auto Enumeration = Module.enumerate();
+  if (not Enumeration.contains(pipeline::Target(kinds::Root))
+      and not Enumeration.contains(pipeline::Target(kinds::IsolatedRoot)))
+    return;
+
+  if (Enumeration.contains(pipeline::Target(kinds::IsolatedRoot))
+      and not Enumeration.contains(kinds::Isolated.allTargets(Context)))
+    return;
+
+  std::error_code EC;
+  raw_fd_ostream OutputStream(TargetBinary.getOrCreatePath(), EC);
+  revng_assert(!EC);
+
+  compileModuleRunImpl(*getModelFromContext(Context),
+                       &Module.getModule(),
+                       OutputStream);
 
   auto Path = TargetBinary.path();
 
@@ -224,3 +235,17 @@ void CompileIsolatedModule::run(ExecutionContext &EC,
 
 static RegisterPipe<CompileModule> E2;
 static RegisterPipe<CompileIsolatedModule> E3;
+
+namespace revng::pypeline::piperuns {
+
+void CompileRootModule::run(const Model &TheModel,
+                            llvm::StringRef StaticConfig,
+                            llvm::StringRef DynamicConfig,
+                            LLVMRootContainer &Input,
+                            ObjectFileContainer &Output) {
+  compileModuleRunImpl(*TheModel.get().get(),
+                       &Input.getModule(),
+                       *Output.getOStream(ObjectID{}));
+}
+
+} // namespace revng::pypeline::piperuns

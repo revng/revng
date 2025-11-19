@@ -3,6 +3,7 @@
 //
 
 #include "revng/Backend/DecompileFunction.h"
+#include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -59,5 +60,23 @@ using namespace pipeline;
 static RegisterDefaultConstructibleContainer<TypeDefinitionStringMap> F2;
 
 } // end namespace revng::pipes
+
+namespace revng::pypeline::piperuns {
+
+using TD = UpcastablePointer<model::TypeDefinition>;
+void GenerateModelTypeDefinition::runOnTypeDefinition(const TD
+                                                        &TypeDefinition) {
+  auto OS = Output.getOStream(ObjectID(TypeDefinition->key()));
+  ptml::ModelCBuilder B(*OS,
+                        *Model.get().get(),
+                        true,
+                        { .EnablePrintingOfTheMaximumEnumValue = true,
+                          .EnableExplicitPadding = false });
+
+  upcast(TypeDefinition,
+         [&B]<typename T>(const T &Upcasted) { B.printDefinition(Upcasted); });
+}
+
+} // namespace revng::pypeline::piperuns
 
 static pipeline::RegisterPipe<revng::pipes::GenerateModelTypeDefinition> X2;
