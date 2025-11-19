@@ -65,7 +65,7 @@ namespace piperuns {
 
 class CompileRootModule {
 public:
-  static constexpr llvm::StringRef Name = "CompileRootModule";
+  static constexpr llvm::StringRef Name = "compile-root-module";
   using Arguments = TypeList<
     PipeArgument<"Input",
                  "The LLVM module that will be compiled",

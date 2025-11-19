@@ -57,7 +57,7 @@ private:
   ptml::MarkupBuilder B;
 
 public:
-  static constexpr llvm::StringRef Name = "YieldAssembly";
+  static constexpr llvm::StringRef Name = "yield-assembly";
   using Arguments = TypeList<PipeRunArgument<const AssemblyInternalContainer,
                                              "Input",
                                              "The internal disassembly data">,

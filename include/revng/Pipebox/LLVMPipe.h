@@ -49,7 +49,7 @@ protected:
 
 class PureLLVMPassesRootPipe : public detail::PureLLVMPassesPipeBase {
 public:
-  static constexpr llvm::StringRef Name = "PureLLVMPassesRootPipe";
+  static constexpr llvm::StringRef Name = "pure-llvm-passes-root-pipe";
   using Arguments = TypeList<
     PipeArgument<"Module", "LLVM Module to apply the LLVM passes to">>;
 
@@ -77,7 +77,7 @@ public:
 
 class PureLLVMPassesPipe : public detail::PureLLVMPassesPipeBase {
 public:
-  static constexpr llvm::StringRef Name = "PureLLVMPassesPipe";
+  static constexpr llvm::StringRef Name = "pure-llvm-passes-pipe";
   using Arguments = TypeList<
     PipeArgument<"Module", "LLVM Modules to apply the LLVM passes to">>;
 

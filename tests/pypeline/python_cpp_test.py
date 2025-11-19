@@ -40,7 +40,7 @@ def check_names(ext):
     for type_ in (Analysis, Container, Kind, Model, ObjectID, Pipe):
         registry = get_registry(type_)
         for key, value in registry.items():
-            if key == "DummyPipe":
+            if key == "dummy-pipe":
                 continue
             assert issubclass(value, type_)
             assert key in names

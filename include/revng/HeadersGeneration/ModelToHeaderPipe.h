@@ -19,7 +19,7 @@ namespace piperuns {
 
 class ModelToHeader {
 public:
-  static constexpr llvm::StringRef Name = "ModelToHeader";
+  static constexpr llvm::StringRef Name = "model-to-header";
   using Arguments = TypeList<
     PipeArgument<"Buffer", "The output C header of the model", Access::Write>>;
 

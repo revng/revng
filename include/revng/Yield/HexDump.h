@@ -18,7 +18,7 @@ namespace piperuns {
 
 class HexDump {
 public:
-  static constexpr llvm::StringRef Name = "HexDump";
+  static constexpr llvm::StringRef Name = "hex-dump";
   using Arguments = TypeList<
     PipeArgument<"Binary", "The binaries to create the hexdump out of">,
     PipeArgument<"Module", "The LLVM Module(s) with lifted functions">,

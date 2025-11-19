@@ -15,7 +15,7 @@ private:
   LLVMFunctionContainer &ModuleContainer;
 
 public:
-  static constexpr llvm::StringRef Name = "PromoteCSVs";
+  static constexpr llvm::StringRef Name = "promote-csvs";
   using Arguments = TypeList<PipeRunArgument<LLVMFunctionContainer,
                                              "Module",
                                              "The LLVM Module(s) where the CSV "

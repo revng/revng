@@ -39,7 +39,7 @@ private:
   efa::CFGAnalyzer Analyzer;
 
 public:
-  static constexpr llvm::StringRef Name = "CollectCFG";
+  static constexpr llvm::StringRef Name = "collect-cfg";
   using Arguments = TypeList<PipeRunArgument<LLVMRootContainer,
                                              "Input",
                                              "LLVM module to analyze to "

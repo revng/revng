@@ -39,7 +39,7 @@ private:
   std::vector<std::tuple<MetaAddress, llvm::Function *>> IsolatedFunctions;
 
 public:
-  static constexpr llvm::StringRef Name = "Isolate";
+  static constexpr llvm::StringRef Name = "isolate";
   using Arguments = TypeList<
     PipeRunArgument<const CFGMap, "CFG", "Function control flow data">,
     PipeRunArgument<LLVMRootContainer,

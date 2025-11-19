@@ -268,7 +268,7 @@ class DummyPipelineNode(PipelineNode):
     branches need to be merged into one"""
 
     class DummyPipe(Pipe):
-        name = "DummyPipe"
+        name = "dummy-pipe"
 
         def __init__(self, static_configuration: str):
             self.static_configuration = ""

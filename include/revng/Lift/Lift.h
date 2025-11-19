@@ -186,7 +186,7 @@ namespace revng::pypeline::piperuns {
 
 class Lift {
 public:
-  static constexpr llvm::StringRef Name = "Lift";
+  static constexpr llvm::StringRef Name = "lift";
   using Arguments = TypeList<PipeArgument<"Input", "Input binaries to lift">,
                              PipeArgument<"Output",
                                           "LLVM Module containing the lifted "

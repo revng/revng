@@ -21,7 +21,7 @@ private:
   model::CNameBuilder NameBuilder;
 
 public:
-  static constexpr llvm::StringRef Name = "EnforceABI";
+  static constexpr llvm::StringRef Name = "enforce-abi";
   using Arguments = TypeList<
     PipeRunArgument<const CFGMap, "CFG", "The per-function CFG data">,
     PipeRunArgument<LLVMFunctionContainer,

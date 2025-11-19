@@ -10,7 +10,7 @@ namespace revng::pypeline::piperuns {
 
 class InvokeIsolatedFunctions {
 public:
-  static constexpr llvm::StringRef Name = "InvokeIsolatedFunctions";
+  static constexpr llvm::StringRef Name = "invoke-isolated-functions";
   using Arguments = TypeList<
     PipeArgument<"RootModule", "Root module containing the root function">,
     PipeArgument<"FunctionModules",

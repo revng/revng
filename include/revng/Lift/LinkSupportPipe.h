@@ -40,7 +40,7 @@ namespace revng::pypeline::piperuns {
 
 class LinkSupport {
 public:
-  static constexpr llvm::StringRef Name = "LinkSupport";
+  static constexpr llvm::StringRef Name = "link-support";
   using Arguments = TypeList<
     PipeArgument<"Module", "Module to link support into">>;
 
