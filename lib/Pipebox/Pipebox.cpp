@@ -20,6 +20,7 @@
 #include "revng/PipeboxCommon/RawContainer.h"
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSites.h"
 #include "revng/PromoteStackPointer/PromoteStackPointer.h"
+#include "revng/PromoteStackPointer/SegregateStackAccesses.h"
 #include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Recompile/LinkForTranslationPipe.h"
 #include "revng/RemoveLiftingArtifacts/PromoteInitCSVToUndef.h"
@@ -76,6 +77,7 @@ static RegisterFunctionPipeRun<PromoteInitCSVToUndef> P19;
 static RegisterFunctionPipeRun<InjectStackSizeProbesAtCallSites> P20;
 static RegisterFunctionPipeRun<PromoteStackPointer> P21;
 static RegisterFunctionPipeRun<SimplifySwitch> P22;
+static RegisterFunctionPipeRun<LegacySegregateStackAccesses> P23;
 
 //
 // Analyses

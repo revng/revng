@@ -25,6 +25,7 @@
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
+#include "revng/PromoteStackPointer/SegregateStackAccesses.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
@@ -269,6 +270,20 @@ using GCBIWP = GeneratedCodeBasicInfoWrapperPass;
 template<bool IsLegacy>
 using LVB = LocalVariableBuilder<IsLegacy>;
 
+template<bool IsLegacy>
+static LocalVariableBuilder<IsLegacy>
+makeVariableBuilder(const model::Binary &Binary,
+                    llvm::Module &Module,
+                    OpaqueFunctionsPool<FunctionTags::TypePair>
+                      &AddressOfPool) {
+
+  if constexpr (IsLegacy) {
+    return LVB<IsLegacy>::makeLegacyStackBuilder(Binary, Module, AddressOfPool);
+  } else {
+    return LocalVariableBuilder<IsLegacy>::make(Binary, Module);
+  }
+}
+
 /// Rewrite all stack memory accesses
 ///
 /// This pass changes the base address of stack memory access to either:
@@ -320,9 +335,7 @@ private:
 public:
   SegregateStackAccesses(llvm::ModulePass &Pass,
                          const model::Binary &Binary,
-                         llvm::Module &M)
-    requires(not LegacyLocalVariables)
-    :
+                         llvm::Module &M) :
     pipeline::FunctionPassImpl(Pass),
     Binary(Binary),
     M(M),
@@ -332,21 +345,16 @@ public:
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
     AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    VariableBuilder(LVB</* IsLegacy */ false>::make(Binary, M)) {
-
-    revng_assert(SSACS != nullptr);
-
+    VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary,
+                                                              M,
+                                                              AddressOfPool)) {
     // After segregate, we should not introduce new calls to
     // `revng_undefined_local_sp`: enable to DCE it away
     InitLocalSP->setOnlyReadsMemory();
   }
 
-  SegregateStackAccesses(llvm::ModulePass &Pass,
-                         const model::Binary &Binary,
-                         llvm::Module &M)
-    requires LegacyLocalVariables
-    :
-    pipeline::FunctionPassImpl(Pass),
+  SegregateStackAccesses(const model::Binary &Binary, llvm::Module &M) :
+    pipeline::FunctionPassImpl(),
     Binary(Binary),
     M(M),
     SSACS(getIRHelper("stack_size_at_call_site", M)),
@@ -355,12 +363,9 @@ public:
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(), Binary)),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
     AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    VariableBuilder(LVB<true>::makeLegacyStackBuilder(Binary,
-                                                      M,
-                                                      AddressOfPool)) {
-
-    revng_assert(SSACS != nullptr);
-
+    VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary,
+                                                              M,
+                                                              AddressOfPool)) {
     // After segregate, we should not introduce new calls to
     // `revng_undefined_local_sp`: enable to DCE it away
     InitLocalSP->setOnlyReadsMemory();
@@ -850,10 +855,11 @@ private:
     //
     // Handle a call to an isolated function
     //
-    for (BasicBlock &BB : F)
-      for (Instruction &I : BB)
-        if (CallInst *SSACSCall = getCallTo(&I, SSACS))
-          handleCallSite(AnalysisResult, SSACSCall);
+    if (SSACS != nullptr)
+      for (BasicBlock &BB : F)
+        for (Instruction &I : BB)
+          if (CallInst *SSACSCall = getCallTo(&I, SSACS))
+            handleCallSite(AnalysisResult, SSACSCall);
 
     //
     // Handle memory access, possibly targeting stack arguments
@@ -1612,3 +1618,17 @@ struct SegregateStackAccessesPipe {
 };
 
 static pipeline::RegisterLLVMPass<SegregateStackAccessesPipe> Y;
+
+namespace revng::pypeline::piperuns {
+
+void LegacySegregateStackAccesses::runOnLLVMFunction(const model::Function
+                                                       &Function,
+                                                     llvm::Function
+                                                       &LLVMFunction) {
+  ::SegregateStackAccesses<true> Impl(Binary, *LLVMFunction.getParent());
+  Impl.prologue();
+  Impl.runOnFunction(Function, LLVMFunction);
+  Impl.epilogue();
+}
+
+} // namespace revng::pypeline::piperuns
