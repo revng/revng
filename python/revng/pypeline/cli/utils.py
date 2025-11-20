@@ -127,11 +127,6 @@ class EagerParsedPath(click.Path):
         if ctx is not None:
             if ctx.obj is None:
                 ctx.obj = {}
-            if self.name in ctx.obj:
-                raise ValueError(
-                    f'Argument "{self.name}" already set in context, '
-                    "this is likely a bug in the code."
-                )
             # Store the parsed value in the context object
             ctx.obj[self.name] = res
             # And also store the path to the parsed value
