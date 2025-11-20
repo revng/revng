@@ -243,6 +243,25 @@ class PipelineNode:
     def __repr__(self):
         return f"<PipelineNode: {self.task!r}>"
 
+    def to_dict(self) -> dict:
+        """Convert the data into a dictionary representation."""
+        return {
+            "id": self.id,
+            "type": "pipe" if isinstance(self.task, Pipe) else "savepoint",
+            "class": self.task.__class__.__name__,
+            "arguments": [binding.name for binding in self.bindings],
+            "successors": [succ.id for succ in self.successors],
+            "predecessors": [pred.id for pred in self.predecessors],
+            "savepoint_range": (
+                {
+                    "start": self.savepoint_range.start,
+                    "end": self.savepoint_range.end,
+                }
+                if self.savepoint_range
+                else None
+            ),
+        }
+
 
 class DummyPipelineNode(PipelineNode):
     """Dummy pipeline node, to be used in cases where multiple PipelineNode

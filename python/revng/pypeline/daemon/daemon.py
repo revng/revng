@@ -3,11 +3,16 @@
 #
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
+
+import jsonschema
+import yaml
 
 from revng.pypeline.container import Container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import Kind
+from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils import bytes_to_string
@@ -44,6 +49,41 @@ class Response:
         return result
 
 
+def get_web_pipeline(version: str, pipeline: Pipeline) -> dict[str, Any]:
+    """
+    Build and validate the web representation of the pipeline.
+    """
+    root = Path(__file__).resolve().parent.parent
+    with open(root / "web_schema.yml", "r", encoding="utf-8") as f:
+        schema = yaml.safe_load(f)
+
+    # Build the web pipeline
+    web_pipeline = {
+        "version": version,
+        "kinds": get_singleton(Kind).type_dict(),  # type: ignore
+        "containers": [
+            container.type_dict()
+            for container in get_registry(Container).values()  # type: ignore [type-abstract]
+        ],
+        "container_declarations": [
+            container_decl.to_dict() for container_decl in pipeline.declarations
+        ],
+        "root": pipeline.root.id,
+        "nodes": [node.to_dict() for node in pipeline.walk_pipeline(stable=True)],
+        "artifacts": [artifact.to_dict() for artifact in pipeline.artifacts.values()],
+        "analyses": [analysis.to_dict() for analysis in pipeline.analyses.values()],
+        "analyses_lists": [
+            analysis_list.to_dict() for analysis_list in pipeline.analysis_lists.values()
+        ],
+    }
+
+    # Ensure that it respects the agreed schema
+    validator = jsonschema.Draft7Validator(schema)
+    validator.validate(web_pipeline)
+
+    return web_pipeline
+
+
 class Daemon:
     """The transport agnostic part of the daemon."""
 
@@ -62,6 +102,7 @@ class Daemon:
         self.debug = debug
         self.cache_dir = cache_dir
         self.storage_provider_factory = storage_provider_factory_factory(storage_provider_url)
+        self.web_pipeline = get_web_pipeline(version, pipeline)
 
     def _get_storage_provider_context(self, request):
         project_id = request["project_id"]
@@ -95,49 +136,9 @@ class Daemon:
         )
 
     def get_pipeline(self) -> Response:
-        # This for could be a list comprehension, but mypy can't understand the
-        # conditional serialization on parent
-        kinds = []
-        for kind in get_singleton(Kind).kinds():  # type: ignore [type-abstract]
-            parent = kind.parent()
-            if parent is not None:
-                parent_name = parent.serialize()
-            else:
-                parent_name = None
-            kinds.append(
-                {
-                    "name": kind.serialize(),
-                    "parent": parent_name,
-                }
-            )
-
         return Response(
             code=200,
-            body={
-                "version": self.version,
-                "pipeline": self.pipeline_yaml,
-                "containers": [
-                    {
-                        "name": name,
-                        "kind": container.kind.serialize(),
-                        "mime_type": container.mime_type(),
-                        "is_text": container.is_text(),
-                    }
-                    for name, container in get_registry(
-                        Container  # type: ignore [type-abstract]
-                    ).items()
-                ],
-                "artifacts": [
-                    {
-                        "name": artifact.name,
-                        "container_name": artifact.container.name,
-                        "container_type": artifact.container.container_type.__name__,
-                        "cacheable": artifact.is_cacheable(),
-                    }
-                    for artifact in self.pipeline.artifacts.values()
-                ],
-                "kinds": kinds,
-            },
+            body=self.web_pipeline,
         )
 
     async def artifact(self, request) -> Response:

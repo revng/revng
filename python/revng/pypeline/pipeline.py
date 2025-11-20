@@ -47,6 +47,15 @@ class Artifact:
         """An artifact is cacheable if it's backed by a savepoint."""
         return isinstance(self.node.task, SavePoint)
 
+    def to_dict(self) -> dict:
+        """Convert the artifact to a dictionary representation."""
+        return {
+            "name": self.name,
+            "container_name": self.container.name,
+            "container_type": self.container.container_type.__name__,
+            "cacheable": self.is_cacheable(),
+        }
+
 
 C = TypeVar("C", bound=Model)
 

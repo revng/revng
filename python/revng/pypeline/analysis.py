@@ -62,6 +62,22 @@ class AnalysisBinding:
     bindings: tuple[ContainerDeclaration, ...]
     node: PipelineNode
 
+    def to_dict(self) -> dict:
+        """Convert the data into a dictionary representation."""
+        return {
+            "name": self.analysis.name,
+            "class": self.analysis.__class__.__name__,
+            "bindings": [
+                {
+                    "name": binding.name,
+                    "container_type": binding.container_type.__name__,
+                }
+                for binding in self.bindings
+            ],
+            "node": self.node.id,
+            "description": self.__doc__,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class AnalysisList:
@@ -77,3 +93,11 @@ class AnalysisList:
 
         if len(set(self.analyses)) != len(self.analyses):
             raise ValueError("An analysis list cannot contain duplicate analyses.")
+
+    def to_dict(self) -> dict:
+        """Convert the data into a dictionary representation."""
+        return {
+            "name": self.name,
+            "analyses": self.analyses,
+            "description": self.description,
+        }

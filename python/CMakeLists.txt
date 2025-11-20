@@ -403,6 +403,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/pipeline_parser.py
     revng/pypeline/pipeline.py
     revng/pypeline/schema.yml
+    revng/pypeline/web_schema.yml
     revng/pypeline/daemon/__init__.py
     revng/pypeline/daemon/app.py
     revng/pypeline/daemon/daemon.py

@@ -61,18 +61,23 @@ def test_daemon(daemon_server: TestServer):
     response = daemon_server.get_pipeline()
     pipeline_data = response.body
     assert "version" in pipeline_data
-    assert "pipeline" in pipeline_data
     assert "containers" in pipeline_data
     assert "kinds" in pipeline_data
+    assert "container_declarations" in pipeline_data
+    assert "root" in pipeline_data
+    assert "nodes" in pipeline_data
+    assert "artifacts" in pipeline_data
+    assert "analyses" in pipeline_data
+    assert "analyses_lists" in pipeline_data
     assert pipeline_data["version"] == revng.__version__
 
-    # Validate containers structure
+    # Validate containers structure (containers have "class" field)
     containers = pipeline_data["containers"]
     assert isinstance(containers, list)
-    container_names = [c["name"] for c in containers]
+    container_classes = [c["class"] for c in containers]
     expected_containers = ["RootDictContainer", "ChildDictContainer"]
     for expected in expected_containers:
-        assert expected in container_names, f"Expected container {expected} not found"
+        assert expected in container_classes, f"Expected container {expected} not found"
 
     # Validate kinds structure
     kinds = pipeline_data["kinds"]
