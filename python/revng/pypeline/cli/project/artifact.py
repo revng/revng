@@ -8,9 +8,9 @@ from typing import AsyncContextManager
 
 import click
 
-from revng.pypeline.cli.utils import PypeGroup, build_help_text, container_format_options
-from revng.pypeline.cli.utils import list_objects_option, normalize_whitespace, project_id_option
-from revng.pypeline.cli.utils import token_option
+from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_help_text
+from revng.pypeline.cli.utils import container_format_options, list_objects_option
+from revng.pypeline.cli.utils import normalize_whitespace, project_id_option, token_option
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
@@ -160,6 +160,7 @@ def build_artifact_command(
                 sys.stdout.buffer.flush()
 
     @click.command(
+        cls=PypeCommand,
         name=artifact_name,
         help=help_text,
         context_settings={

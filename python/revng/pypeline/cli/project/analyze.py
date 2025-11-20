@@ -8,7 +8,7 @@ from typing import AsyncContextManager
 
 import click
 
-from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
+from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_arg_objects, build_help_text
 from revng.pypeline.cli.utils import compute_objects, list_objects_for_container
 from revng.pypeline.cli.utils import list_objects_option, normalize_flag, normalize_whitespace
 from revng.pypeline.cli.utils import project_id_option, token_option
@@ -188,7 +188,11 @@ def build_analysis_list_command(
                     f"Invalidated {container_location}: [{', '.join(serialized_ids)}]"
                 )
 
-    @click.command(name=analysis_name, help=help_text)
+    @click.command(
+        cls=PypeCommand,
+        name=analysis_name,
+        help=help_text,
+    )
     @list_objects_option
     @project_id_option
     @token_option
@@ -284,7 +288,11 @@ def build_analysis_command(
                     f"Invalidated {container_location}: [{', '.join(serialized_ids)}]"
                 )
 
-    @click.command(name=analysis_name, help=help_text)
+    @click.command(
+        cls=PypeCommand,
+        name=analysis_name,
+        help=help_text,
+    )
     @list_objects_option
     @project_id_option
     @token_option

@@ -9,11 +9,12 @@ import uvicorn
 import yaml
 
 import revng
+from revng.pypeline.cli.utils import PypeCommand
 from revng.pypeline.daemon.app import make_starlette
 from revng.pypeline.daemon.daemon import Daemon
 
 
-@click.command()
+@click.command(cls=PypeCommand)
 @click.option(
     "--production",
     is_flag=True,

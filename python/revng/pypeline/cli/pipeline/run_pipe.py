@@ -6,7 +6,7 @@ from pathlib import Path
 
 import click
 
-from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
+from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_arg_objects, build_help_text
 from revng.pypeline.cli.utils import compute_objects, container_format_options
 from revng.pypeline.cli.utils import list_objects_option, normalize_kwarg_name
 from revng.pypeline.cli.utils import normalize_whitespace
@@ -132,7 +132,11 @@ def build_pipe_command(
     pipe_type: type[Pipe],
     model_type: type[Model],
 ):
-    @click.command(name=pipe_name, help=help_text)
+    @click.command(
+        cls=PypeCommand,
+        name=pipe_name,
+        help=help_text,
+    )
     @click.argument(
         "model",
         type=click.Path(exists=True, dir_okay=False, readable=True),
