@@ -18,7 +18,8 @@ from revng.pypeline.container import Configuration, Container
 from revng.pypeline.model import Model, ModelDiff, ModelPath, ModelPathSet, ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.storage.file_provider import FileProvider
-from revng.pypeline.task.pipe import Pipe, PipeDependencies, PipeObjectDependencies
+from revng.pypeline.task.pipe import Pipe, PipeCustomInvalidation, PipeDependencies
+from revng.pypeline.task.pipe import PipeObjectDependencies
 from revng.pypeline.task.task import TaskArgument, TaskArgumentAccess
 
 Value = Union[str, int]
@@ -530,6 +531,76 @@ class GeneratorPipe(Pipe):
                 container.add_object(obj)
                 dependencies.append((obj, "/one"))
         return PipeDependencies([dependencies])
+
+
+class GeneratorPipeWithInvalidation(Pipe):
+    name = "GeneratorPipeWithInvalidation"
+
+    @classmethod
+    def signature(cls) -> tuple[TaskArgument, ...]:
+        return (
+            TaskArgument(
+                "arg",
+                RootDictContainer,
+                TaskArgumentAccess.WRITE,
+                help_text="the output container",
+            ),
+        )
+
+    def run(
+        self,
+        file_provider: FileProvider,
+        model: ReadOnlyModel,
+        containers: list[Container],
+        incoming: list[ObjectSet],
+        outgoing: list[ObjectSet],
+        configuration: Configuration,
+    ) -> PipeDependencies:
+        object_ = MyObjectID(MyKind.ROOT)
+        container = cast(RootDictContainer, containers[0])
+        container.add_object(object_)
+        # This pipe declares that is has read 0 model paths, this means that
+        # any object invalidated is due to this pipe's `invalidate` function
+        return PipeDependencies([[]], [[(object_, b"foo")]])
+
+    def invalidate(
+        self, invalidation_data: PipeCustomInvalidation, diff: ModelDiff
+    ) -> list[ObjectSet]:
+        # Check that invalidation_data is of the same shape as the one returned
+        # by our own `run` method
+        assert len(invalidation_data) == 1
+        assert len(invalidation_data[0]) == 1
+        # Extract the object and data from the invalidation data and check that
+        # it's exactly as the one returned by `run`
+        object_, data = invalidation_data[0][0]
+        assert object_ == MyObjectID(MyKind.ROOT)
+        assert data == b"foo"
+        # State that root should be invalidated, this allows testing for custom
+        # invalidation because we haven't read any model paths, so the only way
+        # our objects get invalidated is through custom invalidation
+        return [ObjectSet(MyKind.ROOT, {object_})]
+
+
+class NullRootAnalysis(Analysis):
+    """An analysis that does nothing and returns an empty list of invalidations."""
+
+    name = "NullRootAnalysis"
+
+    @classmethod
+    def signature(cls) -> tuple[type[Container], ...]:
+        return (RootDictContainer,)
+
+    def run(
+        self,
+        model: Model,
+        containers: list[Container],
+        incoming: list[ObjectSet],
+        configuration: str,
+    ):
+        # This analysis does nothing, this is ok because the users of this
+        # analysis want to check for side-effects of running an analysis
+        # (e.g. triggering custom invalidation)
+        pass
 
 
 class NullAnalysis(Analysis):
