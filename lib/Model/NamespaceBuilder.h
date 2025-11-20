@@ -21,9 +21,6 @@
 
 namespace model {
 
-template<bool IsConst, typename T>
-using ConstIf = std::conditional_t<IsConst, const T, T>;
-
 template<bool IsBinaryConst>
 struct NamespaceEntry {
   using StoredNameType = ConstIf<IsBinaryConst, std::string>;

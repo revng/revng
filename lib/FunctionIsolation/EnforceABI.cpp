@@ -561,11 +561,9 @@ static pipeline::RegisterPipe<EnforceABIPipe> Y;
 
 namespace revng::pypeline::piperuns {
 
-void EnforceABI::runOnFunction(const model::Function &TheFunction) {
-  llvm::Module &Module = Output.getModule(ObjectID(TheFunction.Entry()));
-  llvm::Function *LLVMFunction = Module.getFunction(NameBuilder
-                                                      .llvmName(TheFunction));
-
+void EnforceABI::runOnLLVMFunction(const model::Function &Function,
+                                   llvm::Function &LLVMFunction) {
+  llvm::Module &Module = *LLVMFunction.getParent();
   GeneratedCodeBasicInfo GCBI(Binary);
   GCBI.run(Module);
 
@@ -576,7 +574,7 @@ void EnforceABI::runOnFunction(const model::Function &TheFunction) {
 
   ::EnforceABI Impl(Binary, Module, GCBI, CFGGetter);
   Impl.prologue();
-  Impl.runOnFunction(TheFunction, *LLVMFunction);
+  Impl.runOnFunction(Function, LLVMFunction);
   Impl.epilogue();
 }
 

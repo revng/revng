@@ -448,6 +448,9 @@ struct add_reference {
 template<typename T>
 using add_reference_t = add_reference<T>::type;
 
+template<bool IsConst, typename T>
+using ConstIf = std::conditional_t<IsConst, const T, T>;
+
 //
 // Some views from the STL.
 // TODO: remove these after updating the libc++ version.

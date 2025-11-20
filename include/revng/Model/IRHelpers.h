@@ -8,10 +8,12 @@
 #include "llvm/IR/Instructions.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommonOptions.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/Tag.h"
 
 constexpr const char *PrototypeMDName = "revng.prototype";
 
@@ -62,4 +64,32 @@ inline llvm::IntegerType *getLLVMTypeForScalar(llvm::LLVMContext &Context,
                                                const model::Type &Type) {
   revng_assert(Type.isScalar());
   return getLLVMIntegerTypeFor(Context, Type);
+}
+
+/// Given an LLVM module with a single isolated function, find it and return a
+/// reference to it. This function will assert if there is any other amount (0,
+/// 2 -> inf) number of functions. If the Address is provided it will also
+/// assert that the found function has the expected MetaAddress.
+inline decltype(auto)
+getUniqueIsolatedFunction(ConstOrNot<llvm::Module> auto &Module,
+                          const MetaAddress &Address = MetaAddress::invalid()) {
+  using ModuleType = std::remove_reference_t<decltype(Module)>;
+  using FunctionType = ConstIf<std::is_const_v<ModuleType>, llvm::Function>;
+
+  FunctionType *Function = nullptr;
+  for (FunctionType &F : Module.functions()) {
+    if (F.isDeclaration() or not FunctionTags::Isolated.isTagOf(&F))
+      continue;
+
+    revng_assert(Function == nullptr);
+    Function = &F;
+  }
+  revng_assert(Function != nullptr);
+
+  if (not Address.isInvalid()) {
+    MetaAddress FoundAddress = getMetaAddressOfIsolatedFunction(*Function);
+    revng_assert(Address == FoundAddress);
+  }
+
+  return *Function;
 }
