@@ -32,12 +32,27 @@
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/RemoveLiftingArtifacts/MakeSegmentRef.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 using namespace llvm;
+
+// Generating function pointers so far relied on the fact that all the
+// isolated functions were in the same LLVM module. Since in the new pipeline
+// this is no longer the case (there's one isolated function per LLVM module)
+// the generating of function pointers needs to be reworked. As a temporary fix
+// the new pipeline will emit pointers to segments. To allow comparison between
+// the old and new pipeline, this option allows the old pipeline to also have
+// the same behaviour.
+static cl::opt<bool> DisableFunctionPointersOpt("disable-function-pointers",
+                                                cl::desc("Disable emitting "
+                                                         "pointers to "
+                                                         "functions through "
+                                                         "segments"),
+                                                cl::init(false));
 
 struct MakeSegmentRefPassImpl : public pipeline::FunctionPassImpl {
 private:
@@ -47,6 +62,8 @@ private:
   OpaqueFunctionsPool<FunctionTags::SegmentRefPoolKey> SegmentRefPool;
   OpaqueFunctionsPool<FunctionTags::TypePair> AddressOfPool;
   OpaqueFunctionsPool<FunctionTags::StringLiteralPoolKey> StringLiteralPool;
+  RawBinaryView &BinaryView;
+  bool DisableFunctionPointers = false;
 
 public:
   MakeSegmentRefPassImpl(llvm::ModulePass &Pass,
@@ -58,7 +75,23 @@ public:
     Context(M.getContext()),
     SegmentRefPool(FunctionTags::SegmentRef.getPool(M)),
     AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    StringLiteralPool(FunctionTags::StringLiteral.getPool(M)) {}
+    StringLiteralPool(FunctionTags::StringLiteral.getPool(M)),
+    BinaryView(getAnalysis<LoadBinaryWrapperPass>().get()),
+    DisableFunctionPointers(DisableFunctionPointersOpt) {}
+
+  MakeSegmentRefPassImpl(const model::Binary &Binary,
+                         llvm::Module &M,
+                         RawBinaryView &BinaryView) :
+    pipeline::FunctionPassImpl(),
+    Binary(Binary),
+    M(M),
+    Context(M.getContext()),
+    SegmentRefPool(FunctionTags::SegmentRef.getPool(M)),
+    AddressOfPool(FunctionTags::AddressOf.getPool(M)),
+    StringLiteralPool(FunctionTags::StringLiteral.getPool(M)),
+    BinaryView(BinaryView),
+    // TODO: once functions pointers are derived post-lift this can be removed
+    DisableFunctionPointers(true) {}
 
   bool runOnFunction(const model::Function &ModelFunction,
                      llvm::Function &Function) override;
@@ -141,7 +174,6 @@ static Value *skipConstexprBitcasts(Value *V) {
 bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
                                            llvm::Function &F) {
   model::CNameBuilder NameBuilder(Binary);
-  RawBinaryView &BinaryView = getAnalysis<LoadBinaryWrapperPass>().get();
 
   using llvm::DominatorTree;
   DominatorTree DT;
@@ -261,7 +293,7 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
         // If Address matches a function entry, the constant operand must be
         // replaced with a function reference.
         auto It = FunctionEntries.find(Address);
-        if (It != FunctionEntries.end()) {
+        if (It != FunctionEntries.end() and not DisableFunctionPointers) {
           auto Name = NameBuilder.llvmName(Binary.Functions().at(It->second));
 
           auto *ReferencedFunction = M.getFunction(Name);
@@ -430,3 +462,13 @@ void MakeSegmentRef::run(pipeline::ExecutionContext &EC,
 } // namespace revng::pipes
 
 static pipeline::RegisterPipe<revng::pipes::MakeSegmentRef> RegMSRPipe;
+
+namespace revng::pypeline::piperuns {
+
+void MakeSegmentRef::runOnLLVMFunction(const model::Function &Function,
+                                       llvm::Function &LLVMFunction) {
+  MakeSegmentRefPassImpl Impl(Binary, *LLVMFunction.getParent(), BinaryView);
+  Impl.runOnFunction(Function, LLVMFunction);
+}
+
+} // namespace revng::pypeline::piperuns

@@ -23,6 +23,7 @@
 #include "revng/PromoteStackPointer/SegregateStackAccesses.h"
 #include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Recompile/LinkForTranslationPipe.h"
+#include "revng/RemoveLiftingArtifacts/MakeSegmentRef.h"
 #include "revng/RemoveLiftingArtifacts/PromoteInitCSVToUndef.h"
 #include "revng/RemoveLiftingArtifacts/RemoveLiftingArtifacts.h"
 #include "revng/Yield/HexDump.h"
@@ -78,6 +79,7 @@ static RegisterFunctionPipeRun<InjectStackSizeProbesAtCallSites> P20;
 static RegisterFunctionPipeRun<PromoteStackPointer> P21;
 static RegisterFunctionPipeRun<SimplifySwitch> P22;
 static RegisterFunctionPipeRun<LegacySegregateStackAccesses> P23;
+static RegisterFunctionPipeRun<MakeSegmentRef> P24;
 
 //
 // Analyses
