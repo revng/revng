@@ -83,7 +83,7 @@ namespace revng::pypeline::piperuns {
 ModelToHeader::ModelToHeader(const Model &TheModel,
                              llvm::StringRef StaticConfig,
                              llvm::StringRef DynamicConfig,
-                             CBytesContainer &Buffer) :
+                             PTMLCBytesContainer &Buffer) :
   Binary(*TheModel.get().get()), Buffer(Buffer){};
 
 void ModelToHeader::run() {

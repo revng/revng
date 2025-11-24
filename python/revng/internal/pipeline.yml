@@ -8,7 +8,7 @@ containers:
   - name: llvm-root
     type: LLVMRootContainer
   - name: model-header
-    type: CBytesContainer
+    type: PTMLCBytesContainer
   - name: model-types
     type: PTMLCTypeContainer
   - name: cfg-map
@@ -31,6 +31,8 @@ containers:
     type: CliftFunctionContainer
   - name: decompile-c
     type: PTMLCFunctionBytesContainer
+  - name: decompiled-single-file
+    type: PTMLCBytesContainer
 
 analyses:
   - apply-diff
@@ -353,6 +355,14 @@ branches:
         artifacts:
           - name: emit-c
             container: decompile-c
+
+      - pipe: decompile-to-single-file
+        arguments: [decompile-c, decompiled-single-file]
+      - savepoint: emit-c-as-single-file
+        containers: [decompiled-single-file]
+        artifacts:
+          - name: emit-c-as-single-file
+            container: decompiled-single-file
 
   emit-model-header:
     tasks:

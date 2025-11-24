@@ -10,6 +10,7 @@ target_link_libraries(
   revngPipebox
   ${Python_LIBRARIES}
   ${LLVM_LIBRARIES}
+  revngBackend
   revngCanonicalize
   revngClift
   revngCliftPipes

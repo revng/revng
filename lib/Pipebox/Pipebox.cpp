@@ -3,6 +3,7 @@
 //
 
 #include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
+#include "revng/Backend/DecompileToSingleFile.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/CBackendPipe.h"
@@ -51,7 +52,7 @@ using namespace revng::pypeline;
 
 static RegisterContainer<LLVMRootContainer> C1;
 static RegisterContainer<LLVMFunctionContainer> C3;
-static RegisterContainer<CBytesContainer> C4;
+static RegisterContainer<PTMLCBytesContainer> C4;
 static RegisterContainer<BinariesContainer> C5;
 static RegisterContainer<PTMLCTypeContainer> C6;
 static RegisterContainer<CFGMap> C7;
@@ -102,6 +103,7 @@ static RegisterPipe<PureMLIRPassesPipe> P28;
 static RegisterFunctionPipeRun<ModelVerifyClift> P29;
 static RegisterFunctionPipeRun<ImportModelNames> P30;
 static RegisterFunctionPipeRun<EmitC> P31;
+static RegisterSingleOutputPipeRun<DecompileToSingleFile> P32;
 
 //
 // Analyses

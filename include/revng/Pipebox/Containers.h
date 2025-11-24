@@ -8,8 +8,11 @@
 
 namespace revng::pypeline {
 
+using PTMLCBytesContainer = BytesContainer<"PTMLCBytesContainer",
+                                           "text/x.c+ptml">;
+
 using PTMLCFunctionBytesContainer = FunctionToBytesContainer<"PTMLCFunctionByte"
                                                              "sContainer",
                                                              "text/x.c+ptml">;
 
-}
+} // namespace revng::pypeline

@@ -29,3 +29,40 @@ void printSingleCFile(ptml::ModelCBuilder &B,
         B.append(It->second + '\n');
   }
 }
+
+namespace revng::pypeline::piperuns {
+
+DecompileToSingleFile::DecompileToSingleFile(const class Model &Model,
+                                             llvm::StringRef Config,
+                                             llvm::StringRef DynamicConfig,
+                                             const PTMLCFunctionBytesContainer
+                                               &Input,
+                                             PTMLCBytesContainer &Output) :
+  Binary(*Model.get().get()), Input(Input), Output(Output) {
+}
+
+void DecompileToSingleFile::run() {
+  auto Out = Output.getOStream(ObjectID());
+  ptml::ModelCBuilder B(*Out,
+                        Binary,
+                        /* EnableTaglessMode = */ false,
+                        // Disable stack frame inlining because enabling it
+                        // could break the property that we emit syntactically
+                        // valid C code, due to the stack frame type definition
+                        // being duplicated in the global header and
+                        // in the function's body. In the single file artifact
+                        // recompilability is still important.
+                        { .EnableStackFrameInlining = false });
+
+  auto Scope = B.getScopeTag(ptml::tags::Div);
+  // Print headers
+  B.append(B.getIncludeQuote("types-and-globals.h")
+           + B.getIncludeQuote("helpers.h") + "\n");
+
+  for (const auto &Object : Input.objects()) {
+    auto Buffer = Input.getMemoryBuffer(Object);
+    B.append(Buffer->getBuffer().str() + "\n");
+  }
+}
+
+} // namespace revng::pypeline::piperuns
