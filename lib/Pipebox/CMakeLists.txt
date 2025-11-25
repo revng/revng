@@ -12,6 +12,7 @@ target_link_libraries(
   revngCanonicalize
   revngFunctionIsolation
   revngLift
+  revngModelImporter
   revngModelToHeader
   revngPromoteStackPointer
   revngRecompile

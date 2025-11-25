@@ -14,6 +14,7 @@
 #include "revng/Lift/Lift.h"
 #include "revng/Lift/LinkSupportPipe.h"
 #include "revng/Model/Importer/Binary/ImportBinaryAnalysis.h"
+#include "revng/Model/Importer/WellKnownModels.h"
 #include "revng/Pipebox/LLVMPipe.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
@@ -93,3 +94,4 @@ static RegisterAnalysis<VerifyDiff> A2;
 static RegisterAnalysis<SetModel> A3;
 static RegisterAnalysis<VerifyModel> A4;
 static RegisterAnalysis<ParseBinaryAnalysis> A5;
+static RegisterAnalysis<ImportWellKnownModelsAnalysis> A6;

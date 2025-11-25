@@ -33,6 +33,7 @@ analyses:
   - verify-diff
   - set-model
   - verify-model
+  - import-well-known-models
 
 branches:
   files-imported:
