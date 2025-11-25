@@ -9,9 +9,9 @@ target_link_libraries(
   revngPipebox
   ${Python_LIBRARIES}
   ${LLVM_LIBRARIES}
-  revngModelToHeader
-  revngLift
   revngFunctionIsolation
+  revngLift
+  revngModelToHeader
   revngRecompile
   revngYield
   revngYieldPipes
