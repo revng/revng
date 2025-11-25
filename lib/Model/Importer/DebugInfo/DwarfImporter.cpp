@@ -1172,13 +1172,6 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
               << llvm::sys::path::filename(FileName));
   LoggerIndent Indent(DILogger);
 
-  Task T(3,
-         "Importing DWARF information for "
-           + llvm::sys::path::filename(FileName));
-
-  T.advance("Fetching debug info", true);
-
-  using namespace llvm::object;
   ErrorOr<std::unique_ptr<MemoryBuffer>>
     MaybeBuffer = MemoryBuffer::getFileOrSTDIN(FileName);
 
@@ -1191,7 +1184,17 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
   }
 
   std::unique_ptr<MemoryBuffer> Buffer = std::move(MaybeBuffer.get());
-  Expected<std::unique_ptr<Binary>> MaybeBinary = object::createBinary(*Buffer);
+  import(*Buffer, Options, FileName);
+}
+
+void DwarfImporter::import(llvm::MemoryBuffer &Buffer,
+                           const ImporterOptions &Options,
+                           llvm::StringRef FileName) {
+  Task T(3, "Importing DWARF information");
+  T.advance("Fetching debug info", true);
+
+  using namespace llvm::object;
+  Expected<std::unique_ptr<Binary>> MaybeBinary = object::createBinary(Buffer);
 
   if (auto Error = MaybeBinary.takeError()) {
     // TODO: emit a diagnostic message for the user.

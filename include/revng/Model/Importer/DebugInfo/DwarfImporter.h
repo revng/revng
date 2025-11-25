@@ -38,6 +38,10 @@ public:
 public:
   void import(llvm::StringRef FileName, const ImporterOptions &Options);
 
+  void import(llvm::MemoryBuffer &Buffer,
+              const ImporterOptions &Options,
+              llvm::StringRef Filename);
+
 private:
   void import(const llvm::object::Binary &TheBinary,
               llvm::StringRef FileName,

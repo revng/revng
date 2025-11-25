@@ -32,15 +32,18 @@ class PECOFFImporter : public BinaryImporterHelper {
 private:
   TupleTree<model::Binary> &Model;
   const object::COFFObjectFile &TheBinary;
+  model::BinaryReference &BinaryReference;
   MetaAddress ImageBase = MetaAddress::invalid();
 
 public:
   PECOFFImporter(TupleTree<model::Binary> &Model,
                  const object::COFFObjectFile &TheBinary,
-                 uint64_t BaseAddress) :
+                 uint64_t BaseAddress,
+                 model::BinaryReference &BinaryReference) :
     BinaryImporterHelper(*Model, BaseAddress, Log),
     Model(Model),
-    TheBinary(TheBinary) {}
+    TheBinary(TheBinary),
+    BinaryReference(BinaryReference) {}
 
   Error import(const ImporterOptions &Options);
 
@@ -111,6 +114,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
     MetaAddress Start = ImageBase + u64(CoffRef->VirtualAddress);
     Segment Segment({ Start.toGeneric(), u64(CoffRef->VirtualSize) });
 
+    if (BinaryReference.isValid())
+      Segment.Binary() = BinaryReference;
     Segment.StartOffset() = CoffRef->PointerToRawData;
 
     // VirtualSize might be larger than SizeOfRawData (extra data at the end of
@@ -445,7 +450,10 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
         .EnableRemoteDebugInfo = Opts.EnableRemoteDebugInfo,
         .AdditionalDebugInfoPaths = Opts.AdditionalDebugInfoPaths
       };
-      if (auto E = importPECOFF(DepModel, *TheBinary, AdjustedOptions)) {
+      if (auto E = importPECOFF(DepModel,
+                                *TheBinary,
+                                AdjustedOptions,
+                                BinaryReference)) {
         // TODO: emit a diagnostic message for the user.
         revng_log(Log,
                   "Can't import model for " << DependencyLibrary << " due to "
@@ -551,7 +559,11 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
 
 Error importPECOFF(TupleTree<model::Binary> &Model,
                    const object::COFFObjectFile &TheBinary,
-                   const ImporterOptions &Options) {
-  PECOFFImporter Importer(Model, TheBinary, Options.BaseAddress);
+                   const ImporterOptions &Options,
+                   model::BinaryReference &BinaryReference) {
+  PECOFFImporter Importer(Model,
+                          TheBinary,
+                          Options.BaseAddress,
+                          BinaryReference);
   return Importer.import(Options);
 }

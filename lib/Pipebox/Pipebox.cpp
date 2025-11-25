@@ -13,6 +13,7 @@
 #include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Lift/LinkSupportPipe.h"
+#include "revng/Model/Importer/Binary/ImportBinaryAnalysis.h"
 #include "revng/Pipebox/LLVMPipe.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
@@ -85,7 +86,10 @@ static RegisterFunctionPipeRun<MakeSegmentRef> P24;
 // Analyses
 //
 
+using namespace revng::pypeline::analyses;
+
 static RegisterAnalysis<ApplyDiff> A1;
 static RegisterAnalysis<VerifyDiff> A2;
 static RegisterAnalysis<SetModel> A3;
 static RegisterAnalysis<VerifyModel> A4;
+static RegisterAnalysis<ParseBinaryAnalysis> A5;

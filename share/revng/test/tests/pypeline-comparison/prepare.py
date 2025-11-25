@@ -34,9 +34,6 @@ def main():
 
     # Patch the `Binaries` entry with the input file
     model["Binaries"] = [{"Index": 0, "Hash": hash_, "Size": size, "Name": "input"}]
-    # Add a reference to the newly-added binary to all the segments
-    for segment in model["Segments"]:
-        segment["Binary"] = "/Binaries/0"
 
     with open(output_dir / "model.yml", "w") as model_out:
         yaml.safe_dump(model, model_out)

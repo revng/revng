@@ -173,15 +173,18 @@ private:
   RawBinaryView File;
   TupleTree<model::Binary> &Model;
   object::MachOObjectFile &TheBinary;
+  BinaryReference &Reference;
 
 public:
   MachOImporter(TupleTree<model::Binary> &Model,
                 object::MachOObjectFile &TheBinary,
-                uint64_t BaseAddress) :
+                uint64_t BaseAddress,
+                BinaryReference &Reference) :
     BinaryImporterHelper(*Model, BaseAddress, Log),
     File(*Model, toArrayRef(TheBinary.getData())),
     Model(Model),
-    TheBinary(TheBinary) {}
+    TheBinary(TheBinary),
+    Reference(Reference) {}
 
   llvm::Error import();
 
@@ -321,6 +324,8 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
     return;
   }
 
+  if (Reference.isValid())
+    Segment.Binary() = Reference;
   Segment.Name() = SegmentCommand.segname;
   Segment.FileSize() = SegmentCommand.filesize;
 
@@ -380,7 +385,8 @@ void MachOImporter::registerBindEntry(const object::MachOBindEntry *Entry) {
 
 Error importMachO(TupleTree<model::Binary> &Model,
                   object::MachOObjectFile &TheBinary,
-                  const ImporterOptions &Options) {
-  MachOImporter Importer(Model, TheBinary, Options.BaseAddress);
+                  const ImporterOptions &Options,
+                  BinaryReference &Reference) {
+  MachOImporter Importer(Model, TheBinary, Options.BaseAddress, Reference);
   return Importer.import();
 }

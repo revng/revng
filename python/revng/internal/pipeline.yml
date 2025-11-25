@@ -39,6 +39,9 @@ branches:
     tasks:
       - pipe: import-files
         arguments: [binaries-container]
+        analyses:
+          - analysis: parse-binary
+            containers: [binaries-container]
 
   lift:
     from: files-imported
