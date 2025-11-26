@@ -59,6 +59,9 @@ branches:
         artifacts:
           - name: lift
             container: llvm-root
+        analyses:
+          - analysis: detect-abi
+            containers: [llvm-root]
 
   collect-cfg:
     from: lift

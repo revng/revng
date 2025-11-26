@@ -5,6 +5,7 @@
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
+#include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
@@ -95,3 +96,4 @@ static RegisterAnalysis<SetModel> A3;
 static RegisterAnalysis<VerifyModel> A4;
 static RegisterAnalysis<ParseBinaryAnalysis> A5;
 static RegisterAnalysis<ImportWellKnownModelsAnalysis> A6;
+static RegisterAnalysis<DetectABI> A7;

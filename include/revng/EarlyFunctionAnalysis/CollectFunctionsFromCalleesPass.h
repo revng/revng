@@ -12,6 +12,10 @@
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 
+void collectFunctionsFromCallees(llvm::Module &M,
+                                 GeneratedCodeBasicInfo &GCBI,
+                                 model::Binary &Binary);
+
 class CollectFunctionsFromCalleesWrapperPass : public llvm::ModulePass {
 public:
   static char ID;

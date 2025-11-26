@@ -28,9 +28,9 @@ void CFFCWP::getAnalysisUsage(AnalysisUsage &AU) const {
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
 }
 
-static void collectFunctionsFromCallees(Module &M,
-                                        GeneratedCodeBasicInfo &GCBI,
-                                        model::Binary &Binary) {
+void collectFunctionsFromCallees(Module &M,
+                                 GeneratedCodeBasicInfo &GCBI,
+                                 model::Binary &Binary) {
   Function &Root = *M.getFunction("root");
 
   // Static symbols have already been registered during lifting phase. Now
