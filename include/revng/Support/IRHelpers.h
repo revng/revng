@@ -1536,6 +1536,9 @@ void sortModule(llvm::Module &M);
 std::unique_ptr<llvm::Module> parseIR(llvm::LLVMContext &Context,
                                       llvm::StringRef Path);
 
+/// Link \p Source module into the \p Destination module. This function should
+/// not be used for linking modules with revng isolated functions, use
+/// `linkFunctionModules` instead.
 /// \p FinalLinkage final linkage for all the globals. Use std::nullopt to
 ///    preserve the original one.
 void linkModules(std::unique_ptr<llvm::Module> &&Source,
@@ -1561,3 +1564,10 @@ void writeBitcode(const llvm::Module &Module,
 /// Copy a module to a new LLVMContext.
 std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
                                                llvm::LLVMContext &NewContext);
+
+/// Links the \p Source LLVM module into the \p Destination . This function is
+/// meant to be used to link two modules with revng isolated functions, as, in
+/// addition to linking, will try and de-duplicate data resulting in the two
+/// modules being merged.
+void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
+                         std::unique_ptr<llvm::Module> &Destination);
