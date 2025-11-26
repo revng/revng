@@ -143,6 +143,13 @@ bool isFunctionType(ValueType Type);
 /// Qualifiers are ignored.
 bool isCallableType(ValueType Type);
 
+/// Determines whether the type can be forward-declared or not.
+///
+/// This is true for `struct`s and `union`s. False for everything else.
+inline bool isSeparateDeclarationAllowed(DefinedType Type) {
+  return mlir::isa<ClassType>(Type);
+}
+
 /// If the type, after unwrapping typedefs, is a function type or a pointer to a
 /// function type, returns that function type.
 FunctionType getFunctionOrFunctionPointerFunctionType(ValueType Type);
