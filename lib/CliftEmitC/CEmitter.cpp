@@ -11,6 +11,22 @@
 namespace clift = mlir::clift;
 using namespace mlir::clift;
 
+ptml::CTokenEmitter::EntityKind
+CEmitter::chooseEntityKind(mlir::clift::DefinedType Type) {
+  if (mlir::isa<mlir::clift::FunctionType>(Type))
+    return ptml::CTokenEmitter::EntityKind::Function;
+  else if (mlir::isa<mlir::clift::StructType>(Type))
+    return ptml::CTokenEmitter::EntityKind::Struct;
+  else if (mlir::isa<mlir::clift::UnionType>(Type))
+    return ptml::CTokenEmitter::EntityKind::Union;
+  else if (mlir::isa<mlir::clift::EnumType>(Type))
+    return ptml::CTokenEmitter::EntityKind::Enum;
+  else if (mlir::isa<mlir::clift::TypedefType>(Type))
+    return ptml::CTokenEmitter::EntityKind::Typedef;
+  else
+    revng_abort("Unsupported defined type");
+}
+
 class CEmitter::DeclarationEmitter {
   enum class StackItemKind {
     Terminal,
@@ -118,21 +134,10 @@ private:
           Item.Kind = StackItemKind::Function;
           Type = F.getReturnType();
         } else {
-          auto Kind = CTE::EntityKind::Typedef;
-
-          if (mlir::isa<FunctionType>(T))
-            Kind = CTE::EntityKind::Function;
-          else if (mlir::isa<StructType>(T))
-            Kind = CTE::EntityKind::Struct;
-          else if (mlir::isa<UnionType>(T))
-            Kind = CTE::EntityKind::Union;
-          else if (mlir::isa<EnumType>(T))
-            Kind = CTE::EntityKind::Enum;
-
           emitConstIfNeeded(T);
           Parent.Tokens.emitIdentifier(T.getName(),
                                        T.getHandle(),
-                                       Kind,
+                                       chooseEntityKind(T),
                                        CTE::IdentifierKind::Reference);
 
           NeedSpace = true;

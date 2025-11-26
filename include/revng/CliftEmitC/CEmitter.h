@@ -72,6 +72,12 @@ public:
 
 private:
   class DeclarationEmitter;
+
+public:
+  //===--------------------------- Other Helpers --------------------------===//
+
+  static ptml::CTokenEmitter::EntityKind
+  chooseEntityKind(mlir::clift::DefinedType Type);
 };
 
 } // namespace mlir::clift
