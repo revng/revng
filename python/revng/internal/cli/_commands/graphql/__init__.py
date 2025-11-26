@@ -12,7 +12,7 @@ from typing import List
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
 
 from .daemon_handler import DaemonHandler, ExternalDaemonHandler, InternalDaemonHandler
-from .runner import Runner, produce_artifacts, run_analyses_lists, run_on_daemon, upload_file
+from .runner import Runner, produce_artifacts, run_analysis_lists, run_on_daemon, upload_file
 
 
 class GraphQLCommand(Command):
@@ -70,7 +70,7 @@ class GraphQLCommand(Command):
         runners: List[Runner] = [upload_file(executable_path)]
 
         if args.analyses_list is not None:
-            runners.append(run_analyses_lists(args.analyses_list))
+            runners.append(run_analysis_lists(args.analyses_list))
 
         if args.produce_artifacts:
             runners.append(produce_artifacts(args.filter_artifacts))

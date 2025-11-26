@@ -7,7 +7,7 @@ import sys
 import click
 
 from revng.pypeline.analysis import Analysis
-from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
+from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_arg_objects, build_help_text
 from revng.pypeline.cli.utils import compute_objects, list_objects_option, normalize_whitespace
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import Model, ReadOnlyModel
@@ -102,7 +102,11 @@ def build_run_analysis_command(
     analysis_type: type[Analysis],
     model_type: type[Model],
 ):
-    @click.command(name=analysis_name, help=help_text)
+    @click.command(
+        cls=PypeCommand,
+        name=analysis_name,
+        help=help_text,
+    )
     @click.argument(
         "model",
         type=click.Path(exists=True, dir_okay=False, readable=True),
@@ -133,7 +137,8 @@ def build_run_analysis_command(
         containers = []
         for arg in analysis.signature():
             arg_name = arg.__name__
-            path = kwargs[arg_name]
+            # Click automatically makes the argument uppercase and make the variable lowercase
+            path = kwargs[arg_name.lower()]
             container = arg.from_file(path)
             pypeline_logger.debug_log(
                 f'Loaded container from "{path}" for argument "{arg_name}": "{container}"'

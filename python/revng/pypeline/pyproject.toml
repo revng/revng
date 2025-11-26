@@ -19,7 +19,10 @@ dependencies = [
 pype = "revng.pypeline.main:run"
 
 [tool.setuptools.package-data]
-revng = ["pypeline/schema.yml"]
+revng = [
+    "pypeline/schema.yml",
+    "pypeline/web_schema.yml"
+]
 
 [build-system]
 requires = ["setuptools", "wheel"]

@@ -8,6 +8,7 @@ from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.storage.storage_provider import StorageProvider
+from revng.pypeline.utils import bytes_to_string
 from revng.pypeline.utils.registry import get_singleton
 
 
@@ -92,6 +93,10 @@ def compute_artifact(
         storage_provider=storage_provider,
     )
     return {
+        "is_text": container.is_text(),
         "cacheable": artifact.is_cacheable(),
-        "objects": container.to_dict(),
+        "objects": {
+            key: bytes_to_string(bytes(value), container.is_text())
+            for key, value in container.to_dict().items()
+        },
     }

@@ -14,6 +14,7 @@ from typing import Any, Callable, Iterator, Optional, Sequence, Set, cast
 
 from .graph import Graph
 from .utils.cabc import ABC, abstractmethod
+from .utils.registry import get_singleton
 
 
 class Kind(ABC):
@@ -66,6 +67,24 @@ class Kind(ABC):
 
     def __repr__(self) -> str:
         return self.serialize()
+
+    @classmethod
+    def type_dict(cls) -> list:
+        """Convert the data into a dictionary representation."""
+        kinds = []
+        for kind in get_singleton(Kind).kinds():  # type: ignore [type-abstract]
+            parent = kind.parent()
+            if parent is not None:
+                parent_name = parent.serialize()
+            else:
+                parent_name = None
+            kinds.append(
+                {
+                    "name": kind.serialize(),
+                    "parent": parent_name,
+                }
+            )
+        return kinds
 
     @classmethod
     def _init_type(cls):

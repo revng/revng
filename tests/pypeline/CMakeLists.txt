@@ -38,6 +38,22 @@ set_tests_properties(
   PROPERTIES LABELS "pypeline" ENVIRONMENT
              "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}")
 
+revng_add_test(
+  NAME
+  test_pype
+  COMMAND
+  "${Python_EXECUTABLE}"
+  -m
+  pytest
+  -p
+  no:cacheprovider
+  -v
+  --rootdir
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/test_pype.py")
+set_tests_properties(
+  test_pype PROPERTIES LABELS "pypeline" ENVIRONMENT
+                       "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}")
 #
 # Generate libmockPipeboxImpl and libmockPipebox
 #

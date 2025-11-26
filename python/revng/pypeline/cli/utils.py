@@ -10,8 +10,9 @@ from typing import Any, Callable, Optional
 from urllib.parse import urlparse
 
 import click
+from click.core import ParameterSource
 
-from revng.pypeline.container import ContainerDeclaration
+from revng.pypeline.container import ContainerDeclaration, ContainerFormat
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.storage.storage_provider import StorageProviderFactory
@@ -34,7 +35,10 @@ class PypeCommand(click.Command):
         )
 
     def collect_usage_pieces(self, ctx: click.Context) -> list[str]:
-        return super().collect_usage_pieces(ctx) + ["--", "[PIPEBOX ARGS...]"]
+        if not isinstance(self, PypeGroup):
+            return super().collect_usage_pieces(ctx) + ["--", "[PIPEBOX ARGS...]"]
+        else:
+            return super().collect_usage_pieces(ctx)
 
 
 class PypeGroup(click.Group, PypeCommand):
@@ -47,6 +51,11 @@ class PypeGroup(click.Group, PypeCommand):
         if isinstance(cmd, click.Group) and not isinstance(cmd, PypeGroup):
             raise ValueError(f"All sub-groups must be of type PypeGroup, {name}: {type(cmd)}")
         return super().add_command(cmd, name)
+
+    def collect_usage_pieces(self, ctx: click.Context) -> list[str]:
+        rv = super().collect_usage_pieces(ctx)
+        rv.extend(["--", "[PIPEBOX ARGS...]"])
+        return rv
 
 
 class RegistryChoice(click.Choice):
@@ -118,11 +127,6 @@ class EagerParsedPath(click.Path):
         if ctx is not None:
             if ctx.obj is None:
                 ctx.obj = {}
-            if self.name in ctx.obj:
-                raise ValueError(
-                    f'Argument "{self.name}" already set in context, '
-                    "this is likely a bug in the code."
-                )
             # Store the parsed value in the context object
             ctx.obj[self.name] = res
             # And also store the path to the parsed value
@@ -231,7 +235,8 @@ def build_help_text(
     Build a standardized help text for a command.
     """
     help_text: str = prologue
-    help_text += "\n\n\b\nArguments:"
+    if args or model_help or extra_args is not None:
+        help_text += "\n\n\b\nArguments:"
     if model_help:
         help_text += "\n - MODEL : Path - The path to the model file to use."
 
@@ -315,3 +320,61 @@ token_option = click.option(
     required=False,
     help="The token to pass to the storage provider.",
 )
+
+
+def handle_format_option(ctx, param, value):
+    """
+    Handles mutual exclusivity, converts strings to Enums,
+    and manages precedence between flags and defaults.
+    """
+    # Handle shortcuts the value is boolean here
+    if param.name in [f.value for f in ContainerFormat]:
+        if not value:
+            return None
+
+        if ctx.params.get("format") is not None:
+            raise click.BadOptionUsage(
+                param.name, f"Mutually exclusive: --{param.name} cannot be used with other formats."
+            )
+
+        ctx.params["format"] = ContainerFormat(param.name)
+        return None
+
+    # Handle --format, value is a string passed from click.Choice or default
+
+    # Check if a shortcut already populated the format
+    existing_format = ctx.params.get("format")
+    if existing_format is not None:
+        # If the user EXPLICITLY typed --format AND used a flag -> Error
+        if ctx.get_parameter_source(param.name) != ParameterSource.DEFAULT:
+            raise click.BadOptionUsage(
+                param.name,
+                "Mutually exclusive: Cannot specify "
+                f"--format when --{existing_format.value} is used.",
+            )
+        # If --format is just running its default 'yaml', let the Flag win
+        return existing_format
+
+    # If no flag was used, convert the string value to Enum and return
+    return ContainerFormat(value)
+
+
+def container_format_options(func):
+    func = click.option(
+        "--format",
+        "container_format",
+        type=click.Choice([x.value for x in ContainerFormat]),
+        default=ContainerFormat.YAML.value,
+        show_default=True,
+        callback=handle_format_option,
+        help=("Format to use for the output container, either on stdout or in the result path."),
+    )(func)
+    for member in ContainerFormat:
+        func = click.option(
+            f"--{member.value}",
+            is_flag=True,
+            expose_value=False,
+            help=f"Shortcut for --format={member.value}.",
+            callback=handle_format_option,
+        )(func)
+    return func

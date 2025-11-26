@@ -38,8 +38,8 @@ while IFS= read -r FUNCTION; do
         zstdcat | normalize > "$WORKDIR/old/$FUNCTION.ll"
 
     OBJECT_ID="/function/$FUNCTION"
-    revng2 project artifact isolate "$OBJECT_ID" 2>/dev/null | \
-        jq -r ".[\"/function/$FUNCTION\"]" | base64 -d | normalize > "$WORKDIR/new/$FUNCTION.ll"
+    revng2 project artifact isolate --format yaml "$OBJECT_ID" 2>/dev/null | \
+        yq -r ".[\"/function/$FUNCTION\"]" | base64 -d | normalize > "$WORKDIR/new/$FUNCTION.ll"
 
     DIFF_OUTPUT="$WORKDIR/diff_output_$FUNCTION"
     RC=0

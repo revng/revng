@@ -23,9 +23,9 @@ function files_in_dir() {
     find "$1" -type f -printf '%f\n'
 }
 
-# JQ appends a newline '\n' to the output, this command runs it and strips it
-function jq_exact() {
-    jq "$@" | head -c -1
+# YQ appends a newline '\n' to the output, this command runs it and strips it
+function yq_exact() {
+    yq "$@" | head -c -1
 }
 
 # Comparison between multiple artifact objects (e.g. function, type-definition)
@@ -51,10 +51,10 @@ function compare() {
     # Extract all the files from the JSON (new format), strip away the prefix
     # from each entry
     local KEY
-    jq -r '. | keys | .[]' "$NEW_PATH" | \
+    yq -r '. | keys | .[]' "$NEW_PATH" | \
     while IFS= read -r KEY; do
         local KEY_EXTRACTED="${KEY/#$PREFIX/}"
-        jq_exact -r ".[\"$KEY\"]" "$NEW_PATH" > "$NEW_EXTRACTED/$KEY_EXTRACTED"
+        yq_exact -r ".[\"$KEY\"]" "$NEW_PATH" > "$NEW_EXTRACTED/$KEY_EXTRACTED"
     done
 
     if ! diff <(files_in_dir "$OLD_EXTRACTED" | sort) <(files_in_dir "$NEW_EXTRACTED" | sort); then
@@ -86,7 +86,7 @@ function compare_lift() {
     # Convert old
     zstdcat "$OLD_PATH" | revng opt -S > "$WORKDIR/old.ll"
     # Convert new
-    jq_exact -r '.["/binary"]' "$NEW_PATH" | base64 -d | revng opt -S > "$WORKDIR/new.ll"
+    yq_exact -r '.["/binary"]' "$NEW_PATH" | base64 -d | revng opt -S > "$WORKDIR/new.ll"
 
     local DIFF_OUTPUT RC=0
     DIFF_OUTPUT=$(mktemp --tmpdir="$WORKDIR")
@@ -104,7 +104,7 @@ function compare_binary() {
     local DIFF_OUTPUT RC=0
     DIFF_OUTPUT=$(mktemp --tmpdir="$WORKDIR")
 
-    diff -u "$OLD_PATH" <(jq_exact -r '.["/binary"]' "$NEW_PATH") > "$DIFF_OUTPUT" || RC=$?
+    diff -u "$OLD_PATH" <(yq_exact -r '.["/binary"]' "$NEW_PATH") > "$DIFF_OUTPUT" || RC=$?
     if [[ "$RC" -ne 0 ]]; then
         echo "Comparison for $ARTIFACT failed!"
         cat "$DIFF_OUTPUT"
@@ -115,7 +115,7 @@ function compare_binary() {
 
 # Compute the artifacts from both the old and new pipeline
 revng artifact "$ARTIFACT" --model="$MODEL" "$BINARY" -o "$OLD_PATH"
-revng2 project artifact "$ARTIFACT" -o "$NEW_PATH" 2>/dev/null
+revng2 project artifact "$ARTIFACT" --format yaml -o "$NEW_PATH" 2>/dev/null
 
 RC=0
 # NOTE: this could be derived from `pipeline-description.yml`, but since this

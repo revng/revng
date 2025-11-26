@@ -60,7 +60,7 @@ def upload_file(executable_path: str):
     return runner
 
 
-def run_analyses_lists(analyses_lists: List[str]):
+def run_analysis_lists(analysis_lists: List[str]):
     async def runner(client: AsyncClientSession):
         q = gql("""{ pipelineDescription }""")
         description_req = await client.execute(q)
@@ -68,7 +68,7 @@ def run_analyses_lists(analyses_lists: List[str]):
 
         list_names = [al.Name for al in description.AnalysesLists]
 
-        for list_name in analyses_lists:
+        for list_name in analysis_lists:
             assert list_name in list_names, f"Missing analyses list {list_name}"
 
             log(f"Running analyses list {list_name}")

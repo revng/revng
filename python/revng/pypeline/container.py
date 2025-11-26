@@ -4,17 +4,42 @@
 
 from __future__ import annotations
 
-import json
+import base64
+import io
+import tarfile
 from collections.abc import Buffer, Mapping
 from dataclasses import dataclass
+from enum import StrEnum
 from io import StringIO
 from pathlib import Path
-from typing import Annotated, Dict, Generator, TextIO, Tuple, Type, final
+from typing import Annotated, Generator, Tuple, Type, final
+
+import yaml
 
 from .object import Kind, ObjectID, ObjectSet
 from .utils import bytes_to_string, is_mime_type_text, string_to_bytes
 from .utils.cabc import ABC, abstractmethod
 from .utils.registry import get_singleton
+
+
+class ContainerFormat(StrEnum):
+    TAR = "tar"
+    YAML = "yaml"
+
+    @classmethod
+    def detect_format(cls, data: bytes) -> ContainerFormat:
+        """Detect the container format from the given data."""
+        # Try to detect the format from the data
+        is_tar = tarfile.is_tarfile(io.BytesIO(data))
+        if is_tar:
+            return ContainerFormat.TAR
+        # Try to decode as yaml
+        try:
+            yaml.safe_load(data.decode("utf-8"))
+            return ContainerFormat.YAML
+        except yaml.YAMLError:
+            raise ValueError(f"Cannot detect the container format for {data[:20]!r}")
+
 
 ContainerID = Annotated[
     str,
@@ -55,6 +80,13 @@ class ContainerDeclaration:
 
     def instance(self) -> Container:
         return self.container_type()
+
+    def to_dict(self) -> dict:
+        """Convert the data into a dictionary representation."""
+        return {
+            "name": self.name,
+            "type": self.container_type.__name__,
+        }
 
 
 InvalidationList = list[Tuple[ConfigurationId, ContainerDeclaration, ObjectID]]
@@ -154,84 +186,153 @@ class Container(ABC):
 
     @classmethod
     @final
-    def from_dict(cls, data: dict[str, str]) -> Container:
+    def from_dict(cls, data: dict[str, bytes]) -> Container:
         # Feed the data in the container
         container = cls()
         obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
         container.deserialize(
-            {
-                obj_id_type.deserialize(obj_id): string_to_bytes(content, container.is_text())
-                for obj_id, content in data.items()
-            }
+            {obj_id_type.deserialize(obj_id): content for obj_id, content in data.items()}
         )
         return container
+
+    @classmethod
+    @final
+    def from_bytes(cls, data: bytes, container_format: ContainerFormat | None = None) -> Container:
+        """
+        Load a container into a serialized format. If container_format is None,
+        the format will be detected automatically.
+        """
+        match container_format:
+            case None:
+                return cls.from_bytes(
+                    data,
+                    container_format=ContainerFormat.detect_format(data),
+                )
+            case ContainerFormat.YAML:
+                return cls.from_dict(
+                    {
+                        obj_id: string_to_bytes(content, cls.is_text())
+                        for obj_id, content in yaml.safe_load(data.decode("utf-8")).items()
+                    }
+                )
+            case ContainerFormat.TAR:
+                data_dict: dict[str, bytes] = {}
+                with tarfile.open(fileobj=io.BytesIO(data), mode="r") as tar:
+                    for member in tar.getmembers():
+                        f = tar.extractfile(member)
+                        if f is None:
+                            continue
+                        data_dict[member.name] = f.read()
+                return cls.from_dict(data_dict)
+        raise ValueError(f"Unknown container format: {container_format}")
 
     @classmethod
     @final
     def from_string(
         cls,
         data: str,
+        container_format: ContainerFormat = ContainerFormat.YAML,
     ) -> Container:
         """
         Load a container into a serialized format.
         """
-        return cls.from_file(StringIO(data))
+        match container_format:
+            case ContainerFormat.YAML:
+                return cls.from_bytes(data.encode("utf-8"), container_format=container_format)
+            case ContainerFormat.TAR:
+                return cls.from_bytes(base64.b64decode(data), container_format=container_format)
+        raise ValueError(f"Unknown container format: {container_format}")
 
     @classmethod
     @final
     def from_file(
         cls,
-        path_or_file: str | Path | TextIO,
+        path_or_file: str | Path,
+        container_format: ContainerFormat | None = None,
     ) -> Container:
         """
         Load a container from a serialized format.
         This is used to **load** cached objects into this container.
+        If container_format is None, the format will be detected automatically.
         """
-        if isinstance(path_or_file, (str, Path)):
-            path: str | Path = path_or_file
-            with open(path, "r", encoding="utf-8") as f:
-                return cls.from_file(f)
-
-        # Read the file
-        file: TextIO = path_or_file
-        return cls.from_dict(json.load(file))
+        with open(path_or_file, "rb") as f:
+            return cls.from_bytes(f.read(), container_format=container_format)
 
     @final
-    def to_dict(self) -> dict[str, str]:
-        return {
-            k.serialize(): bytes_to_string(v, self.is_text())
-            for k, v in self.serialize(self.objects()).items()
-        }
+    def to_dict(self) -> dict[str, Buffer]:
+        return {k.serialize(): v for k, v in self.serialize(self.objects()).items()}
 
     @final
-    def to_string(self) -> str:
+    def to_bytes(self, container_format: ContainerFormat = ContainerFormat.YAML) -> bytes:
         """
         Dump a container into a serialized format.
         """
-        data = StringIO()
-        self.to_file(data)
-        return data.getvalue()
+        match container_format:
+            case ContainerFormat.YAML:
+                with StringIO() as string_stream:
+                    data = {
+                        key: bytes_to_string(buffer, self.is_text())
+                        for key, buffer in self.to_dict().items()
+                    }
+                    yaml.dump(data, string_stream)
+                    return string_stream.getvalue().encode("utf-8")
+            case ContainerFormat.TAR:
+                with io.BytesIO() as byte_stream:
+                    with tarfile.open(fileobj=byte_stream, mode="w") as tar:
+                        for obj_id, buffer in self.to_dict().items():
+                            info = tarfile.TarInfo(name=obj_id)
+                            data_bytes = bytes(buffer)
+                            info.size = len(data_bytes)
+                            tar.addfile(tarinfo=info, fileobj=io.BytesIO(data_bytes))
+                    return byte_stream.getvalue()
+        raise ValueError(f"Unknown container format: {container_format}")
 
     @final
-    def to_file(self, path_or_file: str | Path | TextIO) -> None:
+    def to_string(self, container_format: ContainerFormat = ContainerFormat.YAML) -> str:
+        """
+        Dump a container into a serialized format.
+        """
+        match container_format:
+            case ContainerFormat.YAML:
+                return self.to_bytes(container_format=container_format).decode("utf-8")
+            case ContainerFormat.TAR:
+                return base64.b64encode(self.to_bytes(container_format=container_format)).decode(
+                    "utf-8"
+                )
+        raise ValueError(f"Unknown container format: {container_format}")
+
+    @final
+    def to_file(self, path: str | Path, container_format: ContainerFormat | None = None) -> None:
         """
         Dump a container into a serialized format.
         This is used to **save** cached objects from this container.
+        If container_format is None, the format will be detected automatically.
         """
-        if isinstance(path_or_file, (str, Path)):
-            with open(path_or_file, "w", encoding="utf-8") as f:
-                self.to_file(f)
-                return
-        else:
-            json.dump(
-                self.to_dict(),
-                path_or_file,
-                indent=4,
-                sort_keys=True,
-            )
+        if container_format is None:
+            if str(path).endswith(".yaml") or str(path).endswith(".yml"):
+                container_format = ContainerFormat.YAML
+            elif str(path).endswith(".tar"):
+                container_format = ContainerFormat.TAR
+            else:
+                raise ValueError(
+                    f"Cannot determine the container_format for {path}.",
+                )
+
+        with open(path, "wb") as f:
+            f.write(self.to_bytes(container_format=container_format))
+
+    @classmethod
+    def type_dict(cls) -> dict:
+        """Convert the data into a dictionary representation."""
+        return {
+            "class": cls.__name__,
+            "mime_type": cls.mime_type(),
+            "is_text": cls.is_text(),
+            "kind": cls.kind.serialize(),
+        }
 
 
 ContainerSet = Annotated[
-    Dict[ContainerDeclaration, Container],
+    dict[ContainerDeclaration, Container],
     """A set of bindings between container declarations and container instances.""",
 ]

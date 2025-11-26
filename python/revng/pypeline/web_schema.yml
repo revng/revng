@@ -1,0 +1,216 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+$schema: http://json-schema.org/draft-07/schema#
+title: Pipeline Response
+type: object
+required:
+  - version
+  - kinds
+  - containers
+  - container_declarations
+  - root
+  - nodes
+  - artifacts
+  - analyses
+  - analyses_lists
+properties:
+  version:
+    type: string
+    description: The version of the pipeline
+  kinds:
+    type: array
+    description: List of object kinds in the pipeline
+    items:
+      type: object
+      required:
+        - name
+        - parent
+      properties:
+        name:
+          type: string
+          description: The name of the kind
+        parent:
+          type:
+            - string
+            - "null"
+          description: "The name of the parent kind, or null if this is a root kind"
+  containers:
+    type: array
+    description: List of container types available in the pipeline
+    items:
+      type: object
+      required:
+        - class
+        - mime_type
+        - is_text
+        - kind
+      properties:
+        class:
+          type: string
+          description: The class name of the container
+        mime_type:
+          type: string
+          description: The MIME type of the container's content
+        is_text:
+          type: boolean
+          description: Whether the container holds text content
+        kind:
+          type: string
+          description: The kind of objects this container holds
+  container_declarations:
+    type: array
+    description: List of container instances declared in the pipeline
+    items:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          description: The name of the container instance
+        type:
+          type: string
+          description: The class name of the container type
+  root:
+    type: integer
+    description: The ID of the root node in the pipeline
+  nodes:
+    type: array
+    description: List of all nodes in the pipeline
+    items:
+      type: object
+      required:
+        - id
+        - type
+        - class
+        - arguments
+        - successors
+        - predecessors
+        - savepoint_range
+      properties:
+        id:
+          type: integer
+          description: The unique identifier of the node
+        type:
+          type: string
+          enum:
+            - pipe
+            - savepoint
+          description: The type of the node
+        class:
+          type: string
+          description: The class name of the node
+        arguments:
+          type: array
+          items:
+            type: string
+          description: List of container names this node operates on
+        successors:
+          type: array
+          items:
+            type: integer
+          description: List of node IDs that follow this node
+        predecessors:
+          type: array
+          items:
+            type: integer
+          description: List of node IDs that precede this node
+        savepoint_range:
+          type: object
+          required:
+            - start
+            - end
+          properties:
+            start:
+              type: integer
+              description: The starting savepoint ID
+            end:
+              type: integer
+              description: The ending savepoint ID
+          description: The range of savepoints this node spans
+  artifacts:
+    type: array
+    description: List of artifacts that can be produced by the pipeline
+    items:
+      type: object
+      required:
+        - name
+        - container_name
+        - container_type
+        - cacheable
+      properties:
+        name:
+          type: string
+          description: The name of the artifact
+        container_name:
+          type: string
+          description: The name of the container instance
+        container_type:
+          type: string
+          description: The class name of the container type
+        cacheable:
+          type: boolean
+          description: Whether this artifact can be cached
+  analyses:
+    type: array
+    description: List of analyses available in the pipeline
+    items:
+      type: object
+      required:
+        - name
+        - class
+        - bindings
+        - node
+        - description
+      properties:
+        name:
+          type: string
+          description: The name of the analysis
+        class:
+          type: string
+          description: The class name of the analysis
+        bindings:
+          type: array
+          items:
+            type: object
+            required:
+              - name
+              - container_type
+            properties:
+              name:
+                type: string
+                description: The name of the bound container
+              container_type:
+                type: string
+                description: The class name of the container type
+          description: List of container bindings for this analysis
+        node:
+          type: integer
+          description: The ID of the node this analysis is bound to
+        description:
+          type: string
+          description: A description of the analysis
+  analyses_lists:
+    type: array
+    description: List of named groups of analyses
+    items:
+      type: object
+      required:
+        - name
+        - analyses
+        - description
+      properties:
+        name:
+          type: string
+          description: The name of the analysis list
+        analyses:
+          type: array
+          items:
+            type: string
+          description: List of analysis names in this group
+        description:
+          type: ["string", "null"]
+          description: A description of the analysis list

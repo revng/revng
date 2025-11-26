@@ -12,7 +12,7 @@ from typing import Any, Optional
 import jsonschema
 import yaml
 
-from .analysis import Analysis, AnalysisBinding
+from .analysis import Analysis, AnalysisBinding, AnalysisList
 from .container import Container, ContainerDeclaration
 from .pipeline import Artifact, Pipeline
 from .pipeline_node import DummyPipelineNode, PipelineNode
@@ -342,6 +342,17 @@ def load_pipeline(values: Any) -> Pipeline:
 
     # Parse create all the container declarations
     container_decls: dict[str, ContainerDeclaration] = parse_container_decls(values["containers"])
+    # Then parse analyses lists, we will just do structural parsing, the actual validation
+    # will be done in the Pipeline's __init__
+    analysis_lists: list[AnalysisList] = []
+    for analysis_list in values.get("analysis_lists", []):
+        analysis_lists.append(
+            AnalysisList(
+                name=analysis_list["name"],
+                analyses=analysis_list["analyses"],
+                description=analysis_list.get("description"),
+            )
+        )
 
     # These will get filled while parsing branches
     artifacts: set[Artifact] = set()
@@ -366,6 +377,7 @@ def load_pipeline(values: Any) -> Pipeline:
         root=root,
         artifacts=artifacts,
         analyses=analyses,
+        analysis_lists=analysis_lists,
     )
 
 
