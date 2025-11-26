@@ -233,6 +233,10 @@ private:
         if (F.getArgumentTypes().empty()) {
           Parent.emitPrimitiveType(PrimitiveKind::VoidKind, 0);
         } else {
+          if (Declarator->Parameters.has_value())
+            if (Declarator->Parameters->size() != F.getArgumentTypes().size())
+              revng_abort("Declarator doesn't match the prototype");
+
           for (auto [J, PT] : llvm::enumerate(F.getArgumentTypes())) {
             if (J != 0) {
               Parent.Tokens.emitPunctuator(CTE::Punctuator::Comma);
@@ -242,11 +246,11 @@ private:
             DeclaratorInfo ParameterDeclarator;
             DeclaratorInfo const *InnerDeclarator = nullptr;
 
-            if (F == OutermostFunctionType) {
+            if (F == OutermostFunctionType && Declarator->Parameters) {
               ParameterDeclarator = DeclaratorInfo{
-                .Identifier = Declarator->Parameters[J].Identifier,
-                .Location = Declarator->Parameters[J].Location,
-                .Attributes = Declarator->Parameters[J].Attributes,
+                .Identifier = Declarator->Parameters.value()[J].Identifier,
+                .Location = Declarator->Parameters.value()[J].Location,
+                .Attributes = Declarator->Parameters.value()[J].Attributes,
                 .Kind = CTE::EntityKind::FunctionParameter,
               };
 

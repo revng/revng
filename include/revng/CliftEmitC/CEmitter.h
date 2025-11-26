@@ -64,7 +64,7 @@ public:
     mlir::ArrayAttr Attributes;
     CTE::EntityKind Kind;
 
-    llvm::ArrayRef<ParameterDeclaratorInfo> Parameters;
+    std::optional<llvm::ArrayRef<ParameterDeclaratorInfo>> Parameters;
   };
 
   /// Emit a function or variable declaration of the specified type.
