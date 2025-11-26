@@ -56,6 +56,8 @@ static std::optional<llvm::StringRef> getEntityKindAttribute(EntityKind Kind) {
   case EntityKind::Attribute:
   case EntityKind::AttributeArgument:
     return std::nullopt;
+  case EntityKind::Macro:
+    return ptml::c::tokens::Macro;
   default:
     revng_abort("Invalid CTokenEmitter::EntityKind");
   }
