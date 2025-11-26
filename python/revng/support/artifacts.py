@@ -63,7 +63,7 @@ class Artifact:
         return self._data
 
     def write_to_disk(self, path: Union[str, Path]):
-        with open(path, "rb") as f:
+        with open(path, "wb") as f:
             f.write(self._data)
 
 
