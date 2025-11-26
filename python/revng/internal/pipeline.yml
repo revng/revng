@@ -193,6 +193,9 @@ branches:
             - compute-stack-accesses-bounds
       - savepoint: detect-stack-size
         containers: [llvm-functions]
+        analyses:
+          - analysis: detect-stack-size
+            containers: [llvm-functions]
 
   make-segment-ref:
     from: detect-stack-size

@@ -21,6 +21,7 @@
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
 #include "revng/PipeboxCommon/ModelManipulationAnalyses.h"
 #include "revng/PipeboxCommon/RawContainer.h"
+#include "revng/PromoteStackPointer/DetectStackSize.h"
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSites.h"
 #include "revng/PromoteStackPointer/PromoteStackPointer.h"
 #include "revng/PromoteStackPointer/SegregateStackAccesses.h"
@@ -97,3 +98,4 @@ static RegisterAnalysis<VerifyModel> A4;
 static RegisterAnalysis<ParseBinaryAnalysis> A5;
 static RegisterAnalysis<ImportWellKnownModelsAnalysis> A6;
 static RegisterAnalysis<DetectABI> A7;
+static RegisterAnalysis<DetectStackSize> A8;
