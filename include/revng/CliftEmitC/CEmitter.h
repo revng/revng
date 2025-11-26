@@ -80,4 +80,11 @@ public:
   chooseEntityKind(mlir::clift::DefinedType Type);
 };
 
+/// Determines whether the type can be forward-declared or not.
+///
+/// This is true for `struct`s and `union`s. False for everything else.
+inline bool isSeparateDeclarationAllowed(DefinedType Type) {
+  return mlir::isa<ClassType>(Type);
+}
+
 } // namespace mlir::clift
