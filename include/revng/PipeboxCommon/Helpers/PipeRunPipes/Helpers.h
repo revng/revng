@@ -30,7 +30,11 @@ public:
     Dependencies(DependenciesSize) {
     revng::Tracking::clearAndResume(Binary);
   }
-  ~ObjectDependenciesHelper() { revng_assert(DependenciesTaken); }
+
+  ~ObjectDependenciesHelper() {
+    revng_assert(DependenciesTaken);
+    revng::Tracking::stop(Binary);
+  }
 
   ObjectDependenciesHelper(const ObjectDependenciesHelper &) = delete;
   ObjectDependenciesHelper &
