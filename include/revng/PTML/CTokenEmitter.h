@@ -158,6 +158,8 @@ public:
 
     Attribute,
     AttributeArgument,
+
+    Macro,
   };
 
   enum class IdentifierKind : bool {
