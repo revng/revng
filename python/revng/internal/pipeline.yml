@@ -28,18 +28,24 @@ containers:
   - name: llvm-root-with-functions
     type: LLVMRootContainer
 
+analyses:
+  - apply-diff
+  - verify-diff
+  - set-model
+  - verify-model
+
 branches:
   files-imported:
     tasks:
-      - pipe: ImportFiles
+      - pipe: import-files
         arguments: [binaries-container]
 
   lift:
     from: files-imported
     tasks:
-      - pipe: Lift
+      - pipe: lift
         arguments: [binaries-container, llvm-root]
-      - pipe: PureLLVMPassesRootPipe
+      - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root]
         configuration:
           Passes:
@@ -53,7 +59,7 @@ branches:
   collect-cfg:
     from: lift
     tasks:
-      - pipe: CollectCFG
+      - pipe: collect-cfg
         arguments: [llvm-root, cfg-map]
       - savepoint: cfg-computed
         containers: [cfg-map]
@@ -61,9 +67,9 @@ branches:
   isolate:
     from: collect-cfg
     tasks:
-      - pipe: Isolate
+      - pipe: isolate
         arguments: [cfg-map, llvm-root, llvm-functions]
-      - pipe: AttachDebugInfo
+      - pipe: attach-debug-info
         arguments: [cfg-map, llvm-functions]
       - savepoint: isolate
         containers: [llvm-functions]
@@ -74,9 +80,9 @@ branches:
   enforce-abi:
     from: isolate
     tasks:
-      - pipe: EnforceABI
+      - pipe: enforce-abi
         arguments: [cfg-map, llvm-functions]
-      - pipe: PureLLVMPassesPipe
+      - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
           Passes:
@@ -86,19 +92,19 @@ branches:
       #       propagate helper arguments that are constant. This enables
       #       us to inline less code, in particular for helpers such as
       #       `cc_compute_c` and `cc_compute_all`.
-      - pipe: PromoteCSVs
+      - pipe: promote-csvs
         arguments: [llvm-functions]
-      - pipe: PureLLVMPassesPipe
+      - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
           Passes:
             - mem2reg
             - inline-helpers
-      - pipe: AttachDebugInfo
+      - pipe: attach-debug-info
         arguments: [cfg-map, llvm-functions]
-      - pipe: PromoteCSVs
+      - pipe: promote-csvs
         arguments: [llvm-functions]
-      - pipe: PureLLVMPassesPipe
+      - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
           Passes:
@@ -112,7 +118,7 @@ branches:
 
   emit-model-header:
     tasks:
-      - pipe: ModelToHeader
+      - pipe: model-to-header
         arguments: [model-header]
       - savepoint: model-header
         containers: [model-header]
@@ -122,7 +128,7 @@ branches:
 
   emit-type-definition:
     tasks:
-      - pipe: GenerateModelTypeDefinition
+      - pipe: generate-model-type-definition
         arguments: [model-types]
       - savepoint: model-types
         containers: [model-types]
@@ -133,7 +139,7 @@ branches:
   hexdump:
     from: isolate
     tasks:
-      - pipe: HexDump
+      - pipe: hex-dump
         arguments:
           - binaries-container
           - llvm-functions
@@ -148,13 +154,13 @@ branches:
   process-assembly:
     from: collect-cfg
     tasks:
-      - pipe: ProcessAssembly
+      - pipe: process-assembly
         arguments: [binaries-container, cfg-map, assembly-internal]
 
   disassemble:
     from: process-assembly
     tasks:
-      - pipe: YieldAssembly
+      - pipe: yield-assembly
         arguments: [assembly-internal, assembly]
       - savepoint: disassemble
         containers: [assembly]
@@ -165,15 +171,15 @@ branches:
   recompile:
     from: lift
     tasks:
-      - pipe: LinkSupport
+      - pipe: link-support
         arguments: [llvm-root]
-      - pipe: PureLLVMPassesRootPipe
+      - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root]
         configuration:
           Passes: [drop-opaque-return-address]
-      - pipe: CompileRootModule
+      - pipe: compile-root-module
         arguments: [llvm-root, object-file]
-      - pipe: LinkForTranslation
+      - pipe: link-for-translation
         arguments: [binaries-container, object-file, translated]
       - savepoint: recompile
         containers: [translated]
@@ -184,17 +190,17 @@ branches:
   recompile-isolated:
     from: isolate
     tasks:
-      - pipe: InvokeIsolatedFunctions
+      - pipe: invoke-isolated-functions
         arguments: [llvm-root, llvm-functions, llvm-root-with-functions]
-      - pipe: LinkSupport
+      - pipe: link-support
         arguments: [llvm-root-with-functions]
-      - pipe: PureLLVMPassesRootPipe
+      - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root-with-functions]
         configuration:
           Passes: [drop-opaque-return-address]
-      - pipe: CompileRootModule
+      - pipe: compile-root-module
         arguments: [llvm-root-with-functions, object-file]
-      - pipe: LinkForTranslation
+      - pipe: link-for-translation
         arguments: [binaries-container, object-file, translated]
       - savepoint: recompile-isolated
         containers: [translated]

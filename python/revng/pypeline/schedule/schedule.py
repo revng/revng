@@ -14,10 +14,10 @@ from revng.pypeline.graph import Graph
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.storage.storage_provider import StorageProvider
-from revng.pypeline.task.pipe import Pipe
+from revng.pypeline.task.pipe import Pipe, ScheduledTaskDependencies
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.savepoint import SavePoint
-from revng.pypeline.task.task import ObjectDependencies, TaskArgumentAccess
+from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils.logger import pypeline_logger
 
 from .scheduled_task import ScheduledTask
@@ -123,7 +123,7 @@ class Schedule:
                 self.pipeline_configuration
             )
 
-            task_dependencies: ObjectDependencies | None = ready.run(
+            task_output: ScheduledTaskDependencies | None = ready.run(
                 model=model,
                 containers=working_containers,
                 pipeline_configuration=self.pipeline_configuration,
@@ -136,15 +136,19 @@ class Schedule:
                 pypeline_logger.log(f"  {declaration.name}: {str(container.objects())}")
 
             if isinstance(ready.node.task, Pipe):
-                assert task_dependencies is not None
+                assert task_output is not None
                 assert (
                     ready.node.savepoint_range is not None
                 ), "Savepoint range should be set for all Pipes"
                 storage_provider.add_dependencies(
-                    ready.node.savepoint_range, configuration, task_dependencies
+                    ready.node.savepoint_range, configuration, task_output.dependencies
                 )
+                if not all(len(x) == 0 for x in task_output.custom_invalidation):
+                    storage_provider.add_custom_invalidation_data(
+                        ready.node.id, configuration, task_output.custom_invalidation
+                    )
             else:
-                assert task_dependencies is None
+                assert task_output is None
 
             ready = self._pick_task()
 

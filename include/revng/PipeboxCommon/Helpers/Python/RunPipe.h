@@ -14,20 +14,25 @@
 namespace revng::pypeline::helpers::python {
 
 template<typename T>
-inline ObjectDependencies runPipe(T &Handle,
-                                  nanobind::object FileStorage,
-                                  nanobind::object TheModel,
-                                  nanobind::list Containers,
-                                  Request Incoming,
-                                  Request Outgoing,
-                                  llvm::StringRef Configuration) {
+inline PipeOutput runPipe(T &Handle,
+                          nanobind::object FileStorage,
+                          nanobind::object TheModel,
+                          nanobind::list Containers,
+                          Request Incoming,
+                          Request Outgoing,
+                          llvm::StringRef Configuration) {
   const Model &CppModel = convertReadOnlyModel(TheModel);
-  return revng::pypeline::helpers::runPipe(Handle,
-                                           CppModel,
-                                           Incoming,
-                                           Outgoing,
-                                           Configuration,
-                                           Containers);
+  auto ContainerTuple = containerVectorToTuple<T>(Containers);
+
+  {
+    nanobind::gil_scoped_release X;
+    return revng::pypeline::helpers::runPipe(Handle,
+                                             CppModel,
+                                             Incoming,
+                                             Outgoing,
+                                             Configuration,
+                                             ContainerTuple);
+  }
 }
 
 } // namespace revng::pypeline::helpers::python

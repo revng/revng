@@ -14,10 +14,10 @@ from .model import ReadOnlyModel
 from .object import ObjectSet
 from .storage.file_provider import FileProvider
 from .storage.storage_provider import SavePointsRange, StorageProvider, StorageProviderFileProvider
-from .task.pipe import Pipe
+from .task.pipe import ObjectDependencies, Pipe, PipeDependencies, ScheduledTaskDependencies
 from .task.requests import Requests
 from .task.savepoint import SavePoint
-from .task.task import ObjectDependencies, PipeObjectDependencies, TaskArgument, TaskArgumentAccess
+from .task.task import TaskArgument, TaskArgumentAccess
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
@@ -198,7 +198,7 @@ class PipelineNode:
         outgoing: Requests,
         pipeline_configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
-    ) -> ObjectDependencies | None:
+    ) -> ScheduledTaskDependencies | None:
         """Forward the run call to the task, but remap the requests and containers."""
         if isinstance(self.task, SavePoint):
             assert (
@@ -218,7 +218,7 @@ class PipelineNode:
             pipe_containers = [containers[decl] for decl in self.bindings]
             pipe_incoming = [incoming.get(decl) for decl in self.bindings]
             pipe_outgoing = [outgoing.get(decl) for decl in self.bindings]
-            deps = self.task.run(
+            pipe_output = self.task.run(
                 file_provider=StorageProviderFileProvider(storage_provider),
                 model=model,
                 containers=pipe_containers,
@@ -226,8 +226,9 @@ class PipelineNode:
                 outgoing=pipe_outgoing,
                 configuration=pipeline_configuration.get(self.task, ""),
             )
+
             result: ObjectDependencies = []
-            for index, index_deps in enumerate(deps):
+            for index, index_deps in enumerate(pipe_output.dependencies):
                 container_type = self.task.signature()[index]
                 if container_type.access == TaskArgumentAccess.READ:
                     assert len(index_deps) == 0, (
@@ -236,7 +237,22 @@ class PipelineNode:
                         f"{index_deps}"
                     )
                 result.extend((self.bindings[index].name, obj, path) for obj, path in index_deps)
-            return result
+
+            # Check if the pipe output
+            if not all(len(x) == 0 for x in pipe_output.custom_invalidation):
+                assert self.task.has_custom_invalidation(), (
+                    f"Pipe {self.task.name} returned advanced invalidation data"
+                    "but did not override the 'invalidate' method"
+                )
+                for index, invalidation in enumerate(pipe_output.custom_invalidation):
+                    argument = self.task.signature()[index]
+                    if argument.access == TaskArgumentAccess.READ:
+                        assert len(invalidation) == 0, (
+                            f"Pipe {self.task.name} returned advanced "
+                            "invalidation data for a read-only container"
+                        )
+
+            return ScheduledTaskDependencies(result, pipe_output.custom_invalidation)
         else:
             raise TypeError(f"Unsupported task type: {type(self.task)}")
 
@@ -268,8 +284,9 @@ class DummyPipelineNode(PipelineNode):
     branches need to be merged into one"""
 
     class DummyPipe(Pipe):
-        def __init__(self, name: str):
-            self.name = name
+        name = "dummy-pipe"
+
+        def __init__(self, static_configuration: str):
             self.static_configuration = ""
 
         @classmethod
@@ -284,8 +301,11 @@ class DummyPipelineNode(PipelineNode):
             incoming: list[ObjectSet],
             outgoing: list[ObjectSet],
             configuration: Configuration,
-        ) -> PipeObjectDependencies:
-            return []
+        ) -> PipeDependencies:
+            return PipeDependencies([])
 
     def __init__(self, name: str):
-        super().__init__(self.__class__.DummyPipe(name), [])
+        # Create a new class object of DummyPipe, with the `name` class
+        # attribute changed with the provided one
+        new_pipe_class = type("NewPipe", (self.__class__.DummyPipe,), {"name": name})
+        super().__init__(new_pipe_class(""), [])

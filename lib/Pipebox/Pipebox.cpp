@@ -15,6 +15,7 @@
 #include "revng/Pipebox/LLVMPipe.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
+#include "revng/PipeboxCommon/ModelManipulationAnalyses.h"
 #include "revng/PipeboxCommon/RawContainer.h"
 #include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Recompile/LinkForTranslationPipe.h"
@@ -65,3 +66,12 @@ static RegisterSingleOutputPipe<LinkSupport> P14;
 static RegisterSingleOutputPipe<CompileRootModule> P15;
 static RegisterSingleOutputPipe<LinkForTranslation> P16;
 static RegisterSingleOutputPipe<InvokeIsolatedFunctions> P17;
+
+//
+// Analyses
+//
+
+static RegisterAnalysis<ApplyDiff> A1;
+static RegisterAnalysis<VerifyDiff> A2;
+static RegisterAnalysis<SetModel> A3;
+static RegisterAnalysis<VerifyModel> A4;

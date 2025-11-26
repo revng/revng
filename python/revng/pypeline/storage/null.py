@@ -13,12 +13,12 @@ from revng import __version__ as revng_version
 from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
-from revng.pypeline.task.task import ObjectDependencies
+from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects, ProjectID
-from .storage_provider import ProjectMetadata, SavePointsRange, StorageProvider
-from .storage_provider import StorageProviderFactory
+from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
+from .storage_provider import ObjectsToInvalidate, ProjectID, ProjectMetadata, SavePointsRange
+from .storage_provider import StorageProvider, StorageProviderFactory
 from .util import compute_hash
 
 
@@ -80,7 +80,9 @@ class NullStorageProvider(StorageProvider):
     ) -> None:
         self.last_change = datetime.now()
 
-    def invalidate(self, invalidation_list: ModelPathSet) -> InvalidatedObjects:
+    def invalidate(
+        self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
+    ) -> InvalidatedObjects:
         self.last_change = datetime.now()
         return {}
 
@@ -119,4 +121,14 @@ class NullStorageProvider(StorageProvider):
         return result
 
     def get_files_from_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
+        raise ValueError("Unsupported")
+
+    def add_custom_invalidation_data(
+        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
+    ) -> None:
+        pass
+
+    def get_custom_invalidation_data(
+        self, pipe_id: int, configuration_hash: str
+    ) -> PipeCustomInvalidation:
         raise ValueError("Unsupported")

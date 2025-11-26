@@ -20,10 +20,6 @@ using Request = std::vector<std::vector<const ObjectID *>>;
 /// Type representing a path in the model, returned in a set when an analysis
 /// runs
 using ModelPath = std::string;
-/// Type used to return the dependencies of objects produced by a pipe
-/// The first index maps to the i-th container of the pipe
-using ObjectDependencies = std::vector<
-  std::vector<std::pair<ObjectID, ModelPath>>>;
 
 /// Defines the access of a container when declaring a Pipe{,Run}Argument. In
 /// PipeRuns there needs to be exactly one container with either Write or
@@ -77,5 +73,29 @@ public:
   // Read the contents
   llvm::ArrayRef<char> data() const { return { Vector.data(), Vector.size() }; }
 };
+
+/// Type used to return the dependencies of objects produced by a pipe
+/// The first index maps to the i-th container of the pipe
+using ObjectDependencies = std::vector<
+  std::vector<std::pair<ObjectID, ModelPath>>>;
+
+/// Type used to return advanced invalidation data from a pipe run. Will be fed
+/// back to the pipe's `invalidate` function to determine if there are
+/// additional objects to invalidate. Each element of the outermost vector maps
+/// to the i-th container of the pipe, whereas the innermost one is just a list
+/// of pairs of {ObjectID, <opaque invalidation data>}. This structure will be
+/// re-fed to the pipe's `invalidate` method for custom invalidation.
+using CustomInvalidationData = std::vector<
+  std::vector<std::tuple<ObjectID, Buffer>>>;
+
+/// Type representing the output of a `Pipe::run` method
+struct PipeOutput {
+  ObjectDependencies Dependencies;
+  CustomInvalidationData CustomInvalidation;
+};
+
+/// Type fed back to a pipe's `invalidate` method
+using InvalidationData = std::vector<
+  std::vector<std::tuple<ObjectID *, llvm::ArrayRef<uint8_t>>>>;
 
 } // namespace revng::pypeline

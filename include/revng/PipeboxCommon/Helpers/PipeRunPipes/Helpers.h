@@ -155,15 +155,32 @@ concept HasPipeRunArguments = requires {
 };
 
 template<typename T>
-concept HasStaticRun = std::is_function_v<
-  std::remove_pointer_t<decltype(&T::run)>>;
+struct SingleOutputPipeTraits {};
+
+template<typename Return, typename... Args>
+  requires(std::is_void_v<Return>
+           or std::is_same_v<Return, revng::pypeline::CustomInvalidationData>)
+struct SingleOutputPipeTraits<
+  Return (*)(const Model &, llvm::StringRef, llvm::StringRef, Args &...)> {
+  using ContainerTypes = TypeList<Args...>;
+  using ReturnType = Return;
+};
 
 } // namespace detail
 
 template<typename T>
+using SingleOutputPipeTraits = detail::SingleOutputPipeTraits<
+  decltype(&T::run)>;
+
+template<typename T>
+concept HasStaticRun = requires {
+  typename SingleOutputPipeTraits<T>::ReturnType;
+};
+
+template<typename T>
 concept IsSingleObjectPipeRun = requires {
   requires HasName<T>;
-  requires detail::HasStaticRun<T>;
+  requires HasStaticRun<T>;
   requires not detail::HasPipeRunArguments<T>;
 };
 
@@ -171,7 +188,7 @@ template<typename T>
 concept IsMultipleObjectsPipeRun = requires {
   requires HasName<T>;
   requires detail::HasPipeRunArguments<T>;
-  requires not detail::HasStaticRun<T>;
+  requires not HasStaticRun<T>;
 };
 
 //
@@ -192,15 +209,6 @@ private:
 public:
   using ContainerTypes = decltype(toContainerTypes(std::declval<
                                                    typename T::Arguments>()));
-};
-
-template<typename T>
-struct SingleOutputPipeTraits {};
-
-template<typename... Args>
-struct SingleOutputPipeTraits<
-  void (*)(const Model &, llvm::StringRef, llvm::StringRef, Args &...)> {
-  using ContainerTypes = TypeList<Args...>;
 };
 
 template<IsSingleObjectPipeRun T>

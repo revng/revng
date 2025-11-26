@@ -15,6 +15,20 @@ ModelPath = Annotated[str, "A string that represents a path in the model tree."]
 ModelPathSet = Set[ModelPath]
 
 
+class ModelDiff(ABC):
+    """
+    Abstract class representing a diff between two model instances
+    """
+
+    @abstractmethod
+    def paths(self) -> ModelPathSet:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def serialize(self) -> bytes:
+        raise NotImplementedError()
+
+
 class Model(ABC):
     """
     Model is an (abstract) class representing a document that configures the what a certain pipeline
@@ -29,7 +43,7 @@ class Model(ABC):
     """
 
     @abstractmethod
-    def diff(self, other: Self) -> ModelPathSet:
+    def diff(self, other: Self) -> ModelDiff:
         raise NotImplementedError()
 
     @abstractmethod
@@ -142,7 +156,7 @@ class ReadOnlyModel[M: Model]:
     def __init__(self, inner: M):
         self._context: M = inner
 
-    def diff(self, other: ReadOnlyModel[M]) -> ModelPathSet:
+    def diff(self, other: ReadOnlyModel[M]) -> ModelDiff:
         return self._context.diff(other._context)  # pylint: disable=protected-access
 
     def clone(self) -> M:

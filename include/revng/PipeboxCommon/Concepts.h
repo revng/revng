@@ -103,11 +103,11 @@ struct PipeRunTraitsHelper {};
 template<typename C, typename... Args>
   requires(not HasContainerTypes<C>) and (IsContainerReference<Args> and ...)
 struct PipeRunTraitsHelper<
-  revng::pypeline::ObjectDependencies (C::*)(const Model &,
-                                             const revng::pypeline::Request &,
-                                             const revng::pypeline::Request &,
-                                             llvm::StringRef,
-                                             Args...)> {
+  revng::pypeline::PipeOutput (C::*)(const Model &,
+                                     const revng::pypeline::Request &,
+                                     const revng::pypeline::Request &,
+                                     llvm::StringRef,
+                                     Args...)> {
   using ContainerTypes = TypeList<std::remove_reference_t<Args>...>;
 };
 
@@ -170,3 +170,26 @@ template<typename T>
 concept HasCheckPrecondition = requires(const T &A, const Model &Model) {
   { A.checkPrecondition(Model) } -> std::same_as<llvm::Error>;
 };
+
+/// Optional method that a pipe can implement
+template<typename T>
+concept HasInvalidate = requires(const T &A,
+                                 const revng::pypeline::InvalidationData &ID,
+                                 const ModelDiff &Diff) {
+  { A.invalidate(ID, Diff) } -> std::same_as<std::vector<std::set<ObjectID>>>;
+};
+
+//
+// Generic helpers
+//
+
+/// Helper struct that dispatches to PipeRunTraits<T> or AnalysisRunTraits<T> as
+/// needed.
+template<typename T>
+struct GenericRunTraits {};
+
+template<IsPipe T>
+struct GenericRunTraits<T> : public PipeRunTraits<T> {};
+
+template<IsAnalysis T>
+struct GenericRunTraits<T> : public AnalysisRunTraits<T> {};

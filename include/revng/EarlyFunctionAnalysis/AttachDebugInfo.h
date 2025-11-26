@@ -16,7 +16,7 @@ private:
   LLVMFunctionContainer &ModuleContainer;
 
 public:
-  static constexpr llvm::StringRef Name = "AttachDebugInfo";
+  static constexpr llvm::StringRef Name = "attach-debug-info";
   using Arguments = TypeList<
     PipeRunArgument<const CFGMap, "CFG", "Function control-flow data">,
     PipeRunArgument<LLVMFunctionContainer,

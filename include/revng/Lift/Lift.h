@@ -176,17 +176,23 @@ public:
   bool runOnModule(llvm::Module &M) override;
 };
 
-namespace detail {
+namespace revng::lift::internal {
 
-llvm::Error liftCheckPrecondition(const model::Binary &Model);
+llvm::Error checkPrecondition(const model::Binary &Model);
 
-}
+std::tuple<bool, std::map<MetaAddress, bool>>
+collectJumpTargets(const llvm::Module &);
+
+bool shouldInvalidateRoot(const std::map<MetaAddress, bool> &JumpTargets,
+                          const TupleTreeDiff<model::Binary> &Diff);
+
+} // namespace revng::lift::internal
 
 namespace revng::pypeline::piperuns {
 
 class Lift {
 public:
-  static constexpr llvm::StringRef Name = "Lift";
+  static constexpr llvm::StringRef Name = "lift";
   using Arguments = TypeList<PipeArgument<"Input", "Input binaries to lift">,
                              PipeArgument<"Output",
                                           "LLVM Module containing the lifted "
@@ -195,11 +201,15 @@ public:
 
 public:
   static llvm::Error checkPrecondition(const class Model &Model);
-  static void run(const class Model &Model,
-                  llvm::StringRef Config,
-                  llvm::StringRef DynamicConfig,
-                  const BinariesContainer &Binary,
-                  LLVMRootContainer &ModuleContainer);
+
+  static std::vector<std::set<ObjectID>>
+  invalidate(const InvalidationData &Data, const ModelDiff &Diff);
+
+  static CustomInvalidationData run(const class Model &Model,
+                                    llvm::StringRef Config,
+                                    llvm::StringRef DynamicConfig,
+                                    const BinariesContainer &Binary,
+                                    LLVMRootContainer &ModuleContainer);
 };
 
 } // namespace revng::pypeline::piperuns

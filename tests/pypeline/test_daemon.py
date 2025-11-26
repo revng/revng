@@ -101,12 +101,12 @@ def test_daemon(daemon_server: TestServer):
     # Connect to the websocket
     notifications_websocket = daemon_server.subscribe()
 
-    # Test analysis endpoint - run init_analysis
+    # Test analysis endpoint - run AddStuffAnalysis
     logger.info("Testing analysis endpoint")
     response = daemon_server.run_analysis(
         {
             "epoch": current_epoch,
-            "analysis": "init_analysis",
+            "analysis": "AddStuffAnalysis",
             "configuration": "",
             "pipeline_configuration": {},
             "containers": {
@@ -128,7 +128,7 @@ def test_daemon(daemon_server: TestServer):
     logger.info("Analysis notification: %s", analysis_notification_text)
     analysis_notification = json.loads(analysis_notification_text)
     assert analysis_notification["type"] == "analysis"
-    assert analysis_notification["analysis"] == "init_analysis"
+    assert analysis_notification["analysis"] == "AddStuffAnalysis"
     assert analysis_notification["epoch"] == new_epoch
 
     # Verify model was modified by getting it again
@@ -151,12 +151,12 @@ def test_daemon(daemon_server: TestServer):
     assert "artifacts" in artifact_data
     assert "ChildArtifact" in artifact_data["artifacts"]
 
-    # Test another analysis - blackhole
-    logger.info("Testing blackhole")
+    # Test another analysis - PurgeAllAnalysis
+    logger.info("Testing PurgeAllAnalysis")
     response = daemon_server.run_analysis(
         {
             "epoch": new_epoch,
-            "analysis": "blackhole",
+            "analysis": "PurgeAllAnalysis",
             "configuration": "",
             "pipeline_configuration": {},
             "containers": {"root_source": []},

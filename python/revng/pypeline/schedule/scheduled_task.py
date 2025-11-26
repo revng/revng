@@ -11,8 +11,8 @@ from revng.pypeline.container import ContainerSet
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.storage.storage_provider import StorageProvider
+from revng.pypeline.task.pipe import ScheduledTaskDependencies
 from revng.pypeline.task.requests import Requests
-from revng.pypeline.task.task import ObjectDependencies
 
 
 @dataclass(slots=True)
@@ -71,7 +71,7 @@ class ScheduledTask:
         containers: ContainerSet,
         pipeline_configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
-    ) -> ObjectDependencies | None:
+    ) -> ScheduledTaskDependencies | None:
         """
         Run the task with the requests computed during the scheduling phase.
         """

@@ -8,19 +8,41 @@
 #include "revng/PipeboxCommon/Common.h"
 #include "revng/Support/MetaAddress.h"
 
-class Model {
+class ModelDiff {
 private:
-  TupleTree<model::Binary> TheModel;
+  TupleTreeDiff<model::Binary> Diff;
 
 public:
-  std::set<revng::pypeline::ModelPath> diff(const Model &Other) const {
-    auto Diff = ::diff(*TheModel.get(), *Other.TheModel.get());
+  ModelDiff(TupleTreeDiff<model::Binary> Diff) : Diff(Diff) {}
+
+  std::set<revng::pypeline::ModelPath> paths() const {
     std::set<revng::pypeline::ModelPath> Result;
     for (auto &Entry : Diff.Changes) {
       auto MaybePath = pathAsString<model::Binary>(Entry.Path);
       Result.insert(MaybePath.value());
     }
     return Result;
+  }
+
+  llvm::SmallVector<char, 0> serialize() const {
+    llvm::SmallVector<char, 0> Out;
+    llvm::raw_svector_ostream OS(Out);
+    ::serialize(OS, Diff);
+    return Out;
+  }
+
+public:
+  TupleTreeDiff<model::Binary> &get() { return Diff; }
+  const TupleTreeDiff<model::Binary> &get() const { return Diff; }
+};
+
+class Model {
+private:
+  TupleTree<model::Binary> TheModel;
+
+public:
+  ModelDiff diff(const Model &Other) const {
+    return ModelDiff(::diff(*TheModel.get(), *Other.TheModel.get()));
   }
 
   Model clone() const { return *this; }

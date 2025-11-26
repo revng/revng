@@ -18,7 +18,7 @@
 namespace revng::pypeline::helpers {
 
 // Helper struct to unpack containers from a nanobind::list.
-// To be used in conjunction with PipeRunner or AnalysisRunner
+// To be used in conjunction with containerVectorToTuple.
 template<typename C, size_t I>
 struct ExtractContainerFromList<C, I, nanobind::list> {
   static C &get(nanobind::list &Containers) {

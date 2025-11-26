@@ -15,13 +15,14 @@ from revng import __version__ as revng_version
 from revng.pypeline.container import ContainerID
 from revng.pypeline.model import ModelPathSet
 from revng.pypeline.object import ObjectID
-from revng.pypeline.task.task import ObjectDependencies
+from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
 from revng.pypeline.utils import Locked
 
 from .file_provider import FileRequest
 from .storage_provider import ConfigurationId, ContainerLocation, FileStorageEntry
-from .storage_provider import InvalidatedObjects, ProjectID, ProjectMetadata, SavepointID
-from .storage_provider import SavePointsRange, StorageProvider, StorageProviderFactory
+from .storage_provider import InvalidatedObjects, ObjectsToInvalidate, ProjectID, ProjectMetadata
+from .storage_provider import SavepointID, SavePointsRange, StorageProvider
+from .storage_provider import StorageProviderFactory
 from .util import check_kind_structure, compute_hash
 
 
@@ -75,6 +76,7 @@ class InMemoryStorageProvider(StorageProvider):
         self.last_change = datetime.now()
         self.files: dict[str, bytes] = {}
         self.epoch = 0
+        self.custom_dependencies: dict[tuple[int, str], PipeCustomInvalidation] = {}
 
     def has(
         self,
@@ -124,13 +126,28 @@ class InMemoryStorageProvider(StorageProvider):
             self.storage[location][key] = bytes(value)
         self.last_change = datetime.now()
 
-    def invalidate(self, invalidation_list: ModelPathSet) -> InvalidatedObjects:
+    def invalidate(
+        self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
+    ) -> InvalidatedObjects:
         invalidated: InvalidatedObjects = defaultdict(set)
 
         # Set of entries that will be collected from self.dependencies
         object_to_delete: set[DependencyEntry] = set()
         # Keys that exist on self.dependencies that will be deleted
         paths_to_delete: list[str] = []
+
+        # Append the additional objects to delete
+        for object_set in additional_objects:
+            for object_ in object_set.objects:
+                object_to_delete.add(
+                    DependencyEntry(
+                        object_set.savepoint_range.start,
+                        object_set.savepoint_range.end,
+                        object_set.container_id,
+                        object_set.configuration_id,
+                        object_,
+                    )
+                )
 
         # Retrieve entries from self.dependencies that match the provided paths
         for path in invalidation_list:
@@ -217,3 +234,14 @@ class InMemoryStorageProvider(StorageProvider):
 
     def get_files_from_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
         return {r.hash: self.files[r.hash] for r in requests}
+
+    def add_custom_invalidation_data(
+        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
+    ):
+        storage = [[(oid, bytes(d)) for oid, d in entry] for entry in data]
+        self.custom_dependencies[(pipe_id, configuration_hash)] = storage
+
+    def get_custom_invalidation_data(
+        self, pipe_id: int, configuration_hash: str
+    ) -> PipeCustomInvalidation:
+        return self.custom_dependencies[(pipe_id, configuration_hash)]

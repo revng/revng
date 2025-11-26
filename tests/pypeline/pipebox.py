@@ -15,11 +15,12 @@ import yaml
 
 from revng.pypeline.analysis import Analysis
 from revng.pypeline.container import Configuration, Container
-from revng.pypeline.model import Model, ModelPath, ModelPathSet, ReadOnlyModel
+from revng.pypeline.model import Model, ModelDiff, ModelPath, ModelPathSet, ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.storage.file_provider import FileProvider
-from revng.pypeline.task.pipe import Pipe
-from revng.pypeline.task.task import PipeObjectDependencies, TaskArgument, TaskArgumentAccess
+from revng.pypeline.task.pipe import Pipe, PipeCustomInvalidation, PipeDependencies
+from revng.pypeline.task.pipe import PipeObjectDependencies
+from revng.pypeline.task.task import TaskArgument, TaskArgumentAccess
 
 Value = Union[str, int]
 T = TypeVar("T")
@@ -222,11 +223,24 @@ class DictContainer(Container, ABC):
 
 
 class RootDictContainer(DictContainer):
+    name = "RootDictContainer"
     kind = MyKind.ROOT
 
 
 class ChildDictContainer(DictContainer):
+    name = "ChildDictContainer"
     kind = MyKind.CHILD
+
+
+class DictModelDiff(ModelDiff):
+    def __init__(self, paths: set[str]):
+        self._paths = paths
+
+    def paths(self) -> ModelPathSet:
+        return self._paths
+
+    def serialize(self) -> bytes:
+        raise NotImplementedError()
 
 
 class DictModel(Model):
@@ -267,7 +281,7 @@ class DictModel(Model):
     def values(self) -> list[Value]:
         return list(self._data.values())
 
-    def diff(self, other: DictModel) -> ModelPathSet:
+    def diff(self, other: DictModel) -> ModelDiff:
         diff: ModelPathSet = set()
         for key, value in self.items():
             if key not in other or other[key] != value:
@@ -275,7 +289,7 @@ class DictModel(Model):
         for key, value in other.items():
             if key not in self:
                 diff.add(key)
-        return diff
+        return DictModelDiff(diff)
 
     def clone(self) -> DictModel:
         result = DictModel()
@@ -322,6 +336,8 @@ class DictModel(Model):
 class InPlacePipe(Pipe):
     """Modifies the input container in place."""
 
+    name = "InPlacePipe"
+
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
         return (
@@ -341,12 +357,14 @@ class InPlacePipe(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         # Nothing to do
-        return [[]]
+        return PipeDependencies([[]])
 
 
 class SameKindPipe(Pipe):
+    name = "SameKindPipe"
+
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
         return (
@@ -372,19 +390,21 @@ class SameKindPipe(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         input_container: ChildDictContainer = cast(ChildDictContainer, containers[0])
         output_container: ChildDictContainer = cast(ChildDictContainer, containers[1])
 
         for obj in input_container.objects().objects:
             output_container.add_object(obj)
 
-        return [[], []]
+        return PipeDependencies([[], []])
 
 
 class ToHigherKindPipe(Pipe):
     """Take the root object from the input container and adds all
     its children to the output container."""
+
+    name = "ToHigherKindPipe"
 
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
@@ -411,7 +431,7 @@ class ToHigherKindPipe(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         input_container: RootDictContainer = cast(RootDictContainer, containers[0])
         input_kind = RootDictContainer.kind
 
@@ -428,10 +448,12 @@ class ToHigherKindPipe(Pipe):
         for obj in model.children(root_object, output_kind).objects:
             output_container.add_object(obj)
 
-        return [[], []]
+        return PipeDependencies([[], []])
 
 
 class ToLowerKindPipe(Pipe):
+    name = "ToLowerKindPipe"
+
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
         return (
@@ -457,7 +479,7 @@ class ToLowerKindPipe(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         input_container: ChildDictContainer = cast(ChildDictContainer, containers[0])
         input_kind = input_container.kind
         root_object = MyObjectID.root()
@@ -470,10 +492,12 @@ class ToLowerKindPipe(Pipe):
         # Add to the output the root object
         output_container.add_object(MyObjectID.root())
 
-        return [[], []]
+        return PipeDependencies([[], []])
 
 
 class GeneratorPipe(Pipe):
+    name = "GeneratorPipe"
+
     @classmethod
     def signature(cls) -> tuple[TaskArgument, ...]:
         return (
@@ -496,7 +520,7 @@ class GeneratorPipe(Pipe):
         incoming: list[ObjectSet],
         outgoing: list[ObjectSet],
         configuration: Configuration,
-    ) -> PipeObjectDependencies:
+    ) -> PipeDependencies:
         dependencies: PipeObjectDependencies = []
         model = model.downcast()
         assert isinstance(model, DictModel), f"Model must be a DictModel got: {model!r}"
@@ -506,11 +530,83 @@ class GeneratorPipe(Pipe):
             for obj in objects:
                 container.add_object(obj)
                 dependencies.append((obj, "/one"))
-        return [dependencies]
+        return PipeDependencies([dependencies])
+
+
+class GeneratorPipeWithInvalidation(Pipe):
+    name = "GeneratorPipeWithInvalidation"
+
+    @classmethod
+    def signature(cls) -> tuple[TaskArgument, ...]:
+        return (
+            TaskArgument(
+                "arg",
+                RootDictContainer,
+                TaskArgumentAccess.WRITE,
+                help_text="the output container",
+            ),
+        )
+
+    def run(
+        self,
+        file_provider: FileProvider,
+        model: ReadOnlyModel,
+        containers: list[Container],
+        incoming: list[ObjectSet],
+        outgoing: list[ObjectSet],
+        configuration: Configuration,
+    ) -> PipeDependencies:
+        object_ = MyObjectID(MyKind.ROOT)
+        container = cast(RootDictContainer, containers[0])
+        container.add_object(object_)
+        # This pipe declares that is has read 0 model paths, this means that
+        # any object invalidated is due to this pipe's `invalidate` function
+        return PipeDependencies([[]], [[(object_, b"foo")]])
+
+    def invalidate(
+        self, invalidation_data: PipeCustomInvalidation, diff: ModelDiff
+    ) -> list[ObjectSet]:
+        # Check that invalidation_data is of the same shape as the one returned
+        # by our own `run` method
+        assert len(invalidation_data) == 1
+        assert len(invalidation_data[0]) == 1
+        # Extract the object and data from the invalidation data and check that
+        # it's exactly as the one returned by `run`
+        object_, data = invalidation_data[0][0]
+        assert object_ == MyObjectID(MyKind.ROOT)
+        assert data == b"foo"
+        # State that root should be invalidated, this allows testing for custom
+        # invalidation because we haven't read any model paths, so the only way
+        # our objects get invalidated is through custom invalidation
+        return [ObjectSet(MyKind.ROOT, {object_})]
+
+
+class NullRootAnalysis(Analysis):
+    """An analysis that does nothing and returns an empty list of invalidations."""
+
+    name = "NullRootAnalysis"
+
+    @classmethod
+    def signature(cls) -> tuple[type[Container], ...]:
+        return (RootDictContainer,)
+
+    def run(
+        self,
+        model: Model,
+        containers: list[Container],
+        incoming: list[ObjectSet],
+        configuration: str,
+    ):
+        # This analysis does nothing, this is ok because the users of this
+        # analysis want to check for side-effects of running an analysis
+        # (e.g. triggering custom invalidation)
+        pass
 
 
 class NullAnalysis(Analysis):
     """An analysis that does nothing and returns an empty list of invalidations."""
+
+    name = "NullAnalysis"
 
     @classmethod
     def signature(cls) -> tuple[type[Container], ...]:
@@ -530,12 +626,14 @@ class NullAnalysis(Analysis):
 class PurgeOneAnalysis(Analysis):
     """An analysis that invalidates everything."""
 
+    name = "PurgeOneAnalysis"
+
     @classmethod
     def signature(cls) -> tuple[type[Container], ...]:
         return (ChildDictContainer,)
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self):
+        super().__init__()
         self.what_to_purge: list[ModelPath] = [
             "/one",
             "/test/test",
@@ -557,6 +655,8 @@ class PurgeOneAnalysis(Analysis):
 class PurgeAllAnalysis(Analysis):
     """An analysis that invalidates everything."""
 
+    name = "PurgeAllAnalysis"
+
     @classmethod
     def signature(cls) -> tuple[type[Container], ...]:
         return (ChildDictContainer,)
@@ -577,12 +677,14 @@ class PurgeAllAnalysis(Analysis):
 class AddStuffAnalysis(Analysis):
     """An analysis that invalidates everything."""
 
+    name = "AddStuffAnalysis"
+
     @classmethod
     def signature(cls) -> tuple[type[Container], ...]:
         return (ChildDictContainer,)
 
-    def __init__(self, name: str):
-        super().__init__(name)
+    def __init__(self):
+        super().__init__()
         self.what_to_add: list[ModelPath] = [
             "/one",
             "/test/test",

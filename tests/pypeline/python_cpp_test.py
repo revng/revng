@@ -13,7 +13,7 @@ from revng.internal.support import import_pipebox
 from revng.pypeline import initialize_pypeline
 from revng.pypeline.analysis import Analysis, AnalysisBinding
 from revng.pypeline.container import Container, ContainerDeclaration
-from revng.pypeline.model import Model, ReadOnlyModel
+from revng.pypeline.model import Model, ModelDiff, ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
@@ -37,10 +37,10 @@ def check_names(ext):
     ]
 
     # Check that the classes in the registry all came from the ext module
-    for type_ in (Analysis, Container, Kind, Model, ObjectID, Pipe):
+    for type_ in (Analysis, Container, Kind, ModelDiff, Model, ObjectID, Pipe):
         registry = get_registry(type_)
         for key, value in registry.items():
-            if key == "DummyPipe":
+            if key == "dummy-pipe":
                 continue
             assert issubclass(value, type_)
             assert key in names

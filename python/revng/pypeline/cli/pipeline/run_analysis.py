@@ -123,9 +123,7 @@ def build_run_analysis_command(
         pypeline_logger.debug_log(f'model: "{model}"')
         pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
 
-        analysis = analysis_type(
-            name=analysis_name,
-        )
+        analysis = analysis_type()
         # Load the model
         loaded_model: Model = model_type()
         with open(model, "rb") as model_file:

@@ -71,7 +71,7 @@ private:
   model::AssemblyNameBuilder NameBuilder;
 
 public:
-  static constexpr llvm::StringRef Name = "ProcessAssembly";
+  static constexpr llvm::StringRef Name = "process-assembly";
   using Arguments = TypeList<
     PipeRunArgument<const BinariesContainer, "Binaries", "The input binaries">,
     PipeRunArgument<const CFGMap, "CFG", "Per-function CFG data">,

@@ -10,9 +10,10 @@ from tempfile import NamedTemporaryFile
 from typing import Optional, TypeVar, Union
 
 import pytest
-from pipebox import ChildDictContainer, DictModel, GeneratorPipe, InPlacePipe, MyKind, MyObjectID
-from pipebox import NullAnalysis, PurgeAllAnalysis, PurgeOneAnalysis, RootDictContainer
-from pipebox import SameKindPipe, ToHigherKindPipe, ToLowerKindPipe
+from pipebox import ChildDictContainer, DictModel, GeneratorPipe, GeneratorPipeWithInvalidation
+from pipebox import InPlacePipe, MyKind, MyObjectID, NullAnalysis, NullRootAnalysis
+from pipebox import PurgeAllAnalysis, PurgeOneAnalysis, RootDictContainer, SameKindPipe
+from pipebox import ToHigherKindPipe, ToLowerKindPipe
 
 from revng.pypeline import initialize_pypeline
 from revng.pypeline.analysis import AnalysisBinding
@@ -412,7 +413,7 @@ def test_invalidation(model, storage_provider):
         )
     ) == set(expected_output)
 
-    storage_provider.invalidate({"/two"})
+    storage_provider.invalidate({"/two"}, [])
 
     assert set(
         storage_provider.has(
@@ -426,7 +427,7 @@ def test_invalidation(model, storage_provider):
     ) == set(expected_output)
 
     # Change something we depend on
-    storage_provider.invalidate({"/one"})
+    storage_provider.invalidate({"/one"}, [])
 
     assert not list(
         storage_provider.has(
@@ -466,17 +467,17 @@ def test_analysis(model, storage_provider):
         pipe,
         analyses={
             AnalysisBinding(
-                NullAnalysis(name="null_analysis"),
+                NullAnalysis(),
                 (child,),
                 savepoint,
             ),
             AnalysisBinding(
-                PurgeAllAnalysis(name="purge_all_analysis"),
+                PurgeAllAnalysis(),
                 (child,),
                 savepoint,
             ),
             AnalysisBinding(
-                PurgeOneAnalysis(name="purge_one_analysis"),
+                PurgeOneAnalysis(),
                 (child,),
                 savepoint,
             ),
@@ -488,7 +489,7 @@ def test_analysis(model, storage_provider):
     orig_model = model.clone()
     new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
-        analysis_name="null_analysis",
+        analysis_name="NullAnalysis",
         requests=Requests({child: expected_output}),
         analysis_configuration="",
         pipeline_configuration=pipeline_configuration,
@@ -501,7 +502,7 @@ def test_analysis(model, storage_provider):
 
     new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
-        analysis_name="purge_all_analysis",
+        analysis_name="PurgeAllAnalysis",
         requests=Requests({child: expected_output}),
         analysis_configuration="",
         pipeline_configuration=pipeline_configuration,
@@ -513,7 +514,7 @@ def test_analysis(model, storage_provider):
 
     new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
-        analysis_name="purge_one_analysis",
+        analysis_name="PurgeOneAnalysis",
         requests=Requests({child: expected_output}),
         analysis_configuration="",
         pipeline_configuration=pipeline_configuration,
@@ -574,7 +575,7 @@ def test_pipeline(storage_provider):
     new_model, invalidated = pipeline.run_analysis(
         model=ReadOnlyModel(model),
         # An alias of PurgeAllAnalysis
-        analysis_name="blackhole",
+        analysis_name="PurgeAllAnalysis",
         requests=Requests(
             {
                 ContainerDeclaration(
@@ -682,7 +683,7 @@ def test_storage_invalidation(storage_provider: StorageProvider):
 
     # Check basic invalidation
     add_object(0, 4, root, "/root")
-    assert storage_provider.invalidate({"/root"}) == {
+    assert storage_provider.invalidate({"/root"}, []) == {
         ContainerLocation(0, container_id, configuration_id): {root}
     }
 
@@ -690,7 +691,7 @@ def test_storage_invalidation(storage_provider: StorageProvider):
     storage_provider.prune_objects()
     add_object(0, 4, root, "/root")
     add_object(2, 4, function1, "/function1")
-    invalidation = storage_provider.invalidate({"/root"})
+    invalidation = storage_provider.invalidate({"/root"}, [])
     assert invalidation == {
         ContainerLocation(0, container_id, configuration_id): {root},
         ContainerLocation(2, container_id, configuration_id): {function1},
@@ -702,8 +703,58 @@ def test_storage_invalidation(storage_provider: StorageProvider):
     add_object(2, 4, function1, "/function1")
     add_object(2, 4, function2, "/function2")
     add_object(3, 3, root, "/root")
-    invalidation = storage_provider.invalidate({"/function1"})
+    invalidation = storage_provider.invalidate({"/function1"}, [])
     assert invalidation == {
         ContainerLocation(2, container_id, configuration_id): {function1},
         ContainerLocation(3, container_id, configuration_id): {root},
     }
+
+
+def test_custom_invalidation(model, storage_provider: StorageProvider):
+    # Create a simple pipeline with one pipe, one savepoint and an analysis
+    # attached to the savepoint
+    root_decl: ContainerDeclaration = ContainerDeclaration("root", RootDictContainer)
+    declarations = [root_decl]
+
+    pipeline_configuration: PipelineConfiguration = {}
+    storage_provider.set_model(model.serialize())
+
+    begin_node = PipelineNode(GeneratorPipeWithInvalidation(), bindings=[root_decl])
+    savepoint_node = PipelineNode(SavePoint("end", declarations))
+    begin_node.add_successor(savepoint_node)
+
+    analyses = {AnalysisBinding(NullRootAnalysis(), (root_decl,), savepoint_node)}
+
+    pipeline: Pipeline = Pipeline(set(declarations), begin_node, None, analyses)
+    root_obj = ObjectSet(MyKind.ROOT, {MyObjectID.root()})
+
+    # Trigger the creation of the root object in the savepoint, this will run the
+    # `GeneratorPipeWithInvalidation` to produce it and will store custom
+    # invalidation in storage
+    schedule = pipeline.schedule(
+        model=ReadOnlyModel(model),
+        target_node=savepoint_node,
+        requests=Requests({root_decl: root_obj}),
+        pipeline_configuration=pipeline_configuration,
+        storage_provider=storage_provider,
+    )
+    schedule.run(model=model, storage_provider=storage_provider)
+
+    # Run the analysis and retrieve the invalidated objects. Due to the way
+    # `GeneratorPipeWithInvalidation` works, it reads no model fields but will
+    # invalidate `ROOT` if custom invalidation is triggered.
+    _, invalidated = pipeline.run_analysis(
+        model=ReadOnlyModel(model),
+        analysis_name=NullRootAnalysis.name,
+        requests=Requests({root_decl: root_obj}),
+        analysis_configuration="",
+        pipeline_configuration=pipeline_configuration,
+        storage_provider=storage_provider,
+    )
+
+    # Check that the invalidation is what we expect. There should be `ROOT`
+    # invalidated in the only savepoint present.
+    begin_configuration_id = begin_node.configuration_id(pipeline_configuration)
+    location = ContainerLocation(1, root_decl.name, begin_configuration_id)
+    assert {location} == set(invalidated.keys())
+    assert invalidated[location] == {MyObjectID.root()}

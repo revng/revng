@@ -10,7 +10,7 @@ __version__ = "@VERSION@"
 
 from .analysis import Analysis
 from .container import Container
-from .model import Model
+from .model import Model, ModelDiff
 from .object import Kind, ObjectID
 from .storage.storage_provider import StorageProviderFactory
 from .task.pipe import Pipe
@@ -26,10 +26,11 @@ def initialize_pypeline() -> None:
     but it's not well supported by nanobind, so we are forced to do it
     manually here.
     """
-    register_all_subclasses(Analysis)
-    register_all_subclasses(Pipe)
-    register_all_subclasses(Container)
+    register_all_subclasses(Analysis, use_name=True)
+    register_all_subclasses(Pipe, use_name=True)
+    register_all_subclasses(Container, use_name=True)
     register_all_subclasses(Model, singleton=True)
+    register_all_subclasses(ModelDiff, singleton=True)
     register_all_subclasses(Kind, singleton=True)
     register_all_subclasses(ObjectID, singleton=True)
     kind_type = get_singleton(Kind)  # type: ignore[type-abstract]

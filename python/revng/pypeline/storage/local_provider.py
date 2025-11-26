@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncGenerator, Collection, Mapping
+from uuid import uuid4
 
 import yaml
 
@@ -20,15 +21,15 @@ from revng import __version__ as revng_version
 from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
-from revng.pypeline.task.task import ObjectDependencies
+from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
 from revng.pypeline.utils import Locked, cache_directory, crypto_hash
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects, ProjectID
-from .storage_provider import ProjectMetadata, SavePointsRange, StorageProvider
-from .storage_provider import StorageProviderFactory
+from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
+from .storage_provider import ObjectsToInvalidate, ProjectID, ProjectMetadata, SavePointsRange
+from .storage_provider import StorageProvider, StorageProviderFactory
 from .util import _OBJECTID_MAXSIZE, check_kind_structure, check_object_id_supported_by_sql
 from .util import compute_hash
 
@@ -72,6 +73,34 @@ CREATE TABLE IF NOT EXISTS dependencies(
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS model_path_on_dependencies ON dependencies(model_path);
+
+CREATE TABLE IF NOT EXISTS custom_dependencies(
+    pipe_id              INT NOT NULL,
+    configuration_hash   TEXT NOT NULL,
+    argument_index       INT NOT NULL,
+    object_id            BLOB NOT NULL,
+    data                 BLOB NOT NULL,
+    PRIMARY KEY (pipe_id, configuration_hash)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS custom_dependencies_index
+    ON custom_dependencies(pipe_id, configuration_hash);
+"""
+
+CREATE_TABLE_INVALIDATE = """
+CREATE TEMPORARY TABLE model_paths_{uuid}(
+    path   TEXT NOT NULL
+) STRICT;
+
+CREATE TEMPORARY TABLE additional_objects_{uuid}(
+    savepoint_id_start   INT NOT NULL,
+    savepoint_id_end     INT NOT NULL,
+    container_id         TEXT NOT NULL,
+    configuration_hash   TEXT NOT NULL,
+    object_id            BLOB NOT NULL,
+    PRIMARY KEY (savepoint_id_start, savepoint_id_end, container_id,
+                 configuration_hash, object_id)
+) STRICT;
 """
 
 HAS_QUERY = """
@@ -115,11 +144,17 @@ PUT_DEPENDENCIES_QUERY = "REPLACE INTO dependencies VALUES (?, ?, ?, ?, ?, ?)"
 INVALIDATE_QUERY = """
 DELETE FROM objects
 WHERE rowid IN (
-    SELECT objects.rowid
+    SELECT DISTINCT objects.rowid
     FROM objects
-    JOIN dependencies
-    WHERE dependencies.model_path IN ({model_paths})
-          AND (
+    JOIN (
+            SELECT savepoint_id_start, savepoint_id_end, configuration_hash, object_id
+            FROM dependencies
+            WHERE dependencies.model_path IN (SELECT path FROM model_paths_{uuid})
+        UNION
+            SELECT savepoint_id_start, savepoint_id_end, configuration_hash, object_id
+            FROM additional_objects_{uuid}
+    ) AS dependencies
+    WHERE (
             (
               objects.object_id >= dependencies.object_id
               AND objects.object_id <= CAST((dependencies.object_id || {objectid_mask}) AS BLOB)
@@ -135,7 +170,7 @@ RETURNING object_id, container_id, savepoint_id, configuration_hash;
 """
 
 DELETE_MODEL_PATHS = """DELETE FROM dependencies
-WHERE dependencies.model_path IN ({model_paths});
+WHERE dependencies.model_path IN (SELECT path FROM model_paths_{uuid});
 """
 
 
@@ -345,17 +380,33 @@ class LocalStorageProvider(StorageProvider):
                 )
             self._write_metadata(cursor)
 
-    def invalidate(self, invalidation_list: ModelPathSet) -> InvalidatedObjects:
-        if len(invalidation_list) == 0:
+    def invalidate(
+        self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
+    ) -> InvalidatedObjects:
+        if len(invalidation_list) == 0 and len(additional_objects) == 0:
             return {}
 
+        table_uuid = uuid4().hex
         object_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
         invalidated: InvalidatedObjects = defaultdict(set)
-        joined_paths = ",".join(f"'{path}'" for path in invalidation_list)
         with self._cursor() as cursor:
-            cursor.execute(
-                INVALIDATE_QUERY.format(model_paths=joined_paths, objectid_mask=_OBJECTID_MASK)
-            )
+            cursor.executescript(CREATE_TABLE_INVALIDATE.format(uuid=table_uuid))
+            for path in invalidation_list:
+                cursor.execute(f"REPLACE INTO model_paths_{table_uuid} VALUES (?)", (path,))
+            for object_set in additional_objects:
+                for object_ in object_set.objects:
+                    cursor.execute(
+                        f"REPLACE INTO additional_objects_{table_uuid} VALUES (?, ?, ?, ?, ?)",
+                        (
+                            object_set.savepoint_range.start,
+                            object_set.savepoint_range.end,
+                            object_set.container_id,
+                            object_set.configuration_id,
+                            object_.to_bytes(),
+                        ),
+                    )
+
+            cursor.execute(INVALIDATE_QUERY.format(objectid_mask=_OBJECTID_MASK, uuid=table_uuid))
             for row in cursor:
                 object_id = row[0]
                 location = ContainerLocation(
@@ -365,7 +416,9 @@ class LocalStorageProvider(StorageProvider):
                 )
                 invalidated[location].add(object_id_type.from_bytes(object_id))
 
-            cursor.execute(DELETE_MODEL_PATHS.format(model_paths=joined_paths))
+            cursor.execute(DELETE_MODEL_PATHS.format(uuid=table_uuid))
+            cursor.execute(f"DROP TABLE additional_objects_{table_uuid};")
+            cursor.execute(f"DROP TABLE model_paths_{table_uuid};")
             self._write_metadata(cursor)
         return dict(invalidated)
 
@@ -373,6 +426,7 @@ class LocalStorageProvider(StorageProvider):
         with self._cursor() as cursor:
             cursor.execute("DELETE FROM objects")
             cursor.execute("DELETE FROM dependencies")
+            cursor.execute("DELETE FROM custom_dependencies")
             self._write_metadata(cursor)
 
     def get_epoch(self) -> int:
@@ -504,3 +558,43 @@ class LocalStorageProvider(StorageProvider):
             and (request.size is None or path.stat().st_size == request.size)
             and compute_hash(path) == request.hash
         )
+
+    def add_custom_invalidation_data(
+        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
+    ):
+        with self._cursor() as cursor:
+            for index, container_data in enumerate(data):
+                for object_id, invalidation_blob in container_data:
+                    cursor.execute(
+                        "REPLACE INTO custom_dependencies VALUES (?, ?, ?, ?, ?)",
+                        (
+                            pipe_id,
+                            configuration_hash,
+                            index,
+                            object_id.to_bytes(),
+                            bytes(invalidation_blob),
+                        ),
+                    )
+            self._write_metadata(cursor)
+
+    def get_custom_invalidation_data(
+        self, pipe_id: int, configuration_hash: str
+    ) -> PipeCustomInvalidation:
+        with self._cursor() as cursor:
+            cursor.execute(
+                "SELECT argument_index, object_id, data FROM custom_dependencies"
+                " WHERE pipe_id = ? AND configuration_hash = ?",
+                (pipe_id, configuration_hash),
+            )
+            sql_result = cursor.fetchall()
+
+        if len(sql_result) == 0:
+            return []
+
+        index_size = max(x[0] for x in sql_result)
+        obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
+        result: list[list[tuple[ObjectID, bytes]]] = [[] for _ in range(index_size + 1)]
+        for argument_index, object_id, data in sql_result:
+            result[argument_index].append((obj_id_type.from_bytes(object_id), data))
+
+        return result

@@ -50,21 +50,15 @@ void Lift::run(ExecutionContext &EC,
   EC.commitUniqueTarget(Output);
 }
 
-std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
-Lift::invalidate(const BinaryFileContainer &SourceBinary,
-                 const pipeline::LLVMContainer &ModuleContainer,
-                 const GlobalTupleTreeDiff &Diff) const {
-  // Prepare result in case of invalidation
-  std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
-    InvalidateResult;
-  InvalidateResult[&ModuleContainer].push_back(pipeline::Target({},
-                                                                kinds::Root));
+namespace revng::lift::internal {
 
-  Function *Root = ModuleContainer.getModule().getFunction("root");
-  const Function *NewPC = getIRHelper("newpc", ModuleContainer.getModule());
+std::tuple<bool, std::map<MetaAddress, bool>>
+collectJumpTargets(const llvm::Module &Module) {
+  const Function *Root = Module.getFunction("root");
+  const Function *NewPC = getIRHelper("newpc", Module);
 
   if (Root == nullptr or NewPC == nullptr)
-    return InvalidateResult;
+    return { false, {} };
 
   // Collect all jump targets by inspecting calls to newpc and record whether it
   // was found after adding entry addresses of functions
@@ -91,50 +85,77 @@ Lift::invalidate(const BinaryFileContainer &SourceBinary,
     }
   }
 
-  // Inspect the diff looking for newly added model::Functions
-  auto *ModelDiff = Diff.getAs<model::Binary>();
-  revng_assert(ModelDiff != nullptr);
+  return { true, JumpTargets };
+}
 
+bool shouldInvalidateRoot(const std::map<MetaAddress, bool> &JumpTargets,
+                          const TupleTreeDiff<model::Binary> &Diff) {
+  // Inspect the diff looking for newly added model::Functions
   using Fields = TupleLikeTraits<model::Binary>::Fields;
   size_t FunctionsIndex = static_cast<size_t>(Fields::Functions);
-  for (const auto &Change : ModelDiff->Changes) {
+  for (const auto &Change : Diff.Changes) {
     bool IsAddition = not Change.Old.has_value() and Change.New.has_value();
     bool IsRemoval = Change.Old.has_value() and not Change.New.has_value();
 
     // Look for additions to /Functions
     auto &Path = Change.Path;
-    if (Path.size() == 1) {
-      if (Path[0].get<size_t>() == FunctionsIndex) {
-        // Check the Entry address of the newly added model::Function
-        MetaAddress ChangedAddress;
-        if (IsAddition)
-          ChangedAddress = std::get<model::Function>(*Change.New).Entry();
-        else
-          ChangedAddress = std::get<model::Function>(*Change.Old).Entry();
+    if (Path.size() == 1 and Path[0].get<size_t>() == FunctionsIndex) {
+      // Check the Entry address of the newly added model::Function
+      MetaAddress ChangedAddress;
+      if (IsAddition)
+        ChangedAddress = std::get<model::Function>(*Change.New).Entry();
+      else
+        ChangedAddress = std::get<model::Function>(*Change.Old).Entry();
 
-        auto It = JumpTargets.find(ChangedAddress);
-        bool IsJumpTarget = It != JumpTargets.end();
-        bool DependsOnModelFunction = IsJumpTarget and It->second;
+      auto It = JumpTargets.find(ChangedAddress);
+      bool IsJumpTarget = It != JumpTargets.end();
+      bool DependsOnModelFunction = IsJumpTarget and It->second;
 
-        if (IsAddition and not IsJumpTarget) {
-          // We're adding a function that was not a jump target
-          return InvalidateResult;
-        } else if (IsRemoval and DependsOnModelFunction) {
-          // We're removing a function whose address was not discovered *before*
-          // starting to take into account the entry addresses of model
-          // functions
-          return InvalidateResult;
-        }
+      if (IsAddition and not IsJumpTarget) {
+        // We're adding a function that was not a jump target
+        return true;
+      } else if (IsRemoval and DependsOnModelFunction) {
+        // We're removing a function whose address was not discovered *before*
+        // starting to take into account the entry addresses of model
+        // functions
+        return true;
       }
     }
   }
 
-  return {};
+  return false;
 }
 
-namespace detail {
+} // namespace revng::lift::internal
 
-llvm::Error liftCheckPrecondition(const model::Binary &Model) {
+std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
+Lift::invalidate(const BinaryFileContainer &SourceBinary,
+                 const pipeline::LLVMContainer &ModuleContainer,
+                 const GlobalTupleTreeDiff &Diff) const {
+  // Prepare result in case of invalidation
+  std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
+    InvalidateResult;
+  InvalidateResult[&ModuleContainer].push_back(pipeline::Target({},
+                                                                kinds::Root));
+
+  auto [HasRoot,
+        JumpTargets] = lift::internal::collectJumpTargets(ModuleContainer
+                                                            .getModule());
+  if (not HasRoot)
+    return InvalidateResult;
+
+  auto *ModelDiff = Diff.getAs<model::Binary>();
+  revng_assert(ModelDiff != nullptr);
+
+  if (lift::internal::shouldInvalidateRoot(JumpTargets, *ModelDiff))
+    return InvalidateResult;
+  else
+    return {};
+}
+
+namespace revng::lift::internal {
+
+llvm::Error checkPrecondition(const model::Binary &Model) {
   if (Model.Architecture() == model::Architecture::Invalid) {
     return revng::createError("Cannot lift binary with architecture invalid.");
   }
@@ -148,11 +169,11 @@ llvm::Error liftCheckPrecondition(const model::Binary &Model) {
   return llvm::Error::success();
 }
 
-} // namespace detail
+} // namespace revng::lift::internal
 
 llvm::Error Lift::checkPrecondition(const pipeline::Context &Context) const {
   const auto &Model = *getModelFromContext(Context);
-  return ::detail::liftCheckPrecondition(Model);
+  return lift::internal::checkPrecondition(Model);
 }
 
 static_assert(pipeline::HasInvalidate<Lift>);

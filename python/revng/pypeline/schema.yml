@@ -19,6 +19,10 @@ $defs:
           $ref: "#/$defs/container_decl"
       analysis_lists:
         $ref: "#/$defs/analysis_lists"
+      analyses:
+        type: array
+        items:
+          type: string
       branches:
         type: object
         patternProperties:
@@ -149,11 +153,6 @@ $defs:
       - containers
     additionalProperties: false
     properties:
-      name:
-        type: string
-        description: The name that can be used from the CLI to refer to the analysis
-          in this point of the pipeline. If not passed it defaults to the name of
-          the analysis.
       analysis:
         type: string
         description: The name of the analysis to run.

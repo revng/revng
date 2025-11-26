@@ -21,12 +21,10 @@ class Analysis(ABC):
     objects in save points.
     """
 
-    def __init__(self, name: str):
-        """
-        Initialize the analysis with a name.
-        The name is used for debugging and logging purposes.
-        """
-        self.name = name
+    name: str
+
+    def __init__(self):
+        pass
 
     @classmethod
     @abstractmethod

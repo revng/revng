@@ -14,8 +14,8 @@ from urllib.parse import urlparse
 
 from revng.pypeline.container import ConfigurationId, ContainerID
 from revng.pypeline.model import ModelPathSet
-from revng.pypeline.object import ObjectID
-from revng.pypeline.task.task import ObjectDependencies
+from revng.pypeline.object import ObjectID, ObjectSet
+from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
 from revng.pypeline.utils.registry import get_registry
 
 from .file_provider import FileProvider, FileRequest
@@ -98,6 +98,14 @@ class FileStorageEntry:
 
     def __post_init__(self):
         assert int(self.path is not None) + int(self.contents is not None) == 1
+
+
+@dataclass(frozen=True, slots=True)
+class ObjectsToInvalidate:
+    savepoint_range: SavePointsRange
+    container_id: ContainerID
+    configuration_id: ConfigurationId
+    objects: ObjectSet
 
 
 class StorageProviderFactory(ABC):
@@ -212,7 +220,9 @@ class StorageProvider(ABC):
         """
 
     @abstractmethod
-    def invalidate(self, invalidation_list: ModelPathSet) -> InvalidatedObjects:
+    def invalidate(
+        self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
+    ) -> InvalidatedObjects:
         """
         Inform the storage that certain model paths are no longer valid.
         The storage should use the stored dependencies to determine which objects
@@ -261,6 +271,24 @@ class StorageProvider(ABC):
         """
         Get a file from storage, given a list of requests. Returns a dictionary
         mapping the hash to the contents.
+        """
+
+    @abstractmethod
+    def add_custom_invalidation_data(
+        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
+    ) -> None:
+        """
+        Add custom invalidation data to storage, will be used to produce
+        additional objects to invalidate later on.
+        """
+
+    @abstractmethod
+    def get_custom_invalidation_data(
+        self, pipe_id: int, configuration_hash: str
+    ) -> PipeCustomInvalidation:
+        """
+        Retrieve custom invalidation data previously stored by
+        `add_custom_invalidation_data`.
         """
 
 

@@ -34,7 +34,12 @@ public:
                           std::vector<Container *> Containers,
                           const revng::pypeline::Request &Incoming,
                           llvm::StringRef Configuration) override {
-    return runAnalysis(Instance, TheModel, Incoming, Configuration, Containers);
+    auto ContainerTuple = containerVectorToTuple<T>(Containers);
+    return runAnalysis(Instance,
+                       TheModel,
+                       Incoming,
+                       Configuration,
+                       ContainerTuple);
   }
 };
 

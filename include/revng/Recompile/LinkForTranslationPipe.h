@@ -58,7 +58,7 @@ namespace piperuns {
 
 class LinkForTranslation {
 public:
-  static constexpr llvm::StringRef Name = "LinkForTranslation";
+  static constexpr llvm::StringRef Name = "link-for-translation";
   using Arguments = TypeList<
     PipeArgument<"Binaries", "The input binaries">,
     PipeArgument<"ObjectFile", "The complied object file">,
