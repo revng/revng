@@ -10,10 +10,18 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Pass.h"
 
+#include "revng/Model/Binary.h"
+
 struct DLAPass : public llvm::ModulePass {
+private:
+  TupleTree<model::Binary> *ConstructorModel = nullptr;
+
+public:
   static char ID;
 
   DLAPass() : llvm::ModulePass(ID) {}
+  DLAPass(TupleTree<model::Binary> &Binary) :
+    llvm::ModulePass(ID), ConstructorModel(&Binary) {}
 
   bool runOnModule(llvm::Module &M) override;
 

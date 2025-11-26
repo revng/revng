@@ -3,6 +3,7 @@
 //
 
 #include "revng/Canonicalize/SimplifySwitch.h"
+#include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
@@ -99,3 +100,4 @@ static RegisterAnalysis<ParseBinaryAnalysis> A5;
 static RegisterAnalysis<ImportWellKnownModelsAnalysis> A6;
 static RegisterAnalysis<DetectABI> A7;
 static RegisterAnalysis<DetectStackSize> A8;
+static RegisterAnalysis<AnalyzeDataLayout> A9;

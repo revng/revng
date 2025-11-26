@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/DataLayoutAnalysis/DLALayouts.h"
 #include "revng/DataLayoutAnalysis/DLAPass.h"
 #include "revng/Model/LoadModelPass.h"
@@ -23,24 +24,30 @@ using Register = llvm::RegisterPass<DLAPass>;
 static ::Register X("dla", "Data Layout Analysis Pass", false, false);
 
 void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelWrapperPass>();
+  if (ConstructorModel == nullptr)
+    AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
 
   AU.setPreservesAll();
 }
 
 bool DLAPass::runOnModule(llvm::Module &M) {
+  TupleTree<model::Binary> *WritableModel = nullptr;
+  if (ConstructorModel != nullptr) {
+    WritableModel = ConstructorModel;
+  } else {
+    WritableModel = &getAnalysis<LoadModelWrapperPass>()
+                       .get()
+                       .getWriteableModel();
+  }
 
   llvm::Task T(3, "DLAPass::runOnModule");
-
   T.advance("DLA Frontend");
-
-  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
 
   // Front-end: Create the LayoutTypeSystem graph from an LLVM module
   dla::LayoutTypeSystem TS;
   dla::DLATypeSystemLLVMBuilder Builder{ TS };
-  const model::Binary &Model = *ModelWrapper.getReadOnlyModel();
+  const model::Binary &Model = *WritableModel->get();
   Builder.buildFromLLVMModule(M, this, Model);
 
   if (BuilderLog.isEnabled())
@@ -112,13 +119,12 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   T.advance("DLA Backend");
 
   // Generate model types
-  auto &WritableModel = ModelWrapper.getWriteableModel();
-  auto ValueToTypeMap = dla::makeModelTypes(TS, Values, WritableModel);
+  auto ValueToTypeMap = dla::makeModelTypes(TS, Values, *WritableModel);
   bool Changed = false;
 
-  Changed |= dla::updateFuncSignatures(M, WritableModel, ValueToTypeMap);
-  Changed |= dla::updateSegmentsTypes(M, WritableModel, ValueToTypeMap);
-  revng_assert(WritableModel->verify(true));
+  Changed |= dla::updateFuncSignatures(M, *WritableModel, ValueToTypeMap);
+  Changed |= dla::updateSegmentsTypes(M, *WritableModel, ValueToTypeMap);
+  revng_assert((*WritableModel)->verify(true));
 
   return Changed;
 }
@@ -143,3 +149,24 @@ public:
 };
 
 pipeline::RegisterAnalysis<DLAAnalysis> DLCPipelineReg;
+
+namespace revng::pypeline::analyses {
+
+llvm::Error AnalyzeDataLayout::run(Model &Model,
+                                   const Request &Incoming,
+                                   llvm::StringRef Configuration,
+                                   LLVMFunctionContainer &ModuleContainer) {
+  auto RootModule = std::make_unique<llvm::Module>("root",
+                                                   ModuleContainer
+                                                     .getContext());
+  for (const ObjectID *Object : Incoming[0])
+    linkFunctionModules(ModuleContainer.takeModule(*Object), RootModule);
+
+  llvm::legacy::PassManager Manager;
+  Manager.add(new DLAPass(Model.get()));
+  Manager.run(*RootModule);
+
+  return llvm::Error::success();
+}
+
+} // namespace revng::pypeline::analyses

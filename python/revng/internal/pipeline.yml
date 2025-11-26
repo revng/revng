@@ -241,6 +241,9 @@ branches:
         artifacts:
           - name: make-segment-ref
             container: llvm-functions
+        analyses:
+          - analysis: analyze-data-layout
+            containers: [llvm-functions]
 
   emit-model-header:
     tasks:

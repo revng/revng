@@ -10,6 +10,7 @@ target_link_libraries(
   ${Python_LIBRARIES}
   ${LLVM_LIBRARIES}
   revngCanonicalize
+  revngDataLayoutAnalysis
   revngFunctionIsolation
   revngLift
   revngModelImporter
