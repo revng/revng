@@ -39,7 +39,7 @@ void ptml::ModelCBuilder::printDefinition(const model::EnumDefinition &E,
   *Out << getCommentableTag(std::move(EnumLine), E);
 
   {
-    Scope Scope(*Out);
+    Scope Scope(*Out, ptml::c::scopes::EnumBody);
 
     using COperator = ptml::CBuilder::Operator;
     for (const auto &Entry : E.Entries()) {

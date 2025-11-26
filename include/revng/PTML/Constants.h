@@ -71,6 +71,7 @@ namespace scopes {
 inline constexpr llvm::StringRef Function = "c.function";
 inline constexpr llvm::StringRef FunctionBody = "c.function_body";
 inline constexpr llvm::StringRef Scope = "c.scope";
+inline constexpr llvm::StringRef EnumBody = "c.enum";
 inline constexpr llvm::StringRef StructBody = "c.struct";
 inline constexpr llvm::StringRef UnionBody = "c.union";
 inline constexpr llvm::StringRef TypeDeclarationsList = "c.type_declarations_"

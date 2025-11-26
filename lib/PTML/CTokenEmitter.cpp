@@ -79,7 +79,7 @@ static std::optional<llvm::StringRef> getScopeKindAttribute(ScopeKind Kind) {
   case ScopeKind::None:
     break;
   case ScopeKind::EnumDefinition:
-    return std::nullopt;
+    return ptml::c::scopes::EnumBody;
   case ScopeKind::StructDefinition:
     return ptml::c::scopes::StructBody;
   case ScopeKind::UnionDefinition:
