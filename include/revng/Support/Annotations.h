@@ -64,6 +64,24 @@ public:
   }
 
   template<ConstexprString Macro>
+  static consteval void assertAttributeName() {
+    constexpr auto Result = std::ranges::find_if(StaticAttributes,
+                                                 [](auto &&A) {
+                                                   return *Macro == A.Macro;
+                                                 });
+    static_assert(Result != StaticAttributes.end());
+  }
+
+  template<ConstexprString Macro>
+  static consteval void assertAnnotationName() {
+    constexpr auto Result = std::ranges::find_if(StaticAnnotations,
+                                                 [](auto &&A) {
+                                                   return *Macro == A.Macro;
+                                                 });
+    static_assert(Result != StaticAnnotations.end());
+  }
+
+  template<ConstexprString Macro>
   static std::string getAttributeString() {
     constexpr std::optional Attribute = getAttribute<Macro>();
     if constexpr (Attribute) {
