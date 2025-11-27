@@ -210,16 +210,7 @@ private:
         Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftBracket);
 
         uint64_t Extent = mlir::cast<ArrayType>(SI.Type).getElementsCount();
-
-        // Use a wider bit-width to handle the edge-case of an extent greater
-        // than the maximum value of a signed 64-bit integer. Making the value
-        // unsigned would cause unnecessary type suffixes to be emitted.
-        auto ExtentValue = llvm::APSInt(llvm::APInt(/*numBits=*/128, Extent),
-                                        /*isUnsigned=*/false);
-
-        Parent.Tokens.emitIntegerLiteral(ExtentValue,
-                                         CIntegerKind::Int,
-                                         /*Radix=*/10);
+        Parent.Tokens.emitIntegerLiteral(llvm::APInt(64, Extent), std::nullopt);
 
         Parent.Tokens.emitPunctuator(CTE::Punctuator::RightBracket);
       } break;

@@ -8,6 +8,7 @@
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CEmitter.h"
+#include "revng/PTML/CTokenEmitter.h"
 
 namespace clift = mlir::clift;
 using namespace mlir::clift;
@@ -56,13 +57,6 @@ public:
     return static_cast<OperatorPrecedence>(static_cast<T>(Precedence) - 1);
   }
 
-  static llvm::APSInt makeIntegerValue(PrimitiveType Type, uint64_t Value) {
-    bool Signed = Type.getKind() == PrimitiveKind::SignedKind;
-
-    return llvm::APSInt(llvm::APInt(Type.getSize() * 8, Value, Signed),
-                        not Signed);
-  }
-
   void emitCast(ValueType Type) {
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
     emitType(Type);
@@ -94,8 +88,17 @@ public:
       CInteger = CIntegerKind::Int;
     }
 
-    Tokens.emitIntegerLiteral(makeIntegerValue(Primitive, Value),
-                              *CInteger,
+    bool IsSigned = Primitive.getKind() == PrimitiveKind::SignedKind;
+    if (IsSigned and static_cast<int64_t>(Value) < 0) {
+      Tokens.emitOperator(ptml::CTokenEmitter::Operator::Minus);
+      Value = ~Value + 1;
+    }
+
+    Tokens.emitIntegerLiteral(llvm::APInt(Primitive.getSize() * 8,
+                                          Value,
+                                          IsSigned),
+                              CTE::IntegerSuffix{ .Unsigned = not IsSigned,
+                                                  .MinimumType = *CInteger },
                               Radix);
   }
 

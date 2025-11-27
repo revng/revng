@@ -3,6 +3,7 @@
 //
 
 #include <ranges>
+#include <string>
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
@@ -63,16 +64,16 @@ static std::optional<llvm::StringRef> getEntityKindAttribute(EntityKind Kind) {
   }
 }
 
-static llvm::StringRef getCIntegerLiteralSuffix(const CIntegerKind Type,
-                                                const bool Signed) {
-  switch (Type) {
+static llvm::StringRef
+getCIntegerLiteralSuffix(const ptml::CTokenEmitter::IntegerSuffix &Suffix) {
+  switch (Suffix.MinimumType) {
   default:
   case CIntegerKind::Int:
-    return Signed ? "" : "U";
+    return Suffix.Unsigned ? "U" : "";
   case CIntegerKind::Long:
-    return Signed ? "L" : "UL";
+    return Suffix.Unsigned ? "UL" : "L";
   case CIntegerKind::LongLong:
-    return Signed ? "LL" : "ULL";
+    return Suffix.Unsigned ? "ULL" : "LL";
   }
 }
 
@@ -571,34 +572,40 @@ void CTokenEmitter::emitLiteralIdentifier(llvm::StringRef Identifier) {
   PTML.emit(Identifier);
 }
 
-void CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
-                                       CIntegerKind Type,
-                                       unsigned Radix) {
+static bool isRadixSupported(uint64_t Radix) {
+  switch (Radix) {
+  case 2:
+  case 8:
+  case 10:
+  case 16:
+    return true;
+
+  default:
+    return false;
+  };
+}
+
+void CTokenEmitter::emitIntegerLiteral(llvm::APInt Value,
+                                       std::optional<IntegerSuffix> Suffix,
+                                       uint64_t Radix) {
   revng_assert(not IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");
 
-  constexpr auto IsValidRadix = [](unsigned Radix) {
-    switch (Radix) {
-    case 2:
-    case 8:
-    case 10:
-    case 16:
-      return true;
-    default:
-      return false;
-    }
-  };
-  revng_assert(IsValidRadix(Radix),
-               "The specified integer radix does not correspond to any "
-               "C integer literal token.");
+  if (not isRadixSupported(Radix)) {
+    std::string Error = "The specified integer radix (" + std::to_string(Radix)
+                        + ") does not correspond to any C integer literal "
+                          "token.";
+    revng_abort(Error.c_str());
+  }
 
   llvm::SmallString<64> String;
   Value.toString(String,
                  Radix,
-                 /*Signed=*/Value.isSigned(),
-                 /*FormatAsCLiteral=*/true);
+                 /* Signed = */ false,
+                 /* FormatAsCLiteral = */ true);
 
-  String.append(getCIntegerLiteralSuffix(Type, Value.isSigned()));
+  if (Suffix.has_value())
+    String.append(getCIntegerLiteralSuffix(Suffix.value()));
 
   auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
   Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Constant);
