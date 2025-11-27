@@ -832,20 +832,18 @@ using LinkageRestoreMap = std::map<std::string,
 /// each other global object so that they can't be removed by the linker
 static void makeGlobalObjectsArray(llvm::Module &Module,
                                    llvm::StringRef GlobalArrayName) {
-  auto *IntegerTy = llvm::IntegerType::get(Module.getContext(),
-                                           Module.getDataLayout()
-                                             .getPointerSizeInBits());
+  auto *PointerTy = llvm::PointerType::getUnqual(Module.getContext());
 
   llvm::SmallVector<llvm::Constant *, 10> Globals;
 
   for (auto &Global : Module.globals())
-    Globals.push_back(llvm::ConstantExpr::getPtrToInt(&Global, IntegerTy));
+    Globals.push_back(llvm::ConstantExpr::getPointerCast(&Global, PointerTy));
 
   for (auto &Global : Module.functions())
     if (not Global.isIntrinsic())
-      Globals.push_back(llvm::ConstantExpr::getPtrToInt(&Global, IntegerTy));
+      Globals.push_back(llvm::ConstantExpr::getPointerCast(&Global, PointerTy));
 
-  auto *GlobalArrayType = llvm::ArrayType::get(IntegerTy, Globals.size());
+  auto *GlobalArrayType = llvm::ArrayType::get(PointerTy, Globals.size());
 
   auto *Initializer = llvm::ConstantArray::get(GlobalArrayType, Globals);
 
