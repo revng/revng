@@ -637,6 +637,18 @@ void CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
   PTML.emit(String);
 }
 
+void ptml::CTokenEmitter::emitUntypedIntegerLiteral(uint64_t Value) {
+  revng_assert(Value == uint64_t(int32_t(Value)));
+  return emitIntegerLiteral(llvm::APSInt(llvm::APInt(32, Value), false),
+                            CIntegerKind::Int,
+                            10);
+}
+void ptml::CTokenEmitter::emitUntypedHexLiteral(uint64_t Value) {
+  return emitIntegerLiteral(llvm::APSInt(llvm::APInt(64, Value), true),
+                            CIntegerKind::Int,
+                            16);
+}
+
 void CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
   revng_assert(not IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");

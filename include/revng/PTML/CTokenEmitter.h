@@ -195,6 +195,9 @@ public:
   void
   emitIntegerLiteral(llvm::APSInt Value, CIntegerKind Type, unsigned Radix);
 
+  void emitUntypedIntegerLiteral(uint64_t Value);
+  void emitUntypedHexLiteral(uint64_t Value);
+
   void emitStringLiteral(llvm::StringRef Content);
 
 public:
