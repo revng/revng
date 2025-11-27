@@ -783,8 +783,7 @@ public:
   }
 
   void emitLabelStatementImpl(MakeLabelOp Label, bool RequiresEmptyExpression) {
-    auto Scope = Tokens.enterScope(CTE::ScopeKind::None,
-                                   CTE::Delimiter::None,
+    auto Scope = Tokens.enterScope(CTE::ScopeKind::IndentOnly,
                                    /*Indent=*/-1);
 
     Tokens.emitIdentifier(Label.getName(),
@@ -941,7 +940,6 @@ public:
     // Scope tags are applied within this scope:
     {
       auto Scope = Tokens.enterScope(CTE::ScopeKind::BlockStatement,
-                                     CTE::Delimiter::Braces,
                                      /*Indented=*/false);
 
       Tokens.emitNewline();
@@ -1056,8 +1054,7 @@ public:
 
   RecursiveCoroutine<void> emitBlockStatement(BlockStatementOp S) {
     {
-      auto Scope = Tokens.enterScope(CTE::ScopeKind::BlockStatement,
-                                     CTE::Delimiter::Braces);
+      auto Scope = Tokens.enterScope(CTE::ScopeKind::BlockStatement);
 
       Tokens.emitNewline();
       rc_recur emitStatementRegion(S.getBlock());
@@ -1142,16 +1139,14 @@ public:
 
   RecursiveCoroutine<bool>
   emitImplicitBlockStatement(mlir::Region &R, bool EmitBlock, auto EmitRegion) {
-    auto ScopeKind = CTE::ScopeKind::None;
-    auto Delimiter = CTE::Delimiter::None;
+    auto ScopeKind = CTE::ScopeKind::IndentOnly;
 
     if (EmitBlock) {
       Tokens.emitSpace();
       ScopeKind = CTE::ScopeKind::BlockStatement;
-      Delimiter = CTE::Delimiter::Braces;
     }
 
-    auto Scope = Tokens.enterScope(ScopeKind, Delimiter);
+    auto Scope = Tokens.enterScope(ScopeKind);
     Tokens.emitNewline();
 
     auto ExplicitBlock = getOnlyOp<BlockStatementOp>(R);
@@ -1177,15 +1172,13 @@ public:
     // Scope tags are applied within this scope:
     {
       auto OuterScope = Tokens.enterScope(CTE::ScopeKind::FunctionDeclaration,
-                                          CTE::Delimiter::None,
                                           /*Indented=*/false);
 
       emitFunctionPrototype(Op);
 
       Tokens.emitSpace();
 
-      auto InnerScope = Tokens.enterScope(CTE::ScopeKind::FunctionDefinition,
-                                          CTE::Delimiter::Braces);
+      auto InnerScope = Tokens.enterScope(CTE::ScopeKind::FunctionDefinition);
 
       Tokens.emitNewline();
 

@@ -267,32 +267,86 @@ public:
                             IncludeMode Mode);
 
   enum class ScopeKind : uint8_t {
-    None,
+    /// Doesn't emit anything. Is provided as a handy way of controlling
+    /// indentation without showing up in the output.
+    IndentOnly,
+
+    /// Doesn't emit anything beyond the basic `<div>...</div>` pair.
+    Basic,
+
+    /// These are the same as \ref Basic except they also set
+    /// `ptml::attributes::Scope` to an appropriate value
+    FunctionDeclaration,
+
+    /// The same as \ref Basic but it also emits the PTML attribute allowing
+    /// this region to be folded.
+    Foldable,
+
+    /// The same as \ref Foldable except a brace pair ({}) is also emitted.
+    BlockStatement,
+
+    /// These are the same as \ref BlockStatement except they also set
+    /// `ptml::attributes::Scope` to an appropriate value
     EnumDefinition,
+    FunctionDefinition,
     StructDefinition,
     UnionDefinition,
-    FunctionDeclaration,
-    FunctionDefinition,
-    BlockStatement,
   };
 
-  enum class Delimiter : uint8_t {
-    None,
-    Braces,
-  };
+private:
+  void emitScopeOpener(ScopeKind Kind) {
+    switch (Kind) {
+    case ScopeKind::IndentOnly:
+    case ScopeKind::Basic:
+    case ScopeKind::Foldable:
+    case ScopeKind::FunctionDeclaration:
+      return;
 
+    case ScopeKind::BlockStatement:
+    case ScopeKind::EnumDefinition:
+    case ScopeKind::FunctionDefinition:
+    case ScopeKind::StructDefinition:
+    case ScopeKind::UnionDefinition:
+      emitPunctuator(Punctuator::LeftBrace);
+      return;
+
+    default:
+      revng_abort("Unknown scope kind");
+    }
+  }
+
+  void emitScopeCloser(ScopeKind Kind) {
+    switch (Kind) {
+    case ScopeKind::IndentOnly:
+    case ScopeKind::Basic:
+    case ScopeKind::Foldable:
+    case ScopeKind::FunctionDeclaration:
+      return;
+
+    case ScopeKind::BlockStatement:
+    case ScopeKind::EnumDefinition:
+    case ScopeKind::FunctionDefinition:
+    case ScopeKind::StructDefinition:
+    case ScopeKind::UnionDefinition:
+      emitPunctuator(Punctuator::RightBrace);
+      return;
+
+    default:
+      revng_abort("Unknown scope kind");
+    }
+  }
+
+  void indent(int64_t LevelDifference) { PTML.indent(LevelDifference); }
+
+public:
   class Scope {
     CTokenEmitter &Emitter;
     std::optional<PTMLTagEmitter> Tag;
-
-    CTokenEmitter::Delimiter Delimiter;
+    ScopeKind Kind;
     int Indent;
 
   public:
-    explicit Scope(CTokenEmitter &Emitter,
-                   ScopeKind Kind,
-                   CTokenEmitter::Delimiter Delimiter,
-                   int Indent);
+    explicit Scope(CTokenEmitter &Emitter, ScopeKind Kind, int Indent);
 
     Scope(const Scope &) = delete;
     Scope &operator=(const Scope &) = delete;
@@ -300,9 +354,8 @@ public:
     ~Scope();
   };
 
-  [[nodiscard]] Scope
-  enterScope(ScopeKind Kind, Delimiter Delimiter, int Indent = 1) {
-    return Scope(*this, Kind, Delimiter, Indent);
+  [[nodiscard]] Scope enterScope(ScopeKind Kind, int Indent = 1) {
+    return Scope(*this, Kind, Indent);
   }
 
   enum class RegionKind : uint8_t {
