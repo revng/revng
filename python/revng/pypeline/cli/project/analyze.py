@@ -10,8 +10,8 @@ import click
 
 from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_arg_objects, build_help_text
 from revng.pypeline.cli.utils import compute_objects, list_objects_for_container
-from revng.pypeline.cli.utils import list_objects_option, normalize_flag, normalize_whitespace
-from revng.pypeline.cli.utils import project_id_option, token_option
+from revng.pypeline.cli.utils import list_objects_option, normalize_flag, normalize_pos_arg_name
+from revng.pypeline.cli.utils import normalize_whitespace, project_id_option, token_option
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, AnalysisList, ContainerDeclaration, Pipeline
 from revng.pypeline.storage.storage_provider import StorageProvider
@@ -121,7 +121,7 @@ class AnalyzeGroup(PypeGroup):
             config = f'Configuration for the analysis list "{analysis_list_name}".'
             run_analysis_command = click.option(
                 f"--{normalize_flag(analysis_name)}-configuration",
-                f"{analysis_name}_configuration",
+                f"{normalize_pos_arg_name(analysis_name)}_configuration",
                 type=str,
                 default="",
                 help=normalize_whitespace(config),
@@ -165,7 +165,8 @@ def build_analysis_list_command(
                 return
 
             analysis_configuration = [
-                kwargs[f"{analysis_name}_configuration"] for analysis_name in analysis_list.analyses
+                kwargs[f"{normalize_pos_arg_name(analysis_name)}_configuration"]
+                for analysis_name in analysis_list.analyses
             ]
 
             # Finally, run the analysis
