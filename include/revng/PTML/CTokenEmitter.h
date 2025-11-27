@@ -171,6 +171,9 @@ public:
                       EntityKind Kind,
                       IdentifierKind IsDefinition);
 
+  void emitPrimitive(llvm::StringRef Name,
+                     IdentifierKind IsDefinition = IdentifierKind::Reference);
+
   /// \pre \param Identifier matches `[_a-zA-Z][_a-zA-Z0-9]*`.
   void emitLiteralIdentifier(llvm::StringRef Identifier);
 

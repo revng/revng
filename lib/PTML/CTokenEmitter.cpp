@@ -556,6 +556,15 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
   PTML.emit(Identifier);
 }
 
+void ptml::CTokenEmitter::emitPrimitive(llvm::StringRef Name,
+                                        IdentifierKind IsDefinition) {
+  emitIdentifier(Name,
+                 pipeline::locationString(revng::ranks::PrimitiveType,
+                                          Name.str()),
+                 EntityKind::Primitive,
+                 IsDefinition);
+}
+
 void CTokenEmitter::emitLiteralIdentifier(llvm::StringRef Identifier) {
   revng_assert(not IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");
