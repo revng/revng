@@ -36,6 +36,18 @@ analyses:
   - import-well-known-models
   - convert-functions-to-cabi
 
+analysis_lists:
+  - name: initial-auto-analysis
+    analyses:
+      - parse-binary
+      - import-well-known-models
+      - detect-abi
+      - detect-stack-size
+      - analyze-data-layout
+      - convert-functions-to-cabi
+    description: |
+      The initial auto analysis that should be run to automatically detect functions and types
+
 branches:
   files-imported:
     tasks:
