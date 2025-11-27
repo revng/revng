@@ -48,4 +48,19 @@ inline void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
   emitSegments(Tokens, Target, Module);
 }
 
+void emitHelpers(ptml::CTokenEmitter &Tokens,
+                 const TargetCImplementation &Target,
+                 std::vector<mlir::ModuleOp> &Modules);
+inline void emitHelperHeader(ptml::CTokenEmitter &Tokens,
+                             const TargetCImplementation &Target,
+                             std::vector<mlir::ModuleOp> &Modules) {
+  // TODO: emit header location definition on the scope tag so that ctrl+click
+  //       on includes (references) leads to this file.
+  ptml::CTokenEmitter::Scope
+    Scope = Tokens.enterScope(ptml::CTokenEmitter::ScopeKind::Basic, 0);
+
+  emitHeaderPrologue(Tokens);
+  emitHelpers(Tokens, Target, Modules);
+}
+
 } // namespace mlir::clift
