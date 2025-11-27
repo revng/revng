@@ -5,6 +5,7 @@
 //
 
 #include "revng/Clift/Clift.h"
+#include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Support/CTarget.h"
 
