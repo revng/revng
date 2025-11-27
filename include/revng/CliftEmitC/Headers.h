@@ -48,6 +48,13 @@ inline void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
   emitSegments(Tokens, Target, Module);
 }
 
+class DefinedType;
+void emitSingleTypeDefinition(mlir::MLIRContext &Context,
+                              ptml::CTokenEmitter &Tokens,
+                              const TargetCImplementation &Target,
+                              mlir::clift::DefinedType Type,
+                              TypeEmitterConfiguration Configuration = {});
+
 void emitHelpers(ptml::CTokenEmitter &Tokens,
                  const TargetCImplementation &Target,
                  std::vector<mlir::ModuleOp> &Modules);

@@ -4,6 +4,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/MLIRContext.h"
 
 #include "revng/CliftEmitC/CCommentEmitter.h"
 #include "revng/CliftEmitC/CEmitter.h"
@@ -152,6 +153,17 @@ void mlir::clift::emitSegments(ptml::CTokenEmitter &Tokens,
     Tokens.emitNewline();
     Tokens.emitNewline();
   });
+}
+
+void mlir::clift::emitSingleTypeDefinition(mlir::MLIRContext &Context,
+                                           ptml::CTokenEmitter &Tokens,
+                                           const TargetCImplementation &Target,
+                                           mlir::clift::DefinedType Type,
+                                           TypeEmitterConfiguration Config) {
+  TypeDefinitionEmitter Emitter(Tokens, Target, Config);
+
+  Emitter.emitTypeDefinition(Context, Type);
+  Tokens.emitNewline();
 }
 
 void mlir::clift::emitHelpers(ptml::CTokenEmitter &Tokens,
