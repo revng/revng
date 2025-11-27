@@ -825,9 +825,6 @@ std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
   return llvm::cantFail(llvm::parseBitcodeFile(BufferRef, NewContext));
 }
 
-using LinkageRestoreMap = std::map<std::string,
-                                   llvm::GlobalValue::LinkageTypes>;
-
 /// Creates a global variable in the provided module that holds a pointer to
 /// each other global object so that they can't be removed by the linker
 static void makeGlobalObjectsArray(llvm::Module &Module,
@@ -855,34 +852,93 @@ static void makeGlobalObjectsArray(llvm::Module &Module,
                            GlobalArrayName);
 }
 
-static void fixGlobals(llvm::Module &Module,
-                       LinkageRestoreMap &LinkageRestore) {
-  using namespace llvm;
+class GlobalsFixer {
+private:
+  static constexpr llvm::StringRef Prefix = "globals_fixer_variable_";
 
-  for (auto &Global : Module.global_objects()) {
-    // Turn globals with local linkage and external declarations into the
-    // equivalent of inline and record their original linking for it be
-    // restored later
-    if (Global.getLinkage() == GlobalValue::InternalLinkage
-        or Global.getLinkage() == GlobalValue::PrivateLinkage
-        or Global.getLinkage() == GlobalValue::AppendingLinkage
-        or (Global.getLinkage() == GlobalValue::ExternalLinkage
-            and not Global.isDeclaration())) {
-      LinkageRestore[Global.getName().str()] = Global.getLinkage();
-      Global.setLinkage(GlobalValue::LinkOnceODRLinkage);
+private:
+  size_t Counter = 0;
+  llvm::StringMap<llvm::GlobalValue::LinkageTypes> LinkageMap;
+  llvm::StringMap<std::string> GlobalsRenameMap;
+
+public:
+  void recordGlobals(llvm::Module &Module) {
+    using namespace llvm;
+
+    for (auto &Global : Module.global_objects()) {
+      bool IsUniqued = isUniquedGlobal(Global);
+
+      // Rename declarations so they are not merged by the linker
+      if (Global.isDeclaration() and IsUniqued) {
+        llvm::StringRef OldName = Global.getName();
+        std::string NewName = Prefix.str() + std::to_string(Counter);
+        GlobalsRenameMap[NewName] = OldName.str();
+        Global.setName(NewName);
+        Counter++;
+      }
+
+      // Turn globals with local linkage and external declarations into the
+      // equivalent of inline and record their original linking for it be
+      // restored later
+      if (Global.getLinkage() == GlobalValue::InternalLinkage
+          or Global.getLinkage() == GlobalValue::PrivateLinkage
+          or Global.getLinkage() == GlobalValue::AppendingLinkage
+          or (Global.getLinkage() == GlobalValue::ExternalLinkage
+              and not Global.isDeclaration())) {
+        LinkageMap[Global.getName()] = Global.getLinkage();
+
+        // Globals tagged with UniquedByPrototype and UniquedByMetadata are
+        // deduplicated manually post-link, mark them with Internal linkage so
+        // they are not collapsed by the linker
+        if (IsUniqued)
+          Global.setLinkage(GlobalValue::InternalLinkage);
+        else
+          Global.setLinkage(GlobalValue::LinkOnceODRLinkage);
+      }
     }
   }
-}
+
+  void restoreGlobals(llvm::Module &Module) {
+    // Restores the initial linkage for local functions
+    for (auto &Global : Module.global_objects()) {
+      auto It = LinkageMap.find(Global.getName().str());
+      if (It != LinkageMap.end())
+        Global.setLinkage(It->second);
+    }
+
+    // Restore the original name of the declaration
+    for (auto &Global : Module.global_objects()) {
+      if (not(Global.isDeclaration() and isUniquedGlobal(Global)))
+        continue;
+
+      auto OldNameEntry = GlobalsRenameMap.find(Global.getName());
+      if (OldNameEntry == GlobalsRenameMap.end())
+        continue;
+
+      std::string OldName = OldNameEntry->second;
+      Global.setName(OldNameEntry->second);
+    }
+  }
+
+private:
+  static bool isUniquedGlobal(llvm::GlobalObject &Object) {
+    if (auto *Function = dyn_cast<llvm::Function>(&Object)) {
+      return FunctionTags::UniquedByPrototype.isTagOf(Function)
+             or FunctionTags::UniquedByMetadata.isTagOf(Function);
+    } else if (auto *GlobalVariable = dyn_cast<llvm::GlobalVariable>(&Object)) {
+      return FunctionTags::UniquedByPrototype.isTagOf(GlobalVariable)
+             or FunctionTags::UniquedByMetadata.isTagOf(GlobalVariable);
+    } else {
+      return false;
+    }
+  }
+};
 
 void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
                          std::unique_ptr<llvm::Module> &Destination) {
-  LinkageRestoreMap LinkageRestore;
-
-  // All symbols internal and external symbols myst be transformed into weak
-  // symbols, so that when multiple with the same name exists, one is
-  // dropped.
-  fixGlobals(*Source, LinkageRestore);
-  fixGlobals(*Destination, LinkageRestore);
+  GlobalsFixer Fixer;
+  Fixer.recordGlobals(*Source);
+  Fixer.recordGlobals(*Destination);
 
   // Make a global array of all global objects so that they don't get dropped
   std::string GlobalArray1 = "revng.AllSymbolsArrayLeft";
@@ -914,12 +970,7 @@ void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
 
   revng_assert(not Failure, "Linker failed");
 
-  // Restores the initial linkage for local functions
-  for (auto &Global : Source->global_objects()) {
-    auto It = LinkageRestore.find(Global.getName().str());
-    if (It != LinkageRestore.end())
-      Global.setLinkage(It->second);
-  }
+  Fixer.restoreGlobals(*Source);
   Destination = std::move(Source);
 
   // Remove the global arrays since they are no longer needed.
