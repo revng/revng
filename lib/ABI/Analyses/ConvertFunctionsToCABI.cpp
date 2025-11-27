@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
 #include "revng/ABI/FunctionType/Conversion.h"
 #include "revng/ABI/FunctionType/Support.h"
 #include "revng/ADT/UpcastablePointer.h"
@@ -172,142 +173,200 @@ public:
   void run(pipeline::ExecutionContext &Context,
            std::string TargetABI,
            std::string Mode,
-           std::string ABIConfidence) {
-    auto &Model = revng::getWritableModelFromContext(Context);
-    revng_assert(!TargetABI.empty());
+           std::string ABIConfidence);
+};
 
-    model::ABI::Values ABI = model::ABI::fromName(TargetABI);
-    if (ABI == model::ABI::Values::Invalid) {
-      revng_log(Log,
-                "No ABI explicitly specified for the conversion, using the "
-                "`Model->DefaultABI()`.");
-      ABI = Model->DefaultABI();
-    }
+static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
+                                   model::ABI::Values ABI,
+                                   llvm::StringRef Mode,
+                                   llvm::StringRef ABIConfidence) {
+  // Minimize the negative impact on binaries with ABI that is not fully
+  // supported by disabling the conversion by default.
+  //
+  // Use `--convert-functions-to-cabi-mode=unsafe` to force conversion even
+  // when ABI is not considered fully tested.
+  if (Mode == "safe") {
+    // TODO: extend this list.
+    static constexpr std::array ABIsTheConversionIsEnabledFor = {
+      model::ABI::SystemV_x86_64,
+      model::ABI::Microsoft_x86_64,
+      model::ABI::Microsoft_x86_64_vectorcall,
+      model::ABI::SystemV_x86,
+      model::ABI::SystemV_x86_regparm_3,
+      model::ABI::SystemV_x86_regparm_2,
+      model::ABI::SystemV_x86_regparm_1,
+      model::ABI::Microsoft_x86_cdecl,
+      model::ABI::Microsoft_x86_cdecl_gcc,
+      model::ABI::Microsoft_x86_fastcall,
+      model::ABI::Microsoft_x86_fastcall_gcc,
+      model::ABI::Microsoft_x86_stdcall,
+      model::ABI::Microsoft_x86_stdcall_gcc,
+      model::ABI::Microsoft_x86_thiscall,
+      model::ABI::Microsoft_x86_vectorcall,
+      model::ABI::AAPCS,
+      model::ABI::AAPCS64
 
-    // Minimize the negative impact on binaries with ABI that is not fully
-    // supported by disabling the conversion by default.
-    //
-    // Use `--convert-functions-to-cabi-mode=unsafe` to force conversion even
-    // when ABI is not considered fully tested.
-    if (Mode == "safe") {
-      // TODO: extend this list.
-      static constexpr std::array ABIsTheConversionIsEnabledFor = {
-        model::ABI::SystemV_x86_64,
-        model::ABI::Microsoft_x86_64,
-        model::ABI::Microsoft_x86_64_vectorcall,
-        model::ABI::SystemV_x86,
-        model::ABI::SystemV_x86_regparm_3,
-        model::ABI::SystemV_x86_regparm_2,
-        model::ABI::SystemV_x86_regparm_1,
-        model::ABI::Microsoft_x86_cdecl,
-        model::ABI::Microsoft_x86_cdecl_gcc,
-        model::ABI::Microsoft_x86_fastcall,
-        model::ABI::Microsoft_x86_fastcall_gcc,
-        model::ABI::Microsoft_x86_stdcall,
-        model::ABI::Microsoft_x86_stdcall_gcc,
-        model::ABI::Microsoft_x86_thiscall,
-        model::ABI::Microsoft_x86_vectorcall,
-        model::ABI::AAPCS,
-        model::ABI::AAPCS64
+      // There are known issues
+      // model::ABI::SystemV_MIPS_o32,
+      // model::ABI::SystemV_MIPSEL_o32
 
-        // There are known issues
-        // model::ABI::SystemV_MIPS_o32,
-        // model::ABI::SystemV_MIPSEL_o32
-
-        // Unable to reliably test: QEMU aborts
-        // model::ABI::SystemZ_s390x,
-      };
-      if (!llvm::is_contained(ABIsTheConversionIsEnabledFor, ABI)) {
-        revng_log(Log,
-                  "Analysis was aborted because the `safe` (default) mode of "
-                  "the conversion was selected and the conversion for the "
-                  "current ABI (`"
-                    << model::ABI::getName(ABI).str()
-                    << "`) is not considered stable.");
-        return;
-      }
-    }
-
-    // Determines the strictness of register state deductions
-    bool SoftDeductions = (ABIConfidence == "low");
-
-    // This reuses the verification map within the `model::VerifyHelper` in
-    // an incompatible manner. DO NOT pass this object into a normal
-    // verification routine or things are going to break down.
-    model::VerifyHelper VectorVH;
-
-    // Choose functions for the conversion, but leave DefaultPrototype alone
-    // (in order to avoid invalidation),
-    using abi::FunctionType::filterTypes;
-    using RawFD = model::RawFunctionDefinition;
-    // TODO: Switch to std::optional after C++26 support arrives.
-    llvm::SmallVector<model::TypeDefinition *, 1> TypesToIgnore = {};
-    if (auto &DefaultPrototype = Model->DefaultPrototype())
-      if (auto *Definition = DefaultPrototype->tryGetAsDefinition())
-        TypesToIgnore.push_back(Definition);
-    auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions(),
-                                        TypesToIgnore);
-
-    using NB = model::CNameBuilder;
-    auto NameBuilder = Log.isEnabled() ? std::make_optional<NB>(*Model) :
-                                         std::nullopt;
-
-    auto LogFunctionName = [&NameBuilder,
-                            &Model](const model::TypeDefinition::Key &Key) {
-      if (not Log.isEnabled())
-        return;
-
-      revng_log(Log,
-                "Converting a function: "
-                  << toString(Model->getDefinitionReference(Key)));
-
-      std::string Names;
-      constexpr llvm::StringRef Separator = ", ";
-      for (model::Function &Function : Model->Functions())
-        if (Function.prototype() && Function.prototype()->key() == Key)
-          Names += '"' + NameBuilder->name(Function) + '"' + Separator.str();
-
-      if (Names.empty()) {
-        revng_log(Log, "There are no functions using it as a prototype.");
-      } else {
-        Names.resize(Names.size() - Separator.size());
-        revng_log(Log, "It's a prototype of " << Names);
-      }
+      // Unable to reliably test: QEMU aborts
+      // model::ABI::SystemZ_s390x,
     };
+    if (!llvm::is_contained(ABIsTheConversionIsEnabledFor, ABI)) {
+      revng_log(Log,
+                "Analysis was aborted because the `safe` (default) mode of "
+                "the conversion was selected and the conversion for the "
+                "current ABI (`"
+                  << model::ABI::getName(ABI).str()
+                  << "`) is not considered stable.");
+      return;
+    }
+  }
 
-    // And convert them.
-    for (model::RawFunctionDefinition *Old : ToConvert) {
-      LogFunctionName(Old->key());
+  // Determines the strictness of register state deductions
+  bool SoftDeductions = (ABIConfidence == "low");
 
-      if (!usesFloat(VectorVH, *Old)) {
-        // TODO: remove this check after `abi::FunctionType` supports vectors.
-        revng_log(Log,
-                  "Do not touch this function because it requires vector "
-                  "register support.");
-        continue;
-      }
+  // This reuses the verification map within the `model::VerifyHelper` in
+  // an incompatible manner. DO NOT pass this object into a normal
+  // verification routine or things are going to break down.
+  model::VerifyHelper VectorVH;
 
-      namespace FT = abi::FunctionType;
-      if (auto New = FT::tryConvertToCABI(*Old, Model, ABI, SoftDeductions)) {
-        // If the conversion succeeds, make sure the returned type is valid,
-        revng_assert(!New->isEmpty());
+  // Choose functions for the conversion, but leave DefaultPrototype alone
+  // (in order to avoid invalidation),
+  using abi::FunctionType::filterTypes;
+  using RawFD = model::RawFunctionDefinition;
+  // TODO: Switch to std::optional after C++26 support arrives.
+  llvm::SmallVector<model::TypeDefinition *, 1> TypesToIgnore = {};
+  if (auto &DefaultPrototype = Model->DefaultPrototype())
+    if (auto *Definition = DefaultPrototype->tryGetAsDefinition())
+      TypesToIgnore.push_back(Definition);
+  auto ToConvert = filterTypes<RawFD>(Model->TypeDefinitions(), TypesToIgnore);
 
-        // and verifies
-        if (VerifyLog.isEnabled())
-          New->get()->verify(true);
+  using NB = model::CNameBuilder;
+  auto NameBuilder = Log.isEnabled() ? std::make_optional<NB>(*Model) :
+                                       std::nullopt;
 
-        revng_log(Log, "Function Conversion Successful: " << toString(*New));
-      } else {
-        // Do nothing if the conversion failed (the model is not modified).
-        // `RawFunctionDefinition` is still used for those functions.
-        // This might be an indication of an ABI misdetection.
-        revng_log(Log, "Function Conversion Failed.");
-      }
+  auto LogFunctionName = [&NameBuilder,
+                          &Model](const model::TypeDefinition::Key &Key) {
+    if (not Log.isEnabled())
+      return;
+
+    revng_log(Log,
+              "Converting a function: "
+                << toString(Model->getDefinitionReference(Key)));
+
+    std::string Names;
+    constexpr llvm::StringRef Separator = ", ";
+    for (model::Function &Function : Model->Functions())
+      if (Function.prototype() && Function.prototype()->key() == Key)
+        Names += '"' + NameBuilder->name(Function) + '"' + Separator.str();
+
+    if (Names.empty()) {
+      revng_log(Log, "There are no functions using it as a prototype.");
+    } else {
+      Names.resize(Names.size() - Separator.size());
+      revng_log(Log, "It's a prototype of " << Names);
+    }
+  };
+
+  // And convert them.
+  for (model::RawFunctionDefinition *Old : ToConvert) {
+    LogFunctionName(Old->key());
+
+    if (!usesFloat(VectorVH, *Old)) {
+      // TODO: remove this check after `abi::FunctionType` supports vectors.
+      revng_log(Log,
+                "Do not touch this function because it requires vector "
+                "register support.");
+      continue;
     }
 
-    // Don't forget to clean up any possible remainders of removed types.
-    purgeUnnamedAndUnreachableTypes(Model);
+    namespace FT = abi::FunctionType;
+    if (auto New = FT::tryConvertToCABI(*Old, Model, ABI, SoftDeductions)) {
+      // If the conversion succeeds, make sure the returned type is valid,
+      revng_assert(!New->isEmpty());
+
+      // and verifies
+      if (VerifyLog.isEnabled())
+        New->get()->verify(true);
+
+      revng_log(Log, "Function Conversion Successful: " << toString(*New));
+    } else {
+      // Do nothing if the conversion failed (the model is not modified).
+      // `RawFunctionDefinition` is still used for those functions.
+      // This might be an indication of an ABI misdetection.
+      revng_log(Log, "Function Conversion Failed.");
+    }
+  }
+
+  // Don't forget to clean up any possible remainders of removed types.
+  purgeUnnamedAndUnreachableTypes(Model);
+}
+
+void ConvertFunctionsToCABI::run(pipeline::ExecutionContext &Context,
+                                 std::string TargetABI,
+                                 std::string Mode,
+                                 std::string ABIConfidence) {
+  auto &Model = revng::getWritableModelFromContext(Context);
+  revng_assert(!TargetABI.empty());
+
+  model::ABI::Values ABI = model::ABI::fromName(TargetABI);
+  if (ABI == model::ABI::Values::Invalid) {
+    revng_log(Log,
+              "No ABI explicitly specified for the conversion, using the "
+              "`Model->DefaultABI()`.");
+    ABI = Model->DefaultABI();
+  }
+
+  convertFunctionsToCABI(Model, ABI, Mode, ABIConfidence);
+}
+
+pipeline::RegisterAnalysis<ConvertFunctionsToCABI> ToCABIAnalysis;
+
+struct ConvertFunctionsToCABIConfiguration {
+  std::string ABI;
+  std::string Mode;
+  std::string Confidence;
+};
+
+template<>
+struct llvm::yaml::MappingTraits<ConvertFunctionsToCABIConfiguration> {
+  static void mapping(IO &IO, ConvertFunctionsToCABIConfiguration &Fields) {
+    IO.mapOptional("ABI", Fields.ABI);
+    IO.mapOptional("Mode", Fields.Mode);
+    IO.mapOptional("Confidence", Fields.Confidence);
   }
 };
 
-pipeline::RegisterAnalysis<ConvertFunctionsToCABI> ToCABIAnalysis;
+namespace revng::pypeline::analyses {
+
+using Configuration = ::ConvertFunctionsToCABIConfiguration;
+
+llvm::Error ConvertFunctionsToCABI::run(Model &Model,
+                                        const Request &Incoming,
+                                        llvm::StringRef StrConfiguration) {
+  auto MaybeConfiguration = fromString<Configuration>(StrConfiguration);
+  if (not MaybeConfiguration)
+    return MaybeConfiguration.takeError();
+
+  Configuration &Configuration = MaybeConfiguration.get();
+  model::ABI::Values ABI;
+  if (not Configuration.ABI.empty()) {
+    ABI = model::ABI::fromName(Configuration.ABI);
+  } else {
+    revng_log(Log,
+              "No ABI explicitly specified for the conversion, using the "
+              "`Model->DefaultABI()`.");
+    ABI = Model.get()->DefaultABI();
+  }
+
+  convertFunctionsToCABI(Model.get(),
+                         ABI,
+                         Configuration.Mode,
+                         Configuration.Confidence);
+
+  return llvm::Error::success();
+}
+
+} // namespace revng::pypeline::analyses

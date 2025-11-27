@@ -34,6 +34,7 @@ analyses:
   - set-model
   - verify-model
   - import-well-known-models
+  - convert-functions-to-cabi
 
 branches:
   files-imported:

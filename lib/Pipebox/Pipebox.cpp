@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
@@ -101,3 +102,4 @@ static RegisterAnalysis<ImportWellKnownModelsAnalysis> A6;
 static RegisterAnalysis<DetectABI> A7;
 static RegisterAnalysis<DetectStackSize> A8;
 static RegisterAnalysis<AnalyzeDataLayout> A9;
+static RegisterAnalysis<ConvertFunctionsToCABI> A10;
