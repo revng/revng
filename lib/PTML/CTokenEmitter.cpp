@@ -79,22 +79,29 @@ getCIntegerLiteralSuffix(const ptml::CTokenEmitter::IntegerSuffix &Suffix) {
 
 static std::optional<llvm::StringRef> getScopeKindAttribute(ScopeKind Kind) {
   switch (Kind) {
-  case ScopeKind::None:
-    break;
+  case ScopeKind::IndentOnly:
+  case ScopeKind::Basic:
+    return std::nullopt;
+
+  case ScopeKind::FunctionDeclaration:
+    return ptml::c::scopes::Function;
+
+  case ScopeKind::Foldable:
+  case ScopeKind::BlockStatement:
+    return ptml::c::scopes::Scope;
+
   case ScopeKind::EnumDefinition:
     return ptml::c::scopes::EnumBody;
+  case ScopeKind::FunctionDefinition:
+    return ptml::c::scopes::FunctionBody;
   case ScopeKind::StructDefinition:
     return ptml::c::scopes::StructBody;
   case ScopeKind::UnionDefinition:
     return ptml::c::scopes::UnionBody;
-  case ScopeKind::FunctionDeclaration:
-    return ptml::c::scopes::Function;
-  case ScopeKind::FunctionDefinition:
-    return ptml::c::scopes::FunctionBody;
-  case ScopeKind::BlockStatement:
-    return ptml::c::scopes::Scope;
+
+  default:
+    revng_abort("Unknown `ScopeKind`");
   }
-  return std::nullopt;
 }
 
 static llvm::SmallVector<llvm::StringRef, 2>
@@ -163,18 +170,6 @@ static std::string getActionContextLocation(llvm::StringRef Location) {
     return L->transmute(rr::TypeDefinition).toString();
 
   return Location.str();
-}
-
-static std::optional<std::pair<Punctuator, Punctuator>>
-getDelimiterPunctuators(CTokenEmitter::Delimiter Delimiter) {
-  switch (Delimiter) {
-  case CTokenEmitter::Delimiter::None:
-    break;
-  case CTokenEmitter::Delimiter::Braces:
-    return std::pair<Punctuator, Punctuator>(Punctuator::LeftBrace,
-                                             Punctuator::RightBrace);
-  }
-  return std::nullopt;
 }
 
 static bool requiresStringEscaping(char Character) {
@@ -704,18 +699,19 @@ static constexpr uint64_t TabWidth = 2;
 
 CTokenEmitter::Scope::Scope(CTokenEmitter &Emitter,
                             ScopeKind Kind,
-                            CTokenEmitter::Delimiter Delimiter,
                             int Indent) :
-  Emitter(Emitter), Delimiter(Delimiter), Indent(Indent) {
+  Emitter(Emitter), Indent(Indent) {
   revng_assert(not Emitter.IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");
 
-  if (auto Symbols = getDelimiterPunctuators(Delimiter))
-    Emitter.emitPunctuator(Symbols->first);
+  Emitter.emitScopeOpener(Kind);
 
-  if (auto Attribute = getScopeKindAttribute(Kind)) {
+  if (Kind != ScopeKind::IndentOnly) {
     Tag.emplace(Emitter.PTML.makeTagInitializer(ptml::tags::Div));
-    Tag->emitAttribute(ptml::attributes::Scope, *Attribute);
+
+    if (auto Attribute = getScopeKindAttribute(Kind))
+      Tag->emitAttribute(ptml::attributes::Scope, *Attribute);
+
     Tag->finalizeOpenTag();
   }
 
@@ -727,8 +723,7 @@ CTokenEmitter::Scope::~Scope() {
 
   Tag.reset();
 
-  if (auto Symbols = getDelimiterPunctuators(Delimiter))
-    Emitter.emitPunctuator(Symbols->second);
+  Emitter.emitScopeCloser(Kind);
 }
 
 CTokenEmitter::Region::Region(CTokenEmitter &Emitter,
