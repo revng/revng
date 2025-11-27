@@ -16,4 +16,8 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
                              mlir::ModuleOp Module,
                              TypeEmitterConfiguration Configuration);
 
+void emitHelperHeader(ptml::CTokenEmitter &Tokens,
+                      const TargetCImplementation &Target,
+                      llvm::MutableArrayRef<mlir::ModuleOp> Modules);
+
 } // namespace mlir::clift

@@ -149,6 +149,61 @@ public:
       Tokens.emitNewline();
     });
   }
+
+public:
+  void emitHelpers(llvm::MutableArrayRef<mlir::ModuleOp> Modules) {
+    revng_check(not Modules.empty());
+
+    namespace clift = mlir::clift;
+    clift::TypeDefinitionEmitter Emitter(Tokens,
+                                         Target,
+                                         *Modules.front().getContext(),
+                                         clift::TypeEmitterConfiguration{
+                                           .TypeToOmit = {},
+                                           .EmitMaximumEnumValue = false,
+                                           .ExplicitPadding = true,
+                                         });
+
+    // TODO: emit `#include`s
+
+    auto Graph = clift::TypeDependencyGraph::makeHelperGraph(Modules);
+    if (not Graph.empty()) {
+      Emitter.emitCategoryComment("Types");
+
+      revng_assert(!Modules.empty());
+      emitTypeGraph(*Modules.front().getContext(), Graph, Emitter);
+    }
+
+    bool CommentEmitted = false;
+    std::unordered_set<std::string_view> EmittedFunctions;
+    for (mlir::ModuleOp Module : Modules) {
+      Module->walk([this,
+                    &Emitter,
+                    &CommentEmitted,
+                    &EmittedFunctions](mlir::clift::FunctionOp Function) {
+        if (EmittedFunctions.contains(Function.getHandle()))
+          return;
+
+        if (pipeline::locationFromString(revng::ranks::HelperFunction,
+                                         Function.getHandle())) {
+          if (not CommentEmitted) {
+            Emitter.emitCategoryComment("Functions");
+            CommentEmitted = true;
+          }
+
+          Emitter.emitFunctionPrototype(Function);
+          Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+          Tokens.emitNewline();
+          Tokens.emitNewline();
+
+          auto [_, Success] = EmittedFunctions.emplace(Function.getHandle());
+          revng_assert(Success);
+        }
+      });
+    }
+
+    Tokens.emitNewline();
+  }
 };
 
 void mlir::clift::emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
@@ -166,4 +221,14 @@ void mlir::clift::emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
   Emitter.emitFunctions(Module);
   Emitter.emitDynamicFunctions(Module);
   Emitter.emitSegments(Module);
+}
+
+void mlir::clift::emitHelperHeader(ptml::CTokenEmitter &Tokens,
+                                   const TargetCImplementation &Target,
+                                   llvm::MutableArrayRef<mlir::ModuleOp>
+                                     Modules) {
+  CHeaderEmitterImpl Emitter(Tokens, Target);
+
+  Emitter.emitHeaderPrologue();
+  Emitter.emitHelpers(Modules);
 }
