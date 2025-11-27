@@ -176,6 +176,13 @@ public:
   void emitPrimitive(llvm::StringRef Name,
                      IdentifierKind IsDefinition = IdentifierKind::Reference);
 
+  void emitMacro(llvm::StringRef Name,
+                 IdentifierKind IsDefinition = IdentifierKind::Reference);
+  void
+  emitMacroArgument(llvm::StringRef MacroName,
+                    llvm::StringRef ArgumentName,
+                    IdentifierKind IsDefinition = IdentifierKind::Reference);
+
   /// \pre \param Identifier matches `[_a-zA-Z][_a-zA-Z0-9]*`.
   void emitLiteralIdentifier(llvm::StringRef Identifier);
 
