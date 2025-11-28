@@ -13,13 +13,7 @@ template<typename T>
 concept IsTypeDefinitionPipe = requires(T &PipeRun,
                                         const UpcastablePointer<
                                           model::TypeDefinition> &TD) {
-  requires IsMultipleObjectsPipeRun<T>;
-  requires hasConstructor<
-    T,
-    // The Structure of the constructor is:
-    // {Model, StaticConfiguration, Configuration, Containers...}
-    concat<TypeList<const Model &, llvm::StringRef, llvm::StringRef>,
-           ConstructorContainerArguments<T>>>();
+  requires IsBasePipeRun<T>;
   { PipeRun.runOnTypeDefinition(TD) } -> std::same_as<void>;
 };
 

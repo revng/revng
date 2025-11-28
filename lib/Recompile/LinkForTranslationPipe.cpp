@@ -50,17 +50,25 @@ static void writeToFile(llvm::StringRef Path, llvm::StringRef Buffer) {
   OS << Buffer;
 }
 
-void LinkForTranslation::run(const Model &TheModel,
-                             llvm::StringRef StaticConfig,
-                             llvm::StringRef DynamicConfig,
-                             const BinariesContainer &Binaries,
-                             const ObjectFileContainer &ObjectFile,
-                             TranslatedContainer &Output) {
+LinkForTranslation::LinkForTranslation(const Model &TheModel,
+                                       llvm::StringRef StaticConfig,
+                                       llvm::StringRef DynamicConfig,
+                                       const BinariesContainer &Binaries,
+                                       const ObjectFileContainer &ObjectFile,
+                                       TranslatedContainer &Output) :
+  Binary(*TheModel.get().get()),
+  Binaries(Binaries),
+  ObjectFile(ObjectFile),
+  Output(Output) {
+}
+
+void LinkForTranslation::run() {
   // TODO: some of the operations in linkForTranslation should be converted to
   //       in-memory counterparts to avoid serializing everything.
-  TemporaryFile Binary("revng-lft-binary");
+  TemporaryFile BinaryFile("revng-lft-binary");
   auto BinaryArrayRef = Binaries.getFile(0);
-  writeToFile(Binary.path(), { BinaryArrayRef.begin(), BinaryArrayRef.size() });
+  writeToFile(BinaryFile.path(),
+              { BinaryArrayRef.begin(), BinaryArrayRef.size() });
 
   TemporaryFile Object("revng-lft-object", "o");
   writeToFile(Object.path(),
@@ -68,8 +76,8 @@ void LinkForTranslation::run(const Model &TheModel,
 
   TemporaryFile TempOutput("revng-lft-output");
 
-  linkForTranslation(*TheModel.get().get(),
-                     Binary.path(),
+  linkForTranslation(Binary,
+                     BinaryFile.path(),
                      Object.path(),
                      TempOutput.path());
 

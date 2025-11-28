@@ -158,42 +158,7 @@ concept HasPipeRunArguments = requires {
   requires checkPipeRunArguments<typename T::Arguments>();
 };
 
-template<typename T>
-struct SingleOutputPipeTraits {};
-
-template<typename Return, typename... Args>
-  requires(std::is_void_v<Return>
-           or std::is_same_v<Return, revng::pypeline::CustomInvalidationData>)
-struct SingleOutputPipeTraits<
-  Return (*)(const Model &, llvm::StringRef, llvm::StringRef, Args &...)> {
-  using ContainerTypes = TypeList<Args...>;
-  using ReturnType = Return;
-};
-
 } // namespace detail
-
-template<typename T>
-using SingleOutputPipeTraits = detail::SingleOutputPipeTraits<
-  decltype(&T::run)>;
-
-template<typename T>
-concept HasStaticRun = requires {
-  typename SingleOutputPipeTraits<T>::ReturnType;
-};
-
-template<typename T>
-concept IsSingleObjectPipeRun = requires {
-  requires HasName<T>;
-  requires HasStaticRun<T>;
-  requires not detail::HasPipeRunArguments<T>;
-};
-
-template<typename T>
-concept IsMultipleObjectsPipeRun = requires {
-  requires HasName<T>;
-  requires detail::HasPipeRunArguments<T>;
-  requires not HasStaticRun<T>;
-};
 
 //
 // PipeRunContainerTypes
@@ -201,11 +166,8 @@ concept IsMultipleObjectsPipeRun = requires {
 
 namespace detail {
 
-template<typename T>
-struct PipeRunContainerTypesImpl {};
-
-template<IsMultipleObjectsPipeRun T>
-struct PipeRunContainerTypesImpl<T> {
+template<detail::HasPipeRunArguments T>
+struct PipeRunContainerTypesImpl {
 private:
   template<typename... Args>
   static TypeList<typename Args::Type...> toContainerTypes(TypeList<Args...>);
@@ -215,17 +177,10 @@ public:
                                                    typename T::Arguments>()));
 };
 
-template<IsSingleObjectPipeRun T>
-struct PipeRunContainerTypesImpl<T> {
-  using ContainerTypes = SingleOutputPipeTraits<
-    decltype(&T::run)>::ContainerTypes;
-};
-
 } // namespace detail
 
 /// This using will return a TypeList of container types (including const) used
-/// by a Pipe Run class. This works for both SingleObjectPipeRun and
-/// MultipleObjectPipeRun classes.
+/// by a Pipe Run class.
 template<typename T>
 using PipeRunContainerTypes = detail::PipeRunContainerTypesImpl<
   T>::ContainerTypes;
@@ -263,3 +218,15 @@ constexpr bool hasConstructor() {
 template<typename T>
 using ConstructorContainerArguments = detail::AddReference<
   PipeRunContainerTypes<T>>;
+
+template<typename T>
+concept IsBasePipeRun = requires {
+  requires HasName<T>;
+  requires detail::HasPipeRunArguments<T>;
+  requires hasConstructor<
+    T,
+    // The Structure of the constructor is:
+    // {Model, StaticConfiguration, Configuration, Containers...}
+    concat<TypeList<const Model &, llvm::StringRef, llvm::StringRef>,
+           ConstructorContainerArguments<T>>>();
+};

@@ -295,14 +295,17 @@ static pipeline::RegisterPipe<InvokeIsolatedPipe> Y;
 
 namespace revng::pypeline::piperuns {
 
-void InvokeIsolatedFunctions::run(const class Model &Model,
-                                  llvm::StringRef Config,
-                                  llvm::StringRef DynamicConfig,
-                                  const LLVMRootContainer &Root,
-                                  const LLVMFunctionContainer &Functions,
-                                  LLVMRootContainer &Output) {
-  const model::Binary &Binary = *Model.get().get();
+InvokeIsolatedFunctions::InvokeIsolatedFunctions(const class Model &Model,
+                                                 llvm::StringRef Config,
+                                                 llvm::StringRef DynamicConfig,
+                                                 const LLVMRootContainer &Root,
+                                                 const LLVMFunctionContainer
+                                                   &Functions,
+                                                 LLVMRootContainer &Output) :
+  Binary(*Model.get().get()), Root(Root), Functions(Functions), Output(Output) {
+}
 
+void InvokeIsolatedFunctions::run() {
   // Clone the container
   llvm::LLVMContext &OutputContext = Output.getModule().getContext();
   std::unique_ptr<llvm::Module>

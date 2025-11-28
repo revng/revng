@@ -18,15 +18,23 @@ using CBytesContainer = BytesContainer<"CBytesContainer", "text/x.c+ptml">;
 namespace piperuns {
 
 class ModelToHeader {
+private:
+  const model::Binary &Binary;
+  CBytesContainer &Buffer;
+
 public:
   static constexpr llvm::StringRef Name = "model-to-header";
-  using Arguments = TypeList<
-    PipeArgument<"Buffer", "The output C header of the model", Access::Write>>;
+  using Arguments = TypeList<PipeRunArgument<CBytesContainer,
+                                             "Buffer",
+                                             "The output C header of the model",
+                                             Access::Write>>;
 
-  static void run(const Model &TheModel,
-                  llvm::StringRef StaticConfig,
-                  llvm::StringRef DynamicConfig,
-                  CBytesContainer &Buffer);
+  ModelToHeader(const Model &TheModel,
+                llvm::StringRef StaticConfig,
+                llvm::StringRef DynamicConfig,
+                CBytesContainer &Buffer);
+
+  void run();
 };
 
 } // namespace piperuns

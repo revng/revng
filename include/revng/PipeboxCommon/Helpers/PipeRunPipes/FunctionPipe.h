@@ -11,13 +11,7 @@
 
 template<typename T>
 concept IsFunctionPipe = requires(T &PipeRun, const model::Function &Function) {
-  requires IsMultipleObjectsPipeRun<T>;
-  requires hasConstructor<
-    T,
-    // The Structure of the constructor is:
-    // {Model, StaticConfiguration, Configuration, Containers...}
-    concat<TypeList<const Model &, llvm::StringRef, llvm::StringRef>,
-           ConstructorContainerArguments<T>>>();
+  requires IsBasePipeRun<T>;
   { PipeRun.runOnFunction(Function) } -> std::same_as<void>;
 };
 

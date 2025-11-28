@@ -80,11 +80,13 @@ static pipeline::RegisterPipe<revng::pipes::ModelToHeader> Y;
 
 namespace revng::pypeline::piperuns {
 
-void ModelToHeader::run(const Model &TheModel,
-                        llvm::StringRef StaticConfig,
-                        llvm::StringRef DynamicConfig,
-                        CBytesContainer &Buffer) {
-  const model::Binary &Binary = *TheModel.get().get();
+ModelToHeader::ModelToHeader(const Model &TheModel,
+                             llvm::StringRef StaticConfig,
+                             llvm::StringRef DynamicConfig,
+                             CBytesContainer &Buffer) :
+  Binary(*TheModel.get().get()), Buffer(Buffer){};
+
+void ModelToHeader::run() {
   std::unique_ptr<llvm::raw_ostream> Out = Buffer.getOStream(ObjectID());
   ptml::ModelCBuilder
     B(*Out,

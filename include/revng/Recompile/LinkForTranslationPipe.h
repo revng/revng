@@ -57,21 +57,34 @@ using TranslatedContainer = BytesContainer<"TranslatedContainer",
 namespace piperuns {
 
 class LinkForTranslation {
+private:
+  const model::Binary &Binary;
+  const BinariesContainer &Binaries;
+  const ObjectFileContainer &ObjectFile;
+  TranslatedContainer &Output;
+
 public:
   static constexpr llvm::StringRef Name = "link-for-translation";
   using Arguments = TypeList<
-    PipeArgument<"Binaries", "The input binaries">,
-    PipeArgument<"ObjectFile", "The complied object file">,
-    PipeArgument<"Output", "The output executable", Access::Write>>;
+    PipeRunArgument<const BinariesContainer, "Binaries", "The input binaries">,
+    PipeRunArgument<const ObjectFileContainer,
+                    "ObjectFile",
+                    "The complied object file">,
+    PipeRunArgument<TranslatedContainer,
+                    "Output",
+                    "The output executable",
+                    Access::Write>>;
 
   static llvm::Error checkPrecondition(const class Model &Model);
 
-  static void run(const Model &TheModel,
-                  llvm::StringRef StaticConfig,
-                  llvm::StringRef DynamicConfig,
-                  const BinariesContainer &Binaries,
-                  const ObjectFileContainer &ObjectFile,
-                  TranslatedContainer &Output);
+  LinkForTranslation(const Model &TheModel,
+                     llvm::StringRef StaticConfig,
+                     llvm::StringRef DynamicConfig,
+                     const BinariesContainer &Binaries,
+                     const ObjectFileContainer &ObjectFile,
+                     TranslatedContainer &Output);
+
+  void run();
 };
 
 } // namespace piperuns

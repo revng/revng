@@ -99,11 +99,15 @@ static pipeline::RegisterPipe<LinkSupport> E4;
 
 namespace revng::pypeline::piperuns {
 
-void LinkSupport::run(const class Model &Model,
-                      llvm::StringRef Config,
-                      llvm::StringRef DynamicConfig,
-                      LLVMRootContainer &ModuleContainer) {
-  std::string SupportPath = getSupportPath(*Model.get().get());
+LinkSupport::LinkSupport(const class Model &Model,
+                         llvm::StringRef Config,
+                         llvm::StringRef DynamicConfig,
+                         LLVMRootContainer &ModuleContainer) :
+  Binary(*Model.get().get()), ModuleContainer(ModuleContainer) {
+}
+
+void LinkSupport::run() {
+  std::string SupportPath = getSupportPath(Binary);
 
   llvm::SMDiagnostic Err;
   llvm::LLVMContext &Context = ModuleContainer.getModule().getContext();

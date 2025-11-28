@@ -11,11 +11,20 @@
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Helpers.h"
 #include "revng/PipeboxCommon/Model.h"
 
+namespace detail {
+
 template<typename T>
-concept IsSingleOutputPipeRun = requires {
-  requires IsSingleObjectPipeRun<T>;
-  requires HasArguments<T>;
-  requires SpecializationOf<PipeRunContainerTypes<T>, TypeList>;
+concept IsSingleOutputRunReturnType = requires {
+  requires std::is_void_v<T>
+             or std::is_same_v<T, revng::pypeline::CustomInvalidationData>;
+};
+
+} // namespace detail
+
+template<typename T>
+concept IsSingleOutputPipeRun = requires(T &PipeRun) {
+  requires IsBasePipeRun<T>;
+  { PipeRun.run() } -> detail::IsSingleOutputRunReturnType<>;
 };
 
 template<IsSingleOutputPipeRun T>
@@ -34,7 +43,6 @@ public:
                                   const revng::pypeline::Request &Outgoing,
                                   llvm::StringRef Configuration,
                                   Args &...Containers) {
-    using ReturnT = SingleOutputPipeTraits<T>::ReturnType;
     ObjectDependenciesHelper ODH(Model, Outgoing, this->ContainerCount);
     auto &RequestedOutputs = Outgoing.at(this->OutputContainerIndex);
     if (RequestedOutputs.size() == 0)
@@ -45,14 +53,11 @@ public:
     T1.advance("Running 'run'", true);
 
     revng::pypeline::CustomInvalidationData CustomInvalidation;
-    if constexpr (std::is_void_v<ReturnT>) {
-      T::run(Model, this->StaticConfiguration, Configuration, Containers...);
-    } else {
-      CustomInvalidation = T::run(Model,
-                                  this->StaticConfiguration,
-                                  Configuration,
-                                  Containers...);
-    }
+    T Instance(Model, this->StaticConfiguration, Configuration, Containers...);
+    if constexpr (std::is_void_v<decltype(Instance.run())>)
+      Instance.run();
+    else
+      CustomInvalidation = Instance.run();
 
     ODH.commitUniqueTarget(this->OutputContainerIndex);
     return { ODH.takeDependencies(), std::move(CustomInvalidation) };
