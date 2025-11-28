@@ -17,6 +17,7 @@ class IROptCommand(Command):
         args = options.remaining_args
         if not any(arg.startswith("-enable-new-pm") for arg in args):
             args = ["-enable-new-pm=0"] + args
+        args.append("--emit-hex-constant-literals-from=4096")
         opt_command = build_command_with_loads("opt", args, options)
         return run(opt_command, options)
 

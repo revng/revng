@@ -10,6 +10,7 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Process.h"
 
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/Statistics.h"
 
 namespace revng {
@@ -70,6 +71,12 @@ public:
     // Force-enable `--enable-strict-debug-information-preservation-style` for
     // revng binaries even if it wasn't specified.
     llvm::EnableStrictDebugInformationPreservationStyle.setInitialValue(true);
+
+    using namespace llvm;
+    StringMap<cl::Option *> &Options(cl::getRegisteredOptions());
+
+    const char *OptionName = "emit-hex-constant-literals-from";
+    getOption<uint64_t>(Options, OptionName)->setInitialValue(4096);
   }
 
   ~InitRevng() { OnQuit->quit(); }
