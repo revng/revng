@@ -15,7 +15,6 @@
 #include "revng/PipeboxCommon/Concepts.h"
 #include "revng/PipeboxCommon/Helpers/Native/Registry.h"
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/FunctionPipe.h"
-#include "revng/PipeboxCommon/Helpers/PipeRunPipes/LLVMFunctionPassPipe.h"
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/SingleOutputPipe.h"
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/TypeDefinitionPipe.h"
 #include "revng/PipeboxCommon/Helpers/Python/Casters.h"
@@ -192,6 +191,3 @@ using RegisterFunctionPipe = RegisterPipe<FunctionPipe<T>>;
 
 template<typename T>
 using RegisterTypeDefinitionPipe = RegisterPipe<TypeDefinitionPipe<T>>;
-
-template<typename T>
-using RegisterLLVMFunctionPassPipe = RegisterPipe<LLVMFunctionPassPipe<T>>;
