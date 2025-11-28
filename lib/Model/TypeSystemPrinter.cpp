@@ -115,6 +115,15 @@ TypeSystemPrinter::TypeSystemPrinter(llvm::raw_ostream &Out,
   Out << "digraph TypeGraph {\n";
   if (OrthoEdges)
     Out << "splines=ortho;\n";
+  // The outedges of a node, that is, edges with the node as its tail node, must
+  // appear left-to-right in the same order in which they are defined in the
+  // input.
+  Out << "ordering=out;\n";
+
+  // the inedges of a node must appear left-to-right in the same order in
+  // which they are defined in the input.
+  Out << "ordering=in;\n";
+
   Out << "node [shape=none, margin=0];\n";
   Out << "graph [fontname=Courier];\n";
   Out << "node [fontname=Courier];\n";
