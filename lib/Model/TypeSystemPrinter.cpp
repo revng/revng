@@ -288,7 +288,6 @@ void TypeSystemPrinter::dumpFunctionType(llvm::raw_ostream &Out,
   Out << "<TD><TABLE " << TableOpts << "><TR>";
   if (ReturnTypes.empty()) {
     paddedCell(Out, "void");
-    CurPort++;
   } else {
     for (auto Field : ReturnTypes)
       paddedCell(Out, buildFieldName(*Field), CurPort++);
