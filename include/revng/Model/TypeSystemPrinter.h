@@ -65,13 +65,16 @@ public:
 
   /// Generate a graph of the types for the given function (Prototype,
   /// StackFrame, ...).
-  void print(const model::Function &F);
+  /// Returns the ID of the graphviz node representing F.
+  uint64_t print(const model::Function &F);
 
   /// Generate a graph of the types for the given dynamic function.
-  void print(const model::DynamicFunction &F);
+  /// Returns the ID of the graphviz node representing F.
+  uint64_t print(const model::DynamicFunction &F);
 
   /// Generate a graph of the types for the segment
-  void print(const model::Segment &S);
+  /// Returns the ID of the graphviz node representing S.
+  uint64_t print(const model::Segment &S);
 
   /// Generate a graph of all the types in a given binary.
   void print();

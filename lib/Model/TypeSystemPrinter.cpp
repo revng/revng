@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <vector>
+
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Casting.h"
 
@@ -113,6 +115,15 @@ TypeSystemPrinter::TypeSystemPrinter(llvm::raw_ostream &Out,
   Out << "digraph TypeGraph {\n";
   if (OrthoEdges)
     Out << "splines=ortho;\n";
+  // The outedges of a node, that is, edges with the node as its tail node, must
+  // appear left-to-right in the same order in which they are defined in the
+  // input.
+  Out << "ordering=out;\n";
+
+  // the inedges of a node must appear left-to-right in the same order in
+  // which they are defined in the input.
+  Out << "ordering=in;\n";
+
   Out << "node [shape=none, margin=0];\n";
   Out << "graph [fontname=Courier];\n";
   Out << "node [fontname=Courier];\n";
@@ -277,7 +288,6 @@ void TypeSystemPrinter::dumpFunctionType(llvm::raw_ostream &Out,
   Out << "<TD><TABLE " << TableOpts << "><TR>";
   if (ReturnTypes.empty()) {
     paddedCell(Out, "void");
-    CurPort++;
   } else {
     for (auto Field : ReturnTypes)
       paddedCell(Out, buildFieldName(*Field), CurPort++);
@@ -301,6 +311,10 @@ void TypeSystemPrinter::dumpFunctionType(llvm::raw_ostream &Out,
   Out << "</TABLE></TD></TR>";
 }
 
+static std::string nodeName(uint64_t NodeID) {
+  return "node_" + to_string(NodeID);
+}
+
 /// Generate the inner content of a Typedef node
 void TypeSystemPrinter::dumpTypedefUnderlying(llvm::raw_ostream &Out,
                                               const model::TypedefDefinition
@@ -313,7 +327,7 @@ void TypeSystemPrinter::dumpTypedefUnderlying(llvm::raw_ostream &Out,
 void TypeSystemPrinter::dumpTypeNode(const model::TypeDefinition *T,
                                      int NodeID) {
   // Print the name of the node
-  Out << "node_" << to_string(NodeID) << "[";
+  Out << nodeName(NodeID) << "[";
 
   // Choose the node's border color
   llvm::StringRef Color = getColor(T->Kind());
@@ -347,9 +361,9 @@ void TypeSystemPrinter::dumpTypeNode(const model::TypeDefinition *T,
 }
 
 void TypeSystemPrinter::addEdge(int SrcID, int SrcPort, int DstID) {
-  Out << "node_" << to_string(SrcID) << ":<P" << to_string(SrcPort) << ">";
+  Out << nodeName(SrcID) << ":<P" << to_string(SrcPort) << ">";
   Out << " -> ";
-  Out << "node_" << to_string(DstID);
+  Out << nodeName(DstID);
   Out << ":<TOP>;\n";
 }
 
@@ -397,9 +411,9 @@ void TypeSystemPrinter::addFieldEdge(std::string &&Label,
                                      int SrcPort,
                                      int DstID) {
   // Edge
-  Out << "node_" << to_string(SrcID) << ":<P" << to_string(SrcPort) << ">";
+  Out << nodeName(SrcID) << ":<P" << to_string(SrcPort) << ">";
   Out << " -> ";
-  Out << "node_" << to_string(DstID) << ":<TOP>";
+  Out << nodeName(DstID) << ":<TOP>";
 
   // Label
   Out << "[label=\"" << std::move(Label) << "\"";
@@ -475,7 +489,7 @@ void TypeSystemPrinter::print(const model::TypeDefinition &T) {
 
 void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   // Print the name of the node
-  Out << "node_" << to_string(NodeID) << "[";
+  Out << nodeName(NodeID) << "[";
 
   // Choose the node's border color
   llvm::StringRef Color = Purple;
@@ -518,7 +532,7 @@ void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   Out << "</TABLE> >];\n";
 }
 
-void TypeSystemPrinter::print(const model::Function &F) {
+uint64_t TypeSystemPrinter::print(const model::Function &F) {
   // Node corresponding to the function
   uint64_t FunctionNodeID = NextID;
   dumpFunctionNode(F, FunctionNodeID);
@@ -541,12 +555,14 @@ void TypeSystemPrinter::print(const model::Function &F) {
     uint64_t StackNodeID = NodesMap.at(StackFrame);
     addEdge(FunctionNodeID, 1, StackNodeID);
   }
+
+  return FunctionNodeID;
 }
 
 void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
                                          int NodeID) {
   // Print the name of the node
-  Out << "node_" << to_string(NodeID) << "[";
+  Out << nodeName(NodeID) << "[";
 
   // Choose the node's border color
   llvm::StringRef Color = Pink;
@@ -583,7 +599,7 @@ void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
   Out << "</TABLE> >];\n";
 }
 
-void TypeSystemPrinter::print(const model::DynamicFunction &F) {
+uint64_t TypeSystemPrinter::print(const model::DynamicFunction &F) {
   // Node corresponding to the function
   uint64_t FunctionNodeID = NextID;
   dumpFunctionNode(F, FunctionNodeID);
@@ -597,11 +613,13 @@ void TypeSystemPrinter::print(const model::DynamicFunction &F) {
     uint64_t PrototypeNodeID = NodesMap.at(Prototype);
     addEdge(FunctionNodeID, 0, PrototypeNodeID);
   }
+
+  return FunctionNodeID;
 }
 
 void TypeSystemPrinter::dumpSegmentNode(const model::Segment &S, int NodeID) {
   // Print the name of the node
-  Out << "node_" << to_string(NodeID) << "[";
+  Out << nodeName(NodeID) << "[";
 
   // Choose the node's border color
   llvm::StringRef Color = Orange;
@@ -638,7 +656,7 @@ void TypeSystemPrinter::dumpSegmentNode(const model::Segment &S, int NodeID) {
   Out << "</TABLE> >];\n";
 }
 
-void TypeSystemPrinter::print(const model::Segment &S) {
+uint64_t TypeSystemPrinter::print(const model::Segment &S) {
   // Node corresponding to the function
   uint64_t SegmentNodeID = NextID;
   dumpSegmentNode(S, SegmentNodeID);
@@ -652,20 +670,30 @@ void TypeSystemPrinter::print(const model::Segment &S) {
     uint64_t PrototypeNodeID = NodesMap.at(Type);
     addEdge(SegmentNodeID, 0, PrototypeNodeID);
   }
+
+  return SegmentNodeID;
 }
 
 void TypeSystemPrinter::print() {
+  std::vector<uint64_t> TopLevelIDs;
   // Print all functions and related types
   for (auto &F : Binary.Functions())
-    print(F);
+    TopLevelIDs.push_back(print(F));
 
   // Print all dynamic functions and related types
   for (auto &F : Binary.ImportedDynamicFunctions())
-    print(F);
+    TopLevelIDs.push_back(print(F));
 
   // Print all the segments and related types
   for (auto &S : Binary.Segments())
-    print(S);
+    TopLevelIDs.push_back(print(S));
+
+  if (not TopLevelIDs.empty()) {
+    Out << "{ rank=source;";
+    for (uint64_t I : TopLevelIDs)
+      Out << " " << nodeName(I);
+    Out << "}\n";
+  }
 
   // Print remaining types, if any
   for (auto &T : Binary.TypeDefinitions())
