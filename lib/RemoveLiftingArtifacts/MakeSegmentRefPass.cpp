@@ -126,9 +126,20 @@ getStringLiteral(RawBinaryView &BinaryView,
   return StringView;
 }
 
+static bool isBitcast(const ConstantExpr *E) {
+  auto OpCode = E->getOpcode();
+  return OpCode == Instruction::BitCast or OpCode == Instruction::IntToPtr
+         or OpCode == Instruction::PtrToInt;
+}
+
+static Value *skipConstexprBitcasts(Value *V) {
+  while (isa<ConstantExpr>(V) and isBitcast(cast<ConstantExpr>(V)))
+    V = cast<User>(V)->getOperand(0);
+  return V;
+}
+
 bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
                                            llvm::Function &F) {
-
   model::CNameBuilder NameBuilder(Binary);
   RawBinaryView &BinaryView = getAnalysis<LoadBinaryWrapperPass>().get();
 
@@ -178,7 +189,9 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
     //
     // This is correct only if all the Values we generate as a replacement
     // don't have any side effects.
-    DenseMap<ConstantInt *, Value *> ConstantOpReplacements;
+    // The key is Constant, but we expect them to be only ConstantInt and
+    // cast-like ConstantExpr.
+    DenseMap<Constant *, Value *> ConstantOpReplacements;
 
     for (Use &Op : I.operands()) {
 
@@ -199,16 +212,21 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
       // a string literal, nor a function.
       // TODO: this will change when we properly support PIE code. But when that
       // happens this part of the code should be gone already.
-      ConstantInt *ConstOp = dyn_cast<ConstantInt>(skipCasts(Op));
-      if (nullptr == ConstOp)
+      if (not isa<ConstantInt>(Op)
+          and not isa<ConstantInt>(skipConstexprBitcasts(Op)))
         continue;
+
+      ConstantInt *LeafConstOp = cast<ConstantInt>(skipConstexprBitcasts(Op));
 
       // Skip stuff that is not pointer-sized
-      using namespace model::Architecture;
-      auto PointerSize = getPointerSize(Binary.Architecture());
-      if (ConstOp->getBitWidth() != (8 * PointerSize))
-        continue;
+      {
+        using namespace model::Architecture;
+        auto PointerSize = getPointerSize(Binary.Architecture());
+        if (LeafConstOp->getBitWidth() != (8 * PointerSize))
+          continue;
+      }
 
+      auto *ConstOp = cast<Constant>(Op);
       // We've already this very same constant used as another operand of this
       // very same instruction. Just reuse the replacement that we've computed
       // earlier.
@@ -220,7 +238,7 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
         continue;
       }
 
-      uint64_t ConstantAddress = ConstOp->getZExtValue();
+      uint64_t ConstantAddress = LeafConstOp->getZExtValue();
 
       if (auto Segment = findSegmentContainingLiteral(Binary, ConstantAddress);
           Segment) {
@@ -253,8 +271,6 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
         } else {
 
           // Then we we check to see if the address matches a string literal.
-
-          IntegerType *OperandType = ConstOp->getType();
 
           // Check if the use of this constant is a icmp. If it is we cannot
           // replace it with a string literal, because comparisons between
@@ -300,6 +316,7 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
             // If it cannot be emitted as a string literal we emit it as a
             // reference to a segment.
 
+            IntegerType *OperandType = LeafConstOp->getType();
             FunctionTags::SegmentRefPoolKey Key = { StartAddress,
                                                     VirtualSize,
                                                     OperandType };
