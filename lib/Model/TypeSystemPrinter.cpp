@@ -301,6 +301,10 @@ void TypeSystemPrinter::dumpFunctionType(llvm::raw_ostream &Out,
   Out << "</TABLE></TD></TR>";
 }
 
+static std::string nodeName(uint64_t NodeID) {
+  return "node_" + to_string(NodeID);
+}
+
 /// Generate the inner content of a Typedef node
 void TypeSystemPrinter::dumpTypedefUnderlying(llvm::raw_ostream &Out,
                                               const model::TypedefDefinition
@@ -313,7 +317,7 @@ void TypeSystemPrinter::dumpTypedefUnderlying(llvm::raw_ostream &Out,
 void TypeSystemPrinter::dumpTypeNode(const model::TypeDefinition *T,
                                      int NodeID) {
   // Print the name of the node
-  Out << "node_" << to_string(NodeID) << "[";
+  Out << nodeName(NodeID) << "[";
 
   // Choose the node's border color
   llvm::StringRef Color = getColor(T->Kind());
@@ -347,9 +351,9 @@ void TypeSystemPrinter::dumpTypeNode(const model::TypeDefinition *T,
 }
 
 void TypeSystemPrinter::addEdge(int SrcID, int SrcPort, int DstID) {
-  Out << "node_" << to_string(SrcID) << ":<P" << to_string(SrcPort) << ">";
+  Out << nodeName(SrcID) << ":<P" << to_string(SrcPort) << ">";
   Out << " -> ";
-  Out << "node_" << to_string(DstID);
+  Out << nodeName(DstID);
   Out << ":<TOP>;\n";
 }
 
@@ -397,9 +401,9 @@ void TypeSystemPrinter::addFieldEdge(std::string &&Label,
                                      int SrcPort,
                                      int DstID) {
   // Edge
-  Out << "node_" << to_string(SrcID) << ":<P" << to_string(SrcPort) << ">";
+  Out << nodeName(SrcID) << ":<P" << to_string(SrcPort) << ">";
   Out << " -> ";
-  Out << "node_" << to_string(DstID) << ":<TOP>";
+  Out << nodeName(DstID) << ":<TOP>";
 
   // Label
   Out << "[label=\"" << std::move(Label) << "\"";
@@ -475,7 +479,7 @@ void TypeSystemPrinter::print(const model::TypeDefinition &T) {
 
 void TypeSystemPrinter::dumpFunctionNode(const model::Function &F, int NodeID) {
   // Print the name of the node
-  Out << "node_" << to_string(NodeID) << "[";
+  Out << nodeName(NodeID) << "[";
 
   // Choose the node's border color
   llvm::StringRef Color = Purple;
@@ -546,7 +550,7 @@ void TypeSystemPrinter::print(const model::Function &F) {
 void TypeSystemPrinter::dumpFunctionNode(const model::DynamicFunction &F,
                                          int NodeID) {
   // Print the name of the node
-  Out << "node_" << to_string(NodeID) << "[";
+  Out << nodeName(NodeID) << "[";
 
   // Choose the node's border color
   llvm::StringRef Color = Pink;
@@ -601,7 +605,7 @@ void TypeSystemPrinter::print(const model::DynamicFunction &F) {
 
 void TypeSystemPrinter::dumpSegmentNode(const model::Segment &S, int NodeID) {
   // Print the name of the node
-  Out << "node_" << to_string(NodeID) << "[";
+  Out << nodeName(NodeID) << "[";
 
   // Choose the node's border color
   llvm::StringRef Color = Orange;
