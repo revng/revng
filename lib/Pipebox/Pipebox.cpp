@@ -88,6 +88,7 @@ static RegisterFunctionPipeRun<PromoteStackPointer> P21;
 static RegisterFunctionPipeRun<SimplifySwitch> P22;
 static RegisterFunctionPipeRun<LegacySegregateStackAccesses> P23;
 static RegisterFunctionPipeRun<MakeSegmentRef> P24;
+static RegisterFunctionPipeRun<SegregateStackAccesses> P25;
 
 //
 // Analyses

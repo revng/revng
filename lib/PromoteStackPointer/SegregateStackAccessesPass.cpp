@@ -1631,4 +1631,12 @@ void LegacySegregateStackAccesses::runOnLLVMFunction(const model::Function
   Impl.epilogue();
 }
 
+void SegregateStackAccesses::runOnLLVMFunction(const model::Function &Function,
+                                               llvm::Function &LLVMFunction) {
+  ::SegregateStackAccesses<false> Impl(Binary, *LLVMFunction.getParent());
+  Impl.prologue();
+  Impl.runOnFunction(Function, LLVMFunction);
+  Impl.epilogue();
+}
+
 } // namespace revng::pypeline::piperuns
