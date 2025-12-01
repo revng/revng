@@ -21,6 +21,7 @@
 #include "revng/Model/Importer/Binary/ImportBinaryAnalysis.h"
 #include "revng/Model/Importer/WellKnownModels.h"
 #include "revng/Pipebox/LLVMPipe.h"
+#include "revng/Pipebox/MLIRPipe.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/PipeboxCommon/CliftContainer.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
@@ -93,6 +94,7 @@ static RegisterFunctionPipeRun<MakeSegmentRef> P24;
 static RegisterFunctionPipeRun<SegregateStackAccesses> P25;
 static RegisterFunctionPipeRun<SwitchToStatements> P26;
 static RegisterFunctionPipeRun<LLVMToClift> P27;
+static RegisterPipe<PureMLIRPassesPipe> P28;
 
 //
 // Analyses
