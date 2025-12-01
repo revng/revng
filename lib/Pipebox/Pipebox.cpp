@@ -4,6 +4,7 @@
 
 #include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
+#include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
@@ -89,6 +90,7 @@ static RegisterFunctionPipeRun<SimplifySwitch> P22;
 static RegisterFunctionPipeRun<LegacySegregateStackAccesses> P23;
 static RegisterFunctionPipeRun<MakeSegmentRef> P24;
 static RegisterFunctionPipeRun<SegregateStackAccesses> P25;
+static RegisterFunctionPipeRun<SwitchToStatements> P26;
 
 //
 // Analyses
