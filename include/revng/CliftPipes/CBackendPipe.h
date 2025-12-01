@@ -1,0 +1,40 @@
+#pragma once
+
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+#include "mlir/Pass/PassManager.h"
+
+#include "revng/Pipebox/Containers.h"
+#include "revng/PipeboxCommon/CliftContainer.h"
+#include "revng/PipeboxCommon/Model.h"
+
+namespace revng::pypeline::piperuns {
+
+class EmitC {
+private:
+  CliftFunctionContainer &Input;
+  PTMLCFunctionBytesContainer &Output;
+
+public:
+  static constexpr llvm::StringRef Name = "emit-c";
+  using Arguments = TypeList<PipeRunArgument<CliftFunctionContainer,
+                                             "Modules",
+                                             "function MLIR module(s)",
+                                             Access::Read>,
+                             PipeRunArgument<PTMLCFunctionBytesContainer,
+                                             "Output",
+                                             "Decompiled per-function PTML-C",
+                                             Access::Write>>;
+
+  EmitC(const Model &Model,
+        llvm::StringRef Config,
+        llvm::StringRef DynamicConfig,
+        CliftFunctionContainer &Input,
+        PTMLCFunctionBytesContainer &Output);
+
+  void runOnFunction(const model::Function &Function);
+};
+
+} // namespace revng::pypeline::piperuns
