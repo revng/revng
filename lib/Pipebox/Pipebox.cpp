@@ -20,6 +20,7 @@
 #include "revng/Model/Importer/WellKnownModels.h"
 #include "revng/Pipebox/LLVMPipe.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
+#include "revng/PipeboxCommon/CliftContainer.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
 #include "revng/PipeboxCommon/ModelManipulationAnalyses.h"
 #include "revng/PipeboxCommon/RawContainer.h"
@@ -53,6 +54,7 @@ static RegisterContainer<AssemblyInternalContainer> C9;
 static RegisterContainer<AssemblyContainer> C10;
 static RegisterContainer<ObjectFileContainer> C11;
 static RegisterContainer<TranslatedContainer> C12;
+static RegisterContainer<CliftFunctionContainer> C13;
 
 //
 // Pipes
