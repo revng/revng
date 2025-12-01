@@ -5,6 +5,7 @@
 #include "revng/Clift/Helpers.h"
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftPipes/CliftContainer.h"
+#include "revng/CliftPipes/ImportModelNamesPipe.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
@@ -531,3 +532,24 @@ public:
 static pipeline::RegisterPipe<ImportModelNamesPipe> X;
 
 } // namespace
+
+namespace revng::pypeline::piperuns {
+
+void ImportModelNames::runOnCliftFunction(const model::Function &Function,
+                                          mlir::clift::FunctionOp
+                                            MLIRFunction) {
+  mlir::ModuleOp Module = MLIRFunction->getParentOfType<mlir::ModuleOp>();
+  SymbolRenamer Symbols;
+  for (mlir::Operation &Op : Module.getBody()->getOperations()) {
+    if (auto F = mlir::dyn_cast<clift::FunctionOp>(Op)) {
+      auto R = NameImporter::visit(F, Binary, Symbols);
+      revng_assert(R.succeeded());
+    } else if (auto G = mlir::dyn_cast<clift::GlobalVariableOp>(Op)) {
+      auto R = NameImporter::visit(G, Binary, Symbols);
+      revng_assert(R.succeeded());
+    }
+  }
+  Symbols.apply(Module);
+}
+
+} // namespace revng::pypeline::piperuns

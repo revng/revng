@@ -6,6 +6,7 @@
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/ClifterPipe.h"
+#include "revng/CliftPipes/ImportModelNamesPipe.h"
 #include "revng/CliftPipes/ModelVerifyPipe.h"
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
@@ -97,6 +98,7 @@ static RegisterFunctionPipeRun<SwitchToStatements> P26;
 static RegisterFunctionPipeRun<LLVMToClift> P27;
 static RegisterPipe<PureMLIRPassesPipe> P28;
 static RegisterFunctionPipeRun<ModelVerifyClift> P29;
+static RegisterFunctionPipeRun<ImportModelNames> P30;
 
 //
 // Analyses
