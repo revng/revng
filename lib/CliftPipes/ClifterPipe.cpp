@@ -3,7 +3,9 @@
 //
 
 #include "revng/CliftPipes/CliftContainer.h"
+#include "revng/CliftPipes/ClifterPipe.h"
 #include "revng/Clifter/Clifter.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/IRHelpers.h"
@@ -57,3 +59,32 @@ public:
 static pipeline::RegisterPipe<LLVMToCliftPipe> X;
 
 } // namespace
+
+namespace revng::pypeline::piperuns {
+
+LLVMToClift::LLVMToClift(const class Model &Model,
+                         llvm::StringRef Config,
+                         llvm::StringRef DynamicConfig,
+                         const LLVMFunctionContainer &Input,
+                         CliftFunctionContainer &Output) :
+  Binary(*Model.get().get()), Input(Input), Output(Output) {
+  Output.getContext().loadDialect<clift::CliftDialect>();
+}
+
+void LLVMToClift::runOnFunction(const model::Function &Function) {
+  ObjectID Object(Function.Entry());
+  const llvm::Module &Module = Input.getModule(Object);
+  const llvm::Function
+    &LLVMFunction = getUniqueIsolatedFunction(Module, Function.Entry());
+
+  mlir::MLIRContext &Context = Output.getContext();
+  auto ModuleOpObject = mlir::ModuleOp::create(mlir::UnknownLoc::get(&Context));
+  clift::setModuleAttr(ModuleOpObject);
+
+  auto Importer = clift::Clifter::make(ModuleOpObject, Binary);
+  Importer->import(&LLVMFunction);
+
+  Output.assign(Object, ModuleOpObject);
+}
+
+} // namespace revng::pypeline::piperuns

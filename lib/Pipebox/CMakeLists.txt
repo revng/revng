@@ -11,6 +11,7 @@ target_link_libraries(
   ${LLVM_LIBRARIES}
   revngCanonicalize
   revngClift
+  revngCliftPipes
   revngDataLayoutAnalysis
   revngFunctionIsolation
   revngLift
