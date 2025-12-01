@@ -62,8 +62,14 @@ add_library(mockPipebox SHARED MockPipebox.cpp)
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core)
 target_link_libraries(mockPipeboxImpl ${LLVM_LIBRARIES} revngSupport revngModel)
-target_link_libraries(mockPipebox mockPipeboxImpl ${Python_LIBRARIES}
-                      ${LLVM_LIBRARIES} nanobind revngSupport)
+target_link_libraries(
+  mockPipebox
+  mockPipeboxImpl
+  ${Python_LIBRARIES}
+  ${LLVM_LIBRARIES}
+  nanobind
+  revngSupport
+  revngClift)
 
 target_include_directories(mockPipebox PUBLIC ${Python_INCLUDE_DIRS})
 
