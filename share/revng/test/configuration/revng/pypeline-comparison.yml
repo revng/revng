@@ -10,7 +10,10 @@ commands:
         filter: example-executable-1 and with-debug-info
     suffix: /
     command: |-
-      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/prepare.py" "$INPUT" "$OUTPUT";
+      pushd "$OUTPUT" &> /dev/null;
+      cp "$INPUT" input;
+      revng2 project init input;
+      popd &> /dev/null;
 
   # Run lift comparison
   - type: revng.test-pypeline-comparison-lift
