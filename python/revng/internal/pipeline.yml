@@ -91,6 +91,9 @@ branches:
         arguments: [llvm-root, cfg-map]
       - savepoint: cfg-computed
         containers: [cfg-map]
+        artifacts:
+          - name: emit-cfg
+            container: cfg-map
 
   isolate:
     from: collect-cfg
