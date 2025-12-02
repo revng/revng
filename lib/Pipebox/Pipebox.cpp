@@ -26,6 +26,7 @@
 #include "revng/Model/Importer/WellKnownModels.h"
 #include "revng/Pipebox/LLVMPipe.h"
 #include "revng/Pipebox/MLIRPipe.h"
+#include "revng/Pipebox/MergeLLVMModules.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/PipeboxCommon/CliftContainer.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
@@ -104,6 +105,7 @@ static RegisterFunctionPipeRun<ModelVerifyClift> P29;
 static RegisterFunctionPipeRun<ImportModelNames> P30;
 static RegisterFunctionPipeRun<EmitC> P31;
 static RegisterSingleOutputPipeRun<DecompileToSingleFile> P32;
+static RegisterSingleOutputPipeRun<MergeLLVMModules> P33;
 
 //
 // Analyses

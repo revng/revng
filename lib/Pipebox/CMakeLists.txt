@@ -3,7 +3,7 @@
 #
 
 revng_add_library_internal(revngPipebox SHARED Pipebox.cpp LLVMPipe.cpp
-                           MLIRPipe.cpp)
+                           MLIRPipe.cpp MergeLLVMModules.cpp)
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core)
 target_link_libraries(
