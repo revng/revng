@@ -126,7 +126,7 @@ def run_test(project_getter: Callable[[], Project], binary: str):
     result = project.model.get_artifacts(
         {
             "disassemble": [project.model.Functions[address], project.model.Functions[1]],
-            "decompile": None,
+            "emit-c": None,
         }
     )
     assert isinstance(result["disassemble"], Mapping)
@@ -134,8 +134,8 @@ def run_test(project_getter: Callable[[], Project], binary: str):
         assert isinstance(value, PTMLArtifact)
         value.parse()
 
-    assert isinstance(result["decompile"], Mapping)
-    for value in result["decompile"].values():
+    assert isinstance(result["emit-c"], Mapping)
+    for value in result["emit-c"].values():
         assert isinstance(value, PTMLArtifact)
         value.parse()
 
