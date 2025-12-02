@@ -38,6 +38,7 @@
 #include "revng/PromoteStackPointer/SegregateStackAccesses.h"
 #include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Recompile/LinkForTranslationPipe.h"
+#include "revng/RemoveLiftingArtifacts/CleanupIR.h"
 #include "revng/RemoveLiftingArtifacts/MakeSegmentRef.h"
 #include "revng/RemoveLiftingArtifacts/PromoteInitCSVToUndef.h"
 #include "revng/RemoveLiftingArtifacts/RemoveLiftingArtifacts.h"
@@ -106,6 +107,7 @@ static RegisterFunctionPipeRun<ImportModelNames> P30;
 static RegisterFunctionPipeRun<EmitC> P31;
 static RegisterSingleOutputPipeRun<DecompileToSingleFile> P32;
 static RegisterSingleOutputPipeRun<MergeLLVMModules> P33;
+static RegisterSingleOutputPipeRun<CleanupIR> P34;
 
 //
 // Analyses

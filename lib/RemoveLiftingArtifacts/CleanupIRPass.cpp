@@ -13,6 +13,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/LoadModelPass.h"
+#include "revng/RemoveLiftingArtifacts/CleanupIR.h"
 
 using namespace llvm;
 
@@ -29,6 +30,8 @@ public:
   }
 
 private:
+  friend revng::pypeline::piperuns::CleanupIR;
+
   class Impl {
 
   private:
@@ -159,3 +162,13 @@ char CleanupIRPass::ID = 0;
 
 using Reg = RegisterPass<CleanupIRPass>;
 static Reg X("cleanup-ir", "CleanupIRPass");
+
+namespace revng::pypeline::piperuns {
+
+void CleanupIR::run() {
+  llvm::Module &Module = ModuleContainer.getModule();
+  CleanupIRPass::Impl Impl(Module, Model);
+  Impl.run();
+}
+
+} // namespace revng::pypeline::piperuns
