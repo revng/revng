@@ -298,32 +298,29 @@ block_h:
   br label %block_e
 }
 
-; CHECK-LABEL: define void @n(i1 noundef %a) {
+; CHECK-LABEL: define void @n(i1 noundef %a)
 ; CHECK: block_a:
-; CHECK-NEXT:   br i1 %a, label %block_b, label %block_h
+; CHECK-NEXT:   br i1 %a, label %goto_block_b, label %block_h
 ; CHECK: block_b:
 ; CHECK-NEXT:   br label %block_c
 ; CHECK: block_c:
-; CHECK-NEXT:   br i1 %a, label %block_d, label %block_e
+; CHECK-NEXT:   br i1 %a, label %goto_block_d, label %goto_block_e
 ; CHECK: block_d:
-; CHECK-NEXT:   br label %goto_block_b
+; CHECK-NEXT:   br label %block_b
 ; CHECK: block_e:
 ; CHECK-NEXT:   br i1 %a, label %block_f, label %block_g
 ; CHECK: block_f:
-; CHECK-NEXT:   br label %goto_block_d1
+; CHECK-NEXT:   br label %block_d
 ; CHECK: block_g:
-; CHECK-NEXT:   br label %goto_block_d
+; CHECK-NEXT:   br label %block_d
 ; CHECK: block_h:
-; CHECK-NEXT:   br label %goto_block_e
-; CHECK: goto_block_b:
-; CHECK-NEXT:   call void @goto_block()
-; CHECK-NEXT:   br label %block_b
+; CHECK-NEXT:   br label %block_e
 ; CHECK: goto_block_d:
 ; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_d
-; CHECK: goto_block_d1:
+; CHECK: goto_block_b:
 ; CHECK-NEXT:   call void @goto_block()
-; CHECK-NEXT:   br label %block_d
+; CHECK-NEXT:   br label %block_b
 ; CHECK: goto_block_e:
 ; CHECK-NEXT:   call void @goto_block()
 ; CHECK-NEXT:   br label %block_e

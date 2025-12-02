@@ -6,10 +6,12 @@
 #include "llvm/ADT/GenericCycleImpl.h"
 #include "llvm/ADT/GenericCycleInfo.h"
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/SSAContext.h"
 
+#include "revng/RestructureCFG/GenericRegion.h"
 #include "revng/RestructureCFG/GenericRegionInfo.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
@@ -121,6 +123,23 @@ computeShortesPath(GraphT F) {
   return ShortestPathFromEntry;
 }
 
+/// Helper static function which computes the `Head` candidates for a given
+/// region
+template<class NodeT>
+static llvm::SmallVector<NodeT>
+getHeadCandidates(GenericRegion<NodeT> &Region) {
+  llvm::SmallVector<NodeT> HeadCandidates;
+  for (NodeT Block : Region.blocks()) {
+    for (NodeT Predecessor : graph_predecessors(Block)) {
+      if (not Region.containsBlock(Predecessor)) {
+        HeadCandidates.push_back(Block);
+      }
+    }
+  }
+
+  return HeadCandidates;
+}
+
 template<class GraphT, class GT>
 void GenericRegionInfo<GraphT, GT>::electHead(GraphT F) {
 
@@ -135,45 +154,95 @@ void GenericRegionInfo<GraphT, GT>::electHead(GraphT F) {
   std::optional<llvm::SmallDenseMap<NodeT, size_t>>
     ShortestPathFromEntry = std::nullopt;
 
-  // 3) Perform the head election for each `Region`
+  // 3) Perform the head election for each `Region`, in a bottom up fashion
   for (auto &TopLevelRegion : top_level_regions()) {
-    for (auto &CurrentRegion : depth_first(&TopLevelRegion)) {
+    for (auto &CurrentRegion : post_order(&TopLevelRegion)) {
 
-      // During the `Head` election phase, we now introduce the following
-      // additional criterion:
-      // When processing a `GenericRegion` nested into an
-      // outer one(its `ParentRegion`), if the inner `Region` contains the block
-      // that has been elected as `Head` of the `ParentRegion`, we also force
-      // that block to be the `Head` of the inner `GenericRegion`.
-      // This criterion is justified by the following observation:
-      // Suppose that we elect for the outer `Region` A as `Head`. If A is
-      // also contained in the inner child region, and we elect another
-      // block, say B, as its `Head`, it would mean that A becomes a late
-      // entry for the inner region, causing it to be disconnected (late
-      // entry edges are transformed into `goto` edges). This would clearly
-      // break the assumption that all the blocks remain connected to the
-      // entry in the `ScopeGraph`. If this criterion does not apply, we
-      // continue with the standard criterion election.
-      auto *ParentRegion = CurrentRegion->getParent();
-      if (ParentRegion) {
-        NodeT ParentHead = ParentRegion->getHead();
-        revng_assert(ParentHead);
-
-        if (CurrentRegion->containsBlock(ParentHead)) {
-          CurrentRegion->setHead(ParentHead);
-          continue;
-        }
-      }
+      // The `Head` election phase works in a bottom-up fashion and it must
+      // guarantee that the decision we take when processing a region, is
+      // coherent with all the children region it contains. Specifically, we
+      // have these 2 criteria:
+      // 1) We must be coherent in terms of _late entries_. This means that if a
+      // node is considered a late entry for a child region, it must be a late
+      // entry too for its parent region. If this is not true we may end up
+      // disconnecting portion of the graph from the entry. In practical terms,
+      // this means that when electing the `Head` of a region, we must exclude
+      // from the candidates all the nodes that happens to be late entry for its
+      // children regions.
+      // 2) If a child region elected a `Head` which is a candidate for the
+      // current region, we must take the same decision for parent region too.
+      // If this is not done, we may end up disconnecting nodes from the entry,
+      // because we do not have a single entry point into the tree of nested
+      // regions. In other words, suppose that we elect for the outer `Region` A
+      // as `Head`. If A is also contained in the inner child region, and we
+      // elect another block, say B, as its `Head`, it would mean that A becomes
+      // a late entry for the inner region, causing it to be disconnected (late
+      // entry edges are transformed into `goto` edges). If these criteria dp
+      // not apply, we continue with the standard criterion election.
 
       // All the blocks which have an incoming edge from a block not part of the
       // region itself, are considered as head candidates
       llvm::SmallMapVector<NodeT, size_t, 4> HeadCandidates;
-      for (NodeT Block : CurrentRegion->blocks()) {
-        for (NodeT Predecessor : graph_predecessors(Block)) {
-          if (not CurrentRegion->containsBlock(Predecessor)) {
-            HeadCandidates[Block]++;
+      for (NodeT Block : getHeadCandidates(*CurrentRegion)) {
+        HeadCandidates[Block]++;
+      }
+
+      // Criterion 1. Please note that we iterate just on the direct
+      // `children` of each region, and not explicitly on all the
+      // `grandchildren` too, but this is justified by the following reasoning:
+      // Imagine we have the nested regions A B C (nesting is outer->inner), if
+      // some node X is a late entry for C, either it is a late entry for B too
+      // (and this in turns means that for being a late entry, it must have been
+      // a candidate `Head` at some point, but not chosen as the elected
+      // `Head`), or it is a late entry for C but not for B.
+      // In the first scenario, since X is a late entry for B too, when we
+      // analyze A, we will find it as a late entry for B, which is a direct
+      // child of A, and so we are good. If, however, X is a late entry for C
+      // but not for B, it means that we do not have an edge crossing multiple
+      // layers from A to C (otherwise X would be a late entry for B too). In
+      // that case X is contained in C, B, A by construction, but it is not a
+      // late entry for B, therefore not a candidate `Head` for A. Therefore we
+      // do not care to look at it when analyzing the candidate heads for A.
+      for (auto ChildRegion : CurrentRegion->children()) {
+        NodeT ChildHead = ChildRegion->getHead();
+        revng_assert(ChildHead);
+
+        for (NodeT Block : getHeadCandidates(*ChildRegion)) {
+          if (Block != ChildHead) {
+            HeadCandidates.erase(Block);
           }
         }
+      }
+
+      // Criterion 2. Please note that we just iterate over the direct
+      // `children` of each region, and not explicitly on all the
+      // `grandchildren` too, but this is justified by the following reasoning:
+      // Suppose we have regions A B (nesting is outer->inner).
+      // If we're looking at A, and one of A's candidates heads (X) is also in a
+      // direct children region (B), do we need to look at B's children for
+      // criterion 2?
+      // The answer is no because if there is one of B's children that "forces"
+      // B's head to X, it's enough to look at B. And if there isn't a children
+      // of B that forces B's head to X, we don't care about it at all, because
+      // we just need A to be coherent with B in this sense.
+      for (auto ChildRegion : CurrentRegion->children()) {
+        NodeT ChildHead = ChildRegion->getHead();
+        revng_assert(ChildHead);
+
+        // If one of our candidate heads is already the elected head of a child
+        // region, we elect it as our head
+        for (auto &[HeadCandidate, _] : HeadCandidates) {
+          if (HeadCandidate == ChildHead) {
+            CurrentRegion->setHead(HeadCandidate);
+            break;
+          }
+        }
+      }
+
+      // If we elected an `Head` with the "shortcut" criterion mentioned above,
+      // we skip the standard election phase
+      if (CurrentRegion->getHead()) {
+        continue;
       }
 
       // Elect the `Head` as the candidate head with the largest number of
