@@ -33,7 +33,7 @@ commands:
       mkdir --parents "$${RESUME}/context";
       cp "${INPUT}/model.yml" "$${RESUME}/context/model.yml";
 
-      revng artifact --resume "$${RESUME}" emit-model-header /dev/null > /dev/null;
+      revng analyze --resume "$${RESUME}" apply-diff /dev/null --apply-diff-global-name=model.yml;
 
       while IFS=',' read -r MODEL_FIELD EXPECTED_VALUE; do
         FOUND_VALUE=$$(yq "$${MODEL_FIELD}" "$${RESUME}/context/model.yml");
