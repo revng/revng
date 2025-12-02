@@ -10,6 +10,8 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/PTML/Tag.h"
+#include "revng/PipeboxCommon/RawContainer.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/StringMap.h"
 #include "revng/Yield/Pipes/ProcessCallGraph.h"
@@ -43,3 +45,43 @@ public:
 };
 
 } // namespace revng::pipes
+
+namespace revng::pypeline {
+
+using CallGraphSliceContainer = FunctionToBytesContainer<"CallGraphSliceContain"
+                                                         "er",
+                                                         "image/svg">;
+
+namespace piperuns {
+
+class YieldCallGraphSlice {
+private:
+  ptml::MarkupBuilder B;
+  const model::Binary &Binary;
+  const CrossRelationsContainer &Input;
+  CallGraphSliceContainer &Output;
+
+public:
+  static constexpr llvm::StringRef Name = "yield-call-graph-slice";
+  using Arguments = TypeList<PipeRunArgument<const CrossRelationsContainer,
+                                             "Input",
+                                             "Binary cross relations">,
+                             PipeRunArgument<CallGraphSliceContainer,
+                                             "Output",
+                                             "per-function SVG of the "
+                                             "callgraph",
+                                             Access::Write>>;
+
+  YieldCallGraphSlice(const Model &Model,
+                      llvm::StringRef StaticConfiguration,
+                      llvm::StringRef Configuration,
+                      const CrossRelationsContainer &Input,
+                      CallGraphSliceContainer &Output) :
+    Binary(*Model.get().get()), Input(Input), Output(Output) {}
+
+  void runOnFunction(const model::Function &Function);
+};
+
+} // namespace piperuns
+
+} // namespace revng::pypeline

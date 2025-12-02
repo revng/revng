@@ -39,6 +39,8 @@ containers:
     type: CrossRelationsContainer
   - name: call-graph
     type: CallGraphContainer
+  - name: call-graph-slice
+    type: CallGraphSliceContainer
 
 analyses:
   - apply-diff
@@ -502,3 +504,14 @@ branches:
         artifacts:
           - name: render-svg-call-graph
             container: call-graph
+
+  yield-call-graph-slice:
+    from: process-call-graph
+    tasks:
+      - pipe: yield-call-graph-slice
+        arguments: [cross-relations, call-graph-slice]
+      - savepoint: yield-call-graph-slice
+        containers: [call-graph-slice]
+        artifacts:
+          - name: render-svg-call-graph-slice
+            container: call-graph-slice

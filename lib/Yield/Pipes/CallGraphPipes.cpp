@@ -139,4 +139,16 @@ void YieldCallGraph::run() {
   *OS << yield::svg::callGraph(B, *Relations.get(), Binary);
 }
 
+void YieldCallGraphSlice::runOnFunction(const model::Function &Function) {
+  using namespace yield::crossrelations;
+  const TupleTree<CrossRelations> &Relations = Input.getElement(ObjectID());
+
+  // Slice the graph for the current function and convert it to SVG
+  auto SlicePoint = pipeline::locationString(revng::ranks::Function,
+                                             Function.Entry());
+
+  auto OS = Output.getOStream(ObjectID(Function.Entry()));
+  *OS << yield::svg::callGraphSlice(B, SlicePoint, *Relations.get(), Binary);
+}
+
 } // namespace revng::pypeline::piperuns

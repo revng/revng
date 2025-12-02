@@ -47,6 +47,7 @@
 #include "revng/Yield/Pipes/ProcessCallGraph.h"
 #include "revng/Yield/Pipes/YieldAssembly.h"
 #include "revng/Yield/Pipes/YieldCallGraph.h"
+#include "revng/Yield/Pipes/YieldCallGraphSlice.h"
 
 using namespace revng::pypeline;
 
@@ -69,6 +70,7 @@ static RegisterContainer<CliftFunctionContainer> C13;
 static RegisterContainer<PTMLCFunctionBytesContainer> C14;
 static RegisterContainer<CrossRelationsContainer> C15;
 static RegisterContainer<CallGraphContainer> C16;
+static RegisterContainer<CallGraphSliceContainer> C17;
 
 //
 // Pipes
@@ -114,6 +116,7 @@ static RegisterSingleOutputPipeRun<MergeLLVMModules> P33;
 static RegisterSingleOutputPipeRun<CleanupIR> P34;
 static RegisterSingleOutputPipeRun<ProcessCallGraph> P35;
 static RegisterSingleOutputPipeRun<YieldCallGraph> P36;
+static RegisterFunctionPipeRun<YieldCallGraphSlice> P37;
 
 //
 // Analyses
