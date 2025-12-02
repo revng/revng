@@ -12,13 +12,13 @@
 
 #include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
-#include "revng/Pipebox/TupleTreeContainer.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/StringMap.h"
 #include "revng/Yield/Function.h"
+#include "revng/Yield/Pipes/Containers.h"
 #include "revng/Yield/Pipes/YieldControlFlow.h"
 
 class DissassemblyHelper;
@@ -51,14 +51,7 @@ public:
 
 } // namespace revng::pipes
 
-namespace revng::pypeline {
-
-using AssemblyInternalContainer = TupleTreeContainer<yield::Function,
-                                                     Kinds::Function,
-                                                     "AssemblyInternalContaine"
-                                                     "r">;
-
-namespace piperuns {
+namespace revng::pypeline::piperuns {
 
 class ProcessAssembly {
 private:
@@ -95,6 +88,4 @@ public:
   void runOnFunction(const model::Function &TheFunction);
 };
 
-} // namespace piperuns
-
-} // namespace revng::pypeline
+} // namespace revng::pypeline::piperuns

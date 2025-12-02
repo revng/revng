@@ -71,6 +71,7 @@ static RegisterContainer<PTMLCFunctionBytesContainer> C14;
 static RegisterContainer<CrossRelationsContainer> C15;
 static RegisterContainer<CallGraphContainer> C16;
 static RegisterContainer<CallGraphSliceContainer> C17;
+static RegisterContainer<FunctionControlFlowContainer> C18;
 
 //
 // Pipes
@@ -117,6 +118,7 @@ static RegisterSingleOutputPipeRun<CleanupIR> P34;
 static RegisterSingleOutputPipeRun<ProcessCallGraph> P35;
 static RegisterSingleOutputPipeRun<YieldCallGraph> P36;
 static RegisterFunctionPipeRun<YieldCallGraphSlice> P37;
+static RegisterFunctionPipeRun<YieldCFG> P38;
 
 //
 // Analyses

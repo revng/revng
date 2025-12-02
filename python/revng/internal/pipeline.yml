@@ -41,6 +41,8 @@ containers:
     type: CallGraphContainer
   - name: call-graph-slice
     type: CallGraphSliceContainer
+  - name: function-cfg
+    type: FunctionControlFlowContainer
 
 analyses:
   - apply-diff
@@ -515,3 +517,14 @@ branches:
         artifacts:
           - name: render-svg-call-graph-slice
             container: call-graph-slice
+
+  yield-cfg:
+    from: process-assembly
+    tasks:
+      - pipe: yield-cfg
+        arguments: [assembly-internal, function-cfg]
+      - savepoint: yield-cfg
+        containers: [function-cfg]
+        artifacts:
+          - name: render-svg-cfg
+            container: function-cfg
