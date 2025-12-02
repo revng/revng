@@ -12,6 +12,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
+#include "revng/EarlyFunctionAnalysis/CollectCFG.h"
+#include "revng/Pipebox/TupleTreeContainer.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/Target.h"
 #include "revng/Pipes/FileContainer.h"
@@ -71,3 +73,41 @@ public:
 };
 
 } // namespace revng::pipes
+
+namespace revng::pypeline {
+
+using CrossRelationsContainer = TupleTreeContainer<
+  yield::crossrelations::CrossRelations,
+  Kinds::Binary,
+  "CrossRelationsContainer">;
+
+namespace piperuns {
+
+class ProcessCallGraph {
+private:
+  const model::Binary &Binary;
+  const CFGMap &Input;
+  CrossRelationsContainer &Output;
+
+public:
+  static constexpr llvm::StringRef Name = "process-call-graph";
+  using Arguments = TypeList<
+    PipeRunArgument<const CFGMap, "Input", "CFG map for each function">,
+    PipeRunArgument<CrossRelationsContainer,
+                    "Output",
+                    "Output",
+                    Access::Write>>;
+
+  ProcessCallGraph(const Model &Model,
+                   llvm::StringRef StaticConfiguration,
+                   llvm::StringRef Configuration,
+                   const CFGMap &Input,
+                   CrossRelationsContainer &Output) :
+    Binary(*Model.get().get()), Input(Input), Output(Output){};
+
+  void run();
+};
+
+} // namespace piperuns
+
+} // namespace revng::pypeline

@@ -116,3 +116,17 @@ static pipeline::RegisterPipe<YieldCallGraph> YieldPipe;
 static pipeline::RegisterPipe<YieldCallGraphSlice> YieldSlicePipe;
 
 } // end namespace revng::pipes
+
+namespace revng::pypeline::piperuns {
+
+void ProcessCallGraph::run() {
+  using namespace yield::crossrelations;
+
+  SortedVector<efa::ControlFlowGraph> Metadata;
+  for (const ObjectID &Object : Input.objects())
+    Metadata.insert(*Input.getElement(Object));
+
+  *Output.getElement(ObjectID()) = CrossRelations(Metadata, Binary);
+}
+
+} // namespace revng::pypeline::piperuns

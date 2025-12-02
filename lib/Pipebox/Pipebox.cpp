@@ -44,6 +44,7 @@
 #include "revng/RemoveLiftingArtifacts/RemoveLiftingArtifacts.h"
 #include "revng/Yield/HexDump.h"
 #include "revng/Yield/Pipes/ProcessAssembly.h"
+#include "revng/Yield/Pipes/ProcessCallGraph.h"
 #include "revng/Yield/Pipes/YieldAssembly.h"
 
 using namespace revng::pypeline;
@@ -65,6 +66,7 @@ static RegisterContainer<ObjectFileContainer> C11;
 static RegisterContainer<TranslatedContainer> C12;
 static RegisterContainer<CliftFunctionContainer> C13;
 static RegisterContainer<PTMLCFunctionBytesContainer> C14;
+static RegisterContainer<CrossRelationsContainer> C15;
 
 //
 // Pipes
@@ -108,6 +110,7 @@ static RegisterFunctionPipeRun<EmitC> P31;
 static RegisterSingleOutputPipeRun<DecompileToSingleFile> P32;
 static RegisterSingleOutputPipeRun<MergeLLVMModules> P33;
 static RegisterSingleOutputPipeRun<CleanupIR> P34;
+static RegisterSingleOutputPipeRun<ProcessCallGraph> P35;
 
 //
 // Analyses
