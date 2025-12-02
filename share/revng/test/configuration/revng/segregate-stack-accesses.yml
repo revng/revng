@@ -26,4 +26,4 @@ commands:
       revng artifact --resume "$OUTPUT" make-segment-ref "$INPUT" |
         revng opt -S | FileCheck ${SOURCE}.filecheck.ll;
 
-      revng artifact --resume "$OUTPUT" decompile "$INPUT" -o /dev/null;
+      revng artifact --resume "$OUTPUT" emit-c "$INPUT" -o /dev/null;
