@@ -10,6 +10,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/PipeboxCommon/RawContainer.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipes/StringMap.h"
 #include "revng/Yield/Pipes/ProcessCallGraph.h"
@@ -36,3 +37,39 @@ public:
 };
 
 } // namespace revng::pipes
+
+namespace revng::pypeline {
+
+using CallGraphContainer = BytesContainer<"CallGraphContainer", "image/svg">;
+
+namespace piperuns {
+
+class YieldCallGraph {
+private:
+  const model::Binary &Binary;
+  const CrossRelationsContainer &Input;
+  CallGraphContainer &Output;
+
+public:
+  static constexpr llvm::StringRef Name = "yield-call-graph";
+  using Arguments = TypeList<PipeRunArgument<const CrossRelationsContainer,
+                                             "Input",
+                                             "Binary cross relations">,
+                             PipeRunArgument<CallGraphContainer,
+                                             "Output",
+                                             "SVG of the callgraph",
+                                             Access::Write>>;
+
+  YieldCallGraph(const Model &Model,
+                 llvm::StringRef StaticConfiguration,
+                 llvm::StringRef Configuration,
+                 const CrossRelationsContainer &Input,
+                 CallGraphContainer &Output) :
+    Binary(*Model.get().get()), Input(Input), Output(Output) {}
+
+  void run();
+};
+
+} // namespace piperuns
+
+} // namespace revng::pypeline

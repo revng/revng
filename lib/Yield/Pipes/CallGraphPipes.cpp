@@ -129,4 +129,14 @@ void ProcessCallGraph::run() {
   *Output.getElement(ObjectID()) = CrossRelations(Metadata, Binary);
 }
 
+void YieldCallGraph::run() {
+  using namespace yield::crossrelations;
+  const TupleTree<CrossRelations> &Relations = Input.getElement(ObjectID());
+
+  ptml::MarkupBuilder B;
+  auto OS = Output.getOStream(ObjectID());
+  // Convert the graph to SVG.
+  *OS << yield::svg::callGraph(B, *Relations.get(), Binary);
+}
+
 } // namespace revng::pypeline::piperuns
