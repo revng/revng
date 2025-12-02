@@ -35,6 +35,10 @@ containers:
     type: PTMLCBytesContainer
   - name: llvm-root-merged
     type: LLVMRootContainer
+  - name: cross-relations
+    type: CrossRelationsContainer
+  - name: call-graph
+    type: CallGraphContainer
 
 analyses:
   - apply-diff
@@ -481,3 +485,20 @@ branches:
         artifacts:
           - name: cleanup-ir
             container: llvm-root-merged
+
+  process-call-graph:
+    from: collect-cfg
+    tasks:
+      - pipe: process-call-graph
+        arguments: [cfg-map, cross-relations]
+
+  yield-call-graph:
+    from: process-call-graph
+    tasks:
+      - pipe: yield-call-graph
+        arguments: [cross-relations, call-graph]
+      - savepoint: yield-call-graph
+        containers: [call-graph]
+        artifacts:
+          - name: render-svg-call-graph
+            container: call-graph
