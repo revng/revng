@@ -23,7 +23,6 @@ static llvm::cl::opt<std::string> ProblemNameFile("naming-collisions-report",
 namespace revng::pipes {
 
 using namespace pipeline;
-static RegisterDefaultConstructibleContainer<DecompileStringMap> Reg;
 
 static void reportProblemNames(const model::Binary &Binary) {
   if (ProblemNameFile.getValue().empty())

@@ -13,19 +13,12 @@
 #include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Contract.h"
+#include "revng/Pipes/Containers.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/StringMap.h"
 
 namespace revng::pipes {
-
-inline constexpr char DecompileMime[] = "text/x.c+ptml+tar+gz";
-inline constexpr char DecompileName[] = "decompile";
-inline constexpr char DecompileExtension[] = ".c.ptml";
-using DecompileStringMap = FunctionStringMap<&kinds::Decompiled,
-                                             DecompileName,
-                                             DecompileMime,
-                                             DecompileExtension>;
 
 class Decompile {
 public:
