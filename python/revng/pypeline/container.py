@@ -183,7 +183,7 @@ class Container(ABC):
         assert (
             self.kind == obj.kind
         ), f"Container {self} has kind {self.kind}, but the object set has kind {obj.kind}."
-        return self.objects().issubset(obj)
+        return obj.issubset(self.objects())
 
     @classmethod
     @final

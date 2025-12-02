@@ -397,4 +397,6 @@ class ObjectSet(MutableSet[ObjectID]):
             self.objects.update(other.objects)
 
     def issubset(self, other: ObjectSet) -> bool:
-        return self <= other
+        if self.kind != other.kind:
+            return False
+        return self.objects.issubset(other.objects)
