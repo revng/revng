@@ -31,6 +31,7 @@ def is_mime_type_text(mime_type: str) -> bool:
         "application/json",
         "application/xml",
         "application/x-yaml",
+        "image/svg",
     }
 
 
