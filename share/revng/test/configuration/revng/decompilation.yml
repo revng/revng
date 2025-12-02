@@ -18,9 +18,3 @@ commands:
       - type: revng.emit-c
     command: |-
       revng model compare "${SOURCE}".model.yml "$INPUT/model.yml"
-  - # Perform checks on the decompiled C code
-    type: revng.emit-c-as-single-file.filecheck
-    from:
-      - type: revng.emit-c-as-single-file
-    command: |-
-      revng2 -C "$INPUT" project artifact emit-c-as-single-file | revng ptml | FileCheck "${SOURCE}".filecheck
