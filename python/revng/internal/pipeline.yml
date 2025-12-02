@@ -33,6 +33,8 @@ containers:
     type: PTMLCFunctionBytesContainer
   - name: decompiled-single-file
     type: PTMLCBytesContainer
+  - name: llvm-root-merged
+    type: LLVMRootContainer
 
 analyses:
   - apply-diff
@@ -455,3 +457,24 @@ branches:
         artifacts:
           - name: recompile-isolated
             container: translated
+
+  cleanup-ir:
+    from: make-segment-ref
+    tasks:
+      - pipe: merge-llvm-modules
+        arguments: [llvm-functions, llvm-root-merged]
+      - pipe: pure-llvm-passes-root-pipe
+        arguments: [llvm-root-merged]
+        configuration:
+          passes: [instcombine]
+      - pipe: cleanup-ir
+        arguments: [llvm-root-merged]
+      - pipe: pure-llvm-passes-root-pipe
+        arguments: [llvm-root-merged]
+        configuration:
+          passes: [dce]
+      - savepoint: cleanup-ir
+        containers: [llvm-root-merged]
+        artifacts:
+          - name: cleanup-ir
+            container: llvm-root-merged
