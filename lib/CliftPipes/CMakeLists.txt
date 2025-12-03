@@ -7,6 +7,7 @@ revng_add_analyses_library_internal(
   CBackendPipe.cpp
   CliftContainer.cpp
   ClifterPipe.cpp
+  EmitCAsSingleFile.cpp
   ImportCliftPipes.cpp
   HeaderPipes.cpp
   ImportModelNamesPipe.cpp

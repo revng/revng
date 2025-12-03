@@ -719,7 +719,7 @@ Branches:
             program.
       - Name: emit-c-as-single-file
         Pipes:
-          - Type: decompile-to-single-file
+          - Type: emit-c-as-single-file
             UsedContainers: [decompiled.tar.gz, decompiled.c]
         Artifacts:
           Container: decompiled.c
