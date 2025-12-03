@@ -43,15 +43,15 @@ public:
     using namespace pipeline;
     using namespace revng::kinds;
 
-    return { ContractGroup({ Contract(CliftFunction,
+    return { ContractGroup({ Contract(CliftModule,
                                       0,
-                                      CliftFunction,
+                                      CliftModule,
                                       0,
                                       InputPreservation::Preserve) }) };
   }
 
   void run(pipeline::ExecutionContext &EC,
-           revng::pipes::CliftFunctionContainer &CliftContainer) {
+           revng::pipes::CliftContainer &CliftContainer) {
     importModelTypes(*revng::getModelFromContext(EC),
                      CliftContainer.getModule());
 
