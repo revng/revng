@@ -9,6 +9,7 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Support/Debug.h"
 
 namespace {
 
