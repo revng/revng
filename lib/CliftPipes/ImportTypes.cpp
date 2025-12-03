@@ -28,7 +28,7 @@ static void importTypes(const model::Binary &Model, mlir::ModuleOp Module) {
     TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
   }
 
-  Module->setAttr("clift.test", mlir::ArrayAttr::get(Context, TypeAttrs));
+  Module->setAttr("clift.types", mlir::ArrayAttr::get(Context, TypeAttrs));
 }
 
 class ImportTypesPipe {
