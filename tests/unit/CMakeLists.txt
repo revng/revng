@@ -485,24 +485,6 @@ revng_add_test(
 )
 
 #
-# test_combingpass
-#
-
-revng_add_test_executable(test_combingpass "${SRC}/CombingPass.cpp")
-target_compile_definitions(test_combingpass PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(test_combingpass PRIVATE "${CMAKE_SOURCE_DIR}"
-                                                    "${Boost_INCLUDE_DIRS}")
-target_link_libraries(
-  test_combingpass
-  revngRestructureCFG
-  revngModel
-  revngSupport
-  revngUnitTestHelpers
-  Boost::unit_test_framework
-  ${LLVM_LIBRARIES})
-add_test(NAME test_combingpass COMMAND test_combingpass -- "${SRC}/TestGraphs/")
-
-#
 # test_dla_step_manager
 #
 
