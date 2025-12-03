@@ -170,8 +170,10 @@ public:
 
   mlir::LogicalResult visitType(mlir::Type Type) {
     if (auto T = mlir::dyn_cast<clift::FunctionType>(Type)) {
-      if (pipeline::locationFromString(rr::HelperFunction, T.getHandle())) {
-        // Do nothing
+      if (auto L = pipeline::locationFromString(rr::HelperFunction,
+                                                T.getHandle())) {
+        T.getMutableName().setValue(sanitizeIdentifier(L->back()));
+
       } else {
         const model::TypeDefinition *MT = getModelType(T.getHandle(),
                                                        rr::TypeDefinition);
