@@ -4,16 +4,14 @@
 
 #include <unordered_map>
 
-#include "revng/Backend/DecompilePipe.h"
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CSemantics.h"
 #include "revng/CliftImportModel/ModelVerify.h"
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/HeadersGeneration/ConfigurationHelpers.h"
 #include "revng/Pipeline/RegisterPipe.h"
+#include "revng/Pipes/Containers.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/TypeNames/ModelCBuilder.h"
 
 using namespace revng;
 namespace clift = mlir::clift;

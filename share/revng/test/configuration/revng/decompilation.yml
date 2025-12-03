@@ -20,9 +20,9 @@ commands:
     command: |-
       revng artifact --resume "$OUTPUT" --analyze emit-c "$INPUT" -o /dev/null
   - # Perform checks on the model
-    type: revng.legacy.decompile-to-single-file.model-check
+    type: revng.emit-c.model-check
     from:
-      - type: revng.legacy.decompile-to-single-file
+      - type: revng.emit-c
     command: |-
       revng model compare "${SOURCE}".model.yml "$INPUT/context/model.yml"
   - # Check well-formedness of decompiled C

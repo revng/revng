@@ -399,7 +399,7 @@ private:
     if (auto Pair = getModelFunction(Op.getHandle())) {
       auto &[L, MF] = *Pair;
 
-      const model::TypeDefinition *Type = getModelType(*MF.Prototype());
+      const auto *Type = Model.prototypeOrDefault(MF.prototype());
 
       CurrentFunction.emplace(*this, std::move(L), MF);
       Symbols.record(Op, NameBuilder.name(MF));

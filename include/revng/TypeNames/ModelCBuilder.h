@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Backend/DecompiledCCodeIndentation.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/PrimitiveType.h"
 #include "revng/PTML/CBuilder.h"
@@ -12,6 +11,8 @@
 #include "revng/TypeNames/DependencyGraph.h"
 
 namespace ptml {
+
+inline constexpr int DecompiledCCodeIndentation = 2;
 
 class ModelCBuilder : public CBuilder {
 public:

@@ -5,6 +5,7 @@
 revng_add_library_internal(
   revngPipes
   SHARED
+  Containers.cpp
   IRHelpers.cpp
   PipelineManager.cpp
   Pipes.cpp
