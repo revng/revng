@@ -679,6 +679,8 @@ Branches:
             Passes:
               - remove-llvmassume-calls
               - dce
+              - peephole-opt-for-decompilation
+              - ternary-reduction
               - exit-ssa
               - switch-to-statements
               - remove-constant-array-returns
