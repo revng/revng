@@ -526,8 +526,13 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
   revng_assert(not IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");
 
-  revng_assert(validateIdentifier(Identifier),
-               "The specified identifier is not a valid C identifier.");
+  revng_check(!Identifier.empty());
+  if (not validateIdentifier(Identifier)) {
+    revng_abort(("The specified identifier is not a valid C identifier: `"
+                 + Identifier + "`")
+                  .str()
+                  .c_str());
+  }
 
   auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
   if (auto Attribute = getEntityKindAttribute(Kind))
