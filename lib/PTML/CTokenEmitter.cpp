@@ -680,22 +680,25 @@ void CTokenEmitter::emitComment(llvm::StringRef Content, CommentKind Kind) {
   emitComment(Kind).emit(Content);
 }
 
+static void emitDirective(ptml::PTMLStreamEmitter &PTML, llvm::StringRef Name) {
+  auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
+  Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Directive);
+  Tag.finalizeOpenTag();
+
+  PTML.emit("#");
+
+  revng_assert(validateIdentifier(Name));
+  PTML.emit(Name);
+}
+
 void CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
                                          llvm::StringRef Location,
                                          IncludeMode Mode) {
   revng_assert(not IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");
 
-  // Emit include directive token:
-  {
-    auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
-    Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Directive);
-    Tag.finalizeOpenTag();
-
-    PTML.emit("#include");
-  }
-
-  PTML.emit(" ");
+  emitDirective(PTML, "include");
+  emitSpace();
 
   // Emit include path:
   {
@@ -711,10 +714,25 @@ void CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
   PTML.emit("\n");
 }
 
+void ptml::CTokenEmitter::emitPragmaOnceDirective() {
+  emitDirective(PTML, "pragma");
+  emitSpace();
+
+  {
+    auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
+    Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Constant);
+    Tag.finalizeOpenTag();
+
+    PTML.emit("once");
+  }
+
+  emitNewline();
+}
+
 CTokenEmitter::Scope::Scope(CTokenEmitter &Emitter,
                             ScopeKind Kind,
                             int Indent) :
-  Emitter(Emitter), Indent(Indent) {
+  Emitter(Emitter), Kind(Kind), Indent(Indent) {
   revng_assert(not Emitter.IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");
 

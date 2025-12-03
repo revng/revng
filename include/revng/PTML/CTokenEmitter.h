@@ -265,6 +265,7 @@ public:
   void emitIncludeDirective(llvm::StringRef Content,
                             llvm::StringRef Location,
                             IncludeMode Mode);
+  void emitPragmaOnceDirective();
 
   enum class ScopeKind : uint8_t {
     /// Doesn't emit anything. Is provided as a handy way of controlling
