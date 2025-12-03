@@ -16,6 +16,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/Type.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -341,7 +342,10 @@ VB::CopyType *VB::createCopyOnUse(ReferenceType *LocationToCopy, Use &U) {
     DebugLocation = Instruction->getDebugLoc();
 
   // Create a copy from the assigned location at the proper insertion point.
-  revng::IRBuilder B(InsertBefore, DebugLocation);
+  // Note: here we should definitely use the builder that checks the debug info,
+  //       however some upstram passes do not use it (e.g., make-model-gep).
+  //       Once those are gone, we can switch back to IRBuilder.
+  revng::NonDebugInfoCheckingIRBuilder B(InsertBefore, DebugLocation);
   return B.CreateLoad(U->getType(), LocationToCopy);
 }
 
@@ -360,7 +364,7 @@ VB::AssignType *VB::createAssignmentBefore(Value *LocationToAssign,
     DebugLocation = Instruction->getDebugLoc();
 
   // Create a copy from the assigned location at the proper insertion point.
-  revng::IRBuilder B(InsertBefore, DebugLocation);
+  revng::NonDebugInfoCheckingIRBuilder B(InsertBefore, DebugLocation);
   return B.CreateStore(ValueToAssign, LocationToAssign);
 }
 
