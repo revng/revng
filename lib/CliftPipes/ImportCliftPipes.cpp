@@ -9,6 +9,7 @@
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
+#include "revng/Model/Segment.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/FileContainer.h"
@@ -74,6 +75,42 @@ clift::FunctionOp importModelFunctionDeclaration(const FunctionT &MF,
                                                 Prototype);
 }
 
+static clift::GlobalVariableOp
+importSegmentDeclaration(const model::Segment &Segment,
+                         mlir::ModuleOp Module,
+                         const model::Binary &Binary) {
+  auto EmitError =
+    [Context = Module.getContext()]() -> mlir::InFlightDiagnostic {
+    return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
+                                         mlir::DiagnosticSeverity::Error);
+  };
+
+  mlir::clift::ValueType SegmentType;
+  if (const model::StructDefinition *SegmentStruct = Segment.type()) {
+    SegmentType = mlir::clift::importModelType(EmitError,
+                                               *Module.getContext(),
+                                               *SegmentStruct,
+                                               Binary);
+
+  } else {
+    static constexpr auto Unsigned = mlir::clift::PrimitiveKind::UnsignedKind;
+    auto Char = mlir::clift::PrimitiveType::get(Module.getContext(),
+                                                Unsigned,
+                                                1);
+    SegmentType = mlir::clift::ArrayType::get(Char, Segment.VirtualSize());
+  }
+
+  // NOTE: neither debug information nor name matter for the users of this.
+  std::string Handle = pipeline::locationString(revng::ranks::Segment,
+                                                Segment.key());
+  auto UnknownLocation = mlir::UnknownLoc::get(Module.getContext());
+  return mlir::clift::importSegmentDeclaration(Module,
+                                               UnknownLocation,
+                                               toString(Segment.key()),
+                                               Handle,
+                                               SegmentType);
+}
+
 //
 // Old style pipes
 //
@@ -133,6 +170,30 @@ public:
 };
 
 static pipeline::RegisterPipe<ImportFunctionDeclarations> Z;
+
+class ImportSegmentDeclarations {
+public:
+  static constexpr auto Name = "import-clift-segment-declarations";
+
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    return { pipeline::ContractGroup(revng::kinds::CliftModule,
+                                     0,
+                                     pipeline::InputPreservation::Preserve) };
+  }
+
+  void run(pipeline::ExecutionContext &EC,
+           revng::pipes::CliftContainer &CliftContainer) {
+    const model::Binary &Model = *revng::getModelFromContext(EC);
+    mlir::ModuleOp Module = CliftContainer.getModule();
+
+    for (const auto &Segment : Model.Segments())
+      importSegmentDeclaration(Segment, Module, Model);
+
+    EC.commitUniqueTarget(CliftContainer);
+  }
+};
+
+static pipeline::RegisterPipe<ImportSegmentDeclarations> A;
 
 //
 // New style pipes
