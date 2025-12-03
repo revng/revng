@@ -6,7 +6,7 @@
 # input line. The angle brackets are matched separately in order to ignore
 # parameters other than those explicitly being checked for.
 #
-# RUN: %root/bin/revng pipe import-types %s /dev/null /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+# RUN: %root/bin/revng pipe import-types %s /dev/null /dev/null /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
 
 Architecture: x86_64
 
