@@ -104,4 +104,8 @@ void ImportCliftFunctionDeclarations::run() {
   mlir::clift::importAllModelFunctionDeclarations(Binary, Module.getModule());
 }
 
+void ImportCliftSegmentDeclarations::run() {
+  mlir::clift::importAllModelSegmentDeclarations(Binary, Module.getModule());
+}
+
 } // namespace revng::pypeline::piperuns

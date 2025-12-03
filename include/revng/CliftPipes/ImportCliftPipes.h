@@ -56,4 +56,28 @@ public:
   void run();
 };
 
+class ImportCliftSegmentDeclarations {
+private:
+  const model::Binary &Binary;
+  CliftModuleContainer &Module;
+
+public:
+  static constexpr llvm::StringRef Name = "import-clift-segment-declarations";
+  using Arguments = TypeList<PipeRunArgument<CliftModuleContainer,
+                                             "Module",
+                                             "MLIR container containing model "
+                                             "type system, function "
+                                             "declarations and, now, segment "
+                                             "declarations",
+                                             Access::ReadWrite>>;
+
+  ImportCliftSegmentDeclarations(const class Model &Model,
+                                 llvm::StringRef Config,
+                                 llvm::StringRef DynamicConfig,
+                                 CliftModuleContainer &Module) :
+    Binary(*Model.get().get()), Module(Module){};
+
+  void run();
+};
+
 } // namespace revng::pypeline::piperuns
