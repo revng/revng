@@ -43,9 +43,9 @@ public:
     using namespace pipeline;
     using namespace revng::kinds;
 
-    return { ContractGroup({ Contract(CliftFunction,
+    return { ContractGroup({ Contract(CliftModule,
                                       0,
-                                      CliftFunction,
+                                      CliftModule,
                                       0,
                                       InputPreservation::Preserve) }) };
   }
