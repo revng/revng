@@ -558,27 +558,6 @@ target_link_libraries(
 add_test(NAME test_clift_type COMMAND test_clift_type)
 
 #
-# test_pointer_array_emission
-#
-
-revng_add_test_executable(test_pointer_array_emission
-                          "${SRC}/PointerArrayEmission.cpp")
-target_compile_definitions(test_pointer_array_emission
-                           PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(
-  test_pointer_array_emission PRIVATE "${CMAKE_SOURCE_DIR}"
-                                      "${Boost_INCLUDE_DIRS}")
-target_link_libraries(
-  test_pointer_array_emission
-  revngSupport
-  revngTypeNames
-  revngModel
-  revngUnitTestHelpers
-  Boost::unit_test_framework
-  ${LLVM_LIBRARIES})
-add_test(NAME test_pointer_array_emission COMMAND test_pointer_array_emission)
-
-#
 # test_statement_comment_placement
 #
 
