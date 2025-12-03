@@ -23,7 +23,7 @@ static void importModelTypes(const model::Binary &Model,
   };
 
   llvm::SmallVector<mlir::Attribute> TypeAttrs;
-  for (size_t I = 0; const auto &ModelType : Model.TypeDefinitions()) {
+  for (const auto &ModelType : Model.TypeDefinitions()) {
     auto CliftType = clift::importModelType(EmitError,
                                             *Context,
                                             *ModelType,
@@ -32,7 +32,7 @@ static void importModelTypes(const model::Binary &Model,
     TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
   }
 
-  Module->setAttr("clift.test", mlir::ArrayAttr::get(Context, TypeAttrs));
+  Module->setAttr("clift.types", mlir::ArrayAttr::get(Context, TypeAttrs));
 }
 
 class ImportCliftTypesPipe {
