@@ -7,85 +7,85 @@
 
 !void = !clift.primitive<void 0>
 
-!f = !clift.func<"f_t" as "f" : !void()>
-!s = !clift.struct<"s" as "s" : size(1) {}>
+!f = !clift.func<"/type-definition/0-CABIFunctionDefinition" as "f" : !void()>
+!s = !clift.struct<"/type-definition/1-StructDefinition" as "s" : size(1) {}>
 
 module attributes {clift.module} {
   // CHECK: void f(void) {
   clift.func @f<!f>() attributes {
-    handle = "f",
-    name = "f"
+    clift.handle = "/function/0x1000:Code_aarch64",
+    clift.name = "f"
   } {
     // CHECK: const s *const cp8_cs;
     clift.local : !clift.const<!clift.ptr<8 to !clift.const<!s>>> attributes {
-      handle = "cp8_cs",
-      name = "cp8_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/0",
+      clift.name = "cp8_cs"
     }
 
     // CHECK: const pointer32_t(const s) cp4_cs;
     clift.local : !clift.const<!clift.ptr<4 to !clift.const<!s>>> attributes {
-      handle = "cp4_cs",
-      name = "cp4_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/1",
+      clift.name = "cp4_cs"
     }
 
     // CHECK: const s *const *const cp8_cp8_cs;
     clift.local : !clift.const<!clift.ptr<8 to !clift.const<!clift.ptr<8 to !clift.const<!s>>>>> attributes {
-      handle = "cp8_cp8_cs",
-      name = "cp8_cp8_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/2",
+      clift.name = "cp8_cp8_cs"
     }
 
     // CHECK: const pointer32_t(const pointer32_t(const s)) cp4_cp4_cs;
     clift.local : !clift.const<!clift.ptr<4 to !clift.const<!clift.ptr<4 to !clift.const<!s>>>>> attributes {
-      handle = "cp4_cp4_cs",
-      name = "cp4_cp4_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/3",
+      clift.name = "cp4_cp4_cs"
     }
 
     // CHECK: const s a1_cs[1];
     clift.local : !clift.array<1 x !clift.const<!s>> attributes {
-      handle = "a1_cs",
-      name = "a1_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/4",
+      clift.name = "a1_cs"
     }
 
     // CHECK: const s a2_a1_cs[2][1];
     clift.local : !clift.array<2 x !clift.array<1 x !clift.const<!s>>> attributes {
-      handle = "a2_a1_cs",
-      name = "a2_a1_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/5",
+      clift.name = "a2_a1_cs"
     }
 
     // CHECK: const s(*const cp8_a1_cs)[1];
     clift.local : !clift.const<!clift.ptr<8 to !clift.array<1 x !clift.const<!s>>>> attributes {
-      handle = "cp8_a1_cs",
-      name = "cp8_a1_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/6",
+      clift.name = "cp8_a1_cs"
     }
 
     // CHECK: const pointer32_t(const s[1]) cp4_a1_cs;
     clift.local : !clift.const<!clift.ptr<4 to !clift.array<1 x !clift.const<!s>>>> attributes {
-      handle = "cp4_a1_cs",
-      name = "cp4_a1_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/7",
+      clift.name = "cp4_a1_cs"
     }
 
     // CHECK: const s *const a1_cp8_cs[1];
     clift.local : !clift.array<1 x !clift.const<!clift.ptr<8 to !clift.const<!s>>>> attributes {
-      handle = "a1_cp8_cs",
-      name = "a1_cp8_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/8",
+      clift.name = "a1_cp8_cs"
     }
 
     // CHECK: const pointer32_t(const s) a1_cp4_cs[1];
     clift.local : !clift.array<1 x !clift.const<!clift.ptr<4 to !clift.const<!s>>>> attributes {
-      handle = "a1_cp4_cs",
-      name = "a1_cp4_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/9",
+      clift.name = "a1_cp4_cs"
     }
 
     // CHECK: const s(*const a2_cp8_a1_cs[2])[1];
     clift.local : !clift.array<2 x !clift.const<!clift.ptr<8 to !clift.array<1 x !clift.const<!s>>>>> attributes {
-      handle = "a2_cp8_a1_cs",
-      name = "a2_cp8_a1_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/10",
+      clift.name = "a2_cp8_a1_cs"
     }
 
     // CHECK: const pointer32_t(const s[1]) a2_cp4_a1_cs[2];
     clift.local : !clift.array<2 x !clift.const<!clift.ptr<4 to !clift.array<1 x !clift.const<!s>>>>> attributes {
-      handle = "a2_cp4_a1_cs",
-      name = "a2_cp4_a1_cs"
+      clift.handle = "/local-variable/0x1000:Code_aarch64/11",
+      clift.name = "a2_cp4_a1_cs"
     }
   }
   // CHECK: }
