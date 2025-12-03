@@ -11,10 +11,9 @@
 #include "llvm/IR/CFG.h"
 
 #include "revng/ADT/STLExtras.h"
+#include "revng/RestructureCFG/GenericRegion.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/GraphAlgorithms.h"
-
-#include "GenericRegion.h"
 
 template<class GraphT, class GT = llvm::GraphTraits<GraphT>>
 class GenericRegionInfo {
