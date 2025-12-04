@@ -8,32 +8,15 @@ target_link_libraries(revngScopeGraphUtils revngSupport ${LLVM_LIBRARIES})
 
 revng_add_analyses_library_internal(
   revngRestructureCFG
-  ASTNode.cpp
-  ASTNodeUtils.cpp
-  ASTTree.cpp
-  BasicBlockNode.cpp
-  BeautifyGHAST.cpp
   DAGifyPass.cpp
   EnforceSingleExitPass.cpp
-  ExprNode.cpp
-  FallThroughScopeAnalysis.cpp
   GenericRegionInfo.cpp
   GenericRegionPass.cpp
-  InlineDispatcherSwitch.cpp
   InlineDivergentScopesPass.cpp
   MaterializeTrivialGotoPass.cpp
-  MetaRegion.cpp
-  PromoteCallNoReturn.cpp
-  RegionCFGTree.cpp
-  RemoveDeadCode.cpp
-  RestructureCFG.cpp
   ScopeGraphAlgorithms.cpp
   ScopeGraphLoggerPass.cpp
-  SelectScopePass.cpp
-  SimplifyCompareNode.cpp
-  SimplifyDualSwitch.cpp
-  SimplifyHybridNot.cpp
-  SimplifyImplicitStatement.cpp)
+  SelectScopePass.cpp)
 
 target_link_libraries(revngRestructureCFG revngScopeGraphUtils revngSupport
                       revngModel revngPipeline ${LLVM_LIBRARIES})
