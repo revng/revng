@@ -48,7 +48,7 @@ branches:
       - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root]
         configuration:
-          Passes:
+          passes:
             - globaldce
       - savepoint: lifted
         containers: [llvm-root]
@@ -85,7 +85,7 @@ branches:
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
-          Passes:
+          passes:
             - strip-debug-info-from-helpers
       # Note: we're running promote-csvs twice: it is important to run
       #       it before inline-helpers so that mem2reg can constant
@@ -97,7 +97,7 @@ branches:
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
-          Passes:
+          passes:
             - mem2reg
             - inline-helpers
       - pipe: attach-debug-info
@@ -107,7 +107,7 @@ branches:
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
-          Passes:
+          passes:
             - remove-exceptional-functions
             - strip-dead-debug-info
       - savepoint: enforce-abi
@@ -176,7 +176,7 @@ branches:
       - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root]
         configuration:
-          Passes: [drop-opaque-return-address]
+          passes: [drop-opaque-return-address]
       - pipe: compile-root-module
         arguments: [llvm-root, object-file]
       - pipe: link-for-translation
@@ -197,7 +197,7 @@ branches:
       - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root-with-functions]
         configuration:
-          Passes: [drop-opaque-return-address]
+          passes: [drop-opaque-return-address]
       - pipe: compile-root-module
         arguments: [llvm-root-with-functions, object-file]
       - pipe: link-for-translation

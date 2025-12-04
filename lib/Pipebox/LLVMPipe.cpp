@@ -12,7 +12,7 @@ using Configuration = rpp::detail::PureLLVMPassesPipeBase::Configuration;
 template<>
 struct llvm::yaml::MappingTraits<Configuration> {
   static void mapping(IO &IO, Configuration &Fields) {
-    IO.mapRequired("Passes", Fields.Passes);
+    IO.mapRequired("passes", Fields.Passes);
   }
 };
 
