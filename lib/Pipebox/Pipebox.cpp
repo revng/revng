@@ -49,23 +49,23 @@ using namespace revng::pypeline::pipes;
 using namespace revng::pypeline::piperuns;
 namespace piperuns = revng::pypeline::piperuns;
 
-static RegisterSingleOutputPipe<Lift> P1;
+static RegisterSingleOutputPipeRun<Lift> P1;
 static RegisterPipe<PureLLVMPassesRootPipe> P2;
 static RegisterPipe<PureLLVMPassesPipe> P3;
-static RegisterSingleOutputPipe<ModelToHeader> P4;
-static RegisterTypeDefinitionPipe<GenerateModelTypeDefinition> P5;
-static RegisterFunctionPipe<CollectCFG> P6;
-static RegisterFunctionPipe<Isolate> P7;
-static RegisterFunctionPipe<AttachDebugInfo> P8;
-static RegisterFunctionPipe<piperuns::EnforceABI> P9;
-static RegisterFunctionPipe<PromoteCSVs> P10;
-static RegisterSingleOutputPipe<HexDump> P11;
-static RegisterFunctionPipe<ProcessAssembly> P12;
-static RegisterFunctionPipe<YieldAssembly> P13;
-static RegisterSingleOutputPipe<LinkSupport> P14;
-static RegisterSingleOutputPipe<CompileRootModule> P15;
-static RegisterSingleOutputPipe<LinkForTranslation> P16;
-static RegisterSingleOutputPipe<InvokeIsolatedFunctions> P17;
+static RegisterSingleOutputPipeRun<ModelToHeader> P4;
+static RegisterTypeDefinitionPipeRun<GenerateModelTypeDefinition> P5;
+static RegisterFunctionPipeRun<CollectCFG> P6;
+static RegisterFunctionPipeRun<Isolate> P7;
+static RegisterFunctionPipeRun<AttachDebugInfo> P8;
+static RegisterFunctionPipeRun<piperuns::EnforceABI> P9;
+static RegisterFunctionPipeRun<PromoteCSVs> P10;
+static RegisterSingleOutputPipeRun<HexDump> P11;
+static RegisterFunctionPipeRun<ProcessAssembly> P12;
+static RegisterFunctionPipeRun<YieldAssembly> P13;
+static RegisterSingleOutputPipeRun<LinkSupport> P14;
+static RegisterSingleOutputPipeRun<CompileRootModule> P15;
+static RegisterSingleOutputPipeRun<LinkForTranslation> P16;
+static RegisterSingleOutputPipeRun<InvokeIsolatedFunctions> P17;
 
 //
 // Analyses

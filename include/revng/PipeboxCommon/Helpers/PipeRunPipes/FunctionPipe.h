@@ -10,12 +10,13 @@
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Helpers.h"
 
 template<typename T>
-concept IsFunctionPipe = requires(T &PipeRun, const model::Function &Function) {
+concept IsFunctionPipeRun = requires(T &PipeRun,
+                                     const model::Function &Function) {
   requires IsBasePipeRun<T>;
   { PipeRun.runOnFunction(Function) } -> std::same_as<void>;
 };
 
-template<IsFunctionPipe T>
+template<IsFunctionPipeRun T>
 class FunctionPipe : public SingleOutputPipeBase<T> {
 private:
   using Base = SingleOutputPipeBase<T>;

@@ -10,14 +10,14 @@
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Helpers.h"
 
 template<typename T>
-concept IsTypeDefinitionPipe = requires(T &PipeRun,
-                                        const UpcastablePointer<
-                                          model::TypeDefinition> &TD) {
+concept IsTypeDefinitionPipeRun = requires(T &PipeRun,
+                                           const UpcastablePointer<
+                                             model::TypeDefinition> &TD) {
   requires IsBasePipeRun<T>;
   { PipeRun.runOnTypeDefinition(TD) } -> std::same_as<void>;
 };
 
-template<IsTypeDefinitionPipe T>
+template<IsTypeDefinitionPipeRun T>
 class TypeDefinitionPipe : public SingleOutputPipeBase<T> {
 private:
   using Base = SingleOutputPipeBase<T>;

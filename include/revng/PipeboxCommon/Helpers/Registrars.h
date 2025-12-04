@@ -183,11 +183,11 @@ struct RegisterPipe {
   }
 };
 
-template<typename T>
-using RegisterSingleOutputPipe = RegisterPipe<SingleOutputPipe<T>>;
+template<IsSingleOutputPipeRun T>
+using RegisterSingleOutputPipeRun = RegisterPipe<SingleOutputPipe<T>>;
 
-template<typename T>
-using RegisterFunctionPipe = RegisterPipe<FunctionPipe<T>>;
+template<IsFunctionPipeRun T>
+using RegisterFunctionPipeRun = RegisterPipe<FunctionPipe<T>>;
 
-template<typename T>
-using RegisterTypeDefinitionPipe = RegisterPipe<TypeDefinitionPipe<T>>;
+template<IsTypeDefinitionPipeRun T>
+using RegisterTypeDefinitionPipeRun = RegisterPipe<TypeDefinitionPipe<T>>;
