@@ -561,6 +561,7 @@ static pipeline::RegisterPipe<EnforceABIPipe> Y;
 
 namespace revng::pypeline::piperuns {
 
+// TODO: merge ::EnforceABI into EnforceABI once we dismiss the old pipeline
 void EnforceABI::runOnLLVMFunction(const model::Function &Function,
                                    llvm::Function &LLVMFunction) {
   llvm::Module &Module = *LLVMFunction.getParent();

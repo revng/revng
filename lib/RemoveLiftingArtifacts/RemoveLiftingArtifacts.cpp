@@ -230,6 +230,8 @@ static pipeline::RegisterLLVMPass<RemoveLiftingArtifactsPipe> Y;
 
 namespace revng::pypeline::piperuns {
 
+// TODO: merge ::RemoveLiftingArtifacts into RemoveLiftingArtifacts once we
+//       dismiss the old pipeline
 void RemoveLiftingArtifacts::runOnLLVMFunction(const model::Function &Function,
                                                llvm::Function &LLVMFunction) {
   ::RemoveLiftingArtifacts Impl(*LLVMFunction.getParent());

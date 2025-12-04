@@ -224,6 +224,7 @@ static pipeline::RegisterLLVMPass<PromoteStackPointerPipe> Y;
 
 namespace revng::pypeline::piperuns {
 
+// TODO: inline promoteStackPointer once we dismiss the old pipeline
 void PromoteStackPointer::runOnLLVMFunction(const model::Function &Function,
                                             llvm::Function &LLVMFunction) {
   GeneratedCodeBasicInfo GCBI(Binary);

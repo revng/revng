@@ -1631,6 +1631,8 @@ void LegacySegregateStackAccesses::runOnLLVMFunction(const model::Function
   Impl.epilogue();
 }
 
+// TODO: merge ::SegregateStackAccesses into SegregateStackAccesses once we
+//       dismiss the old pipeline
 void SegregateStackAccesses::runOnLLVMFunction(const model::Function &Function,
                                                llvm::Function &LLVMFunction) {
   ::SegregateStackAccesses<false> Impl(Binary, *LLVMFunction.getParent());

@@ -246,6 +246,7 @@ CompileRootModule::CompileRootModule(const Model &TheModel,
   Binary(*TheModel.get().get()), Input(Input), Output(Output) {
 }
 
+// TODO: inline compileModuleRunImpl once we dismiss the old pipeline
 void CompileRootModule::run() {
   compileModuleRunImpl(Binary,
                        &Input.getModule(),

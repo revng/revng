@@ -465,6 +465,8 @@ static pipeline::RegisterPipe<revng::pipes::MakeSegmentRef> RegMSRPipe;
 
 namespace revng::pypeline::piperuns {
 
+// TODO: merge MakeSegmentRefPassImpl into MakeSegmentRef once we dismiss the
+//       old pipeline
 void MakeSegmentRef::runOnLLVMFunction(const model::Function &Function,
                                        llvm::Function &LLVMFunction) {
   MakeSegmentRefPassImpl Impl(Binary, *LLVMFunction.getParent(), BinaryView);

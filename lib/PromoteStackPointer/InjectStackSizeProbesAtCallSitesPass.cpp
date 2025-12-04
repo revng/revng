@@ -74,6 +74,8 @@ static RegisterMSSACS R("measure-stack-size-at-call-sites",
 
 namespace revng::pypeline::piperuns {
 
+// TODO: inline injectStackSizeProbesAtCallSites once we dismiss the old
+//       pipeline
 void InjectStackSizeProbesAtCallSites::runOnFunction(const model::Function
                                                        &Function) {
   llvm::Module &Module = ModuleContainer.getModule(ObjectID(Function.Entry()));

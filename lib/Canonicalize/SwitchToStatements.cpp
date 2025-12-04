@@ -1310,6 +1310,7 @@ static Register Y("switch-to-statements", "SwitchToStatements", false, false);
 
 namespace revng::pypeline::piperuns {
 
+// TODO: inline switchToStatements once we dismiss the old pipeline
 void SwitchToStatements::runOnLLVMFunction(const model::Function &Function,
                                            llvm::Function &LLVMFunction) {
   switchToStatements<false>(Model.get(), LLVMFunction);

@@ -348,6 +348,8 @@ static pipeline::RegisterPipe<AttachDebugInfoToABIEnforcedPipe> Y2;
 
 namespace revng::pypeline::piperuns {
 
+// TODO: merge ::AttachDebugInfo into AttachDebugInfo once we dismiss the old
+//       pipeline
 void AttachDebugInfo::runOnLLVMFunction(const model::Function &Function,
                                         llvm::Function &LLVMFunction) {
   const MetaAddress &Address = Function.Entry();

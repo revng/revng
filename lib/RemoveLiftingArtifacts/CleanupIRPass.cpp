@@ -165,6 +165,7 @@ static Reg X("cleanup-ir", "CleanupIRPass");
 
 namespace revng::pypeline::piperuns {
 
+// TODO: merge CleanupIRPass to CleanupIR once we dismiss the old pipeline
 void CleanupIR::run() {
   llvm::Module &Module = ModuleContainer.getModule();
   CleanupIRPass::Impl Impl(Module, Model);

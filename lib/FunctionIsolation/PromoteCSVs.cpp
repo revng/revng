@@ -635,6 +635,7 @@ static pipeline::RegisterLLVMPass<PromoteCSVsPipe> Y;
 
 namespace revng::pypeline::piperuns {
 
+// TODO: merge ::PromoteCSVs into PromoteCSVs once we dismiss the old pipeline
 void PromoteCSVs::runOnLLVMFunction(const model::Function &Function,
                                     llvm::Function &LLVMFunction) {
   llvm::Module &Module = *LLVMFunction.getParent();
