@@ -456,7 +456,7 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
       revng_log(Log, "Use of PHI: " << dumpToString(PHI));
       LoggerIndent IndentPHI{ Log };
 
-      Builder.SetInsertPoint(PHI);
+      Builder.SetInsertPoint(PHI->getParent()->getFirstNonPHI());
       auto *NewLoad = createLoad(Builder, Alloca);
       NewLoad->setDebugLoc(PHIDebugLoc);
       revng_log(Log, "Create new load: " << dumpToString(NewLoad));
