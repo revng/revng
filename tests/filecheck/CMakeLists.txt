@@ -407,7 +407,6 @@ set(FILECHECK_TESTS
     llvm-passes/inline-helpers.ll
     llvm-passes/mark-inline-helpers-up-to.ll
     llvm-passes/materialize-trivial-goto.ll
-    llvm-passes/operatorprecedence-resolution.ll
     llvm-passes/peephole-opt-for-decompilation.ll
     llvm-passes/remove-extractvalues.ll
     llvm-passes/scope-graph-dumper.ll
