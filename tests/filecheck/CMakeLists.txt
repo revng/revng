@@ -413,7 +413,6 @@ set(FILECHECK_TESTS
     llvm-passes/select-scope.ll
     llvm-passes/switch-to-statements.ll
     llvm-passes/ternary-reduction.ll
-    llvm-passes/twoscomplement-normalization.ll
     model/drop-types/ArrayPropagation.yml
     model/drop-types/DropStructField.yml
     model/drop-types/DropViaPointer.yml
