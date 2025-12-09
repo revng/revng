@@ -36,8 +36,32 @@ module attributes {clift.module} {
         %2 = clift.imm 2 : !int32_t
         clift.yield %2 : !int32_t
       }
-    }
     // CHECK-NEXT: break;
+    // CHECK: }
+    }
+
+    // CHECK-NEXT: switch (3) {
+    clift.switch {
+      %0 = clift.imm 3 : !int32_t
+      clift.yield %0 : !int32_t
+    // CHECK-NEXT: case 0x3:
+    } case 3 {
+      // CHECK-NEXT: 4;
+      clift.expr {
+        %1 = clift.imm 4 : !int32_t
+        clift.yield %1 : !int32_t
+      }
+    // CHECK-NEXT: break;
+    // CHECK-NEXT: default:
+    } default {
+      // CHECK-NEXT: 5;
+      clift.expr {
+        %2 = clift.imm 5 : !int32_t
+        clift.yield %2 : !int32_t
+      }
+    // CHECK-NEXT: break;
+    // CHECK: }
+    } attributes {clift.radix = 16 : ui32}
   }
   // CHECK-NEXT: }
 }

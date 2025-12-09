@@ -88,6 +88,14 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
                                    TargetPointerSize);
   }
 
+  clift::PrimitiveType
+  makeTargetIntegerType(mlir::PatternRewriter &Rewriter,
+                        clift::PrimitiveType OldIntegerType) const {
+    return clift::PrimitiveType::get(Rewriter.getContext(),
+                                     OldIntegerType.getKind(),
+                                     TargetPointerSize);
+  }
+
   mlir::LogicalResult replacePointerOperand(mlir::PatternRewriter &Rewriter,
                                             clift::ExpressionOpInterface Op,
                                             unsigned Index = 0) const {
@@ -103,12 +111,25 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
     return mlir::success();
   }
 
+  mlir::LogicalResult replaceIntegerOperand(mlir::PatternRewriter &Rewriter,
+                                            clift::ExpressionOpInterface Op,
+                                            unsigned Index = 0) const {
+    mlir::OpOperand &Operand = Op->getOpOperand(Index);
+
+    auto OldType = clift::getPrimitiveIntegerType(Operand.get().getType());
+    if (not OldType or OldType.getSize() == TargetPointerSize)
+      return mlir::failure();
+
+    auto NewType = makeTargetIntegerType(Rewriter, OldType);
+    modifyOperandType(Rewriter, Operand, NewType);
+
+    return mlir::success();
+  }
+
   mlir::LogicalResult
   replacePointerResult(mlir::PatternRewriter &Rewriter,
                        clift::ExpressionOpInterface Op) const {
-    auto Result = Op->getResult(0);
-
-    auto OldType = clift::getPointerType(Result.getType());
+    auto OldType = clift::getPointerType(Op->getResult(0).getType());
     revng_assert(OldType);
 
     if (OldType.getPointerSize() == TargetPointerSize)
@@ -136,8 +157,11 @@ struct ResizePointerArithmeticPattern : PointerResizePattern<OpT> {
     if (this->replacePointerOperand(Rewriter, Op, Index).failed())
       return mlir::failure();
 
-    auto R = this->replacePointerResult(Rewriter, Op);
-    revng_assert(R.succeeded());
+    auto R1 = this->replaceIntegerOperand(Rewriter, Op, Index ^ 1);
+    revng_assert(R1.succeeded());
+
+    auto R2 = this->replacePointerResult(Rewriter, Op);
+    revng_assert(R2.succeeded());
 
     return mlir::success();
   }
@@ -149,14 +173,31 @@ using ResizePtrSubPattern = ResizePointerArithmeticPattern<clift::PtrSubOp>;
 struct ResizePtrDiffPattern : PointerResizePattern<clift::PtrDiffOp> {
   using PointerResizePattern::PointerResizePattern;
 
+  mlir::LogicalResult replaceIntegerResult(mlir::PatternRewriter &Rewriter,
+                                           clift::PtrDiffOp Op) const {
+    auto OldType = clift::getPrimitiveIntegerType(Op->getResult(0).getType());
+    revng_assert(OldType);
+
+    if (OldType.getSize() == TargetPointerSize)
+      return mlir::failure();
+
+    auto NewType = makeTargetIntegerType(Rewriter, OldType);
+    modifyResultType(Rewriter, Op, NewType);
+
+    return mlir::success();
+  }
+
   mlir::LogicalResult
   matchAndRewrite(clift::PtrDiffOp Op,
                   mlir::PatternRewriter &Rewriter) const override {
     if (replacePointerOperand(Rewriter, Op, 0).failed())
       return mlir::failure();
 
-    auto R = replacePointerOperand(Rewriter, Op, 1);
-    revng_assert(R.succeeded());
+    auto R1 = replacePointerOperand(Rewriter, Op, 1);
+    revng_assert(R1.succeeded());
+
+    auto R2 = replaceIntegerResult(Rewriter, Op);
+    revng_assert(R2.succeeded());
 
     return mlir::success();
   }
@@ -226,9 +267,10 @@ struct BooleanCanonicalizationPattern
   }
 };
 
-template<typename OpT>
+/// If TreatAsBoolean is true, the expression type is not preserved in
+/// boolean-tested contexts. See modifyResultType documentation above.
+template<typename OpT, bool TreatAsBoolean = false>
 struct IntegerPromotionPattern : mlir::OpRewritePattern<OpT> {
-
   explicit IntegerPromotionPattern(mlir::MLIRContext *Context,
                                    const TargetCImplementation &Target) :
     mlir::OpRewritePattern<OpT>(Context), PromotionSize(Target.getIntSize()) {}
@@ -252,7 +294,10 @@ struct IntegerPromotionPattern : mlir::OpRewritePattern<OpT> {
       return mlir::failure();
 
     auto NewType = makePromotedType(OldType);
-    modifyResultType(Rewriter, Op, NewType);
+    modifyResultType(Rewriter,
+                     Op,
+                     NewType,
+                     not TreatAsBoolean or not clift::isBooleanTested(Result));
 
     for (unsigned Index : Indices) {
       mlir::OpOperand &Operand = Op->getOpOperand(Index);
@@ -313,10 +358,10 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function,
   Set.add<ResizePtrAddPattern>(Context, Target);
   Set.add<ResizePtrSubPattern>(Context, Target);
   Set.add<ResizePtrDiffPattern>(Context, Target);
-  Set.add<PointerResizePattern<clift::IndirectionOp>>(Context, Target);
-  Set.add<PointerResizePattern<clift::SubscriptOp>>(Context, Target);
-  Set.add<PointerResizePattern<clift::AccessOp>>(Context, Target);
-  Set.add<PointerResizePattern<clift::CallOp>>(Context, Target);
+  Set.add<PointerResizePattern<IndirectionOp>>(Context, Target);
+  Set.add<PointerResizePattern<SubscriptOp>>(Context, Target);
+  Set.add<PointerResizePattern<AccessOp>>(Context, Target);
+  Set.add<PointerResizePattern<CallOp>>(Context, Target);
   Set.add<ResizeAddressofPattern>(Context, Target);
   Set.add<ResizeDecayCastPattern>(Context, Target);
 
@@ -324,19 +369,20 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function,
   Set.add<BooleanCanonicalizationPattern>(Context, Target);
 
   // Integer promotion
-  Set.add<IntegerPromotionPattern<clift::ImmediateOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::NegOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::AddOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::SubOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::MulOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::DivOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::RemOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::BitwiseNotOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::BitwiseAndOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::BitwiseOrOp>>(Context, Target);
-  Set.add<IntegerPromotionPattern<clift::BitwiseXorOp>>(Context, Target);
-  Set.add<ShiftPromotionPattern<clift::ShiftLeftOp>>(Context, Target);
-  Set.add<ShiftPromotionPattern<clift::ShiftRightOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<ImmediateOp,
+                                  /*TreatAsBoolean=*/true>>(Context, Target);
+  Set.add<IntegerPromotionPattern<NegOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<AddOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<SubOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<MulOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<DivOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<RemOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<BitwiseNotOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<BitwiseAndOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<BitwiseOrOp>>(Context, Target);
+  Set.add<IntegerPromotionPattern<BitwiseXorOp>>(Context, Target);
+  Set.add<ShiftPromotionPattern<ShiftLeftOp>>(Context, Target);
+  Set.add<ShiftPromotionPattern<ShiftRightOp>>(Context, Target);
 
   auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
   return mlir::applyPatternsAndFoldGreedily(Function, Patterns);

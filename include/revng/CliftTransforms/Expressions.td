@@ -1,0 +1,147 @@
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+#ifndef MLIR_CLIFT_EXPRESSION_REWRITES
+#define MLIR_CLIFT_EXPRESSION_REWRITES
+
+include "mlir/IR/PatternBase.td"
+
+include "revng/Clift/Clift.td"
+include "revng/CliftTransforms/ExpressionHelpers.td"
+
+//===------------------------- Boolean expressions -------------------------===//
+
+// x == 0 -> !x
+def CmpEqWithZeroPattern
+  : Pat<(Clift_CmpEqOp:$res $arg, (Clift_ImmediateOp $value)),
+        (Clift_LogicalNotOp $arg),
+        [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
+
+// x != 0 -> x
+//           x ? 1 : 0
+// Note: The choice of replacement depends on whether the result is
+//       boolean-tested.
+def CmpNeWithZeroPattern
+  : Pat<(Clift_CmpNeOp:$res $arg, (Clift_ImmediateOp $value)),
+        (forceBooleanResult $res, $arg),
+        [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
+
+def DeMorganConjunctionPattern
+  : Pat<(Clift_LogicalNotOp (Clift_LogicalAndOp (Clift_LogicalNotOp $lhs),
+                                                (Clift_LogicalNotOp $rhs))),
+        (Clift_LogicalOrOp $lhs, $rhs)>;
+
+def DeMorganDisjunctionPattern
+  : Pat<(Clift_LogicalNotOp (Clift_LogicalOrOp (Clift_LogicalNotOp $lhs),
+                                               (Clift_LogicalNotOp $rhs))),
+        (Clift_LogicalAndOp $lhs, $rhs)>;
+
+//===--------------------------- Math identities --------------------------===//
+
+def XorAllOnesPattern
+  : Pat<(Clift_BitwiseXorOp $arg, (Clift_ImmediateOp:$imm $value)),
+        (Clift_BitwiseNotOp $arg),
+        [(Constraint<CPred<"areAllBitsSet($0.getValue(), $1.getType())">> $value, $imm)]>;
+
+//===---------------------------- Miscellaneous ---------------------------===//
+
+// (T)123 -> 123
+// Constraint: T is a primitive integer type
+def CastImmediatePattern
+  : Pat<(Clift_CastOp:$res (Clift_ImmediateOp $value), $kind),
+        (createImmediateOp (getType $res),
+                           (NativeCodeCall<"truncateIntegerValue($0, $1)"> $value, $res)),
+        [(Clift_AnyPrimitiveIntegerType $res)]>;
+
+// (enum E)123 -> A
+// Constraint: A is an enumerator of E whose value is 123.
+def EnumImmediatePattern
+  : Pat<(Clift_CastOp:$res (Clift_ImmediateOp $value), $kind),
+        (createImmediateOp (getType $res), $value),
+        [(IsBitcastKind $kind),
+         (Constraint<CPred<[{ hasEnumeratorValue($0.getType(),
+                                                 $1.getValue().getZExtValue()) }]>> $res, $value)]>;
+
+// *&x -> x
+def IndirectionAddressofPattern
+  : Pat<(Clift_IndirectionOp (Clift_AddressofOp $arg)),
+        (replaceWithValue $arg)>;
+
+// &*x -> x
+def AddressofIndirectionPattern
+  : Pat<(Clift_AddressofOp (Clift_IndirectionOp $arg)),
+        (replaceWithValue $arg)>;
+
+// (T)x -> x
+// Constraint: the type of x is equivalent to T.
+def RedundantCastPattern
+  : Pat<(Clift_CastOp:$res $arg, $kind),
+        (replaceWithValue $arg),
+        [(TypesAreEquivalent $res, $arg)]>;
+
+// (T)(U)x -> (T)x
+// Constraint: the cast kinds are the same.
+// Constraint: the cast kind is collapsible (implemented in .cpp file).
+def CollapsibleCastPattern
+  : Pat<(Clift_CastOp:$res (Clift_CastOp $arg, $inner_kind), $outer_kind),
+        (Clift_CastOp $arg, $inner_kind),
+        [(ValuesAreEqual $inner_kind, $outer_kind),
+         (Constraint<CPred<"isCollapsibleCastKind($0.getValue())">> $inner_kind)]>;
+
+// *(T*)p = x ->         *p = (T)x
+//            -> *(T*)&( *p = (T)x )
+// Note: The choice of replacement depends on whether the result is discarded.
+// Constraint: p is of type U* and x is convertible to type U using a bitcast.
+def AssignTypePunnedPattern
+  : Pattern<(Clift_AssignOp:$old_res (Clift_IndirectionOp:$old_ref (Clift_CastOp:$new_ptr $ptr,
+                                                                                          $kind)),
+                                     $value),
+            [(Clift_AssignOp:$new_res (Clift_IndirectionOp $ptr),
+                                             (createCastOp (getPointeeType $ptr),
+                                                           $value,
+                                                           $kind)),
+             (NativeCodeCall<"assignTypePunnedResult($_builder, $0, $1, $2, $3)"> $old_res,
+                                                                                  $new_res,
+                                                                                  $new_ptr,
+                                                                                  $old_ref)],
+            [(IsBitcastKind $kind),
+             (Constraint<CPred<"assignTypePunnedConstraint($0, $1)">> $ptr, $value)]>;
+
+// (T*)(i + k_1) -> (T*)i + k_2
+// Note: k_2 = k_1 / sizeof(T)
+// Constraint: k_1 % sizeof(T) == 0
+def PointerArithmeticAddImmPattern
+  : Pat<(Clift_CastOp:$res (Clift_AddOp $ptr,
+                                        (Clift_ImmediateOp:$imm $k)),
+                           $kind),
+        (Clift_PtrAddOp (createCastOp (getType $res), $ptr, $kind),
+                        (createImmediateOp (getType $imm),
+                                           (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res))),
+        [(IsBitcastKind $kind),
+         (Clift_AnyPointerType $res),
+         (Constraint<CPred<"ptrOffsetDivMod($0, $1).Mod == 0">> $k, $res)]>;
+
+// (T*)(i + n * k_1) -> (T*)i + n * k_2
+// Note: k_2 = k_1 / sizeof(T)
+// Constraint: k_1 % sizeof(T) == 0
+def PointerArithmeticAddMulImmPattern
+  : Pat<(Clift_CastOp:$res (Clift_AddOp $ptr,
+                                        (Clift_MulOp $n,
+                                                     (Clift_ImmediateOp:$imm $k))),
+                           $kind),
+        (Clift_PtrAddOp (createCastOp (getType $res), $ptr, $kind),
+                        (Clift_MulOp $n,
+                                     (createImmediateOp (getType $imm),
+                                                        (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res)))),
+        [(IsBitcastKind $kind),
+         (Clift_AnyPointerType $res),
+         (Constraint<CPred<"ptrOffsetDivMod($0, $1).Mod == 0">> $k, $res)]>;
+
+// (&x)->m -> x.m
+def DirectAccessPattern
+  : Pat<(Clift_AccessOp (Clift_AddressofOp $arg), $indirect, $member_index),
+        (Clift_AccessOp $arg, (NativeCodeCall<"mlir::UnitAttr(nullptr)">), $member_index),
+        [(Constraint<CPred<"not $0">> $indirect)]>;
+
+#endif

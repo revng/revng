@@ -7,8 +7,10 @@
 
 include "revng/Clift/CliftOpInterfacesJump.td"
 
-def Clift_BranchOpInterface : Clift_OpInterface<"BranchOpInterface",
-                                                [Clift_StatementOpInterface]> {
+def Clift_BranchOpInterface
+  : Clift_OpInterface<"BranchOpInterface",
+                      [Clift_StatementOpInterface,
+                       Clift_StatementRegionOpInterface]> {
 
   let methods = [
     InterfaceMethod<
@@ -31,7 +33,8 @@ def Clift_BranchOpInterface : Clift_OpInterface<"BranchOpInterface",
 }
 
 def Clift_LoopOpInterface
-  : Clift_OpInterface<"LoopOpInterface", [Clift_LabelAssignmentOpInterface]> {
+  : Clift_OpInterface<"LoopOpInterface", [Clift_LabelAssignmentOpInterface,
+                                          Clift_StatementRegionOpInterface]> {
 
   let methods = [
     InterfaceMethod<

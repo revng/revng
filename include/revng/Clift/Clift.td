@@ -351,6 +351,24 @@ def Clift_AssignLabelOp
   }];
 }
 
+def Clift_BlockStatementOp
+  : Clift_StatementOp<"block", [Clift_StatementRegionOpInterface]> {
+
+  let regions = (region Clift_StatementRegion:$block);
+
+  let assemblyFormat = [{
+    $block attr-dict-with-keyword
+  }];
+
+  let extraClassDeclaration = [{
+    bool isIndirectlyNoFallthrough();
+
+    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
+      return getOperation()->getRegions();
+    }
+  }];
+}
+
 def Clift_BreakToOp : Clift_JumpStatementOp<"break_to"> {
   let arguments = (ins Clift_LabelType:$label);
 
@@ -394,6 +412,10 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
     [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
       return &R == &getCondition();
     }
+
+    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
+      return getBody();
+    }
   }];
 }
 
@@ -425,6 +447,10 @@ def Clift_ForOp : Clift_LoopStatementOp<"for"> {
 
     [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
       return &R == &getCondition();
+    }
+
+    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
+      return getBody();
     }
   }];
 }
@@ -459,6 +485,10 @@ def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
 
     [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
       return &R == &getCondition();
+    }
+
+    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
+      return getOperation()->getRegions().drop_front(1);
     }
   }];
 }
@@ -542,6 +572,10 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
     }
 
     [[nodiscard]] mlir::Region *findCaseRegion(const uint64_t value);
+
+    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
+      return getOperation()->getRegions().drop_front(1);
+    }
   }];
 }
 
@@ -559,6 +593,10 @@ def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
   let extraClassDeclaration = [{
     [[nodiscard]] bool isBooleanTestedExpression(mlir::Region &R) {
       return &R == &getCondition();
+    }
+
+    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
+      return getBody();
     }
   }];
 }

@@ -17,10 +17,20 @@ using PassPtr = std::unique_ptr<mlir::OperationPass<OpT>>;
 #define GEN_PASS_DECL
 #include "revng/CliftTransforms/Passes.h.inc"
 
+PassPtr<clift::FunctionOp> createTrivialReturnEliminationPass();
+
+PassPtr<clift::FunctionOp> createLabelMergingPass();
 PassPtr<clift::FunctionOp> createLoopDetectionPass();
+
+PassPtr<clift::FunctionOp> createOptimizeStatementsPass();
+PassPtr<clift::FunctionOp> createOptimizeExpressionsPass();
+
+PassPtr<clift::FunctionOp> createTerminalBranchComplementHoistingPass();
 
 PassPtr<clift::FunctionOp>
 createCLegalizationPass(const TargetCImplementation &Target);
+
+PassPtr<clift::FunctionOp> createImmediateRadixDeductionPass();
 
 PassPtr<mlir::ModuleOp> createVerifyCPass();
 PassPtr<mlir::ModuleOp> createEmitCPass();

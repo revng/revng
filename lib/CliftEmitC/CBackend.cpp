@@ -81,29 +81,31 @@ public:
     C.emitSpace();
   }
 
-  void emitIntegerImmediate(uint64_t Value, ValueType Type) {
+  void
+  emitIntegerImmediate(uint64_t Value, ValueType Type, unsigned Radix = 10) {
     Type = dealias(Type, /*IgnoreQualifiers=*/true);
 
-    if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
-      auto Integer = Target.getIntegerKind(T.getSize());
-
-      if (not Integer) {
-        // Emit explicit cast if the standard integer type is not known. Emit
-        // the literal itself without a suffix (as if int).
-        emitCast(T);
-        Integer = CIntegerKind::Int;
+    if (auto Enum = mlir::dyn_cast<EnumType>(Type)) {
+      if (auto Enumerator = Enum.getFieldByValue(Value)) {
+        C.emitIdentifier(Enumerator.getName(),
+                         Enumerator.getHandle(),
+                         CTE::EntityKind::Enumerator,
+                         CTE::IdentifierKind::Reference);
+        return;
       }
-
-      C.emitIntegerLiteral(makeIntegerValue(T, Value), *Integer, 10);
-    } else {
-      auto Enum = mlir::cast<EnumType>(Type);
-      auto Enumerator = Enum.getFieldByValue(Value);
-
-      C.emitIdentifier(Enumerator.getName(),
-                       Enumerator.getHandle(),
-                       CTE::EntityKind::Enumerator,
-                       CTE::IdentifierKind::Reference);
     }
+
+    auto Primitive = getUnderlyingIntegerType(Type);
+
+    auto CInteger = Target.getIntegerKind(Primitive.getSize());
+    if (not CInteger or not mlir::isa<PrimitiveType>(Type)) {
+      // Emit explicit cast if the standard integer type is not known. Emit
+      // the literal itself without a suffix (as if int).
+      emitCast(Primitive);
+      CInteger = CIntegerKind::Int;
+    }
+
+    C.emitIntegerLiteral(makeIntegerValue(Primitive, Value), *CInteger, Radix);
   }
 
   //===---------------------------- Expressions ---------------------------===//
@@ -121,7 +123,12 @@ public:
 
   RecursiveCoroutine<void> emitImmediateExpression(mlir::Value V) {
     auto E = V.getDefiningOp<ImmediateOp>();
-    emitIntegerImmediate(E.getValue(), E.getResult().getType());
+
+    unsigned Radix = 10;
+    if (auto Attr = E->getAttr("clift.radix"))
+      Radix = mlir::cast<mlir::IntegerAttr>(Attr).getValue().getZExtValue();
+
+    emitIntegerImmediate(E.getValue(), E.getResult().getType(), Radix);
     rc_return;
   }
 
@@ -293,15 +300,41 @@ public:
     return Cast.getValue();
   }
 
+  static bool requiresExplicitBitCast(CastOp Op) {
+    if (Op.getKind() != CastKind::Bitcast)
+      return false;
+
+    auto IsCastableType = [](ValueType T) {
+      return mlir::isa<EnumType, PointerType, PrimitiveType>(dealias(T));
+    };
+
+    return not IsCastableType(Op.getValue().getType())
+           or not IsCastableType(Op.getResult().getType());
+  }
+
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOp>();
 
-    emitCast(E.getResult().getType());
+    if (requiresExplicitBitCast(E)) {
+      C.emitLiteralIdentifier("bit_cast");
+      C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
-    // Parenthesizing a nested unary prefix expression is not necessary.
-    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
+      emitType(E.getResult().getType());
+      C.emitPunctuator(CTE::Punctuator::Comma);
+      C.emitSpace();
 
-    rc_recur emitExpression(E.getValue());
+      CurrentPrecedence = OperatorPrecedence::Parentheses;
+      rc_recur emitExpression(E.getValue());
+
+      C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    } else {
+      emitCast(E.getResult().getType());
+
+      // Parenthesizing a nested unary prefix expression is not necessary.
+      CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
+
+      rc_recur emitExpression(E.getValue());
+    }
   }
 
   RecursiveCoroutine<void> emitHiddenCastExpression(mlir::Value V) {
@@ -886,6 +919,10 @@ public:
   }
 
   RecursiveCoroutine<void> emitSwitchStatement(SwitchOp S) {
+    unsigned Radix = 10;
+    if (auto Attr = S->getAttr("clift.radix"))
+      Radix = mlir::cast<mlir::IntegerAttr>(Attr).getValue().getZExtValue();
+
     C.emitKeyword(CTE::Keyword::Switch);
     C.emitSpace();
     C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
@@ -907,7 +944,7 @@ public:
       for (unsigned I = 0, Count = S.getNumCases(); I < Count; ++I) {
         C.emitKeyword(CTE::Keyword::Case);
         C.emitSpace();
-        emitIntegerImmediate(S.getCaseValue(I), Type);
+        emitIntegerImmediate(S.getCaseValue(I), Type, Radix);
         C.emitPunctuator(CTE::Punctuator::Colon);
         rc_recur emitCaseRegion(S.getCaseRegion(I));
       }
@@ -1011,6 +1048,17 @@ public:
       emitLabelStatement(Break.getDefiningOp<MakeLabelOp>(), S);
   }
 
+  RecursiveCoroutine<void> emitBlockStatement(BlockStatementOp S) {
+    {
+      auto Scope = C.enterScope(CTE::ScopeKind::BlockStatement,
+                                CTE::Delimiter::Braces);
+
+      C.emitNewline();
+      rc_recur emitStatementRegion(S.getBlock());
+    }
+    C.emitNewline();
+  }
+
   RecursiveCoroutine<void> emitStatement(StatementOpInterface Stmt) {
     mlir::Operation *Op = Stmt.getOperation();
 
@@ -1047,6 +1095,9 @@ public:
     if (auto S = mlir::dyn_cast<DoWhileOp>(Op))
       return emitDoWhileStatement(S);
 
+    if (auto S = mlir::dyn_cast<BlockStatementOp>(Op))
+      return emitBlockStatement(S);
+
     revng_abort("Unsupported operation");
   }
 
@@ -1082,7 +1133,9 @@ public:
     auto Scope = C.enterScope(ScopeKind, Delimiter);
     C.emitNewline();
 
-    rc_recur EmitRegion(R);
+    auto ExplicitBlock = getOnlyOp<BlockStatementOp>(R);
+    rc_recur EmitRegion(ExplicitBlock ? ExplicitBlock.getBlock() : R);
+
     rc_return EmitBlock;
   }
 

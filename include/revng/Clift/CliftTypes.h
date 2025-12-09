@@ -86,6 +86,8 @@ bool isVoid(ValueType Type);
 /// Qualifiers are ignored.
 bool isScalarType(ValueType Type);
 
+PrimitiveType getPrimitiveIntegerType(ValueType Type);
+
 /// Determine if the type is a primitive integer type, or a typedef naming such
 /// a type, ignoring qualifiers.
 bool isPrimitiveIntegerType(ValueType Type);

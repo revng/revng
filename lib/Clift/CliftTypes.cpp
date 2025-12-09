@@ -1276,13 +1276,19 @@ bool clift::isScalarType(ValueType Type) {
   return mlir::isa<EnumType, PointerType>(Type);
 }
 
-bool clift::isPrimitiveIntegerType(ValueType Type) {
+PrimitiveType clift::getPrimitiveIntegerType(ValueType Type) {
   Type = dealias(Type, /*IgnoreQualifiers=*/true);
 
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
-    return isIntegerKind(T.getKind());
+  if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
+    if (isIntegerKind(T.getKind()))
+      return T;
+  }
 
-  return false;
+  return nullptr;
+}
+
+bool clift::isPrimitiveIntegerType(ValueType Type) {
+  return static_cast<bool>(getPrimitiveIntegerType(Type));
 }
 
 bool clift::isIntegerType(ValueType Type) {

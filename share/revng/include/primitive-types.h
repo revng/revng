@@ -215,3 +215,24 @@ extern uintmax_t undef_value(void);
 
 #define break_to goto
 #define continue_to goto
+
+//
+// bit_cast
+//
+
+#if defined(__GNUC__) && !defined(__clang__)
+// GCC implements __builtin_bit_cast, but it is only available in C++ mode.
+// Since we've just detected GCC, we can use a few GNU extensions to implement
+// behaviour equivalent to __builtin_bit_cast using memcpy (__builtin_memcpy).
+//
+// The macro is variadic in case the converted expression contains commas.
+#define bit_cast(T, ...)                                   \
+  (__extension__({                                         \
+    T bit_cast_r;                                          \
+    __typeof__((__VA_ARGS__)) bit_cast_v = (__VA_ARGS__);  \
+    __builtin_memcpy(&bit_cast_r, &bit_cast_v, sizeof(T)); \
+    bit_cast_r;                                            \
+  }))
+#else
+#define bit_cast(T, ...) __builtin_bit_cast(T, (__VA_ARGS__))
+#endif

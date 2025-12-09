@@ -49,10 +49,10 @@ static bool isBackwardGoto(GotoOp Goto, AssignLabelOp Label) {
   while (CurrentOp->getBlock() != LabelBlock) {
     mlir::Operation *ParentOp = CurrentOp->getParentOp();
 
-    // Any goto nested within a non-branch operation is conservatively
+    // Any goto nested within a non-block non-branch operation is conservatively
     // considered non-looping. Certainly encountering an existing loop or the
     // nesting function operation prevents the creation of a loop.
-    if (not mlir::isa<BranchOpInterface>(ParentOp))
+    if (not mlir::isa<BlockStatementOp, BranchOpInterface>(ParentOp))
       return false;
 
     CurrentOp = ParentOp;

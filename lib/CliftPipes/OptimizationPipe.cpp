@@ -38,9 +38,32 @@ public:
     mlir::PassManager PM(CliftContainer.getContext(),
                          clift::FunctionOp::getOperationName());
 
-    PM.addPass(mlir::createCanonicalizerPass());
+    // Eliminating trivial returns during statement rewriting (where other
+    // trivial jumps are eliminated) is difficult, because the triviality of a
+    // jump is dependent on its context, and if the rewrite targets the context
+    // (a nesting region, as is the case for trivial jump elimination), unlike
+    // for label targets, there is no easy and cheap way to iterate over the set
+    // of returns in a function. For this reason, and because we expect the
+    // triviality of returns not be changed by other transforms, we eliminate
+    // them early in a separate pass. If in the future it turns out that there
+    // are trivial returns which we cannot eliminate without first eliminating
+    // other jumps, that is easily solved by replacing this pass with one which
+    // converts valueless returns into gotos targeting a label at the end of the
+    // function.
+    PM.addPass(clift::createTrivialReturnEliminationPass());
+
+    // Labels are merged before loop detection to avoid any issues with multiple
+    // labels at the end of, or following a loop.
+    PM.addPass(clift::createLabelMergingPass());
     PM.addPass(clift::createLoopDetectionPass());
+
+    PM.addPass(clift::createOptimizeStatementsPass());
+    PM.addPass(clift::createLabelMergingPass());
+    PM.addPass(clift::createOptimizeExpressionsPass());
+    PM.addPass(clift::createTerminalBranchComplementHoistingPass());
+
     PM.addPass(clift::createCLegalizationPass(TargetCImplementation::Default));
+    PM.addPass(clift::createImmediateRadixDeductionPass());
 
     mlir::ModuleOp Module = CliftContainer.getModule();
 
