@@ -5,6 +5,7 @@
 import argparse
 import functools
 import os
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -54,17 +55,21 @@ class GFOptions:
     end_location_name: str
 
 
-def generate_flamegraphs(stacktraces, output: Path, options: GFOptions):
+def generate_flamegraphs(
+    stacktraces, output: Path, options: GFOptions, exclude_paths: list[re.Pattern]
+):
     generate_flamegraph(
         stacktraces,
         output / f"{options.file_prefix}_topdown.svg",
         f"{options.legend_prefix} - Top down - Thread entry point is at the bottom",
+        exclude_paths,
         True,
     )
     generate_flamegraph(
         stacktraces,
         output / f"{options.file_prefix}_bottomup.svg",
         f"{options.legend_prefix} - Bottom up - {options.end_location_name} location is at the top",
+        exclude_paths,
     )
 
     for name in ("topdown", "bottomup"):
@@ -117,10 +122,11 @@ class MassTestingGenerateReportCommand(Command):
             "OOM": GFOptions("ooms", "OOMs", "OOM"),
         }
 
+        flamegraph_exclude_paths = global_meta.flamegraph_exclude_paths
         total_counts = {}
         for cat, cat_stacktraces in stacktraces.items():
             total_counts[cat] = generate_crash_components(cat_stacktraces, stack_aggregation)
-            generate_flamegraphs(cat_stacktraces, output, gf_options[cat])
+            generate_flamegraphs(cat_stacktraces, output, gf_options[cat], flamegraph_exclude_paths)
 
         db = output / "main.db"
         db.unlink(missing_ok=True)

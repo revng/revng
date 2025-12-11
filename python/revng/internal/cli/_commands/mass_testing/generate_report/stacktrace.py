@@ -27,6 +27,7 @@ COMPONENTS_RES = (
 class StacktraceLine:
     symbol: str
     path: str
+    module: str
     line: str | None
 
     def __post_init__(self):
@@ -69,8 +70,20 @@ class Stacktrace(Sequence):
             hash_.update(b"\0")
         return hash_.hexdigest(4)
 
-    def perf_line(self, inverted: bool) -> str:
-        out = [e.to_string() for e in self.lines]
+    def perf_line(self, inverted: bool, exclude_paths: list[re.Pattern]) -> str:
+        out = []
+        excluded_paths = 0
+        for element in self.lines:
+            if any(p.search(element.module) for p in exclude_paths):
+                excluded_paths += 1
+                continue
+
+            if excluded_paths > 0:
+                out.append(f"... ({excluded_paths} frame(s) excluded)")
+                excluded_paths = 0
+
+            out.append(element.to_string())
+
         if not inverted:
             out.append(self.id_)
         else:
@@ -95,9 +108,9 @@ def stacktrace_transform_entry(entry: dict, symbol: dict) -> StacktraceLine:
         outname = entry["Address"]
 
     if symbol["FileName"]:
-        return StacktraceLine(outname, symbol["FileName"], symbol["Line"])
+        return StacktraceLine(outname, symbol["FileName"], entry["ModuleName"], symbol["Line"])
     else:
-        return StacktraceLine(outname, entry["ModuleName"], None)
+        return StacktraceLine(outname, entry["ModuleName"], entry["ModuleName"], None)
 
 
 def stacktrace_transform(data: Iterable[str]) -> Stacktrace:
@@ -106,11 +119,11 @@ def stacktrace_transform(data: Iterable[str]) -> Stacktrace:
         try:
             entry = json.loads(line)
         except json.JSONDecodeError:
-            results.append(StacktraceLine("???", "???", None))
+            results.append(StacktraceLine("???", "???", "???", None))
             continue
 
         if "Symbol" not in entry:
-            results.append(StacktraceLine("???", "???", None))
+            results.append(StacktraceLine("???", "???", "???", None))
             continue
         for symbol in entry["Symbol"]:
             results.append(stacktrace_transform_entry(entry, symbol))
@@ -128,7 +141,11 @@ EMPTY_FLAMEGRAPH_SVG = """<?xml version="1.0" standalone="no"?>
 
 
 def generate_flamegraph(
-    stacktraces: Collection[Stacktrace | None], output: Path, title: str, inverted: bool = False
+    stacktraces: Collection[Stacktrace | None],
+    output: Path,
+    title: str,
+    exclude_paths: list[re.Pattern],
+    inverted: bool = False,
 ):
     if len(stacktraces) == 0:
         Path(output).write_text(EMPTY_FLAMEGRAPH_SVG)
@@ -137,7 +154,7 @@ def generate_flamegraph(
     lines = ""
     for stacktrace in stacktraces:
         if stacktrace is not None:
-            lines += stacktrace.perf_line(inverted)
+            lines += stacktrace.perf_line(inverted, exclude_paths)
         else:
             lines += "no stack trace 1\n"
 
