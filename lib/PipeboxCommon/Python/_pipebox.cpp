@@ -33,6 +33,37 @@ static void handleSignal(int SigNo) {
   Handler.Handler(SigNo);
 }
 
+/// Wrapper class around revng::InitRevng that also stores the Argv. This is
+/// needed because the strings that we get from python have unknown lifetime
+/// and it's required that the Argv has the same lifetime as the
+/// `revng::InitRevng` instance.
+class PythonInitRevng {
+private:
+  int Argc = 0;
+  std::vector<std::string> ArgvRaw;
+  std::vector<const char *> Argv;
+  std::string Overview;
+  std::unique_ptr<revng::InitRevng> Init;
+
+public:
+  PythonInitRevng(llvm::ArrayRef<std::string> ArgvRef,
+                  llvm::StringRef Overview) :
+    Overview(Overview.str()) {
+    ArgvRaw.push_back("");
+    append(ArgvRef, ArgvRaw);
+
+    Argc = ArgvRaw.size();
+    Argv.resize(ArgvRaw.size());
+    for (size_t I = 0; I < ArgvRaw.size(); I++)
+      Argv[I] = ArgvRaw[I].c_str();
+
+    const char **ArgvPtr = Argv.data();
+    Init = std::make_unique<revng::InitRevng>(Argc,
+                                              ArgvPtr,
+                                              this->Overview.c_str());
+  }
+};
+
 NB_MODULE(_pipebox, m) {
   using namespace revng::pypeline::helpers::python;
 
@@ -52,15 +83,8 @@ NB_MODULE(_pipebox, m) {
       }
     }
 
-    int Argc = ArgVector.size() + 1;
-    const char *Argv[Argc];
-    Argv[0] = "";
-    for (size_t I = 0; I < ArgVector.size(); I++)
-      Argv[I + 1] = ArgVector[I].c_str();
-
-    const char **ArgvPtr = Argv;
     // use a capsule to call the destructor when the Python module is unloaded
-    m.attr("__init_revng__") = makeCapsule<revng::InitRevng>(Argc, ArgvPtr, "");
+    m.attr("__init_revng__") = makeCapsule<PythonInitRevng>(ArgVector, "");
 
     for (int SigNumber : std::ranges::views::keys(SavedSignals))
       signal(SigNumber, &handleSignal);
