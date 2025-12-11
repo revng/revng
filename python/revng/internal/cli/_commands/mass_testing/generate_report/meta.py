@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import re
 from dataclasses import dataclass
 from typing import List, Literal
 
@@ -45,6 +46,7 @@ class GlobalMeta:
     extra_columns: List[ExtraColumn]
     downloads: List[Download]
     stacktrace_aggregation: StacktraceAggregation
+    flamegraph_exclude_paths: list[re.Pattern]
     notes: str | None
 
     @staticmethod
@@ -54,4 +56,14 @@ class GlobalMeta:
         stacktrace_aggregation = StacktraceAggregation.from_dict(
             input_.get("stacktrace_aggregation", {})
         )
-        return GlobalMeta(extra_columns, downloads, stacktrace_aggregation, input_.get("notes"))
+        flamegraph_exclude_paths = [
+            re.compile(x) for x in input_.get("flamegraph_exclude_paths", [])
+        ]
+
+        return GlobalMeta(
+            extra_columns,
+            downloads,
+            stacktrace_aggregation,
+            flamegraph_exclude_paths,
+            input_.get("notes"),
+        )

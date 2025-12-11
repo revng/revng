@@ -46,6 +46,10 @@ stacktrace_aggregation:
     - Model
     - Pipes
 
+flamegraph_exclude_paths:
+  - libpython[^/]*\.so[^/]*
+  - lib/python[^/]*/lib-dynload
+
 highlights:
   - query: WHERE status = 'TIMED_OUT' ORDER BY text_size ASC
     description: "Smallest timed-out binary"
