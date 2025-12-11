@@ -52,13 +52,18 @@ NB_MODULE(_pipebox, m) {
       }
     }
 
-    int Argc = ArgVector.size() + 1;
-    const char *Argv[Argc];
-    Argv[0] = "";
-    for (size_t I = 0; I < ArgVector.size(); I++)
-      Argv[I + 1] = ArgVector[I].c_str();
+    // The arguments need to have the same storage duration as the InitRevng,
+    // since they might be used for the crash handler. Store them in `static`
+    // variables to avoid any problems.
+    static std::vector<std::string> Args = { "" };
+    append(ArgVector, Args);
 
-    const char **ArgvPtr = Argv;
+    static std::vector<const char *> Argv;
+    for (const std::string &String : Args)
+      Argv.push_back(String.c_str());
+
+    static int Argc = Argv.size();
+    static const char **ArgvPtr = Argv.data();
     // use a capsule to call the destructor when the Python module is unloaded
     m.attr("__init_revng__") = makeCapsule<revng::InitRevng>(Argc, ArgvPtr, "");
 
