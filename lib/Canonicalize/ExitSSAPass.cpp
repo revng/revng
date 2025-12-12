@@ -42,10 +42,6 @@ public:
   ExitSSAPass() : FunctionPass(ID) {}
 
   bool runOnFunction(Function &F) override;
-
-  void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.setPreservesCFG();
-  }
 };
 
 struct IncomingInfo {
