@@ -348,10 +348,12 @@ static pipeline::RegisterPipe<AttachDebugInfoToABIEnforcedPipe> Y2;
 
 namespace revng::pypeline::piperuns {
 
-void AttachDebugInfo::runOnFunction(const model::Function &TheFunction) {
-  const MetaAddress &Address = TheFunction.Entry();
-  llvm::Module &Module = ModuleContainer.getModule(ObjectID(Address));
-
+// TODO: merge ::AttachDebugInfo into AttachDebugInfo once we dismiss the old
+//       pipeline
+void AttachDebugInfo::runOnLLVMFunction(const model::Function &Function,
+                                        llvm::Function &LLVMFunction) {
+  const MetaAddress &Address = Function.Entry();
+  llvm::Module &Module = *LLVMFunction.getParent();
   GeneratedCodeBasicInfo GCBI(Binary);
   GCBI.run(Module);
 
@@ -360,20 +362,10 @@ void AttachDebugInfo::runOnFunction(const model::Function &TheFunction) {
     return *CFG.getElement(ObjectID(Address));
   };
 
-  llvm::Function *LLVMFunction = nullptr;
-  for (llvm::Function &Function : Module) {
-    if (FunctionTags::Isolated.isTagOf(&Function)
-        and not Function.isDeclaration()) {
-      revng_assert(LLVMFunction == nullptr);
-      LLVMFunction = &Function;
-    }
-  }
-  revng_assert(LLVMFunction != nullptr);
-
   // TODO: inline the body of prologue and epilogue here
   ::AttachDebugInfo Impl(Binary, Module, GCBI, CFGGetter);
   Impl.prologue();
-  Impl.runOnFunction(TheFunction, *LLVMFunction);
+  Impl.runOnFunction(Function, LLVMFunction);
   Impl.epilogue();
 }
 

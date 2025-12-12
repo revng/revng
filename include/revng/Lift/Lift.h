@@ -193,23 +193,32 @@ namespace revng::pypeline::piperuns {
 class Lift {
 public:
   static constexpr llvm::StringRef Name = "lift";
-  using Arguments = TypeList<PipeArgument<"Input", "Input binaries to lift">,
-                             PipeArgument<"Output",
-                                          "LLVM Module containing the lifted "
-                                          "binaries",
-                                          Access::Write>>;
+  using Arguments = TypeList<
+    PipeRunArgument<const BinariesContainer, "Input", "Input binaries to lift">,
+    PipeRunArgument<LLVMRootContainer,
+                    "Output",
+                    "LLVM Module containing the lifted binaries",
+                    Access::Write>>;
+
+private:
+  const Model &TheModel;
+  const BinariesContainer &Binary;
+  LLVMRootContainer &ModuleContainer;
+
+public:
+  Lift(const class Model &Model,
+       llvm::StringRef Config,
+       llvm::StringRef DynamicConfig,
+       const BinariesContainer &Binary,
+       LLVMRootContainer &ModuleContainer);
+
+  CustomInvalidationData run();
 
 public:
   static llvm::Error checkPrecondition(const class Model &Model);
 
   static std::vector<std::set<ObjectID>>
   invalidate(const InvalidationData &Data, const ModelDiff &Diff);
-
-  static CustomInvalidationData run(const class Model &Model,
-                                    llvm::StringRef Config,
-                                    llvm::StringRef DynamicConfig,
-                                    const BinariesContainer &Binary,
-                                    LLVMRootContainer &ModuleContainer);
 };
 
 } // namespace revng::pypeline::piperuns

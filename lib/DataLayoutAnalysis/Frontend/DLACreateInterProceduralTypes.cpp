@@ -275,8 +275,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     // The type of the segment and the type returned by segmentref are the same
     TS.addEqualityLink(SegmentNode, SegmentRefNode);
 
-    for (const Use &U : F.uses()) {
-      auto *Call = cast<CallInst>(U.getUser());
+    for (const llvm::CallBase *Call : callers(&F)) {
       LayoutTypeSystemNode *SegmentRefCallNode = getOrCreateLayoutType(Call)
                                                    .first;
       // The type of the segment is also the same as the type of all the calls
@@ -311,8 +310,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     // instances of ByteType.
     TS.addInstanceLink(LiteralNode, ByteType, std::move(OE));
 
-    for (const Use &U : F.uses()) {
-      auto *Call = cast<CallInst>(U.getUser());
+    for (const llvm::CallBase *Call : callers(&F)) {
       LayoutTypeSystemNode *StringLiteralCall = getOrCreateLayoutType(Call)
                                                   .first;
       // The type of each call to the StringLiteral function has an instance of

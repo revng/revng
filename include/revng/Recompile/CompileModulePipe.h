@@ -64,19 +64,30 @@ using ObjectFileContainer = BytesContainer<"ObjectFileContainer",
 namespace piperuns {
 
 class CompileRootModule {
+private:
+  const model::Binary &Binary;
+  LLVMRootContainer &Input;
+  ObjectFileContainer &Output;
+
 public:
   static constexpr llvm::StringRef Name = "compile-root-module";
-  using Arguments = TypeList<
-    PipeArgument<"Input",
-                 "The LLVM module that will be compiled",
-                 Access::Read>,
-    PipeArgument<"Output", "The compiled object file", Access::Write>>;
+  using Arguments = TypeList<PipeRunArgument<LLVMRootContainer,
+                                             "Input",
+                                             "The LLVM module that will be "
+                                             "compiled",
+                                             Access::Read>,
+                             PipeRunArgument<ObjectFileContainer,
+                                             "Output",
+                                             "The compiled object file",
+                                             Access::Write>>;
 
-  static void run(const Model &TheModel,
-                  llvm::StringRef StaticConfig,
-                  llvm::StringRef DynamicConfig,
-                  LLVMRootContainer &Input,
-                  ObjectFileContainer &Output);
+  CompileRootModule(const Model &TheModel,
+                    llvm::StringRef StaticConfig,
+                    llvm::StringRef DynamicConfig,
+                    LLVMRootContainer &Input,
+                    ObjectFileContainer &Output);
+
+  void run();
 };
 
 } // namespace piperuns

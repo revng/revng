@@ -10,18 +10,13 @@
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Helpers.h"
 
 template<typename T>
-concept IsFunctionPipe = requires(T &PipeRun, const model::Function &Function) {
-  requires IsMultipleObjectsPipeRun<T>;
-  requires hasConstructor<
-    T,
-    // The Structure of the constructor is:
-    // {Model, StaticConfiguration, Configuration, Containers...}
-    concat<TypeList<const Model &, llvm::StringRef, llvm::StringRef>,
-           ConstructorContainerArguments<T>>>();
+concept IsFunctionPipeRun = requires(T &PipeRun,
+                                     const model::Function &Function) {
+  requires IsBasePipeRun<T>;
   { PipeRun.runOnFunction(Function) } -> std::same_as<void>;
 };
 
-template<IsFunctionPipe T>
+template<IsFunctionPipeRun T>
 class FunctionPipe : public SingleOutputPipeBase<T> {
 private:
   using Base = SingleOutputPipeBase<T>;

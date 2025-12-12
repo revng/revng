@@ -12,6 +12,7 @@
 #include "revng/Support/MetaAddress.h"
 
 #include "DwarfReader.h"
+#include "Importers.h"
 #include "SegmentImportHelpers.h"
 
 extern Logger ELFImporterLog;
@@ -64,6 +65,7 @@ private:
   RawBinaryView File;
   TupleTree<model::Binary> &Model;
   const llvm::object::ELFObjectFileBase &TheBinary;
+  model::BinaryReference &BinaryReference;
 
   std::optional<MetaAddress> EHFrameHdrAddress;
   std::optional<MetaAddress> DynamicAddress;
@@ -81,11 +83,13 @@ protected:
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
               const llvm::object::ELFObjectFileBase &TheBinary,
-              uint64_t BaseAddress) :
+              uint64_t BaseAddress,
+              model::BinaryReference &BinaryReference) :
     BinaryImporterHelper(*Model, BaseAddress, ELFImporterLog),
     File(*Model, toArrayRef(TheBinary.getData())),
     Model(Model),
-    TheBinary(TheBinary) {}
+    TheBinary(TheBinary),
+    BinaryReference(BinaryReference) {}
 
 private:
   using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;

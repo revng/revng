@@ -7,28 +7,31 @@
 #include "llvm/ADT/StringRef.h"
 
 #include "revng/ADT/TypeList.h"
+#include "revng/Pipebox/Containers.h"
 #include "revng/PipeboxCommon/Common.h"
 #include "revng/PipeboxCommon/Model.h"
 #include "revng/PipeboxCommon/RawContainer.h"
 
-namespace revng::pypeline {
-
-using CBytesContainer = BytesContainer<"CBytesContainer", "text/x.c+ptml">;
-
-namespace piperuns {
+namespace revng::pypeline::piperuns {
 
 class ModelToHeader {
+private:
+  const model::Binary &Binary;
+  PTMLCBytesContainer &Buffer;
+
 public:
   static constexpr llvm::StringRef Name = "model-to-header";
-  using Arguments = TypeList<
-    PipeArgument<"Buffer", "The output C header of the model", Access::Write>>;
+  using Arguments = TypeList<PipeRunArgument<PTMLCBytesContainer,
+                                             "Buffer",
+                                             "The output C header of the model",
+                                             Access::Write>>;
 
-  static void run(const Model &TheModel,
-                  llvm::StringRef StaticConfig,
-                  llvm::StringRef DynamicConfig,
-                  CBytesContainer &Buffer);
+  ModelToHeader(const Model &TheModel,
+                llvm::StringRef StaticConfig,
+                llvm::StringRef DynamicConfig,
+                PTMLCBytesContainer &Buffer);
+
+  void run();
 };
 
-} // namespace piperuns
-
-} // namespace revng::pypeline
+} // namespace revng::pypeline::piperuns

@@ -24,6 +24,7 @@ hooks:
     REVNG_TEST_PATH=$(command -v revng-test)
     TEMP_DIR=$(mktemp -d)
     ln -s "$REVNG_TEST_PATH" "$TEMP_DIR/revng"
+    ln -s "$REVNG_TEST_PATH" "$TEMP_DIR/revng2"
     export PATH="$TEMP_DIR:$PATH"
   post: |
     rm -rf "$TEMP_DIR"
@@ -36,6 +37,7 @@ stacktrace_aggregation:
     - /llvm/include/
     - /llvm/lib/
     - /clang-release/include/
+    - /PipeboxCommon/
   exclude_libs:
     - ADT.*
     - Pipeline.*
@@ -43,6 +45,10 @@ stacktrace_aggregation:
     - TupleTree.*
     - Model
     - Pipes
+
+flamegraph_exclude_paths:
+  - libpython[^/]*\.so[^/]*
+  - lib/python[^/]*/lib-dynload
 
 highlights:
   - query: WHERE status = 'TIMED_OUT' ORDER BY text_size ASC

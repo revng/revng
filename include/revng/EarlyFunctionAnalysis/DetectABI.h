@@ -29,3 +29,17 @@ public:
 };
 
 } // namespace efa
+
+namespace revng::pypeline::analyses {
+
+class DetectABI {
+public:
+  static constexpr llvm::StringRef Name = "detect-abi";
+
+  llvm::Error run(Model &Model,
+                  const Request &Incoming,
+                  llvm::StringRef Configuration,
+                  LLVMRootContainer &ModuleContainer);
+};
+
+} // namespace revng::pypeline::analyses

@@ -27,10 +27,12 @@
 
 #include "revng/ADT/Queue.h"
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Model/FunctionTags.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/StringOperations.h"
+#include "revng/Support/Tag.h"
 
 using namespace llvm;
 
@@ -821,4 +823,231 @@ std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
 
   llvm::MemoryBufferRef BufferRef{ { Buffer.data(), Buffer.size() }, "input" };
   return llvm::cantFail(llvm::parseBitcodeFile(BufferRef, NewContext));
+}
+
+/// Creates a global variable in the provided module that holds a pointer to
+/// each other global object so that they can't be removed by the linker
+static void makeGlobalObjectsArray(llvm::Module &Module,
+                                   llvm::StringRef GlobalArrayName) {
+  auto *PointerTy = llvm::PointerType::getUnqual(Module.getContext());
+
+  llvm::SmallVector<llvm::Constant *, 10> Globals;
+
+  for (auto &Global : Module.globals())
+    Globals.push_back(llvm::ConstantExpr::getPointerCast(&Global, PointerTy));
+
+  for (auto &Global : Module.functions())
+    if (not Global.isIntrinsic())
+      Globals.push_back(llvm::ConstantExpr::getPointerCast(&Global, PointerTy));
+
+  auto *GlobalArrayType = llvm::ArrayType::get(PointerTy, Globals.size());
+
+  auto *Initializer = llvm::ConstantArray::get(GlobalArrayType, Globals);
+
+  new llvm::GlobalVariable(Module,
+                           GlobalArrayType,
+                           false,
+                           llvm::GlobalValue::LinkageTypes::ExternalLinkage,
+                           Initializer,
+                           GlobalArrayName);
+}
+
+class GlobalsFixer {
+private:
+  static constexpr llvm::StringRef Prefix = "globals_fixer_variable_";
+
+private:
+  size_t Counter = 0;
+  llvm::StringMap<llvm::GlobalValue::LinkageTypes> LinkageMap;
+  llvm::StringMap<std::string> GlobalsRenameMap;
+
+public:
+  void recordGlobals(llvm::Module &Module) {
+    using namespace llvm;
+
+    for (auto &Global : Module.global_objects()) {
+      bool IsUniqued = isUniquedGlobal(Global);
+
+      // Rename declarations so they are not merged by the linker
+      if (Global.isDeclaration() and IsUniqued) {
+        llvm::StringRef OldName = Global.getName();
+        std::string NewName = Prefix.str() + std::to_string(Counter);
+        GlobalsRenameMap[NewName] = OldName.str();
+        Global.setName(NewName);
+        Counter++;
+      }
+
+      // Turn globals with local linkage and external declarations into the
+      // equivalent of inline and record their original linking for it be
+      // restored later
+      if (Global.getLinkage() == GlobalValue::InternalLinkage
+          or Global.getLinkage() == GlobalValue::PrivateLinkage
+          or Global.getLinkage() == GlobalValue::AppendingLinkage
+          or (Global.getLinkage() == GlobalValue::ExternalLinkage
+              and not Global.isDeclaration())) {
+        LinkageMap[Global.getName()] = Global.getLinkage();
+
+        // Globals tagged with UniquedByPrototype and UniquedByMetadata are
+        // deduplicated manually post-link, mark them with Internal linkage so
+        // they are not collapsed by the linker
+        if (IsUniqued)
+          Global.setLinkage(GlobalValue::InternalLinkage);
+        else
+          Global.setLinkage(GlobalValue::LinkOnceODRLinkage);
+      }
+    }
+  }
+
+  void restoreGlobals(llvm::Module &Module) {
+    // Restores the initial linkage for local functions
+    for (auto &Global : Module.global_objects()) {
+      auto It = LinkageMap.find(Global.getName().str());
+      if (It != LinkageMap.end())
+        Global.setLinkage(It->second);
+    }
+
+    // Restore the original name of the declaration
+    for (auto &Global : Module.global_objects()) {
+      if (not(Global.isDeclaration() and isUniquedGlobal(Global)))
+        continue;
+
+      auto OldNameEntry = GlobalsRenameMap.find(Global.getName());
+      if (OldNameEntry == GlobalsRenameMap.end())
+        continue;
+
+      std::string OldName = OldNameEntry->second;
+      Global.setName(OldNameEntry->second);
+    }
+  }
+
+private:
+  static bool isUniquedGlobal(llvm::GlobalObject &Object) {
+    if (auto *Function = dyn_cast<llvm::Function>(&Object)) {
+      return FunctionTags::UniquedByPrototype.isTagOf(Function)
+             or FunctionTags::UniquedByMetadata.isTagOf(Function);
+    } else if (auto *GlobalVariable = dyn_cast<llvm::GlobalVariable>(&Object)) {
+      return FunctionTags::UniquedByPrototype.isTagOf(GlobalVariable)
+             or FunctionTags::UniquedByMetadata.isTagOf(GlobalVariable);
+    } else {
+      return false;
+    }
+  }
+};
+
+void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
+                         std::unique_ptr<llvm::Module> &Destination) {
+  GlobalsFixer Fixer;
+  Fixer.recordGlobals(*Source);
+  Fixer.recordGlobals(*Destination);
+
+  // Make a global array of all global objects so that they don't get dropped
+  std::string GlobalArray1 = "revng.AllSymbolsArrayLeft";
+  makeGlobalObjectsArray(*Destination, GlobalArray1);
+
+  std::string GlobalArray2 = "revng.AllSymbolsArrayRight";
+  makeGlobalObjectsArray(*Source, GlobalArray2);
+
+  // Drop certain LLVM named metadata
+  auto DropNamedMetadata = [](llvm::Module *M, llvm::StringRef Name) {
+    if (auto *MD = M->getNamedMetadata(Name))
+      MD->eraseFromParent();
+  };
+
+  // TODO: check it's identical to the existing one, if present in both
+  DropNamedMetadata(&*Destination, "llvm.ident");
+  DropNamedMetadata(&*Destination, "llvm.module.flags");
+
+  if (Source->getDataLayout().isDefault())
+    Source->setDataLayout(Destination->getDataLayout());
+
+  if (Destination->getDataLayout().isDefault())
+    Destination->setDataLayout(Source->getDataLayout());
+
+  llvm::Linker TheLinker(*Source);
+
+  // Actually link
+  bool Failure = TheLinker.linkInModule(std::move(Destination));
+
+  revng_assert(not Failure, "Linker failed");
+
+  Fixer.restoreGlobals(*Source);
+  Destination = std::move(Source);
+
+  // Remove the global arrays since they are no longer needed.
+  if (auto *Global = Destination->getGlobalVariable(GlobalArray1))
+    Global->eraseFromParent();
+
+  if (auto *Global = Destination->getGlobalVariable(GlobalArray2))
+    Global->eraseFromParent();
+
+  llvm::DenseSet<llvm::Function *> ToErase;
+
+  auto MarkDuplicates = [&ToErase](const auto &Map) {
+    using Key = typename std::decay_t<decltype(Map)>::key_type;
+    Key LastKey;
+    llvm::Function *Leader = nullptr;
+    for (auto &[Key, F] : Map) {
+
+      if (Key != LastKey) {
+        Leader = F;
+        LastKey = Key;
+      } else {
+        revng_assert(F->getFunctionType() == Leader->getFunctionType());
+        F->replaceAllUsesWith(Leader);
+        ToErase.insert(F);
+      }
+    }
+  };
+
+  // Dedup based on UniquedByPrototype
+  {
+    using namespace llvm;
+    using Key = std::pair<FunctionTags::TagsSet, FunctionType *>;
+
+    std::multimap<Key, Function *> Map;
+    for (Function &F :
+         FunctionTags::UniquedByPrototype.functions(&*Destination)) {
+      Key TheKey = { FunctionTags::TagsSet::from(&F), F.getFunctionType() };
+      Map.emplace(TheKey, &F);
+    }
+
+    MarkDuplicates(Map);
+  }
+
+  // Dedup based on UniquedByMetadata
+  {
+    using namespace llvm;
+    using Key = std::pair<FunctionTags::TagsSet, MDNode *>;
+
+    std::multimap<Key, Function *> Map;
+    for (Function &F :
+         FunctionTags::UniquedByMetadata.functions(&*Destination)) {
+      MDNode *MD = F.getMetadata(FunctionTags::UniqueIDMDName);
+      revng_assert(MD->isUniqued());
+      Key TheKey = { FunctionTags::TagsSet::from(&F), MD };
+      Map.emplace(TheKey, &F);
+    }
+
+    MarkDuplicates(Map);
+  }
+
+  // Purge all unused non-target functions
+  // TODO: this should be transitive
+  for (llvm::Function &F : Destination->functions())
+    if (not FunctionTags::Isolated.isTagOf(&F) and F.use_empty())
+      ToErase.insert(&F);
+
+  for (llvm::Function *F : ToErase)
+    F->eraseFromParent();
+
+  // Prune llvm.dbg.cu so that they grow exponentially due to multiple cloning
+  // + linking.
+  // Note: an alternative approach would be to pre-populate the
+  //       ValueToValueMap used when we clone in a way that avoids cloning the
+  //       metadata altogether. However, this would lead two distinct modules
+  //       to share debug metadata, which are not always immutable.
+  auto *NamedMDNode = Destination->getOrInsertNamedMetadata("llvm.dbg.cu");
+  pruneDICompileUnits(*Destination);
+
+  revng::verify(&*Destination);
 }

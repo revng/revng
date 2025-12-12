@@ -123,11 +123,15 @@ struct llvm::yaml::CustomMappingTraits<JumpTargetMap> {
 
 namespace revng::pypeline::piperuns {
 
-CustomInvalidationData Lift::run(const class Model &TheModel,
-                                 llvm::StringRef Config,
-                                 llvm::StringRef DynamicConfig,
-                                 const BinariesContainer &Binary,
-                                 LLVMRootContainer &ModuleContainer) {
+Lift::Lift(const class Model &Model,
+           llvm::StringRef Config,
+           llvm::StringRef DynamicConfig,
+           const BinariesContainer &Binary,
+           LLVMRootContainer &ModuleContainer) :
+  TheModel(Model), Binary(Binary), ModuleContainer(ModuleContainer) {
+}
+
+CustomInvalidationData Lift::run() {
   llvm::Task T(6, "Lift");
   const TupleTree<model::Binary> &Model = TheModel.get();
 

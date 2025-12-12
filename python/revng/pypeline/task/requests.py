@@ -65,9 +65,10 @@ class Requests(MutableMapping[ContainerDeclaration, ObjectSet]):
             if decl not in containers:
                 raise ValueError(f"Container {decl} is not present in the given ContainerSet.")
             if not containers[decl].contains_all(objects):
+                diff = objects - containers[decl].objects()
                 raise ValueError(
                     f"Container {containers[decl]} of declaration {decl} does "
-                    f"not contain all requested objects: {objects}."
+                    f"not contain all requested objects, missing objects: {diff}"
                 )
 
     def empty(self) -> bool:

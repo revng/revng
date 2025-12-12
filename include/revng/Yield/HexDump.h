@@ -17,26 +17,42 @@ using HexDumpContainer = BytesContainer<"HexDumpContainer",
 namespace piperuns {
 
 class HexDump {
+private:
+  const model::Binary &Binary;
+  const BinariesContainer &BinaryContainer;
+  const LLVMFunctionContainer &ModuleContainer;
+  const CFGMap &CFG;
+  HexDumpContainer &Output;
+
 public:
   static constexpr llvm::StringRef Name = "hex-dump";
   using Arguments = TypeList<
-    PipeArgument<"Binary", "The binaries to create the hexdump out of">,
-    PipeArgument<"Module", "The LLVM Module(s) with lifted functions">,
-    PipeArgument<"CFG", "The per-function CFG data">,
-    PipeArgument<"Output", "The hexdump of the input binaries", Access::Write>>;
+    PipeRunArgument<const BinariesContainer,
+                    "Binary",
+                    "The binaries to create the hexdump out of">,
+    PipeRunArgument<const LLVMFunctionContainer,
+                    "Module",
+                    "The LLVM Module(s) with lifted functions">,
+    PipeRunArgument<const CFGMap, "CFG", "The per-function CFG data">,
+    PipeRunArgument<HexDumpContainer,
+                    "Output",
+                    "The hexdump of the input binaries",
+                    Access::Write>>;
 
 public:
   static llvm::Error checkPrecondition(const class Model &Model) {
     return RawBinaryView::checkPrecondition(*Model.get().get());
   }
 
-  static void run(const class Model &Model,
-                  llvm::StringRef Config,
-                  llvm::StringRef DynamicConfig,
-                  const BinariesContainer &BinaryContainer,
-                  const LLVMFunctionContainer &ModuleContainer,
-                  const CFGMap &CFG,
-                  HexDumpContainer &Output);
+  HexDump(const class Model &Model,
+          llvm::StringRef Config,
+          llvm::StringRef DynamicConfig,
+          const BinariesContainer &BinaryContainer,
+          const LLVMFunctionContainer &ModuleContainer,
+          const CFGMap &CFG,
+          HexDumpContainer &Output);
+
+  void run();
 };
 
 } // namespace piperuns

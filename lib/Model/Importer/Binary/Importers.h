@@ -19,12 +19,18 @@ class MachOObjectFile;
 } // namespace llvm
 
 struct ImporterOptions;
+
 llvm::Error importELF(TupleTree<model::Binary> &Model,
                       const llvm::object::ELFObjectFileBase &TheBinary,
-                      const ImporterOptions &Options);
+                      const ImporterOptions &Options,
+                      model::BinaryReference &Reference);
+
 llvm::Error importPECOFF(TupleTree<model::Binary> &Model,
                          const llvm::object::COFFObjectFile &TheBinary,
-                         const ImporterOptions &Options);
+                         const ImporterOptions &Options,
+                         model::BinaryReference &Reference);
+
 llvm::Error importMachO(TupleTree<model::Binary> &Model,
                         llvm::object::MachOObjectFile &TheBinary,
-                        const ImporterOptions &Options);
+                        const ImporterOptions &Options,
+                        model::BinaryReference &Reference);

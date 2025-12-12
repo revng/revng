@@ -17,6 +17,7 @@
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/PromoteStackPointer/DetectStackSize.h"
 #include "revng/PromoteStackPointer/DetectStackSizePass.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng/Support/Debug.h"
@@ -114,6 +115,31 @@ public:
     // Collect information about the stack of each function
     for (llvm::Function &F : FunctionTags::Isolated.functions(&M))
       collectStackBounds(F);
+
+    // At this point we have populated two data structures:
+    //
+    // * FunctionTypeStackArguments: we can use it to elect stack arguments size
+    // * FunctionsStackInfo: we can use it to elect stack frame size
+
+    // Elect stack arguments size for prototypes
+    for (auto &&[Prototype, UpperBound] : FunctionTypeStackArguments)
+      electStackArgumentsSize(*Prototype, UpperBound);
+
+    // Now all prototypes have a definitive stack arguments size, we can elect
+    // stack frame size
+    for (FunctionStackInfo &FSI : FunctionsStackInfo)
+      electFunctionStackFrameSize(FSI);
+  }
+
+  void run(llvm::ArrayRef<const ObjectID *> Objects,
+           revng::pypeline::LLVMFunctionContainer &Modules) {
+    // Collect information about the stack of each function
+    for (const ObjectID *Object : Objects) {
+      llvm::Module &Module = Modules.getModule(*Object);
+      MetaAddress Address = std::get<MetaAddress>(Object->key());
+      llvm::Function &F = getUniqueIsolatedFunction(Module, Address);
+      collectStackBounds(F);
+    }
 
     // At this point we have populated two data structures:
     //
@@ -393,3 +419,16 @@ public:
 };
 
 static pipeline::RegisterAnalysis<DetectStackSizeAnalysis> RegisterAnalysis;
+
+namespace revng::pypeline::analyses {
+
+llvm::Error DetectStackSize::run(Model &Model,
+                                 const Request &Incoming,
+                                 llvm::StringRef Configuration,
+                                 LLVMFunctionContainer &ModuleContainer) {
+  ::DetectStackSize StackSizeDetector(Model.get());
+  StackSizeDetector.run(Incoming[0], ModuleContainer);
+  return llvm::Error::success();
+}
+
+} // namespace revng::pypeline::analyses

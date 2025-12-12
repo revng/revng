@@ -1069,6 +1069,17 @@ Changes DetectABI::runAnalyses(MetaAddress EntryAddress,
   return Changes;
 }
 
+static void runDetectABI(Module &M,
+                         GeneratedCodeBasicInfo &GCBI,
+                         ControlFlowGraphCache &FMC,
+                         TupleTree<model::Binary> &Binary) {
+  using FSOracle = FunctionSummaryOracle;
+  FSOracle Oracle = FSOracle::importFullPrototypes(M, GCBI, *Binary);
+  CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
+  DetectABI ABIDetector(M, GCBI, FMC, Binary, Oracle, Analyzer);
+  ABIDetector.run();
+}
+
 bool DetectABIPass::runOnModule(Module &M) {
   revng_log(PassesLog, "Starting EarlyFunctionAnalysis");
 
@@ -1080,15 +1091,7 @@ bool DetectABIPass::runOnModule(Module &M) {
   auto &LMP = getAnalysis<LoadModelWrapperPass>().get();
 
   TupleTree<model::Binary> &Binary = LMP.getWriteableModel();
-
-  using FSOracle = FunctionSummaryOracle;
-  FSOracle Oracle = FSOracle::importFullPrototypes(M, GCBI, *Binary);
-  CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
-
-  DetectABI ABIDetector(M, GCBI, FMC, Binary, Oracle, Analyzer);
-
-  ABIDetector.run();
-
+  runDetectABI(M, GCBI, FMC, Binary);
   return false;
 }
 
@@ -1098,3 +1101,29 @@ using ABIDetectionPass = RegisterPass<DetectABIPass>;
 static ABIDetectionPass X("detect-abi", "ABI Detection Pass", true, false);
 
 } // namespace efa
+
+namespace revng::pypeline::analyses {
+
+llvm::Error DetectABI::run(Model &Model,
+                           const Request &Incoming,
+                           llvm::StringRef Configuration,
+                           LLVMRootContainer &ModuleContainer) {
+  llvm::Module &Module = ModuleContainer.getModule();
+  TupleTree<model::Binary> &TupleModel = Model.get();
+  model::Binary &Binary = *TupleModel;
+
+  GeneratedCodeBasicInfo GCBI(Binary);
+  GCBI.run(Module);
+
+  revng::pipes::CFGMap CFGs("");
+  ControlFlowGraphCache FMC(CFGs);
+
+  collectFunctionsFromCallees(Module, GCBI, Binary);
+  efa::runDetectABI(Module, GCBI, FMC, TupleModel);
+  collectFunctionsFromUnusedAddresses(Module, GCBI, Binary, FMC);
+  efa::runDetectABI(Module, GCBI, FMC, TupleModel);
+
+  return llvm::Error::success();
+}
+
+} // namespace revng::pypeline::analyses

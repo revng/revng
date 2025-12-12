@@ -11,6 +11,7 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/NamedTypedRegister.h"
 #include "revng/Model/Register.h"
+#include "revng/RemoveLiftingArtifacts/PromoteInitCSVToUndef.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -90,3 +91,12 @@ static constexpr const char *Flag = "promote-init-csv-to-undef";
 using Reg = RegisterPass<PromoteInitCSVToUndefPass>;
 static Reg X(Flag,
              "Promotes calls to revng_undefined_* functions for CSV to undefs");
+
+namespace revng::pypeline::piperuns {
+
+void PromoteInitCSVToUndef::runOnLLVMFunction(const model::Function &Function,
+                                              llvm::Function &LLVMFunction) {
+  undefPreservedRegistersInitialization(LLVMFunction, Function, Binary);
+}
+
+} // namespace revng::pypeline::piperuns

@@ -132,6 +132,10 @@ public:
 
   llvm::Module &getModule(const ObjectID &ID) { return *Modules.at(ID); }
 
+  std::unique_ptr<llvm::Module> takeModule(const ObjectID &ID) {
+    return std::move(Modules.at(ID));
+  }
+
   void assign(const ObjectID &ID, std::unique_ptr<llvm::Module> &&NewModule) {
     if (&Context == &NewModule->getContext())
       Modules[ID] = std::move(NewModule);

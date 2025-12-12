@@ -7,10 +7,16 @@
 #include "llvm/Pass.h"
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+
+void collectFunctionsFromUnusedAddresses(llvm::Module &M,
+                                         GeneratedCodeBasicInfo &GCBI,
+                                         model::Binary &Binary,
+                                         ControlFlowGraphCache &FMC);
 
 class CollectFunctionsFromUnusedAddressesWrapperPass : public llvm::ModulePass {
 public:

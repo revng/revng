@@ -28,6 +28,7 @@
 #include "revng/Pipeline/RegisterLLVMPass.h"
 #include "revng/Pipes/FunctionPass.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/PromoteStackPointer/PromoteStackPointer.h"
 #include "revng/PromoteStackPointer/PromoteStackPointerPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
@@ -84,9 +85,10 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
   return Changed;
 }
 
-bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
-                                                  &ModelFunction,
-                                                llvm::Function &F) {
+static bool promoteStackPointer(const model::Binary &Binary,
+                                const model::Function &ModelFunction,
+                                llvm::Function &F,
+                                GeneratedCodeBasicInfo &GCBI) {
   bool Changed = false;
 
   {
@@ -97,8 +99,7 @@ bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
   }
 
   // Get the global variable representing the stack pointer register.
-  using GCBIPass = GeneratedCodeBasicInfoWrapperPass;
-  GlobalVariable *GlobalSP = getAnalysis<GCBIPass>().getGCBI().spReg();
+  GlobalVariable *GlobalSP = GCBI.spReg();
 
   if (not GlobalSP) {
     revng_log(Log, "WARNING: cannot find global variable for stack pointer");
@@ -185,6 +186,13 @@ bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
   return true;
 }
 
+bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
+                                                  &ModelFunction,
+                                                llvm::Function &F) {
+  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
+  return promoteStackPointer(Binary, ModelFunction, F, GCBI);
+}
+
 void PromoteStackPointerPassImpl::getAnalysisUsage(AnalysisUsage &AU) {
   AU.addRequired<LoadModelWrapperPass>();
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
@@ -213,3 +221,15 @@ struct PromoteStackPointerPipe {
 };
 
 static pipeline::RegisterLLVMPass<PromoteStackPointerPipe> Y;
+
+namespace revng::pypeline::piperuns {
+
+// TODO: inline promoteStackPointer once we dismiss the old pipeline
+void PromoteStackPointer::runOnLLVMFunction(const model::Function &Function,
+                                            llvm::Function &LLVMFunction) {
+  GeneratedCodeBasicInfo GCBI(Binary);
+  GCBI.run(*LLVMFunction.getParent());
+  promoteStackPointer(Binary, Function, LLVMFunction, GCBI);
+}
+
+} // namespace revng::pypeline::piperuns

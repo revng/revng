@@ -18,4 +18,11 @@ public:
   bool verify(VerifyHelper &VH) const;
 };
 
+namespace model {
+
+using BinaryReference = TupleTreeReference<model::BinaryIdentifier,
+                                           model::Binary>;
+
+}
+
 #include "revng/Model/Generated/Late/BinaryIdentifier.h"

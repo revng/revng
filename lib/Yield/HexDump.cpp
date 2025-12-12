@@ -311,16 +311,21 @@ static pipeline::RegisterPipe<revng::pipes::HexDumpPipe> X;
 
 namespace revng::pypeline::piperuns {
 
-void HexDump::run(const class Model &Model,
-                  llvm::StringRef Config,
-                  llvm::StringRef DynamicConfig,
-                  const BinariesContainer &BinaryContainer,
-                  const LLVMFunctionContainer &ModuleContainer,
-                  const CFGMap &CFG,
-                  HexDumpContainer &Output) {
+HexDump::HexDump(const class Model &Model,
+                 llvm::StringRef Config,
+                 llvm::StringRef DynamicConfig,
+                 const BinariesContainer &BinaryContainer,
+                 const LLVMFunctionContainer &ModuleContainer,
+                 const CFGMap &CFG,
+                 HexDumpContainer &Output) :
+  Binary(*Model.get().get()),
+  BinaryContainer(BinaryContainer),
+  ModuleContainer(ModuleContainer),
+  CFG(CFG),
+  Output(Output) {
+}
 
-  const model::Binary &Binary = *Model.get().get();
-
+void HexDump::run() {
   auto Buffer = BinaryContainer.getFile(0);
   auto OutputOS = Output.getOStream(ObjectID{});
 
@@ -335,7 +340,7 @@ void HexDump::run(const class Model &Model,
   }
 
   auto CFGGetter =
-    [&CFG](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
+    [this](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
     return *CFG.getElement(ObjectID(Address));
   };
 

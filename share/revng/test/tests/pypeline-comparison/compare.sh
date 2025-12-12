@@ -84,9 +84,11 @@ function compare() {
 # are quite different and need to be converted to `.ll` before comparing
 function compare_lift() {
     # Convert old
-    zstdcat "$OLD_PATH" | revng opt -S > "$WORKDIR/old.ll"
+    zstdcat "$OLD_PATH" | revng opt -S | \
+        sed 's;![0-9]\+;!0;g' | grep -v -e '^!0 = ' -e '^\s*$' -e '^;' > "$WORKDIR/old.ll"
     # Convert new
-    yq_exact -r '.["/binary"]' "$NEW_PATH" | base64 -d | revng opt -S > "$WORKDIR/new.ll"
+    yq_exact -r '.["/binary"]' "$NEW_PATH" | base64 -d | revng opt -S |
+        sed 's;![0-9]\+;!0;g' | grep -v -e '^!0 = ' -e '^\s*$' -e '^;' > "$WORKDIR/new.ll"
 
     local DIFF_OUTPUT RC=0
     DIFF_OUTPUT=$(mktemp --tmpdir="$WORKDIR")

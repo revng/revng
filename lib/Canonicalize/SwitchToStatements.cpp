@@ -30,6 +30,7 @@
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/SmallMap.h"
+#include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/InitModelTypes/InitModelTypes.h"
 #include "revng/LocalVariables/LocalVariableBuilder.h"
 #include "revng/MFP/MFP.h"
@@ -1242,10 +1243,6 @@ bool VariableInserter<IsLegacy>::serializeToLocalVariable(Instruction *I) {
 template<bool IsLegacy>
 struct SwitchToStatements : public FunctionPass {
 public:
-  using PPGWithInstructionMap = PPGWithInstructionMap<IsLegacy>;
-  using ResultMap = ResultMap<IsLegacy>;
-
-public:
   static char ID;
 
   SwitchToStatements() : FunctionPass(ID) {}
@@ -1255,38 +1252,41 @@ public:
     AU.addRequired<LoadModelWrapperPass>();
   }
 
-  bool runOnFunction(Function &F) override {
-    revng_log(Log, "SwitchToStatements: " << F.getName());
-
-    auto Graph = PPGWithInstructionMap::makeFromFunction(F);
-
-    ResultMap Result = getMFP<IsLegacy>(&Graph.ProgramPointsGraph);
-
-    auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-    const TupleTree<model::Binary> &Model = ModelWrapper.getReadOnlyModel();
-
-    auto ModelFunction = llvmToModelFunction(*Model, F);
-    revng_assert(ModelFunction != nullptr);
-
-    InstructionToSerializePicker InstructionPicker{ F, Graph, Result };
-
-    TypeMap InstructionTypes = {};
-    if constexpr (IsLegacy) {
-      InstructionTypes = initModelTypesConsideringUses(F,
-                                                       ModelFunction,
-                                                       *Model,
-                                                       /* PointersOnly */
-                                                       false);
-    }
-    VariableInserter<IsLegacy> VarInserter{ F,
-                                            *Model,
-                                            std::move(InstructionTypes) };
-
-    bool Changed = VarInserter.run(InstructionPicker.pick());
-
-    return Changed;
-  }
+  bool runOnFunction(Function &F) override;
 };
+
+template<bool IsLegacy>
+static bool switchToStatements(const model::Binary *Model, llvm::Function &F) {
+  using PPGWithInstructionMap = PPGWithInstructionMap<IsLegacy>;
+  using ResultMap = ResultMap<IsLegacy>;
+
+  revng_log(Log, "SwitchToStatements: " << F.getName());
+
+  auto Graph = PPGWithInstructionMap::makeFromFunction(F);
+
+  ResultMap Result = getMFP<IsLegacy>(&Graph.ProgramPointsGraph);
+
+  auto ModelFunction = llvmToModelFunction(*Model, F);
+  revng_assert(ModelFunction != nullptr);
+
+  InstructionToSerializePicker InstructionPicker{ F, Graph, Result };
+
+  TypeMap InstructionTypes = {};
+  if constexpr (IsLegacy) {
+    InstructionTypes = initModelTypesConsideringUses(F,
+                                                     ModelFunction,
+                                                     *Model,
+                                                     /* PointersOnly */
+                                                     false);
+  }
+  VariableInserter<IsLegacy> VarInserter{ F,
+                                          *Model,
+                                          std::move(InstructionTypes) };
+
+  bool Changed = VarInserter.run(InstructionPicker.pick());
+
+  return Changed;
+}
 
 template<>
 char SwitchToStatements<false>::ID = 0;
@@ -1294,9 +1294,26 @@ char SwitchToStatements<false>::ID = 0;
 template<>
 char SwitchToStatements<true>::ID = 0;
 
+template<bool IsLegacy>
+bool SwitchToStatements<IsLegacy>::runOnFunction(llvm::Function &F) {
+  auto
+    *Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel().get();
+  return switchToStatements<IsLegacy>(Model, F);
+}
+
 using RegisterLegacy = RegisterPass<SwitchToStatements<true>>;
 static RegisterLegacy
   X("legacy-switch-to-statements", "LegacySwitchToStatements", false, false);
 
 using Register = RegisterPass<SwitchToStatements<false>>;
 static Register Y("switch-to-statements", "SwitchToStatements", false, false);
+
+namespace revng::pypeline::piperuns {
+
+// TODO: inline switchToStatements once we dismiss the old pipeline
+void SwitchToStatements::runOnLLVMFunction(const model::Function &Function,
+                                           llvm::Function &LLVMFunction) {
+  switchToStatements<false>(Model.get(), LLVMFunction);
+}
+
+} // namespace revng::pypeline::piperuns

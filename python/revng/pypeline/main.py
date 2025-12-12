@@ -20,25 +20,25 @@ from .cli.utils import EagerParsedPath, PypeGroup
 from .utils.logger import pypeline_logger
 
 
-def import_pipebox(module_path: str, is_complete: bool) -> object:
+def import_pipebox(module_path: str, is_autocomplete: bool) -> object:
     """Import a module from a path. This is used to import the pipebox file.
     Args:
         env (dict[str, str]): The environment variables.
         module_path (str): The path to the module.
-        is_complete (bool): If True, raise an error if the module is not found.
+        is_autocomplete (bool): If True, do not raise an error if the pipebox
+            is not found, since when autocompleting the pipebox path might be
+            missing or incomplete.
     """
     # Absolute path to the module
     module_abspath = Path(module_path).resolve()
     if not module_abspath.exists():
         # This is a small trick to allow generating the module auto-complete
         # without having a pipebox file
-        if is_complete:
+        if is_autocomplete:
             return object()
         pypeline_logger.log(
-            (
-                f'Pipebox file "{module_abspath}" does not exist. Either set it using the '
-                "PIPEBOX env var, or pass the --pipebox option."
-            ),
+            f'Pipebox file "{module_abspath}" does not exist. Either set it using the '
+            "PIPEBOX env var, or pass the --pipebox option."
         )
         sys.exit(1)
     # We guess that the module name is the file name without the extension
@@ -46,13 +46,13 @@ def import_pipebox(module_path: str, is_complete: bool) -> object:
     # Dynamic import of the pipebox module
     spec = importlib.util.spec_from_file_location(module_name, str(module_abspath))
     if spec is None:
-        if is_complete:
+        if is_autocomplete:
             return object()
         pypeline_logger.log(f'Could not load module "{module_name}" from "{module_abspath}"')
         sys.exit(1)
     module = importlib.util.module_from_spec(spec)
     if spec.loader is None:
-        if is_complete:
+        if is_autocomplete:
             return object()
         pypeline_logger.log(f'Could not load module "{module_name}" from "{module_abspath}"')
         sys.exit(1)
@@ -60,7 +60,25 @@ def import_pipebox(module_path: str, is_complete: bool) -> object:
     spec.loader.exec_module(module)
     # Initialize the pypeline as we just imported the pipebox
     initialize_pypeline()
+    # If auto-completing also initialize the pipebox with empty arguments here
+    # instead of in the body of pype
+    if is_autocomplete:
+        call_pipebox_initialize(module, module_path, [])
     return module
+
+
+def call_pipebox_initialize(pipebox, pipebox_path: str, args: list[str]):
+    # Get its initialize function
+    pipebox_initialize = getattr(pipebox, "initialize", None)
+    if pipebox_initialize is None:
+        pypeline_logger.log(
+            f'Pipebox file "{pipebox_path}" does not have an "initialize" function.'
+            " This is required to setup the pypeline."
+        )
+        sys.exit(1)
+
+    # Call the initialize
+    pipebox_initialize(args)
 
 
 def get_current_root_name(ctx: click.Context) -> str:
@@ -133,19 +151,8 @@ def pype(ctx, verbose: bool) -> None:
 
     # Get the already loaded pipebox module from the context
     pipebox = ctx.obj["pipebox"]
-    # Get its initialize function
-    pipebox_initialize = getattr(pipebox, "initialize", None)
-    if pipebox_initialize is None:
-        pypeline_logger.log(
-            (
-                f'Pipebox file "{ctx.obj['pipebox_path']}" does not have an "initialize" function.'
-                " This is required to setup the pypeline."
-            ),
-        )
-        sys.exit(1)
-
-    # Call the initialize
-    pipebox_initialize(ctx.obj["pipebox_args"])
+    # Initialize the pipebox
+    call_pipebox_initialize(pipebox, ctx.obj["pipebox_path"], ctx.obj["pipebox_args"])
 
 
 pype.add_command(pipeline)

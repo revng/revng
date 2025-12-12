@@ -17,8 +17,11 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/Passes/PassBuilder.h"
 
+#include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Lift/LoadBinaryPass.h"
 #include "revng/Model/Architecture.h"
+#include "revng/Model/IRHelpers.h"
+#include "revng/Pipebox/Helpers.h"
 #include "revng/Pipeline/ExecutionContext.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/FileContainer.h"
@@ -279,3 +282,52 @@ void SimplifySwitch::run(pipeline::ExecutionContext &EC,
 
 static pipeline::RegisterPipe<revng::pipes::SimplifySwitch>
   RegSimplifySwitchPipe;
+
+namespace revng::pypeline::piperuns {
+
+struct SimplifySwitchPass : public llvm::ModulePass {
+private:
+  const model::Binary &Binary;
+  RawBinaryView &BinaryView;
+
+public:
+  static inline char ID = 0;
+
+  SimplifySwitchPass(const model::Binary &Binary, RawBinaryView &BinaryView) :
+    llvm::ModulePass(ID), Binary(Binary), BinaryView(BinaryView) {}
+
+  bool runOnModule(llvm::Module &M) override {
+    llvm::Function &Function = getUniqueIsolatedFunction(M);
+    // TODO: LazyValueInfo could be instantiated manually and that would save
+    //       us from using an LLVM pass, however the nesting of dependencies is
+    //       substantial so for now it's an LLVM pass.
+    auto &LVI = getAnalysis<LazyValueInfoWrapperPass>(Function).getLVI();
+    DominatorTree DT(Function);
+    DataFlowRangeAnalysis DFRA(M);
+    RawBinaryMemoryOracle MO(BinaryView, Binary.Architecture());
+    return ::simplifySwitch(Function, LVI, DFRA, DT, MO);
+  }
+
+public:
+  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
+    AU.addRequired<LazyValueInfoWrapperPass>();
+  }
+};
+
+SimplifySwitch::SimplifySwitch(const class Model &Model,
+                               llvm::StringRef Config,
+                               llvm::StringRef DynamicConfig,
+                               const BinariesContainer &BinariesContainer,
+                               LLVMFunctionContainer &ModuleContainer) :
+  ModuleContainer(ModuleContainer),
+  Binary(*Model.get().get()),
+  BinaryView(makeBinaryView(Model, BinariesContainer)) {
+  PM.add(new SimplifySwitchPass(Binary, BinaryView));
+};
+
+void SimplifySwitch::runOnFunction(const model::Function &Function) {
+  llvm::Module &Module = ModuleContainer.getModule(ObjectID(Function.Entry()));
+  PM.run(Module);
+}
+
+} // namespace revng::pypeline::piperuns

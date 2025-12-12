@@ -22,7 +22,8 @@ using namespace llvm;
 
 Error importBinary(TupleTree<model::Binary> &Model,
                    llvm::object::ObjectFile &ObjectFile,
-                   const ImporterOptions &Options) {
+                   const ImporterOptions &Options,
+                   model::BinaryReference &BinaryReference) {
   using namespace llvm::object;
   using namespace model::Architecture;
 
@@ -38,11 +39,11 @@ Error importBinary(TupleTree<model::Binary> &Model,
   llvm::Error Result = Error::success();
   revng_check(not Result);
   if (auto *TheBinary = dyn_cast<ELFObjectFileBase>(&ObjectFile))
-    Result = importELF(Model, *TheBinary, Options);
+    Result = importELF(Model, *TheBinary, Options, BinaryReference);
   else if (auto *TheBinary = dyn_cast<COFFObjectFile>(&ObjectFile))
-    Result = importPECOFF(Model, *TheBinary, Options);
+    Result = importPECOFF(Model, *TheBinary, Options, BinaryReference);
   else if (auto *TheBinary = dyn_cast<MachOObjectFile>(&ObjectFile))
-    Result = importMachO(Model, *TheBinary, Options);
+    Result = importMachO(Model, *TheBinary, Options, BinaryReference);
   else
     return revng::createError("Unsupported binary format");
 
@@ -57,13 +58,14 @@ Error importBinary(TupleTree<model::Binary> &Model,
 }
 
 Error importBinary(TupleTree<model::Binary> &Model,
-                   llvm::StringRef Path,
-                   const ImporterOptions &Options) {
-  auto BinaryOrError = object::createBinary(Path);
+                   llvm::MemoryBuffer &Buffer,
+                   const ImporterOptions &Options,
+                   model::BinaryReference &BinaryReference) {
+  auto BinaryOrError = object::createBinary(Buffer);
   if (not BinaryOrError)
     return BinaryOrError.takeError();
 
-  auto *Binary = BinaryOrError->getBinary();
+  llvm::object::Binary &Binary = *BinaryOrError->get();
   if (isa<object::MachOUniversalBinary>(Binary)) {
     return revng::createError("Unsupported format: MachO universal binary.");
   } else if (isa<llvm::object::Archive>(Binary)) {
@@ -72,5 +74,8 @@ Error importBinary(TupleTree<model::Binary> &Model,
     return revng::createError("Unsupported format");
   }
 
-  return importBinary(Model, *cast<object::ObjectFile>(Binary), Options);
+  return importBinary(Model,
+                      cast<object::ObjectFile>(Binary),
+                      Options,
+                      BinaryReference);
 }

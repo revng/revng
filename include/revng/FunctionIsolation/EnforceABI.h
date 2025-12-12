@@ -7,18 +7,17 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/PipeboxCommon/Helpers/PipeRuns/LLVMFunctionMixin.h"
 #include "revng/PipeboxCommon/LLVMContainer.h"
 
 class EnforceABI;
 
 namespace revng::pypeline::piperuns {
 
-class EnforceABI {
+class EnforceABI : public LLVMFunctionMixin<EnforceABI> {
 private:
   const model::Binary &Binary;
-  LLVMFunctionContainer &Output;
   const CFGMap &CFG;
-  model::CNameBuilder NameBuilder;
 
 public:
   static constexpr llvm::StringRef Name = "enforce-abi";
@@ -33,9 +32,10 @@ public:
              llvm::StringRef DynamicConfig,
              const CFGMap &CFG,
              LLVMFunctionContainer &Output) :
-    Binary(*Model.get().get()), Output(Output), CFG(CFG), NameBuilder(Binary){};
+    LLVMFunctionMixin(Output), Binary(*Model.get().get()), CFG(CFG){};
 
-  void runOnFunction(const model::Function &TheFunction);
+  void runOnLLVMFunction(const model::Function &Function,
+                         llvm::Function &LLVMFunction);
 };
 
 } // namespace revng::pypeline::piperuns

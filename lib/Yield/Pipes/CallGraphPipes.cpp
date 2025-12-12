@@ -116,3 +116,39 @@ static pipeline::RegisterPipe<YieldCallGraph> YieldPipe;
 static pipeline::RegisterPipe<YieldCallGraphSlice> YieldSlicePipe;
 
 } // end namespace revng::pipes
+
+namespace revng::pypeline::piperuns {
+
+void ProcessCallGraph::run() {
+  using namespace yield::crossrelations;
+
+  SortedVector<efa::ControlFlowGraph> Metadata;
+  for (const ObjectID &Object : Input.objects())
+    Metadata.insert(*Input.getElement(Object));
+
+  *Output.getElement(ObjectID()) = CrossRelations(Metadata, Binary);
+}
+
+void YieldCallGraph::run() {
+  using namespace yield::crossrelations;
+  const TupleTree<CrossRelations> &Relations = Input.getElement(ObjectID());
+
+  ptml::MarkupBuilder B;
+  auto OS = Output.getOStream(ObjectID());
+  // Convert the graph to SVG.
+  *OS << yield::svg::callGraph(B, *Relations.get(), Binary);
+}
+
+void YieldCallGraphSlice::runOnFunction(const model::Function &Function) {
+  using namespace yield::crossrelations;
+  const TupleTree<CrossRelations> &Relations = Input.getElement(ObjectID());
+
+  // Slice the graph for the current function and convert it to SVG
+  auto SlicePoint = pipeline::locationString(revng::ranks::Function,
+                                             Function.Entry());
+
+  auto OS = Output.getOStream(ObjectID(Function.Entry()));
+  *OS << yield::svg::callGraphSlice(B, SlicePoint, *Relations.get(), Binary);
+}
+
+} // namespace revng::pypeline::piperuns

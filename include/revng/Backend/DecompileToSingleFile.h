@@ -5,6 +5,8 @@
 //
 
 #include "revng/Backend/DecompilePipe.h"
+#include "revng/Pipebox/Containers.h"
+#include "revng/PipeboxCommon/Model.h"
 #include "revng/Pipes/StringMap.h"
 #include "revng/Support/MetaAddress.h"
 
@@ -19,3 +21,36 @@ using DecompiledStringMap = revng::pipes::DecompileStringMap;
 void printSingleCFile(ptml::ModelCBuilder &B,
                       const detail::DecompiledStringMap &Functions,
                       const std::set<MetaAddress> &Targets);
+
+namespace revng::pypeline {
+
+namespace piperuns {
+
+class DecompileToSingleFile {
+private:
+  const model::Binary &Binary;
+  const PTMLCFunctionBytesContainer &Input;
+  PTMLCBytesContainer &Output;
+
+public:
+  static constexpr llvm::StringRef Name = "decompile-to-single-file";
+  using Arguments = TypeList<PipeRunArgument<const PTMLCFunctionBytesContainer,
+                                             "DecompiledFunctions",
+                                             "Input decompiled function">,
+                             PipeRunArgument<PTMLCBytesContainer,
+                                             "Output",
+                                             "Output single C+PTML",
+                                             Access::Write>>;
+
+  DecompileToSingleFile(const Model &Model,
+                        llvm::StringRef Config,
+                        llvm::StringRef DynamicConfig,
+                        const PTMLCFunctionBytesContainer &Input,
+                        PTMLCBytesContainer &Output);
+
+  void run();
+};
+
+} // namespace piperuns
+
+} // namespace revng::pypeline

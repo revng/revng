@@ -10,20 +10,14 @@
 #include "revng/PipeboxCommon/Helpers/PipeRunPipes/Helpers.h"
 
 template<typename T>
-concept IsTypeDefinitionPipe = requires(T &PipeRun,
-                                        const UpcastablePointer<
-                                          model::TypeDefinition> &TD) {
-  requires IsMultipleObjectsPipeRun<T>;
-  requires hasConstructor<
-    T,
-    // The Structure of the constructor is:
-    // {Model, StaticConfiguration, Configuration, Containers...}
-    concat<TypeList<const Model &, llvm::StringRef, llvm::StringRef>,
-           ConstructorContainerArguments<T>>>();
+concept IsTypeDefinitionPipeRun = requires(T &PipeRun,
+                                           const UpcastablePointer<
+                                             model::TypeDefinition> &TD) {
+  requires IsBasePipeRun<T>;
   { PipeRun.runOnTypeDefinition(TD) } -> std::same_as<void>;
 };
 
-template<IsTypeDefinitionPipe T>
+template<IsTypeDefinitionPipeRun T>
 class TypeDefinitionPipe : public SingleOutputPipeBase<T> {
 private:
   using Base = SingleOutputPipeBase<T>;

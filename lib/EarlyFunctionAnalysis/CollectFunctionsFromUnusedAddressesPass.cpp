@@ -133,12 +133,19 @@ private:
   interval_set UsedRanges;
 };
 
+void collectFunctionsFromUnusedAddresses(llvm::Module &M,
+                                         GeneratedCodeBasicInfo &GCBI,
+                                         model::Binary &Binary,
+                                         ControlFlowGraphCache &FMC) {
+  CFFUAImpl Impl(M, GCBI, Binary);
+  Impl.run(FMC);
+}
+
 bool CFFUAWrapperPass::runOnModule(llvm::Module &M) {
   auto &LMWP = getAnalysis<LoadModelWrapperPass>().get();
+  auto &FMC = getAnalysis<ControlFlowGraphCachePass>().get();
   auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-
-  CFFUAImpl Impl(M, GCBI, *LMWP.getWriteableModel());
-  Impl.run(getAnalysis<ControlFlowGraphCachePass>().get());
+  collectFunctionsFromUnusedAddresses(M, GCBI, *LMWP.getWriteableModel(), FMC);
   return false;
 }
 

@@ -470,7 +470,9 @@ function getColumns(meta: Metadata): Columns[] {
                 }
             }
 
-            container.appendChild(button("Bin", `${row.name}/input`));
+            const downloadButton = button("Bin", `${row.name}/input`) as HTMLAnchorElement;
+            downloadButton.download = row.input_name;
+            container.appendChild(downloadButton);
 
             for (const elem of meta.downloads || []) {
                 container.appendChild(button(elem.label, `${row.name}/${elem.name}`));

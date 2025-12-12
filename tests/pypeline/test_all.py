@@ -6,8 +6,9 @@
 from __future__ import annotations
 
 import os
-from tempfile import NamedTemporaryFile
-from typing import Optional, TypeVar, Union
+from pathlib import Path
+from tempfile import NamedTemporaryFile, TemporaryDirectory
+from typing import Generator, Optional, TypeVar, Union
 
 import pytest
 from pipebox import ChildDictContainer, DictModel, GeneratorPipe, GeneratorPipeWithInvalidation
@@ -51,15 +52,12 @@ def model():
 
 
 @pytest.fixture(params=["memory", "local"])
-def storage_provider(request):
-    storage_provider: StorageProvider
+def storage_provider(request) -> Generator[StorageProvider, None, None]:
     if request.param == "memory":
-        storage_provider = InMemoryStorageProvider()
-        yield storage_provider
+        yield InMemoryStorageProvider()
     elif request.param == "local":
-        with NamedTemporaryFile() as f:
-            storage_provider = LocalStorageProvider(":memory:", f.name)
-            yield storage_provider
+        with NamedTemporaryFile() as f, TemporaryDirectory() as d:
+            yield LocalStorageProvider(":memory:", Path(f.name), Path(d))
     else:
         raise ValueError()
 

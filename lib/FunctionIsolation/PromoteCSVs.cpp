@@ -635,25 +635,16 @@ static pipeline::RegisterLLVMPass<PromoteCSVsPipe> Y;
 
 namespace revng::pypeline::piperuns {
 
-void PromoteCSVs::runOnFunction(const model::Function &TheFunction) {
-  llvm::Module &Module = ModuleContainer
-                           .getModule(ObjectID(TheFunction.Entry()));
+// TODO: merge ::PromoteCSVs into PromoteCSVs once we dismiss the old pipeline
+void PromoteCSVs::runOnLLVMFunction(const model::Function &Function,
+                                    llvm::Function &LLVMFunction) {
+  llvm::Module &Module = *LLVMFunction.getParent();
   GeneratedCodeBasicInfo GCBI(Binary);
   GCBI.run(Module);
 
   ::PromoteCSVs Impl(Binary, Module, GCBI);
   Impl.prologue();
-
-  llvm::Function *LLVMFunction = nullptr;
-  for (llvm::Function &Function : Module.functions()) {
-    if (FunctionTags::Isolated.isTagOf(&Function)
-        and not Function.isDeclaration()) {
-      revng_assert(LLVMFunction == nullptr);
-      LLVMFunction = &Function;
-    }
-  }
-
-  Impl.runOnFunction(TheFunction, *LLVMFunction);
+  Impl.runOnFunction(Function, LLVMFunction);
   Impl.epilogue();
 }
 

@@ -5,14 +5,14 @@
 //
 
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
+#include "revng/PipeboxCommon/Helpers/PipeRuns/LLVMFunctionMixin.h"
 #include "revng/PipeboxCommon/LLVMContainer.h"
 
 namespace revng::pypeline::piperuns {
 
-class PromoteCSVs {
+class PromoteCSVs : public LLVMFunctionMixin<PromoteCSVs> {
 private:
   const model::Binary &Binary;
-  LLVMFunctionContainer &ModuleContainer;
 
 public:
   static constexpr llvm::StringRef Name = "promote-csvs";
@@ -25,9 +25,10 @@ public:
               llvm::StringRef Config,
               llvm::StringRef DynamicConfig,
               LLVMFunctionContainer &ModuleContainer) :
-    Binary(*Model.get().get()), ModuleContainer(ModuleContainer) {}
+    LLVMFunctionMixin(ModuleContainer), Binary(*Model.get().get()) {}
 
-  void runOnFunction(const model::Function &TheFunction);
+  void runOnLLVMFunction(const model::Function &Function,
+                         llvm::Function &LLVMFunction);
 };
 
 } // namespace revng::pypeline::piperuns

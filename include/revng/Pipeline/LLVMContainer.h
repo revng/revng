@@ -11,11 +11,6 @@ inline Logger ModuleStatisticsLogger("module-statistics");
 
 namespace pipeline {
 
-/// Creates a global variable in the provided module that holds a pointer to
-/// each other global object so that they can't be removed by the linker
-void makeGlobalObjectsArray(llvm::Module &Module,
-                            llvm::StringRef GlobalArrayName);
-
 class LLVMContainer : public EnumerableContainer<LLVMContainer> {
 private:
   using LinkageRestoreMap = std::map<std::string,

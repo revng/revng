@@ -8,6 +8,7 @@
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CSemantics.h"
 #include "revng/CliftImportModel/ModelVerify.h"
+#include "revng/CliftPipes/CBackendPipe.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Containers.h"
@@ -74,3 +75,32 @@ public:
 static pipeline::RegisterPipe<CBackendPipe> X;
 
 } // namespace
+
+namespace revng::pypeline::piperuns {
+
+EmitC::EmitC(const Model &Model,
+             llvm::StringRef Config,
+             llvm::StringRef DynamicConfig,
+             CliftFunctionContainer &Input,
+             PTMLCFunctionBytesContainer &Output) :
+  Input(Input), Output(Output) {
+}
+
+void EmitC::runOnFunction(const model::Function &Function) {
+  using namespace mlir::clift;
+
+  const auto &Target = TargetCImplementation::Default;
+  ObjectID Object(Function.Entry());
+
+  mlir::ModuleOp Module = Input.getModule(Object);
+  revng_assert(clift::verifyCSemantics(Module, Target).succeeded());
+  FunctionOp MLIRFunction = getUniqueIsolatedFunction(Module, Function.Entry());
+
+  {
+    auto OS = Output.getOStream(Object);
+    CTokenEmitter Emitter(*OS, ptml::Tagging::Enabled);
+    clift::decompile(MLIRFunction, Emitter, Target);
+  }
+}
+
+} // namespace revng::pypeline::piperuns

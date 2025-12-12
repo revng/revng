@@ -18,7 +18,10 @@ class ObjectFile;
 struct ImporterOptions;
 llvm::Error importBinary(TupleTree<model::Binary> &Model,
                          llvm::object::ObjectFile &BinaryHandle,
-                         const ImporterOptions &Options);
+                         const ImporterOptions &Options,
+                         model::BinaryReference &BinaryReference);
+
 llvm::Error importBinary(TupleTree<model::Binary> &Model,
-                         llvm::StringRef Path,
-                         const ImporterOptions &Options);
+                         llvm::MemoryBuffer &Buffer,
+                         const ImporterOptions &Options,
+                         model::BinaryReference &BinaryReference);

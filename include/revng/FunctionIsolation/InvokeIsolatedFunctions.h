@@ -9,22 +9,36 @@
 namespace revng::pypeline::piperuns {
 
 class InvokeIsolatedFunctions {
+private:
+  const model::Binary &Binary;
+  const LLVMRootContainer &Root;
+  const LLVMFunctionContainer &Functions;
+  LLVMRootContainer &Output;
+
 public:
   static constexpr llvm::StringRef Name = "invoke-isolated-functions";
-  using Arguments = TypeList<
-    PipeArgument<"RootModule", "Root module containing the root function">,
-    PipeArgument<"FunctionModules",
-                 "LLVM Modules containing isolated functions">,
-    PipeArgument<"Output",
-                 "Output LLVM Module with root, functions and dispatcher",
-                 Access::Write>>;
+  using Arguments = TypeList<PipeRunArgument<const LLVMRootContainer,
+                                             "RootModule",
+                                             "Root module containing the root "
+                                             "function">,
+                             PipeRunArgument<const LLVMFunctionContainer,
+                                             "FunctionModules",
+                                             "LLVM Modules containing isolated "
+                                             "functions">,
+                             PipeRunArgument<LLVMRootContainer,
+                                             "Output",
+                                             "Output LLVM Module with root, "
+                                             "functions and dispatcher",
+                                             Access::Write>>;
 
-  static void run(const class Model &Model,
-                  llvm::StringRef Config,
-                  llvm::StringRef DynamicConfig,
-                  const LLVMRootContainer &Root,
-                  const LLVMFunctionContainer &Functions,
-                  LLVMRootContainer &Output);
+  InvokeIsolatedFunctions(const class Model &Model,
+                          llvm::StringRef Config,
+                          llvm::StringRef DynamicConfig,
+                          const LLVMRootContainer &Root,
+                          const LLVMFunctionContainer &Functions,
+                          LLVMRootContainer &Output);
+
+  void run();
 };
 
 } // namespace revng::pypeline::piperuns

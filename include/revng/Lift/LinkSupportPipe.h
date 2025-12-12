@@ -39,16 +39,23 @@ public:
 namespace revng::pypeline::piperuns {
 
 class LinkSupport {
-public:
-  static constexpr llvm::StringRef Name = "link-support";
-  using Arguments = TypeList<
-    PipeArgument<"Module", "Module to link support into">>;
+private:
+  const model::Binary &Binary;
+  LLVMRootContainer &ModuleContainer;
 
 public:
-  static void run(const class Model &Model,
-                  llvm::StringRef Config,
-                  llvm::StringRef DynamicConfig,
-                  LLVMRootContainer &ModuleContainer);
+  static constexpr llvm::StringRef Name = "link-support";
+  using Arguments = TypeList<PipeRunArgument<LLVMRootContainer,
+                                             "Module",
+                                             "Module to link support into">>;
+
+public:
+  LinkSupport(const class Model &Model,
+              llvm::StringRef Config,
+              llvm::StringRef DynamicConfig,
+              LLVMRootContainer &ModuleContainer);
+
+  void run();
 };
 
 } // namespace revng::pypeline::piperuns

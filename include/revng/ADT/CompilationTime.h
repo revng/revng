@@ -200,4 +200,34 @@ template<auto &V>
              or std::is_function_v<std::remove_pointer_t<decltype(V)>>
 using FunctionTraits = detail::FunctionTraits<decltype(V)>;
 
+/// Helper function that converts a pack of booleans to their constexpr
+/// counterpart, this is useful to e.g. have a type depending on a command-line
+/// option. Do note that the compiler will expand this to all the possible
+/// combinations, so given N booleans there will be 2**N template expansions.
+template<typename CallableT, typename... BoolType>
+  requires(std::is_same_v<BoolType, bool> and ...)
+inline constexpr auto
+invokeCombination(CallableT &&Callable, bool Bool, BoolType... BoolRest) {
+  if constexpr (sizeof...(BoolType) > 0) {
+    // Recursively call this functions with the remaining booleans
+    if (Bool) {
+      auto NextCallable = [&Callable]<bool... Bools>() {
+        return Callable.template operator()<true, Bools...>();
+      };
+      return invokeCombination(NextCallable, BoolRest...);
+    } else {
+      auto NextCallable = [&Callable]<bool... Bools>() {
+        return Callable.template operator()<false, Bools...>();
+      };
+      return invokeCombination(NextCallable, BoolRest...);
+    }
+  } else {
+    // We got to the last boolean, call `Callable` with the correct value
+    if (Bool)
+      return Callable.template operator()<true>();
+    else
+      return Callable.template operator()<false>();
+  }
+}
+
 } // namespace compile_time

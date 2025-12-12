@@ -81,6 +81,11 @@ public:
 
   ~InitRevng() { OnQuit->quit(); }
 
+  InitRevng(const InitRevng &) = delete;
+  InitRevng &operator=(const InitRevng &) = delete;
+  InitRevng(InitRevng &&) = delete;
+  InitRevng &operator=(InitRevng &&) = delete;
+
 private:
   void initializeLLVMLibraries();
 };

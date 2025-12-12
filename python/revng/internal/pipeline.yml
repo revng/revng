@@ -8,7 +8,7 @@ containers:
   - name: llvm-root
     type: LLVMRootContainer
   - name: model-header
-    type: CBytesContainer
+    type: PTMLCBytesContainer
   - name: model-types
     type: PTMLCTypeContainer
   - name: cfg-map
@@ -27,18 +27,51 @@ containers:
     type: TranslatedContainer
   - name: llvm-root-with-functions
     type: LLVMRootContainer
+  - name: clift-functions
+    type: CliftFunctionContainer
+  - name: decompile-c
+    type: PTMLCFunctionBytesContainer
+  - name: decompiled-single-file
+    type: PTMLCBytesContainer
+  - name: llvm-root-merged
+    type: LLVMRootContainer
+  - name: cross-relations
+    type: CrossRelationsContainer
+  - name: call-graph
+    type: CallGraphContainer
+  - name: call-graph-slice
+    type: CallGraphSliceContainer
+  - name: function-cfg
+    type: FunctionControlFlowContainer
 
 analyses:
   - apply-diff
   - verify-diff
   - set-model
   - verify-model
+  - import-well-known-models
+  - convert-functions-to-cabi
+
+analysis_lists:
+  - name: initial-auto-analysis
+    analyses:
+      - parse-binary
+      - import-well-known-models
+      - detect-abi
+      - detect-stack-size
+      - analyze-data-layout
+      - convert-functions-to-cabi
+    description: |
+      The initial auto analysis that should be run to automatically detect functions and types
 
 branches:
   files-imported:
     tasks:
       - pipe: import-files
         arguments: [binaries-container]
+        analyses:
+          - analysis: parse-binary
+            containers: [binaries-container]
 
   lift:
     from: files-imported
@@ -48,13 +81,16 @@ branches:
       - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root]
         configuration:
-          Passes:
+          passes:
             - globaldce
       - savepoint: lifted
         containers: [llvm-root]
         artifacts:
           - name: lift
             container: llvm-root
+        analyses:
+          - analysis: detect-abi
+            containers: [llvm-root]
 
   collect-cfg:
     from: lift
@@ -63,6 +99,9 @@ branches:
         arguments: [llvm-root, cfg-map]
       - savepoint: cfg-computed
         containers: [cfg-map]
+        artifacts:
+          - name: emit-cfg
+            container: cfg-map
 
   isolate:
     from: collect-cfg
@@ -85,7 +124,7 @@ branches:
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
-          Passes:
+          passes:
             - strip-debug-info-from-helpers
       # Note: we're running promote-csvs twice: it is important to run
       #       it before inline-helpers so that mem2reg can constant
@@ -97,7 +136,7 @@ branches:
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
-          Passes:
+          passes:
             - mem2reg
             - inline-helpers
       - pipe: attach-debug-info
@@ -107,7 +146,7 @@ branches:
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
-          Passes:
+          passes:
             - remove-exceptional-functions
             - strip-dead-debug-info
       - savepoint: enforce-abi
@@ -115,6 +154,228 @@ branches:
         artifacts:
           - name: enforce-abi
             container: llvm-functions
+
+  detect-stack-size:
+    from: enforce-abi
+    tasks:
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes: [dce]
+      - pipe: remove-lifting-artifacts
+        arguments: [llvm-functions]
+      - pipe: promote-init-csv-to-undef
+        arguments: [llvm-functions]
+      - pipe: inject-stack-size-probes-at-callsites
+        arguments: [llvm-functions]
+      - pipe: promote-stack-pointer
+        arguments: [llvm-functions]
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes:
+            - dce
+            - remove-extractvalues
+            - simplify-cfg-with-hoist-and-sink
+            - dse
+            - instcombine
+            - remove-extractvalues
+            - sroa
+            - instsimplify
+            - jump-threading
+            - licm
+            - unreachableblockelim
+            - instcombine
+            - remove-extractvalues
+            - early-cse
+            - simplify-cfg-with-hoist-and-sink
+            - early-type-shrinking
+            - type-shrinking
+            - early-cse
+            - instsimplify
+            - gvn
+            - instsimplify
+            - dse
+            - dce
+            # In Outliner we inject some store of opaque values before calls
+            # targeting the link register/top of the stack: the goal is make
+            # sure the stores writing the return address are dead.
+            # After the previous optimization pipeline, dead store elimination
+            # should have removed such stores, therefore, we can now drop
+            # those injected by us too.
+            - drop-opaque-return-address
+            - globaldce
+      - pipe: simplify-switch
+        arguments: [binaries-container, llvm-functions]
+      - savepoint: simplify-switch
+        containers: [llvm-functions]
+        artifacts:
+          - name: simplify-switch
+            container: llvm-functions
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes:
+            - remove-stack-alignment
+            - instrument-stack-accesses
+            - instcombine
+            - remove-extractvalues
+            - loop-rotate
+            - loop-simplify
+            - compute-stack-accesses-bounds
+      - savepoint: detect-stack-size
+        containers: [llvm-functions]
+        analyses:
+          - analysis: detect-stack-size
+            containers: [llvm-functions]
+
+  make-segment-ref:
+    from: detect-stack-size
+    tasks:
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes: [hoist-struct-phis]
+      - pipe: legacy-segregate-stack-accesses
+        arguments: [llvm-functions]
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes:
+            - cleanup-stack-size-markers
+            - dce
+            - sroa
+            - instcombine
+            - remove-extractvalues
+            - sroa
+            - simplify-cfg-with-hoist-and-sink
+            # loop-rotate rearranges loops in a way that should make it
+            # easier to match do-while loops
+            - loop-rotate
+            - loop-rewrite-with-canonical-induction-variable
+            - simplify-cfg-with-hoist-and-sink
+            # don't run simplify-cfg{,-with-hoist-and-sink} after
+            # loop-simplify because it kills the loop-simplify form causing
+            # DLA not to identify arrays properly
+            - loop-simplify
+            - instcombine
+            - remove-extractvalues
+            - early-cse
+            - dce
+            - strip-dead-prototypes
+            - split-overflow-intrinsics
+            - dce
+            - remove-llvmassume-calls
+      - pipe: make-segment-ref
+        arguments: [binaries-container, llvm-functions]
+      - savepoint: make-segment-ref
+        containers: [llvm-functions]
+        artifacts:
+          - name: make-segment-ref
+            container: llvm-functions
+        analyses:
+          - analysis: analyze-data-layout
+            containers: [llvm-functions]
+
+  backend:
+    from: detect-stack-size
+    tasks:
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes:
+            - hoist-struct-phis
+      - pipe: segregate-stack-accesses
+        arguments: [llvm-functions]
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes:
+            - cleanup-stack-size-markers
+            - dce
+            - sroa-noarrays
+            - instcombine-noarrays
+            - remove-extractvalues
+            - sroa-noarrays
+            - simplify-cfg-with-hoist-and-sink
+            # loop-rotate rearranges loops in a way that should make it
+            # easier to match do-while loops
+            - loop-rotate
+            - loop-rewrite-with-canonical-induction-variable
+            - simplify-cfg-with-hoist-and-sink
+            # don't run simplify-cfg{,-with-hoist-and-sink} after
+            # loop-simplify because it kills the loop-simplify form causing
+            # DLA not to identify arrays properly
+            - loop-simplify
+            - instcombine-noarrays
+            - remove-extractvalues
+            - early-cse
+            - dce
+            - strip-dead-prototypes
+            - split-overflow-intrinsics
+            - dce
+      - savepoint: segregate-stack-accesses
+        containers: [llvm-functions]
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes:
+            - remove-llvmassume-calls
+            - dce
+            - peephole-opt-for-decompilation
+            - ternary-reduction
+            - exit-ssa
+      - pipe: switch-to-statements
+        arguments: [llvm-functions]
+      - pipe: pure-llvm-passes-pipe
+        arguments: [llvm-functions]
+        configuration:
+          passes:
+            - remove-constant-array-returns
+            - dagify
+            - inline-divergent-scopes
+            - enforce-single-exit
+            - materialize-trivial-goto
+            - select-scope
+            - inline-divergent-scopes
+            - enforce-single-exit
+            - materialize-trivial-goto
+      - pipe: llvm-to-clift
+        arguments: [llvm-functions, clift-functions]
+      - pipe: pure-mlir-passes-pipe
+        arguments: [clift-functions]
+        configuration:
+          passes:
+            - trivial-return-elimination
+            - label-merging
+            - loop-detection
+            - optimize-statements
+            - label-merging
+            - optimize-expressions
+            - terminal-branch-complement-hoisting
+            - c-legalization
+            - deduce-immediate-radices
+      - pipe: model-verify-clift
+        arguments: [clift-functions]
+      - savepoint: decompile-clift
+        containers: [clift-functions]
+      - pipe: import-model-names
+        arguments: [clift-functions]
+      - pipe: emit-c
+        arguments: [clift-functions, decompile-c]
+      - savepoint: emit-c
+        containers: [decompile-c]
+        artifacts:
+          - name: emit-c
+            container: decompile-c
+
+      - pipe: decompile-to-single-file
+        arguments: [decompile-c, decompiled-single-file]
+      - savepoint: emit-c-as-single-file
+        containers: [decompiled-single-file]
+        artifacts:
+          - name: emit-c-as-single-file
+            container: decompiled-single-file
 
   emit-model-header:
     tasks:
@@ -176,7 +437,7 @@ branches:
       - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root]
         configuration:
-          Passes: [drop-opaque-return-address]
+          passes: [drop-opaque-return-address]
       - pipe: compile-root-module
         arguments: [llvm-root, object-file]
       - pipe: link-for-translation
@@ -197,7 +458,7 @@ branches:
       - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root-with-functions]
         configuration:
-          Passes: [drop-opaque-return-address]
+          passes: [drop-opaque-return-address]
       - pipe: compile-root-module
         arguments: [llvm-root-with-functions, object-file]
       - pipe: link-for-translation
@@ -207,3 +468,63 @@ branches:
         artifacts:
           - name: recompile-isolated
             container: translated
+
+  cleanup-ir:
+    from: make-segment-ref
+    tasks:
+      - pipe: merge-llvm-modules
+        arguments: [llvm-functions, llvm-root-merged]
+      - pipe: pure-llvm-passes-root-pipe
+        arguments: [llvm-root-merged]
+        configuration:
+          passes: [instcombine]
+      - pipe: cleanup-ir
+        arguments: [llvm-root-merged]
+      - pipe: pure-llvm-passes-root-pipe
+        arguments: [llvm-root-merged]
+        configuration:
+          passes: [dce]
+      - savepoint: cleanup-ir
+        containers: [llvm-root-merged]
+        artifacts:
+          - name: cleanup-ir
+            container: llvm-root-merged
+
+  process-call-graph:
+    from: collect-cfg
+    tasks:
+      - pipe: process-call-graph
+        arguments: [cfg-map, cross-relations]
+
+  yield-call-graph:
+    from: process-call-graph
+    tasks:
+      - pipe: yield-call-graph
+        arguments: [cross-relations, call-graph]
+      - savepoint: yield-call-graph
+        containers: [call-graph]
+        artifacts:
+          - name: render-svg-call-graph
+            container: call-graph
+
+  yield-call-graph-slice:
+    from: process-call-graph
+    tasks:
+      - pipe: yield-call-graph-slice
+        arguments: [cross-relations, call-graph-slice]
+      - savepoint: yield-call-graph-slice
+        containers: [call-graph-slice]
+        artifacts:
+          - name: render-svg-call-graph-slice
+            container: call-graph-slice
+
+  yield-cfg:
+    from: process-assembly
+    tasks:
+      - pipe: yield-cfg
+        arguments: [assembly-internal, function-cfg]
+      - savepoint: yield-cfg
+        containers: [function-cfg]
+        artifacts:
+          - name: render-svg-cfg
+            container: function-cfg

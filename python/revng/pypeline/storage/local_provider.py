@@ -12,6 +12,7 @@ from collections.abc import Buffer
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import AsyncGenerator, Collection, Mapping
 from uuid import uuid4
 
@@ -22,7 +23,7 @@ from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
-from revng.pypeline.utils import Locked, cache_directory, crypto_hash
+from revng.pypeline.utils import Locked, crypto_hash
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
 
@@ -234,7 +235,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         db_name = crypto_hash(str(model_path)) + ".sqlite"
         db_path = Path(cache_dir) / db_name
         pypeline_logger.log(f'Using DB "{db_path}"')
-        return LocalStorageProvider(str(db_path), str(model_path))
+        return LocalStorageProvider(db_path, model_path, Path(cache_dir))
 
     @asynccontextmanager
     async def get(
@@ -261,17 +262,64 @@ class LocalStorageProviderFactory(StorageProviderFactory):
             yield provider
 
 
+TemporaryProviderTuple = tuple["LocalStorageProvider", TemporaryDirectory]
+
+
+class TemporaryLocalStorageProviderFactory(StorageProviderFactory):
+    def __init__(self, url: str):
+        assert url == "temporary://"
+        self.providers: Locked[dict[ProjectID | None, Locked[TemporaryProviderTuple]]] = Locked({})
+
+    @classmethod
+    def scheme(cls) -> str:
+        return "temporary"
+
+    @asynccontextmanager
+    async def get(
+        self,
+        project_id: ProjectID | None,
+        token: str | None,
+        cache_dir: str | None,
+    ) -> AsyncGenerator[StorageProvider]:
+        model_type = get_singleton(Model)  # type: ignore [type-abstract]
+        model_name = model_type.model_name()
+
+        # Get or create the provider for the given project ID
+        async with self.providers() as providers:
+            project_provider: Locked[TemporaryProviderTuple] | None = providers.get(project_id)
+            # If the provider is not found, create a new one and put it in a lock
+            if project_provider is None:
+                temporary_dir = TemporaryDirectory()
+                temp_dir_path = Path(temporary_dir.name)
+                (temp_dir_path / model_name).touch()
+                (temp_dir_path / "cache").mkdir()
+
+                storage_provider = LocalStorageProvider(
+                    db_path=temp_dir_path / "db.sqlite",
+                    model_path=temp_dir_path / model_name,
+                    cache_dir=temp_dir_path / "cache",
+                )
+                project_provider = Locked((storage_provider, temporary_dir))
+                providers[project_id] = project_provider
+
+        # Release the global lock and acquire the project-specific one so other
+        # projects can proceed in parallel
+        async with project_provider() as provider:
+            yield provider[0]
+
+
 class LocalStorageProvider(StorageProvider):
     """StorageProvider implementation with backing sqlite3 db"""
 
-    def __init__(self, db_path: str, model_path: str | Path):
+    def __init__(self, db_path: str | Path, model_path: Path, cache_dir: Path):
         check_kind_structure()
-        self._model_path = Path(model_path)
+        self._model_path = model_path
         self._model_directory = self._model_path.parent.resolve()
         self._connection = sqlite3.connect(db_path, autocommit=False)
         self._connection.commit()
         self._init_tables()
         self.epoch = self._get_epoch()
+        self._cache_dir = cache_dir
 
     def _cursor(self) -> CursorWrapper:
         return CursorWrapper(self._connection)
@@ -466,7 +514,7 @@ class LocalStorageProvider(StorageProvider):
                 hash_ = compute_hash(file.contents)
 
             elif file.path is not None:
-                if file_path.parent.resolve() != self._model_directory:
+                if file.path.parent.resolve() != self._model_directory:
                     # If here, the file is not in the directory where the model
                     # is present, copy it there
                     file_path = self._model_directory / file.path.name
@@ -485,7 +533,7 @@ class LocalStorageProvider(StorageProvider):
         return {r.hash: self._find_file(r).read_bytes() for r in requests}
 
     def _write_link_file(self, path: Path, hash_: str):
-        link_file = cache_directory() / f"resources/{hash_}.link"
+        link_file = self._cache_dir / f"resources/{hash_}.link"
         link_file.parent.mkdir(parents=True, exist_ok=True)
 
         data = {}
@@ -496,15 +544,17 @@ class LocalStorageProvider(StorageProvider):
         paths.add(path.resolve())
         paths.add(path.relative_to(self._model_directory, walk_up=True))
 
-        mtimes = []
+        mtimes = [data.get("ModifiedTime", 0)]
         for path_element in paths:
+            if not path_element.exists():
+                continue
             mtimes.append(path_element.stat().st_mtime)
 
         data = {"PathHints": [str(p) for p in paths], "ModifiedTime": max(mtimes)}
         link_file.write_text(yaml.safe_dump(data))
 
     def _find_file(self, request: FileRequest) -> Path:
-        link_file = cache_directory() / f"resources/{request.hash}.link"
+        link_file = self._cache_dir / f"resources/{request.hash}.link"
         if link_file.is_file():
             data = yaml.safe_load(link_file.read_text())
 

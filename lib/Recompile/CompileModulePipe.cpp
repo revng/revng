@@ -238,12 +238,17 @@ static RegisterPipe<CompileIsolatedModule> E3;
 
 namespace revng::pypeline::piperuns {
 
-void CompileRootModule::run(const Model &TheModel,
-                            llvm::StringRef StaticConfig,
-                            llvm::StringRef DynamicConfig,
-                            LLVMRootContainer &Input,
-                            ObjectFileContainer &Output) {
-  compileModuleRunImpl(*TheModel.get().get(),
+CompileRootModule::CompileRootModule(const Model &TheModel,
+                                     llvm::StringRef StaticConfig,
+                                     llvm::StringRef DynamicConfig,
+                                     LLVMRootContainer &Input,
+                                     ObjectFileContainer &Output) :
+  Binary(*TheModel.get().get()), Input(Input), Output(Output) {
+}
+
+// TODO: inline compileModuleRunImpl once we dismiss the old pipeline
+void CompileRootModule::run() {
+  compileModuleRunImpl(Binary,
                        &Input.getModule(),
                        *Output.getOStream(ObjectID{}));
 }
