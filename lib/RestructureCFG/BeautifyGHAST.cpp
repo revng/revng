@@ -85,14 +85,15 @@ static RecursiveCoroutine<bool> hasSideEffects(ExprNode *Expr) {
     llvm::BasicBlock *BB = Atomic->getConditionalBasicBlock();
     for (llvm::Instruction &I : *BB) {
 
-      if (I.getType()->isVoidTy() and hasSideEffects(I)) {
-        // For Instructions with void type, AddLocalVariablesDueToSideEffects
+      if (I.getType()->isVoidTy() and I.mayHaveSideEffects()) {
+        // For Instructions with void type, SwitchToStatements
         // cannot properly assign them to LocalVariables because they have
         // void type, so we need to explicitly ask if they have side effects.
         rc_return true;
       } else {
         revng_assert(not isCallToTagged(&I, FunctionTags::Assign),
-                     "call to assign should have matched void+hasSideEffects");
+                     "call to assign should have matched "
+                     "void+mayHaveSideEffects");
       }
     }
     rc_return false;
