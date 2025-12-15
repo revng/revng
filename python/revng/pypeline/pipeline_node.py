@@ -9,15 +9,14 @@ from typing import TYPE_CHECKING, Annotated, List, Mapping, Optional, Sequence, 
 from typing import overload
 
 from .container import Configuration, ConfigurationId, Container, ContainerDeclaration
-from .container import ContainerSet
 from .model import ReadOnlyModel
 from .object import ObjectSet
 from .storage.file_provider import FileProvider
-from .storage.storage_provider import SavePointsRange, StorageProvider, StorageProviderFileProvider
-from .task.pipe import ObjectDependencies, Pipe, PipeDependencies, ScheduledTaskDependencies
+from .storage.storage_provider import SavePointsRange, StorageProvider
+from .task.pipe import Pipe, PipeDependencies
 from .task.requests import Requests
 from .task.savepoint import SavePoint
-from .task.task import TaskArgument, TaskArgumentAccess
+from .task.task import TaskArgument
 
 if TYPE_CHECKING:
     from _typeshed import SupportsRichComparison
@@ -189,72 +188,6 @@ class PipelineNode:
             for pipe in sorted(self.pipe_dependencies, key=lambda x: (x.name, x.signature())):
                 hasher.update(configuration.get(pipe, "").encode())
         return hasher.hexdigest()
-
-    def run(
-        self,
-        model: ReadOnlyModel,
-        containers: ContainerSet,
-        incoming: Requests,
-        outgoing: Requests,
-        pipeline_configuration: PipelineConfiguration,
-        storage_provider: StorageProvider,
-    ) -> ScheduledTaskDependencies | None:
-        """Forward the run call to the task, but remap the requests and containers."""
-        if isinstance(self.task, SavePoint):
-            assert (
-                self.savepoint_range is not None
-            ), "SavePoint range must be set before calling run on a SavePoint"
-            self.task.run(
-                containers=containers,
-                incoming=incoming,
-                outgoing=outgoing,
-                configuration_id=self.configuration_id(pipeline_configuration),
-                storage_provider=storage_provider,
-                savepoint_range=self.savepoint_range,
-            )
-            # SavePoints do not return any dependencies
-            return None
-        elif isinstance(self.task, Pipe):
-            pipe_containers = [containers[decl] for decl in self.bindings]
-            pipe_incoming = [incoming.get(decl) for decl in self.bindings]
-            pipe_outgoing = [outgoing.get(decl) for decl in self.bindings]
-            pipe_output = self.task.run(
-                file_provider=StorageProviderFileProvider(storage_provider),
-                model=model,
-                containers=pipe_containers,
-                incoming=pipe_incoming,
-                outgoing=pipe_outgoing,
-                configuration=pipeline_configuration.get(self.task, ""),
-            )
-
-            result: ObjectDependencies = []
-            for index, index_deps in enumerate(pipe_output.dependencies):
-                container_type = self.task.signature()[index]
-                if container_type.access == TaskArgumentAccess.READ:
-                    assert len(index_deps) == 0, (
-                        "An read only container cannot produce new objects so it can't add "
-                        f"dependencies. For container {container_type.name} got dependencies "
-                        f"{index_deps}"
-                    )
-                result.extend((self.bindings[index].name, obj, path) for obj, path in index_deps)
-
-            # Check if the pipe output
-            if not all(len(x) == 0 for x in pipe_output.custom_invalidation):
-                assert self.task.has_custom_invalidation(), (
-                    f"Pipe {self.task.name} returned advanced invalidation data"
-                    "but did not override the 'invalidate' method"
-                )
-                for index, invalidation in enumerate(pipe_output.custom_invalidation):
-                    argument = self.task.signature()[index]
-                    if argument.access == TaskArgumentAccess.READ:
-                        assert len(invalidation) == 0, (
-                            f"Pipe {self.task.name} returned advanced "
-                            "invalidation data for a read-only container"
-                        )
-
-            return ScheduledTaskDependencies(result, pipe_output.custom_invalidation)
-        else:
-            raise TypeError(f"Unsupported task type: {type(self.task)}")
 
     def __repr__(self):
         return f"<PipelineNode: {self.task!r}>"

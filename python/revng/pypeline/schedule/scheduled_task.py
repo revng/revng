@@ -9,9 +9,11 @@ from typing import Generator
 from revng.pypeline.container import ContainerSet
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
-from revng.pypeline.storage.storage_provider import StorageProvider
-from revng.pypeline.task.pipe import ScheduledTaskDependencies
+from revng.pypeline.storage.storage_provider import StorageProvider, StorageProviderFileProvider
+from revng.pypeline.task.pipe import ObjectDependencies, Pipe, ScheduledTaskDependencies
 from revng.pypeline.task.requests import Requests
+from revng.pypeline.task.savepoint import SavePoint
+from revng.pypeline.task.task import TaskArgumentAccess
 
 
 class ScheduledTask:
@@ -90,14 +92,68 @@ class ScheduledTask:
         if self.completed:
             raise RuntimeError(f"ScheduledTask {self.node} has already been run.")
         self.incoming.check(containers)
-        result = self.node.run(
-            model=self.model,
-            containers=containers,
-            incoming=self.incoming,
-            outgoing=self.outgoing,
-            pipeline_configuration=self.pipeline_configuration,
-            storage_provider=self.storage_provider,
-        )
+
+        task = self.node.task
+        bindings = self.node.bindings
+        result: ScheduledTaskDependencies | None = None
+
+        if isinstance(task, SavePoint):
+            assert (
+                self.node.savepoint_range is not None
+            ), "SavePoint range must be set before calling run on a SavePoint"
+            task.run(
+                containers=containers,
+                incoming=self.incoming,
+                outgoing=self.outgoing,
+                configuration_id=self.node.configuration_id(self.pipeline_configuration),
+                storage_provider=self.storage_provider,
+                savepoint_range=self.node.savepoint_range,
+            )
+            # SavePoints do not return any dependencies
+        elif isinstance(task, Pipe):
+            pipe_containers = [containers[decl] for decl in bindings]
+            pipe_incoming = [self.incoming.get(decl) for decl in bindings]
+            pipe_outgoing = [self.outgoing.get(decl) for decl in bindings]
+            pipe_output = task.run(
+                file_provider=StorageProviderFileProvider(self.storage_provider),
+                model=self.model,
+                containers=pipe_containers,
+                incoming=pipe_incoming,
+                outgoing=pipe_outgoing,
+                configuration=self.pipeline_configuration.get(task, ""),
+            )
+
+            result_pipe: ObjectDependencies = []
+            for index, index_deps in enumerate(pipe_output.dependencies):
+                container_type = task.signature()[index]
+                if container_type.access == TaskArgumentAccess.READ:
+                    assert len(index_deps) == 0, (
+                        "An read only container cannot produce new objects so it can't add "
+                        f"dependencies. For container {container_type.name} got dependencies "
+                        f"{index_deps}"
+                    )
+                result_pipe.extend(
+                    (self.node.bindings[index].name, obj, path) for obj, path in index_deps
+                )
+
+            # Check if the pipe output
+            if not all(len(x) == 0 for x in pipe_output.custom_invalidation):
+                assert task.has_custom_invalidation(), (
+                    f"Pipe {task.name} returned advanced invalidation data"
+                    "but did not override the 'invalidate' method"
+                )
+                for index, invalidation in enumerate(pipe_output.custom_invalidation):
+                    argument = task.signature()[index]
+                    if argument.access == TaskArgumentAccess.READ:
+                        assert len(invalidation) == 0, (
+                            f"Pipe {task.name} returned advanced "
+                            "invalidation data for a read-only container"
+                        )
+
+            result = ScheduledTaskDependencies(result_pipe, pipe_output.custom_invalidation)
+        else:
+            raise TypeError(f"Unsupported task type: {type(task)}")
+
         self.outgoing.check(containers)
         self.completed = True
         return result

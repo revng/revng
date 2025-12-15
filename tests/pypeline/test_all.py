@@ -24,6 +24,7 @@ from revng.pypeline.object import Kind, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
+from revng.pypeline.schedule.scheduled_task import ScheduledTask
 from revng.pypeline.storage.local_provider import LocalStorageProvider
 from revng.pypeline.storage.memory import InMemoryStorageProvider
 from revng.pypeline.storage.storage_provider import ContainerLocation, SavePointsRange
@@ -216,14 +217,14 @@ def test_pipeline_inplace(model, storage_provider):
     container.add_object(MyObjectID(MyKind.CHILD, "one"))
     container.add_object(MyObjectID(MyKind.CHILD, "two"))
     begin_configuration_id = begin_node.configuration_id(pipeline_configuration)
-    begin_node.run(
-        model=ReadOnlyModel(model),
-        containers={child_cont: container},
-        incoming=Requests({child_cont: one_two}),
-        outgoing=Requests({child_cont: one_two}),
-        pipeline_configuration=pipeline_configuration,
-        storage_provider=storage_provider,
+    task = ScheduledTask(
+        begin_node,
+        ReadOnlyModel(model),
+        storage_provider,
+        pipeline_configuration,
+        (Requests({child_cont: one_two}), Requests({child_cont: one_two})),
     )
+    task.run({child_cont: container})
 
     assert set(
         storage_provider.has(
@@ -291,14 +292,14 @@ def test_pipeline_up_down(model, storage_provider):
     container = RootDictContainer()
     container.add_object(MyObjectID.root())
     requests = Requests({root1: root_obj})
-    begin_node.run(
-        model=ReadOnlyModel(model),
-        containers={root1: container},
-        incoming=requests,
-        outgoing=requests,
-        pipeline_configuration=pipeline_configuration,
-        storage_provider=storage_provider,
+    task = ScheduledTask(
+        begin_node,
+        ReadOnlyModel(model),
+        storage_provider,
+        pipeline_configuration,
+        (requests, requests),
     )
+    task.run({root1: container})
 
     containers = pipeline.schedule(
         model=ReadOnlyModel(model),
@@ -344,14 +345,14 @@ def test_artifact(model, storage_provider):
     container = ChildDictContainer()
     container.add_object(MyObjectID(MyKind.CHILD, "one"))
     requests = Requests({child1: one})
-    begin_node.run(
-        model=ReadOnlyModel(model),
-        containers={child1: container},
-        incoming=requests,
-        outgoing=requests,
-        pipeline_configuration=pipeline_configuration,
-        storage_provider=storage_provider,
+    task = ScheduledTask(
+        begin_node,
+        ReadOnlyModel(model),
+        storage_provider,
+        pipeline_configuration,
+        (requests, requests),
     )
+    task.run({child1: container})
 
     res = pipeline.get_artifact(
         model=ReadOnlyModel(model),
@@ -618,14 +619,14 @@ def test_schedule_serdes(model):
     container = RootDictContainer()
     container.add_object(MyObjectID.root())
     requests = Requests({root1: root_obj})
-    begin_node.run(
-        model=ReadOnlyModel(model),
-        containers={root1: container},
-        incoming=requests,
-        outgoing=requests,
-        pipeline_configuration=pipeline_configuration,
-        storage_provider=storage_provider,
+    task = ScheduledTask(
+        begin_node,
+        ReadOnlyModel(model),
+        storage_provider,
+        pipeline_configuration,
+        (requests, requests),
     )
+    task.run({root1: container})
 
     schedule = pipeline.schedule(
         model=ReadOnlyModel(model),

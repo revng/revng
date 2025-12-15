@@ -17,6 +17,7 @@ from revng.pypeline.model import Model, ModelDiff, ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
+from revng.pypeline.schedule.scheduled_task import ScheduledTask
 from revng.pypeline.storage.memory import InMemoryStorageProvider
 from revng.pypeline.storage.storage_provider import ContainerLocation
 from revng.pypeline.task.pipe import Pipe
@@ -157,14 +158,14 @@ def check_simple_pipeline():
     foo_bar_request = Requests({child_cont: ObjectSet.from_list([foo, bar])})
 
     # Pre-populate the storage
-    begin_node.run(
-        model=ReadOnlyModel(model),
-        containers={child_cont: container},
-        incoming=foo_bar_request,
-        outgoing=foo_bar_request,
-        pipeline_configuration=pipeline_configuration,
-        storage_provider=storage_provider,
+    task = ScheduledTask(
+        begin_node,
+        ReadOnlyModel(model),
+        storage_provider,
+        pipeline_configuration,
+        (foo_bar_request, foo_bar_request),
     )
+    task.run({child_cont: container})
 
     # Check
     begin_node_config = begin_node.configuration_id(pipeline_configuration)
