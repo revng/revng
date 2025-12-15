@@ -242,10 +242,7 @@ def test_pipeline_inplace(model, storage_provider):
         requests=Requests({child_cont: one}),
         pipeline_configuration=pipeline_configuration,
         storage_provider=storage_provider,
-    ).run(
-        model=ReadOnlyModel(model),
-        storage_provider=storage_provider,
-    )
+    ).run()
     assert containers[child_cont].objects() == one
 
     end_configuration_id = end_node.configuration_id(pipeline_configuration)
@@ -309,10 +306,7 @@ def test_pipeline_up_down(model, storage_provider):
         requests=Requests({root2: root_obj}),
         pipeline_configuration=pipeline_configuration,
         storage_provider=storage_provider,
-    ).run(
-        model=ReadOnlyModel(model),
-        storage_provider=storage_provider,
-    )
+    ).run()
     assert containers[root2].objects() == root_obj
 
     end_configuration_id = end_node.configuration_id(pipeline_configuration)
@@ -394,10 +388,7 @@ def test_invalidation(model, storage_provider):
         requests=Requests({child: expected_output}),
         pipeline_configuration=pipeline_configuration,
         storage_provider=storage_provider,
-    ).run(
-        model=ReadOnlyModel(model),
-        storage_provider=storage_provider,
-    )
+    ).run()
     assert containers[child].objects() == expected_output
 
     assert set(
@@ -644,7 +635,7 @@ def test_schedule_serdes(model):
         storage_provider=storage_provider,
     )
     schedule_str = schedule.serialize()
-    pipeline.deserialize_schedule(schedule_str)
+    pipeline.deserialize_schedule(schedule_str, ReadOnlyModel(model), storage_provider)
 
 
 def test_storage_invalidation(storage_provider: StorageProvider):
@@ -736,7 +727,7 @@ def test_custom_invalidation(model, storage_provider: StorageProvider):
         pipeline_configuration=pipeline_configuration,
         storage_provider=storage_provider,
     )
-    schedule.run(model=model, storage_provider=storage_provider)
+    schedule.run()
 
     # Run the analysis and retrieve the invalidated objects. Due to the way
     # `GeneratorPipeWithInvalidation` works, it reads no model fields but will

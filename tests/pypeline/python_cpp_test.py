@@ -179,10 +179,7 @@ def check_simple_pipeline():
         pipeline_configuration=pipeline_configuration,
         storage_provider=storage_provider,
     )
-    schedule.run(
-        model=ReadOnlyModel(model),
-        storage_provider=storage_provider,
-    )
+    schedule.run()
 
     # Check that schedule.serialize works
     schedule.serialize()

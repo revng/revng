@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Generator
 
 from revng.pypeline.container import ContainerSet
@@ -15,7 +14,6 @@ from revng.pypeline.task.pipe import ScheduledTaskDependencies
 from revng.pypeline.task.requests import Requests
 
 
-@dataclass(slots=True)
 class ScheduledTask:
     """
     The scheduling works by figuring out which tasks to run, and which dependencies
@@ -35,43 +33,57 @@ class ScheduledTask:
     the same PipelineNode instance.
     """
 
-    node: PipelineNode
-    """The node of the pipeline we scheduled."""
+    def __init__(
+        self,
+        node: PipelineNode,
+        model: ReadOnlyModel,
+        storage_provider: StorageProvider,
+        pipeline_configuration: PipelineConfiguration,
+        requests: tuple[Requests, Requests] | None = None,
+        dependencies: list[ScheduledTask] | None = None,
+    ):
+        self.node = node
+        """The node of the pipeline we scheduled."""
+        self.model = model
+        """The model that this task will run on."""
+        self.storage_provider = storage_provider
+        """The storage provider that the task will use."""
+        self.pipeline_configuration = pipeline_configuration
+        """The pipeline configuration"""
 
-    completed: bool = False
-    """This is used for debug, and asserting that a schedule is not run twice."""
+        self.completed: bool = False
+        """This is used for debug, and asserting that a schedule is not run twice."""
+        self.incoming = Requests()
+        """
+        These are the dependencies of the task, i.e. the objects that this task
+        needs to run. This is computed during the scheduling phase, and is only used
+        to check that the task can run.
+        """
+        if requests is not None:
+            self.incoming = requests[0]
 
-    outgoing: Requests = field(default_factory=Requests)
-    """These are the objects this task is supposed to compute and put in each container."""
+        self.outgoing = Requests()
+        """These are the objects this task is supposed to compute and put in each container."""
+        if requests is not None:
+            self.outgoing = requests[1]
 
-    incoming: Requests = field(default_factory=Requests)
-    """
-    These are the dependencies of the task, i.e. the objects that this task
-    needs to run. This is computed during the scheduling phase, and is only used
-    to check that the task can run.
-    """
+        self.dependencies: list[ScheduledTask] = []
+        """
+        These are the scheduled tasks that this task depends on, after the scheduling
+        phase this list will contain only 0 or 1 elements as it's a path, but
+        the schedule can become a DAG.
+        """
+        if dependencies is not None:
+            self.dependencies = dependencies[:]
 
-    depends_on: list[ScheduledTask] = field(default_factory=list, repr=False)
-    """
-    These are the scheduled tasks that this task depends on, after the scheduling
-    phase this list will contain only 0 or 1 elements as it's a path, but
-    the schedule can become a DAG.
-    """
-
-    def request(self, incoming: Requests, outgoing: Requests) -> None:
+    def add_requests(self, incoming: Requests, outgoing: Requests) -> None:
         """
         Add requests to the incoming and outgoing requests of this task.
         """
         self.incoming.merge(incoming)
         self.outgoing.merge(outgoing)
 
-    def run(
-        self,
-        model: ReadOnlyModel,
-        containers: ContainerSet,
-        pipeline_configuration: PipelineConfiguration,
-        storage_provider: StorageProvider,
-    ) -> ScheduledTaskDependencies | None:
+    def run(self, containers: ContainerSet) -> ScheduledTaskDependencies | None:
         """
         Run the task with the requests computed during the scheduling phase.
         """
@@ -79,12 +91,12 @@ class ScheduledTask:
             raise RuntimeError(f"ScheduledTask {self.node} has already been run.")
         self.incoming.check(containers)
         result = self.node.run(
-            model=model,
+            model=self.model,
             containers=containers,
             incoming=self.incoming,
             outgoing=self.outgoing,
-            pipeline_configuration=pipeline_configuration,
-            storage_provider=storage_provider,
+            pipeline_configuration=self.pipeline_configuration,
+            storage_provider=self.storage_provider,
         )
         self.outgoing.check(containers)
         self.completed = True
@@ -97,7 +109,7 @@ class ScheduledTask:
         including the task itself.
         """
         yield self
-        for dependency in self.depends_on:
+        for dependency in self.dependencies:
             yield from dependency.all_dependencies()
 
     def __hash__(self):
