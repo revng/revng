@@ -109,6 +109,9 @@ class Schedule:
             if isinstance(task.node.task, Pipe):
                 task.node.task.check_precondition(self.model)
 
+        # Notify the tasks which containers are going to be discardable
+        self._identify_discardable_containers()
+
         # Produce a set of working containers
         working_containers: ContainerSet = {
             declaration: declaration.instance() for declaration in self.declarations
@@ -239,3 +242,48 @@ class Schedule:
             visited_tasks.append(task)
 
         return yaml.safe_dump({"containers": containers, "tasks": tasks})
+
+    def _identify_discardable_containers(self):
+        """
+        Given a schedule, set the ScheduleTasks with the containers that will
+        be discarded when the schedule is executed.
+        """
+
+        scheduled_task: ScheduledTask | None = self.target_task
+        # Assume that all the outgoing request of the target task are going to
+        # be read, so the caller of the `run` method is implicitly the last reader
+        readers_encountered: set[ContainerDeclaration] = {
+            cd for cd, objects in self.target_task.outgoing.items() if len(objects) != 0
+        }
+
+        # Inspect the tasks in backward order, from the last one to the first.
+        # The logic used is the following:
+        # * If a task is the last one to read (either with READ or READ_WRITE)
+        #   a container, the container should be marked as disposable
+        # * If a task clobbers a container (with WRITE) then the container can
+        #   be marked as disposable in the preceding task
+        while scheduled_task is not None:
+            # Assume that this schedule is a straight line of tasks, as it
+            # simplifies the logic needed
+            assert len(scheduled_task.dependencies) in (0, 1)
+
+            for argument in scheduled_task.node.arguments:
+                container_declaration = argument.declaration()
+                # Here check for both READ and READ_WRITE, since if it's the
+                # last one the READ_WRITE is effectively READ
+                if (
+                    argument.access & TaskArgumentAccess.READ
+                    and container_declaration not in readers_encountered
+                ):
+                    scheduled_task.disposable_containers.add(container_declaration)
+                    readers_encountered.add(container_declaration)
+
+                # If the task writes to the container (clobbering it) then
+                # tasks that depend on this one can also expire the container
+                if argument.access == TaskArgumentAccess.WRITE:
+                    readers_encountered.discard(container_declaration)
+
+            if len(scheduled_task.dependencies) == 1:
+                scheduled_task = scheduled_task.dependencies[0]
+            else:
+                scheduled_task = None

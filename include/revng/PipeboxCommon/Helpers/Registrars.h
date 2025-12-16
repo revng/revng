@@ -97,6 +97,8 @@ struct RegisterContainer {
         .def(nanobind::init<>())
         .def("objects", &python::ContainerIO<T>::objects)
         .def("verify", &T::verify)
+        .def("set_is_disposable", &T::setIsDisposable)
+        .def("dispose_if_possible", &T::disposeIfPossible)
         .def("deserialize", &python::ContainerIO<T>::deserialize)
         .def("serialize", &python::ContainerIO<T>::serialize);
     });

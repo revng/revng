@@ -46,6 +46,18 @@ bool StringContainer::verify() const {
   return true;
 }
 
+void StringContainer::setIsDisposable() {
+  Disposable = true;
+}
+
+void StringContainer::disposeIfPossible() {
+  if (not Disposable)
+    return;
+
+  Storage.clear();
+  Disposable = false;
+}
+
 //
 // AppendFooPipe
 //

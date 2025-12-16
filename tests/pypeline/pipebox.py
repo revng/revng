@@ -221,6 +221,12 @@ class DictContainer(Container, ABC):
             return dict.fromkeys(self._object_list, b"")
         return dict.fromkeys(objects.objects, b"")
 
+    def set_is_disposable(self):
+        pass
+
+    def dispose_if_possible(self):
+        pass
+
 
 class RootDictContainer(DictContainer):
     name = "RootDictContainer"

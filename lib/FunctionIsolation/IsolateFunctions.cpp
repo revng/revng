@@ -734,7 +734,13 @@ Isolate::Isolate(const class Model &Model,
                  LLVMRootContainer &Root,
                  LLVMFunctionContainer &Output) :
   Output(Output), GCBI(*Model.get().get()) {
-  ClonedModule = cloneIntoContext(Root.getModule(), Output.getContext());
+  // Manually perform `cloneIntoContext` to prune the root container as early as
+  // possible
+  llvm::SmallVector<char, 0> Buffer;
+  writeBitcode(Root.getModule(), Buffer);
+  Root.disposeIfPossible();
+  ClonedModule = readBitcode(Buffer, Output.getContext());
+
   GCBI.run(*ClonedModule);
 
   auto CFGGetter =

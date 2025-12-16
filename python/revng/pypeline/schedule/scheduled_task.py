@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Generator
 
-from revng.pypeline.container import ContainerSet
+from revng.pypeline.container import ContainerDeclaration, ContainerSet
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.storage.storage_provider import StorageProvider, StorageProviderFileProvider
@@ -78,6 +78,12 @@ class ScheduledTask:
         if dependencies is not None:
             self.dependencies = dependencies[:]
 
+        self.disposable_containers: set[ContainerDeclaration] = set()
+        """
+        These containers are expring, meaning that they will not be read after
+        this task has run
+        """
+
     def add_requests(self, incoming: Requests, outgoing: Requests) -> None:
         """
         Add requests to the incoming and outgoing requests of this task.
@@ -96,6 +102,9 @@ class ScheduledTask:
         task = self.node.task
         bindings = self.node.bindings
         result: ScheduledTaskDependencies | None = None
+
+        for container_declaration in self.disposable_containers:
+            containers[container_declaration].set_is_disposable()
 
         if isinstance(task, SavePoint):
             assert (
@@ -156,6 +165,9 @@ class ScheduledTask:
 
         self.outgoing.check(containers)
         self.completed = True
+        for container_declaration in self.disposable_containers:
+            containers[container_declaration].dispose_if_possible()
+
         return result
 
     def all_dependencies(self) -> Generator[ScheduledTask, None, None]:

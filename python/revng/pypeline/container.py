@@ -151,6 +151,20 @@ class Container(ABC):
         objects if none are specified.
         """
 
+    @abstractmethod
+    def set_is_disposable(self):
+        """
+        Sets that the container's content is not going to be used shortly.
+        This allows calls to `dispose_if_possible` to actually remove the content.
+        """
+
+    @abstractmethod
+    def dispose_if_possible(self):
+        """
+        If `set_is_disposable` has been called, prune the container, otherwise do
+        nothing.
+        """
+
     @classmethod
     @abstractmethod
     def mime_type(cls) -> str:

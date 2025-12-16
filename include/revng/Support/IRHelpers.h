@@ -1561,6 +1561,10 @@ cloneFiltered(llvm::Module &Module, std::set<const llvm::Function *> &ToClone);
 void writeBitcode(const llvm::Module &Module,
                   llvm::SmallVectorImpl<char> &Output);
 
+/// Deserialize bitcode to a llvm::Module from a buffer
+std::unique_ptr<llvm::Module> readBitcode(llvm::ArrayRef<char> Input,
+                                          llvm::LLVMContext &Context);
+
 /// Copy a module to a new LLVMContext.
 std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
                                                llvm::LLVMContext &NewContext);

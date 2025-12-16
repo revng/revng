@@ -23,6 +23,7 @@ public:
   static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
 
 private:
+  static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
   static inline const mlir::DialectRegistry MLIRDialectRegistry = ([]() {
     mlir::DialectRegistry Registry;
     Registry.insert<mlir::clift::CliftDialect>();
@@ -30,12 +31,13 @@ private:
   })();
 
 private:
-  mlir::MLIRContext Context;
+  bool Disposable = false;
+  std::optional<mlir::MLIRContext> Context;
   std::map<ObjectID, mlir::OwningOpRef<mlir::ModuleOp>> Modules;
 
 public:
   CliftFunctionContainer() :
-    Context(MLIRDialectRegistry, mlir::MLIRContext::Threading::DISABLED) {}
+    Context(std::in_place_t{}, MLIRDialectRegistry, Threading) {}
 
 public:
   std::set<ObjectID> objects() const {
@@ -44,7 +46,7 @@ public:
 
   void
   deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
-    const mlir::ParserConfig Config(&Context);
+    const mlir::ParserConfig Config(&*Context);
     for (auto const &[Object, Buffer] : Data) {
       llvm::StringRef String(Buffer.data(), Buffer.size());
       auto NewModule = mlir::parseSourceString<mlir::ModuleOp>(String, Config);
@@ -73,9 +75,20 @@ public:
     return Result;
   }
 
+  void setIsDisposable() { Disposable = true; }
+
+  void disposeIfPossible() {
+    if (not Disposable)
+      return;
+
+    Modules.clear();
+    Context.emplace(MLIRDialectRegistry, Threading);
+    Disposable = false;
+  }
+
 public:
-  mlir::MLIRContext &getContext() { return Context; }
-  const mlir::MLIRContext &getContext() const { return Context; }
+  mlir::MLIRContext &getContext() { return *Context; }
+  const mlir::MLIRContext &getContext() const { return *Context; }
 
   const mlir::ModuleOp getModule(const ObjectID &ID) const {
     return *Modules.at(ID);
@@ -84,7 +97,7 @@ public:
   mlir::ModuleOp getModule(const ObjectID &ID) { return *Modules.at(ID); }
 
   void assign(const ObjectID &ID, mlir::ModuleOp NewModule) {
-    revng_assert(&Context == NewModule->getContext());
+    revng_assert(&*Context == NewModule->getContext());
     Modules[ID] = NewModule;
   }
 };

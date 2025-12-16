@@ -19,6 +19,7 @@ public:
   static constexpr llvm::StringRef MimeType = TheMime;
 
 private:
+  bool Disposable = false;
   std::map<ObjectID, Buffer> Map;
 
 public:
@@ -46,6 +47,16 @@ public:
   }
 
   bool verify() const { return true; }
+
+  void setIsDisposable() { Disposable = true; }
+
+  void disposeIfPossible() {
+    if (Disposable)
+      return;
+
+    Map.clear();
+    Disposable = false;
+  }
 
 public:
   bool contains(const ObjectID &Key) const { return Map.contains(Key); }

@@ -813,15 +813,19 @@ void writeBitcode(const llvm::Module &Module,
   Writer.writeStrtab();
 }
 
+std::unique_ptr<llvm::Module> readBitcode(llvm::ArrayRef<char> Input,
+                                          llvm::LLVMContext &Context) {
+  llvm::MemoryBufferRef BufferRef{ { Input.data(), Input.size() }, "input" };
+  return llvm::cantFail(llvm::parseBitcodeFile(BufferRef, Context));
+}
+
 std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
                                                llvm::LLVMContext &NewContext) {
   revng_assert(&Module.getContext() != &NewContext);
 
   llvm::SmallVector<char, 0> Buffer;
   writeBitcode(Module, Buffer);
-
-  llvm::MemoryBufferRef BufferRef{ { Buffer.data(), Buffer.size() }, "input" };
-  return llvm::cantFail(llvm::parseBitcodeFile(BufferRef, NewContext));
+  return readBitcode(Buffer, NewContext);
 }
 
 /// Creates a global variable in the provided module that holds a pointer to

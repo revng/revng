@@ -34,6 +34,9 @@ private:
     TemporaryFile Contents;
     std::unique_ptr<llvm::MemoryBuffer> Buffer;
   };
+
+private:
+  bool Disposable = false;
   std::vector<File> Files;
 
 public:
@@ -104,6 +107,15 @@ public:
   }
 
   bool verify() const { return true; }
+
+  void setIsDisposable() { Disposable = true; }
+
+  void disposeIfPossible() {
+    if (not Disposable)
+      return;
+    Files.clear();
+    Disposable = false;
+  }
 
 public:
   size_t size() const { return Files.size(); }
