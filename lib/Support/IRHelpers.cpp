@@ -773,9 +773,18 @@ struct FunctionsMetadata {
 
       // Restore metadata (operands come in pairs: kind name, MDNode)
       for (unsigned I = 1; I < OperandCount; I += 2) {
-        auto *KindMD = cast<MDString>(N->getOperand(I).get());
+        auto *KindMDString = cast<MDString>(N->getOperand(I).get());
+        auto KindMD = M.getContext().getMDKindID(KindMDString->getString());
         MDNode *MD = cast<MDNode>(N->getOperand(I + 1));
-        F->setMetadata(KindMD->getString(), MD);
+
+        // llvm::verifyModule will fail if it encounters a function declaration
+        // with a `!dbg` with a `distinct` MD. Since after filtering a function
+        // might have become a declaration we skip setting `!dbg` it if that's
+        // the case.
+        if (F->isDeclaration() and KindMD == llvm::LLVMContext::MD_dbg)
+          continue;
+
+        F->setMetadata(KindMD, MD);
       }
     }
   }
@@ -1053,4 +1062,52 @@ void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
   pruneDICompileUnits(*Destination);
 
   revng::verify(&*Destination);
+}
+
+using DenseFunctionSet = llvm::DenseSet<const llvm::Function *>;
+
+static RecursiveCoroutine<const DenseFunctionSet *>
+getCalledFunctions(const llvm::Function &Function,
+                   std::map<const llvm::Function *, DenseFunctionSet>
+                     &CalledFunctions,
+                   const std::set<const llvm::Function *> &ToIgnore) {
+  if (CalledFunctions.contains(&Function))
+    co_return &CalledFunctions[&Function];
+
+  if (Function.isDeclaration()) {
+    CalledFunctions[&Function] = {};
+    co_return &CalledFunctions[&Function];
+  }
+
+  DenseFunctionSet Result;
+  for (const llvm::BasicBlock &BB : Function) {
+    for (const llvm::Instruction &Instruction : BB) {
+      const llvm::CallBase *CB = dyn_cast<llvm::CallBase>(&Instruction);
+      if (CB == nullptr)
+        continue;
+
+      const llvm::Function *CalledFunction = CB->getCalledFunction();
+      if (CalledFunction == nullptr or Result.contains(CalledFunction)
+          or ToIgnore.contains(CalledFunction))
+        continue;
+
+      Result.insert(CalledFunction);
+      auto *FunctionResult = co_await getCalledFunctions(*CalledFunction,
+                                                         CalledFunctions,
+                                                         ToIgnore);
+      Result.insert(FunctionResult->begin(), FunctionResult->end());
+    }
+  }
+
+  CalledFunctions[&Function] = Result;
+  co_return &CalledFunctions[&Function];
+}
+
+const DenseFunctionSet &
+ReachableFunctionsEnumerator::getCalledFunctions(const llvm::Function
+                                                   &Function) {
+  const DenseFunctionSet *Result = ::getCalledFunctions(Function,
+                                                        CalledFunctions,
+                                                        ToIgnore);
+  return *Result;
 }

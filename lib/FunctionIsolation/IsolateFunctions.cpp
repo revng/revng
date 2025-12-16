@@ -767,26 +767,25 @@ Isolate::~Isolate() {
   // Drop the `root` function's body to save memory, since we're done isolating
   deleteOnlyBody(*ClonedModule->getFunction("root"));
 
-  std::set<const llvm::Function *> ExternalFunctions;
-  for (llvm::Function &ModuleFunction : ClonedModule->functions()) {
-    if (not FunctionTags::Root.isTagOf(&ModuleFunction)
-        and not FunctionTags::Isolated.isTagOf(&ModuleFunction)) {
-      ExternalFunctions.insert(&ModuleFunction);
-    }
+  std::set<const llvm::Function *> InternalFunctions;
+  for (llvm::Function &F : ClonedModule->functions()) {
+    if (FunctionTags::Root.isTagOf(&F) or FunctionTags::Isolated.isTagOf(&F))
+      InternalFunctions.insert(&F);
   }
 
   llvm::Task T(IsolatedFunctions.size(),
                "Splitting functions into individual modules");
+  ReachableFunctionsEnumerator Enumerator(InternalFunctions);
   for (auto &[Address, Function] : IsolatedFunctions) {
     T.advance(Address.toString(), true);
-    std::set<const llvm::Function *> ToClone;
-    ToClone.insert(Function);
-    ToClone.insert(ExternalFunctions.begin(), ExternalFunctions.end());
+    std::set<const llvm::Function *> ToClone = { Function };
+    auto &CalledFunctions = Enumerator.getCalledFunctions(*Function);
+    ToClone.insert(CalledFunctions.begin(), CalledFunctions.end());
 
     Output.assign(ObjectID(Address), ::cloneFiltered(*ClonedModule, ToClone));
 
-    // Since we saved the function to the output, delete its body in ClonedModule
-    // to save memory
+    // Since we saved the function to the output, delete its body in
+    // ClonedModule to save memory
     deleteOnlyBody(*Function);
   }
 }

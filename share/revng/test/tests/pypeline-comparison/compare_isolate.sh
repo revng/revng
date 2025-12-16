@@ -16,12 +16,16 @@ mkdir "$WORKDIR/cache" "$WORKDIR/old" "$WORKDIR/new"
 export REVNG_CACHE_DIR="$WORKDIR/cache"
 
 # This function takes a bitcode file and normalizes it a bit, with the following:
+# * extract just the isolated function with `llvm-extract`, converting the
+#   other functions to declarations
 # * Run it through globaldce and convert it to textual IR
 # * All metadata IDs are blanked to '!0'
 # * Metadata declarations are dropped
 # * Empty lines and lines starting with comments are dropped
 function normalize() {
-    revng opt -globaldce -S | sed 's;![0-9]\+;!0;g' | grep -v -e '^!0 = ' -e '^\s*$' -e '^;'
+    local FUNCTION="$1"
+    llvm-extract --func="local_$FUNCTION" | revng opt -globaldce -S | \
+        sed 's;![0-9]\+;!0;g' | grep -v -e '^!0 = ' -e '^\s*$' -e '^;'
 }
 
 OK=0
@@ -34,12 +38,13 @@ while IFS= read -r FUNCTION; do
     # function, otherwise the types will have the numeric suffix and the
     # comparison will fail.
 
-    revng artifact isolate --model="$MODEL" "$BINARY" "$FUNCTION" | \
-        zstdcat | normalize > "$WORKDIR/old/$FUNCTION.ll"
+    revng artifact isolate --model="$MODEL" "$BINARY" "$FUNCTION" | zstdcat | \
+        normalize "$FUNCTION" > "$WORKDIR/old/$FUNCTION.ll"
 
     OBJECT_ID="/function/$FUNCTION"
     revng2 project artifact isolate --format yaml "$OBJECT_ID" 2>/dev/null | \
-        yq -r ".[\"/function/$FUNCTION\"]" | base64 -d | normalize > "$WORKDIR/new/$FUNCTION.ll"
+        yq -r ".[\"/function/$FUNCTION\"]" | base64 -d | \
+        normalize "$FUNCTION" > "$WORKDIR/new/$FUNCTION.ll"
 
     DIFF_OUTPUT="$WORKDIR/diff_output_$FUNCTION"
     RC=0

@@ -1575,3 +1575,21 @@ std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
 /// modules being merged.
 void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
                          std::unique_ptr<llvm::Module> &Destination);
+
+/// Helper class that allows getting the exhaustive list of functions called by
+/// a function
+class ReachableFunctionsEnumerator {
+private:
+  using DenseFunctionSet = llvm::DenseSet<const llvm::Function *>;
+  using FunctionSet = std::set<const llvm::Function *>;
+
+private:
+  const FunctionSet &ToIgnore;
+  std::map<const llvm::Function *, DenseFunctionSet> CalledFunctions;
+
+public:
+  ReachableFunctionsEnumerator(const FunctionSet &ToIgnore) :
+    ToIgnore(ToIgnore) {}
+
+  const DenseFunctionSet &getCalledFunctions(const llvm::Function &Function);
+};
