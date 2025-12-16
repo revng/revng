@@ -215,9 +215,10 @@ public:
     std::optional<unsigned> TerminalSize;
 
 #if defined(__linux__)
-    struct winsize Winsize;
+    struct winsize Winsize {};
     // TODO: it might not be stderr
-    ioctl(fileno(stderr), TIOCGWINSZ, &Winsize);
+    int Result = ioctl(fileno(stderr), TIOCGWINSZ, &Winsize);
+    revng_assert(Result != -1);
     TerminalSize = Winsize.ws_col;
 #endif
 
