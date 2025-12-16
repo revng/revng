@@ -25,7 +25,7 @@
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Support/CommonOptions.h"
 #include "revng/Support/MetaAddress.h"
-#include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
+#include "revng/Support/MetaAddress/MetaAddressRange.h"
 #include "revng/Support/MetaAddress/YAMLTraits.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTree.h"

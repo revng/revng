@@ -28,7 +28,7 @@
 #include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
-#include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
+#include "revng/Support/MetaAddress/MetaAddressRange.h"
 
 // Forward declarations
 namespace llvm {

@@ -11,6 +11,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/MetaAddress/MetaAddressRange.h"
 
 class BinaryImporterHelper {
 protected:
