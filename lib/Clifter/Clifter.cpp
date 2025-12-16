@@ -1182,10 +1182,18 @@ private:
       }
 
       revng_log(ExpressionLog, "CallOp");
-      rc_return Builder.create<CallOp>(Loc,
-                                       CallType.getReturnType(),
-                                       Function,
-                                       Arguments);
+      mlir::Value Result = Builder.create<CallOp>(Loc,
+                                                  CallType.getReturnType(),
+                                                  Function,
+                                                  Arguments);
+
+      if (Layout.returnMethod() == abi::FunctionType::ReturnMethod::Scalar) {
+        Result = emitImplicitCast(SurroundingLocation,
+                                  Result,
+                                  importLLVMType(I->getType()));
+      }
+
+      rc_return Result;
     }
 
     if (auto I = llvm::dyn_cast<llvm::SelectInst>(V)) {
