@@ -17,6 +17,13 @@
 
 constexpr const char *PrototypeMDName = "revng.prototype";
 
+[[nodiscard]] inline std::string llvmName(const model::Function &Function) {
+  if (DebugNames and not Function.Name().empty())
+    return "local_" + Function.Name();
+  else
+    return "local_" + Function.Entry().toIdentifier();
+}
+
 template<ConstOrNot<model::Binary> T>
 inline ConstPtrIfConst<T, model::TypeDefinition>
 getCallSitePrototype(T &Binary, const llvm::Instruction *Call) {

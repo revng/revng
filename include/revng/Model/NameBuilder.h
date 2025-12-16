@@ -399,13 +399,6 @@ public:
     return GotoLabelNameBuilder(*this, Function);
   }
 
-  [[nodiscard]] std::string llvmName(const model::Function &Function) const {
-    if (DebugNames)
-      return "local_" + name(Function);
-    else
-      return "local_" + Function.Entry().toString();
-  }
-
 private:
   [[nodiscard]] std::optional<std::string>
   warningImpl(const std::string &Name,

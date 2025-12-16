@@ -294,7 +294,7 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
         // replaced with a function reference.
         auto It = FunctionEntries.find(Address);
         if (It != FunctionEntries.end() and not DisableFunctionPointers) {
-          auto Name = NameBuilder.llvmName(Binary.Functions().at(It->second));
+          auto Name = llvmName(Binary.Functions().at(It->second));
 
           auto *ReferencedFunction = M.getFunction(Name);
           revng_assert(ReferencedFunction != nullptr);

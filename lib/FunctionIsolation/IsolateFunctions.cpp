@@ -177,7 +177,6 @@ private:
   LLVMContext &Context;
   GeneratedCodeBasicInfo &GCBI;
   const model::Binary &Binary;
-  model::CNameBuilder NameBuilder;
   Function *FunctionDispatcher = nullptr;
   std::map<MetaAddress, Function *> IsolatedFunctionsMap;
   std::map<StringRef, Function *> DynamicFunctionsMap;
@@ -195,14 +194,13 @@ public:
     Context(TheModule->getContext()),
     GCBI(GCBI),
     Binary(Binary),
-    NameBuilder(Binary),
     CFGGetter(CFGGetter) {
     IsolatedFunctionType = createFunctionType<void>(Context);
   }
 
 public:
   Function *getLocalFunction(const MetaAddress &Entry) {
-    auto Name = NameBuilder.llvmName(Binary.Functions().at(Entry));
+    auto Name = llvmName(Binary.Functions().at(Entry));
     if (auto *F = TheModule->getFunction(Name))
       return F;
 

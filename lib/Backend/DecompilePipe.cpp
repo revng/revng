@@ -154,7 +154,7 @@ void Decompile::run(pipeline::ExecutionContext &EC,
 
   for (const model::Function &Function :
        getFunctionsAndCommit(EC, DecompiledFunctions.name())) {
-    auto *F = Module.getFunction(B.NameBuilder.llvmName(Function));
+    auto *F = Module.getFunction(llvmName(Function));
     std::string CCode = decompile(Cache, *F, Model, B);
     DecompiledFunctions.insert_or_assign(Function.Entry(), std::move(CCode));
   }

@@ -57,7 +57,7 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
       auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
       revng_assert(Entry.isValid());
       const model::Function &Function = Model.Functions().at(Entry);
-      auto *F = Module.getFunction(B.NameBuilder.llvmName(Function));
+      auto *F = Module.getFunction(llvmName(Function));
       std::string CCode = decompile(Cache, *F, Model, B);
       DecompiledFunctions.insert_or_assign(Entry, std::move(CCode));
     }
