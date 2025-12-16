@@ -471,7 +471,8 @@ public:
 
   [[nodiscard]] llvm::Error isNameReserved(llvm::StringRef Name) const;
 };
-struct AssemblyNameBuilder : NameBuilder<AssemblyNameBuilder> {
+
+struct AssemblyNameBuilder : public NameBuilder<AssemblyNameBuilder> {
 public:
   const model::Architecture::Values &Architecture;
 

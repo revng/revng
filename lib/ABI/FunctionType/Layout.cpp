@@ -631,9 +631,8 @@ size_t Layout::returnValueRegisterCount() const {
   return Result;
 }
 
-llvm::SmallVector<model::Register::Values, 8>
-Layout::argumentRegisters() const {
-  llvm::SmallVector<model::Register::Values, 8> Result;
+llvm::SmallVector<model::Register::Values> Layout::argumentRegisters() const {
+  llvm::SmallVector<model::Register::Values> Result;
 
   for (const auto &Argument : Arguments)
     Result.append(Argument.Registers.begin(), Argument.Registers.end());
@@ -641,9 +640,9 @@ Layout::argumentRegisters() const {
   return Result;
 }
 
-llvm::SmallVector<model::Register::Values, 8>
+llvm::SmallVector<model::Register::Values>
 Layout::returnValueRegisters() const {
-  llvm::SmallVector<model::Register::Values, 8> Result;
+  llvm::SmallVector<model::Register::Values> Result;
 
   for (const ReturnValue &ReturnValue : ReturnValues)
     Result.append(ReturnValue.Registers.begin(), ReturnValue.Registers.end());

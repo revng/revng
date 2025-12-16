@@ -131,8 +131,8 @@ public:
 
   size_t argumentRegisterCount() const;
   size_t returnValueRegisterCount() const;
-  llvm::SmallVector<model::Register::Values, 8> argumentRegisters() const;
-  llvm::SmallVector<model::Register::Values, 8> returnValueRegisters() const;
+  llvm::SmallVector<model::Register::Values> argumentRegisters() const;
+  llvm::SmallVector<model::Register::Values> returnValueRegisters() const;
 
   auto returnValueTypes() {
     return ReturnValues
@@ -246,8 +246,8 @@ inline uint64_t finalStackOffset(const model::UpcastableType &Prototype) {
 }
 
 struct UsedRegisters {
-  llvm::SmallVector<model::Register::Values, 8> Arguments;
-  llvm::SmallVector<model::Register::Values, 8> ReturnValues;
+  llvm::SmallVector<model::Register::Values> Arguments;
+  llvm::SmallVector<model::Register::Values> ReturnValues;
 };
 UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Prototype);
 

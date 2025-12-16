@@ -97,6 +97,12 @@ public:
   void run() const {
     for (const Command &C : Commands) {
       auto ExitCode = ::Runner.run(C.CommandName, C.Arguments);
+      if (ExitCode != 0) {
+        dbg << "Invocation of " << C.CommandName << " failed. Arguments:\n";
+        for (const std::string &Argument : C.Arguments)
+          dbg << "  " << Argument << "\n";
+        revng_abort();
+      }
       revng_check(ExitCode == 0);
     }
   }

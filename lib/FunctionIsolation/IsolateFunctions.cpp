@@ -90,27 +90,6 @@ struct IsolatePipe {
                                       InputPreservation::Preserve) }) };
   }
 
-private:
-  static void cleanTheModuleUp(llvm::Module &Module) {
-    // Is there something in LLVM that does this already?
-
-    // WARNING: this removes way too much, breaking some assumptions
-    // we have about the module.
-    // TODO: investigate the proper way to do this.
-
-    // llvm::legacy::PassManager PM;
-    // PM.add(llvm::createStripDeadPrototypesPass());
-    // PM.add(llvm::createGlobalDCEPass());
-    // PM.add(llvm::createDeadArgEliminationPass());
-    // PM.add(llvm::createStripDeadDebugInfoPass());
-    // for (int i = 0; i < 3; ++i) {
-    //   PM.add(llvm::createGlobalDCEPass());
-    //   PM.add(llvm::createStripDeadPrototypesPass());
-    // }
-
-    // PM.run(Module);
-  }
-
 public:
   void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CFGMap &CFGMap,
@@ -134,10 +113,6 @@ public:
     namespace FT = FunctionTags;
     for (Function &F : FT::Root.functions(&OutputContainer.getModule()))
       F.deleteBody();
-
-    // Finally, do some basic cleanup, removing unused stuff.
-    cleanTheModuleUp(RootContainer.getModule());
-    cleanTheModuleUp(OutputContainer.getModule());
   }
 };
 
