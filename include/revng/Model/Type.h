@@ -78,6 +78,17 @@ public:
   bool operator==(const model::Type &Another) const {
     return (*this <=> Another) == std::strong_ordering::equal;
   }
+
+public:
+  /// Return a compact representation of this type for debug purposes.
+  ///
+  /// For instance it will return uint8_t [8] * for a pointer to an array of 8
+  /// uint8_t.
+  ///
+  /// \note This is just for debugging purposes, it's not compliant with C
+  ///       representation. Use it exclusively for debugging purposes. Nothing
+  ///       user facing.
+  std::string toDebugString() const;
 };
 
 #include "revng/Model/Generated/Late/Type.h"
