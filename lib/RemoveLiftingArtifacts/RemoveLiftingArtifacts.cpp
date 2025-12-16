@@ -168,8 +168,10 @@ public:
 bool RemoveLiftingArtifacts::prologue() {
   bool Changed = false;
   for (llvm::Function &F : M) {
-    if (FunctionTags::Isolated.isTagOf(&F))
+    if (FunctionTags::Isolated.isTagOf(&F)
+        or FunctionTags::SegmentGlobalGetter.isTagOf(&F)) {
       continue;
+    }
 
     // If we find a non-isolated function with body, we want to remove it.
     Changed |= deleteOnlyBody(F);

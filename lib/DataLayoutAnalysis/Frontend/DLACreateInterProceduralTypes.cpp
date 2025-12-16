@@ -265,7 +265,7 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     SegmentNode->NonScalar = true;
   }
 
-  for (Function &F : FunctionTags::SegmentRef.functions(&M)) {
+  for (Function &F : FunctionTags::SegmentGlobalGetter.functions(&M)) {
     const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
     const model::Segment *Segment = &Segments.at({ StartAddress, VirtualSize });
     LayoutTypeSystemNode *SegmentNode = SegmentNodeMap.at(Segment);

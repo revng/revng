@@ -311,7 +311,7 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         auto &Prototype = *Model.prototypeOrDefault(ParentFunc()->prototype());
         rc_return handleReturnValue(Prototype, Model);
 
-      } else if (FTags.contains(FunctionTags::SegmentRef)) {
+      } else if (FTags.contains(FunctionTags::SegmentGlobalGetter)) {
         const auto &[StartAddress,
                      VirtualSize] = extractSegmentKeyFromMetadata(*CalledFunc);
         auto Segment = Model.Segments().at({ StartAddress, VirtualSize });

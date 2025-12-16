@@ -3,6 +3,7 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/PointerType.h"
 #include "revng/Model/VerifyHelper.h"
 
 // NOTE: there's a really similar function for computing alignment in

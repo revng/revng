@@ -23,6 +23,7 @@ target_link_libraries(
   revngRecompile
   revngRemoveExtractValues
   revngRemoveLiftingArtifacts
+  revngSegmentReferences
   revngYield
   revngYieldPipes
   nanobind

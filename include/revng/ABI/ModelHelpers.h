@@ -5,6 +5,7 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Type.h"
 
 #include "revng/ABI/FunctionType/Layout.h"

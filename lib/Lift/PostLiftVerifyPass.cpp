@@ -7,6 +7,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/IR/ModuleSlotTracker.h"
 
+#include "revng/Model/FunctionTags.h"
 #include "revng/Support/Assert.h"
 
 #include "PostLiftVerifyPass.h"
@@ -86,6 +87,8 @@ bool PostLiftVerifyPass::runOnModule(Module &M) {
                 or CalleeName == "function_call"
                 or CalleeName == "helper_initialize_env"
                 or CalleeName == "revng_abort");
+
+        Good = Good or FunctionTags::SegmentGlobalGetter.isTagOf(Callee);
 
         switch (Callee->getIntrinsicID()) {
         case Intrinsic::fshl:
