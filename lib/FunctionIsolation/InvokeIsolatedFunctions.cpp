@@ -145,6 +145,9 @@ public:
     for (auto &&[_, T] : Map) {
       auto &&[ModelF, BB, F] = T;
 
+      if (BB == nullptr)
+        continue;
+
       // Create a new trampoline entry block and substitute it to the old entry
       // block
       BasicBlock *NewBB = BB->splitBasicBlockBefore(BB->begin());
