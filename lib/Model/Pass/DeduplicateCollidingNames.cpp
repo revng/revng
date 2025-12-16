@@ -1,4 +1,3 @@
-/// \file DeduplicateCollidingNames.cpp
 /// Implementation of deduplication of colliding names.
 
 //

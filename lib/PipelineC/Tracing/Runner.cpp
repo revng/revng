@@ -1,4 +1,3 @@
-/// \file Runner.cpp
 /// Implements the logic to run a trace file, this boils down to the Trace.run
 /// function that will re-execute the commands of the trace in order.
 

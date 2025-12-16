@@ -1,4 +1,3 @@
-/// \file externaljumpsHandler.cpp
 /// Inject code to support jumping in non-translated code and handling the
 /// comeback.
 

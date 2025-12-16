@@ -1,4 +1,3 @@
-/// \file VariableManager.cpp
 /// This file handles the creation and management of global variables, i.e.
 /// mainly parts of the CPU state
 

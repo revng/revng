@@ -1,4 +1,3 @@
-/// \file LLVMContainer.cpp
 /// A llvm container is a container which uses a llvm module as a backend, and
 /// can be customized with downstream kinds that specify which global objects in
 /// it are which target.

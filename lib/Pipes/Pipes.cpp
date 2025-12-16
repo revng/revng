@@ -1,4 +1,3 @@
-/// \file Pipes.cpp
 /// Contains the definition of the pipe registry.
 
 //

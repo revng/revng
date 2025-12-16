@@ -1,4 +1,3 @@
-/// \file RootKind.cpp
 /// The kind associated to non isolated root.
 
 //

@@ -1,4 +1,3 @@
-/// \file InstructionTranslator.cpp
 /// \brief This file implements the logic to translate a libtcg instruction in
 ///        to LLVM IR.
 

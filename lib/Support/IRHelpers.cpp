@@ -1,4 +1,3 @@
-/// \file IRHelpers.cpp
 /// Implementation of IR helper functions.
 
 //

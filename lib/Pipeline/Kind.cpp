@@ -1,4 +1,3 @@
-/// \file Kind.cpp
 /// A kind is a object associated to target do distinguish semantically
 /// different targets that may share the same components path.
 

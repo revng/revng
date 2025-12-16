@@ -1,4 +1,3 @@
-/// \file SimplifyDualSwitch.cpp
 /// Beautification pass to simplify `switch` with two entries to `if`
 ///
 

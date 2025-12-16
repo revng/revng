@@ -1,4 +1,3 @@
-/// \file PruneRetSuccessors.cpp
 /// Remove successors from return instructions
 
 //

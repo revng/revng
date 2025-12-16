@@ -1,4 +1,3 @@
-/// \file Tar.cpp
 /// \brief Classes for reading and writing tar files with libarchive
 
 //

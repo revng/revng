@@ -1,4 +1,3 @@
-/// \file ImportFromCAnalysis.cpp
 /// \brief Use to edit Types by omitting rewriting of Model directly
 
 //

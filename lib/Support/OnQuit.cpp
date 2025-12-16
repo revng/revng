@@ -1,4 +1,3 @@
-/// \file OnQuit.cpp
 /// \brief Implementation of the OnQuit registry that allows running operation
 /// at shutdown.
 

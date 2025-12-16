@@ -1,4 +1,3 @@
-/// \file TypeShrinking.cpp
 /// This analysis finds which bits of each Instruction is alive.
 
 //

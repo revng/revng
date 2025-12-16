@@ -1,4 +1,3 @@
-/// \file CollectFunctionsFromCalleesPass.cpp
 /// Collect the function entry points from the callees.
 
 //

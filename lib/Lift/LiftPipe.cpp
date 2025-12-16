@@ -1,4 +1,3 @@
-/// \file Lift.cpp
 /// Lift transform a binary into a llvm module
 
 //

@@ -1,4 +1,3 @@
-/// \file AAWriterPass.cpp
 /// Add aliasing scope information to the IR before load and store accesses.
 
 //

@@ -1,4 +1,3 @@
-/// \file CompileModule.cpp
 /// The isolated kind is used to rappresent isolated root and functions.
 
 //

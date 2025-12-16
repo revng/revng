@@ -1,4 +1,3 @@
-/// \file Global.cpp
 /// A saveable object that an be serialized and deserialized from a string.
 
 //

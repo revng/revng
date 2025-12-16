@@ -1,4 +1,3 @@
-/// \file DeduplicateEquivalentTypes.cpp
 /// Implementation of deduplication of identical types.
 
 //

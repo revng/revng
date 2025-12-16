@@ -1,4 +1,3 @@
-/// \file RemoveDbgMetadata.cpp
 /// A simple pass to remove debug metadata from a function.
 
 //

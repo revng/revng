@@ -1,4 +1,3 @@
-/// \file CodeGenerator.cpp
 /// This file handles the whole translation process from the input assembly to
 /// LLVM IR.
 

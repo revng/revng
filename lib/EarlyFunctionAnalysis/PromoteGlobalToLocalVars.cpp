@@ -1,4 +1,3 @@
-/// \file PromoteGlobalToLocalVars.cpp
 /// Promote CSVs in form of global variables to local variables.
 
 //

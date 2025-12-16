@@ -1,4 +1,3 @@
-/// \file LDDTree.cpp
 /// Implementation of lddtree like API.
 
 //

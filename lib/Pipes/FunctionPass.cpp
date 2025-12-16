@@ -1,4 +1,3 @@
-/// \file FunctionPass.cpp
 /// Contains the implementation of pipeline passes.
 
 //

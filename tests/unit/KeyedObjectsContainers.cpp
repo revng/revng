@@ -1,4 +1,3 @@
-/// \file KeyedObjectsContainers.cpp
 /// Tests for MutableSet and SortedVector.
 
 //

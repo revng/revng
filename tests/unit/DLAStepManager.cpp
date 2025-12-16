@@ -1,4 +1,3 @@
-/// \file DLAStepManager.cpp
 /// Tests for dla::StepManager
 
 //

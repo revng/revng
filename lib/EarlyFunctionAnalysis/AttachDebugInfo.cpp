@@ -1,4 +1,3 @@
-/// \file AttachDebugInfo.cpp
 ///
 /// A simple pass to attach debug metadata.
 ///

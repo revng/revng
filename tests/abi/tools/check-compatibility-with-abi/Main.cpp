@@ -1,4 +1,3 @@
-/// \file Main.cpp
 /// This tool is used for ABI conversion testing.
 ///
 /// It's purpose is to make sure that the function still corresponds to the

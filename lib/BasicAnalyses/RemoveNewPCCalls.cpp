@@ -1,4 +1,3 @@
-/// \file RemoveNewPCCalls.cpp
 /// Remove calls to newpc in a function.
 
 //

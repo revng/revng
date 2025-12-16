@@ -1,4 +1,3 @@
-/// \file Pipeline.cpp
 /// Tests for C API of revng-pipeline.
 
 //

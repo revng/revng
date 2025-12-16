@@ -1,4 +1,3 @@
-/// \file ContainerSet.cpp
 /// ContainerSets are collections of containers able to spawn them on request.
 
 //

@@ -1,4 +1,3 @@
-/// \file Runner.cpp
 /// Implements the logic for inspecting a trace file. Right now this entails
 /// listing and extracting buffers.
 

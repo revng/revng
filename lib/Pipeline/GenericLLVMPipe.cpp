@@ -1,4 +1,3 @@
-/// \file LLVMPipe.cpp
 /// A llvm pipe is a pipe that operates on a llvm container.
 
 //

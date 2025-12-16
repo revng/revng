@@ -1,4 +1,3 @@
-/// \file SegregateDirectStackAccesses.cpp
 /// Segregate direct stack accesses from all other memory accesses through alias
 /// information.
 ///

@@ -1,4 +1,3 @@
-/// \file PromoteCallNoReturn.cpp
 /// Beautification pass to perform the `CallNoReturn` promotion
 ///
 

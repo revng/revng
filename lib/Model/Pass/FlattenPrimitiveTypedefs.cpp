@@ -1,4 +1,3 @@
-/// \file FlattenPrimitiveTypedefs.cpp
 /// Implementation of typedef-to-primitive flattening
 
 //

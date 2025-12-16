@@ -1,4 +1,3 @@
-/// \file CompileModule.cpp
 /// The compile module pipe transforms an llvm module into an object file.
 
 //

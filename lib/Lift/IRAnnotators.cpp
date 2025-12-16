@@ -1,4 +1,3 @@
-/// \file IRAnnotators.cpp
 /// This file handles debugging information generation.
 
 //

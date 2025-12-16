@@ -1,4 +1,3 @@
-/// \file Context.cpp
 /// The pipeline context the place where all objects used by more that one
 /// pipeline or container are stored.
 

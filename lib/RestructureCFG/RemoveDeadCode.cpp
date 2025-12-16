@@ -1,4 +1,3 @@
-/// \file RemoveDeadCode.cpp
 /// Beautification pass to simplify dead code in the AST representation
 ///
 

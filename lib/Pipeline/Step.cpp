@@ -1,4 +1,3 @@
-/// \file Runner.cpp
 /// A step is composed of a list of pipes and a set of containers representing
 /// the content of the pipeline before the execution of such pipes.
 

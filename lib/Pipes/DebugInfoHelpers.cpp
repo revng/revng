@@ -1,4 +1,3 @@
-/// \file DebugInfoHelper.cpp
 /// Contains the debug information related helpers than have to depends on
 /// `revng::ranks` because they use locations
 

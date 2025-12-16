@@ -1,4 +1,3 @@
-/// \file EnforceABI.cpp
 /// Promotes global variables CSV to function arguments or local variables,
 /// according to the ABI analysis.
 

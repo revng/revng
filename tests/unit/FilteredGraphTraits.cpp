@@ -1,4 +1,3 @@
-/// \file FilteredGraphTraits.cpp
 /// Tests for the FilteredGraphTraits template.
 
 //

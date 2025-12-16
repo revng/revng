@@ -1,4 +1,3 @@
-/// \file GeneratedCodeBasicInfo.cpp
 /// Implements the GeneratedCodeBasicInfo pass which provides basic information
 /// about the translated code (e.g., which CSV is the PC).
 

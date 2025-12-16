@@ -1,4 +1,3 @@
-/// \file OptionCategory.cpp
 /// Defines the option category for model passes to use.
 
 //

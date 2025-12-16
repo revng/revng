@@ -1,4 +1,3 @@
-/// \file EarlyTypeShrinking.cpp
 /// A set of simple transformation that shrink the type of certain instructions.
 /// This should be run before TypeShrinking.
 
