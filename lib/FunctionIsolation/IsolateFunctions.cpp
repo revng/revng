@@ -733,9 +733,9 @@ Isolate::Isolate(const class Model &Model,
                  const CFGMap &CFG,
                  LLVMRootContainer &Root,
                  LLVMFunctionContainer &Output) :
-  Root(Root), Output(Output), GCBI(*Model.get().get()) {
-  llvm::Module &Module = Root.getModule();
-  GCBI.run(Module);
+  Output(Output), GCBI(*Model.get().get()) {
+  ClonedModule = cloneIntoContext(Root.getModule(), Output.getContext());
+  GCBI.run(*ClonedModule);
 
   auto CFGGetter =
     [&CFG](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
@@ -743,7 +743,7 @@ Isolate::Isolate(const class Model &Model,
   };
 
   // TODO: inline Impl
-  Impl = std::make_unique<IFI>(Module.getFunction("root"),
+  Impl = std::make_unique<IFI>(ClonedModule->getFunction("root"),
                                GCBI,
                                *Model.get().get(),
                                CFGGetter);
@@ -758,7 +758,9 @@ void Isolate::runOnFunction(const model::Function &TheFunction) {
 Isolate::~Isolate() {
   Impl->epilogue();
 
-  auto ClonedModule = cloneIntoContext(Root.getModule(), Output.getContext());
+  // Drop the `root` function's body to save memory, since we're done isolating
+  deleteOnlyBody(*ClonedModule->getFunction("root"));
+
   std::set<const llvm::Function *> ExternalFunctions;
   for (llvm::Function &ModuleFunction : ClonedModule->functions()) {
     if (not FunctionTags::Root.isTagOf(&ModuleFunction)
@@ -772,10 +774,14 @@ Isolate::~Isolate() {
   for (auto &[Address, Function] : IsolatedFunctions) {
     T.advance(Address.toString(), true);
     std::set<const llvm::Function *> ToClone;
-    ToClone.insert(ClonedModule->getFunction(Function->getName()));
+    ToClone.insert(Function);
     ToClone.insert(ExternalFunctions.begin(), ExternalFunctions.end());
 
     Output.assign(ObjectID(Address), ::cloneFiltered(*ClonedModule, ToClone));
+
+    // Since we saved the function to the output, delete its body in ClonedModule
+    // to save memory
+    deleteOnlyBody(*Function);
   }
 }
 
