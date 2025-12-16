@@ -529,43 +529,24 @@ VariableManager::getByCPUStateOffsetWithRemainder(intptr_t Offset) {
   }
   revng_log(Log, "Name " << Name);
 
-  // TODO: if this is CSV, check it's of the correct size we expect
-
-  // Check if a previous VariableManager has already created this variable
-  if (auto *Result = TheModule.getGlobalVariable(Name, true)) {
-    revng_log(Log, "It already exists.");
-    // Check the variable looks like what we'd create
-    revng_assert(Result->getValueType() == VariableType);
-    revng_assert(FunctionTags::CSV.isTagOf(Result));
-    revng_assert(Result->hasInitializer());
-    revng_assert(not Result->isConstant());
-    revng_assert(Result->getLinkage() == GlobalValue::ExternalLinkage);
-
-    // Record and return it
-    CPUStateGlobals[GlobalOffset] = Result;
-    return { Result, Remaining };
-  }
-
-  revng_log(Log, "Creating.");
-
   auto InitializerPointer = LibTcgEnvPtr - LibTcgEnvOffset + GlobalOffset;
   revng_assert(InitializerPointer >= LibTcgEnvPtr - LibTcgEnvOffset);
   auto *InitialValue = fromBytes(cast<IntegerType>(VariableType),
                                  InitializerPointer);
 
-  // Create the global
-  auto *NewVariable = new GlobalVariable(TheModule,
-                                         VariableType,
-                                         false,
-                                         GlobalValue::ExternalLinkage,
-                                         InitialValue,
-                                         Name);
-  FunctionTags::CSV.addTo(NewVariable);
+  // TODO: if this is CSV, check it's of the correct size we expect
+  auto &Result = getOrCreateGlobal(TheModule,
+                                   Name,
+                                   VariableType,
+                                   false,
+                                   llvm::GlobalValue::ExternalLinkage,
+                                   InitialValue);
+  FunctionTags::CSV.addTo(&Result);
 
   // Register the variable
-  CPUStateGlobals[GlobalOffset] = NewVariable;
+  CPUStateGlobals[GlobalOffset] = &Result;
 
-  return { NewVariable, Remaining };
+  return { &Result, Remaining };
 }
 
 std::pair<bool, Value *> VariableManager::getOrCreate(LibTcgArgument *Argument,

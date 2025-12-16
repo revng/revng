@@ -70,44 +70,38 @@ StringRef extractFromConstantStringPtr(Value *V) {
   return Initializer->getAsCString();
 }
 
-Constant *getUniqueString(Module *M, StringRef String, StringRef Namespace) {
+Constant *getUniqueString(Module *M,
+                          StringRef String,
+                          bool AddNull,
+                          StringRef Namespace) {
+  using revng::mangleName;
+
   revng_assert(not Namespace.empty());
+  StringRef StringWithoutNUL = String.drop_back(AddNull ? 0 : 1);
 
   LLVMContext &Context = M->getContext();
-  std::string GlobalName = (Twine(Namespace) + revng::mangleName(String)).str();
-  auto *Global = M->getGlobalVariable(GlobalName);
+  auto GlobalName = (Twine(Namespace) + mangleName(StringWithoutNUL)).str();
 
-  if (Global != nullptr) {
-    revng_assert(Global->hasInitializer());
-    if (not String.empty()) {
-      auto Initializer = cast<ConstantDataSequential>(Global->getInitializer());
-      revng_assert(Initializer->isCString());
-      revng_assert(Initializer->getAsCString() == String);
-    } else {
-      revng_assert(isa<ConstantAggregateZero>(Global->getInitializer()));
-    }
+  // This may return a ConstantAggregateZero in case of empty String.
+  Constant *Initializer = ConstantDataArray::getString(Context,
+                                                       String,
+                                                       AddNull);
+  revng_assert(isa<ConstantDataArray>(Initializer)
+               or isa<ConstantAggregateZero>(Initializer));
+  if (String.empty()) {
+    revng_assert(isa<ConstantAggregateZero>(Initializer));
   } else {
-    // This may return a ConstantAggregateZero in case of empty String.
-    Constant *Initializer = ConstantDataArray::getString(Context,
-                                                         String,
-                                                         /* AddNull */ true);
-    revng_assert(isa<ConstantDataArray>(Initializer)
-                 or isa<ConstantAggregateZero>(Initializer));
-    if (String.empty()) {
-      revng_assert(isa<ConstantAggregateZero>(Initializer));
-    } else {
-      auto CDAInitializer = cast<ConstantDataArray>(Initializer);
-      revng_assert(CDAInitializer->isCString());
-      revng_assert(CDAInitializer->getAsCString() == String);
-    }
-
-    Global = new GlobalVariable(*M,
-                                Initializer->getType(),
-                                /* isConstant */ true,
-                                GlobalValue::LinkOnceODRLinkage,
-                                Initializer,
-                                GlobalName);
+    auto CDAInitializer = cast<ConstantDataArray>(Initializer);
+    auto Data = CDAInitializer->getRawDataValues().drop_back();
+    revng_assert(Data == StringWithoutNUL);
   }
+
+  auto *Global = &getOrCreateGlobal(*M,
+                                    GlobalName,
+                                    Initializer->getType(),
+                                    true,
+                                    GlobalValue::LinkOnceODRLinkage,
+                                    Initializer);
 
   auto *Int8PtrTy = getStringPtrType(Context);
   return ConstantExpr::getBitCast(Global, Int8PtrTy);
@@ -1109,5 +1103,39 @@ ReachableFunctionsEnumerator::getCalledFunctions(const llvm::Function
   const DenseFunctionSet *Result = ::getCalledFunctions(Function,
                                                         CalledFunctions,
                                                         ToIgnore);
+  return *Result;
+}
+
+llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,
+                                        llvm::StringRef Name,
+                                        llvm::Type *Type,
+                                        bool IsConstant,
+                                        llvm::GlobalValue::LinkageTypes Linkage,
+                                        llvm::Constant *Initializer) {
+  bool IsInternal = Linkage == llvm::GlobalValue::InternalLinkage;
+  llvm::GlobalVariable *Result = M.getGlobalVariable(Name, IsInternal);
+
+  // Check if we already have this
+  if (Result != nullptr) {
+    // Compare features
+    revng_assert(Result->getLinkage() == Linkage);
+    revng_assert(Result->getValueType() == Type);
+    revng_assert(Result->isConstant() == IsConstant);
+    revng_assert(Result->isDeclaration() == (Initializer == nullptr));
+    if (not Result->isDeclaration())
+      revng_assert(Result->getInitializer() == Initializer);
+    return *Result;
+  }
+
+  Result = new llvm::GlobalVariable(M,
+                                    Type,
+                                    IsConstant,
+                                    Linkage,
+                                    Initializer,
+                                    Name);
+
+  if (not IsInternal)
+    revng_assert(Result->getName() == Name);
+
   return *Result;
 }

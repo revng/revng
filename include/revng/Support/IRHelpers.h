@@ -1078,6 +1078,7 @@ buildString(llvm::Module *M, llvm::StringRef String, const llvm::Twine &Name);
 
 llvm::Constant *getUniqueString(llvm::Module *M,
                                 llvm::StringRef String,
+                                bool AddNull = true,
                                 llvm::StringRef Namespace = "revng.const.");
 
 llvm::StringRef extractFromConstantStringPtr(llvm::Value *V);
@@ -1568,6 +1569,15 @@ std::unique_ptr<llvm::Module> readBitcode(llvm::ArrayRef<char> Input,
 /// Copy a module to a new LLVMContext.
 std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
                                                llvm::LLVMContext &NewContext);
+
+/// Create a new global variable or, if it already exist, check that the
+/// expected features match.
+llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,
+                                        llvm::StringRef Name,
+                                        llvm::Type *Type,
+                                        bool IsConstant,
+                                        llvm::GlobalValue::LinkageTypes Linkage,
+                                        llvm::Constant *Initializer = nullptr);
 
 /// Links the \p Source LLVM module into the \p Destination . This function is
 /// meant to be used to link two modules with revng isolated functions, as, in
