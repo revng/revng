@@ -634,3 +634,31 @@ model::Register::fromCSVName(llvm::StringRef Name,
 }
 
 #undef UnknownCSVPrefix
+
+template<ConstOrNot<model::Binary> BinaryType>
+static std::pair<ConstIf<std::is_const_v<BinaryType>, model::Segment> *,
+                 uint64_t>
+getSegmentForImpl(BinaryType &Binary, const MetaAddress &Address) {
+  revng_assert(Address.isValid());
+  revng_assert(Address.isGeneric());
+
+  for (auto &TheSegment : Binary.Segments()) {
+    if (TheSegment.contains(Address)) {
+      auto MaybeOffset = Address - TheSegment.StartAddress();
+      if (MaybeOffset.has_value())
+        return { &TheSegment, MaybeOffset.value() };
+    }
+  }
+
+  return { nullptr, 0 };
+}
+
+std::pair<const model::Segment *, uint64_t>
+model::Binary::getSegmentFor(const MetaAddress &Address) const {
+  return getSegmentForImpl(*this, Address);
+}
+
+std::pair<model::Segment *, uint64_t>
+model::Binary::getSegmentFor(const MetaAddress &Address) {
+  return getSegmentForImpl(*this, Address);
+}
