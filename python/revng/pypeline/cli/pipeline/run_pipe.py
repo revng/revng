@@ -239,7 +239,7 @@ def build_pipe_command(
             # If the argument is writable, we dump the container
             # to the filesystem
             path = kwargs[f"{arg_name}_output"]
-            pypeline_logger.log(f"Dumping container {arg_name} to {path}")
+            pypeline_logger.debug_log(f"Dumping container {arg_name} to {path}")
             container.to_file(path, container_format=container_format)
 
     return run_pipe_command

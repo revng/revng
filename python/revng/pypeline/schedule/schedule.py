@@ -117,7 +117,7 @@ class Schedule:
         ready: ScheduledTask | None = self._pick_task()
 
         while ready:
-            pypeline_logger.log(f"Running {ready.node.task.name}")
+            pypeline_logger.debug_log(f"Running {ready.node.task.name}")
 
             configuration: ConfigurationId = ready.node.configuration_id(
                 self.pipeline_configuration
@@ -133,7 +133,7 @@ class Schedule:
             for declaration, container in sorted(
                 working_containers.items(), key=lambda item: item[0].name
             ):
-                pypeline_logger.log(f"  {declaration.name}: {str(container.objects())}")
+                pypeline_logger.debug_log(f"  {declaration.name}: {str(container.objects())}")
 
             if isinstance(ready.node.task, Pipe):
                 assert task_output is not None
