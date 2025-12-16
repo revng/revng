@@ -61,7 +61,5 @@ private:
 
   std::string FunctionListPath;
 
-  std::set<MetaAddress> NoMoreCodeBoundaries;
-
   model::Architecture::Values TargetArchitecture;
 };

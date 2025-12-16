@@ -196,27 +196,6 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
                                              "elfheaderhelper");
   ElfHeaderHelper->setAlignment(MaybeAlign(1));
   ElfHeaderHelper->setSection(".elfheaderhelper");
-
-  for (auto &[Segment, Data] : RawBinary.segments()) {
-    // If it's executable register it as a valid code area
-    if (Segment.IsExecutable()) {
-      bool Found = false;
-      MetaAddress End = Segment.pagesRange().second;
-      revng_assert(End.isValid() and End.address() % 4096 == 0);
-      for (const model::Segment &Segment : Model->Segments()) {
-        if (Segment.IsExecutable() and Segment.contains(End)) {
-          Found = true;
-          break;
-        }
-      }
-
-      // The next page is not mapped
-      if (not Found) {
-        revng_check(Segment.endAddress().address() != 0);
-        NoMoreCodeBoundaries.insert(Segment.endAddress());
-      }
-    }
-  }
 }
 
 void CodeGenerator::translate(LibTcg &LibTcg,
