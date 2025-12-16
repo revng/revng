@@ -176,9 +176,8 @@ CustomInvalidationData Lift::run() {
   Buffer SerializedInvalidation;
 
   {
-    auto [HasRootAndNewPc,
-          JumpTargets] = lift::internal::collectJumpTargets(Module);
-    revng_assert(HasRootAndNewPc);
+    auto [HasRoot, JumpTargets] = lift::internal::collectJumpTargets(Module);
+    revng_assert(HasRoot);
     llvm::raw_svector_ostream OS(SerializedInvalidation.data());
     serialize(OS, JumpTargets);
   }

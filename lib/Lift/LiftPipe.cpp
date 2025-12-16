@@ -56,8 +56,11 @@ collectJumpTargets(const llvm::Module &Module) {
   const Function *Root = Module.getFunction("root");
   const Function *NewPC = getIRHelper("newpc", Module);
 
-  if (Root == nullptr or NewPC == nullptr)
+  if (Root == nullptr)
     return { false, {} };
+
+  if (NewPC == nullptr)
+    return { true, {} };
 
   // Collect all jump targets by inspecting calls to newpc and record whether it
   // was found after adding entry addresses of functions
