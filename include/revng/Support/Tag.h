@@ -10,6 +10,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/IR/GlobalObject.h"
 #include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/ModRef.h"
 
@@ -19,6 +20,7 @@ namespace llvm {
 class MDNode;
 class User;
 class Module;
+class CallBase;
 } // namespace llvm
 
 namespace FunctionTags {

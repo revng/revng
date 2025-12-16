@@ -521,9 +521,9 @@ JumpTargetManager::JumpTargetManager(Function *TheFunction,
 
   if (RegisterJTLog.isEnabled()) {
     RegisterJTLog << "Executable ranges:\n";
-    for (const auto &[Start, End] : ExecutableRanges) {
-      RegisterJTLog << "  " << Start.toString() << "-" << End.toString()
-                    << "\n";
+    for (const auto &Range : ExecutableRanges) {
+      RegisterJTLog << "  " << Range.start().toString() << "-"
+                    << Range.end().toString() << "\n";
     }
     RegisterJTLog << DoLog;
   }

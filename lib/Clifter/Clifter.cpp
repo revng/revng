@@ -564,11 +564,30 @@ private:
     return emitHelperFunctionDeclaration(F);
   }
 
-  mlir::Type emitGlobalObject(const llvm::GlobalObject *G) {
-    if (const auto *F = llvm::dyn_cast<llvm::Function>(G))
-      return emitFunctionDeclaration(F).getFunctionType();
+  clift::GlobalVariableOp
+  emitGlobalVariableDeclaration(const llvm::GlobalVariable *V) {
+    llvm::StringRef Name = V->getName();
 
-    revng_abort("Unsupported global object kind");
+    auto MA = SegmentGlobal::getAddress(*V);
+    revng_check(MA.isValid());
+
+    const model::Segment *Segment = Model.getSegmentFor(MA).first;
+    revng_check(Segment != nullptr);
+
+    auto VariableType = clift::importType(Context, *Segment->Type());
+    auto Handle = pipeline::locationString(revng::ranks::Segment,
+                                           Segment->key());
+
+    return getOrEmitSymbol(V, [&]() -> clift::GlobalVariableOp {
+      // It is important not to query any model properties in this scope, as
+      // doing so would break invalidation when the import of a function uses a
+      // declaration already emitted during the import of previous function.
+      auto Op = Builder.create<GlobalVariableOp>(mlir::UnknownLoc::get(Context),
+                                                 Name,
+                                                 VariableType);
+      Op.setHandle(Handle);
+      return Op;
+    });
   }
 
   bool detectStringLiteralImpl(const llvm::GlobalVariable *V,
@@ -980,9 +999,29 @@ private:
       if (const auto *F = llvm::dyn_cast<llvm::Function>(G)) {
         revng_log(ExpressionLog, "llvm::Function -> UseOp");
         auto Function = C.emitFunctionDeclaration(F);
-        rc_return Builder.create<UseOp>(SurroundingLocation,
-                                        Function.getFunctionType(),
-                                        Function.getSymNameAttr());
+
+        auto Type = Function.getFunctionType();
+        auto Use = Builder.create<UseOp>(SurroundingLocation,
+                                         Type,
+                                         Function.getSymNameAttr());
+
+        rc_return emitCast<DecayOp>(SurroundingLocation,
+                                    Use,
+                                    C.getPointerType(Type));
+      }
+
+      if (const auto *V = llvm::dyn_cast<llvm::GlobalVariable>(G)) {
+        revng_log(ExpressionLog, "llvm::GlobalVariable -> UseOp");
+        auto GlobalVariable = C.emitGlobalVariableDeclaration(V);
+
+        auto Type = GlobalVariable.getType();
+        auto Use = Builder.create<UseOp>(SurroundingLocation,
+                                         Type,
+                                         GlobalVariable.getSymNameAttr());
+
+        rc_return Builder.create<AddressofOp>(SurroundingLocation,
+                                              C.getPointerType(Type),
+                                              Use);
       }
 
       revng_abort("Unsupported global object kind");

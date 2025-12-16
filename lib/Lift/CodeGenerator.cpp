@@ -8,6 +8,7 @@
 #include <cstring>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <queue>
 #include <set>
 #include <sstream>
@@ -15,13 +16,18 @@
 #include <utility>
 #include <vector>
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/ExecutionEngine/RuntimeDyld.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DiagnosticPrinter.h"
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/MDBuilder.h"
@@ -43,13 +49,17 @@
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
+#include "revng/ABI/ModelHelpers.h"
+#include "revng/ADT/Queue.h"
 #include "revng/ADT/STLExtras.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
 #include "revng/FunctionCallIdentification/PruneRetSuccessors.h"
 #include "revng/Lift/VariableManager.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/FunctionTags.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/CommandLine.h"

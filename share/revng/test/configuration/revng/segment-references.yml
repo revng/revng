@@ -1,0 +1,16 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  - type: revng.test-segment-references
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-segment-references
+    suffix: /
+    command: |-
+      revng2 quick artifact cleanup-ir "$INPUT" -- --debug-names |
+        yq -r '.["/binary"]' |
+        base64 -d |
+        revng opt -S |
+        FileCheck ${SOURCE}.filecheck.ll

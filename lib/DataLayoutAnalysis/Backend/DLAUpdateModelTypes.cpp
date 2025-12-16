@@ -739,7 +739,7 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
                               const TypeMapT &TypeMap) {
   bool Updated = false;
 
-  for (const auto &F : FunctionTags::SegmentRef.functions(&M)) {
+  for (const auto &F : FunctionTags::SegmentGlobalGetter.functions(&M)) {
     const auto &[StartAddress, VirtualSize] = extractSegmentKeyFromMetadata(F);
     auto Segment = Model->Segments().at({ StartAddress, VirtualSize });
 

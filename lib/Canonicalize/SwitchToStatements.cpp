@@ -62,6 +62,7 @@
 #include "revng/Support/DecompilationHelpers.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/Tag.h"
 
 static Logger Log{ "switch-to-statements" };
 
@@ -717,7 +718,7 @@ static bool isProgramPoint(const Instruction *I) {
         or isCallToTagged(I, FunctionTags::CharInteger)
         or isCallToTagged(I, FunctionTags::BoolInteger)
         or isCallToTagged(I, FunctionTags::NullPtr)
-        or isCallToTagged(I, FunctionTags::SegmentRef)
+        or isCallToTagged(I, FunctionTags::SegmentGlobalGetter)
         or isCallToTagged(I, FunctionTags::UnaryMinus)
         or isCallToTagged(I, FunctionTags::BinaryNot)
         or isCallToTagged(I, FunctionTags::BooleanNot)) {

@@ -212,21 +212,11 @@ bool EnforceABI::epilogue() {
 }
 
 using UsedRegisters = abi::FunctionType::UsedRegisters;
-static std::pair<Type *, SmallVector<Type *, 8>>
+static std::pair<Type *, SmallVector<Type *>>
 getLLVMReturnTypeAndArguments(llvm::Module *M, const UsedRegisters &Registers) {
-  SmallVector<llvm::Type *, 8> ArgumentsTypes;
-  SmallVector<llvm::Type *, 8> ReturnTypes;
-
   LLVMContext &Context = M->getContext();
-  auto IntoLLVMType = [&Context](model::Register::Values V) -> llvm::Type * {
-    return IntegerType::getIntNTy(Context, 8 * model::Register::getSize(V));
-  };
-
-  auto &&[ArgumentRegisters, ReturnValueRegisters] = Registers;
-  std::ranges::copy(ArgumentRegisters | std::views::transform(IntoLLVMType),
-                    std::back_inserter(ArgumentsTypes));
-  std::ranges::copy(ReturnValueRegisters | std::views::transform(IntoLLVMType),
-                    std::back_inserter(ReturnTypes));
+  auto ArgumentsTypes = toLLVMTypes(Context, Registers.Arguments);
+  auto ReturnTypes = toLLVMTypes(Context, Registers.ReturnValues);
 
   // Create the return type
   Type *ReturnType = Type::getVoidTy(Context);
