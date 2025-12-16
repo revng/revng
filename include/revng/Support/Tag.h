@@ -151,6 +151,28 @@ public:
     auto Filter = [this](const GlobalVariable &G) { return isExactTagOf(&G); };
     return make_filter_range(M->globals(), Filter);
   }
+
+  llvm::SmallVector<std::pair<llvm::CallBase *, llvm::Function *>>
+  callsIn(llvm::Function &Caller) const {
+    using namespace llvm;
+    SmallVector<std::pair<CallBase *, Function *>> Result;
+    for (BasicBlock &BB : Caller) {
+      for (Instruction &I : BB) {
+        auto *Call = dyn_cast<CallBase>(&I);
+        if (Call == nullptr)
+          continue;
+
+        auto *Callee = dyn_cast<Function>(Call->getCalledOperand());
+        if (Callee == nullptr)
+          continue;
+
+        if (isTagOf(Callee))
+          Result.emplace_back(Call, Callee);
+      }
+    }
+
+    return Result;
+  }
 };
 
 inline bool TagsSet::containsExactly(const Tag &Target) const {
