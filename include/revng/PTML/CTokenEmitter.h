@@ -285,14 +285,25 @@ public:
     return Scope(*this, Kind, Delimiter, Indent);
   }
 
-private:
-  void enterCommentImpl(CommentEmitter &Comment);
-  void leaveCommentImpl(CommentEmitter &Comment);
+  enum class RegionKind : uint8_t {
+    Expression,
+  };
 
-  void emitCommentLineStartImpl(CommentEmitter &Comment);
-  void emitEscapedCommentContentImpl(CommentEmitter &Comment,
-                                     llvm::StringRef Content);
-  void emitCommentContentImpl(CommentEmitter &Comment, llvm::StringRef Content);
+  class Region {
+    std::optional<PTMLTagEmitter> Tag;
+
+  public:
+    explicit Region(CTokenEmitter &Emitter,
+                    RegionKind Kind,
+                    llvm::StringRef Location);
+
+    Region(const Region &) = delete;
+    Region &operator=(const Region &) = delete;
+  };
+
+  [[nodiscard]] Region enterRegion(RegionKind Kind, llvm::StringRef Location) {
+    return Region(*this, Kind, Location);
+  }
 };
 static_assert(PTMLEmitter<CTokenEmitter::CommentEmitter>);
 
