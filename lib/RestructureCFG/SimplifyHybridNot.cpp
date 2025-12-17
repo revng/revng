@@ -1,4 +1,3 @@
-/// \file SimplifyHybridNot.cpp
 /// Beautification pass to simplify hybrid `not`s
 ///
 

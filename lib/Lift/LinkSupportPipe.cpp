@@ -1,4 +1,3 @@
-/// \file LinkSupport.cpp
 /// Link support adds the helper functions to a lifeted module
 
 //

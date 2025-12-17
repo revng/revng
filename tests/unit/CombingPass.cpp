@@ -1,4 +1,3 @@
-/// \file CombingPass.cpp
 /// Tests for CombingPass
 
 //

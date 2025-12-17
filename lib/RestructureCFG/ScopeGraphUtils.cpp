@@ -1,4 +1,3 @@
-/// \file ScopeGraphUtils.cpp
 /// Helpers for the `ScopeGraph` building
 ///
 

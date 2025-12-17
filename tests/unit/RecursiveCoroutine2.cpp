@@ -1,4 +1,3 @@
-/// \file RecursiveCoroutine2.cpp
 /// Tests `RecursiveCoroutine`
 
 //

@@ -1,4 +1,3 @@
-/// \file BitLiveness.cpp
 /// In this file we model the transfer functions for the analysis.
 ///
 /// Each transfer function models the information flow of a function or of

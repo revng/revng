@@ -1,4 +1,3 @@
-/// \file ASTNodeUtils.cpp
 /// Utils for AST nodes
 ///
 

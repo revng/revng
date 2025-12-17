@@ -1,4 +1,3 @@
-/// \file Assert.cpp
 /// Implementation of the various functions to assert and abort.
 
 //

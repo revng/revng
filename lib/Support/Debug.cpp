@@ -1,4 +1,3 @@
-/// \file Debug.cpp
 /// Implementation of the debug framework.
 
 //

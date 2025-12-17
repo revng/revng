@@ -1,4 +1,3 @@
-/// \file Processing.cpp
 /// A collection of helper functions to improve the quality of the model/make it
 /// valid.
 

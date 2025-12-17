@@ -1,4 +1,3 @@
-/// \file Loader.cpp
 /// A loader is a object that accepts a serialized pipeline and yields a runner
 /// object that rappresents that pipeline.
 

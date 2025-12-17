@@ -1,4 +1,3 @@
-/// \file GzipTarFile.cpp
 /// \brief Classes for reading and writing a slight variation of a .tar.gz
 
 //

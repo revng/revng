@@ -1,4 +1,3 @@
-/// \file IndirectBranchInfoPrinterPass.cpp
 /// Serialize the results of the EarlyFunctionAnalysis on disk.
 
 //

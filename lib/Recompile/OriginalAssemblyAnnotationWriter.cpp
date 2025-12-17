@@ -1,4 +1,3 @@
-/// \file OriginalAssemblyAnnotationWriter.cpp
 /// This file handles debugging information generation.
 
 //

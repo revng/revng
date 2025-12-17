@@ -1,4 +1,3 @@
-/// \file CodeGenerator.cpp
 /// This file handles the whole translation process from the input assembly to
 /// LLVM IR.
 
@@ -439,7 +438,6 @@ void CodeGenerator::translate(LibTcg &LibTcg,
       LibTcgLog.unindent();
     }
 
-    Variables.newTranslationBlock();
     bool StopTranslation = false;
 
     MetaAddress PC = VirtualAddress;
@@ -470,6 +468,8 @@ void CodeGenerator::translate(LibTcg &LibTcg,
                                                                true);
       J++;
     }
+
+    Variables.openTranslationBlock(*(--Builder.GetInsertPoint()));
 
     unsigned SinceInstructionStart = 0;
 
@@ -578,6 +578,8 @@ void CodeGenerator::translate(LibTcg &LibTcg,
 
     TranslateTask.complete();
     TranslateTask.advance("Finalization", true);
+
+    Variables.closeTranslationBlock();
 
     // We might have a leftover block, probably due to the block created after
     // the last call to exit_tb

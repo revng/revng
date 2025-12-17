@@ -1,4 +1,3 @@
-/// \file Main.cpp
 /// This tool is a specialized `revng model diff` extension designed to work
 /// around the shortcomings of the abi testing pipeline.
 ///

@@ -1,4 +1,3 @@
-/// \file ProgramRunner.cpp
 /// A program runner is used to invoke external programs a bit more safelly than
 /// to compose a string and invoke system.
 

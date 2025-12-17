@@ -1,4 +1,3 @@
-/// \file Runner.cpp
 /// A runner top object of a pipeline structure, it is able to run the pipeline.
 
 //

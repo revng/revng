@@ -1,4 +1,3 @@
-/// \file CliftOpInterfaces.cpp
 /// Tests for the Clift Dialect
 
 //

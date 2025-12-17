@@ -1,4 +1,3 @@
-/// \file BasicBlockNode.cpp
 /// FunctionPass that applies the comb to the RegionCFG of a function
 
 //

@@ -1,4 +1,3 @@
-/// \file VariableManager.cpp
 /// This file handles the creation and management of global variables, i.e.
 /// mainly parts of the CPU state
 
@@ -658,4 +657,24 @@ Value *VariableManager::cpuStateToEnv(Value *CPUState,
   Value *EnvIntPtr = Builder.CreateAdd(CPUIntPtr,
                                        CI::get(IntPtrTy, LibTcgEnvOffset));
   return Builder.CreateIntToPtr(EnvIntPtr, OpaquePointer);
+}
+
+void VariableManager::closeTranslationBlock() {
+  revng_assert(TranslationBlockStart != nullptr);
+
+  // Zero initialize all the TEMP_TB, they might uninitialized and lead to
+  // spurious phis.
+  // TODO: alternatively, we could write an analysis that does this only if
+  //       the Alloca is read uninitialized on at least one path
+  revng_assert(isCallTo(TranslationBlockStart, "newpc"));
+  Instruction *InsertionPoint = TranslationBlockStart->getNextNode();
+  revng::NonDebugInfoCheckingIRBuilder Builder(InsertionPoint);
+  for (auto &&[_, Alloca] : TBTemporaries) {
+    auto *Type = cast<IntegerType>(Alloca->getAllocatedType());
+    Builder.CreateStore(ConstantInt::get(Type, 0), Alloca);
+  }
+
+  TBTemporaries.clear();
+
+  closeExtendedBasicBlock();
 }

@@ -124,6 +124,7 @@ read_passes:
                 # - `revng::IRBuilder` to emphasize the wrapper's existence,
                 # - `IRBuilder.h` for includes,
                 # and *no* other permutation of `IRBuilder` anywhere else.
+              - "\\\\file"
         - name: Found snippets that shouldn't be at the end of a line
           matcher:
             type: regexes_matcher

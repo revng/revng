@@ -59,6 +59,7 @@ private:
   using TemporariesMap = std::map<LibTcgTemp *, llvm::AllocaInst *>;
   TemporariesMap TBTemporaries;
   TemporariesMap EBBTemporaries;
+  llvm::Instruction *TranslationBlockStart = nullptr;
 
   llvm::StructType *ArchCPUStruct;
   const llvm::DataLayout *ModuleLayout;
@@ -120,21 +121,21 @@ public:
     return getByCPUStateOffsetWithRemainder(LibTcgEnvOffset + Offset);
   }
 
+  void openTranslationBlock(llvm::Instruction &Start) {
+    TranslationBlockStart = &Start;
+  }
+
   /// Notify VariableManager to reset all the Translation Block (TB) specific
   /// information
   ///
-  /// Note: A TB refers to a set of instructions that could be translated by
+  /// \note A TB refers to a set of instructions that could be translated by
   ///       QEMU in one shot, and might encompass multiple LLVM basic blocks.
-  ///
-  void newTranslationBlock() {
-    TBTemporaries.clear();
-    newExtendedBasicBlock();
-  }
+  void closeTranslationBlock();
 
   /// Informs the VariableManager that a new Extended Basic Block (EBB) has
   /// begun. An EBB is a single entry, multiple exit region that fallst through
   /// conditional branches.
-  void newExtendedBasicBlock() { EBBTemporaries.clear(); }
+  void closeExtendedBasicBlock() { EBBTemporaries.clear(); }
 
   /// Returns true if the given variable is the env variable
   bool isEnv(llvm::Value *TheValue);

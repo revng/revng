@@ -1,4 +1,3 @@
-/// \file SelfReferencingDbgAnnotationWriter.cpp
 /// This file handles debugging information generation.
 
 //

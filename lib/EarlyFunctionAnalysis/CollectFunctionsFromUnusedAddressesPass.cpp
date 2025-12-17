@@ -1,4 +1,3 @@
-/// \file CollectFunctionsFromUnusedAddressesPass.cpp
 /// Collect the function entry points from unused addresses.
 
 //

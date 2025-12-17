@@ -1,4 +1,3 @@
-/// \file RemoveHelperCalls.cpp
 /// Remove calls to helpers in a function and replaces them with stores of an
 /// opaque value onto the CSVs clobbered by the helper.
 

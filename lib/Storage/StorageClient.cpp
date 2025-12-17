@@ -1,4 +1,3 @@
-/// \file LocalStorageClient.cpp
 /// \brief Implementation of StorageClient operations on the local filesystem
 
 //

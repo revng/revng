@@ -1,4 +1,3 @@
-/// \file EmptyNewPC.cpp
 /// A simple pass to given an empty body to the `newpc` function so that it can
 /// be optimized away.
 

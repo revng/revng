@@ -1,4 +1,3 @@
-/// \file StringContainerLibrary.cpp
 /// The kind associated with non isolated root.
 
 //

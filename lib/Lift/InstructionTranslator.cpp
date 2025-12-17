@@ -1,4 +1,3 @@
-/// \file InstructionTranslator.cpp
 /// \brief This file implements the logic to translate a libtcg instruction in
 ///        to LLVM IR.
 
@@ -545,8 +544,6 @@ IT::newInstruction(LibTcgInstruction *Instr,
       }
     }
   }
-
-  // Variables.newBasicBlock();
 
   revng_assert(NextPC - PC);
   auto *Call = emitNewPCCall(Builder, PC, *(NextPC - PC));
@@ -1346,7 +1343,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
 
     Blocks.push_back(Fallthrough);
     Builder.SetInsertPoint(Fallthrough);
-    Variables.newExtendedBasicBlock();
+    Variables.closeExtendedBasicBlock();
 
     return Values{};
   }
@@ -1398,7 +1395,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     Builder.SetInsertPoint(Fallthrough);
 
     if (Opcode == LIBTCG_op_br) {
-      Variables.newExtendedBasicBlock();
+      Variables.closeExtendedBasicBlock();
     }
 
     return Values{};
@@ -1413,7 +1410,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
     Blocks.push_back(NextBB);
     Builder.SetInsertPoint(NextBB);
-    Variables.newExtendedBasicBlock();
+    Variables.closeExtendedBasicBlock();
 
     return Values{};
   }
@@ -1613,5 +1610,5 @@ void IT::handleExitTB() {
   auto *NextBB = BasicBlock::Create(Context, "", TheFunction);
   Blocks.push_back(NextBB);
   Builder.SetInsertPoint(NextBB);
-  Variables.newExtendedBasicBlock();
+  Variables.closeExtendedBasicBlock();
 }

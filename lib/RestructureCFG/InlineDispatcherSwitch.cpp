@@ -1,4 +1,3 @@
-/// \file InlineDispatcherSwitch.cpp
 /// Beautification pass to inline dispatcher switch cases where a case of the
 /// switch is inlinable in a single location in the loop
 ///

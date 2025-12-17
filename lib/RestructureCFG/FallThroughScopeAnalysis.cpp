@@ -1,4 +1,3 @@
-/// \file FallThroughScopeAnalysis.cpp
 /// Analysis pass to compute the fallthrough scope
 ///
 

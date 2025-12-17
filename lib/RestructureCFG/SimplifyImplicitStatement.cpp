@@ -1,4 +1,3 @@
-/// \file SimplifyImplicitStatement.cpp
 /// Beautification pass to make superfluous statement implicit, either a
 /// `continue` or a `return` in the current implementation
 ///

@@ -1,4 +1,3 @@
-/// \file Runner.cpp
 /// A target is a object that is associated to the content of a container to
 /// describe it without knowing what is the real type of the content itself.
 

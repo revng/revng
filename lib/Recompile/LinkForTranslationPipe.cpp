@@ -1,4 +1,3 @@
-/// \file LinkForTranslation.cpp
 /// The link for translation pipe is used to link object files into a
 /// executable.
 

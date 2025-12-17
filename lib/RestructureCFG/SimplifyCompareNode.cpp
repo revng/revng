@@ -1,4 +1,3 @@
-/// \file SimplifyCompareNode.cpp
 /// Beautification pass to simplify `CompareNode`
 ///
 

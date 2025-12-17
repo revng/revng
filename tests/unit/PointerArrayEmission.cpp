@@ -1,4 +1,3 @@
-/// \file PointerArrayEmission.cpp
 /// Tests `getNamedCInstance`
 
 //

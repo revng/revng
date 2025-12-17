@@ -1,5 +1,3 @@
-
-/// \file ALAPVariableDeclaration.cpp
 /// ALAP Variable Declaration Computation
 ///
 

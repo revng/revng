@@ -1,4 +1,3 @@
-/// \file BadBehaviorLibrary.cpp
 /// This file, when compiled into a library, crashes in a manner configured in
 /// the environment variables.
 

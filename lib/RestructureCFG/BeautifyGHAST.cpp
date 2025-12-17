@@ -1,4 +1,3 @@
-/// \file CDecompilerBeautify.cpp
 /// Beautify passes on the final AST
 ///
 
