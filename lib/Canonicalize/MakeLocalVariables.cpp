@@ -55,7 +55,8 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
 
   llvm::LLVMContext &LLVMCtx = F.getContext();
   llvm::Module &M = *F.getParent();
-  llvm::Type *PtrSizedInteger = getPointerSizedInteger(LLVMCtx, *Model);
+  llvm::Type *PtrSizedInteger = getPointerSizedInteger(LLVMCtx,
+                                                       Model->Architecture());
 
   // Here we should definitely use the builder that checks the debug info,
   // but since this going to go away soon, let it stay as is.
@@ -109,7 +110,8 @@ bool MakeLocalVariables::runOnFunction(llvm::Function &F) {
     revng_assert(!AllocatedType.isEmpty() && AllocatedType->verify());
 
     // Inject call to LocalVariable
-    llvm::IntegerType *PtrSizedInt = getPointerSizedInteger(LLVMCtx, *Model);
+    llvm::IntegerType
+      *PtrSizedInt = getPointerSizedInteger(LLVMCtx, Model->Architecture());
     auto *LocalVarFunctionType = getLocalVarType(PtrSizedInt);
     auto *LocalVarFunction = LocalVarPool.get(PtrSizedInt,
                                               LocalVarFunctionType,

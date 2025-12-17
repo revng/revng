@@ -187,7 +187,8 @@ bool MakeSegmentRefPassImpl::runOnFunction(const model::Function &ModelFunction,
   revng::NonDebugInfoCheckingIRBuilder IRB(Context);
 
   bool Changed = false;
-  llvm::Type *PtrSizedInteger = getPointerSizedInteger(Context, Binary);
+  llvm::Type *PtrSizedInteger = getPointerSizedInteger(Context,
+                                                       Binary.Architecture());
 
   for (Instruction &I : instructions(F)) {
 

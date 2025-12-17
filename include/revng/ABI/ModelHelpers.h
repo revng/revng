@@ -43,9 +43,10 @@ llvm::Constant *toLLVMString(const model::UpcastableType &Type,
 
 /// Return an LLVM IntegerType that has the size of a pointer in the given
 /// architecture.
-inline llvm::IntegerType *getPointerSizedInteger(llvm::LLVMContext &C,
-                                                 const model::Binary &Binary) {
-  const size_t PtrSize = getPointerSize(Binary.Architecture());
+inline llvm::IntegerType *
+getPointerSizedInteger(llvm::LLVMContext &C,
+                       const model::Architecture::Values &Architecture) {
+  const size_t PtrSize = getPointerSize(Architecture);
   return llvm::Type::getIntNTy(C, PtrSize * 8);
 }
 
