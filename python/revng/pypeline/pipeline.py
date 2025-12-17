@@ -10,6 +10,8 @@ from typing import Dict, Generator, Generic, Iterable, List, Mapping, Optional, 
 
 import yaml
 
+from revng.pypeline.utils import PypelineException
+
 from .analysis import AnalysisBinding, AnalysisList
 from .container import Container, ContainerDeclaration
 from .graph import Graph
@@ -523,12 +525,16 @@ class Pipeline(Generic[C]):
         # This also allows to keep the original model intact
         # in case the analysis fails
         new_model = model.clone()
-        analysis_info.analysis.run(
-            model=new_model,
-            containers=[all_containers[decl] for decl in analysis_info.bindings],
-            incoming=[requests.get(decl) for decl in analysis_info.bindings],
-            configuration=analysis_configuration,
-        )
+        try:
+            analysis_info.analysis.run(
+                model=new_model,
+                containers=[all_containers[decl] for decl in analysis_info.bindings],
+                incoming=[requests.get(decl) for decl in analysis_info.bindings],
+                configuration=analysis_configuration,
+            )
+        # TODO: eventually the pipe will raise `PypelineException` directly
+        except RuntimeError as e:
+            raise PypelineException(f"Analysis {analysis_name} failed to run: {e}")
 
         diff = model.diff(ReadOnlyModel(new_model))
         custom_invalidated_objects = self._compute_custom_invalidation(

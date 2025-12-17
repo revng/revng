@@ -13,6 +13,8 @@ import click
 import psutil
 from click.shell_completion import get_completion_class
 
+from revng.pypeline.utils import PypelineException
+
 from . import initialize_pypeline
 from .cli.pipeline import pipeline
 from .cli.project import project
@@ -226,12 +228,18 @@ def main(args: Sequence[str]) -> None:
         pipebox_args = []
 
     # This is ok as click will pass the pipebox argument automatically
-    pype(
-        args=click_args,
-        obj={
-            "pipebox_args": pipebox_args,
-        },
-    )
+    try:
+        exit_code = pype.main(
+            args=click_args, obj={"pipebox_args": pipebox_args}, standalone_mode=False
+        )
+    except click.ClickException as e:
+        e.show()
+        sys.exit(e.exit_code)
+    except PypelineException as e:
+        pypeline_logger.log(str(e))
+        sys.exit(1)
+
+    sys.exit(exit_code)
 
 
 def run():

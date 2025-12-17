@@ -16,6 +16,10 @@ from xdg import xdg_cache_home
 T = TypeVar("T")
 
 
+class PypelineException(Exception):
+    pass
+
+
 def cache_directory() -> Path:
     if "PYPELINE_CACHE_DIR" in os.environ:
         return Path(os.environ["PYPELINE_CACHE_DIR"])

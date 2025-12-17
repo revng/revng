@@ -18,6 +18,7 @@ from revng.pypeline.task.pipe import Pipe, ScheduledTaskDependencies
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.savepoint import SavePoint
 from revng.pypeline.task.task import TaskArgumentAccess
+from revng.pypeline.utils import PypelineException
 from revng.pypeline.utils.logger import pypeline_logger
 
 from .scheduled_task import ScheduledTask
@@ -107,7 +108,13 @@ class Schedule:
     def run(self) -> ContainerSet:
         for task in self.tasks:
             if isinstance(task.node.task, Pipe):
-                task.node.task.check_precondition(self.model)
+                try:
+                    task.node.task.check_precondition(self.model)
+                # TODO: eventually the pipe will raise `PypelineException` directly
+                except RuntimeError as e:
+                    raise PypelineException(
+                        f"Preconditions were not met for pipe {task.node.task.name}: {e}"
+                    )
 
         # Notify the tasks which containers are going to be discardable
         self._identify_discardable_containers()
