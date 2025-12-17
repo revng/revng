@@ -9,6 +9,7 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/TypeDefinition.h"
 
 namespace llvm {
@@ -70,3 +71,86 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model);
 extern llvm::SmallVector<model::UpcastableType>
 flattenReturnTypes(const abi::FunctionType::Layout &Layout,
                    const model::Binary &Model);
+
+/// \note This is the final prototype, after segregate-stack-access
+template<bool LegacyLocalVariables>
+inline llvm::FunctionType &
+layoutToLLVMFunctionType(llvm::LLVMContext &Context,
+                         model::Architecture::Values Architecture,
+                         const abi::FunctionType::Layout &Layout) {
+  using namespace llvm;
+
+  // Process arguments
+  using namespace abi::FunctionType;
+  SmallVector<Type *> FunctionArguments;
+  for (const Layout::Argument &Argument : Layout.Arguments) {
+    model::UpcastableType ArgumentType = Argument.Type;
+
+    switch (Argument.Kind) {
+    case abi::FunctionType::ArgumentKind::ShadowPointerToAggregateReturnValue:
+      // Skip SPTAR
+      continue;
+    case abi::FunctionType::ArgumentKind::PointerToCopy:
+    case abi::FunctionType::ArgumentKind::ReferenceToAggregate:
+      ArgumentType = model::PointerType::make(std::move(ArgumentType),
+                                              Architecture);
+      break;
+    case abi::FunctionType::ArgumentKind::Scalar:
+      // Do nothing
+      break;
+    default:
+      revng_abort();
+    }
+
+    auto *LLVMType = getLLVMTypeForScalar(Context, *ArgumentType);
+    FunctionArguments.push_back(LLVMType);
+  }
+
+  // Process return type
+  Type *ReturnType = nullptr;
+  switch (Layout.returnMethod()) {
+  case ReturnMethod::Void:
+    // No return values, use void
+    ReturnType = Type::getVoidTy(Context);
+    break;
+
+  case ReturnMethod::ModelAggregate: {
+    auto TargetPointerSizedInteger = getPointerSizedInteger(Context,
+                                                            Architecture);
+    if constexpr (LegacyLocalVariables) {
+      ReturnType = TargetPointerSizedInteger;
+    } else {
+      if (Layout.hasSPTAR()) {
+        ReturnType = TargetPointerSizedInteger;
+      } else {
+        const model::Type &ReturnAggregate = Layout.returnValueAggregateType();
+        size_t ReturnSize = *ReturnAggregate.size();
+        auto *Int8 = llvm::IntegerType::getInt8Ty(Context);
+        ReturnType = llvm::ArrayType::get(Int8, ReturnSize);
+      }
+    }
+  } break;
+
+  case ReturnMethod::Scalar: {
+    // We either have a return value that fits in a single register, or it's
+    // CABIFunctionDefinition returning stuff through registers
+    unsigned Bits = 0;
+    for (const Layout::ReturnValue &ReturnValue : Layout.ReturnValues)
+      Bits += ReturnValue.Type->size().value() * 8;
+    ReturnType = IntegerType::getIntNTy(Context, Bits);
+  } break;
+
+  case ReturnMethod::RegisterSet: {
+    // We have a RawFunctionDefinition returning things over multiple
+    // registers
+    revng_assert(Layout.returnValueRegisterCount() > 1);
+    auto Types = toLLVMTypes(Context, Layout.returnValueRegisters());
+    ReturnType = StructType::get(Context, Types, true);
+  } break;
+
+  default:
+    revng_abort();
+  }
+
+  return *FunctionType::get(ReturnType, FunctionArguments, false);
+}

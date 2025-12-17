@@ -937,7 +937,11 @@ private:
       CalledValue = NewCallee;
       CalleeType = NewCallee->getFunctionType();
     } else {
-      CalleeType = &layoutToLLVMFunctionType(Layout, OldCall->getType());
+      LLVMContext &Context = OldCall->getContext();
+      auto Architecture = Binary.Architecture();
+      CalleeType = &layoutToLLVMFunctionType<LegacyLocalVariables>(Context,
+                                                                   Architecture,
+                                                                   Layout);
       CalledValue = B.CreateBitCast(OldCall->getCalledOperand(),
                                     CalleeType->getPointerTo());
     }
@@ -1445,9 +1449,14 @@ private:
                                  const model::TypeDefinition &Prototype) {
     using namespace abi::FunctionType;
     auto Layout = Layout::make(Prototype);
+    LLVMContext &Context = OldFunction->getContext();
+    auto Architecture = Binary.Architecture();
 
     Type *OldReturnType = OldFunction->getReturnType();
-    FunctionType &NewType = layoutToLLVMFunctionType(Layout, OldReturnType);
+    FunctionType
+      &NewType = layoutToLLVMFunctionType<LegacyLocalVariables>(Context,
+                                                                Architecture,
+                                                                Layout);
 
     // NOTE: all the model *must* be read above this line!
     //       If we don't do this, we will break invalidation tracking
@@ -1463,84 +1472,6 @@ private:
     OldToNew[OldFunction] = &NewFunction;
 
     return { &NewFunction, Layout };
-  }
-
-  llvm::FunctionType &
-  layoutToLLVMFunctionType(const abi::FunctionType::Layout &Layout,
-                           Type *OldReturnType) const {
-    // Process arguments
-    using namespace abi::FunctionType;
-    SmallVector<Type *> FunctionArguments;
-    for (const Layout::Argument &Argument : Layout.Arguments) {
-      model::UpcastableType ArgumentType = Argument.Type;
-
-      switch (Argument.Kind) {
-      case abi::FunctionType::ArgumentKind::ShadowPointerToAggregateReturnValue:
-        // Skip SPTAR
-        continue;
-      case abi::FunctionType::ArgumentKind::PointerToCopy:
-      case abi::FunctionType::ArgumentKind::ReferenceToAggregate:
-        ArgumentType = model::PointerType::make(std::move(ArgumentType),
-                                                Binary.Architecture());
-        break;
-      case abi::FunctionType::ArgumentKind::Scalar:
-        // Do nothing
-        break;
-      default:
-        revng_abort();
-      }
-
-      auto *LLVMType = getLLVMTypeForScalar(M.getContext(), *ArgumentType);
-      FunctionArguments.push_back(LLVMType);
-    }
-
-    // Process return type
-    Type *ReturnType = nullptr;
-    switch (Layout.returnMethod()) {
-    case ReturnMethod::Void:
-      // No return values, forward returning void
-      revng_assert(OldReturnType->isVoidTy());
-      ReturnType = OldReturnType;
-      break;
-
-    case ReturnMethod::ModelAggregate:
-      if constexpr (LegacyLocalVariables) {
-        ReturnType = TargetPointerSizedInteger;
-      } else {
-        if (Layout.hasSPTAR()) {
-          ReturnType = TargetPointerSizedInteger;
-        } else {
-          const model::Type &ReturnAggregate = Layout
-                                                 .returnValueAggregateType();
-          size_t ReturnSize = *ReturnAggregate.size();
-          auto &Context = OldReturnType->getContext();
-          auto *Int8 = llvm::IntegerType::getInt8Ty(Context);
-          ReturnType = llvm::ArrayType::get(Int8, ReturnSize);
-        }
-      }
-      break;
-
-    case ReturnMethod::Scalar: {
-      // We either have a return value that fits in a single register, or it's
-      // CABIFunctionDefinition returning stuff through registers
-      unsigned Bits = 0;
-      for (const Layout::ReturnValue &ReturnValue : Layout.ReturnValues)
-        Bits += ReturnValue.Type->size().value() * 8;
-      ReturnType = IntegerType::getIntNTy(OldReturnType->getContext(), Bits);
-    } break;
-
-    case ReturnMethod::RegisterSet:
-      // We have a RawFunctionDefinition returning things over multiple
-      // registers
-      revng_assert(Layout.returnValueRegisterCount() > 1);
-      ReturnType = OldReturnType;
-      break;
-
-    default:
-      revng_abort();
-    }
-
-    return *FunctionType::get(ReturnType, FunctionArguments, false);
   }
 
   unsigned
