@@ -25,6 +25,9 @@ bool Relocation::verify(VerifyHelper &VH) const {
   if (Address().isInvalid())
     return VH.fail("Every relocation must have a valid address.", *this);
 
+  if (not Address().isGeneric())
+    return VH.fail("Every relocation must have a generic address.", *this);
+
   if (not model::RelocationType::isValid(Type()))
     return VH.fail("Every relocation must have a valid type.", *this);
 
