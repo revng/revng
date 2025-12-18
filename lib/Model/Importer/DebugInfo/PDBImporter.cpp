@@ -57,7 +57,7 @@ static llvm::cl::opt<std::string> UsePDB("use-pdb",
                                          llvm::cl::cat(MainCategory));
 
 PDBImporter::PDBImporter(TupleTree<model::Binary> &Model,
-                         MetaAddress ImageBase) :
+                         const MetaAddress &ImageBase) :
   BinaryImporterHelper(*Model, ImageBase.address(), Log),
   Model(Model),
   ImageBase(ImageBase) {
@@ -160,14 +160,14 @@ private:
   ProcessedTypeMap &ProcessedTypes;
 
   NativeSession &Session;
-  MetaAddress &ImageBase;
+  const MetaAddress &ImageBase;
 
 public:
   PDBImporterSymbolVisitor(BinaryImporterHelper &Helper,
                            TupleTree<model::Binary> &M,
                            ProcessedTypeMap &ProcessedTypes,
                            NativeSession &Session,
-                           MetaAddress &ImageBase) :
+                           const MetaAddress &ImageBase) :
     Helper(Helper),
     Model(M),
     ProcessedTypes(ProcessedTypes),
@@ -431,6 +431,9 @@ static StringRef getBaseName(StringRef Path) {
 
 std::optional<std::string>
 PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
+  revng_log(Log, "Looking for the PDB file");
+  LoggerIndent Indent(Log);
+
   // Consider the --use-pdb argument
   if (not UsePDB.empty()) {
     if (not fileExists(UsePDB)) {
@@ -1326,7 +1329,8 @@ Error PDBImporterSymbolVisitor::visitKnownRecord(CVSymbol &Record,
                                         .getRVAFromSectOffset(Proc.Segment,
                                                               Proc.CodeOffset);
     // Relocate the symbol.
-    MetaAddress FunctionAddress = ImageBase + FunctionVirtualAddress;
+    MetaAddress FunctionAddress = Helper.toPC(ImageBase
+                                              + FunctionVirtualAddress);
 
     if (not Model->Functions().contains(FunctionAddress)) {
       if (auto *Function = Helper.registerFunctionEntry(FunctionAddress)) {

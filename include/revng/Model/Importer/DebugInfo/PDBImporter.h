@@ -27,10 +27,10 @@ private:
   std::optional<llvm::codeview::GUID> ExpectedGUID;
 
 public:
-  PDBImporter(TupleTree<model::Binary> &Model, MetaAddress ImageBase);
+  PDBImporter(TupleTree<model::Binary> &Model, const MetaAddress &ImageBase);
 
   TupleTree<model::Binary> &getModel() { return Model; }
-  MetaAddress &getBaseAddress() { return ImageBase; }
+  const MetaAddress &getBaseAddress() { return ImageBase; }
   llvm::pdb::PDBFile *getPDBFile() { return ThePDBFile; }
 
   void import(const llvm::object::COFFObjectFile &TheBinary,
