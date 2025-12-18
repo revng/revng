@@ -169,7 +169,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   Task.advance("Parse ELF", true);
 
   // Parse the ELF file
-  auto TheELFOrErr = object::ELFFile<T>::create(TheBinary.getData());
+  auto TheELFOrErr = object::ELFFile<T>::create(TheBinary.ObjectFile.getData());
   if (not TheELFOrErr)
     return TheELFOrErr.takeError();
   object::ELFFile<T> &TheELF = *TheELFOrErr;
@@ -418,21 +418,11 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
     // Import Dwarf
     DwarfImporter Importer(Model);
-    auto Buffer = MemoryBuffer::getMemBuffer(TheBinary.getData(), "", false);
 
-    // The debug info discovery relies on knowing the filename of the input
-    // binary, this is because, among the standard candidate files there are
-    // options that depend on it such as `${FILENAME}.debug`. If the reference
-    // to the `Binaries` entry is present, use the name from there as it's more
-    // reliable than the filename of the file on disk (this is still used as a
-    // fallback in order to be compatible with the old pipeline).
-    std::string Filename;
-    if (BinaryReference.isValid())
-      Filename = BinaryReference.get()->Name();
-    else if (not TheBinary.getFileName().empty())
-      Filename = TheBinary.getFileName().str();
-
-    Importer.import(*Buffer, AdjustedOptions, Filename);
+    Importer.import(TheBinary.Buffer,
+                    TheBinary.Path,
+                    AdjustedOptions,
+                    TheBinary.getFilename());
 
     // Now we try to find missing types in the dependencies.
     Task.advance("Find missing types from debug info", true);
@@ -462,10 +452,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
   unsigned MaximumRecursionDepth = 1;
 
   LDDTree Dependencies;
-  const std::string &BinaryPath = not InputPath.empty() ?
-                                    InputPath :
-                                    TheBinary.getFileName().str();
-  lddtree(Dependencies, BinaryPath, MaximumRecursionDepth);
+  lddtree(Dependencies, TheBinary.getFilename(), MaximumRecursionDepth);
   for (auto &Library : Dependencies) {
     revng_log(ELFImporterLog,
               "Importing Models for dependencies of " << Library.first << ":");
@@ -500,10 +487,12 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
         .EnableRemoteDebugInfo = Opts.EnableRemoteDebugInfo,
         .AdditionalDebugInfoPaths = Opts.AdditionalDebugInfoPaths
       };
-      if (auto Error = importELF(DepModel,
-                                 *TheBinary,
-                                 AdjustedOptions,
-                                 BinaryReference)) {
+      ELFBinary Binary(*TheBinary,
+                       TheBinary->getMemoryBufferRef(),
+                       DependencyLibrary,
+                       this->TheBinary.Reference);
+
+      if (auto Error = importELF(DepModel, Binary, AdjustedOptions)) {
         // TODO: emit a diagnostic message for the user.
         revng_log(ELFImporterLog,
                   "Can't import model for " << DependencyLibrary << " due to "
@@ -743,8 +732,8 @@ void ELFImporter<T, HasAddend>::parseSegments(ELFFile<T> &TheELF) {
 
       model::Segment NewSegment({ Start, ProgramHeader.p_memsz });
 
-      if (BinaryReference.isValid())
-        NewSegment.Binary() = BinaryReference;
+      if (TheBinary.Reference.isValid())
+        NewSegment.Binary() = TheBinary.Reference;
       NewSegment.StartOffset() = ProgramHeader.p_offset;
 
       auto MaybeEndOffset = (OverflowSafeInt(u64(ProgramHeader.p_offset))
@@ -1251,7 +1240,8 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
     using namespace model::RelocationType;
     auto RelocationType = fromELFRelocation(Model->Architecture(), Type);
 
-    auto RelocationName = getELFRelocationTypeName(TheBinary.getEMachine(),
+    auto RelocationName = getELFRelocationTypeName(TheBinary.ObjectFile
+                                                     .getEMachine(),
                                                    Type);
     if (RelocationType == Invalid) {
       revng_log(ELFImporterLog,
@@ -1303,16 +1293,15 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
 
 static std::unique_ptr<ELFImporterBase>
 createELFImporter(TupleTree<model::Binary> &M,
-                  const object::ELFObjectFileBase &TheBinary,
+                  const ELFBinary &TheBinary,
                   bool IsLittleEndian,
                   uint64_t PointerSize,
                   bool HasRelocationAddend,
-                  uint64_t BaseAddress,
-                  model::BinaryReference &BinaryReference) {
+                  uint64_t BaseAddress) {
   if (PointerSize != 4 and PointerSize != 8)
     revng_abort("Unexpected address size");
 
-  if (TheBinary.getEType() != ELF::ET_DYN)
+  if (TheBinary.ObjectFile.getEType() != ELF::ET_DYN)
     BaseAddress = 0;
 
   // In the case of MIPS architecture, we handle some specific import
@@ -1333,10 +1322,7 @@ createELFImporter(TupleTree<model::Binary> &M,
     using EI = ELFImporter<ELFType, HasRelocationAddend>;
     using MEI = MIPSELFImporter<ELFType, HasRelocationAddend>;
     using ImporterType = std::conditional_t<IsMIPS, MEI, EI>;
-    return std::make_unique<ImporterType>(M,
-                                          TheBinary,
-                                          BaseAddress,
-                                          BinaryReference);
+    return std::make_unique<ImporterType>(M, TheBinary, BaseAddress);
   };
   return compile_time::invokeCombination(Maker,
                                          Is32Bit,
@@ -1346,9 +1332,8 @@ createELFImporter(TupleTree<model::Binary> &M,
 }
 
 Error importELF(TupleTree<model::Binary> &Model,
-                const object::ELFObjectFileBase &TheBinary,
-                const ImporterOptions &Options,
-                model::BinaryReference &BinaryReference) {
+                const ELFBinary &TheBinary,
+                const ImporterOptions &Options) {
   // In the case of MIPS architecture, we handle some specific import
   // as a part of a separate derived (from ELFImporter) class.
   // TODO: Investigate other architectures as well.
@@ -1365,7 +1350,6 @@ Error importELF(TupleTree<model::Binary> &Model,
                                     IsLittleEndian,
                                     PointerSize,
                                     HasRelocationAddend,
-                                    Options.BaseAddress,
-                                    BinaryReference);
+                                    Options.BaseAddress);
   return Importer->import(Options);
 }

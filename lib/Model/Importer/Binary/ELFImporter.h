@@ -64,8 +64,7 @@ class ELFImporter : public BinaryImporterHelper, public ELFImporterBase {
 private:
   RawBinaryView File;
   TupleTree<model::Binary> &Model;
-  const llvm::object::ELFObjectFileBase &TheBinary;
-  model::BinaryReference &BinaryReference;
+  const ELFBinary &TheBinary;
 
   std::optional<MetaAddress> EHFrameHdrAddress;
   std::optional<MetaAddress> DynamicAddress;
@@ -82,14 +81,12 @@ protected:
 
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
-              const llvm::object::ELFObjectFileBase &TheBinary,
-              uint64_t BaseAddress,
-              model::BinaryReference &BinaryReference) :
+              const ELFBinary &TheBinary,
+              uint64_t BaseAddress) :
     BinaryImporterHelper(*Model, BaseAddress, ELFImporterLog),
-    File(*Model, toArrayRef(TheBinary.getData())),
+    File(*Model, toArrayRef(TheBinary.ObjectFile.getData())),
     Model(Model),
-    TheBinary(TheBinary),
-    BinaryReference(BinaryReference) {}
+    TheBinary(TheBinary) {}
 
 private:
   using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;

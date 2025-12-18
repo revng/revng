@@ -409,7 +409,7 @@ void lddtreeResolve(LDDTree &Dependencies,
 }
 
 static RecursiveCoroutine<void> lddtreeHelper(LDDTree &Dependencies,
-                                              const std::string &Path,
+                                              llvm::StringRef Path,
                                               unsigned CurrentLevel,
                                               unsigned DepthLevel) {
   revng_log(Log, "lddtree for " << Path << "\n");
@@ -447,9 +447,7 @@ static RecursiveCoroutine<void> lddtreeHelper(LDDTree &Dependencies,
   }
 }
 
-void lddtree(LDDTree &Dependencies,
-             const std::string &Path,
-             unsigned DepthLevel) {
+void lddtree(LDDTree &Dependencies, llvm::StringRef Path, unsigned DepthLevel) {
   if (DepthLevel > 0)
     lddtreeHelper(Dependencies, Path, 1, DepthLevel);
 }

@@ -99,7 +99,7 @@ int main(int Argc, char *Argv[]) {
       ImageBase = MetaAddress::fromPC(Architecture, PE32PlusHeader->ImageBase);
     }
     PDBImporter Importer(Model, ImageBase);
-    Importer.import(*Binary, Options);
+    Importer.import(*Binary, InputFilename, Options);
   }
 
   // Serialize the model.

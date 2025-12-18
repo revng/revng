@@ -1182,10 +1182,11 @@ void DwarfImporter::import(StringRef FileName, const ImporterOptions &Options) {
   }
 
   std::unique_ptr<MemoryBuffer> Buffer = std::move(MaybeBuffer.get());
-  import(*Buffer, Options, FileName);
+  import(*Buffer, FileName, Options, FileName);
 }
 
-void DwarfImporter::import(llvm::MemoryBuffer &Buffer,
+void DwarfImporter::import(llvm::MemoryBufferRef Buffer,
+                           llvm::StringRef Filepath,
                            const ImporterOptions &Options,
                            llvm::StringRef FileName) {
   Task T(3, "Importing DWARF information");
@@ -1255,7 +1256,7 @@ void DwarfImporter::import(llvm::MemoryBuffer &Buffer,
 
       auto DebugFilePath = findDebugInfoFileByName(FileName, DebugFile, ELF);
       if (!DebugFilePath) {
-        int ExitCode = runFetchDebugInfo(FileName, DILogger.isEnabled());
+        int ExitCode = runFetchDebugInfo(Filepath, DILogger.isEnabled());
         if (ExitCode != 0) {
           revng_log(DILogger,
                     "Failed to find debug info with `revng model "

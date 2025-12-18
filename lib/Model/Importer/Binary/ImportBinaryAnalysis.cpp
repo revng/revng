@@ -31,7 +31,8 @@ llvm::Error ImportBinaryAnalysis::run(pipeline::ExecutionContext &Context,
   TupleTree<model::Binary> &Model = getWritableModelFromContext(Context);
 
   const ImporterOptions &Options = importerOptions();
-  auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(*SourceBinary.path(),
+  llvm::StringRef BinaryPath = *SourceBinary.path();
+  auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(BinaryPath,
                                                         false,
                                                         false);
   if (not MaybeBuffer)
@@ -46,6 +47,7 @@ llvm::Error ImportBinaryAnalysis::run(pipeline::ExecutionContext &Context,
 
   if (llvm::Error Error = importBinary(Model,
                                        **MaybeBuffer,
+                                       BinaryPath,
                                        Options,
                                        Reference))
     return Error;
@@ -86,6 +88,7 @@ llvm::Error ParseBinaryAnalysis::run(Model &Model,
     model::BinaryReference Reference = makeReference(*Model.get().get(), I);
     if (llvm::Error Error = importBinary(Model.get(),
                                          *Buffer,
+                                         Binaries.getFilePath(I),
                                          Options,
                                          Reference))
       return Error;

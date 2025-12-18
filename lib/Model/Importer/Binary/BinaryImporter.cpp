@@ -20,6 +20,7 @@ using namespace llvm;
 
 Error importBinary(TupleTree<model::Binary> &Model,
                    llvm::object::ObjectFile &ObjectFile,
+                   llvm::StringRef Filepath,
                    const ImporterOptions &Options,
                    model::BinaryReference &BinaryReference) {
   using namespace llvm::object;
@@ -36,14 +37,27 @@ Error importBinary(TupleTree<model::Binary> &Model,
 
   llvm::Error Result = Error::success();
   revng_check(not Result);
-  if (auto *TheBinary = dyn_cast<ELFObjectFileBase>(&ObjectFile))
-    Result = importELF(Model, *TheBinary, Options, BinaryReference);
-  else if (auto *TheBinary = dyn_cast<COFFObjectFile>(&ObjectFile))
-    Result = importPECOFF(Model, *TheBinary, Options, BinaryReference);
-  else if (auto *TheBinary = dyn_cast<MachOObjectFile>(&ObjectFile))
-    Result = importMachO(Model, *TheBinary, Options, BinaryReference);
-  else
+  if (auto *TheBinary = dyn_cast<ELFObjectFileBase>(&ObjectFile)) {
+    ELFBinary Binary(*TheBinary,
+                     ObjectFile.getMemoryBufferRef(),
+                     Filepath,
+                     BinaryReference);
+    Result = importELF(Model, Binary, Options);
+  } else if (auto *TheBinary = dyn_cast<COFFObjectFile>(&ObjectFile)) {
+    COFFBinary Binary(*TheBinary,
+                      ObjectFile.getMemoryBufferRef(),
+                      Filepath,
+                      BinaryReference);
+    Result = importPECOFF(Model, Binary, Options);
+  } else if (auto *TheBinary = dyn_cast<MachOObjectFile>(&ObjectFile)) {
+    MachOBinary Binary(*TheBinary,
+                       ObjectFile.getMemoryBufferRef(),
+                       Filepath,
+                       BinaryReference);
+    Result = importMachO(Model, Binary, Options);
+  } else {
     return revng::createError("Unsupported binary format");
+  }
 
   if (Result)
     return Result;
@@ -57,6 +71,7 @@ Error importBinary(TupleTree<model::Binary> &Model,
 
 Error importBinary(TupleTree<model::Binary> &Model,
                    llvm::MemoryBuffer &Buffer,
+                   llvm::StringRef Filepath,
                    const ImporterOptions &Options,
                    model::BinaryReference &BinaryReference) {
   auto BinaryOrError = object::createBinary(Buffer);
@@ -74,6 +89,7 @@ Error importBinary(TupleTree<model::Binary> &Model,
 
   return importBinary(Model,
                       cast<object::ObjectFile>(Binary),
+                      Filepath,
                       Options,
                       BinaryReference);
 }
