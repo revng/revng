@@ -42,13 +42,6 @@ llvm::Error LinkForTranslation::checkPrecondition(const class Model &Model) {
   return llvm::Error::success();
 }
 
-static void writeToFile(llvm::StringRef Path, llvm::StringRef Buffer) {
-  std::error_code EC;
-  llvm::raw_fd_ostream OS(Path, EC);
-  revng_assert(not EC);
-  OS << Buffer;
-}
-
 LinkForTranslation::LinkForTranslation(const Model &TheModel,
                                        llvm::StringRef StaticConfig,
                                        llvm::StringRef DynamicConfig,
@@ -64,19 +57,14 @@ LinkForTranslation::LinkForTranslation(const Model &TheModel,
 void LinkForTranslation::run() {
   // TODO: some of the operations in linkForTranslation should be converted to
   //       in-memory counterparts to avoid serializing everything.
-  TemporaryFile BinaryFile("revng-lft-binary");
-  auto BinaryArrayRef = Binaries.getFile(0);
-  writeToFile(BinaryFile.path(),
-              { BinaryArrayRef.begin(), BinaryArrayRef.size() });
-
   TemporaryFile Object("revng-lft-object", "o");
-  writeToFile(Object.path(),
-              ObjectFile.getMemoryBuffer(ObjectID{})->getBuffer());
+  writeToFile(ObjectFile.getMemoryBuffer(ObjectID{})->getBuffer(),
+              Object.path());
 
   TemporaryFile TempOutput("revng-lft-output");
 
   linkForTranslation(Binary,
-                     BinaryFile.path(),
+                     Binaries.getFilePath(0),
                      Object.path(),
                      TempOutput.path());
 

@@ -9,6 +9,7 @@
 #include "revng/PipeboxCommon/Common.h"
 #include "revng/PipeboxCommon/Concepts.h"
 #include "revng/Support/Tar.h"
+#include "revng/Support/TemporaryFile.h"
 
 namespace revng::pypeline {
 
@@ -27,14 +28,20 @@ public:
   static constexpr llvm::StringRef MimeType = "application/x-tar";
 
 private:
+  static constexpr llvm::StringRef Prefix = "binaries-container-file";
   struct File {
     std::string Filename;
-    Buffer Contents;
+    TemporaryFile Contents;
+    std::unique_ptr<llvm::MemoryBuffer> Buffer;
   };
   std::vector<File> Files;
 
 public:
   BinariesContainer() = default;
+  BinariesContainer(const BinariesContainer &) = delete;
+  BinariesContainer &operator=(const BinariesContainer &) = delete;
+  BinariesContainer(BinariesContainer &&) = default;
+  BinariesContainer &operator=(BinariesContainer &&) = default;
 
 public:
   std::set<ObjectID> objects() const {
@@ -59,7 +66,18 @@ public:
       std::string Hash = hash(Entry.Data);
       revng_assert(Entry.Filename.starts_with("binaries/"));
       revng_assert(Entry.Filename == "binaries/" + Hash);
-      Files.push_back({ std::move(Hash), std::move(Entry.Data) });
+
+      auto TempFile = llvm::cantFail(TemporaryFile::make(Prefix));
+      writeToFile({ Entry.Data.data(), Entry.Data.size() }, TempFile.path());
+      // Set the file as read-only so that it cannot be (easily) changed
+      llvm::sys::fs::setPermissions(TempFile.path(),
+                                    llvm::sys::fs::perms::owner_read);
+
+      auto Buffer = revng::cantFail(llvm::MemoryBuffer::getFile(TempFile
+                                                                  .path()));
+      Files.push_back({ std::move(Hash),
+                        std::move(TempFile),
+                        std::move(Buffer) });
     }
   }
 
@@ -76,7 +94,9 @@ public:
       TarWriter Writer(OS, TarFormat::Plain);
       for (const File &Entry : Files) {
         std::string Filename = "binaries/" + Entry.Filename;
-        Writer.addMember(Filename, Entry.Contents.data());
+        Writer.addMember(Filename,
+                         { Entry.Buffer->getBufferStart(),
+                           Entry.Buffer->getBufferSize() });
       }
     }
 
@@ -90,7 +110,13 @@ public:
 
   llvm::ArrayRef<char> getFile(size_t Index) const {
     revng_assert(Index < Files.size());
-    return Files[Index].Contents.data();
+    const llvm::MemoryBuffer &Buffer = *Files[Index].Buffer;
+    return { Buffer.getBufferStart(), Buffer.getBufferSize() };
+  }
+
+  llvm::StringRef getFilePath(size_t Index) const {
+    revng_assert(Index < Files.size());
+    return Files[Index].Contents.path();
   }
 
 private:
