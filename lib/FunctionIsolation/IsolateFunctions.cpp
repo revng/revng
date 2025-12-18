@@ -761,12 +761,7 @@ void Isolate::runOnFunction(const model::Function &TheFunction) {
   IsolatedFunctions.push_back({ TheFunction.Entry(), Function });
 }
 
-Isolate::~Isolate() {
-  Impl->epilogue();
-
-  // Drop the `root` function's body to save memory, since we're done isolating
-  deleteOnlyBody(*ClonedModule->getFunction("root"));
-
+void Isolate::splitIsolatedFunctionsToOutput() {
   std::set<const llvm::Function *> InternalFunctions;
   for (llvm::Function &F : ClonedModule->functions()) {
     if (FunctionTags::Root.isTagOf(&F) or FunctionTags::Isolated.isTagOf(&F))
@@ -788,6 +783,16 @@ Isolate::~Isolate() {
     // ClonedModule to save memory
     deleteOnlyBody(*Function);
   }
+}
+
+Isolate::~Isolate() {
+  Impl->epilogue();
+
+  // Drop the `root` function's body to save memory, since we're done isolating
+  deleteOnlyBody(*ClonedModule->getFunction("root"));
+
+  // Actually split the isolated function to the output module
+  splitIsolatedFunctionsToOutput();
 }
 
 } // namespace revng::pypeline::piperuns

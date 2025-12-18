@@ -64,6 +64,9 @@ public:
   ~Isolate();
 
   void runOnFunction(const model::Function &TheFunction);
+
+private:
+  void splitIsolatedFunctionsToOutput();
 };
 
 } // namespace revng::pypeline::piperuns
