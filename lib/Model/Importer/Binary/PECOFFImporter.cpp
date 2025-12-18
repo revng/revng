@@ -5,6 +5,7 @@
 #include "llvm/Object/COFF.h"
 #include "llvm/Object/ObjectFile.h"
 #include "llvm/Support/Error.h"
+#include "llvm/Support/MathExtras.h"
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/Model/Binary.h"
@@ -39,7 +40,9 @@ public:
                  uint64_t BaseAddress) :
     BinaryImporterHelper(*Model, BaseAddress, Log),
     Model(Model),
-    TheBinary(TheBinary) {}
+    TheBinary(TheBinary) {
+    revng_log(Log, "Creating binary importer helper");
+  }
 
   Error import(const ImporterOptions &Options);
 
@@ -56,8 +59,6 @@ private:
   /// Parse delay dynamic symbols from the file.
   void parseDelayImportedSymbols();
 
-  /// Resolve dependent DLLs.
-  void getDependencies(PELDDTree Dependencies, unsigned Level);
   /// Try to find prototypes in the Models of dynamic libraries.
   void findMissingTypes(const ImporterOptions &Options);
 
@@ -84,7 +85,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
   // Identify ImageBase
   if (PE32Header) {
     // TODO: ImageBase should aligned to 4kb pages, should we check that?
-    ImageBase = fromPC(PE32Header->ImageBase);
+    ImageBase = fromGeneric(PE32Header->ImageBase);
   } else {
     const pe32plus_header *PE32PlusHeader = TheBinary.ObjectFile
                                               .getPE32PlusHeader();
@@ -92,7 +93,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
       return revng::createError("Invalid PE Header");
 
     // PE32+ Header
-    ImageBase = fromPC(PE32PlusHeader->ImageBase);
+    ImageBase = fromGeneric(PE32PlusHeader->ImageBase);
   }
 
   // Read sections
@@ -109,7 +110,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
     const object::coff_section *CoffRef = *MaybeSection;
 
     MetaAddress Start = ImageBase + u64(CoffRef->VirtualAddress);
-    Segment Segment({ Start.toGeneric(), u64(CoffRef->VirtualSize) });
+    Segment Segment({ Start, u64(CoffRef->VirtualSize) });
 
     if (TheBinary.Reference.isValid())
       Segment.Binary() = TheBinary.Reference;
@@ -148,7 +149,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
   MetaAddress EntryPoint;
   if (PE32Header) {
     if (PE32Header->AddressOfEntryPoint != 0) {
-      EntryPoint = ImageBase + u64(PE32Header->AddressOfEntryPoint);
+      EntryPoint = toPC(ImageBase + u64(PE32Header->AddressOfEntryPoint));
     }
   } else {
     const pe32plus_header *PE32PlusHeader = TheBinary.ObjectFile
@@ -157,7 +158,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
 
     // PE32+ Header
     if (PE32PlusHeader->AddressOfEntryPoint != 0) {
-      EntryPoint = ImageBase + u64(PE32PlusHeader->AddressOfEntryPoint);
+      EntryPoint = toPC(ImageBase + u64(PE32PlusHeader->AddressOfEntryPoint));
     }
   }
 
@@ -182,7 +183,7 @@ void PECOFFImporter::parseSymbols() {
     }
 
     // Relocate the symbol.
-    MetaAddress Address = ImageBase + Symbol.getValue();
+    MetaAddress Address = toPC(ImageBase + Symbol.getValue());
     if (Model->Functions().contains(Address))
       continue;
 
@@ -337,19 +338,30 @@ void PECOFFImporter::parseDelayImportedSymbols() {
 
 /// \note For the PE/COFF, we are assuming that the libraries are in the current
 /// directory.
-static RecursiveCoroutine<void> getDependenciesHelper(StringRef FileName,
-                                                      PELDDTree Dependencies,
-                                                      unsigned CurrentLevel,
-                                                      unsigned Level) {
+static RecursiveCoroutine<void> getDependencies(StringRef FileName,
+                                                PELDDTree Dependencies,
+                                                unsigned CurrentLevel,
+                                                unsigned Level) {
+  revng_log(Log, "Computing dependencies of " << FileName.str());
+  LoggerIndent Indent(Log);
+
+  if (CurrentLevel == Level) {
+    revng_log(Log, "Maximum recursion depth exceeded, bailing out");
+    rc_return;
+  }
+
   auto BinaryOrErr = object::createBinary(FileName);
   if (not BinaryOrErr) {
     // TODO: emit a diagnostic message for the user.
     revng_log(Log,
-              "Can't create object for " << FileName << " due to "
-                                         << toString(BinaryOrErr.takeError()));
+              "Can't create object for " << FileName << " due to \""
+                                         << toString(BinaryOrErr.takeError())
+                                         << "\"");
     llvm::consumeError(BinaryOrErr.takeError());
     rc_return;
   }
+
+  revng_log(Log, "Binary parsed successfully");
 
   auto Object = cast<object::ObjectFile>(BinaryOrErr->getBinary());
   auto COFFObject = cast<COFFObjectFile>(Object);
@@ -372,46 +384,42 @@ static RecursiveCoroutine<void> getDependenciesHelper(StringRef FileName,
       continue;
     }
 
-    /// \note DLL names can be all upper-cased in the Import Tables, so we want
-    /// to lower it.
     auto LibraryNameAsString = LibraryName.str();
-    transform(LibraryNameAsString.begin(),
-              LibraryNameAsString.end(),
-              LibraryNameAsString.begin(),
-              ::tolower);
     Dependencies[FileName.str()].push_back(LibraryNameAsString);
   }
-
-  if (CurrentLevel == Level)
-    rc_return;
 
   ++CurrentLevel;
   for (auto &Library : Dependencies) {
     revng_log(Log, "Dependencies for " << Library.first << ":\n");
     for (auto &DependingLibrary : Library.second)
       if (!Dependencies.contains(DependingLibrary))
-        rc_recur getDependenciesHelper(DependingLibrary,
-                                       Dependencies,
-                                       CurrentLevel,
-                                       Level);
+        rc_recur getDependencies(DependingLibrary,
+                                 Dependencies,
+                                 CurrentLevel,
+                                 Level);
   }
 }
 
-void PECOFFImporter::getDependencies(PELDDTree Dependencies, unsigned Level) {
-  if (Level > 0)
-    getDependenciesHelper(BinaryPath, Dependencies, 1, Level);
-}
-
 void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
-  if (Opts.DebugInfo != DebugInfoLevel::Yes)
+  revng_log(Log, "Looking for missing types in dynamic libraries");
+  LoggerIndent Indent(Log);
+
+  if (Opts.DebugInfo != DebugInfoLevel::Yes) {
+    revng_log(Log, "Bailing out per user request");
     return;
+  }
 
   // TODO: disclose a way to modify this value with
   //       the `ImporterOptions::DebugInfo`, if the need ever arises.
-  unsigned MaximumRecursionDepth = 1;
+  unsigned MaximumRecursionDepth = 2;
 
   PELDDTree Dependencies;
-  getDependencies(Dependencies, MaximumRecursionDepth);
+  if (MaximumRecursionDepth > 0) {
+    rc_eval(getDependencies(TheBinary.getFilename(),
+                            Dependencies,
+                            0,
+                            MaximumRecursionDepth));
+  }
 
   ModelMap ModelsOfLibraries;
   TypeCopierMap TypeCopiers;
@@ -485,6 +493,7 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
       continue;
 
     revng_log(Log, "Searching for prototype for " << Fn.Name());
+    LoggerIndent Indent(Log);
     if (auto Found = findPrototype(Fn.Name(), ModelsOfLibraries)) {
       revng_assert(!Found->ModuleName.empty());
       revng_assert(Found->Prototype.verify(true));
@@ -500,6 +509,8 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
       for (auto &Attribute : Found->Attributes)
         if (Attribute != model::FunctionAttribute::Inline)
           Fn.Attributes().insert(Attribute);
+    } else {
+      revng_log(Log, "Not found");
     }
   }
 
@@ -546,6 +557,9 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
   Model->DefaultPrototype() = abi::registerDefaultFunctionPrototype(*Model);
 
   if (Options.DebugInfo != DebugInfoLevel::No) {
+    revng_log(Log, "Importing PDB");
+    LoggerIndent Indent(Log);
+
     PDBImporter PDBI(Model, ImageBase);
     PDBI.import(TheBinary.ObjectFile, TheBinary.Path, Options);
 

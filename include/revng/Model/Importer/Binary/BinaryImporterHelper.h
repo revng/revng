@@ -35,6 +35,16 @@ public:
     return relocate(fromGeneric(Address));
   }
 
+  MetaAddress toPC(const MetaAddress &Generic) const {
+    revng_assert(Generic.isGeneric());
+    using namespace model::Architecture;
+    revng_assert(Binary.Architecture() != Invalid);
+    return MetaAddress::fromPC(Binary.Architecture(),
+                               Generic.address(),
+                               Generic.epoch(),
+                               Generic.addressSpace());
+  }
+
   MetaAddress fromPC(uint64_t PC) const {
     using namespace model::Architecture;
     revng_assert(Binary.Architecture() != Invalid);
