@@ -252,6 +252,11 @@ foreach(
 endforeach()
 
 # Produce well-known-models
+file(
+  GLOB
+  WELL_KNOWN_BINARIES
+  "${CMAKE_INSTALL_PREFIX}/share/revng/test/tests/well-known-models/*revng-qa.compiled-with-debug*"
+)
 
 add_custom_target(well-known-binaries ALL)
 
