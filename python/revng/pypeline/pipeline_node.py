@@ -35,7 +35,7 @@ def deterministic_sort_key(node: PipelineNode) -> SupportsRichComparison:
     """
     return (
         # Arguments of the task
-        tuple(node.arguments),
+        tuple(node.argument_declarations),
         # Sorted list of outdegree of successors to try to embed the shape
         # of the pipeline in the sort key
         tuple(sorted(len(succ.successors) for succ in node.successors)),
@@ -108,7 +108,7 @@ class PipelineNode:
             assert len(self.bindings) == len(task.arguments)
 
     @property
-    def arguments_with_access(self) -> list[TaskArgument]:
+    def arguments(self) -> list[TaskArgument]:
         if isinstance(self.task, SavePoint):
             # SavePoints do not have bindings, so we return the task arguments directly
             return self.task.arguments
@@ -126,8 +126,8 @@ class PipelineNode:
             raise TypeError(f"Unsupported task type: {type(self.task)}")
 
     @property
-    def arguments(self) -> list[ContainerDeclaration]:
-        return [x.to_container_decl() for x in self.arguments_with_access]
+    def argument_declarations(self) -> list[ContainerDeclaration]:
+        return [x.declaration() for x in self.arguments]
 
     def add_successor(self, node: PipelineNode) -> PipelineNode:
         node.predecessors.append(self)

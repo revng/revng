@@ -27,7 +27,7 @@ class TaskArgument(ContainerDeclaration):
     # This is the description of the argument that will appear in the CLI
     help_text: str = ""
 
-    def to_container_decl(self) -> ContainerDeclaration:
+    def declaration(self) -> ContainerDeclaration:
         """
         Convert this TaskArgument to a ContainerDeclaration.
         """

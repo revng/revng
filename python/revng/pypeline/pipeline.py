@@ -242,11 +242,11 @@ class Pipeline(Generic[C]):
         for node in self.walk_pipeline():
             if isinstance(node.task, Pipe):
                 new_node = Graph.Node(node.task.name)
-                for argument in node.arguments_with_access:
+                for argument in node.arguments:
                     new_node.entries.append(f"{argument.name} [{access_to_str[argument.access]}]")
             else:
                 new_node = Graph.Node(node.task.name, color="#2A52BE", bgcolor="#6C83BE")
-                for argument in node.arguments_with_access:
+                for argument in node.arguments:
                     new_node.entries.append(argument.name)
 
             nodes_map[node] = new_node
@@ -266,15 +266,15 @@ class Pipeline(Generic[C]):
             if not container_edges:
                 continue
 
-            node_inputs: list[ContainerDeclaration] = list(node.arguments)
+            node_inputs: list[ContainerDeclaration] = list(node.argument_declarations)
             taken_inputs: set[int] = set()
 
             for parent_node in self.walk_pipeline(node, forward=False):
                 if parent_node is node:
                     continue
 
-                for source_index, parent_argument in enumerate(parent_node.arguments_with_access):
-                    parent_container_decl = parent_argument.to_container_decl()
+                for source_index, parent_argument in enumerate(parent_node.arguments):
+                    parent_container_decl = parent_argument.declaration()
                     if (
                         parent_argument.access == TaskArgumentAccess.READ
                         or parent_container_decl not in node_inputs
@@ -388,9 +388,9 @@ class Pipeline(Generic[C]):
 
             # Figure out if a task will actually produce outputs
             written_out = Requests()
-            for argument in scheduled_task.node.arguments_with_access:
+            for argument in scheduled_task.node.arguments:
                 if argument.access != TaskArgumentAccess.READ:
-                    container_decl = argument.to_container_decl()
+                    container_decl = argument.declaration()
                     if container_decl in scheduled_task.outgoing:
                         written_out[container_decl] = scheduled_task.outgoing[container_decl]
 
@@ -400,7 +400,7 @@ class Pipeline(Generic[C]):
                 assert [scheduled_task] == parent_scheduled_task.dependencies
                 parent_scheduled_task.dependencies = scheduled_task.dependencies
             else:
-                used_declatations.update(x.name for x in scheduled_task.node.arguments)
+                used_declatations.update(x.name for x in scheduled_task.node.argument_declarations)
                 parent_scheduled_task = scheduled_task
 
             if len(scheduled_task.dependencies) == 1:
@@ -573,7 +573,7 @@ class Pipeline(Generic[C]):
             objects_to_invalidate = node.task.invalidate(invalidation_data, diff)
             # Convert the invalidated objects in a pipeline-friendly format
             for index, objects in enumerate(objects_to_invalidate):
-                container_decl = node.arguments[index]
+                container_decl = node.argument_declarations[index]
                 result.append(
                     ObjectsToInvalidate(
                         node.savepoint_range, container_decl.name, configuration_id, objects

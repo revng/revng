@@ -65,7 +65,7 @@ class Schedule:
                 new_node = Graph.Node(node.node.task.name)
                 if node.completed:
                     new_node.bgcolor = "lightgreen"
-                for argument in node.node.arguments:
+                for argument in node.node.argument_declarations:
                     new_node.entries.append(argument.name)
 
                 nodes_map[node] = new_node
@@ -78,7 +78,7 @@ class Schedule:
         while to_visit:
             node = to_visit.pop()
             graph_node = get_node(node)
-            node_inputs: List[ContainerDeclaration] = list(node.node.arguments)
+            node_inputs: List[ContainerDeclaration] = list(node.node.argument_declarations)
 
             for predecessor in node.dependencies:
                 for source_index, argument in enumerate(predecessor.node.task.arguments):
