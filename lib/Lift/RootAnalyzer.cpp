@@ -69,10 +69,7 @@ public:
 
     for (Function &Marker : FunctionTags::Marker.functions(M)) {
       StringRef MarkerName = Marker.getName();
-      if (llvm::count(NoReturns, MarkerName) != 0) {
-        // Preserve but mark as noreturn
-        Marker.setDoesNotReturn();
-      } else {
+      if (llvm::count(NoReturns, MarkerName) == 0) {
         for (CallBase *Call : callersIn(&Marker, &F)) {
           // Register the call to be erased
           ToErase.push_back(Call);
