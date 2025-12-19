@@ -34,12 +34,14 @@ public:
   llvm::pdb::PDBFile *getPDBFile() { return ThePDBFile; }
 
   void import(const llvm::object::COFFObjectFile &TheBinary,
+              llvm::StringRef BinaryPath,
               const ImporterOptions &Options);
 
   bool loadDataFromPDB(llvm::StringRef PDBFileName);
 
   std::optional<std::string>
-  getPDBFilePath(const llvm::object::COFFObjectFile &TheBinary);
+  getPDBFilePath(const llvm::object::COFFObjectFile &TheBinary,
+                 llvm::StringRef BinaryPath);
 
   std::optional<std::string> getCachedPDBFilePath(std::string PDBFileID,
                                                   llvm::StringRef PDBFilePath);

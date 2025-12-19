@@ -11,6 +11,7 @@
 
 class StringContainer {
 private:
+  bool Disposable = false;
   std::map<ObjectID, std::string> Storage;
 
 public:
@@ -24,6 +25,8 @@ public:
   std::map<ObjectID, revng::pypeline::Buffer>
   serialize(const std::vector<const ObjectID *> Objects) const;
   bool verify() const;
+  void setIsDisposable();
+  void disposeIfPossible();
 
 public:
   auto &getStorage() { return Storage; }

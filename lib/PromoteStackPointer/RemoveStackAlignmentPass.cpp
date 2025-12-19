@@ -48,7 +48,8 @@ bool RemoveStackAlignmentPass::runOnModule(Module &Module) {
     return false;
 
   auto *InitFunction = getIRHelper("revng_undefined_local_sp", Module);
-  revng_assert(InitFunction != nullptr);
+  if (InitFunction == nullptr)
+    return false;
 
   bool Result = false;
 

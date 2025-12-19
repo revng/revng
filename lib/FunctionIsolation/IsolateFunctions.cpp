@@ -733,9 +733,15 @@ Isolate::Isolate(const class Model &Model,
                  const CFGMap &CFG,
                  LLVMRootContainer &Root,
                  LLVMFunctionContainer &Output) :
-  Root(Root), Output(Output), GCBI(*Model.get().get()) {
-  llvm::Module &Module = Root.getModule();
-  GCBI.run(Module);
+  Output(Output), GCBI(*Model.get().get()) {
+  // Manually perform `cloneIntoContext` to prune the root container as early as
+  // possible
+  llvm::SmallVector<char, 0> Buffer;
+  writeBitcode(Root.getModule(), Buffer);
+  Root.disposeIfPossible();
+  ClonedModule = readBitcode(Buffer, Output.getContext());
+
+  GCBI.run(*ClonedModule);
 
   auto CFGGetter =
     [&CFG](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
@@ -743,7 +749,7 @@ Isolate::Isolate(const class Model &Model,
   };
 
   // TODO: inline Impl
-  Impl = std::make_unique<IFI>(Module.getFunction("root"),
+  Impl = std::make_unique<IFI>(ClonedModule->getFunction("root"),
                                GCBI,
                                *Model.get().get(),
                                CFGGetter);
@@ -755,28 +761,38 @@ void Isolate::runOnFunction(const model::Function &TheFunction) {
   IsolatedFunctions.push_back({ TheFunction.Entry(), Function });
 }
 
-Isolate::~Isolate() {
-  Impl->epilogue();
-
-  auto ClonedModule = cloneIntoContext(Root.getModule(), Output.getContext());
-  std::set<const llvm::Function *> ExternalFunctions;
-  for (llvm::Function &ModuleFunction : ClonedModule->functions()) {
-    if (not FunctionTags::Root.isTagOf(&ModuleFunction)
-        and not FunctionTags::Isolated.isTagOf(&ModuleFunction)) {
-      ExternalFunctions.insert(&ModuleFunction);
-    }
+void Isolate::splitIsolatedFunctionsToOutput() {
+  std::set<const llvm::Function *> InternalFunctions;
+  for (llvm::Function &F : ClonedModule->functions()) {
+    if (FunctionTags::Root.isTagOf(&F) or FunctionTags::Isolated.isTagOf(&F))
+      InternalFunctions.insert(&F);
   }
 
   llvm::Task T(IsolatedFunctions.size(),
                "Splitting functions into individual modules");
+  ReachableFunctionsEnumerator Enumerator(InternalFunctions);
   for (auto &[Address, Function] : IsolatedFunctions) {
     T.advance(Address.toString(), true);
-    std::set<const llvm::Function *> ToClone;
-    ToClone.insert(ClonedModule->getFunction(Function->getName()));
-    ToClone.insert(ExternalFunctions.begin(), ExternalFunctions.end());
+    std::set<const llvm::Function *> ToClone = { Function };
+    auto &CalledFunctions = Enumerator.getCalledFunctions(*Function);
+    ToClone.insert(CalledFunctions.begin(), CalledFunctions.end());
 
     Output.assign(ObjectID(Address), ::cloneFiltered(*ClonedModule, ToClone));
+
+    // Since we saved the function to the output, delete its body in
+    // ClonedModule to save memory
+    deleteOnlyBody(*Function);
   }
+}
+
+Isolate::~Isolate() {
+  Impl->epilogue();
+
+  // Drop the `root` function's body to save memory, since we're done isolating
+  deleteOnlyBody(*ClonedModule->getFunction("root"));
+
+  // Actually split the isolated function to the output module
+  splitIsolatedFunctionsToOutput();
 }
 
 } // namespace revng::pypeline::piperuns

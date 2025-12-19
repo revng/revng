@@ -8,8 +8,7 @@
 #include <string>
 
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringRef.h"
 
 using LDDTree = std::map<std::string, llvm::SmallVector<std::string, 10>>;
-void lddtree(LDDTree &Dependencies,
-             const std::string &Path,
-             unsigned DepthLevel);
+void lddtree(LDDTree &Dependencies, llvm::StringRef Path, unsigned DepthLevel);

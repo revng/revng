@@ -4,18 +4,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Generator
 
-from revng.pypeline.container import ContainerSet
+from revng.pypeline.container import ContainerDeclaration, ContainerSet
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
-from revng.pypeline.storage.storage_provider import StorageProvider
-from revng.pypeline.task.pipe import ScheduledTaskDependencies
+from revng.pypeline.storage.storage_provider import StorageProvider, StorageProviderFileProvider
+from revng.pypeline.task.pipe import ObjectDependencies, Pipe, ScheduledTaskDependencies
 from revng.pypeline.task.requests import Requests
+from revng.pypeline.task.savepoint import SavePoint
+from revng.pypeline.task.task import TaskArgumentAccess
 
 
-@dataclass(slots=True)
 class ScheduledTask:
     """
     The scheduling works by figuring out which tasks to run, and which dependencies
@@ -35,59 +35,139 @@ class ScheduledTask:
     the same PipelineNode instance.
     """
 
-    node: PipelineNode
-    """The node of the pipeline we scheduled."""
+    def __init__(
+        self,
+        node: PipelineNode,
+        model: ReadOnlyModel,
+        storage_provider: StorageProvider,
+        pipeline_configuration: PipelineConfiguration,
+        requests: tuple[Requests, Requests] | None = None,
+        dependencies: list[ScheduledTask] | None = None,
+    ):
+        self.node = node
+        """The node of the pipeline we scheduled."""
+        self.model = model
+        """The model that this task will run on."""
+        self.storage_provider = storage_provider
+        """The storage provider that the task will use."""
+        self.pipeline_configuration = pipeline_configuration
+        """The pipeline configuration"""
 
-    completed: bool = False
-    """This is used for debug, and asserting that a schedule is not run twice."""
+        self.completed: bool = False
+        """This is used for debug, and asserting that a schedule is not run twice."""
+        self.incoming = Requests()
+        """
+        These are the dependencies of the task, i.e. the objects that this task
+        needs to run. This is computed during the scheduling phase, and is only used
+        to check that the task can run.
+        """
+        if requests is not None:
+            self.incoming = requests[0]
 
-    outgoing: Requests = field(default_factory=Requests)
-    """These are the objects this task is supposed to compute and put in each container."""
+        self.outgoing = Requests()
+        """These are the objects this task is supposed to compute and put in each container."""
+        if requests is not None:
+            self.outgoing = requests[1]
 
-    incoming: Requests = field(default_factory=Requests)
-    """
-    These are the dependencies of the task, i.e. the objects that this task
-    needs to run. This is computed during the scheduling phase, and is only used
-    to check that the task can run.
-    """
+        self.dependencies: list[ScheduledTask] = []
+        """
+        These are the scheduled tasks that this task depends on, after the scheduling
+        phase this list will contain only 0 or 1 elements as it's a path, but
+        the schedule can become a DAG.
+        """
+        if dependencies is not None:
+            self.dependencies = dependencies[:]
 
-    depends_on: list[ScheduledTask] = field(default_factory=list, repr=False)
-    """
-    These are the scheduled tasks that this task depends on, after the scheduling
-    phase this list will contain only 0 or 1 elements as it's a path, but
-    the schedule can become a DAG.
-    """
+        self.disposable_containers: set[ContainerDeclaration] = set()
+        """
+        These containers are expring, meaning that they will not be read after
+        this task has run
+        """
 
-    def request(self, incoming: Requests, outgoing: Requests) -> None:
+    def add_requests(self, incoming: Requests, outgoing: Requests) -> None:
         """
         Add requests to the incoming and outgoing requests of this task.
         """
         self.incoming.merge(incoming)
         self.outgoing.merge(outgoing)
 
-    def run(
-        self,
-        model: ReadOnlyModel,
-        containers: ContainerSet,
-        pipeline_configuration: PipelineConfiguration,
-        storage_provider: StorageProvider,
-    ) -> ScheduledTaskDependencies | None:
+    def run(self, containers: ContainerSet) -> ScheduledTaskDependencies | None:
         """
         Run the task with the requests computed during the scheduling phase.
         """
         if self.completed:
             raise RuntimeError(f"ScheduledTask {self.node} has already been run.")
         self.incoming.check(containers)
-        result = self.node.run(
-            model=model,
-            containers=containers,
-            incoming=self.incoming,
-            outgoing=self.outgoing,
-            pipeline_configuration=pipeline_configuration,
-            storage_provider=storage_provider,
-        )
+
+        task = self.node.task
+        bindings = self.node.bindings
+        result: ScheduledTaskDependencies | None = None
+
+        for container_declaration in self.disposable_containers:
+            containers[container_declaration].set_is_disposable()
+
+        if isinstance(task, SavePoint):
+            assert (
+                self.node.savepoint_range is not None
+            ), "SavePoint range must be set before calling run on a SavePoint"
+            task.run(
+                containers=containers,
+                incoming=self.incoming,
+                outgoing=self.outgoing,
+                configuration_id=self.node.configuration_id(self.pipeline_configuration),
+                storage_provider=self.storage_provider,
+                savepoint_range=self.node.savepoint_range,
+            )
+            # SavePoints do not return any dependencies
+        elif isinstance(task, Pipe):
+            pipe_containers = [containers[decl] for decl in bindings]
+            pipe_incoming = [self.incoming.get(decl) for decl in bindings]
+            pipe_outgoing = [self.outgoing.get(decl) for decl in bindings]
+            pipe_output = task.run(
+                file_provider=StorageProviderFileProvider(self.storage_provider),
+                model=self.model,
+                containers=pipe_containers,
+                incoming=pipe_incoming,
+                outgoing=pipe_outgoing,
+                configuration=self.pipeline_configuration.get(task, ""),
+            )
+
+            result_pipe: ObjectDependencies = []
+            for index, index_deps in enumerate(pipe_output.dependencies):
+                container_type = task.signature()[index]
+                if container_type.access == TaskArgumentAccess.READ:
+                    assert len(index_deps) == 0, (
+                        "An read only container cannot produce new objects so it can't add "
+                        f"dependencies. For container {container_type.name} got dependencies "
+                        f"{index_deps}"
+                    )
+                result_pipe.extend(
+                    (self.node.bindings[index].name, obj, path) for obj, path in index_deps
+                )
+
+            # Check if the pipe output
+            if not all(len(x) == 0 for x in pipe_output.custom_invalidation):
+                assert task.has_custom_invalidation(), (
+                    f"Pipe {task.name} returned advanced invalidation data"
+                    "but did not override the 'invalidate' method"
+                )
+                for index, invalidation in enumerate(pipe_output.custom_invalidation):
+                    argument = task.signature()[index]
+                    if argument.access == TaskArgumentAccess.READ:
+                        assert len(invalidation) == 0, (
+                            f"Pipe {task.name} returned advanced "
+                            "invalidation data for a read-only container"
+                        )
+
+            result = ScheduledTaskDependencies(result_pipe, pipe_output.custom_invalidation)
+        else:
+            raise TypeError(f"Unsupported task type: {type(task)}")
+
         self.outgoing.check(containers)
         self.completed = True
+        for container_declaration in self.disposable_containers:
+            containers[container_declaration].dispose_if_possible()
+
         return result
 
     def all_dependencies(self) -> Generator[ScheduledTask, None, None]:
@@ -97,7 +177,7 @@ class ScheduledTask:
         including the task itself.
         """
         yield self
-        for dependency in self.depends_on:
+        for dependency in self.dependencies:
             yield from dependency.all_dependencies()
 
     def __hash__(self):

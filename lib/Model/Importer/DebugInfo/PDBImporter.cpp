@@ -406,11 +406,12 @@ static std::string formatPDBFileID(ArrayRef<uint8_t> Bytes, uint16_t Age) {
 }
 
 void PDBImporter::import(const COFFObjectFile &TheBinary,
+                         llvm::StringRef BinaryPath,
                          const ImporterOptions &Options) {
   if (Options.DebugInfo == DebugInfoLevel::No)
     return;
 
-  auto MaybePDBPath = getPDBFilePath(TheBinary);
+  auto MaybePDBPath = getPDBFilePath(TheBinary, BinaryPath);
   if (not MaybePDBPath)
     return;
 
@@ -430,7 +431,8 @@ static StringRef getBaseName(StringRef Path) {
 }
 
 std::optional<std::string>
-PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
+PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary,
+                            llvm::StringRef BinaryPath) {
   // Consider the --use-pdb argument
   if (not UsePDB.empty()) {
     if (not fileExists(UsePDB)) {
@@ -521,7 +523,7 @@ PDBImporter::getPDBFilePath(const COFFObjectFile &TheBinary) {
 
   // Let's try finding it on web with the `fetch-debuginfo` tool.
   // If the `revng` cannot be found, avoid finding debug info.
-  int ExitCode = runFetchDebugInfo(TheBinary.getFileName(), Log.isEnabled());
+  int ExitCode = runFetchDebugInfo(BinaryPath, Log.isEnabled());
   if (ExitCode != 0) {
     revng_log(Log,
               "Failed to find debug info with `revng model "

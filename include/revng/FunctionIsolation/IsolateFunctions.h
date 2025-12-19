@@ -29,7 +29,7 @@ namespace revng::pypeline::piperuns {
 
 class Isolate {
 private:
-  LLVMRootContainer &Root;
+  std::unique_ptr<llvm::Module> ClonedModule;
   LLVMFunctionContainer &Output;
   GeneratedCodeBasicInfo GCBI;
   // unique_ptr to the implementation. This is a temporary measure until the
@@ -64,6 +64,9 @@ public:
   ~Isolate();
 
   void runOnFunction(const model::Function &TheFunction);
+
+private:
+  void splitIsolatedFunctionsToOutput();
 };
 
 } // namespace revng::pypeline::piperuns

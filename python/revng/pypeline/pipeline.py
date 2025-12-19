@@ -10,6 +10,8 @@ from typing import Dict, Generator, Generic, Iterable, List, Mapping, Optional, 
 
 import yaml
 
+from revng.pypeline.utils import PypelineException
+
 from .analysis import AnalysisBinding, AnalysisList
 from .container import Container, ContainerDeclaration
 from .graph import Graph
@@ -242,11 +244,11 @@ class Pipeline(Generic[C]):
         for node in self.walk_pipeline():
             if isinstance(node.task, Pipe):
                 new_node = Graph.Node(node.task.name)
-                for argument in node.arguments_with_access:
+                for argument in node.arguments:
                     new_node.entries.append(f"{argument.name} [{access_to_str[argument.access]}]")
             else:
                 new_node = Graph.Node(node.task.name, color="#2A52BE", bgcolor="#6C83BE")
-                for argument in node.arguments_with_access:
+                for argument in node.arguments:
                     new_node.entries.append(argument.name)
 
             nodes_map[node] = new_node
@@ -266,15 +268,15 @@ class Pipeline(Generic[C]):
             if not container_edges:
                 continue
 
-            node_inputs: list[ContainerDeclaration] = list(node.arguments)
+            node_inputs: list[ContainerDeclaration] = list(node.argument_declarations)
             taken_inputs: set[int] = set()
 
             for parent_node in self.walk_pipeline(node, forward=False):
                 if parent_node is node:
                     continue
 
-                for source_index, parent_argument in enumerate(parent_node.arguments_with_access):
-                    parent_container_decl = parent_argument.to_container_decl()
+                for source_index, parent_argument in enumerate(parent_node.arguments):
+                    parent_container_decl = parent_argument.declaration()
                     if (
                         parent_argument.access == TaskArgumentAccess.READ
                         or parent_container_decl not in node_inputs
@@ -310,7 +312,9 @@ class Pipeline(Generic[C]):
         pipeline_configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
     ) -> Schedule:
-        tasks: DefaultDictFromKey[PipelineNode, ScheduledTask] = DefaultDictFromKey(ScheduledTask)
+        tasks: DefaultDictFromKey[PipelineNode, ScheduledTask] = DefaultDictFromKey(
+            lambda pn: ScheduledTask(pn, model, storage_provider, pipeline_configuration)
+        )
         # The pipeline is a tree, so we can just unroll the predecessors,
         # When we parallelize, we will make a subclass that overrides this method,
         # and probably it will first call it to produce the initial schedule and
@@ -337,7 +341,7 @@ class Pipeline(Generic[C]):
             )
             pypeline_logger.debug_log(f"Computed Ingoing requests: {node_ingoing_requests}")
             # Store the computed requests so that we can use them in the run method
-            tasks[node].request(node_ingoing_requests, node_outgoing_requests)
+            tasks[node].add_requests(node_ingoing_requests, node_outgoing_requests)
             # If the node has no predecessors, we are done, but
             # we need to check that it has no requests left
             if not node.predecessors:
@@ -352,7 +356,7 @@ class Pipeline(Generic[C]):
                 f"Predecessors: {node.predecessors}"
             )
             predecessor = node.predecessors[0]
-            tasks[node].depends_on.append(tasks[predecessor])
+            tasks[node].dependencies.append(tasks[predecessor])
             # Recurse on THE predecessor, its outgoing requests will be the
             # ingoing requests of the current node
             node = predecessor
@@ -378,7 +382,7 @@ class Pipeline(Generic[C]):
         while scheduled_task is not None:
             # Assume that the schedule is a straight line, so a task has at
             # most one dependency
-            assert len(scheduled_task.depends_on) in (0, 1)
+            assert len(scheduled_task.dependencies) in (0, 1)
 
             # Reduce incoming and outgoing
             scheduled_task.incoming = scheduled_task.incoming.minimize()
@@ -386,23 +390,23 @@ class Pipeline(Generic[C]):
 
             # Figure out if a task will actually produce outputs
             written_out = Requests()
-            for argument in scheduled_task.node.arguments_with_access:
+            for argument in scheduled_task.node.arguments:
                 if argument.access != TaskArgumentAccess.READ:
-                    container_decl = argument.to_container_decl()
+                    container_decl = argument.declaration()
                     if container_decl in scheduled_task.outgoing:
                         written_out[container_decl] = scheduled_task.outgoing[container_decl]
 
             if written_out.empty() and parent_scheduled_task is not None:
                 # If here the task does not actually need to produce anything
                 # and can be skipped, by "glueing" its dependencies onto the parent
-                assert [scheduled_task] == parent_scheduled_task.depends_on
-                parent_scheduled_task.depends_on = scheduled_task.depends_on
+                assert [scheduled_task] == parent_scheduled_task.dependencies
+                parent_scheduled_task.dependencies = scheduled_task.dependencies
             else:
-                used_declatations.update(x.name for x in scheduled_task.node.arguments)
+                used_declatations.update(x.name for x in scheduled_task.node.argument_declarations)
                 parent_scheduled_task = scheduled_task
 
-            if len(scheduled_task.depends_on) == 1:
-                scheduled_task = scheduled_task.depends_on[0]
+            if len(scheduled_task.dependencies) == 1:
+                scheduled_task = scheduled_task.dependencies[0]
             else:
                 scheduled_task = None
 
@@ -410,6 +414,8 @@ class Pipeline(Generic[C]):
             {v for v in self.declarations if v.name in used_declatations},
             tasks[target_node],
             pipeline_configuration,
+            model,
+            storage_provider,
         )
 
     def get_artifact(
@@ -427,10 +433,7 @@ class Pipeline(Generic[C]):
             pipeline_configuration=pipeline_configuration,
             storage_provider=storage_provider,
         )
-        return schedule.run(
-            model=model,
-            storage_provider=storage_provider,
-        )[artifact.container]
+        return schedule.run()[artifact.container]
 
     def run_analysis_list(
         self,
@@ -516,18 +519,22 @@ class Pipeline(Generic[C]):
             pipeline_configuration=pipeline_configuration,
             storage_provider=storage_provider,
         )
-        all_containers = schedule.run(model=model, storage_provider=storage_provider)
+        all_containers = schedule.run()
         # The analysis modifies the model, but we need to invalidate
         # the changes, so we make a clone of the model.
         # This also allows to keep the original model intact
         # in case the analysis fails
         new_model = model.clone()
-        analysis_info.analysis.run(
-            model=new_model,
-            containers=[all_containers[decl] for decl in analysis_info.bindings],
-            incoming=[requests.get(decl) for decl in analysis_info.bindings],
-            configuration=analysis_configuration,
-        )
+        try:
+            analysis_info.analysis.run(
+                model=new_model,
+                containers=[all_containers[decl] for decl in analysis_info.bindings],
+                incoming=[requests.get(decl) for decl in analysis_info.bindings],
+                configuration=analysis_configuration,
+            )
+        # TODO: eventually the pipe will raise `PypelineException` directly
+        except RuntimeError as e:
+            raise PypelineException(f"Analysis {analysis_name} failed to run: {e}")
 
         diff = model.diff(ReadOnlyModel(new_model))
         custom_invalidated_objects = self._compute_custom_invalidation(
@@ -572,7 +579,7 @@ class Pipeline(Generic[C]):
             objects_to_invalidate = node.task.invalidate(invalidation_data, diff)
             # Convert the invalidated objects in a pipeline-friendly format
             for index, objects in enumerate(objects_to_invalidate):
-                container_decl = node.arguments[index]
+                container_decl = node.argument_declarations[index]
                 result.append(
                     ObjectsToInvalidate(
                         node.savepoint_range, container_decl.name, configuration_id, objects
@@ -581,7 +588,9 @@ class Pipeline(Generic[C]):
 
         return result
 
-    def deserialize_schedule(self, schedule: str) -> Schedule:
+    def deserialize_schedule(
+        self, schedule: str, model: ReadOnlyModel, storage_provider: StorageProvider
+    ) -> Schedule:
         schedule_dict = yaml.safe_load(schedule)
         declarations = set()
         for container in schedule_dict["containers"]:
@@ -636,8 +645,15 @@ class Pipeline(Generic[C]):
             else:
                 raise ValueError(f"Unknown task type: \"{task['type']}\"")
 
-            depends_on = [scheduled_tasks[i] for i in task["depends_on"]]
-            scheduled_task = ScheduledTask(pipeline_node, False, outgoing, incoming, depends_on)
+            dependencies = [scheduled_tasks[i] for i in task["dependencies"]]
+            scheduled_task = ScheduledTask(
+                pipeline_node,
+                model,
+                storage_provider,
+                configuration,
+                (incoming, outgoing),
+                dependencies,
+            )
             scheduled_tasks.append(scheduled_task)
 
-        return Schedule(declarations, scheduled_tasks[-1], configuration)  #
+        return Schedule(declarations, scheduled_tasks[-1], configuration, model, storage_provider)

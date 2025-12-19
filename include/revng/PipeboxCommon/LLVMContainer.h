@@ -22,12 +22,15 @@ public:
   static constexpr llvm::StringRef MimeType = "application/x.llvm.bc";
 
 private:
-  llvm::LLVMContext Context;
+  bool Disposable = false;
+  std::optional<llvm::LLVMContext> Context;
+  // NOTE: this cannot grouped with Context because most of the LLVM APIs
+  // return a `std::unique_ptr<llvm::Module>`
   std::unique_ptr<llvm::Module> Module;
 
 public:
-  LLVMRootContainer() {
-    Module = std::make_unique<llvm::Module>("revng.module", Context);
+  LLVMRootContainer() : Context(std::in_place_t{}) {
+    Module = std::make_unique<llvm::Module>("revng.module", *Context);
   }
 
 public:
@@ -47,7 +50,7 @@ public:
     for (const auto &[Object, Buffer] : Data) {
       revng_assert(Object->kind() == Kind);
       llvm::MemoryBufferRef Ref{ { Buffer.data(), Buffer.size() }, "input" };
-      Module = llvm::cantFail(llvm::parseBitcodeFile(Ref, Context));
+      Module = llvm::cantFail(llvm::parseBitcodeFile(Ref, *Context));
     }
   }
 
@@ -68,15 +71,27 @@ public:
     return true;
   }
 
+  void setIsDisposable() { Disposable = true; }
+
+  void disposeIfPossible() {
+    if (not Disposable)
+      return;
+
+    Module.reset();
+    Context.emplace();
+    Module = std::make_unique<llvm::Module>("revng.module", *Context);
+    Disposable = false;
+  }
+
 public:
   const llvm::Module &getModule() const { return *Module; }
   llvm::Module &getModule() { return *Module; }
 
   void assign(std::unique_ptr<llvm::Module> &&NewModule) {
-    if (&Context == &NewModule->getContext())
+    if (&*Context == &NewModule->getContext())
       Module = std::move(NewModule);
     else
-      Module = cloneIntoContext(*NewModule, Context);
+      Module = cloneIntoContext(*NewModule, *Context);
   }
 };
 
@@ -87,11 +102,12 @@ public:
   static constexpr llvm::StringRef MimeType = "application/x.llvm.bc";
 
 private:
-  llvm::LLVMContext Context;
+  bool Disposable = false;
+  std::optional<llvm::LLVMContext> Context;
   std::map<ObjectID, std::unique_ptr<llvm::Module>> Modules;
 
 public:
-  LLVMFunctionContainer() {}
+  LLVMFunctionContainer() : Context(std::in_place_t{}) {}
 
 public:
   std::set<ObjectID> objects() const {
@@ -104,7 +120,7 @@ public:
       llvm::MemoryBufferRef BufferRef({ Buffer.data(), Buffer.size() },
                                       "newBuffer");
       Modules[*Object] = llvm::cantFail(llvm::parseBitcodeFile(BufferRef,
-                                                               Context));
+                                                               *Context));
     }
   }
 
@@ -122,9 +138,20 @@ public:
     return true;
   }
 
+  void setIsDisposable() { Disposable = true; }
+
+  void disposeIfPossible() {
+    if (not Disposable)
+      return;
+
+    Modules.clear();
+    Context.emplace();
+    Disposable = false;
+  }
+
 public:
-  llvm::LLVMContext &getContext() { return Context; }
-  const llvm::LLVMContext &getContext() const { return Context; }
+  llvm::LLVMContext &getContext() { return *Context; }
+  const llvm::LLVMContext &getContext() const { return *Context; }
 
   const llvm::Module &getModule(const ObjectID &ID) const {
     return *Modules.at(ID);
@@ -137,10 +164,10 @@ public:
   }
 
   void assign(const ObjectID &ID, std::unique_ptr<llvm::Module> &&NewModule) {
-    if (&Context == &NewModule->getContext())
+    if (&*Context == &NewModule->getContext())
       Modules[ID] = std::move(NewModule);
     else
-      Modules[ID] = cloneIntoContext(*NewModule, Context);
+      Modules[ID] = cloneIntoContext(*NewModule, *Context);
   }
 };
 

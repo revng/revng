@@ -1561,6 +1561,10 @@ cloneFiltered(llvm::Module &Module, std::set<const llvm::Function *> &ToClone);
 void writeBitcode(const llvm::Module &Module,
                   llvm::SmallVectorImpl<char> &Output);
 
+/// Deserialize bitcode to a llvm::Module from a buffer
+std::unique_ptr<llvm::Module> readBitcode(llvm::ArrayRef<char> Input,
+                                          llvm::LLVMContext &Context);
+
 /// Copy a module to a new LLVMContext.
 std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
                                                llvm::LLVMContext &NewContext);
@@ -1571,3 +1575,21 @@ std::unique_ptr<llvm::Module> cloneIntoContext(const llvm::Module &Module,
 /// modules being merged.
 void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
                          std::unique_ptr<llvm::Module> &Destination);
+
+/// Helper class that allows getting the exhaustive list of functions called by
+/// a function
+class ReachableFunctionsEnumerator {
+private:
+  using DenseFunctionSet = llvm::DenseSet<const llvm::Function *>;
+  using FunctionSet = std::set<const llvm::Function *>;
+
+private:
+  const FunctionSet &ToIgnore;
+  std::map<const llvm::Function *, DenseFunctionSet> CalledFunctions;
+
+public:
+  ReachableFunctionsEnumerator(const FunctionSet &ToIgnore) :
+    ToIgnore(ToIgnore) {}
+
+  const DenseFunctionSet &getCalledFunctions(const llvm::Function &Function);
+};

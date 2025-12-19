@@ -29,19 +29,17 @@ using PELDDTree = std::map<std::string, std::vector<std::string>>;
 class PECOFFImporter : public BinaryImporterHelper {
 private:
   TupleTree<model::Binary> &Model;
-  const object::COFFObjectFile &TheBinary;
-  model::BinaryReference &BinaryReference;
+  const COFFBinary &TheBinary;
+  llvm::StringRef BinaryPath;
   MetaAddress ImageBase = MetaAddress::invalid();
 
 public:
   PECOFFImporter(TupleTree<model::Binary> &Model,
-                 const object::COFFObjectFile &TheBinary,
-                 uint64_t BaseAddress,
-                 model::BinaryReference &BinaryReference) :
+                 const COFFBinary &TheBinary,
+                 uint64_t BaseAddress) :
     BinaryImporterHelper(*Model, BaseAddress, Log),
     Model(Model),
-    TheBinary(TheBinary),
-    BinaryReference(BinaryReference) {}
+    TheBinary(TheBinary) {}
 
   Error import(const ImporterOptions &Options);
 
@@ -81,14 +79,15 @@ Error PECOFFImporter::parseSectionsHeaders() {
                               "supported");
   }
 
-  const object::pe32_header *PE32Header = TheBinary.getPE32Header();
+  const object::pe32_header *PE32Header = TheBinary.ObjectFile.getPE32Header();
 
   // Identify ImageBase
   if (PE32Header) {
     // TODO: ImageBase should aligned to 4kb pages, should we check that?
     ImageBase = fromPC(PE32Header->ImageBase);
   } else {
-    const pe32plus_header *PE32PlusHeader = TheBinary.getPE32PlusHeader();
+    const pe32plus_header *PE32PlusHeader = TheBinary.ObjectFile
+                                              .getPE32PlusHeader();
     if (not PE32PlusHeader)
       return revng::createError("Invalid PE Header");
 
@@ -97,9 +96,9 @@ Error PECOFFImporter::parseSectionsHeaders() {
   }
 
   // Read sections
-  for (const SectionRef &SecRef : TheBinary.sections()) {
-    unsigned Id = TheBinary.getSectionID(SecRef);
-    Expected<const object::coff_section *> MaybeSection = TheBinary
+  for (const SectionRef &SecRef : TheBinary.ObjectFile.sections()) {
+    unsigned Id = TheBinary.ObjectFile.getSectionID(SecRef);
+    Expected<const object::coff_section *> MaybeSection = TheBinary.ObjectFile
                                                             .getSection(Id);
     if (auto Error = MaybeSection.takeError()) {
       // TODO: emit a diagnostic message for the user.
@@ -112,8 +111,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
     MetaAddress Start = ImageBase + u64(CoffRef->VirtualAddress);
     Segment Segment({ Start.toGeneric(), u64(CoffRef->VirtualSize) });
 
-    if (BinaryReference.isValid())
-      Segment.Binary() = BinaryReference;
+    if (TheBinary.Reference.isValid())
+      Segment.Binary() = TheBinary.Reference;
     Segment.StartOffset() = CoffRef->PointerToRawData;
 
     // VirtualSize might be larger than SizeOfRawData (extra data at the end of
@@ -152,7 +151,8 @@ Error PECOFFImporter::parseSectionsHeaders() {
       EntryPoint = ImageBase + u64(PE32Header->AddressOfEntryPoint);
     }
   } else {
-    const pe32plus_header *PE32PlusHeader = TheBinary.getPE32PlusHeader();
+    const pe32plus_header *PE32PlusHeader = TheBinary.ObjectFile
+                                              .getPE32PlusHeader();
     revng_assert(PE32PlusHeader);
 
     // PE32+ Header
@@ -168,13 +168,13 @@ Error PECOFFImporter::parseSectionsHeaders() {
 }
 
 void PECOFFImporter::parseSymbols() {
-  for (auto Sym : TheBinary.symbols()) {
-    COFFSymbolRef Symbol = TheBinary.getCOFFSymbol(Sym);
+  for (auto Sym : TheBinary.ObjectFile.symbols()) {
+    COFFSymbolRef Symbol = TheBinary.ObjectFile.getCOFFSymbol(Sym);
 
     if (!Symbol.isFunctionDefinition())
       continue;
 
-    Expected<StringRef> MaybeName = TheBinary.getSymbolName(Symbol);
+    Expected<StringRef> MaybeName = TheBinary.ObjectFile.getSymbolName(Symbol);
     if (auto Error = MaybeName.takeError()) {
       revng_log(Log, "Found static symbol without a name.");
       consumeError(std::move(Error));
@@ -236,7 +236,8 @@ void PECOFFImporter::recordImportedFunctions(ImportedSymbolRange Range,
 }
 
 void PECOFFImporter::parseImportedSymbols() {
-  for (const ImportDirectoryEntryRef &I : TheBinary.import_directories()) {
+  for (const ImportDirectoryEntryRef &I :
+       TheBinary.ObjectFile.import_directories()) {
     StringRef Name;
     if (Error E = I.getName(Name)) {
       revng_log(Log, "Found an imported symbol without a name.");
@@ -314,7 +315,7 @@ void PECOFFImporter::recordDelayImportedFunctions(DelayDirectoryRef &I,
 }
 
 void PECOFFImporter::parseDelayImportedSymbols() {
-  for (DelayDirectoryRef &I : TheBinary.delay_import_directories()) {
+  for (DelayDirectoryRef &I : TheBinary.ObjectFile.delay_import_directories()) {
     StringRef Name;
     if (Error E = I.getName(Name)) {
       revng_log(Log, "No name of a delay imported dll.");
@@ -398,7 +399,7 @@ static RecursiveCoroutine<void> getDependenciesHelper(StringRef FileName,
 
 void PECOFFImporter::getDependencies(PELDDTree Dependencies, unsigned Level) {
   if (Level > 0)
-    getDependenciesHelper(TheBinary.getFileName(), Dependencies, 1, Level);
+    getDependenciesHelper(BinaryPath, Dependencies, 1, Level);
 }
 
 void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
@@ -448,10 +449,12 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
         .EnableRemoteDebugInfo = Opts.EnableRemoteDebugInfo,
         .AdditionalDebugInfoPaths = Opts.AdditionalDebugInfoPaths
       };
-      if (auto E = importPECOFF(DepModel,
-                                *TheBinary,
-                                AdjustedOptions,
-                                BinaryReference)) {
+      COFFBinary Binary(*TheBinary,
+                        TheBinary->getMemoryBufferRef(),
+                        DependencyLibrary,
+                        this->TheBinary.Reference);
+
+      if (auto E = importPECOFF(DepModel, Binary, AdjustedOptions)) {
         // TODO: emit a diagnostic message for the user.
         revng_log(Log,
                   "Can't import model for " << DependencyLibrary << " due to "
@@ -544,7 +547,7 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
 
   if (Options.DebugInfo != DebugInfoLevel::No) {
     PDBImporter PDBI(Model, ImageBase);
-    PDBI.import(TheBinary, Options);
+    PDBI.import(TheBinary.ObjectFile, TheBinary.Path, Options);
 
     // Now we try to find missing types in the dependencies.
     findMissingTypes(Options);
@@ -556,12 +559,8 @@ Error PECOFFImporter::import(const ImporterOptions &Options) {
 }
 
 Error importPECOFF(TupleTree<model::Binary> &Model,
-                   const object::COFFObjectFile &TheBinary,
-                   const ImporterOptions &Options,
-                   model::BinaryReference &BinaryReference) {
-  PECOFFImporter Importer(Model,
-                          TheBinary,
-                          Options.BaseAddress,
-                          BinaryReference);
+                   const COFFBinary &TheBinary,
+                   const ImporterOptions &Options) {
+  PECOFFImporter Importer(Model, TheBinary, Options.BaseAddress);
   return Importer.import(Options);
 }

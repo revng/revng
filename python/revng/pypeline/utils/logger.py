@@ -13,11 +13,11 @@ class Logger:
         self.debug = debug
 
     def log(self, message: str) -> None:
-        print(f"[{self.module_name}] {message}", file=sys.stderr)
+        sys.stderr.write(message + "\n")
 
     def debug_log(self, message: str) -> None:
         if self.debug:
-            self.log(message)
+            sys.stderr.write(f"[{self.module_name}] {message}\n")
 
 
 def get_logger(module_name: str, debug: bool = False) -> Logger:

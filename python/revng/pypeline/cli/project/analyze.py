@@ -185,7 +185,7 @@ def build_analysis_list_command(
             # TODO: how to output this in a machine readable way?
             for container_location, object_ids in invalidated.items():
                 serialized_ids = (object_id.serialize() for object_id in object_ids)
-                pypeline_logger.log(
+                pypeline_logger.debug_log(
                     f"Invalidated {container_location}: [{', '.join(serialized_ids)}]"
                 )
 
@@ -285,7 +285,7 @@ def build_analysis_command(
             # TODO: how to output this in a machine readable way?
             for container_location, object_ids in invalidated.items():
                 serialized_ids = (object_id.serialize() for object_id in object_ids)
-                pypeline_logger.log(
+                pypeline_logger.debug_log(
                     f"Invalidated {container_location}: [{', '.join(serialized_ids)}]"
                 )
 

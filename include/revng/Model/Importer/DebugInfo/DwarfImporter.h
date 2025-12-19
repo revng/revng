@@ -38,7 +38,8 @@ public:
 public:
   void import(llvm::StringRef FileName, const ImporterOptions &Options);
 
-  void import(llvm::MemoryBuffer &Buffer,
+  void import(llvm::MemoryBufferRef Buffer,
+              llvm::StringRef Filepath,
               const ImporterOptions &Options,
               llvm::StringRef Filename);
 

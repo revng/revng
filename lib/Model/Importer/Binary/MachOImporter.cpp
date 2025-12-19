@@ -170,19 +170,16 @@ class MachOImporter : public BinaryImporterHelper {
 private:
   RawBinaryView File;
   TupleTree<model::Binary> &Model;
-  object::MachOObjectFile &TheBinary;
-  BinaryReference &Reference;
+  MachOBinary &TheBinary;
 
 public:
   MachOImporter(TupleTree<model::Binary> &Model,
-                object::MachOObjectFile &TheBinary,
-                uint64_t BaseAddress,
-                BinaryReference &Reference) :
+                MachOBinary &TheBinary,
+                uint64_t BaseAddress) :
     BinaryImporterHelper(*Model, BaseAddress, Log),
-    File(*Model, toArrayRef(TheBinary.getData())),
+    File(*Model, toArrayRef(TheBinary.ObjectFile.getData())),
     Model(Model),
-    TheBinary(TheBinary),
-    Reference(Reference) {}
+    TheBinary(TheBinary) {}
 
   llvm::Error import();
 
@@ -195,7 +192,7 @@ public:
 Error MachOImporter::import() {
   using LoadCommandInfo = MachOObjectFile::LoadCommandInfo;
 
-  auto &MachO = cast<object::MachOObjectFile>(TheBinary);
+  auto &MachO = TheBinary.ObjectFile;
   revng_assert(Model->Architecture() != Architecture::Invalid);
 
   if (Model->DefaultABI() == model::ABI::Invalid) {
@@ -210,7 +207,7 @@ Error MachOImporter::import() {
 
   bool IsLittleEndian = Architecture::isLittleEndian(Model->Architecture());
   bool MustSwap = IsLittleEndian != sys::IsLittleEndianHost;
-  StringRef StringDataRef = TheBinary.getData();
+  StringRef StringDataRef = TheBinary.ObjectFile.getData();
   auto RawDataRef = ArrayRef<uint8_t>(StringDataRef.bytes_begin(),
                                       StringDataRef.size());
 
@@ -322,8 +319,8 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
     return;
   }
 
-  if (Reference.isValid())
-    Segment.Binary() = Reference;
+  if (TheBinary.Reference.isValid())
+    Segment.Binary() = TheBinary.Reference;
   Segment.Name() = SegmentCommand.segname;
   Segment.FileSize() = SegmentCommand.filesize;
 
@@ -382,9 +379,8 @@ void MachOImporter::registerBindEntry(const object::MachOBindEntry *Entry) {
 }
 
 Error importMachO(TupleTree<model::Binary> &Model,
-                  object::MachOObjectFile &TheBinary,
-                  const ImporterOptions &Options,
-                  BinaryReference &Reference) {
-  MachOImporter Importer(Model, TheBinary, Options.BaseAddress, Reference);
+                  MachOBinary &TheBinary,
+                  const ImporterOptions &Options) {
+  MachOImporter Importer(Model, TheBinary, Options.BaseAddress);
   return Importer.import();
 }

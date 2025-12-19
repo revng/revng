@@ -225,7 +225,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
             directory = directory.parent
 
         model_path = directory / model_name
-        pypeline_logger.log(f'Model "{model_name}" found at "{model_path}"')
+        pypeline_logger.debug_log(f'Model "{model_name}" found at "{model_path}"')
         # Compute the hash of the model path as a tentative unique identifier for the project
         # TODO: we are relying on the *absolute* model path, which means that if the
         # user moves the project around, it will be treated as a different project
@@ -234,7 +234,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         # old cache.
         db_name = crypto_hash(str(model_path)) + ".sqlite"
         db_path = Path(cache_dir) / db_name
-        pypeline_logger.log(f'Using DB "{db_path}"')
+        pypeline_logger.debug_log(f'Using DB "{db_path}"')
         return LocalStorageProvider(db_path, model_path, Path(cache_dir))
 
     @asynccontextmanager
