@@ -57,7 +57,7 @@ protected:
   static constexpr const char *TypeName = "pc_type";
 
 protected:
-  unsigned Alignment;
+  uint64_t Alignment = 0;
   llvm::GlobalVariable *AddressCSV = nullptr;
   llvm::GlobalVariable *EpochCSV = nullptr;
   llvm::GlobalVariable *AddressSpaceCSV = nullptr;
