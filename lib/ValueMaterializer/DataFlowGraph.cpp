@@ -285,8 +285,18 @@ DataFlowGraph::materializeImpl(DataFlowGraph::Node *N,
   using Node = DataFlowGraph::Node;
 
   auto It = Results.find(N);
-  if (It != Results.end())
+  if (It != Results.end()) {
+    if (Log.isEnabled()) {
+      if (It->second.has_value()) {
+        Log << "Returning cached result:\n";
+        dumpMaterializedValues(Log, "  ", *It->second);
+      } else {
+        Log << "Returning empty cache result";
+      }
+      Log << DoLog;
+    }
     rc_return It->second;
+  }
 
   revng_log(Log, "Materializing " << N->valueToString());
   LoggerIndent Indent(Log);
@@ -340,8 +350,10 @@ DataFlowGraph::materializeImpl(DataFlowGraph::Node *N,
     for (Node *Successor : N->successors()) {
       auto MaybeMaterialized = rc_recur materializeImpl(Successor, MO, Results);
 
-      if (not MaybeMaterialized)
+      if (not MaybeMaterialized) {
+        revng_log(Log, "Materialization returned an empty result, bailing out");
         rc_return std::nullopt;
+      }
 
       MaterializedValuesVector.push_back(*MaybeMaterialized);
       Ranges.push_back(make_range(MaterializedValuesVector.back().begin(),
@@ -373,8 +385,21 @@ DataFlowGraph::materializeImpl(DataFlowGraph::Node *N,
 
       auto Value = ::materialize(MO, N->Value, Operands);
 
-      if (not Value.isValid())
+      if (not Value.isValid()) {
+        if (Log.isEnabled()) {
+          Log << "Bailing out due to failure to materialize a node.\n";
+          Log << "  Node:\n";
+          N->dump(Log, "    ");
+          Log << "  Operands:\n";
+          for (auto &[Index, Operand] : llvm::enumerate(Operands)) {
+            Log << "    Operand " << Index << ": ";
+            Operand.dump(Log);
+            Log << "\n";
+          }
+          Log << DoLog;
+        }
         rc_return std::nullopt;
+      }
 
       Result.push_back(Value);
     }
@@ -421,6 +446,12 @@ DataFlowGraph::materializeImpl(DataFlowGraph::Node *N,
       N->OracleRange->dump(Log);
       Log << DoLog;
     }
+  }
+
+  if (Log.isEnabled()) {
+    Log << "Returning:\n";
+    dumpMaterializedValues(Log, "  ", Result);
+    Log << DoLog;
   }
 
   rc_return Result;

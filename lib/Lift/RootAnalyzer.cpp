@@ -753,8 +753,11 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
         if (MA.isInvalid()) {
           AllValid = false;
         } else {
-          if (not JTM.isPC(MA))
+          if (not JTM.isPC(MA)) {
+            revng_log(Log,
+                      "The following address is not a PC: " << MA.toString());
             AllPCs = false;
+          }
 
           Targets.push_back(MA);
         }
