@@ -532,6 +532,9 @@ RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
   for (GlobalVariable &CSV : FunctionTags::CSV.globals(&TheModule))
     CSVs.insert(&CSV);
 
+  for (GlobalVariable *CSV : JTM.programCounterHandler()->pcCSVs())
+    CSVs.insert(CSV);
+
   // Create and initialize an alloca per CSV (except for the PC-affecting ones)
   BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
   revng::NonDebugInfoCheckingIRBuilder AllocaBuilder(&*EntryBB->begin());
