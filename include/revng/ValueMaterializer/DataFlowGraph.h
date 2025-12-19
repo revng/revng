@@ -35,10 +35,10 @@ public:
   void dump() debug_function { dump(dbg); }
 
   template<typename T>
-  void dump(T &Stream) const {
+  void dump(T &Stream, llvm::StringRef Prefix = "") const {
     using namespace llvm;
 
-    Stream << "Value: ";
+    Stream << Prefix.str() << "Value: ";
     if (auto *CI = dyn_cast<ConstantInt>(Value)) {
       Stream << aviFormatter(CI->getValue());
     } else if (auto *CE = dyn_cast<ConstantExpr>(Value)) {
@@ -53,7 +53,7 @@ public:
     Stream << "\n";
 
     if (not isa<ConstantInt>(Value) and OracleRange.has_value()) {
-      Stream << "OracleRange: ";
+      Stream << Prefix.str() << "OracleRange: ";
       if (OracleRange->isFullSet())
         Stream << "full set";
       else
@@ -61,7 +61,7 @@ public:
       Stream << "\n";
     }
 
-    Stream << "SizeLowerBound: ";
+    Stream << Prefix.str() << "SizeLowerBound: ";
     if (SizeLowerBound == MaxSizeLowerBound)
       Stream << "max";
     else
