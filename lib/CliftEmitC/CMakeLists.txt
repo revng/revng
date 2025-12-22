@@ -10,6 +10,7 @@ revng_add_library_internal(
   CEmitter.cpp
   CSemantics.cpp
   CSemanticsPass.cpp
+  Headers.cpp
   TypeDefinitionEmitter.cpp
   TypeDependencyGraph.cpp)
 
