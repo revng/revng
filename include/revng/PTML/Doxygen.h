@@ -21,6 +21,9 @@ class NameBuilder;
 
 namespace ptml {
 
+// TODO: all the functions defined in this file can be dropped once assembly is
+//       also emitted using the new-backend-like infrastructure.
+
 /// Emits PTML containing a free-form comment passed in a string reformatted
 /// by appending a specified indicator as well maintaining a specific offset.
 std::string freeFormComment(const ::ptml::MarkupBuilder &B,
