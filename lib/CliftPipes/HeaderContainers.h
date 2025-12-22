@@ -27,11 +27,15 @@ inline pipeline::SingleElementKind
                           revng::ranks::OpaqueType),
                       { &Decompiled });
 
+inline pipeline::SingleElementKind
+  HelperHeader("helper-header", Binary, revng::ranks::Binary, {}, {});
+
 } // namespace revng::kinds
 
 namespace detail {
 
 inline constexpr char TypeAndGlobalHeaderName[] = "type-and-global-header";
+inline constexpr char HelperHeaderName[] = "helper-header";
 
 inline constexpr char HeaderMIMEType[] = "text/x.h+ptml";
 inline constexpr char HeaderSuffix[] = ".h";
@@ -50,3 +54,9 @@ using TypeAndGlobalHeaderContainer = detail::SBF<
   detail::HeaderMIMEType,
   detail::HeaderSuffix>;
 inline detail::RegisterDCC<TypeAndGlobalHeaderContainer> RegisteredMHC;
+
+using HelperHeaderContainer = detail::SBF<&revng::kinds::HelperHeader,
+                                          detail::HelperHeaderName,
+                                          detail::HeaderMIMEType,
+                                          detail::HeaderSuffix>;
+inline detail::RegisterDCC<HelperHeaderContainer> RegisteredHHC;
