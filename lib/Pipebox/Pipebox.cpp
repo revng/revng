@@ -130,6 +130,7 @@ static RegisterFunctionPipeRun<ImportDescriptiveFunctionInfo> P39;
 static RegisterFunctionPipeRun<VerifyFunctionAgainstModel> P40;
 static RegisterFunctionPipeRun<ImportFunctionDataModel> P41;
 static RegisterSingleOutputPipeRun<ImportTypes> P42;
+static RegisterSingleOutputPipeRun<ImportFunctionDeclarations> P43;
 
 //
 // Analyses
