@@ -79,6 +79,7 @@ static RegisterContainer<CallGraphSliceContainer> C17;
 static RegisterContainer<FunctionControlFlowContainer> C18;
 static RegisterContainer<CliftModuleContainer> C19;
 static RegisterContainer<CliftSingleTypeContainer> C20;
+static RegisterContainer<PTMLCTypeBytesContainer> C21;
 
 //
 // Pipes
