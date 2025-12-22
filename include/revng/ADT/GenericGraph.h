@@ -1373,6 +1373,7 @@ public:
   }
 
   size_t size() const { return Nodes.size(); }
+  bool empty() const { return Nodes.size() == 0; }
 
 public:
   nodes_iterator findNode(Node const *NodePtr) {
