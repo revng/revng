@@ -42,4 +42,31 @@ public:
   void run();
 };
 
+class EmitHelperHeader {
+private:
+  const model::Binary &Binary;
+  const CliftFunctionContainer &Input;
+  PTMLCBytesContainer &Output;
+
+public:
+  static constexpr llvm::StringRef Name = "emit-helper-header";
+  using Arguments = TypeList<PipeRunArgument<CliftFunctionContainer,
+                                             "Input",
+                                             "MLIR container",
+                                             Access::Read>,
+                             PipeRunArgument<PTMLCBytesContainer,
+                                             "Output",
+                                             "The helper header",
+                                             Access::Write>>;
+
+  EmitHelperHeader(const class Model &Model,
+                   llvm::StringRef Config,
+                   llvm::StringRef DynamicConfig,
+                   const CliftFunctionContainer &Input,
+                   PTMLCBytesContainer &Output) :
+    Binary(*Model.get().get()), Input(Input), Output(Output){};
+
+  void run();
+};
+
 } // namespace revng::pypeline::piperuns
