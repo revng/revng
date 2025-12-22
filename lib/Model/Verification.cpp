@@ -952,6 +952,13 @@ bool Binary::verify(VerifyHelper &VH) const {
     if (not EntryPoint().isCode())
       return VH.fail("EntryPoint is not code", EntryPoint());
 
+    // Note: here we could be stricter by banning functions, not just out of
+    //       IsExecutable segments, but also out of the ranges computed by
+    //       Binary::executableRanges, which basically exclude .rodata and
+    //       constant pools.
+    //       However, if we were to do this, anyone creating a global variable
+    //       (i.e., a field in a struct of a segment) would need to ensure there
+    //       isn't a Function there, or the model will become invalid.
     if (not IsExecutable(EntryPoint()))
       return VH.fail("Binary entry point not executable", EntryPoint());
   }

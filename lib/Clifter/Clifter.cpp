@@ -412,7 +412,8 @@ private:
 
   clift::FunctionOp emitImportedFunctionDeclaration(const llvm::Function *F) {
     llvm::StringRef Name = F->getName();
-    revng_check(Name.consume_front("dynamic_"));
+    bool HasPrefix = Name.consume_front("dynamic_");
+    revng_check(HasPrefix);
 
     auto It = Model.ImportedDynamicFunctions().find(Name.str());
     revng_check(It != Model.ImportedDynamicFunctions().end());
@@ -1068,7 +1069,7 @@ private:
       mlir::Value Operand = (LoggerIndent(ExpressionLog),
                              rc_recur emitExpression(I->getOperand(0), Loc));
 
-      auto getIntegerSize = [](const llvm::Type *Type) {
+      auto GetIntegerSize = [](const llvm::Type *Type) {
         const auto *IntegerType = llvm::cast<llvm::IntegerType>(Type);
         return ClifterImpl::getIntegerSize(IntegerType->getBitWidth());
       };
@@ -1076,7 +1077,7 @@ private:
       auto EmitIntegerCast = [&](PrimitiveKind Kind) {
         return emitIntegerCast(Loc,
                                Operand,
-                               getIntegerSize(V->getType()),
+                               GetIntegerSize(V->getType()),
                                Kind);
       };
 
@@ -1090,7 +1091,7 @@ private:
         rc_return EmitIntegerCast(PrimitiveKind::UnsignedKind);
       case Operators::PtrToInt:
         Operand = emitCast(Loc, Operand, getIntptrType());
-        if (uint64_t S = getIntegerSize(I->getDestTy()); S > PointerSize) {
+        if (uint64_t S = GetIntegerSize(I->getDestTy()); S > PointerSize) {
           Operand = emitCast(Loc,
                              Operand,
                              getPrimitiveType(S),
@@ -1098,7 +1099,7 @@ private:
         }
         rc_return Operand;
       case Operators::IntToPtr:
-        if (getIntegerSize(I->getSrcTy()) > PointerSize) {
+        if (GetIntegerSize(I->getSrcTy()) > PointerSize) {
           Operand = emitCast(Loc,
                              Operand,
                              getPrimitiveType(PointerSize),
@@ -1181,10 +1182,18 @@ private:
       }
 
       revng_log(ExpressionLog, "CallOp");
-      rc_return Builder.create<CallOp>(Loc,
-                                       CallType.getReturnType(),
-                                       Function,
-                                       Arguments);
+      mlir::Value Result = Builder.create<CallOp>(Loc,
+                                                  CallType.getReturnType(),
+                                                  Function,
+                                                  Arguments);
+
+      if (Layout.returnMethod() == abi::FunctionType::ReturnMethod::Scalar) {
+        Result = emitImplicitCast(SurroundingLocation,
+                                  Result,
+                                  importLLVMType(I->getType()));
+      }
+
+      rc_return Result;
     }
 
     if (auto I = llvm::dyn_cast<llvm::SelectInst>(V)) {

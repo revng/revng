@@ -149,8 +149,8 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
         }
 
         // Create an index-less ModelGEP for the pointer operand
-        llvm::IntegerType *PtrSizedInt = getPointerSizedInteger(LLVMCtx,
-                                                                *Model);
+        llvm::IntegerType
+          *PtrSizedInt = getPointerSizedInteger(LLVMCtx, Model->Architecture());
         auto *DerefCall = buildDerefCall(M,
                                          Builder,
                                          PtrOp,
@@ -218,8 +218,8 @@ bool RemoveLoadStore::runOnFunction(llvm::Function &F) {
           revng_assert(Compatible);
         }
 
-        llvm::IntegerType *PtrSizedInt = getPointerSizedInteger(LLVMCtx,
-                                                                *Model);
+        llvm::IntegerType
+          *PtrSizedInt = getPointerSizedInteger(LLVMCtx, Model->Architecture());
         auto *DerefCall = buildDerefCall(M,
                                          Builder,
                                          PointerOp,

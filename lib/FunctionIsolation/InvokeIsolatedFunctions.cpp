@@ -52,9 +52,8 @@ public:
 
     GCBI.run(RootModule);
 
-    model::CNameBuilder NameBuilder = Binary;
     for (const model::Function &Function : Binary.Functions()) {
-      auto *F = FunctionModule->getFunction(NameBuilder.llvmName(Function));
+      auto *F = FunctionModule->getFunction(llvmName(Function));
       revng_assert(F != nullptr);
       Map[Function.key()] = { &Function, nullptr, F };
     }
@@ -145,6 +144,9 @@ public:
 
     for (auto &&[_, T] : Map) {
       auto &&[ModelF, BB, F] = T;
+
+      if (BB == nullptr)
+        continue;
 
       // Create a new trampoline entry block and substitute it to the old entry
       // block

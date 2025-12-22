@@ -28,7 +28,7 @@
 #include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
-#include "revng/Support/MetaAddress/MetaAddressRangeSet.h"
+#include "revng/Support/MetaAddress/MetaAddressRange.h"
 
 // Forward declarations
 namespace llvm {
@@ -265,13 +265,6 @@ public:
 
   /// Return true if no unexplored jump targets are available
   bool empty() { return Unexplored.empty(); }
-
-  /// Return true if the whole [\p Start,\p End) range is in an executable
-  /// segment
-  bool isExecutableRange(const MetaAddress &Start,
-                         const MetaAddress &End) const {
-    return ExecutableRanges.contains(Start, End);
-  }
 
   bool isMapped(MetaAddress Start, MetaAddress End) const {
     revng_assert(Start.isValid() and End.isValid());

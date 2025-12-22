@@ -115,9 +115,6 @@ bool yield::Function::verify(model::VerifyHelper &VH) const {
   if (Entry().isInvalid())
     return VH.fail("Every function must have a valid entry point.");
 
-  if (Blocks().empty())
-    return VH.fail("Every function must have at lease one basic block.");
-
   for (const auto &BasicBlock : Blocks())
     if (!BasicBlock.verify(VH))
       return VH.fail();

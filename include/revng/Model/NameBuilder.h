@@ -399,13 +399,6 @@ public:
     return GotoLabelNameBuilder(*this, Function);
   }
 
-  [[nodiscard]] std::string llvmName(const model::Function &Function) const {
-    if (DebugNames)
-      return "local_" + name(Function);
-    else
-      return "local_" + Function.Entry().toString();
-  }
-
 private:
   [[nodiscard]] std::optional<std::string>
   warningImpl(const std::string &Name,
@@ -471,7 +464,8 @@ public:
 
   [[nodiscard]] llvm::Error isNameReserved(llvm::StringRef Name) const;
 };
-struct AssemblyNameBuilder : NameBuilder<AssemblyNameBuilder> {
+
+struct AssemblyNameBuilder : public NameBuilder<AssemblyNameBuilder> {
 public:
   const model::Architecture::Values &Architecture;
 

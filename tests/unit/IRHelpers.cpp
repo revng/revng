@@ -108,18 +108,18 @@ BOOST_AUTO_TEST_CASE(UniqueString) {
     return M->getGlobalVariable(GlobalName) != nullptr;
   };
 
-  Constant *String1Constant1 = getUniqueString(&*M, String1, Namespace);
+  Constant *String1Constant1 = getUniqueString(&*M, String1, true, Namespace);
 
   // Test a global with the expected name has been created
   revng_check(VariableExists(String1));
 
-  Constant *String1Constant2 = getUniqueString(&*M, String1, Namespace);
+  Constant *String1Constant2 = getUniqueString(&*M, String1, true, Namespace);
 
   // Check that the two strings are the same object
   revng_check(String1Constant1 == String1Constant2);
 
   const char *String2 = "string2";
-  Constant *String2Constant = getUniqueString(&*M, String2, Namespace);
+  Constant *String2Constant = getUniqueString(&*M, String2, true, Namespace);
   revng_check(VariableExists(String2));
 
   // Check that the two strings are not the same object
@@ -127,18 +127,18 @@ BOOST_AUTO_TEST_CASE(UniqueString) {
 
   // Test a string containing spaces
   const char *StringWithSpaces = "This contains spaces";
-  getUniqueString(&*M, StringWithSpaces, Namespace);
+  getUniqueString(&*M, StringWithSpaces, true, Namespace);
   revng_check(not VariableExists(StringWithSpaces));
 
   // Test a string containing non-printable characters
   const char *NonPrintable = "NonPrintableChar\x01Here";
-  getUniqueString(&*M, NonPrintable, Namespace);
+  getUniqueString(&*M, NonPrintable, true, Namespace);
   revng_check(not VariableExists(NonPrintable));
 
   // Test a long string
   const char *LongString = "ThisStringHasToBeLongerThanAHexEncodedSHA1Hash";
   revng_assert(StringRef(LongString).size() > 40);
-  getUniqueString(&*M, LongString, Namespace);
+  getUniqueString(&*M, LongString, true, Namespace);
   revng_check(not VariableExists(LongString));
 }
 

@@ -62,6 +62,7 @@ llvm::SmallVector<const model::Type *, 4> model::TypeDefinition::edges() const {
   auto GetEdges = [](const auto &Upcasted) { return Upcasted.edges(); };
   return upcast(PtrCopy, GetEdges, llvm::SmallVector<const model::Type *, 4>());
 }
+
 llvm::SmallVector<model::Type *, 4> model::TypeDefinition::edges() {
   auto *PtrCopy = this;
   auto GetEdges = [](auto &Upcasted) { return Upcasted.edges(); };

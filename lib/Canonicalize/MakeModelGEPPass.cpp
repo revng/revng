@@ -2094,7 +2094,8 @@ bool MakeModelGEPPass::runOnFunction(llvm::Function &F) {
   // Create a function pool for AddressOf calls
   auto AddressOfPool = FunctionTags::AddressOf.getPool(M);
 
-  llvm::IntegerType *PtrSizedInteger = getPointerSizedInteger(Context, *Model);
+  llvm::IntegerType
+    *PtrSizedInteger = getPointerSizedInteger(Context, Model->Architecture());
 
   std::map<std::pair<Instruction *, Value *>, Value *> PhiIncomingsMaps;
 
