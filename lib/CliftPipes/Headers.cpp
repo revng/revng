@@ -176,4 +176,14 @@ void EmitTypeAndGlobalHeader::run() {
   emitTypeAndGlobalHeaderImpl(*Out, Input.getModule());
 }
 
+void EmitHelperHeader::run() {
+  std::unique_ptr<llvm::raw_ostream> Out = Output.getOStream(ObjectID());
+
+  std::vector<mlir::ModuleOp> FunctionModules;
+  for (const auto &Object : Input.objects())
+    FunctionModules.emplace_back(Input.getModule(Object));
+
+  emitHelperHeaderImpl(*Out, FunctionModules);
+}
+
 } // namespace revng::pypeline::piperuns
