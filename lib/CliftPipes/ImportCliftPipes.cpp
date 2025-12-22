@@ -9,6 +9,7 @@
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
+#include "revng/CliftPipes/ImportCliftTypesPipe.h"
 #include "revng/Model/Segment.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
@@ -196,6 +197,8 @@ static pipeline::RegisterPipe<ImportSegmentDeclarations> A;
 
 namespace revng::pypeline::piperuns {
 
-// TODO
+void ImportCliftTypes::run() {
+  mlir::clift::importAllModelTypes(Binary, Output.getModule());
+}
 
 } // namespace revng::pypeline::piperuns
