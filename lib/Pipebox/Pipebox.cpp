@@ -8,7 +8,7 @@
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/CBackendPipe.h"
 #include "revng/CliftPipes/ClifterPipe.h"
-#include "revng/CliftPipes/ImportCliftTypesPipe.h"
+#include "revng/CliftPipes/ImportCliftPipes.h"
 #include "revng/CliftPipes/ImportModelNamesPipe.h"
 #include "revng/CliftPipes/ModelVerifyPipe.h"
 #include "revng/DataLayoutAnalysis/DLA.h"
