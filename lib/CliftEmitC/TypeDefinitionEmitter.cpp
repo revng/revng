@@ -7,6 +7,7 @@
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/Clift/CliftTypes.h"
+#include "revng/CliftEmitC/CCommentEmitter.h"
 #include "revng/CliftEmitC/TypeDefinitionEmitter.h"
 #include "revng/CliftImportModel/AttributeHelpers.h"
 #include "revng/Model/NameBuilder.h"
@@ -54,13 +55,20 @@ TypeDefinitionEmitter::emitDeclarationTypedef(mlir::MLIRContext &Context,
   Tokens.emitNewline();
 }
 
+void TypeDefinitionEmitter::emitComment(llvm::StringRef Content) {
+  if (Content.empty())
+    return;
+
+  Tokens.emitNewline();
+  CCommentEmitter(Tokens).emitComment(Content);
+}
+
 void // formatting
 TypeDefinitionEmitter::emitTypedefDefinition(mlir::clift::TypedefType Typedef) {
   auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Typedef.getHandle());
 
-  // TODO: emit model comment.
-
+  emitComment(Typedef.getComment());
   Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
   Tokens.emitSpace();
 
@@ -81,8 +89,7 @@ TypeDefinitionEmitter::emitFunctionTypedef(mlir::clift::FunctionType Function) {
   auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Function.getHandle());
 
-  // TODO: emit model comment.
-
+  emitComment(Function.getComment());
   Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
   Tokens.emitSpace();
 
@@ -157,8 +164,7 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
     auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                 StructOrUnion.getHandle());
 
-    // TODO: emit model comment.
-
+    emitComment(StructOrUnion.getComment());
     emitTypeKeyword(StructOrUnion);
     Tokens.emitSpace();
     emitCAttributes(mlir::clift::setAttribute<"_PACKED">(&Context));
@@ -197,8 +203,7 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
       auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Field.getHandle());
 
-      // TODO: emit model comment.
-
+      emitComment(Field.getComment());
       emitDeclaration(Field.getType(),
                       mlir::clift::CEmitter::DeclaratorInfo{
                         .Identifier = Field.getName(),
@@ -244,8 +249,7 @@ void TypeDefinitionEmitter::emitEnumDefinition(mlir::MLIRContext &Context,
     auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                 Enum.getHandle());
 
-    // TODO: emit model comment.
-
+    emitComment(Enum.getComment());
     Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Enum);
     Tokens.emitSpace();
     mlir::clift::ValueType Type = Enum.getUnderlyingType();
@@ -288,8 +292,7 @@ void TypeDefinitionEmitter::emitEnumDefinition(mlir::MLIRContext &Context,
       auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Entry.getHandle());
 
-      // TODO: emit model comment.
-
+      emitComment(Entry.getComment());
       PrintEnumEntry(Entry.getName(), Entry.getHandle(), Entry.getRawValue());
     }
 

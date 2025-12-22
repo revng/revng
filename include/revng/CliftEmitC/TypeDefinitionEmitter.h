@@ -34,6 +34,8 @@ private:
                         uint64_t CurrentOffset,
                         uint64_t NextOffset);
 
+  void emitComment(llvm::StringRef Content);
+
 public:
   void emitForwardDeclaration(mlir::MLIRContext &Context,
                               mlir::clift::DefinedType Type) {
