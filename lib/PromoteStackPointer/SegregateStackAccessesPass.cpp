@@ -348,11 +348,7 @@ public:
     AddressOfPool(FunctionTags::AddressOf.getPool(M)),
     VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary,
                                                               M,
-                                                              AddressOfPool)) {
-    // After segregate, we should not introduce new calls to
-    // `revng_undefined_local_sp`: enable to DCE it away
-    InitLocalSP->setOnlyReadsMemory();
-  }
+                                                              AddressOfPool)) {}
 
   SegregateStackAccesses(const model::Binary &Binary, llvm::Module &M) :
     pipeline::FunctionPassImpl(),
@@ -367,11 +363,7 @@ public:
     AddressOfPool(FunctionTags::AddressOf.getPool(M)),
     VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary,
                                                               M,
-                                                              AddressOfPool)) {
-    // After segregate, we should not introduce new calls to
-    // `revng_undefined_local_sp`: enable to DCE it away
-    InitLocalSP->setOnlyReadsMemory();
-  }
+                                                              AddressOfPool)) {}
 
 public:
   static void getAnalysisUsage(llvm::AnalysisUsage &AU);
@@ -807,8 +799,6 @@ private:
   }
 
   void segregateStackAccesses(Function &F) {
-    revng_assert(InitLocalSP != nullptr);
-
     // Get model::Function
     MetaAddress Entry = getMetaAddressMetadata(&F, "revng.function.entry");
     const model::Function &ModelFunction = Binary.Functions().at(Entry);
@@ -1384,7 +1374,11 @@ private:
     //
     // Find call to revng_undefined_local_sp
     //
+    if (InitLocalSP == nullptr)
+      return;
+
     CallInst *InitLocalSPCall = findCallTo(&F, InitLocalSP);
+
     if (InitLocalSPCall == nullptr or ModelFunction.StackFrameType().isEmpty())
       return;
 

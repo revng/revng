@@ -158,7 +158,7 @@ static bool promoteStackPointer(const model::Binary &Binary,
   Function *InitLocalSP = cast<Function>(ILSPCallee.getCallee());
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
   InitLocalSP->addFnAttr(Attribute::WillReturn);
-  InitLocalSP->setOnlyAccessesInaccessibleMemory();
+  InitLocalSP->setOnlyReadsMemory();
   FunctionTags::OpaqueCSVValue.addTo(InitLocalSP);
 
   // Create an alloca to represent the local value of the stack pointer.
