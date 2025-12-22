@@ -6,10 +6,15 @@
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
+#include "revng/CliftPipes/ImportTypes.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
+
+//
+// Old style pipes
+//
 
 class ImportTypesPipe {
 public:
@@ -80,3 +85,15 @@ public:
 };
 
 static pipeline::RegisterPipe<ImportSegmentDeclarationsPipe> ISD;
+
+//
+// New style pipes
+//
+
+namespace revng::pypeline::piperuns {
+
+void ImportTypes::run() {
+  clift::importAllModelTypes(Binary, Output.getModule());
+}
+
+} // namespace revng::pypeline::piperuns
