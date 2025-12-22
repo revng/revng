@@ -11,6 +11,7 @@
 #include "revng/CliftPipes/EmitC.h"
 #include "revng/CliftPipes/ImportDataModel.h"
 #include "revng/CliftPipes/ImportDescriptiveInfo.h"
+#include "revng/CliftPipes/ImportTypes.h"
 #include "revng/CliftPipes/VerifyAgainstModel.h"
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
@@ -128,6 +129,7 @@ static RegisterFunctionPipeRun<YieldCFG> P38;
 static RegisterFunctionPipeRun<ImportDescriptiveFunctionInfo> P39;
 static RegisterFunctionPipeRun<VerifyFunctionAgainstModel> P40;
 static RegisterFunctionPipeRun<ImportFunctionDataModel> P41;
+static RegisterSingleOutputPipeRun<ImportTypes> P42;
 
 //
 // Analyses
