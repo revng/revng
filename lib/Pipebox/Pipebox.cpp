@@ -135,6 +135,7 @@ static RegisterSingleOutputPipeRun<ImportTypes> P42;
 static RegisterSingleOutputPipeRun<ImportFunctionDeclarations> P43;
 static RegisterSingleOutputPipeRun<ImportSegmentDeclarations> P44;
 static RegisterSingleOutputPipeRun<EmitTypeAndGlobalHeader> P45;
+static RegisterSingleOutputPipeRun<EmitHelperHeader> P46;
 
 //
 // Analyses
