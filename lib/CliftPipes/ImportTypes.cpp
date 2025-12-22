@@ -96,4 +96,8 @@ void ImportTypes::run() {
   clift::importAllModelTypes(Binary, Output.getModule());
 }
 
+void ImportFunctionDeclarations::run() {
+  clift::importAllModelFunctionDeclarations(Binary, Module.getModule());
+}
+
 } // namespace revng::pypeline::piperuns
