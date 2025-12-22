@@ -196,4 +196,11 @@ void EmitHelperHeader::run() {
   emitHelperHeaderImpl(*Out, FunctionModules);
 }
 
+using ESTD = EmitSingleTypeDefinition;
+void ESTD::runOnTypeDefinition(const model::UpcastableTypeDefinition &Type) {
+  revng_assert(Type);
+  auto Stream = Output.getOStream(ObjectID(Type->key()));
+  emitTypeDefinitionImpl(*Stream, Input.getModule(), *Type, Binary);
+}
+
 } // namespace revng::pypeline::piperuns
