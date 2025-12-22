@@ -69,10 +69,7 @@ public:
 
     for (Function &Marker : FunctionTags::Marker.functions(M)) {
       StringRef MarkerName = Marker.getName();
-      if (llvm::count(NoReturns, MarkerName) != 0) {
-        // Preserve but mark as noreturn
-        Marker.setDoesNotReturn();
-      } else {
+      if (llvm::count(NoReturns, MarkerName) == 0) {
         for (CallBase *Call : callersIn(&Marker, &F)) {
           // Register the call to be erased
           ToErase.push_back(Call);
@@ -532,6 +529,9 @@ RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
   for (GlobalVariable &CSV : FunctionTags::CSV.globals(&TheModule))
     CSVs.insert(&CSV);
 
+  for (GlobalVariable *CSV : JTM.programCounterHandler()->pcCSVs())
+    CSVs.insert(CSV);
+
   // Create and initialize an alloca per CSV (except for the PC-affecting ones)
   BasicBlock *EntryBB = &OptimizedFunction->getEntryBlock();
   revng::NonDebugInfoCheckingIRBuilder AllocaBuilder(&*EntryBB->begin());
@@ -753,8 +753,11 @@ void RootAnalyzer::collectMaterializedValues(AnalysisRegistry &AR) {
         if (MA.isInvalid()) {
           AllValid = false;
         } else {
-          if (not JTM.isPC(MA))
+          if (not JTM.isPC(MA)) {
+            revng_log(Log,
+                      "The following address is not a PC: " << MA.toString());
             AllPCs = false;
+          }
 
           Targets.push_back(MA);
         }

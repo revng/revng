@@ -5,8 +5,8 @@
 commands:
   - type: revng.test-collect-cfg
     from:
-      - type: revng-qa.compiled-with-debug-info
-        filter: for-collect-cfg
+      - type: revng-qa.compiled
+        filter: for-collect-cfg and !stripped
     command: |-
       revng artifact
         --analyses=import-binary,detect-abi

@@ -62,8 +62,8 @@ static void importWellKnownModels(TupleTree<model::Binary> &Model) {
   // Load all well-known models
   for (const std::string &Path :
        revng::ResourceFinder.list("share/revng/well-known-models", ".yml")) {
-    auto Model = llvm::cantFail(TupleTree<model::Binary>::fromFile(Path));
-    auto NewWKM = std::make_unique<WellKnownModel>(std::move(Model), Model);
+    auto NewModel = llvm::cantFail(TupleTree<model::Binary>::fromFile(Path));
+    auto NewWKM = std::make_unique<WellKnownModel>(std::move(NewModel), Model);
     WellKnownModels.push_back(std::move(NewWKM));
   }
 

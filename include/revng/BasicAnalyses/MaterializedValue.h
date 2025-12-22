@@ -132,8 +132,23 @@ public:
       llvm::SmallString<40> String;
       value().toStringUnsigned(String, 16);
       Output << "0x" << String.c_str();
+
+      if (Value.getBitWidth() == 128) {
+        Output << " (" << MetaAddress::decomposeIntegerPC(Value).toString()
+               << ")";
+      }
     }
   }
 };
 
 using MaterializedValues = std::vector<MaterializedValue>;
+
+template<typename O>
+void dumpMaterializedValues(O &Output,
+                            llvm::StringRef Prefix,
+                            const MaterializedValues &Values) {
+  for (const MaterializedValue &Value : Values) {
+    Output << Prefix.str();
+    Value.dump(Output);
+  }
+}

@@ -33,6 +33,7 @@ namespace {
 
 Logger JTCountLog("jtcount");
 Logger RegisterJTLog("registerjt");
+Logger ReadFromPointerLog("read-from-pointer");
 
 CounterMap<std::string> HarvestingStats("harvesting");
 
@@ -388,14 +389,19 @@ bool TDBP::runOnModule(Module &M) {
 MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
                                                      unsigned LoadSize,
                                                      bool IsLittleEndian) {
+  revng_log(ReadFromPointerLog, "Loading from " << LoadAddress.toString());
+  LoggerIndent Indent(ReadFromPointerLog);
+
   auto NewAPInt = [LoadSize](uint64_t V) { return APInt(LoadSize * 8, V); };
 
   UnusedCodePointers.erase(LoadAddress);
 
   // Prevent overflow when computing the label interval
   MetaAddress EndAddress = LoadAddress + LoadSize;
-  if (not EndAddress.isValid())
+  if (not EndAddress.isValid()) {
+    revng_log(ReadFromPointerLog, "Invalid end address, bailing out");
     return MaterializedValue::invalid();
+  }
 
   registerReadRange(LoadAddress, EndAddress);
 
@@ -412,6 +418,10 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
       uint64_t Addend = Relocation.Addend();
       auto RelocationSize = model::RelocationType::getSize(Relocation.Type());
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
+        revng_log(ReadFromPointerLog,
+                  "Found a DynamicFunction relocation:\n"
+                    << Relocation.toString());
+
         // TODO: add this to model verify
         revng_assert(not StringRef(Function.Name()).contains('\0'));
         Result = MaterializedValue::fromSymbol(Function.Name(),
@@ -429,6 +439,9 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
       if (LoadAddress == Relocation.Address() and LoadSize == RelocationSize) {
         MetaAddress Address = Segment.StartAddress() + Addend;
         if (Address.isValid()) {
+          revng_log(ReadFromPointerLog,
+                    "Found a Segment relocation:\n"
+                      << Relocation.toString());
           auto Value = NewAPInt(Address.address());
           if (Segment.IsWriteable())
             Result = MaterializedValue::fromMutable(Value);
@@ -443,13 +456,31 @@ MaterializedValue JumpTargetManager::readFromPointer(MetaAddress LoadAddress,
   }
 
   if (MatchCount == 1) {
+    if (ReadFromPointerLog.isEnabled()) {
+      ReadFromPointerLog << "Returning ";
+      Result.dump(ReadFromPointerLog);
+      ReadFromPointerLog << DoLog;
+    }
     return Result;
   } else if (MatchCount > 1) {
-    // TODO: log message
+    revng_log(ReadFromPointerLog,
+              "We had " << MatchCount << " matches, bailing out");
   }
 
-  // No labels found, fall back to read the raw value, if available
-  return BinaryView.load(LoadAddress, LoadSize, IsLittleEndian);
+  revng_log(ReadFromPointerLog,
+            "No labels found, fall back to read the raw value");
+  Result = BinaryView.load(LoadAddress, LoadSize, IsLittleEndian);
+  if (Result.isValid()) {
+    if (ReadFromPointerLog.isEnabled()) {
+      ReadFromPointerLog << "Returning ";
+      Result.dump(ReadFromPointerLog);
+      ReadFromPointerLog << DoLog;
+    }
+  } else {
+    revng_log(ReadFromPointerLog, "Couldn't read from memory");
+  }
+
+  return Result;
 }
 
 JumpTargetManager::JumpTargetManager(Function *TheFunction,
