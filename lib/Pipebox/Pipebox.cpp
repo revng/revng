@@ -130,6 +130,7 @@ static RegisterSingleOutputPipeRun<ImportCliftFunctionDeclarations> P41;
 static RegisterSingleOutputPipeRun<ImportCliftSegmentDeclarations> P42;
 static RegisterSingleOutputPipeRun<EmitTypeAndGlobalHeader> P43;
 static RegisterSingleOutputPipeRun<EmitHelperHeader> P44;
+static RegisterTypeDefinitionPipeRun<EmitSingleTypeDefinition> P45;
 
 //
 // Analyses
