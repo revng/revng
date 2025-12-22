@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Support/LogicalResult.h"
 
 #include "revng/Clift/CliftTypeInterfaces.h"
@@ -31,6 +32,14 @@ static void emitTypeAndGlobalHeaderImpl(llvm::raw_ostream &Out,
                           Module,
                           Configuration,
                           /* DefineOpaqueTypes = */ true);
+
+  Out.flush();
+}
+
+static void emitHelperHeaderImpl(llvm::raw_ostream &Out,
+                                 std::vector<mlir::ModuleOp> Modules) {
+  ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Enabled);
+  emitHelperHeader(Tokens, Modules);
 
   Out.flush();
 }
@@ -66,6 +75,32 @@ public:
 };
 
 static pipeline::RegisterPipe<TypeAndGlobalHeaderPipe> TypeAndGlobalHeader;
+
+class HelperHeaderPipe {
+public:
+  static constexpr auto Name = "emit-helper-header";
+
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    using namespace pipeline;
+    using namespace revng::kinds;
+
+    return { ContractGroup({ Contract(CliftFunction,
+                                      0,
+                                      HelperHeader,
+                                      1,
+                                      InputPreservation::Preserve) }) };
+  }
+
+  void run(pipeline::ExecutionContext &EC,
+           const revng::pipes::CliftFunctionContainer &CliftContainer,
+           HelperHeaderContainer &HeaderFile) {
+    llvm::raw_string_ostream Stream = HeaderFile.asStream();
+    emitHelperHeaderImpl(Stream, { CliftContainer.getModule() });
+    EC.commitUniqueTarget(HeaderFile);
+  }
+};
+
+static pipeline::RegisterPipe<HelperHeaderPipe> HelperHeader;
 
 } // namespace
 
