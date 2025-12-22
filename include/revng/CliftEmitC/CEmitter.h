@@ -15,13 +15,13 @@ class CEmitter {
 protected:
   using CTE = ptml::CTokenEmitter;
 
-  ptml::CTokenEmitter &C;
+  ptml::CTokenEmitter &Tokens;
   const TargetCImplementation &Target;
 
 public:
   explicit CEmitter(ptml::CTokenEmitter &Emitter,
                     const TargetCImplementation &Target) :
-    C(Emitter), Target(Target) {}
+    Tokens(Emitter), Target(Target) {}
 
   //===------------------------------- Types ------------------------------===//
 

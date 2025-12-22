@@ -41,7 +41,7 @@ private:
 
   void emitSpaceIfNeeded() {
     if (NeedSpace)
-      Parent.C.emitSpace();
+      Parent.Tokens.emitSpace();
     NeedSpace = false;
   }
 
@@ -49,8 +49,8 @@ private:
     emitSpaceIfNeeded();
 
     if (Type.isConst()) {
-      Parent.C.emitKeyword(CTE::Keyword::Const);
-      Parent.C.emitSpace();
+      Parent.Tokens.emitKeyword(CTE::Keyword::Const);
+      Parent.Tokens.emitSpace();
     }
   }
 
@@ -97,13 +97,13 @@ private:
           auto Macro = getForeignPointerMacroName(T.getPointerSize());
 
           emitConstIfNeeded(T);
-          Parent.C.emitLiteralIdentifier(Macro);
-          Parent.C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+          Parent.Tokens.emitLiteralIdentifier(Macro);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
           rc_recur DeclarationEmitter(Parent).emitImpl(T.getPointeeType(),
                                                        /*Declarator=*/nullptr);
 
-          Parent.C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
           NeedSpace = true;
         }
       } else if (auto T = mlir::dyn_cast<ArrayType>(Type)) {
@@ -130,10 +130,10 @@ private:
             Kind = CTE::EntityKind::Enum;
 
           emitConstIfNeeded(T);
-          Parent.C.emitIdentifier(T.getName(),
-                                  T.getHandle(),
-                                  Kind,
-                                  CTE::IdentifierKind::Reference);
+          Parent.Tokens.emitIdentifier(T.getName(),
+                                       T.getHandle(),
+                                       Kind,
+                                       CTE::IdentifierKind::Reference);
 
           NeedSpace = true;
         }
@@ -159,18 +159,18 @@ private:
       case StackItemKind::Pointer: {
         auto T = mlir::dyn_cast<PointerType>(SI.Type);
         emitSpaceIfNeeded();
-        Parent.C.emitPunctuator(CTE::Punctuator::Star);
+        Parent.Tokens.emitPunctuator(CTE::Punctuator::Star);
         emitConstIfNeeded(T);
       } break;
       case StackItemKind::Array: {
         if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array) {
-          Parent.C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
           NeedSpace = false;
         }
       } break;
       case StackItemKind::Function: {
         if (I != 0) {
-          Parent.C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
           NeedSpace = false;
         }
       } break;
@@ -179,10 +179,10 @@ private:
 
     if (Declarator) {
       emitSpaceIfNeeded();
-      Parent.C.emitIdentifier(Declarator->Identifier,
-                              Declarator->Location,
-                              Declarator->Kind,
-                              CTE::IdentifierKind::Definition);
+      Parent.Tokens.emitIdentifier(Declarator->Identifier,
+                                   Declarator->Location,
+                                   Declarator->Kind,
+                                   CTE::IdentifierKind::Definition);
     }
 
     // Print type syntax appearing after the declarator name. This includes
@@ -200,9 +200,9 @@ private:
       } break;
       case StackItemKind::Array: {
         if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array)
-          Parent.C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
-        Parent.C.emitPunctuator(CTE::Punctuator::LeftBracket);
+        Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftBracket);
 
         uint64_t Extent = mlir::cast<ArrayType>(SI.Type).getElementsCount();
 
@@ -212,26 +212,26 @@ private:
         auto ExtentValue = llvm::APSInt(llvm::APInt(/*numBits=*/128, Extent),
                                         /*isUnsigned=*/false);
 
-        Parent.C.emitIntegerLiteral(ExtentValue,
-                                    CIntegerKind::Int,
-                                    /*Radix=*/10);
+        Parent.Tokens.emitIntegerLiteral(ExtentValue,
+                                         CIntegerKind::Int,
+                                         /*Radix=*/10);
 
-        Parent.C.emitPunctuator(CTE::Punctuator::RightBracket);
+        Parent.Tokens.emitPunctuator(CTE::Punctuator::RightBracket);
       } break;
       case StackItemKind::Function: {
         auto F = mlir::dyn_cast<FunctionType>(SI.Type);
 
         if (I != 0)
-          Parent.C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
-        Parent.C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+        Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
         if (F.getArgumentTypes().empty()) {
           Parent.emitPrimitiveType(PrimitiveKind::VoidKind, 0);
         } else {
           for (auto [J, PT] : llvm::enumerate(F.getArgumentTypes())) {
             if (J != 0) {
-              Parent.C.emitPunctuator(CTE::Punctuator::Comma);
-              Parent.C.emitSpace();
+              Parent.Tokens.emitPunctuator(CTE::Punctuator::Comma);
+              Parent.Tokens.emitSpace();
             }
 
             DeclaratorInfo ParameterDeclarator;
@@ -251,7 +251,7 @@ private:
             rc_recur DeclarationEmitter(Parent).emitImpl(PT, InnerDeclarator);
           }
         }
-        Parent.C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+        Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
       } break;
       }
     }
@@ -288,16 +288,16 @@ static std::string getPrimitiveTypeCName(PrimitiveKind Kind, uint64_t Size) {
 
 void CEmitter::emitPrimitiveType(clift::PrimitiveKind Kind, uint64_t Size) {
   if (Kind == PrimitiveKind::VoidKind) {
-    C.emitKeyword(CTE::Keyword::Void);
+    Tokens.emitKeyword(CTE::Keyword::Void);
   } else {
     auto TypeName = getPrimitiveTypeCName(Kind, Size);
     auto Location = pipeline::locationString(revng::ranks::PrimitiveType,
                                              TypeName);
 
-    C.emitIdentifier(TypeName,
-                     Location,
-                     CTE::EntityKind::Primitive,
-                     CTE::IdentifierKind::Reference);
+    Tokens.emitIdentifier(TypeName,
+                          Location,
+                          CTE::EntityKind::Primitive,
+                          CTE::IdentifierKind::Reference);
   }
 }
 
@@ -326,28 +326,28 @@ mlir::ArrayAttr CEmitter::getDeclarationOpAttributes(mlir::Operation *Op) {
 void CEmitter::emitAttribute(AttributeAttr Attribute) {
   auto Macro = Attribute.getMacro();
 
-  C.emitSpace();
-  C.emitIdentifier(Macro.getString(),
-                   Macro.getHandle(),
-                   CTE::EntityKind::Attribute,
-                   CTE::IdentifierKind::Reference);
+  Tokens.emitSpace();
+  Tokens.emitIdentifier(Macro.getString(),
+                        Macro.getHandle(),
+                        CTE::EntityKind::Attribute,
+                        CTE::IdentifierKind::Reference);
 
   if (auto Arguments = Attribute.getArguments()) {
-    C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+    Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
     for (auto [I, A] : llvm::enumerate(*Arguments)) {
       if (I != 0) {
-        C.emitPunctuator(CTE::Punctuator::Comma);
-        C.emitSpace();
+        Tokens.emitPunctuator(CTE::Punctuator::Comma);
+        Tokens.emitSpace();
       }
 
-      C.emitIdentifier(A.getString(),
-                       A.getHandle(),
-                       CTE::EntityKind::AttributeArgument,
-                       CTE::IdentifierKind::Reference);
+      Tokens.emitIdentifier(A.getString(),
+                            A.getHandle(),
+                            CTE::EntityKind::AttributeArgument,
+                            CTE::IdentifierKind::Reference);
     }
 
-    C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
   }
 }
 
