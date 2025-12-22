@@ -13,6 +13,7 @@
 #include "revng/CliftEmitC/Headers.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
+#include "revng/CliftPipes/Headers.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
@@ -170,6 +171,9 @@ static pipeline::RegisterPipe<SingleTypeDefinitionPipe> TypeDefinition;
 
 namespace revng::pypeline::piperuns {
 
-// TODO
+void EmitTypeAndGlobalHeader::run() {
+  std::unique_ptr<llvm::raw_ostream> Out = Output.getOStream(ObjectID());
+  emitTypeAndGlobalHeaderImpl(*Out, Input.getModule());
+}
 
 } // namespace revng::pypeline::piperuns

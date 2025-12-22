@@ -9,6 +9,7 @@
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/Clifter.h"
 #include "revng/CliftPipes/EmitC.h"
+#include "revng/CliftPipes/Headers.h"
 #include "revng/CliftPipes/ImportDataModel.h"
 #include "revng/CliftPipes/ImportDescriptiveInfo.h"
 #include "revng/CliftPipes/ImportTypes.h"
@@ -133,6 +134,7 @@ static RegisterFunctionPipeRun<ImportFunctionDataModel> P41;
 static RegisterSingleOutputPipeRun<ImportTypes> P42;
 static RegisterSingleOutputPipeRun<ImportFunctionDeclarations> P43;
 static RegisterSingleOutputPipeRun<ImportSegmentDeclarations> P44;
+static RegisterSingleOutputPipeRun<EmitTypeAndGlobalHeader> P45;
 
 //
 // Analyses
