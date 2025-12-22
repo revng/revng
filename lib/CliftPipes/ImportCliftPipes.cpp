@@ -9,7 +9,7 @@
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/CliftPipes/ImportCliftTypesPipe.h"
+#include "revng/CliftPipes/ImportCliftPipes.h"
 #include "revng/Model/Segment.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
