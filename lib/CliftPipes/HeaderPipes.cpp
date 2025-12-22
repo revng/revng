@@ -3,13 +3,16 @@
 //
 
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/Support/LogicalResult.h"
 
 #include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftEmitC/CSemantics.h"
 #include "revng/CliftEmitC/Headers.h"
+#include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
+#include "revng/Model/Binary.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
@@ -43,6 +46,35 @@ static void emitHelperHeaderImpl(llvm::raw_ostream &Out,
   // TODO: select target properly
   const auto &Target = TargetCImplementation::Default;
   mlir::clift::emitHelperHeader(Tokens, Target, Modules);
+
+  Out.flush();
+}
+
+static void emitTypeDefinitionImpl(llvm::raw_ostream &Out,
+                                   mlir::MLIRContext &Context,
+                                   const model::TypeDefinition &Type,
+                                   const model::Binary &Binary) {
+  ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Enabled);
+
+  auto EmitError = [&Context]() -> mlir::InFlightDiagnostic {
+    return Context.getDiagEngine().emit(mlir::UnknownLoc::get(&Context),
+                                        mlir::DiagnosticSeverity::Error);
+  };
+  auto CliftType = mlir::clift::importModelType(EmitError,
+                                                Context,
+                                                Type,
+                                                Binary);
+  revng_check(CliftType != nullptr);
+
+  mlir::clift::TypeEmitterConfiguration Configuration = {
+    .TypeToOmit = {},
+    .PrintMaximumEnumValue = true,
+    .ExplicitPadding = false,
+  };
+
+  // TODO: select target properly
+  const auto &Target = TargetCImplementation::Default;
+  emitSingleTypeDefinition(Context, Tokens, Target, CliftType, Configuration);
 
   Out.flush();
 }
@@ -104,6 +136,37 @@ public:
 };
 
 static pipeline::RegisterPipe<HelperHeaderPipe> HelperHeader;
+
+class SingleTypeDefinitionPipe {
+public:
+  static constexpr auto Name = "emit-single-type-definition";
+
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    using namespace pipeline;
+    using namespace revng::kinds;
+
+    return { ContractGroup({ Contract(CliftModule,
+                                      0,
+                                      SingleTypeDefinition,
+                                      1,
+                                      InputPreservation::Preserve) }) };
+  }
+
+  void run(pipeline::ExecutionContext &EC,
+           const revng::pipes::CliftContainer &CliftContainer,
+           TypeDefinitionContainer &ModelTypesContainer) {
+    const model::Binary &Binary = *revng::getModelFromContext(EC);
+
+    for (const model::TypeDefinition &Type :
+         revng::getTypeDefinitionsAndCommit(EC, ModelTypesContainer.name())) {
+      std::string &Result = ModelTypesContainer[Type.key()];
+      llvm::raw_string_ostream Out(Result);
+      emitTypeDefinitionImpl(Out, *CliftContainer.getContext(), Type, Binary);
+    }
+  }
+};
+
+static pipeline::RegisterPipe<SingleTypeDefinitionPipe> TypeDefinition;
 
 } // namespace
 

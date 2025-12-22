@@ -33,6 +33,12 @@ inline pipeline::SingleElementKind
                fat(/* TODO: add location ranks */),
                {});
 
+inline TypeKind SingleTypeDefinition("single-type-definition",
+                                     TypeAndGlobalHeader,
+                                     ranks::TypeDefinition,
+                                     {},
+                                     {});
+
 } // namespace revng::kinds
 
 namespace detail {
@@ -42,6 +48,10 @@ inline constexpr char HelperHeaderName[] = "helper-header";
 
 inline constexpr char HeaderMIMEType[] = "text/x.h+ptml";
 inline constexpr char HeaderSuffix[] = ".h";
+
+inline constexpr char TypeDefinitionName[] = "single-type-definition";
+inline constexpr char TypeDefinitionMime[] = "text/x.c+tar+gz";
+inline constexpr char TypeDefinitionExtension[] = ".c";
 
 template<auto... Values>
 using SBF = revng::pipes::StringBufferContainer<Values...>;
@@ -67,3 +77,9 @@ using HelperHeaderContainer = detail::SBF<&revng::kinds::HelperHeader,
                                           detail::HeaderMIMEType,
                                           detail::HeaderSuffix>;
 inline detail::RegisterDCC<HelperHeaderContainer> RegisteredHHC;
+
+using TypeDefinitionContainer = detail::TSM<&revng::kinds::SingleTypeDefinition,
+                                            detail::TypeDefinitionName,
+                                            detail::TypeDefinitionMime,
+                                            detail::TypeDefinitionExtension>;
+inline detail::RegisterDCC<TypeDefinitionContainer> RegisteredTDC;
