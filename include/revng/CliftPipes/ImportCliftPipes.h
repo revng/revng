@@ -33,4 +33,27 @@ public:
   void run();
 };
 
+class ImportCliftFunctionDeclarations {
+private:
+  const model::Binary &Binary;
+  CliftModuleContainer &Module;
+
+public:
+  static constexpr llvm::StringRef Name = "import-clift-function-declarations";
+  using Arguments = TypeList<PipeRunArgument<CliftModuleContainer,
+                                             "Module",
+                                             "MLIR container containing model "
+                                             "type system and, now, function "
+                                             "declarations",
+                                             Access::ReadWrite>>;
+
+  ImportCliftFunctionDeclarations(const class Model &Model,
+                                  llvm::StringRef Config,
+                                  llvm::StringRef DynamicConfig,
+                                  CliftModuleContainer &Module) :
+    Binary(*Model.get().get()), Module(Module){};
+
+  void run();
+};
+
 } // namespace revng::pypeline::piperuns

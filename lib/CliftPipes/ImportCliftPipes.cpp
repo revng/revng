@@ -100,4 +100,8 @@ void ImportCliftTypes::run() {
   mlir::clift::importAllModelTypes(Binary, Output.getModule());
 }
 
+void ImportCliftFunctionDeclarations::run() {
+  mlir::clift::importAllModelFunctionDeclarations(Binary, Module.getModule());
+}
+
 } // namespace revng::pypeline::piperuns
