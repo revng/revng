@@ -64,8 +64,7 @@ TypeDefinitionEmitter::emitTypedefDefinition(clift::TypedefType Typedef) {
   auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Typedef.getHandle());
 
-  // TODO: emit model comment.
-
+  emitDoxygenComment(Typedef);
   Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
   Tokens.emitSpace();
 
@@ -86,8 +85,7 @@ TypeDefinitionEmitter::emitFunctionTypedef(clift::FunctionType Function) {
   auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Function.getHandle());
 
-  // TODO: emit model comment.
-
+  emitDoxygenComment(Function);
   Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
   Tokens.emitSpace();
 
@@ -162,8 +160,7 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
     auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                 StructOrUnion.getHandle());
 
-    // TODO: emit model comment.
-
+    emitDoxygenComment(StructOrUnion);
     emitTypeKeyword(StructOrUnion);
 
     clift::CAttributeListBuilder AttributeBuilder{
@@ -204,8 +201,7 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
       auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Field.getHandle());
 
-      // TODO: emit model comment.
-
+      emitDoxygenComment(Field);
       emitDeclaration(Field.getType(),
                       clift::CEmitter::DeclaratorInfo{
                         .Identifier = Field.getName(),
@@ -251,8 +247,7 @@ void TypeDefinitionEmitter::emitEnumDefinition(mlir::MLIRContext &Context,
     auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                 Enum.getHandle());
 
-    // TODO: emit model comment.
-
+    emitDoxygenComment(Enum);
     Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Enum);
 
     clift::ValueType Type = Enum.getUnderlyingType();
@@ -302,8 +297,7 @@ void TypeDefinitionEmitter::emitEnumDefinition(mlir::MLIRContext &Context,
       auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Entry.getHandle());
 
-      // TODO: emit model comment.
-
+      emitDoxygenComment(Entry);
       PrintEnumEntry(Entry.getName(), Entry.getHandle(), Entry.getRawValue());
     }
 
