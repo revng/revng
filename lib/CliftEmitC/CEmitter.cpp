@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "revng/Clift/CliftTypeInterfaces.h"
+#include "revng/CliftEmitC/CCommentEmitter.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftImportModel/AttributeHelpers.h"
 #include "revng/Pipeline/Location.h"
@@ -437,6 +438,9 @@ void CEmitter::emitDeclaration(ValueType Type,
 }
 
 void CEmitter::emitFunctionPrototype(FunctionOp Op) {
+  CCommentEmitter Comments(Tokens);
+  Comments.emitFunctionComment(Op);
+
   llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
   for (unsigned I = 0; I < Op.getArgCount(); ++I) {
     auto Attrs = Op.getArgAttrs(I);
