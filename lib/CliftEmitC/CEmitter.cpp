@@ -81,6 +81,44 @@ private:
     return Name;
   }
 
+  std::optional<ptml::CTokenEmitter::Region> commentableReturnValueGuard() {
+    if (OutermostFunctionType == nullptr)
+      return std::nullopt;
+
+    auto FTHandle = OutermostFunctionType.getHandle();
+    auto FTLoc = pipeline::locationFromString(revng::ranks::TypeDefinition,
+                                              FTHandle);
+    if (not FTLoc)
+      return std::nullopt;
+
+    using RK = ptml::CTokenEmitter::RegionKind;
+    auto RVLoc = FTLoc->transmute(revng::ranks::ReturnValue).toString();
+    return std::make_optional<ptml::CTokenEmitter::Region>(Parent.Tokens,
+                                                           RK::Commentable,
+                                                           RVLoc);
+  }
+
+  std::optional<ptml::CTokenEmitter::Region>
+  commentableParameterGuard(clift::FunctionType const CurrentFunction,
+                            DeclaratorInfo const *Declarator,
+                            uint64_t Index) {
+    if (OutermostFunctionType == nullptr)
+      return std::nullopt;
+
+    if (OutermostFunctionType != CurrentFunction)
+      return std::nullopt;
+
+    if (not Declarator->Parameters)
+      return std::nullopt;
+
+    auto CurrentLocation = Declarator->Parameters.value()[Index].Location;
+
+    using RKind = ptml::CTokenEmitter::RegionKind;
+    return std::make_optional<ptml::CTokenEmitter::Region>(Parent.Tokens,
+                                                           RKind::Commentable,
+                                                           CurrentLocation);
+  }
+
   RecursiveCoroutine<void> emitImpl(mlir::Type Type,
                                     DeclaratorInfo const *Declarator) {
     // Expanded function parameter declarator names are only emitted for the
@@ -102,6 +140,8 @@ private:
     }
 
     {
+      auto Guard = commentableReturnValueGuard();
+
       // Recurse through the declaration, pushing each level onto the stack
       // until a terminal type is encountered. Primitive types as well as
       // defined types are considered terminal. Function types are not
@@ -247,6 +287,8 @@ private:
               Parent.Tokens.emitPunctuator(CTE::Punctuator::Comma);
               Parent.Tokens.emitSpace();
             }
+
+            auto Guard = commentableParameterGuard(F, Declarator, J);
 
             DeclaratorInfo ParameterDeclarator;
             DeclaratorInfo const *InnerDeclarator = nullptr;
