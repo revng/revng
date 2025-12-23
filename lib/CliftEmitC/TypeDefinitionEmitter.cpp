@@ -1,0 +1,384 @@
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+#include "llvm/ADT/PostOrderIterator.h"
+
+#include "revng/Clift/CliftAttributes.h"
+#include "revng/Clift/CliftTypeInterfaces.h"
+#include "revng/Clift/CliftTypes.h"
+#include "revng/CliftEmitC/TypeDefinitionEmitter.h"
+#include "revng/CliftImportModel/AttributeHelpers.h"
+#include "revng/Model/NameBuilder.h"
+#include "revng/Model/StructField.h"
+#include "revng/PTML/Constants.h"
+#include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
+
+inline Logger TypePrinterLog{ "clift-type-definition-printer" };
+
+using TypeDefinitionEmitter = mlir::clift::TypeDefinitionEmitter;
+
+void TypeDefinitionEmitter::emitTypeKeyword(mlir::clift::DefinedType Type) {
+  if (mlir::isa<mlir::clift::StructType>(Type))
+    Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Struct);
+  else if (mlir::isa<mlir::clift::UnionType>(Type))
+    Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Union);
+  else if (mlir::isa<mlir::clift::EnumType>(Type))
+    Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Enum);
+  else
+    revng_abort("Declaration typedef of an unknown type was encountered");
+}
+
+void // formatting
+TypeDefinitionEmitter::emitDeclarationTypedef(mlir::MLIRContext &Context,
+                                              mlir::clift::DefinedType Type) {
+  revng_assert(mlir::clift::isSeparateDeclarationAllowed(Type));
+
+  Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
+  Tokens.emitSpace();
+
+  emitTypeKeyword(Type);
+
+  Tokens.emitSpace();
+  emitCAttributes(mlir::clift::setAttribute<"_PACKED">(&Context));
+  Tokens.emitSpace();
+  Tokens.emitIdentifier(Type.getName(),
+                        Type.getHandle(),
+                        chooseEntityKind(Type),
+                        ptml::CTokenEmitter::IdentifierKind::Reference);
+  Tokens.emitSpace();
+  Tokens.emitIdentifier(Type.getName(),
+                        Type.getHandle(),
+                        chooseEntityKind(Type),
+                        ptml::CTokenEmitter::IdentifierKind::Reference);
+  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+  Tokens.emitNewline();
+}
+
+void // formatting
+TypeDefinitionEmitter::emitTypedefDefinition(mlir::clift::TypedefType Typedef) {
+  auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                  Typedef.getHandle());
+
+  // TODO: emit model comment.
+
+  Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
+  Tokens.emitSpace();
+
+  emitDeclaration(Typedef.getUnderlyingType(),
+                  mlir::clift::CEmitter::DeclaratorInfo{
+                    .Identifier = Typedef.getName(),
+                    .Location = Typedef.getHandle(),
+                    .Attributes = {},
+                    .Kind = ptml::CTokenEmitter::EntityKind::Typedef });
+  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+  Tokens.emitNewline();
+}
+
+void // formatting
+TypeDefinitionEmitter::emitFunctionTypedef(mlir::clift::FunctionType Function) {
+  revng_assert(!Function.getName().empty());
+
+  auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                  Function.getHandle());
+
+  // TODO: emit model comment.
+
+  Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
+  Tokens.emitSpace();
+
+  emitDeclaration(Function,
+                  mlir::clift::CEmitter::DeclaratorInfo{
+                    .Identifier = Function.getName(),
+                    .Location = Function.getHandle(),
+                    .Attributes = {},
+                    .Kind = ptml::CTokenEmitter::EntityKind::Function,
+                    .Parameters = {},
+                  });
+  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+  Tokens.emitNewline();
+}
+
+void TypeDefinitionEmitter::emitTypeDeclaration(mlir::MLIRContext &Context,
+                                                mlir::clift::DefinedType Type) {
+  if (mlir::clift::isSeparateDeclarationAllowed(Type)) {
+    emitForwardDeclaration(Context, Type);
+
+  } else if (auto Typedef = mlir::dyn_cast<mlir::clift::TypedefType>(Type)) {
+    emitTypedefDefinition(Typedef);
+
+  } else if (auto Enum = mlir::dyn_cast<mlir::clift::EnumType>(Type)) {
+    emitEnumDefinition(Context, Enum);
+
+  } else if (auto Function = mlir::dyn_cast<mlir::clift::FunctionType>(Type)) {
+    emitFunctionTypedef(Function);
+
+  } else {
+    Type.dump();
+    revng_abort("Unknown defined type.");
+  }
+}
+
+static std::string paddingFieldName(uint64_t CurrentOffset) {
+  // TODO: this discards the prefix configuration option.
+  //       We should fix this after the configuration is separate from the
+  //       model
+
+  model::CNameBuilder Builder(model::Binary{});
+  return Builder.paddingFieldName(CurrentOffset);
+}
+
+void TypeDefinitionEmitter::emitPaddingField(mlir::MLIRContext &Context,
+                                             uint64_t CurrentOffset,
+                                             uint64_t NextOffset) {
+  revng_assert(CurrentOffset <= NextOffset);
+  if (CurrentOffset == NextOffset)
+    return; // There is no padding
+
+  using PrimitiveKind = mlir::clift::PrimitiveKind;
+  auto Char = mlir::clift::PrimitiveType::get(&Context,
+                                              PrimitiveKind::UnsignedKind,
+                                              1);
+  auto Array = mlir::clift::ArrayType::get(Char, NextOffset - CurrentOffset);
+  emitDeclaration(Array,
+                  DeclaratorInfo{
+                    .Identifier = paddingFieldName(CurrentOffset),
+                    .Location = {},
+                    .Attributes = {},
+                    .Kind = ptml::CTokenEmitter::EntityKind::Field });
+
+  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+  Tokens.emitNewline();
+}
+
+using TDEmitter = TypeDefinitionEmitter;
+void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
+                                    mlir::clift::ClassType StructOrUnion) {
+  {
+    auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                StructOrUnion.getHandle());
+
+    // TODO: emit model comment.
+
+    emitTypeKeyword(StructOrUnion);
+    Tokens.emitSpace();
+    emitCAttributes(mlir::clift::setAttribute<"_PACKED">(&Context));
+    Tokens.emitSpace();
+
+    if (auto S = mlir::dyn_cast<mlir::clift::StructType>(StructOrUnion)) {
+      // TODO: conditionally emit `_CAN_CONTAIN_CODE`.
+
+      emitCAttributes(mlir::clift::setAttribute<"_SIZE">(&Context,
+                                                         S.getSize()));
+      Tokens.emitSpace();
+    }
+
+    Tokens.emitIdentifier(StructOrUnion.getName(),
+                          StructOrUnion.getHandle(),
+                          chooseEntityKind(StructOrUnion),
+                          ptml::CTokenEmitter::IdentifierKind::Definition);
+    Tokens.emitSpace();
+  }
+
+  {
+    bool IsStruct = mlir::isa<mlir::clift::StructType>(StructOrUnion);
+
+    using ScopeKind = ptml::CTokenEmitter::ScopeKind;
+    auto Scope = Tokens.enterScope(IsStruct ? ScopeKind::StructDefinition :
+                                              ScopeKind::UnionDefinition);
+    Tokens.emitNewline();
+
+    uint64_t PreviousOffset = 0;
+    for (const auto &Field : StructOrUnion.getFields()) {
+      if (IsStruct and Configuration.ExplicitPadding)
+        emitPaddingField(*Field.getContext(),
+                         PreviousOffset,
+                         Field.getOffset());
+
+      auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                  Field.getHandle());
+
+      // TODO: emit model comment.
+
+      emitDeclaration(Field.getType(),
+                      mlir::clift::CEmitter::DeclaratorInfo{
+                        .Identifier = Field.getName(),
+                        .Location = Field.getHandle(),
+                        .Attributes = {},
+                        .Kind = ptml::CTokenEmitter::EntityKind::Field,
+                      });
+
+      if (IsStruct) {
+        // WARNING: this ignores `UnnamedStructFieldPrefix` configuration field,
+        //          user might have set!
+        //
+        // TODO: fix this once the configuration is obtained from the pipe
+        //       (new pipeline only).
+        model::CNameBuilder UnconfiguredNB(model::Binary{});
+        model::StructDefinition FakeStruct; // No model fields are read here.
+        model::StructField FakeField(Field.getOffset()); // Only `Offset` read.
+        if (not UnconfiguredNB.isAutomaticName(FakeStruct,
+                                               FakeField,
+                                               Field.getName())) {
+          Tokens.emitSpace();
+
+          uint64_t Offset = Field.getOffset();
+          emitCAttributes(mlir::clift::setAttribute<"_STARTS_AT">(&Context,
+                                                                  Offset));
+        }
+      }
+
+      Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+      Tokens.emitNewline();
+
+      PreviousOffset = Field.getOffset() + Field.getType().getByteSize();
+    }
+  }
+
+  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+  Tokens.emitNewline();
+}
+
+void TypeDefinitionEmitter::emitEnumDefinition(mlir::MLIRContext &Context,
+                                               mlir::clift::EnumType Enum) {
+  {
+    auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                Enum.getHandle());
+
+    // TODO: emit model comment.
+
+    Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Enum);
+    Tokens.emitSpace();
+    mlir::clift::ValueType Type = Enum.getUnderlyingType();
+    emitCAttributes(mlir::clift::setAttribute<"_ENUM_UNDERLYING">(&Context,
+                                                                  Type));
+    Tokens.emitSpace();
+    emitCAttributes(mlir::clift::setAttribute<"_PACKED">(&Context));
+    Tokens.emitSpace();
+
+    Tokens.emitIdentifier(Enum.getName(),
+                          Enum.getHandle(),
+                          ptml::CTokenEmitter::EntityKind::Enum,
+                          ptml::CTokenEmitter::IdentifierKind::Definition);
+    Tokens.emitSpace();
+  }
+
+  {
+    using ScopeKind = ptml::CTokenEmitter::ScopeKind;
+    auto Scope = Tokens.enterScope(ScopeKind::EnumDefinition);
+    Tokens.emitNewline();
+
+    auto PrintEnumEntry =
+      [this](llvm::StringRef Name, llvm::StringRef Handle, uint64_t Value) {
+        using CTE = ptml::CTokenEmitter;
+        Tokens.emitIdentifier(Name,
+                              Handle,
+                              CTE::EntityKind::Enumerator,
+                              CTE::IdentifierKind::Definition);
+        Tokens.emitSpace();
+        Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Equals);
+        Tokens.emitSpace();
+
+        Tokens.emitUntypedHexLiteral(Value);
+
+        Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+        Tokens.emitNewline();
+      };
+
+    for (const auto &Entry : Enum.getFields()) {
+      auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                  Entry.getHandle());
+
+      // TODO: emit model comment.
+
+      PrintEnumEntry(Entry.getName(), Entry.getHandle(), Entry.getRawValue());
+    }
+
+    if (Configuration.PrintMaximumEnumValue) {
+      // We have to make the enum of the correct size of the underlying type
+      auto ByteSize = Enum.getByteSize();
+      revng_assert(ByteSize <= 8);
+      size_t MaxValue = llvm::APInt::getAllOnes(8 * ByteSize).getZExtValue();
+
+      // TODO: pull the prefix from the configuration when it's available
+      //       without pulling in the model dependency.
+      static constexpr llvm::StringRef Prefix = "enum_max_value_";
+
+      namespace ranks = revng::ranks;
+      auto EnumLocation = *pipeline::locationFromString(ranks::TypeDefinition,
+                                                        Enum.getHandle());
+      auto EntryLocation = EnumLocation.extend(ranks::EnumEntry, MaxValue);
+
+      PrintEnumEntry(Prefix.str() + Enum.getName().str(),
+                     EntryLocation.toString(),
+                     MaxValue);
+    }
+  }
+
+  Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+  Tokens.emitNewline();
+
+  // Allow using `MyEnum` instead of `enum MyEnum`.
+  emitDeclarationTypedef(Context, Enum);
+}
+
+void TypeDefinitionEmitter::emitTypeDefinition(mlir::MLIRContext &Context,
+                                               mlir::clift::DefinedType Type) {
+  if (auto StructOrUnion = mlir::dyn_cast<mlir::clift::ClassType>(Type)) {
+    emitClassDefinition(Context, StructOrUnion);
+    return;
+
+  } else if (not mlir::clift::isSeparateDeclarationAllowed(Type)) {
+    emitTypeDeclaration(Context, Type);
+    Tokens.emitNewline();
+    return;
+  }
+
+  Type.dump();
+  revng_abort("Unknown defined type.");
+}
+
+void // formatting
+TypeDefinitionEmitter::emitTypeTree(mlir::MLIRContext &Context,
+                                    const mlir::clift::TypeDependencyNode &Root,
+                                    NodeSet &Emitted) {
+  revng_log(TypePrinterLog,
+            "Starting a post order visit from:" << Root.label());
+
+  bool SkipTheRest = false;
+
+  size_t NodesEmittedAlready = Emitted.size();
+  for (const auto *Node : llvm::post_order_ext(&Root, Emitted)) {
+    LoggerIndent PostOrderIndent{ TypePrinterLog };
+
+    mlir::clift::DefinedType Type = Node->T;
+    revng_assert(not Type.getHandle().empty());
+    if (Type.getHandle() == Configuration.TypeToOmit)
+      SkipTheRest = true;
+
+    if (SkipTheRest) {
+      revng_log(TypePrinterLog, "skipping (TypeToOmit): " << Node->label());
+      continue;
+    } else {
+      revng_log(TypePrinterLog, "visiting: " << Node->label());
+    }
+
+    if (Node->IsDefinition) {
+      revng_assert(Node->IsDefinition);
+      revng_assert(mlir::clift::isSeparateDeclarationAllowed(Type));
+
+      revng_log(TypePrinterLog, "Definition");
+      emitTypeDefinition(Context, Type);
+
+    } else {
+      revng_log(TypePrinterLog, "Declaration");
+      emitTypeDeclaration(Context, Type);
+    }
+  }
+
+  if (NodesEmittedAlready != Emitted.size())
+    Tokens.emitNewline();
+
+  revng_log(TypePrinterLog, "Root is done: " << Root.label());
+}
