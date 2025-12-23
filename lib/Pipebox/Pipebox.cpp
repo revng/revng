@@ -30,7 +30,7 @@
 #include "revng/Pipebox/MLIRPipe.h"
 #include "revng/Pipebox/MergeLLVMModules.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
-#include "revng/PipeboxCommon/CliftContainer.h"
+#include "revng/PipeboxCommon/CliftContainers.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
 #include "revng/PipeboxCommon/ModelManipulationAnalyses.h"
 #include "revng/PipeboxCommon/RawContainer.h"
