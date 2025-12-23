@@ -6,7 +6,7 @@
 
 #include "mlir/Pass/PassRegistry.h"
 
-#include "revng/PipeboxCommon/CliftContainer.h"
+#include "revng/PipeboxCommon/CliftContainers.h"
 #include "revng/PipeboxCommon/Common.h"
 #include "revng/PipeboxCommon/Model.h"
 
