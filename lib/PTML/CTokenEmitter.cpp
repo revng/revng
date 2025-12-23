@@ -269,7 +269,12 @@ static StringEscape getStringEscape(char Character, char NextCharacter) {
 
 } // namespace
 
+//===---------------------------- CTokenEmitter ---------------------------===//
+
 void CTokenEmitter::emitKeyword(Keyword K) {
+  revng_assert(not IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
+
   auto Emit = [this](llvm::StringRef String) {
     auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
     Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Keyword);
@@ -354,6 +359,9 @@ void CTokenEmitter::emitKeyword(Keyword K) {
 }
 
 void CTokenEmitter::emitPunctuator(Punctuator P) {
+  revng_assert(not IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
+
   auto Emit = [this](llvm::StringRef String) {
     auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
     Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Punctuation);
@@ -392,6 +400,9 @@ void CTokenEmitter::emitPunctuator(Punctuator P) {
 }
 
 void CTokenEmitter::emitOperator(Operator O) {
+  revng_assert(not IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
+
   auto Emit = [this](llvm::StringRef String) {
     auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
     Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Operator);
@@ -493,6 +504,9 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
                                    llvm::StringRef Location,
                                    EntityKind Kind,
                                    IdentifierKind IsDefinition) {
+  revng_assert(not IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
+
   revng_assert(validateIdentifier(Identifier),
                "The specified identifier is not a valid C identifier.");
 
@@ -518,6 +532,9 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
 }
 
 void CTokenEmitter::emitLiteralIdentifier(llvm::StringRef Identifier) {
+  revng_assert(not IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
+
   revng_assert(validateIdentifier(Identifier),
                "The specified identifier is not a valid C identifier.");
 
@@ -527,6 +544,9 @@ void CTokenEmitter::emitLiteralIdentifier(llvm::StringRef Identifier) {
 void CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
                                        CIntegerKind Type,
                                        unsigned Radix) {
+  revng_assert(not IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
+
   constexpr auto IsValidRadix = [](unsigned Radix) {
     switch (Radix) {
     case 2:
@@ -558,6 +578,9 @@ void CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
 }
 
 void CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
+  revng_assert(not IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
+
   auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
   Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::StringLiteral);
   Tag.finalizeOpenTag();
@@ -587,29 +610,15 @@ void CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
 }
 
 void CTokenEmitter::emitComment(llvm::StringRef Content, CommentKind Kind) {
-  auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
-  Tag.emitAttribute(ptml::attributes::Token, ptml::tokens::Comment);
-  Tag.finalizeOpenTag();
-
-  if (Kind == CommentKind::Line) {
-    while (not Content.empty() and Content.back() == '\n')
-      Content = Content.substr(0, Content.size() - 1);
-
-    for (const auto &R : std::views::split(Content, '\n')) {
-      PTML.emit("//");
-      PTML.emit(std::string_view(R.begin(), R.end()));
-      PTML.emit("\n");
-    }
-  } else {
-    PTML.emit("/*");
-    PTML.emit(Content);
-    PTML.emit("*/");
-  }
+  emitComment(Kind).emit(Content);
 }
 
 void CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
                                          llvm::StringRef Location,
                                          IncludeMode Mode) {
+  revng_assert(not IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
+
   // Emit include directive token:
   {
     auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
@@ -640,6 +649,8 @@ CTokenEmitter::Scope::Scope(CTokenEmitter &Emitter,
                             CTokenEmitter::Delimiter Delimiter,
                             int Indent) :
   Emitter(Emitter), Delimiter(Delimiter), Indent(Indent) {
+  revng_assert(not Emitter.IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
 
   if (auto Symbols = getDelimiterPunctuators(Delimiter))
     Emitter.emitPunctuator(Symbols->first);
@@ -660,4 +671,99 @@ CTokenEmitter::Scope::~Scope() {
 
   if (auto Symbols = getDelimiterPunctuators(Delimiter))
     Emitter.emitPunctuator(Symbols->second);
+}
+
+//===-------------------- CTokenEmitter::CommentEmitter -------------------===//
+
+CTokenEmitter::CommentEmitter::CommentEmitter(CTokenEmitter &Emitter,
+                                              CommentKind Kind) :
+  // NOTE: IsEmittingComment is a reference to a boolean.
+  PTML(Emitter.PTML), IsEmittingComment(Emitter.IsEmittingComment), Kind(Kind) {
+  revng_assert(not IsEmittingComment,
+               "Cannot emit tokens while an open CommentEmitter exists.");
+
+  revng_assert(not IsEmittingComment);
+  IsEmittingComment = true;
+
+  Tag.emplace(PTML.makeTagInitializer(ptml::tags::Span));
+  Tag->emitAttribute(ptml::attributes::Token, ptml::tokens::Comment);
+  Tag->finalizeOpenTag();
+
+  switch (Kind) {
+  case CommentKind::Line:
+    PTML.emit("//");
+    break;
+
+  case CommentKind::Block:
+    PTML.emit("/*");
+    break;
+  }
+}
+
+CTokenEmitter::CommentEmitter::~CommentEmitter() {
+  switch (Kind) {
+  case CommentKind::Line:
+    if (not IsAtBeginningOfLine)
+      PTML.emit("\n");
+    break;
+
+  case CommentKind::Block:
+    PTML.emit("*/");
+    break;
+  }
+
+  Tag.reset();
+
+  IsEmittingComment = false;
+}
+
+void CTokenEmitter::CommentEmitter::emit(llvm::StringRef Content) {
+  if (not Content.empty()) {
+    for (auto [I, R] : llvm::enumerate(std::views::split(Content, '\n'))) {
+      llvm::StringRef Line = std::string_view(R.begin(), R.end());
+
+      if (I != 0)
+        PTML.emit("\n");
+
+      if (not Line.empty())
+        emitEscaped(Line);
+    }
+
+    IsAtBeginningOfLine = Content.back() == '\n';
+  }
+}
+
+void CTokenEmitter::CommentEmitter::emitLinePrefix() {
+  switch (Kind) {
+  case CommentKind::Line:
+    PTML.emit("//");
+    break;
+
+  case CommentKind::Block:
+    break;
+  }
+}
+
+void CTokenEmitter::CommentEmitter::emitEscaped(llvm::StringRef Content) {
+  revng_assert(not Content.empty());
+
+  if (IsAtBeginningOfLine) {
+    emitLinePrefix();
+    IsAtBeginningOfLine = false;
+  }
+
+  switch (Kind) {
+  case CommentKind::Line:
+    PTML.emit(Content);
+    break;
+
+  case CommentKind::Block:
+    for (auto [I, R] : llvm::enumerate(std::views::split(Content, "*/"))) {
+      if (I != 0)
+        PTML.emit("  ");
+
+      PTML.emit(std::string_view(R.begin(), R.end()));
+    }
+    break;
+  }
 }

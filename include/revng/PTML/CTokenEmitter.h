@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
+
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/StringRef.h"
 
@@ -20,6 +22,9 @@ class CTokenEmitter {
   // access to it in the public interface of this class. This design prevents
   // the emission of lexically invalid C.
   PTMLStreamEmitter PTML;
+
+  // Used to ensure that only one comment emitter may exist at any given time.
+  bool IsEmittingComment = false;
 
 public:
   explicit CTokenEmitter(llvm::raw_ostream &OS, Tagging Tags) :
@@ -185,6 +190,51 @@ public:
     Block,
   };
 
+  /// PTMLEmitter for emitting tags and content within a C line or block
+  /// comment.
+  class CommentEmitter {
+    // A single reference to CTokenEmitter would be fine, and arguably clearer,
+    // but it was decided to use two references to avoid storing a reference to
+    // CTokenEmitter.
+    PTMLStreamEmitter &PTML;
+    bool &IsEmittingComment;
+
+    CommentKind Kind;
+    bool IsAtBeginningOfLine = false;
+
+    std::optional<PTMLTagEmitter> Tag;
+
+  public:
+    explicit CommentEmitter(CTokenEmitter &Emitter, CommentKind Kind);
+
+    CommentEmitter(const CommentEmitter &) = delete;
+    CommentEmitter &operator=(const CommentEmitter &) = delete;
+
+    ~CommentEmitter();
+
+    [[nodiscard]] auto makeTagInitializer(llvm::StringRef Tag) {
+      return PTML.makeTagInitializer(Tag);
+    }
+
+    [[nodiscard]] PTMLTagEmitter initializeOpenTag(llvm::StringRef Tag) {
+      return PTML.initializeOpenTag(Tag);
+    }
+
+    void emit(llvm::StringRef Content);
+
+  private:
+    void emitLinePrefix();
+    void emitEscaped(llvm::StringRef Content);
+  };
+
+  /// Convenience function for initializing a CommentEmitter of the specified
+  /// comment kind.
+  [[nodiscard]] CommentEmitter emitComment(CommentKind Kind) {
+    return CommentEmitter(*this, Kind);
+  }
+
+  /// Convenience function for directly emitting a comment with the specified
+  /// content.
   void emitComment(llvm::StringRef Content, CommentKind Kind);
 
   enum class IncludeMode : bool {
@@ -234,6 +284,16 @@ public:
   enterScope(ScopeKind Kind, Delimiter Delimiter, int Indent = 1) {
     return Scope(*this, Kind, Delimiter, Indent);
   }
+
+private:
+  void enterCommentImpl(CommentEmitter &Comment);
+  void leaveCommentImpl(CommentEmitter &Comment);
+
+  void emitCommentLineStartImpl(CommentEmitter &Comment);
+  void emitEscapedCommentContentImpl(CommentEmitter &Comment,
+                                     llvm::StringRef Content);
+  void emitCommentContentImpl(CommentEmitter &Comment, llvm::StringRef Content);
 };
+static_assert(PTMLEmitter<CTokenEmitter::CommentEmitter>);
 
 } // namespace ptml
