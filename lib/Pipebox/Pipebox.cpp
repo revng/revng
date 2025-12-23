@@ -72,6 +72,8 @@ static RegisterContainer<CrossRelationsContainer> C15;
 static RegisterContainer<CallGraphContainer> C16;
 static RegisterContainer<CallGraphSliceContainer> C17;
 static RegisterContainer<FunctionControlFlowContainer> C18;
+static RegisterContainer<CliftModuleContainer> C19;
+static RegisterContainer<CliftSingleTypeContainer> C20;
 
 //
 // Pipes
