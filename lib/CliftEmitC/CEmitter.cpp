@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "revng/Clift/CliftTypeInterfaces.h"
+#include "revng/CliftEmitC/CCommentEmitter.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftImportModel/AttributeHelpers.h"
 #include "revng/Pipeline/Location.h"
@@ -437,6 +438,9 @@ void CEmitter::emitDeclaration(ValueType Type,
 }
 
 void CEmitter::emitFunctionPrototype(FunctionOp Op) {
+  CCommentEmitter Comments(Tokens);
+  Comments.emitFunctionComment(Op);
+
   bool IsHelper = pipeline::locationFromString(revng::ranks::HelperFunction,
                                                Op.getHandle())
                     .has_value();
