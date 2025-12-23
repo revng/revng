@@ -18,13 +18,6 @@
 // keep this order
 #include "revng/Clift/CliftAttributes.h"
 
-namespace mlir {
-
-static ParseResult parseCliftDebugName(AsmParser &Parser, std::string &Name);
-static void printCliftDebugName(AsmPrinter &Printer, llvm::StringRef Name);
-
-} // namespace mlir
-
 #define GET_TYPEDEF_CLASSES
 #include "revng/Clift/CliftTypes.cpp.inc"
 
@@ -68,21 +61,32 @@ static void printString(mlir::AsmPrinter &Printer, llvm::StringRef String) {
   Printer << '\"';
 }
 
-static mlir::ParseResult mlir::parseCliftDebugName(mlir::AsmParser &Parser,
-                                                   std::string &Name) {
-  if (Parser.parseOptionalKeyword("as").succeeded()) {
-    if (Parser.parseString(&Name).failed())
+static mlir::ParseResult parseSimpleStringAttributeImpl(mlir::AsmParser &Parser,
+                                                        llvm::StringRef Name,
+                                                        std::string &Value) {
+  if (Parser.parseOptionalKeyword(Name).succeeded()) {
+    if (Parser.parseString(&Value).failed())
       return mlir::failure();
   }
   return mlir::success();
 }
 
-static void mlir::printCliftDebugName(mlir::AsmPrinter &Printer,
-                                      llvm::StringRef Name) {
-  if (not Name.empty()) {
-    Printer << " as ";
-    printString(Printer, Name);
+static void printSimpleStringAttributeImpl(mlir::AsmPrinter &Printer,
+                                           llvm::StringRef Name,
+                                           llvm::StringRef Value) {
+  if (not Value.empty()) {
+    Printer << " " << Name << " ";
+    printString(Printer, Value);
   }
+}
+
+static mlir::ParseResult parseName(mlir::AsmParser &Parser,
+                                   std::string &Value) {
+  return parseSimpleStringAttributeImpl(Parser, "as", Value);
+}
+
+static void printName(mlir::AsmPrinter &Printer, llvm::StringRef Value) {
+  return printSimpleStringAttributeImpl(Printer, "as", Value);
 }
 
 static mlir::LogicalResult readBool(bool &Value,
@@ -327,7 +331,7 @@ mlir::Type EnumType::parse(mlir::AsmParser &Parser) {
     return {};
 
   std::string Name;
-  if (mlir::parseCliftDebugName(Parser, Name).failed())
+  if (parseName(Parser, Name).failed())
     return {};
 
   if (Parser.parseColon().failed())
@@ -344,7 +348,7 @@ mlir::Type EnumType::parse(mlir::AsmParser &Parser) {
       return mlir::failure();
 
     std::string Name;
-    if (mlir::parseCliftDebugName(Parser, Name).failed())
+    if (parseName(Parser, Name).failed())
       return mlir::failure();
 
     if (Parser.parseColon().failed())
@@ -398,7 +402,7 @@ mlir::Type EnumType::parse(mlir::AsmParser &Parser) {
 void EnumType::print(mlir::AsmPrinter &Printer) const {
   Printer << "<";
   printString(Printer, getHandle());
-  mlir::printCliftDebugName(Printer, getName());
+  printName(Printer, getName());
 
   Printer << " : ";
   Printer.printType(getUnderlyingType());
@@ -411,7 +415,7 @@ void EnumType::print(mlir::AsmPrinter &Printer) const {
 
       Printer << "\n  ";
       printString(Printer, E.getHandle());
-      mlir::printCliftDebugName(Printer, E.getName());
+      printName(Printer, E.getName());
       Printer << " : " << E.getRawValue();
     }
     Printer << '\n';
@@ -470,7 +474,7 @@ mlir::Type TypedefType::parse(mlir::AsmParser &Parser) {
     return {};
 
   std::string Name;
-  if (mlir::parseCliftDebugName(Parser, Name).failed())
+  if (parseName(Parser, Name).failed())
     return {};
 
   if (Parser.parseColon().failed())
@@ -496,7 +500,7 @@ mlir::Type TypedefType::parse(mlir::AsmParser &Parser) {
 void TypedefType::print(mlir::AsmPrinter &Printer) const {
   Printer << "<";
   printString(Printer, getHandle());
-  mlir::printCliftDebugName(Printer, getName());
+  printName(Printer, getName());
 
   Printer << " : ";
   Printer.printType(getUnderlyingType());
@@ -573,7 +577,7 @@ mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
     return {};
 
   std::string Name;
-  if (mlir::parseCliftDebugName(Parser, Name).failed())
+  if (parseName(Parser, Name).failed())
     return {};
 
   if (Parser.parseColon().failed())
@@ -616,7 +620,7 @@ mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
 void FunctionType::print(mlir::AsmPrinter &Printer) const {
   Printer << "<";
   printString(Printer, getHandle());
-  mlir::printCliftDebugName(Printer, getName());
+  printName(Printer, getName());
 
   Printer << " : ";
   Printer.printType(getReturnType());
@@ -714,7 +718,7 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
     return TypeT::get(Parser.getContext(), Handle);
 
   std::string Name;
-  if (mlir::parseCliftDebugName(Parser, Name).failed())
+  if (parseName(Parser, Name).failed())
     return {};
 
   if (Parser.parseColon().failed())
@@ -744,7 +748,7 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
       return mlir::failure();
 
     std::string Name;
-    if (mlir::parseCliftDebugName(Parser, Name))
+    if (parseName(Parser, Name))
       return mlir::failure();
 
     if (Parser.parseColon().failed())
@@ -845,7 +849,7 @@ static void printClassType(TypeT Type, mlir::AsmPrinter &Printer) {
 
   Printer << "<";
   printString(Printer, Type.getHandle());
-  mlir::printCliftDebugName(Printer, Type.getName());
+  printName(Printer, Type.getName());
 
   Printer << " : ";
   if constexpr (IsStruct) {
@@ -860,7 +864,7 @@ static void printClassType(TypeT Type, mlir::AsmPrinter &Printer) {
 
       Printer << "\n  ";
       printString(Printer, S.getHandle());
-      mlir::printCliftDebugName(Printer, S.getName());
+      printName(Printer, S.getName());
 
       Printer << " :";
 
