@@ -721,7 +721,20 @@ CTokenEmitter::Region::Region(CTokenEmitter &Emitter,
   if (Location.empty())
     return;
 
-  auto Actions = getAllowedActions(Location);
+  llvm::SmallVector<llvm::StringRef, 2> Actions = {};
+  switch (Kind) {
+  case RegionKind::Expression:
+    Actions = getAllowedActions(Location);
+    break;
+
+  case RegionKind::Commentable:
+    Actions = { ptml::actions::Comment };
+    break;
+
+  default:
+    revng_abort("Unknown region kind");
+  };
+
   if (Actions.empty())
     return;
 
