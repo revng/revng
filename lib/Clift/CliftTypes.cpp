@@ -75,38 +75,53 @@ static void printString(mlir::AsmPrinter &Printer, llvm::StringRef String) {
   Printer << '\"';
 }
 
-static mlir::ParseResult mlir::parseCliftDebugName(mlir::AsmParser &Parser,
-                                                   std::string &Name) {
-  if (Parser.parseOptionalKeyword("as").succeeded()) {
-    if (Parser.parseString(&Name).failed())
+static mlir::ParseResult parseSimpleStringAttributeImpl(mlir::AsmParser &Parser,
+                                                        llvm::StringRef Name,
+                                                        std::string &Value) {
+  if (Parser.parseOptionalKeyword(Name).succeeded()) {
+    if (Parser.parseString(&Value).failed())
       return mlir::failure();
   }
   return mlir::success();
 }
 
-static void mlir::printCliftDebugName(mlir::AsmPrinter &Printer,
-                                      llvm::StringRef Name) {
-  if (not Name.empty()) {
-    Printer << " as ";
-    printString(Printer, Name);
+static void printSimpleStringAttributeImpl(mlir::AsmPrinter &Printer,
+                                           llvm::StringRef Name,
+                                           llvm::StringRef Value) {
+  if (not Value.empty()) {
+    Printer << " " << Name << " ";
+    printString(Printer, Value);
   }
+}
+
+static mlir::ParseResult mlir::parseCliftDebugName(mlir::AsmParser &Parser,
+                                                   std::string &Value) {
+  return parseSimpleStringAttributeImpl(Parser, "as", Value);
+}
+
+static void mlir::printCliftDebugName(mlir::AsmPrinter &Printer,
+                                      llvm::StringRef Value) {
+  return printSimpleStringAttributeImpl(Printer, "as", Value);
 }
 
 static mlir::ParseResult mlir::parseCliftComment(mlir::AsmParser &Parser,
                                                  std::string &Comment) {
-  if (Parser.parseOptionalKeyword("comment").succeeded()) {
-    if (Parser.parseString(&Comment).failed())
-      return mlir::failure();
-  }
-  return mlir::success();
+  return parseSimpleStringAttributeImpl(Parser, "comment", Comment);
 }
 
 static void mlir::printCliftComment(mlir::AsmPrinter &Printer,
-                                    llvm::StringRef Name) {
-  if (not Name.empty()) {
-    Printer << " comment ";
-    printString(Printer, Name);
-  }
+                                    llvm::StringRef Value) {
+  return printSimpleStringAttributeImpl(Printer, "comment", Value);
+}
+
+static mlir::ParseResult parseCliftReturnValueComment(mlir::AsmParser &Parser,
+                                                      std::string &Value) {
+  return parseSimpleStringAttributeImpl(Parser, "return_value_comment", Value);
+}
+
+static void printCliftReturnValueComment(mlir::AsmPrinter &Printer,
+                                         llvm::StringRef Value) {
+  return printSimpleStringAttributeImpl(Printer, "return_value_comment", Value);
 }
 
 static mlir::LogicalResult readBool(bool &Value,
@@ -583,6 +598,7 @@ FunctionType::verify(EmitErrorType EmitError,
                      llvm::StringRef Handle,
                      MutableStringAttr Name,
                      MutableStringAttr Comment,
+                     MutableStringAttr ReturnValueComment,
                      mlir::Type ReturnType,
                      llvm::ArrayRef<mlir::Type> Args,
                      llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
@@ -674,6 +690,10 @@ mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
   if (mlir::parseCliftComment(Parser, Comment).failed())
     return {};
 
+  std::string ReturnValueComment;
+  if (parseCliftReturnValueComment(Parser, ReturnValueComment).failed())
+    return {};
+
   if (Parser.parseGreater().failed())
     return {};
 
@@ -681,11 +701,15 @@ mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
   auto CommentAttr = makeCommentAttr<FunctionType>(Parser.getContext(),
                                                    Handle,
                                                    Comment);
+  auto RVCommentAttr = makeRVCommentAttr<FunctionType>(Parser.getContext(),
+                                                       Handle,
+                                                       ReturnValueComment);
   return FunctionType::getChecked(getEmitError(Parser, Loc),
                                   Parser.getContext(),
                                   llvm::StringRef(Handle),
                                   NameAttr,
                                   CommentAttr,
+                                  RVCommentAttr,
                                   ReturnType,
                                   llvm::ArrayRef(ParameterTypes),
                                   llvm::ArrayRef(Attributes));
@@ -720,6 +744,7 @@ void FunctionType::print(mlir::AsmPrinter &Printer) const {
   }
 
   mlir::printCliftComment(Printer, getComment());
+  printCliftReturnValueComment(Printer, getReturnValueComment());
 
   Printer << ">";
 }
@@ -761,14 +786,22 @@ static clift::FunctionType readType(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readString(Comment).failed())
     return {};
 
+  llvm::StringRef ReturnValueComment;
+  if (Reader.readString(ReturnValueComment).failed())
+    return {};
+
   mlir::MLIRContext *Context = Reader.getContext();
   auto NameAttr = makeNameAttr<FunctionType>(Context, Handle, Name);
   auto CommentAttr = makeCommentAttr<FunctionType>(Context, Handle, Comment);
+  auto RVCommentAttr = makeRVCommentAttr<FunctionType>(Context,
+                                                       Handle,
+                                                       ReturnValueComment);
   return clift::FunctionType::getChecked(getEmitError(Reader),
                                          Context,
                                          Handle,
                                          NameAttr,
                                          CommentAttr,
+                                         RVCommentAttr,
                                          ReturnType,
                                          std::move(ParameterTypes),
                                          llvm::ArrayRef(Attributes));
@@ -788,6 +821,7 @@ static void writeType(clift::FunctionType Type,
                    });
 
   Writer.writeOwnedString(Type.getComment());
+  Writer.writeOwnedString(Type.getReturnValueComment());
 }
 
 //===----------------------------- Class types ----------------------------===//

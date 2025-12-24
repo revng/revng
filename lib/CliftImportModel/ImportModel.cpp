@@ -101,6 +101,11 @@ private:
   makeCommentAttr(llvm::StringRef Handle, llvm::StringRef Comment = {}) {
     return clift::makeCommentAttr<KeyT>(Context, Handle, Comment);
   }
+  template<typename KeyT>
+  clift::MutableStringAttr
+  makeRVCommentAttr(llvm::StringRef Handle, llvm::StringRef Comment = {}) {
+    return clift::makeRVCommentAttr<KeyT>(Context, Handle, Comment);
+  }
 
   static clift::PrimitiveKind
   getPrimitiveKind(const model::PrimitiveType &ModelType) {
@@ -175,9 +180,11 @@ private:
     auto Handle = getHandle(ModelType);
     auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
     auto CommentAttr = makeCommentAttr<clift::FunctionType>(Handle);
+    auto RVCommentAttr = makeRVCommentAttr<clift::FunctionType>(Handle);
     rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
                                         NameAttr,
                                         CommentAttr,
+                                        RVCommentAttr,
                                         ReturnType,
                                         llvm::ArrayRef(ArgumentTypes),
                                         llvm::ArrayRef(ABI));
@@ -347,10 +354,12 @@ private:
     auto Handle = getHandle(ModelType);
     auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
     auto CommentAttr = makeCommentAttr<clift::FunctionType>(Handle);
+    auto RVCommentAttr = makeCommentAttr<clift::FunctionType>(Handle);
     llvm::ArrayRef<mlir::clift::CAttributeAttr> AttributeArray = {};
     rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
                                         NameAttr,
                                         CommentAttr,
+                                        RVCommentAttr,
                                         mlir::Type(ReturnType),
                                         llvm::ArrayRef(ArgumentTypes),
                                         llvm::ArrayRef(ABI));
