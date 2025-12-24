@@ -260,18 +260,21 @@ def Clift_FunctionType
   let parameters = (ins StringRefParameter<>:$handle,
                         "mlir::clift::MutableStringAttr":$mutable_name,
                         "mlir::Type":$return_type,
-                        OptionalArrayRefParameter<"mlir::Type">:$argument_types);
+                        OptionalArrayRefParameter<"mlir::Type">:$argument_types,
+                        OptionalArrayRefParameter<"mlir::clift::CAttributeAttr">:$attributes);
 
   let builders = [
     TypeBuilder<(ins "llvm::StringRef":$Handle,
                      "mlir::clift::MutableStringAttr":$Name,
                      "mlir::clift::ValueType":$ReturnType,
-                     "llvm::ArrayRef<mlir::clift::ValueType>":$ArgumentTypes), [{
+                     "llvm::ArrayRef<mlir::clift::ValueType>":$ArgumentTypes,
+                     "llvm::ArrayRef<mlir::clift::CAttributeAttr>":$Attributes), [{
       return $_get($_ctxt,
                    Handle,
                    Name,
                    ReturnType,
-                   llvm::SmallVector<mlir::Type, 16>(ArgumentTypes));
+                   llvm::SmallVector<mlir::Type, 16>(ArgumentTypes),
+                   Attributes);
     }]>,
   ];
 

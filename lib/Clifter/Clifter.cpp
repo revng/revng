@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/GenericDomTree.h"
@@ -362,7 +363,8 @@ private:
                              Handle,
                              makeNameAttr<FunctionType>(Context, Handle),
                              ReturnType,
-                             ParameterTypes);
+                             ParameterTypes,
+                             {});
   }
 
   // Import a Clift function type from an LLVM function, using the name of the
@@ -806,11 +808,16 @@ private:
                                            HelperName.str());
 
     auto NameAttr = makeNameAttr<clift::FunctionType>(Context, Handle);
+
+    // TODO: should we add something explicitly identifying this as a helper?
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes = {};
+
     auto FunctionType = clift::FunctionType::get(Context,
                                                  Handle,
                                                  NameAttr,
                                                  ReturnType,
-                                                 ParameterTypes);
+                                                 ParameterTypes,
+                                                 Attributes);
 
     return emitHelperCall(Loc,
                           C.getHelperFunction(HelperName, FunctionType),
