@@ -162,6 +162,14 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
+    std::string ABIName = toString(ModelType.ABI());
+
+    // TODO: consider using a dedicated `/abi/$architecture/$name` location.
+    auto ABILocation = "";
+
+    clift::CAttributeListBuilder Attributes(*Context);
+    Attributes.setOrUpdate<"_ABI">(ABIName, ABILocation);
+
     auto Handle = getHandle(ModelType);
     auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
     llvm::ArrayRef<mlir::clift::CAttributeAttr> AttributeArray = {};
@@ -169,7 +177,7 @@ private:
                                         NameAttr,
                                         ReturnType,
                                         llvm::ArrayRef(ArgumentTypes),
-                                        AttributeArray);
+                                        Attributes.getRaw());
   }
 
   RecursiveCoroutine<clift::DefinedType>
@@ -320,6 +328,14 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
+    std::string ABIName = "raw_" + toString(ModelType.Architecture());
+
+    // TODO: consider using a dedicated `/raw-abi/$architecture` location.
+    auto ABILocation = "";
+
+    clift::CAttributeListBuilder Attributes(*Context);
+    Attributes.setOrUpdate<"_ABI">(ABIName, ABILocation);
+
     auto Handle = getHandle(ModelType);
     auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
     llvm::ArrayRef<mlir::clift::CAttributeAttr> AttributeArray = {};
@@ -327,7 +343,7 @@ private:
                                         NameAttr,
                                         mlir::Type(ReturnType),
                                         llvm::ArrayRef(ArgumentTypes),
-                                        AttributeArray);
+                                        Attributes.getRaw());
   }
 
   RecursiveCoroutine<clift::DefinedType>
