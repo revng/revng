@@ -44,7 +44,7 @@ export class Reference<T, M> {
     }
 
     equals(other: unknown): boolean {
-        if (other instanceof Reference<T, M>) {
+        if (other instanceof Reference) {
             return this.reference == other.reference;
         } else {
             return false;
