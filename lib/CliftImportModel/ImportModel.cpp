@@ -163,10 +163,12 @@ private:
 
     auto Handle = getHandle(ModelType);
     auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> AttributeArray = {};
     rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
                                         NameAttr,
                                         ReturnType,
-                                        llvm::ArrayRef(ArgumentTypes));
+                                        llvm::ArrayRef(ArgumentTypes),
+                                        AttributeArray);
   }
 
   RecursiveCoroutine<clift::DefinedType>
@@ -317,10 +319,12 @@ private:
 
     auto Handle = getHandle(ModelType);
     auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> AttributeArray = {};
     rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
                                         NameAttr,
                                         mlir::Type(ReturnType),
-                                        llvm::ArrayRef(ArgumentTypes));
+                                        llvm::ArrayRef(ArgumentTypes),
+                                        AttributeArray);
   }
 
   RecursiveCoroutine<clift::DefinedType>
