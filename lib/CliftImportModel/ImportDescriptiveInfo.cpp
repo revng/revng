@@ -11,6 +11,7 @@
 #include "revng/Clift/CliftTypes.h"
 #include "revng/Clift/Helpers.h"
 #include "revng/Clift/ModuleVisitor.h"
+#include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
@@ -80,6 +81,10 @@ public:
     for (unsigned I = 0; I < Op.getArgCount(); ++I) {
       AttrLists.emplace_back(Op.getArgAttrs(I).getDictionaryAttr());
     }
+  }
+
+  mlir::Attribute get(unsigned Index, llvm::StringRef Name) const {
+    return AttrLists[Index].get(Name);
   }
 
   void set(unsigned Index, llvm::StringRef Name, mlir::Attribute Attr) {
@@ -497,6 +502,19 @@ private:
           auto AL = TL.extend(rr::RawArgument, A.Location());
           Attrs.setString(I, "clift.handle", AL.toString());
           Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
+
+          std::string RegisterName = toString(A.Location());
+
+          // TODO: consider using a dedicated
+          //       `/register/$architecture/$name` location.
+          auto RegisterLocation = "";
+
+          clift::CAttributeListBuilder Attributes{
+            *Op.getContext(),
+            Attrs.get(I, "clift.c_attributes"),
+          };
+          Attributes.setOrUpdate<"_REG">(RegisterName, RegisterLocation);
+          Attrs.set(I, "clift.c_attributes", Attributes.get());
         }
 
         if (HasStackArgument) {
@@ -507,6 +525,13 @@ private:
 
           Attrs.setString(I, "clift.handle", AL.toString());
           Attrs.setString(I, "clift.name", Name);
+
+          clift::CAttributeListBuilder Attributes{
+            *Op.getContext(),
+            Attrs.get(I, "clift.c_attributes"),
+          };
+          Attributes.setOrUpdate<"_STACK">();
+          Attrs.set(I, "clift.c_attributes", Attributes.get());
         }
       } else {
         revng_abort("Invalid function prototype");
