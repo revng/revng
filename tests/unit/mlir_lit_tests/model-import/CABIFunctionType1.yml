@@ -8,6 +8,7 @@ TypeDefinitions:
   # CHECK: !_type_definition_1001_CABIFunctionDefinition = !clift.func<
   # CHECK:   "/type-definition/1001-CABIFunctionDefinition"
   # CHECK:   : !void()
+  # CHECK:   [#clift.attribute<"_ABI" : "/macro/_ABI"("SystemV_x86_64" : "/macro-argument/_ABI/SystemV_x86_64")>]
   # CHECK: >
   - ID: 1001
     Kind: CABIFunctionDefinition
