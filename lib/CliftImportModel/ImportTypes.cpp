@@ -9,6 +9,7 @@
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftDialect.h"
 #include "revng/Clift/CliftTypes.h"
+#include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
@@ -372,14 +373,16 @@ private:
       Fields.push_back(Attr);
     }
 
+    clift::CAttributeListBuilder Attributes(*Context);
+    Attributes.setOrUpdate<"_CAN_CONTAIN_CODE">();
+
     auto Handle = Location.toString();
     auto NameAttr = makeNameAttr<clift::StructAttr>(Handle);
-    llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes = {};
     auto Attr = make<clift::StructAttr>(llvm::StringRef(Handle),
                                         NameAttr,
                                         ModelType.Size(),
                                         llvm::ArrayRef(Fields),
-                                        CAttributes);
+                                        Attributes.getRaw());
 
     if (not Attr)
       rc_return nullptr;
