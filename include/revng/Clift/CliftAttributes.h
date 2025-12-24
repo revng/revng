@@ -23,6 +23,10 @@ template<typename T>
 MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
                                llvm::StringRef Handle,
                                llvm::StringRef Name = "");
+template<typename T>
+MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
+                                  llvm::StringRef Handle,
+                                  llvm::StringRef Name = "");
 
 } // namespace mlir::clift
 
@@ -39,6 +43,16 @@ MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
   return MutableStringAttr::get(Context,
                                 StringPairAttr::get(Context,
                                                     T::NameAttrKey,
+                                                    Handle),
+                                Name);
+}
+template<typename T>
+MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
+                                  llvm::StringRef Handle,
+                                  llvm::StringRef Name) {
+  return MutableStringAttr::get(Context,
+                                StringPairAttr::get(Context,
+                                                    T::CommentAttrKey,
                                                     Handle),
                                 Name);
 }
@@ -61,17 +75,25 @@ using ClassAttrBase = Attribute::AttrBase<AttrT,
 
 struct ClassDefinition {
   MutableStringAttr Name;
+  MutableStringAttr Comment;
+
   uint64_t Size;
   llvm::ArrayRef<FieldAttr> Fields;
   llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes;
 
   ClassDefinition(MutableStringAttr Name,
+                  MutableStringAttr Comment,
                   uint64_t Size,
                   llvm::ArrayRef<FieldAttr> Fields,
                   llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) :
-    Name(Name), Size(Size), Fields(Fields), Attributes(Attributes) {}
+    Name(Name),
+    Comment(Comment),
+    Size(Size),
+    Fields(Fields),
+    Attributes(Attributes) {}
 
   MutableStringAttr getMutableName() const { return Name; }
+  MutableStringAttr getMutableComment() const { return Comment; }
 
   uint64_t getSize() const { return Size; }
 
@@ -101,7 +123,12 @@ public:
     return getDefinition().getMutableName();
   }
 
+  MutableStringAttr getMutableComment() const {
+    return getDefinition().getMutableComment();
+  }
+
   llvm::StringRef getName() const { return getMutableName().getValue(); }
+  llvm::StringRef getComment() const { return getMutableComment().getValue(); }
 
   llvm::ArrayRef<FieldAttr> getFields() const {
     return getDefinition().getFields();
@@ -118,7 +145,8 @@ public:
 };
 
 struct StructAttr : ClassAttrImpl<StructAttr> {
-  static constexpr llvm::StringRef NameAttrKey = "Struct";
+  static constexpr llvm::StringRef NameAttrKey = "struct-name";
+  static constexpr llvm::StringRef CommentAttrKey = "struct-comment";
 
   using ClassAttrImpl::ClassAttrImpl;
 
@@ -135,6 +163,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
   verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle,
          MutableStringAttr Name,
+         MutableStringAttr Comment,
          uint64_t Size,
          llvm::ArrayRef<FieldAttr> Fields,
          llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
@@ -162,6 +191,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
   static StructAttr get(MLIRContext *Context,
                         llvm::StringRef Handle,
                         MutableStringAttr Name,
+                        MutableStringAttr Comment,
                         uint64_t Size,
                         llvm::ArrayRef<FieldAttr> Fields,
                         llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
@@ -171,6 +201,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
              MLIRContext *Context,
              llvm::StringRef Handle,
              MutableStringAttr Name,
+             MutableStringAttr Comment,
              uint64_t Size,
              llvm::ArrayRef<FieldAttr> Fields,
              llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
@@ -183,7 +214,8 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
 };
 
 struct UnionAttr : ClassAttrImpl<UnionAttr> {
-  static constexpr llvm::StringRef NameAttrKey = "Union";
+  static constexpr llvm::StringRef NameAttrKey = "union-name";
+  static constexpr llvm::StringRef CommentAttrKey = "union-comment";
 
   using ClassAttrImpl::ClassAttrImpl;
   using ClassAttrImpl::verify;
@@ -201,6 +233,7 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
   verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle,
          MutableStringAttr Name,
+         MutableStringAttr Comment,
          llvm::ArrayRef<FieldAttr> Fields,
          llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
 
@@ -227,6 +260,7 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
   static UnionAttr get(MLIRContext *Context,
                        llvm::StringRef Handle,
                        MutableStringAttr Name,
+                       MutableStringAttr Comment,
                        llvm::ArrayRef<FieldAttr> Fields,
                        llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
 
@@ -235,6 +269,7 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
              MLIRContext *Context,
              llvm::StringRef Handle,
              MutableStringAttr Name,
+             MutableStringAttr Comment,
              llvm::ArrayRef<FieldAttr> Fields,
              llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
 

@@ -94,6 +94,15 @@ static void printName(mlir::AsmPrinter &Printer, llvm::StringRef Value) {
   return printSimpleStringAttributeImpl(Printer, "as", Value);
 }
 
+static mlir::ParseResult parseComment(mlir::AsmParser &Parser,
+                                      std::string &Comment) {
+  return parseSimpleStringAttributeImpl(Parser, "comment", Comment);
+}
+
+static void printComment(mlir::AsmPrinter &Printer, llvm::StringRef Value) {
+  return printSimpleStringAttributeImpl(Printer, "comment", Value);
+}
+
 static mlir::LogicalResult readBool(bool &Value,
                                     mlir::DialectBytecodeReader &Reader) {
   uint64_t Integer;
@@ -363,14 +372,23 @@ mlir::Type EnumType::parse(mlir::AsmParser &Parser) {
     if (Parser.parseInteger(Value).failed())
       return mlir::failure();
 
+    std::string Comment;
+    if (parseComment(Parser, Comment).failed())
+      return mlir::failure();
+
     auto NameAttr = makeNameAttr<clift::EnumFieldAttr>(Parser.getContext(),
                                                        Handle,
                                                        Name);
+
+    auto CommentA = makeCommentAttr<clift::EnumFieldAttr>(Parser.getContext(),
+                                                          Handle,
+                                                          Comment);
 
     auto Attr = clift::EnumFieldAttr::getChecked(getEmitError(Parser, Loc),
                                                  Parser.getContext(),
                                                  llvm::StringRef(Handle),
                                                  NameAttr,
+                                                 CommentA,
                                                  Value);
 
     if (not Attr)
@@ -387,14 +405,22 @@ mlir::Type EnumType::parse(mlir::AsmParser &Parser) {
         .failed())
     return {};
 
+  std::string Comment;
+  if (parseComment(Parser, Comment).failed())
+    return {};
+
   if (Parser.parseGreater().failed())
     return {};
 
   auto NameAttr = makeNameAttr<EnumAttr>(Parser.getContext(), Handle, Name);
+  auto CommentAttr = makeCommentAttr<EnumAttr>(Parser.getContext(),
+                                               Handle,
+                                               Comment);
   auto Attr = EnumAttr::getChecked(getEmitError(Parser, Loc),
                                    Parser.getContext(),
                                    llvm::StringRef(Handle),
                                    NameAttr,
+                                   CommentAttr,
                                    UnderlyingType,
                                    llvm::ArrayRef(Enumerators));
 
@@ -422,10 +448,13 @@ void EnumType::print(mlir::AsmPrinter &Printer) const {
       printString(Printer, E.getHandle());
       printName(Printer, E.getName());
       Printer << " : " << E.getRawValue();
+      printComment(Printer, E.getComment());
     }
     Printer << '\n';
   }
-  Printer << "}>";
+  Printer << "}";
+  printComment(Printer, getComment());
+  Printer << ">";
 }
 
 template<std::same_as<clift::EnumType>>
@@ -489,14 +518,22 @@ mlir::Type TypedefType::parse(mlir::AsmParser &Parser) {
   if (Parser.parseType(UnderlyingType).failed())
     return {};
 
+  std::string Comment;
+  if (parseComment(Parser, Comment).failed())
+    return {};
+
   if (Parser.parseGreater().failed())
     return {};
 
   auto NameAttr = makeNameAttr<TypedefAttr>(Parser.getContext(), Handle, Name);
+  auto CommentAttr = makeCommentAttr<TypedefAttr>(Parser.getContext(),
+                                                  Handle,
+                                                  Comment);
   auto Attr = TypedefAttr::getChecked(getEmitError(Parser, Loc),
                                       Parser.getContext(),
                                       llvm::StringRef(Handle),
                                       NameAttr,
+                                      CommentAttr,
                                       UnderlyingType);
 
   return TypedefType::get(Attr);
@@ -509,6 +546,8 @@ void TypedefType::print(mlir::AsmPrinter &Printer) const {
 
   Printer << " : ";
   Printer.printType(getUnderlyingType());
+
+  printComment(Printer, getComment());
   Printer << ">";
 }
 
@@ -537,6 +576,7 @@ mlir::LogicalResult
 FunctionType::verify(EmitErrorType EmitError,
                      llvm::StringRef Handle,
                      MutableStringAttr Name,
+                     MutableStringAttr Comment,
                      mlir::Type ReturnType,
                      llvm::ArrayRef<mlir::Type> Args,
                      llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
@@ -639,14 +679,22 @@ mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
   if (parseAttributeArrayImpl(Parser, Attributes).failed())
     return {};
 
+  std::string Comment;
+  if (parseComment(Parser, Comment).failed())
+    return {};
+
   if (Parser.parseGreater().failed())
     return {};
 
   auto NameAttr = makeNameAttr<FunctionType>(Parser.getContext(), Handle, Name);
+  auto CommentAttr = makeCommentAttr<FunctionType>(Parser.getContext(),
+                                                   Handle,
+                                                   Comment);
   return FunctionType::getChecked(getEmitError(Parser, Loc),
                                   Parser.getContext(),
                                   llvm::StringRef(Handle),
                                   NameAttr,
+                                  CommentAttr,
                                   ReturnType,
                                   llvm::ArrayRef(ParameterTypes),
                                   llvm::ArrayRef(Attributes));
@@ -679,6 +727,8 @@ void FunctionType::print(mlir::AsmPrinter &Printer) const {
     Printer << '\n';
     Printer.printAttribute(mlir::ArrayAttr::get(getContext(), Attributes));
   }
+
+  printComment(Printer, getComment());
 
   Printer << ">";
 }
@@ -716,12 +766,18 @@ static clift::FunctionType readType(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readList(Attributes, ReadAttribute).failed())
     return {};
 
+  llvm::StringRef Comment;
+  if (Reader.readString(Comment).failed())
+    return {};
+
   mlir::MLIRContext *Context = Reader.getContext();
   auto NameAttr = makeNameAttr<FunctionType>(Context, Handle, Name);
+  auto CommentAttr = makeCommentAttr<FunctionType>(Context, Handle, Comment);
   return clift::FunctionType::getChecked(getEmitError(Reader),
                                          Context,
                                          Handle,
                                          NameAttr,
+                                         CommentAttr,
                                          ReturnType,
                                          std::move(ParameterTypes),
                                          llvm::ArrayRef(Attributes));
@@ -739,6 +795,8 @@ static void writeType(clift::FunctionType Type,
                    [&](mlir::clift::CAttributeAttr Attribute) {
                      Writer.writeAttribute(Attribute);
                    });
+
+  Writer.writeOwnedString(Type.getComment());
 }
 
 //===----------------------------- Class types ----------------------------===//
@@ -831,11 +889,19 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
     if (Parser.parseType(Type).failed())
       return mlir::failure();
 
+    std::string Comment;
+    if (parseComment(Parser, Comment).failed())
+      return {};
+
     auto NameAttr = makeNameAttr<FieldAttr>(Parser.getContext(), Handle, Name);
+    auto CommentAttr = makeCommentAttr<FieldAttr>(Parser.getContext(),
+                                                  Handle,
+                                                  Comment);
     auto Attr = FieldAttr::getChecked(getEmitError(Parser, FieldLoc),
                                       Parser.getContext(),
                                       llvm::StringRef(Handle),
                                       NameAttr,
+                                      CommentAttr,
                                       Offset,
                                       Type);
 
@@ -857,15 +923,23 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
   if (parseAttributeArrayImpl(Parser, Attributes).failed())
     return {};
 
+  std::string Comment;
+  if (parseComment(Parser, Comment).failed())
+    return {};
+
   if (Parser.parseGreater().failed())
     return {};
 
   auto GetCompleteType = [&](const auto &...Args) -> TypeT {
     auto NameAttr = makeNameAttr<AttrT>(Parser.getContext(), Handle, Name);
+    auto CommentAttr = makeCommentAttr<AttrT>(Parser.getContext(),
+                                              Handle,
+                                              Comment);
     auto Attr = AttrT::getChecked(getEmitError(Parser, Loc),
                                   Parser.getContext(),
                                   llvm::StringRef(Handle),
                                   NameAttr,
+                                  CommentAttr,
                                   Args...,
                                   llvm::ArrayRef(Fields),
                                   llvm::ArrayRef(Attributes));
@@ -936,6 +1010,7 @@ static void printClassType(TypeT Type, mlir::AsmPrinter &Printer) {
       }
 
       Printer << ' ' << S.getType();
+      printComment(Printer, S.getComment());
     }
     Printer << '\n';
   }
@@ -949,6 +1024,8 @@ static void printClassType(TypeT Type, mlir::AsmPrinter &Printer) {
     Printer << '\n';
     Printer.printAttribute(mlir::ArrayAttr::get(Type.getContext(), Attributes));
   }
+
+  printComment(Printer, Type.getComment());
 
   Printer << ">";
 }
@@ -1088,14 +1165,22 @@ static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
     if (Reader.readType(Type).failed())
       return mlir::failure();
 
+    llvm::StringRef Comment;
+    if (Reader.readString(Comment).failed())
+      return mlir::failure();
+
     auto NameAttr = makeNameAttr<clift::FieldAttr>(Reader.getContext(),
                                                    Handle,
                                                    Name);
+    auto CommentAttr = makeCommentAttr<clift::FieldAttr>(Reader.getContext(),
+                                                         Handle,
+                                                         Comment);
 
     Field = clift::FieldAttr::getChecked(getEmitError(Reader),
                                          Reader.getContext(),
                                          llvm::StringRef(Handle),
                                          NameAttr,
+                                         CommentAttr,
                                          Offset,
                                          Type);
 
@@ -1113,12 +1198,20 @@ static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readList(Attributes, ReadAttribute).failed())
     return {};
 
+  llvm::StringRef Comment;
+  if (Reader.readString(Comment).failed())
+    return {};
+
   auto GetCompleteType = [&](const auto &...Args) -> TypeT {
     auto NameAttr = makeNameAttr<AttrT>(Reader.getContext(), Handle, Name);
+    auto CommentAttr = makeCommentAttr<AttrT>(Reader.getContext(),
+                                              Handle,
+                                              Comment);
     auto Attr = AttrT::getChecked(getEmitError(Reader),
                                   Reader.getContext(),
                                   llvm::StringRef(Handle),
                                   NameAttr,
+                                  CommentAttr,
                                   Args...,
                                   llvm::ArrayRef(Fields),
                                   Attributes);
@@ -1157,12 +1250,15 @@ writeClassDefinition(TypeT Type, mlir::DialectBytecodeWriter &Writer) {
     }
 
     Writer.writeType(Field.getType());
+    Writer.writeOwnedString(Field.getComment());
   });
 
   Writer.writeList(Type.getAttributes(),
                    [&](mlir::clift::CAttributeAttr Attribute) {
                      Writer.writeAttribute(Attribute);
                    });
+
+  Writer.writeOwnedString(Type.getComment());
 }
 
 //===----------------------------- StructType -----------------------------===//
