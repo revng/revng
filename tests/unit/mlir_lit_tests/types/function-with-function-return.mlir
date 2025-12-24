@@ -8,9 +8,11 @@
 
 !f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" as "f" : !void()
+  comment "this function is as simple as it gets"
 >
 
 // CHECK: return type must be an object type or void
 !g = !clift.func<
   "/type-definition/1002-CABIFunctionDefinition" as "g" : !f()
+  comment "this function leads to an error"
 >
