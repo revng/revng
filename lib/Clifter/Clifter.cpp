@@ -318,6 +318,8 @@ private:
                                       makeNameAttr<FieldAttr>(Context,
                                                               FieldHandle,
                                                               FieldName),
+                                      makeCommentAttr<FieldAttr>(Context,
+                                                                 FieldHandle),
                                       Offset,
                                       FieldType));
       Offset += FieldType.getByteSize();
@@ -335,6 +337,8 @@ private:
                                       makeNameAttr<StructAttr>(Context,
                                                                Handle,
                                                                Name),
+                                      makeCommentAttr<StructAttr>(Context,
+                                                                  Handle),
                                       Offset,
                                       Fields,
                                       {});
@@ -363,6 +367,7 @@ private:
     return FunctionType::get(Context,
                              Handle,
                              makeNameAttr<FunctionType>(Context, Handle),
+                             makeCommentAttr<FunctionType>(Context, Handle),
                              ReturnType,
                              ParameterTypes,
                              {});
@@ -809,6 +814,7 @@ private:
                                            HelperName.str());
 
     auto NameAttr = makeNameAttr<clift::FunctionType>(Context, Handle);
+    auto CommentAttr = makeCommentAttr<clift::FunctionType>(Context, Handle);
 
     // TODO: should we add something explicitly identifying this as a helper?
     llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes = {};
@@ -816,6 +822,7 @@ private:
     auto FunctionType = clift::FunctionType::get(Context,
                                                  Handle,
                                                  NameAttr,
+                                                 CommentAttr,
                                                  ReturnType,
                                                  ParameterTypes,
                                                  Attributes);
