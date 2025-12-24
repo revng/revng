@@ -9,6 +9,7 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Clift/Helpers.h"
 #include "revng/Clift/ModuleVisitor.h"
+#include "revng/CliftImportModel/AttributeHelpers.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/ImportModelNamesPipe.h"
 #include "revng/Model/NameBuilder.h"
@@ -80,6 +81,10 @@ public:
     for (unsigned I = 0; I < Op.getArgCount(); ++I) {
       AttrLists.emplace_back(Op.getArgAttrs(I));
     }
+  }
+
+  mlir::Attribute get(unsigned Index, llvm::StringRef Name) const {
+    return AttrLists[Index].get(Name);
   }
 
   void set(unsigned Index, llvm::StringRef Name, mlir::Attribute Attr) {
@@ -496,6 +501,25 @@ private:
           auto AL = TL.extend(rr::RawArgument, A.Location());
           Attrs.setString(I, "clift.handle", AL.toString());
           Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
+
+          std::string RegisterName = toString(A.Location());
+
+          // TODO: consider using a dedicated
+          //       `/register/$architecture/$name` location.
+          auto RegisterL = pipeline::locationString(revng::ranks::MacroArgument,
+                                                    "_REG",
+                                                    RegisterName);
+
+          llvm::SmallVector<mlir::clift::CAttributeAttr> ExistingAttributes;
+          if (auto Attributes = Attrs.get(I, "clift.c_attributes"))
+            ExistingAttributes = mlir::clift::fromMLIRArray(Attributes);
+          auto New = mlir::clift::setAttribute<"_REG">(Op.getContext(),
+                                                       RegisterName,
+                                                       RegisterL,
+                                                       ExistingAttributes);
+          Attrs.set(I,
+                    "clift.c_attributes",
+                    mlir::clift::toMLIRArray(Op.getContext(), New));
         }
 
         if (HasStackArgument) {
@@ -506,6 +530,15 @@ private:
 
           Attrs.setString(I, "clift.handle", AL.toString());
           Attrs.setString(I, "clift.name", Name);
+
+          llvm::SmallVector<mlir::clift::CAttributeAttr> ExistingAttributes;
+          if (auto Attributes = Attrs.get(I, "clift.c_attributes"))
+            ExistingAttributes = mlir::clift::fromMLIRArray(Attributes);
+          auto New = mlir::clift::setAttribute<"_STACK">(Op.getContext(),
+                                                         ExistingAttributes);
+          Attrs.set(I,
+                    "clift.c_attributes",
+                    mlir::clift::toMLIRArray(Op.getContext(), New));
         }
       } else {
         revng_abort("Invalid function prototype");
