@@ -261,6 +261,7 @@ def Clift_FunctionType
   let parameters = (ins StringRefParameter<>:$handle,
                         "mlir::clift::MutableStringAttr":$mutable_name,
                         "mlir::clift::MutableStringAttr":$mutable_comment,
+                        "mlir::clift::MutableStringAttr":$mutable_return_value_comment,
                         "mlir::Type":$return_type,
                         OptionalArrayRefParameter<"mlir::Type">:$argument_types,
                         OptionalArrayRefParameter<"mlir::clift::CAttributeAttr">:$attributes);
@@ -269,6 +270,7 @@ def Clift_FunctionType
     TypeBuilder<(ins "llvm::StringRef":$Handle,
                      "mlir::clift::MutableStringAttr":$Name,
                      "mlir::clift::MutableStringAttr":$Comment,
+                     "mlir::clift::MutableStringAttr":$MutableReturnValueComment,
                      "mlir::clift::ValueType":$ReturnType,
                      "llvm::ArrayRef<mlir::clift::ValueType>":$ArgumentTypes,
                      "llvm::ArrayRef<mlir::clift::CAttributeAttr>":$Attributes), [{
@@ -276,6 +278,7 @@ def Clift_FunctionType
                    Handle,
                    Name,
                    Comment,
+                   MutableReturnValueComment,
                    ReturnType,
                    llvm::SmallVector<mlir::Type, 16>(ArgumentTypes),
                    Attributes);
@@ -285,6 +288,7 @@ def Clift_FunctionType
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef NameAttrKey = "function-name";
     static constexpr llvm::StringRef CommentAttrKey = "function-comment";
+    static constexpr llvm::StringRef ReturnValueCommentAttrKey = "function-return-value-comment";
 
     llvm::StringRef getName() const {
       return getMutableName().getValue();
@@ -292,6 +296,9 @@ def Clift_FunctionType
 
     llvm::StringRef getComment() const {
       return getMutableComment().getValue();
+    }
+    llvm::StringRef getReturnValueComment() const {
+      return getMutableReturnValueComment().getValue();
     }
 
     // AliasableType

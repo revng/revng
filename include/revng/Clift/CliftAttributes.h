@@ -26,7 +26,11 @@ MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
 template<typename T>
 MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
                                   llvm::StringRef Handle,
-                                  llvm::StringRef Name = "");
+                                  llvm::StringRef Value = "");
+template<typename T>
+MutableStringAttr makeRVCommentAttr(mlir::MLIRContext *Context,
+                                    llvm::StringRef Handle,
+                                    llvm::StringRef Value = "");
 
 } // namespace mlir::clift
 
@@ -43,25 +47,37 @@ using ArgumentArray = OptionalArgs::value_type;
 
 using CAttributeAttrArgument = detail::ArgumentArray::value_type;
 
+namespace detail {
+inline MutableStringAttr makeAttrImpl(mlir::MLIRContext *Context,
+                                      llvm::StringRef AttrKey,
+                                      llvm::StringRef Handle,
+                                      llvm::StringRef Name) {
+  return MutableStringAttr::get(Context,
+                                StringPairAttr::get(Context, AttrKey, Handle),
+                                Name);
+}
+} // namespace detail
+
 template<typename T>
 MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
                                llvm::StringRef Handle,
-                               llvm::StringRef Name) {
-  return MutableStringAttr::get(Context,
-                                StringPairAttr::get(Context,
-                                                    T::NameAttrKey,
-                                                    Handle),
-                                Name);
+                               llvm::StringRef Value) {
+  return detail::makeAttrImpl(Context, T::NameAttrKey, Handle, Value);
 }
 template<typename T>
 MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
                                   llvm::StringRef Handle,
-                                  llvm::StringRef Name) {
-  return MutableStringAttr::get(Context,
-                                StringPairAttr::get(Context,
-                                                    T::CommentAttrKey,
-                                                    Handle),
-                                Name);
+                                  llvm::StringRef Value) {
+  return detail::makeAttrImpl(Context, T::CommentAttrKey, Handle, Value);
+}
+template<typename T>
+MutableStringAttr makeRVCommentAttr(mlir::MLIRContext *Context,
+                                    llvm::StringRef Handle,
+                                    llvm::StringRef Value) {
+  return detail::makeAttrImpl(Context,
+                              T::ReturnValueCommentAttrKey,
+                              Handle,
+                              Value);
 }
 
 // VERY IMPORTANT!!!

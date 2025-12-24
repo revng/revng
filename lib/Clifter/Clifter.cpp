@@ -368,6 +368,7 @@ private:
                              Handle,
                              makeNameAttr<FunctionType>(Context, Handle),
                              makeCommentAttr<FunctionType>(Context, Handle),
+                             makeRVCommentAttr<FunctionType>(Context, Handle),
                              ReturnType,
                              ParameterTypes,
                              {});
@@ -815,6 +816,7 @@ private:
 
     auto NameAttr = makeNameAttr<clift::FunctionType>(Context, Handle);
     auto CommentAttr = makeCommentAttr<clift::FunctionType>(Context, Handle);
+    auto RVCommentA = makeRVCommentAttr<clift::FunctionType>(Context, Handle);
 
     // TODO: should we add something explicitly identifying this as a helper?
     llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes = {};
@@ -823,6 +825,7 @@ private:
                                                  Handle,
                                                  NameAttr,
                                                  CommentAttr,
+                                                 RVCommentA,
                                                  ReturnType,
                                                  ParameterTypes,
                                                  Attributes);
