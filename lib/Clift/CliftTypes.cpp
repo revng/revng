@@ -853,6 +853,10 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
         .failed())
     return {};
 
+  llvm::SmallVector<mlir::clift::CAttributeAttr> Attributes;
+  if (parseAttributeArrayImpl(Parser, Attributes).failed())
+    return {};
+
   if (Parser.parseGreater().failed())
     return {};
 
@@ -863,7 +867,8 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
                                   llvm::StringRef(Handle),
                                   NameAttr,
                                   Args...,
-                                  llvm::ArrayRef(Fields));
+                                  llvm::ArrayRef(Fields),
+                                  llvm::ArrayRef(Attributes));
 
     if (not Attr)
       return {};
@@ -934,7 +939,18 @@ static void printClassType(TypeT Type, mlir::AsmPrinter &Printer) {
     }
     Printer << '\n';
   }
-  Printer << "}>";
+  Printer << "}";
+
+  if (not Type.getDefinition().getAttributes().empty()) {
+    llvm::SmallVector<mlir::Attribute> Attributes;
+    for (mlir::Attribute Attribute : Type.getDefinition().getAttributes())
+      Attributes.emplace_back(Attribute);
+
+    Printer << '\n';
+    Printer.printAttribute(mlir::ArrayAttr::get(Type.getContext(), Attributes));
+  }
+
+  Printer << ">";
 }
 
 template<typename AttrT>
@@ -1090,6 +1106,13 @@ static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readList(Fields, ReadField).failed())
     return {};
 
+  llvm::SmallVector<mlir::clift::CAttributeAttr> Attributes;
+  auto ReadAttribute = [&](mlir::clift::CAttributeAttr &Attribute) {
+    return Reader.readAttribute(Attribute);
+  };
+  if (Reader.readList(Attributes, ReadAttribute).failed())
+    return {};
+
   auto GetCompleteType = [&](const auto &...Args) -> TypeT {
     auto NameAttr = makeNameAttr<AttrT>(Reader.getContext(), Handle, Name);
     auto Attr = AttrT::getChecked(getEmitError(Reader),
@@ -1097,7 +1120,8 @@ static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
                                   llvm::StringRef(Handle),
                                   NameAttr,
                                   Args...,
-                                  llvm::ArrayRef(Fields));
+                                  llvm::ArrayRef(Fields),
+                                  Attributes);
 
     if (not Attr)
       return {};
@@ -1134,6 +1158,11 @@ writeClassDefinition(TypeT Type, mlir::DialectBytecodeWriter &Writer) {
 
     Writer.writeType(Field.getType());
   });
+
+  Writer.writeList(Type.getAttributes(),
+                   [&](mlir::clift::CAttributeAttr Attribute) {
+                     Writer.writeAttribute(Attribute);
+                   });
 }
 
 //===----------------------------- StructType -----------------------------===//

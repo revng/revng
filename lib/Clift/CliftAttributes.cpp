@@ -193,7 +193,8 @@ public:
 
     TheKey.Definition.emplace(Definition.Name,
                               Definition.Size,
-                              Allocator.copyInto(Definition.Fields));
+                              Allocator.copyInto(Definition.Fields),
+                              Allocator.copyInto(Definition.Attributes));
 
     return mlir::success();
   }
@@ -580,11 +581,13 @@ mlir::LogicalResult StructAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-mlir::LogicalResult StructAttr::verify(EmitErrorType EmitError,
-                                       llvm::StringRef Handle,
-                                       MutableStringAttr Name,
-                                       uint64_t Size,
-                                       llvm::ArrayRef<FieldAttr> Fields) {
+mlir::LogicalResult
+StructAttr::verify(EmitErrorType EmitError,
+                   llvm::StringRef Handle,
+                   MutableStringAttr Name,
+                   uint64_t Size,
+                   llvm::ArrayRef<FieldAttr> Fields,
+                   llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
   return mlir::success();
 }
 
@@ -648,24 +651,30 @@ StructAttr StructAttr::getChecked(EmitErrorType EmitError,
   return get(Context, Handle, Definition);
 }
 
-StructAttr StructAttr::get(MLIRContext *Context,
-                           llvm::StringRef Handle,
-                           MutableStringAttr Name,
-                           uint64_t Size,
-                           llvm::ArrayRef<FieldAttr> Fields) {
-  return get(Context, Handle, ClassDefinition{ Name, Size, Fields });
+StructAttr
+StructAttr::get(MLIRContext *Context,
+                llvm::StringRef Handle,
+                MutableStringAttr Name,
+                uint64_t Size,
+                llvm::ArrayRef<FieldAttr> Fields,
+                llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
+  return get(Context,
+             Handle,
+             ClassDefinition{ Name, Size, Fields, Attributes });
 }
 
-StructAttr StructAttr::getChecked(EmitErrorType EmitError,
-                                  MLIRContext *Context,
-                                  llvm::StringRef Handle,
-                                  MutableStringAttr Name,
-                                  uint64_t Size,
-                                  llvm::ArrayRef<FieldAttr> Fields) {
+StructAttr
+StructAttr::getChecked(EmitErrorType EmitError,
+                       MLIRContext *Context,
+                       llvm::StringRef Handle,
+                       MutableStringAttr Name,
+                       uint64_t Size,
+                       llvm::ArrayRef<FieldAttr> Fields,
+                       llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
   return getChecked(EmitError,
                     Context,
                     Handle,
-                    ClassDefinition{ Name, Size, Fields });
+                    ClassDefinition{ Name, Size, Fields, Attributes });
 }
 
 //===------------------------------ UnionAttr -----------------------------===//
@@ -688,10 +697,12 @@ mlir::LogicalResult UnionAttr::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-mlir::LogicalResult UnionAttr::verify(EmitErrorType EmitError,
-                                      llvm::StringRef Handle,
-                                      MutableStringAttr Name,
-                                      llvm::ArrayRef<FieldAttr> Fields) {
+mlir::LogicalResult
+UnionAttr::verify(EmitErrorType EmitError,
+                  llvm::StringRef Handle,
+                  MutableStringAttr Name,
+                  llvm::ArrayRef<FieldAttr> Fields,
+                  llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
   return mlir::success();
 }
 
@@ -750,22 +761,26 @@ UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
   return get(Context, Handle, Definition);
 }
 
-UnionAttr UnionAttr::get(MLIRContext *Context,
-                         llvm::StringRef Handle,
-                         MutableStringAttr Name,
-                         llvm::ArrayRef<FieldAttr> Fields) {
-  return get(Context, Handle, ClassDefinition{ Name, 0, Fields });
+UnionAttr
+UnionAttr::get(MLIRContext *Context,
+               llvm::StringRef Handle,
+               MutableStringAttr Name,
+               llvm::ArrayRef<FieldAttr> Fields,
+               llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
+  return get(Context, Handle, ClassDefinition{ Name, 0, Fields, Attributes });
 }
 
-UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
-                                MLIRContext *Context,
-                                llvm::StringRef Handle,
-                                MutableStringAttr Name,
-                                llvm::ArrayRef<FieldAttr> Fields) {
+UnionAttr
+UnionAttr::getChecked(EmitErrorType EmitError,
+                      MLIRContext *Context,
+                      llvm::StringRef Handle,
+                      MutableStringAttr Name,
+                      llvm::ArrayRef<FieldAttr> Fields,
+                      llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
   return getChecked(EmitError,
                     Context,
                     Handle,
-                    ClassDefinition{ Name, 0, Fields });
+                    ClassDefinition{ Name, 0, Fields, Attributes });
 }
 
 uint64_t UnionAttr::getSize() const {

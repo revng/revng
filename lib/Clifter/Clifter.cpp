@@ -336,7 +336,8 @@ private:
                                                                Handle,
                                                                Name),
                                       Offset,
-                                      Fields);
+                                      Fields,
+                                      {});
 
     return StructType::get(Context, Definition);
   }

@@ -249,10 +249,12 @@ private:
 
     auto Handle = Location.transmute(revng::ranks::ArtificialStruct).toString();
     auto NameAttr = makeNameAttr<clift::StructAttr>(Handle);
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes = {};
     auto Attr = make<clift::StructAttr>(llvm::StringRef(Handle),
                                         NameAttr,
                                         Offset,
-                                        llvm::ArrayRef(Fields));
+                                        llvm::ArrayRef(Fields),
+                                        CAttributes);
 
     if (not Attr)
       rc_return nullptr;
@@ -372,10 +374,12 @@ private:
 
     auto Handle = Location.toString();
     auto NameAttr = makeNameAttr<clift::StructAttr>(Handle);
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes = {};
     auto Attr = make<clift::StructAttr>(llvm::StringRef(Handle),
                                         NameAttr,
                                         ModelType.Size(),
-                                        llvm::ArrayRef(Fields));
+                                        llvm::ArrayRef(Fields),
+                                        CAttributes);
 
     if (not Attr)
       rc_return nullptr;
@@ -459,9 +463,11 @@ private:
 
     auto Handle = Location.toString();
     auto NameAttr = makeNameAttr<clift::UnionAttr>(Handle);
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes = {};
     auto Attr = make<clift::UnionAttr>(llvm::StringRef(Handle),
                                        NameAttr,
-                                       llvm::ArrayRef(Fields));
+                                       llvm::ArrayRef(Fields),
+                                       CAttributes);
 
     rc_return clift::UnionType::get(Attr);
   }
