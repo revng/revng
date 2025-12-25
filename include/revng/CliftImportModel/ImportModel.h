@@ -32,6 +32,15 @@ ValueType importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                      const model::Type &ModelType,
                      const model::Binary &Binary);
 
+/// Convert the specified model function into a clift function declaration.
+///
+/// \return The corresponding Clift FunctionOp, or null on failure.
+FunctionOp importFunctionDeclaration(mlir::ModuleOp Module,
+                                     mlir::Location DebugLocation,
+                                     llvm::StringRef Name,
+                                     llvm::StringRef Handle,
+                                     clift::FunctionType Prototype);
+
 void importDescriptiveInfo(const model::Binary &Model, mlir::ModuleOp Module);
 
 // NOTE: this overload can be dropped together with the old pipeline.

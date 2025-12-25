@@ -5,7 +5,10 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/FormatVariadic.h"
 
+#include "mlir/IR/BuiltinOps.h"
+
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftDialect.h"
 #include "revng/Clift/CliftTypes.h"
@@ -649,4 +652,22 @@ clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                   const model::Type &ModelType,
                   const model::Binary &Binary) {
   return CliftConverter(Context, Binary, EmitError).convertType(ModelType);
+}
+
+clift::FunctionOp
+clift::importFunctionDeclaration(mlir::ModuleOp Module,
+                                 mlir::Location DebugLocation,
+                                 llvm::StringRef Name,
+                                 llvm::StringRef Handle,
+                                 clift::FunctionType Prototype) {
+  mlir::OpBuilder Builder(Module.getContext());
+  mlir::OpBuilder::InsertionGuard Guard(Builder);
+  Builder.setInsertionPointToEnd(Module.getBody());
+
+  auto Result = Builder.create<clift::FunctionOp>(DebugLocation,
+                                                  Name,
+                                                  Prototype);
+  Result.setHandle(Handle);
+
+  return Result;
 }
