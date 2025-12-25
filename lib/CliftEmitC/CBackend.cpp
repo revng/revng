@@ -167,7 +167,10 @@ public:
     if (auto Function = mlir::dyn_cast<FunctionOp>(Op)) {
       const auto &ArgAttrs = Function.getArgAttrs(E.getArgNumber());
       const auto GetStringAttr = [&ArgAttrs](llvm::StringRef Name) {
-        return mlir::cast<mlir::StringAttr>(ArgAttrs.get(Name)).getValue();
+        if (auto Attribute = ArgAttrs.get(Name))
+          return mlir::cast<mlir::StringAttr>(Attribute).getValue();
+        else
+          return llvm::StringRef{};
       };
 
       Tokens.emitIdentifier(GetStringAttr("clift.name"),
