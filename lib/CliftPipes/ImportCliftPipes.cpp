@@ -125,8 +125,10 @@ public:
   void run(pipeline::ExecutionContext &EC,
            const revng::pipes::BinaryFileContainer &,
            revng::pipes::CliftContainer &CliftContainer) {
-    importModelTypes(*revng::getModelFromContext(EC),
-                     CliftContainer.getModule());
+    CliftContainer.getContext()->loadDialect<clift::CliftDialect>();
+
+    mlir::clift::importAllModelTypes(*revng::getModelFromContext(EC),
+                                     CliftContainer.getModule());
 
     EC.commitUniqueTarget(CliftContainer);
   }
@@ -146,6 +148,8 @@ public:
 
   void run(pipeline::ExecutionContext &EC,
            revng::pipes::CliftContainer &CliftContainer) {
+    CliftContainer.getContext()->loadDialect<clift::CliftDialect>();
+
     const model::Binary &Binary = *revng::getModelFromContext(EC);
     for (const auto &ModelFunction : Binary.Functions()) {
       importModelFunctionDeclaration(ModelFunction,
@@ -179,11 +183,11 @@ public:
 
   void run(pipeline::ExecutionContext &EC,
            revng::pipes::CliftContainer &CliftContainer) {
-    const model::Binary &Model = *revng::getModelFromContext(EC);
-    mlir::ModuleOp Module = CliftContainer.getModule();
+    CliftContainer.getContext()->loadDialect<clift::CliftDialect>();
 
-    for (const auto &Segment : Model.Segments())
-      importSegmentDeclaration(Segment, Module, Model);
+    const model::Binary &Binary = *revng::getModelFromContext(EC);
+    mlir::clift::importAllModelSegmentDeclarations(Binary,
+                                                   CliftContainer.getModule());
 
     EC.commitUniqueTarget(CliftContainer);
   }
