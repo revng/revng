@@ -63,7 +63,6 @@ class CliftConverter {
 
 public:
   explicit CliftConverter(mlir::MLIRContext *Context,
-                          const model::Binary &Binary,
                           llvm::function_ref<mlir::InFlightDiagnostic()>
                             EmitError) :
     Context(Context), EmitError(EmitError) {}
@@ -658,18 +657,15 @@ private:
 mlir::Type
 clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                   mlir::MLIRContext *Context,
-                  const model::TypeDefinition &ModelType,
-                  const model::Binary &Binary) {
-  return CliftConverter(Context, Binary, EmitError)
-    .convertTypeDefinition(ModelType);
+                  const model::TypeDefinition &ModelType) {
+  return CliftConverter(Context, EmitError).convertTypeDefinition(ModelType);
 }
 
 mlir::Type
 clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                   mlir::MLIRContext *Context,
-                  const model::Type &ModelType,
-                  const model::Binary &Binary) {
-  return CliftConverter(Context, Binary, EmitError).convertType(ModelType);
+                  const model::Type &ModelType) {
+  return CliftConverter(Context, EmitError).convertType(ModelType);
 }
 
 using AttributeSet = MutableSet<model::FunctionAttribute::Values>;
@@ -740,7 +736,7 @@ void clift::importAllModelTypes(const model::Binary &Model,
 
   llvm::SmallVector<mlir::Attribute> TypeAttrs;
   for (const auto &ModelType : Model.TypeDefinitions()) {
-    auto CliftType = clift::importType(EmitError, Context, *ModelType, Model);
+    auto CliftType = clift::importType(EmitError, Context, *ModelType);
     TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
   }
 
@@ -763,8 +759,7 @@ clift::FunctionOp importAnyFunctionDeclaration(const FunctionT &MF,
 
   auto CliftType = clift::importType(EmitError,
                                      Module.getContext(),
-                                     *ModelPrototype,
-                                     Binary);
+                                     *ModelPrototype);
   auto Prototype = mlir::cast<clift::FunctionType>(CliftType);
 
   std::string Handle = pipeline::locationString(Rank, MF.key());
@@ -797,17 +792,13 @@ void clift::importAllModelFunctionDeclarations(const model::Binary &Model,
 }
 
 static mlir::Type importSegmentType(const model::Segment &Segment,
-                                    const model::Binary &Model,
                                     mlir::ModuleOp Module) {
   if (const model::StructDefinition *SegmentStruct = Segment.type()) {
     auto EmitError = [C = Module.getContext()]() -> mlir::InFlightDiagnostic {
       return C->getDiagEngine().emit(mlir::UnknownLoc::get(C),
                                      mlir::DiagnosticSeverity::Error);
     };
-    return clift::importType(EmitError,
-                             Module.getContext(),
-                             *SegmentStruct,
-                             Model);
+    return clift::importType(EmitError, Module.getContext(), *SegmentStruct);
 
   } else {
     auto Char = clift::IntegerType::get(Module.getContext(),
@@ -829,7 +820,7 @@ void clift::importAllModelSegmentDeclarations(const model::Binary &Model,
                                     UnknownLocation,
                                     toString(Segment.key()),
                                     Handle,
-                                    importSegmentType(Segment, Model, Module));
+                                    importSegmentType(Segment, Module));
   }
 }
 
