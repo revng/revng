@@ -12,7 +12,6 @@
 #include "revng/CliftEmitC/Headers.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/Model/Binary.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
@@ -52,18 +51,14 @@ static void emitHelperHeaderImpl(llvm::raw_ostream &Out,
 
 static void emitTypeDefinitionImpl(llvm::raw_ostream &Out,
                                    mlir::MLIRContext &Context,
-                                   const model::TypeDefinition &Type,
-                                   const model::Binary &Binary) {
+                                   const model::TypeDefinition &Type) {
   ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Enabled);
 
   auto EmitError = [&Context]() -> mlir::InFlightDiagnostic {
     return Context.getDiagEngine().emit(mlir::UnknownLoc::get(&Context),
                                         mlir::DiagnosticSeverity::Error);
   };
-  auto CliftType = mlir::clift::importModelType(EmitError,
-                                                Context,
-                                                Type,
-                                                Binary);
+  auto CliftType = mlir::clift::importModelType(EmitError, Context, Type);
   revng_check(CliftType != nullptr);
 
   mlir::clift::TypeEmitterConfiguration Configuration = {
@@ -155,13 +150,11 @@ public:
   void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CliftContainer &CliftContainer,
            TypeDefinitionContainer &ModelTypesContainer) {
-    const model::Binary &Binary = *revng::getModelFromContext(EC);
-
     for (const model::TypeDefinition &Type :
          revng::getTypeDefinitionsAndCommit(EC, ModelTypesContainer.name())) {
       std::string &Result = ModelTypesContainer[Type.key()];
       llvm::raw_string_ostream Out(Result);
-      emitTypeDefinitionImpl(Out, *CliftContainer.getContext(), Type, Binary);
+      emitTypeDefinitionImpl(Out, *CliftContainer.getContext(), Type);
     }
   }
 };
