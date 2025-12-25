@@ -423,19 +423,21 @@ private:
                                                  const FunctionT &MF,
                                                  const RankT &Rank,
                                                  ArgsT &&...Args) {
-    model::UpcastableType Prototype = getPrototype(MF);
-    auto FunctionType = importModelType<clift::FunctionType>(*Prototype);
+    // It is important not to query any model properties in this scope, as
+    // doing so would break invalidation when the import of a function uses a
+    // declaration already emitted during the import of previous function.
 
     return getOrEmitSymbol(F, [&]() -> clift::FunctionOp {
-      // It is important not to query any model properties in this scope, as
-      // doing so would break invalidation when the import of a function uses a
-      // declaration already emitted during the import of previous function.
-      auto Op = Builder.create<FunctionOp>(getLocation(F->getSubprogram()),
-                                           F->getName(),
-                                           FunctionType);
-      Op.setHandle(pipeline::locationString(Rank,
-                                            std::forward<ArgsT>(Args)...));
-      return Op;
+      model::UpcastableType Prototype = getPrototype(MF);
+      auto FunctionType = importModelType<clift::FunctionType>(*Prototype);
+
+      auto Handle = pipeline::locationString(Rank,
+                                             std::forward<ArgsT>(Args)...);
+      return importFunctionDeclaration(CurrentModule,
+                                       getLocation(F->getSubprogram()),
+                                       F->getName(),
+                                       Handle,
+                                       FunctionType);
     });
   }
 
