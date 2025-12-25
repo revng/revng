@@ -41,6 +41,15 @@ FunctionOp importFunctionDeclaration(mlir::ModuleOp Module,
                                      llvm::StringRef Handle,
                                      clift::FunctionType Prototype);
 
+/// Convert the specified model segment into a clift variable.
+///
+/// \return The corresponding Clift GlobalVariableOp, or null on failure.
+GlobalVariableOp importSegmentDeclaration(mlir::ModuleOp Module,
+                                          mlir::Location DebugLocation,
+                                          llvm::StringRef Name,
+                                          llvm::StringRef Handle,
+                                          clift::ValueType Type);
+
 void importDescriptiveInfo(const model::Binary &Model, mlir::ModuleOp Module);
 
 // NOTE: this overload can be dropped together with the old pipeline.
