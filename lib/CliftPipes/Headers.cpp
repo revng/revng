@@ -13,7 +13,6 @@
 #include "revng/CliftEmitC/Headers.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/Model/Binary.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
@@ -51,8 +50,7 @@ static void emitHelperHeaderImpl(llvm::raw_ostream &Out,
 static void emitTypeDefinitionImpl(llvm::raw_ostream &Out,
                                    mlir::ModuleOp Module,
                                    const CDataModel &DataModel,
-                                   const model::TypeDefinition &Type,
-                                   const model::Binary &Binary) {
+                                   const model::TypeDefinition &Type) {
   ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Disabled);
 
   mlir::MLIRContext &Context = *Module.getContext();
@@ -60,7 +58,7 @@ static void emitTypeDefinitionImpl(llvm::raw_ostream &Out,
     return Context.getDiagEngine().emit(mlir::UnknownLoc::get(&Context),
                                         mlir::DiagnosticSeverity::Error);
   };
-  auto CliftType = clift::importType(EmitError, &Context, Type, Binary);
+  auto CliftType = clift::importType(EmitError, &Context, Type);
   revng_check(CliftType != nullptr);
 
   TypeEmitterConfiguration Configuration = {
@@ -150,17 +148,14 @@ public:
   void run(pipeline::ExecutionContext &EC,
            const revng::pipes::CliftContainer &CliftContainer,
            TypeDefinitionContainer &ModelTypesContainer) {
-    const model::Binary &Binary = *revng::getModelFromContext(EC);
+    mlir::ModuleOp Module = CliftContainer.getModule();
+    auto DataModel = abi::getDataModel(*revng::getModelFromContext(EC));
 
     for (const model::TypeDefinition &Type :
          revng::getTypeDefinitionsAndCommit(EC, ModelTypesContainer.name())) {
       std::string &Result = ModelTypesContainer[Type.key()];
       llvm::raw_string_ostream Out(Result);
-      emitTypeDefinitionImpl(Out,
-                             CliftContainer.getModule(),
-                             abi::getDataModel(Binary),
-                             Type,
-                             Binary);
+      emitTypeDefinitionImpl(Out, Module, DataModel, Type);
     }
   }
 };

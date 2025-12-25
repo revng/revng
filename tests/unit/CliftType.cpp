@@ -24,20 +24,14 @@ static bool verify(const model::TypeDefinition &ModelType,
                    const model::Binary &Binary,
                    const bool Assert) {
   return withContext([&](const auto EmitError, mlir::MLIRContext *Context) {
-    return static_cast<bool>(clift::importType(EmitError,
-                                               Context,
-                                               ModelType,
-                                               Binary));
+    return static_cast<bool>(clift::importType(EmitError, Context, ModelType));
   });
 }
 
 static bool
 verify(const model::Type &ModelType, const model::Binary &Binary, bool Assert) {
   return withContext([&](const auto EmitError, mlir::MLIRContext *Context) {
-    return static_cast<bool>(clift::importType(EmitError,
-                                               Context,
-                                               ModelType,
-                                               Binary));
+    return static_cast<bool>(clift::importType(EmitError, Context, ModelType));
   });
 }
 
