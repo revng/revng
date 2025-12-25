@@ -72,7 +72,8 @@ clift::FunctionOp importModelFunctionDeclaration(const FunctionT &MF,
                                                 UnknownLocation,
                                                 toString(MF.key()),
                                                 Handle,
-                                                Prototype);
+                                                Prototype,
+                                                MF.Attributes());
 }
 
 static clift::GlobalVariableOp

@@ -37,11 +37,13 @@ importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
 /// Convert the specified model function into a clift function declaration.
 ///
 /// \return The corresponding Clift FunctionOp, or null on failure.
-FunctionOp importFunctionDeclaration(mlir::ModuleOp Module,
-                                     mlir::Location DebugLocation,
-                                     llvm::StringRef Name,
-                                     llvm::StringRef Handle,
-                                     clift::FunctionType Prototype);
+FunctionOp
+importFunctionDeclaration(mlir::ModuleOp Module,
+                          mlir::Location DebugLocation,
+                          llvm::StringRef Name,
+                          llvm::StringRef Handle,
+                          clift::FunctionType Prototype,
+                          const model::Function::TypeOfAttributes &Attributes);
 
 /// Convert the specified model segment into a clift variable.
 ///

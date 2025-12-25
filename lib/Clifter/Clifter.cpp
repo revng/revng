@@ -437,7 +437,8 @@ private:
                                        getLocation(F->getSubprogram()),
                                        F->getName(),
                                        Handle,
-                                       FunctionType);
+                                       FunctionType,
+                                       MF.Attributes());
     });
   }
 
