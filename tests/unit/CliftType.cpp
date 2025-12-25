@@ -26,8 +26,7 @@ static bool verify(const model::TypeDefinition &ModelType,
   return withContext([&](const auto EmitError, mlir::MLIRContext &Context) {
     return static_cast<bool>(mlir::clift::importModelType(EmitError,
                                                           Context,
-                                                          ModelType,
-                                                          Binary));
+                                                          ModelType));
   });
 }
 
@@ -36,8 +35,7 @@ verify(const model::Type &ModelType, const model::Binary &Binary, bool Assert) {
   return withContext([&](const auto EmitError, mlir::MLIRContext &Context) {
     return static_cast<bool>(mlir::clift::importModelType(EmitError,
                                                           Context,
-                                                          ModelType,
-                                                          Binary));
+                                                          ModelType));
   });
 }
 
