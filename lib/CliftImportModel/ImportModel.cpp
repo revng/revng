@@ -683,3 +683,21 @@ clift::importFunctionDeclaration(mlir::ModuleOp Module,
 
   return Result;
 }
+
+clift::GlobalVariableOp
+clift::importSegmentDeclaration(mlir::ModuleOp Module,
+                                mlir::Location DebugLocation,
+                                llvm::StringRef Name,
+                                llvm::StringRef Handle,
+                                clift::ValueType Type) {
+  mlir::OpBuilder Builder(Module.getContext());
+  mlir::OpBuilder::InsertionGuard Guard(Builder);
+  Builder.setInsertionPointToEnd(Module.getBody());
+
+  auto Result = Builder.create<clift::GlobalVariableOp>(DebugLocation,
+                                                        Name,
+                                                        Type);
+  Result.setHandle(Handle);
+
+  return Result;
+}
