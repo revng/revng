@@ -346,6 +346,10 @@ class Clift_ClassTypeBase<string name, string mnemonic>
       return getDefinition().getFields();
     }
 
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> getAttributes() const {
+      return getDefinition().getAttributes();
+    }
+
     // AliasableType
     bool getAlias(llvm::raw_ostream &OS) const;
 
