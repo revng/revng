@@ -88,4 +88,12 @@ inline constexpr llvm::StringRef SegmentDeclarationsList = "c.segment_"
 
 } // namespace c
 
+namespace doxygen {
+namespace tokens {
+
+inline constexpr llvm::StringRef Keyword = "doxygen.keyword";
+
+} // namespace tokens
+} // namespace doxygen
+
 } // namespace ptml
