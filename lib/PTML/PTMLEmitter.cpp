@@ -49,6 +49,13 @@ static llvm::StringRef getEscape(char Character) {
 
 //===----------------------------- PTMLEmitter ----------------------------===//
 
+void detail::PTMLEmitterBase::emitIndentation(unsigned Indentation) {
+  static constexpr llvm::StringRef IndentString = "  ";
+
+  for (unsigned I = 0; I < Indentation; ++I)
+    emit(IndentString);
+}
+
 void PTMLEmitter::emitLiteralContent(llvm::StringRef String) {
   revng_assert(CurrentOpenTagEmitter == nullptr,
                "Cannot emit content while an unfinalized TagEmitter is "
@@ -59,7 +66,7 @@ void PTMLEmitter::emitLiteralContent(llvm::StringRef String) {
   };
   revng_assert(std::ranges::none_of(String, IsNewlineOrRequiresEscaping));
 
-  emitLiteralContentImpl(String);
+  IndentingEmitter::emit(String);
 }
 
 void PTMLEmitter::emitContent(llvm::StringRef String) {
@@ -70,36 +77,7 @@ void PTMLEmitter::emitContent(llvm::StringRef String) {
   if (EmitTags)
     emitEscapedContent(String);
   else
-    emitIndentedContent(String);
-}
-
-void PTMLEmitter::emitLiteralContentImpl(llvm::StringRef String) {
-  if (not String.empty()) {
-    if (IsAtBeginningOfLine)
-      emitIndentation();
-
-    OS << String;
-  }
-}
-
-void PTMLEmitter::emitIndentedContent(llvm::StringRef String) {
-  if (not String.empty()) {
-    auto View = std::views::split(String, '\n');
-
-    auto Begin = View.begin();
-    auto End = View.end();
-    revng_assert(Begin != End);
-
-    emitLiteralContentImpl(std::string_view((*Begin).begin(), (*Begin).end()));
-
-    while (++Begin != End) {
-      emitContentNewline();
-      emitLiteralContentImpl(std::string_view((*Begin).begin(),
-                                              (*Begin).end()));
-    }
-
-    IsAtBeginningOfLine = String.back() == '\n';
-  }
+    IndentingEmitter::emit(String);
 }
 
 template<bool EscapeQuotes>
@@ -112,29 +90,12 @@ void PTMLEmitter::emitEscapedContent(llvm::StringRef String) {
       return requiresEscaping<EscapeQuotes>(Character);
     });
 
-    emitIndentedContent(std::string_view(Begin, Pos));
+    IndentingEmitter::emit(std::string_view(Begin, Pos));
 
     if (Pos != End)
       OS << getEscape(*Pos++);
 
     Begin = Pos;
-  }
-}
-
-void PTMLEmitter::emitIndentation() {
-  IsAtBeginningOfLine = false;
-
-  if (Indentation != 0) {
-    TagEmitter Tag;
-
-    if (EmitTags) {
-      Tag.initializeOpenTag(*this, ptml::tags::Span);
-      Tag.emitAttribute(ptml::attributes::Token, ptml::tokens::Indentation);
-      Tag.finalizeOpenTag();
-    }
-
-    for (unsigned I = 0, C = Indentation; I < C; ++I)
-      OS << IndentString;
   }
 }
 
@@ -151,8 +112,7 @@ void PTMLTagEmitter::initializeOpenTagImpl(PTMLEmitter &ParentEmitter,
   this->IsOpenTagFinalized = false;
 
   if (ParentEmitter.EmitTags) {
-    if (ParentEmitter.IsAtBeginningOfLine)
-      ParentEmitter.emitIndentation();
+    ParentEmitter.emitIndentationIfNeeded();
     ParentEmitter.OS << '<' << Tag;
   }
 
