@@ -44,7 +44,7 @@ Containers:
   - Name: recompilable-archive.tar.gz
     Type: recompilable-archive
   - Name: functions.mlir
-    Type: clift-module
+    Type: clift-functions
   - Name: types-and-globals.mlir
     Type: clift-module
   - Name: model-type-definitions.tar.gz

@@ -639,8 +639,8 @@ public:
   }
 
   void run(pipeline::ExecutionContext &EC,
-           revng::pipes::CliftContainer &CliftContainer) {
-    mlir::ModuleOp Module = CliftContainer.getModule();
+           revng::pipes::CliftFunctionContainer &CliftFunctionContainer) {
+    mlir::ModuleOp Module = CliftFunctionContainer.getModule();
     const model::Binary &Model = *revng::getModelFromContext(EC);
 
     std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
@@ -654,7 +654,7 @@ public:
 
     SymbolRenamer Symbols;
     for (const model::Function &Function :
-         revng::getFunctionsAndCommit(EC, CliftContainer.name())) {
+         revng::getFunctionsAndCommit(EC, CliftFunctionContainer.name())) {
       auto It = Functions.find(Function.Entry());
       revng_check(It != Functions.end(), "Requested Clift function not found");
 
