@@ -122,10 +122,10 @@ public:
   }
 
   void run(pipeline::ExecutionContext &EC,
-           const revng::pipes::CliftContainer &CliftContainer,
+           const revng::pipes::CliftFunctionContainer &CliftFunctionContainer,
            HelperHeaderContainer &HeaderFile) {
     llvm::raw_string_ostream Stream = HeaderFile.asStream();
-    emitHelperHeaderImpl(Stream, { CliftContainer.getModule() });
+    emitHelperHeaderImpl(Stream, { CliftFunctionContainer.getModule() });
     EC.commitUniqueTarget(HeaderFile);
   }
 };

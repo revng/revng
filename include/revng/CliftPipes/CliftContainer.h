@@ -15,10 +15,11 @@
 
 namespace revng::pipes {
 
-class CliftContainer : public pipeline::Container<CliftContainer> {
+class CliftFunctionContainer
+  : public pipeline::Container<CliftFunctionContainer> {
 public:
   static const char ID;
-  static constexpr auto Name = "clift-module";
+  static constexpr auto Name = "clift-functions";
   static constexpr auto MIMEType = "application/x.mlir.bc";
 
 private:
@@ -27,8 +28,8 @@ private:
   mlir::OwningOpRef<mlir::ModuleOp> Module;
 
 public:
-  explicit CliftContainer(const llvm::StringRef Name) :
-    pipeline::Container<CliftContainer>(Name) {
+  explicit CliftFunctionContainer(const llvm::StringRef Name) :
+    pipeline::Container<CliftFunctionContainer>(Name) {
     clearImpl();
   }
 
@@ -39,7 +40,7 @@ public:
   std::unique_ptr<pipeline::ContainerBase>
   cloneFiltered(const pipeline::TargetsList &Targets) const override;
 
-  void mergeBackImpl(CliftContainer &&Container) override;
+  void mergeBackImpl(CliftFunctionContainer &&Container) override;
 
   pipeline::TargetsList enumerate() const override;
 

@@ -23,7 +23,7 @@ public:
   }
 
   void run(pipeline::ExecutionContext &EC,
-           revng::pipes::CliftContainer &CliftContainer) {
+           revng::pipes::CliftFunctionContainer &CliftContainer) {
     mlir::ModuleOp Module = CliftContainer.getModule();
     const model::Binary &Binary = *revng::getModelFromContext(EC);
 

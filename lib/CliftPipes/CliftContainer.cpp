@@ -6,6 +6,8 @@
 
 #include "mlir/Bytecode/BytecodeReader.h"
 #include "mlir/Bytecode/BytecodeWriter.h"
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/SymbolTable.h"
@@ -15,6 +17,7 @@
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/Pipeline/RegisterContainerFactory.h"
+#include "revng/Pipes/Kinds.h"
 
 using namespace revng;
 using namespace revng::pipes;
@@ -176,9 +179,9 @@ static void pruneUnusedSymbols(ModuleOp Module) {
   });
 }
 
-const char CliftContainer::ID = 0;
+const char CliftFunctionContainer::ID = 0;
 
-void CliftContainer::setModule(OwningModuleRef &&NewModule) {
+void CliftFunctionContainer::setModule(OwningModuleRef &&NewModule) {
   revng_assert(NewModule);
   revng_assert(clift::hasModuleAttr(NewModule.get()));
 
@@ -200,8 +203,9 @@ void CliftContainer::setModule(OwningModuleRef &&NewModule) {
 // is important to avoid polluting the new context with types and attributes
 // not used by the remaining functions.
 std::unique_ptr<pipeline::ContainerBase>
-CliftContainer::cloneFiltered(const pipeline::TargetsList &Filter) const {
-  auto DestinationContainer = std::make_unique<CliftContainer>(name());
+CliftFunctionContainer::cloneFiltered(const pipeline::TargetsList &Filter)
+  const {
+  auto DestinationContainer = std::make_unique<CliftFunctionContainer>(name());
 
   if (getModuleBlock(*Module).empty())
     return DestinationContainer;
@@ -234,7 +238,8 @@ CliftContainer::cloneFiltered(const pipeline::TargetsList &Filter) const {
   return DestinationContainer;
 }
 
-void CliftContainer::mergeBackImpl(CliftContainer &&SourceContainer) {
+void CliftFunctionContainer::mergeBackImpl(CliftFunctionContainer
+                                             &&SourceContainer) {
   if (getModuleBlock(*SourceContainer.Module).empty())
     return;
 
@@ -272,7 +277,7 @@ void CliftContainer::mergeBackImpl(CliftContainer &&SourceContainer) {
   pruneUnusedSymbols(*Module);
 }
 
-pipeline::TargetsList CliftContainer::enumerate() const {
+pipeline::TargetsList CliftFunctionContainer::enumerate() const {
   pipeline::TargetsList::List List;
 
   visit(Module.get(), [&](clift::FunctionOp F) {
@@ -290,7 +295,7 @@ pipeline::TargetsList CliftContainer::enumerate() const {
   return pipeline::TargetsList(std::move(List));
 }
 
-bool CliftContainer::removeImpl(const pipeline::TargetsList &List) {
+bool CliftFunctionContainer::removeImpl(const pipeline::TargetsList &List) {
   if (getModuleBlock(*Module).empty())
     return false;
 
@@ -322,7 +327,7 @@ bool CliftContainer::removeImpl(const pipeline::TargetsList &List) {
   return RemovedSome;
 }
 
-void CliftContainer::clearImpl() {
+void CliftFunctionContainer::clearImpl() {
   auto NewContext = makeContext();
 
   Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
@@ -331,12 +336,13 @@ void CliftContainer::clearImpl() {
   clift::setModuleAttr(Module.get());
 }
 
-llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
+llvm::Error CliftFunctionContainer::serialize(llvm::raw_ostream &OS) const {
   mlir::writeBytecodeToFile(*Module, OS);
   return llvm::Error::success();
 }
 
-llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
+llvm::Error
+CliftFunctionContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   auto NewContext = makeContext();
   OwningModuleRef NewModule;
 
@@ -360,9 +366,11 @@ llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   return llvm::Error::success();
 }
 
-llvm::Error CliftContainer::extractOne(llvm::raw_ostream &OS,
-                                       const pipeline::Target &Target) const {
+llvm::Error
+CliftFunctionContainer::extractOne(llvm::raw_ostream &OS,
+                                   const pipeline::Target &Target) const {
   return cloneFiltered(pipeline::TargetsList::List{ Target })->serialize(OS);
 }
 
-static pipeline::RegisterDefaultConstructibleContainer<CliftContainer> X;
+static pipeline::RegisterDefaultConstructibleContainer<CliftFunctionContainer>
+  X;
