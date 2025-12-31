@@ -51,7 +51,7 @@ public:
   }
 
   void run(pipeline::ExecutionContext &EC,
-           revng::pipes::CliftContainer &CliftContainer) {
+           revng::pipes::CliftFunctionContainer &CliftContainer) {
     importModelTypes(*revng::getModelFromContext(EC),
                      CliftContainer.getModule());
 

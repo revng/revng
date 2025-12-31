@@ -31,10 +31,10 @@ public:
   }
 
   void run(pipeline::ExecutionContext &EC,
-           pipes::CliftContainer &CliftContainer) {
+           pipes::CliftFunctionContainer &CliftFunctionContainer) {
     const auto &Target = TargetCImplementation::Default;
 
-    mlir::ModuleOp Module = CliftContainer.getModule();
+    mlir::ModuleOp Module = CliftFunctionContainer.getModule();
 
     std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
     Module->walk([&](clift::FunctionOp F) {
@@ -46,7 +46,7 @@ public:
     });
 
     for (const model::Function &Function :
-         getFunctionsAndCommit(EC, CliftContainer.name())) {
+         getFunctionsAndCommit(EC, CliftFunctionContainer.name())) {
       auto It = Functions.find(Function.Entry());
       revng_check(It != Functions.end()
                   and "Requested Clift function not found");

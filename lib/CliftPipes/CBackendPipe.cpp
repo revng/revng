@@ -35,11 +35,11 @@ public:
   }
 
   void run(pipeline::ExecutionContext &EC,
-           const pipes::CliftContainer &CliftContainer,
+           const pipes::CliftFunctionContainer &CliftFunctionContainer,
            pipes::DecompileStringMap &DecompiledFunctionsContainer) {
     const auto &Target = TargetCImplementation::Default;
 
-    mlir::ModuleOp Module = CliftContainer.getModule();
+    mlir::ModuleOp Module = CliftFunctionContainer.getModule();
     const auto &Model = *revng::getModelFromContext(EC);
 
     revng_assert(clift::verifyCSemantics(Module, Target).succeeded());

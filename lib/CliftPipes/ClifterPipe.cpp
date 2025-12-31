@@ -31,7 +31,7 @@ public:
 
   void run(pipeline::ExecutionContext &EC,
            const pipeline::LLVMContainer &LLVMContainer,
-           revng::pipes::CliftContainer &CliftContainer) {
+           revng::pipes::CliftFunctionContainer &CliftContainer) {
     CliftContainer.getContext()->loadDialect<clift::CliftDialect>();
     auto const &Model = *revng::getModelFromContext(EC);
 
