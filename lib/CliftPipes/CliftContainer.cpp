@@ -7,6 +7,7 @@
 #include "mlir/Bytecode/BytecodeReader.h"
 #include "mlir/Bytecode/BytecodeWriter.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/FunctionInterfaces.h"
 #include "mlir/IR/IRMapping.h"
@@ -374,3 +375,135 @@ CliftFunctionContainer::extractOne(llvm::raw_ostream &OS,
 
 static pipeline::RegisterDefaultConstructibleContainer<CliftFunctionContainer>
   X;
+
+std::unique_ptr<pipeline::ContainerBase>
+CliftContainer::cloneFiltered(const pipeline::TargetsList &Targets) const {
+  auto DestinationContainer = std::make_unique<CliftContainer>(name());
+
+  MLIRContext &DestinationContext = *DestinationContainer->Context;
+  DestinationContext.appendDialectRegistry(Context->getDialectRegistry());
+
+  OwningModuleRef &DestinationModule = DestinationContainer->Module;
+  DestinationModule = cloneModuleInto(*Module, *DestinationContainer->Context);
+
+  return DestinationContainer;
+}
+
+static bool isEmpty(mlir::ModuleOp Module) {
+  revng_assert(Module->getAttr("clift.module"));
+
+  if (not getModuleBlock(Module).empty()) {
+    // Module contains at least one operation (function, global, etc).
+    return false;
+  }
+
+  mlir::Attribute Types = Module->getAttr("clift.types");
+  if (Types and mlir::cast<mlir::ArrayAttr>(Types).size() > 0) {
+    // Module contains at least one type.
+    return false;
+  }
+
+  return true;
+}
+
+void CliftContainer::mergeBackImpl(CliftContainer &&SourceContainer) {
+  if (isEmpty(*SourceContainer.Module))
+    return;
+
+  if (isEmpty(*Module)) {
+    Module = std::move(SourceContainer.Module);
+    Context = std::move(SourceContainer.Context);
+    return;
+  }
+
+  // Register the dialects of the other container in this container.
+  Context->appendDialectRegistry(SourceContainer.Context->getDialectRegistry());
+
+  // Clone the other container's module into this container's context.
+  // This module is automatically erased at the end of scope.
+  OwningModuleRef TemporaryModule = cloneModuleInto(*SourceContainer.Module,
+                                                    *Context);
+
+  mlir::Block &DestinationBlock = getModuleBlock(*Module);
+  visit(*TemporaryModule, [&](SymbolOpInterface Symbol) {
+    // Erase an existing symbol with the same name, if one exists.
+    if (auto S = SymbolTable::lookupSymbolIn(*Module, Symbol.getName())) {
+      if (auto F = mlir::dyn_cast<clift::FunctionOp>(Symbol.getOperation())) {
+        if (F.isExternal())
+          return;
+      }
+      S->erase();
+    }
+
+    // Move each new symbol from the temporary module to the container's module.
+    Symbol->remove();
+    DestinationBlock.push_back(Symbol);
+  });
+
+  for (mlir::NamedAttribute Attribute : (*SourceContainer.Module)->getAttrs()) {
+    // TODO: something better to do then just override existing with incoming
+    //       when there's a name clash?
+    (*Module)->setAttr(Attribute.getName(), Attribute.getValue());
+  }
+
+  // Assume that at least some symbols were copied over and always prune.
+  pruneUnusedSymbols(*Module);
+}
+
+pipeline::TargetsList CliftContainer::enumerate() const {
+  if (isEmpty(*Module))
+    return {};
+
+  pipeline::TargetsList::List List;
+
+  List.emplace_back(kinds::CliftModule);
+
+  return pipeline::TargetsList(std::move(List));
+}
+
+void CliftContainer::clearImpl() {
+  auto NewContext = makeContext();
+
+  Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
+  Context = std::move(NewContext);
+
+  clift::setModuleAttr(Module.get());
+}
+
+llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
+  mlir::writeBytecodeToFile(*Module, OS);
+  return llvm::Error::success();
+}
+
+llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
+  auto NewContext = makeContext();
+  OwningModuleRef NewModule;
+
+  if (Buffer.getBufferSize() == 0) {
+    NewModule = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
+    clift::setModuleAttr(NewModule.get());
+  } else {
+    const mlir::ParserConfig Config(NewContext.get());
+    NewModule = mlir::parseSourceString<ModuleOp>(Buffer.getBuffer(), Config);
+
+    if (not NewModule)
+      return revng::createError("Cannot load MLIR module.");
+
+    if (not clift::hasModuleAttr(NewModule.get()))
+      return revng::createError("MLIR module is not a Clift module.");
+  }
+
+  Module = std::move(NewModule);
+  Context = std::move(NewContext);
+
+  return llvm::Error::success();
+}
+
+llvm::Error CliftContainer::extractOne(llvm::raw_ostream &OS,
+                                       const pipeline::Target &Target) const {
+  return cloneFiltered(pipeline::TargetsList::List{ Target })->serialize(OS);
+}
+
+const char CliftContainer::ID = 0;
+
+static pipeline::RegisterDefaultConstructibleContainer<CliftContainer> Y;
