@@ -60,6 +60,13 @@ void importAllModelFunctionDeclarations(const model::Binary &Model,
 void importAllModelSegmentDeclarations(const model::Binary &Model,
                                        mlir::ModuleOp Module);
 
+void importNames(const model::Binary &Model, mlir::ModuleOp Module);
+
+// NOTE: this overload can be dropped together with the old pipeline.
+void importNames(const model::Function &Function,
+                 const model::Binary &Model,
+                 mlir::ModuleOp Module);
+
 std::pair<mlir::ModuleOp, std::unique_ptr<mlir::MLIRContext>>
 makeHeaderModule(const model::Binary &Model);
 
