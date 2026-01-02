@@ -9,6 +9,9 @@ revng_add_analyses_library_internal(revngImportFromCAnalysis HeaderToModel.cpp
 
 target_link_libraries(
   revngImportFromCAnalysis
+  revngABI
+  revngCliftEmitC
+  revngCliftImportModel
   revngTypeNames
   revngModel
   revngSupport
@@ -16,7 +19,6 @@ target_link_libraries(
   revngPipes
   revngPTML
   revngBasicAnalyses
-  revngModelToHeader
   clangBasic
   clangAST
   clangDriver
