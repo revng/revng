@@ -54,4 +54,10 @@ GlobalVariableOp importSegmentDeclaration(mlir::ModuleOp Module,
                                           llvm::StringRef Handle,
                                           clift::ValueType Type);
 
+void importAllModelTypes(const model::Binary &Model, mlir::ModuleOp Module);
+void importAllModelFunctionDeclarations(const model::Binary &Model,
+                                        mlir::ModuleOp Module);
+void importAllModelSegmentDeclarations(const model::Binary &Model,
+                                       mlir::ModuleOp Module);
+
 } // namespace mlir::clift

@@ -717,3 +717,110 @@ clift::importSegmentDeclaration(mlir::ModuleOp Module,
 
   return Result;
 }
+
+void clift::importAllModelTypes(const model::Binary &Model,
+                                mlir::ModuleOp Module) {
+  mlir::MLIRContext *Context = Module->getContext();
+  Context->loadDialect<clift::CliftDialect>();
+
+  mlir::Location Loc = mlir::UnknownLoc::get(Context);
+  auto EmitError = [&]() -> mlir::InFlightDiagnostic {
+    return Context->getDiagEngine().emit(Loc, mlir::DiagnosticSeverity::Error);
+  };
+
+  llvm::SmallVector<mlir::Attribute> TypeAttrs;
+  for (const auto &ModelType : Model.TypeDefinitions()) {
+    auto CliftType = clift::importModelType(EmitError,
+                                            *Context,
+                                            *ModelType,
+                                            Model);
+
+    TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
+  }
+
+  Module->setAttr("clift.types", mlir::ArrayAttr::get(Context, TypeAttrs));
+}
+
+template<typename FunctionT, typename RankT, typename... ArgsT>
+clift::FunctionOp importModelFunctionDeclaration(const FunctionT &MF,
+                                                 RankT &Rank,
+                                                 mlir::ModuleOp Module,
+                                                 const model::Binary &Binary) {
+  auto EmitError =
+    [Context = Module.getContext()]() -> mlir::InFlightDiagnostic {
+    return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
+                                         mlir::DiagnosticSeverity::Error);
+  };
+
+  auto ModelPrototype = Binary.prototypeOrDefault(MF.prototype());
+  revng_check(ModelPrototype);
+
+  auto CliftType = mlir::clift::importModelType(EmitError,
+                                                *Module.getContext(),
+                                                *ModelPrototype,
+                                                Binary);
+  auto Prototype = mlir::cast<mlir::clift::FunctionType>(CliftType);
+
+  // NOTE: neither debug information nor name matter for the users of this.
+  std::string Handle = pipeline::locationString(Rank, MF.key());
+  auto UnknownLocation = mlir::UnknownLoc::get(Module.getContext());
+  return mlir::clift::importFunctionDeclaration(Module,
+                                                UnknownLocation,
+                                                toString(MF.key()),
+                                                Handle,
+                                                Prototype,
+                                                MF.Attributes());
+}
+
+void clift::importAllModelFunctionDeclarations(const model::Binary &Model,
+                                               mlir::ModuleOp Module) {
+  for (const auto &ModelFunction : Model.Functions()) {
+    importModelFunctionDeclaration(ModelFunction,
+                                   revng::ranks::Function,
+                                   Module,
+                                   Model);
+  }
+
+  for (const auto &ModelFunction : Model.ImportedDynamicFunctions()) {
+    importModelFunctionDeclaration(ModelFunction,
+                                   revng::ranks::DynamicFunction,
+                                   Module,
+                                   Model);
+  }
+}
+
+void clift::importAllModelSegmentDeclarations(const model::Binary &Model,
+                                              mlir::ModuleOp Module) {
+  for (const auto &Segment : Model.Segments()) {
+    auto EmitError =
+      [Context = Module.getContext()]() -> mlir::InFlightDiagnostic {
+      return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
+                                           mlir::DiagnosticSeverity::Error);
+    };
+
+    mlir::clift::ValueType SegmentType;
+    if (const model::StructDefinition *SegmentStruct = Segment.type()) {
+      SegmentType = mlir::clift::importModelType(EmitError,
+                                                 *Module.getContext(),
+                                                 *SegmentStruct,
+                                                 Model);
+
+    } else {
+      static constexpr auto Unsigned = mlir::clift::PrimitiveKind::UnsignedKind;
+      auto Char = mlir::clift::PrimitiveType::get(Module.getContext(),
+                                                  Unsigned,
+                                                  1);
+      SegmentType = mlir::clift::ArrayType::get(Char, Segment.VirtualSize());
+    }
+
+    // NOTE: neither debug information nor name matter for the users of this.
+    std::string Handle = pipeline::locationString(revng::ranks::Segment,
+                                                  Segment.key());
+    auto UnknownLocation = mlir::UnknownLoc::get(Module.getContext());
+    mlir::clift::importSegmentDeclaration(Module,
+                                          UnknownLocation,
+                                          toString(Segment.key()),
+                                          Handle,
+                                          SegmentType);
+  }
+}
