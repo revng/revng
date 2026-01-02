@@ -5,6 +5,7 @@
 #include <optional>
 
 #include "revng/Clift/CliftTypeInterfaces.h"
+#include "revng/Clift/CliftTypes.h"
 #include "revng/CliftEmitC/CCommentEmitter.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftImportModel/AttributeHelpers.h"
@@ -307,8 +308,11 @@ private:
       }
     }
 
-    if (Declarator)
-      Parent.emitCAttributes(Declarator->Attributes);
+    if (Declarator) {
+      Parent.emitCAttributes(Declarator->Attributes,
+                             /* SpaceBefore = */ true,
+                             /* SpaceAfter = */ false);
+    }
   }
 };
 
@@ -378,7 +382,6 @@ mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
 void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
   auto Name = CAttribute.getName();
 
-  Tokens.emitSpace();
   Tokens.emitIdentifier(Name.getName(),
                         Name.getHandle(),
                         CTE::EntityKind::Attribute,
@@ -423,16 +426,38 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
 }
 
 void CEmitter::emitCAttributes(llvm::ArrayRef<mlir::clift::CAttributeAttr>
-                                 Attributes) {
-  for (mlir::clift::CAttributeAttr Attribute : Attributes)
+                                 Attributes,
+                               bool SpaceBefore,
+                               bool SpaceAfter) {
+  if (Attributes.empty())
+    return;
+
+  if (SpaceBefore)
+    Tokens.emitSpace();
+
+  bool First = true;
+  for (mlir::clift::CAttributeAttr Attribute : Attributes) {
+    if (First)
+      First = false;
+    else
+      Tokens.emitSpace();
+
     emitCAttribute(Attribute);
+  }
+
+  if (SpaceAfter)
+    Tokens.emitSpace();
 }
 
-void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes) {
+void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
+                               bool SpaceBefore,
+                               bool SpaceAfter) {
   if (not CAttributes)
     return;
 
-  emitCAttributes(mlir::clift::fromMLIRArray(CAttributes));
+  emitCAttributes(mlir::clift::fromMLIRArray(CAttributes),
+                  SpaceBefore,
+                  SpaceAfter);
 }
 
 //===---------------------------- Declarations ----------------------------===//
