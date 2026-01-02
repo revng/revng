@@ -90,8 +90,15 @@ private:
     // determine if a given function type is the outermost type and should be
     // expanded.
     if (Declarator and Declarator->Kind == CTE::EntityKind::Function) {
-      if (auto Function = mlir::dyn_cast<FunctionType>(Type))
+      if (auto Function = mlir::dyn_cast<FunctionType>(Type)) {
+        if (Declarator) {
+          Parent.emitCAttributes(Declarator->CAttributes,
+                                 /* SpaceBefore = */ false,
+                                 /* SpaceAfter = */ true);
+        }
+
         OutermostFunctionType = Function;
+      }
     }
 
     // Recurse through the declaration, pushing each level onto the stack until
@@ -258,7 +265,7 @@ private:
       }
     }
 
-    if (Declarator) {
+    if (Declarator and not OutermostFunctionType) {
       Parent.emitCAttributes(Declarator->CAttributes,
                              /* SpaceBefore = */ true,
                              /* SpaceAfter = */ false);
