@@ -16,7 +16,7 @@ sources:
       - annotate-attibutes.model.yml
 
 commands:
-  - type: revng.model-to-header-test
+  - type: revng.legacy-model-to-header-test
     from:
       - type: source
         filter: model-to-header
@@ -24,7 +24,7 @@ commands:
     command: |-
       PROJECT_DIR=$$(temp -d);
       cp "$INPUT" "$$PROJECT_DIR/model.yml";
-      revng2 -C "$$PROJECT_DIR" project artifact emit-model-header |
+      revng2 -C "$$PROJECT_DIR" project artifact legacy-emit-model-header |
         yq -r '.["/binary"]' |
         revng ptml > "$OUTPUT";
       revng check-decompiled-c "$OUTPUT";

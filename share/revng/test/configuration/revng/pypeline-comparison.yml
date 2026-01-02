@@ -31,21 +31,21 @@ commands:
       cd "$INPUT";
       "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare.sh" model.yml input disassemble;
 
-  # Run emit-model-header comparison
-  - type: revng.test-pypeline-comparison-emit-model-header
+  # Run legacy-emit-model-header comparison
+  - type: revng.test-pypeline-comparison-legacy-emit-model-header
     from:
       - type: revng.test-pypeline-comparison-prepare
     command: |-
       cd "$INPUT";
-      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare.sh" model.yml input emit-model-header;
+      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare.sh" model.yml input legacy-emit-model-header;
 
-  # Run emit-type-definitions comparison
-  - type: revng.test-pypeline-comparison-emit-type-definitions
+  # Run legacy-emit-type-definitions comparison
+  - type: revng.test-pypeline-comparison-legacy-emit-type-definitions
     from:
       - type: revng.test-pypeline-comparison-prepare
     command: |-
       cd "$INPUT";
-      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare.sh" model.yml input emit-type-definitions;
+      "${SOURCES_ROOT}/share/revng/test/tests/pypeline-comparison/compare.sh" model.yml input legacy-emit-type-definitions;
 
   # Run hexdump comparison
   - type: revng.test-pypeline-comparison-hexdump

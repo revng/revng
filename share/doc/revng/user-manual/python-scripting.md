@@ -53,7 +53,7 @@ Once you have successfully loaded a binary, you can obtain the available artifac
 >>> project.model.Functions[0].disassemble
 
 # You can also get the artifact for `TypeDefinitions`
->>> project.model.TypeDefinitions[1].get_artifact("emit-type-definitions")
+>>> project.model.TypeDefinitions[1].get_artifact("legacy-emit-type-definitions")
 ```
 
 You can also `parse` the result with `ptml`:
