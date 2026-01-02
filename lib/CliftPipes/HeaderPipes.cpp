@@ -13,6 +13,7 @@
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/HeaderPipes.h"
+#include "revng/Model/Binary.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
@@ -51,16 +52,23 @@ static void emitHelperHeaderImpl(llvm::raw_ostream &Out,
 }
 
 static void emitTypeDefinitionImpl(llvm::raw_ostream &Out,
-                                   mlir::MLIRContext &Context,
-                                   const model::TypeDefinition &Type) {
+                                   mlir::ModuleOp Module,
+                                   const model::TypeDefinition &Type,
+                                   const model::Binary &Binary) {
   ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Enabled);
 
+  mlir::MLIRContext &Context = *Module.getContext();
   auto EmitError = [&Context]() -> mlir::InFlightDiagnostic {
     return Context.getDiagEngine().emit(mlir::UnknownLoc::get(&Context),
                                         mlir::DiagnosticSeverity::Error);
   };
   auto CliftType = mlir::clift::importModelType(EmitError, Context, Type);
   revng_check(CliftType != nullptr);
+
+  // WIP: @fez, one more problem with reimporting types - we need to
+  // reimport names too. Despite the fact that they were *already* imported by
+  // the previous pipe!
+  mlir::clift::importNames(Binary, Module);
 
   mlir::clift::TypeEmitterConfiguration Configuration = {
     .TypeToOmit = {},
@@ -155,7 +163,10 @@ public:
          revng::getTypeDefinitionsAndCommit(EC, ModelTypesContainer.name())) {
       std::string &Result = ModelTypesContainer[Type.key()];
       llvm::raw_string_ostream Out(Result);
-      emitTypeDefinitionImpl(Out, *CliftContainer.getContext(), Type);
+      emitTypeDefinitionImpl(Out,
+                             CliftContainer.getModule(),
+                             Type,
+                             *revng::getModelFromContext(EC));
     }
   }
 };
