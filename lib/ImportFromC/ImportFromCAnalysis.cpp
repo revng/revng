@@ -20,6 +20,11 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 
+#include "revng/CliftEmitC/CEmitter.h"
+#include "revng/CliftEmitC/Configuration.h"
+#include "revng/CliftEmitC/Headers.h"
+#include "revng/CliftEmitC/TypeDefinitionEmitter.h"
+#include "revng/CliftImportModel/ImportModel.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/VerifyHelper.h"
@@ -69,6 +74,11 @@ static std::optional<std::string> findHeaderFile(const std::string &File) {
     return std::nullopt;
 
   return (*MaybeHeaderPath).substr(0, Index);
+}
+
+static bool isSeparateDeclarationAllowed(const model::TypeDefinition &T) {
+  return llvm::isa<model::StructDefinition>(&T)
+         or llvm::isa<model::UnionDefinition>(&T);
 }
 
 static Logger Log("header-to-model-errors");
@@ -141,42 +151,56 @@ struct ImportFromCAnalysis {
                                        + ErrorCode.message());
     }
 
-    ptml::ModelCBuilder::ConfigurationOptions Configuration = {
-      .EnableStackFrameInlining = false
+    auto [HeaderModule, Context] = mlir::clift::makeHeaderModule(*Model);
+
+    mlir::clift::TypeEmitterConfiguration Configuration = {
+      .TypeToOmit = {},
+      .PrintMaximumEnumValue = true,
+      .ExplicitPadding = false,
     };
-    ptml::HeaderBuilder::ConfigurationOptions HeaderConfiguration = {};
+
+    // Extra variable is here to extend the lifetime of the string.
+    std::string EditedTypeHandle;
+
     if (TheOption == ImportFromCOption::EditType) {
-      // For all the types other than functions and typedefs, generate forward
-      // declarations.
-      if (!ptml::ModelCBuilder::isDeclarationTheSameAsDefinition(*TypeToEdit)) {
-        llvm::raw_string_ostream Stream(HeaderConfiguration.PostIncludeSnippet);
-        ptml::ModelCBuilder PI(Stream,
-                               *Model,
-                               /* GenerateTaglessPTML = */ true);
-        PI.appendLineComment("The type we are editing");
-        // The declaration of this type will be near the top of the file.
-        PI.printForwardDeclaration(*TypeToEdit);
-        PI.append("\n");
-      }
-
-      // Find all types whose definition depends on the type we are editing.
-      Configuration.TypesToOmit = collectDependentTypes(*TypeToEdit, Model);
-
-    } else if (TheOption == ImportFromCOption::EditFunctionPrototype) {
-      HeaderConfiguration.FunctionsToOmit.insert(FunctionToEdit->Entry());
-
-    } else if (TheOption == ImportFromCOption::AddType) {
-      // Nothing special to do when adding types
-
-    } else {
-      revng_abort("Unknown action requested.");
+      EditedTypeHandle = pipeline::locationString(revng::ranks::TypeDefinition,
+                                                  TypeToEdit->key());
+      Configuration.TypeToOmit = EditedTypeHandle;
     }
 
-    ptml::ModelCBuilder B(Out,
-                          *Model,
-                          /* EnableTaglessMode = */ true,
-                          std::move(Configuration));
-    ptml::HeaderBuilder(B, std::move(HeaderConfiguration)).printModelHeader();
+    // TODO: select target properly
+    const auto &Target = TargetCImplementation::Default;
+
+    ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Disabled);
+    {
+      ptml::CTokenEmitter::Scope
+        Scope = Tokens.enterScope(ptml::CTokenEmitter::ScopeKind::Basic, 0);
+
+      mlir::clift::emitCommonIncludes(Tokens);
+
+      if (TheOption == ImportFromCOption::EditType
+          and isSeparateDeclarationAllowed(*TypeToEdit)) {
+
+        mlir::Location Loc = mlir::UnknownLoc::get(Context.get());
+        auto EmitError = [&]() -> mlir::InFlightDiagnostic {
+          return Context->getDiagEngine().emit(Loc,
+                                               mlir::DiagnosticSeverity::Error);
+        };
+        auto CurrentType = mlir::clift::importModelType(EmitError,
+                                                        *Context,
+                                                        *TypeToEdit);
+
+        // TODO: we only need information about one type, don't import them all!
+        mlir::clift::importNames(*Model, HeaderModule);
+
+        mlir::clift::TypeDefinitionEmitter TDE(Tokens, Target, Configuration);
+
+        TDE.emitForwardDeclaration(*Context, CurrentType);
+        Tokens.emitNewline();
+      }
+      mlir::clift::emitTypes(Tokens, Target, HeaderModule, Configuration);
+    }
+
     Out.close();
 
     std::string FilteredHeader = std::string("#include \"")
