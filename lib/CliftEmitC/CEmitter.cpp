@@ -391,23 +391,32 @@ void CEmitter::emitDeclaration(ValueType Type,
 }
 
 void CEmitter::emitFunctionPrototype(FunctionOp Op) {
+  bool IsHelper = pipeline::locationFromString(revng::ranks::HelperFunction,
+                                               Op.getHandle())
+                    .has_value();
+
+  std::optional<llvm::ArrayRef<ParameterDeclaratorInfo>> Parameters;
   llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
-  for (unsigned I = 0; I < Op.getArgCount(); ++I) {
-    auto Attrs = Op.getArgAttrs(I);
+  if (not IsHelper) {
+    for (unsigned I = 0; I < Op.getArgCount(); ++I) {
+      auto Attrs = Op.getArgAttrs(I);
 
-    auto GetStringAttr = [&Attrs](llvm::StringRef Name) {
-      return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
-    };
+      auto GetStringAttr = [&Attrs](llvm::StringRef Name) {
+        return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
+      };
 
-    mlir::ArrayAttr Attributes = {};
-    if (auto Attr = Attrs.get("clift.c_attributes")) {
-      Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
-      revng_assert(isValidCAttributeArray(Attributes));
+      mlir::ArrayAttr Attributes = {};
+      if (auto Attr = Attrs.get("clift.c_attributes")) {
+        Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
+        revng_assert(isValidCAttributeArray(Attributes));
+      }
+
+      ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
+                                        GetStringAttr("clift.handle"),
+                                        Attributes);
     }
 
-    ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
-                                      GetStringAttr("clift.handle"),
-                                      Attributes);
+    Parameters = ParameterDeclarators;
   }
 
   emitDeclaration(Op.getFunctionType(),
@@ -416,6 +425,6 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
                     .Location = Op.getHandle(),
                     .Attributes = getDeclarationOpCAttributes(Op),
                     .Kind = ptml::CTokenEmitter::EntityKind::Function,
-                    .Parameters = ParameterDeclarators,
+                    .Parameters = Parameters,
                   });
 }
