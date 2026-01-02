@@ -15,6 +15,7 @@
 #include "revng/Clift/CliftTypes.h"
 #include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/CliftImportModel/ImportModel.h"
+#include "revng/Model/Segment.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
@@ -740,4 +741,86 @@ void clift::importAllModelTypes(const model::Binary &Model,
   }
 
   Module->setAttr("clift.test", mlir::ArrayAttr::get(Context, TypeAttrs));
+}
+
+template<typename FunctionT, typename RankT>
+clift::FunctionOp importAnyFunctionDeclaration(const FunctionT &MF,
+                                               const RankT &Rank,
+                                               mlir::ModuleOp Module,
+                                               const model::Binary &Binary) {
+  auto EmitError =
+    [Context = Module.getContext()]() -> mlir::InFlightDiagnostic {
+    return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
+                                         mlir::DiagnosticSeverity::Error);
+  };
+
+  auto ModelPrototype = Binary.prototypeOrDefault(MF.prototype());
+  revng_check(ModelPrototype);
+
+  auto CliftType = clift::importType(EmitError,
+                                     Module.getContext(),
+                                     *ModelPrototype,
+                                     Binary);
+  auto Prototype = mlir::cast<clift::FunctionType>(CliftType);
+
+  std::string Handle = pipeline::locationString(Rank, MF.key());
+  auto UnknownLocation = mlir::UnknownLoc::get(Module.getContext());
+  return clift::importFunctionDeclaration(Module,
+                                          UnknownLocation,
+                                          toString(MF.key()),
+                                          Handle,
+                                          Prototype,
+                                          MF.Attributes().unwrap());
+}
+
+void clift::importAllModelFunctionDeclarations(const model::Binary &Model,
+                                               mlir::ModuleOp Module) {
+  for (const auto &ModelFunction : Model.Functions()) {
+    importAnyFunctionDeclaration(ModelFunction,
+                                 revng::ranks::Function,
+                                 Module,
+                                 Model);
+  }
+
+  for (const auto &ModelFunction : Model.ImportedDynamicFunctions()) {
+    importAnyFunctionDeclaration(ModelFunction,
+                                 revng::ranks::DynamicFunction,
+                                 Module,
+                                 Model);
+  }
+}
+
+static mlir::Type importSegmentType(const model::Segment &Segment,
+                                    const model::Binary &Model,
+                                    mlir::ModuleOp Module) {
+  if (const model::StructDefinition *SegmentStruct = Segment.type()) {
+    auto EmitError = [C = Module.getContext()]() -> mlir::InFlightDiagnostic {
+      return C->getDiagEngine().emit(mlir::UnknownLoc::get(C),
+                                     mlir::DiagnosticSeverity::Error);
+    };
+    return clift::importType(EmitError,
+                             Module.getContext(),
+                             *SegmentStruct,
+                             Model);
+
+  } else {
+    auto Char = clift::IntegerType::get(Module.getContext(),
+                                        clift::IntegerKind::Unsigned,
+                                        1);
+    return clift::ArrayType::get(Char, Segment.VirtualSize());
+  }
+}
+
+void clift::importAllModelSegmentDeclarations(const model::Binary &Model,
+                                              mlir::ModuleOp Module) {
+  for (const auto &Segment : Model.Segments()) {
+    std::string Handle = pipeline::locationString(revng::ranks::Segment,
+                                                  Segment.key());
+    auto UnknownLocation = mlir::UnknownLoc::get(Module.getContext());
+    clift::importSegmentDeclaration(Module,
+                                    UnknownLocation,
+                                    toString(Segment.key()),
+                                    Handle,
+                                    importSegmentType(Segment, Model, Module));
+  }
 }
