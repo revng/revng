@@ -41,9 +41,9 @@ TypeDefinitionEmitter::emitDeclarationTypedef(mlir::MLIRContext &Context,
 
   emitTypeKeyword(Type);
 
-  Tokens.emitSpace();
-  emitCAttributes(mlir::clift::setAttribute<"_PACKED">(&Context));
-  Tokens.emitSpace();
+  emitCAttributes(mlir::clift::setAttribute<"_PACKED">(&Context),
+                  /* SpaceBefore = */ true,
+                  /* SpaceAfter = */ true);
   Tokens.emitIdentifier(Type.getName(),
                         Type.getHandle(),
                         chooseEntityKind(Type),
@@ -168,16 +168,16 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
 
     emitComment(StructOrUnion.getComment());
     emitTypeKeyword(StructOrUnion);
-    Tokens.emitSpace();
-    emitCAttributes(mlir::clift::setAttribute<"_PACKED">(&Context));
-    Tokens.emitSpace();
+    emitCAttributes(mlir::clift::setAttribute<"_PACKED">(&Context),
+                    /* SpaceBefore = */ true,
+                    /* SpaceAfter = */ true);
 
     if (auto S = mlir::dyn_cast<mlir::clift::StructType>(StructOrUnion)) {
       // TODO: conditionally emit `_CAN_CONTAIN_CODE`.
 
-      emitCAttributes(mlir::clift::setAttribute<"_SIZE">(&Context,
-                                                         S.getSize()));
-      Tokens.emitSpace();
+      emitCAttributes(mlir::clift::setAttribute<"_SIZE">(&Context, S.getSize()),
+                      /* SpaceBefore = */ false,
+                      /* SpaceAfter = */ true);
     }
 
     Tokens.emitIdentifier(StructOrUnion.getName(),
@@ -226,11 +226,11 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
         if (not UnconfiguredNB.isAutomaticName(FakeStruct,
                                                FakeField,
                                                Field.getName())) {
-          Tokens.emitSpace();
-
           uint64_t Offset = Field.getOffset();
           emitCAttributes(mlir::clift::setAttribute<"_STARTS_AT">(&Context,
-                                                                  Offset));
+                                                                  Offset),
+                          /* SpaceBefore = */ true,
+                          /* SpaceAfter = */ false);
         }
       }
 
@@ -253,13 +253,12 @@ void TypeDefinitionEmitter::emitEnumDefinition(mlir::MLIRContext &Context,
 
     emitComment(Enum.getComment());
     Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Enum);
-    Tokens.emitSpace();
     mlir::clift::ValueType Type = Enum.getUnderlyingType();
-    emitCAttributes(mlir::clift::setAttribute<"_ENUM_UNDERLYING">(&Context,
-                                                                  Type));
-    Tokens.emitSpace();
-    emitCAttributes(mlir::clift::setAttribute<"_PACKED">(&Context));
-    Tokens.emitSpace();
+    auto UnderlyingA = mlir::clift::setAttribute<"_ENUM_UNDERLYING">(&Context,
+                                                                     Type);
+    emitCAttributes(mlir::clift::setAttribute<"_PACKED">(&Context, UnderlyingA),
+                    /* SpaceBefore = */ true,
+                    /* SpaceAfter = */ true);
 
     Tokens.emitIdentifier(Enum.getName(),
                           Enum.getHandle(),
