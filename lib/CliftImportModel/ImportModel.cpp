@@ -1515,5 +1515,7 @@ mlir::clift::makeHeaderModule(const model::Binary &Model) {
   importAllModelFunctionDeclarations(Model, Result.first);
   importAllModelSegmentDeclarations(Model, Result.first);
 
+  importNames(Model, Result.first);
+
   return Result;
 }
