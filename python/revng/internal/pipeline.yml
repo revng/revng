@@ -433,7 +433,7 @@ branches:
             defined_locations:
               - function
             preferred_artifacts:
-              - emit-model-header
+              - legacy-emit-model-header
         analyses:
           - analysis: llm-rename
             containers: [decompile-c]
@@ -450,16 +450,16 @@ branches:
             defined_locations:
               - function
             preferred_artifacts:
-              - emit-model-header
+              - legacy-emit-model-header
 
-  emit-model-header:
+  legacy-emit-model-header:
     tasks:
       - pipe: model-to-header
         arguments: [model-header]
       - savepoint: model-header
         containers: [model-header]
         artifacts:
-          - name: emit-model-header
+          - name: legacy-emit-model-header
             container: model-header
             category: user
             filename: types-and-globals.h
@@ -474,14 +474,14 @@ branches:
             preferred_artifacts:
               - emit-c
 
-  emit-type-definition:
+  legacy-emit-type-definition:
     tasks:
       - pipe: generate-model-type-definition
         arguments: [model-types]
       - savepoint: model-types
         containers: [model-types]
         artifacts:
-          - name: emit-type-definitions
+          - name: legacy-emit-type-definitions
             container: model-types
             category: user
             filename: type.h

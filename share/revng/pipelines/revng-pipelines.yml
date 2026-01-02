@@ -33,10 +33,10 @@ Containers:
     Type: function-control-flow-graph-svg
   - Name: cfg.yml.tar.gz
     Type: cfg
-  - Name: types-and-globals.h
-    Type: model-header
-  - Name: helpers.h
-    Type: helpers-header
+  - Name: legacy-types-and-globals.h
+    Type: legacy-model-header
+  - Name: legacy-helpers.h
+    Type: legacy-helpers-header
   - Name: decompiled.c
     Type: decompiled-c-code
   - Name: decompiled.tar.gz
@@ -511,9 +511,9 @@ Branches:
       - Name: decompile
         Pipes:
           - Type: helpers-to-header
-            UsedContainers: [functions.bc.zstd, helpers.h]
+            UsedContainers: [functions.bc.zstd, legacy-helpers.h]
           - Type: model-to-header
-            UsedContainers: [input, types-and-globals.h]
+            UsedContainers: [input, legacy-types-and-globals.h]
           - Type: decompile
             UsedContainers: [functions.bc.zstd, cfg.yml.tar.gz, decompiled.tar.gz]
         Artifacts:
@@ -566,8 +566,8 @@ Branches:
             It contains:
 
             - `functions.c`: the `decompile-to-single-file` artifact;
-            - `types-and-globals.h`: see the `emit-model-header` artifact;
-            - `helpers.h`: see the `emit-helpers-header` artifact;
+            - `legacy-types-and-globals.h`: see the `emit-model-header` artifact;
+            - `legacy-helpers.h`: see the `emit-helpers-header` artifact;
             - `attributes.h`: an helper header file defining a set of
               annotations used by the decompiled C source files;
             - `primitive-types.h`: a header defining all the primitive types.
@@ -576,36 +576,36 @@ Branches:
       - Name: emit-helpers-header
         Pipes:
           - Type: helpers-to-header
-            UsedContainers: [functions.bc.zstd, helpers.h]
+            UsedContainers: [functions.bc.zstd, legacy-helpers.h]
         Artifacts:
-          Container: helpers.h
-          Kind: helpers-header
-          SingleTargetFilename: helpers.h
+          Container: legacy-helpers.h
+          Kind: legacy-helpers-header
+          SingleTargetFilename: legacy-helpers.h
           Docs: |-
             This artifact contains the declarations of all the helpers used
             the decompiled code.
   - From: initial
     Steps:
-      - Name: emit-model-header
+      - Name: legacy-emit-model-header
         Pipes:
           - Type: model-to-header
-            UsedContainers: [input, types-and-globals.h]
+            UsedContainers: [input, legacy-types-and-globals.h]
         Artifacts:
-          Container: types-and-globals.h
-          Kind: model-header
-          SingleTargetFilename: types-and-globals.h
+          Container: legacy-types-and-globals.h
+          Kind: legacy-model-header
+          SingleTargetFilename: legacy-types-and-globals.h
           Docs: |-
             This artifact contains all the declaration of types, functions and
             segments defined in the binary.
   - From: canonicalize
     Steps:
-      - Name: emit-type-definitions
+      - Name: legacy-emit-type-definitions
         Pipes:
           - Type: generate-model-type-definition
             UsedContainers: [input, model-type-definitions.tar.gz]
         Artifacts:
           Container: model-type-definitions.tar.gz
-          Kind: model-type-definition
+          Kind: legacy-model-type-definition
           SingleTargetFilename: type.h
           Docs: |-
             This artifact is an archive of plain C headers.
@@ -614,7 +614,7 @@ Branches:
             This artifact is designed to be used as the initial input of the
             `import-from-c` analysis. In fact, this artifact is designed to be
             easily editable by the end-user; it's not designed to represent
-            valid C code, unlike the `emit-model-header` artifact.
+            valid C code, unlike the `legacy-emit-model-header` artifact.
   - From: make-segment-ref
     Steps:
       - Name: cleanup-ir
