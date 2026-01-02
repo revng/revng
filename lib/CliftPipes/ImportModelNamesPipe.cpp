@@ -3,16 +3,17 @@
 //
 
 #include <ranges>
+#include <type_traits>
 
 #include "mlir/IR/RegionGraphTraits.h"
 
-#include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Clift/Helpers.h"
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftImportModel/AttributeHelpers.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/ImportModelNamesPipe.h"
 #include "revng/Model/CABIFunctionDefinition.h"
+#include "revng/Model/Function.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/PTML/CommentPlacementHelper.h"
 #include "revng/Pipeline/Location.h"
@@ -485,13 +486,12 @@ private:
   mlir::LogicalResult visitFunctionOp(clift::FunctionOp Op) {
     CurrentFunction.reset();
 
-    if (auto Pair = getModelFunction(Op.getHandle())) {
-      auto &[L, MF] = *Pair;
-
+    auto ProcessFunction = [this, &Op]<typename MFType>(auto L, MFType &&MF) {
       const auto *Type = Model.prototypeOrDefault(MF.prototype());
 
-      if (not Op.getBody().empty())
-        CurrentFunction.emplace(*this, Op, std::move(L), MF);
+      if constexpr (std::same_as<std::decay_t<MFType>, model::Function>)
+        if (not Op.getBody().empty())
+          CurrentFunction.emplace(*this, Op, std::move(L), MF);
 
       Symbols.record(Op, NameBuilder.name(MF));
 
@@ -571,12 +571,15 @@ private:
       }
 
       Attrs.commit();
+    };
 
+    if (auto Pair = getModelFunction(Op.getHandle())) {
+      ProcessFunction(Pair->Location, Pair->Object);
       return mlir::success();
     }
 
     if (auto Pair = getModelDynamicFunction(Op.getHandle())) {
-      Symbols.record(Op, NameBuilder.name(Pair->Object));
+      ProcessFunction(Pair->Location, Pair->Object);
       return mlir::success();
     }
 
