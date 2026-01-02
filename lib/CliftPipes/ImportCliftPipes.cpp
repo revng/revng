@@ -19,95 +19,6 @@
 namespace clift = mlir::clift;
 
 //
-// Shared logic
-//
-
-static void importModelTypes(const model::Binary &Model,
-                             mlir::ModuleOp Module) {
-  mlir::MLIRContext *Context = Module->getContext();
-  Context->loadDialect<clift::CliftDialect>();
-
-  mlir::Location Loc = mlir::UnknownLoc::get(Context);
-  auto EmitError = [&]() -> mlir::InFlightDiagnostic {
-    return Context->getDiagEngine().emit(Loc, mlir::DiagnosticSeverity::Error);
-  };
-
-  llvm::SmallVector<mlir::Attribute> TypeAttrs;
-  for (const auto &ModelType : Model.TypeDefinitions()) {
-    auto CliftType = clift::importModelType(EmitError, *Context, *ModelType);
-
-    TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
-  }
-
-  Module->setAttr("clift.types", mlir::ArrayAttr::get(Context, TypeAttrs));
-}
-
-template<typename FunctionT, typename RankT, typename... ArgsT>
-clift::FunctionOp importModelFunctionDeclaration(const FunctionT &MF,
-                                                 RankT &Rank,
-                                                 mlir::ModuleOp Module,
-                                                 const model::Binary &Binary) {
-  auto EmitError =
-    [Context = Module.getContext()]() -> mlir::InFlightDiagnostic {
-    return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
-                                         mlir::DiagnosticSeverity::Error);
-  };
-
-  auto ModelPrototype = Binary.prototypeOrDefault(MF.prototype());
-  revng_check(ModelPrototype);
-
-  auto CliftType = mlir::clift::importModelType(EmitError,
-                                                *Module.getContext(),
-                                                *ModelPrototype);
-  auto Prototype = mlir::cast<mlir::clift::FunctionType>(CliftType);
-
-  // NOTE: neither debug information nor name matter for the users of this.
-  std::string Handle = pipeline::locationString(Rank, MF.key());
-  auto UnknownLocation = mlir::UnknownLoc::get(Module.getContext());
-  return mlir::clift::importFunctionDeclaration(Module,
-                                                UnknownLocation,
-                                                toString(MF.key()),
-                                                Handle,
-                                                Prototype,
-                                                MF.Attributes());
-}
-
-static clift::GlobalVariableOp
-importSegmentDeclaration(const model::Segment &Segment,
-                         mlir::ModuleOp Module,
-                         const model::Binary &Binary) {
-  auto EmitError =
-    [Context = Module.getContext()]() -> mlir::InFlightDiagnostic {
-    return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
-                                         mlir::DiagnosticSeverity::Error);
-  };
-
-  mlir::clift::ValueType SegmentType;
-  if (const model::StructDefinition *SegmentStruct = Segment.type()) {
-    SegmentType = mlir::clift::importModelType(EmitError,
-                                               *Module.getContext(),
-                                               *SegmentStruct);
-
-  } else {
-    static constexpr auto Unsigned = mlir::clift::PrimitiveKind::UnsignedKind;
-    auto Char = mlir::clift::PrimitiveType::get(Module.getContext(),
-                                                Unsigned,
-                                                1);
-    SegmentType = mlir::clift::ArrayType::get(Char, Segment.VirtualSize());
-  }
-
-  // NOTE: neither debug information nor name matter for the users of this.
-  std::string Handle = pipeline::locationString(revng::ranks::Segment,
-                                                Segment.key());
-  auto UnknownLocation = mlir::UnknownLoc::get(Module.getContext());
-  return mlir::clift::importSegmentDeclaration(Module,
-                                               UnknownLocation,
-                                               toString(Segment.key()),
-                                               Handle,
-                                               SegmentType);
-}
-
-//
 // Old style pipes
 //
 
@@ -125,8 +36,8 @@ public:
   void run(pipeline::ExecutionContext &EC,
            const revng::pipes::BinaryFileContainer &,
            revng::pipes::CliftContainer &CliftContainer) {
-    importModelTypes(*revng::getModelFromContext(EC),
-                     CliftContainer.getModule());
+    mlir::clift::importAllModelTypes(*revng::getModelFromContext(EC),
+                                     CliftContainer.getModule());
 
     EC.commitUniqueTarget(CliftContainer);
   }
@@ -147,19 +58,8 @@ public:
   void run(pipeline::ExecutionContext &EC,
            revng::pipes::CliftContainer &CliftContainer) {
     const model::Binary &Binary = *revng::getModelFromContext(EC);
-    for (const auto &ModelFunction : Binary.Functions()) {
-      importModelFunctionDeclaration(ModelFunction,
-                                     revng::ranks::Function,
-                                     CliftContainer.getModule(),
-                                     Binary);
-    }
-
-    for (const auto &ModelFunction : Binary.ImportedDynamicFunctions()) {
-      importModelFunctionDeclaration(ModelFunction,
-                                     revng::ranks::DynamicFunction,
-                                     CliftContainer.getModule(),
-                                     Binary);
-    }
+    mlir::clift::importAllModelFunctionDeclarations(Binary,
+                                                    CliftContainer.getModule());
 
     EC.commitUniqueTarget(CliftContainer);
   }
@@ -179,11 +79,9 @@ public:
 
   void run(pipeline::ExecutionContext &EC,
            revng::pipes::CliftContainer &CliftContainer) {
-    const model::Binary &Model = *revng::getModelFromContext(EC);
-    mlir::ModuleOp Module = CliftContainer.getModule();
-
-    for (const auto &Segment : Model.Segments())
-      importSegmentDeclaration(Segment, Module, Model);
+    const model::Binary &Binary = *revng::getModelFromContext(EC);
+    mlir::clift::importAllModelSegmentDeclarations(Binary,
+                                                   CliftContainer.getModule());
 
     EC.commitUniqueTarget(CliftContainer);
   }
