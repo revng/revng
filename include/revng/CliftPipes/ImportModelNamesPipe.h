@@ -10,24 +10,47 @@
 
 namespace revng::pypeline::piperuns {
 
-class ImportModelNames : public CliftFunctionMixin<ImportModelNames> {
+class ImportFunctionModelNames
+  : public CliftFunctionMixin<ImportFunctionModelNames> {
 private:
   const model::Binary &Binary;
 
 public:
-  static constexpr llvm::StringRef Name = "import-model-names";
+  static constexpr llvm::StringRef Name = "import-function-model-names";
   using Arguments = TypeList<PipeRunArgument<CliftFunctionContainer,
                                              "Modules",
                                              "function MLIR module(s)">>;
 
-  ImportModelNames(const Model &Model,
-                   llvm::StringRef Config,
-                   llvm::StringRef DynamicConfig,
-                   CliftFunctionContainer &ModuleContainer) :
+  ImportFunctionModelNames(const Model &Model,
+                           llvm::StringRef Config,
+                           llvm::StringRef DynamicConfig,
+                           CliftFunctionContainer &ModuleContainer) :
     CliftFunctionMixin(ModuleContainer), Binary(*Model.get().get()) {}
 
   void runOnCliftFunction(const model::Function &Function,
                           mlir::clift::FunctionOp MLIRFunction);
+};
+
+class ImportModelNames {
+private:
+  const model::Binary &Binary;
+  CliftModuleContainer &TypesAndGlobals;
+
+public:
+  static constexpr llvm::StringRef Name = "import-model-names";
+  using Arguments = TypeList<PipeRunArgument<CliftModuleContainer,
+                                             "TypesAndGlobals",
+                                             "Output MLIR container containing "
+                                             "model type system",
+                                             Access::ReadWrite>>;
+
+  ImportModelNames(const class Model &Model,
+                   llvm::StringRef Config,
+                   llvm::StringRef DynamicConfig,
+                   CliftModuleContainer &TypesAndGlobals) :
+    Binary(*Model.get().get()), TypesAndGlobals(TypesAndGlobals){};
+
+  void run();
 };
 
 } // namespace revng::pypeline::piperuns
