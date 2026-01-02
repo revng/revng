@@ -258,8 +258,11 @@ private:
       }
     }
 
-    if (Declarator)
-      Parent.emitCAttributes(Declarator->CAttributes);
+    if (Declarator) {
+      Parent.emitCAttributes(Declarator->CAttributes,
+                             /* SpaceBefore = */ true,
+                             /* SpaceAfter = */ false);
+    }
   }
 };
 
@@ -337,7 +340,6 @@ mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
 void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
   auto Name = CAttribute.getName();
 
-  Tokens.emitSpace();
   Tokens.emitIdentifier(Name.getName(),
                         Name.getHandle(),
                         CTE::EntityKind::Attribute,
@@ -375,11 +377,27 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
   }
 }
 
-void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes) {
-  if (CAttributes) {
-    for (mlir::Attribute Attr : CAttributes)
-      emitCAttribute(mlir::cast<CAttributeAttr>(Attr));
+void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
+                               bool SpaceBefore,
+                               bool SpaceAfter) {
+  if (not CAttributes or CAttributes.empty())
+    return;
+
+  if (SpaceBefore)
+    Tokens.emitSpace();
+
+  bool First = true;
+  for (mlir::Attribute Attribute : CAttributes) {
+    if (First)
+      First = false;
+    else
+      Tokens.emitSpace();
+
+    emitCAttribute(mlir::cast<mlir::clift::CAttributeAttr>(Attribute));
   }
+
+  if (SpaceAfter)
+    Tokens.emitSpace();
 }
 
 //===---------------------------- Declarations ----------------------------===//
