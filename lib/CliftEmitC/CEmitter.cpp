@@ -385,19 +385,28 @@ void CEmitter::emitDeclaration(ValueType Type,
 }
 
 void CEmitter::emitFunctionPrototype(FunctionOp Op) {
+  bool IsHelper = pipeline::locationFromString(revng::ranks::HelperFunction,
+                                               Op.getHandle())
+                    .has_value();
+
+  std::optional<llvm::ArrayRef<ParameterDeclaratorInfo>> Parameters;
   llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
-  for (unsigned I = 0; I < Op.getArgCount(); ++I) {
-    const auto &Attrs = Op.getArgAttrs(I);
+  if (not IsHelper) {
+    for (unsigned I = 0; I < Op.getArgCount(); ++I) {
+      const auto &Attrs = Op.getArgAttrs(I);
 
-    revng_assert(Attrs.getOfType<mlir::StringAttr>("clift.name"),
-                 "Function argument name (clift.name) is missing.");
+      revng_assert(Attrs.getOfType<mlir::StringAttr>("clift.name"),
+                   "Function argument name (clift.name) is missing.");
 
-    auto Attributes = Attrs.getOfType<mlir::ArrayAttr>("clift.c_attributes");
-    revng_assert(not Attributes or isValidCAttributeArray(Attributes));
+      auto Attributes = Attrs.getOfType<mlir::ArrayAttr>("clift.c_attributes");
+      revng_assert(not Attributes or isValidCAttributeArray(Attributes));
 
-    ParameterDeclarators.emplace_back(Attrs.getString("clift.name"),
-                                      Attrs.getStringOrEmpty("clift.handle"),
-                                      Attributes);
+      ParameterDeclarators.emplace_back(Attrs.getString("clift.name"),
+                                        Attrs.getStringOrEmpty("clift.handle"),
+                                        Attributes);
+    }
+
+    Parameters = ParameterDeclarators;
   }
 
   emitDeclaration(Op.getFunctionType(),
@@ -406,6 +415,6 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
                     .Location = Op.getHandle(),
                     .Attributes = getDeclarationOpCAttributes(Op),
                     .Kind = ptml::CTokenEmitter::EntityKind::Function,
-                    .Parameters = ParameterDeclarators,
+                    .Parameters = Parameters,
                   });
 }
