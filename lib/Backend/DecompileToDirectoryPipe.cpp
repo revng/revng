@@ -8,6 +8,9 @@
 #include "revng/Backend/DecompileFunction.h"
 #include "revng/Backend/DecompileToDirectoryPipe.h"
 #include "revng/Backend/DecompileToSingleFile.h"
+#include "revng/CliftEmitC/Configuration.h"
+#include "revng/CliftEmitC/Headers.h"
+#include "revng/CliftImportModel/ImportModel.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/HeadersGeneration/Options.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
@@ -77,10 +80,23 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
   {
     std::string ModelHeader;
     llvm::raw_string_ostream Out{ ModelHeader };
-    B.setOutputStream(Out);
 
-    ptml::HeaderBuilder HB = B;
-    HB.printModelHeader();
+    mlir::clift::TypeEmitterConfiguration Configuration = {
+      .TypeToOmit = {},
+      .PrintMaximumEnumValue = true,
+      .ExplicitPadding = false,
+    };
+
+    auto [HeaderModule, Context] = mlir::clift::makeHeaderModule(Model);
+
+    // TODO: select target properly
+    const auto &Target = TargetCImplementation::Default;
+
+    ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Disabled);
+    mlir::clift::emitTypeAndGlobalHeader(Tokens,
+                                         Target,
+                                         HeaderModule,
+                                         Configuration);
 
     Out.flush();
 

@@ -13,6 +13,8 @@ revng_add_analyses_library_internal(
 
 target_link_libraries(
   revngBackend
+  revngCliftEmitC
+  revngCliftImportModel
   revngHelpersToHeader
   revngInitModelTypes
   revngModelToHeader
