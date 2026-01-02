@@ -60,4 +60,7 @@ void importAllModelFunctionDeclarations(const model::Binary &Model,
 void importAllModelSegmentDeclarations(const model::Binary &Model,
                                        mlir::ModuleOp Module);
 
+std::pair<mlir::ModuleOp, std::unique_ptr<mlir::MLIRContext>>
+makeHeaderModule(const model::Binary &Model);
+
 } // namespace mlir::clift

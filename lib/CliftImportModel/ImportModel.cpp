@@ -824,3 +824,33 @@ void clift::importAllModelSegmentDeclarations(const model::Binary &Model,
                                           SegmentType);
   }
 }
+
+static const mlir::DialectRegistry &getDialectRegistry() {
+  static const mlir::DialectRegistry Registry = []() -> mlir::DialectRegistry {
+    mlir::DialectRegistry Registry;
+    Registry.insert<mlir::clift::CliftDialect>();
+    return Registry;
+  }();
+  return Registry;
+}
+
+static std::unique_ptr<mlir::MLIRContext> makeContext() {
+  const auto Threading = mlir::MLIRContext::Threading::DISABLED;
+  return std::make_unique<mlir::MLIRContext>(getDialectRegistry(), Threading);
+}
+
+std::pair<mlir::ModuleOp, std::unique_ptr<mlir::MLIRContext>>
+mlir::clift::makeHeaderModule(const model::Binary &Model) {
+  std::pair<mlir::ModuleOp, std::unique_ptr<mlir::MLIRContext>> Result;
+  Result.second = makeContext();
+
+  Result.first = ModuleOp::create(mlir::UnknownLoc::get(Result.second.get()));
+
+  clift::setModuleAttr(Result.first);
+
+  importAllModelTypes(Model, Result.first);
+  importAllModelFunctionDeclarations(Model, Result.first);
+  importAllModelSegmentDeclarations(Model, Result.first);
+
+  return Result;
+}
