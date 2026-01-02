@@ -33,8 +33,6 @@ Containers:
     Type: function-control-flow-graph-svg
   - Name: cfg.yml.tar.gz
     Type: cfg
-  - Name: legacy-types-and-globals.h
-    Type: legacy-model-header
   - Name: legacy-helpers.h
     Type: legacy-helpers-header
   - Name: decompiled.c
@@ -45,8 +43,6 @@ Containers:
     Type: clift-functions
   - Name: types-and-globals.mlir
     Type: clift-module
-  - Name: legacy-model-type-definitions.tar.gz
-    Type: legacy-model-type-definitions
   - Name: types-and-globals.h
     Type: type-and-global-header
   - Name: helpers.h
@@ -520,8 +516,6 @@ Branches:
         Pipes:
           - Type: legacy-helpers-to-header
             UsedContainers: [functions.bc.zstd, legacy-helpers.h]
-          - Type: legacy-model-to-header
-            UsedContainers: [input, legacy-types-and-globals.h]
           - Type: decompile
             UsedContainers: [functions.bc.zstd, cfg.yml.tar.gz, decompiled.tar.gz]
         Artifacts:
@@ -569,37 +563,6 @@ Branches:
           Docs: |-
             This artifact contains the declarations of all the helpers used
             the decompiled code.
-  - From: initial
-    Steps:
-      - Name: legacy-emit-model-header
-        Pipes:
-          - Type: legacy-model-to-header
-            UsedContainers: [input, legacy-types-and-globals.h]
-        Artifacts:
-          SingleTargetFilename: types-and-globals.h
-          Container: legacy-types-and-globals.h
-          Kind: legacy-model-header
-          Docs: |-
-            This artifact contains all the declaration of types, functions and
-            segments defined in the binary.
-  - From: legacy-canonicalize
-    Steps:
-      - Name: legacy-emit-type-definitions
-        Pipes:
-          - Type: legacy-generate-model-type-definition
-            UsedContainers: [input, legacy-model-type-definitions.tar.gz]
-        Artifacts:
-          Container: legacy-model-type-definitions.tar.gz
-          Kind: legacy-model-type-definition
-          SingleTargetFilename: type.h
-          Docs: |-
-            This artifact is an archive of plain C headers.
-            Each file contains the declaration of a type defined for this
-            binary.
-            This artifact is designed to be used as the initial input of the
-            `import-from-c` analysis. In fact, this artifact is designed to be
-            easily editable by the end-user; it's not designed to represent
-            valid C code, unlike the `legacy-emit-model-header` artifact.
   - From: make-segment-ref
     Steps:
       - Name: cleanup-ir
