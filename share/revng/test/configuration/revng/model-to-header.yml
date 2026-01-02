@@ -26,3 +26,14 @@ commands:
         | revng ptml > "$OUTPUT";
       revng check-decompiled-c "$OUTPUT";
       FileCheck --input-file="$OUTPUT" "${SOURCE}.filecheck";
+
+  - type: revng.model-header-test
+    from:
+      - type: source
+        filter: model-to-header
+    suffix: .h
+    command: |-
+      revng artifact emit-model-header /dev/null --model "$INPUT"
+        | revng ptml > "$OUTPUT";
+      revng check-decompiled-c "$OUTPUT";
+      FileCheck --input-file="$OUTPUT" "${SOURCE}.filecheck";

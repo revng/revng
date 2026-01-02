@@ -168,7 +168,7 @@ commands:
         revng artifact \
           --model "$MODEL" \
           --resume "$RESUME" \
-          emit-helpers-header \
+          emit-helper-header \
           "$BINARY" \
         | revng ptml > "$OUTDIR/helpers.h"
 
