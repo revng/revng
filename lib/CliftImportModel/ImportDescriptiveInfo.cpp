@@ -580,7 +580,14 @@ public:
     }
 
     if (auto Pair = getModelDynamicFunction(Op.getHandle())) {
-      Symbols.record(Op, NameBuilder.name(Pair->Object));
+      auto &[L, MF] = *Pair;
+      const auto *Prototype = Model.prototypeOrDefault(MF.prototype());
+      visitFunctionPrototypeImpl(L,
+                                 Op,
+                                 Prototype,
+                                 NameBuilder.name(MF),
+                                 MF.Comment());
+
       return mlir::success();
     }
 
