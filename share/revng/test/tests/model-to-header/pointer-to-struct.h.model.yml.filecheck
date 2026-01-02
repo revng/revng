@@ -9,5 +9,4 @@ CHECK:     uint32_t a1 _STARTS_AT(0);
 CHECK:     uint32_t a2 _STARTS_AT(4);
 CHECK: };
 
-CHECK: _ABI(SystemV_x86_64)
-CHECK: void fn(B *b_array);
+CHECK: _ABI(SystemV_x86_64) void fn(B *b_array);

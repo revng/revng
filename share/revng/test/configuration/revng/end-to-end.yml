@@ -105,7 +105,7 @@ commands:
       revng artifact
         --resume "$OUTPUT"
         --analyze
-        decompile "$INPUT" > "$OUTPUT/decompiled.tar.gz";
+        emit-c "$INPUT" > "$OUTPUT/decompiled.tar.gz";
 
       diff -u <(yq -r '.Functions[].Entry' "$OUTPUT/context/model.yml" | sort)
               <(tar -tf "$OUTPUT/decompiled.tar.gz" | sed 's|\.c\.ptml$$||' | sort);
@@ -121,12 +121,11 @@ commands:
       - type: revng.analyzed-model
     suffix: /
     command: |-
-      ./emit-and-check-c decompile-to-single-file "$INPUT1" "$INPUT2/model.yml" "$OUTPUT" "$POINTER_SIZE" -Wno-shift-count-overflow
+      ./emit-and-check-c emit-c-as-single-file "$INPUT1" "$INPUT2/model.yml" "$OUTPUT" "$POINTER_SIZE" -Wno-shift-count-overflow
 
   #
   # Produce the emit-c artifact and check the resulting C code
   #
-  # TODO: port this to the new pipeline once it has the `emit-helpers-header` artifact
   - type: revng.emit-and-check-c
     from:
       - type: revng-qa.compiled
@@ -147,39 +146,29 @@ commands:
         shift
         MODEL="$1"
         shift
-        RESUME="$1"
+        PROJECT="$1"
         shift
         POINTER_SIZE="$1"
         shift
 
-        OUTDIR="$RESUME/e2e-test-$ARTIFACT"
-        mkdir -p "$OUTDIR"
+        revng2 -C "$PROJECT" project init "$BINARY";
+        cp "$MODEL" "$PROJECT/model.yml";
 
-        revng artifact \
-          --model "$MODEL" \
-          --resume "$RESUME" \
-          emit-helpers-header \
-          "$BINARY" \
-        | revng ptml > "$OUTDIR/helpers.h"
+        OUTPUT_DIRECTORY="$PROJECT/e2e-test-$ARTIFACT"
+        mkdir -p "$OUTPUT_DIRECTORY"
 
-        revng artifact \
-          --model "$MODEL" \
-          --resume "$RESUME" \
-          legacy-emit-model-header \
-          "$BINARY" \
-        | revng ptml > "$OUTDIR/types-and-globals.h"
+        revng2 -C "$PROJECT" project artifact emit-helper-header |
+          yq -r '.["/binary"]' |
+          revng ptml > "$OUTPUT_DIRECTORY/helpers.h"
 
-        revng artifact \
-          --model "$MODEL" \
-          --resume "$RESUME" \
-          "$ARTIFACT" \
-          "$BINARY" \
-        | revng ptml > "$OUTDIR/decompiled.c"
+        revng2 -C "$PROJECT" project artifact emit-type-and-global-header |
+          yq -r '.["/binary"]' |
+          revng ptml > "$OUTPUT_DIRECTORY/types-and-globals.h"
 
-        DEFINES=""
-        if [ "$ARTIFACT" == "decompile-to-single-file" ]; then
-          DEFINES="-DLEGACY_BACKEND"
-        fi
+        revng2 -C "$PROJECT" project artifact "$ARTIFACT" |
+          yq -r '.["/binary"]' |
+          revng ptml > "$OUTPUT_DIRECTORY/decompiled.c"
 
-        revng check-decompiled-c "$OUTDIR/decompiled.c" -I"$OUTDIR" "$@" -m"$POINTER_SIZE" $DEFINES \
-          |& tee "$OUTDIR/check-decompiled-c.log"
+        revng check-decompiled-c "$OUTPUT_DIRECTORY/decompiled.c" \
+          -I"$OUTPUT_DIRECTORY" "$@" -m"$POINTER_SIZE" \
+          |& tee "$OUTPUT_DIRECTORY/check-decompiled-c.log"

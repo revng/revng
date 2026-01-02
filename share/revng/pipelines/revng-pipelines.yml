@@ -43,8 +43,16 @@ Containers:
     Type: decompile
   - Name: functions.mlir
     Type: clift-functions
+  - Name: types-and-globals.mlir
+    Type: clift-module
   - Name: model-type-definitions.tar.gz
     Type: model-type-definitions
+  - Name: types-and-globals.h
+    Type: type-and-global-header
+  - Name: helpers.h
+    Type: helper-header
+  - Name: single-type-definition.tar.gz
+    Type: single-type-definition
 Branches:
   - Steps:
       - Name: initial
@@ -706,6 +714,69 @@ Branches:
             This artifact is a single PTML file representing the decompiled C
             code of the whole program, including the body of all of program's
             functions. (Clift backend)
+  - From: initial
+    Steps:
+      - Name: import-types
+        Pipes:
+          - Type: import-types
+            UsedContainers: [input, types-and-globals.mlir]
+        Artifacts:
+          Container: types-and-globals.mlir
+          Kind: clift-module
+          SingleTargetFilename: types-and-globals.mlir
+          Docs: |-
+            This artifact contains all the declarations of non-primitive types
+            without any name or comment information.
+      - Name: emit-type-and-global-header
+        Pipes:
+          - Type: import-function-declarations
+            UsedContainers: [types-and-globals.mlir]
+          - Type: import-segment-declarations
+            UsedContainers: [types-and-globals.mlir]
+          - Type: import-descriptive-info
+            UsedContainers: [types-and-globals.mlir]
+          - Type: emit-type-and-global-header
+            UsedContainers: [types-and-globals.mlir, types-and-globals.h]
+        Artifacts:
+          Container: types-and-globals.h
+          Kind: type-and-global-header
+          SingleTargetFilename: types-and-globals.h
+          Docs: |-
+            This artifact is a header containing all the declarations of
+            non-primitive types, functions and segments.
+  - From: emit-c
+    Steps:
+      - Name: emit-helper-header
+        Pipes:
+          - Type: emit-helper-header
+            UsedContainers: [functions.mlir, helpers.h]
+        Artifacts:
+          Container: helpers.h
+          Kind: helper-header
+          SingleTargetFilename: helpers.h
+          Docs: |-
+            This artifact contains all the declarations of llvm and qemu helpers
+            that survived until the decompiled code.
+  - From: import-types
+    Steps:
+      - Name: emit-single-type-definition
+        Pipes:
+          - Type: import-descriptive-info
+            UsedContainers: [types-and-globals.mlir]
+          - Type: emit-single-type-definition
+            UsedContainers: [types-and-globals.mlir, single-type-definition.tar.gz]
+        Artifacts:
+          Container: single-type-definition.tar.gz
+          Kind: single-type-definition
+          SingleTargetFilename: type.h
+          Docs: |-
+            This artifact is an archive of plain C headers.
+            Each file contains the declaration of a type defined for this
+            binary.
+            This artifact is designed to be used as the initial input of the
+            `import-from-c` analysis. In fact, this artifact is designed to be
+            easily editable by the end-user; it's not designed to represent
+            valid C code, unlike the `emit-type-and-global-header` artifact.
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
