@@ -698,7 +698,7 @@ Branches:
             UsedContainers: [functions.mlir]
           - Type: model-verify-clift
             UsedContainers: [functions.mlir]
-          - Type: import-model-names
+          - Type: import-function-model-names
             UsedContainers: [functions.mlir]
           - Type: emit-c
             UsedContainers: [functions.mlir, decompiled.tar.gz]

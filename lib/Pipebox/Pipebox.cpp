@@ -114,7 +114,7 @@ static RegisterFunctionPipeRun<SwitchToStatements> P26;
 static RegisterFunctionPipeRun<LLVMToClift> P27;
 static RegisterPipe<PureMLIRPassesPipe> P28;
 static RegisterFunctionPipeRun<ModelVerifyClift> P29;
-static RegisterFunctionPipeRun<ImportModelNames> P30;
+static RegisterSingleOutputPipeRun<ImportModelNames> P30;
 static RegisterFunctionPipeRun<EmitC> P31;
 static RegisterSingleOutputPipeRun<DecompileToSingleFile> P32;
 static RegisterSingleOutputPipeRun<MergeLLVMModules> P33;
@@ -123,6 +123,7 @@ static RegisterSingleOutputPipeRun<ProcessCallGraph> P35;
 static RegisterSingleOutputPipeRun<YieldCallGraph> P36;
 static RegisterFunctionPipeRun<YieldCallGraphSlice> P37;
 static RegisterFunctionPipeRun<YieldCFG> P38;
+static RegisterFunctionPipeRun<ImportFunctionModelNames> P39;
 
 //
 // Analyses

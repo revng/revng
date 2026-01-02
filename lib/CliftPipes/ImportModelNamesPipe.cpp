@@ -605,9 +605,13 @@ static void importNames(const model::Function &Function,
   Symbols.apply(Module);
 }
 
-class ImportModelNamesPipe {
+//
+// Old style pipes
+//
+
+class ImportFunctionModelNamesPipe {
 public:
-  static constexpr auto Name = "import-model-names";
+  static constexpr auto Name = "import-function-model-names";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
@@ -642,15 +646,49 @@ public:
   }
 };
 
-static pipeline::RegisterPipe<ImportModelNamesPipe> X;
+static pipeline::RegisterPipe<ImportFunctionModelNamesPipe> X;
+
+class ImportModelNamesPipe {
+public:
+  static constexpr auto Name = "import-model-names";
+
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    using namespace pipeline;
+    using namespace revng::kinds;
+
+    return { ContractGroup({ Contract(CliftModule,
+                                      0,
+                                      CliftModule,
+                                      0,
+                                      InputPreservation::Preserve) }) };
+  }
+
+  void run(pipeline::ExecutionContext &EC,
+           revng::pipes::CliftContainer &CliftContainer) {
+    importNames(*revng::getModelFromContext(EC), CliftContainer.getModule());
+
+    EC.commitUniqueTarget(CliftContainer);
+  }
+};
+
+static pipeline::RegisterPipe<ImportModelNamesPipe> Y;
 
 } // namespace
 
+//
+// New style pipes
+//
+
 namespace revng::pypeline::piperuns {
 
-void ImportModelNames::runOnCliftFunction(const model::Function &Function,
-                                          mlir::clift::FunctionOp MLIR) {
+using IFMN = ::revng::pypeline::piperuns::ImportFunctionModelNames;
+void IFMN::runOnCliftFunction(const model::Function &Function,
+                              mlir::clift::FunctionOp MLIR) {
   importNames(Binary, MLIR->getParentOfType<mlir::ModuleOp>());
+}
+
+void ImportModelNames::run() {
+  importNames(Binary, TypesAndGlobals.getModule());
 }
 
 } // namespace revng::pypeline::piperuns

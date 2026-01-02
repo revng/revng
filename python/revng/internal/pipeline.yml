@@ -363,7 +363,7 @@ branches:
         arguments: [clift-functions]
       - savepoint: decompile-clift
         containers: [clift-functions]
-      - pipe: import-model-names
+      - pipe: import-function-model-names
         arguments: [clift-functions]
       - pipe: emit-c
         arguments: [clift-functions, decompile-c]
