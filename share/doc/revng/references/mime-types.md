@@ -22,8 +22,6 @@ USAGE: revng-artifact [options] <artifact> <binary>
   legacy-decompile                - text/x.c+ptml+tar+gz
   legacy-decompile-to-single-file - text/x.c+ptml
   legacy-emit-helpers-header      - text/x.c+ptml
-  legacy-emit-model-header        - text/x.c+ptml
-  legacy-emit-type-definitions    - text/x.c+tar+gz
   cleanup-ir                      - application/x.llvm.bc+zstd
   segregate-stack-accesses        - application/x.llvm.bc+zstd
   emit-c                          - text/x.c+ptml+tar+gz

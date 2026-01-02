@@ -23,10 +23,6 @@ containers:
     type: BinariesContainer
   - name: llvm-root
     type: LLVMRootContainer
-  - name: legacy-model-header
-    type: PTMLCBytesContainer
-  - name: legacy-model-types
-    type: PTMLCTypeContainer
   - name: cfg-map
     type: CFGMap
   - name: llvm-functions
@@ -593,40 +589,6 @@ branches:
             container: recompilable-archive
             category: metadata
             filename: recompilable_archive.tar
-
-  legacy-emit-model-header:
-    tasks:
-      - pipe: legacy-model-to-header
-        arguments: [legacy-model-header]
-      - savepoint: legacy-model-header
-        containers: [legacy-model-header]
-        artifacts:
-          - name: legacy-emit-model-header
-            container: legacy-model-header
-            category: user
-            filename: types-and-globals.h
-            defined_locations:
-              - type-definition
-              - struct-field
-              - union-field
-              - enum-entry
-              - dynamic-function
-              - segment
-              - artificial-struct
-            preferred_artifacts:
-              - emit-c
-
-  legacy-emit-type-definition:
-    tasks:
-      - pipe: legacy-generate-model-type-definition
-        arguments: [legacy-model-types]
-      - savepoint: legacy-model-types
-        containers: [legacy-model-types]
-        artifacts:
-          - name: legacy-emit-type-definitions
-            container: legacy-model-types
-            category: user
-            filename: type.h
 
   hexdump:
     from: isolate
