@@ -16,7 +16,7 @@ namespace revng::pipes {
 inline constexpr char ModelTypeDefinitionMime[] = "text/x.c+tar+gz";
 inline constexpr char ModelTypeDefinitionName[] = "model-type-definitions";
 inline constexpr char ModelTypeDefinitionExtension[] = ".h";
-using TypeDefinitionStringMap = TypeStringMap<&kinds::ModelTypeDefinition,
+using TypeDefinitionStringMap = TypeStringMap<&kinds::LegacyModelTypeDefinition,
                                               ModelTypeDefinitionName,
                                               ModelTypeDefinitionMime,
                                               ModelTypeDefinitionExtension>;
@@ -31,7 +31,7 @@ public:
 
     return { ContractGroup({ Contract(kinds::Binary,
                                       0,
-                                      ModelTypeDefinition,
+                                      LegacyModelTypeDefinition,
                                       1,
                                       InputPreservation::Preserve) }) };
   }

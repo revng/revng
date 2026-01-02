@@ -13,8 +13,8 @@ namespace revng::pipes {
 
 inline constexpr char HelpersHeaderFactoryMIMEType[] = "text/x.c+ptml";
 inline constexpr char HelpersHeaderFactorySuffix[] = ".h";
-inline constexpr char HelpersHeaderFactoryName[] = "helpers-header";
-using HelpersHeaderFileContainer = FileContainer<&kinds::HelpersHeader,
+inline constexpr char HelpersHeaderFactoryName[] = "legacy-helpers-header";
+using HelpersHeaderFileContainer = FileContainer<&kinds::LegacyHelpersHeader,
                                                  HelpersHeaderFactoryName,
                                                  HelpersHeaderFactoryMIMEType,
                                                  HelpersHeaderFactorySuffix>;
@@ -29,7 +29,7 @@ public:
 
     return { ContractGroup{ Contract(StackAccessesSegregated,
                                      0,
-                                     HelpersHeader,
+                                     LegacyHelpersHeader,
                                      1,
                                      InputPreservation::Preserve) } };
   }
