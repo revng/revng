@@ -23,11 +23,12 @@ USAGE: revng-artifact [options] <artifact> <binary>
   decompile-to-single-file    - text/x.c+ptml
   emit-recompilable-archive   - application/x.recompilable-archive
   emit-helpers-header         - text/x.c+ptml
-  emit-model-header           - text/x.c+ptml
-  emit-type-definitions       - text/x.c+tar+gz
   cleanup-ir                  - application/x.llvm.bc+zstd
   emit-c                      - text/x.c+ptml+tar+gz
   emit-c-as-single-file       - text/x.c+ptml
+  emit-model-header           - text/x.h+ptml
+  emit-helper-header          - text/x.h+ptml
+  emit-type-definition        - text/x.c+tar+gz
 ```
 
 ## MIME types
