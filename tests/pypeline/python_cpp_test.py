@@ -17,6 +17,7 @@ from revng.pypeline.model import Model, ModelDiff, ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
+from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.schedule.scheduled_task import ScheduledTask
 from revng.pypeline.storage.memory import InMemoryStorageProvider
 from revng.pypeline.storage.storage_provider import ContainerLocation
@@ -165,7 +166,7 @@ def check_simple_pipeline():
         pipeline_configuration,
         (foo_bar_request, foo_bar_request),
     )
-    task.run({child_cont: container})
+    task.run({child_cont: container}, RunnerContext())
 
     # Check
     begin_node_config = begin_node.configuration_id(pipeline_configuration)

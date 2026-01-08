@@ -24,6 +24,7 @@ from revng.pypeline.object import Kind, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
+from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.schedule.scheduled_task import ScheduledTask
 from revng.pypeline.storage.local_provider import LocalStorageProvider
 from revng.pypeline.storage.memory import InMemoryStorageProvider
@@ -224,7 +225,7 @@ def test_pipeline_inplace(model, storage_provider):
         pipeline_configuration,
         (Requests({child_cont: one_two}), Requests({child_cont: one_two})),
     )
-    task.run({child_cont: container})
+    task.run({child_cont: container}, RunnerContext())
 
     assert set(
         storage_provider.has(
@@ -299,7 +300,7 @@ def test_pipeline_up_down(model, storage_provider):
         pipeline_configuration,
         (requests, requests),
     )
-    task.run({root1: container})
+    task.run({root1: container}, RunnerContext())
 
     containers = pipeline.schedule(
         model=ReadOnlyModel(model),
@@ -352,7 +353,7 @@ def test_artifact(model, storage_provider):
         pipeline_configuration,
         (requests, requests),
     )
-    task.run({child1: container})
+    task.run({child1: container}, RunnerContext())
 
     res = pipeline.get_artifact(
         model=ReadOnlyModel(model),
@@ -626,7 +627,7 @@ def test_schedule_serdes(model):
         pipeline_configuration,
         (requests, requests),
     )
-    task.run({root1: container})
+    task.run({root1: container}, RunnerContext())
 
     schedule = pipeline.schedule(
         model=ReadOnlyModel(model),

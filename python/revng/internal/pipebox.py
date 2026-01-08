@@ -35,6 +35,13 @@ def initialize(argv: list[str] = []):
     )
 
 
+def argv_hook(input_: list[str]):
+    assert input_[0] == "pype"
+    output = input_[:]
+    output[0] = "revng2"
+    return output
+
+
 class ImportFiles(Pipe):
     name = "import-files"
 

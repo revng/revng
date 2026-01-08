@@ -237,8 +237,7 @@ class DummyPipelineNode(PipelineNode):
         ) -> PipeDependencies:
             return PipeDependencies([])
 
-    def __init__(self, name: str):
+    def __init__(self):
         # Create a new class object of DummyPipe, with the `name` class
         # attribute changed with the provided one
-        new_pipe_class = type("NewPipe", (self.__class__.DummyPipe,), {"name": name})
-        super().__init__(new_pipe_class(""), [])
+        super().__init__(self.__class__.DummyPipe(""), [])

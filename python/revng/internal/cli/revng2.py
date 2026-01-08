@@ -20,15 +20,17 @@ import yaml
 from click.shell_completion import CompletionItem
 
 from revng.internal.support import cache_directory
+from revng.pypeline.cli.common_options import container_format_options, debug_option
+from revng.pypeline.cli.common_options import project_id_option, token_option
 from revng.pypeline.cli.project import project
 from revng.pypeline.cli.utils import EagerParsedPath, PypeCommand, PypeGroup
-from revng.pypeline.cli.utils import container_format_options, project_id_option, token_option
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.main import pype, run
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
+from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.local_provider import TemporaryLocalStorageProviderFactory
 from revng.pypeline.storage.storage_provider import FileStorageEntry, StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
@@ -117,6 +119,7 @@ class ArtifactArgument(click.Argument):
         "The default container_format when printing to stdout is json."
     ),
 )
+@debug_option
 @container_format_options
 @click.pass_context
 def artifact(
@@ -125,6 +128,7 @@ def artifact(
     binary: Path,
     result_path: Path | None,
     container_format: ContainerFormat,
+    runner_context: RunnerContext,
 ):
     pypeline_logger.debug_log(f'Running artifact: "{artifact}"')
     pypeline_logger.debug_log(f'container_format: "{container_format}"')
@@ -149,6 +153,7 @@ def artifact(
                 analysis_configuration=analysis_configuration,
                 pipeline_configuration={},
                 storage_provider=storage_provider,
+                runner_context=runner_context,
             )
 
             # Compute the requests and produce the artifacts
@@ -160,6 +165,7 @@ def artifact(
                 requests=incoming,
                 pipeline_configuration={},
                 storage_provider=storage_provider,
+                runner_context=runner_context,
             )
             pypeline_logger.debug_log("Artifact computed")
 

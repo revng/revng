@@ -415,6 +415,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/cli/project/artifact.py
     revng/pypeline/cli/project/daemon.py
     revng/pypeline/cli/__init__.py
+    revng/pypeline/cli/common_options.py
     revng/pypeline/cli/utils.py
     revng/pypeline/analysis.py
     revng/pypeline/container.py
@@ -425,6 +426,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/pipeline_node.py
     revng/pypeline/pipeline_parser.py
     revng/pypeline/pipeline.py
+    revng/pypeline/runner_context.py
     revng/pypeline/schema.yml
     revng/pypeline/web_schema.yml
     revng/pypeline/daemon/__init__.py

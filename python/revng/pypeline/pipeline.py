@@ -10,7 +10,7 @@ from typing import Dict, Generator, Generic, Iterable, List, Mapping, Optional, 
 
 import yaml
 
-from revng.pypeline.utils import PypelineException
+from revng.pypeline.runner_context import RunnerContext
 
 from .analysis import AnalysisBinding, AnalysisList
 from .container import Container, ContainerDeclaration
@@ -425,6 +425,7 @@ class Pipeline(Generic[C]):
         requests: ObjectSet,
         pipeline_configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
+        runner_context: RunnerContext = RunnerContext(),
     ) -> Container:
         schedule = self.schedule(
             model=model,
@@ -433,7 +434,7 @@ class Pipeline(Generic[C]):
             pipeline_configuration=pipeline_configuration,
             storage_provider=storage_provider,
         )
-        return schedule.run()[artifact.container]
+        return schedule.run(runner_context)[artifact.container]
 
     def run_analysis_list(
         self,
@@ -442,6 +443,7 @@ class Pipeline(Generic[C]):
         analysis_configuration: list[str],
         pipeline_configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
+        runner_context: RunnerContext = RunnerContext(),
     ) -> tuple[Model, InvalidatedObjects]:
         """
         Run a list of analyses on the pipeline, given a model and a set of requests.
@@ -475,6 +477,7 @@ class Pipeline(Generic[C]):
                 analysis_configuration=analysis_config,
                 pipeline_configuration=pipeline_configuration,
                 storage_provider=storage_provider,
+                runner_context=runner_context,
             )
             total_invalidated.update(invalidated)
             model = ReadOnlyModel(new_model)
@@ -489,6 +492,7 @@ class Pipeline(Generic[C]):
         analysis_configuration: str,
         pipeline_configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
+        runner_context: RunnerContext = RunnerContext(),
     ) -> tuple[Model, InvalidatedObjects]:
         """
         Run an analysis on the pipeline, given a model and a set of requests.
@@ -519,22 +523,15 @@ class Pipeline(Generic[C]):
             pipeline_configuration=pipeline_configuration,
             storage_provider=storage_provider,
         )
-        all_containers = schedule.run()
-        # The analysis modifies the model, but we need to invalidate
-        # the changes, so we make a clone of the model.
-        # This also allows to keep the original model intact
-        # in case the analysis fails
-        new_model = model.clone()
-        try:
-            analysis_info.analysis.run(
-                model=new_model,
-                containers=[all_containers[decl] for decl in analysis_info.bindings],
-                incoming=[requests.get(decl) for decl in analysis_info.bindings],
-                configuration=analysis_configuration,
-            )
-        # TODO: eventually the pipe will raise `PypelineException` directly
-        except RuntimeError as e:
-            raise PypelineException(f"Analysis {analysis_name} failed to run: {e}")
+        all_containers = schedule.run(runner_context)
+
+        new_model = runner_context.run_analysis(
+            analysis=analysis_info.analysis,
+            model=model,
+            containers=[all_containers[decl] for decl in analysis_info.bindings],
+            incoming=[requests.get(decl) for decl in analysis_info.bindings],
+            configuration=analysis_configuration,
+        )
 
         diff = model.diff(ReadOnlyModel(new_model))
         custom_invalidated_objects = self._compute_custom_invalidation(

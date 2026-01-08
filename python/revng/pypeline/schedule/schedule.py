@@ -13,6 +13,7 @@ from revng.pypeline.container import ConfigurationId, ContainerDeclaration, Cont
 from revng.pypeline.graph import Graph
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline_node import PipelineConfiguration
+from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.task.pipe import Pipe, ScheduledTaskDependencies
 from revng.pypeline.task.requests import Requests
@@ -105,7 +106,7 @@ class Schedule:
 
         return graph
 
-    def run(self) -> ContainerSet:
+    def run(self, runner_context: RunnerContext = RunnerContext()) -> ContainerSet:
         for task in self.tasks:
             if isinstance(task.node.task, Pipe):
                 try:
@@ -133,7 +134,9 @@ class Schedule:
                 self.pipeline_configuration
             )
 
-            task_output: ScheduledTaskDependencies | None = ready.run(working_containers)
+            task_output: ScheduledTaskDependencies | None = ready.run(
+                working_containers, runner_context
+            )
 
             for declaration, container in sorted(
                 working_containers.items(), key=lambda item: item[0].name

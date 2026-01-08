@@ -8,13 +8,14 @@ from typing import AsyncContextManager
 
 import click
 
-from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_help_text
-from revng.pypeline.cli.utils import container_format_options, list_objects_option
-from revng.pypeline.cli.utils import normalize_whitespace, project_id_option, token_option
+from revng.pypeline.cli.common_options import container_format_options, debug_option
+from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
+from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_help_text, normalize_whitespace
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
+from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.utils.logger import pypeline_logger
@@ -105,6 +106,7 @@ def build_artifact_command(
         objects: str | None,
         result_path: Path | None,
         container_format: ContainerFormat,
+        runner_context: RunnerContext,
         kwargs,
     ):
         """Since the storage provider factory returns an async context manager,
@@ -148,6 +150,7 @@ def build_artifact_command(
                 requests=incoming,
                 pipeline_configuration={},
                 storage_provider=storage_provider,
+                runner_context=runner_context,
             )
             pypeline_logger.debug_log("Artifact computed")
 
@@ -180,6 +183,7 @@ def build_artifact_command(
             "The default container_format when printing to stdout is json."
         ),
     )
+    @debug_option
     @container_format_options
     @click.pass_context
     def run_artifact_command(
@@ -190,6 +194,7 @@ def build_artifact_command(
         objects: str | None,
         result_path: Path | None,
         container_format: ContainerFormat,
+        runner_context: RunnerContext,
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f'Running artifact: "{artifact_name}"')
@@ -211,6 +216,7 @@ def build_artifact_command(
                 objects=objects,
                 result_path=result_path,
                 container_format=container_format,
+                runner_context=runner_context,
                 kwargs=kwargs,
             )
         )
