@@ -19,6 +19,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
@@ -52,6 +53,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/SimplePassManager.h"
 
 // This name is not present after `enforce-abi`.
 RegisterIRHelper FDispatcher("function_dispatcher");
@@ -832,6 +834,12 @@ void Isolate::runOnFunction(const model::Function &TheFunction) {
 }
 
 void Isolate::splitIsolatedFunctionsToOutput() {
+  // Run globaldce on the isolated root module to remove any cruft present. This
+  // should speed up cloning.
+  SimplePassManager PM;
+  PM.addPass(llvm::GlobalDCEPass());
+  PM.run(*ClonedModule);
+
   llvm::Task T(IsolatedFunctions.size(),
                "Splitting functions into individual modules");
 
@@ -841,6 +849,25 @@ void Isolate::splitIsolatedFunctionsToOutput() {
     T.advance(Address.toString(), true);
 
     auto IsolatedModule = Cloner.cloneModule(*Function);
+    // Check that running globaldce on the isolated module does nothing
+    if (VerifyLog.isEnabled()) {
+      llvm::StringSet GlobalNames;
+      for (GlobalValue &GV : IsolatedModule->global_values()) {
+        if (GV.hasName())
+          GlobalNames.insert(GV.getName());
+      }
+
+      SimplePassManager PM;
+      PM.addPass(llvm::GlobalDCEPass());
+      PM.run(*IsolatedModule);
+
+      for (GlobalValue &GV : IsolatedModule->global_values()) {
+        if (GV.hasName())
+          GlobalNames.erase(GV.getName());
+      }
+      revng_assert(GlobalNames.size() == 0,
+                   "GlobalDCE removed names from an isolated module");
+    }
     Output.assign(ObjectID(Address), std::move(IsolatedModule));
 
     // Since we saved the function to the output, delete its body in
