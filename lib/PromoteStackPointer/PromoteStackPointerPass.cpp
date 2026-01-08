@@ -227,8 +227,7 @@ namespace revng::pypeline::piperuns {
 // TODO: inline promoteStackPointer once we dismiss the old pipeline
 void PromoteStackPointer::runOnLLVMFunction(const model::Function &Function,
                                             llvm::Function &LLVMFunction) {
-  GeneratedCodeBasicInfo GCBI(Binary);
-  GCBI.run(*LLVMFunction.getParent());
+  GeneratedCodeBasicInfo GCBI(Binary, *LLVMFunction.getParent());
   promoteStackPointer(Binary, Function, LLVMFunction, GCBI);
 }
 

@@ -637,8 +637,7 @@ namespace revng::pypeline::piperuns {
 void PromoteCSVs::runOnLLVMFunction(const model::Function &Function,
                                     llvm::Function &LLVMFunction) {
   llvm::Module &Module = *LLVMFunction.getParent();
-  GeneratedCodeBasicInfo GCBI(Binary);
-  GCBI.run(Module);
+  GeneratedCodeBasicInfo GCBI(Binary, Module);
 
   ::PromoteCSVs Impl(Binary, Module, GCBI);
   Impl.prologue();

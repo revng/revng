@@ -46,8 +46,7 @@ public:
     using FSOracle = efa::FunctionSummaryOracle;
 
     // Collect GCBI
-    GeneratedCodeBasicInfo GCBI(*Binary);
-    GCBI.run(M);
+    GeneratedCodeBasicInfo GCBI(*Binary, M);
 
     FSOracle Oracle = FSOracle::importBasicPrototypeData(M, GCBI, *Binary);
     efa::CFGAnalyzer Analyzer(M, GCBI, Binary, Oracle);
@@ -100,8 +99,7 @@ CollectCFG::CollectCFG(const class Model &Model,
                        CFGMap &Output) :
   Model(Model),
   Output(Output),
-  GCBI(*Model.get().get()),
-  GCBIRun(GCBI, Input.getModule()),
+  GCBI(*Model.get().get(), Input.getModule()),
   Oracle(FSO::importBasicPrototypeData(Input.getModule(),
                                        GCBI,
                                        *Model.get().get())),

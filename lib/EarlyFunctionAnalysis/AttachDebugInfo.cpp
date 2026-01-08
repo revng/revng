@@ -353,8 +353,7 @@ void AttachDebugInfo::runOnLLVMFunction(const model::Function &Function,
                                         llvm::Function &LLVMFunction) {
   const MetaAddress &Address = Function.Entry();
   llvm::Module &Module = *LLVMFunction.getParent();
-  GeneratedCodeBasicInfo GCBI(Binary);
-  GCBI.run(Module);
+  GeneratedCodeBasicInfo GCBI(Binary, Module);
 
   auto CFGGetter =
     [*this](const MetaAddress &Address) -> const efa::ControlFlowGraph & {

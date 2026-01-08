@@ -564,8 +564,7 @@ namespace revng::pypeline::piperuns {
 void EnforceABI::runOnLLVMFunction(const model::Function &Function,
                                    llvm::Function &LLVMFunction) {
   llvm::Module &Module = *LLVMFunction.getParent();
-  GeneratedCodeBasicInfo GCBI(Binary);
-  GCBI.run(Module);
+  GeneratedCodeBasicInfo GCBI(Binary, Module);
 
   auto CFGGetter =
     [this](const MetaAddress &Address) -> const efa::ControlFlowGraph & {

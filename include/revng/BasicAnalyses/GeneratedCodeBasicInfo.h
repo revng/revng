@@ -45,22 +45,28 @@ class MDNode;
 /// between basic blocks generated due to translation and dispatcher-related
 /// basic blocks.
 class GeneratedCodeBasicInfo {
-public:
-  GeneratedCodeBasicInfo(const model::Binary &Binary) :
-    Binary(&Binary),
-    PC(nullptr),
-    SP(nullptr),
-    RA(nullptr),
-    Dispatcher(nullptr),
-    DispatcherFail(nullptr),
-    AnyPC(nullptr),
-    UnexpectedPC(nullptr),
-    PCRegSize(0),
-    RootFunction(nullptr),
-    PCH(),
-    RootParsed(false) {}
+private:
+  const model::Binary &Binary;
+  llvm::GlobalVariable *PC = nullptr;
+  llvm::GlobalVariable *SP = nullptr;
+  llvm::GlobalVariable *RA = nullptr;
+  llvm::BasicBlock *Dispatcher = nullptr;
+  llvm::BasicBlock *DispatcherFail = nullptr;
+  llvm::BasicBlock *AnyPC = nullptr;
+  llvm::BasicBlock *UnexpectedPC = nullptr;
+  std::map<MetaAddress, llvm::BasicBlock *> JumpTargets;
+  unsigned PCRegSize = 0;
+  llvm::Function *RootFunction = nullptr;
+  std::vector<llvm::GlobalVariable *> CSVs;
+  std::vector<llvm::GlobalVariable *> ABIRegisters;
+  std::set<llvm::GlobalVariable *> ABIRegistersSet;
+  llvm::Function *NewPC = nullptr;
+  std::unique_ptr<ProgramCounterHandler> PCH;
+  using PCToBlockMap = std::multimap<MetaAddress, llvm::BasicBlock *>;
+  bool RootParsed = false;
 
-  void run(llvm::Module &M);
+public:
+  GeneratedCodeBasicInfo(const model::Binary &Binary, llvm::Module &M);
 
   /// Handle the invalidation of this information, so that it does not get
   /// invalidated by other passes.
@@ -163,7 +169,7 @@ public:
   const ProgramCounterHandler *programCounterHandler() {
     if (not PCH) {
       llvm::Module *M = RootFunction->getParent();
-      PCH = ProgramCounterHandler::fromModule(Binary->Architecture(), M);
+      PCH = ProgramCounterHandler::fromModule(Binary.Architecture(), M);
     }
 
     return PCH.get();
@@ -298,7 +304,7 @@ public:
   }
 
   MetaAddress fromPC(uint64_t PC) const {
-    return MetaAddress::fromPC(Binary->Architecture(), PC);
+    return MetaAddress::fromPC(Binary.Architecture(), PC);
   }
 
   llvm::Function *root() {
@@ -310,31 +316,11 @@ public:
   blocksByPCRange(MetaAddress Start, MetaAddress End);
 
   bool hasDelaySlot() const {
-    return model::Architecture::hasDelaySlot(Binary->Architecture());
+    return model::Architecture::hasDelaySlot(Binary.Architecture());
   }
 
 private:
   void parseRoot();
-
-private:
-  const model::Binary *Binary;
-  llvm::GlobalVariable *PC;
-  llvm::GlobalVariable *SP;
-  llvm::GlobalVariable *RA;
-  llvm::BasicBlock *Dispatcher;
-  llvm::BasicBlock *DispatcherFail;
-  llvm::BasicBlock *AnyPC;
-  llvm::BasicBlock *UnexpectedPC;
-  std::map<MetaAddress, llvm::BasicBlock *> JumpTargets;
-  unsigned PCRegSize;
-  llvm::Function *RootFunction;
-  std::vector<llvm::GlobalVariable *> CSVs;
-  std::vector<llvm::GlobalVariable *> ABIRegisters;
-  std::set<llvm::GlobalVariable *> ABIRegistersSet;
-  llvm::Function *NewPC;
-  std::unique_ptr<ProgramCounterHandler> PCH;
-  using PCToBlockMap = std::multimap<MetaAddress, llvm::BasicBlock *>;
-  bool RootParsed = false;
 };
 
 template<>

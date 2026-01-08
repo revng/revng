@@ -1110,8 +1110,7 @@ llvm::Error DetectABI::run(Model &Model,
   TupleTree<model::Binary> &TupleModel = Model.get();
   model::Binary &Binary = *TupleModel;
 
-  GeneratedCodeBasicInfo GCBI(Binary);
-  GCBI.run(Module);
+  GeneratedCodeBasicInfo GCBI(Binary, Module);
 
   revng::pipes::CFGMap CFGs("");
   ControlFlowGraphCache FMC(CFGs);

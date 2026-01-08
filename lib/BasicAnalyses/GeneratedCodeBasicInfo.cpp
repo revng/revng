@@ -27,14 +27,17 @@ char GeneratedCodeBasicInfoWrapperPass::ID = 0;
 using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfoWrapperPass>;
 static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
-void GeneratedCodeBasicInfo::run(Module &M) {
+GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
+                                               llvm::Module &M) :
+  Binary(Binary) {
+
   RootFunction = M.getFunction("root");
   NewPC = getIRHelper("newpc", M);
 
   revng_log(PassesLog, "Starting GeneratedCodeBasicInfo");
 
   using namespace model::Architecture;
-  auto Architecture = Binary->Architecture();
+  auto Architecture = Binary.Architecture();
   PC = M.getGlobalVariable(getPCCSVName(Architecture), true);
   SP = M.getGlobalVariable(getCSVName(getStackPointer(Architecture)), true);
   auto ReturnAddressRegister = getReturnAddressRegister(Architecture);
@@ -158,23 +161,20 @@ GeneratedCodeBasicInfo::blocksByPCRange(MetaAddress Start, MetaAddress End) {
 GeneratedCodeBasicInfo
 GeneratedCodeBasicInfoAnalysis::run(Module &M, ModuleAnalysisManager &MAM) {
   auto &LMA = MAM.getResult<LoadModelAnalysis>(M);
-  GeneratedCodeBasicInfo GCBI(*LMA.getReadOnlyModel());
-  GCBI.run(M);
+  GeneratedCodeBasicInfo GCBI(*LMA.getReadOnlyModel(), M);
   return GCBI;
 }
 
 GeneratedCodeBasicInfo
 GeneratedCodeBasicInfoAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
   auto &LMA = FAM.getResult<LoadModelAnalysis>(F);
-  GeneratedCodeBasicInfo GCBI(*LMA.getReadOnlyModel());
-  GCBI.run(*F.getParent());
+  GeneratedCodeBasicInfo GCBI(*LMA.getReadOnlyModel(), *F.getParent());
   return GCBI;
 }
 
 bool GeneratedCodeBasicInfoWrapperPass::runOnModule(Module &M) {
   auto &LMA = getAnalysis<LoadModelWrapperPass>().get();
-  GCBI.reset(new GeneratedCodeBasicInfo(*LMA.getReadOnlyModel()));
-  GCBI->run(M);
+  GCBI.reset(new GeneratedCodeBasicInfo(*LMA.getReadOnlyModel(), M));
   return false;
 }
 

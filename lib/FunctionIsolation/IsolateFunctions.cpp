@@ -706,7 +706,7 @@ Isolate::Isolate(const class Model &Model,
                  const CFGMap &CFG,
                  LLVMRootContainer &Root,
                  LLVMFunctionContainer &Output) :
-  Output(Output), GCBI(*Model.get().get()) {
+  Output(Output) {
   // Manually perform `cloneIntoContext` to prune the root container as early as
   // possible
   llvm::SmallVector<char, 0> Buffer;
@@ -714,7 +714,7 @@ Isolate::Isolate(const class Model &Model,
   Root.disposeIfPossible();
   ClonedModule = readBitcode(Buffer, Output.getContext());
 
-  GCBI.run(*ClonedModule);
+  GCBI.emplace(*Model.get().get(), *ClonedModule);
 
   auto CFGGetter =
     [&CFG](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
@@ -723,7 +723,7 @@ Isolate::Isolate(const class Model &Model,
 
   // TODO: inline Impl
   Impl = std::make_unique<IFI>(ClonedModule->getFunction("root"),
-                               GCBI,
+                               *GCBI,
                                *Model.get().get(),
                                CFGGetter);
   Impl->prologue();

@@ -48,9 +48,7 @@ public:
     RootModule(RootModule),
     FunctionModule(FunctionModule),
     Context(RootModule.getContext()),
-    GCBI(Binary) {
-
-    GCBI.run(RootModule);
+    GCBI(Binary, RootModule) {
 
     for (const model::Function &Function : Binary.Functions()) {
       auto *F = FunctionModule->getFunction(llvmName(Function));
@@ -201,8 +199,7 @@ public:
 
 static void populateFunctionDispatcher(const model::Binary &Binary,
                                        llvm::Module &Module) {
-  GeneratedCodeBasicInfo GCBI(Binary);
-  GCBI.run(Module);
+  GeneratedCodeBasicInfo GCBI(Binary, Module);
 
   llvm::LLVMContext &Context = Module.getContext();
   llvm::Function *FunctionDispatcher = getIRHelper("function_dispatcher",
