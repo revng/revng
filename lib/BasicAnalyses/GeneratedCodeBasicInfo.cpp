@@ -29,7 +29,7 @@ static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
 GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
                                                llvm::Module &M) :
-  Binary(Binary) {
+  Binary(Binary), Module(M) {
 
   RootFunction = M.getFunction("root");
   NewPC = getIRHelper("newpc", M);

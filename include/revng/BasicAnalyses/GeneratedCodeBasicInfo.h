@@ -47,6 +47,7 @@ class MDNode;
 class GeneratedCodeBasicInfo {
 private:
   const model::Binary &Binary;
+  llvm::Module &Module;
   llvm::GlobalVariable *PC = nullptr;
   llvm::GlobalVariable *SP = nullptr;
   llvm::GlobalVariable *RA = nullptr;
@@ -168,8 +169,7 @@ public:
 
   const ProgramCounterHandler *programCounterHandler() {
     if (not PCH) {
-      llvm::Module *M = RootFunction->getParent();
-      PCH = ProgramCounterHandler::fromModule(Binary.Architecture(), M);
+      PCH = ProgramCounterHandler::fromModule(Binary.Architecture(), &Module);
     }
 
     return PCH.get();
