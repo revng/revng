@@ -26,8 +26,6 @@ def initialize(argv: list[str] = []):
             signal.SIGTERM,
             signal.SIGHUP,
             signal.SIGQUIT,
-        },
-        {
             signal.SIGCHLD,
             signal.SIGPIPE,
             signal.SIGUSR1,

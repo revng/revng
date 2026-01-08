@@ -19,38 +19,66 @@
 #include "revng/PipeboxCommon/Model.h"
 #include "revng/Support/InitRevng.h"
 
-struct SignalHandler {
-  bool IsTerminating;
-  sighandler_t Handler;
-};
-
-static std::map<int, SignalHandler> SavedSignals;
+static std::map<int, sighandler_t> SavedSignals;
 
 static void handleSignal(int SigNo) {
-  const SignalHandler &Handler = SavedSignals[SigNo];
-  if (Handler.IsTerminating)
-    llvm::sys::RunInterruptHandlers();
-  Handler.Handler(SigNo);
+  const sighandler_t &Handler = SavedSignals[SigNo];
+
+  {
+    // re-acquire the GIL since the signal might have been received while a pipe
+    // is running. This calls `PyGILState_Ensure` which is re-entrant so it's
+    // safe to call even if the GIL is currently held.
+    nanobind::gil_scoped_acquire X;
+
+    if (SigNo == SIGINT) {
+      // At interpreter shutdown, nanobind checks if any of the objects it has
+      // allocated are still alive and reports them as leaks. Since we're
+      // calling `Py_Exit` the garbage collector is not run and so all
+      // variables are still alive (but their destructors are still called).
+      nanobind::set_leak_warnings(false);
+      Py_Exit(1);
+    } else {
+      // Dispatch to the original python signal handler. If an exception is
+      // raised its throwing might be delayed if there is a piece of native
+      // code currently running.
+      // Running the original python handler without currently holding the GIL
+      // leads to a crash.
+      Handler(SigNo);
+    }
+  }
 }
 
 NB_MODULE(_pipebox, m) {
   using namespace revng::pypeline::helpers::python;
 
-  auto Initialize = [m](std::set<int> TerminatingSignals,
-                        std::set<int> NonterminatingSignals,
+  auto Initialize = [m](std::set<int> Signals,
                         std::vector<std::string> ArgVector) {
     revng_assert(not nanobind::hasattr(m, "__init_revng__"));
-    revng_assert(not intersects(TerminatingSignals, NonterminatingSignals));
 
     // Save the signal pointers for later
-    for (int SigNumber :
-         llvm::concat<const int>(TerminatingSignals, NonterminatingSignals)) {
+    for (int SigNumber : Signals) {
       sighandler_t Handler = signal(SigNumber, SIG_DFL);
-      if (Handler != SIG_ERR && Handler != NULL) {
-        bool IsTerminating = TerminatingSignals.contains(SigNumber);
-        SavedSignals[SigNumber] = { IsTerminating, Handler };
-      }
+      if (Handler != SIG_ERR && Handler != NULL)
+        SavedSignals[SigNumber] = Handler;
     }
+
+    // Register cleanup function for llvm
+    int RC = Py_AtExit(&llvm::sys::RunInterruptHandlers);
+    revng_assert(RC == 0);
+
+    // The `signal` module saves internally the python functions stored via
+    // `signal.signal`, this is required for `signal.getsignal` to work. Some
+    // library code, e.g. `asyncio` behaves differently if the signal handler
+    // (retrieved by signal) is the default one. To avoid inconsistencies we
+    // manually change the signal handler (via `signal.signal`) to a dummy
+    // function so that the special behavior is not triggered.
+    nanobind::object SignalFunction = importObject("signal.signal");
+    nanobind::object
+      SignalHandler = nanobind::cpp_function([](int, nanobind::object) {
+        return;
+      });
+    for (int SigNumber : std::ranges::views::keys(SavedSignals))
+      SignalFunction(nanobind::int_(SigNumber), SignalHandler);
 
     // The arguments need to have the same storage duration as the InitRevng,
     // since they might be used for the crash handler. Store them in `static`

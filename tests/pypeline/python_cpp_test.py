@@ -207,7 +207,7 @@ def check_simple_pipeline():
 
 def main():
     ext, _ = import_pipebox(sys.argv[1:])
-    ext.initialize(set(), set(), [])
+    ext.initialize(set(), [])
     initialize_pypeline()
     check_names(ext)
     check_pipeline()
