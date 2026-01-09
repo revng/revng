@@ -9,7 +9,7 @@ from typing import Annotated, Optional, final
 from revng.pypeline.container import Configuration, Container, ContainerID
 from revng.pypeline.model import ModelDiff, ModelPath, ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
-from revng.pypeline.storage.file_provider import FileProvider
+from revng.pypeline.storage.file_provider import FileProvider, FileRequest
 from revng.pypeline.utils.cabc import ABC, abstractmethod
 
 from .task import TaskArgument, TaskArgumentAccess
@@ -165,6 +165,15 @@ class Pipe(ABC):
         `containers`, `incoming`, and `outgoing` are all lists with the same
         length as `SIGNATURE`.
         """
+
+    def needed_files(self, model: ReadOnlyModel) -> list[FileRequest]:
+        """
+        Request the list of file hashes that would be requested as part of the
+        `run` method via the `FileProvider`. This is required because the list
+        of files needs to be known ahead of time in debug mode to dump them on
+        disk before running the `run-pipe` command.
+        """
+        return []
 
     def invalidate(
         self, invalidation_data: PipeCustomInvalidation, diff: ModelDiff
