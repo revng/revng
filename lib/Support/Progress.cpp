@@ -11,6 +11,7 @@ extern "C" {
 #endif
 
 #include <chrono>
+#include <fstream>
 
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Mutex.h"
@@ -30,6 +31,9 @@ private:
   llvm::sys::Mutex OutputMutex;
   llvm::raw_fd_ostream Output;
   bool Closed = false;
+
+  static auto inline MemoryProfilerInterval = std::chrono::milliseconds{ 50 };
+  std::chrono::time_point<std::chrono::high_resolution_clock> LastMemoryPoll;
 
 public:
   static constexpr bool AllThreads = true;
@@ -75,6 +79,14 @@ public:
     emitEvent(T->stepName(), "task", "B");
   }
 
+private:
+  static unsigned long long getTimestamp() {
+    using namespace std::chrono;
+    using std::chrono::microseconds;
+    auto Epoch = system_clock::now().time_since_epoch();
+    return duration_cast<microseconds>(Epoch).count();
+  }
+
   template<bool EmitTrailingComma = true>
   void emitEvent(llvm::StringRef Name,
                  llvm::StringRef Category,
@@ -83,17 +95,52 @@ public:
     Output << "\"name\": \"" << Name.str() << "\", ";
     Output << "\"cat\": \"" << Category.str() << "\", ";
     Output << "\"ph\": \"" << Phase.str() << "\", ";
-    using namespace std::chrono;
-    using std::chrono::microseconds;
-    auto Epoch = system_clock::now().time_since_epoch();
-    unsigned long long Timestamp = duration_cast<microseconds>(Epoch).count();
-    Output << "\"ts\": " << Timestamp << ", ";
+    Output << "\"ts\": " << getTimestamp() << ", ";
     Output << "\"pid\": " << getpid() << ", ";
     Output << "\"tid\": " << getpid();
     Output << "}";
     if (EmitTrailingComma)
       Output << ",";
     Output << "\n";
+
+    emitMemoryUsage();
+  }
+
+  void emitMemoryUsage() {
+    auto Now = std::chrono::high_resolution_clock::now();
+    if (Now - LastMemoryPoll < MemoryProfilerInterval)
+      return;
+
+    // TODO: linux-specific and requires `smaps_rollup` which is linux 4.14+.
+    //       This is more accurate than `/proc/self/statm` per
+    //       `man proc_pid_statm` (statm reports the same data, but it's
+    //       updated every N page faults). Perf tests show that both take
+    //       roughly the same time and statm produces noticeable worse results.
+    // Use `std::ifstream` instead of `llvm::MemoryBuffer` as it avoids reading
+    // the entire file.
+    std::ifstream IS("/proc/self/smaps_rollup");
+    std::string Buffer;
+    unsigned long long RSSKbytes = 0ULL;
+
+    while (not IS.eof()) {
+      std::getline(IS, Buffer);
+      if (Buffer.starts_with("Rss:")) {
+        llvm::StringRef BufferRef(Buffer);
+        BufferRef.consume_front("Rss:");
+        BufferRef.consume_back("kB");
+        bool Error = BufferRef.trim().getAsInteger(10, RSSKbytes);
+        revng_assert(not Error);
+        break;
+      }
+    }
+    revng_assert(RSSKbytes != 0);
+
+    Output << "{\"ph\": \"C\", ";
+    Output << "\"ts\": " << getTimestamp() << ", ";
+    Output << "\"pid\": " << getpid() << ", ";
+    Output << "\"args\": {\"memory (RSS)\": " << RSSKbytes * 1024 << "}},\n";
+
+    LastMemoryPoll = Now;
   }
 };
 
