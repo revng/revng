@@ -83,6 +83,9 @@ constexpr const char *FunctionEntryMDName = "revng.function.entry";
 constexpr const char *JTReasonMDName = "revng.jt.reasons";
 constexpr const char *ControlFlowGraphMDName = "revng.function.metadata";
 constexpr const char *ExplicitParenthesesMDName = "revng.explicit_parentheses";
+constexpr llvm::StringRef InlineHelpersSection = "revng_inline";
+constexpr llvm::StringRef HelpersListName = "helpers_list";
+constexpr llvm::StringRef QemuArchitectureMD = "revng.qemu_architecture";
 
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {

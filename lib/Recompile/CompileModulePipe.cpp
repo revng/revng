@@ -101,7 +101,7 @@ static void compileModuleRunImpl(const model::Binary &Binary,
     // Note: here we use the full version of the helpers, i.e., where we all the
     //       definitions (as opposed to only those with revng_inline, as it
     //       happens with the slim version).
-    const std::string LibHelpersName = "/share/revng/libtcg-helpers-annotated-"
+    const std::string LibHelpersName = "/share/revng/libtcg-helpers-full-"
                                        + ArchName + ".bc";
     auto OptionalHelpers = ResourceFinder.findFile(LibHelpersName);
     revng_assert(OptionalHelpers.has_value(), "Cannot find tinycode helpers");

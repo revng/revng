@@ -219,36 +219,69 @@ foreach(
     list(APPEND HELPER_MODULE_LIST "${CMAKE_BINARY_DIR}/share/revng/${OUTPUT}")
   endforeach()
 
-  # Annotate libtcg-helpers-*.bc
-
+  # Annotate `libtcg-helpers-*.bc`. This loads the `libtcg-helpers` bitcode
+  # files and runs analyses that determine which CSVs are accessed by each
+  # helper function.
   set(LIBTCG_HELPERS
       "${CMAKE_INSTALL_PREFIX}/share/libtcg/libtcg-helpers-${ARCH}.bc")
-  set(LIBTCG_HELPERS_ANNOTATED
-      "${CMAKE_BINARY_DIR}/share/revng/libtcg-helpers-annotated-${ARCH}.bc")
+  set(LIBTCG_HELPERS_FULL
+      "${CMAKE_BINARY_DIR}/share/revng/libtcg-helpers-full-${ARCH}.bc")
   add_custom_command(
-    OUTPUT "${LIBTCG_HELPERS_ANNOTATED}"
+    OUTPUT "${LIBTCG_HELPERS_FULL}"
     DEPENDS "${LIBTCG_HELPERS}" revng-all-binaries
     COMMAND
       ./bin/revng opt -sroa -instsimplify -cpu-loop-exit
       -analyze-helper-arguments -fix-helpers
       -fix-helpers-architecture="${ARCH}" "${LIBTCG_HELPERS}" -o
-      "${LIBTCG_HELPERS_ANNOTATED}")
+      "${LIBTCG_HELPERS_FULL}")
   add_custom_target("annotated-libtcg-helpers-${ARCH}" ALL
-                    DEPENDS "${LIBTCG_HELPERS_ANNOTATED}")
+                    DEPENDS "${LIBTCG_HELPERS_FULL}")
 
-  # Drop all the functions *not* tagged with revng_inline
-  set(LIBTCG_HELPERS_ANNOTATED_SLIM
-      "${CMAKE_BINARY_DIR}/share/revng/libtcg-helpers-annotated-slim-${ARCH}.bc"
-  )
-  add_custom_command(
-    OUTPUT "${LIBTCG_HELPERS_ANNOTATED_SLIM}"
-    DEPENDS "${LIBTCG_HELPERS_ANNOTATED}" revng-all-binaries
-    COMMAND ./bin/revng opt -slim-down-helpers-module -globaldce
-            "${LIBTCG_HELPERS_ANNOTATED}" -o "${LIBTCG_HELPERS_ANNOTATED_SLIM}")
-  add_custom_target("annotated-libtcg-helpers-slim-${ARCH}" ALL
-                    DEPENDS "${LIBTCG_HELPERS_ANNOTATED_SLIM}")
-  list(APPEND HELPER_MODULE_LIST "${LIBTCG_HELPERS_ANNOTATED_SLIM}")
+  function(process_helper_module)
+    set(options)
+    set(oneValueArgs NAME)
+    set(multiValueArgs PASSES)
+    cmake_parse_arguments(OPT "${options}" "${oneValueArgs}"
+                          "${multiValueArgs}" ${ARGN})
 
+    set(PROCESS_HELPER_MODULE_OUTPUT
+        "${CMAKE_BINARY_DIR}/share/revng/libtcg-helpers-${OPT_NAME}-${ARCH}.bc")
+    list(TRANSFORM OPT_PASSES PREPEND -)
+    add_custom_command(
+      OUTPUT "${PROCESS_HELPER_MODULE_OUTPUT}"
+      DEPENDS "${LIBTCG_HELPERS_FULL}" revng-all-binaries
+      COMMAND ./bin/revng opt ${OPT_PASSES} "${LIBTCG_HELPERS_FULL}" -o
+              "${PROCESS_HELPER_MODULE_OUTPUT}")
+    add_custom_target("annotated-libtcg-helpers-${OPT_NAME}-${ARCH}" ALL
+                      DEPENDS "${PROCESS_HELPER_MODULE_OUTPUT}")
+    list(APPEND HELPER_MODULE_LIST "${PROCESS_HELPER_MODULE_OUTPUT}")
+    set(HELPER_MODULE_LIST
+        "${HELPER_MODULE_LIST}"
+        PARENT_SCOPE)
+  endfunction()
+
+  # Produce to-inline version of helpers. In this version the bitcode file only
+  # contains helper functions that are in the `revng_inline` section and the
+  # CSVs that are used by them. This is used by `inline-helpers` to allow
+  # inlining the body of the `revng_inline` function into the isolated
+  # functions' bodies.
+  process_helper_module(
+    NAME
+    to-inline
+    PASSES
+    slim-down-helpers-module
+    sroa
+    instsimplify
+    simplifycfg
+    strip-dead-debug-info)
+
+  # Produce declarations-only version of helpers. In this version of the bitcode
+  # file all the helper functions have been turned into declarations and all
+  # CSVs have been dropped. This will be used in `lift` to import the helper
+  # declarations to be used in the lifting process.
+  process_helper_module(
+    NAME declarations-only PASSES helpers-module-to-declarations globaldce
+    strip-dead-debug-info)
 endforeach()
 
 # Produce well-known-models

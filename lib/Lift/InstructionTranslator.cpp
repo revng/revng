@@ -581,8 +581,6 @@ IT::TranslationResult IT::translateCall(LibTcgInstruction *Instruction,
   Function *Helper = TheModule.getFunction(HelperName);
   revng_assert(Helper != nullptr);
 
-  FunctionTags::Helper.addTo(Helper);
-
   // Emit a call to the helper
   FunctionType *HelperType = Helper->getFunctionType();
   for (unsigned I = 0; I < InArgs.size(); ++I) {

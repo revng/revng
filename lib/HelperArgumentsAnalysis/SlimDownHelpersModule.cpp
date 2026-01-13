@@ -3,8 +3,17 @@
 //
 
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DebugInfo.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Transforms/IPO/AlwaysInliner.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
+
+#include "revng/Model/FunctionTags.h"
+#include "revng/Support/IRHelpers.h"
+#include "revng/Support/SimplePassManager.h"
+
+#include "PostProcessingHelpers.h"
 
 using namespace llvm;
 
@@ -15,64 +24,80 @@ public:
 public:
   SlimDownHelpersModule() : llvm::ModulePass(ID) {}
 
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {}
-
   bool runOnModule(llvm::Module &M) override {
     LLVMContext &Context = M.getContext();
 
-    auto DbgKindID = M.getContext().getMDKindID("dbg");
     for (Function &F : M) {
-      // Remove the body of all the functions *not* tagged with `revng_inline`.
-      // Also preserve helper_initialize_env, which needs to survive but it's
-      // not to be inlined.
-      if (F.getSection() != "revng_inline"
-          and F.getName() != "helper_initialize_env") {
-        F.eraseMetadata(DbgKindID);
-        SmallVector<std::pair<unsigned, MDNode *>, 8> MDs;
-        F.getAllMetadata(MDs);
-        F.deleteBody();
-        for (auto [ID, Node] : MDs)
-          F.setMetadata(ID, Node);
+      if (F.isDeclaration() or F.isIntrinsic())
+        continue;
+
+      // Remove the body of all the functions *not* tagged with `revng_inline`
+      if (F.getSection() != InlineHelpersSection) {
+        deleteOnlyBody(F);
+      } else {
+        llvm::stripDebugInfo(F);
+
+        F.removeFnAttr(Attribute::NoInline);
+        F.addFnAttr(Attribute::AlwaysInline);
+
+        F.setDSOLocal(false);
+        F.setVisibility(GlobalValue::DefaultVisibility);
       }
     }
 
-    // Mark all global variables as internal, so we can purge those that are now
-    // unused due to the removal of most of helpers' bodies.
-    // Also preserve the `arch_cpu_type_beacon` and all the variables with
-    // revng.tags metadata, since they are CSVs produced by VariableManager.
+    // Now that all of the non-`revng_inline` functions have gone, we want to
+    // reduce the number of global variables with some help from GlobalDCE.
+    // We have three type of variables:
+    // * Special variables (`arch_cpu_type_beacon`, `cpu_loop_exiting`) which
+    //   should not be touched
+    // * CSVs we want to keep only the ones used by the `revng_inline`
+    //   functions, so we set their linkage temporarily to internal, run
+    //   `globaldce` and then restore them to their original linkage
+    // * The rest (QEMU globals) do not need their initializer, so it's removed
+    //   and their linkage is set to external. `globaldce` will also remove
+    //   them if they are unused
+    StringMap<GlobalValue::LinkageTypes> GlobalLinkageBackup;
     for (GlobalVariable &GV : M.globals()) {
-      if (not GV.isDeclaration() and GV.getName() != "cpu_loop_exiting"
-          and GV.getName() != "arch_cpu_type_beacon"
-          and not GV.hasMetadata("revng.tags")) {
-        GV.setLinkage(llvm::GlobalValue::InternalLinkage);
+      GV.eraseMetadata(LLVMContext::MD_dbg);
+      if (GV.isDeclaration() or isSpecialGV(GV))
+        continue;
+
+      if (FunctionTags::CSV.isTagOf(&GV)) {
+        // Save linkage to be restored after we run globaldce
+        GlobalLinkageBackup[GV.getName()] = GV.getLinkage();
+        GV.setLinkage(GlobalValue::InternalLinkage);
+      } else {
+        // Blank out initializers for any non-CSV GlobalVariable
+        GV.setInitializer(nullptr);
+        GV.setLinkage(GlobalValue::ExternalLinkage);
       }
     }
 
-    // Assume the module M already contains the functions.
-    // Collect all functions whose name starts with "helper_" to prevent DCE
-    llvm::DenseSet<Function *> Helpers;
-    for (Function &F : M)
-      if (F.getName().startswith("helper_"))
-        Helpers.insert(&F);
+    // Run always-inline and globaldce.
+    // It's important to run `always-inline` now so that when the helper
+    // functions are inlined into the main module it can be done in a single
+    // pass and not in a fixed-point fashion.
+    SimplePassManager PM;
+    PM.addPass(llvm::AlwaysInlinerPass());
+    PM.addPass(llvm::GlobalDCEPass());
+    PM.run(M);
 
-    PointerType *PointerType = PointerType::get(Context, 0);
+    // Restore the linkage to CSVs after running globaldce
+    for (GlobalVariable &GV : M.globals()) {
+      if (GlobalLinkageBackup.count(GV.getName()) != 0)
+        GV.setLinkage(GlobalLinkageBackup[GV.getName()]);
+    }
 
-    // Create array type: [N x <function pointer type>]
-    ArrayType *FunctionArray = ArrayType::get(PointerType, Helpers.size());
+    // Helper functions, down the pipeline, will be given the `NoInline`
+    // attribute, to avoid the module failing verification remove the
+    // `AlwaysInline` attribute.
+    for (llvm::Function &F : M) {
+      if (F.getSection() == InlineHelpersSection)
+        F.removeFnAttr(Attribute::AlwaysInline);
+    }
 
-    // Create constant array initializer with function pointers
-    std::vector<Constant *> FunctionPointers;
-    for (Function *F : Helpers)
-      FunctionPointers.push_back(ConstantExpr::getBitCast(F, PointerType));
-
-    Constant *Initializer = ConstantArray::get(FunctionArray, FunctionPointers);
-
-    new GlobalVariable(M,
-                       FunctionArray,
-                       true,
-                       GlobalValue::ExternalLinkage,
-                       Initializer,
-                       "helpers_list");
+    // Tag all globals
+    tagQEMUGlobalsAndFunctions(M);
 
     return true;
   }
