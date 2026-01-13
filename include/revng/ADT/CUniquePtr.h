@@ -5,6 +5,7 @@
 //
 
 #include "revng/ADT/CompilationTime.h"
+#include "revng/Support/Assert.h"
 
 namespace detail {
 
