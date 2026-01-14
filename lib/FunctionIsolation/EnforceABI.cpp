@@ -143,7 +143,7 @@ bool EnforceABI::prologue() {
     // TODO: have an API to go from model to llvm::Function
     auto OldFunctionName = (Twine("dynamic_") + FunctionModel.Name()).str();
     Function *OldFunction = M.getFunction(OldFunctionName);
-    if (not OldFunction or OldFunction->isDeclaration())
+    if (not OldFunction)
       continue;
     OldFunctions.push_back(OldFunction);
 

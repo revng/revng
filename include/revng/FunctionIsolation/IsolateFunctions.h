@@ -29,6 +29,7 @@ namespace revng::pypeline::piperuns {
 
 class Isolate {
 private:
+  const model::Binary &Binary;
   std::unique_ptr<llvm::Module> ClonedModule;
   LLVMFunctionContainer &Output;
   std::optional<GeneratedCodeBasicInfo> GCBI;
