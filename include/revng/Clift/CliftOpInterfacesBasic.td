@@ -141,4 +141,37 @@ def Clift_StatementRegionOpInterface
   ];
 }
 
+def Clift_ExpressionRegionOpInterface
+  : Clift_OpInterface<"ExpressionRegionOpInterface"> {
+
+  let description = [{
+    This interface describes operations containing nested expression regions and
+    provides access to said regions. All present expression regions are always
+    exposed, even if empty.
+  }];
+
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/"Returns the number of expression regions of this operation.",
+      "unsigned", "getExpressionRegionCount", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{}]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the specified expression region of this operation.",
+      "mlir::Region &", "getExpressionRegion", (ins "unsigned":$index),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{}]
+    >,
+    InterfaceMethod<
+      /*desc=*/"Returns the expression regions of this operation.",
+      "mlir::clift::ExpressionRegionRange", "getExpressionRegions", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return ExpressionRegionRange($_op, 0, $_op.getExpressionRegionCount());
+      }]
+    >,
+  ];
+}
+
 #endif

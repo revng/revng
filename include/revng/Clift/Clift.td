@@ -426,10 +426,21 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
       revng_assert(Index == 0);
       return getBody();
     }
+
+    unsigned getExpressionRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getExpressionRegion(unsigned Index) {
+      revng_assert(Index == 0);
+      return getCondition();
+    }
   }];
 }
 
-def Clift_ExpressionStatementOp : Clift_StatementOp<"expr"> {
+def Clift_ExpressionStatementOp
+  : Clift_StatementOp<"expr", [Clift_ExpressionRegionOpInterface]> {
+
   let regions = (region Clift_OptionalExpressionRegion:$expression);
 
   let assemblyFormat = [{
@@ -439,6 +450,15 @@ def Clift_ExpressionStatementOp : Clift_StatementOp<"expr"> {
   let extraClassDeclaration = [{
     [[nodiscard]] bool isDiscardedExpression(mlir::Region &R) {
       return true;
+    }
+
+    unsigned getExpressionRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getExpressionRegion(unsigned Index) {
+      revng_assert(Index == 0);
+      return getExpression();
     }
   }];
 }
@@ -467,6 +487,9 @@ def Clift_ForOp : Clift_LoopStatementOp<"for"> {
       revng_assert(Index == 0);
       return getBody();
     }
+
+    unsigned getExpressionRegionCount();
+    mlir::Region &getExpressionRegion(unsigned Index);
   }];
 }
 
@@ -510,6 +533,15 @@ def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
       revng_assert(Index < 2);
       return Index == 0 ? getThen() : getElse();
     }
+
+    unsigned getExpressionRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getExpressionRegion(unsigned Index) {
+      revng_assert(Index == 0);
+      return getCondition();
+    }
   }];
 }
 
@@ -528,6 +560,15 @@ def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
     mlir::clift::ValueType getType() {
       return getResult().getType();
     }
+
+    unsigned getExpressionRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getExpressionRegion(unsigned Index) {
+      revng_assert(Index == 0);
+      return getInitializer();
+    }
   }];
 
   let hasVerifier = 1;
@@ -539,6 +580,17 @@ def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
 
   let assemblyFormat = [{
     $result attr-dict-with-keyword
+  }];
+
+  let extraClassDeclaration = [{
+    unsigned getExpressionRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getExpressionRegion(unsigned Index) {
+      revng_assert(Index == 0);
+      return getResult();
+    }
   }];
 
   let hasVerifier = 1;
@@ -600,6 +652,15 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
     mlir::Region &getStatementRegion(unsigned Index) {
       return getOperation()->getRegions()[Index + 1];
     }
+
+    unsigned getExpressionRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getExpressionRegion(unsigned Index) {
+      revng_assert(Index == 0);
+      return getCondition();
+    }
   }];
 }
 
@@ -626,6 +687,15 @@ def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
     mlir::Region &getStatementRegion(unsigned Index) {
       revng_assert(Index == 0);
       return getBody();
+    }
+
+    unsigned getExpressionRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getExpressionRegion(unsigned Index) {
+      revng_assert(Index == 0);
+      return getCondition();
     }
   }];
 }

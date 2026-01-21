@@ -17,6 +17,7 @@ namespace mlir::clift {
 
 class LabelAssignmentOpInterface;
 class StatementRegionOpInterface;
+class ExpressionRegionOpInterface;
 
 namespace impl {
 
@@ -76,6 +77,21 @@ struct StatementRegionRange : llvm::indexed_accessor_range<StatementRegionRange,
   static mlir::Region &dereference(mlir::Operation *Op, ptrdiff_t Index);
 };
 
+/// Provides a range over the expression regions of an operation by utilizing
+/// the index-based interface of ExpressionRegionOpInterface.
+struct ExpressionRegionRange
+  : llvm::indexed_accessor_range<ExpressionRegionRange,
+                                 mlir::Operation *,
+                                 mlir::Region> {
+
+  ExpressionRegionRange() :
+    indexed_accessor_range(static_cast<mlir::Operation *>(nullptr), 0, 0) {}
+
+  using indexed_accessor_range::indexed_accessor_range;
+
+  static mlir::Region &dereference(mlir::Operation *Op, ptrdiff_t Index);
+};
+
 } // namespace mlir::clift
 
 // Prevent reordering:
@@ -95,6 +111,14 @@ inline mlir::Region &StatementRegionRange::dereference(mlir::Operation *Op,
   revng_assert(Index >= 0);
   revng_assert(Index <= Regions.getStatementRegionCount());
   return Regions.getStatementRegion(static_cast<unsigned>(Index));
+}
+
+inline mlir::Region &ExpressionRegionRange::dereference(mlir::Operation *Op,
+                                                        ptrdiff_t Index) {
+  auto Regions = mlir::cast<ExpressionRegionOpInterface>(Op);
+  revng_assert(Index >= 0);
+  revng_assert(Index <= Regions.getExpressionRegionCount());
+  return Regions.getExpressionRegion(static_cast<unsigned>(Index));
 }
 
 bool isLvalueExpression(mlir::Value Value);
