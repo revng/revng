@@ -105,8 +105,8 @@ class ArtifactArgument(click.Argument):
         "show_default": True,
     },
 )
-@click.argument("binary", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.argument("artifact", cls=ArtifactArgument)
+@click.argument("binary", type=click.Path(exists=True, dir_okay=False, path_type=Path))
 @click.option(
     "-o",
     "result_path",
@@ -121,8 +121,8 @@ class ArtifactArgument(click.Argument):
 @click.pass_context
 def artifact(
     ctx,
-    binary: Path,
     artifact: Artifact,
+    binary: Path,
     result_path: Path | None,
     container_format: ContainerFormat,
 ):
