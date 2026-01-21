@@ -129,6 +129,7 @@ endfunction()
 # Install scripts
 #
 configure_file("scripts/revng" "${CMAKE_BINARY_DIR}/bin/revng")
+configure_file("scripts/revng" "${CMAKE_BINARY_DIR}/bin/revng2")
 
 #
 # Install revng
