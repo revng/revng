@@ -1,0 +1,140 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+import functools
+import inspect
+import os
+import sys
+from dataclasses import dataclass
+from typing import Any, Callable, Mapping
+
+import click
+
+from .utils import PypeCommand
+
+
+@dataclass
+class Wrapper:
+    param: click.Parameter
+    prefix: list[str]
+
+
+class WrapperOption:
+    class WrapperType(click.ParamType):
+        def __init__(
+            self, *args, name: str, prefix_generator: Callable[[Any], list[str]], **kwargs
+        ):
+            super().__init__(*args, **kwargs)
+            self.name = name
+            self.prefix_generator = prefix_generator
+
+        def convert(self, value, param, ctx):
+            if not value:
+                return
+
+            if ctx.obj.get("wrapper") is not None:
+                wrapper: Wrapper = ctx.obj["wrapper"]
+                raise click.UsageError(
+                    f"option {param.get_error_hint(ctx)} is incompatible with "
+                    f"{wrapper.param.get_error_hint(ctx)}, use one or the other",
+                    ctx,
+                )
+
+            ctx.obj["wrapper"] = Wrapper(param, self.prefix_generator(value))
+
+    def __init__(
+        self,
+        name: str,
+        help: str,  # noqa: A002
+        prefix: list[str] | None = None,
+        type_: type = bool,
+    ):
+        self.name = name
+        self.help = help
+        self.prefix = prefix
+        self.type_ = type_
+
+    def generate_prefix(self, value: Any) -> list[str]:
+        assert self.prefix is not None
+        return self.prefix
+
+    def make_option(self) -> click.Option:
+        assert self.type_ in (bool, str)
+        return click.Option(
+            (f"--{self.name}",),
+            type=self.__class__.WrapperType(name=self.name, prefix_generator=self.generate_prefix),
+            help=self.help,
+            expose_value=False,
+            is_flag=self.type_ is bool,
+        )
+
+
+class WrapperRegistry:
+    def __init__(self):
+        self.wrappers: list[WrapperOption] = []
+        self.commands: list[click.Command] = []
+
+    def register_command(self, command: click.Command):
+        self.commands.append(command)
+        command.params = [w.make_option() for w in self.wrappers] + command.params
+
+    def register_wrapper(self, wrapper: WrapperOption):
+        self.wrappers.append(wrapper)
+        for command in self.commands:
+            command.params.insert(len(self.wrappers) - 1, wrapper.make_option())
+
+    def register_wrappers(self, *wrappers: WrapperOption):
+        for wrapper in wrappers:
+            self.register_wrapper(wrapper)
+
+
+WRAPPER_REGISTRY = WrapperRegistry()
+
+
+class WrappableCommand(click.Command):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        WRAPPER_REGISTRY.register_command(self)
+
+
+class WrappablePypeCommand(WrappableCommand, PypeCommand):
+    pass
+
+
+def exec_wrapper_if_needed(obj):
+    if isinstance(obj, click.Command):
+        target_function = obj.callback
+        is_command = True
+    else:
+        assert inspect.isfunction(obj)
+        target_function = obj
+        is_command = False
+
+    @functools.wraps(target_function)
+    def wrapper(*args, **kwargs):
+        ctx = click.get_current_context()
+        wrapper: Wrapper | None = ctx.obj.get("wrapper")
+        # If there is no wrapper or we're already wrapped call the function normally
+        if wrapper is None or os.environ.get("_PYPE_WRAPPER") == "1":
+            return target_function(*args, **kwargs)
+
+        env = {**os.environ, "_PYPE_WRAPPER": "1"}
+        os.execvpe(wrapper.prefix[0], [*wrapper.prefix, sys.executable, *sys.argv], env)
+        return None
+
+    if is_command:
+        obj.callback = wrapper
+        return obj
+    else:
+        return wrapper
+
+
+def exec_with_wrapper(args: list[str], env: Mapping[str, str] | None = None):
+    if env is None:
+        env = os.environ
+    ctx = click.get_current_context()
+    wrapper: Wrapper | None = ctx.obj.get("wrapper")
+    if wrapper is not None:
+        args = [*wrapper.prefix, *args]
+    os.execvpe(args[0], args, env)

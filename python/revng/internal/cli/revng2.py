@@ -10,10 +10,11 @@ where revng is installed.
 
 import asyncio
 import os
+import shlex
 import signal
 import sys
 from pathlib import Path
-from typing import AsyncContextManager
+from typing import Any, AsyncContextManager
 
 import click
 import yaml
@@ -23,7 +24,9 @@ from revng.internal.support import cache_directory
 from revng.pypeline.cli.common_options import container_format_options, debug_option
 from revng.pypeline.cli.common_options import project_id_option, token_option
 from revng.pypeline.cli.project import project
-from revng.pypeline.cli.utils import EagerParsedPath, PypeCommand, PypeGroup
+from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup
+from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrappablePypeCommand, WrapperOption
+from revng.pypeline.cli.wrappers import exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.main import pype, run
 from revng.pypeline.model import Model, ReadOnlyModel
@@ -37,6 +40,7 @@ from revng.pypeline.storage.storage_provider import storage_provider_factory_fac
 from revng.pypeline.storage.util import compute_hash
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
+from revng.support import collect_files, get_root
 
 
 def generate_model_with_binaries(binaries: list[Path]):
@@ -101,7 +105,7 @@ class ArtifactArgument(click.Argument):
 
 
 @quick.command(
-    cls=PypeCommand,
+    cls=WrappablePypeCommand,
     name="artifact",
     context_settings={
         "show_default": True,
@@ -121,6 +125,7 @@ class ArtifactArgument(click.Argument):
 )
 @debug_option
 @container_format_options
+@exec_wrapper_if_needed
 @click.pass_context
 def artifact(
     ctx,
@@ -182,7 +187,10 @@ def artifact(
     asyncio.run(async_part_of_command(storage_provider_context))
 
 
-@click.command()
+@click.command(
+    cls=WrappablePypeCommand,
+    name="init",
+)
 @click.argument(
     "binary",
     required=False,
@@ -192,6 +200,7 @@ def artifact(
 @click.option("--no-initial-auto-analysis", is_flag=True)
 @project_id_option
 @token_option
+@exec_wrapper_if_needed
 @click.pass_context
 def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: str, token: str):
     """Initialize a new project."""
@@ -238,6 +247,40 @@ def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: s
         cache_dir=ctx.obj["cache_dir"],
     )
     asyncio.run(async_part_of_command(storage_provider_context))
+
+
+class ValgrindWrapperOption(WrapperOption):
+    def generate_prefix(self, value: Any) -> list[str]:
+        suppressions = collect_files([get_root()], ["share", "revng"], "*.supp")
+        return ["valgrind", *(f"--suppressions={s}" for s in suppressions)]
+
+
+class WrapperWrapperOption(WrapperOption):
+    def __init__(self, name: str, help: str):  # noqa: A002
+        super().__init__(name, help, type_=str)
+
+    def generate_prefix(self, value: Any) -> list[str]:
+        return shlex.split(value)
+
+
+WRAPPER_REGISTRY.register_wrappers(
+    WrapperOption(
+        name="perf",
+        help="Run program(s) under perf (for use with hotspot).",
+        prefix=["perf", "record", "--call-graph", "dwarf", "--output=perf.data"],
+    ),
+    WrapperOption("heaptrack", help="Run program(s) under heaptrack.", prefix=["heaptrack"]),
+    WrapperOption("gdb", help="Run program(s) under gdb.", prefix=["gdb", "-q", "--args"]),
+    WrapperOption("lldb", help="Run program(s) under lldb.", prefix=["lldb", "--"]),
+    ValgrindWrapperOption("valgrind", help="Run program(s) under valgrind."),
+    WrapperOption(
+        "callgrind",
+        help="Run program(s) under callgrind.",
+        prefix=["valgrind", "--tool=callgrind"],
+    ),
+    WrapperOption("rr", help="Run program(s) under rr.", prefix=["rr"]),
+    WrapperWrapperOption("wrapper", help="Run program(s) with the specified wrapper."),
+)
 
 
 def patch_pype():

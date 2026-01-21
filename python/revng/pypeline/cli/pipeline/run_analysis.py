@@ -8,8 +8,9 @@ import click
 
 from revng.pypeline.analysis import Analysis
 from revng.pypeline.cli.common_options import list_objects_option
-from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_arg_objects, build_help_text
+from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
 from revng.pypeline.cli.utils import compute_objects, normalize_whitespace
+from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
@@ -104,7 +105,7 @@ def build_run_analysis_command(
     model_type: type[Model],
 ):
     @click.command(
-        cls=PypeCommand,
+        cls=WrappablePypeCommand,
         name=analysis_name,
         help=help_text,
     )
@@ -124,6 +125,7 @@ def build_run_analysis_command(
         required=True,
     )
     @list_objects_option
+    @exec_wrapper_if_needed
     def run_analysis_command(
         model: str,
         configuration: str,

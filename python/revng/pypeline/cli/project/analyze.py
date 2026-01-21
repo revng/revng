@@ -10,9 +10,10 @@ import click
 
 from revng.pypeline.cli.common_options import debug_option, list_objects_option, project_id_option
 from revng.pypeline.cli.common_options import token_option
-from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_arg_objects, build_help_text
+from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
 from revng.pypeline.cli.utils import compute_objects, list_objects_for_container, normalize_flag
 from revng.pypeline.cli.utils import normalize_pos_arg_name, normalize_whitespace
+from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, AnalysisList, ContainerDeclaration, Pipeline
 from revng.pypeline.runner_context import RunnerContext
@@ -194,7 +195,7 @@ def build_analysis_list_command(
                 )
 
     @click.command(
-        cls=PypeCommand,
+        cls=WrappablePypeCommand,
         name=analysis_name,
         help=help_text,
     )
@@ -202,6 +203,7 @@ def build_analysis_list_command(
     @list_objects_option
     @project_id_option
     @token_option
+    @exec_wrapper_if_needed
     @click.pass_context
     def run_analysis_command(
         ctx: click.Context,
@@ -299,7 +301,7 @@ def build_analysis_command(
                 )
 
     @click.command(
-        cls=PypeCommand,
+        cls=WrappablePypeCommand,
         name=analysis_name,
         help=help_text,
     )
@@ -307,6 +309,7 @@ def build_analysis_command(
     @list_objects_option
     @project_id_option
     @token_option
+    @exec_wrapper_if_needed
     @click.pass_context
     def run_analysis_command(
         ctx: click.Context,
