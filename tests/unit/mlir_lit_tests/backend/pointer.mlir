@@ -29,7 +29,7 @@ module attributes {clift.module} {
       clift.yield %0 : !int32_t
     } attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/0",
-      clift.name = "var_0"
+      name = "var_0"
     }
 
     // CHECK: const int32_t *const var_1 = &var_0;
@@ -38,7 +38,7 @@ module attributes {clift.module} {
       clift.yield %0 : !int32_t$const$ptr
     } attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/1",
-      clift.name = "var_1"
+      name = "var_1"
     }
 
     // CHECK: const int32_t *const *const var_2 = &var_1;
@@ -47,7 +47,7 @@ module attributes {clift.module} {
       clift.yield %0 : !int32_t$const$ptr$const$ptr
     } attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/2",
-      clift.name = "var_2"
+      name = "var_2"
     }
   }
   // CHECK: }

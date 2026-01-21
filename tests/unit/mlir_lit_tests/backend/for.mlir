@@ -33,7 +33,7 @@ module attributes {clift.module} {
         clift.yield %2 : !int32_t
       } attributes {
         handle = "/local-variable/0x40001001:Code_x86_64/0",
-        clift.name = "x"
+        name = "x"
       }
     } cond (%x) {
       clift.yield %x : !int32_t

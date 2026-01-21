@@ -49,18 +49,6 @@ class CliftToCEmitter : CEmitter {
 public:
   using CEmitter::CEmitter;
 
-  llvm::StringRef getStringAttr(mlir::Operation *Op, llvm::StringRef Name) {
-    return mlir::cast<mlir::StringAttr>(Op->getAttr(Name)).getValue();
-  }
-
-  llvm::StringRef getNameAttr(mlir::Operation *Op) {
-    return getStringAttr(Op, "clift.name");
-  }
-
-  llvm::StringRef getLocationAttr(mlir::Operation *Op) {
-    return getStringAttr(Op, "clift.handle");
-  }
-
   static OperatorPrecedence decrementPrecedence(OperatorPrecedence Precedence) {
     revng_assert(Precedence != static_cast<OperatorPrecedence>(0));
     using T = std::underlying_type_t<OperatorPrecedence>;
@@ -189,7 +177,7 @@ public:
   RecursiveCoroutine<void> emitLocalVariableExpression(mlir::Value V) {
     auto E = V.getDefiningOp<LocalVariableOp>();
 
-    C.emitIdentifier(getNameAttr(E),
+    C.emitIdentifier(E.getName(),
                      E.getHandle(),
                      CTE::EntityKind::LocalVariable,
                      CTE::IdentifierKind::Reference);
@@ -736,7 +724,7 @@ public:
                                                         bool EmitNewline) {
     emitDeclaration(S.getResult().getType(),
                     DeclaratorInfo{
-                      .Identifier = getNameAttr(S),
+                      .Identifier = S.getName(),
                       .Location = S.getHandle(),
                       .Attributes = getDeclarationOpAttributes(S),
                       .Kind = CTE::EntityKind::LocalVariable,
@@ -781,8 +769,8 @@ public:
                               CTE::Delimiter::None,
                               /*Indent=*/-1);
 
-    C.emitIdentifier(getNameAttr(Label),
-                     getLocationAttr(Label),
+    C.emitIdentifier(Label.getName(),
+                     Label.getHandle(),
                      CTE::EntityKind::Label,
                      CTE::IdentifierKind::Definition);
 
@@ -825,8 +813,8 @@ public:
       revng_abort("Unsupported jump statement");
 
     C.emitSpace();
-    C.emitIdentifier(getNameAttr(LabelOp),
-                     getLocationAttr(LabelOp),
+    C.emitIdentifier(LabelOp.getName(),
+                     LabelOp.getHandle(),
                      CTE::EntityKind::Label,
                      CTE::IdentifierKind::Reference);
 

@@ -17,8 +17,8 @@ module attributes {clift.module} {
     handle = "/function/0x40001001:Code_x86_64"
   } {
     %continue = clift.make_label {
-      clift.handle = "/goto-label/0x40001001:Code_x86_64/0",
-      clift.name = "continue_label"
+      handle = "/goto-label/0x40001001:Code_x86_64/0",
+      name = "continue_label"
     }
 
     // CHECK: for (;;) {

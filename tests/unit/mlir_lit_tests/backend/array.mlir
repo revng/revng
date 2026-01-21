@@ -25,7 +25,7 @@ module attributes {clift.module} {
     // CHECK: int32_t var_0[1];
     %array = clift.local : !int32_t$1 attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/0",
-      clift.name = "var_0"
+      name = "var_0"
     }
 
     // CHECK: var_0[0];
@@ -42,7 +42,7 @@ module attributes {clift.module} {
       clift.yield %r : !int32_t$1$p
     } attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/1",
-      clift.name = "var_1"
+      name = "var_1"
     }
 
     // CHECK: (*var_1)[(0, 0)]

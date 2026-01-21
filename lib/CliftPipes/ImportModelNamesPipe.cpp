@@ -376,8 +376,8 @@ private:
     auto R = CurrentFunction->GotoLabels.name(AddressSet);
     auto L = CurrentFunction->Location.extend(rr::GotoLabel, R.Index);
 
-    setStringAttr(Op, "clift.handle", L.toString());
-    setStringAttr(Op, "clift.name", sanitizeIdentifier(R.Name));
+    Op.setHandle(L.toString());
+    Op.setName(sanitizeIdentifier(R.Name));
 
     return mlir::success();
   }
@@ -388,8 +388,8 @@ private:
     auto R = CurrentFunction->Variables.name(AddressSet);
     auto L = CurrentFunction->Location.extend(rr::LocalVariable, R.Index);
 
-    setStringAttr(Op, "clift.handle", L.toString());
-    setStringAttr(Op, "clift.name", sanitizeIdentifier(R.Name));
+    Op.setHandle(L.toString());
+    Op.setName(sanitizeIdentifier(R.Name));
 
     return mlir::success();
   }

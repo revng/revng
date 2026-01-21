@@ -303,7 +303,8 @@ class Clift_LoopStatementOp<string mnemonic, list<Trait> traits = []>
 }
 
 def Clift_MakeLabelOp : Clift_StatementOp<"make_label"> {
-  let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$handle);
+  let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$name,
+                       DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let results = (outs Clift_LabelType:$result);
 
@@ -546,7 +547,8 @@ def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
 }
 
 def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
-  let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$handle);
+  let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$name,
+                       DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let results = (outs Clift_AnyValueType:$result);
 

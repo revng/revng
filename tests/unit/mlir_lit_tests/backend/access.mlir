@@ -36,12 +36,12 @@ module attributes {clift.module} {
   } {
     %s = clift.local : !s$p attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/0",
-      clift.name = "var_0"
+      name = "var_0"
     }
 
     %u = clift.local : !u$p attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/1",
-      clift.name = "var_1"
+      name = "var_1"
     }
 
     // CHECK: var_0->x;
