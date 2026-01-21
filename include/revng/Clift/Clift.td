@@ -363,8 +363,13 @@ def Clift_BlockStatementOp
   let extraClassDeclaration = [{
     bool isIndirectlyNoFallthrough();
 
-    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
-      return getOperation()->getRegions();
+    unsigned getStatementRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getStatementRegion(unsigned Index) {
+      revng_assert(Index == 0);
+      return getBlock();
     }
   }];
 }
@@ -413,7 +418,12 @@ def Clift_DoWhileOp : Clift_LoopStatementOp<"do_while", [NoRegionArguments]> {
       return &R == &getCondition();
     }
 
-    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
+    unsigned getStatementRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getStatementRegion(unsigned Index) {
+      revng_assert(Index == 0);
       return getBody();
     }
   }];
@@ -449,7 +459,12 @@ def Clift_ForOp : Clift_LoopStatementOp<"for"> {
       return &R == &getCondition();
     }
 
-    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
+    unsigned getStatementRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getStatementRegion(unsigned Index) {
+      revng_assert(Index == 0);
       return getBody();
     }
   }];
@@ -487,8 +502,13 @@ def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
       return &R == &getCondition();
     }
 
-    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
-      return getOperation()->getRegions().drop_front(1);
+    unsigned getStatementRegionCount() {
+      return 2;
+    }
+
+    mlir::Region &getStatementRegion(unsigned Index) {
+      revng_assert(Index < 2);
+      return Index == 0 ? getThen() : getElse();
     }
   }];
 }
@@ -573,8 +593,12 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
 
     [[nodiscard]] mlir::Region *findCaseRegion(const uint64_t value);
 
-    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
-      return getOperation()->getRegions().drop_front(1);
+    unsigned getStatementRegionCount() {
+      return getOperation()->getRegions().size() - 1;
+    }
+
+    mlir::Region &getStatementRegion(unsigned Index) {
+      return getOperation()->getRegions()[Index + 1];
     }
   }];
 }
@@ -595,7 +619,12 @@ def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
       return &R == &getCondition();
     }
 
-    llvm::MutableArrayRef<mlir::Region> getStatementRegions() {
+    unsigned getStatementRegionCount() {
+      return 1;
+    }
+
+    mlir::Region &getStatementRegion(unsigned Index) {
+      revng_assert(Index == 0);
       return getBody();
     }
   }];

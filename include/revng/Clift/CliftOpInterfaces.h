@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
+
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/SymbolTable.h"
@@ -14,6 +16,7 @@
 namespace mlir::clift {
 
 class LabelAssignmentOpInterface;
+class StatementRegionOpInterface;
 
 namespace impl {
 
@@ -58,6 +61,21 @@ void setLoopLabel(LoopOpT Op, unsigned Index, mlir::Value Label) {
 LabelAssignmentOpInterface getLabelAssignmentOp(mlir::Value Label);
 
 } // namespace impl
+
+/// Provides a range over the statement regions of an operation by utilizing the
+/// index-based interface of StatementRegionOpInterface.
+struct StatementRegionRange : llvm::indexed_accessor_range<StatementRegionRange,
+                                                           mlir::Operation *,
+                                                           mlir::Region> {
+
+  StatementRegionRange() :
+    indexed_accessor_range(static_cast<mlir::Operation *>(nullptr), 0, 0) {}
+
+  using indexed_accessor_range::indexed_accessor_range;
+
+  static mlir::Region &dereference(mlir::Operation *Op, ptrdiff_t Index);
+};
+
 } // namespace mlir::clift
 
 // Prevent reordering:
@@ -70,6 +88,14 @@ LabelAssignmentOpInterface getLabelAssignmentOp(mlir::Value Label);
 #include "revng/Clift/CliftOpInterfacesControlFlow.h.inc"
 
 namespace mlir::clift {
+
+inline mlir::Region &StatementRegionRange::dereference(mlir::Operation *Op,
+                                                       ptrdiff_t Index) {
+  auto Regions = mlir::cast<StatementRegionOpInterface>(Op);
+  revng_assert(Index >= 0);
+  revng_assert(Index <= Regions.getStatementRegionCount());
+  return Regions.getStatementRegion(static_cast<unsigned>(Index));
+}
 
 bool isLvalueExpression(mlir::Value Value);
 
