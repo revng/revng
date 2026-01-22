@@ -374,9 +374,6 @@ private:
     auto AddressSet = getUserAddressSet(Op);
 
     auto R = CurrentFunction->GotoLabels.name(AddressSet);
-    auto L = CurrentFunction->Location.extend(rr::GotoLabel, R.Index);
-
-    Op.setHandle(L.toString());
     Op.setName(sanitizeIdentifier(R.Name));
 
     return mlir::success();
@@ -386,9 +383,6 @@ private:
     auto AddressSet = getUserAddressSet(Op);
 
     auto R = CurrentFunction->Variables.name(AddressSet);
-    auto L = CurrentFunction->Location.extend(rr::LocalVariable, R.Index);
-
-    Op.setHandle(L.toString());
     Op.setName(sanitizeIdentifier(R.Name));
 
     return mlir::success();
