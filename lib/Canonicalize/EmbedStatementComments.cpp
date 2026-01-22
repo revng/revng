@@ -95,7 +95,7 @@ public:
       if (ModelFunction->Comments().empty())
         continue;
 
-      using MapT = yield::CommentPlacementHelper<llvm::BasicBlock *>;
+      using MapT = yield::DTCommentPlacementHelper<llvm::BasicBlock *>;
       MapT CM(*ModelFunction, *LLVMFunction);
 
       auto EmitAComment = [&](llvm::Instruction *Where,
