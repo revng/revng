@@ -1047,8 +1047,23 @@ public:
     C.emitNewline();
   }
 
+  static mlir::ArrayAttr getComments(StatementOpInterface S) {
+    return mlir::cast_or_null<mlir::ArrayAttr>(S->getAttr("clift.comments"));
+  }
+
   RecursiveCoroutine<void> emitStatement(StatementOpInterface Stmt) {
     mlir::Operation *Op = Stmt.getOperation();
+
+    if (auto Comments = getComments(Stmt)) {
+      // TODO: Add a comment formatting layer on top of CE.
+      //       At least spaces at the start of each line would be nice.
+      auto CE = C.emitComment(CTE::CommentKind::Line);
+
+      for (mlir::Attribute CommentAttr : Comments) {
+        CE.emit(mlir::cast<mlir::StringAttr>(CommentAttr).getValue());
+        CE.emit("\n");
+      }
+    }
 
     if (auto S = mlir::dyn_cast<LocalVariableOp>(Op))
       return emitLocalVariableDeclaration(S, /*Newline=*/true);
