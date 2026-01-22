@@ -23,6 +23,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
 
 #include "revng/Lift/IRAnnotators.h"
 #include "revng/Model/FunctionTags.h"
@@ -36,6 +37,7 @@
 #include "revng/Recompile/OriginalAssemblyAnnotationWriter.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/SimplePassManager.h"
 
 using namespace llvm;
 using namespace llvm::codegen;
@@ -164,8 +166,8 @@ static void compileModuleRunImpl(const model::Binary &Binary,
 
   // Before compiling, do a last pass to collect all the globals (in particular,
   // helpers) we don't need. This saves from spurious linking errors.
-  legacy::PassManager CleanupPM;
-  CleanupPM.add(llvm::createGlobalDCEPass());
+  SimplePassManager CleanupPM;
+  CleanupPM.addPass(llvm::GlobalDCEPass());
   CleanupPM.run(*M);
 
   // Create pass manager

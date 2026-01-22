@@ -37,6 +37,8 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -53,6 +55,7 @@
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/SimplePassManager.h"
 
 #include "CodeGenerator.h"
 #include "ExternalJumpsHandler.h"
@@ -661,13 +664,11 @@ void CodeGenerator::translate(LibTcg &LibTcg,
 
   T.advance("Optimize lifted IR");
 
-  legacy::FunctionPassManager InstCombinePM(&*TheModule);
-  InstCombinePM.add(createSROAPass());
-  InstCombinePM.add(createInstructionCombiningPass());
-  InstCombinePM.add(createDeadCodeEliminationPass());
-  InstCombinePM.doInitialization();
+  SimpleFunctionPassManager InstCombinePM;
+  InstCombinePM.addPass(llvm::SROAPass(SROAOptions::PreserveCFG));
+  InstCombinePM.addPass(llvm::InstCombinePass());
+  InstCombinePM.addPass(llvm::DCEPass());
   InstCombinePM.run(*RootFunction);
-  InstCombinePM.doFinalization();
 
   // Ensure we don't have phis in the dispatcher. This can happen if a tiny code
   // local variable has an uninitialized read, which is usually a bug on our
