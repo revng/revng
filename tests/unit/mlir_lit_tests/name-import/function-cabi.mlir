@@ -25,14 +25,5 @@ module attributes { clift.module } {
   clift.func @f<!f>(%arg0 : !uint8_t { clift.handle = "/cabi-argument/1001-CABIFunctionDefinition/0" }) attributes {
     handle = "/function/0x40001001:Code_x86_64"
   } {
-    // CHECK: clift.make_label {
-    // CHECK:   name = "label_0"
-    // CHECK: }
-    %l = clift.make_label
-
-    // CHECK: clift.local : !uint8_t attributes {
-    // CHECK:   name = "var_0"
-    // CHECK: }
-    %1 = clift.local : !uint8_t
   }
 }

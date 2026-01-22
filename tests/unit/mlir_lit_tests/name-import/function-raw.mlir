@@ -34,6 +34,5 @@ module attributes { clift.module } {
                     %arg1 : !stack_1002_ { clift.handle = "/raw-stack-arguments/1002-RawFunctionDefinition" }) attributes {
     handle = "/function/0x40001002:Code_x86_64"
   } {
-    clift.expr { clift.yield %arg0 : !uint64_t }
   }
 }

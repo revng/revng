@@ -86,16 +86,18 @@ class NameImporter : public clift::ModuleVisitor<NameImporter> {
   struct CurrentFunctionState {
     using LocationType = pipeline::Location<decltype(rr::Function)>;
 
+    const model::Function &Model;
     LocationType Location;
     model::CNameBuilder::VariableNameBuilder Variables;
     model::CNameBuilder::GotoLabelNameBuilder GotoLabels;
 
     explicit CurrentFunctionState(NameImporter &Importer,
                                   LocationType &&Location,
-                                  const model::Function &Function) :
+                                  const model::Function &ModelFunction) :
+      Model(ModelFunction),
       Location(std::move(Location)),
-      Variables(Importer.NameBuilder.localVariables(Function)),
-      GotoLabels(Importer.NameBuilder.gotoLabels(Function)) {}
+      Variables(Importer.NameBuilder.localVariables(ModelFunction)),
+      GotoLabels(Importer.NameBuilder.gotoLabels(ModelFunction)) {}
   };
 
   const model::Binary &Model;
@@ -371,19 +373,30 @@ private:
   }
 
   mlir::LogicalResult visitMakeLabelOp(clift::MakeLabelOp Op) {
-    auto AddressSet = getUserAddressSet(Op);
-
-    auto R = CurrentFunction->GotoLabels.name(AddressSet);
-    Op.setName(sanitizeIdentifier(R.Name));
+    if (auto L = pipeline::locationFromString(rr::GotoLabel, Op.getHandle())) {
+      auto AddressSet = getUserAddressSet(Op);
+      auto R = CurrentFunction->GotoLabels.name(AddressSet);
+      Op.setName(sanitizeIdentifier(R.Name));
+    } else {
+      Op.setName(CurrentFunction->GotoLabels.automaticName().Name);
+    }
 
     return mlir::success();
   }
 
   mlir::LogicalResult visitLocalVariableOp(clift::LocalVariableOp Op) {
-    auto AddressSet = getUserAddressSet(Op);
-
-    auto R = CurrentFunction->Variables.name(AddressSet);
-    Op.setName(sanitizeIdentifier(R.Name));
+    if (auto L = pipeline::locationFromString(rr::StackFrameVariable,
+                                              Op.getHandle())) {
+      auto Name = NameBuilder.name(CurrentFunction->Model.StackFrame());
+      Op.setName(sanitizeIdentifier(Name));
+    } else if (auto L = pipeline::locationFromString(rr::LocalVariable,
+                                                     Op.getHandle())) {
+      auto AddressSet = getUserAddressSet(Op);
+      auto R = CurrentFunction->Variables.name(AddressSet);
+      Op.setName(sanitizeIdentifier(R.Name));
+    } else {
+      Op.setName(CurrentFunction->Variables.automaticName().Name);
+    }
 
     return mlir::success();
   }

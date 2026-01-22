@@ -39,6 +39,12 @@ TypeDefinitions:
     ABI: SystemV_x86_64
     Arguments: []
 
+  - ID: 1004
+    Kind: CABIFunctionDefinition
+    Name: "fun_0x40001004_t"
+    ABI: SystemV_x86_64
+    Arguments: []
+
   - ID: 2001
     Kind: StructDefinition
     Name: "s"
@@ -115,6 +121,21 @@ Functions:
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/1003-CABIFunctionDefinition"
+
+  - Entry: "0x40001004:Code_x86_64"
+    Name: "fun_0x40001004"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1004-CABIFunctionDefinition"
+    LocalVariables:
+      - Name: "my_local"
+        Location:
+          - "0x40001006:Code_x86_64"
+    GotoLabels:
+      - Name: "my_label"
+        Location:
+          - "0x40001007:Code_x86_64"
+          - "0x40001008:Code_x86_64"
 
 Segments:
   - StartAddress: "0x40001000:Generic64"
