@@ -308,6 +308,15 @@ inline auto Instruction = defineRank<"instruction", MetaAddress>(BasicBlock);
 /// ```
 inline auto LocalVariable = defineRank<"local-variable", uint64_t>(Function);
 
+/// This is the rank for the local stack frame variable.
+///
+/// Examples:
+/// ```
+/// /stack-frame-variable/0x1000:Code_aarch64
+/// ```
+inline auto StackFrameVariable = defineRank<"stack-frame-variable",
+                                            model::Function::Key>(Binary);
+
 /// This is the rank for representing *local* variables with *reserved* names.
 ///
 /// The key is the name of the variable.
