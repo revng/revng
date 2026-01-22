@@ -177,7 +177,7 @@ void DetectStackSize::collectStackBounds(Function &F) {
 
   // Check if this function already has information about stack
   // frame/arguments
-  bool NeedsStackFrame = ModelFunction.StackFrameType().isEmpty();
+  bool NeedsStackFrame = ModelFunction.StackFrame().Type().isEmpty();
   bool NeedsStackArguments = false;
   auto &Prototype = *Binary->prototypeOrDefault(ModelFunction.prototype());
 
@@ -321,7 +321,7 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
     revng_log(Log, "Final StackSize: " << *StackSize);
 
     auto EmptyStruct = Binary->makeStructDefinition(*StackSize).second;
-    ModelFunction.StackFrameType() = std::move(EmptyStruct);
+    ModelFunction.StackFrame().Type() = std::move(EmptyStruct);
   }
 }
 

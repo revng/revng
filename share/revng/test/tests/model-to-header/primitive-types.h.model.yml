@@ -8,9 +8,10 @@ Architecture: x86_64
 Functions:
   - Entry: "0x400700:Code_x86_64"
     Name: fn
-    StackFrameType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/3007-StructDefinition"
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/3007-StructDefinition"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3001-CABIFunctionDefinition"
@@ -18,9 +19,10 @@ Functions:
       - fn
   - Entry: "0x400740:Code_x86_64"
     Name: fn2
-    StackFrameType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/3007-StructDefinition"
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/3007-StructDefinition"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3002-CABIFunctionDefinition"
@@ -28,9 +30,10 @@ Functions:
       - fn2
   - Entry: "0x400749:Code_x86_64"
     Name: fn3
-    StackFrameType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/3007-StructDefinition"
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/3007-StructDefinition"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3003-CABIFunctionDefinition"
@@ -38,9 +41,10 @@ Functions:
       - fn3
   - Entry: "0x400770:Code_x86_64"
     Name: fn4
-    StackFrameType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/3007-StructDefinition"
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/3007-StructDefinition"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3004-CABIFunctionDefinition"
@@ -48,9 +52,10 @@ Functions:
       - fn4
   - Entry: "0x4007e8:Code_x86_64"
     Name: fn5
-    StackFrameType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/3007-StructDefinition"
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/3007-StructDefinition"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3005-CABIFunctionDefinition"
@@ -58,9 +63,10 @@ Functions:
       - fn5
   - Entry: "0x402266:Code_x86_64"
     Name: fn6
-    StackFrameType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/3007-StructDefinition"
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/3007-StructDefinition"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3006-CABIFunctionDefinition"
@@ -68,9 +74,10 @@ Functions:
       - fn6
   - Entry: "0x402288:Code_x86_64"
     Name: fn7
-    StackFrameType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/3007-StructDefinition"
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/3007-StructDefinition"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3008-CABIFunctionDefinition"

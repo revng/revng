@@ -642,7 +642,7 @@ static bool updateStackFrameType(model::Function &ModelFunc,
                                  model::Binary &Model) {
   bool Updated = false;
 
-  if (ModelFunc.StackFrameType().isEmpty())
+  if (ModelFunc.StackFrame().Type().isEmpty())
     return Updated;
 
   auto &OldStackFrame = *ModelFunc.stackFrameType();

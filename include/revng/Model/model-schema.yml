@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 7
+version: 8
 root_type: Binary
 
 definitions:
@@ -768,9 +768,9 @@ definitions:
         doc: The user-provided comment for this function.
         type: string
 
-      - name: StackFrameType
-        doc: The type of the stack frame.
-        type: Type
+      - name: StackFrame
+        doc: The function stack frame.
+        type: StackFrame
 
       - name: Prototype
         doc: The prototype of the function.
@@ -857,6 +857,25 @@ definitions:
         sequence:
           type: SortedVector
           elementType: Relocation
+
+  - name: StackFrame
+    type: struct
+
+    doc: |-
+      Function stack frame information.
+
+    fields:
+      - name: Type
+        doc: Type of the function stack frame.
+        type: Type
+
+      - name: Name
+        doc: The user-provided name for the stack frame variable.
+        type: string
+
+      - name: Comment
+        doc: The user-provided comment attached to the stack frame variable.
+        type: string
 
   - name: LocalIdentifier
     type: struct

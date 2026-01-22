@@ -8,9 +8,10 @@ Architecture: x86_64
 Functions:
   - Entry: "0x400700:Code_x86_64"
     Name: fn
-    StackFrameType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/3007-StructDefinition"
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/3007-StructDefinition"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3001-CABIFunctionDefinition"
@@ -18,9 +19,10 @@ Functions:
       - fn
   - Entry: "0x400800:Code_x86_64"
     Name: fn2
-    StackFrameType:
-      Kind: DefinedType
-      Definition: "/TypeDefinitions/3007-StructDefinition"
+    StackFrame:
+      Type:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/3007-StructDefinition"
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/3008-RawFunctionDefinition"

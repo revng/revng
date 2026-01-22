@@ -208,12 +208,12 @@ bool Function::verify(VerifyHelper &VH) const {
       return VH.fail("Function prototype does not verify.", *this);
   }
 
-  if (not StackFrameType().isEmpty()) {
+  if (not StackFrame().Type().isEmpty()) {
 
-    if (not StackFrameType()->isStruct())
-      return VH.fail("`StackFrameType()` must be a struct.", *this);
+    if (not StackFrame().Type()->isStruct())
+      return VH.fail("`StackFrame().Type()` must be a struct.", *this);
 
-    if (not StackFrameType()->verify(VH))
+    if (not StackFrame().Type()->verify(VH))
       return VH.fail("Stack frame type does not verify.", *this);
   }
 
