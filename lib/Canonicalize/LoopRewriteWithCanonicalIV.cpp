@@ -154,11 +154,7 @@ public:
       // Clean up the code after induction variable canonicalization.
       SmallVector<WeakTrackingVH, 16> DeadInsts;
       simplifyLoopIVs(L, &SE, &DT, &LI, &TheTargetTransformInfo, DeadInsts);
-      while (!DeadInsts.empty()) {
-        Value *V = DeadInsts.pop_back_val();
-        if (Instruction *Inst = dyn_cast_or_null<Instruction>(V))
-          RecursivelyDeleteTriviallyDeadInstructions(Inst);
-      }
+      RecursivelyDeleteTriviallyDeadInstructions(DeadInsts);
 
       for (BasicBlock *BB : L->getBlocks())
         SimplifyInstructionsInBlock(BB);

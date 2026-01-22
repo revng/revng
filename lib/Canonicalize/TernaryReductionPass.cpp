@@ -96,7 +96,6 @@ bool TernaryReductionPass::runOnFunction(llvm::Function &Function) {
       }
     }
   }
-
   RecursivelyDeleteTriviallyDeadInstructions(ToRemove);
 
   return !ToRemove.empty();
