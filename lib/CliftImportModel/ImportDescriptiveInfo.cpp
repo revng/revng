@@ -78,7 +78,7 @@ class ArgumentAttributeMutator {
 public:
   explicit ArgumentAttributeMutator(clift::FunctionOp Op) : Function(Op) {
     for (unsigned I = 0; I < Op.getArgCount(); ++I) {
-      AttrLists.emplace_back(Op.getArgAttrs(I));
+      AttrLists.emplace_back(Op.getArgAttrs(I).getDictionaryAttr());
     }
   }
 

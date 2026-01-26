@@ -373,20 +373,16 @@ void CEmitter::emitDeclaration(ValueType Type,
 void CEmitter::emitFunctionPrototype(FunctionOp Op) {
   llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
   for (unsigned I = 0; I < Op.getArgCount(); ++I) {
-    auto Attrs = Op.getArgAttrs(I);
+    const auto &Attrs = Op.getArgAttrs(I);
 
-    auto GetStringAttr = [&Attrs](llvm::StringRef Name) {
-      return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
-    };
+    revng_assert(Attrs.getOfType<mlir::StringAttr>("clift.name"),
+                 "Function argument name (clift.name) is missing.");
 
-    mlir::ArrayAttr Attributes = {};
-    if (auto Attr = Attrs.get("clift.c_attributes")) {
-      Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
-      revng_assert(isValidCAttributeArray(Attributes));
-    }
+    auto Attributes = Attrs.getOfType<mlir::ArrayAttr>("clift.c_attributes");
+    revng_assert(not Attributes or isValidCAttributeArray(Attributes));
 
-    ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
-                                      GetStringAttr("clift.handle"),
+    ParameterDeclarators.emplace_back(Attrs.getString("clift.name"),
+                                      Attrs.getStringOrEmpty("clift.handle"),
                                       Attributes);
   }
 
