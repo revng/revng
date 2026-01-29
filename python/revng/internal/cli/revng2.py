@@ -10,6 +10,7 @@ where revng is installed.
 
 import asyncio
 import os
+import signal
 import sys
 from pathlib import Path
 from typing import AsyncContextManager
@@ -260,6 +261,7 @@ def patch_pype():
 
 def main():
     """Entry point for revng2."""
+    signal.signal(signal.SIGINT, lambda x, y: sys.exit(1))
     patch_pype()
     run()
 
