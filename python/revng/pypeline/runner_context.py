@@ -80,6 +80,7 @@ exec \\
 """
         for part in cmd:
             script_contents += f"  {shlex.quote(part)} \\\n"
+        script_contents += '  "$@"\n'
 
         script_path = root_directory / "run"
         assert not script_path.is_file()

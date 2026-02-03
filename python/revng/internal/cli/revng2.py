@@ -21,13 +21,15 @@ import yaml
 from click.shell_completion import CompletionItem
 
 from revng.internal.support import cache_directory
+from revng.pypeline.analysis import Analysis
 from revng.pypeline.cli.common_options import container_format_options, debug_option
 from revng.pypeline.cli.common_options import project_id_option, token_option
+from revng.pypeline.cli.pipeline import pipeline
 from revng.pypeline.cli.project import project
-from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup
+from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, build_arg_objects, normalize_flag
 from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrappablePypeCommand, WrapperOption
-from revng.pypeline.cli.wrappers import exec_wrapper_if_needed
-from revng.pypeline.container import ContainerFormat
+from revng.pypeline.cli.wrappers import exec_with_wrapper, exec_wrapper_if_needed
+from revng.pypeline.container import ContainerDeclaration, ContainerFormat
 from revng.pypeline.main import pype, run
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
@@ -38,6 +40,8 @@ from revng.pypeline.storage.local_provider import TemporaryLocalStorageProviderF
 from revng.pypeline.storage.storage_provider import FileStorageEntry, StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.storage.util import compute_hash
+from revng.pypeline.task.pipe import Pipe
+from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
 from revng.support import collect_files, get_root
@@ -283,6 +287,137 @@ WRAPPER_REGISTRY.register_wrappers(
 )
 
 
+def _generate_load_arguments(ctx):
+    native_libraries: list[Path] = ctx.obj["pipebox"]._native_libraries
+    return [f"-load={p.resolve()!s}" for p in native_libraries]
+
+
+class RunPipeNativeGroup(PypeGroup):
+    """
+    This implements the "run-pipe-native" command group, subcommands of this
+    group are exclusively native pipes that can be run without python.
+    This command sets up the arguments and calls the
+    libexec/pypeline-run-pipe executable (with wrappers if present).
+    """
+
+    @staticmethod
+    def _get_pipes(ctx) -> dict[str, type[Pipe]]:
+        return ctx.obj["pipebox"]._native_pipes
+
+    def list_commands(self, ctx):
+        base = super().list_commands(ctx)
+        return base + sorted(self._get_pipes(ctx).keys())
+
+    def get_command(self, ctx, cmd_name):
+        if cmd_name in self._get_pipes(ctx):
+            return self._build_pipe_command(ctx, cmd_name)
+        return super().get_command(ctx, cmd_name)
+
+    def _build_pipe_command(self, ctx, pipe_name: str):
+        """Dynamically create a command for running a pipe."""
+        pipe_type: type[Pipe] = self._get_pipes(ctx)[pipe_name]
+
+        @click.command(
+            cls=WrappablePypeCommand,
+            name=pipe_name,
+            help=f"Run the {pipe_name} pipe natively",
+            context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+        )
+        @click.option("--tar", is_flag=True, expose_value=False)
+        @click.pass_context
+        def run_pipe_command(ctx, **kwargs):
+            args = [
+                str(get_root() / "libexec/revng/pypeline-run-pipe"),
+                *_generate_load_arguments(ctx),
+                pipe_name,
+            ]
+            for arg in pipe_type.signature():
+                if arg.access == TaskArgumentAccess.READ:
+                    continue
+
+                normalized_name = normalize_flag(arg.name)
+                objects_arg = f"{normalized_name}_objects"
+                if objects_arg in kwargs and kwargs[objects_arg] is not None:
+                    args.extend(["--objects", normalized_name, kwargs[objects_arg]])
+            args.extend(ctx.args)
+            exec_with_wrapper(args)
+
+        for arg in pipe_type.signature():
+            if TaskArgumentAccess.WRITE in arg.access:
+                run_pipe_command = build_arg_objects(arg)(run_pipe_command)
+
+        return run_pipe_command
+
+
+@click.group(
+    cls=RunPipeNativeGroup,
+    help="Run a pipe without python",
+)
+def run_pipe_native() -> None:
+    pass
+
+
+class RunAnalysisNativeGroup(PypeGroup):
+    """
+    This implements the "run-analysis-native" command group, subcommands of
+    this group are exclusively native analyses that can be run without python.
+    This command sets up the arguments and calls the
+    libexec/pypeline-run-analysis executable (with wrappers if present).
+    """
+
+    @staticmethod
+    def _get_analyses(ctx) -> dict[str, type[Analysis]]:
+        return ctx.obj["pipebox"]._native_analyses
+
+    def list_commands(self, ctx):
+        base = super().list_commands(ctx)
+        return base + sorted(self._get_analyses(ctx).keys())
+
+    def get_command(self, ctx, cmd_name):
+        if cmd_name in self._get_analyses(ctx):
+            return self._build_analysis_command(ctx, cmd_name)
+        return super().get_command(ctx, cmd_name)
+
+    def _build_analysis_command(self, ctx, analysis_name: str):
+        """Dynamically create a command for running a pipe."""
+        analysis_type: type[Analysis] = self._get_analyses(ctx)[analysis_name]
+
+        @click.command(
+            cls=WrappablePypeCommand,
+            name=analysis_name,
+            help=f"Run the {analysis_name} analysis natively",
+            context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+        )
+        @click.pass_context
+        def run_analysis_command(ctx, **kwargs):
+            args = [
+                str(get_root() / "libexec/revng/pypeline-run-analysis"),
+                *_generate_load_arguments(ctx),
+                analysis_name,
+            ]
+            for container_type in analysis_type.signature():
+                normalized_name = normalize_flag(container_type.name)
+                objects_arg = f"{normalized_name}_objects"
+                if objects_arg in kwargs and kwargs[objects_arg] is not None:
+                    args.extend(["--objects", normalized_name, kwargs[objects_arg]])
+            args.extend(ctx.args)
+            exec_with_wrapper(args)
+
+        for container_type in analysis_type.signature():
+            arg = ContainerDeclaration(container_type.name, container_type)
+            run_analysis_command = build_arg_objects(arg)(run_analysis_command)
+
+        return run_analysis_command
+
+
+@click.group(
+    cls=RunAnalysisNativeGroup,
+    help="Run an analysis without python",
+)
+def run_analysis_native() -> None:
+    pass
+
+
 def patch_pype():
     """
     revng2 is based on `pype`, but we want to change some defaults to be revng specific,
@@ -306,6 +441,10 @@ def patch_pype():
             )
         elif param.name == "cache_dir":
             param.default = cache_directory()
+
+    # Add native counterparts to the pipeline subcommand
+    pipeline.add_command(run_pipe_native)
+    pipeline.add_command(run_analysis_native)
 
 
 def main():
