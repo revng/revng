@@ -366,7 +366,7 @@ def load_pipeline(values: Any) -> Pipeline:
     if len(roots) == 1 and len(root_analyses_raw) == 0:
         root = roots[0]
     else:
-        root = DummyPipelineNode("root")
+        root = DummyPipelineNode()
         for node in roots:
             root.add_successor(node)
         root_analyses: set[AnalysisBinding] = set()

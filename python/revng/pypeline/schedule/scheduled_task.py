@@ -9,6 +9,7 @@ from typing import Generator
 from revng.pypeline.container import ContainerDeclaration, ContainerSet
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
+from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.storage_provider import StorageProvider, StorageProviderFileProvider
 from revng.pypeline.task.pipe import ObjectDependencies, Pipe, ScheduledTaskDependencies
 from revng.pypeline.task.requests import Requests
@@ -91,16 +92,18 @@ class ScheduledTask:
         self.incoming.merge(incoming)
         self.outgoing.merge(outgoing)
 
-    def run(self, containers: ContainerSet) -> ScheduledTaskDependencies | None:
+    def run(
+        self, containers: ContainerSet, runner_context: RunnerContext
+    ) -> ScheduledTaskDependencies | None:
         """
         Run the task with the requests computed during the scheduling phase.
         """
         if self.completed:
             raise RuntimeError(f"ScheduledTask {self.node} has already been run.")
+
         self.incoming.check(containers)
 
         task = self.node.task
-        bindings = self.node.bindings
         result: ScheduledTaskDependencies | None = None
 
         for container_declaration in self.disposable_containers:
@@ -120,17 +123,24 @@ class ScheduledTask:
             )
             # SavePoints do not return any dependencies
         elif isinstance(task, Pipe):
+            bindings = self.node.bindings
             pipe_containers = [containers[decl] for decl in bindings]
             pipe_incoming = [self.incoming.get(decl) for decl in bindings]
             pipe_outgoing = [self.outgoing.get(decl) for decl in bindings]
-            pipe_output = task.run(
+            configuration = self.pipeline_configuration.get(task, "")
+
+            pipe_output = runner_context.run_pipe(
+                pipe=task,
                 file_provider=StorageProviderFileProvider(self.storage_provider),
                 model=self.model,
                 containers=pipe_containers,
                 incoming=pipe_incoming,
                 outgoing=pipe_outgoing,
-                configuration=self.pipeline_configuration.get(task, ""),
+                configuration=configuration,
             )
+
+            for index, decl in enumerate(bindings):
+                containers[decl] = pipe_containers[index]
 
             result_pipe: ObjectDependencies = []
             for index, index_deps in enumerate(pipe_output.dependencies):

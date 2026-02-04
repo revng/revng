@@ -2,14 +2,16 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import tarfile
+from io import BytesIO
 from pathlib import Path
 
 import click
+import yaml
 
+from revng.pypeline.cli.common_options import container_format_options, list_objects_option
 from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_arg_objects, build_help_text
-from revng.pypeline.cli.utils import compute_objects, container_format_options
-from revng.pypeline.cli.utils import list_objects_option, normalize_kwarg_name
-from revng.pypeline.cli.utils import normalize_whitespace
+from revng.pypeline.cli.utils import compute_objects, normalize_kwarg_name, normalize_whitespace
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
@@ -147,6 +149,16 @@ def build_pipe_command(
         type=click.Path(exists=True, file_okay=False, path_type=Path),
         default=Path.cwd(),
     )
+    @click.option(
+        "--dependencies",
+        type=click.Path(dir_okay=False, path_type=Path),
+        default=None,
+        help=(
+            "Output dependency data as a tar file. This will contain a"
+            " `dependency.yml` file for plain dependencies and a file for each"
+            " advanced invalidation entry."
+        ),
+    )
     @container_format_options
     @list_objects_option
     def run_pipe_command(
@@ -155,6 +167,7 @@ def build_pipe_command(
         configuration: str,
         file_storage: Path,
         container_format: ContainerFormat,
+        dependencies: Path | None,
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f"Running pipe: {pipe_name}")
@@ -229,6 +242,36 @@ def build_pipe_command(
             configuration=configuration,
         )
         pypeline_logger.debug_log(f"Pipe run completed, object dependencies: {object_deps}")
+
+        # Dump dependencies if the path was specified
+        if dependencies is not None:
+            dependencies_data = []
+            for index, container_dependencies in enumerate(object_deps.dependencies):
+                for container_dependency in container_dependencies:
+                    dependencies_data.append(
+                        (index, container_dependency[0].serialize(), container_dependency[1])
+                    )
+
+            with tarfile.open(dependencies, mode="w") as tar:
+                # Save the plain invalidation into "dependencies.yml"
+                serialized_dependencies = yaml.safe_dump(dependencies_data).encode()
+                info = tarfile.TarInfo()
+                info.size = len(serialized_dependencies)
+                info.name = "dependencies.yml"
+                info.mode = 0o644
+                info.type = tarfile.REGTYPE
+                tar.addfile(info, BytesIO(serialized_dependencies))
+
+                # Save advanced invalidation (if present)
+                for index, invalidation_data_list in enumerate(object_deps.custom_invalidation):
+                    for invalidation_data in invalidation_data_list:
+                        info = tarfile.TarInfo()
+                        info.size = len(memoryview(invalidation_data[1]))
+                        info.name = f"{index}{invalidation_data[0].serialize()}"
+                        info.mode = 0o644
+                        info.type = tarfile.REGTYPE
+
+                        tar.addfile(info, BytesIO(invalidation_data[1]))
 
         # Dump back the modified containers to the filesystem
         for arg, container in zip(pipe.signature(), containers):

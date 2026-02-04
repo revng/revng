@@ -49,9 +49,11 @@ revng = [
   "internal/cli/_commands/llm_rename/prompt.tpl",
 ]
 
-[project.entry-points.console_scripts]
-revng = "revng.internal.cli.revng:main"
-revng2 = "revng.internal.cli.revng2:main"
+[tool.setuptools]
+script-files = [
+  "scripts/revng",
+  "scripts/revng2",
+]
 
 [tool.setuptools.dynamic]
 version = {attr = "revng.internal.__version__"}

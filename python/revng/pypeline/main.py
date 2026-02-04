@@ -98,6 +98,12 @@ def detect_autocomplete(ctx: click.Context) -> bool:
     )
 
 
+def parse_pipebox(path: str, ctx: click.Context):
+    pipebox = import_pipebox(path, detect_autocomplete(ctx))
+    ctx.obj["pipebox"] = pipebox
+    return pipebox
+
+
 @click.group(cls=PypeGroup)
 @click.option(
     "-C",
@@ -125,7 +131,7 @@ def detect_autocomplete(ctx: click.Context) -> bool:
         name="pipebox",
         # During auto-completion we don't want to fail if the file does not exist
         exists=False,
-        parser=lambda path, ctx: import_pipebox(path, detect_autocomplete(ctx)),
+        parser=parse_pipebox,
     ),
     help=(
         'Path to the pipebox file. Defaults to the "PIPEBOX" environment '

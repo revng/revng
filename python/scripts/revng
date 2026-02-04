@@ -8,6 +8,11 @@ import sys
 import sysconfig
 from pathlib import Path
 
+if sys.prefix != sys.base_prefix:
+    # In venv, re-exec to the base executable
+    interpreter_path = os.path.realpath(sys.executable)
+    os.execv(interpreter_path, [interpreter_path, __file__, *sys.argv[1:]])
+
 libpath = Path(sysconfig.get_path("purelib")).relative_to(sysconfig.get_config_var("base"))
 new_path = (Path(__file__) / "../.." / libpath).resolve()
 assert new_path.is_dir()
@@ -20,6 +25,11 @@ if str(new_path) not in sys.path:
     sys.path.insert(0, str(new_path))
 
 if __name__ == "__main__":
-    from revng.internal.cli.revng import main
+    name = os.path.basename(sys.argv[0])
+    assert name in ("revng", "revng2")
+    if name == "revng":
+        from revng.internal.cli.revng import main
+    else:
+        from revng.internal.cli.revng2 import main
 
     sys.exit(main())

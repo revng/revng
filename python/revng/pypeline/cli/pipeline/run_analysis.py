@@ -2,13 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import sys
+from typing import IO
 
 import click
 
 from revng.pypeline.analysis import Analysis
+from revng.pypeline.cli.common_options import list_objects_option
 from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_arg_objects, build_help_text
-from revng.pypeline.cli.utils import compute_objects, list_objects_option, normalize_whitespace
+from revng.pypeline.cli.utils import compute_objects, normalize_whitespace
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
@@ -48,7 +49,7 @@ class RunAnalysisGroup(PypeGroup):
             prologue=help_text,
             args=[
                 TaskArgument(
-                    name=container_type.__name__,
+                    name=container_type.name,
                     container_type=container_type,
                     access=TaskArgumentAccess.READ,
                     help_text=normalize_whitespace(container_type.__doc__ or ""),
@@ -83,12 +84,12 @@ class RunAnalysisGroup(PypeGroup):
         # them to the command
         for arg in analysis_type.signature():
             run_analysis_command = click.argument(
-                arg.__name__,
+                arg.name,
                 type=click.Path(exists=True, dir_okay=False, readable=True),
             )(run_analysis_command)
             run_analysis_command = build_arg_objects(
                 ContainerDeclaration(
-                    name=arg.__name__,
+                    name=arg.name,
                     container_type=arg,
                 )
             )(run_analysis_command)
@@ -107,6 +108,16 @@ def build_run_analysis_command(
         name=analysis_name,
         help=help_text,
     )
+    @click.option(
+        "-o",
+        "output_file",
+        type=click.File("wb"),
+        help=(
+            "Path to write the changed model to, if not specified, the "
+            "result will be printed to stdout."
+        ),
+        default="-",
+    )
     @click.argument(
         "model",
         type=click.Path(exists=True, dir_okay=False, readable=True),
@@ -116,6 +127,7 @@ def build_run_analysis_command(
     def run_analysis_command(
         model: str,
         configuration: str,
+        output_file: IO[bytes],
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
@@ -134,7 +146,7 @@ def build_run_analysis_command(
         # Load the containers with args form the command line
         containers = []
         for arg in analysis.signature():
-            arg_name = arg.__name__
+            arg_name = arg.name
             # Click automatically makes the argument uppercase and make the variable lowercase
             path = kwargs[arg_name.lower()]
             container = arg.from_file(path)
@@ -151,7 +163,7 @@ def build_run_analysis_command(
             incoming.append(
                 compute_objects(
                     model=ReadOnlyModel(loaded_model),
-                    arg_name=arg.__name__,
+                    arg_name=arg.name,
                     kind=arg.kind,
                     kwargs=kwargs,
                 )
@@ -165,8 +177,8 @@ def build_run_analysis_command(
             configuration=configuration,
         )
         pypeline_logger.debug_log("Analysis run completed")
-        # Print on stdout the raw bytes of the modified model
-        sys.stdout.buffer.write(loaded_model.serialize())
+        # Output the modified model
+        output_file.write(loaded_model.serialize())
 
     return run_analysis_command
 

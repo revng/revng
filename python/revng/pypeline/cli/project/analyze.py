@@ -8,12 +8,14 @@ from typing import AsyncContextManager
 
 import click
 
+from revng.pypeline.cli.common_options import debug_option, list_objects_option, project_id_option
+from revng.pypeline.cli.common_options import token_option
 from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_arg_objects, build_help_text
-from revng.pypeline.cli.utils import compute_objects, list_objects_for_container
-from revng.pypeline.cli.utils import list_objects_option, normalize_flag, normalize_pos_arg_name
-from revng.pypeline.cli.utils import normalize_whitespace, project_id_option, token_option
+from revng.pypeline.cli.utils import compute_objects, list_objects_for_container, normalize_flag
+from revng.pypeline.cli.utils import normalize_pos_arg_name, normalize_whitespace
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, AnalysisList, ContainerDeclaration, Pipeline
+from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
@@ -141,6 +143,7 @@ def build_analysis_list_command(
 
     async def async_part_of_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
+        runner_context: RunnerContext,
         kwargs,
     ):
         """Since the storage provider factory returns an async context manager,
@@ -176,6 +179,7 @@ def build_analysis_list_command(
                 analysis_configuration=analysis_configuration,
                 pipeline_configuration={},
                 storage_provider=storage_provider,
+                runner_context=runner_context,
             )
 
             pypeline_logger.debug_log("Analysis run completed")
@@ -194,6 +198,7 @@ def build_analysis_list_command(
         name=analysis_name,
         help=help_text,
     )
+    @debug_option
     @list_objects_option
     @project_id_option
     @token_option
@@ -202,6 +207,7 @@ def build_analysis_list_command(
         ctx: click.Context,
         project_id: str,
         token: str,
+        runner_context: RunnerContext,
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
@@ -217,6 +223,7 @@ def build_analysis_list_command(
         asyncio.run(
             async_part_of_command(
                 storage_provider_context=storage_provider_context,
+                runner_context=runner_context,
                 kwargs=kwargs,
             )
         )
@@ -235,6 +242,7 @@ def build_analysis_command(
     async def async_part_of_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
         configuration: str,
+        runner_context: RunnerContext,
         kwargs,
     ):
         """Since the storage provider factory returns an async context manager,
@@ -277,6 +285,7 @@ def build_analysis_command(
                 analysis_configuration=configuration,
                 pipeline_configuration={},
                 storage_provider=storage_provider,
+                runner_context=runner_context,
             )
             pypeline_logger.debug_log("Analysis run completed")
             # Print on stdout the raw bytes of the modified model
@@ -294,6 +303,7 @@ def build_analysis_command(
         name=analysis_name,
         help=help_text,
     )
+    @debug_option
     @list_objects_option
     @project_id_option
     @token_option
@@ -303,6 +313,7 @@ def build_analysis_command(
         configuration: str,
         project_id: str,
         token: str,
+        runner_context: RunnerContext,
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
@@ -320,6 +331,7 @@ def build_analysis_command(
             async_part_of_command(
                 storage_provider_context=storage_provider_context,
                 configuration=configuration,
+                runner_context=runner_context,
                 kwargs=kwargs,
             )
         )

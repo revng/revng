@@ -2,7 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import os
 import re
 from collections.abc import Sequence
 from pathlib import Path
@@ -10,9 +9,8 @@ from typing import Any, Callable, Optional
 from urllib.parse import urlparse
 
 import click
-from click.core import ParameterSource
 
-from revng.pypeline.container import ContainerDeclaration, ContainerFormat
+from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.storage.storage_provider import StorageProviderFactory
@@ -99,10 +97,19 @@ class EagerParsedPath(click.Path):
     Additionally, it stores the path used to parse the value as `ctx.obj[self.name + "_path"]`.
     """
 
+    # Due to the way click works, the `convert` function below is called with
+    # `value` set to the default parameter if the command-line option is not
+    # used. This is problematic because since this type is generic it cannot
+    # differentiate between a value passed from the command-line and a value
+    # set as a default. To avoid this problem, set the click default to this
+    # singleton value and pass the actual default value to the type constructor.
+    DEFAULT = object()
+
     def __init__(
         self,
         name: str,
         parser: Callable[[str, click.Context], Any],
+        default: Any = None,
         *args,
         **kwargs,
     ):
@@ -113,10 +120,14 @@ class EagerParsedPath(click.Path):
         super().__init__(*args, **kwargs)
         self.parser = parser
         self.name = name
+        self.default = default
 
     def convert(
         self, value: Any, param: Optional[click.Parameter], ctx: Optional[click.Context]
     ) -> Any:
+        if value is self.__class__.DEFAULT:
+            return self.default
+
         path = super().convert(value, param, ctx)
         if not isinstance(path, str):
             raise ValueError(f"Invalid path: {path!r}")
@@ -294,87 +305,3 @@ def compute_objects(
                 objects={obj_id_type.deserialize(obj) for obj in objects.split(",") if obj.strip()},
             )
     return model.all_objects(kind)
-
-
-# Options that are common to multiple commands
-project_id_option = click.option(
-    "--project-id",
-    type=str,
-    help=("Project id to use for the storage provider."),
-    # TODO: discuss env var names
-    default=os.environ.get("PROJECT_ID"),
-    show_default=True,
-)
-
-list_objects_option = click.option(
-    "--list",
-    type=bool,
-    is_flag=True,
-    default=False,
-    help="List the available objects for each argument.",
-)
-
-token_option = click.option(
-    "--token",
-    type=str,
-    required=False,
-    help="The token to pass to the storage provider.",
-)
-
-
-def handle_format_option(ctx, param, value):
-    """
-    Handles mutual exclusivity, converts strings to Enums,
-    and manages precedence between flags and defaults.
-    """
-    # Handle shortcuts the value is boolean here
-    if param.name in [f.value for f in ContainerFormat]:
-        if not value:
-            return None
-
-        if ctx.params.get("format") is not None:
-            raise click.BadOptionUsage(
-                param.name, f"Mutually exclusive: --{param.name} cannot be used with other formats."
-            )
-
-        ctx.params["format"] = ContainerFormat(param.name)
-        return None
-
-    # Handle --format, value is a string passed from click.Choice or default
-
-    # Check if a shortcut already populated the format
-    existing_format = ctx.params.get("format")
-    if existing_format is not None:
-        # If the user EXPLICITLY typed --format AND used a flag -> Error
-        if ctx.get_parameter_source(param.name) != ParameterSource.DEFAULT:
-            raise click.BadOptionUsage(
-                param.name,
-                "Mutually exclusive: Cannot specify "
-                f"--format when --{existing_format.value} is used.",
-            )
-        # If --format is just running its default 'yaml', let the Flag win
-        return existing_format
-
-    # If no flag was used, convert the string value to Enum and return
-    return ContainerFormat(value)
-
-
-def container_format_options(func):
-    func = click.option(
-        "--format",
-        "container_format",
-        type=click.Choice([x.value for x in ContainerFormat]),
-        default=ContainerFormat.YAML.value,
-        show_default=True,
-        callback=handle_format_option,
-        help=("Format to use for the output container, either on stdout or in the result path."),
-    )(func)
-    for member in ContainerFormat:
-        func = click.option(
-            f"--{member.value}",
-            is_flag=True,
-            expose_value=False,
-            help=f"Shortcut for --format={member.value}.",
-            callback=handle_format_option,
-        )(func)
-    return func

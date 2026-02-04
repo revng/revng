@@ -26,8 +26,6 @@ def initialize(argv: list[str] = []):
             signal.SIGTERM,
             signal.SIGHUP,
             signal.SIGQUIT,
-        },
-        {
             signal.SIGCHLD,
             signal.SIGPIPE,
             signal.SIGUSR1,
@@ -35,6 +33,13 @@ def initialize(argv: list[str] = []):
         },
         argv,
     )
+
+
+def argv_hook(input_: list[str]):
+    assert input_[0] == "pype"
+    output = input_[:]
+    output[0] = "revng2"
+    return output
 
 
 class ImportFiles(Pipe):
@@ -51,6 +56,20 @@ class ImportFiles(Pipe):
             ),
         )
 
+    def _get_file_requests(self, model: ReadOnlyModel):
+        # TODO: add facilities to `model` that avoid having to serialize the
+        # whole thing. Right now we need to serialize the entire model and load
+        # it in the python wrapper to be able to access the `/Binaries` list.
+        model_obj = Binary.deserialize(model.serialize().decode())
+
+        indexes: list[int] = []
+        requests: list[FileRequest] = []
+        for binary in model_obj.Binaries:
+            indexes.append(binary.Index)
+            requests.append(FileRequest(binary.Hash, binary.Name, binary.Size))
+
+        return (indexes, requests)
+
     def run(
         self,
         file_provider: FileProvider,
@@ -66,16 +85,7 @@ class ImportFiles(Pipe):
         assert len(outgoing[0]) == 1
         root_object = list(outgoing[0].objects)[0]
 
-        # TODO: add facilities to `model` that avoid having to serialize the
-        # whole thing
-        model_obj = Binary.deserialize(model.serialize().decode())
-
-        indexes = []
-        requests = []
-        for binary in model_obj.Binaries:
-            indexes.append(binary.Index)
-            requests.append(FileRequest(binary.Hash, binary.Name, binary.Size))
-
+        indexes, requests = self._get_file_requests(model)
         files = file_provider.get_files(requests)
         buffer = BytesIO()
         with tarfile.open(mode="w", fileobj=buffer) as tar:
@@ -96,3 +106,6 @@ class ImportFiles(Pipe):
         dependencies.append((root_object, "/Binaries"))
 
         return PipeDependencies([dependencies])
+
+    def needed_files(self, model: ReadOnlyModel) -> list[FileRequest]:
+        return self._get_file_requests(model)[1]
