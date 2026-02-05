@@ -79,8 +79,7 @@ namespace revng::pypeline::piperuns {
 void InjectStackSizeProbesAtCallSites::runOnFunction(const model::Function
                                                        &Function) {
   llvm::Module &Module = ModuleContainer.getModule(ObjectID(Function.Entry()));
-  GeneratedCodeBasicInfo GCBI(Binary);
-  GCBI.run(Module);
+  GeneratedCodeBasicInfo GCBI(Binary, Module);
   injectStackSizeProbesAtCallSites(Module, GCBI);
 }
 

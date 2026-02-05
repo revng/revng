@@ -19,6 +19,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/raw_os_ostream.h"
 #include "llvm/Transforms/IPO.h"
+#include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/CodeExtractor.h"
@@ -52,6 +53,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/SimplePassManager.h"
 
 // This name is not present after `enforce-abi`.
 RegisterIRHelper FDispatcher("function_dispatcher");
@@ -488,28 +490,6 @@ void IsolateFunctionsImpl::prologue() {
                                          TheModule);
     FunctionTags::DynamicFunction.addTo(NewFunction);
     NewFunction->addFnAttr(Attribute::NoMerge);
-
-    auto *EntryBB = BasicBlock::Create(Context, "", NewFunction);
-    emitAbort(EntryBB, Twine("Dynamic call ") + Name, DebugLoc());
-
-    // TODO: implement more efficient version.
-    // if (setjmp(...) == 0) {
-    //   // First return
-    //   serialize_cpu_state();
-    //   dynamic_function();
-    //   // If we get here, it means that the external function return properly
-    //   deserialize_cpu_state();
-    //   simulate_ret();
-    //   // If the caller tail-called us, it must return immediately, without
-    //   // checking if the pc is the fallthrough of the call (which was not a
-    //   // call!)
-    // } else {
-    //   // If we get here, it means that the external function either invoked a
-    //   // callback or something else weird i going on.
-    //   deserialize_cpu_state();
-    //   throw_exception();
-    // }
-
     DynamicFunctionsMap[Name] = NewFunction;
   }
 }
@@ -698,6 +678,125 @@ bool IF::runOnModule(Module &TheModule) {
   return false;
 }
 
+/// Helper class that wraps `llvm::cloneModule` and specializes in the case
+/// where a single function needs to be cloned. It does aggressive changes to
+/// the Module, such as detaching globals and reattaching them only when needed.
+/// While an instance of this class is active the module will *not* verify and
+/// should not be passed to other pieces of LLVM infrastructure (e.g.
+/// PassManager).
+class MinimalModuleCloner {
+private:
+  struct FunctionUses {
+    std::set<const llvm::Function *> CalledFunctions;
+    std::set<const llvm::GlobalVariable *> UsedGVs;
+  };
+
+private:
+  llvm::Module &Module;
+
+  std::set<const llvm::GlobalVariable *> IgnorableGVs;
+
+public:
+  MinimalModuleCloner(const model::Binary &Binary, llvm::Module &Module) :
+    Module(Module) {
+    revng::verify(&Module);
+
+    // Always copy SP because it's needed by another pipe down the pipeline
+    // (InjectStackSizeProbesAtCallSitesPass). The proper fix would be to have
+    // that pipe detect the absence of `SP` and assert that the stack pointer
+    // could not have moved.
+    std::string SPName = getCSVName(getStackPointer(Binary.Architecture()));
+
+    // Construct the set of ignorable globals from string globals and CSVs
+    // (except for SP)
+    for (llvm::GlobalVariable &GV : Module.globals()) {
+      StringRef Name = GV.getName();
+      if (Name.starts_with(DefaultStringNamespace)
+          or (FunctionTags::CSV.isTagOf(&GV) and Name != SPName))
+        IgnorableGVs.insert(&GV);
+    }
+  }
+
+  std::unique_ptr<llvm::Module> cloneModule(llvm::Function &Function) {
+    FunctionUses AnalysisResult = analyzeFunction(Function);
+
+    auto ActionFunction =
+      [this, &Function, &AnalysisResult](const GlobalValue *V) {
+        auto *GV = dyn_cast<llvm::GlobalVariable>(V);
+        if (GV != nullptr) {
+          if (AnalysisResult.UsedGVs.contains(GV))
+            return CloneAction::Clone;
+          else if (IgnorableGVs.contains(GV) or GV->isDeclaration())
+            return CloneAction::Omit;
+          else
+            return CloneAction::Clone;
+        }
+
+        auto *F = dyn_cast<llvm::Function>(V);
+        if (F != nullptr) {
+          if (F == &Function)
+            return CloneAction::Clone;
+          else if (AnalysisResult.CalledFunctions.contains(F))
+            return CloneAction::MakeDeclaration;
+          else
+            return CloneAction::Omit;
+        }
+
+        return CloneAction::Clone;
+      };
+
+    auto New = cloneFiltered(Module, ActionFunction);
+    revng::verify(New.get());
+    return New;
+  }
+
+private:
+  FunctionUses analyzeFunction(llvm::Function &F) {
+    revng_assert(not F.isDeclaration());
+
+    std::set<const llvm::Function *> CalledFunctions;
+    std::set<const llvm::GlobalVariable *> UsedGVs;
+
+    for (BasicBlock &BB : F) {
+      for (llvm::Instruction &Instruction : BB) {
+        // Check for call, if so recursively visit the called function
+        CallBase *CB = dyn_cast<llvm::CallBase>(&Instruction);
+        if (CB != nullptr) {
+          llvm::Function *CalledFunction = CB->getCalledFunction();
+          if (CalledFunction != nullptr)
+            CalledFunctions.insert(CalledFunction);
+        }
+
+        std::queue<llvm::User *> Users;
+        Users.push(&Instruction);
+
+        // Iterate the operands to find uses of global variables
+        while (Users.size() > 0) {
+          llvm::User *User = Users.front();
+          for (unsigned int I = 0; I < User->getNumOperands(); I++) {
+            Value *Operand = User->getOperand(I);
+
+            GlobalVariable *GV = dyn_cast<GlobalVariable>(Operand);
+            if (GV != nullptr) {
+              UsedGVs.insert(GV);
+              continue;
+            }
+
+            ConstantExpr *CE = dyn_cast<ConstantExpr>(Operand);
+            if (CE != nullptr) {
+              Users.push(CE);
+              continue;
+            }
+          }
+          Users.pop();
+        }
+      }
+    }
+
+    return { std::move(CalledFunctions), std::move(UsedGVs) };
+  }
+};
+
 namespace revng::pypeline::piperuns {
 
 Isolate::Isolate(const class Model &Model,
@@ -706,7 +805,7 @@ Isolate::Isolate(const class Model &Model,
                  const CFGMap &CFG,
                  LLVMRootContainer &Root,
                  LLVMFunctionContainer &Output) :
-  Output(Output), GCBI(*Model.get().get()) {
+  Binary(*Model.get().get()), Output(Output) {
   // Manually perform `cloneIntoContext` to prune the root container as early as
   // possible
   llvm::SmallVector<char, 0> Buffer;
@@ -714,7 +813,7 @@ Isolate::Isolate(const class Model &Model,
   Root.disposeIfPossible();
   ClonedModule = readBitcode(Buffer, Output.getContext());
 
-  GCBI.run(*ClonedModule);
+  GCBI.emplace(*Model.get().get(), *ClonedModule);
 
   auto CFGGetter =
     [&CFG](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
@@ -723,7 +822,7 @@ Isolate::Isolate(const class Model &Model,
 
   // TODO: inline Impl
   Impl = std::make_unique<IFI>(ClonedModule->getFunction("root"),
-                               GCBI,
+                               *GCBI,
                                *Model.get().get(),
                                CFGGetter);
   Impl->prologue();
@@ -735,22 +834,41 @@ void Isolate::runOnFunction(const model::Function &TheFunction) {
 }
 
 void Isolate::splitIsolatedFunctionsToOutput() {
-  std::set<const llvm::Function *> InternalFunctions;
-  for (llvm::Function &F : ClonedModule->functions()) {
-    if (FunctionTags::Root.isTagOf(&F) or FunctionTags::Isolated.isTagOf(&F))
-      InternalFunctions.insert(&F);
-  }
+  // Run globaldce on the isolated root module to remove any cruft present. This
+  // should speed up cloning.
+  SimplePassManager PM;
+  PM.addPass(llvm::GlobalDCEPass());
+  PM.run(*ClonedModule);
 
   llvm::Task T(IsolatedFunctions.size(),
                "Splitting functions into individual modules");
-  ReachableFunctionsEnumerator Enumerator(InternalFunctions);
+
+  MinimalModuleCloner Cloner(Binary, *ClonedModule);
+
   for (auto &[Address, Function] : IsolatedFunctions) {
     T.advance(Address.toString(), true);
-    std::set<const llvm::Function *> ToClone = { Function };
-    auto &CalledFunctions = Enumerator.getCalledFunctions(*Function);
-    ToClone.insert(CalledFunctions.begin(), CalledFunctions.end());
 
-    Output.assign(ObjectID(Address), ::cloneFiltered(*ClonedModule, ToClone));
+    auto IsolatedModule = Cloner.cloneModule(*Function);
+    // Check that running globaldce on the isolated module does nothing
+    if (VerifyLog.isEnabled()) {
+      llvm::StringSet GlobalNames;
+      for (GlobalValue &GV : IsolatedModule->global_values()) {
+        if (GV.hasName())
+          GlobalNames.insert(GV.getName());
+      }
+
+      SimplePassManager PM;
+      PM.addPass(llvm::GlobalDCEPass());
+      PM.run(*IsolatedModule);
+
+      for (GlobalValue &GV : IsolatedModule->global_values()) {
+        if (GV.hasName())
+          GlobalNames.erase(GV.getName());
+      }
+      revng_assert(GlobalNames.size() == 0,
+                   "GlobalDCE removed names from an isolated module");
+    }
+    Output.assign(ObjectID(Address), std::move(IsolatedModule));
 
     // Since we saved the function to the output, delete its body in
     // ClonedModule to save memory

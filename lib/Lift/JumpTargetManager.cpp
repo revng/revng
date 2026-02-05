@@ -10,11 +10,14 @@
 #include "llvm/Support/Progress.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/InstSimplifyPass.h"
+#include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
 #include "revng/Lift/Lift.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/MetaAddress.h"
+#include "revng/Support/SimplePassManager.h"
 #include "revng/Support/Statistics.h"
 
 #include "JumpTargetManager.h"
@@ -1304,12 +1307,10 @@ void JumpTargetManager::harvest() {
     revng_log(JTCountLog, "Preliminary harvesting");
 
     HarvestingStats.push("InstSimplify");
-    legacy::FunctionPassManager OptimizingPM(&TheModule);
-    OptimizingPM.add(createSROAPass());
-    OptimizingPM.add(createInstSimplifyLegacyPass());
-    OptimizingPM.doInitialization();
+    SimpleFunctionPassManager OptimizingPM;
+    OptimizingPM.addPass(llvm::SROAPass(SROAOptions::PreserveCFG));
+    OptimizingPM.addPass(llvm::InstSimplifyPass());
     OptimizingPM.run(*TheFunction);
-    OptimizingPM.doFinalization();
 
     legacy::PassManager PreliminaryBranchesPM;
     PreliminaryBranchesPM.add(new TranslateDirectBranchesPass(this));
@@ -1319,11 +1320,9 @@ void JumpTargetManager::harvest() {
       T.advance("InstructionCombining + TBDP");
       HarvestingStats.push("harvest 3: InstructionCombining + TBDP");
 
-      legacy::FunctionPassManager OptimizingPM(&TheModule);
-      OptimizingPM.add(createInstructionCombiningPass(1));
-      OptimizingPM.doInitialization();
+      SimpleFunctionPassManager OptimizingPM;
+      OptimizingPM.addPass(llvm::InstCombinePass(1));
       OptimizingPM.run(*TheFunction);
-      OptimizingPM.doFinalization();
 
       legacy::PassManager PreliminaryBranchesPM;
       PreliminaryBranchesPM.add(new TranslateDirectBranchesPass(this));

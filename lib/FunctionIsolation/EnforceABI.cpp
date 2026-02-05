@@ -143,7 +143,7 @@ bool EnforceABI::prologue() {
     // TODO: have an API to go from model to llvm::Function
     auto OldFunctionName = (Twine("dynamic_") + FunctionModel.Name()).str();
     Function *OldFunction = M.getFunction(OldFunctionName);
-    if (not OldFunction or OldFunction->isDeclaration())
+    if (not OldFunction)
       continue;
     OldFunctions.push_back(OldFunction);
 
@@ -564,8 +564,7 @@ namespace revng::pypeline::piperuns {
 void EnforceABI::runOnLLVMFunction(const model::Function &Function,
                                    llvm::Function &LLVMFunction) {
   llvm::Module &Module = *LLVMFunction.getParent();
-  GeneratedCodeBasicInfo GCBI(Binary);
-  GCBI.run(Module);
+  GeneratedCodeBasicInfo GCBI(Binary, Module);
 
   auto CFGGetter =
     [this](const MetaAddress &Address) -> const efa::ControlFlowGraph & {

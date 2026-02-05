@@ -18,23 +18,12 @@ using CFGMap = TupleTreeContainer<efa::ControlFlowGraph,
 
 namespace piperuns {
 
-namespace detail {
-
-struct GCBIRun {
-  GCBIRun(GeneratedCodeBasicInfo &GCBI, llvm::Module &Module) {
-    GCBI.run(Module);
-  }
-};
-
-} // namespace detail
-
 class CollectCFG {
 private:
   const class Model &Model;
   CFGMap &Output;
 
   GeneratedCodeBasicInfo GCBI;
-  detail::GCBIRun GCBIRun;
   efa::FunctionSummaryOracle Oracle;
   efa::CFGAnalyzer Analyzer;
 

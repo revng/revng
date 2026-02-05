@@ -25,6 +25,7 @@
 #include "llvm/IR/ValueMap.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/Cloning.h"
 
 #include "revng/ADT/Concepts.h"
 #include "revng/Support/BasicBlockID.h"
@@ -83,6 +84,9 @@ constexpr const char *FunctionEntryMDName = "revng.function.entry";
 constexpr const char *JTReasonMDName = "revng.jt.reasons";
 constexpr const char *ControlFlowGraphMDName = "revng.function.metadata";
 constexpr const char *ExplicitParenthesesMDName = "revng.explicit_parentheses";
+constexpr llvm::StringRef InlineHelpersSection = "revng_inline";
+constexpr llvm::StringRef HelpersListName = "helpers_list";
+constexpr llvm::StringRef QemuArchitectureMD = "revng.qemu_architecture";
 
 template<typename T>
 inline bool contains(T Range, typename T::value_type V) {
@@ -1076,10 +1080,13 @@ llvm::PointerType *getStringPtrType(llvm::LLVMContext &C);
 llvm::GlobalVariable *
 buildString(llvm::Module *M, llvm::StringRef String, const llvm::Twine &Name);
 
-llvm::Constant *getUniqueString(llvm::Module *M,
-                                llvm::StringRef String,
-                                bool AddNull = true,
-                                llvm::StringRef Namespace = "revng.const.");
+constexpr llvm::StringRef DefaultStringNamespace = "revng.const.";
+
+llvm::Constant *
+getUniqueString(llvm::Module *M,
+                llvm::StringRef String,
+                bool AddNull = true,
+                llvm::StringRef Namespace = DefaultStringNamespace);
 
 llvm::StringRef extractFromConstantStringPtr(llvm::Value *V);
 
@@ -1551,9 +1558,16 @@ inline void linkModules(std::unique_ptr<llvm::Module> &&Source,
   linkModules(std::move(Source), Destination, std::nullopt);
 }
 
-/// Clone the module, keeping only the functions specified in \p ToClone .
+/// Clone the module with the `Action` function dictating what should be done
+/// for each GlobalValue in the module.
 /// This requires the source module to be writable in order to guarantee that
 /// the metadata attached to the cloned functions is also preserved.
+std::unique_ptr<llvm::Module>
+cloneFiltered(llvm::Module &Module,
+              llvm::function_ref<llvm::CloneAction(const llvm::GlobalValue *)>
+                Action);
+
+// Shortcut for the above with a set of functions to clone
 std::unique_ptr<llvm::Module>
 cloneFiltered(llvm::Module &Module, std::set<const llvm::Function *> &ToClone);
 
@@ -1585,21 +1599,3 @@ llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,
 /// modules being merged.
 void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
                          std::unique_ptr<llvm::Module> &Destination);
-
-/// Helper class that allows getting the exhaustive list of functions called by
-/// a function
-class ReachableFunctionsEnumerator {
-private:
-  using DenseFunctionSet = llvm::DenseSet<const llvm::Function *>;
-  using FunctionSet = std::set<const llvm::Function *>;
-
-private:
-  const FunctionSet &ToIgnore;
-  std::map<const llvm::Function *, DenseFunctionSet> CalledFunctions;
-
-public:
-  ReachableFunctionsEnumerator(const FunctionSet &ToIgnore) :
-    ToIgnore(ToIgnore) {}
-
-  const DenseFunctionSet &getCalledFunctions(const llvm::Function &Function);
-};

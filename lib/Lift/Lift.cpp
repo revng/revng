@@ -46,13 +46,13 @@ findExternalFilePaths(const model::Architecture::Values Architecture) {
 
   ExternalFilePaths Paths = {};
 
-  // Note: here we use the slim version of the helpers, i.e., where we only have
-  //       definitions for revng_inline functions.
-  const std::string LibHelpersName = "/share/revng/libtcg-helpers-annotated"
-                                     "-slim-"
+  // Note: here we use the declaration version of the helpers, i.e., where all
+  //       helper functions are just declarations.
+  const std::string LibHelpersName = "/share/revng/"
+                                     "libtcg-helpers-declarations-only-"
                                      + ArchName + ".bc";
   auto OptionalHelpers = ResourceFinder.findFile(LibHelpersName);
-  revng_assert(OptionalHelpers.has_value(), "Cannot find tinycode helpers");
+  revng_assert(OptionalHelpers.has_value(), "Cannot find libtcg helpers");
   Paths.LibHelpers = OptionalHelpers.value();
 
   const std::string EarlyLinkedName = "/share/revng/early-linked-" + ArchName

@@ -11,6 +11,7 @@ revng_add_analyses_library_internal(
   CPULoopExitPass.cpp
   CPUStateUsage.cpp
   FixHelpers.cpp
+  HelpersModuleToDeclarations.cpp
   SlimDownHelpersModule.cpp
   Value.cpp)
 

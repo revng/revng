@@ -116,14 +116,14 @@ PreservedAnalyses ValueMaterializerPass::run(Function &F,
 
     MaterializedValues Values;
     DataFlowGraph::Limits Limits(MaxPhiLike, MaxLoad);
-    auto Results = ValueMaterializer::getValuesFor(Call,
-                                                   ToTrack,
-                                                   MO,
-                                                   LVI,
-                                                   DFRA,
-                                                   DT,
-                                                   Limits,
-                                                   Oracle);
+    auto Results = ::ValueMaterializer::getValuesFor(Call,
+                                                     ToTrack,
+                                                     MO,
+                                                     LVI,
+                                                     DFRA,
+                                                     DT,
+                                                     Limits,
+                                                     Oracle);
     if (Results.values())
       Values = std::move(*Results.values());
 

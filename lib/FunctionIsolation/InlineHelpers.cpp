@@ -6,6 +6,7 @@
 
 #include "llvm/ADT/SCCIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/Transforms/Utils/Cloning.h"
 
@@ -14,6 +15,7 @@
 #include "revng/FunctionIsolation/InlineHelpers.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
+#include "revng/Support/ResourceFinder.h"
 
 using namespace llvm;
 
@@ -54,7 +56,7 @@ bool InlineHelpers::shouldInline(Function *F) const {
   if (Recursive.count(F) != 0)
     return false;
 
-  return F->getSection() == "revng_inline";
+  return F->getSection() == InlineHelpersSection;
 }
 
 CallInst *InlineHelpers::getCallToInline(Instruction *I) const {
@@ -86,6 +88,7 @@ bool InlineHelpers::doInline(Function *F) const {
 
   return ToInline.size() > 0;
 }
+
 static void dropDebugOrPseudoInst(Function *F) {
   SmallVector<Instruction *, 16> ToErase;
   for (BasicBlock &BB : *F) {
@@ -102,14 +105,62 @@ static void dropDebugOrPseudoInst(Function *F) {
 }
 
 void InlineHelpers::run(Function *F) {
-  // Fixed-point inlining
-  while (doInline(F))
-    ;
-
+  // Since all the helpers have been already inlined the `doInline` function can
+  // be called only once to inline all the helper functions.
+  doInline(F);
   dropDebugOrPseudoInst(F);
 }
 
+void InlineHelpersPass::linkRequiredHelpers(llvm::Module &M) {
+  NamedMDNode *Node = M.getNamedMetadata(QemuArchitectureMD);
+  revng_assert(Node != nullptr);
+  revng_assert(Node->getNumOperands() > 0);
+
+  // Multiple linkings could have lead to this node having more than one
+  // operand, if so check that they are all the same.
+  llvm::StringSet Strings;
+  for (size_t I = 0; I < Node->getNumOperands(); I++) {
+    revng_assert(Node->getOperand(0)->getNumOperands() == 1);
+    const MDOperand &StringNode = Node->getOperand(0)->getOperand(0);
+    Strings.insert(cast<MDString>(StringNode)->getString());
+  }
+
+  revng_assert(Strings.size() == 1,
+               "QEMU helpers of multiple architectures were linked inside the "
+               "module");
+
+  // Given the architecture MD, retrieve the correct libtcg module (if not
+  // already in the `HelpersModules` map) and link it into the main module
+  StringRef ArchName = Strings.begin()->first();
+  if (HelpersModules.count(ArchName) == 0) {
+    const std::string LibHelpersName = ("/share/revng/"
+                                        "libtcg-helpers-to-inline-"
+                                        + ArchName + ".bc")
+                                         .str();
+    auto OptionalHelpers = revng::ResourceFinder.findFile(LibHelpersName);
+    revng_assert(OptionalHelpers.has_value(), "Cannot find libtcg helpers");
+    HelpersModules[ArchName] = parseIR(M.getContext(), OptionalHelpers.value());
+  }
+
+  llvm::Module &HelpersModule = *HelpersModules[ArchName];
+
+  std::set<const llvm::Function *> ToClone;
+  for (llvm::Function &F : M) {
+    if (not F.isDeclaration() or F.getSection() != InlineHelpersSection)
+      continue;
+
+    llvm::Function *HelperFunction = HelpersModule.getFunction(F.getName());
+    revng_assert(HelperFunction != nullptr);
+    ToClone.insert(HelperFunction);
+  }
+
+  auto ClonedHelpersModule = ::cloneFiltered(HelpersModule, ToClone);
+  linkModules(std::move(ClonedHelpersModule), M);
+}
+
 bool InlineHelpersPass::runOnModule(llvm::Module &M) {
+  linkRequiredHelpers(M);
+
   SmallVector<Function *, 32> Isolated;
   for (Function &F : M)
     if (FunctionTags::Isolated.isTagOf(&F))
@@ -120,6 +171,13 @@ bool InlineHelpersPass::runOnModule(llvm::Module &M) {
     T.advance(F->getName());
     InlineHelpers IH(*F->getParent());
     IH.run(F);
+  }
+
+  // Since we're done inlining helpers they are no longer needed, delete their
+  // body
+  for (Function &F : M) {
+    if (F.getSection() == InlineHelpersSection)
+      deleteOnlyBody(F);
   }
 
   return true;

@@ -37,6 +37,8 @@
 #include "llvm/Transforms/IPO.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
 #include "llvm/Transforms/Scalar.h"
+#include "llvm/Transforms/Scalar/DCE.h"
+#include "llvm/Transforms/Scalar/SROA.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
@@ -53,6 +55,7 @@
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/SimplePassManager.h"
 
 #include "CodeGenerator.h"
 #include "ExternalJumpsHandler.h"
@@ -154,32 +157,10 @@ CodeGenerator::CodeGenerator(const RawBinaryView &RawBinary,
 
   HelpersModule = parseIR(Context, Helpers);
   revng_assert(HelpersModule->getGlobalVariable("cpu_loop_exiting") != nullptr);
-
-  legacy::PassManager OptimizingPM;
-  OptimizingPM.add(createSROAPass());
-  OptimizingPM.add(createInstSimplifyLegacyPass());
-  OptimizingPM.run(*HelpersModule);
-
   TheModule->setDataLayout(HelpersModule->getDataLayout());
 
-  // Tag all global objects in HelpersModule as QEMU
-  for (GlobalVariable &G : HelpersModule->globals())
-    FunctionTags::QEMU.addTo(&G);
-
-  for (Function &F : HelpersModule->functions()) {
-    if (F.isIntrinsic())
-      continue;
-
-    F.setDSOLocal(false);
-
-    FunctionTags::QEMU.addTo(&F);
-
-    if (F.hasFnAttribute(Attribute::NoReturn)
-        or F.getSection() == "revng_exceptional")
-      FunctionTags::Exceptional.addTo(&F);
-  }
-
   EarlyLinkedModule = parseIR(Context, EarlyLinked);
+  // TODO: do this at compile time
   for (llvm::Function &F : *EarlyLinkedModule) {
     if (F.isIntrinsic())
       continue;
@@ -613,7 +594,7 @@ void CodeGenerator::translate(LibTcg &LibTcg,
   // who would otherwise get DCE'd away due to their linkage.
   // At this point we know which ones we want, and we're OK with the dead ones
   // to be dropped.
-  TheModule->getGlobalVariable("helpers_list")->eraseFromParent();
+  TheModule->getGlobalVariable(HelpersListName)->eraseFromParent();
 
   //
   // Look for calls to functions that might exit and reset cpu_loop_exiting
@@ -661,13 +642,11 @@ void CodeGenerator::translate(LibTcg &LibTcg,
 
   T.advance("Optimize lifted IR");
 
-  legacy::FunctionPassManager InstCombinePM(&*TheModule);
-  InstCombinePM.add(createSROAPass());
-  InstCombinePM.add(createInstructionCombiningPass());
-  InstCombinePM.add(createDeadCodeEliminationPass());
-  InstCombinePM.doInitialization();
+  SimpleFunctionPassManager InstCombinePM;
+  InstCombinePM.addPass(llvm::SROAPass(SROAOptions::PreserveCFG));
+  InstCombinePM.addPass(llvm::InstCombinePass());
+  InstCombinePM.addPass(llvm::DCEPass());
   InstCombinePM.run(*RootFunction);
-  InstCombinePM.doFinalization();
 
   // Ensure we don't have phis in the dispatcher. This can happen if a tiny code
   // local variable has an uninitialized read, which is usually a bug on our

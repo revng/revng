@@ -48,9 +48,7 @@ public:
     RootModule(RootModule),
     FunctionModule(FunctionModule),
     Context(RootModule.getContext()),
-    GCBI(Binary) {
-
-    GCBI.run(RootModule);
+    GCBI(Binary, RootModule) {
 
     for (const model::Function &Function : Binary.Functions()) {
       auto *F = FunctionModule->getFunction(llvmName(Function));
@@ -201,8 +199,7 @@ public:
 
 static void populateFunctionDispatcher(const model::Binary &Binary,
                                        llvm::Module &Module) {
-  GeneratedCodeBasicInfo GCBI(Binary);
-  GCBI.run(Module);
+  GeneratedCodeBasicInfo GCBI(Binary, Module);
 
   llvm::LLVMContext &Context = Module.getContext();
   llvm::Function *FunctionDispatcher = getIRHelper("function_dispatcher",
@@ -249,6 +246,40 @@ static void populateFunctionDispatcher(const model::Binary &Binary,
                                                 {});
 }
 
+static void createDynamicFunctionsBody(const model::Binary &Binary,
+                                       llvm::Module &Module) {
+  for (const model::DynamicFunction &Function :
+       Binary.ImportedDynamicFunctions()) {
+    llvm::StringRef Name = Function.Name();
+    std::string FunctionName = ("dynamic_" + Name).str();
+    llvm::Function *F = Module.getFunction(FunctionName);
+    if (F == nullptr)
+      continue;
+
+    revng_assert(F->isDeclaration());
+    auto *EntryBB = BasicBlock::Create(Module.getContext(), "", F);
+    emitAbort(EntryBB, Twine("Dynamic call ") + Name, DebugLoc());
+
+    // TODO: implement more efficient version.
+    // if (setjmp(...) == 0) {
+    //   // First return
+    //   serialize_cpu_state();
+    //   dynamic_function();
+    //   // If we get here, it means that the external function return properly
+    //   deserialize_cpu_state();
+    //   simulate_ret();
+    //   // If the caller tail-called us, it must return immediately, without
+    //   // checking if the pc is the fallthrough of the call (which was not a
+    //   // call!)
+    // } else {
+    //   // If we get here, it means that the external function either invoked a
+    //   // callback or something else weird i going on.
+    //   deserialize_cpu_state();
+    //   throw_exception();
+    // }
+  }
+}
+
 struct InvokeIsolatedPipe {
   static constexpr auto Name = "invoke-isolated-functions";
 
@@ -275,9 +306,9 @@ public:
     // Clone the container
     OutputRootContainer.cloneFrom(InputRootContainer);
 
-    populateFunctionDispatcher(*revng::getModelFromContext(EC),
-                               FunctionContainer.getModule());
-    InvokeIsolatedFunctionsImpl Impl(*revng::getModelFromContext(EC),
+    const model::Binary &Binary = *revng::getModelFromContext(EC);
+    populateFunctionDispatcher(Binary, FunctionContainer.getModule());
+    InvokeIsolatedFunctionsImpl Impl(Binary,
                                      OutputRootContainer.getModule(),
                                      &FunctionContainer.getModule());
     Impl.run();
@@ -285,6 +316,7 @@ public:
     const llvm::Module &FunctionModule = FunctionContainer.getModule();
     linkModules(llvm::CloneModule(FunctionModule),
                 OutputRootContainer.getModule());
+    createDynamicFunctionsBody(Binary, OutputRootContainer.getModule());
 
     EC.commit(pipeline::Target(revng::kinds::IsolatedRoot),
               OutputRootContainer.name());
@@ -320,6 +352,7 @@ void InvokeIsolatedFunctions::run() {
   }
 
   populateFunctionDispatcher(Binary, *OutputModule);
+  createDynamicFunctionsBody(Binary, *OutputModule);
   InvokeIsolatedFunctionsImpl Impl(Binary, *OutputModule, OutputModule.get());
   Impl.run();
 

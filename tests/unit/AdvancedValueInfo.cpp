@@ -88,14 +88,14 @@ bool TestAdvancedValueInfoPass::runOnModule(llvm::Module &M) {
       Value *V = Store->getValueOperand();
 
       auto AVIOracle = Oracle::AdvancedValueInfo;
-      auto MaybeValues = ValueMaterializer::getValuesFor(Store,
-                                                         V,
-                                                         MO,
-                                                         LVI,
-                                                         DFRA,
-                                                         DT,
-                                                         {},
-                                                         AVIOracle)
+      auto MaybeValues = ::ValueMaterializer::getValuesFor(Store,
+                                                           V,
+                                                           MO,
+                                                           LVI,
+                                                           DFRA,
+                                                           DT,
+                                                           {},
+                                                           AVIOracle)
                            .values();
       if (MaybeValues) {
         (*Results)[V] = *MaybeValues;

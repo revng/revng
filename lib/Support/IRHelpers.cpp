@@ -788,18 +788,26 @@ std::unique_ptr<llvm::Module>
 cloneFiltered(llvm::Module &Module, std::set<const llvm::Function *> &ToClone) {
   const auto Filter = [&ToClone](const auto &GlobalSym) {
     if (not llvm::isa<llvm::Function>(GlobalSym))
-      return true;
+      return CloneAction::Clone;
 
     const auto &F = llvm::cast<llvm::Function>(GlobalSym);
-    return ToClone.contains(F);
+    return ToClone.contains(F) ? CloneAction::Clone :
+                                 CloneAction::MakeDeclaration;
   };
 
+  return cloneFiltered(Module, Filter);
+}
+
+std::unique_ptr<llvm::Module>
+cloneFiltered(llvm::Module &Module,
+              llvm::function_ref<llvm::CloneAction(const llvm::GlobalValue *)>
+                Action) {
   llvm::ValueToValueMapTy Map;
 
   FunctionsMetadata::backup(Module);
 
   revng::verify(&Module);
-  auto Cloned = llvm::CloneModule(Module, Map, Filter);
+  auto Cloned = llvm::CloneModule(Module, Map, Action);
 
   FunctionsMetadata::restore(*Cloned.get());
   FunctionsMetadata::dropBackup(Module);
@@ -1056,54 +1064,6 @@ void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
   pruneDICompileUnits(*Destination);
 
   revng::verify(&*Destination);
-}
-
-using DenseFunctionSet = llvm::DenseSet<const llvm::Function *>;
-
-static RecursiveCoroutine<const DenseFunctionSet *>
-getCalledFunctions(const llvm::Function &Function,
-                   std::map<const llvm::Function *, DenseFunctionSet>
-                     &CalledFunctions,
-                   const std::set<const llvm::Function *> &ToIgnore) {
-  if (CalledFunctions.contains(&Function))
-    co_return &CalledFunctions[&Function];
-
-  if (Function.isDeclaration()) {
-    CalledFunctions[&Function] = {};
-    co_return &CalledFunctions[&Function];
-  }
-
-  DenseFunctionSet Result;
-  for (const llvm::BasicBlock &BB : Function) {
-    for (const llvm::Instruction &Instruction : BB) {
-      const llvm::CallBase *CB = dyn_cast<llvm::CallBase>(&Instruction);
-      if (CB == nullptr)
-        continue;
-
-      const llvm::Function *CalledFunction = CB->getCalledFunction();
-      if (CalledFunction == nullptr or Result.contains(CalledFunction)
-          or ToIgnore.contains(CalledFunction))
-        continue;
-
-      Result.insert(CalledFunction);
-      auto *FunctionResult = co_await getCalledFunctions(*CalledFunction,
-                                                         CalledFunctions,
-                                                         ToIgnore);
-      Result.insert(FunctionResult->begin(), FunctionResult->end());
-    }
-  }
-
-  CalledFunctions[&Function] = Result;
-  co_return &CalledFunctions[&Function];
-}
-
-const DenseFunctionSet &
-ReachableFunctionsEnumerator::getCalledFunctions(const llvm::Function
-                                                   &Function) {
-  const DenseFunctionSet *Result = ::getCalledFunctions(Function,
-                                                        CalledFunctions,
-                                                        ToIgnore);
-  return *Result;
 }
 
 llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,

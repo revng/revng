@@ -29,9 +29,10 @@ namespace revng::pypeline::piperuns {
 
 class Isolate {
 private:
+  const model::Binary &Binary;
   std::unique_ptr<llvm::Module> ClonedModule;
   LLVMFunctionContainer &Output;
-  GeneratedCodeBasicInfo GCBI;
+  std::optional<GeneratedCodeBasicInfo> GCBI;
   // unique_ptr to the implementation. This is a temporary measure until the
   // old pipeline is dropped and the body of the `Impl` class can be inlined in
   // this one.

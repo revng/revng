@@ -442,6 +442,15 @@ public:
 
     fixHelpers(Variables, M);
 
+    // Set a named metadata node specifying the qemu architecture. This will be
+    // needed in (partially) stripped modules to get another module of the same
+    // "family" with more data.
+    llvm::LLVMContext &Context = M.getContext();
+    auto *ArchMD = M.getOrInsertNamedMetadata(QemuArchitectureMD);
+    MDNode *Node = MDNode::get(Context,
+                               MDString::get(Context, ArchitectureName));
+    ArchMD->addOperand(Node);
+
     return true;
   }
 };
