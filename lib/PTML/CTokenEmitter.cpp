@@ -354,31 +354,39 @@ void CTokenEmitter::emitKeyword(Keyword K) {
 }
 
 void CTokenEmitter::emitPunctuator(Punctuator P) {
+  auto Emit = [this](llvm::StringRef String) {
+    auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
+    Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Punctuation);
+    Tag.finalizeOpenTag();
+
+    PTML.emitContent(String);
+  };
+
   switch (P) {
   case Punctuator::Colon:
-    return PTML.emitContent(":");
+    return Emit(":");
   case Punctuator::Comma:
-    return PTML.emitContent(",");
+    return Emit(",");
   case Punctuator::Dot:
-    return PTML.emitContent(".");
+    return Emit(".");
   case Punctuator::Equals:
-    return PTML.emitContent("=");
+    return Emit("=");
   case Punctuator::LeftBrace:
-    return PTML.emitContent("{");
+    return Emit("{");
   case Punctuator::LeftBracket:
-    return PTML.emitContent("[");
+    return Emit("[");
   case Punctuator::LeftParenthesis:
-    return PTML.emitContent("(");
+    return Emit("(");
   case Punctuator::RightBrace:
-    return PTML.emitContent("}");
+    return Emit("}");
   case Punctuator::RightBracket:
-    return PTML.emitContent("]");
+    return Emit("]");
   case Punctuator::RightParenthesis:
-    return PTML.emitContent(")");
+    return Emit(")");
   case Punctuator::Semicolon:
-    return PTML.emitContent(";");
+    return Emit(";");
   case Punctuator::Star:
-    return PTML.emitContent("*");
+    return Emit("*");
   }
   revng_abort("Invalid CTokenEmitter::Punctuator");
 }
