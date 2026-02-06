@@ -25,7 +25,7 @@ struct Expected {
 };
 
 template<typename... Types>
-  requires(same_as<Types, Expected> && ...)
+  requires(std::same_as<Types, Expected> && ...)
 void testAlignment(model::UpcastableType &&Type, const Types &...TestCases) {
   for (auto &&[ABI, Expected] : std::array{ TestCases... }) {
     std::optional<uint64_t> TestResult = ABI.alignment(*Type);

@@ -13,7 +13,7 @@
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/YAMLTraits.h"
 
-template<ranges::range RegisterContainer>
+template<std::ranges::range RegisterContainer>
 bool verifyRegisters(const RegisterContainer &Registers,
                      model::Architecture::Values Architecture) {
   for (const model::Register::Values &Register : Registers) {

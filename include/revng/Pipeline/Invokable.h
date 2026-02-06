@@ -33,7 +33,7 @@
 namespace pipeline {
 template<typename T>
 concept HasName = requires() {
-  { T::Name } -> convertible_to<const char *>;
+  { T::Name } -> std::convertible_to<const char *>;
 };
 
 template<typename T>
@@ -80,7 +80,8 @@ concept ReturnsError = invokableTypeReturnsError<Invokable>();
 ///   never fails.
 ///
 template<typename InvokableType, typename First, typename... Rest>
-concept Invokable = convertible_to<ExecutionContext &, std::remove_cv_t<First>>
+concept Invokable = std::convertible_to<ExecutionContext &,
+                                        std::remove_cv_t<First>>
                     and HasName<InvokableType>;
 
 namespace detail {

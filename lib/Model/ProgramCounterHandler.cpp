@@ -901,7 +901,7 @@ getMinimumPCAlignment(model::Architecture::Values Architecture) {
 std::unique_ptr<ProgramCounterHandler>
 PCH::create(model::Architecture::Values Architecture,
             Module *M,
-            const CSVFactory &Factory) {
+            CSVFactory Factory) {
   auto Alignment = getMinimumPCAlignment(Architecture);
 
   switch (Architecture) {

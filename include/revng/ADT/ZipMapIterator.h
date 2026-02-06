@@ -43,12 +43,10 @@ concept VectorOfPairs = std::is_same_v<std::vector<std::pair<
 
 namespace {
 
-using namespace std;
-
-static_assert(VectorOfPairs<const vector<pair<const int, long>>>, "");
-static_assert(VectorOfPairs<vector<pair<const int, long>>>, "");
-static_assert(not VectorOfPairs<const vector<pair<int, long>>>, "");
-static_assert(not VectorOfPairs<vector<pair<int, long>>>, "");
+static_assert(VectorOfPairs<const std::vector<std::pair<const int, long>>>, "");
+static_assert(VectorOfPairs<std::vector<std::pair<const int, long>>>, "");
+static_assert(not VectorOfPairs<const std::vector<std::pair<int, long>>>, "");
+static_assert(not VectorOfPairs<std::vector<std::pair<int, long>>>, "");
 
 } // namespace
 

@@ -37,6 +37,7 @@
 #include "revng/ValueMaterializer/Helpers.h"
 
 using namespace llvm;
+using std::map;
 
 static Logger AVILogger("avi");
 

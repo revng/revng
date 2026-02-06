@@ -91,7 +91,8 @@ template<typename LeftType, typename RightType>
 static void
 compare(LeftType &Left,
         RightType &Right,
-        std::vector<std::pair<optional<int>, optional<int>>> &&Expected) {
+        std::vector<std::pair<std::optional<int>, std::optional<int>>>
+          &&Expected) {
   using LeftKE = KeyContainer<LeftType>;
   using RightKE = KeyContainer<RightType>;
   using left_pointer = element_pointer_t<LeftType>;

@@ -169,6 +169,12 @@ read_passes:
           matcher:
             type: regexes_matcher
             regexes: ['^static\s']
+        - name: Headers should not clobber namespaces
+          matcher:
+            type: regexes_matcher
+            regexes:
+              - '^using namespace \w+;'
+              - '^namespace \w+ = [\w:]+;'
   - type: WhitespaceCheckPass
   - type: SingleCommandPass
     name: codespell

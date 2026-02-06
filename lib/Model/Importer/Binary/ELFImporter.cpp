@@ -928,8 +928,9 @@ ELFImporter<T, HasAddend>::ehFrameFromEhFrameHdr() {
 
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
-                                             optional<uint64_t> FDEsCount,
-                                             optional<uint64_t> EHFrameSize) {
+                                             std::optional<uint64_t> FDEsCount,
+                                             std::optional<uint64_t>
+                                               EHFrameSize) {
   if (not FDEsCount and not EHFrameSize) {
     revng_log(ELFImporterLog, "Neither FDE count and .eh_frame size available");
     return;

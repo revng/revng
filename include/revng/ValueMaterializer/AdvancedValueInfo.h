@@ -67,10 +67,11 @@ static_assert(MFP::MonotoneFrameworkInstance<AdvancedValueInfoMFI>);
 
 /// \p DFG the data flow graph containing the instructions we're interested in.
 /// \p Context the position in the function for the current query.
-std::tuple<std::map<llvm::Instruction *, ConstantRangeSet>,
-           ControlFlowEdgesGraph,
-           map<const ForwardNode<ControlFlowEdgesNode> *,
-               MFP::MFPResult<map<llvm::Instruction *, ConstantRangeSet>>>>
+std::tuple<
+  std::map<llvm::Instruction *, ConstantRangeSet>,
+  ControlFlowEdgesGraph,
+  std::map<const ForwardNode<ControlFlowEdgesNode> *,
+           MFP::MFPResult<std::map<llvm::Instruction *, ConstantRangeSet>>>>
 runAVI(const DataFlowGraph &DFG,
        llvm::Instruction *Context,
        const llvm::DominatorTree &DT,

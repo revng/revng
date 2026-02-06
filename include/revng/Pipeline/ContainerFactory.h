@@ -84,7 +84,8 @@ public:
   template<typename T, typename... G>
   static ContainerFactory fromGlobal(G &&...Vals) {
     using Factory = ContainerFactoryWithArgs<T, G...>;
-    return ContainerFactory(make_unique<Factory>(std::forward<G>(Vals)...));
+    return ContainerFactory(std::make_unique<
+                            Factory>(std::forward<G>(Vals)...));
   }
 
   ContainerFactory(const ContainerFactory &Other) :

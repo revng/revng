@@ -20,8 +20,8 @@ using SuccessorContainer = SortedVector<UpcastablePointer<FunctionEdgeBase>>;
 
 template<typename T>
 concept SpecializationOfBasicBlock = requires(T Instance) {
-  { Instance.ID() } -> convertible_to<BasicBlockID>;
-  { Instance.End() } -> convertible_to<MetaAddress>;
+  { Instance.ID() } -> std::convertible_to<BasicBlockID>;
+  { Instance.End() } -> std::convertible_to<MetaAddress>;
 };
 
 struct ParsedSuccessor {

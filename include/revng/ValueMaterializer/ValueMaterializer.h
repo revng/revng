@@ -57,8 +57,8 @@ private:
   //
   DataFlowGraph DataFlowGraph;
   ConstraintsMap OracleConstraints;
-  map<const ForwardNode<ControlFlowEdgesNode> *,
-      MFP::MFPResult<map<llvm::Instruction *, ConstantRangeSet>>>
+  std::map<const ForwardNode<ControlFlowEdgesNode> *,
+           MFP::MFPResult<std::map<llvm::Instruction *, ConstantRangeSet>>>
     MFIResults;
   std::optional<MaterializedValues> Values;
   ControlFlowEdgesGraph CFEG;

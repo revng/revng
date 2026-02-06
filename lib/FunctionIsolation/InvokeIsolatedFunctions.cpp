@@ -24,6 +24,7 @@
 #include "revng/Pipes/TaggedFunctionKind.h"
 
 using namespace llvm;
+using std::tuple;
 
 class InvokeIsolatedFunctionsImpl {
 private:

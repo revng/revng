@@ -333,7 +333,7 @@ static void runnerImplementation(std::function<ReturnT(Args...)> Function,
               "function's prototype");
 
   auto Sequence = std::make_index_sequence<sizeof...(Args)>();
-  if constexpr (is_same_v<ReturnT, void>) {
+  if constexpr (std::is_same_v<ReturnT, void>) {
     runCommand<Name>(Function, Arguments, Context, Sequence);
     return;
   } else {
