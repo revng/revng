@@ -744,7 +744,7 @@ public:
                     DeclaratorInfo{
                       .Identifier = S.getName(),
                       .Location = S.getHandle(),
-                      .Attributes = getDeclarationOpAttributes(S),
+                      .Attributes = getDeclarationOpCAttributes(S),
                       .Kind = CTE::EntityKind::LocalVariable,
                     });
 

@@ -266,7 +266,7 @@ private:
     }
 
     if (Declarator)
-      Parent.emitAttributes(Declarator->Attributes);
+      Parent.emitCAttributes(Declarator->Attributes);
   }
 };
 
@@ -312,24 +312,24 @@ void CEmitter::emitType(ValueType Type) {
 
 //===----------------------------- Attributes -----------------------------===//
 
-bool CEmitter::isValidAttributeArray(mlir::ArrayAttr ArrayAttr) {
-  auto IsAttributeAttr = [](mlir::Attribute Attr) {
-    return mlir::isa<AttributeAttr>(Attr);
+bool CEmitter::isValidCAttributeArray(mlir::ArrayAttr ArrayAttr) {
+  auto IsCAttributeAttr = [](mlir::Attribute Attr) {
+    return mlir::isa<CAttributeAttr>(Attr);
   };
-  return std::ranges::all_of(ArrayAttr, IsAttributeAttr);
+  return std::ranges::all_of(ArrayAttr, IsCAttributeAttr);
 }
 
-mlir::ArrayAttr CEmitter::getDeclarationOpAttributes(mlir::Operation *Op) {
-  if (auto Attr = Op->getAttr("clift.attributes")) {
+mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
+  if (auto Attr = Op->getAttr("clift.c_attributes")) {
     auto ArrayAttr = mlir::cast<mlir::ArrayAttr>(Attr);
-    revng_assert(isValidAttributeArray(ArrayAttr));
+    revng_assert(isValidCAttributeArray(ArrayAttr));
     return ArrayAttr;
   }
   return {};
 }
 
-void CEmitter::emitAttribute(AttributeAttr Attribute) {
-  auto Macro = Attribute.getMacro();
+void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
+  auto Macro = CAttribute.getMacro();
 
   Tokens.emitSpace();
   Tokens.emitIdentifier(Macro.getString(),
@@ -337,7 +337,7 @@ void CEmitter::emitAttribute(AttributeAttr Attribute) {
                         CTE::EntityKind::Attribute,
                         CTE::IdentifierKind::Reference);
 
-  if (auto Arguments = Attribute.getArguments()) {
+  if (auto Arguments = CAttribute.getArguments()) {
     Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
     for (auto [I, A] : llvm::enumerate(*Arguments)) {
@@ -356,10 +356,10 @@ void CEmitter::emitAttribute(AttributeAttr Attribute) {
   }
 }
 
-void CEmitter::emitAttributes(mlir::ArrayAttr Attributes) {
-  if (Attributes) {
-    for (mlir::Attribute Attr : Attributes)
-      emitAttribute(mlir::cast<AttributeAttr>(Attr));
+void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes) {
+  if (CAttributes) {
+    for (mlir::Attribute Attr : CAttributes)
+      emitCAttribute(mlir::cast<CAttributeAttr>(Attr));
   }
 }
 
@@ -380,9 +380,9 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
     };
 
     mlir::ArrayAttr Attributes = {};
-    if (auto Attr = Attrs.get("clift.attributes")) {
+    if (auto Attr = Attrs.get("clift.c_attributes")) {
       Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
-      revng_assert(isValidAttributeArray(Attributes));
+      revng_assert(isValidCAttributeArray(Attributes));
     }
 
     ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
@@ -394,7 +394,7 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
                   mlir::clift::CEmitter::DeclaratorInfo{
                     .Identifier = Op.getName(),
                     .Location = Op.getHandle(),
-                    .Attributes = getDeclarationOpAttributes(Op),
+                    .Attributes = getDeclarationOpCAttributes(Op),
                     .Kind = ptml::CTokenEmitter::EntityKind::Function,
                     .Parameters = ParameterDeclarators,
                   });
