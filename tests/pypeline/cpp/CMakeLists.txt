@@ -21,6 +21,8 @@ target_link_libraries(
 
 target_include_directories(mockPipebox PUBLIC ${Python_INCLUDE_DIRS})
 
+configure_file(pipebox.py "${CMAKE_CURRENT_BINARY_DIR}" COPYONLY)
+
 #
 # Add tests that use libmockPipebox
 #
@@ -45,3 +47,15 @@ set_tests_properties(
   pypeline-annotations-test
   PROPERTIES LABELS "pypeline;test" ENVIRONMENT
              "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}")
+
+revng_add_test(
+  NAME pypeline-native-test COMMAND
+  "${CMAKE_CURRENT_SOURCE_DIR}/test_native_runners.sh" "${CMAKE_BINARY_DIR}")
+set_tests_properties(
+  pypeline-native-test
+  PROPERTIES LABELS
+             "pypeline;test"
+             ENVIRONMENT
+             "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH};\
+PIPEBOX=${CMAKE_CURRENT_BINARY_DIR}/pipebox.py;\
+PIPELINE=${CMAKE_CURRENT_SOURCE_DIR}/pipeline.yml")

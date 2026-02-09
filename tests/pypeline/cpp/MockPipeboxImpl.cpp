@@ -14,6 +14,8 @@
 
 #include "MockPipeboxImpl.h"
 
+using llvm::ArrayRef;
+
 //
 // StringContainer
 //
@@ -59,6 +61,44 @@ void StringContainer::disposeIfPossible() {
 }
 
 //
+// RootStringContainer
+//
+
+std::set<ObjectID> RootStringContainer::objects() const {
+  if (Storage.empty())
+    return {};
+  else
+    return { ObjectID::root() };
+}
+
+void RootStringContainer::deserialize(const std::map<const ObjectID *,
+                                                     ArrayRef<char>> Data) {
+  for (auto &[Object, Entry] : Data)
+    Storage = { Entry.data(), Entry.size() };
+}
+
+std::map<ObjectID, revng::pypeline::Buffer>
+RootStringContainer::serialize(const std::vector<const ObjectID *> Objects)
+  const {
+  std::map<ObjectID, revng::pypeline::Buffer> Result;
+  for (const ObjectID *Object : Objects)
+    Result[*Object] = llvm::ArrayRef<char>{ Storage.data(), Storage.size() };
+  return Result;
+}
+
+void RootStringContainer::setIsDisposable() {
+  Disposable = true;
+}
+
+void RootStringContainer::disposeIfPossible() {
+  if (not Disposable)
+    return;
+
+  Storage = {};
+  Disposable = false;
+}
+
+//
 // AppendFooPipe
 //
 
@@ -83,6 +123,39 @@ AppendFooPipe::run(const Model &TheModel,
 }
 
 //
+// CreateEntryPipe
+//
+
+revng::pypeline::PipeOutput
+CreateEntryPipe::run(const Model &TheModel,
+                     const revng::pypeline::Request &Incoming,
+                     const revng::pypeline::Request &Outgoing,
+                     llvm::StringRef Configuration,
+                     RootStringContainer &Container) {
+  revng_assert(Outgoing.size() == 1);
+  revng_assert(Outgoing[0].size() == 1);
+  Container.getStorage() = "foo";
+  return { {}, {} };
+}
+
+//
+// AppendFooPipe2
+//
+
+revng::pypeline::PipeOutput
+AppendFooPipe2::run(const Model &TheModel,
+                    const revng::pypeline::Request &Incoming,
+                    const revng::pypeline::Request &Outgoing,
+                    llvm::StringRef Configuration,
+                    RootStringContainer &Container) {
+  revng_assert(Outgoing.size() == 1);
+  revng_assert(Outgoing[0].size() == 1);
+  auto &Storage = Container.getStorage();
+  Storage = Storage + "foo";
+  return { {}, {} };
+}
+
+//
 // AppendFooLibAnalysis
 //
 
@@ -90,6 +163,16 @@ llvm::Error AppendFooLibAnalysis::run(Model &TheModel,
                                       const revng::pypeline::Request &Incoming,
                                       llvm::StringRef Configuration,
                                       StringContainer &Container) {
+  revng_assert(Incoming.size() == 1);
+  TheModel.get()->ImportedLibraries().insert("foo.so");
+
+  return llvm::Error::success();
+}
+
+llvm::Error AppendFooLibAnalysis2::run(Model &TheModel,
+                                       const revng::pypeline::Request &Incoming,
+                                       llvm::StringRef Configuration,
+                                       RootStringContainer &Container) {
   revng_assert(Incoming.size() == 1);
   TheModel.get()->ImportedLibraries().insert("foo.so");
 
