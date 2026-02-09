@@ -953,7 +953,7 @@ public:
 // by visiting a given operation and all nested operations. Any module-level
 // operations are not renamed directly, but instead the renames are recorded
 // in the specified SymbolRenamer, to be applied all at once.
-class NameImporter : public clift::ModuleVisitor<NameImporter> {
+class ModelInfoImporter : public clift::ModuleVisitor<ModelInfoImporter> {
   struct CurrentFunctionState {
     using LocationType = pipeline::Location<decltype(rr::Function)>;
 
@@ -967,7 +967,7 @@ class NameImporter : public clift::ModuleVisitor<NameImporter> {
                                   CliftStatementTraits>
       Comments;
 
-    explicit CurrentFunctionState(NameImporter &Importer,
+    explicit CurrentFunctionState(ModelInfoImporter &Importer,
                                   clift::FunctionOp Function,
                                   LocationType &&Location,
                                   const model::Function &ModelFunction) :
@@ -985,7 +985,8 @@ class NameImporter : public clift::ModuleVisitor<NameImporter> {
   std::optional<CurrentFunctionState> CurrentFunction;
 
 public:
-  explicit NameImporter(const model::Binary &Model, SymbolRenamer &Symbols) :
+  explicit ModelInfoImporter(const model::Binary &Model,
+                             SymbolRenamer &Symbols) :
     Model(Model), Symbols(Symbols), NameBuilder(Model) {}
 
   //===---------------------- ModuleVisitor interface ---------------------===//
@@ -1447,7 +1448,7 @@ void mlir::clift::importNames(const model::Binary &Model,
                               mlir::ModuleOp Module) {
   SymbolRenamer Symbols;
 
-  auto R = NameImporter::visit(Module, Model, Symbols);
+  auto R = ModelInfoImporter::visit(Module, Model, Symbols);
   revng_assert(R.succeeded());
 
   Symbols.apply(Module);
@@ -1469,17 +1470,17 @@ void mlir::clift::importNames(const model::Function &Function,
 
   SymbolRenamer Symbols;
 
-  auto R = NameImporter::visit(CliftFunction, Model, Symbols);
+  auto R = ModelInfoImporter::visit(CliftFunction, Model, Symbols);
   revng_assert(R.succeeded());
 
   for (mlir::Operation &Op : Module.getBody()->getOperations()) {
     if (auto F = mlir::dyn_cast<clift::FunctionOp>(Op)) {
       if (getMetaAddress(F).isInvalid()) {
-        auto R = NameImporter::visit(F, Model, Symbols);
+        auto R = ModelInfoImporter::visit(F, Model, Symbols);
         revng_assert(R.succeeded());
       }
     } else if (auto G = mlir::dyn_cast<clift::GlobalVariableOp>(Op)) {
-      auto R = NameImporter::visit(G, Model, Symbols);
+      auto R = ModelInfoImporter::visit(G, Model, Symbols);
       revng_assert(R.succeeded());
     }
   }
