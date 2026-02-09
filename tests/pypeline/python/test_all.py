@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# pylint: disable=redefined-outer-name
+# mypy: disable-error-code="attr-defined"
 
 from __future__ import annotations
 
