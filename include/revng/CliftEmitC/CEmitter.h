@@ -35,11 +35,11 @@ public:
 
   //===---------------------------- Attributes ----------------------------===//
 
-  static bool isValidAttributeArray(mlir::ArrayAttr Array);
-  mlir::ArrayAttr getDeclarationOpAttributes(mlir::Operation *Op);
+  static bool isValidCAttributeArray(mlir::ArrayAttr Array);
+  mlir::ArrayAttr getDeclarationOpCAttributes(mlir::Operation *Op);
 
-  void emitAttribute(AttributeAttr Attribute);
-  void emitAttributes(mlir::ArrayAttr Attributes);
+  void emitCAttribute(CAttributeAttr Attribute);
+  void emitCAttributes(mlir::ArrayAttr Attributes);
 
   //===---------------------------- Prototype -----------------------------===//
 

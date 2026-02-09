@@ -248,10 +248,10 @@ template class ClassAttrImpl<UnionAttr>;
 
 } // namespace mlir::clift
 
-//===---------------------------- AttributeAttr ---------------------------===//
+//===---------------------------- CAttributeAttr --------------------------===//
 
 static mlir::LogicalResult parseAttributeComponent(mlir::AsmParser &Parser,
-                                                   AttributeComponentAttr &C) {
+                                                   CAttributeComponentAttr &C) {
   mlir::SMLoc Loc = Parser.getCurrentLocation();
 
   std::string String;
@@ -264,31 +264,32 @@ static mlir::LogicalResult parseAttributeComponent(mlir::AsmParser &Parser,
       return mlir::failure();
   }
 
-  C = AttributeComponentAttr::getChecked(getEmitError(Parser, Loc),
-                                         Parser.getContext(),
-                                         String,
-                                         Handle);
+  C = CAttributeComponentAttr::getChecked(getEmitError(Parser, Loc),
+                                          Parser.getContext(),
+                                          String,
+                                          Handle);
 
   return mlir::success();
 }
 
-mlir::Attribute AttributeAttr::parse(mlir::AsmParser &Parser, mlir::Type Type) {
+mlir::Attribute CAttributeAttr::parse(mlir::AsmParser &Parser,
+                                      mlir::Type Type) {
   mlir::SMLoc Loc = Parser.getCurrentLocation();
 
   if (Parser.parseLess().failed())
     return {};
 
-  AttributeComponentAttr Macro;
+  CAttributeComponentAttr Macro;
   if (parseAttributeComponent(Parser, Macro).failed())
     return {};
 
-  llvm::SmallVector<AttributeComponentAttr> ArgumentsArray;
-  std::optional<llvm::ArrayRef<AttributeComponentAttr>> Arguments;
+  llvm::SmallVector<CAttributeComponentAttr> ArgumentsArray;
+  std::optional<llvm::ArrayRef<CAttributeComponentAttr>> Arguments;
 
   if (Parser.parseOptionalLParen().succeeded()) {
     if (Parser.parseOptionalRParen().failed()) {
       auto ParseArgument = [&Parser, &ArgumentsArray]() -> mlir::ParseResult {
-        AttributeComponentAttr Argument;
+        CAttributeComponentAttr Argument;
         if (parseAttributeComponent(Parser, Argument).failed())
           return mlir::failure();
 
@@ -309,14 +310,14 @@ mlir::Attribute AttributeAttr::parse(mlir::AsmParser &Parser, mlir::Type Type) {
   if (Parser.parseGreater().failed())
     return {};
 
-  return AttributeAttr::getChecked(getEmitError(Parser, Loc),
-                                   Parser.getContext(),
-                                   Macro,
-                                   Arguments);
+  return CAttributeAttr::getChecked(getEmitError(Parser, Loc),
+                                    Parser.getContext(),
+                                    Macro,
+                                    Arguments);
 }
 
 static void printAttributeComponent(mlir::AsmPrinter &Printer,
-                                    AttributeComponentAttr C) {
+                                    CAttributeComponentAttr C) {
   printString(Printer, C.getString());
 
   if (not C.getHandle().empty()) {
@@ -325,7 +326,7 @@ static void printAttributeComponent(mlir::AsmPrinter &Printer,
   }
 }
 
-void AttributeAttr::print(mlir::AsmPrinter &Printer) const {
+void CAttributeAttr::print(mlir::AsmPrinter &Printer) const {
   Printer << '<';
 
   printAttributeComponent(Printer, getMacro());
