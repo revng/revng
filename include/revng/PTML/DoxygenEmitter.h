@@ -79,6 +79,8 @@ public:
   }
 
   using IndentingEmitter::emit;
+  using IndentingEmitter::emitNewline;
+  using IndentingEmitter::emitSpace;
 };
 
 } // namespace ptml
