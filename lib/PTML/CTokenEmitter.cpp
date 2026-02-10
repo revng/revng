@@ -275,7 +275,7 @@ void CTokenEmitter::emitKeyword(Keyword K) {
     Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Keyword);
     Tag.finalizeOpenTag();
 
-    PTML.emitLiteralContent(String);
+    PTML.emit(String);
   };
 
   switch (K) {
@@ -359,7 +359,7 @@ void CTokenEmitter::emitPunctuator(Punctuator P) {
     Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Punctuation);
     Tag.finalizeOpenTag();
 
-    PTML.emitContent(String);
+    PTML.emit(String);
   };
 
   switch (P) {
@@ -397,7 +397,7 @@ void CTokenEmitter::emitOperator(Operator O) {
     Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Operator);
     Tag.finalizeOpenTag();
 
-    PTML.emitContent(String);
+    PTML.emit(String);
   };
 
   switch (O) {
@@ -514,14 +514,14 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
   }
   Tag.finalizeOpenTag();
 
-  PTML.emitLiteralContent(Identifier);
+  PTML.emit(Identifier);
 }
 
 void CTokenEmitter::emitLiteralIdentifier(llvm::StringRef Identifier) {
   revng_assert(validateIdentifier(Identifier),
                "The specified identifier is not a valid C identifier.");
 
-  PTML.emitLiteralContent(Identifier);
+  PTML.emit(Identifier);
 }
 
 void CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
@@ -554,7 +554,7 @@ void CTokenEmitter::emitIntegerLiteral(llvm::APSInt Value,
   Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Constant);
   Tag.finalizeOpenTag();
 
-  PTML.emitLiteralContent(String);
+  PTML.emit(String);
 }
 
 void CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
@@ -562,7 +562,7 @@ void CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
   Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::StringLiteral);
   Tag.finalizeOpenTag();
 
-  PTML.emitLiteralContent("\"");
+  PTML.emit("\"");
 
   auto Begin = String.data();
   auto End = Begin + String.size();
@@ -572,18 +572,18 @@ void CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
       return requiresStringEscaping(Character);
     });
 
-    PTML.emitContent(std::string_view(Begin, Pos));
+    PTML.emit(std::string_view(Begin, Pos));
 
     if (Pos != End) {
       char ThisChar = *Pos++;
       char NextChar = Pos != End ? *Pos : '\0';
-      PTML.emitLiteralContent(getStringEscape(ThisChar, NextChar));
+      PTML.emit(getStringEscape(ThisChar, NextChar));
     }
 
     Begin = Pos;
   }
 
-  PTML.emitLiteralContent("\"");
+  PTML.emit("\"");
 }
 
 void CTokenEmitter::emitComment(llvm::StringRef Content, CommentKind Kind) {
@@ -596,14 +596,14 @@ void CTokenEmitter::emitComment(llvm::StringRef Content, CommentKind Kind) {
       Content = Content.substr(0, Content.size() - 1);
 
     for (const auto &R : std::views::split(Content, '\n')) {
-      PTML.emitLiteralContent("//");
-      PTML.emitContent(std::string_view(R.begin(), R.end()));
-      PTML.emitContentNewline();
+      PTML.emit("//");
+      PTML.emit(std::string_view(R.begin(), R.end()));
+      PTML.emit("\n");
     }
   } else {
-    PTML.emitLiteralContent("/*");
-    PTML.emitContent(Content);
-    PTML.emitLiteralContent("*/");
+    PTML.emit("/*");
+    PTML.emit(Content);
+    PTML.emit("*/");
   }
 }
 
@@ -616,10 +616,10 @@ void CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
     Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Directive);
     Tag.finalizeOpenTag();
 
-    PTML.emitLiteralContent("#include");
+    PTML.emit("#include");
   }
 
-  PTML.emitLiteralContent(" ");
+  PTML.emit(" ");
 
   // Emit include path:
   {
@@ -627,36 +627,37 @@ void CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
     Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::StringLiteral);
     Tag.finalizeOpenTag();
 
-    PTML.emitContent(Mode == IncludeMode::Quote ? "\"" : "<");
-    PTML.emitContent(Content);
-    PTML.emitContent(Mode == IncludeMode::Quote ? "\"" : ">");
+    PTML.emit(Mode == IncludeMode::Quote ? "\"" : "<");
+    PTML.emit(Content);
+    PTML.emit(Mode == IncludeMode::Quote ? "\"" : ">");
   }
 
-  PTML.emitContentNewline();
+  PTML.emit("\n");
 }
 
-void CTokenEmitter::enterScopeImpl(ptml::PTMLEmitter::TagEmitter &Tag,
-                                   Delimiter Delimiter,
-                                   int Indent,
-                                   ScopeKind Kind) {
+CTokenEmitter::Scope::Scope(CTokenEmitter &Emitter,
+                            ScopeKind Kind,
+                            CTokenEmitter::Delimiter Delimiter,
+                            int Indent) :
+  Emitter(Emitter), Delimiter(Delimiter), Indent(Indent) {
+
   if (auto Symbols = getDelimiterPunctuators(Delimiter))
-    emitPunctuator(Symbols->first);
+    Emitter.emitPunctuator(Symbols->first);
 
-  Tag.initializeOpenTag(PTML, ptml::tags::Div);
-  if (auto Attribute = getScopeKindAttribute(Kind))
-    Tag.emitAttribute(ptml::attributes::Scope, *Attribute);
-  Tag.finalizeOpenTag();
+  if (auto Attribute = getScopeKindAttribute(Kind)) {
+    Tag.emplace(Emitter.PTML.makeTagInitializer(ptml::tags::Div));
+    Tag->emitAttribute(ptml::attributes::Scope, *Attribute);
+    Tag->finalizeOpenTag();
+  }
 
-  PTML.indent(Indent);
+  Emitter.PTML.indent(Indent);
 }
 
-void CTokenEmitter::leaveScopeImpl(ptml::PTMLEmitter::TagEmitter &Tag,
-                                   Delimiter Delimiter,
-                                   int Indent) {
-  PTML.indent(-Indent);
+CTokenEmitter::Scope::~Scope() {
+  Emitter.PTML.indent(-Indent);
 
-  Tag.close();
+  Tag.reset();
 
   if (auto Symbols = getDelimiterPunctuators(Delimiter))
-    emitPunctuator(Symbols->second);
+    Emitter.emitPunctuator(Symbols->second);
 }

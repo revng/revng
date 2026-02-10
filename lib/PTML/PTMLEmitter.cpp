@@ -7,7 +7,7 @@
 
 using namespace ptml;
 
-static constexpr llvm::StringRef IndentString = "  ";
+namespace {
 
 // PTML requires escaping some characters. Currently we escape angle brackets
 // and ampersands unconditionally. Quotes are escaped only within attribute
@@ -18,7 +18,7 @@ static constexpr llvm::StringRef IndentString = "  ";
 // situations are either not encountered in practice or introduce asymmetries.
 // For this reason they are escaped unconditionally.
 
-template<bool EscapeQuotes = false>
+template<bool EscapeQuotes>
 static bool requiresEscaping(char Character) {
   switch (Character) {
   case '<':
@@ -47,41 +47,9 @@ static llvm::StringRef getEscape(char Character) {
   }
 }
 
-//===----------------------------- PTMLEmitter ----------------------------===//
-
-void detail::PTMLEmitterBase::emitIndentation(unsigned Indentation) {
-  static constexpr llvm::StringRef IndentString = "  ";
-
-  for (unsigned I = 0; I < Indentation; ++I)
-    emit(IndentString);
-}
-
-void PTMLEmitter::emitLiteralContent(llvm::StringRef String) {
-  revng_assert(CurrentOpenTagEmitter == nullptr,
-               "Cannot emit content while an unfinalized TagEmitter is "
-               "associated with this PTMLEmitter.");
-
-  constexpr auto IsNewlineOrRequiresEscaping = [](char Character) {
-    return Character == '\n' || requiresEscaping(Character);
-  };
-  revng_assert(std::ranges::none_of(String, IsNewlineOrRequiresEscaping));
-
-  IndentingEmitter::emit(String);
-}
-
-void PTMLEmitter::emitContent(llvm::StringRef String) {
-  revng_assert(CurrentOpenTagEmitter == nullptr,
-               "Cannot emit content while an unfinalized TagEmitter is "
-               "associated with this PTMLEmitter.");
-
-  if (EmitTags)
-    emitEscapedContent(String);
-  else
-    IndentingEmitter::emit(String);
-}
-
-template<bool EscapeQuotes>
-void PTMLEmitter::emitEscapedContent(llvm::StringRef String) {
+template<Emitter EmitterT, bool EscapeQuotes>
+static void
+emitEscaped(std::type_identity_t<EmitterT> &Emitter, llvm::StringRef String) {
   auto Begin = String.data();
   auto End = Begin + String.size();
 
@@ -90,88 +58,117 @@ void PTMLEmitter::emitEscapedContent(llvm::StringRef String) {
       return requiresEscaping<EscapeQuotes>(Character);
     });
 
-    IndentingEmitter::emit(std::string_view(Begin, Pos));
+    Emitter.emit(llvm::StringRef(std::string_view(Begin, Pos)));
 
     if (Pos != End)
-      OS << getEscape(*Pos++);
+      Emitter.emit(getEscape(*Pos++));
 
     Begin = Pos;
   }
 }
 
-void PTMLEmitter::emitAttributeValue(llvm::StringRef String) {
-  emitEscapedContent</*EscapeQuotes=*/true>(String);
-}
+} // namespace
 
-//===----------------------- PTMLEmitter::TagEmitter ----------------------===//
+//===--------------------------- PTMLTagEmitter ---------------------------===//
 
-void PTMLTagEmitter::initializeOpenTagImpl(PTMLEmitter &ParentEmitter,
-                                           llvm::StringRef Tag) {
-  this->ParentEmitter = &ParentEmitter;
-  this->Tag = Tag;
-  this->IsOpenTagFinalized = false;
+PTMLTagEmitter::PTMLTagEmitter(detail::PTMLEmitterBase &ParentEmitter,
+                               llvm::StringRef Tag) :
+  ParentEmitter(ParentEmitter), Tag(Tag) {
+  revng_assert(ParentEmitter.CurrentOpenTagEmitter == nullptr,
+               "The parent emitter is already associated with an unfinalized "
+               "open tag.");
 
-  if (ParentEmitter.EmitTags) {
-    ParentEmitter.emitIndentationIfNeeded();
+  if (ParentEmitter.EmitTags)
     ParentEmitter.OS << '<' << Tag;
-  }
-
   ParentEmitter.CurrentOpenTagEmitter = this;
 }
 
-void PTMLTagEmitter::emitAttributeImpl(llvm::StringRef Name,
-                                       llvm::StringRef Value) {
-  revng_assert(ParentEmitter->CurrentOpenTagEmitter == this);
+PTMLTagEmitter::~PTMLTagEmitter() {
+  if (IsEmittingOpenTag)
+    finalizeOpenTag();
 
-  if (ParentEmitter->EmitTags) {
-    ParentEmitter->OS << ' ' << Name << '=' << '"';
-    ParentEmitter->emitAttributeValue(Value);
-    ParentEmitter->OS << '"';
-  }
+  if (ParentEmitter.EmitTags)
+    ParentEmitter.OS << '<' << '/' << Tag << '>';
 }
 
-void PTMLTagEmitter::emitListAttributeImpl(llvm::StringRef Name,
-                                           llvm::ArrayRef<llvm::StringRef>
-                                             Values) {
-  revng_assert(ParentEmitter->CurrentOpenTagEmitter == this);
+void PTMLTagEmitter::finalizeOpenTag() {
+  revng_assert(IsEmittingOpenTag, "The open tag has already been finalized.");
 
-  if (ParentEmitter->EmitTags) {
-    ParentEmitter->OS << ' ' << Name << '=' << '"';
+  if (ParentEmitter.EmitTags)
+    ParentEmitter.OS << '>';
+
+  IsEmittingOpenTag = false;
+  ParentEmitter.CurrentOpenTagEmitter = nullptr;
+}
+
+void PTMLTagEmitter::emitAttributeValue(llvm::StringRef Value) {
+  emitEscaped<StreamEmitter, /*EscapeQuotes=*/true>(ParentEmitter, Value);
+}
+
+PTMLTagEmitter &PTMLTagEmitter::emitAttribute(llvm::StringRef Name,
+                                              llvm::StringRef Value) {
+  revng_assert(ParentEmitter.CurrentOpenTagEmitter == this);
+  revng_assert(IsEmittingOpenTag, "The open tag has already been finalized.");
+
+  revng_assert(not Name.contains('\n'));
+  revng_assert(not Value.contains('\n'));
+
+  if (ParentEmitter.EmitTags) {
+    ParentEmitter.OS << ' ' << Name << '=' << '"';
+    emitAttributeValue(Value);
+    ParentEmitter.OS << '"';
+  }
+
+  return *this;
+}
+
+PTMLTagEmitter &
+PTMLTagEmitter::emitListAttribute(llvm::StringRef Name,
+                                  llvm::ArrayRef<llvm::StringRef> Values) {
+  revng_assert(ParentEmitter.CurrentOpenTagEmitter == this);
+  revng_assert(IsEmittingOpenTag, "The open tag has already been finalized.");
+
+  revng_assert(not Name.contains('\n'));
+  revng_assert(std::ranges::none_of(Values, [](llvm::StringRef String) {
+    return String.contains('\n');
+  }));
+
+  if (ParentEmitter.EmitTags) {
+    ParentEmitter.OS << ' ' << Name << '=' << '"';
 
     bool InsertComma = false;
-    for (llvm::StringRef Value : Values) {
+    for (auto [I, Value] : llvm::enumerate(Values)) {
       revng_assert(not Value.contains(','),
                    "List attribute values shall not contain commas.");
 
-      if (InsertComma)
-        ParentEmitter->OS << ',';
-      InsertComma = true;
+      if (I == 0)
+        ParentEmitter.OS << ',';
 
-      ParentEmitter->emitAttributeValue(Value);
+      emitAttributeValue(Value);
     }
 
-    ParentEmitter->OS << '"';
+    ParentEmitter.OS << '"';
   }
+
+  return *this;
 }
 
-void PTMLTagEmitter::finalizeOpenTagImpl() {
-  if (not IsOpenTagFinalized) {
-    revng_assert(ParentEmitter->CurrentOpenTagEmitter == this);
+//===-------------------------- PTMLStreamEmitter -------------------------===//
 
-    if (ParentEmitter->EmitTags)
-      ParentEmitter->OS << '>';
-    IsOpenTagFinalized = true;
+void detail::PTMLEmitterBase::emitIndentation(unsigned Indentation) {
+  static constexpr llvm::StringRef IndentString = "  ";
 
-    ParentEmitter->CurrentOpenTagEmitter = nullptr;
-  }
+  for (unsigned I = 0; I < Indentation; ++I)
+    emit(IndentString);
 }
 
-void PTMLTagEmitter::closeImpl() {
-  if (ParentEmitter != nullptr) {
-    finalizeOpenTagImpl();
+void PTMLStreamEmitter::emit(llvm::StringRef Content) {
+  revng_assert(CurrentOpenTagEmitter == nullptr,
+               "Cannot emit content while an unfinalized tag emitter is "
+               "associated with this emitter.");
 
-    if (ParentEmitter->EmitTags)
-      ParentEmitter->OS << '<' << '/' << Tag << '>';
-  }
-  ParentEmitter = nullptr;
+  if (EmitTags)
+    emitEscaped<IndentingEmitter, /*EscapeQuotes=*/false>(*this, Content);
+  else
+    IndentingEmitter::emit(Content);
 }

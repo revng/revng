@@ -13,15 +13,14 @@
 namespace ptml {
 
 class CTokenEmitter {
-  PTMLEmitter PTML;
+  PTMLStreamEmitter PTML;
 
 public:
   explicit CTokenEmitter(llvm::raw_ostream &OS, Tagging Tags) :
     PTML(OS, Tags) {}
 
-  void emitSpace() { PTML.emitLiteralContent(" "); }
-
-  void emitNewline() { PTML.emitContentNewline(); }
+  void emitSpace() { PTML.emit(" "); }
+  void emitNewline() { PTML.emit("\n"); }
 
   enum class Keyword {
     Auto,
@@ -207,43 +206,28 @@ public:
   };
 
   class Scope {
+    CTokenEmitter &Emitter;
+    std::optional<PTMLTagEmitter> Tag;
+
+    CTokenEmitter::Delimiter Delimiter;
+    int Indent;
+
   public:
     explicit Scope(CTokenEmitter &Emitter,
                    ScopeKind Kind,
-                   Delimiter Delimiter,
-                   int Indent) :
-      Emitter(Emitter), Delimiter(Delimiter), Indent(Indent), Tag() {
-      Emitter.enterScopeImpl(Tag, Delimiter, Indent, Kind);
-    }
+                   CTokenEmitter::Delimiter Delimiter,
+                   int Indent);
 
     Scope(const Scope &) = delete;
     Scope &operator=(const Scope &) = delete;
 
-    ~Scope() { Emitter.leaveScopeImpl(Tag, Delimiter, Indent); }
-
-  private:
-    CTokenEmitter &Emitter;
-
-    Delimiter Delimiter;
-    int Indent;
-
-    ptml::PTMLEmitter::TagEmitter Tag;
+    ~Scope();
   };
 
   [[nodiscard]] Scope
   enterScope(ScopeKind Kind, Delimiter Delimiter, int Indent = 1) {
     return Scope(*this, Kind, Delimiter, Indent);
   }
-
-private:
-  void enterScopeImpl(ptml::PTMLEmitter::TagEmitter &Tag,
-                      Delimiter Delimiter,
-                      int Indent,
-                      ScopeKind Kind);
-
-  void leaveScopeImpl(ptml::PTMLEmitter::TagEmitter &Tag,
-                      Delimiter Delimiter,
-                      int Indent);
 };
 
 } // namespace ptml
