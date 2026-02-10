@@ -59,6 +59,8 @@ public:
     }
   }
 
+  void emitSpace() { EmitterT::emit(llvm::StringRef(" ")); }
+
   void emitNewline() {
     EmitterT::emit(llvm::StringRef("\n"));
     IsAtBeginningOfLine = true;
