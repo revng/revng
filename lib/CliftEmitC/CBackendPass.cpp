@@ -46,8 +46,8 @@ struct EmitCPass : clift::impl::CliftEmitCBase<EmitCPass> {
 
     const auto &Target = TargetCImplementation::Default;
 
-    CTokenEmitter Emitter(File->os(),
-                          static_cast<ptml::Tagging>(EmitTags.getValue()));
+    auto Tagging = static_cast<ptml::Tagging>(EmitTags.getValue());
+    ptml::CTokenEmitter Emitter(File->os(), Tagging);
 
     getOperation()->walk([&Emitter](clift::FunctionOp Function) {
       if (not Function.isExternal())

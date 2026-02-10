@@ -62,7 +62,7 @@ public:
       std::string Code;
       {
         llvm::raw_string_ostream OS(Code);
-        CTokenEmitter Emitter(OS, ptml::Tagging::Enabled);
+        ptml::CTokenEmitter Emitter(OS, ptml::Tagging::Enabled);
         clift::decompile(It->second, Emitter, Target);
       }
 
@@ -98,7 +98,7 @@ void EmitC::runOnFunction(const model::Function &Function) {
 
   {
     auto OS = Output.getOStream(Object);
-    CTokenEmitter Emitter(*OS, ptml::Tagging::Enabled);
+    ptml::CTokenEmitter Emitter(*OS, ptml::Tagging::Enabled);
     clift::decompile(MLIRFunction, Emitter, Target);
   }
 }

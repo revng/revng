@@ -10,11 +10,13 @@
 #include "revng/PTML/Emitter.h"
 #include "revng/Support/CTarget.h"
 
+namespace ptml {
+
 class CTokenEmitter {
   ptml::Emitter PTML;
 
 public:
-  explicit CTokenEmitter(llvm::raw_ostream &OS, ptml::Tagging Tags) :
+  explicit CTokenEmitter(llvm::raw_ostream &OS, Tagging Tags) :
     PTML(OS, Tags) {}
 
   void emitSpace() { PTML.emitLiteralContent(" "); }
@@ -243,3 +245,5 @@ private:
                       Delimiter Delimiter,
                       int Indent);
 };
+
+} // namespace ptml

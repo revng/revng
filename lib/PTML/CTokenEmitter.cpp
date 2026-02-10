@@ -17,6 +17,8 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
+using ptml::CTokenEmitter;
+
 namespace {
 
 using EntityKind = CTokenEmitter::EntityKind;
