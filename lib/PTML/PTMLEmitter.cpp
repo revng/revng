@@ -173,3 +173,11 @@ void PTMLStreamEmitter::emit(llvm::StringRef Content) {
   else
     IndentingEmitter::emit(Content);
 }
+
+void PTMLStreamEmitter::emitRawContent(llvm::StringRef Content) {
+  revng_assert(CurrentOpenTagEmitter == nullptr,
+               "Cannot emit content while an unfinalized tag emitter is "
+               "associated with this emitter.");
+
+  IndentingEmitter::emitRawContent(Content);
+}
