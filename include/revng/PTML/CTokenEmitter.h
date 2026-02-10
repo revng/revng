@@ -7,13 +7,13 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/StringRef.h"
 
-#include "revng/PTML/Emitter.h"
+#include "revng/PTML/PTMLEmitter.h"
 #include "revng/Support/CTarget.h"
 
 namespace ptml {
 
 class CTokenEmitter {
-  ptml::Emitter PTML;
+  PTMLEmitter PTML;
 
 public:
   explicit CTokenEmitter(llvm::raw_ostream &OS, Tagging Tags) :
@@ -227,7 +227,7 @@ public:
     Delimiter Delimiter;
     int Indent;
 
-    ptml::Emitter::TagEmitter Tag;
+    ptml::PTMLEmitter::TagEmitter Tag;
   };
 
   [[nodiscard]] Scope
@@ -236,12 +236,12 @@ public:
   }
 
 private:
-  void enterScopeImpl(ptml::Emitter::TagEmitter &Tag,
+  void enterScopeImpl(ptml::PTMLEmitter::TagEmitter &Tag,
                       Delimiter Delimiter,
                       int Indent,
                       ScopeKind Kind);
 
-  void leaveScopeImpl(ptml::Emitter::TagEmitter &Tag,
+  void leaveScopeImpl(ptml::PTMLEmitter::TagEmitter &Tag,
                       Delimiter Delimiter,
                       int Indent);
 };

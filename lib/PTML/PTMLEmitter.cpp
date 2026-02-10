@@ -3,7 +3,7 @@
 //
 
 #include "revng/PTML/Constants.h"
-#include "revng/PTML/Emitter.h"
+#include "revng/PTML/PTMLEmitter.h"
 
 using namespace ptml;
 
@@ -47,12 +47,12 @@ static llvm::StringRef getEscape(char Character) {
   }
 }
 
-//===------------------------------- Emitter ------------------------------===//
+//===----------------------------- PTMLEmitter ----------------------------===//
 
-void Emitter::emitLiteralContent(llvm::StringRef String) {
+void PTMLEmitter::emitLiteralContent(llvm::StringRef String) {
   revng_assert(CurrentOpenTagEmitter == nullptr,
                "Cannot emit content while an unfinalized TagEmitter is "
-               "associated with this Emitter.");
+               "associated with this PTMLEmitter.");
 
   constexpr auto IsNewlineOrRequiresEscaping = [](char Character) {
     return Character == '\n' || requiresEscaping(Character);
@@ -62,10 +62,10 @@ void Emitter::emitLiteralContent(llvm::StringRef String) {
   emitLiteralContentImpl(String);
 }
 
-void Emitter::emitContent(llvm::StringRef String) {
+void PTMLEmitter::emitContent(llvm::StringRef String) {
   revng_assert(CurrentOpenTagEmitter == nullptr,
                "Cannot emit content while an unfinalized TagEmitter is "
-               "associated with this Emitter.");
+               "associated with this PTMLEmitter.");
 
   if (EmitTags)
     emitEscapedContent(String);
@@ -73,7 +73,7 @@ void Emitter::emitContent(llvm::StringRef String) {
     emitIndentedContent(String);
 }
 
-void Emitter::emitLiteralContentImpl(llvm::StringRef String) {
+void PTMLEmitter::emitLiteralContentImpl(llvm::StringRef String) {
   if (not String.empty()) {
     if (IsAtBeginningOfLine)
       emitIndentation();
@@ -82,7 +82,7 @@ void Emitter::emitLiteralContentImpl(llvm::StringRef String) {
   }
 }
 
-void Emitter::emitIndentedContent(llvm::StringRef String) {
+void PTMLEmitter::emitIndentedContent(llvm::StringRef String) {
   if (not String.empty()) {
     auto View = std::views::split(String, '\n');
 
@@ -103,7 +103,7 @@ void Emitter::emitIndentedContent(llvm::StringRef String) {
 }
 
 template<bool EscapeQuotes>
-void Emitter::emitEscapedContent(llvm::StringRef String) {
+void PTMLEmitter::emitEscapedContent(llvm::StringRef String) {
   auto Begin = String.data();
   auto End = Begin + String.size();
 
@@ -121,7 +121,7 @@ void Emitter::emitEscapedContent(llvm::StringRef String) {
   }
 }
 
-void Emitter::emitIndentation() {
+void PTMLEmitter::emitIndentation() {
   IsAtBeginningOfLine = false;
 
   if (Indentation != 0) {
@@ -138,14 +138,14 @@ void Emitter::emitIndentation() {
   }
 }
 
-void Emitter::emitAttributeValue(llvm::StringRef String) {
+void PTMLEmitter::emitAttributeValue(llvm::StringRef String) {
   emitEscapedContent</*EscapeQuotes=*/true>(String);
 }
 
-//===------------------------- Emitter::TagEmitter ------------------------===//
+//===----------------------- PTMLEmitter::TagEmitter ----------------------===//
 
-void TagEmitter::initializeOpenTagImpl(Emitter &ParentEmitter,
-                                       llvm::StringRef Tag) {
+void PTMLTagEmitter::initializeOpenTagImpl(PTMLEmitter &ParentEmitter,
+                                           llvm::StringRef Tag) {
   this->ParentEmitter = &ParentEmitter;
   this->Tag = Tag;
   this->IsOpenTagFinalized = false;
@@ -159,8 +159,8 @@ void TagEmitter::initializeOpenTagImpl(Emitter &ParentEmitter,
   ParentEmitter.CurrentOpenTagEmitter = this;
 }
 
-void TagEmitter::emitAttributeImpl(llvm::StringRef Name,
-                                   llvm::StringRef Value) {
+void PTMLTagEmitter::emitAttributeImpl(llvm::StringRef Name,
+                                       llvm::StringRef Value) {
   revng_assert(ParentEmitter->CurrentOpenTagEmitter == this);
 
   if (ParentEmitter->EmitTags) {
@@ -170,8 +170,9 @@ void TagEmitter::emitAttributeImpl(llvm::StringRef Name,
   }
 }
 
-void TagEmitter::emitListAttributeImpl(llvm::StringRef Name,
-                                       llvm::ArrayRef<llvm::StringRef> Values) {
+void PTMLTagEmitter::emitListAttributeImpl(llvm::StringRef Name,
+                                           llvm::ArrayRef<llvm::StringRef>
+                                             Values) {
   revng_assert(ParentEmitter->CurrentOpenTagEmitter == this);
 
   if (ParentEmitter->EmitTags) {
@@ -193,7 +194,7 @@ void TagEmitter::emitListAttributeImpl(llvm::StringRef Name,
   }
 }
 
-void TagEmitter::finalizeOpenTagImpl() {
+void PTMLTagEmitter::finalizeOpenTagImpl() {
   if (not IsOpenTagFinalized) {
     revng_assert(ParentEmitter->CurrentOpenTagEmitter == this);
 
@@ -205,7 +206,7 @@ void TagEmitter::finalizeOpenTagImpl() {
   }
 }
 
-void TagEmitter::closeImpl() {
+void PTMLTagEmitter::closeImpl() {
   if (ParentEmitter != nullptr) {
     finalizeOpenTagImpl();
 
