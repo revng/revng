@@ -7,6 +7,7 @@ revng_add_library_internal(
   SHARED
   CBackend.cpp
   CBackendPass.cpp
+  CCommentEmitter.cpp
   CEmitter.cpp
   CSemantics.cpp
   CSemanticsPass.cpp
