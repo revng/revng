@@ -78,6 +78,40 @@ restoreInsertionPointAfter(mlir::OpBuilder &Builder,
 using ScopeGraphPostDomTree = llvm::PostDomTreeOnView<llvm::BasicBlock, Scope>;
 
 class ClifterImpl final : public Clifter {
+  class FunctionClifter;
+
+  struct StringLiteral {
+    clift::ArrayType Type;
+    std::string Data;
+  };
+
+  mlir::MLIRContext *const Context;
+  mlir::ModuleOp CurrentModule;
+
+  const model::Binary &Model;
+  mlir::OpBuilder Builder;
+
+  clift::ValueType VoidTypeCache;
+
+  uint64_t PointerSize;
+  clift::ValueType VoidPointerTypeCache;
+  clift::ValueType IntptrTypeCache;
+
+  /* Per-module mappings - persisted between imported functions */
+
+  // Maps LLVM object to a Clift global op. Each used global object is only
+  // emitted once and hence forth the operation stored in this table is used.
+  llvm::DenseMap<const llvm::GlobalObject *, clift::GlobalOpInterface>
+    SymbolMapping;
+
+  // Maps LLVM object to a string literal description. Used for caching
+  // successful string literal detection results.
+  llvm::DenseMap<const llvm::GlobalVariable *, StringLiteral> StringMapping;
+
+  // Maps helper name to Clift function op. Each helper function declaration is
+  // only emitted once.
+  llvm::DenseMap<llvm::StringRef, clift::FunctionOp> HelperMapping;
+
 public:
   // It is important only to query minimal properties about the model in the
   // importer constructor to avoid all imported functions depending on those
@@ -223,23 +257,10 @@ private:
     revng_abort("Unsupported LLVM type");
   }
 
-  /* LLVM expression import */
+  /* LLVM global import */
 
   uint64_t getConstantInt(const llvm::Value *Value) {
     return llvm::cast<llvm::ConstantInt>(Value)->getZExtValue();
-  }
-
-  // Determines if a argument is passed as a pointer to the actual value. In
-  // these cases an indirection must be inserted when using the argument.
-  static bool
-  isByAddressParameter(const abi::FunctionType::Layout::Argument &Parameter) {
-    switch (Parameter.Kind) {
-    case abi::FunctionType::ArgumentKind::PointerToCopy:
-    case abi::FunctionType::ArgumentKind::ReferenceToAggregate:
-      return true;
-    default:
-      return false;
-    }
   }
 
   template<typename EmitT>
@@ -381,6 +402,13 @@ private:
     });
   }
 
+  FunctionOp getHelperFunction(llvm::StringRef HelperName,
+                               clift::FunctionType FunctionType) {
+    return emitHelperFunctionDeclaration(mlir::UnknownLoc::get(Context),
+                                         HelperName,
+                                         FunctionType);
+  }
+
   template<typename FunctionT, typename RankT, typename... ArgsT>
   clift::FunctionOp emitModelFunctionDeclaration(const llvm::Function *F,
                                                  const FunctionT &MF,
@@ -441,236 +469,6 @@ private:
 
     revng_abort("Unsupported global object kind");
   }
-
-  template<typename OpT, typename... ArgsT>
-  mlir::Value emitExpr(mlir::Location Loc, ArgsT &&...Args) {
-    return Builder.create<OpT>(Loc, std::forward<ArgsT>(Args)...);
-  }
-
-  mlir::Value emitCast(mlir::Location Loc,
-                       mlir::Value Value,
-                       clift::ValueType TargetType,
-                       CastKind Kind = CastKind::Bitcast) {
-    if (Value.getType() != TargetType)
-      Value = Builder.create<CastOp>(Loc, TargetType, Value, Kind);
-
-    return Value;
-  }
-
-  // Apply an implicit conversion to the requested type. The conversion is only
-  // applied in the case that neither the source nor target values have array
-  // type, and as long as both have the same size. If the cast is possible, it
-  // is naturally performed using the bitcast mode. If the cast is not possible,
-  // no cast is emitted and the original value is returned instead. In the case
-  // of failure to convert LLVM IR to Clift, this is a likely point of failure.
-  // When that happens, invalid Clift is emitted, causing subsequent failure in
-  // verification.
-  //
-  // During development of the LLVM IR to Clift converter, this behaviour was
-  // found to be more useful for debugging than simply aborting. It is generally
-  // easier to find the problem when full context of the surrounding Clift code
-  // is available.
-  mlir::Value emitImplicitCast(mlir::Location Loc,
-                               mlir::Value Value,
-                               clift::ValueType TargetType) {
-    auto SourceType = mlir::cast<clift::ValueType>(Value.getType());
-
-    if (SourceType == TargetType)
-      return Value;
-
-    auto UnderlyingSourceT = dealias(SourceType, true);
-    auto UnderlyingTargetT = dealias(TargetType, true);
-
-    if (UnderlyingSourceT.getByteSize() != UnderlyingTargetT.getByteSize())
-      return Value;
-
-    if (mlir::isa<ArrayType>(UnderlyingSourceT))
-      return Value;
-    if (mlir::isa<ArrayType>(UnderlyingTargetT))
-      return Value;
-
-    return emitCast(Loc, Value, TargetType);
-  }
-
-  // Used for emitting operations acting on integer operands (arithmetic,
-  // comparison, etc.) of a specific kind. Before applying the operation, the
-  // operands are automatically converted to the requested kind, if necessary.
-  // After the operation, the result is automaticlaly converted to generic kind.
-  mlir::Value emitIntegerOp(mlir::Location Loc,
-                            PrimitiveKind Kind,
-                            auto ApplyOperation,
-                            std::same_as<mlir::Value> auto... Operands) {
-    auto ConvertToKind = [&](mlir::Value &Value, PrimitiveKind Kind) {
-      auto UnderlyingType = getUnderlyingIntegerType(Value.getType());
-      revng_assert(UnderlyingType);
-
-      uint64_t Size = UnderlyingType.getSize();
-      Value = emitCast(Loc, Value, getPrimitiveType(Size, Kind));
-    };
-
-    (ConvertToKind(Operands, Kind), ...);
-    mlir::Value Result = ApplyOperation(Operands...);
-
-    if (Kind != PrimitiveKind::GenericKind)
-      ConvertToKind(Result, PrimitiveKind::GenericKind);
-
-    return Result;
-  }
-
-  // Applies an integer cast of the operand to the specified size, using the
-  // specified primitive kind. Finally the result is converted to generic kind.
-  mlir::Value emitIntegerCast(mlir::Location Loc,
-                              mlir::Value Operand,
-                              uint64_t Size,
-                              PrimitiveKind Kind) {
-    uint64_t SrcSize = getUnderlyingIntegerType(Operand.getType()).getSize();
-
-    CastKind Cast = CastKind::Bitcast;
-    if (Size > SrcSize)
-      Cast = CastKind::Extend;
-    if (Size < SrcSize)
-      Cast = CastKind::Truncate;
-
-    auto EmitCast = [&](mlir::Value Operand) {
-      return emitCast(Loc, Operand, getPrimitiveType(Size, Kind), Cast);
-    };
-
-    return emitIntegerOp(Loc, Kind, EmitCast, Operand);
-  }
-
-  FunctionOp getHelperFunction(llvm::StringRef HelperName,
-                               clift::FunctionType FunctionType) {
-    return emitHelperFunctionDeclaration(mlir::UnknownLoc::get(Context),
-                                         HelperName,
-                                         FunctionType);
-  }
-
-  mlir::Value useGlobal(mlir::Location Loc, clift::GlobalOpInterface Global) {
-    return Builder.create<UseOp>(Loc, Global.getType(), Global.getName());
-  }
-
-  mlir::Value emitHelperCall(mlir::Location Loc,
-                             FunctionOp Function,
-                             llvm::ArrayRef<mlir::Value> Arguments) {
-    auto FunctionType = Function.getFunctionType();
-
-    llvm::SmallVector<mlir::Value> CastArgs;
-    CastArgs.reserve(Arguments.size());
-
-    for (auto [A, T] : llvm::zip(Arguments, FunctionType.getArgumentTypes()))
-      CastArgs.push_back(emitImplicitCast(Loc, A, T));
-
-    return Builder.create<CallOp>(Loc,
-                                  FunctionType.getReturnType(),
-                                  useGlobal(Loc, Function),
-                                  CastArgs);
-  }
-
-  mlir::Value emitHelperCall(mlir::Location Loc,
-                             const llvm::Function *F,
-                             llvm::ArrayRef<mlir::Value> Arguments) {
-    return emitHelperCall(Loc, emitHelperFunctionDeclaration(F), Arguments);
-  }
-
-  mlir::Value emitHelperCall(mlir::Location Loc,
-                             llvm::StringRef HelperName,
-                             mlir::Type ReturnType,
-                             llvm::ArrayRef<mlir::Type> ParameterTypes,
-                             llvm::ArrayRef<mlir::Value> Arguments) {
-    auto Handle = pipeline::locationString(revng::ranks::HelperFunction,
-                                           HelperName.str());
-
-    auto NameAttr = makeNameAttr<clift::FunctionType>(Context, Handle);
-    auto FunctionType = clift::FunctionType::get(Context,
-                                                 Handle,
-                                                 NameAttr,
-                                                 ReturnType,
-                                                 ParameterTypes);
-
-    return emitHelperCall(Loc,
-                          getHelperFunction(HelperName, FunctionType),
-                          Arguments);
-  }
-
-  RecursiveCoroutine<mlir::Value>
-  emitStructInitializer(const llvm::CallInst *Call) {
-    mlir::Location Loc = getLocation(Call);
-
-    auto UseBegin = Call->use_begin();
-    auto UseEnd = Call->use_end();
-    revng_assert(UseBegin != UseEnd);
-
-    // StructInitializer must have exactly one user of type ReturnInst.
-    revng_assert(llvm::isa<llvm::ReturnInst>(UseBegin->getUser()));
-    revng_assert(std::next(UseBegin) == UseEnd);
-
-    auto T = mlir::dyn_cast<StructType>(CurrentFunction.getReturnType());
-    revng_assert(Call->arg_size() == T.getFields().size());
-
-    llvm::SmallVector<mlir::Value> Initializers;
-    for (const auto &[A, F] : llvm::zip(Call->args(), T.getFields())) {
-      mlir::Value Value = rc_recur emitExpression(A, Loc);
-      Value = emitImplicitCast(Loc, Value, F.getType());
-      Initializers.push_back(Value);
-    }
-
-    rc_return Builder.create<AggregateOp>(Loc, T, Initializers);
-  }
-
-  RecursiveCoroutine<mlir::Value>
-  emitOpaqueExtractValue(const llvm::CallInst *Call) {
-    mlir::Location Loc = getLocation(Call);
-
-    mlir::Value Aggregate = rc_recur emitExpression(Call->getArgOperand(0),
-                                                    Loc);
-
-    uint64_t Index = getConstantInt(Call->getArgOperand(1));
-    auto Struct = mlir::cast<StructType>(Aggregate.getType());
-    revng_assert(Index < Struct.getFields().size());
-
-    mlir::Type FieldType = Struct.getFields()[Index].getType();
-    mlir::Value FieldValue = Builder.create<AccessOp>(Loc,
-                                                      FieldType,
-                                                      Aggregate,
-                                                      /*indirect=*/false,
-                                                      Index);
-
-    rc_return emitImplicitCast(Loc,
-                               FieldValue,
-                               importLLVMType(Call->getType()));
-  }
-
-  RecursiveCoroutine<mlir::Value> emitHelperCall(const llvm::CallInst *Call) {
-    // TODO: Use getCalledFunction. Pending fix for uniqued-by-prototype issue.
-    // const llvm::Function *Callee = Call->getCalledFunction();
-    auto *Callee = llvm::dyn_cast<llvm::Function>(Call->getCalledOperand());
-    revng_assert(Callee != nullptr);
-
-    auto Tags = FunctionTags::TagsSet::from(Callee);
-
-    if (Tags.contains(FunctionTags::StructInitializer))
-      rc_return rc_recur emitStructInitializer(Call);
-
-    if (Tags.contains(FunctionTags::OpaqueExtractValue))
-      rc_return rc_recur emitOpaqueExtractValue(Call);
-
-    mlir::Location Loc = getLocation(Call);
-
-    llvm::SmallVector<mlir::Value> Arguments;
-    Arguments.reserve(Call->arg_size());
-
-    for (const llvm::Value *Argument : Call->args())
-      Arguments.push_back(rc_recur emitExpression(Argument, Loc));
-
-    rc_return emitHelperCall(Loc,
-                             emitHelperFunctionDeclaration(Callee),
-                             Arguments);
-  }
-
-  struct StringLiteral {
-    clift::ArrayType Type;
-    std::string Data;
-  };
 
   bool detectStringLiteralImpl(const llvm::GlobalVariable *V,
                                StringLiteral &String) {
@@ -736,24 +534,382 @@ private:
     return nullptr;
   }
 
+public:
+  clift::FunctionOp import(const llvm::Function *F) override;
+};
+
+class ClifterImpl::FunctionClifter {
+  // While importing the LLVM IR to Clift, we import types from both the model
+  // and from the LLVM IR. This creates some discrepancies, particularly around
+  // function parameters and return types. Within function bodies we are in the
+  // land of LLVM IR types, while any external input (arguments to the current
+  // function or return values from called functions) or output (the return
+  // value of the current function or arguments to called functions) have types
+  // imported from the model. For this reason some conversions must be inserted
+  // whenever we cross between the two typing domains.
+
+  struct ArgumentMappingInfo {
+    mlir::Value Argument;
+
+    // True if the address of the value should be taken before use in Clift.
+    // When converting the model type of an argument to the LLVM IR typing,
+    // there may arise a discrepancy in representation: the model parameter may
+    // have type large_struct_t, while in the LLVM IR the parameter is passed by
+    // address. Taking the address of the argument before each use in the
+    // resulting Clift solves this discrepancy.
+    bool TakeAddressOnUse;
+
+    // While taking the address solves a discrepancy in representation, a
+    // discrepancy in kind may still remain: we might now have large_struct_t*,
+    // while the LLVM IR has an integer type. The representation is the same,
+    // but the import of a subsequent integer arithmetic operation on the value
+    // might fail. For this reason argument values are converted to the type
+    // imported directly from LLVM IR, thus ensuring that any subsequently
+    // imported expression remains valid.
+    mlir::Type CastType;
+  };
+
+  struct BlockMappingInfo {
+    // Point where the mapped LLVM IR basic block is emitted. If the block has
+    // not yet been visited, this is not set. Note that the LLVM IR basic block
+    // is not necessarily emitted at the *start* of any MLIR block.
+    mlir::OpBuilder::InsertPoint InsertPoint;
+
+    // The result value of the MakeLabelOp to be used as the target for gotos
+    // jumping into the mapped LLVM IR basic block.
+    mlir::Value Label;
+
+    // True if the AssignLabelOp has already been created.
+    bool HasAssignLabel = false;
+  };
+
+  struct ValueMappingInfo {
+    mlir::Value Value;
+
+    // See ArgumentMappingInfo::TakeAddressOnUse for more information. However,
+    // instead of arguments, this one applies to return values stored in local
+    // variables. For some function calls the importer creates local variables
+    // with the model typing, and when the LLVM IR function call returned by
+    // address, the address of the variable must be taken to resolve the
+    // discrepancy in representation.
+    bool TakeAddressOnUse;
+
+    ValueMappingInfo(mlir::Value Value) :
+      Value(Value), TakeAddressOnUse(false) {}
+  };
+
+  ClifterImpl &C;
+
+  mlir::MLIRContext *const Context;
+  mlir::OpBuilder Builder;
+
+  clift::FunctionOp Function;
+  const model::Function &ModelFunction;
+  abi::FunctionType::Layout FunctionLayout;
+  ScopeGraphPostDomTree PostDomTree;
+
+  uint64_t NextLocalVariableIndex = 0;
+  uint64_t NextGotoLabelIndex = 0;
+
+  mlir::Block LocalDeclarationBlock;
+
+  // Maps LLVM IR function argument to a Clift argument description. Initialized
+  // before importing each function body. During expression import argument
+  // values are generated using the descriptions stored in this table.
+  llvm::DenseMap<const llvm::Argument *, ArgumentMappingInfo> ArgumentMapping;
+
+  // Maps LLVM IR basic block to a Clift import state for that block.
+  llvm::DenseMap<const llvm::BasicBlock *, BlockMappingInfo> BlockMapping;
+
+  // Maps LLVM IR alloca to a Clift local variable op result. Used during
+  // expression import to map uses of an alloca to the matching Clift local
+  // variable.
+  llvm::DenseMap<const llvm::AllocaInst *, mlir::Value> AllocaMapping;
+
+  // Maps an arbitrary LLVM IR value to a Clift value description. During
+  // expression import some values are only emitted once and any use of such a
+  // value is emitted using the description stored in this table.
+  llvm::DenseMap<const llvm::Value *, ValueMappingInfo> ValueMapping;
+
+public:
+  static clift::FunctionOp import(ClifterImpl &C, const llvm::Function *F) {
+    const model::Function *MF = llvmToModelFunction(C.Model, *F);
+    revng_assert(MF != nullptr);
+
+    revng_log(BasicBlockLog, "Function: '" << F->getName() << "'");
+    LoggerIndent Indent(BasicBlockLog);
+
+    auto Function = C.emitIsolatedFunctionDeclaration(F, MF);
+    return FunctionClifter(C, Function, *MF).import(F);
+  }
+
+private:
+  explicit FunctionClifter(ClifterImpl &Clifter,
+                           clift::FunctionOp Function,
+                           const model::Function &ModelFunction) :
+    C(Clifter),
+    Context(Clifter.Context),
+    Builder(Clifter.Context),
+    Function(Function),
+    ModelFunction(ModelFunction),
+    FunctionLayout(makeLayout(Clifter, ModelFunction)) {}
+
+  static abi::FunctionType::Layout makeLayout(ClifterImpl &Clifter,
+                                              const model::Function &Model) {
+    return abi::FunctionType::Layout::make(*Clifter.getPrototype(Model));
+  }
+
+  /* LLVM expression import */
+
+  // Determines if a argument is passed as a pointer to the actual value. In
+  // these cases an indirection must be inserted when using the argument.
+  static bool
+  isByAddressParameter(const abi::FunctionType::Layout::Argument &Parameter) {
+    switch (Parameter.Kind) {
+    case abi::FunctionType::ArgumentKind::PointerToCopy:
+    case abi::FunctionType::ArgumentKind::ReferenceToAggregate:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  template<typename OpT, typename... ArgsT>
+  mlir::Value emitExpr(mlir::Location Loc, ArgsT &&...Args) {
+    return Builder.create<OpT>(Loc, std::forward<ArgsT>(Args)...);
+  }
+
+  mlir::Value emitCast(mlir::Location Loc,
+                       mlir::Value Value,
+                       clift::ValueType TargetType,
+                       CastKind Kind = CastKind::Bitcast) {
+    if (Value.getType() != TargetType)
+      Value = Builder.create<CastOp>(Loc, TargetType, Value, Kind);
+
+    return Value;
+  }
+
+  // Apply an implicit conversion to the requested type. The conversion is only
+  // applied in the case that neither the source nor target values have array
+  // type, and as long as both have the same size. If the cast is possible, it
+  // is naturally performed using the bitcast mode. If the cast is not possible,
+  // no cast is emitted and the original value is returned instead. In the case
+  // of failure to convert LLVM IR to Clift, this is a likely point of failure.
+  // When that happens, invalid Clift is emitted, causing subsequent failure in
+  // verification.
+  //
+  // During development of the LLVM IR to Clift converter, this behaviour was
+  // found to be more useful for debugging than simply aborting. It is generally
+  // easier to find the problem when full context of the surrounding Clift code
+  // is available.
+  mlir::Value emitImplicitCast(mlir::Location Loc,
+                               mlir::Value Value,
+                               clift::ValueType TargetType) {
+    auto SourceType = mlir::cast<clift::ValueType>(Value.getType());
+
+    if (SourceType == TargetType)
+      return Value;
+
+    auto UnderlyingSourceT = dealias(SourceType, true);
+    auto UnderlyingTargetT = dealias(TargetType, true);
+
+    if (UnderlyingSourceT.getByteSize() != UnderlyingTargetT.getByteSize())
+      return Value;
+
+    if (mlir::isa<ArrayType>(UnderlyingSourceT))
+      return Value;
+    if (mlir::isa<ArrayType>(UnderlyingTargetT))
+      return Value;
+
+    return emitCast(Loc, Value, TargetType);
+  }
+
+  // Used for emitting operations acting on integer operands (arithmetic,
+  // comparison, etc.) of a specific kind. Before applying the operation, the
+  // operands are automatically converted to the requested kind, if necessary.
+  // After the operation, the result is automaticlaly converted to generic kind.
+  mlir::Value emitIntegerOp(mlir::Location Loc,
+                            PrimitiveKind Kind,
+                            auto ApplyOperation,
+                            std::same_as<mlir::Value> auto... Operands) {
+    auto ConvertToKind = [&](mlir::Value &Value, PrimitiveKind Kind) {
+      auto UnderlyingType = getUnderlyingIntegerType(Value.getType());
+      revng_assert(UnderlyingType);
+
+      uint64_t Size = UnderlyingType.getSize();
+      Value = emitCast(Loc, Value, C.getPrimitiveType(Size, Kind));
+    };
+
+    (ConvertToKind(Operands, Kind), ...);
+    mlir::Value Result = ApplyOperation(Operands...);
+
+    if (Kind != PrimitiveKind::GenericKind)
+      ConvertToKind(Result, PrimitiveKind::GenericKind);
+
+    return Result;
+  }
+
+  // Applies an integer cast of the operand to the specified size, using the
+  // specified primitive kind. Finally the result is converted to generic kind.
+  mlir::Value emitIntegerCast(mlir::Location Loc,
+                              mlir::Value Operand,
+                              uint64_t Size,
+                              PrimitiveKind Kind) {
+    uint64_t SrcSize = getUnderlyingIntegerType(Operand.getType()).getSize();
+
+    CastKind Cast = CastKind::Bitcast;
+    if (Size > SrcSize)
+      Cast = CastKind::Extend;
+    if (Size < SrcSize)
+      Cast = CastKind::Truncate;
+
+    auto EmitCast = [&](mlir::Value Operand) {
+      return emitCast(Loc, Operand, C.getPrimitiveType(Size, Kind), Cast);
+    };
+
+    return emitIntegerOp(Loc, Kind, EmitCast, Operand);
+  }
+
+  mlir::Value useGlobal(mlir::Location Loc, clift::GlobalOpInterface Global) {
+    return Builder.create<UseOp>(Loc, Global.getType(), Global.getName());
+  }
+
+  mlir::Value emitHelperCall(mlir::Location Loc,
+                             FunctionOp Function,
+                             llvm::ArrayRef<mlir::Value> Arguments) {
+    auto FunctionType = Function.getFunctionType();
+
+    llvm::SmallVector<mlir::Value> CastArgs;
+    CastArgs.reserve(Arguments.size());
+
+    for (auto [A, T] : llvm::zip(Arguments, FunctionType.getArgumentTypes()))
+      CastArgs.push_back(emitImplicitCast(Loc, A, T));
+
+    return Builder.create<CallOp>(Loc,
+                                  FunctionType.getReturnType(),
+                                  useGlobal(Loc, Function),
+                                  CastArgs);
+  }
+
+  mlir::Value emitHelperCall(mlir::Location Loc,
+                             const llvm::Function *F,
+                             llvm::ArrayRef<mlir::Value> Arguments) {
+    return emitHelperCall(Loc, C.emitHelperFunctionDeclaration(F), Arguments);
+  }
+
+  mlir::Value emitHelperCall(mlir::Location Loc,
+                             llvm::StringRef HelperName,
+                             mlir::Type ReturnType,
+                             llvm::ArrayRef<mlir::Type> ParameterTypes,
+                             llvm::ArrayRef<mlir::Value> Arguments) {
+    auto Handle = pipeline::locationString(revng::ranks::HelperFunction,
+                                           HelperName.str());
+
+    auto NameAttr = makeNameAttr<clift::FunctionType>(Context, Handle);
+    auto FunctionType = clift::FunctionType::get(Context,
+                                                 Handle,
+                                                 NameAttr,
+                                                 ReturnType,
+                                                 ParameterTypes);
+
+    return emitHelperCall(Loc,
+                          C.getHelperFunction(HelperName, FunctionType),
+                          Arguments);
+  }
+
+  RecursiveCoroutine<mlir::Value>
+  emitStructInitializer(const llvm::CallInst *Call) {
+    mlir::Location Loc = C.getLocation(Call);
+
+    auto UseBegin = Call->use_begin();
+    auto UseEnd = Call->use_end();
+    revng_assert(UseBegin != UseEnd);
+
+    // StructInitializer must have exactly one user of type ReturnInst.
+    revng_assert(llvm::isa<llvm::ReturnInst>(UseBegin->getUser()));
+    revng_assert(std::next(UseBegin) == UseEnd);
+
+    auto T = mlir::dyn_cast<StructType>(Function.getReturnType());
+    revng_assert(Call->arg_size() == T.getFields().size());
+
+    llvm::SmallVector<mlir::Value> Initializers;
+    for (const auto &[A, F] : llvm::zip(Call->args(), T.getFields())) {
+      mlir::Value Value = rc_recur emitExpression(A, Loc);
+      Value = emitImplicitCast(Loc, Value, F.getType());
+      Initializers.push_back(Value);
+    }
+
+    rc_return Builder.create<AggregateOp>(Loc, T, Initializers);
+  }
+
+  RecursiveCoroutine<mlir::Value>
+  emitOpaqueExtractValue(const llvm::CallInst *Call) {
+    mlir::Location Loc = C.getLocation(Call);
+
+    mlir::Value Aggregate = rc_recur emitExpression(Call->getArgOperand(0),
+                                                    Loc);
+
+    uint64_t Index = C.getConstantInt(Call->getArgOperand(1));
+    auto Struct = mlir::cast<StructType>(Aggregate.getType());
+    revng_assert(Index < Struct.getFields().size());
+
+    mlir::Type FieldType = Struct.getFields()[Index].getType();
+    mlir::Value FieldValue = Builder.create<AccessOp>(Loc,
+                                                      FieldType,
+                                                      Aggregate,
+                                                      /*indirect=*/false,
+                                                      Index);
+
+    rc_return emitImplicitCast(Loc,
+                               FieldValue,
+                               C.importLLVMType(Call->getType()));
+  }
+
+  RecursiveCoroutine<mlir::Value> emitHelperCall(const llvm::CallInst *Call) {
+    // TODO: Use getCalledFunction. Pending fix for uniqued-by-prototype issue.
+    // const llvm::Function *Callee = Call->getCalledFunction();
+    auto *Callee = llvm::dyn_cast<llvm::Function>(Call->getCalledOperand());
+    revng_assert(Callee != nullptr);
+
+    auto Tags = FunctionTags::TagsSet::from(Callee);
+
+    if (Tags.contains(FunctionTags::StructInitializer))
+      rc_return rc_recur emitStructInitializer(Call);
+
+    if (Tags.contains(FunctionTags::OpaqueExtractValue))
+      rc_return rc_recur emitOpaqueExtractValue(Call);
+
+    mlir::Location Loc = C.getLocation(Call);
+
+    llvm::SmallVector<mlir::Value> Arguments;
+    Arguments.reserve(Call->arg_size());
+
+    for (const llvm::Value *Argument : Call->args())
+      Arguments.push_back(rc_recur emitExpression(Argument, Loc));
+
+    rc_return emitHelperCall(Loc,
+                             C.emitHelperFunctionDeclaration(Callee),
+                             Arguments);
+  }
+
   RecursiveCoroutine<mlir::Value>
   emitExpression(const llvm::Value *V, mlir::Location SurroundingLocation) {
     LoggerIndent Indent(ExpressionLog);
 
     if (auto G = llvm::dyn_cast<llvm::GlobalObject>(V)) {
-      if (const StringLiteral *String = detectStringLiteral(G)) {
+      if (const StringLiteral *String = C.detectStringLiteral(G)) {
         revng_log(ExpressionLog, "llvm::GlobalObject -> StringOp");
         auto Op = Builder.create<StringOp>(SurroundingLocation,
                                            String->Type,
                                            std::move(String->Data));
 
-        auto Type = makePointerType(String->Type.getElementType());
+        auto Type = C.makePointerType(String->Type.getElementType());
         rc_return emitCast(SurroundingLocation, Op, Type, CastKind::Decay);
       }
 
       if (const auto *F = llvm::dyn_cast<llvm::Function>(G)) {
         revng_log(ExpressionLog, "llvm::Function -> UseOp");
-        auto Function = emitFunctionDeclaration(F);
+        auto Function = C.emitFunctionDeclaration(F);
         rc_return Builder.create<UseOp>(SurroundingLocation,
                                         Function.getFunctionType(),
                                         Function.getSymNameAttr());
@@ -769,7 +925,7 @@ private:
 
       if (It->second.TakeAddressOnUse) {
         Value = Builder.create<AddressofOp>(SurroundingLocation,
-                                            makePointerType(Value.getType()),
+                                            C.makePointerType(Value.getType()),
                                             Value);
       }
 
@@ -787,7 +943,7 @@ private:
 
       if (It->second.TakeAddressOnUse) {
         Value = Builder.create<AddressofOp>(SurroundingLocation,
-                                            makePointerType(Value.getType()),
+                                            C.makePointerType(Value.getType()),
                                             Value);
       }
 
@@ -798,26 +954,26 @@ private:
 
     if (auto U = llvm::dyn_cast<llvm::UndefValue>(V)) {
       revng_log(ExpressionLog, "llvm::UndefValue -> UndefOp");
-      mlir::Type Type = importLLVMType(U->getType());
+      mlir::Type Type = C.importLLVMType(U->getType());
       rc_return Builder.create<UndefOp>(SurroundingLocation, Type);
     }
 
-    if (auto C = llvm::dyn_cast<llvm::ConstantInt>(V)) {
+    if (auto I = llvm::dyn_cast<llvm::ConstantInt>(V)) {
       revng_log(ExpressionLog, "llvm::ConstantInt -> ImmediateOp");
-      const llvm::IntegerType *T = llvm::cast<llvm::IntegerType>(C->getType());
+      const llvm::IntegerType *T = llvm::cast<llvm::IntegerType>(I->getType());
       rc_return Builder.create<ImmediateOp>(SurroundingLocation,
-                                            importLLVMIntegerType(T),
-                                            C->getZExtValue());
+                                            C.importLLVMIntegerType(T),
+                                            I->getZExtValue());
     }
 
     if (auto N = llvm::dyn_cast<llvm::ConstantPointerNull>(V)) {
       revng_log(ExpressionLog, "llvm::ConstantPointerNull -> ImmediateOp");
       auto Op = Builder.create<ImmediateOp>(SurroundingLocation,
-                                            getIntptrType(),
+                                            C.getIntptrType(),
                                             /*Value=*/0);
 
       LoggerIndent Indent(ExpressionLog);
-      rc_return emitCast(SurroundingLocation, Op, getVoidPointerType());
+      rc_return emitCast(SurroundingLocation, Op, C.getVoidPointerType());
     }
 
     if (auto E = llvm::dyn_cast<llvm::ConstantExpr>(V)) {
@@ -840,9 +996,9 @@ private:
         revng_log(ExpressionLog, "llvm::AllocaInst");
         LoggerIndent Indent(ExpressionLog);
 
-        auto Type = makePointerType(It->second.getType());
+        auto Type = C.makePointerType(It->second.getType());
         auto Value = Builder.create<AddressofOp>(Loc, Type, It->second);
-        rc_return emitImplicitCast(Loc, Value, importLLVMType(I->getType()));
+        rc_return emitImplicitCast(Loc, Value, C.importLLVMType(I->getType()));
       }
 
       revng_assert(not llvm::isa<llvm::Constant>(I->getArraySize()));
@@ -853,15 +1009,15 @@ private:
       revng_log(ExpressionLog, "llvm::LoadInst");
       LoggerIndent Indent(ExpressionLog);
 
-      mlir::Location Loc = getLocation(I);
+      mlir::Location Loc = C.getLocation(I);
 
       revng_log(ExpressionLog, "Subexpression:");
       mlir::Value Pointer = (LoggerIndent(ExpressionLog),
                              rc_recur emitExpression(I->getPointerOperand(),
                                                      Loc));
 
-      clift::ValueType ValueType = importLLVMType(V->getType());
-      clift::ValueType PointerType = makePointerType(ValueType);
+      clift::ValueType ValueType = C.importLLVMType(V->getType());
+      clift::ValueType PointerType = C.makePointerType(ValueType);
 
       Pointer = Builder.create<CastOp>(Loc,
                                        PointerType,
@@ -876,7 +1032,7 @@ private:
       revng_log(ExpressionLog, "llvm::StoreInst");
       LoggerIndent Indent(ExpressionLog);
 
-      mlir::Location Loc = getLocation(I);
+      mlir::Location Loc = C.getLocation(I);
 
       revng_log(ExpressionLog, "Pointer subexpression:");
       mlir::Value Pointer = (LoggerIndent(ExpressionLog),
@@ -888,7 +1044,7 @@ private:
                            rc_recur emitExpression(I->getValueOperand(), Loc));
 
       Pointer = Builder.create<CastOp>(Loc,
-                                       makePointerType(Value.getType()),
+                                       C.makePointerType(Value.getType()),
                                        Pointer,
                                        CastKind::Bitcast);
 
@@ -907,7 +1063,7 @@ private:
 
       using Operators = llvm::BinaryOperator::BinaryOps;
 
-      mlir::Location Loc = getLocation(I);
+      mlir::Location Loc = C.getLocation(I);
 
       revng_log(ExpressionLog, "LHS subexpression");
       mlir::Value Lhs = (LoggerIndent(ExpressionLog),
@@ -934,7 +1090,7 @@ private:
       }
 
       auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
-      auto Type = importLLVMIntegerType(IntegerType, Kind);
+      auto Type = C.importLLVMIntegerType(IntegerType, Kind);
 
       auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) {
         switch (I->getOpcode()) {
@@ -1003,7 +1159,7 @@ private:
         break;
       }
 
-      mlir::Location Loc = getLocation(I);
+      mlir::Location Loc = C.getLocation(I);
 
       revng_log(ExpressionLog, "LHS subexpression");
       mlir::Value Lhs = (LoggerIndent(ExpressionLog),
@@ -1014,7 +1170,8 @@ private:
                          rc_recur emitExpression(I->getOperand(1), Loc));
 
       auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
-      auto Type = importLLVMIntegerType(IntegerType, PrimitiveKind::SignedKind);
+      auto Type = C.importLLVMIntegerType(IntegerType,
+                                          PrimitiveKind::SignedKind);
 
       auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) {
         switch (I->getPredicate()) {
@@ -1052,8 +1209,8 @@ private:
         if (not I->isSigned())
           rc_return EmitOp(Lhs, Rhs);
 
-        Lhs = emitCast(Loc, Lhs, getIntptrType());
-        Rhs = emitCast(Loc, Rhs, getIntptrType());
+        Lhs = emitCast(Loc, Lhs, C.getIntptrType());
+        Rhs = emitCast(Loc, Rhs, C.getIntptrType());
       }
 
       rc_return emitIntegerOp(Loc, Kind, EmitOp, Lhs, Rhs);
@@ -1063,7 +1220,7 @@ private:
       revng_log(ExpressionLog, "llvm::CastInst");
       LoggerIndent Indent(ExpressionLog);
 
-      mlir::Location Loc = getLocation(I);
+      mlir::Location Loc = C.getLocation(I);
 
       revng_log(ExpressionLog, "Subexpression:");
       mlir::Value Operand = (LoggerIndent(ExpressionLog),
@@ -1090,23 +1247,23 @@ private:
       case Operators::ZExt:
         rc_return EmitIntegerCast(PrimitiveKind::UnsignedKind);
       case Operators::PtrToInt:
-        Operand = emitCast(Loc, Operand, getIntptrType());
-        if (uint64_t S = GetIntegerSize(I->getDestTy()); S > PointerSize) {
+        Operand = emitCast(Loc, Operand, C.getIntptrType());
+        if (uint64_t S = GetIntegerSize(I->getDestTy()); S > C.PointerSize) {
           Operand = emitCast(Loc,
                              Operand,
-                             getPrimitiveType(S),
+                             C.getPrimitiveType(S),
                              CastKind::Extend);
         }
         rc_return Operand;
       case Operators::IntToPtr:
-        if (GetIntegerSize(I->getSrcTy()) > PointerSize) {
+        if (GetIntegerSize(I->getSrcTy()) > C.PointerSize) {
           Operand = emitCast(Loc,
                              Operand,
-                             getPrimitiveType(PointerSize),
+                             C.getPrimitiveType(C.PointerSize),
                              CastKind::Truncate);
         }
 
-        rc_return emitCast(Loc, Operand, getVoidPointerType());
+        rc_return emitCast(Loc, Operand, C.getVoidPointerType());
       default:
         revng_abort("Unsupported LLVM cast operation.");
       }
@@ -1116,17 +1273,17 @@ private:
       revng_log(ExpressionLog, "llvm::CallInst");
       LoggerIndent Indent(ExpressionLog);
 
-      mlir::Location Loc = getLocation(I);
+      mlir::Location Loc = C.getLocation(I);
 
       // Any call without a prototype is considered a helper function and is
       // imported separately:
       if (not I->hasMetadata(PrototypeMDName))
         rc_return emitHelperCall(I);
 
-      const auto *ModelCallType = getCallSitePrototype(Model, I);
+      const auto *ModelCallType = getCallSitePrototype(C.Model, I);
       auto Layout = abi::FunctionType::Layout::make(*ModelCallType);
 
-      auto CallType = importModelType<clift::FunctionType>(*ModelCallType);
+      auto CallType = C.importModelType<clift::FunctionType>(*ModelCallType);
 
       revng_log(ExpressionLog, "Callee subexpression:");
       mlir::Value Function = (LoggerIndent(ExpressionLog),
@@ -1146,11 +1303,11 @@ private:
         if (mlir::isa<clift::FunctionType>(Function.getType())) {
           Function = emitCast(Loc,
                               Function,
-                              makePointerType(FunctionType),
+                              C.makePointerType(FunctionType),
                               CastKind::Decay);
         }
 
-        Function = emitCast(Loc, Function, makePointerType(CallType));
+        Function = emitCast(Loc, Function, C.makePointerType(CallType));
       }
 
       llvm::ArrayRef LayoutArguments = getLayoutArguments(Layout);
@@ -1172,7 +1329,7 @@ private:
         // to make the resulting Clift expression valid. In either case, an
         // implicit cast is first applied if necessary.
         if (isByAddressParameter(L)) {
-          Argument = emitImplicitCast(Loc, Argument, makePointerType(T));
+          Argument = emitImplicitCast(Loc, Argument, C.makePointerType(T));
           Argument = Builder.create<IndirectionOp>(Loc, T, Argument);
         } else {
           Argument = emitImplicitCast(Loc, Argument, T);
@@ -1190,7 +1347,7 @@ private:
       if (Layout.returnMethod() == abi::FunctionType::ReturnMethod::Scalar) {
         Result = emitImplicitCast(SurroundingLocation,
                                   Result,
-                                  importLLVMType(I->getType()));
+                                  C.importLLVMType(I->getType()));
       }
 
       rc_return Result;
@@ -1200,7 +1357,7 @@ private:
       revng_log(ExpressionLog, "llvm::SelectInst");
       LoggerIndent Indent(ExpressionLog);
 
-      mlir::Location Loc = getLocation(I);
+      mlir::Location Loc = C.getLocation(I);
 
       revng_log(ExpressionLog, "Condition subexpression:");
       mlir::Value Condition = (LoggerIndent(ExpressionLog),
@@ -1219,7 +1376,7 @@ private:
 
       auto ResultType = TrueType.removeConst();
       if (ResultType != FalseType.removeConst()) {
-        ResultType = importLLVMType(I->getType());
+        ResultType = C.importLLVMType(I->getType());
         True = emitImplicitCast(Loc, True, ResultType);
         False = emitImplicitCast(Loc, False, ResultType);
       }
@@ -1238,26 +1395,26 @@ private:
       revng_assert(It != AllocaMapping.end());
 
       auto AT = mlir::cast<clift::ArrayType>(It->second.getType());
-      auto PT = makePointerType(AT.getElementType());
+      auto PT = C.makePointerType(AT.getElementType());
 
       revng_assert(I->getNumIndices() == 2);
       auto IndexIterator = I->idx_begin();
 
-      revng_assert(getConstantInt(IndexIterator->get()) == 0);
-      uint64_t Index1 = getConstantInt((++IndexIterator)->get());
+      revng_assert(C.getConstantInt(IndexIterator->get()) == 0);
+      uint64_t Index1 = C.getConstantInt((++IndexIterator)->get());
 
-      mlir::Location Loc = getLocation(I);
+      mlir::Location Loc = C.getLocation(I);
       auto Operand = emitCast(Loc, It->second, PT, CastKind::Decay);
 
       mlir::Value Immediate = emitExpr<ImmediateOp>(Loc,
-                                                    getIntptrType(),
+                                                    C.getIntptrType(),
                                                     Index1);
 
       rc_return emitExpr<PtrAddOp>(Loc, PT, Operand, Immediate);
     }
 
     if (auto I = llvm::dyn_cast<llvm::FreezeInst>(V))
-      rc_return emitExpression(I->getOperand(0), getLocation(I));
+      rc_return emitExpression(I->getOperand(0), C.getLocation(I));
 
     revng_abort("Unsupported LLVM instruction.");
   }
@@ -1306,7 +1463,7 @@ private:
   template<typename OpT, typename... ArgsT>
   OpT emitLocalDeclaration(mlir::Location Loc, ArgsT &&...Args) {
     mlir::OpBuilder::InsertionGuard Guard(Builder);
-    Builder.setInsertionPointToEnd(LocalDeclarationBlock);
+    Builder.setInsertionPointToEnd(&LocalDeclarationBlock);
     OpT Op = Builder.create<OpT>(Loc, std::forward<ArgsT>(Args)...);
     return Op;
   }
@@ -1341,9 +1498,9 @@ private:
     auto [Iterator, Inserted] = BlockMapping.try_emplace(BB);
 
     if (not Iterator->second.Label) {
-      auto Label = emitLocalDeclaration<MakeLabelOp>(getLocation(BB));
+      auto Label = emitLocalDeclaration<MakeLabelOp>(C.getLocation(BB));
       Label.setHandle(pipeline::locationString(revng::ranks::GotoLabel,
-                                               CurrentModelFunction->Entry(),
+                                               ModelFunction.Entry(),
                                                NextGotoLabelIndex++));
       Iterator->second.Label = Label;
     }
@@ -1352,7 +1509,7 @@ private:
         and Iterator->second.InsertPoint.isSet()) {
       mlir::OpBuilder::InsertionGuard Guard(Builder);
       restoreInsertionPointAfter(Builder, Iterator->second.InsertPoint);
-      emitAssignLabel(Iterator->second.Label, getLocation(BB));
+      emitAssignLabel(Iterator->second.Label, C.getLocation(BB));
       Iterator->second.HasAssignLabel = true;
     }
 
@@ -1362,7 +1519,7 @@ private:
   // Returns: { RequiresFullExpression, RequiresIndirection }
   std::pair<bool, bool> requiresFullExpression(const llvm::CallInst *Call) {
     if (Call->hasMetadata(PrototypeMDName)) {
-      const auto *ModelCallType = getCallSitePrototype(Model, Call);
+      const auto *ModelCallType = getCallSitePrototype(C.Model, Call);
       auto Layout = abi::FunctionType::Layout::make(*ModelCallType);
       namespace ReturnMethod = abi::FunctionType::ReturnMethod;
 
@@ -1398,7 +1555,7 @@ private:
       // assignment could not be emitted along with the declaration and must be
       // emitted here along with the basic block.
       if (not Inserted and Iterator->second.Label) {
-        emitAssignLabel(Iterator->second.Label, getLocation(BB));
+        emitAssignLabel(Iterator->second.Label, C.getLocation(BB));
         Iterator->second.HasAssignLabel = true;
       }
     }
@@ -1424,26 +1581,27 @@ private:
 
         clift::ValueType Type;
         if (hasStackTypeMetadata(Alloca)) {
-          Type = importModelType(*getStackTypeFromMetadata(Alloca, Model));
+          Type = C.importModelType(*getStackTypeFromMetadata(Alloca, C.Model));
           Handle = pipeline::locationString(revng::ranks::StackFrameVariable,
-                                            CurrentModelFunction->Entry());
+                                            ModelFunction.Entry());
         } else if (hasVariableTypeMetadata(Alloca)) {
-          Type = importModelType(*getVariableTypeFromMetadata(Alloca, Model));
+          Type = C.importModelType(*getVariableTypeFromMetadata(Alloca,
+                                                                C.Model));
         } else {
-          Type = importLLVMType(Alloca->getAllocatedType());
+          Type = C.importLLVMType(Alloca->getAllocatedType());
 
           if (Alloca->isArrayAllocation())
-            Type = ArrayType::get(Context, Type, getConstantInt(Size));
+            Type = ArrayType::get(Context, Type, C.getConstantInt(Size));
         }
 
-        auto Op = emitLocalDeclaration<LocalVariableOp>(getLocation(Alloca),
+        auto Op = emitLocalDeclaration<LocalVariableOp>(C.getLocation(Alloca),
                                                         Type);
 
         if (not Handle) {
           // For any local variables without a more specific handle (e.g. stack
           // frame variable), a generic handle with increasing indices is used.
           Handle = pipeline::locationString(revng::ranks::LocalVariable,
-                                            CurrentModelFunction->Entry(),
+                                            ModelFunction.Entry(),
                                             NextLocalVariableIndex++);
         }
 
@@ -1475,7 +1633,7 @@ private:
 
         // Some function calls are emitted in local variable initializers.
         if (auto [FE, Indirection] = requiresFullExpression(Call); FE) {
-          mlir::Location Loc = getLocation(Call);
+          mlir::Location Loc = C.getLocation(Call);
 
           auto Op = Builder.create<ExpressionStatementOp>(Loc);
 
@@ -1500,7 +1658,7 @@ private:
       // Finally, any instruction with no uses represents the root of an
       // expression tree. Any such tree is emitted as an expression statement.
       if (I.use_empty()) {
-        mlir::Location Loc = getLocation(&I);
+        mlir::Location Loc = C.getLocation(&I);
         auto Op = Builder.create<ExpressionStatementOp>(Loc);
         emitExpressionTree(Op.getExpression(), &I, Loc);
       }
@@ -1512,7 +1670,7 @@ private:
     // Scope-graph goto-markers should only be present in basic blocks
     // terminating with an unconditional branch instruction.
     revng_assert(llvm::isa<llvm::BranchInst>(Terminal) or not HasGotoMarker);
-    mlir::Location TerminalLoc = getLocation(Terminal);
+    mlir::Location TerminalLoc = C.getLocation(Terminal);
 
     if (llvm::isa<llvm::UnreachableInst>(Terminal)) {
       // Do nothing.
@@ -1520,14 +1678,14 @@ private:
       auto Op = Builder.create<ReturnOp>(TerminalLoc);
 
       if (const llvm::Value *Value = Return->getReturnValue()) {
-        clift::FunctionType FunctionType = CurrentFunction.getFunctionType();
+        clift::FunctionType FunctionType = Function.getFunctionType();
 
         clift::ValueType FuncReturnType = FunctionType.getReturnType();
         clift::ValueType LLVMReturnType = FuncReturnType;
 
         // In SPTAR functions, values are returned by address. In this case
-        if (CurrentLayout.hasSPTAR())
-          LLVMReturnType = makePointerType(LLVMReturnType);
+        if (FunctionLayout.hasSPTAR())
+          LLVMReturnType = C.makePointerType(LLVMReturnType);
 
         // Emit the expression tree rooted at the return instruction directly
         // into the expression region of the newly created return operation:
@@ -1541,12 +1699,12 @@ private:
           if (auto AT = mlir::dyn_cast<ArrayType>(ReturnValue.getType())) {
             ReturnValue = emitCast(TerminalLoc,
                                    ReturnValue,
-                                   makePointerType(AT.getElementType()),
+                                   C.makePointerType(AT.getElementType()),
                                    CastKind::Decay);
 
             ReturnValue = emitCast(TerminalLoc,
                                    ReturnValue,
-                                   makePointerType(LLVMReturnType),
+                                   C.makePointerType(LLVMReturnType),
                                    CastKind::Bitcast);
 
             ReturnValue = Builder.create<IndirectionOp>(TerminalLoc,
@@ -1562,7 +1720,7 @@ private:
           // In the case of SPTAR, because in the LLVM IR the return is by
           // address, but in Clift the return is by value as usual, a final
           // indirection is needed to convert the LLVM IR pointer to a value:
-          if (CurrentLayout.hasSPTAR()) {
+          if (FunctionLayout.hasSPTAR()) {
             ReturnValue = Builder.create<IndirectionOp>(TerminalLoc,
                                                         FuncReturnType,
                                                         ReturnValue);
@@ -1582,7 +1740,7 @@ private:
           revng_log(BasicBlockLog,
                     "Explicit goto: '" << Succ->getName() << "'");
           LoggerIndent Indent(BasicBlockLog);
-          emitGoto(getLocation(Terminal), Succ);
+          emitGoto(C.getLocation(Terminal), Succ);
         } else if (Succ != InnerPostDom) {
           revng_log(BasicBlockLog, "Via unconditional successor...");
           rc_recur emitScope(Succ, InnerPostDom);
@@ -1712,35 +1870,13 @@ private:
     return LayoutArguments;
   }
 
-public:
-  clift::FunctionOp import(const llvm::Function *F) override {
-    const model::Function *MF = llvmToModelFunction(Model, *F);
-    revng_assert(MF != nullptr);
+  clift::FunctionOp import(const llvm::Function *F) {
+    revng_assert(Function.getBody().empty());
+    mlir::Block &BodyBlock = Function.getBody().emplaceBlock();
+    Builder.setInsertionPointToEnd(&BodyBlock);
 
-    revng_log(BasicBlockLog, "Function: '" << F->getName() << "'");
-    LoggerIndent Indent(BasicBlockLog);
-
-    auto Op = emitIsolatedFunctionDeclaration(F, MF);
-    revng_assert(Op.getBody().empty());
-    mlir::Block &BodyBlock = Op.getBody().emplaceBlock();
-
-    CurrentModelFunction = MF;
-    CurrentFunction = Op;
-    CurrentLayout = abi::FunctionType::Layout::make(*getPrototype(*MF));
-
-    NextLocalVariableIndex = 0;
-    NextGotoLabelIndex = 0;
-
-    // Clear the function-specific mappings once this function is emitted.
-    auto MappingGuard = llvm::make_scope_exit([&]() {
-      ArgumentMapping.clear();
-      BlockMapping.clear();
-      AllocaMapping.clear();
-      ValueMapping.clear();
-    });
-
-    llvm::ArrayRef LayoutArguments = getLayoutArguments(CurrentLayout);
-    revng_assert(F->arg_size() == Op.getArgumentTypes().size());
+    llvm::ArrayRef LayoutArguments = getLayoutArguments(FunctionLayout);
+    revng_assert(F->arg_size() == Function.getArgumentTypes().size());
     revng_assert(F->arg_size() == LayoutArguments.size());
 
     // Initialize the argument mapping for the function arguments. By-address
@@ -1750,150 +1886,30 @@ public:
     // must be converted to the type imported directly from the LLVM IR argument
     // type. That type is imported here and stored in the argument description.
     for (const auto [A, T, L] :
-         llvm::zip(F->args(), Op.getArgumentTypes(), LayoutArguments)) {
+         llvm::zip(F->args(), Function.getArgumentTypes(), LayoutArguments)) {
       ArgumentMapping.try_emplace(&A,
-                                  BodyBlock.addArgument(T, Op->getLoc()),
+                                  BodyBlock.addArgument(T, Function->getLoc()),
                                   /*TakeAddressOnUse=*/isByAddressParameter(L),
-                                  /*CastType=*/importLLVMType(A.getType()));
+                                  /*CastType=*/C.importLLVMType(A.getType()));
     }
 
     // Compute the scope graph. While the computation should not modify the
     // function IR, it is not const-correct and so a const_cast must be used.
     PostDomTree.recalculate(const_cast<llvm::Function &>(*F));
 
-    mlir::OpBuilder::InsertionGuard BuilderGuard(Builder);
-    Builder.setInsertionPointToEnd(&BodyBlock);
-
-    mlir::Block DeclarationBlock;
-    ScopedExchange _(LocalDeclarationBlock, &DeclarationBlock);
-
     // Finally emit the function body starting at the entry block.
     emitScope(&F->getEntryBlock(), PostDomTree.getRootNode()->getBlock());
 
     BodyBlock.getOperations().splice(BodyBlock.getOperations().begin(),
-                                     DeclarationBlock.getOperations());
+                                     LocalDeclarationBlock.getOperations());
 
-    return Op;
+    return Function;
   }
-
-private:
-  mlir::MLIRContext *const Context;
-  mlir::ModuleOp CurrentModule;
-
-  const model::Binary &Model;
-  mlir::OpBuilder Builder;
-
-  const model::Function *CurrentModelFunction;
-  clift::FunctionOp CurrentFunction;
-  abi::FunctionType::Layout CurrentLayout;
-
-  uint64_t NextLocalVariableIndex;
-  uint64_t NextGotoLabelIndex;
-
-  mlir::Block *LocalDeclarationBlock = nullptr;
-
-  ScopeGraphPostDomTree PostDomTree;
-
-  clift::ValueType VoidTypeCache;
-
-  uint64_t PointerSize;
-  clift::ValueType VoidPointerTypeCache;
-  clift::ValueType IntptrTypeCache;
-
-  // While importing the LLVM IR to Clift, we import types from both the model
-  // and from the LLVM IR. This creates some discrepancies, particularly around
-  // function parameters and return types. Within function bodies we are in the
-  // land of LLVM IR types, while any external input (arguments to the current
-  // function or return values from called functions) or output (the return
-  // value of the current function or arguments to called functions) have types
-  // imported from the model. For this reason some conversions must be inserted
-  // whenever we cross between the two typing domains.
-
-  struct ArgumentMappingInfo {
-    mlir::Value Argument;
-
-    // True if the address of the value should be taken before use in Clift.
-    // When converting the model type of an argument to the LLVM IR typing,
-    // there may arise a discrepancy in representation: the model parameter may
-    // have type large_struct_t, while in the LLVM IR the parameter is passed by
-    // address. Taking the address of the argument before each use in the
-    // resulting Clift solves this discrepancy.
-    bool TakeAddressOnUse;
-
-    // While taking the address solves a discrepancy in representation, a
-    // discrepancy in kind may still remain: we might now have large_struct_t*,
-    // while the LLVM IR has an integer type. The representation is the same,
-    // but the import of a subsequent integer arithmetic operation on the value
-    // might fail. For this reason argument values are converted to the type
-    // imported directly from LLVM IR, thus ensuring that any subsequently
-    // imported expression remains valid.
-    mlir::Type CastType;
-  };
-
-  struct BlockMappingInfo {
-    // Point where the mapped LLVM IR basic block is emitted. If the block has
-    // not yet been visited, this is not set. Note that the LLVM IR basic block
-    // is not necessarily emitted at the *start* of any MLIR block.
-    mlir::OpBuilder::InsertPoint InsertPoint;
-
-    // The result value of the MakeLabelOp to be used as the target for gotos
-    // jumping into the mapped LLVM IR basic block.
-    mlir::Value Label;
-
-    // True if the AssignLabelOp has already been created.
-    bool HasAssignLabel = false;
-  };
-
-  struct ValueMappingInfo {
-    mlir::Value Value;
-
-    // See ArgumentMappingInfo::TakeAddressOnUse for more information. However,
-    // instead of arguments, this one applies to return values stored in local
-    // variables. For some function calls the importer creates local variables
-    // with the model typing, and when the LLVM IR function call returned by
-    // address, the address of the variable must be taken to resolve the
-    // discrepancy in representation.
-    bool TakeAddressOnUse;
-
-    ValueMappingInfo(mlir::Value Value) :
-      Value(Value), TakeAddressOnUse(false) {}
-  };
-
-  /* Per-module mappings - persisted between imported functions */
-
-  // Maps LLVM object to a Clift global op. Each used global object is only
-  // emitted once and hence forth the operation stored in this table is used.
-  llvm::DenseMap<const llvm::GlobalObject *, clift::GlobalOpInterface>
-    SymbolMapping;
-
-  // Maps LLVM object to a string literal description. Used for caching
-  // successful string literal detection results.
-  llvm::DenseMap<const llvm::GlobalVariable *, StringLiteral> StringMapping;
-
-  // Maps helper name to Clift function op. Each helper function declaration is
-  // only emitted once.
-  llvm::DenseMap<llvm::StringRef, clift::FunctionOp> HelperMapping;
-
-  /* Per-function mappings - cleared for each imported function */
-
-  // Maps LLVM IR function argument to a Clift argument description. Initialized
-  // before importing each function body. During expression import argument
-  // values are generated using the descriptions stored in this table.
-  llvm::DenseMap<const llvm::Argument *, ArgumentMappingInfo> ArgumentMapping;
-
-  // Maps LLVM IR basic block to a Clift import state for that block.
-  llvm::DenseMap<const llvm::BasicBlock *, BlockMappingInfo> BlockMapping;
-
-  // Maps LLVM IR alloca to a Clift local variable op result. Used during
-  // expression import to map uses of an alloca to the matching Clift local
-  // variable.
-  llvm::DenseMap<const llvm::AllocaInst *, mlir::Value> AllocaMapping;
-
-  // Maps an arbitrary LLVM IR value to a Clift value description. During
-  // expression import some values are only emitted once and any use of such a
-  // value is emitted using the description stored in this table.
-  llvm::DenseMap<const llvm::Value *, ValueMappingInfo> ValueMapping;
 };
+
+clift::FunctionOp ClifterImpl::import(const llvm::Function *F) {
+  return FunctionClifter::import(*this, F);
+}
 
 } // namespace
 
