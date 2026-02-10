@@ -12,6 +12,12 @@ def Clift_BranchOpInterface
                       [Clift_StatementOpInterface,
                        Clift_StatementRegionOpInterface]> {
 
+  let description = [{
+    Common interface for branch statements, providing generic access to
+    potentially evaluated branch regions. Whenever a branch operation is
+    evaluated, exactly one of its branch regions is also evaluated.
+  }];
+
   let methods = [
     InterfaceMethod<
       /*desc=*/"Returns the region describing the branch condition.",
@@ -35,6 +41,11 @@ def Clift_BranchOpInterface
 def Clift_LoopOpInterface
   : Clift_OpInterface<"LoopOpInterface", [Clift_LabelAssignmentOpInterface,
                                           Clift_StatementRegionOpInterface]> {
+
+  let description = [{
+    Common interface for loop statements, providing generic access to assigned
+    labels and the loop body region.
+  }];
 
   let methods = [
     InterfaceMethod<

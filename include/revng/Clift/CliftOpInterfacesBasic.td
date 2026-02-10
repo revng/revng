@@ -14,6 +14,10 @@ class Clift_OpInterface<string name, list<Interface> baseInterfaces = []>
 }
 
 def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface", [Symbol]> {
+  let description = [{
+    Common interface for all global (module-level) operations.
+  }];
+
   let methods = [
     InterfaceMethod<
       /*desc=*/"Returns the type of the global entity.",
@@ -31,6 +35,10 @@ def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface", [Symbol]> {
 }
 
 def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
+  let description = [{
+    Common interface for all statement operations.
+  }];
+
   let methods = [
     InterfaceMethod<
       /*desc=*/"Returns true if the operation is indirectly non-fallthrough."
@@ -66,6 +74,10 @@ def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
 }
 
 def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
+  let description = [{
+    Common interface for all expression operations (including yield).
+  }];
+
   let methods = [
     InterfaceMethod<
       /*desc=*/"Returns true if the operation represents an lvalue expression.",

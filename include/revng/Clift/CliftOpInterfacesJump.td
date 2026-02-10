@@ -11,6 +11,10 @@ def Clift_JumpStatementOpInterface
   : Clift_OpInterface<"JumpStatementOpInterface",
                       [Clift_StatementOpInterface]> {
 
+  let description = [{
+    Common interface for labeled jump statements.
+  }];
+
   let methods = [
     InterfaceMethod<
       /*desc=*/"Returns the target label of this jump operation.",
