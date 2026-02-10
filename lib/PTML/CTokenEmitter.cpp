@@ -163,6 +163,21 @@ static bool requiresStringEscaping(char Character) {
   }
 }
 
+static bool isOctDigit(uint8_t Value) {
+  return '0' <= Value and Value <= '7';
+}
+
+static bool isHexDigit(uint8_t Value) {
+  if ('0' <= Value and Value <= '7')
+    return true;
+  if ('a' <= Value and Value <= 'f')
+    return true;
+  if ('A' <= Value and Value <= 'F')
+    return true;
+
+  return false;
+}
+
 static char getHexDigit(uint8_t Value) {
   revng_assert(Value < 0x10);
 
@@ -183,7 +198,18 @@ public:
     return E;
   };
 
-  static StringEscape hex(uint8_t Value) {
+  static StringEscape numeric(uint8_t Value, uint8_t NextValue) {
+    if (Value < 8) {
+      if (!isOctDigit(NextValue))
+        return oneDigitOctal(Value);
+    } else {
+      if (!isHexDigit(NextValue))
+        return twoDigitHex(Value);
+    }
+    return threeDigitOctal(Value);
+  }
+
+  static StringEscape twoDigitHex(uint8_t Value) {
     StringEscape E;
     E.Size = 4;
     E.Data[0] = '\\';
@@ -193,16 +219,33 @@ public:
     return E;
   };
 
+  static StringEscape oneDigitOctal(uint8_t Value) {
+    revng_assert(Value < 8);
+    StringEscape E;
+    E.Size = 2;
+    E.Data[0] = '\\';
+    E.Data[1] = '0' + Value;
+    return E;
+  };
+
+  static StringEscape threeDigitOctal(uint8_t Value) {
+    StringEscape E;
+    E.Size = 4;
+    E.Data[0] = '\\';
+    E.Data[1] = '0' + (Value >> 6 & 0b111);
+    E.Data[2] = '0' + (Value >> 3 & 0b111);
+    E.Data[3] = '0' + (Value >> 0 & 0b111);
+    return E;
+  };
+
   operator llvm::StringRef() const { return llvm::StringRef(Data, Size); }
 
 private:
   StringEscape() = default;
 };
 
-static StringEscape getStringEscape(char Character) {
+static StringEscape getStringEscape(char Character, char NextCharacter) {
   switch (Character) {
-  case '\0':
-    return StringEscape::single('0');
   case '\t':
     return StringEscape::single('t');
   case '\n':
@@ -218,7 +261,7 @@ static StringEscape getStringEscape(char Character) {
   case '\"':
     return StringEscape::single('\"');
   default:
-    return StringEscape::hex(Character);
+    return StringEscape::numeric(Character, NextCharacter);
   }
 }
 
@@ -521,8 +564,11 @@ void CTokenEmitter::emitStringLiteral(llvm::StringRef String) {
 
     PTML.emitContent(std::string_view(Begin, Pos));
 
-    if (Pos != End)
-      PTML.emitLiteralContent(getStringEscape(*Pos++));
+    if (Pos != End) {
+      char ThisChar = *Pos++;
+      char NextChar = Pos != End ? *Pos : '\0';
+      PTML.emitLiteralContent(getStringEscape(ThisChar, NextChar));
+    }
 
     Begin = Pos;
   }
