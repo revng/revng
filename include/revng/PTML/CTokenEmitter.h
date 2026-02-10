@@ -248,6 +248,12 @@ public:
   /// Convenience function for directly emitting a comment with the specified
   /// content.
   void emitComment(llvm::StringRef Content, CommentKind Kind);
+  void emitCategoryComment(llvm::StringRef Content) {
+    emitComment("\n", CommentKind::Line);
+    emitComment(" " + Content.str(), CommentKind::Line);
+    emitComment("\n", CommentKind::Line);
+    emitNewline();
+  }
 
 public:
   enum class IncludeMode : bool {
