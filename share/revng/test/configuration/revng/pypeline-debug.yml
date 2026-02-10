@@ -1,0 +1,12 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+commands:
+  # Check that running a pipeline with `--debug` works
+  - type: revng.test-pypeline-debug
+    from:
+      - type: revng-qa.compiled
+        filter: example-executable-1 and with-debug-info
+    command: |-
+      revng2 quick artifact emit-c-as-single-file -o /dev/null --debug "$$(temp -d)" "$INPUT";
