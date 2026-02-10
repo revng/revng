@@ -4,6 +4,7 @@
 
 #include <optional>
 
+#include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
@@ -329,11 +330,11 @@ mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
 }
 
 void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
-  auto Macro = CAttribute.getMacro();
+  auto Name = CAttribute.getName();
 
   Tokens.emitSpace();
-  Tokens.emitIdentifier(Macro.getString(),
-                        Macro.getHandle(),
+  Tokens.emitIdentifier(Name.getName(),
+                        Name.getHandle(),
                         CTE::EntityKind::Attribute,
                         CTE::IdentifierKind::Reference);
 
@@ -346,10 +347,29 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
         Tokens.emitSpace();
       }
 
-      Tokens.emitIdentifier(A.getString(),
-                            A.getHandle(),
-                            CTE::EntityKind::AttributeArgument,
-                            CTE::IdentifierKind::Reference);
+      auto Visitor = [this]<typename Type>(Type &&Value) {
+        if constexpr (std::same_as<std::decay_t<Type>,
+                                   mlir::clift::IdentifierCAttributeAttr>) {
+          Tokens.emitIdentifier(Value.getName(),
+                                Value.getHandle(),
+                                CTE::EntityKind::AttributeArgument,
+                                CTE::IdentifierKind::Reference);
+
+        } else if constexpr (std::same_as<std::decay_t<Type>,
+                                          mlir::IntegerAttr>) {
+          Tokens.emitUntypedIntegerLiteral(Value.getValue().getZExtValue());
+
+        } else if constexpr (std::same_as<std::decay_t<Type>, mlir::TypeAttr>) {
+          auto VT = mlir::dyn_cast<mlir::clift::ValueType>(Value.getValue());
+          revng_assert(VT);
+          emitType(VT);
+
+        } else {
+          static_assert(type_always_false_v<Type>,
+                        "Unknown c_attribute argument type!");
+        }
+      };
+      std::visit(Visitor, A);
     }
 
     Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);

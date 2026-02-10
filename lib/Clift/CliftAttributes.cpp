@@ -13,7 +13,9 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Support/LogicalResult.h"
 
+#include "revng/ADT/STLExtras.h"
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftDialect.h"
 #include "revng/Clift/CliftInterfaces.h"
@@ -250,12 +252,13 @@ template class ClassAttrImpl<UnionAttr>;
 
 //===---------------------------- CAttributeAttr --------------------------===//
 
-static mlir::LogicalResult parseAttributeComponent(mlir::AsmParser &Parser,
-                                                   CAttributeComponentAttr &C) {
+static mlir::LogicalResult
+parseIdentifierCAttribute(mlir::AsmParser &Parser,
+                          mlir::clift::IdentifierCAttributeAttr &Identifier) {
   mlir::SMLoc Loc = Parser.getCurrentLocation();
 
-  std::string String;
-  if (Parser.parseString(&String).failed())
+  std::string Name;
+  if (Parser.parseString(&Name).failed())
     return mlir::failure();
 
   std::string Handle;
@@ -264,13 +267,36 @@ static mlir::LogicalResult parseAttributeComponent(mlir::AsmParser &Parser,
       return mlir::failure();
   }
 
-  C = CAttributeComponentAttr::getChecked(getEmitError(Parser, Loc),
-                                          Parser.getContext(),
-                                          String,
-                                          Handle);
+  Identifier = Identifier.getChecked(getEmitError(Parser, Loc),
+                                     Parser.getContext(),
+                                     Name,
+                                     Handle);
 
   return mlir::success();
 }
+
+namespace std {
+inline llvm::hash_code
+hash_value(const mlir::clift::CAttributeAttrArgument &Argument) {
+  auto Visitor = []<typename Type>(Type &&Value) {
+    if constexpr (std::same_as<std::decay_t<Type>,
+                               mlir::clift::IdentifierCAttributeAttr>) {
+      return llvm::hash_combine("identifier", Value);
+
+    } else if constexpr (std::same_as<std::decay_t<Type>, mlir::IntegerAttr>) {
+      return llvm::hash_combine("integer", Value);
+
+    } else if constexpr (std::same_as<std::decay_t<Type>, mlir::TypeAttr>) {
+      return llvm::hash_combine("type", Value);
+
+    } else {
+      static_assert(type_always_false_v<Type>,
+                    "Unknown c-attribute argument type!");
+    }
+  };
+  return std::visit(Visitor, Argument);
+}
+} // namespace std
 
 mlir::Attribute CAttributeAttr::parse(mlir::AsmParser &Parser,
                                       mlir::Type Type) {
@@ -279,21 +305,45 @@ mlir::Attribute CAttributeAttr::parse(mlir::AsmParser &Parser,
   if (Parser.parseLess().failed())
     return {};
 
-  CAttributeComponentAttr Macro;
-  if (parseAttributeComponent(Parser, Macro).failed())
+  mlir::clift::IdentifierCAttributeAttr Name;
+  if (parseIdentifierCAttribute(Parser, Name).failed())
     return {};
 
-  llvm::SmallVector<CAttributeComponentAttr> ArgumentsArray;
-  std::optional<llvm::ArrayRef<CAttributeComponentAttr>> Arguments;
+  llvm::SmallVector<CAttributeAttrArgument> ArgumentArray;
+  std::optional<llvm::ArrayRef<CAttributeAttrArgument>> Arguments;
 
   if (Parser.parseOptionalLParen().succeeded()) {
     if (Parser.parseOptionalRParen().failed()) {
-      auto ParseArgument = [&Parser, &ArgumentsArray]() -> mlir::ParseResult {
-        CAttributeComponentAttr Argument;
-        if (parseAttributeComponent(Parser, Argument).failed())
+      auto ParseArgument = [&Parser, &ArgumentArray]() -> mlir::ParseResult {
+        llvm::StringRef Kind;
+        if (Parser.parseOptionalKeyword(&Kind).failed())
           return mlir::failure();
 
-        ArgumentsArray.push_back(Argument);
+        if (Kind == "identifier") {
+          mlir::clift::IdentifierCAttributeAttr Identifier;
+          if (parseIdentifierCAttribute(Parser, Identifier).failed())
+            return mlir::failure();
+
+          ArgumentArray.emplace_back(Identifier);
+
+        } else if (Kind == "integer") {
+          mlir::IntegerAttr Integer;
+          if (Parser.parseAttribute(Integer).failed())
+            return mlir::failure();
+
+          ArgumentArray.emplace_back(Integer);
+
+        } else if (Kind == "type") {
+          mlir::TypeAttr Type;
+          if (Parser.parseAttribute(Type).failed())
+            return mlir::failure();
+
+          ArgumentArray.emplace_back(Type);
+
+        } else {
+          revng_abort("Unknown c-attribute argument type!");
+        }
+
         return mlir::success();
       };
 
@@ -304,7 +354,7 @@ mlir::Attribute CAttributeAttr::parse(mlir::AsmParser &Parser,
         return {};
     }
 
-    Arguments = ArgumentsArray;
+    Arguments = ArgumentArray;
   }
 
   if (Parser.parseGreater().failed())
@@ -312,24 +362,25 @@ mlir::Attribute CAttributeAttr::parse(mlir::AsmParser &Parser,
 
   return CAttributeAttr::getChecked(getEmitError(Parser, Loc),
                                     Parser.getContext(),
-                                    Macro,
+                                    Name,
                                     Arguments);
 }
 
-static void printAttributeComponent(mlir::AsmPrinter &Printer,
-                                    CAttributeComponentAttr C) {
-  printString(Printer, C.getString());
+static void
+printIdentifierCAttribute(mlir::AsmPrinter &Printer,
+                          mlir::clift::IdentifierCAttributeAttr Identifier) {
+  printString(Printer, Identifier.getName());
 
-  if (not C.getHandle().empty()) {
+  if (not Identifier.getHandle().empty()) {
     Printer << " : ";
-    printString(Printer, C.getHandle());
+    printString(Printer, Identifier.getHandle());
   }
 }
 
 void CAttributeAttr::print(mlir::AsmPrinter &Printer) const {
   Printer << '<';
 
-  printAttributeComponent(Printer, getMacro());
+  printIdentifierCAttribute(Printer, getName());
 
   if (const auto &Arguments = getArguments()) {
     Printer << '(';
@@ -337,7 +388,27 @@ void CAttributeAttr::print(mlir::AsmPrinter &Printer) const {
       if (I != 0)
         Printer << ", ";
 
-      printAttributeComponent(Printer, A);
+      auto ArgumentVisitor = [&Printer]<typename Type>(Type &&Value) {
+        if constexpr (std::same_as<std::decay_t<Type>,
+                                   mlir::clift::IdentifierCAttributeAttr>) {
+          Printer << "identifier ";
+          printIdentifierCAttribute(Printer, Value);
+
+        } else if constexpr (std::same_as<std::decay_t<Type>,
+                                          mlir::IntegerAttr>) {
+          Printer << "integer ";
+          Printer.printAttribute(Value);
+
+        } else if constexpr (std::same_as<std::decay_t<Type>, mlir::TypeAttr>) {
+          Printer << "type ";
+          Printer.printAttribute(Value);
+
+        } else {
+          static_assert(type_always_false_v<Type>,
+                        "Unknown c-attribute argument type!");
+        }
+      };
+      std::visit(ArgumentVisitor, A);
     }
     Printer << ')';
   }
@@ -775,6 +846,115 @@ uint64_t UnionAttr::getSize() const {
   return Size;
 }
 
+//===--------------------------- CAttributeAttr ---------------------------===//
+
+template<std::same_as<mlir::clift::CAttributeAttr>>
+static mlir::clift::CAttributeAttr
+readAttr(mlir::DialectBytecodeReader &Reader) {
+  mlir::clift::IdentifierCAttributeAttr Name;
+  if (Reader.readAttribute(Name).failed())
+    return {};
+
+  auto MaybeBool = Reader.readAPIntWithKnownWidth(1);
+  if (mlir::LogicalResult(MaybeBool).failed())
+    return {};
+
+  std::optional<llvm::SmallVector<mlir::clift::CAttributeAttrArgument>> Args;
+  if (MaybeBool->getBoolValue()) {
+    auto ReadImpl = [&](mlir::clift::CAttributeAttrArgument &Argument)
+      -> mlir::LogicalResult {
+      auto MaybeIndex = Reader.readAPIntWithKnownWidth(2);
+      if (mlir::LogicalResult(MaybeIndex).failed())
+        return mlir::failure();
+
+      switch (MaybeIndex->getLimitedValue()) {
+      case 0: {
+        mlir::clift::IdentifierCAttributeAttr ReadArgument;
+        if (Reader.readAttribute(ReadArgument).failed())
+          return mlir::failure();
+
+        Argument = ReadArgument;
+        break;
+      }
+
+      case 1: {
+        mlir::IntegerAttr ReadArgument;
+        if (Reader.readAttribute(ReadArgument).failed())
+          return mlir::failure();
+
+        Argument = ReadArgument;
+        break;
+      }
+
+      case 2: {
+        mlir::TypeAttr ReadArgument;
+        if (Reader.readAttribute(ReadArgument).failed())
+          return mlir::failure();
+
+        Argument = ReadArgument;
+        break;
+      }
+
+      default: {
+        std::string Error = "Unknown `CAttributeAttrArgument` kind: "
+                            + std::to_string(MaybeIndex->getLimitedValue())
+                            + "!";
+        revng_abort(Error.c_str());
+      }
+      };
+
+      return mlir::success();
+    };
+
+    Args = llvm::SmallVector<mlir::clift::CAttributeAttrArgument>{};
+    if (Reader.readList(*Args, ReadImpl).failed())
+      return {};
+  }
+
+  return mlir::clift::CAttributeAttr::get(Reader.getContext(), Name, Args);
+}
+
+static void writeAttr(mlir::clift::CAttributeAttr Attr,
+                      mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeAttribute(Attr.getName());
+
+  bool HasArguments = Attr.getArguments().has_value();
+  Writer.writeAPIntWithKnownWidth(llvm::APInt(1, HasArguments));
+  if (HasArguments) {
+    auto WriteImpl = [&](mlir::clift::CAttributeAttrArgument Argument) {
+      Writer.writeAPIntWithKnownWidth(llvm::APInt(2, Argument.index()));
+
+      auto WriteAttribute = [&Writer](auto &&InnerAttribute) {
+        Writer.writeAttribute(InnerAttribute);
+      };
+      std::visit(WriteAttribute, Argument);
+    };
+    Writer.writeList(*Attr.getArguments(), WriteImpl);
+  }
+}
+
+template<std::same_as<mlir::clift::IdentifierCAttributeAttr>>
+static mlir::clift::IdentifierCAttributeAttr
+readAttr(mlir::DialectBytecodeReader &Reader) {
+  llvm::StringRef Name;
+  if (Reader.readString(Name).failed())
+    return {};
+
+  llvm::StringRef Handle;
+  if (Reader.readString(Handle).failed())
+    return {};
+
+  return mlir::clift::IdentifierCAttributeAttr::get(Reader.getContext(),
+                                                    Name,
+                                                    Handle);
+}
+
+static void writeAttr(mlir::clift::IdentifierCAttributeAttr Attr,
+                      mlir::DialectBytecodeWriter &Writer) {
+  Writer.writeOwnedString(Attr.getName());
+  Writer.writeOwnedString(Attr.getHandle());
+}
+
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerAttributes() {
@@ -814,6 +994,9 @@ enum class CliftAttrKind : uint8_t {
   Struct,
   Union,
 
+  CAttribute,
+  IdentifierCAttribute,
+
   N
 };
 
@@ -850,6 +1033,12 @@ mlir::Attribute clift::readAttr(mlir::DialectBytecodeReader &Reader) {
   case CliftAttrKind::Union:
     return BytecodeClassAttr::get(Reader.getContext(),
                                   clift::readUnionDefinition(Reader));
+
+  case CliftAttrKind::CAttribute:
+    return ::readAttr<mlir::clift::CAttributeAttr>(Reader);
+  case CliftAttrKind::IdentifierCAttribute:
+    return ::readAttr<mlir::clift::IdentifierCAttributeAttr>(Reader);
+
   case CliftAttrKind::N:
     break;
   }
@@ -887,6 +1076,11 @@ mlir::LogicalResult clift::writeAttr(mlir::Attribute Attr,
       return mlir::success();
     }
   }
+
+  if (auto A = mlir::dyn_cast<mlir::clift::CAttributeAttr>(Attr))
+    return Write(A, CliftAttrKind::CAttribute);
+  if (auto A = mlir::dyn_cast<mlir::clift::IdentifierCAttributeAttr>(Attr))
+    return Write(A, CliftAttrKind::IdentifierCAttribute);
 
   return mlir::failure();
 }

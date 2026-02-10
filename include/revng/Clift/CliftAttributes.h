@@ -32,6 +32,13 @@ MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
 
 namespace mlir::clift {
 
+namespace detail {
+using OptionalArgs = decltype(std::declval<CAttributeAttr>().getArguments());
+using ArgumentArray = OptionalArgs::value_type;
+} // namespace detail
+
+using CAttributeAttrArgument = detail::ArgumentArray::value_type;
+
 template<typename T>
 MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
                                llvm::StringRef Handle,
