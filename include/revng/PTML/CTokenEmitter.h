@@ -33,6 +33,14 @@ public:
   void emitSpace() { PTML.emit(" "); }
   void emitNewline() { PTML.emit("\n"); }
 
+  // Emit the specified content as is.
+  //
+  // This is intended to be used as a way to merge outputs of different
+  // emitters, please do not use it for anything else.
+  //
+  // IMPORTANT: This does *no* escaping of any kind.
+  void emitRawContent(llvm::StringRef String) { PTML.emitRawContent(String); }
+
   enum class Keyword {
     Auto,
     Bool,
