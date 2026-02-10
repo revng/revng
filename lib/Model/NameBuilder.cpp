@@ -555,7 +555,7 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   // Exact names
   //
 
-  if (Name == Configuration.StackFrameVariableName())
+  if (Name == Configuration.UnnamedStackFrameVariableName())
     return revng::createError("it is reserved for a stack variable name");
   if (Name == Configuration.RawStackArgumentName())
     return revng::createError("it is reserved for a stack argument name");

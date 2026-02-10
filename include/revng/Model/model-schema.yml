@@ -1606,7 +1606,7 @@ definitions:
         type: string
         default: enum_max_value_
 
-      - name: StackFrameVariableName
+      - name: UnnamedStackFrameVariableName
         doc: The name of the variable representing stack.
         type: string
         default: stack

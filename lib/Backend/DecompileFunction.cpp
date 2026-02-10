@@ -394,7 +394,7 @@ private:
     revng_assert(not TokenMap.contains(I));
 
     const auto &Configuration = Model.Configuration().Naming();
-    llvm::StringRef VarName = Configuration.StackFrameVariableName();
+    llvm::StringRef VarName = Configuration.UnnamedStackFrameVariableName();
     auto [Definition, Reference] = B.getReservedVariableTags(ModelFunction,
                                                              VarName);
     TokenMap[I] = std::move(Reference);

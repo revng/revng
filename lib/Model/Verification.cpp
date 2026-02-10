@@ -855,7 +855,7 @@ bool Configuration::verify(VerifyHelper &VH) const {
   if (Configuration().Naming().MaximumEnumValuePrefix().empty())
     return VH.fail("Maximum enum value prefix must not be empty.");
 
-  if (Configuration().Naming().StackFrameVariableName().empty())
+  if (Configuration().Naming().UnnamedStackFrameVariableName().empty())
     return VH.fail("Stack frame variable name must not be empty.");
   if (Configuration().Naming().RawStackArgumentName().empty())
     return VH.fail("Raw stack argument name must not be empty.");
