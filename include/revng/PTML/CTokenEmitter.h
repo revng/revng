@@ -12,7 +12,13 @@
 
 namespace ptml {
 
+/// Provides a stream-like interface for emitting C tokens and simple
+/// preprocessor directives. It is ensured that through this interface, only
+/// lexically valid C code can be emitted.
 class CTokenEmitter {
+  // It is very important to hide the PTML emitter and not to expose any direct
+  // access to it in the public interface of this class. This design prevents
+  // the emission of lexically invalid C.
   PTMLStreamEmitter PTML;
 
 public:
