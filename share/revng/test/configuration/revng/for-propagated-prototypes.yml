@@ -8,8 +8,9 @@ commands:
       - type: revng-qa.compiled-stripped
         filter: for-propagated-prototypes
     command: |-
-      RESUME=$$(temp -d);
-      revng analyze --resume "$$RESUME" import-binary "$INPUT" -o /dev/null --debug-info=no;
-      revng model apply "$$RESUME/context/model.yml" "$SOURCE.add-puts.yml" -o "$$RESUME/context/model.yml";
-      revng analyze --resume "$$RESUME" detect-abi "$INPUT" |
-      revng model compare "$SOURCE".model.yml
+      cd "$$(temp -d)";
+      revng2 project init --no-initial-auto-analysis "$INPUT";
+      revng2 project analyze parse-binary -o /dev/null -- --debug-info=no;
+      revng model apply model.yml "$SOURCE.add-puts.yml" -o model.yml;
+      revng2 project analyze detect-abi |
+        revng model compare "$SOURCE".model.yml

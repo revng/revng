@@ -9,6 +9,7 @@ Changes:
     Remove:
       Entry:           "0x500003:Code_x86_64"
 ...
-# CHECK: lift:
-# CHECK:   root.bc.zstd:
-# CHECK:     - ":root"
+# CHECK: container: llvm-root
+# CHECK: objects:
+# CHECK: - /binary
+# CHECK: savepoint: lifted

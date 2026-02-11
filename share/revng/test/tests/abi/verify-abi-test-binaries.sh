@@ -23,12 +23,8 @@ llvm-dwarfdump \
   > "$OUTPUT_DIRECTORY/dwarf.dump"
 
 # Import DWARF information
-revng \
-    analyze \
-    import-binary \
-    "$BINARY" \
-    --use-pdb="${BINARY}.pdb" \
-    -o="${OUTPUT_DIRECTORY}/imported_binary.yml"
+revng2 -C "$OUTPUT_DIRECTORY" project init --no-initial-auto-analysis "$BINARY"
+revng2 -C "$OUTPUT_DIRECTORY" project analyze parse-binary -o /dev/null -- --use-pdb="${BINARY}.pdb"
 
 # Remove all the functions we don't find relevant, then force-override the ABI
 # field of all the renaming prototypes because DWARF information is not always
@@ -36,36 +32,24 @@ revng \
 python3 \
     "${SCRIPT_DIRECTORY}/prepare-tested-model.py" \
     "$ABI_NAME" \
-    "${OUTPUT_DIRECTORY}/imported_binary.yml" \
+    "${OUTPUT_DIRECTORY}/model.yml" \
     "${OUTPUT_DIRECTORY}/reference_binary.yml"
 
 # Convert CABIFunctionDefinition to RawFunctionDefinition
-revng \
-    analyze \
-    -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    convert-functions-to-raw \
-    "$BINARY" \
-    -m="${OUTPUT_DIRECTORY}/reference_binary.yml" \
-    -o="${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml"
+revng2 pipeline run-analysis convert-functions-to-raw \
+    "${OUTPUT_DIRECTORY}/reference_binary.yml" \
+    -o "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml"
 
 # Convert RawFunctionDefinition back to CABIFunctionDefinition
-revng \
-    analyze \
-    -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    convert-functions-to-cabi \
-    "$BINARY" \
-    --convert-functions-to-cabi-abi="${ABI_NAME}" \
-    -m="${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
-    -o="${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml"
+revng2 pipeline run-analysis convert-functions-to-cabi \
+    --configuration "ABI: ${ABI_NAME}" \
+    "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
+    -o "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml"
 
 # Back to RawFunctionDefinition again
-revng \
-    analyze \
-    -P="${SCRIPT_DIRECTORY}/custom-conversion-pipeline.yml" \
-    convert-functions-to-raw \
-    "$BINARY" \
-    -m="${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
-    -o="${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
+revng2 pipeline run-analysis convert-functions-to-raw \
+    "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml" \
+    -o "${OUTPUT_DIRECTORY}/downgraded_upgraded_downgraded_reference_binary.yml"
 
 # Verify that no step contradicts the actual state.
 revng \

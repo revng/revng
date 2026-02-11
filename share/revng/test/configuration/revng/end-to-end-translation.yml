@@ -11,12 +11,9 @@ commands:
       - type: revng-qa.compiled-with-debug-info
         filter: for-runtime and for-comparison
     command: |-
-      revng artifact
-        --analyses=import-binary,detect-abi
-        recompile-isolated
-        "$INPUT"
-        -o "$OUTPUT";
-      chmod +x "$OUTPUT"
+      revng2 quick artifact --analyses=parse-binary,detect-abi recompile-isolated "$INPUT" --tar |
+        tar -x --to-stdout '/binary' > "$OUTPUT" 2>/dev/null;
+      chmod +x "$$OUTPUT";
 
   #
   # Run original executables with QEMU

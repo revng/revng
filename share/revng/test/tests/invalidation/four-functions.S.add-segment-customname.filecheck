@@ -9,4 +9,4 @@ Changes:
     Add: "mysegment"
 ...
 
-# CHECK-NOT: lift:
+# CHECK-NOT: savepoint: lifted

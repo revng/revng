@@ -22,7 +22,10 @@ commands:
         filter: model-to-header
     suffix: .h
     command: |-
-      revng artifact emit-model-header /dev/null --model "$INPUT"
-        | revng ptml > "$OUTPUT";
+      PROJECT_DIR=$$(temp -d);
+      cp "$INPUT" "$$PROJECT_DIR/model.yml";
+      revng2 -C "$$PROJECT_DIR" project artifact emit-model-header |
+        yq -r '.["/binary"]' |
+        revng ptml > "$OUTPUT";
       revng check-decompiled-c "$OUTPUT";
       FileCheck --input-file="$OUTPUT" "${SOURCE}.filecheck";

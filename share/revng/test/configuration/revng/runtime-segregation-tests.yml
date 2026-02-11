@@ -8,17 +8,12 @@ commands:
   - type: revng.runtime-segregation-tests
     from:
       - type: revng-qa.runtime-abi-tests
-    suffix: /
     command: |-
-      revng analyze import-binary "${INPUT}/functions"
-        --use-pdb="${INPUT}/functions.pdb"
-        -o="${OUTPUT}/imported_binary.yml";
+      INPUT=$$(realpath "$INPUT");
+      cd "$$(temp -d)";
+      revng2 project init --no-initial-auto-analysis "$$INPUT/functions";
+      revng2 project analyze parse-binary -o /dev/null -- --use-pdb="$$INPUT/functions.pdb";
       python3 "${SOURCES_ROOT}/share/revng/test/tests/abi/prepare-tested-model.py"
-        "${ABI_NAME}"
-        "${OUTPUT}/imported_binary.yml"
-        "${OUTPUT}/reference_binary.yml";
-      revng artifact emit-c-as-single-file "${INPUT}/functions"
-        -m="${OUTPUT}/reference_binary.yml"
-        --resume="${OUTPUT}/resume"
-        -o="${OUTPUT}/decompiled.c.ptml";
-      revng ptml "${OUTPUT}/decompiled.c.ptml" -o="${OUTPUT}/decompiled.c"
+        "${ABI_NAME}" model.yml model.yml;
+      revng2 project artifact emit-c-as-single-file -o decompiled.c.ptml;
+      revng ptml decompiled.c.ptml -o decompiled.c
