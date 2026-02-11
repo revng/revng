@@ -3,8 +3,7 @@
 #
 
 import asyncio
-import sys
-from typing import AsyncContextManager
+from typing import IO, AsyncContextManager
 
 import click
 
@@ -22,6 +21,17 @@ from revng.pypeline.storage.storage_provider import storage_provider_factory_fac
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
+
+output_option = click.option(
+    "-o",
+    "output_file",
+    type=click.File("wb"),
+    help=(
+        "Path to write the changed model to, if not specified, the "
+        "result will be printed to stdout."
+    ),
+    default="-",
+)
 
 
 class AnalyzeGroup(PypeGroup):
@@ -145,6 +155,7 @@ def build_analysis_list_command(
     async def async_part_of_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
         runner_context: RunnerContext,
+        output_file: IO[bytes],
         kwargs,
     ):
         """Since the storage provider factory returns an async context manager,
@@ -184,8 +195,8 @@ def build_analysis_list_command(
             )
 
             pypeline_logger.debug_log("Analysis run completed")
-            # Print on stdout the raw bytes of the modified model
-            sys.stdout.buffer.write(new_model.serialize())
+            # Print on the output_file the raw bytes of the modified model
+            output_file.write(new_model.serialize())
 
             # TODO: how to output this in a machine readable way?
             for container_location, object_ids in invalidated.items():
@@ -199,6 +210,7 @@ def build_analysis_list_command(
         name=analysis_name,
         help=help_text,
     )
+    @output_option
     @debug_option
     @list_objects_option
     @project_id_option
@@ -210,6 +222,7 @@ def build_analysis_list_command(
         project_id: str,
         token: str,
         runner_context: RunnerContext,
+        output_file: IO[bytes],
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
@@ -228,6 +241,7 @@ def build_analysis_list_command(
                 storage_provider_context=storage_provider_context,
                 runner_context=runner_context,
                 kwargs=kwargs,
+                output_file=output_file,
             )
         )
 
@@ -246,6 +260,7 @@ def build_analysis_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
         configuration: str,
         runner_context: RunnerContext,
+        output_file: IO[bytes],
         kwargs,
     ):
         """Since the storage provider factory returns an async context manager,
@@ -291,8 +306,8 @@ def build_analysis_command(
                 runner_context=runner_context,
             )
             pypeline_logger.debug_log("Analysis run completed")
-            # Print on stdout the raw bytes of the modified model
-            sys.stdout.buffer.write(new_model.serialize())
+            # Print on the output file
+            output_file.write(new_model.serialize())
 
             # TODO: how to output this in a machine readable way?
             for container_location, object_ids in invalidated.items():
@@ -306,6 +321,7 @@ def build_analysis_command(
         name=analysis_name,
         help=help_text,
     )
+    @output_option
     @debug_option
     @list_objects_option
     @project_id_option
@@ -318,6 +334,7 @@ def build_analysis_command(
         project_id: str,
         token: str,
         runner_context: RunnerContext,
+        output_file: IO[bytes],
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
@@ -337,6 +354,7 @@ def build_analysis_command(
                 storage_provider_context=storage_provider_context,
                 configuration=configuration,
                 runner_context=runner_context,
+                output_file=output_file,
                 kwargs=kwargs,
             )
         )
