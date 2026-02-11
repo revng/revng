@@ -88,14 +88,13 @@ public:
   }
 
 public:
-  mlir::MLIRContext &getContext() { return *Context; }
-  const mlir::MLIRContext &getContext() const { return *Context; }
-
-  const mlir::ModuleOp getModule(const ObjectID &ID) const {
-    return *Modules.at(ID);
+  mlir::MLIRContext &getContext() const {
+    // WIP: this is a nasty hack, it lets us avoid `mutable` and `const_cast`.
+    //      It requires all the modules to share the same context!
+    revng_assert(!Modules.empty());
+    return *Modules.begin()->second.get().getContext();
   }
-
-  mlir::ModuleOp getModule(const ObjectID &ID) { return *Modules.at(ID); }
+  mlir::ModuleOp getModule(const ObjectID &ID) const { return *Modules.at(ID); }
 
   void assign(const ObjectID &ID, mlir::ModuleOp NewModule) {
     revng_assert(&*Context == NewModule->getContext());
@@ -174,14 +173,13 @@ public:
   }
 
 public:
-  mlir::MLIRContext &getContext() { return *Context; }
-  const mlir::MLIRContext &getContext() const { return *Context; }
-
-  const mlir::ModuleOp getModule(const ObjectID &ID) const {
-    return *Modules.at(ID);
+  mlir::MLIRContext &getContext() const {
+    // WIP: this is a nasty hack, it lets us avoid `mutable` and `const_cast`.
+    //      It requires all the modules to share the same context!
+    revng_assert(!Modules.empty());
+    return *Modules.begin()->second.get().getContext();
   }
-
-  mlir::ModuleOp getModule(const ObjectID &ID) { return *Modules.at(ID); }
+  mlir::ModuleOp getModule(const ObjectID &ID) const { return *Modules.at(ID); }
 
   void assign(const ObjectID &ID, mlir::ModuleOp NewModule) {
     revng_assert(&*Context == NewModule->getContext());
@@ -267,11 +265,11 @@ public:
   }
 
 public:
-  mlir::MLIRContext &getContext() { return *Context; }
-  const mlir::MLIRContext &getContext() const { return *Context; }
-
-  const mlir::ModuleOp getModule() const { return Module.get(); }
-  mlir::ModuleOp getModule() { return Module.get(); }
+  mlir::MLIRContext &getContext() const {
+    // WIP: this is a nasty hack, it lets us avoid `mutable` and `const_cast`.
+    return *Module.get().getContext();
+  }
+  mlir::ModuleOp getModule() const { return Module.get(); }
 
   void assign(mlir::ModuleOp NewModule) {
     revng_assert(&*Context == NewModule->getContext());
