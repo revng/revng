@@ -121,7 +121,7 @@ public:
                                                        rr::TypeDefinition);
         revng_assert(MT != nullptr);
 
-        T.getMutableName().setValue(sanitizeIdentifier(NameBuilder.name(*MT)));
+        T.getMutableName().setValue(NameBuilder.name(*MT));
       }
     }
 
@@ -374,9 +374,7 @@ private:
 
   mlir::LogicalResult visitMakeLabelOp(clift::MakeLabelOp Op) {
     if (auto L = pipeline::locationFromString(rr::GotoLabel, Op.getHandle())) {
-      auto AddressSet = getUserAddressSet(Op);
-      auto R = CurrentFunction->GotoLabels.name(AddressSet);
-      Op.setName(sanitizeIdentifier(R.Name));
+      Op.setName(CurrentFunction->GotoLabels.name(getUserAddressSet(Op)).Name);
     } else {
       Op.setName(CurrentFunction->GotoLabels.automaticName().Name);
     }
@@ -387,13 +385,10 @@ private:
   mlir::LogicalResult visitLocalVariableOp(clift::LocalVariableOp Op) {
     if (auto L = pipeline::locationFromString(rr::StackFrameVariable,
                                               Op.getHandle())) {
-      auto Name = NameBuilder.name(CurrentFunction->Model.StackFrame());
-      Op.setName(sanitizeIdentifier(Name));
+      Op.setName(NameBuilder.name(CurrentFunction->Model.StackFrame()));
     } else if (auto L = pipeline::locationFromString(rr::LocalVariable,
                                                      Op.getHandle())) {
-      auto AddressSet = getUserAddressSet(Op);
-      auto R = CurrentFunction->Variables.name(AddressSet);
-      Op.setName(sanitizeIdentifier(R.Name));
+      Op.setName(CurrentFunction->Variables.name(getUserAddressSet(Op)).Name);
     } else {
       Op.setName(CurrentFunction->Variables.automaticName().Name);
     }
