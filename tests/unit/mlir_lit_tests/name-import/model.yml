@@ -136,6 +136,11 @@ Functions:
         Location:
           - "0x40001007:Code_x86_64"
           - "0x40001008:Code_x86_64"
+    Comments:
+      - Index: 0
+        Location:
+          - "0x40001005:Code_x86_64"
+        Body: "hello"
 
 Segments:
   - StartAddress: "0x40001000:Generic64"

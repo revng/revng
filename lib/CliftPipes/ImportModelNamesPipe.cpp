@@ -2,11 +2,17 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <ranges>
+
+#include "mlir/IR/RegionGraphTraits.h"
+
+#include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/Clift/Helpers.h"
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/ImportModelNamesPipe.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/PTML/CommentPlacementHelper.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Support/Identifier.h"
@@ -15,6 +21,49 @@ namespace clift = mlir::clift;
 namespace rr = revng::ranks;
 
 namespace {
+
+struct CliftStatementTraits {
+  using StatementType = mlir::Operation *;
+
+  static auto getStatements(mlir::Block *Block) {
+    using Iterator = mlir::Block::OpListType::iterator;
+    using IteratorRange = llvm::iterator_range<Iterator>;
+    return llvm::map_range(IteratorRange(Block->getOperations()),
+                           [](mlir::Operation &Op) { return &Op; });
+  }
+
+  static auto getAddresses(mlir::Operation *Op) {
+    std::set<MetaAddress> AddressSet;
+
+    auto GatherRegionAddresses = [&AddressSet](mlir::Region &Region) {
+      Region.walk([&AddressSet](mlir::Operation *Op) {
+        revng_assert(mlir::isa<clift::ExpressionOpInterface>(Op));
+        if (auto Loc = mlir::dyn_cast_or_null<mlir::NameLoc>(Op->getLoc())) {
+          if (auto L = pipeline::locationFromString(rr::Instruction,
+                                                    Loc.getName().str())) {
+            revng_assert(L->back().isValid());
+            AddressSet.insert(L->back());
+          }
+        }
+      });
+    };
+
+    if (auto ERI = mlir::dyn_cast<clift::ExpressionRegionOpInterface>(Op)) {
+      for (mlir::Region &Region : ERI.getExpressionRegions())
+        GatherRegionAddresses(Region);
+    }
+    return AddressSet;
+  }
+};
+
+struct CliftStatementTreeTraits {
+  using TreeType = mlir::Block *;
+  using TreeNodeType = mlir::Block *;
+
+  static mlir::Block *getTree(mlir::Block *Block) { return Block; }
+  static mlir::Block *getTreeRoot(mlir::Block *Block) { return Block; }
+  static mlir::Block *getNode(mlir::Block *Block) { return Block; }
+};
 
 // Helper class for mutating the attribute dictionary of a function parameter.
 // All attributes associated with a given function parameter are stored in a
@@ -91,13 +140,20 @@ class NameImporter : public clift::ModuleVisitor<NameImporter> {
     model::CNameBuilder::VariableNameBuilder Variables;
     model::CNameBuilder::GotoLabelNameBuilder GotoLabels;
 
+    yield::CommentPlacementHelper<mlir::Block *,
+                                  CliftStatementTreeTraits,
+                                  CliftStatementTraits>
+      Comments;
+
     explicit CurrentFunctionState(NameImporter &Importer,
+                                  clift::FunctionOp Function,
                                   LocationType &&Location,
                                   const model::Function &ModelFunction) :
       Model(ModelFunction),
       Location(std::move(Location)),
       Variables(Importer.NameBuilder.localVariables(ModelFunction)),
-      GotoLabels(Importer.NameBuilder.gotoLabels(ModelFunction)) {}
+      GotoLabels(Importer.NameBuilder.gotoLabels(ModelFunction)),
+      Comments(ModelFunction, &Function.getBody().front()) {}
   };
 
   const model::Binary &Model;
@@ -160,6 +216,9 @@ public:
 
     if (auto S = mlir::dyn_cast<clift::LocalVariableOp>(Op))
       return visitLocalVariableOp(S);
+
+    if (auto S = mlir::dyn_cast<clift::StatementOpInterface>(Op))
+      return visitStatementOp(S);
 
     return mlir::success();
   }
@@ -404,7 +463,7 @@ private:
 
       const auto *Type = Model.prototypeOrDefault(MF.prototype());
 
-      CurrentFunction.emplace(*this, std::move(L), MF);
+      CurrentFunction.emplace(*this, Op, std::move(L), MF);
       Symbols.record(Op, NameBuilder.name(MF));
 
       ArgumentAttributeMutator Attrs(Op);
@@ -473,6 +532,28 @@ private:
     }
 
     revng_abort("Invalid global variable handle");
+  }
+
+  //===-------------------------- Comment import --------------------------===//
+
+  mlir::LogicalResult visitStatementOp(clift::StatementOpInterface Op) {
+    const auto &Comments = CurrentFunction->Comments.getComments(Op);
+
+    if (not Comments.empty()) {
+      llvm::SmallVector<mlir::Attribute> CommentAttrList;
+
+      const auto &ModelComments = CurrentFunction->Model.Comments();
+      for (const auto &Comment : Comments) {
+        auto Body = ModelComments.at(Comment.CommentIndex).Body();
+        CommentAttrList.push_back(mlir::StringAttr::get(Op->getContext(),
+                                                        Body));
+      }
+
+      Op->setAttr("clift.comments",
+                  mlir::ArrayAttr::get(Op->getContext(), CommentAttrList));
+    }
+
+    return mlir::success();
   }
 };
 
