@@ -10,10 +10,9 @@ commands:
         filter: example-executable-1 and with-debug-info
     suffix: /
     command: |-
-      pushd "$OUTPUT" &> /dev/null;
+      cd "$OUTPUT";
       cp "$INPUT" input;
       revng2 project init input;
-      popd &> /dev/null;
 
   # Run lift comparison
   - type: revng.test-pypeline-comparison-lift
