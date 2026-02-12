@@ -705,14 +705,21 @@ public:
     // (InjectStackSizeProbesAtCallSitesPass). The proper fix would be to have
     // that pipe detect the absence of `SP` and assert that the stack pointer
     // could not have moved.
-    std::string SPName = getCSVName(getStackPointer(Binary.Architecture()));
+    // Also exclude any GV where `ProgramCounterHandler::affectsPC` returns
+    // true.
+    auto Architecture = Binary.Architecture();
+    std::string SPName = getCSVName(getStackPointer(Architecture));
+    auto PCH = ProgramCounterHandler::fromModule(Architecture, &Module);
+    auto IsSpecialCSV = [&SPName, &PCH](llvm::GlobalVariable &GV) {
+      return GV.getName() == SPName or PCH->affectsPC(&GV);
+    };
 
     // Construct the set of ignorable globals from string globals and CSVs
-    // (except for SP)
+    // (except for special CSVs)
     for (llvm::GlobalVariable &GV : Module.globals()) {
       StringRef Name = GV.getName();
       if (Name.starts_with(DefaultStringNamespace)
-          or (FunctionTags::CSV.isTagOf(&GV) and Name != SPName))
+          or (FunctionTags::CSV.isTagOf(&GV) and not IsSpecialCSV(GV)))
         IgnorableGVs.insert(&GV);
     }
   }
