@@ -197,7 +197,9 @@ class CursorWrapper:
 
 class LocalStorageProviderFactory(StorageProviderFactory):
     def __init__(self, url: str):
-        assert url == "local://"
+        assert url == "local://" or "local://?inline"
+        # TODO: use urlparse if more options are introduced
+        self.inline = url == "local://?inline"
         self.providers: Locked[dict[ProjectID | None, Locked[LocalStorageProvider]]] = Locked({})
 
     @classmethod
@@ -232,10 +234,17 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         # and caches will be recomputed, and most importantly, if someone deletes
         # the project and creates a new one at the same path, it will reuse the
         # old cache.
-        db_name = crypto_hash(str(model_path)) + ".sqlite"
-        db_path = Path(cache_dir) / db_name
+        if self.inline:
+            cache_path = directory / ".cache"
+            cache_path.mkdir(parents=True, exist_ok=True)
+            db_path = cache_path / "data.sqlite"
+        else:
+            cache_path = Path(cache_dir)
+            db_name = crypto_hash(str(model_path)) + ".sqlite"
+            db_path = Path(cache_dir) / db_name
+
         pypeline_logger.debug_log(f'Using DB "{db_path}"')
-        return LocalStorageProvider(db_path, model_path, Path(cache_dir))
+        return LocalStorageProvider(db_path, model_path, cache_path)
 
     @asynccontextmanager
     async def get(
