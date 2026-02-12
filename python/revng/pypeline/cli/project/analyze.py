@@ -218,6 +218,7 @@ def build_analysis_list_command(
         # Load the model
         storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
         storage_provider_context = storage_provider_factory.get(
+            base_directory=ctx.obj["base_directory"],
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj["cache_dir"],
@@ -326,6 +327,7 @@ def build_analysis_command(
         # Load the model
         storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
         storage_provider_context = storage_provider_factory.get(
+            base_directory=ctx.obj["base_directory"],
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj["cache_dir"],

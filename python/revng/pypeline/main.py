@@ -104,23 +104,23 @@ def parse_pipebox(path: str, ctx: click.Context):
     return pipebox
 
 
+def parse_base_directory(path: str, ctx: click.Context):
+    if path:
+        ctx.obj["base_directory"] = Path(path)
+
+
 @click.group(cls=PypeGroup)
 @click.option(
     "-C",
     "--directory",
-    # This impacts `--pipebox` as well, so we need to change the cwd before
-    # parsing any other argument
     type=EagerParsedPath(
         name="directory",
         file_okay=False,
         dir_okay=True,
         resolve_path=True,
-        parser=lambda path, _ctx: os.chdir(path) if path else None,
+        parser=parse_base_directory,
     ),
-    help=(
-        'Change the current working directory, equivalent to running "cd" before executing any'
-        " command."
-    ),
+    help="Run the command as it was started in the specified directory",
     expose_value=False,
 )
 @click.option(
@@ -148,6 +148,9 @@ def parse_pipebox(path: str, ctx: click.Context):
 )
 @click.pass_context
 def pype(ctx, verbose: bool) -> None:
+    # If the -C option has not been passed set it to the current dir
+    if "base_directory" not in ctx.obj:
+        ctx.obj["base_directory"] = Path.cwd()
 
     # Enable debug logging for pypeline if requested
     if verbose:

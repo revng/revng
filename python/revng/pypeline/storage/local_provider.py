@@ -208,6 +208,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
 
     def _create_provider(
         self,
+        base_directory: Path,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str,
@@ -217,7 +218,8 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         model_name = model_type.model_name()
 
         # Find the model in the current directory or any of its parents
-        directory = Path.cwd().resolve()
+
+        directory = base_directory
         while True:
             pypeline_logger.debug_log(f'Searching for model at "{directory / model_name}"')
             if (directory / model_name).exists():
@@ -235,7 +237,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         # the project and creates a new one at the same path, it will reuse the
         # old cache.
         if self.inline:
-            cache_path = directory / ".cache"
+            cache_path = (directory / ".cache").resolve()
             cache_path.mkdir(parents=True, exist_ok=True)
             db_path = cache_path / "data.sqlite"
         else:
@@ -249,6 +251,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
     @asynccontextmanager
     async def get(
         self,
+        base_directory: Path,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
@@ -261,7 +264,12 @@ class LocalStorageProviderFactory(StorageProviderFactory):
             # If the provider is not found, create a new one and put it in a lock
             if project_provider is None:
                 project_provider = Locked(
-                    self._create_provider(project_id=project_id, token=token, cache_dir=cache_dir)
+                    self._create_provider(
+                        base_directory=base_directory,
+                        project_id=project_id,
+                        token=token,
+                        cache_dir=cache_dir,
+                    )
                 )
                 providers[project_id] = project_provider
 
@@ -286,6 +294,7 @@ class TemporaryLocalStorageProviderFactory(StorageProviderFactory):
     @asynccontextmanager
     async def get(
         self,
+        base_directory: Path,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
@@ -555,9 +564,12 @@ class LocalStorageProvider(StorageProvider):
 
         mtimes = [data.get("ModifiedTime", 0)]
         for path_element in paths:
-            if not path_element.exists():
+            try:
+                stat = path_element.stat()
+            except (OSError, ValueError):
                 continue
-            mtimes.append(path_element.stat().st_mtime)
+
+            mtimes.append(stat.st_mtime)
 
         data = {"PathHints": [str(p) for p in paths], "ModifiedTime": max(mtimes)}
         link_file.write_text(yaml.safe_dump(data))

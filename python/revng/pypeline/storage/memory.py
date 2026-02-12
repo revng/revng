@@ -9,6 +9,7 @@ from collections.abc import Buffer
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import AsyncGenerator, Iterable, Mapping
 
 from revng import __version__ as revng_version
@@ -47,6 +48,7 @@ class InMemoryStorageProviderFactory(StorageProviderFactory):
     @asynccontextmanager
     async def get(
         self,
+        base_directory: Path,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,

@@ -95,12 +95,14 @@ class Daemon:
         debug: bool,
         storage_provider_url: str,
         cache_dir: str,
+        base_directory: Path,
     ):
         self.version = version
         self.pipeline_yaml = pipeline_yaml
         self.pipeline = pipeline
         self.debug = debug
         self.cache_dir = cache_dir
+        self.base_directory = base_directory
         self.storage_provider_factory = storage_provider_factory_factory(storage_provider_url)
         self.web_pipeline = get_web_pipeline(version, pipeline)
 
@@ -108,6 +110,7 @@ class Daemon:
         project_id = request["project_id"]
         token = request.get("token")
         return self.storage_provider_factory.get(
+            base_directory=self.base_directory,
             project_id=project_id,
             token=token,
             cache_dir=self.cache_dir,

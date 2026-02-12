@@ -51,6 +51,7 @@ class JsonTestServer(TestServer):
             debug=True,
             storage_provider_url=storage_provider_url,
             cache_dir=self.cache_dir_tmp.name,
+            base_directory=self.tmp_dir_path,
         )
 
         self.websocket = WebsocketMock()

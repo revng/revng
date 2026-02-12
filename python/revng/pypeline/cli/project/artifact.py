@@ -207,6 +207,7 @@ def build_artifact_command(
         # Setup the storage provider
         storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
         storage_provider_context = storage_provider_factory.get(
+            base_directory=ctx.obj["base_directory"],
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj["cache_dir"],

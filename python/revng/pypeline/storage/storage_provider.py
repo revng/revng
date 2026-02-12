@@ -135,6 +135,7 @@ class StorageProviderFactory(ABC):
     @abstractmethod
     def get(
         self,
+        base_directory: Path,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,

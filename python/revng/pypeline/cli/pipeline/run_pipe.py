@@ -5,6 +5,7 @@
 import tarfile
 from io import BytesIO
 from pathlib import Path
+from typing import cast
 
 import click
 import yaml
@@ -148,7 +149,6 @@ def build_pipe_command(
     @click.option(
         "--file-storage",
         type=click.Path(exists=True, file_okay=False, path_type=Path),
-        default=Path.cwd(),
     )
     @click.option(
         "--dependencies",
@@ -163,11 +163,13 @@ def build_pipe_command(
     @container_format_options
     @list_objects_option
     @exec_wrapper_if_needed
+    @click.pass_context
     def run_pipe_command(
+        ctx,
         model: str,
         static_configuration: str,
         configuration: str,
-        file_storage: Path,
+        file_storage: Path | None,
         container_format: ContainerFormat,
         dependencies: Path | None,
         **kwargs,
@@ -234,9 +236,12 @@ def build_pipe_command(
                     f"Container {container} does not have the required objects: {request}"
                 )
 
+        if file_storage is None:
+            file_storage = ctx.obj["base_directory"]
+
         # Finally, run the pipe
         object_deps = pipe.run(
-            file_provider=SimpleFileProvider(file_storage),
+            file_provider=SimpleFileProvider(cast(Path, file_storage)),
             model=ReadOnlyModel(loaded_model),
             containers=containers,
             incoming=incoming,

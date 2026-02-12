@@ -187,7 +187,9 @@ def artifact(
                 sys.stdout.buffer.flush()
 
     storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
-    storage_provider_context = storage_provider_factory.get(None, None, None)
+    storage_provider_context = storage_provider_factory.get(
+        ctx.obj["base_directory"], None, None, None
+    )
     asyncio.run(async_part_of_command(storage_provider_context))
 
 
@@ -210,7 +212,7 @@ def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: s
     """Initialize a new project."""
     model_type = get_singleton(Model)  # type: ignore[type-abstract]
     model_name = model_type.model_name()
-    model_file = Path.cwd() / model_name
+    model_file = ctx.obj["base_directory"] / model_name
     if model_file.exists():
         raise click.UsageError(
             f"File {model_name} is already present in the current directory. "
@@ -246,6 +248,7 @@ def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: s
 
     storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
     storage_provider_context = storage_provider_factory.get(
+        base_directory=ctx.obj["base_directory"],
         project_id=project_id,
         token=token,
         cache_dir=ctx.obj["cache_dir"],
