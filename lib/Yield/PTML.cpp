@@ -297,7 +297,7 @@ struct yield::StatementTraits<StatementGraph::Node *> {
 };
 
 using SGNode = StatementGraph::Node;
-using CommentPlacementHelper = yield::CommentPlacementHelper<SGNode *>;
+using CommentPlacementHelper = yield::DTCommentPlacementHelper<SGNode *>;
 
 static std::string instruction(const ptml::MarkupBuilder &B,
                                const yield::Instruction &Instruction,

@@ -394,7 +394,7 @@ private:
     revng_assert(not TokenMap.contains(I));
 
     const auto &Configuration = Model.Configuration().Naming();
-    llvm::StringRef VarName = Configuration.StackFrameVariableName();
+    llvm::StringRef VarName = Configuration.UnnamedStackFrameVariableName();
     auto [Definition, Reference] = B.getReservedVariableTags(ModelFunction,
                                                              VarName);
     TokenMap[I] = std::move(Reference);
@@ -1931,7 +1931,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
     bool IsStackDefined = false;
 
     // Declare the local variable representing the stack frame
-    if (not ModelFunction.StackFrameType().isEmpty()) {
+    if (not ModelFunction.StackFrame().Type().isEmpty()) {
       revng_log(Log, "Stack Frame Declaration");
       const auto &IsStackFrameDecl = [](const llvm::Instruction &I) {
         return isStackFrameDecl(&I);
@@ -1954,7 +1954,7 @@ void CCodeGenerator::emitFunction(bool NeedsLocalStateVar) {
         if (B.Configuration.EnableStackFrameInlining) {
           B.printDefinition(Struct, " " + std::move(VarName));
         } else {
-          auto Named = B.getNamedCInstance(*ModelFunction.StackFrameType(),
+          auto Named = B.getNamedCInstance(*ModelFunction.StackFrame().Type(),
                                            std::move(VarName));
           B.append(Named + ";\n");
         }

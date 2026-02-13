@@ -10,6 +10,7 @@
 #include "llvm/Support/GenericDomTree.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/GraphLayout/Traits.h"
 #include "revng/Model/Function.h"
 #include "revng/PTML/Doxygen.h"
 
@@ -20,23 +21,46 @@ struct StatementTraits {
   // See `HasStatementTraits` for the list of what this trait should provide.
 };
 
-template<typename NodeType>
-concept HasStatementTraits = requires(NodeType Node,
-                                      StatementTraits<NodeType>::StatementType
-                                        Statement) {
+template<typename Traits, typename NodeType>
+concept IsStatementTraitsFor = requires(NodeType Node,
+                                        Traits::StatementType Statement) {
   // using StatementType = /* your type */
-  typename StatementTraits<NodeType>::StatementType;
+  typename Traits::StatementType;
 
   // static RangeOf<StatementType> auto getStatements(NodeType);
-  {
-    StatementTraits<NodeType>::getStatements(Node)
-  } -> RangeOf<typename StatementTraits<NodeType>::StatementType>;
+  { Traits::getStatements(Node) } -> RangeOf<typename Traits::StatementType>;
 
   // static RangeOf<MetaAddress> auto getAddresses(StatementType);
-  {
-    StatementTraits<NodeType>::getAddresses(Statement)
-  } -> RangeOf<MetaAddress>;
+  { Traits::getAddresses(Statement) } -> RangeOf<MetaAddress>;
 };
+
+template<typename NodeType>
+concept HasStatementTraits = IsStatementTraitsFor<StatementTraits<NodeType>,
+                                                  NodeType>;
+
+template<typename Traits, typename NodeType>
+concept IsTreeTraitsFor = requires {
+  typename Traits::TreeType;
+  typename Traits::TreeNodeType;
+
+  requires layout::HasLLVMGraphTraits<typename Traits::TreeNodeType>;
+
+  {
+    Traits::getTreeRoot(std::declval<const typename Traits::TreeType &>())
+  } -> std::same_as<typename Traits::TreeNodeType>;
+
+  {
+    Traits::getNode(std::declval<const typename Traits::TreeNodeType &>())
+  } -> std::convertible_to<NodeType>;
+};
+
+template<typename Graph, typename Traits, typename NodeType>
+concept IsTreeTraitsCompatibleGraph = //
+  IsTreeTraitsFor<Traits, NodeType> and requires {
+    {
+      Traits::getTree(std::declval<Graph &>())
+    } -> std::same_as<typename Traits::TreeType>;
+  };
 
 } // namespace yield
 
@@ -66,6 +90,31 @@ struct GraphTraits<const llvm::DomTreeNodeBase<NodeType> *>
 } // namespace llvm
 
 namespace yield {
+
+template<typename NodeT>
+struct DominatorTreeTraits {
+private:
+  using NodeType = std::remove_pointer_t<NodeT>;
+
+public:
+  using TreeType = llvm::DominatorTreeBase<NodeType, false>;
+  using TreeNodeType = const llvm::DomTreeNodeBase<NodeType> *;
+
+  static TreeType getTree(auto &&Graph) {
+    // Compute a dominator tree for the given graph to reduce duplicate
+    // comments: if a suitable statement is already dominated by another one,
+    // we can skip that emission.
+    TreeType Tree;
+    Tree.recalculate(Graph);
+    return Tree;
+  }
+
+  static TreeNodeType getTreeRoot(const TreeType &Tree) {
+    return Tree.getRootNode();
+  }
+
+  static NodeType *getNode(TreeNodeType Node) { return Node->getBlock(); }
+};
 
 /// This is a helper for deciding which statement (within a given graph) is
 /// best suited for emission of a given comment.
@@ -144,14 +193,13 @@ namespace yield {
 /// BUT based on the graph, the only way to reach `C` is through `B`! As such,
 /// there's not much downside to suppressing the `C` comment and only emitting
 /// one before `B`.
-template<HasStatementTraits NodeType>
+template<typename NodeType,
+         IsTreeTraitsFor<NodeType> TreeTrait,
+         IsStatementTraitsFor<NodeType> StmtTrait = StatementTraits<NodeType>>
 class CommentPlacementHelper {
 private:
-  using Trait = StatementTraits<NodeType>;
-  using InternalNodeType = std::remove_pointer_t<NodeType>;
-
-  using StatementType = typename Trait::StatementType;
-  using SLT = decltype(Trait::getAddresses(std::declval<StatementType>()));
+  using StatementType = typename StmtTrait::StatementType;
+  using SLT = decltype(StmtTrait::getAddresses(std::declval<StatementType>()));
   using StatementLocationType = std::decay_t<SLT>;
 
   struct Score {
@@ -193,33 +241,31 @@ public:
   using CommentList = std::vector<CommentAssignment>;
 
 private:
-  // This assumes that `Trait::StatementType` is cheap (and, more importantly,
-  // safe) to copy
+  // This assumes that `StmtTrait::StatementType` is cheap (and, more
+  // importantly, safe) to copy
   std::unordered_map<StatementType, CommentList> ResultMap;
   CommentList HomelessComments;
 
 public:
   CommentPlacementHelper() = default;
-  CommentPlacementHelper(const model::Function &Function, auto &&Graph) {
+
+  template<IsTreeTraitsCompatibleGraph<TreeTrait, NodeType> GraphT>
+  CommentPlacementHelper(const model::Function &Function, GraphT &&Graph) {
     if (Function.Comments().empty()) {
       // No comments in this function, nothing to map
       return;
     }
 
-    // Compute a dominator tree for the given graph to reduce duplicate
-    // comments: if a suitable statement is already dominated by another one,
-    // we can skip that emission.
-    using DominatorTreeType = llvm::DominatorTreeBase<InternalNodeType, false>;
-    DominatorTreeType DominatorTree;
-    DominatorTree.recalculate(Graph);
+    auto Tree = TreeTrait::getTree(Graph);
 
     std::vector<std::pair<Score, StatementLocationType>> Scores;
     Scores.resize(Function.Comments().size());
 
     // First build a score map - select the best location for each comment
-    for (auto Node : llvm::depth_first(DominatorTree.getRootNode())) {
-      for (const auto &Statement : Trait::getStatements(Node->getBlock())) {
-        StatementLocationType Location = Trait::getAddresses(Statement);
+    for (auto Node : llvm::depth_first(TreeTrait::getTreeRoot(Tree))) {
+      for (const auto &Statement :
+           StmtTrait::getStatements(TreeTrait::getNode(Node))) {
+        StatementLocationType Location = StmtTrait::getAddresses(Statement);
 
         for (auto &&Comment : Function.Comments()) {
 
@@ -246,26 +292,27 @@ public:
         HomelessComments.emplace_back(I, false, Score{}, &Comment.Location());
 
     TreeVisitor Visitor{ ResultMap, Function, Scores };
-    Visitor(DominatorTree.getRootNode());
+    Visitor(TreeTrait::getTreeRoot(Tree));
   }
 
 private:
-  // Use a dominator tree to build a node-to-comment-list map.
-  using DTNode = const llvm::DomTreeNodeBase<InternalNodeType> *;
   struct TreeVisitor {
+    using TreeNodeType = typename TreeTrait::TreeNodeType;
+
     std::unordered_map<StatementType, CommentList> &ResultMap;
     const model::Function &Function;
     const std::vector<std::pair<Score, StatementLocationType>> &Scores;
 
-    void operator()(const DTNode &RootNode) {
+    void operator()(TreeNodeType RootNode) {
       impl(RootNode, llvm::SmallBitVector(Scores.size()));
     }
 
   private:
-    RecursiveCoroutine<> impl(const DTNode &Node,
+    RecursiveCoroutine<> impl(TreeNodeType Node,
                               llvm::SmallBitVector AssignedInThisBranch) {
-      for (const auto &Statement : Trait::getStatements(Node->getBlock())) {
-        StatementLocationType Location = Trait::getAddresses(Statement);
+      for (const auto &Statement :
+           StmtTrait::getStatements(TreeTrait::getNode(Node))) {
+        StatementLocationType Location = StmtTrait::getAddresses(Statement);
         for (auto &&Comment : Function.Comments()) {
 
           if (AssignedInThisBranch.test(Comment.Index()))
@@ -299,7 +346,7 @@ private:
 
       // Proceed on the children with a copy of the `AssignedInThisBranch` map
       // so that adjacent children don't affect each other.
-      for (const auto &Ch : llvm::children<DTNode>(Node))
+      for (const auto &Ch : llvm::children<TreeNodeType>(Node))
         rc_recur impl(Ch, llvm::SmallBitVector{ AssignedInThisBranch });
     }
   };
@@ -336,7 +383,7 @@ private:
   }
 
 public:
-  const CommentList &getComments(Trait::StatementType Node) const {
+  const CommentList &getComments(StmtTrait::StatementType Node) const {
     if (auto Iterator = ResultMap.find(Node); Iterator != ResultMap.end())
       return Iterator->second;
 
@@ -390,5 +437,12 @@ private:
                                  + Beta * RHSComplementSize };
   }
 };
+
+template<typename NodeType,
+         IsStatementTraitsFor<NodeType> StmtTrait = StatementTraits<NodeType>>
+using DTCommentPlacementHelper = CommentPlacementHelper<
+  NodeType,
+  DominatorTreeTraits<NodeType>,
+  StmtTrait>;
 
 } // namespace yield

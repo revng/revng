@@ -4,22 +4,34 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
+
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/StringRef.h"
 
-#include "revng/PTML/Emitter.h"
+#include "revng/PTML/PTMLEmitter.h"
 #include "revng/Support/CTarget.h"
 
+namespace ptml {
+
+/// Provides a stream-like interface for emitting C tokens and simple
+/// preprocessor directives. It is ensured that through this interface, only
+/// lexically valid C code can be emitted.
 class CTokenEmitter {
-  ptml::Emitter PTML;
+  // It is very important to hide the PTML emitter and not to expose any direct
+  // access to it in the public interface of this class. This design prevents
+  // the emission of lexically invalid C.
+  PTMLStreamEmitter PTML;
+
+  // Used to ensure that only one comment emitter may exist at any given time.
+  bool IsEmittingComment = false;
 
 public:
-  explicit CTokenEmitter(llvm::raw_ostream &OS, ptml::Tagging Tags) :
+  explicit CTokenEmitter(llvm::raw_ostream &OS, Tagging Tags) :
     PTML(OS, Tags) {}
 
-  void emitSpace() { PTML.emitLiteralContent(" "); }
-
-  void emitNewline() { PTML.emitContentNewline(); }
+  void emitSpace() { PTML.emit(" "); }
+  void emitNewline() { PTML.emit("\n"); }
 
   enum class Keyword {
     Auto,
@@ -178,6 +190,51 @@ public:
     Block,
   };
 
+  /// PTMLEmitter for emitting tags and content within a C line or block
+  /// comment.
+  class CommentEmitter {
+    // A single reference to CTokenEmitter would be fine, and arguably clearer,
+    // but it was decided to use two references to avoid storing a reference to
+    // CTokenEmitter.
+    PTMLStreamEmitter &PTML;
+    bool &IsEmittingComment;
+
+    CommentKind Kind;
+    bool IsAtBeginningOfLine = false;
+
+    std::optional<PTMLTagEmitter> Tag;
+
+  public:
+    explicit CommentEmitter(CTokenEmitter &Emitter, CommentKind Kind);
+
+    CommentEmitter(const CommentEmitter &) = delete;
+    CommentEmitter &operator=(const CommentEmitter &) = delete;
+
+    ~CommentEmitter();
+
+    [[nodiscard]] auto makeTagInitializer(llvm::StringRef Tag) {
+      return PTML.makeTagInitializer(Tag);
+    }
+
+    [[nodiscard]] PTMLTagEmitter initializeOpenTag(llvm::StringRef Tag) {
+      return PTML.initializeOpenTag(Tag);
+    }
+
+    void emit(llvm::StringRef Content);
+
+  private:
+    void emitLinePrefix();
+    void emitEscaped(llvm::StringRef Content);
+  };
+
+  /// Convenience function for initializing a CommentEmitter of the specified
+  /// comment kind.
+  [[nodiscard]] CommentEmitter emitComment(CommentKind Kind) {
+    return CommentEmitter(*this, Kind);
+  }
+
+  /// Convenience function for directly emitting a comment with the specified
+  /// content.
   void emitComment(llvm::StringRef Content, CommentKind Kind);
 
   enum class IncludeMode : bool {
@@ -205,27 +262,22 @@ public:
   };
 
   class Scope {
+    CTokenEmitter &Emitter;
+    std::optional<PTMLTagEmitter> Tag;
+
+    CTokenEmitter::Delimiter Delimiter;
+    int Indent;
+
   public:
     explicit Scope(CTokenEmitter &Emitter,
                    ScopeKind Kind,
-                   Delimiter Delimiter,
-                   int Indent) :
-      Emitter(Emitter), Delimiter(Delimiter), Indent(Indent), Tag() {
-      Emitter.enterScopeImpl(Tag, Delimiter, Indent, Kind);
-    }
+                   CTokenEmitter::Delimiter Delimiter,
+                   int Indent);
 
     Scope(const Scope &) = delete;
     Scope &operator=(const Scope &) = delete;
 
-    ~Scope() { Emitter.leaveScopeImpl(Tag, Delimiter, Indent); }
-
-  private:
-    CTokenEmitter &Emitter;
-
-    Delimiter Delimiter;
-    int Indent;
-
-    ptml::Emitter::TagEmitter Tag;
+    ~Scope();
   };
 
   [[nodiscard]] Scope
@@ -233,13 +285,26 @@ public:
     return Scope(*this, Kind, Delimiter, Indent);
   }
 
-private:
-  void enterScopeImpl(ptml::Emitter::TagEmitter &Tag,
-                      Delimiter Delimiter,
-                      int Indent,
-                      ScopeKind Kind);
+  enum class RegionKind : uint8_t {
+    Expression,
+  };
 
-  void leaveScopeImpl(ptml::Emitter::TagEmitter &Tag,
-                      Delimiter Delimiter,
-                      int Indent);
+  class Region {
+    std::optional<PTMLTagEmitter> Tag;
+
+  public:
+    explicit Region(CTokenEmitter &Emitter,
+                    RegionKind Kind,
+                    llvm::StringRef Location);
+
+    Region(const Region &) = delete;
+    Region &operator=(const Region &) = delete;
+  };
+
+  [[nodiscard]] Region enterRegion(RegionKind Kind, llvm::StringRef Location) {
+    return Region(*this, Kind, Location);
+  }
 };
+static_assert(PTMLEmitter<CTokenEmitter::CommentEmitter>);
+
+} // namespace ptml

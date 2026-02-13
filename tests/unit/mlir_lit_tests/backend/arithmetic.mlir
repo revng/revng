@@ -23,12 +23,12 @@ module attributes {clift.module} {
   } {
     %v0 = clift.local : !int32_t attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/0",
-      clift.name = "var_0"
+      name = "var_0"
     }
 
     %v1 = clift.local : !int32_t attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/1",
-      clift.name = "var_1"
+      name = "var_1"
     }
 
     // (0 + 1 - 2) * 3 / 4 % 5;

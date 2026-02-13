@@ -58,6 +58,7 @@ inline constexpr llvm::StringRef Function = "c.function";
 inline constexpr llvm::StringRef FunctionParameter = "c.function_parameter";
 inline constexpr llvm::StringRef Keyword = "c.keyword";
 inline constexpr llvm::StringRef Operator = "c.operator";
+inline constexpr llvm::StringRef Punctuation = "c.punctuation";
 inline constexpr llvm::StringRef StringLiteral = "c.string_literal";
 inline constexpr llvm::StringRef Type = "c.type";
 inline constexpr llvm::StringRef Variable = "c.variable";
@@ -86,5 +87,13 @@ inline constexpr llvm::StringRef SegmentDeclarationsList = "c.segment_"
 } // namespace scopes
 
 } // namespace c
+
+namespace doxygen {
+namespace tokens {
+
+inline constexpr llvm::StringRef Keyword = "doxygen.keyword";
+
+} // namespace tokens
+} // namespace doxygen
 
 } // namespace ptml

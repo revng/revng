@@ -243,6 +243,8 @@ def Clift_TypedefType
   let hasCustomAssemblyFormat = 1;
 }
 
+// TODO: Investigate whether there is enough value in unifying model and Clift
+//       function types to justify doing so, and how that should be done.
 def Clift_FunctionType
   : Clift_Type<"Function",
                "func",

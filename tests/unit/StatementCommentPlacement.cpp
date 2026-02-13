@@ -49,7 +49,7 @@ struct yield::StatementTraits<TestStatementGraph::Node *> {
 };
 
 using TSGNode = TestStatementGraph::Node;
-using CommentPlacementHelper = yield::CommentPlacementHelper<TSGNode *>;
+using CommentPlacementHelper = yield::DTCommentPlacementHelper<TSGNode *>;
 
 static TSGNode *makeNode(std::vector<TestStatement> &&Statements,
                          TestStatementGraph &Graph) {

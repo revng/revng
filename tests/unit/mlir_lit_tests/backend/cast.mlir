@@ -23,7 +23,7 @@ module attributes {clift.module} {
   } {
     %x = clift.local : !uint64_t attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/0",
-      clift.name = "var_0"
+      name = "var_0"
     }
 
     // CHECK: (uint64_t) 0L;

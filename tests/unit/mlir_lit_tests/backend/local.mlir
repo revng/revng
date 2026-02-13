@@ -46,19 +46,19 @@ module attributes {clift.module} {
     // CHECK: my_enum var_0;
     %e = clift.local : !my_enum attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/0",
-      clift.name = "var_0"
+      name = "var_0"
     }
 
     // CHECK: my_struct var_1;
     %s = clift.local : !my_struct attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/1",
-      clift.name = "var_1"
+      name = "var_1"
     }
 
     // CHECK: my_union var_2;
     %u = clift.local : !my_union attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/2",
-      clift.name = "var_2"
+      name = "var_2"
     }
 
     // CHECK: int32_t var_3 = 42;
@@ -67,7 +67,7 @@ module attributes {clift.module} {
       clift.yield %42 : !int32_t
     } attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/3",
-      clift.name = "var_3"
+      name = "var_3"
     }
 
     // CHECK: my_pair var_4 = {
@@ -81,7 +81,7 @@ module attributes {clift.module} {
       clift.yield %r : !my_pair
     } attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/4",
-      clift.name = "var_4"
+      name = "var_4"
     }
 
     // CHECK: var_0;

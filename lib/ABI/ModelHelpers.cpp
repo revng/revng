@@ -335,8 +335,8 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
 
       } else if (FuncName.startswith("revng_stack_frame")) {
         // Retrieve the stack frame type
-        revng_assert(not ParentFunc()->StackFrameType().isEmpty());
-        rc_return{ ParentFunc()->StackFrameType() };
+        revng_assert(not ParentFunc()->StackFrame().Type().isEmpty());
+        rc_return{ ParentFunc()->StackFrame().Type() };
 
       } else if (FTags.contains(FunctionTags::QEMU)
                  and Call->getType()->isStructTy()) {

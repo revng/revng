@@ -198,7 +198,7 @@ LegacyVB::createCallStackArgumentVariable(const model::Type &VariableType) {
 template<>
 Instruction *LegacyVB::createStackFrameVariable() {
   const model::Function &ModelFunction = getModelFunction(F, Binary);
-  model::UpcastableType StackFrameType = ModelFunction.StackFrameType();
+  model::UpcastableType StackFrameType = ModelFunction.StackFrame().Type();
 
   size_t StackSize = StackFrameType->size().value_or(0);
   revng_assert(StackSize);
@@ -319,7 +319,7 @@ VB::createCallStackArgumentVariable(const model::Type &VariableType) {
 template<>
 Instruction *VB::createStackFrameVariable() {
   const model::Function &ModelFunction = getModelFunction(F, Binary);
-  model::UpcastableType StackFrameType = ModelFunction.StackFrameType();
+  model::UpcastableType StackFrameType = ModelFunction.StackFrame().Type();
 
   size_t StackSize = StackFrameType->size().value_or(0);
   revng_assert(StackSize);

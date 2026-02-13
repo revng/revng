@@ -9,6 +9,7 @@
 #include "revng/Model/CallSitePrototype.h"
 #include "revng/Model/CommonFunctionMethods.h"
 #include "revng/Model/FunctionAttribute.h"
+#include "revng/Model/StackFrame.h"
 #include "revng/Model/StatementComment.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/Support/MetaAddress.h"
@@ -29,22 +30,22 @@ public:
 public:
   /// The helper for stack frame type unwrapping.
   /// Use this when you need to access/modify the existing struct,
-  /// and \ref StackFrameType() when you need to assign a new one.
+  /// and \ref StackFrame().Type() when you need to assign a new one.
   model::StructDefinition *stackFrameType() {
-    if (StackFrameType().isEmpty())
+    if (StackFrame().Type().isEmpty())
       return nullptr;
     else
-      return StackFrameType()->getStruct();
+      return StackFrame().Type()->getStruct();
   }
 
   /// The helper for stack argument type unwrapping.
   /// Use this when you need to access/modify the existing struct,
-  /// and \ref StackFrameType() when you need to assign a new one.
+  /// and \ref StackFrame().Type() when you need to assign a new one.
   const model::StructDefinition *stackFrameType() const {
-    if (StackFrameType().isEmpty())
+    if (StackFrame().Type().isEmpty())
       return nullptr;
     else
-      return StackFrameType()->getStruct();
+      return StackFrame().Type()->getStruct();
   }
 
 public:

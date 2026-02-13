@@ -25,7 +25,7 @@ module attributes {clift.module} {
       clift.yield %r : !f$ptr
     } attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/0",
-      clift.name = "var_0"
+      name = "var_0"
     }
   }
   // CHECK: }

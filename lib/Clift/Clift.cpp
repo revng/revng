@@ -844,6 +844,28 @@ mlir::LogicalResult ForOp::verify() {
   return mlir::success();
 }
 
+static clift::ExpressionRegionOpInterface
+getInitializerExpressionRegions(ForOp Op) {
+  using ERI = clift::ExpressionRegionOpInterface;
+  return clift::getOnlyOp<ERI>(Op.getInitializer());
+}
+
+unsigned ForOp::getExpressionRegionCount() {
+  auto Initializer = getInitializerExpressionRegions(*this);
+  return 2 + (Initializer ? Initializer.getExpressionRegionCount() : 0);
+}
+
+mlir::Region &ForOp::getExpressionRegion(unsigned Index) {
+  if (auto Initializer = getInitializerExpressionRegions(*this)) {
+    unsigned InitializerCount = Initializer.getExpressionRegionCount();
+    if (Index < InitializerCount)
+      return Initializer.getExpressionRegion(Index);
+    Index -= InitializerCount;
+  }
+  revng_assert(Index < 2);
+  return Index == 0 ? getCondition() : getExpression();
+}
+
 //===------------------------------- GotoOp -------------------------------===//
 
 MakeLabelOp GotoOp::getLabelOp() {
