@@ -3,6 +3,7 @@
 //
 
 #include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
+#include "revng/ABI/Analyses/ConvertFunctionsToRaw.h"
 #include "revng/Backend/DecompileToSingleFile.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
@@ -136,3 +137,4 @@ static RegisterAnalysis<DetectABI> A7;
 static RegisterAnalysis<DetectStackSize> A8;
 static RegisterAnalysis<AnalyzeDataLayout> A9;
 static RegisterAnalysis<ConvertFunctionsToCABI> A10;
+static RegisterAnalysis<ConvertFunctionsToRaw> A11;
