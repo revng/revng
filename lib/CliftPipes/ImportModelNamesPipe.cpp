@@ -211,6 +211,7 @@ public:
   }
 
   mlir::LogicalResult visitNestedOp(mlir::Operation *Op) {
+    revng_assert(CurrentFunction.has_value());
     if (auto S = mlir::dyn_cast<clift::MakeLabelOp>(Op))
       return visitMakeLabelOp(S);
 
@@ -463,7 +464,9 @@ private:
 
       const auto *Type = Model.prototypeOrDefault(MF.prototype());
 
-      CurrentFunction.emplace(*this, Op, std::move(L), MF);
+      if (not Op.getBody().empty())
+        CurrentFunction.emplace(*this, Op, std::move(L), MF);
+
       Symbols.record(Op, NameBuilder.name(MF));
 
       ArgumentAttributeMutator Attrs(Op);
