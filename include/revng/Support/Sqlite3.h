@@ -131,6 +131,12 @@ private:
     return llvm::StringRef{ static_cast<const char *>(Ptr),
                             static_cast<size_t>(Size) };
   }
+
+  template<std::same_as<int64_t> T, int I>
+  int64_t unpackRow() {
+    assertType(I, SQLITE_INTEGER);
+    return sqlite3_column_int64(Statement.get(), I);
+  }
 };
 
 class Sqlite3Db {
