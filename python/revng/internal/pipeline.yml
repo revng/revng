@@ -51,6 +51,7 @@ analyses:
   - verify-model
   - import-well-known-models
   - convert-functions-to-cabi
+  - import-from-c
 
 analysis_lists:
   - name: initial-auto-analysis
