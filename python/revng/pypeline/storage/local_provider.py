@@ -500,15 +500,21 @@ class LocalStorageProvider(StorageProvider):
         return self.epoch
 
     def get_model(self) -> tuple[Model, int]:
-        model = self._model_type.deserialize(self._model_path.read_bytes())
+        model, changed = self._model_type.deserialize(self._model_path.read_bytes())
+        if changed:
+            self.prune_objects()
+            self._write_model(model)
         return (model, self.epoch)
 
     def set_model(self, new_model: Model) -> int:
         # Check if the model was modified
-        current_model = self._model_type.deserialize(self._model_path.read_bytes())
+        current_model, _ = self._model_type.deserialize(self._model_path.read_bytes())
         if current_model == new_model:
             return self.epoch
         # if so, write the new model and update the epoch
+        return self._write_model(new_model)
+
+    def _write_model(self, new_model: Model) -> int:
         self._model_path.write_bytes(new_model.serialize())
         with self._cursor() as cursor:
             self.epoch += 1

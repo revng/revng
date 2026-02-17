@@ -118,11 +118,19 @@ class Model(ABC):
 
     @abstractmethod
     def serialize(self) -> bytes:
+        """
+        Serialize the model to bytes for storage
+        """
         pass
 
     @classmethod
     @abstractmethod
-    def deserialize(cls, data: bytes) -> Model:
+    def deserialize(cls, data: bytes) -> tuple[Model, bool]:
+        """
+        Deserialize the model from bytes. The underlying implementation can
+        change the content (e.g. migrate from a previous version), in that case
+        the returned bool will be set to `true`.
+        """
         pass
 
     @classmethod

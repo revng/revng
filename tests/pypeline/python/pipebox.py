@@ -332,7 +332,7 @@ class DictModel(Model):
         result._data = yaml.safe_load(data)
         if result._data is None:
             result._data = {}
-        return result
+        return (result, False)
 
     def __repr__(self):
         return f"DictModel({self._data!r})"

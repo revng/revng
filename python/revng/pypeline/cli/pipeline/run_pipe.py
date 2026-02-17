@@ -185,7 +185,7 @@ def build_pipe_command(
         pipe = pipe_type(static_configuration)
         # Load the model
         with open(model, "rb") as model_file:
-            loaded_model = model_type.deserialize(model_file.read())
+            loaded_model = model_type.deserialize(model_file.read())[0]
         # Load the containers with args form the command line
         containers = []
         for arg in pipe.arguments:

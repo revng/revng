@@ -141,7 +141,7 @@ def build_run_analysis_command(
         # Load the model
         loaded_model: Model = model_type()
         with open(model, "rb") as model_file:
-            loaded_model = model_type.deserialize(model_file.read())
+            loaded_model = model_type.deserialize(model_file.read())[0]
 
         pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 

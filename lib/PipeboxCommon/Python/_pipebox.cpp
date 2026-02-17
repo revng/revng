@@ -6,6 +6,7 @@
 
 #include "nanobind/nanobind.h"
 #include "nanobind/stl/optional.h"
+#include "nanobind/stl/pair.h"
 #include "nanobind/stl/set.h"
 #include "nanobind/stl/string.h"
 #include "nanobind/stl/vector.h"
@@ -46,6 +47,57 @@ static void handleSignal(int SigNo) {
       Handler(SigNo);
     }
   }
+}
+
+static Logger ModelMigrationLogger("pypeline-model-migration");
+
+/// This function serializes the model following the interface of
+/// `Model.deserialize` in python. It tries to migrate old models if the first
+/// time around the parsing fails. Returns the model object and a bool
+/// indicating if a migration has happened.
+static llvm::Expected<std::pair<Model, bool>>
+deserializeModel(llvm::ArrayRef<uint8_t> Input) {
+  using namespace revng::pypeline::helpers::python;
+
+  auto MaybeModel = Model::deserialize(Input);
+  if (MaybeModel)
+    return std::pair{ *MaybeModel, false };
+
+  revng_log(ModelMigrationLogger,
+            "Model deserialization failed, attempting to migrate the model");
+  nanobind::object MigrateFunction = importObject("revng.model.migrations."
+                                                  "migrate_bytes");
+  nanobind::object Output = MigrateFunction(nanobind::bytes(Input.data(),
+                                                            Input.size()));
+  // If the returned object is null there has been an exception, the input
+  // model was probably broken, clear it out and propagate the first error.
+  // TODO: wrap the python error into a `llvm::Error` and return the joined
+  //       error
+  if (Output.ptr() == nullptr) {
+    revng_log(ModelMigrationLogger, "Model migration failed, bailing out");
+    revng_assert(PyErr_Occurred() != NULL);
+    PyErr_Clear();
+    return MaybeModel.takeError();
+  }
+
+  revng_log(ModelMigrationLogger,
+            "Model migration succeedeed, attempting to re-deserialize the "
+            "model");
+  auto OutputBytes = nanobind::cast<nanobind::bytes>(Output);
+  auto *BytesPointer = static_cast<const uint8_t *>(OutputBytes.data());
+  auto MaybeModel2 = Model::deserialize({ BytesPointer, OutputBytes.size() });
+  if (MaybeModel2) {
+    // Here consumeError is valid because the error came from the fact that the
+    // model was of a previous version and it got updated
+    llvm::consumeError(MaybeModel.takeError());
+    return std::pair{ *MaybeModel2, true };
+  }
+
+  revng_log(ModelMigrationLogger, "Model re-deserialization failed, bailing");
+  // If here, we didn't manage to deserialize a valid model, return the errors
+  return revng::createError("Invalid model was migrated but remains invalid\n"
+                            + llvm::toString(MaybeModel.takeError()) + "\n"
+                            + llvm::toString(MaybeModel2.takeError()));
 }
 
 NB_MODULE(_pipebox, m) {
@@ -193,7 +245,7 @@ NB_MODULE(_pipebox, m) {
            //       copy anyways.
            return nanobind::bytes(Buffer.data(), Buffer.size());
          })
-    .def_static("deserialize", &Model::deserialize)
+    .def_static("deserialize", &deserializeModel)
     .def("__eq__",
          [](Model &Handle, nanobind::object Other) {
            Model *OtherHandle;

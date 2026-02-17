@@ -154,7 +154,7 @@ def artifact(
 
             # Run initial auto analysis
             model_raw = yaml.safe_dump(generate_model_with_binaries([binary])).encode()
-            model = model_type.deserialize(model_raw)
+            model = model_type.deserialize(model_raw)[0]
             analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
             analysis_configuration = ["" for _ in analysis_list.analyses]
             new_model, _ = pipeline.run_analysis_list(
@@ -236,7 +236,7 @@ def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: s
     ):
         pipeline = ctx.obj["pipeline"]
         async with storage_provider_context as storage_provider:
-            model = model_type.deserialize(model_raw)
+            model = model_type.deserialize(model_raw)[0]
             analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
             analysis_configuration = ["" for _ in analysis_list.analyses]
             pipeline.run_analysis_list(
