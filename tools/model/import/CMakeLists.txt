@@ -3,3 +3,4 @@
 #
 
 add_subdirectory(debug-info)
+add_subdirectory(sqlite)
