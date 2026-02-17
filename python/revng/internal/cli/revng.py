@@ -23,6 +23,9 @@ _commands_registry.define_namespace(
     ("model", "import"), f"Model import helpers, see {executable_name()} model import --help"
 )
 _commands_registry.define_namespace(
+    ("model", "export"), f"Model export helpers, see {executable_name()} model export --help"
+)
+_commands_registry.define_namespace(
     ("trace",), f"Trace-related tools, see {executable_name()} trace --help"
 )
 _commands_registry.define_namespace(
