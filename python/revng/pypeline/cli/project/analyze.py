@@ -34,6 +34,84 @@ output_option = click.option(
 )
 
 
+async def async_part_of_command(
+    storage_provider_context: AsyncContextManager[StorageProvider],
+    pipeline: Pipeline,
+    runner_context: RunnerContext,
+    analysis: str | AnalysisList,
+    configuration: str | list[str],
+    container_decls: tuple[ContainerDeclaration, ...],
+    output_file: IO[bytes],
+    kwargs,
+):
+    model_type = get_singleton(Model)  # type: ignore[type-abstract]
+    """Since the storage provider factory returns an async context manager,
+    we need the code that uses the storage_provider to be an async function.
+    """
+    async with storage_provider_context as storage_provider:
+        loaded_model = model_type.deserialize(storage_provider.get_model()[0])
+
+        pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
+
+        if kwargs["list"]:
+            # If the user requested to list the available objects, we print them
+            # and exit
+            for container_decl in container_decls:
+                list_objects_for_container(
+                    model=ReadOnlyModel(loaded_model),
+                    arg_name=container_decl.name,
+                    kind=container_decl.container_type.kind,
+                )
+                # Space between containers
+                print()
+            return
+
+        if isinstance(analysis, str):
+            assert isinstance(configuration, str)
+
+            # Compute the requests for the incoming containers of the
+            # analysis
+            incoming = Requests()
+            for container_decl in container_decls:
+                incoming[container_decl] = compute_objects(
+                    model=ReadOnlyModel(loaded_model),
+                    arg_name=container_decl.name,
+                    kind=container_decl.container_type.kind,
+                    kwargs=kwargs,
+                )
+
+            new_model, invalidated = pipeline.run_analysis(
+                model=ReadOnlyModel(loaded_model),
+                analysis_name=analysis,
+                requests=incoming,
+                analysis_configuration=configuration,
+                pipeline_configuration={},
+                storage_provider=storage_provider,
+                runner_context=runner_context,
+            )
+        else:
+            assert isinstance(configuration, list)
+            new_model, invalidated = pipeline.run_analysis_list(
+                model=ReadOnlyModel(loaded_model),
+                analysis_list=analysis,
+                analysis_configuration=configuration,
+                pipeline_configuration={},
+                storage_provider=storage_provider,
+                runner_context=runner_context,
+            )
+
+        pypeline_logger.debug_log("Analysis run completed")
+        # Print on the output_file the raw bytes of the modified model
+        output_file.write(new_model.serialize())
+
+        # TODO: how to output this in a machine readable way?
+        for container_location, object_ids in invalidated.items():
+            serialized_ids = (object_id.serialize() for object_id in object_ids)
+            pypeline_logger.debug_log(
+                f"Invalidated {container_location}: [{', '.join(serialized_ids)}]"
+            )
+
+
 class AnalyzeGroup(PypeGroup):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -78,7 +156,6 @@ class AnalyzeGroup(PypeGroup):
         run_analysis_command = build_analysis_command(
             analysis_binding=analysis_binding,
             help_text=help_text,
-            model_type=get_singleton(Model),  # type: ignore[type-abstract]
             pipeline=pipeline,
         )
 
@@ -125,7 +202,6 @@ class AnalyzeGroup(PypeGroup):
             analysis_list=analysis_list,
             container_decls=unique_container_decls,
             help_text=help_text,
-            model_type=get_singleton(Model),  # type: ignore[type-abstract]
             pipeline=pipeline,
         )
 
@@ -147,63 +223,9 @@ def build_analysis_list_command(
     analysis_list: AnalysisList,
     container_decls: dict[str, ContainerDeclaration],
     help_text: str,
-    model_type: type[Model],
     pipeline: Pipeline,
 ):
     analysis_name: str = analysis_list.name
-
-    async def async_part_of_command(
-        storage_provider_context: AsyncContextManager[StorageProvider],
-        runner_context: RunnerContext,
-        output_file: IO[bytes],
-        kwargs,
-    ):
-        """Since the storage provider factory returns an async context manager,
-        we need the code that uses the storage_provider to be an async function.
-        """
-        async with storage_provider_context as storage_provider:
-            loaded_model = model_type.deserialize(storage_provider.get_model()[0])
-
-            pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
-
-            if kwargs["list"]:
-                # If the user requested to list the available objects, we print them
-                # and exit
-                for container_decl in container_decls.values():
-                    list_objects_for_container(
-                        model=ReadOnlyModel(loaded_model),
-                        arg_name=container_decl.name,
-                        kind=container_decl.container_type.kind,
-                    )
-                    # Space between containers
-                    print()
-                return
-
-            analysis_configuration = [
-                kwargs[f"{normalize_pos_arg_name(analysis_name)}_configuration"]
-                for analysis_name in analysis_list.analyses
-            ]
-
-            # Finally, run the analysis
-            new_model, invalidated = pipeline.run_analysis_list(
-                model=ReadOnlyModel(loaded_model),
-                analysis_list=analysis_list,
-                analysis_configuration=analysis_configuration,
-                pipeline_configuration={},
-                storage_provider=storage_provider,
-                runner_context=runner_context,
-            )
-
-            pypeline_logger.debug_log("Analysis run completed")
-            # Print on the output_file the raw bytes of the modified model
-            output_file.write(new_model.serialize())
-
-            # TODO: how to output this in a machine readable way?
-            for container_location, object_ids in invalidated.items():
-                serialized_ids = (object_id.serialize() for object_id in object_ids)
-                pypeline_logger.debug_log(
-                    f"Invalidated {container_location}: [{', '.join(serialized_ids)}]"
-                )
 
     @click.command(
         cls=WrappablePypeCommand,
@@ -236,12 +258,22 @@ def build_analysis_list_command(
             token=token,
             cache_dir=ctx.obj["cache_dir"],
         )
+
+        analysis_configuration = [
+            kwargs[f"{normalize_pos_arg_name(analysis_name)}_configuration"]
+            for analysis_name in analysis_list.analyses
+        ]
+
         asyncio.run(
             async_part_of_command(
                 storage_provider_context=storage_provider_context,
                 runner_context=runner_context,
-                kwargs=kwargs,
+                pipeline=pipeline,
+                analysis=analysis_list,
+                configuration=analysis_configuration,
+                container_decls=tuple(container_decls.values()),
                 output_file=output_file,
+                kwargs=kwargs,
             )
         )
 
@@ -251,70 +283,9 @@ def build_analysis_list_command(
 def build_analysis_command(
     analysis_binding: AnalysisBinding,
     help_text: str,
-    model_type: type[Model],
     pipeline: Pipeline,
 ):
     analysis_name: str = analysis_binding.analysis.name
-
-    async def async_part_of_command(
-        storage_provider_context: AsyncContextManager[StorageProvider],
-        configuration: str,
-        runner_context: RunnerContext,
-        output_file: IO[bytes],
-        kwargs,
-    ):
-        """Since the storage provider factory returns an async context manager,
-        we need the code that uses the storage_provider to be an async function.
-        """
-        async with storage_provider_context as storage_provider:
-            loaded_model = model_type.deserialize(storage_provider.get_model()[0])
-
-            pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
-
-            if kwargs["list"]:
-                # If the user requested to list the available objects, we print them
-                # and exit
-                for container_decl in analysis_binding.bindings:
-                    list_objects_for_container(
-                        model=ReadOnlyModel(loaded_model),
-                        arg_name=container_decl.name,
-                        kind=container_decl.container_type.kind,
-                    )
-                    # Space between containers
-                    print()
-                return
-
-            # Compute the requests for the incoming containers of the
-            # analysis
-            incoming = Requests()
-            for container_decl in analysis_binding.bindings:
-                incoming[container_decl] = compute_objects(
-                    model=ReadOnlyModel(loaded_model),
-                    arg_name=container_decl.name,
-                    kind=container_decl.container_type.kind,
-                    kwargs=kwargs,
-                )
-
-            # Finally, run the analysis
-            new_model, invalidated = pipeline.run_analysis(
-                model=ReadOnlyModel(loaded_model),
-                analysis_name=analysis_name,
-                requests=incoming,
-                analysis_configuration=configuration,
-                pipeline_configuration={},
-                storage_provider=storage_provider,
-                runner_context=runner_context,
-            )
-            pypeline_logger.debug_log("Analysis run completed")
-            # Print on the output file
-            output_file.write(new_model.serialize())
-
-            # TODO: how to output this in a machine readable way?
-            for container_location, object_ids in invalidated.items():
-                serialized_ids = (object_id.serialize() for object_id in object_ids)
-                pypeline_logger.debug_log(
-                    f"Invalidated {container_location}: [{', '.join(serialized_ids)}]"
-                )
 
     @click.command(
         cls=WrappablePypeCommand,
@@ -352,8 +323,11 @@ def build_analysis_command(
         asyncio.run(
             async_part_of_command(
                 storage_provider_context=storage_provider_context,
-                configuration=configuration,
                 runner_context=runner_context,
+                pipeline=pipeline,
+                analysis=analysis_binding.analysis.name,
+                container_decls=analysis_binding.bindings,
+                configuration=configuration,
                 output_file=output_file,
                 kwargs=kwargs,
             )
