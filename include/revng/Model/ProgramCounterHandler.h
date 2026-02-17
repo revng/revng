@@ -39,19 +39,11 @@ enum Values {
 
 }; // namespace PCAffectingCSV
 
-namespace revng::detail {
-
-using namespace llvm;
-
-using CSVFactory = std::function<
-  GlobalVariable *(PCAffectingCSV::Values CSVID)>;
-
-}; // namespace revng::detail
-
-using CSVFactory = revng::detail::CSVFactory;
-
 class ProgramCounterHandler {
 protected:
+  using CSVFactory = llvm::function_ref<
+    llvm::GlobalVariable *(PCAffectingCSV::Values CSVID)>;
+
   static constexpr const char *AddressSpaceName = "pc_address_space";
   static constexpr const char *EpochName = "pc_epoch";
   static constexpr const char *TypeName = "pc_type";
@@ -79,7 +71,7 @@ public:
   static std::unique_ptr<ProgramCounterHandler>
   create(model::Architecture::Values Architecture,
          llvm::Module *M,
-         const CSVFactory &Factory);
+         CSVFactory Factory);
 
   static std::unique_ptr<ProgramCounterHandler>
   fromModule(model::Architecture::Values Architecture, llvm::Module *M);

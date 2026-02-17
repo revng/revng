@@ -14,6 +14,8 @@ class Container {
 public:
   virtual ~Container() = default;
 
+  virtual std::set<ObjectID> objects() = 0;
+
   virtual void deserialize(const std::map<const ObjectID *,
                                           llvm::ArrayRef<char>> &Input) = 0;
 
@@ -33,6 +35,8 @@ public:
   ~ContainerImpl() override = default;
 
 public:
+  virtual std::set<ObjectID> objects() override { return Instance.objects(); }
+
   virtual void
   deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> &Input)
     override {

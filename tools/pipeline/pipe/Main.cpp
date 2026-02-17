@@ -85,7 +85,8 @@ int main(int argc, char *argv[]) {
   llvm::StringRef PipeArgument = Arguments[0];
   llvm::StringRef ModelArgument = Arguments[1];
 
-  auto ContainerArguments = llvm::ArrayRef<string>(Arguments).drop_front(2);
+  auto ContainerArguments = llvm::ArrayRef<std::string>(Arguments)
+                              .drop_front(2);
 
   const auto &Name = ModelGlobalName;
   auto *Model(cantFail(Manager.context().getGlobal<ModelGlobal>(Name)));

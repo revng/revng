@@ -10,8 +10,9 @@ import click
 import yaml
 
 from revng.pypeline.cli.common_options import container_format_options, list_objects_option
-from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_arg_objects, build_help_text
+from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
 from revng.pypeline.cli.utils import compute_objects, normalize_kwarg_name, normalize_whitespace
+from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
@@ -135,7 +136,7 @@ def build_pipe_command(
     model_type: type[Model],
 ):
     @click.command(
-        cls=PypeCommand,
+        cls=WrappablePypeCommand,
         name=pipe_name,
         help=help_text,
     )
@@ -161,6 +162,7 @@ def build_pipe_command(
     )
     @container_format_options
     @list_objects_option
+    @exec_wrapper_if_needed
     def run_pipe_command(
         model: str,
         static_configuration: str,

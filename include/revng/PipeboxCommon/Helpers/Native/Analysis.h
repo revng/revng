@@ -19,6 +19,8 @@ public:
                           std::vector<Container *> Containers,
                           const pypeline::Request &Incoming,
                           llvm::StringRef Configuration) = 0;
+
+  virtual std::vector<ContainerArgument> signature() const = 0;
 };
 
 template<IsAnalysis T>
@@ -40,6 +42,17 @@ public:
                        Incoming,
                        Configuration,
                        ContainerTuple);
+  }
+
+  virtual std::vector<ContainerArgument> signature() const override {
+    std::vector<ContainerArgument> Result;
+
+    using CT = AnalysisRunTraits<T>::ContainerTypes;
+    forEach<CT>([&Result]<typename A, size_t I>() {
+      Result.push_back({ A::Name, A::Name, Access::Read });
+    });
+
+    return Result;
   }
 };
 

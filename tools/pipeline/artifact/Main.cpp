@@ -54,9 +54,10 @@ static cl::opt<bool> ListArtifacts("list",
                                    cl::cat(MainCategory),
                                    cl::init(false));
 
-static cl::opt<string> Analyses("analyses",
-                                cl::desc("Analyses to run, comma separated"),
-                                cl::cat(MainCategory));
+static cl::opt<std::string> Analyses("analyses",
+                                     cl::desc("Analyses to run, comma "
+                                              "separated"),
+                                     cl::cat(MainCategory));
 
 static cl::opt<bool> Analyze("analyze",
                              cl::desc("Run revng-initial-auto-analysis"),

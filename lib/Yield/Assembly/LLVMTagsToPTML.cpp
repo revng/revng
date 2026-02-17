@@ -403,14 +403,14 @@ handleSpecialCases(SortedVector<yield::TaggedString> &&Input,
                                                             Instruction);
 
       uint64_t CurrentIndex = ++Iterator->Index() - 1;
-      Result.emplace(CurrentIndex, yield::TagType::Helper, "offset_to("s);
+      Result.emplace(CurrentIndex, yield::TagType::Helper, "offset_to(");
       Result.emplace(emitAddress(std::move(*Iterator),
                                  Address,
                                  BasicBlock,
                                  Function,
                                  Binary,
                                  NameBuilder));
-      Result.emplace(CurrentIndex + 2, yield::TagType::Helper, ")"s);
+      Result.emplace(CurrentIndex + 2, yield::TagType::Helper, ")");
       IndexOffset += 2;
     } else {
       // TODO: handle other interesting tag types.

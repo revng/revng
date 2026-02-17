@@ -720,7 +720,14 @@ UnionAttr UnionAttr::get(MLIRContext *Context,
                          llvm::StringRef Handle,
                          const ClassDefinition &Definition) {
   auto Attr = Base::get(Context, Handle);
-  auto R = Attr.Base::mutate(Definition);
+
+  ClassDefinition MutableDefinition = Definition;
+  if (MutableDefinition.Size == 0) {
+    if (const auto *ExistingDefinition = Attr.getDefinitionOrNull())
+      MutableDefinition.Size = ExistingDefinition->Size;
+  }
+
+  auto R = Attr.Base::mutate(MutableDefinition);
   revng_assert(R.succeeded()
                and "Attempted to mutate the definition of an already defined "
                    "union attribute.");

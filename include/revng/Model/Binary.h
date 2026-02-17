@@ -59,7 +59,7 @@ public:
   ///          - the reference to the newly made definition which can be used
   ///            to modify it right away,
   ///          - the corresponding defined type ready to be attached to others.
-  template<derived_from<model::TypeDefinition> NewType,
+  template<std::derived_from<model::TypeDefinition> NewType,
            typename... ArgumentTypes>
   [[nodiscard]] std::pair<NewType &, model::UpcastableType>
   makeTypeDefinition(ArgumentTypes &&...Arguments) {

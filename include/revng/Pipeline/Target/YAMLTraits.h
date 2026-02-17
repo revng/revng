@@ -78,7 +78,7 @@ static_assert(Yamlizable<pipeline::TargetsList>);
 
 template<typename T>
 concept HasEmpty = requires(T &&V) {
-  { V.empty() } -> same_as<bool>;
+  { V.empty() } -> std::same_as<bool>;
 };
 
 template<Yamlizable T>

@@ -34,6 +34,7 @@
 #include "Helpers.h"
 
 using namespace llvm;
+using std::tie;
 
 static Logger Log("segregate-stack-accesses");
 

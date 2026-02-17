@@ -2,12 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import inspect
 import signal
 import tarfile
 from io import BytesIO
 
 from revng.internal.support import import_pipebox
 from revng.model import Binary  # type: ignore[attr-defined]
+from revng.pypeline.analysis import Analysis
 from revng.pypeline.container import Configuration, Container
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import ObjectSet
@@ -16,7 +18,26 @@ from revng.pypeline.task.pipe import Pipe, PipeDependencies
 from revng.pypeline.task.task import TaskArgument, TaskArgumentAccess
 from revng.support import get_root
 
-_module, _handles = import_pipebox([get_root() / "lib/librevngPipebox.so"])
+_native_libraries = [get_root() / "lib/librevngPipebox.so"]
+_module, _handles = import_pipebox(_native_libraries)
+
+_native_pipes: dict[str, type] = {}
+_native_analyses: dict[str, type] = {}
+
+
+def _collect_native_pipes_and_analyses():
+    for entry_name, entry in vars(_module).items():
+        is_dunder = entry_name.startswith("__") and entry_name.endswith("__")
+        if is_dunder or not inspect.isclass(entry):
+            continue
+
+        if issubclass(entry, Pipe):
+            _native_pipes[entry.name] = entry
+        elif issubclass(entry, Analysis):
+            _native_analyses[entry.name] = entry
+
+
+_collect_native_pipes_and_analyses()
 
 
 def initialize(argv: list[str] = []):
@@ -36,10 +57,27 @@ def initialize(argv: list[str] = []):
 
 
 def argv_hook(input_: list[str]):
+    # Check that the command is what we expect
     assert input_[0] == "pype"
-    output = input_[:]
-    output[0] = "revng2"
-    return output
+    assert input_[1] == "pipeline"
+    assert input_[2] in ("run-pipe", "run-analysis")
+
+    if input_[2] == "run-pipe":
+        pipe_name = input_[3]
+        # Check if the specified pipe is a native pipe, if so then use the
+        # `run-pipe-native` command instead of `run-pipe`
+        if pipe_name not in _native_pipes:
+            return ["revng2", *input_[1:]]
+        else:
+            return ["revng2", "pipeline", "run-pipe-native", *input_[3:]]
+    else:
+        analysis_name = input_[3]
+        # Check if the specified analysis is a native analysis, if so then use
+        # the `run-analysis-native` command instead of `run-analysis`
+        if analysis_name not in _native_analyses:
+            return ["revng2", *input_[1:]]
+        else:
+            return ["revng2", "pipeline", "run-analysis-native", *input_[3:]]
 
 
 class ImportFiles(Pipe):

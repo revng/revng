@@ -457,7 +457,8 @@ void DetectABI::analyzeABI() {
   Task.advance("Create temporary functions");
   for (model::Function &Function : Binary->Functions()) {
     const MetaAddress &Entry = Function.Entry();
-    auto NewFunction = make_unique<OutlinedFunction>(Analyzer.outline(Entry));
+    auto NewFunction = std::make_unique<OutlinedFunction>(Analyzer
+                                                            .outline(Entry));
     Functions[Function.Entry()] = std::move(NewFunction);
   }
 

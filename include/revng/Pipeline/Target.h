@@ -193,7 +193,7 @@ public:
   void emplace_back(Args &&...A) {
     Contained.emplace_back(std::forward<Args>(A)...);
     llvm::sort(Contained);
-    Contained.erase(unique(Contained.begin(), Contained.end()),
+    Contained.erase(std::unique(Contained.begin(), Contained.end()),
                     Contained.end());
   }
 
@@ -202,7 +202,7 @@ public:
   void push_back(const Target &Target) {
     Contained.push_back(Target);
     llvm::sort(Contained);
-    Contained.erase(unique(Contained.begin(), Contained.end()),
+    Contained.erase(std::unique(Contained.begin(), Contained.end()),
                     Contained.end());
   }
 
@@ -286,7 +286,7 @@ public:
   using iterator = Map::iterator;
   using const_iterator = Map::const_iterator;
   using value_type = Map::value_type;
-  using key_iterator = decltype(declval<Map>().keys());
+  using key_iterator = decltype(std::declval<Map>().keys());
 
 private:
   Map Status;

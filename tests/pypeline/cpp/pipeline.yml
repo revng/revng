@@ -1,0 +1,26 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+containers:
+  - name: string-container
+    type: RootStringContainer
+
+analysis_lists:
+  - name: initial-auto-analysis
+    analyses:
+      - AppendFooLibAnalysis2
+
+branches:
+  main:
+    tasks:
+      - pipe: CreateEntryPipe
+        arguments: [string-container]
+        analyses:
+          - analysis: AppendFooLibAnalysis2
+            containers: [string-container]
+      - pipe: AppendFooPipe2
+        arguments: [string-container]
+        artifacts:
+          - name: output
+            container: string-container

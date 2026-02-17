@@ -37,7 +37,7 @@ public:
 
 template<typename T>
 concept LLVMPass = requires(T P) {
-  { T::Name } -> convertible_to<const char *>;
+  { T::Name } -> std::convertible_to<const char *>;
   { P.registerPasses(std::declval<llvm::legacy::PassManager &>()) };
 };
 

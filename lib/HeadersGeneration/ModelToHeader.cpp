@@ -39,7 +39,7 @@ bool ptml::HeaderBuilder::printModelHeader() {
   B.append(std::move(Includes));
 
   if (not Configuration.PostIncludeSnippet.empty())
-    B.append(Configuration.PostIncludeSnippet + "\n"s);
+    B.append(Configuration.PostIncludeSnippet + '\n');
 
   std::string Defines = B.getDirective(CBuilder::Directive::IfNotDef) + " "
                         + B.getNullTag() + "\n"

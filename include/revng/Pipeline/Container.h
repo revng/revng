@@ -25,7 +25,7 @@ namespace pipeline {
 
 template<typename T>
 concept HasID = requires {
-  { T::ID } -> convertible_to<const char &>;
+  { T::ID } -> std::convertible_to<const char &>;
 };
 
 class ContainerTypeInfoBase {

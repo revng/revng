@@ -174,8 +174,8 @@ private:
     return Result;
   }
 
-  template<ranges::sized_range InputContainer,
-           ranges::sized_range OutputContainer>
+  template<std::ranges::sized_range InputContainer,
+           std::ranges::sized_range OutputContainer>
   void assertSortingWasSuccessful(llvm::StringRef RegisterType,
                                   const InputContainer &Input,
                                   const OutputContainer &Output) const {
@@ -206,7 +206,7 @@ private:
   }
 
 public:
-  template<ranges::sized_range Container>
+  template<std::ranges::sized_range Container>
   llvm::SmallVector<model::Register::Values, 8>
   sortArguments(const Container &Registers) const {
     SortedVector<model::Register::Values> Lookup;
@@ -225,7 +225,7 @@ public:
     return Result;
   }
 
-  template<ranges::sized_range Container>
+  template<std::ranges::sized_range Container>
   llvm::SmallVector<model::Register::Values, 8>
   sortReturnValues(const Container &Registers) const {
     SortedVector<model::Register::Values> Lookup;

@@ -70,7 +70,7 @@ inline constexpr uint64_t paddedSizeOnStack(uint64_t RealSize,
 /// \tparam DerivedType The desired type to filter based on
 /// \param Types The list of types to filter
 /// \return filtered list
-template<derived_from<model::TypeDefinition> DerivedType,
+template<std::derived_from<model::TypeDefinition> DerivedType,
          RangeOf<model::UpcastableTypeDefinition> OwningRange,
          RangeOf<model::TypeDefinition *> ViewRange =
            std::vector<model::TypeDefinition *>>

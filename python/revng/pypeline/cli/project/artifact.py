@@ -10,7 +10,8 @@ import click
 
 from revng.pypeline.cli.common_options import container_format_options, debug_option
 from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
-from revng.pypeline.cli.utils import PypeCommand, PypeGroup, build_help_text, normalize_whitespace
+from revng.pypeline.cli.utils import PypeGroup, build_help_text, normalize_whitespace
+from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
@@ -163,7 +164,7 @@ def build_artifact_command(
                 sys.stdout.buffer.flush()
 
     @click.command(
-        cls=PypeCommand,
+        cls=WrappablePypeCommand,
         name=artifact_name,
         help=help_text,
         context_settings={
@@ -185,6 +186,7 @@ def build_artifact_command(
     )
     @debug_option
     @container_format_options
+    @exec_wrapper_if_needed
     @click.pass_context
     def run_artifact_command(
         ctx: click.Context,

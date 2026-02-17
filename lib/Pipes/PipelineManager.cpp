@@ -357,10 +357,10 @@ PipelineManager::PipelineManager(llvm::ArrayRef<std::string> EnablingFlags,
   ExecutionDirectory(StorageClient.get(), "") {
   LLVMContext = std::make_unique<llvm::LLVMContext>();
   auto Context = setUpContext(*LLVMContext);
-  PipelineContext = make_unique<pipeline::Context>(std::move(Context));
+  PipelineContext = std::make_unique<pipeline::Context>(std::move(Context));
 
   auto Loader = setupLoader(*PipelineContext, EnablingFlags);
-  this->Loader = make_unique<pipeline::Loader>(std::move(Loader));
+  this->Loader = std::make_unique<pipeline::Loader>(std::move(Loader));
 }
 
 llvm::Expected<PipelineManager>

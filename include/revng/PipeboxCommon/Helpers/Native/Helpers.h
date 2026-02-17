@@ -18,4 +18,14 @@ struct ExtractContainerFromList<C, I, std::vector<native::Container *>> {
   }
 };
 
+namespace native {
+
+struct ContainerArgument {
+  llvm::StringRef Name;
+  llvm::StringRef ContainerTypeName;
+  Access Access;
+};
+
+} // namespace native
+
 } // namespace revng::pypeline::helpers

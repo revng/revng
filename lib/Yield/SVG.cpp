@@ -273,7 +273,7 @@ constexpr bool isVertical(yield::layout::sugiyama::Orientation Orientation) {
 
 template<typename CallableType, typename NodeType>
 concept NodeExporter = requires(CallableType &&Callable, const NodeType &Node) {
-  { Callable(Node) } -> convertible_to<std::string>;
+  { Callable(Node) } -> std::convertible_to<std::string>;
 };
 
 template<bool ShouldEmitEmptyNodes,
