@@ -13,6 +13,9 @@
 namespace {
 
 inline int runFetchDebugInfo(llvm::StringRef InputFileName, bool Verbose) {
+  if (llvm::sys::Process::GetEnv("REVNG_NO_FETCH_DEBUG_INFO"))
+    return 1;
+
   revng_assert(::Runner.isProgramAvailable("revng"));
   std::vector<std::string> Args{ "model",
                                  "fetch-debuginfo",
