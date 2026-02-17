@@ -13,7 +13,7 @@ from typing import Annotated, AsyncContextManager, Collection, Iterable, Mapping
 from urllib.parse import urlparse
 
 from revng.pypeline.container import ConfigurationId, ContainerID
-from revng.pypeline.model import ModelPathSet
+from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
 from revng.pypeline.utils.registry import get_registry
@@ -236,11 +236,11 @@ class StorageProvider(ABC):
         """Get the epoch, i.e. the model version number."""
 
     @abstractmethod
-    def get_model(self) -> tuple[bytes, int]:
+    def get_model(self) -> tuple[Model, int]:
         """Get the model and the epoch."""
 
     @abstractmethod
-    def set_model(self, new_model: bytes) -> int:
+    def set_model(self, new_model: Model) -> int:
         """
         Set the model and return the new epoch (which will be current epoch + 1
         if the model changed, or current epoch if it didn't, and 0 if there was no

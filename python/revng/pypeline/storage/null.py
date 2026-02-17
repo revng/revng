@@ -12,9 +12,10 @@ from typing import AsyncGenerator, Iterable, Mapping
 
 from revng import __version__ as revng_version
 from revng.pypeline.container import ConfigurationId
-from revng.pypeline.model import ModelPathSet
+from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
+from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
 from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
@@ -49,7 +50,7 @@ class NullStorageProvider(StorageProvider):
     """
 
     def __init__(self):
-        self.model = b""
+        self.model = get_singleton(Model)()
         self.last_change = datetime.now()
 
     def has(
@@ -91,11 +92,11 @@ class NullStorageProvider(StorageProvider):
     def get_epoch(self) -> int:
         return 0
 
-    def get_model(self) -> tuple[bytes, int]:
-        return (self.model, self.get_epoch())
+    def get_model(self) -> tuple[Model, int]:
+        return (self.model.clone(), self.get_epoch())
 
-    def set_model(self, new_model: bytes):
-        self.model = new_model
+    def set_model(self, new_model: Model):
+        self.model = new_model.clone()
         self.last_change = datetime.now()
         return 0
 

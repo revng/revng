@@ -538,7 +538,7 @@ class Pipeline(Generic[C]):
             pipeline_configuration, storage_provider, diff
         )
         invalidated = storage_provider.invalidate(diff.paths(), custom_invalidated_objects)
-        storage_provider.set_model(new_model.serialize())
+        storage_provider.set_model(new_model)
         return new_model, invalidated
 
     def _compute_custom_invalidation(

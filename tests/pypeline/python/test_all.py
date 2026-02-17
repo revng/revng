@@ -138,7 +138,7 @@ def test_pipe_prerequisites_for(model) -> None:
 
 
 def test_savepoint_prerequisites_for(storage_provider, model) -> None:
-    storage_provider.set_model(model.serialize())
+    storage_provider.set_model(model)
     child: ContainerDeclaration = ContainerDeclaration("child", ChildDictContainer)
     save_point = SavePoint("save", [child])
 
@@ -195,7 +195,7 @@ def test_pipeline_inplace(model, storage_provider):
     child_cont: ContainerDeclaration = ContainerDeclaration("arg", ChildDictContainer)
     declarations = [child_cont]
     pipeline_configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model.serialize())
+    storage_provider.set_model(model)
 
     one = ObjectSet(MyKind.CHILD, {MyObjectID(MyKind.CHILD, "one")})
     one_two = ObjectSet(
@@ -269,7 +269,7 @@ def test_pipeline_up_down(model, storage_provider):
     declarations = [root1, root2, child1, child2]
 
     pipeline_configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model.serialize())
+    storage_provider.set_model(model)
 
     begin_node = PipelineNode(SavePoint("begin", declarations))
     up_node = PipelineNode(ToHigherKindPipe(), bindings=[root1, child1])
@@ -330,7 +330,7 @@ def test_artifact(model, storage_provider):
     declarations = [child1, child2]
     pipeline_configuration: PipelineConfiguration = {}
     one = ObjectSet.from_list([MyObjectID(MyKind.CHILD, "one")])
-    storage_provider.set_model(model.serialize())
+    storage_provider.set_model(model)
 
     begin_node = PipelineNode(SavePoint("begin", declarations))
     same_node = PipelineNode(SameKindPipe(), bindings=[child1, child2])
@@ -371,7 +371,7 @@ def test_invalidation(model, storage_provider):
     child: ContainerDeclaration = ContainerDeclaration("arg", ChildDictContainer)
     declarations = [child]
     pipeline_configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model.serialize())
+    storage_provider.set_model(model)
 
     object_one = MyObjectID(MyKind.CHILD, "one")
     expected_output = ObjectSet(MyKind.CHILD, {object_one})
@@ -441,7 +441,7 @@ def test_analysis(model, storage_provider):
     model["/test/test"] = "test"
     model["/test/test2"] = "test2"
 
-    storage_provider.set_model(model.serialize())
+    storage_provider.set_model(model)
 
     object_one = MyObjectID(MyKind.CHILD, "one")
     expected_output = ObjectSet(MyKind.CHILD, {object_one})
@@ -582,7 +582,7 @@ def test_pipeline(storage_provider):
     assert isinstance(new_model, DictModel), "The analysis should return the same model type"
     assert len(new_model) == 0, "PurgeAllAnalysis should empty the model"
     stored_model, epoch = storage_provider.get_model()
-    assert stored_model == new_model.serialize(), "The model should be stored"
+    assert stored_model == new_model, "The model should be stored"
 
 
 def test_schedule_serdes(model):
@@ -596,7 +596,7 @@ def test_schedule_serdes(model):
     declarations = [root1, root2, child1, child2]
 
     pipeline_configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model.serialize())
+    storage_provider.set_model(model)
 
     begin_node = PipelineNode(SavePoint("begin", declarations))
     up_node = PipelineNode(ToHigherKindPipe(), bindings=[root1, child1])
@@ -708,7 +708,7 @@ def test_custom_invalidation(model, storage_provider: StorageProvider):
     declarations = [root_decl]
 
     pipeline_configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model.serialize())
+    storage_provider.set_model(model)
 
     begin_node = PipelineNode(GeneratorPipeWithInvalidation(), bindings=[root_decl])
     savepoint_node = PipelineNode(SavePoint("end", declarations))

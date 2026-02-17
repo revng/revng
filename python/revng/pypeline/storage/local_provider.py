@@ -338,6 +338,7 @@ class LocalStorageProvider(StorageProvider):
         self._init_tables()
         self.epoch = self._get_epoch()
         self._cache_dir = cache_dir
+        self._model_type = get_singleton(Model)  # type: ignore[type-abstract]
 
     def _cursor(self) -> CursorWrapper:
         return CursorWrapper(self._connection)
@@ -498,16 +499,17 @@ class LocalStorageProvider(StorageProvider):
     def get_epoch(self) -> int:
         return self.epoch
 
-    def get_model(self) -> tuple[bytes, int]:
-        return (self._model_path.read_bytes(), self.epoch)
+    def get_model(self) -> tuple[Model, int]:
+        model = self._model_type.deserialize(self._model_path.read_bytes())
+        return (model, self.epoch)
 
-    def set_model(self, new_model: bytes) -> int:
+    def set_model(self, new_model: Model) -> int:
         # Check if the model was modified
-        current_model = self._model_path.read_bytes()
+        current_model = self._model_type.deserialize(self._model_path.read_bytes())
         if current_model == new_model:
             return self.epoch
         # if so, write the new model and update the epoch
-        self._model_path.write_bytes(new_model)
+        self._model_path.write_bytes(new_model.serialize())
         with self._cursor() as cursor:
             self.epoch += 1
             self._write_metadata(cursor)

@@ -13,14 +13,13 @@ from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_te
 from revng.pypeline.cli.utils import compute_objects, list_objects_for_container, normalize_flag
 from revng.pypeline.cli.utils import normalize_pos_arg_name, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
-from revng.pypeline.model import Model, ReadOnlyModel
+from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, AnalysisList, ContainerDeclaration, Pipeline
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils.logger import pypeline_logger
-from revng.pypeline.utils.registry import get_singleton
 
 output_option = click.option(
     "-o",
@@ -44,13 +43,11 @@ async def async_part_of_command(
     output_file: IO[bytes],
     kwargs,
 ):
-    model_type = get_singleton(Model)  # type: ignore[type-abstract]
     """Since the storage provider factory returns an async context manager,
     we need the code that uses the storage_provider to be an async function.
     """
     async with storage_provider_context as storage_provider:
-        loaded_model = model_type.deserialize(storage_provider.get_model()[0])
-
+        loaded_model = storage_provider.get_model()[0]
         pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
         if kwargs["list"]:

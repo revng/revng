@@ -134,7 +134,7 @@ class Daemon:
                 "model_type": model_type.__name__,
                 "mime_type": model_type.mime_type(),
                 "is_text": model_type.is_text(),
-                "model": bytes_to_string(model, is_text=model_type.is_text()),
+                "model": bytes_to_string(model.serialize(), is_text=model_type.is_text()),
             },
         )
 
@@ -145,7 +145,6 @@ class Daemon:
         )
 
     async def artifact(self, request) -> Response:
-        model_type: type[Model] = get_singleton(Model)  # type: ignore [type-abstract]
         artifacts = request["artifacts"]
         epoch = request["epoch"]
 
@@ -163,9 +162,7 @@ class Daemon:
         storage_provider_context = self._get_storage_provider_context(request)
         async with storage_provider_context as storage_provider:
             # Load the model
-            model = model_type()
-            model_bytes, real_epoch = storage_provider.get_model()
-            model.deserialize(model_bytes)
+            model, real_epoch = storage_provider.get_model()
 
             if real_epoch != epoch:
                 return Response(
@@ -195,7 +192,6 @@ class Daemon:
 
     async def analyze(self, request) -> Response:
         """Process analysis requests"""
-        model_type: type[Model] = get_singleton(Model)  # type: ignore [type-abstract]
 
         # Extract the data
         epoch = request["epoch"]
@@ -236,9 +232,7 @@ class Daemon:
         storage_provider_context = self._get_storage_provider_context(request)
         async with storage_provider_context as storage_provider:
             # Load the model
-            model = model_type()
-            model_bytes, real_epoch = storage_provider.get_model()
-            model.deserialize(model_bytes)
+            model, real_epoch = storage_provider.get_model()
 
             if real_epoch != epoch:
                 return Response(
