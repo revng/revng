@@ -6,6 +6,7 @@ import asyncio
 from typing import IO, AsyncContextManager
 
 import click
+import yaml
 
 from revng.pypeline.cli.common_options import debug_option, list_objects_option, project_id_option
 from revng.pypeline.cli.common_options import token_option
@@ -32,6 +33,13 @@ output_option = click.option(
     default="-",
 )
 
+invalidation_option = click.option(
+    "--invalidations",
+    "invalidations_file",
+    type=click.File("w"),
+    help="Write invalidation data to the specified file",
+)
+
 
 async def async_part_of_command(
     storage_provider_context: AsyncContextManager[StorageProvider],
@@ -41,6 +49,7 @@ async def async_part_of_command(
     configuration: str | list[str],
     container_decls: tuple[ContainerDeclaration, ...],
     output_file: IO[bytes],
+    invalidations_file: IO[bytes] | None,
     kwargs,
 ):
     """Since the storage provider factory returns an async context manager,
@@ -101,12 +110,26 @@ async def async_part_of_command(
         # Print on the output_file the raw bytes of the modified model
         output_file.write(new_model.serialize())
 
-        # TODO: how to output this in a machine readable way?
         for container_location, object_ids in invalidated.items():
             serialized_ids = (object_id.serialize() for object_id in object_ids)
             pypeline_logger.debug_log(
                 f"Invalidated {container_location}: [{', '.join(serialized_ids)}]"
             )
+
+        if invalidations_file is not None:
+            name_mapping = pipeline.savepoint_id_to_name
+            data = []
+            for container_location, object_ids in invalidated.items():
+                objects = [obj.serialize() for obj in object_ids]
+                data.append(
+                    {
+                        "savepoint": name_mapping[container_location.savepoint_id],
+                        "container": container_location.container_id,
+                        "configuration": container_location.configuration_id,
+                        "objects": objects,
+                    }
+                )
+            yaml.safe_dump(data, invalidations_file)
 
 
 class AnalyzeGroup(PypeGroup):
@@ -230,6 +253,7 @@ def build_analysis_list_command(
         help=help_text,
     )
     @output_option
+    @invalidation_option
     @debug_option
     @list_objects_option
     @project_id_option
@@ -242,6 +266,7 @@ def build_analysis_list_command(
         token: str,
         runner_context: RunnerContext,
         output_file: IO[bytes],
+        invalidations_file: IO[bytes] | None,
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
@@ -270,6 +295,7 @@ def build_analysis_list_command(
                 configuration=analysis_configuration,
                 container_decls=tuple(container_decls.values()),
                 output_file=output_file,
+                invalidations_file=invalidations_file,
                 kwargs=kwargs,
             )
         )
@@ -290,6 +316,7 @@ def build_analysis_command(
         help=help_text,
     )
     @output_option
+    @invalidation_option
     @debug_option
     @list_objects_option
     @project_id_option
@@ -303,6 +330,7 @@ def build_analysis_command(
         token: str,
         runner_context: RunnerContext,
         output_file: IO[bytes],
+        invalidations_file: IO[bytes] | None,
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
@@ -326,6 +354,7 @@ def build_analysis_command(
                 container_decls=analysis_binding.bindings,
                 configuration=configuration,
                 output_file=output_file,
+                invalidations_file=invalidations_file,
                 kwargs=kwargs,
             )
         )

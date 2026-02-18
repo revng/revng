@@ -25,7 +25,7 @@ class SavePoint:
         name: str,
         to_save: Sequence[ContainerDeclaration],
     ):
-        self.name = f"SavePoint({name or self.__class__.__name__})"
+        self.name = name
         self.arguments = [
             TaskArgument(
                 name=declaration.name,
