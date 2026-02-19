@@ -26,7 +26,8 @@ from revng.pypeline.cli.common_options import container_format_options, debug_op
 from revng.pypeline.cli.common_options import project_id_option, token_option
 from revng.pypeline.cli.pipeline import pipeline
 from revng.pypeline.cli.project import project
-from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, build_arg_objects, normalize_flag
+from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, build_arg_objects
+from revng.pypeline.cli.utils import compute_objects, normalize_flag
 from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrappablePypeCommand, WrapperOption
 from revng.pypeline.cli.wrappers import exec_with_wrapper, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerDeclaration, ContainerFormat
@@ -41,6 +42,7 @@ from revng.pypeline.storage.storage_provider import FileStorageEntry, StoragePro
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.storage.util import compute_hash
 from revng.pypeline.task.pipe import Pipe
+from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
@@ -109,6 +111,68 @@ class ArtifactArgument(click.Argument):
         return (self.make_metavar(ctx), text)
 
 
+def handle_analysis_argument(
+    pipeline: Pipeline,
+    analyses: str | None,
+    binary: Path,
+    storage_provider: StorageProvider,
+    runner_context: RunnerContext,
+) -> Model:
+    model_type = get_singleton(Model)  # type: ignore[type-abstract]
+    model_raw = yaml.safe_dump(generate_model_with_binaries([binary])).encode()
+    model = model_type.deserialize(model_raw)[0]
+    if analyses is not None:
+        if analyses == "":
+            return model
+
+        analyses_list = analyses.split(",")
+        for analysis_name in analyses_list:
+            if analysis_name not in pipeline.analyses:
+                raise click.UsageError(f"Analysis {analysis_name} does not exist")
+
+        for analysis_name in analyses_list:
+            incoming = Requests()
+            for container_decl in pipeline.analyses[analysis_name].bindings:
+                incoming[container_decl] = compute_objects(
+                    model=ReadOnlyModel(model),
+                    arg_name=container_decl.name,
+                    kind=container_decl.container_type.kind,
+                    kwargs={},
+                )
+
+            model, _ = pipeline.run_analysis(
+                model=ReadOnlyModel(model),
+                analysis_name=analysis_name,
+                requests=incoming,
+                analysis_configuration="",
+                pipeline_configuration={},
+                storage_provider=storage_provider,
+                runner_context=runner_context,
+            )
+    else:
+        analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
+        analysis_configuration = ["" for _ in analysis_list.analyses]
+        model, _ = pipeline.run_analysis_list(
+            model=ReadOnlyModel(model),
+            analysis_list=analysis_list,
+            analysis_configuration=analysis_configuration,
+            pipeline_configuration={},
+            storage_provider=storage_provider,
+            runner_context=runner_context,
+        )
+
+    return model
+
+
+analyses_option = click.option(
+    "--analyses",
+    help=(
+        "Instead of running the default initial auto analysis, run the "
+        "specified list of (comma-separated) analyses"
+    ),
+)
+
+
 @quick.command(
     cls=WrappablePypeCommand,
     name="artifact",
@@ -129,6 +193,7 @@ class ArtifactArgument(click.Argument):
     ),
 )
 @debug_option
+@analyses_option
 @container_format_options
 @exec_wrapper_if_needed
 @click.pass_context
@@ -137,13 +202,13 @@ def artifact(
     artifact: Artifact,
     binary: Path,
     result_path: Path | None,
+    analyses: str | None,
     container_format: ContainerFormat,
     runner_context: RunnerContext,
 ):
     pypeline_logger.debug_log(f'Running artifact: "{artifact}"')
     pypeline_logger.debug_log(f'container_format: "{container_format}"')
     pipeline: Pipeline = ctx.obj["pipeline"]
-    model_type = get_singleton(Model)  # type: ignore[type-abstract]
 
     async def async_part_of_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
@@ -153,17 +218,8 @@ def artifact(
             storage_provider.put_files_in_storage([FileStorageEntry(binary.name, binary)])
 
             # Run initial auto analysis
-            model_raw = yaml.safe_dump(generate_model_with_binaries([binary])).encode()
-            model = model_type.deserialize(model_raw)[0]
-            analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
-            analysis_configuration = ["" for _ in analysis_list.analyses]
-            new_model, _ = pipeline.run_analysis_list(
-                model=ReadOnlyModel(model),
-                analysis_list=analysis_list,
-                analysis_configuration=analysis_configuration,
-                pipeline_configuration={},
-                storage_provider=storage_provider,
-                runner_context=runner_context,
+            new_model = handle_analysis_argument(
+                pipeline, analyses, binary, storage_provider, runner_context
             )
 
             # Compute the requests and produce the artifacts
