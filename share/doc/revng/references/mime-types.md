@@ -26,9 +26,10 @@ USAGE: revng-artifact [options] <artifact> <binary>
   cleanup-ir                  - application/x.llvm.bc+zstd
   emit-c                      - text/x.c+ptml+tar+gz
   emit-c-as-single-file       - text/x.c+ptml
-  emit-model-header           - text/x.h+ptml
+  import-clift-types          - application/x.mlir.bc
+  emit-type-and-global-header - text/x.h+ptml
   emit-helper-header          - text/x.h+ptml
-  emit-type-definition        - text/x.c+tar+gz
+  emit-single-type-definition - text/x.c+tar+gz
 ```
 
 ## MIME types
