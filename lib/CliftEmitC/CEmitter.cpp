@@ -6,6 +6,7 @@
 
 #include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/CEmitter.h"
+#include "revng/CliftImportModel/AttributeHelpers.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
@@ -415,11 +416,17 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
   }
 }
 
+void CEmitter::emitCAttributes(llvm::ArrayRef<mlir::clift::CAttributeAttr>
+                                 Attributes) {
+  for (mlir::clift::CAttributeAttr Attribute : Attributes)
+    emitCAttribute(Attribute);
+}
+
 void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes) {
-  if (CAttributes) {
-    for (mlir::Attribute Attr : CAttributes)
-      emitCAttribute(mlir::cast<CAttributeAttr>(Attr));
-  }
+  if (not CAttributes)
+    return;
+
+  emitCAttributes(mlir::clift::fromMLIRArray(CAttributes));
 }
 
 //===---------------------------- Declarations ----------------------------===//
