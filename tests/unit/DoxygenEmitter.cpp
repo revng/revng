@@ -27,7 +27,12 @@ BOOST_AUTO_TEST_CASE(LineComment) {
                                        "/// \n"
                                        "/// And also note this other thing.\n";
 
-  revng_assert(Content == Expected);
+  if (Content != Expected) {
+    std::string Error = "Content does *not* match the expected string!\n"
+                        "> Content:\n"
+                        + Content + "\n> Expected:\n" + Expected.str() + '\n';
+    revng_abort(Error.c_str());
+  }
 }
 
 BOOST_AUTO_TEST_CASE(BlockComment) {
@@ -47,5 +52,11 @@ BOOST_AUTO_TEST_CASE(BlockComment) {
                                        " * \n"
                                        " * And also note this other thing.\n"
                                        " */";
-  revng_assert(Content == Expected);
+
+  if (Content != Expected) {
+    std::string Error = "Content does *not* match the expected string!\n"
+                        "> Content:\n"
+                        + Content + "\n> Expected:\n" + Expected.str() + '\n';
+    revng_abort(Error.c_str());
+  }
 }
