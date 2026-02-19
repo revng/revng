@@ -10,7 +10,7 @@ TypeDefinitions:
   # CHECK:   "/type-definition/1001-StructDefinition"
   # CHECK:   : size(64)
   # CHECK:   {}
-  # CHECK:   [#clift.attribute<"_CAN_CONTAIN_CODE" : "/macro/_CAN_CONTAIN_CODE">]
+  # CHECK:   [#clift.c_attribute<"_CAN_CONTAIN_CODE" : "/macro/_CAN_CONTAIN_CODE">]
   # CHECK: >
   - ID: 1001
     Kind: StructDefinition

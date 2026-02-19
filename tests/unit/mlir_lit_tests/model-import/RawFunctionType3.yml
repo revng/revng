@@ -38,7 +38,7 @@ TypeDefinitions:
     # CHECK:     !clift.ptr<8 to !uint64_t>,
     # CHECK:     !_type_definition_201_StructDefinition
     # CHECK:   )
-    # CHECK:   [#clift.attribute<"_ABI" : "/macro/_ABI"("raw_x86_64" : "/macro-argument/_ABI/raw_x86_64")>]
+    # CHECK:   [#clift.c_attribute<"_ABI" : "/macro/_ABI"(identifier "raw_x86_64" : "/macro-argument/_ABI/raw_x86_64")>]
     # CHECK: >
   - ID: 1002
     Kind: RawFunctionDefinition
