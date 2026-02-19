@@ -337,7 +337,13 @@ private:
     }
   }
 
-  void indent(int64_t LevelDifference) { PTML.indent(LevelDifference); }
+  void indent(int64_t LevelDifference) {
+    PTML.indent(LevelDifference * TabWidth);
+  }
+
+private:
+  // TODO: consider exposing this as a configuration option!
+  static constexpr uint64_t TabWidth = 2;
 
 public:
   class Scope {

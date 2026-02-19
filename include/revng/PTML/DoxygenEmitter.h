@@ -30,11 +30,8 @@ public:
     EmitterT(std::forward<ArgsT>(Args)...), Configuration(Configuration) {}
 
   void emitIndentation(unsigned Indentation) {
-    static constexpr llvm::StringRef IndentString = "  ";
-
-    EmitterT::emit(Configuration.LinePrefix);
-    for (unsigned I = 0; I < Indentation; ++I)
-      EmitterT::emit(IndentString);
+    EmitterT::emit(Configuration.LinePrefix.str()
+                   + std::string(Indentation, ' '));
   }
 };
 

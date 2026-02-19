@@ -747,11 +747,11 @@ CTokenEmitter::Scope::Scope(CTokenEmitter &Emitter,
     Tag->finalizeOpenTag();
   }
 
-  Emitter.PTML.indent(Indent);
+  Emitter.indent(Indent);
 }
 
 CTokenEmitter::Scope::~Scope() {
-  Emitter.PTML.indent(-Indent);
+  Emitter.indent(-Indent);
 
   Tag.reset();
 
