@@ -156,10 +156,7 @@ PTMLTagEmitter::emitListAttribute(llvm::StringRef Name,
 //===-------------------------- PTMLStreamEmitter -------------------------===//
 
 void detail::PTMLEmitterBase::emitIndentation(unsigned Indentation) {
-  static constexpr llvm::StringRef IndentString = "  ";
-
-  for (unsigned I = 0; I < Indentation; ++I)
-    emit(IndentString);
+  emit(std::string(Indentation, ' '));
 }
 
 void PTMLStreamEmitter::emit(llvm::StringRef Content) {
