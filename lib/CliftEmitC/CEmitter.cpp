@@ -4,6 +4,8 @@
 
 #include <optional>
 
+#include "llvm/ADT/ArrayRef.h"
+
 #include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftImportModel/CAttributeListBuilder.h"
@@ -433,27 +435,38 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
   }
 }
 
-void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
-                               bool SpaceBefore,
-                               bool SpaceAfter) {
-  if (not CAttributes or CAttributes.empty())
+void // formatting
+CEmitter::emitCAttributes(llvm::ArrayRef<clift::CAttributeAttr> CAttributes,
+                          bool SpaceBefore,
+                          bool SpaceAfter) {
+  if (CAttributes.empty())
     return;
 
   if (SpaceBefore)
     Tokens.emitSpace();
 
   bool First = true;
-  for (mlir::Attribute Attribute : CAttributes) {
+  for (mlir::clift::CAttributeAttr Attribute : CAttributes) {
     if (First)
       First = false;
     else
       Tokens.emitSpace();
 
-    emitCAttribute(mlir::cast<mlir::clift::CAttributeAttr>(Attribute));
+    emitCAttribute(Attribute);
   }
 
   if (SpaceAfter)
     Tokens.emitSpace();
+}
+
+void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
+                               bool SpaceBefore,
+                               bool SpaceAfter) {
+  if (not CAttributes)
+    return;
+
+  auto Range = llvm::to_vector(CAttributes.getAsRange<clift::CAttributeAttr>());
+  emitCAttributes(Range, SpaceBefore, SpaceAfter);
 }
 
 //===---------------------------- Declarations ----------------------------===//
