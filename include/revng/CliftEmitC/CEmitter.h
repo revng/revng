@@ -40,6 +40,7 @@ public:
   mlir::ArrayAttr getDeclarationOpCAttributes(mlir::Operation *Op);
 
   void emitCAttribute(CAttributeAttr Attribute);
+  void emitCAttributes(llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
   void emitCAttributes(mlir::ArrayAttr Attributes);
 
   //===---------------------------- Prototype -----------------------------===//
