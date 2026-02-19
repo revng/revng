@@ -13,8 +13,17 @@
 
 // CHECK: !h = !clift.func<"/type-definition/1002-RawFunctionDefinition" as "h" :
 // CHECK:   !void(!uint64_t, !stack_1002_)
+// CHECK:   [#clift.c_attribute<"_ABI" : "/macro/_ABI"(
+// CHECK:     identifier "raw_x86_64" : "/macro-argument/_ABI/raw_x86_64"
+// CHECK:   )>]
 // CHECK: >
-!h = !clift.func<"/type-definition/1002-RawFunctionDefinition" : !void(!uint64_t, !stack_1002_)>
+!h = !clift.func<
+  "/type-definition/1002-RawFunctionDefinition"
+  : !void(!uint64_t, !stack_1002_)
+  [#clift.c_attribute<"_ABI" : "/macro/_ABI"(
+    identifier "raw_x86_64" : "/macro-argument/_ABI/raw_x86_64"
+  )>]
+>
 
 module attributes { clift.module } {
   // CHECK: clift.func @fun_0x40001002<!h>(

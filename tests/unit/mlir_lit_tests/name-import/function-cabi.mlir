@@ -9,8 +9,17 @@
 
 // CHECK: !f = !clift.func<"/type-definition/1001-CABIFunctionDefinition" as "f" :
 // CHECK:   !void(!uint8_t)
+// CHECK:   [#clift.c_attribute<"_ABI" : "/macro/_ABI"(
+// CHECK:     identifier "SystemV_x86_64" : "/macro-argument/_ABI/SystemV_x86_64"
+// CHECK:   )>]
 // CHECK: >
-!f = !clift.func<"/type-definition/1001-CABIFunctionDefinition" : !void(!uint8_t)>
+!f = !clift.func<
+  "/type-definition/1001-CABIFunctionDefinition"
+  : !void(!uint8_t)
+  [#clift.c_attribute<"_ABI" : "/macro/_ABI"(
+    identifier "SystemV_x86_64" : "/macro-argument/_ABI/SystemV_x86_64"
+  )>]
+>
 
 module attributes { clift.module } {
   // CHECK: clift.func @fun_0x40001001<!f>(
