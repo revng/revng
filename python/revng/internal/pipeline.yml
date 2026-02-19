@@ -7,10 +7,6 @@ containers:
     type: BinariesContainer
   - name: llvm-root
     type: LLVMRootContainer
-  - name: model-header
-    type: PTMLCBytesContainer
-  - name: model-types
-    type: PTMLCTypeContainer
   - name: cfg-map
     type: CFGMap
   - name: llvm-functions
@@ -43,6 +39,14 @@ containers:
     type: CallGraphSliceContainer
   - name: function-cfg
     type: FunctionControlFlowContainer
+  - name: clift-types-and-globals
+    type: CliftModuleContainer
+  - name: type-and-global-header
+    type: PTMLCBytesContainer
+  - name: helper-header
+    type: PTMLCBytesContainer
+  - name: single-type
+    type: PTMLCTypeBytesContainer
 
 analyses:
   - apply-diff
@@ -361,6 +365,8 @@ branches:
         containers: [clift-functions]
       - pipe: import-function-model-names
         arguments: [clift-functions]
+      - pipe: emit-helper-header
+        arguments: [clift-functions, helper-header]
       - pipe: emit-c
         arguments: [clift-functions, decompile-c]
       - savepoint: emit-c
@@ -376,26 +382,6 @@ branches:
         artifacts:
           - name: emit-c-as-single-file
             container: decompiled-single-file
-
-  emit-model-header:
-    tasks:
-      - pipe: model-to-header
-        arguments: [model-header]
-      - savepoint: model-header
-        containers: [model-header]
-        artifacts:
-          - name: emit-model-header
-            container: model-header
-
-  emit-type-definition:
-    tasks:
-      - pipe: generate-model-type-definition
-        arguments: [model-types]
-      - savepoint: model-types
-        containers: [model-types]
-        artifacts:
-          - name: emit-type-definitions
-            container: model-types
 
   hexdump:
     from: isolate
@@ -528,3 +514,41 @@ branches:
         artifacts:
           - name: render-svg-cfg
             container: function-cfg
+
+  import-clift-types:
+    tasks:
+      - pipe: import-clift-types
+        arguments: [clift-types-and-globals]
+        artifacts:
+          - name: import-clift-types
+            container: clift-types-and-globals
+
+  emit-type-and-global-header:
+    from: import-clift-types
+    tasks:
+      - pipe: import-clift-function-declarations
+        arguments: [clift-types-and-globals]
+      - pipe: import-clift-segment-declarations
+        arguments: [clift-types-and-globals]
+      - pipe: import-model-names
+        arguments: [clift-types-and-globals]
+      - pipe: emit-type-and-global-header
+        arguments: [clift-types-and-globals, type-and-global-header]
+      - savepoint: emit-type-and-global-header
+        containers: [type-and-global-header]
+        artifacts:
+          - name: emit-type-and-global-header
+            container: type-and-global-header
+
+  emit-single-type-definition:
+    from: import-clift-types
+    tasks:
+      - pipe: import-model-names
+        arguments: [clift-types-and-globals]
+      - pipe: emit-single-type-definition
+        arguments: [clift-types-and-globals, single-type]
+      - savepoint: emit-single-type-definition
+        containers: [single-type]
+        artifacts:
+          - name: emit-single-type-definition
+            container: single-type
