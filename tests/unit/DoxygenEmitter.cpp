@@ -19,12 +19,14 @@ BOOST_AUTO_TEST_CASE(LineComment) {
     auto Doxygen = ptml::emitDoxygenLineComment(C);
 
     Doxygen.emitKeyword("brief");
-    Doxygen.emit(" This does something.");
+    Doxygen.emit(" This does something.\n");
     Doxygen.emit("\n");
     Doxygen.emit("And also note this other thing.");
   }
-  constexpr auto &Expected = "/// \\brief This does something.\n"
-                             "/// And also note this other thing.\n";
+  constexpr llvm::StringRef Expected = "/// \\brief This does something.\n"
+                                       "/// \n"
+                                       "/// And also note this other thing.\n";
+
   revng_assert(Content == Expected);
 }
 
@@ -36,13 +38,14 @@ BOOST_AUTO_TEST_CASE(BlockComment) {
     auto Doxygen = ptml::emitDoxygenBlockComment(C);
 
     Doxygen.emitKeyword("brief");
-    Doxygen.emit(" This does something.");
+    Doxygen.emit(" This does something.\n");
     Doxygen.emit("\n");
     Doxygen.emit("And also note this other thing.");
   }
-  constexpr auto Expected = "/**\n"
-                            " * \\brief This does something.\n"
-                            " * And also note this other thing.\n"
-                            " */";
+  constexpr llvm::StringRef Expected = "/**\n"
+                                       " * \\brief This does something.\n"
+                                       " * \n"
+                                       " * And also note this other thing.\n"
+                                       " */";
   revng_assert(Content == Expected);
 }
