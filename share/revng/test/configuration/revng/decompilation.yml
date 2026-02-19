@@ -3,6 +3,7 @@
 #
 
 commands:
+  # TODO: drop this test once the old backend is removed
   - # Run legacy decompilation pipeline up to decompile-to-single-file
     type: revng.legacy.decompile-to-single-file
     from:
@@ -26,6 +27,7 @@ commands:
       - type: revng.emit-c
     command: |-
       revng model compare "${SOURCE}".model.yml "$INPUT/model.yml"
+  # TODO: convert this test to the new backend when possible
   - # Check well-formedness of decompiled C
     type: revng.legacy.decompile-to-single-file.check-decompiled-c
     from:
@@ -40,6 +42,7 @@ commands:
       revng artifact --resume "$$RESUME" emit-model-header "$INPUT1" | revng ptml > "$OUTPUT/types-and-globals.h";
       revng artifact --resume "$$RESUME" emit-helpers-header "$INPUT1" | revng ptml > "$OUTPUT/helpers.h";
       revng check-decompiled-c "$OUTPUT/decompiled.c" -I "$OUTPUT" -DLEGACY_BACKEND
+  # TODO: convert this test to the new backend when possible
   - # Perform checks on the decompiled C code
     type: revng.legacy.decompile-to-single-file.filecheck
     from:
