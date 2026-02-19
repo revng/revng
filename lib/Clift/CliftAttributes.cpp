@@ -179,7 +179,10 @@ public:
     void *Storage = Allocator.allocate<ClassAttrStorage>();
     llvm::StringRef Handle = Allocator.copyInto(Key.Handle);
     auto *S = new (Storage) ClassAttrStorage(Handle);
-    S->TheKey.Definition = Key.Definition;
+    if (Key.Definition.has_value()) {
+      mlir::LogicalResult Result = S->mutate(Allocator, *Key.Definition);
+      revng_assert(Result.succeeded());
+    }
     return S;
   }
 
