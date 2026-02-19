@@ -75,6 +75,15 @@ private:
   }
 };
 
+namespace detail {
+
+template<typename T>
+concept HasVersion = requires {
+  requires static_cast<int>(TupleLikeTraits<T>::Fields::Version) == 0;
+};
+
+}
+
 template<TupleTreeCompatible T>
 class TupleTree {
 private:
@@ -163,6 +172,13 @@ public:
       return MaybeRoot.takeError();
 
     *Result.Root = std::move(*MaybeRoot);
+
+    if constexpr (detail::HasVersion<T>) {
+      DisableTracking Guard(*Result.Root);
+      if (Result.Root->Version() == 0) {
+        Result.Root->Version() = T::SchemaVersion;
+      }
+    }
 
     // Update references to root
     Result.initializeReferences();
