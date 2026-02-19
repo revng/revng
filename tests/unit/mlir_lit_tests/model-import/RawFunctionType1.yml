@@ -8,7 +8,7 @@ TypeDefinitions:
   # CHECK: !_type_definition_1000_RawFunctionDefinition = !clift.func<
   # CHECK:   "/type-definition/1000-RawFunctionDefinition"
   # CHECK:   : !void()
-  # CHECK:   [#clift.attribute<"_ABI" : "/macro/_ABI"("raw_x86_64" : "/macro-argument/_ABI/raw_x86_64")>]
+  # CHECK:   [#clift.c_attribute<"_ABI" : "/macro/_ABI"(identifier "raw_x86_64" : "/macro-argument/_ABI/raw_x86_64")>]
   # CHECK: >
   - ID: 1000
     Kind: RawFunctionDefinition
