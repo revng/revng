@@ -22,12 +22,39 @@ module attributes {clift.module} {
       #clift.c_attribute<"A2">
     ]
   } {
-    // CHECK: int32_t y A3(argument);
+    // CHECK: int32_t identifier_argument A3(argument);
     clift.local : !int32_t attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/0",
-      name = "y",
+      name = "identifier_argument",
       clift.c_attributes = [
-        #clift.c_attribute<"A3" : "/support-library/A3"("argument")>
+        #clift.c_attribute<"A3" : "/macro/A3"(identifier "argument")>
+      ]
+    }
+
+    // CHECK: int32_t integer_argument A4(42);
+    clift.local : !int32_t attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/1",
+      name = "integer_argument",
+      clift.c_attributes = [
+        #clift.c_attribute<"A4" : "/macro/A4"(integer 42)>
+      ]
+    }
+
+    // CHECK: int32_t type_argument A5(int32_t);
+    clift.local : !int32_t attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/2",
+      name = "type_argument",
+      clift.c_attributes = [
+        #clift.c_attribute<"A5" : "/macro/A5"(type !int32_t)>
+      ]
+    }
+
+    // CHECK: int32_t multiple_arguments A6(argument, 42, int32_t);
+    clift.local : !int32_t attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/3",
+      name = "multiple_arguments",
+      clift.c_attributes = [
+        #clift.c_attribute<"A6" : "/macro/A6"(identifier "argument", integer 42, type !int32_t)>
       ]
     }
   }
