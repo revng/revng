@@ -14,7 +14,7 @@ import shlex
 import signal
 import sys
 from pathlib import Path
-from typing import Any, AsyncContextManager
+from typing import IO, Any, AsyncContextManager
 
 import click
 import yaml
@@ -242,6 +242,52 @@ def artifact(
                 # Write to stdout the bytes of the container
                 sys.stdout.buffer.write(res_container.to_bytes(container_format=container_format))
                 sys.stdout.buffer.flush()
+
+    storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
+    storage_provider_context = storage_provider_factory.get(
+        ctx.obj["base_directory"], None, None, None
+    )
+    asyncio.run(async_part_of_command(storage_provider_context))
+
+
+@quick.command(
+    cls=WrappablePypeCommand,
+    name="analyze",
+    context_settings={
+        "show_default": True,
+    },
+)
+@click.argument("binary", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "-o",
+    "output_file",
+    type=click.File("wb"),
+    help="Path to write the model to, if not specified, the result will be printed to stdout.",
+    default="-",
+)
+@analyses_option
+@debug_option
+@exec_wrapper_if_needed
+@click.pass_context
+def analyze(
+    ctx,
+    binary: Path,
+    output_file: IO[bytes],
+    analyses: str | None,
+    runner_context: RunnerContext,
+):
+    async def async_part_of_command(
+        storage_provider_context: AsyncContextManager[StorageProvider],
+    ):
+        async with storage_provider_context as storage_provider:
+            # Add binaries to storage
+            storage_provider.put_files_in_storage([FileStorageEntry(binary.name, binary)])
+
+            # Run initial auto analysis
+            model = handle_analysis_argument(
+                ctx.obj["pipeline"], analyses, binary, storage_provider, runner_context
+            )
+            output_file.write(model.serialize())
 
     storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
     storage_provider_context = storage_provider_factory.get(
