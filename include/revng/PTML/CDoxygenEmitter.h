@@ -20,7 +20,7 @@ using CDoxygenEmitter = DoxygenEmitter<CTokenEmitter::CommentEmitter>;
 [[nodiscard]] inline CDoxygenEmitter
 emitDoxygenBlockComment(CTokenEmitter &CE) {
   DoxygenCommentConfiguration Configuration = {
-    .CommentHeader = "*",
+    .CommentHeader = "*\n",
     .CommentFooter = " ",
     .LinePrefix = " * ",
   };
