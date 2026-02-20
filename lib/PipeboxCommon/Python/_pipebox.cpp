@@ -193,7 +193,13 @@ NB_MODULE(_pipebox, m) {
            //       copy anyways.
            return nanobind::bytes(Buffer.data(), Buffer.size());
          })
-    .def_static("deserialize", &Model::deserialize);
+    .def_static("deserialize", &Model::deserialize)
+    .def("__eq__", [](Model &Handle, nanobind::object Other) {
+      Model *OtherHandle;
+      if (not nanobind::try_cast<Model *>(Other, OtherHandle))
+        return false;
+      return Handle == *OtherHandle;
+    });
 
   // Register all Pipes, Analyses and Containers
   BaseClasses BC{

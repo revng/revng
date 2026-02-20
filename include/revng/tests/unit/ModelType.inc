@@ -656,7 +656,6 @@ BOOST_AUTO_TEST_CASE(TypeComparison) {
   // Ensure different types are different, even if they only differ by the ID.
   revng_check(FirstTD != SecondTD);
   revng_check(FirstT != SecondT);
-  revng_check(FirstTD != SecondTD);
 
   // Two distinct types are the same as long as they match completely.
   revng_check(FirstT == Model.makeType(FirstTD.key()));

@@ -496,7 +496,7 @@ static abi::FunctionType::Layout
 getPrototypeLayout(const model::Function &Function,
                    const abi::Definition &ABI) {
   if (const auto *CABI = Function.cabiPrototype()) {
-    if (ABI != CABI->ABI()) {
+    if (ABI.ABI() != CABI->ABI()) {
       std::string Error = "ABI mismatch. Passed argument indicates that "
                           "the intended ABI is `"
                           + toString(ABI.ABI()) + "` but the function is\n"
