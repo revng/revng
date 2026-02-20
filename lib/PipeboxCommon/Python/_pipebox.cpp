@@ -194,12 +194,15 @@ NB_MODULE(_pipebox, m) {
            return nanobind::bytes(Buffer.data(), Buffer.size());
          })
     .def_static("deserialize", &Model::deserialize)
-    .def("__eq__", [](Model &Handle, nanobind::object Other) {
-      Model *OtherHandle;
-      if (not nanobind::try_cast<Model *>(Other, OtherHandle))
-        return false;
-      return Handle == *OtherHandle;
-    });
+    .def("__eq__",
+         [](Model &Handle, nanobind::object Other) {
+           Model *OtherHandle;
+           if (not nanobind::try_cast<Model *>(Other, OtherHandle))
+             return false;
+           return Handle == *OtherHandle;
+         })
+    .def("enable_caching", &Model::enableCaching)
+    .def("disable_caching", &Model::disableCaching);
 
   // Register all Pipes, Analyses and Containers
   BaseClasses BC{

@@ -90,6 +90,9 @@ public:
     return *this->get().get() == *Other.get().get();
   }
 
+  void enableCaching() { TheModel.enableReferenceCaching(); }
+  void disableCaching() { TheModel.disableReferenceCaching(); }
+
 public:
   TupleTree<model::Binary> &get() { return TheModel; }
   const TupleTree<model::Binary> &get() const { return TheModel; }

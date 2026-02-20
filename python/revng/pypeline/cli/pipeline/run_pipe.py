@@ -239,6 +239,9 @@ def build_pipe_command(
         if file_storage is None:
             file_storage = ctx.obj["base_directory"]
 
+        # Enable model caching
+        loaded_model.enable_caching()
+
         # Finally, run the pipe
         object_deps = pipe.run(
             file_provider=SimpleFileProvider(cast(Path, file_storage)),

@@ -519,7 +519,7 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
     TC->finalize();
 
   // Purge cached references and update the reference to Root.
-  Model.evictCachedReferences();
+  Model.disableReferenceCaching();
   Model.initializeReferences();
 
   model::flattenPrimitiveTypedefs(Model);

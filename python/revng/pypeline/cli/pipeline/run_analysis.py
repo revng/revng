@@ -171,6 +171,9 @@ def build_run_analysis_command(
                 )
             )
 
+        # Disable caching
+        loaded_model.disable_caching()
+
         # Finally, run the analysis
         analysis.run(
             model=loaded_model,

@@ -227,6 +227,7 @@ exec \\
 
             return self._pipe_load_results(temp_dir_path, pipe, containers)
         else:
+            model.enable_caching()
             return pipe.run(
                 file_provider=file_provider,
                 model=model,
@@ -285,6 +286,7 @@ exec \\
             # This also allows to keep the original model intact
             # in case the analysis fails
             new_model = model.clone()
+            new_model.disable_caching()
             try:
                 analysis.run(
                     model=new_model,

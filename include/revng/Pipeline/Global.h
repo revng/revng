@@ -116,7 +116,7 @@ public:
   }
 
   void clear() override {
-    Value.evictCachedReferences();
+    Value.disableReferenceCaching();
     *Value = Object();
   }
 

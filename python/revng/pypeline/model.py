@@ -147,6 +147,18 @@ class Model(ABC):
         the storage provider to find the model in a project.
         """
 
+    def enable_caching(self):
+        """
+        Enable caching on the instance
+        """
+        pass
+
+    def disable_caching(self):
+        """
+        Disable caching on the instance, all cached data needs to be dropped
+        """
+        pass
+
 
 class ReadOnlyModel[M: Model]:
     """
@@ -182,3 +194,9 @@ class ReadOnlyModel[M: Model]:
         written in C++ where we can enforce the immutability of the model.
         """
         return self._context
+
+    def enable_caching(self):
+        self._context.enable_caching()
+
+    def disable_caching(self):
+        self._context.disable_caching()
