@@ -1,0 +1,33 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %revngpipe import-clift-segment-declarations %s /dev/null /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
+
+# NOTE: comments are intentionally missing from clift at this point!
+#      This test is verifying that they will not get introduced too early.
+#      To see how comment is represented on the IR, take a look at
+#      `import-comments` test reusing this model file (it has the same name).
+
+Segments:
+  # CHECK: module attributes {clift.module} {
+  # CHECK:   clift.global @"0x4:Generic64-64" : !clift.array<64 x !uint8_t>
+  # CHECK:   attributes {
+  # CHECK:     handle = "/segment/0x4:Generic64-64"
+  # CHECK:   }
+  # CHECK: }
+  - StartAddress: "0x4:Generic64"
+    VirtualSize: 0x40
+    StartOffset: 0
+    FileSize: 0x40
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+
+    Name: "my_named_segment"
+    Comment: |-
+      Unlike functions, segments only support simple comments.
+
+      To attach extra information to internals, use the corresponding struct
+      type!
+
+Architecture: x86_64
