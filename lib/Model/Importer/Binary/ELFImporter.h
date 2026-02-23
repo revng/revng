@@ -17,8 +17,6 @@
 
 extern Logger ELFImporterLog;
 
-namespace {
-
 class FilePortion {
 private:
   const RawBinaryView &File;
@@ -172,5 +170,3 @@ protected:
                          SmallVectorImpl<uint64_t> &NeededLibraryNameOffsets,
                          uint64_t Val) {}
 };
-
-} // end anonymous namespace

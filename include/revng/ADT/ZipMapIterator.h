@@ -41,14 +41,14 @@ concept VectorOfPairs = std::is_same_v<std::vector<std::pair<
                                        std::remove_const_t<T>>
                         and std::is_const_v<typename T::value_type::first_type>;
 
-namespace {
+namespace revng::asserts {
 
 static_assert(VectorOfPairs<const std::vector<std::pair<const int, long>>>, "");
 static_assert(VectorOfPairs<std::vector<std::pair<const int, long>>>, "");
 static_assert(not VectorOfPairs<const std::vector<std::pair<int, long>>>, "");
 static_assert(not VectorOfPairs<std::vector<std::pair<int, long>>>, "");
 
-} // namespace
+} // namespace revng::asserts
 
 //
 // element_pointer_t
