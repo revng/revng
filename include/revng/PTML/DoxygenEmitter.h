@@ -55,12 +55,16 @@ public:
   }
 
   void emitKeyword(llvm::StringRef Keyword) {
+    // TODO: this leads to signifier not being highlighted as the keyword,
+    //       but it's still better than the alternative of comment marker being
+    //       highlighted.
+    char Signifier = Base::Configuration.KeywordSignifier;
+    IndentingEmitter::emit(llvm::StringRef(&Signifier, 1));
+
     auto Tag = EmitterT::initializeOpenTag(ptml::tags::Span);
     Tag.emitAttribute(ptml::attributes::Token, ptml::doxygen::tokens::Keyword);
     Tag.finalizeOpenTag();
 
-    char Signifier = Base::Configuration.KeywordSignifier;
-    IndentingEmitter::emit(llvm::StringRef(&Signifier, 1));
     IndentingEmitter::emit(Keyword);
   }
 
