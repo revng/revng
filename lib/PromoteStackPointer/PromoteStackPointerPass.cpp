@@ -34,7 +34,7 @@
 #include "revng/Support/Debug.h"
 
 // This name is not present after `promote-stack-pointer`.
-RegisterIRHelper IBIMarker("revng_undefined_local_sp");
+RegisterIRHelper UndefinedLocalSPMarker("revng_undefined_local_sp");
 
 using namespace llvm;
 
