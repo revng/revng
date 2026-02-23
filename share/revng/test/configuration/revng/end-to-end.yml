@@ -175,7 +175,7 @@ commands:
         revng artifact \
           --model "$MODEL" \
           --resume "$RESUME" \
-          emit-model-header \
+          emit-type-and-global-header \
           "$BINARY" \
         | revng ptml > "$OUTDIR/types-and-globals.h"
 
