@@ -1000,7 +1000,8 @@ public:
       } else {
         const model::TypeDefinition *MT = getModelType(T.getHandle(),
                                                        rr::TypeDefinition);
-        revng_assert(MT != nullptr);
+        revng_assert(MT != nullptr,
+                     ("Unknown type: '" + T.getHandle().str() + "'").c_str());
 
         T.getMutableName().setValue(NameBuilder.name(*MT));
         T.getMutableComment().setValue(MT->Comment());
