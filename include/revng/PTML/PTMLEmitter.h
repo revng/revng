@@ -32,6 +32,7 @@ public:
     StreamEmitter(OS), EmitTags(Tags == Tagging::Enabled) {}
 
   void emitIndentation(unsigned Indentation);
+  void emitEmptyLine();
 };
 
 } // namespace detail

@@ -17,6 +17,7 @@ template<typename EmitterT>
 concept IndentableEmitter = //
   Emitter<EmitterT> and requires(EmitterT &Emitter) {
     Emitter.emitIndentation(static_cast<unsigned>(0));
+    Emitter.emitEmptyLine();
   };
 
 template<IndentableEmitter EmitterT>
@@ -62,6 +63,8 @@ public:
   void emitSpace() { EmitterT::emit(llvm::StringRef(" ")); }
 
   void emitNewline() {
+    if (IsAtBeginningOfLine)
+      EmitterT::emitEmptyLine();
     EmitterT::emit(llvm::StringRef("\n"));
     IsAtBeginningOfLine = true;
   }
