@@ -33,6 +33,8 @@ public:
     EmitterT::emit(Configuration.LinePrefix.str()
                    + std::string(Indentation, ' '));
   }
+
+  void emitEmptyLine() { EmitterT::emit(Configuration.LinePrefix.str()); }
 };
 
 } // namespace detail
@@ -48,10 +50,8 @@ public:
   explicit DoxygenEmitter(const DoxygenCommentConfiguration &Configuration,
                           ArgsT &&...Args) :
     IndentingEmitter(Configuration, std::forward<ArgsT>(Args)...) {
-    if (Base::Configuration.CommentHeader) {
+    if (Base::Configuration.CommentHeader)
       EmitterT::emit(*Base::Configuration.CommentHeader);
-      IndentingEmitter::emit("\n");
-    }
   }
 
   void emitKeyword(llvm::StringRef Keyword) {
@@ -76,8 +76,10 @@ public:
   }
 
   using IndentingEmitter::emit;
+  using IndentingEmitter::emitEmptyLine;
   using IndentingEmitter::emitNewline;
   using IndentingEmitter::emitSpace;
+  using IndentingEmitter::indent;
 };
 
 } // namespace ptml

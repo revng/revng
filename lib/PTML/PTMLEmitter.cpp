@@ -159,6 +159,10 @@ void detail::PTMLEmitterBase::emitIndentation(unsigned Indentation) {
   emit(std::string(Indentation, ' '));
 }
 
+void detail::PTMLEmitterBase::emitEmptyLine() {
+  /* intentional no-op */
+}
+
 void PTMLStreamEmitter::emit(llvm::StringRef Content) {
   revng_assert(CurrentOpenTagEmitter == nullptr,
                "Cannot emit content while an unfinalized tag emitter is "
