@@ -140,6 +140,13 @@ getAllowedActions(llvm::StringRef Location) {
   if (auto L = pipeline::locationFromString(rr::Instruction, Location))
     return { pa::CodeSwitch, pa::Comment };
 
+  if (auto L = pipeline::locationFromString(rr::GotoLabel, Location))
+    return { pa::Rename };
+  if (auto L = pipeline::locationFromString(rr::LocalVariable, Location))
+    return { pa::Rename };
+  if (auto L = pipeline::locationFromString(rr::StackFrameVariable, Location))
+    return { pa::Rename, pa::EditType };
+
   return {};
 }
 
