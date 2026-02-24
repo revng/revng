@@ -34,7 +34,7 @@ class WebSocketStream(Stream):
 class NotificationSubscriber:
     """Represents a notification subscriber with its own message queue"""
 
-    def __init__(self, project_id: ProjectID, stream: Stream):
+    def __init__(self, project_id: ProjectID | None, stream: Stream):
         self.project_id = project_id
         self.stream = stream
         self.message_queue: asyncio.Queue[str] = asyncio.Queue()
@@ -76,7 +76,9 @@ class NotificationBroker(ABC):
     """
 
     @abstractmethod
-    async def subscribe(self, project_id: ProjectID, stream: Stream) -> NotificationSubscriber:
+    async def subscribe(
+        self, project_id: ProjectID | None, stream: Stream
+    ) -> NotificationSubscriber:
         """Register to receive notifications for project \"project_id\" on the given stream"""
 
     @abstractmethod
@@ -84,5 +86,5 @@ class NotificationBroker(ABC):
         """Stop receiving notifications for project \"project_id\"."""
 
     @abstractmethod
-    async def notify(self, project_id: ProjectID, message: str):
+    async def notify(self, project_id: ProjectID | None, message: str):
         """Notify all subscribers of project \"project_id\" of the given message"""

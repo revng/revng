@@ -37,7 +37,7 @@ from .daemon import run_daemon
     "--storage-provider",
     "storage_provider",
     type=StorageProviderUrl(),
-    help=("The URL of the storage provider to use."),
+    help="The URL of the storage provider to use.",
     default="local://",
     envvar="PYPELINE_STORAGE_PROVIDER",
     show_default=True,
@@ -46,7 +46,7 @@ from .daemon import run_daemon
     "--cache-dir",
     "cache_dir",
     type=click.Path(exists=False, file_okay=False, dir_okay=True, writable=True),
-    help=("The directory to use for caching."),
+    help="The directory to use for caching.",
     default=str(cache_directory()),
     show_default=True,
 )

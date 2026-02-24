@@ -6,9 +6,7 @@ import os
 
 import click
 import uvicorn
-import yaml
 
-import revng
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import PypeCommand
 from revng.pypeline.daemon.app import make_starlette
@@ -24,9 +22,6 @@ from revng.pypeline.daemon.daemon import Daemon
 @pass_context
 def run_daemon(ctx: ClickContext, production, **kwargs):
     """Start the HTTP daemon."""
-
-    with open(ctx.obj.pipeline_path, "r", encoding="utf-8") as f:
-        pipeline_yaml = yaml.safe_load(f.read())
 
     # Configure uvicorn logging
     log_config = uvicorn.config.LOGGING_CONFIG
@@ -47,10 +42,7 @@ def run_daemon(ctx: ClickContext, production, **kwargs):
         kwargs.setdefault("host", "0.0.0.0")
 
     daemon = Daemon(
-        version=revng.__version__,
-        pipeline_yaml=pipeline_yaml,
         pipeline=ctx.obj.pipeline,
-        debug=not production,
         storage_provider_url=ctx.obj.storage_provider_url,
         cache_dir=ctx.obj.cache_dir,
         base_directory=ctx.obj.base_directory,

@@ -42,6 +42,7 @@ def compute_objects(
     # Otherwise we have to parse the objects provided by the user.
 
     # Parse the objects into ObjectSet
+    obj_type = get_singleton(ObjectID)  # type: ignore [type-abstract]
     objset = set()
     for obj in objects:
         if not isinstance(obj, str):
@@ -53,7 +54,6 @@ def compute_objects(
             )
 
         # Deserialize the object ID
-        obj_type = get_singleton(ObjectID)  # type: ignore [type-abstract]
         try:
             obj_id = obj_type.deserialize(obj)
         except ValueError as e:

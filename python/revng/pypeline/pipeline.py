@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import chain
-from typing import Dict, Generator, Generic, Iterable, List, Mapping, Optional, Set, TypeVar
+from typing import Dict, Generator, Iterable, List, Mapping, Optional, Set
 
 import yaml
 
@@ -60,10 +60,7 @@ class Artifact:
         }
 
 
-C = TypeVar("C", bound=Model)
-
-
-class Pipeline(Generic[C]):
+class Pipeline:
     """
     A pipeline is a tree of tasks.
 

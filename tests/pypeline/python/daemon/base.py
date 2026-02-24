@@ -15,9 +15,7 @@ class Response:
     code: int
     """The HTTP status code of the response."""
     body: Any
-    """
-    The response body of the request.
-    """
+    """The response body of the request."""
 
 
 class TestServer(ABC):
@@ -26,15 +24,8 @@ class TestServer(ABC):
         test_dir = Path(__file__).parent.parent
         self.tmp_dir = tempfile.TemporaryDirectory(prefix="test_daemon")
         self.tmp_dir_path = Path(self.tmp_dir.name)
-        for file in [
-            "pipebox.py",
-            "pipeline.yml",
-            "model.yml",
-        ]:
-            shutil.copyfile(
-                test_dir / file,
-                self.tmp_dir_path / file,
-            )
+        for file in ["pipebox.py", "pipeline.yml", "model.yml"]:
+            shutil.copyfile(test_dir / file, self.tmp_dir_path / file)
         self.pipebox_path = str(self.tmp_dir_path / "pipebox.py")
         self.pipeline_path = str(self.tmp_dir_path / "pipeline.yml")
 

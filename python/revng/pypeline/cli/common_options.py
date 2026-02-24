@@ -16,7 +16,7 @@ from revng.pypeline.runner_context import RunnerContext
 project_id_option = click.option(
     "--project-id",
     type=str,
-    help=("Project id to use for the storage provider."),
+    help="Project id to use for the storage provider.",
     envvar="PYPELINE_PROJECT_ID",
     show_default=True,
 )
@@ -85,7 +85,7 @@ def container_format_options(func):
         default=ContainerFormat.YAML.value,
         show_default=True,
         callback=handle_format_option,
-        help=("Format to use for the output container, either on stdout or in the result path."),
+        help="Format to use for the output container, either on stdout or in the result path.",
     )(func)
     for member in ContainerFormat:
         func = click.option(
