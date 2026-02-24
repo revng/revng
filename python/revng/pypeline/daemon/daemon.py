@@ -9,6 +9,7 @@ from typing import Any
 import jsonschema
 import yaml
 
+import revng.pypeline
 from revng.pypeline.container import Container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import Kind
@@ -29,9 +30,7 @@ class Response:
     code: int
     """The HTTP status code of the response."""
     body: Any
-    """
-    The response body of the request.
-    """
+    """The response body of the request."""
     headers: dict[str, str] = field(default_factory=dict)
     """The headers of the response."""
     notifications: list[Any] = field(default_factory=list)
@@ -49,17 +48,14 @@ class Response:
         return result
 
 
-def get_web_pipeline(version: str, pipeline: Pipeline) -> dict[str, Any]:
+def get_pipeline_description(pipeline: Pipeline) -> dict[str, Any]:
     """
     Build and validate the web representation of the pipeline.
     """
-    root = Path(__file__).resolve().parent.parent
-    with open(root / "web_schema.yml", "r", encoding="utf-8") as f:
-        schema = yaml.safe_load(f)
 
     # Build the web pipeline
-    web_pipeline = {
-        "version": version,
+    pipeline_description = {
+        "version": revng.pypeline.__version__,
         "kinds": get_singleton(Kind).type_dict(),  # type: ignore
         "containers": [
             container.type_dict()
@@ -78,10 +74,13 @@ def get_web_pipeline(version: str, pipeline: Pipeline) -> dict[str, Any]:
     }
 
     # Ensure that it respects the agreed schema
+    root = Path(__file__).resolve().parent.parent
+    with open(root / "web_schema.yml", "r", encoding="utf-8") as f:
+        schema = yaml.safe_load(f)
     validator = jsonschema.Draft7Validator(schema)
-    validator.validate(web_pipeline)
+    validator.validate(pipeline_description)
 
-    return web_pipeline
+    return pipeline_description
 
 
 class Daemon:
@@ -89,25 +88,19 @@ class Daemon:
 
     def __init__(
         self,
-        version: str,
-        pipeline_yaml: Any,
-        pipeline: Any,
-        debug: bool,
+        pipeline: Pipeline,
         storage_provider_url: str,
         cache_dir: str,
         base_directory: Path,
     ):
-        self.version = version
-        self.pipeline_yaml = pipeline_yaml
         self.pipeline = pipeline
-        self.debug = debug
         self.cache_dir = cache_dir
         self.base_directory = base_directory
         self.storage_provider_factory = storage_provider_factory_factory(storage_provider_url)
-        self.web_pipeline = get_web_pipeline(version, pipeline)
+        self.pipeline_description = get_pipeline_description(pipeline)
 
     def _get_storage_provider_context(self, request):
-        project_id = request["project_id"]
+        project_id = request.get("project_id")
         token = request.get("token")
         return self.storage_provider_factory.get(
             base_directory=self.base_directory,
@@ -141,7 +134,7 @@ class Daemon:
     def get_pipeline(self) -> Response:
         return Response(
             code=200,
-            body=self.web_pipeline,
+            body=self.pipeline_description,
         )
 
     async def artifact(self, request) -> Response:
@@ -276,6 +269,8 @@ class Daemon:
                 )
             else:
                 analysis_list = self.pipeline.analysis_lists[analysis]
+                if len(configuration) == 0:
+                    configuration = ["" for _ in analysis_list.analyses]
                 new_model, invalidated = self.pipeline.run_analysis_list(
                     model=ReadOnlyModel(model),
                     analysis_list=analysis_list,
@@ -285,7 +280,7 @@ class Daemon:
                 )
 
             # Compute the diff between the original model and the final one
-            diff = str(model.diff(new_model))
+            diff_raw = model.diff(new_model).serialize()
             # TODO: this can be done much more efficiently
             new_epoch = storage_provider.get_epoch()
 
@@ -298,11 +293,13 @@ class Daemon:
             invalidated_artifacts.append(
                 {
                     "name": artifact.name,
-                    "configuration": artifact.configuration,
+                    "configuration": container_location.configuration_id,
                     "object_ids": [object_id.serialize() for object_id in object_ids],
                 }
             )
 
+        model_type = get_singleton(Model)  # type: ignore[type-abstract]
+        diff = bytes_to_string(diff_raw, model_type.is_text())
         # Return the updated model
         return Response(
             code=200,

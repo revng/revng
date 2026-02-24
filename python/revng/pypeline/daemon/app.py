@@ -6,7 +6,7 @@ import json
 import os
 import traceback
 from functools import wraps
-from typing import Any
+from typing import Any, Mapping
 
 from starlette.applications import Starlette
 from starlette.exceptions import HTTPException
@@ -46,9 +46,9 @@ def basic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
-def get_project_id(headers: dict[str, str]) -> str | None:
+def get_project_id(headers: Mapping[str, str]) -> str | None:
     """Extract project ID from headers, return none if missing"""
-    return headers.get("x-projectid")
+    return headers.get("x-project-id")
 
 
 async def invalidation_websocket(websocket: WebSocket):
@@ -57,8 +57,7 @@ async def invalidation_websocket(websocket: WebSocket):
     subscriber = None
 
     try:
-        project_id = get_project_id(dict(websocket.headers))
-        assert project_id is not None, "Project ID is required"
+        project_id = get_project_id(websocket.headers)
         subscriber = await notification_broker.subscribe(project_id, WebSocketStream(websocket))
         await subscriber.listen_for_messages()
     except BasicHTTPException as e:
@@ -78,7 +77,7 @@ def prepare_endpoint(func):
 
     @wraps(func)
     async def wrapper(request: Request) -> JSONResponse:
-        project_id = get_project_id(dict(request.headers))
+        project_id = get_project_id(request.headers)
         # Prepare the data dictionary with the common attributes we extract
         # from the headers
         data = {
@@ -88,7 +87,6 @@ def prepare_endpoint(func):
         response = await func(request, data)
         # Forward any websocket notification
         for notification in response.notifications:
-            assert project_id is not None, "Project ID is required"
             await notification_broker.notify(project_id, json.dumps(notification))
         # Convert the daemon response to a JSON response
         return JSONResponse(

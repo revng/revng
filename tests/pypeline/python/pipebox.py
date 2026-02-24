@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from abc import ABC, ABCMeta
 from collections.abc import Buffer
@@ -246,7 +247,7 @@ class DictModelDiff(ModelDiff):
         return self._paths
 
     def serialize(self) -> bytes:
-        raise NotImplementedError()
+        return json.dumps(list(self._paths)).encode()
 
 
 class DictModel(Model):

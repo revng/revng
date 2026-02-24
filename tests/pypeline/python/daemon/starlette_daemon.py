@@ -63,7 +63,7 @@ class StarletteTestServer(TestServer):
         main(
             (
                 "-C",
-                self.tmp_dir_path,
+                self.tmp_dir.name,
                 "--pipebox",
                 self.pipebox_path,
                 "project",
@@ -98,61 +98,31 @@ class StarletteTestServer(TestServer):
         logger.info("Getting epoch")
         r = self.session.get(f"{self.base_url}/api/epoch")
         logger.info("Epoch response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
+        return Response(code=r.status_code, body=r.json())
 
     def get_pipeline(self) -> Response:
         logger.info("Getting pipeline")
         r = self.session.get(f"{self.base_url}/api/pipeline")
         logger.info("Pipeline response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
+        return Response(code=r.status_code, body=r.json())
 
     def get_model(self) -> Response:
         logger.info("Getting model")
         r = self.session.get(f"{self.base_url}/api/model")
         logger.info("Model response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
-
-    def get_monitoring(self) -> Response:
-        logger.info("Getting model")
-        r = self.session.get(f"{self.base_url}/api/monitoring")
-        logger.info("Monitoring response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
+        return Response(code=r.status_code, body=r.json())
 
     def run_analysis(self, analysis_request) -> Response:
         logger.info("Running analysis with request %s", analysis_request)
-        r = self.session.post(
-            f"{self.base_url}/api/analysis",
-            json=analysis_request,
-        )
+        r = self.session.post(f"{self.base_url}/api/analysis", json=analysis_request)
         logger.info("Analysis response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
+        return Response(code=r.status_code, body=r.json())
 
     def get_artifact(self, artifact_request) -> Response:
         logger.info("Getting Artifact with request %s", artifact_request)
-        r = self.session.post(
-            f"{self.base_url}/api/artifact",
-            json=artifact_request,
-        )
+        r = self.session.post(f"{self.base_url}/api/artifact", json=artifact_request)
         logger.info("Artifact response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
+        return Response(code=r.status_code, body=r.json())
 
     def subscribe(self):
         return websockets.sync.client.connect(

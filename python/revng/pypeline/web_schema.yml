@@ -35,7 +35,8 @@ properties:
           type:
             - string
             - "null"
-          description: "The name of the parent kind, or null if this is a root kind"
+          description: >
+            The name of the parent kind, or null if this is a root kind
   containers:
     type: array
     description: List of container types available in the pipeline
