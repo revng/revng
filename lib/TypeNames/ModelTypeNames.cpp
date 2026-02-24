@@ -27,7 +27,7 @@
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
-#include "revng/Support/CAttributes.h"
+#include "revng/PTML/CAttributes.h"
 #include "revng/Support/Assert.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/ModelCBuilder.h"

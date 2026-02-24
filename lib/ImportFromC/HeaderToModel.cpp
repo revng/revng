@@ -11,7 +11,7 @@
 #include "revng/Model/Processing.h"
 #include "revng/PTML/CBuilder.h"
 #include "revng/Pipes/Ranks.h"
-#include "revng/Support/CAttributes.h"
+#include "revng/PTML/CAttributes.h"
 #include "revng/Support/Debug.h"
 #include "revng/TypeNames/ModelCBuilder.h"
 

@@ -14,7 +14,7 @@
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
-#include "revng/Support/CAttributes.h"
+#include "revng/PTML/CAttributes.h"
 
 namespace mlir::clift {
 
