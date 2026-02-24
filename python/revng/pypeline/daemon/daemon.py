@@ -9,6 +9,7 @@ from typing import Any
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import Kind
 from revng.pypeline.pipeline import Pipeline
+from revng.pypeline.storage.storage_provider import FileStorageEntry
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils import bytes_to_string
@@ -93,6 +94,20 @@ class Daemon:
         return Response(
             code=200,
             body=self.pipeline_description,
+        )
+
+    async def put_file(self, request) -> Response:
+        entry = FileStorageEntry(request["name"], contents=request["contents"])
+        storage_provider_context = self._get_storage_provider_context(request)
+        async with storage_provider_context as storage_provider:
+            hashes = storage_provider.put_files_in_storage([entry])
+
+        return Response(
+            code=200,
+            body={
+                "name": request["name"],
+                "hash": hashes[0],
+            },
         )
 
     async def artifact(self, request) -> Response:

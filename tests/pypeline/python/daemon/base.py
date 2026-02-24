@@ -39,6 +39,9 @@ class TestServer(ABC):
     def get_model(self) -> Response: ...
 
     @abstractmethod
+    def put_file(self, put_file_request) -> Response: ...
+
+    @abstractmethod
     def run_analysis(self, analysis_request) -> Response: ...
 
     @abstractmethod

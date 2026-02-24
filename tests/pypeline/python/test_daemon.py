@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from hashlib import sha256
 
 # Import the pipebox, even if unused it will populate the registries
 import pipebox as _  # noqa: F401
@@ -102,6 +103,15 @@ def test_daemon(daemon_server: TestServer):
     assert "epoch" in model_data
     assert "model" in model_data
     initial_model = model_data["model"]
+
+    # Test put_file endpoint
+    logger.info("Testing put_file endpoint")
+    contents = b"Hello world!"
+    response = daemon_server.put_file({"name": "test", "contents": contents})
+    assert response.code == 200
+    put_file_data = response.body
+    assert put_file_data["name"] == "test"
+    assert put_file_data["hash"] == sha256(contents).hexdigest()
 
     # Connect to the websocket
     notifications_websocket = daemon_server.subscribe()

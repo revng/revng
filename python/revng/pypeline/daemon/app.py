@@ -8,6 +8,7 @@ from functools import wraps
 from typing import Mapping
 
 from starlette.applications import Starlette
+from starlette.datastructures import UploadFile
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
@@ -20,7 +21,7 @@ from revng.pypeline.utils import PypelineException
 from revng.pypeline.utils.logger import pypeline_logger
 
 from .daemon import Daemon, Response
-from .exceptions import DaemonException
+from .exceptions import DaemonException, MalformedRequestError
 from .notification_broker import WebSocketStream
 from .notification_broker.local_broker import LocalNotificationBroker
 
@@ -113,6 +114,17 @@ def make_starlette(daemon: Daemon) -> Starlette:
         return await daemon.get_model(data)
 
     @prepare_endpoint
+    async def put_file_endpoint(request: Request, data: dict) -> Response:
+        """Put a file in storage"""
+        async with request.form() as form:
+            if not isinstance(form["file"], UploadFile):
+                raise MalformedRequestError('"file" parameter is not a file')
+            file: UploadFile = form["file"]
+            return await daemon.put_file(
+                {"name": file.filename, "contents": await file.read(), **data}
+            )
+
+    @prepare_endpoint
     async def artifact_endpoint(request: Request, data: dict) -> Response:
         """Process artifact requests"""
         return await daemon.artifact({**await request.json(), **data})
@@ -127,6 +139,7 @@ def make_starlette(daemon: Daemon) -> Starlette:
         Route("/api/epoch", epoch_endpoint, methods=["GET"]),
         Route("/api/pipeline", pipeline_endpoint, methods=["GET"]),
         Route("/api/model", model_endpoint, methods=["GET"]),
+        Route("/api/put-file", put_file_endpoint, methods=["POST"]),
         Route("/api/artifact", artifact_endpoint, methods=["POST"]),
         Route("/api/analysis", analysis_endpoint, methods=["POST"]),
         WebSocketRoute("/api/subscribe", invalidation_websocket),
