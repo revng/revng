@@ -7,10 +7,11 @@ title: PipelineDescription
 type: object
 required:
   - version
+  - model
   - kinds
+  - container_types
   - containers
-  - container_declarations
-  - root
+  - root_node_id
   - nodes
   - artifacts
   - analyses
@@ -19,6 +20,28 @@ properties:
   version:
     type: string
     description: The version of the pipeline
+  model:
+    type: object
+    description: Metadata about the type of the model
+    required:
+      - identifier
+      - name
+      - mime_type
+      - is_text
+    properties:
+      identifier:
+        type: string
+        description: >
+          An identifier unique to the model class used by the pipeline
+      name:
+        type: string
+        description: The expected name of the model file
+      mime_type:
+        type: string
+        description: The MIME type of the model
+      is_text:
+        type: boolean
+        description: Whether the model holds text content
   kinds:
     type: array
     description: List of object kinds in the pipeline
@@ -37,7 +60,7 @@ properties:
             - "null"
           description: >
             The name of the parent kind, or null if this is a root kind
-  containers:
+  container_types:
     type: array
     description: List of container types available in the pipeline
     items:
@@ -60,22 +83,13 @@ properties:
         kind:
           type: string
           description: The kind of objects this container holds
-  container_declarations:
-    type: array
-    description: List of container instances declared in the pipeline
-    items:
-      type: object
-      required:
-        - name
-        - type
-      properties:
-        name:
-          type: string
-          description: The name of the container instance
-        type:
-          type: string
-          description: The class name of the container type
-  root:
+  containers:
+    type: object
+    description: Mapping of container names to their type
+    patternProperties:
+      "^.*$":
+        type: string
+  root_node_id:
     type: integer
     description: The ID of the root node in the pipeline
   nodes:
@@ -139,19 +153,15 @@ properties:
       type: object
       required:
         - name
-        - container_name
-        - container_type
+        - container
         - cacheable
       properties:
         name:
           type: string
           description: The name of the artifact
-        container_name:
+        container:
           type: string
           description: The name of the container instance
-        container_type:
-          type: string
-          description: The class name of the container type
         cacheable:
           type: boolean
           description: Whether this artifact can be cached
@@ -162,17 +172,12 @@ properties:
       type: object
       required:
         - name
-        - class
         - bindings
         - node
-        - description
       properties:
         name:
           type: string
           description: The name of the analysis
-        class:
-          type: string
-          description: The class name of the analysis
         bindings:
           type: array
           items:
@@ -191,9 +196,6 @@ properties:
         node:
           type: integer
           description: The ID of the node this analysis is bound to
-        description:
-          type: string
-          description: A description of the analysis
   analyses_lists:
     type: array
     description: List of named groups of analyses

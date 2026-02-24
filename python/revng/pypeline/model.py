@@ -42,6 +42,9 @@ class Model(ABC):
     objects that have been previously produced.
     """
 
+    # String identifying the model class
+    identifier: str
+
     @abstractmethod
     def diff(self, other: Self) -> ModelDiff:
         raise NotImplementedError()

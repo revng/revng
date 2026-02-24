@@ -64,16 +64,14 @@ class AnalysisBinding:
         """Convert the data into a dictionary representation."""
         return {
             "name": self.analysis.name,
-            "class": self.analysis.__class__.__name__,
             "bindings": [
                 {
                     "name": binding.name,
-                    "container_type": binding.container_type.__name__,
+                    "container_type": binding.container_type.name,
                 }
                 for binding in self.bindings
             ],
             "node": self.node.id,
-            "description": self.__doc__,
         }
 
 
