@@ -251,6 +251,8 @@ class DictModelDiff(ModelDiff):
 
 
 class DictModel(Model):
+    identifier = "test-dict-model"
+
     def __init__(self):
         self._data: Dict[ModelPath, Value] = {}
 

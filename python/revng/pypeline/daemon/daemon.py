@@ -6,18 +6,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import jsonschema
-import yaml
-
-import revng.pypeline
-from revng.pypeline.container import Container
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import Kind
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils import bytes_to_string
-from revng.pypeline.utils.registry import get_registry, get_singleton
+from revng.pypeline.utils.pipeline import get_pipeline_description
+from revng.pypeline.utils.registry import get_singleton
 
 from .utils import compute_artifact, compute_objects
 
@@ -46,41 +42,6 @@ class Response:
         if len(self.notifications) != 0:
             result["notifications"] = self.notifications
         return result
-
-
-def get_pipeline_description(pipeline: Pipeline) -> dict[str, Any]:
-    """
-    Build and validate the web representation of the pipeline.
-    """
-
-    # Build the pipeline description
-    pipeline_description = {
-        "version": revng.pypeline.__version__,
-        "kinds": get_singleton(Kind).type_dict(),  # type: ignore
-        "containers": [
-            container.type_dict()
-            for container in get_registry(Container).values()  # type: ignore [type-abstract]
-        ],
-        "container_declarations": [
-            container_decl.to_dict() for container_decl in pipeline.declarations
-        ],
-        "root": pipeline.root.id,
-        "nodes": [node.to_dict() for node in pipeline.walk_pipeline(stable=True)],
-        "artifacts": [artifact.to_dict() for artifact in pipeline.artifacts.values()],
-        "analyses": [analysis.to_dict() for analysis in pipeline.analyses.values()],
-        "analyses_lists": [
-            analysis_list.to_dict() for analysis_list in pipeline.analysis_lists.values()
-        ],
-    }
-
-    # Ensure that it respects the agreed schema
-    root = Path(__file__).resolve().parent.parent
-    with open(root / "pipeline-description-schema.yml", "r", encoding="utf-8") as f:
-        schema = yaml.safe_load(f)
-    validator = jsonschema.Draft7Validator(schema)
-    validator.validate(pipeline_description)
-
-    return pipeline_description
 
 
 class Daemon:
@@ -117,17 +78,13 @@ class Daemon:
     async def get_model(self, request):
         storage_provider_context = self._get_storage_provider_context(request)
         async with storage_provider_context as storage_provider:
-            model_type: type[Model] = get_singleton(Model)
             model, epoch = storage_provider.get_model()
 
         return Response(
             code=200,
             body={
                 "epoch": epoch,
-                "model_type": model_type.__name__,
-                "mime_type": model_type.mime_type(),
-                "is_text": model_type.is_text(),
-                "model": bytes_to_string(model.serialize(), is_text=model_type.is_text()),
+                "model": bytes_to_string(model.serialize(), is_text=model.__class__.is_text()),
             },
         )
 

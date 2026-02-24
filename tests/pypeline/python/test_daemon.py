@@ -61,20 +61,27 @@ def test_daemon(daemon_server: TestServer):
     response = daemon_server.get_pipeline()
     pipeline_data = response.body
     assert "version" in pipeline_data
+    assert "model" in pipeline_data
     assert "containers" in pipeline_data
     assert "kinds" in pipeline_data
-    assert "container_declarations" in pipeline_data
-    assert "root" in pipeline_data
+    assert "container_types" in pipeline_data
+    assert "root_node_id" in pipeline_data
     assert "nodes" in pipeline_data
     assert "artifacts" in pipeline_data
     assert "analyses" in pipeline_data
     assert "analyses_lists" in pipeline_data
     assert pipeline_data["version"] == revng.__version__
 
+    # Validate model metadata
+    model_metadata = pipeline_data["model"]
+    assert model_metadata["is_text"] is True
+    assert model_metadata["mime_type"] == "application/x-yaml"
+    assert model_metadata["name"] == "model.yml"
+
     # Validate containers structure (containers have "class" field)
     containers = pipeline_data["containers"]
-    assert isinstance(containers, list)
-    container_classes = [c["class"] for c in containers]
+    assert isinstance(containers, dict)
+    container_classes = list(containers.values())
     expected_containers = ["RootDictContainer", "ChildDictContainer"]
     for expected in expected_containers:
         assert expected in container_classes, f"Expected container {expected} not found"
@@ -93,9 +100,7 @@ def test_daemon(daemon_server: TestServer):
     assert response.code == 200
     model_data = response.body
     assert "epoch" in model_data
-    assert "is_text" in model_data
     assert "model" in model_data
-    assert model_data["is_text"]  # DictModel is text-based
     initial_model = model_data["model"]
 
     # Connect to the websocket

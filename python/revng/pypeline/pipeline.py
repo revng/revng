@@ -54,8 +54,7 @@ class Artifact:
         """Convert the artifact to a dictionary representation."""
         return {
             "name": self.name,
-            "container_name": self.container.name,
-            "container_type": self.container.container_type.__name__,
+            "container": self.container.name,
             "cacheable": self.is_cacheable(),
         }
 

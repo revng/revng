@@ -85,7 +85,7 @@ class ContainerDeclaration:
         """Convert the data into a dictionary representation."""
         return {
             "name": self.name,
-            "type": self.container_type.__name__,
+            "type": self.container_type.name,
         }
 
 
@@ -340,7 +340,7 @@ class Container(ABC):
     def type_dict(cls) -> dict:
         """Convert the data into a dictionary representation."""
         return {
-            "class": cls.__name__,
+            "class": cls.name,
             "mime_type": cls.mime_type(),
             "is_text": cls.is_text(),
             "kind": cls.kind.serialize(),
