@@ -91,6 +91,11 @@ public:
   mlir::MLIRContext &getContext() const {
     // WIP: this is a nasty hack, it lets us avoid `mutable` and `const_cast`.
     //      It requires all the modules to share the same context!
+    //
+    // WIP 2: this is not good enough, I'm seeing the following assert trigger!
+    if (Modules.empty())
+      return const_cast<mlir::MLIRContext &>(Context.value());
+
     revng_assert(!Modules.empty());
     return *Modules.begin()->second.get().getContext();
   }
