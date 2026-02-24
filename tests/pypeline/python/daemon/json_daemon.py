@@ -84,6 +84,12 @@ class JsonTestServer(TestServer):
         return Response(code=response.code, body=response.body)
 
     @handle_exceptions
+    def put_file(self, put_file_request) -> Response:
+        put_file_request.setdefault("project_id", self.project_id)
+        response = asyncio.run(self.daemon.put_file(put_file_request))
+        return Response(code=response.code, body=response.body)
+
+    @handle_exceptions
     def run_analysis(self, analysis_request) -> Response:
         analysis_request.setdefault("project_id", self.project_id)
         response = asyncio.run(self.daemon.analyze(analysis_request))

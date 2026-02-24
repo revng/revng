@@ -112,6 +112,15 @@ class StarletteTestServer(TestServer):
         logger.info("Model response: %s", r.text)
         return Response(code=r.status_code, body=r.json())
 
+    def put_file(self, put_file_request) -> Response:
+        logger.info("Putting file in storage with request %s", put_file_request)
+        r = self.session.post(
+            f"{self.base_url}/api/put-file",
+            files={"file": (put_file_request["name"], put_file_request["contents"])},
+        )
+        logger.info("put_file response: %s", r.text)
+        return Response(code=r.status_code, body=r.json())
+
     def run_analysis(self, analysis_request) -> Response:
         logger.info("Running analysis with request %s", analysis_request)
         r = self.session.post(f"{self.base_url}/api/analysis", json=analysis_request)
