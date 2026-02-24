@@ -429,10 +429,10 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/object.py
     revng/pypeline/pipeline_node.py
     revng/pypeline/pipeline_parser.py
+    revng/pypeline/pipeline-description-schema.yml
     revng/pypeline/pipeline.py
     revng/pypeline/runner_context.py
     revng/pypeline/schema.yml
-    revng/pypeline/web_schema.yml
     revng/pypeline/daemon/__init__.py
     revng/pypeline/daemon/app.py
     revng/pypeline/daemon/daemon.py
@@ -469,6 +469,11 @@ python_module(
   revng/pypeline/__init__.py
   MODULE_FILES
   ${REVNG_PYPELINE_MODULE_FILES})
+
+configure_file(
+  revng/pypeline/pipeline-description-schema.yml
+  "${CMAKE_BINARY_DIR}/share/revng/pipeline/pipeline-description-schema.yml"
+  COPYONLY)
 
 #
 # Nanobind module generation and creation of revng.internal.{,_}cpp_pypeline

@@ -53,7 +53,7 @@ def get_pipeline_description(pipeline: Pipeline) -> dict[str, Any]:
     Build and validate the web representation of the pipeline.
     """
 
-    # Build the web pipeline
+    # Build the pipeline description
     pipeline_description = {
         "version": revng.pypeline.__version__,
         "kinds": get_singleton(Kind).type_dict(),  # type: ignore
@@ -75,7 +75,7 @@ def get_pipeline_description(pipeline: Pipeline) -> dict[str, Any]:
 
     # Ensure that it respects the agreed schema
     root = Path(__file__).resolve().parent.parent
-    with open(root / "web_schema.yml", "r", encoding="utf-8") as f:
+    with open(root / "pipeline-description-schema.yml", "r", encoding="utf-8") as f:
         schema = yaml.safe_load(f)
     validator = jsonschema.Draft7Validator(schema)
     validator.validate(pipeline_description)
