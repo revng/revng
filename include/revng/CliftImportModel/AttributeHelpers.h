@@ -12,9 +12,9 @@
 #include "revng/ADT/ConstexprString.h"
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftAttributes.h"
+#include "revng/PTML/CAttributes.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
-#include "revng/Support/CAttributes.h"
 
 namespace mlir::clift {
 
