@@ -29,7 +29,7 @@ protected:
 public:
   struct ConfigurationOptions {
     /// When set to true, function stack frame types are printed also inside the
-    /// struct body, and not just in the header.
+    /// function body, and not just in the header.
     /// This may break the property that we emit syntactically valid C code,
     /// because including the header will cause the definition of the stack
     /// frame type to be duplicated in the header and inside the function body.

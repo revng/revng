@@ -79,7 +79,7 @@ static std::optional<llvm::StringRef> getScopeKindAttribute(ScopeKind Kind) {
   case ScopeKind::None:
     break;
   case ScopeKind::EnumDefinition:
-    return std::nullopt;
+    return ptml::c::scopes::EnumBody;
   case ScopeKind::StructDefinition:
     return ptml::c::scopes::StructBody;
   case ScopeKind::UnionDefinition:
@@ -99,40 +99,55 @@ getAllowedActions(llvm::StringRef Location) {
   namespace rr = revng::ranks;
   namespace pa = ptml::actions;
 
+  if (auto L = pipeline::locationFromString(rr::TypeDefinition, Location))
+    return { pa::Rename, pa::EditType };
+  if (auto L = pipeline::locationFromString(rr::Function, Location))
+    return { pa::Rename, pa::EditType };
+  if (auto L = pipeline::locationFromString(rr::DynamicFunction, Location))
+    return { pa::Rename, pa::EditType };
+  if (auto L = pipeline::locationFromString(rr::Segment, Location))
+    return { pa::Rename, pa::EditType };
+
   if (auto L = pipeline::locationFromString(rr::StructField, Location))
     return { pa::Rename };
-
   if (auto L = pipeline::locationFromString(rr::UnionField, Location))
     return { pa::Rename };
-
   if (auto L = pipeline::locationFromString(rr::EnumEntry, Location))
     return { pa::Rename };
 
   if (auto L = pipeline::locationFromString(rr::PrimitiveType, Location))
     return {};
 
+  if (auto L = pipeline::locationFromString(rr::CABIArgument, Location))
+    return { pa::Rename, pa::EditType };
+
   if (auto L = pipeline::locationFromString(rr::RawArgument, Location))
     return { pa::EditType };
-
   if (auto L = pipeline::locationFromString(rr::RawStackArguments, Location))
     return { pa::EditType };
+  if (auto L = pipeline::locationFromString(rr::ReturnRegister, Location))
+    return { pa::Rename, pa::EditType };
 
   if (auto L = pipeline::locationFromString(rr::ArtificialStruct, Location))
     return {};
-
   if (auto L = pipeline::locationFromString(rr::HelperFunction, Location))
     return {};
-
   if (auto L = pipeline::locationFromString(rr::HelperStructType, Location))
     return {};
-
   if (auto L = pipeline::locationFromString(rr::HelperStructField, Location))
     return {};
 
   if (auto L = pipeline::locationFromString(rr::Instruction, Location))
     return { pa::CodeSwitch, pa::Comment };
 
-  return { pa::Rename, pa::EditType };
+  if (auto L = pipeline::locationFromString(rr::GotoLabel, Location))
+    return { pa::Rename };
+  if (auto L = pipeline::locationFromString(rr::LocalVariable, Location))
+    return { pa::Rename };
+  if (auto L = pipeline::locationFromString(rr::StackFrameVariable, Location))
+    return { pa::Rename, pa::EditType };
+
+  return {};
 }
 
 static std::string getActionContextLocation(llvm::StringRef Location) {
@@ -511,17 +526,22 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
   revng_assert(not IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");
 
-  revng_assert(validateIdentifier(Identifier),
-               "The specified identifier is not a valid C identifier.");
-
-  auto LocationAttribute = IsDefinition == IdentifierKind::Definition ?
-                             ptml::attributes::LocationDefinition :
-                             ptml::attributes::LocationReferences;
+  revng_check(!Identifier.empty());
+  if (not validateIdentifier(Identifier)) {
+    revng_abort(("The specified identifier is not a valid C identifier: `"
+                 + Identifier + "`")
+                  .str()
+                  .c_str());
+  }
 
   auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
   if (auto Attribute = getEntityKindAttribute(Kind))
     Tag.emitAttribute(ptml::attributes::Token, *Attribute);
+
   if (not Location.empty()) {
+    auto LocationAttribute = IsDefinition == IdentifierKind::Definition ?
+                               ptml::attributes::LocationDefinition :
+                               ptml::attributes::LocationReferences;
     Tag.emitAttribute(LocationAttribute, Location);
 
     auto Actions = getAllowedActions(Location);

@@ -4,7 +4,6 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Clift/Clift.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Support/CTarget.h"
@@ -16,13 +15,13 @@ class CEmitter {
 protected:
   using CTE = ptml::CTokenEmitter;
 
-  ptml::CTokenEmitter &C;
+  ptml::CTokenEmitter &Tokens;
   const TargetCImplementation &Target;
 
 public:
   explicit CEmitter(ptml::CTokenEmitter &Emitter,
                     const TargetCImplementation &Target) :
-    C(Emitter), Target(Target) {}
+    Tokens(Emitter), Target(Target) {}
 
   //===------------------------------- Types ------------------------------===//
 
@@ -41,6 +40,10 @@ public:
 
   void emitAttribute(AttributeAttr Attribute);
   void emitAttributes(mlir::ArrayAttr Attributes);
+
+  //===---------------------------- Prototype -----------------------------===//
+
+  void emitFunctionPrototype(FunctionOp Function);
 
   //===--------------------------- Declarations ---------------------------===//
 
@@ -61,7 +64,7 @@ public:
     mlir::ArrayAttr Attributes;
     CTE::EntityKind Kind;
 
-    llvm::ArrayRef<ParameterDeclaratorInfo> Parameters;
+    std::optional<llvm::ArrayRef<ParameterDeclaratorInfo>> Parameters;
   };
 
   /// Emit a function or variable declaration of the specified type.
@@ -69,6 +72,12 @@ public:
 
 private:
   class DeclarationEmitter;
+
+public:
+  //===--------------------------- Other Helpers --------------------------===//
+
+  static ptml::CTokenEmitter::EntityKind
+  chooseEntityKind(mlir::clift::DefinedType Type);
 };
 
 } // namespace mlir::clift

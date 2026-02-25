@@ -11,7 +11,6 @@
 #include "revng/Model/Importer/TypeCopier.h"
 #include "revng/Model/Processing.h"
 
-namespace {
 using ModelMap = std::map<std::string, TupleTree<model::Binary>>;
 
 using TypeCopierMap = std::map<std::string, std::unique_ptr<TypeCopier>>;
@@ -88,4 +87,3 @@ findPrototype(llvm::StringRef Function, ModelMap &ModelsOfDynamicLibraries) {
 
   return std::nullopt;
 }
-} // namespace

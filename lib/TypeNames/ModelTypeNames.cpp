@@ -277,7 +277,8 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
 
   std::string Result;
   auto ABI = model::Architecture::getName(RF.Architecture());
-  Result += ptml::AttributeRegistry::getAnnotation<"_ABI">("raw_" + ABI.str());
+  Result += ptml::AttributeRegistry::getAnnotationString<"_ABI">("raw_"
+                                                                 + ABI.str());
   if (Function and not Function->Attributes().empty())
     Result += getFunctionAttributesString(Function->Attributes());
   Result += (SingleLine ? " " : "\n");
@@ -297,7 +298,8 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
       std::string MarkedType = B.getNamedCInstance(*Argument.Type(),
                                                    ArgumentName);
       auto RegName = model::Register::getName(Argument.Location());
-      std::string Reg = ptml::AttributeRegistry::getAnnotation<"_REG">(RegName);
+      std::string
+        Reg = ptml::AttributeRegistry::getAnnotationString<"_REG">(RegName);
       Result += Separator.str()
                 + B.getCommentableTag(MarkedType + " " + Reg, RF, Argument);
       Separator = Comma;
@@ -310,7 +312,8 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
         StackArgName = B.getStackArgumentDefinitionTag(RF);
 
       auto N = B.getNamedCInstance(*RF.StackArgumentsType(), StackArgName);
-      static auto Attribute = ptml::AttributeRegistry::getAttribute<"_STACK">();
+      static auto
+        Attribute = ptml::AttributeRegistry::getAttributeString<"_STACK">();
       Result += Separator.str()
                 + B.getCommentableTag(N + " " + Attribute,
                                       *RF.stackArgumentsType());
@@ -335,7 +338,7 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
   std::string Result;
 
   llvm::StringRef ABIName = model::ABI::getName(CF.ABI());
-  Result += ptml::AttributeRegistry::getAnnotation<"_ABI">(ABIName);
+  Result += ptml::AttributeRegistry::getAnnotationString<"_ABI">(ABIName);
   if (Function and not Function->Attributes().empty())
     Result += getFunctionAttributesString(Function->Attributes());
   Result += (SingleLine ? " " : "\n");

@@ -143,6 +143,17 @@ private:
   }
 
 public:
+  [[nodiscard]] bool isAutomaticName(EntityWithName auto const &E,
+                                     llvm::StringRef Name) {
+    return automaticName(E) == Name;
+  }
+  [[nodiscard]] bool isAutomaticName(const auto &Parent,
+                                     EntityWithName auto const &E,
+                                     llvm::StringRef Name) {
+    return automaticName(Parent, E) == Name;
+  }
+
+public:
   /// These method (and its overloads) should be the only way you obtain any
   /// name you embed into an artifact (be it decompiled c, disassembly, or
   /// anything else).

@@ -82,6 +82,7 @@ public:
     Scope,
     Function,
     FunctionBody,
+    EnumBody,
     StructBody,
     UnionBody,
     TypeDeclarations,
@@ -402,6 +403,8 @@ public:
       return scopeTag(ptml::c::scopes::Function);
     case Scopes::FunctionBody:
       return scopeTag(ptml::c::scopes::FunctionBody);
+    case Scopes::EnumBody:
+      return scopeTag(ptml::c::scopes::EnumBody);
     case Scopes::StructBody:
       return scopeTag(ptml::c::scopes::StructBody);
     case Scopes::UnionBody:

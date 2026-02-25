@@ -22,8 +22,6 @@
 #include "revng/TupleTree/TupleTreeDiff.h"
 #include "revng/TypeNames/ModelCBuilder.h"
 
-namespace {
-
 struct NodeData {
   const model::TypeDefinition *T;
 };
@@ -97,5 +95,3 @@ collectDependentTypes(const model::TypeDefinition &TheType,
 
   return Result;
 }
-
-} // namespace

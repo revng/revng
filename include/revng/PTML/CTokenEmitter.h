@@ -185,8 +185,12 @@ public:
 
   void emitStringLiteral(llvm::StringRef Content);
 
+public:
   enum class CommentKind : bool {
+    // //Looks like this
     Line,
+
+    // /*Looks like this*/
     Block,
   };
 
@@ -237,6 +241,7 @@ public:
   /// content.
   void emitComment(llvm::StringRef Content, CommentKind Kind);
 
+public:
   enum class IncludeMode : bool {
     Quote,
     Angle,

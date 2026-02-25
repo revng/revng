@@ -125,8 +125,8 @@ bool ptml::HeaderBuilder::printModelHeader() {
     auto Foldable = B.getScopeTag(CBuilder::Scopes::SegmentDeclarations,
                                   /* Newline = */ true);
 
-    B.appendLineComment("/// \\defgroup Segments");
-    B.appendLineComment("/// \\{");
+    B.appendLineComment("\\defgroup Segments");
+    B.appendLineComment("\\{");
 
     for (const model::Segment &Segment : B.Binary.Segments())
       B.printSegmentType(Segment);

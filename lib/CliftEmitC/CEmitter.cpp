@@ -11,6 +11,22 @@
 namespace clift = mlir::clift;
 using namespace mlir::clift;
 
+ptml::CTokenEmitter::EntityKind
+CEmitter::chooseEntityKind(mlir::clift::DefinedType Type) {
+  if (mlir::isa<mlir::clift::FunctionType>(Type))
+    return ptml::CTokenEmitter::EntityKind::Function;
+  else if (mlir::isa<mlir::clift::StructType>(Type))
+    return ptml::CTokenEmitter::EntityKind::Struct;
+  else if (mlir::isa<mlir::clift::UnionType>(Type))
+    return ptml::CTokenEmitter::EntityKind::Union;
+  else if (mlir::isa<mlir::clift::EnumType>(Type))
+    return ptml::CTokenEmitter::EntityKind::Enum;
+  else if (mlir::isa<mlir::clift::TypedefType>(Type))
+    return ptml::CTokenEmitter::EntityKind::Typedef;
+  else
+    revng_abort("Unsupported defined type");
+}
+
 class CEmitter::DeclarationEmitter {
   enum class StackItemKind {
     Terminal,
@@ -41,7 +57,7 @@ private:
 
   void emitSpaceIfNeeded() {
     if (NeedSpace)
-      Parent.C.emitSpace();
+      Parent.Tokens.emitSpace();
     NeedSpace = false;
   }
 
@@ -49,8 +65,8 @@ private:
     emitSpaceIfNeeded();
 
     if (Type.isConst()) {
-      Parent.C.emitKeyword(CTE::Keyword::Const);
-      Parent.C.emitSpace();
+      Parent.Tokens.emitKeyword(CTE::Keyword::Const);
+      Parent.Tokens.emitSpace();
     }
   }
 
@@ -97,13 +113,13 @@ private:
           auto Macro = getForeignPointerMacroName(T.getPointerSize());
 
           emitConstIfNeeded(T);
-          Parent.C.emitLiteralIdentifier(Macro);
-          Parent.C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+          Parent.Tokens.emitLiteralIdentifier(Macro);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
           rc_recur DeclarationEmitter(Parent).emitImpl(T.getPointeeType(),
                                                        /*Declarator=*/nullptr);
 
-          Parent.C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
           NeedSpace = true;
         }
       } else if (auto T = mlir::dyn_cast<ArrayType>(Type)) {
@@ -118,22 +134,11 @@ private:
           Item.Kind = StackItemKind::Function;
           Type = F.getReturnType();
         } else {
-          auto Kind = CTE::EntityKind::Typedef;
-
-          if (mlir::isa<FunctionType>(T))
-            Kind = CTE::EntityKind::Function;
-          else if (mlir::isa<StructType>(T))
-            Kind = CTE::EntityKind::Struct;
-          else if (mlir::isa<UnionType>(T))
-            Kind = CTE::EntityKind::Union;
-          else if (mlir::isa<EnumType>(T))
-            Kind = CTE::EntityKind::Enum;
-
           emitConstIfNeeded(T);
-          Parent.C.emitIdentifier(T.getName(),
-                                  T.getHandle(),
-                                  Kind,
-                                  CTE::IdentifierKind::Reference);
+          Parent.Tokens.emitIdentifier(T.getName(),
+                                       T.getHandle(),
+                                       chooseEntityKind(T),
+                                       CTE::IdentifierKind::Reference);
 
           NeedSpace = true;
         }
@@ -159,18 +164,18 @@ private:
       case StackItemKind::Pointer: {
         auto T = mlir::dyn_cast<PointerType>(SI.Type);
         emitSpaceIfNeeded();
-        Parent.C.emitPunctuator(CTE::Punctuator::Star);
+        Parent.Tokens.emitPunctuator(CTE::Punctuator::Star);
         emitConstIfNeeded(T);
       } break;
       case StackItemKind::Array: {
         if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array) {
-          Parent.C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
           NeedSpace = false;
         }
       } break;
       case StackItemKind::Function: {
         if (I != 0) {
-          Parent.C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
           NeedSpace = false;
         }
       } break;
@@ -179,10 +184,10 @@ private:
 
     if (Declarator) {
       emitSpaceIfNeeded();
-      Parent.C.emitIdentifier(Declarator->Identifier,
-                              Declarator->Location,
-                              Declarator->Kind,
-                              CTE::IdentifierKind::Definition);
+      Parent.Tokens.emitIdentifier(Declarator->Identifier,
+                                   Declarator->Location,
+                                   Declarator->Kind,
+                                   CTE::IdentifierKind::Definition);
     }
 
     // Print type syntax appearing after the declarator name. This includes
@@ -200,9 +205,9 @@ private:
       } break;
       case StackItemKind::Array: {
         if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array)
-          Parent.C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
-        Parent.C.emitPunctuator(CTE::Punctuator::LeftBracket);
+        Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftBracket);
 
         uint64_t Extent = mlir::cast<ArrayType>(SI.Type).getElementsCount();
 
@@ -212,36 +217,40 @@ private:
         auto ExtentValue = llvm::APSInt(llvm::APInt(/*numBits=*/128, Extent),
                                         /*isUnsigned=*/false);
 
-        Parent.C.emitIntegerLiteral(ExtentValue,
-                                    CIntegerKind::Int,
-                                    /*Radix=*/10);
+        Parent.Tokens.emitIntegerLiteral(ExtentValue,
+                                         CIntegerKind::Int,
+                                         /*Radix=*/10);
 
-        Parent.C.emitPunctuator(CTE::Punctuator::RightBracket);
+        Parent.Tokens.emitPunctuator(CTE::Punctuator::RightBracket);
       } break;
       case StackItemKind::Function: {
         auto F = mlir::dyn_cast<FunctionType>(SI.Type);
 
         if (I != 0)
-          Parent.C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
 
-        Parent.C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+        Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
         if (F.getArgumentTypes().empty()) {
           Parent.emitPrimitiveType(PrimitiveKind::VoidKind, 0);
         } else {
+          if (Declarator->Parameters.has_value())
+            if (Declarator->Parameters->size() != F.getArgumentTypes().size())
+              revng_abort("Declarator doesn't match the prototype");
+
           for (auto [J, PT] : llvm::enumerate(F.getArgumentTypes())) {
             if (J != 0) {
-              Parent.C.emitPunctuator(CTE::Punctuator::Comma);
-              Parent.C.emitSpace();
+              Parent.Tokens.emitPunctuator(CTE::Punctuator::Comma);
+              Parent.Tokens.emitSpace();
             }
 
             DeclaratorInfo ParameterDeclarator;
             DeclaratorInfo const *InnerDeclarator = nullptr;
 
-            if (F == OutermostFunctionType) {
+            if (F == OutermostFunctionType && Declarator->Parameters) {
               ParameterDeclarator = DeclaratorInfo{
-                .Identifier = Declarator->Parameters[J].Identifier,
-                .Location = Declarator->Parameters[J].Location,
-                .Attributes = Declarator->Parameters[J].Attributes,
+                .Identifier = Declarator->Parameters.value()[J].Identifier,
+                .Location = Declarator->Parameters.value()[J].Location,
+                .Attributes = Declarator->Parameters.value()[J].Attributes,
                 .Kind = CTE::EntityKind::FunctionParameter,
               };
 
@@ -251,7 +260,7 @@ private:
             rc_recur DeclarationEmitter(Parent).emitImpl(PT, InnerDeclarator);
           }
         }
-        Parent.C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+        Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
       } break;
       }
     }
@@ -288,16 +297,16 @@ static std::string getPrimitiveTypeCName(PrimitiveKind Kind, uint64_t Size) {
 
 void CEmitter::emitPrimitiveType(clift::PrimitiveKind Kind, uint64_t Size) {
   if (Kind == PrimitiveKind::VoidKind) {
-    C.emitKeyword(CTE::Keyword::Void);
+    Tokens.emitKeyword(CTE::Keyword::Void);
   } else {
     auto TypeName = getPrimitiveTypeCName(Kind, Size);
     auto Location = pipeline::locationString(revng::ranks::PrimitiveType,
                                              TypeName);
 
-    C.emitIdentifier(TypeName,
-                     Location,
-                     CTE::EntityKind::Primitive,
-                     CTE::IdentifierKind::Reference);
+    Tokens.emitIdentifier(TypeName,
+                          Location,
+                          CTE::EntityKind::Primitive,
+                          CTE::IdentifierKind::Reference);
   }
 }
 
@@ -326,28 +335,28 @@ mlir::ArrayAttr CEmitter::getDeclarationOpAttributes(mlir::Operation *Op) {
 void CEmitter::emitAttribute(AttributeAttr Attribute) {
   auto Macro = Attribute.getMacro();
 
-  C.emitSpace();
-  C.emitIdentifier(Macro.getString(),
-                   Macro.getHandle(),
-                   CTE::EntityKind::Attribute,
-                   CTE::IdentifierKind::Reference);
+  Tokens.emitSpace();
+  Tokens.emitIdentifier(Macro.getString(),
+                        Macro.getHandle(),
+                        CTE::EntityKind::Attribute,
+                        CTE::IdentifierKind::Reference);
 
   if (auto Arguments = Attribute.getArguments()) {
-    C.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+    Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
     for (auto [I, A] : llvm::enumerate(*Arguments)) {
       if (I != 0) {
-        C.emitPunctuator(CTE::Punctuator::Comma);
-        C.emitSpace();
+        Tokens.emitPunctuator(CTE::Punctuator::Comma);
+        Tokens.emitSpace();
       }
 
-      C.emitIdentifier(A.getString(),
-                       A.getHandle(),
-                       CTE::EntityKind::AttributeArgument,
-                       CTE::IdentifierKind::Reference);
+      Tokens.emitIdentifier(A.getString(),
+                            A.getHandle(),
+                            CTE::EntityKind::AttributeArgument,
+                            CTE::IdentifierKind::Reference);
     }
 
-    C.emitPunctuator(CTE::Punctuator::RightParenthesis);
+    Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
   }
 }
 
@@ -363,4 +372,34 @@ void CEmitter::emitAttributes(mlir::ArrayAttr Attributes) {
 void CEmitter::emitDeclaration(ValueType Type,
                                DeclaratorInfo const &Declarator) {
   DeclarationEmitter::emit(*this, Type, &Declarator);
+}
+
+void CEmitter::emitFunctionPrototype(FunctionOp Op) {
+  llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
+  for (unsigned I = 0; I < Op.getArgCount(); ++I) {
+    auto Attrs = Op.getArgAttrs(I);
+
+    auto GetStringAttr = [&Attrs](llvm::StringRef Name) {
+      return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
+    };
+
+    mlir::ArrayAttr Attributes = {};
+    if (auto Attr = Attrs.get("clift.attributes")) {
+      Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
+      revng_assert(isValidAttributeArray(Attributes));
+    }
+
+    ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
+                                      GetStringAttr("clift.handle"),
+                                      Attributes);
+  }
+
+  emitDeclaration(Op.getFunctionType(),
+                  mlir::clift::CEmitter::DeclaratorInfo{
+                    .Identifier = Op.getName(),
+                    .Location = Op.getHandle(),
+                    .Attributes = getDeclarationOpAttributes(Op),
+                    .Kind = ptml::CTokenEmitter::EntityKind::Function,
+                    .Parameters = ParameterDeclarators,
+                  });
 }

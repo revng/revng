@@ -10,7 +10,7 @@
 #include "revng/Support/Debug.h"
 
 // This name is not present after `isolate`.
-RegisterIRHelper IBIMarker("function_call");
+RegisterIRHelper FunctionCallMarker("function_call");
 
 using namespace llvm;
 

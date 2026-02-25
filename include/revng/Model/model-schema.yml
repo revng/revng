@@ -403,7 +403,7 @@ definitions:
       - name: CanContainCode
         doc: |-
           When this field is set to `true` *and* this `struct` is reachable for
-          a segment's root type without traversing pointer, arrays or other
+          a segment's root type without traversing pointers, arrays or other
           qualifiers, the padding of the struct is treated at if it contains code.
         type: bool
 
