@@ -137,6 +137,9 @@ getAllowedActions(llvm::StringRef Location) {
   if (auto L = pipeline::locationFromString(rr::HelperStructField, Location))
     return {};
 
+  if (auto L = pipeline::locationFromString(rr::Macro, Location))
+    return {};
+
   if (auto L = pipeline::locationFromString(rr::Instruction, Location))
     return { pa::CodeSwitch, pa::Comment };
 
