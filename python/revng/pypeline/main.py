@@ -19,7 +19,7 @@ from revng.pypeline.utils import PypelineException
 from . import initialize_pypeline
 from .cli.pipeline import pipeline
 from .cli.project import project
-from .cli.utils import EagerParsedPath, PypeGroup
+from .cli.utils import EagerParsedPath, PypeGroup, detect_autocomplete, get_root_command_name
 from .utils.logger import pypeline_logger
 
 
@@ -82,21 +82,6 @@ def call_pipebox_initialize(pipebox, pipebox_path: Path | str, args: list[str]):
 
     # Call the initialize
     pipebox_initialize(args)
-
-
-def get_current_root_name(ctx: ClickContext) -> str:
-    root = ctx.find_root()
-    command = root.command
-    assert command.name is not None, "Command name should not be None"
-    return command.name
-
-
-def detect_autocomplete(ctx: ClickContext) -> bool:
-    """Detect if we are in auto-complete mode."""
-    return (
-        "_{}_COMPLETE".format(get_current_root_name(ctx).upper()) in os.environ
-        or "autocomplete" in sys.argv
-    )
 
 
 def parse_pipebox(path: str, ctx: ClickContext):
@@ -202,7 +187,7 @@ def autocomplete(ctx, shell):
     pypeline_logger.log(f'Detected shell: "{shell}"')
 
     # Get the root command
-    prog_name = get_current_root_name(ctx)
+    prog_name = get_root_command_name(ctx)
     pypeline_logger.debug_log(f'Program name: "{prog_name}"')
     complete_var = f"_{prog_name.upper()}_COMPLETE"
     pypeline_logger.debug_log(f'Complete variable: "{complete_var}"')

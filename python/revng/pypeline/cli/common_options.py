@@ -124,3 +124,19 @@ debug_option = click.option(
     default=EagerParsedPath.DEFAULT,
     show_default=False,
 )
+
+
+class _ShowHiddenArtifactsParameter(click.ParamType):
+    def convert(self, value, param, ctx):
+        if value:
+            ctx.obj.show_hidden_artifacts = True
+
+
+show_hidden_artifact_options = click.option(
+    "--show-hidden-artifacts",
+    is_flag=True,
+    type=_ShowHiddenArtifactsParameter(),
+    is_eager=True,
+    expose_value=False,
+    help="Also show artifacts hidden by default",
+)

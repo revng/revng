@@ -21,7 +21,7 @@ from revng.pypeline.analysis import AnalysisBinding
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectSet
-from revng.pypeline.pipeline import Artifact, Pipeline
+from revng.pypeline.pipeline import Artifact, ArtifactCategory, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
@@ -336,7 +336,7 @@ def test_artifact(model, storage_provider):
     same_node = PipelineNode(SameKindPipe(), bindings=[child1, child2])
     begin_node.add_successor(same_node)
 
-    artifact = Artifact("artifact", same_node, child2)
+    artifact = Artifact("artifact", same_node, child2, ArtifactCategory("main", True))
 
     pipeline: Pipeline = Pipeline(set(declarations), begin_node)
     assert begin_node.savepoint_range == SavePointsRange(start=1, end=1)

@@ -2,7 +2,9 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+import os
 import re
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, cast
@@ -303,3 +305,18 @@ def compute_objects(
                 objects={obj_id_type.deserialize(obj) for obj in objects.split(",") if obj.strip()},
             )
     return model.all_objects(kind)
+
+
+def get_root_command_name(ctx: click.Context) -> str:
+    root = ctx.find_root()
+    command = root.command
+    assert command.name is not None, "Command name should not be None"
+    return command.name
+
+
+def detect_autocomplete(ctx: click.Context) -> bool:
+    """Detect if we are in auto-complete mode."""
+    return (
+        "_{}_COMPLETE".format(get_root_command_name(ctx).upper()) in os.environ
+        or "autocomplete" in sys.argv
+    )

@@ -33,6 +33,15 @@ from .utils.registry import get_singleton
 
 
 @dataclass(frozen=True, slots=True)
+class ArtifactCategory:
+    name: str
+    show_by_default: bool
+
+    def to_dict(self) -> dict:
+        return {"name": self.name, "show_by_default": self.show_by_default}
+
+
+@dataclass(frozen=True, slots=True)
 class Artifact:
     """
     An artifact is a container in a certain point of the pipeline with some extra
@@ -45,6 +54,7 @@ class Artifact:
     name: str
     node: PipelineNode
     container: ContainerDeclaration
+    category: ArtifactCategory
     description: Optional[str] = None
 
     def is_cacheable(self) -> bool:
@@ -57,6 +67,7 @@ class Artifact:
             "name": self.name,
             "container": self.container.name,
             "cacheable": self.is_cacheable(),
+            "category": self.category.to_dict(),
         }
 
 

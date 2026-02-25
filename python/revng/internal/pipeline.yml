@@ -2,6 +2,22 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+artifact_categories:
+  # User-facing artifacts that the end-user is expected to see
+  - name: user
+    show-by-default: true
+  # Artifacts that the user might request, but are machine-parsable and only
+  # usable in conjunction with other software
+  - name: automation
+    show-by-default: false
+  # Artifacts that the user is not expected to see but machine users
+  # (e.g. scripting) are expected to use
+  - name: metadata
+    show-by-default: false
+  # Debugging artifacts, these are for debugging purposes and/or testing
+  - name: debug
+    show-by-default: false
+
 containers:
   - name: binaries-container
     type: BinariesContainer
@@ -89,6 +105,7 @@ branches:
         artifacts:
           - name: lift
             container: llvm-root
+            category: debug
         analyses:
           - analysis: detect-abi
             containers: [llvm-root]
@@ -103,6 +120,7 @@ branches:
         artifacts:
           - name: emit-cfg
             container: cfg-map
+            category: debug
 
   isolate:
     from: collect-cfg
@@ -116,6 +134,7 @@ branches:
         artifacts:
           - name: isolate
             container: llvm-functions
+            category: debug
 
   enforce-abi:
     from: isolate
@@ -155,6 +174,7 @@ branches:
         artifacts:
           - name: enforce-abi
             container: llvm-functions
+            category: debug
 
   detect-stack-size:
     from: enforce-abi
@@ -213,6 +233,7 @@ branches:
         artifacts:
           - name: simplify-switch
             container: llvm-functions
+            category: debug
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
@@ -274,6 +295,7 @@ branches:
         artifacts:
           - name: make-segment-ref
             container: llvm-functions
+            category: debug
         analyses:
           - analysis: analyze-data-layout
             containers: [llvm-functions]
@@ -372,6 +394,7 @@ branches:
         artifacts:
           - name: emit-c
             container: decompile-c
+            category: user
 
       - pipe: decompile-to-single-file
         arguments: [decompile-c, decompiled-single-file]
@@ -380,6 +403,7 @@ branches:
         artifacts:
           - name: emit-c-as-single-file
             container: decompiled-single-file
+            category: user
 
   emit-model-header:
     tasks:
@@ -390,6 +414,7 @@ branches:
         artifacts:
           - name: emit-model-header
             container: model-header
+            category: user
 
   emit-type-definition:
     tasks:
@@ -400,6 +425,7 @@ branches:
         artifacts:
           - name: emit-type-definitions
             container: model-types
+            category: user
 
   hexdump:
     from: isolate
@@ -415,6 +441,7 @@ branches:
         artifacts:
           - name: hexdump
             container: hexdump
+            category: user
 
   process-assembly:
     from: collect-cfg
@@ -432,6 +459,7 @@ branches:
         artifacts:
           - name: disassemble
             container: assembly
+            category: user
 
   recompile:
     from: lift
@@ -451,6 +479,7 @@ branches:
         artifacts:
           - name: recompile
             container: translated
+            category: automation
 
   recompile-isolated:
     from: isolate
@@ -472,6 +501,7 @@ branches:
         artifacts:
           - name: recompile-isolated
             container: translated
+            category: automation
 
   cleanup-ir:
     from: make-segment-ref
@@ -493,6 +523,7 @@ branches:
         artifacts:
           - name: cleanup-ir
             container: llvm-root-merged
+            category: automation
 
   process-call-graph:
     from: collect-cfg
@@ -510,6 +541,7 @@ branches:
         artifacts:
           - name: render-svg-call-graph
             container: call-graph
+            category: user
 
   yield-call-graph-slice:
     from: process-call-graph
@@ -521,6 +553,7 @@ branches:
         artifacts:
           - name: render-svg-call-graph-slice
             container: call-graph-slice
+            category: user
 
   yield-cfg:
     from: process-assembly
@@ -532,3 +565,4 @@ branches:
         artifacts:
           - name: render-svg-cfg
             container: function-cfg
+            category: user

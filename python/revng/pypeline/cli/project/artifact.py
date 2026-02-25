@@ -9,9 +9,11 @@ from typing import AsyncContextManager
 import click
 
 from revng.pypeline.cli.common_options import container_format_options, debug_option
-from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
+from revng.pypeline.cli.common_options import list_objects_option, project_id_option
+from revng.pypeline.cli.common_options import show_hidden_artifact_options, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
-from revng.pypeline.cli.utils import PypeGroup, build_help_text, normalize_whitespace
+from revng.pypeline.cli.utils import PypeGroup, build_help_text, detect_autocomplete
+from revng.pypeline.cli.utils import normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import ReadOnlyModel
@@ -31,7 +33,14 @@ class ArtifactGroup(PypeGroup):
     def list_commands(self, ctx: ClickContext):  # type: ignore
         base = super().list_commands(ctx)
         pipeline = ctx.obj.pipeline
-        return base + sorted(pipeline.artifacts.keys())
+        if ctx.obj.show_hidden_artifacts or detect_autocomplete(ctx):
+            return base + sorted(pipeline.artifacts.keys())
+        else:
+            result = [*base]
+            for artifact_name, artifact in pipeline.artifacts.items():
+                if artifact.category.show_by_default:
+                    result.append(artifact_name)
+            return sorted(result)
 
     def get_command(self, ctx, cmd_name):  # type: ignore
         pipeline = ctx.obj.pipeline
@@ -225,5 +234,6 @@ def build_artifact_command(
     cls=ArtifactGroup,
     help="Compute an Artifact",
 )
+@show_hidden_artifact_options
 def artifact() -> None:
     pass
