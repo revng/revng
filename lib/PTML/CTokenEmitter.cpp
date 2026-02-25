@@ -161,7 +161,7 @@ getAllowedActions(llvm::StringRef Location) {
   if (auto L = pipeline::locationFromString(rr::StackFrameVariable, Location))
     return { pa::Rename, pa::EditType };
 
-  return {};
+  revng_abort(("Unknown Location: " + Location.str()).c_str());
 }
 
 static std::string getActionContextLocation(llvm::StringRef Location) {
