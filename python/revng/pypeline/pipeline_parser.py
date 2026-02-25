@@ -14,7 +14,7 @@ import yaml
 
 from .analysis import Analysis, AnalysisBinding, AnalysisList
 from .container import Container, ContainerDeclaration
-from .pipeline import Artifact, Pipeline
+from .pipeline import Artifact, ArtifactCategory, Pipeline
 from .pipeline_node import DummyPipelineNode, PipelineNode
 from .task.pipe import Pipe
 from .task.savepoint import SavePoint
@@ -56,10 +56,19 @@ class PipelineParser:
         self.container_decls: dict[str, ContainerDeclaration] = {}
         self.artifacts: set[Artifact] = set()
         self.analyses: set[AnalysisBinding] = set()
+        self.artifact_categories: dict[str, ArtifactCategory] = {}
 
     def parse(self) -> Pipeline:
         # Parse all the container declarations
         self.container_decls = self._parse_container_decls(self.values["containers"])
+
+        # Parse all the artifact categories
+        self.artifact_categories = self._parse_artifact_categories(
+            self.values["artifact_categories"]
+        )
+        # Check that there is at least one artifact category
+        assert len(self.artifact_categories) > 0
+
         # Then parse analyses lists, we will just do structural parsing, the actual validation
         # will be done in the Pipeline's __init__
         analysis_lists: list[AnalysisList] = []
@@ -149,12 +158,17 @@ class PipelineParser:
                     "declared in the pipeline"
                 )
 
+            # Artifacts need to have a category associated to them
+            if artifact["category"] not in self.artifact_categories:
+                raise ValueError(f"Artifact category {artifact["category"]} not found")
+
             self.artifacts.add(
                 Artifact(
                     name=name,
                     node=target_node,
                     container=self.container_decls[container],
                     description=artifact.get("description"),
+                    category=self.artifact_categories[artifact["category"]],
                 )
             )
 
@@ -308,6 +322,16 @@ class PipelineParser:
                 container_type=containers_registry[ty],
             )
         return container_decls
+
+    def _parse_artifact_categories(
+        self, artifact_categories: list[Any]
+    ) -> dict[str, ArtifactCategory]:
+        result: dict[str, ArtifactCategory] = {}
+        for element in artifact_categories:
+            if element["name"] in result:
+                raise ValueError(f"Artifact category {element["name"]} is duplicated")
+            result[element["name"]] = ArtifactCategory(element["name"], element["show-by-default"])
+        return result
 
 
 def load_pipeline_yaml(yaml_data: str) -> Pipeline:

@@ -14,7 +14,7 @@ import shlex
 import signal
 import sys
 from pathlib import Path
-from typing import IO, Any, AsyncContextManager
+from typing import IO, Any, AsyncContextManager, Iterable
 
 import click
 import yaml
@@ -23,7 +23,8 @@ from click.shell_completion import CompletionItem
 from revng.internal.support import cache_directory
 from revng.pypeline.analysis import Analysis
 from revng.pypeline.cli.common_options import container_format_options, debug_option
-from revng.pypeline.cli.common_options import project_id_option, token_option
+from revng.pypeline.cli.common_options import project_id_option, show_hidden_artifact_options
+from revng.pypeline.cli.common_options import token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.pipeline import pipeline
 from revng.pypeline.cli.project import project
@@ -105,7 +106,17 @@ class ArtifactArgument(click.Argument):
 
     def get_help_record(self, ctx: ClickContext) -> tuple[str, str] | None:  # type: ignore
         text = "One of the following:\n\n\b\n"
-        for artifact in sorted(ctx.obj.pipeline.artifacts):
+        artifacts: Iterable[str]
+        if ctx.obj.show_hidden_artifacts:
+            artifacts = ctx.obj.pipeline.artifacts.keys()
+        else:
+            artifacts = [
+                artifact_name
+                for artifact_name, artifact in ctx.obj.pipeline.artifacts.items()
+                if artifact.category.show_by_default
+            ]
+
+        for artifact in sorted(artifacts):
             text += f"* {artifact}\n"
         return (self.make_metavar(ctx), text)
 
@@ -194,6 +205,7 @@ analyses_option = click.option(
 @debug_option
 @analyses_option
 @container_format_options
+@show_hidden_artifact_options
 @exec_wrapper_if_needed
 @click.pass_context
 def artifact(

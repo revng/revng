@@ -43,6 +43,9 @@ class ContextObject:
     # This might cause the current process to be re-executed, during the
     # second execution this will be set back to None.
     wrapper: "Wrapper | None" = None
+    # If set to true, help messages will also report help for artifacts that
+    # have a category with `show_by_default == False`
+    show_hidden_artifacts: bool = False
 
     # If we had to be 100% dataclass compliant all of the fields in this
     # dataclass should be `| None = None` because when the dataclass is

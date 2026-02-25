@@ -12,6 +12,20 @@ $defs:
       - branches
     additionalProperties: false
     properties:
+      artifact_categories:
+        type: array
+        items:
+          type: object
+          required:
+            - name
+            - show-by-default
+          properties:
+            name:
+              type: string
+              description: Name of the artifact category
+            show-by-default:
+              type: boolean
+              description: Whether to show the artifact by default
       containers:
         type: array
         uniqueItems: true
@@ -174,6 +188,11 @@ $defs:
         type: string
         description: The container that will produce the artifact.
         example: my_container
+      category:
+        type: string
+        description: >
+          The category of the artifact, must be one of the ones specified in
+          'artifact_categories'. Specifying categories makes this field compulsory.
       description:
         type: string
         description: The description of the artifact that will appear in the CLI help.

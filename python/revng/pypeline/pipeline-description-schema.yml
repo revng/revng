@@ -165,6 +165,20 @@ properties:
         cacheable:
           type: boolean
           description: Whether this artifact can be cached
+        category:
+          type: object
+          required:
+            - name
+            - show_by_default
+          properties:
+            name:
+              type: string
+              description: The name of the category
+            show_by_default:
+              type: boolean
+              description: >
+                Setting this to true will show the artifacts of this category
+                by default
   analyses:
     type: array
     description: List of analyses available in the pipeline
