@@ -6,18 +6,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import Kind
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.storage.storage_provider import FileStorageEntry
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
+from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils import bytes_to_string
 from revng.pypeline.utils.pipeline import get_pipeline_description
-from revng.pypeline.utils.registry import get_singleton
+from revng.pypeline.utils.registry import get_registry, get_singleton
 
 from .exceptions import EpochError, MalformedRequestError
-from .utils import compute_artifact, compute_objects
+from .utils import compute_objects
 
 
 @dataclass
@@ -29,6 +31,8 @@ class Response:
     """The HTTP status code of the response."""
     body: Any
     """The response body of the request."""
+    content_type: str | None = None
+    """The MIME of the response content."""
     headers: dict[str, str] = field(default_factory=dict)
     """The headers of the response."""
     notifications: list[Any] = field(default_factory=list)
@@ -111,14 +115,38 @@ class Daemon:
         )
 
     async def artifact(self, request) -> Response:
-        artifacts = request["artifacts"]
-        epoch = request["epoch"]
+        artifact_name: str = request["artifact"]
+        objects: list[str] | None = request.get("objects")
+        raw_configuration: dict[str, str] = request.get("configuration", {})
+        epoch: int = request["epoch"]
+        format_: str = request.get("format", "json")
 
         # Validate data
-        for artifact_name, _ in artifacts.items():
-            if artifact_name not in self.pipeline.artifacts:
-                raise MalformedRequestError(f"Artifact {artifact_name} not found in the pipeline")
+        if artifact_name not in self.pipeline.artifacts:
+            raise MalformedRequestError(f"Artifact {artifact_name} not found in the pipeline")
 
+        if format_ not in ("json", "tar"):
+            raise MalformedRequestError(f"Format {format_} is not valid, valid values: json, tar")
+
+        # Convert configuration
+        pipes = get_registry(Pipe)  # type: ignore[type-abstract]
+        configuration: dict[Pipe, str] = {}
+        for pipe_name in raw_configuration.values():
+            if pipe_name not in pipes:
+                raise MalformedRequestError(
+                    f"Passed configuration for pipe {pipe_name}, which does not exist"
+                )
+
+        for node in self.pipeline.walk_pipeline():
+            if not isinstance(node.task, Pipe):
+                continue
+            if node.task.name in raw_configuration:
+                configuration[node.task] = raw_configuration[node.task.name]
+
+        artifact = self.pipeline.artifacts[artifact_name]
+        configuration_hash = artifact.node.configuration_id(configuration)
+
+        # Compute the artifact
         storage_provider_context = self._get_storage_provider_context(request)
         async with storage_provider_context as storage_provider:
             # Load the model
@@ -127,20 +155,37 @@ class Daemon:
             if real_epoch != epoch:
                 raise EpochError(real_epoch, epoch)
 
-            # Process each artifact
-            res = {}
-            for artifact_name, artifact_data in artifacts.items():
-                # Compute the artifact
-                res[artifact_name] = compute_artifact(
-                    storage_provider=storage_provider,
-                    pipeline=self.pipeline,
-                    model=ReadOnlyModel(model),
-                    artifact_name=artifact_name,
-                    artifact_data=artifact_data,
-                )
+            object_set = compute_objects(
+                model=ReadOnlyModel(model),
+                kind=artifact.container.container_type.kind,
+                objects=objects,
+            )
 
-        # Return the artifacts
-        return Response(code=200, body={"artifacts": res})
+            container = self.pipeline.get_artifact(
+                model=ReadOnlyModel(model),
+                artifact=artifact,
+                requests=object_set,
+                pipeline_configuration=configuration,
+                storage_provider=storage_provider,
+            )
+
+        headers = {"x-pypeline-configuration-hash": configuration_hash}
+        if format_ == "json":
+            return Response(
+                code=200,
+                body={
+                    key: bytes_to_string(value, container.is_text())
+                    for key, value in container.to_dict(object_set).items()
+                },
+                headers=headers,
+            )
+        else:
+            return Response(
+                code=200,
+                body=container.to_bytes(object_set, ContainerFormat.TAR),
+                content_type="application/x-tar",
+                headers=headers,
+            )
 
     async def analyze(self, request) -> Response:
         """Process analysis requests"""
