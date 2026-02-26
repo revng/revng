@@ -159,12 +159,12 @@ def test_daemon(daemon_server: TestServer):
     # Test artifact endpoint - request ChildArtifact
     logger.info("Testing artifact endpoint")
     response = daemon_server.get_artifact(
-        {"epoch": new_epoch, "artifacts": {"ChildArtifact": {}}}  # Empty data for the artifact
+        {"epoch": new_epoch, "artifact": "ChildArtifact"}  # Empty data for the artifact
     )
     assert response.code == 200
     artifact_data = response.body
-    assert "artifacts" in artifact_data
-    assert "ChildArtifact" in artifact_data["artifacts"]
+    for element in ("one", "two", "three"):
+        assert f"/CHILD/{element}" in artifact_data
 
     # Test another analysis - PurgeAllAnalysis
     logger.info("Testing PurgeAllAnalysis")
@@ -200,9 +200,7 @@ def test_daemon(daemon_server: TestServer):
 
     # Test error handling - invalid artifact
     logger.info("Testing error handling with invalid artifact")
-    response = daemon_server.get_artifact(
-        {"epoch": final_epoch, "artifacts": {"NonExistentArtifact": {}}}
-    )
+    response = daemon_server.get_artifact({"epoch": final_epoch, "artifact": "NonExistentArtifact"})
     logger.info("NonExistentArtifact response: %s", response.body)
     assert response.code == 400
     error_data = response.body

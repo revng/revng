@@ -14,6 +14,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from starlette.responses import Response as StarletteResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket
 
@@ -70,7 +71,7 @@ def prepare_endpoint(func):
     the agnostic daemon implementation."""
 
     @wraps(func)
-    async def wrapper(request: Request) -> JSONResponse:
+    async def wrapper(request: Request) -> StarletteResponse:
         project_id = get_project_id(request.headers)
         # Prepare the data dictionary with the common attributes we extract
         # from the headers
@@ -78,16 +79,29 @@ def prepare_endpoint(func):
             "project_id": project_id,
             # TODO add auth token forwarding
         }
-        response = await func(request, data)
+        response: Response = await func(request, data)
         # Forward any websocket notification
         for notification in response.notifications:
             await notification_broker.notify(project_id, json.dumps(notification))
-        # Convert the daemon response to a JSON response
-        return JSONResponse(
-            status_code=response.code,
-            content=response.body,
-            headers=response.headers,
-        )
+        # Convert the daemon response based on the body type:
+        # * a JSON response if the body is a dict or list
+        # * a binary response if the body is bytes
+        # * throw an error for everything else
+        if isinstance(response.body, (dict, list)):
+            return JSONResponse(
+                status_code=response.code,
+                content=response.body,
+                headers=response.headers,
+            )
+        elif isinstance(response.body, bytes):
+            return StarletteResponse(
+                status_code=response.code,
+                media_type=response.content_type,
+                content=response.body,
+                headers=response.headers,
+            )
+        else:
+            raise ValueError(f"Unknown response body type: {type(response.body)}")
 
     return wrapper
 
@@ -149,9 +163,9 @@ def make_starlette(daemon: Daemon) -> Starlette:
     if "REVNG_ORIGINS" in os.environ:
         origins = os.environ["REVNG_ORIGINS"].split(",")
 
-    expose_headers: list[str] = []
+    expose_headers: list[str] = ["x-pypeline-configuration-hash"]
     if "REVNG_EXPOSE_HEADERS" in os.environ:
-        expose_headers = os.environ["REVNG_EXPOSE_HEADERS"].split(",")
+        expose_headers.extend(os.environ["REVNG_EXPOSE_HEADERS"].split(","))
 
     # Create the Starlette application
     return Starlette(
