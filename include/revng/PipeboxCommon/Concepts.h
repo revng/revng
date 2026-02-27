@@ -87,6 +87,12 @@ concept IsAnalysis = requires(T &A) {
   requires AnalysisRunTraits<T>::ContainerCount >= 0;
 };
 
+/// Optional method that an analysis can implement
+template<typename T>
+concept HasIsAvailable = requires(const T &A) {
+  { A.isAvailable() } -> std::same_as<bool>;
+};
+
 //
 // IsPipe
 //

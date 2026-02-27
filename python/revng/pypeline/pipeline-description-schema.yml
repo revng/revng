@@ -191,10 +191,14 @@ properties:
         - name
         - bindings
         - node
+        - is_available
       properties:
         name:
           type: string
           description: The name of the analysis
+        is_available:
+          type: boolean
+          description: if the analysis can be currently run
         bindings:
           type: array
           items:

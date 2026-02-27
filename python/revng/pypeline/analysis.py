@@ -51,6 +51,13 @@ class Analysis(ABC):
         """
         raise NotImplementedError()
 
+    def is_available(self) -> bool:
+        """
+        Asks if the analysis is available for running. Running an analysis that
+        is not available for running will result in an error.
+        """
+        return True
+
 
 @dataclass(frozen=True, slots=True)
 class AnalysisBinding:
@@ -64,6 +71,7 @@ class AnalysisBinding:
         """Convert the data into a dictionary representation."""
         return {
             "name": self.analysis.name,
+            "is_available": self.analysis.is_available(),
             "bindings": [
                 {
                     "name": binding.name,

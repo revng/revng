@@ -477,10 +477,18 @@ class Pipeline:
             f" Expected {(analysis_list.analyses)}, got {len(analysis_configuration)}."
         )
 
-        for analysis_name, analysis_config in zip(analysis_list.analyses, analysis_configuration):
-            pypeline_logger.debug_log(f"Running analysis {analysis_name}")
+        for analysis_name in analysis_list.analyses:
             if analysis_name not in self.analyses:
                 raise PypelineException(f"Analysis {analysis_name} not found in the pipeline")
+
+            if not self.analyses[analysis_name].analysis.is_available():
+                raise PypelineException(
+                    f"Analysis list {analysis_list.name} cannot be run "
+                    f"because analysis {analysis_name} is not available"
+                )
+
+        for analysis_name, analysis_config in zip(analysis_list.analyses, analysis_configuration):
+            pypeline_logger.debug_log(f"Running analysis {analysis_name}")
             analysis = self.analyses[analysis_name]
             # Build the requests for the analysis
             requests = Requests()
@@ -532,6 +540,9 @@ class Pipeline:
                     f"Request {req} but it's not compatible with in the "
                     f"analysis bindings: {analysis_info.bindings}"
                 )
+
+        if not analysis_info.analysis.is_available():
+            raise PypelineException(f"Analysis {analysis_name} is not available")
 
         schedule = self.schedule(
             model=model,
