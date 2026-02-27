@@ -56,20 +56,25 @@ struct RegisterAnalysis {
     python::Registry.registerModuleInitializer([](nanobind::module_ &M,
                                                   python::BaseClasses &BC) {
       std::string Name = pascalCaseName(T::Name);
-      nanobind::class_<T>(M, Name.c_str(), BC.BaseAnalysis)
-        .def_ro_static("name", &T::Name)
-        .def(nanobind::init<>())
-        .def_static("signature",
-                    &python::SignatureHelper<T>::getSignature,
-                    nanobind::sig("def signature() -> "
-                                  "tuple[type[revng.pypeline.container."
-                                  "Container], ...]"))
-        .def("run",
-             &python::runAnalysis<T>,
-             "model"_a,
-             "containers"_a,
-             "incoming"_a,
-             "configuration"_a);
+      auto
+        AnalysisClass = nanobind::class_<T>(M, Name.c_str(), BC.BaseAnalysis)
+                          .def_ro_static("name", &T::Name)
+                          .def(nanobind::init<>())
+                          .def_static("signature",
+                                      &python::SignatureHelper<T>::getSignature,
+                                      nanobind::sig("def signature() -> "
+                                                    "tuple[type[revng.pypeline."
+                                                    "container."
+                                                    "Container], ...]"))
+                          .def("run",
+                               &python::runAnalysis<T>,
+                               "model"_a,
+                               "containers"_a,
+                               "incoming"_a,
+                               "configuration"_a);
+
+      if constexpr (HasIsAvailable<T>)
+        AnalysisClass.def("is_available", &T::isAvailable);
     });
 
     // Native
