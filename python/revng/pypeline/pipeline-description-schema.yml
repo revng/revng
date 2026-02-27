@@ -179,6 +179,9 @@ properties:
               description: >
                 Setting this to true will show the artifacts of this category
                 by default
+        filename:
+          type: string
+          description: The filename to use when representing this artifact
   analyses:
     type: array
     description: List of analyses available in the pipeline

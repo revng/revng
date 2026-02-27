@@ -196,3 +196,6 @@ $defs:
       description:
         type: string
         description: The description of the artifact that will appear in the CLI help.
+      filename:
+        type: string
+        description: The filename to use when representing this artifact
