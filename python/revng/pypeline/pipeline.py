@@ -56,6 +56,7 @@ class Artifact:
     container: ContainerDeclaration
     category: ArtifactCategory
     description: Optional[str] = None
+    filename: str | None = None
 
     def is_cacheable(self) -> bool:
         """An artifact is cacheable if it's backed by a savepoint."""
@@ -63,12 +64,15 @@ class Artifact:
 
     def to_dict(self) -> dict:
         """Convert the artifact to a dictionary representation."""
-        return {
+        result = {
             "name": self.name,
             "container": self.container.name,
             "cacheable": self.is_cacheable(),
             "category": self.category.to_dict(),
         }
+        if self.filename is not None:
+            result["filename"] = self.filename
+        return result
 
 
 class Pipeline:

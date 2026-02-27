@@ -169,6 +169,7 @@ class PipelineParser:
                     container=self.container_decls[container],
                     description=artifact.get("description"),
                     category=self.artifact_categories[artifact["category"]],
+                    filename=artifact.get("filename"),
                 )
             )
 

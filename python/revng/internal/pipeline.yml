@@ -106,6 +106,7 @@ branches:
           - name: lift
             container: llvm-root
             category: debug
+            filename: lifted.bc
         analyses:
           - analysis: detect-abi
             containers: [llvm-root]
@@ -135,6 +136,7 @@ branches:
           - name: isolate
             container: llvm-functions
             category: debug
+            filename: isolated.bc
 
   enforce-abi:
     from: isolate
@@ -175,6 +177,7 @@ branches:
           - name: enforce-abi
             container: llvm-functions
             category: debug
+            filename: abi_enforced.bc
 
   detect-stack-size:
     from: enforce-abi
@@ -234,6 +237,7 @@ branches:
           - name: simplify-switch
             container: llvm-functions
             category: debug
+            filename: simplify-switch.bc
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
@@ -296,6 +300,7 @@ branches:
           - name: make-segment-ref
             container: llvm-functions
             category: debug
+            filename: legacy_stack_accesses_segregated.bc
         analyses:
           - analysis: analyze-data-layout
             containers: [llvm-functions]
@@ -395,6 +400,7 @@ branches:
           - name: emit-c
             container: decompile-c
             category: user
+            filename: decompiled.c
 
       - pipe: decompile-to-single-file
         arguments: [decompile-c, decompiled-single-file]
@@ -404,6 +410,7 @@ branches:
           - name: emit-c-as-single-file
             container: decompiled-single-file
             category: user
+            filename: binary_decompiled.c
 
   emit-model-header:
     tasks:
@@ -415,6 +422,7 @@ branches:
           - name: emit-model-header
             container: model-header
             category: user
+            filename: types-and-globals.h
 
   emit-type-definition:
     tasks:
@@ -426,6 +434,7 @@ branches:
           - name: emit-type-definitions
             container: model-types
             category: user
+            filename: type.h
 
   hexdump:
     from: isolate
@@ -442,6 +451,7 @@ branches:
           - name: hexdump
             container: hexdump
             category: user
+            filename: hex_dump.hex
 
   process-assembly:
     from: collect-cfg
@@ -460,6 +470,7 @@ branches:
           - name: disassemble
             container: assembly
             category: user
+            filename: disassembly.S
 
   recompile:
     from: lift
@@ -480,6 +491,7 @@ branches:
           - name: recompile
             container: translated
             category: automation
+            filename: translated-binary
 
   recompile-isolated:
     from: isolate
@@ -502,6 +514,7 @@ branches:
           - name: recompile-isolated
             container: translated
             category: automation
+            filename: isolated-translated-binary
 
   cleanup-ir:
     from: make-segment-ref
@@ -524,6 +537,7 @@ branches:
           - name: cleanup-ir
             container: llvm-root-merged
             category: automation
+            filename: clean-ir.bc
 
   process-call-graph:
     from: collect-cfg
@@ -542,6 +556,7 @@ branches:
           - name: render-svg-call-graph
             container: call-graph
             category: user
+            filename: call-graph.svg
 
   yield-call-graph-slice:
     from: process-call-graph
@@ -554,6 +569,7 @@ branches:
           - name: render-svg-call-graph-slice
             container: call-graph-slice
             category: user
+            filename: call-graph-slice.svg
 
   yield-cfg:
     from: process-assembly
@@ -566,3 +582,4 @@ branches:
           - name: render-svg-cfg
             container: function-cfg
             category: user
+            filename: cfg.svg
