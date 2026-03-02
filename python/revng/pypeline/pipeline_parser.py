@@ -93,6 +93,17 @@ class PipelineParser:
             root_analyses_dict = [{"analysis": x, "containers": []} for x in root_analyses_raw]
             self._parse_analyses(root_analyses_dict, root)
 
+        # Check artifact consistency
+        artifact_names = {a.name for a in self.artifacts}
+        for artifact in self.artifacts:
+            # TODO: also check for locations once those are statically defined
+            for preferred_artifact in artifact.preferred_artifacts:
+                if preferred_artifact not in artifact_names:
+                    raise ValueError(
+                        f"Artifact {artifact.name} defines {preferred_artifact}"
+                        "as a preferred artifact but it does not exist"
+                    )
+
         return Pipeline(
             declarations=set(self.container_decls.values()),
             root=root,
@@ -170,6 +181,8 @@ class PipelineParser:
                     description=artifact.get("description"),
                     category=self.artifact_categories[artifact["category"]],
                     filename=artifact.get("filename"),
+                    defined_locations=artifact.get("defined_locations", []),
+                    preferred_artifacts=artifact.get("preferred_artifacts", []),
                 )
             )
 

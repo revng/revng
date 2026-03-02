@@ -401,6 +401,10 @@ branches:
             container: decompile-c
             category: user
             filename: decompiled.c
+            defined_locations:
+              - function
+            preferred_artifacts:
+              - emit-model-header
         analyses:
           - analysis: llm-rename
             containers: [decompile-c]
@@ -414,6 +418,10 @@ branches:
             container: decompiled-single-file
             category: user
             filename: binary_decompiled.c
+            defined_locations:
+              - function
+            preferred_artifacts:
+              - emit-model-header
 
   emit-model-header:
     tasks:
@@ -426,6 +434,16 @@ branches:
             container: model-header
             category: user
             filename: types-and-globals.h
+            defined_locations:
+              - type-definition
+              - struct-field
+              - union-field
+              - enum-entry
+              - dynamic-function
+              - segment
+              - artificial-struct
+            preferred_artifacts:
+              - emit-c
 
   emit-type-definition:
     tasks:
@@ -474,6 +492,10 @@ branches:
             container: assembly
             category: user
             filename: disassembly.S
+            defined_locations:
+              - function
+              - basic-block
+              - instruction
 
   recompile:
     from: lift
