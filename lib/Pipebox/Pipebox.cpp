@@ -22,6 +22,7 @@
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
 #include "revng/ImportFromC/ImportFromCAnalysis.h"
+#include "revng/LLMRename/LLMRenameAnalysis.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Lift/LinkSupportPipe.h"
 #include "revng/Model/Importer/Binary/ImportBinaryAnalysis.h"
@@ -143,3 +144,4 @@ static RegisterAnalysis<AnalyzeDataLayout> A9;
 static RegisterAnalysis<ConvertFunctionsToCABI> A10;
 static RegisterAnalysis<ConvertFunctionsToRaw> A11;
 static RegisterAnalysis<ImportFromC> A12;
+static RegisterAnalysis<LLMRename> A13;

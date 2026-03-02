@@ -401,6 +401,9 @@ branches:
             container: decompile-c
             category: user
             filename: decompiled.c
+        analyses:
+          - analysis: llm-rename
+            containers: [decompile-c]
 
       - pipe: decompile-to-single-file
         arguments: [decompile-c, decompiled-single-file]
