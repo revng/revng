@@ -11,6 +11,7 @@ from typing import Dict, Generator, Iterable, List, Mapping, Optional, Set
 import yaml
 
 from revng.pypeline.runner_context import RunnerContext
+from revng.pypeline.utils import PypelineException
 
 from .analysis import AnalysisBinding, AnalysisList
 from .container import Container, ContainerDeclaration
@@ -464,7 +465,7 @@ class Pipeline:
         for analysis_name, analysis_config in zip(analysis_list.analyses, analysis_configuration):
             pypeline_logger.debug_log(f"Running analysis {analysis_name}")
             if analysis_name not in self.analyses:
-                raise ValueError(f"Analysis {analysis_name} not found in the pipeline")
+                raise PypelineException(f"Analysis {analysis_name} not found in the pipeline")
             analysis = self.analyses[analysis_name]
             # Build the requests for the analysis
             requests = Requests()
@@ -501,18 +502,18 @@ class Pipeline:
         in the storage provider.
         """
         if analysis_name not in self.analyses:
-            raise ValueError(f"Analysis {analysis_name} not found in the pipeline")
+            raise PypelineException(f"Analysis {analysis_name} not found in the pipeline")
         analysis_info = self.analyses[analysis_name]
 
         if len(requests) != len(analysis_info.bindings):
-            raise ValueError(
+            raise PypelineException(
                 f"Expected {len(analysis_info.bindings)} requests for analysis "
                 f"{analysis_name}, but got {len(requests)}: {requests}"
             )
 
         for req in requests:
             if req not in analysis_info.bindings:
-                raise ValueError(
+                raise PypelineException(
                     f"Request {req} but it's not compatible with in the "
                     f"analysis bindings: {analysis_info.bindings}"
                 )

@@ -186,8 +186,7 @@ def test_daemon(daemon_server: TestServer):
     )
     assert response.code == 400
     error_data = response.body
-    assert "msg" in error_data
-    assert "available_analyses" in error_data
+    assert "message" in error_data
 
     # Test error handling - invalid artifact
     logger.info("Testing error handling with invalid artifact")
@@ -197,8 +196,7 @@ def test_daemon(daemon_server: TestServer):
     logger.info("NonExistentArtifact response: %s", response.body)
     assert response.code == 400
     error_data = response.body
-    assert "msg" in error_data
-    assert "available_artifacts" in error_data
+    assert "message" in error_data
 
     # Verify final state
     logger.info("Verifying final daemon state")

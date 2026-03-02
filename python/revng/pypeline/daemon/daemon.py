@@ -15,6 +15,7 @@ from revng.pypeline.utils import bytes_to_string
 from revng.pypeline.utils.pipeline import get_pipeline_description
 from revng.pypeline.utils.registry import get_singleton
 
+from .exceptions import EpochError, MalformedRequestError
 from .utils import compute_artifact, compute_objects
 
 
@@ -101,13 +102,7 @@ class Daemon:
         # Validate data
         for artifact_name, _ in artifacts.items():
             if artifact_name not in self.pipeline.artifacts:
-                return Response(
-                    code=400,
-                    body={
-                        "msg": f"Artifact {artifact_name} not found in the pipeline.",
-                        "available_artifacts": list(self.pipeline.artifacts.keys()),
-                    },
-                )
+                raise MalformedRequestError(f"Artifact {artifact_name} not found in the pipeline")
 
         storage_provider_context = self._get_storage_provider_context(request)
         async with storage_provider_context as storage_provider:
@@ -115,15 +110,7 @@ class Daemon:
             model, real_epoch = storage_provider.get_model()
 
             if real_epoch != epoch:
-                return Response(
-                    code=409,
-                    body={
-                        "msg": (
-                            f"Epoch mismatch: client has epoch {epoch}, "
-                            f"server has epoch {real_epoch}."
-                        ),
-                    },
-                )
+                raise EpochError(real_epoch, epoch)
 
             # Process each artifact
             res = {}
@@ -152,16 +139,7 @@ class Daemon:
 
         # Validate data and normalize to analysis list
         if analysis not in self.pipeline.analyses and analysis not in self.pipeline.analysis_lists:
-            return Response(
-                code=400,
-                body={
-                    "msg": f"Analysis {analysis} not found in the pipeline.",
-                    "available_analyses": sorted(
-                        list(self.pipeline.analyses.keys())
-                        + list(self.pipeline.analysis_lists.keys())
-                    ),
-                },
-            )
+            raise MalformedRequestError(f"Analysis {analysis} not found in the pipeline")
 
         # Check that the given containers are declared in the pipeline
         for container_name, objects in containers.items():
@@ -169,15 +147,7 @@ class Daemon:
                 if container_name == decl.name:
                     break
             else:
-                return Response(
-                    code=400,
-                    body={
-                        "msg": f"Container {container_name} not found in the pipeline.",
-                        "available_containers": sorted(
-                            decl.name for decl in self.pipeline.declarations
-                        ),
-                    },
-                )
+                raise MalformedRequestError(f"Container {container_name} not found in the pipeline")
 
         storage_provider_context = self._get_storage_provider_context(request)
         async with storage_provider_context as storage_provider:
@@ -185,15 +155,7 @@ class Daemon:
             model, real_epoch = storage_provider.get_model()
 
             if real_epoch != epoch:
-                return Response(
-                    code=409,
-                    body={
-                        "msg": (
-                            f"Epoch mismatch: client has epoch {epoch}, "
-                            f"server has epoch {real_epoch}."
-                        ),
-                    },
-                )
+                raise EpochError(real_epoch, epoch)
 
             # Run an analysis
             if analysis in self.pipeline.analyses:
@@ -204,14 +166,9 @@ class Daemon:
                     kind: Kind = binding.container_type.kind
                     objects = containers.get(binding.name)
                     if objects is not None and not isinstance(objects, list):
-                        return Response(
-                            code=400,
-                            body={
-                                "msg": (
-                                    f"Objects for container {binding.name} must be a "
-                                    f"list, got {type(objects)}",
-                                ),
-                            },
+                        raise MalformedRequestError(
+                            f"Objects for container {binding.name} must be a list, "
+                            f"got {type(objects)}"
                         )
                     requests.insert(binding, compute_objects(current_model, kind, objects))
 
