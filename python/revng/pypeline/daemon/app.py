@@ -4,12 +4,10 @@
 
 import json
 import os
-import traceback
 from functools import wraps
-from typing import Any, Mapping
+from typing import Mapping
 
 from starlette.applications import Starlette
-from starlette.exceptions import HTTPException
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
@@ -18,9 +16,11 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket
 
+from revng.pypeline.utils import PypelineException
 from revng.pypeline.utils.logger import pypeline_logger
 
 from .daemon import Daemon, Response
+from .exceptions import DaemonException
 from .notification_broker import WebSocketStream
 from .notification_broker.local_broker import LocalNotificationBroker
 
@@ -29,21 +29,16 @@ from .notification_broker.local_broker import LocalNotificationBroker
 notification_broker = LocalNotificationBroker()
 
 
-class BasicHTTPException(HTTPException):
-    """Custom HTTP exception that includes JSON data"""
-
-    def __init__(self, status_code: int, data: Any):
-        super().__init__(status_code=status_code)
-        self.data = data
-
-
-def basic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+def daemon_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, DaemonException)
     """Handle BasicHTTPException and return JSON response"""
-    if isinstance(exc, BasicHTTPException):
-        return JSONResponse(content=exc.data, status_code=exc.status_code)
-    return JSONResponse(
-        content={"error": str(exc), "traceback": traceback.format_exc()}, status_code=500
-    )
+    return JSONResponse(content=exc.body, status_code=exc.code)
+
+
+def pypeline_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, PypelineException)
+    """Handle BasicHTTPException and return JSON response"""
+    return JSONResponse(content={"message": str(exc)}, status_code=500)
 
 
 def get_project_id(headers: Mapping[str, str]) -> str | None:
@@ -60,8 +55,6 @@ async def invalidation_websocket(websocket: WebSocket):
         project_id = get_project_id(websocket.headers)
         subscriber = await notification_broker.subscribe(project_id, WebSocketStream(websocket))
         await subscriber.listen_for_messages()
-    except BasicHTTPException as e:
-        await websocket.close(code=400, reason=json.dumps(e.data))
     except Exception as e:
         pypeline_logger.log(f"Uncaught exception: {str(e)}")
         await websocket.close(code=500, reason=f"Internal server error: {str(e)}")
@@ -152,7 +145,8 @@ def make_starlette(daemon: Daemon) -> Starlette:
         debug=False,
         routes=routes,
         exception_handlers={
-            BasicHTTPException: basic_exception_handler,
+            DaemonException: daemon_exception_handler,
+            PypelineException: pypeline_exception_handler,
         },
         middleware=[
             Middleware(  # type: ignore

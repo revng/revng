@@ -436,6 +436,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/daemon/__init__.py
     revng/pypeline/daemon/app.py
     revng/pypeline/daemon/daemon.py
+    revng/pypeline/daemon/exceptions.py
     revng/pypeline/daemon/notification_broker/__init__.py
     revng/pypeline/daemon/notification_broker/local_broker.py
     revng/pypeline/daemon/utils.py

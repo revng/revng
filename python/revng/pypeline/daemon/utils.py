@@ -11,17 +11,7 @@ from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.utils import bytes_to_string
 from revng.pypeline.utils.registry import get_singleton
 
-
-class DaemonException(Exception):
-    """
-    An exception that a route can raise to do an early-exit with
-    some data and a status code.
-    """
-
-    def __init__(self, status_code: int, data: Any):
-        self.code = status_code
-        self.data = data
-
+from .exceptions import MalformedRequestError
 
 Epoch = int
 
@@ -46,23 +36,13 @@ def compute_objects(
     objset = set()
     for obj in objects:
         if not isinstance(obj, str):
-            raise DaemonException(
-                400,
-                {
-                    "msg": f'Object "{obj}" must be a string, got "{type(obj)}"',
-                },
-            )
+            raise MalformedRequestError(f'Object "{obj}" must be a string, got "{type(obj)}"')
 
         # Deserialize the object ID
         try:
             obj_id = obj_type.deserialize(obj)
         except ValueError as e:
-            raise DaemonException(
-                400,
-                {
-                    "msg": f'Invalid object ID "{obj}": {e}',
-                },
-            )
+            raise MalformedRequestError(f'Invalid object ID "{obj}": {e}')
 
         objset.add(obj_id)
 
