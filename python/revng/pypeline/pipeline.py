@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import chain
 from typing import Dict, Generator, Iterable, List, Mapping, Optional, Set
 
@@ -57,6 +57,10 @@ class Artifact:
     category: ArtifactCategory
     description: Optional[str] = None
     filename: str | None = None
+    # TODO: this should be a property of the pipe that inserts the locations,
+    # but for now we define it statically as a property of the artifact.
+    defined_locations: list[str] = field(default_factory=list, hash=False)
+    preferred_artifacts: list[str] = field(default_factory=list, hash=False)
 
     def is_cacheable(self) -> bool:
         """An artifact is cacheable if it's backed by a savepoint."""
@@ -69,6 +73,8 @@ class Artifact:
             "container": self.container.name,
             "cacheable": self.is_cacheable(),
             "category": self.category.to_dict(),
+            "defined_locations": self.defined_locations,
+            "preferred_artifacts": self.preferred_artifacts,
         }
         if self.filename is not None:
             result["filename"] = self.filename

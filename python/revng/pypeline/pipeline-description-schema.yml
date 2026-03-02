@@ -155,6 +155,8 @@ properties:
         - name
         - container
         - cacheable
+        - defined_locations
+        - preferred_artifacts
       properties:
         name:
           type: string
@@ -182,6 +184,18 @@ properties:
         filename:
           type: string
           description: The filename to use when representing this artifact
+        defined_locations:
+          type: array
+          description: PTML locations that are present in this artifact
+          items:
+            type: string
+        preferred_artifacts:
+          type: array
+          description: >
+            Other artifacts where it's preferred to look for definitions of
+            locations referenced in this one
+          items:
+            type: string
   analyses:
     type: array
     description: List of analyses available in the pipeline

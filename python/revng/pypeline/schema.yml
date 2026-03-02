@@ -199,3 +199,15 @@ $defs:
       filename:
         type: string
         description: The filename to use when representing this artifact
+      defined_locations:
+        type: array
+        description: PTML locations that are present in this artifact
+        items:
+          type: string
+      preferred_artifacts:
+        type: array
+        description: >
+          other artifacts where it's preferred to look for definitions of
+          locations defined in this one
+        items:
+          type: string
