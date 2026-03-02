@@ -17,6 +17,7 @@ target_link_libraries(
   revngDataLayoutAnalysis
   revngFunctionIsolation
   revngImportFromCAnalysis
+  revngLLMRenameAnalysis
   revngLift
   revngModelImporter
   revngModelToHeader

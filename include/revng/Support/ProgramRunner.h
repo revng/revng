@@ -38,7 +38,7 @@ public:
 
   struct RunOptions {
     /// If provided, will pipe the provided string to stdin
-    std::optional<std::string> Stdin;
+    std::optional<llvm::StringRef> Stdin;
     /// Capture output options
     CaptureOption Capture = CaptureOption::None;
   };
