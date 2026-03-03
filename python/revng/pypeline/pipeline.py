@@ -66,12 +66,16 @@ class Artifact:
         """An artifact is cacheable if it's backed by a savepoint."""
         return isinstance(self.node.task, SavePoint)
 
+    def pipe_dependencies(self) -> list[str]:
+        return sorted({p.name for p in self.node.pipe_dependencies})
+
     def to_dict(self) -> dict:
         """Convert the artifact to a dictionary representation."""
         result = {
             "name": self.name,
             "container": self.container.name,
             "cacheable": self.is_cacheable(),
+            "pipe_dependencies": self.pipe_dependencies(),
             "category": self.category.to_dict(),
             "defined_locations": self.defined_locations,
             "preferred_artifacts": self.preferred_artifacts,
