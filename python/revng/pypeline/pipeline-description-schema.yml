@@ -155,6 +155,8 @@ properties:
         - name
         - container
         - cacheable
+        - category
+        - pipe_dependencies
         - defined_locations
         - preferred_artifacts
       properties:
@@ -167,6 +169,14 @@ properties:
         cacheable:
           type: boolean
           description: Whether this artifact can be cached
+        pipe_dependencies:
+          type: array
+          description: >
+            List of pipes (starting from the root node) that this artifact
+            depends on. This is required to compute, given a global
+            configuration, which keys effect the artifact.
+          items:
+            type: string
         category:
           type: object
           required:
