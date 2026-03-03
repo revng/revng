@@ -186,12 +186,14 @@ class Pipeline:
                 self.savepoint_id_to_name[node.savepoint_range.start] = node.task.name
 
         for name, artifact in self.artifacts.items():
-            self.savepoint_id_to_artifact[artifact.node.id] = artifact
             if name != artifact.name:
                 raise ValueError(
                     f"Artifact name {artifact.name} does not match the key "
                     f"{name} in the artifacts map."
                 )
+            if isinstance(artifact.node.task, SavePoint):
+                assert artifact.node.savepoint_range is not None
+                self.savepoint_id_to_artifact[artifact.node.savepoint_range.start] = artifact
 
     @staticmethod
     def assign_savepoint_ranges(node: PipelineNode, current_id: int = 0) -> int:
