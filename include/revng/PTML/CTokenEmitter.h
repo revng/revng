@@ -158,6 +158,8 @@ public:
 
     Attribute,
     AttributeArgument,
+
+    Macro,
   };
 
   enum class IdentifierKind : bool {
@@ -179,9 +181,15 @@ public:
   //       emitting character literals is needed, another function should be
   //       added for that purpose.
 
+  struct IntegerSuffix {
+    bool Unsigned;
+    CIntegerKind MinimumType;
+  };
+
   /// \pre \param Radix must be one of 2, 8, 10 or 16.
-  void
-  emitIntegerLiteral(llvm::APSInt Value, CIntegerKind Type, unsigned Radix);
+  void emitIntegerLiteral(llvm::APInt Value,
+                          std::optional<IntegerSuffix> Suffix,
+                          uint64_t Radix = 10);
 
   void emitStringLiteral(llvm::StringRef Content);
 
