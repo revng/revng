@@ -6,11 +6,43 @@ import os
 
 import click
 import uvicorn
+from uvicorn.main import Server
 
+import revng.pypeline.daemon.app as app
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import PypeCommand
-from revng.pypeline.daemon.app import make_starlette
 from revng.pypeline.daemon.daemon import Daemon
+
+# The ASGI spec does not have any facility to report that the shutdown of the
+# server has begun. The lifespan protocol sends the `lifespan.shutdown` message
+# only when "the server has stopped accepting connections and closed all active
+# connections" (cited from the spec).
+# This does not work well with long-running websocket connections, because we
+# want to know when the server has started shutting down so that we can close
+# the sockets. This create a catch-22 where the sockets are waiting for the
+# shutdown signal to be closed and the server is waiting for the sockets to
+# close to send the shutdown signal.
+# Seemingly [1] the only reliable way of fixing this is to monkey-patch the
+# `handle_exit` method of `uvicorn.main.Server` so that we can trigger an
+# `asyncio.Event` variable and trigger the websockets to shut down.
+# Uvicorn has a pending PR [2] that makes this unnecessary but it hasn't been
+# merged yet.
+#
+# [1] https://stackoverflow.com/q/58133694
+# [2] https://github.com/Kludex/uvicorn/pull/2242
+original_handle_exit = Server.handle_exit
+
+
+def new_handle_exit(self, *args, **kwargs):
+    if not self.should_exit:
+        assert app.shutdown_begun is not None
+        app.shutdown_begun.set()
+    return original_handle_exit(self, *args, **kwargs)
+
+
+Server.handle_exit = new_handle_exit  # type: ignore[method-assign]
+
+# End of hack to trigger websocket shutdown
 
 
 @click.command(cls=PypeCommand)
@@ -49,7 +81,7 @@ def run_daemon(ctx: ClickContext, production, **kwargs):
     )
 
     # Start the uvicorn server
-    uvicorn.run(app=make_starlette(daemon), **kwargs)
+    uvicorn.run(app=app.make_starlette(daemon), **kwargs)
 
 
 # Inherit all params from the uvicorn cli
