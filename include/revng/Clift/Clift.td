@@ -24,12 +24,6 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 
 //===-------------------------- Type constraints --------------------------===//
 
-def Clift_AnyLabelType
-  : Type<CPred<"mlir::isa<mlir::clift::LabelType>($_self)">,
-         "Clift label type",
-         "mlir::clift::LabelType">,
-    BuildableType<"$_builder.getType<mlir::clift::LabelType>()">;
-
 def Clift_AnyValueType
   : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
          "Clift value type",
