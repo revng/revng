@@ -677,11 +677,15 @@ def Clift_WhileOp : Clift_LoopStatementOp<"while", [NoRegionArguments]> {
 
 //===----------------------------- Expressions ----------------------------===//
 
+class Clift_BasicExpressionOp<string mnemonic,
+                              Trait interface,
+                              list<Trait> traits = []>
+  : Clift_Op<mnemonic, !listconcat(traits, [interface,
+                                            NoMemoryEffect,
+                                            NoRegionArguments])>;
+
 class Clift_ExpressionOp<string mnemonic, list<Trait> traits = []>
-  : Clift_Op<mnemonic,
-             !listconcat(traits,
-                         [Clift_ExpressionOpInterface,
-                          NoRegionArguments])>;
+  : Clift_BasicExpressionOp<mnemonic, Clift_ExpressionOpInterface, traits>;
 
 def Clift_UndefOp : Clift_ExpressionOp<"undef"> {
   let results = (outs Clift_AnyValueType:$result);
@@ -691,7 +695,10 @@ def Clift_UndefOp : Clift_ExpressionOp<"undef"> {
   }];
 }
 
-def Clift_YieldOp : Clift_ExpressionOp<"yield", [Terminator]> {
+def Clift_YieldOp : Clift_Op<"yield", [Clift_ExpressionOpInterface,
+                                       Terminator,
+                                       NoRegionArguments]> {
+
   let arguments = (ins Clift_AnyValueType:$value);
 
   let assemblyFormat = [{
@@ -704,7 +711,7 @@ def Clift_YieldOp : Clift_ExpressionOp<"yield", [Terminator]> {
   }];
 }
 
-def Clift_ImmediateOp : Clift_ExpressionOp<"imm", [NoMemoryEffect]> {
+def Clift_ImmediateOp : Clift_ExpressionOp<"imm"> {
   let arguments = (ins I64Attr:$value);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
@@ -714,7 +721,7 @@ def Clift_ImmediateOp : Clift_ExpressionOp<"imm", [NoMemoryEffect]> {
   }];
 }
 
-def Clift_StringOp : Clift_ExpressionOp<"str", [NoMemoryEffect]> {
+def Clift_StringOp : Clift_ExpressionOp<"str"> {
   let arguments = (ins StrAttr:$value);
   let results = (outs AnyType:$result);
 
@@ -727,8 +734,7 @@ def Clift_StringOp : Clift_ExpressionOp<"str", [NoMemoryEffect]> {
 
 class Clift_UnaryArithmeticOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
-                       [NoMemoryEffect,
-                        TypesMatchWith<"result type must match the value type, ignoring qualifiers",
+                       [TypesMatchWith<"result type must match the value type, ignoring qualifiers",
                                        "value",
                                        "result",
                                        "mlir::clift::removeConst($_self)">]> {
@@ -744,8 +750,7 @@ class Clift_UnaryArithmeticOp<string mnemonic>
 class Clift_BinaryArithmeticOp<string mnemonic, list<Trait> traits = []>
   : Clift_ExpressionOp<mnemonic,
                        !listconcat(traits,
-                                   [NoMemoryEffect,
-                                    Clift_AllTypesMatch<["lhs", "rhs", "result"]>])> {
+                                   [Clift_AllTypesMatch<["lhs", "rhs", "result"]>])> {
 
   let arguments = (ins Clift_AnyPrimitiveIntegerType:$lhs,
                        Clift_AnyPrimitiveIntegerType:$rhs);
@@ -765,9 +770,7 @@ class Clift_BinaryArithmeticOp<string mnemonic, list<Trait> traits = []>
 }
 
 class Clift_PointerArithmeticOp<string mnemonic, list<Trait> traits = []>
-  : Clift_ExpressionOp<mnemonic,
-                       !listconcat(traits,
-                                   [NoMemoryEffect])> {
+  : Clift_ExpressionOp<mnemonic, traits> {
 
   let arguments = (ins AnyType:$lhs, AnyType:$rhs);
   let results = (outs Clift_AnyNonConstType<AnyType>:$result);
@@ -800,9 +803,7 @@ class Clift_PointerArithmeticOp<string mnemonic, list<Trait> traits = []>
 }
 
 class Clift_BinaryLogicalOp<string mnemonic>
-  : Clift_ExpressionOp<mnemonic,
-                       [NoMemoryEffect,
-                        Clift_ReturnsBoolean]> {
+  : Clift_ExpressionOp<mnemonic, [Clift_ReturnsBoolean]> {
 
   let arguments = (ins Clift_AnyScalarType:$lhs,
                        Clift_AnyScalarType:$rhs);
@@ -823,8 +824,7 @@ class Clift_BinaryLogicalOp<string mnemonic>
 
 class Clift_ShiftOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
-                       [NoMemoryEffect,
-                        TypesMatchWith<"result type must match the lhs type, ignoring qualifiers",
+                       [TypesMatchWith<"result type must match the lhs type, ignoring qualifiers",
                                        "lhs",
                                        "result",
                                        "mlir::clift::removeConst($_self)">]> {
@@ -841,8 +841,7 @@ class Clift_ShiftOp<string mnemonic>
 
 class Clift_ComparisonOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
-                       [NoMemoryEffect,
-                        Commutative,
+                       [Commutative,
                         Clift_ReturnsBoolean,
                         Clift_AllTypesMatch<["lhs", "rhs"]>]> {
 
@@ -859,8 +858,7 @@ class Clift_ComparisonOp<string mnemonic>
 
 class Clift_UnaryIntegerMutationOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
-                       [NoMemoryEffect,
-                        AllTypesMatch<["value", "result"]>]> {
+                       [AllTypesMatch<["value", "result"]>]> {
 
   let arguments = (ins Clift_AnyModifiableType<Clift_AnyPrimitiveIntegerType>:$value);
   let results = (outs Clift_AnyPrimitiveIntegerType:$result);
@@ -891,9 +889,7 @@ def Clift_PtrAddOp : Clift_PointerArithmeticOp<"ptr_add", [Commutative]>;
 def Clift_PtrSubOp : Clift_PointerArithmeticOp<"ptr_sub">;
 
 def Clift_PtrDiffOp
-  : Clift_ExpressionOp<"ptr_diff",
-                       [NoMemoryEffect,
-                        Clift_AllTypesMatch<["lhs", "rhs"]>]> {
+  : Clift_ExpressionOp<"ptr_diff", [Clift_AllTypesMatch<["lhs", "rhs"]>]> {
 
   let arguments = (ins AnyType:$lhs, AnyType:$rhs);
   let results = (outs Clift_AnyNonConstType<AnyType>:$result);
@@ -907,9 +903,7 @@ def Clift_PtrDiffOp
 }
 
 def Clift_LogicalNotOp
-  : Clift_ExpressionOp<"not",
-                       [NoMemoryEffect,
-                        Clift_ReturnsBoolean]> {
+  : Clift_ExpressionOp<"not", [Clift_ReturnsBoolean]> {
 
   let arguments = (ins Clift_AnyIntegerType:$value);
   let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
@@ -949,7 +943,7 @@ def Clift_DecrementOp : Clift_UnaryIntegerMutationOp<"dec">;
 def Clift_PostIncrementOp : Clift_UnaryIntegerMutationOp<"post_inc">;
 def Clift_PostDecrementOp : Clift_UnaryIntegerMutationOp<"post_dec">;
 
-def Clift_CastOp : Clift_ExpressionOp<"cast", [NoMemoryEffect]> {
+def Clift_CastOp : Clift_ExpressionOp<"cast"> {
   let arguments = (ins Clift_AnyValueType:$value,
                        Clift_CastKind:$kind);
 
@@ -964,8 +958,7 @@ def Clift_CastOp : Clift_ExpressionOp<"cast", [NoMemoryEffect]> {
 
 def Clift_AddressofOp
   : Clift_ExpressionOp<"addressof",
-                       [NoMemoryEffect,
-                        TypesMatchWith<"object type must match the pointee type of the result type",
+                       [TypesMatchWith<"object type must match the pointee type of the result type",
                                        "result",
                                        "object",
                                        "mlir::cast<PointerType>($_self).getPointeeType()">]> {
@@ -982,8 +975,7 @@ def Clift_AddressofOp
 
 def Clift_IndirectionOp
   : Clift_ExpressionOp<"indirection",
-                       [NoMemoryEffect,
-                        TypesMatchWith<"result type must match the pointee type of the pointer type",
+                       [TypesMatchWith<"result type must match the pointee type of the pointer type",
                                        "pointer",
                                        "result",
                                        "mlir::cast<PointerType>($_self).getPointeeType()">]> {
@@ -1028,7 +1020,7 @@ def Clift_AssignOp
   let hasVerifier = 1;
 }
 
-def Clift_AccessOp : Clift_ExpressionOp<"access", [NoMemoryEffect]> {
+def Clift_AccessOp : Clift_ExpressionOp<"access"> {
   let arguments = (ins AnyType:$value,
                        UnitAttr:$indirect,
                        I64Attr:$member_index);
@@ -1056,8 +1048,7 @@ def Clift_AccessOp : Clift_ExpressionOp<"access", [NoMemoryEffect]> {
 
 def Clift_SubscriptOp
   : Clift_ExpressionOp<"subscript",
-                       [NoMemoryEffect,
-                        TypesMatchWith<"result type must match the pointee type of the pointer type",
+                       [TypesMatchWith<"result type must match the pointee type of the pointer type",
                                        "pointer",
                                        "result",
                                        "mlir::cast<PointerType>($_self).getPointeeType()">]> {
@@ -1080,8 +1071,7 @@ def Clift_SubscriptOp
 }
 
 def Clift_CommaOp : Clift_ExpressionOp<"comma",
-                                       [NoMemoryEffect,
-                                        AllTypesMatch<["rhs", "result"]>]> {
+                                       [AllTypesMatch<["rhs", "result"]>]> {
 
   let arguments = (ins Clift_AnyValueType:$lhs,
                        Clift_AnyValueType:$rhs);
@@ -1105,8 +1095,7 @@ def Clift_CommaOp : Clift_ExpressionOp<"comma",
 
 def Clift_UseOp
   : Clift_ExpressionOp<"use",
-                       [NoMemoryEffect,
-                        DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
+                       [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
 
   let arguments = (ins FlatSymbolRefAttr:$symbol_name);
   let results = (outs Clift_AnyValueType:$result);
@@ -1134,8 +1123,7 @@ def Clift_CallOp : Clift_ExpressionOp<"call"> {
 
 def Clift_TernaryOp
   : Clift_ExpressionOp<"ternary",
-                       [NoMemoryEffect,
-                        Clift_AllTypesMatch<["lhs", "rhs"]>,
+                       [Clift_AllTypesMatch<["lhs", "rhs"]>,
                         TypesMatchWith<"result type must match the value type, ignoring qualifiers",
                                        "lhs",
                                        "result",
@@ -1159,7 +1147,7 @@ def Clift_TernaryOp
   }];
 }
 
-def Clift_AggregateOp : Clift_ExpressionOp<"aggregate", [NoMemoryEffect]> {
+def Clift_AggregateOp : Clift_ExpressionOp<"aggregate"> {
   let arguments = (ins Variadic<AnyType>:$initializers);
   let results = (outs Clift_AnyNonConstType<AnyType>:$result);
 
