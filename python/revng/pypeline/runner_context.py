@@ -138,7 +138,7 @@ exec \\
             arg_name = normalize_flag(argument.name)
             if argument.access & TaskArgumentAccess.READ:
                 output_path = directory / f"inputs/{arg_name}.tar"
-                containers[index].to_file(output_path, ContainerFormat.TAR)
+                containers[index].to_file(output_path, container_format=ContainerFormat.TAR)
 
     def _pipe_construct_cmd(
         self, pipe: Pipe, outgoing: list[ObjectSet], configuration: Configuration
@@ -266,7 +266,7 @@ exec \\
             for index, argument in enumerate(analysis.signature()):
                 arg_name = normalize_flag(argument.name)
                 output_path = temp_dir_path / f"{arg_name}.tar"
-                containers[index].to_file(output_path, ContainerFormat.TAR)
+                containers[index].to_file(output_path, container_format=ContainerFormat.TAR)
                 cmd_epilogue.append(str(output_path))
 
                 argument_requests = incoming[index]

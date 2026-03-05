@@ -160,7 +160,7 @@ def build_artifact_command(
 
             if result_path is not None:
                 pypeline_logger.debug_log(f'Writing result to: "{result_path}"')
-                res_container.to_file(result_path, container_format)
+                res_container.to_file(result_path, container_format=container_format)
             else:
                 # Write to stdout the bytes of the container
                 sys.stdout.buffer.write(res_container.to_bytes(container_format=container_format))

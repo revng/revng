@@ -274,11 +274,19 @@ class Container(ABC):
             return cls.from_bytes(f.read(), container_format=container_format)
 
     @final
-    def to_dict(self) -> dict[str, Buffer]:
-        return {k.serialize(): v for k, v in self.serialize(self.objects()).items()}
+    def to_dict(self, objects: ObjectSet | None = None) -> dict[str, Buffer]:
+        if objects is not None:
+            assert self.contains_all(objects)
+        else:
+            objects = self.objects()
+        return {k.serialize(): v for k, v in self.serialize(objects).items()}
 
     @final
-    def to_bytes(self, container_format: ContainerFormat = ContainerFormat.YAML) -> bytes:
+    def to_bytes(
+        self,
+        objects: ObjectSet | None = None,
+        container_format: ContainerFormat = ContainerFormat.YAML,
+    ) -> bytes:
         """
         Dump a container into a serialized format.
         """
@@ -287,14 +295,14 @@ class Container(ABC):
                 with StringIO() as string_stream:
                     data = {
                         key: bytes_to_string(buffer, self.is_text())
-                        for key, buffer in self.to_dict().items()
+                        for key, buffer in self.to_dict(objects).items()
                     }
                     yaml.dump(data, string_stream)
                     return string_stream.getvalue().encode("utf-8")
             case ContainerFormat.TAR:
                 with io.BytesIO() as byte_stream:
                     with tarfile.open(fileobj=byte_stream, mode="w") as tar:
-                        for obj_id, buffer in self.to_dict().items():
+                        for obj_id, buffer in self.to_dict(objects).items():
                             info = tarfile.TarInfo(name=obj_id)
                             data_bytes = bytes(buffer)
                             info.size = len(data_bytes)
@@ -303,21 +311,29 @@ class Container(ABC):
         raise ValueError(f"Unknown container format: {container_format}")
 
     @final
-    def to_string(self, container_format: ContainerFormat = ContainerFormat.YAML) -> str:
+    def to_string(
+        self,
+        objects: ObjectSet | None = None,
+        container_format: ContainerFormat = ContainerFormat.YAML,
+    ) -> str:
         """
         Dump a container into a serialized format.
         """
+        data = self.to_bytes(objects, container_format)
         match container_format:
             case ContainerFormat.YAML:
-                return self.to_bytes(container_format=container_format).decode("utf-8")
+                return data.decode("utf-8")
             case ContainerFormat.TAR:
-                return base64.b64encode(self.to_bytes(container_format=container_format)).decode(
-                    "utf-8"
-                )
+                return base64.b64encode(data).decode("utf-8")
         raise ValueError(f"Unknown container format: {container_format}")
 
     @final
-    def to_file(self, path: str | Path, container_format: ContainerFormat | None = None) -> None:
+    def to_file(
+        self,
+        path: str | Path,
+        objects: ObjectSet | None = None,
+        container_format: ContainerFormat | None = None,
+    ) -> None:
         """
         Dump a container into a serialized format.
         This is used to **save** cached objects from this container.
@@ -334,7 +350,7 @@ class Container(ABC):
                 )
 
         with open(path, "wb") as f:
-            f.write(self.to_bytes(container_format=container_format))
+            f.write(self.to_bytes(objects, container_format))
 
     @classmethod
     def type_dict(cls) -> dict:
