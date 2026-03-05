@@ -217,7 +217,7 @@ getFunctionAttributeString(const model::FunctionAttribute::Values &A) {
   case NoReturn:
     return "_Noreturn";
 
-  case Inline:
+  case AlwaysInline:
     return "inline";
 
   default:

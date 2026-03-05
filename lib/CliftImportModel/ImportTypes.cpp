@@ -681,7 +681,7 @@ clift::importFunctionDeclaration(mlir::ModuleOp Module,
       Result.setNoreturnAttr(Builder.getUnitAttr());
       break;
 
-    case model::FunctionAttribute::Inline:
+    case model::FunctionAttribute::AlwaysInline:
       Result.setAlwaysInlineAttr(Builder.getUnitAttr());
       break;
 

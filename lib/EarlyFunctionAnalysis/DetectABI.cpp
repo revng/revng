@@ -409,7 +409,7 @@ void DetectABI::preliminaryFunctionAnalysis() {
           MetaAddress CallerPC = Caller->Address;
           const auto &CallerSummary = Oracle.getLocalFunction(CallerPC);
           using namespace model::FunctionAttribute;
-          if (CallerSummary.Attributes.contains(Inline))
+          if (CallerSummary.Attributes.contains(AlwaysInline))
             InlineFunctionWorklist.insert(Caller);
 
           if (Binary->Functions().at(CallerPC).Prototype().isEmpty()) {
