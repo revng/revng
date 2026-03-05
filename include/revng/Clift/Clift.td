@@ -237,7 +237,7 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
 //===----------------------------- Statements -----------------------------===//
 
 class Clift_BasicStatementOp<string mnemonic,
-                             Trait interface = Clift_StatementOpInterface,
+                             Trait interface,
                              list<Trait> traits = []>
   : Clift_Op<mnemonic, !listconcat(traits, [interface])>;
 
