@@ -26,8 +26,8 @@ function normalize() {
     local FUNCTION="$1"
     FUNCTION="${FUNCTION//:/_}"
     llvm-extract --func="local_$FUNCTION" | revng opt -globaldce -S | \
-        sed 's;![0-9]\+;!0;g' | \
-        grep -v -e '^!0 = ' -e '^\s*$' -e '^;' -e '^declare'
+        sed -e 's;![0-9]\+;!0;g' -e 's;#[0-9]\+;#0;g' | \
+        grep -v -e '^!0 = ' -e '^\s*$' -e '^;' -e '^declare' -e '^attributes #0 ='
 }
 
 OK=0

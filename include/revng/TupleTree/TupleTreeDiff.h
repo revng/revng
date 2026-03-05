@@ -549,6 +549,9 @@ template<TupleTreeRootLike T>
 inline llvm::Error TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
   using namespace revng;
 
+  bool CachingEnabled = M.isReferenceCachingEnabled();
+  M.disableReferenceCaching();
+
   auto Error = std::make_unique<revng::DiffError>();
   size_t Index = 0;
   for (const Change &C : Changes) {
@@ -569,7 +572,9 @@ inline llvm::Error TupleTreeDiff<T>::apply(TupleTree<T> &M) const {
     Index++;
   }
 
-  M.evictCachedReferences();
   M.initializeReferences();
+  if (CachingEnabled)
+    M.enableReferenceCaching();
+
   return revng::DiffError::makeError(std::move(Error));
 }

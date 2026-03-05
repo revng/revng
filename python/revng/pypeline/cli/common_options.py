@@ -2,7 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import os
 from pathlib import Path
 
 import click
@@ -17,8 +16,7 @@ project_id_option = click.option(
     "--project-id",
     type=str,
     help=("Project id to use for the storage provider."),
-    # TODO: discuss env var names
-    default=os.environ.get("PROJECT_ID"),
+    envvar="PYPELINE_PROJECT_ID",
     show_default=True,
 )
 
@@ -38,6 +36,9 @@ token_option = click.option(
 )
 
 
+_FORMAT_VARIABLE = "container_format"
+
+
 def handle_format_option(ctx, param, value):
     """
     Handles mutual exclusivity, converts strings to Enums,
@@ -48,18 +49,18 @@ def handle_format_option(ctx, param, value):
         if not value:
             return None
 
-        if ctx.params.get("format") is not None:
+        if ctx.params.get(_FORMAT_VARIABLE) is not None:
             raise click.BadOptionUsage(
                 param.name, f"Mutually exclusive: --{param.name} cannot be used with other formats."
             )
 
-        ctx.params["format"] = ContainerFormat(param.name)
+        ctx.params[_FORMAT_VARIABLE] = ContainerFormat(param.name)
         return None
 
     # Handle --format, value is a string passed from click.Choice or default
 
     # Check if a shortcut already populated the format
-    existing_format = ctx.params.get("format")
+    existing_format = ctx.params.get(_FORMAT_VARIABLE)
     if existing_format is not None:
         # If the user EXPLICITLY typed --format AND used a flag -> Error
         if ctx.get_parameter_source(param.name) != ParameterSource.DEFAULT:
@@ -78,7 +79,7 @@ def handle_format_option(ctx, param, value):
 def container_format_options(func):
     func = click.option(
         "--format",
-        "container_format",
+        _FORMAT_VARIABLE,
         type=click.Choice([x.value for x in ContainerFormat]),
         default=ContainerFormat.YAML.value,
         show_default=True,

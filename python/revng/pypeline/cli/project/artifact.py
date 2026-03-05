@@ -13,7 +13,7 @@ from revng.pypeline.cli.common_options import list_objects_option, project_id_op
 from revng.pypeline.cli.utils import PypeGroup, build_help_text, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
-from revng.pypeline.model import Model, ReadOnlyModel
+from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.runner_context import RunnerContext
@@ -65,7 +65,6 @@ class ArtifactGroup(PypeGroup):
         run_artifact_command = build_artifact_command(
             artifact=artifact,
             help_text=help_text,
-            model_type=get_singleton(Model),  # type: ignore[type-abstract]
             pipeline=pipeline,
         )
 
@@ -97,7 +96,6 @@ class ArtifactGroup(PypeGroup):
 def build_artifact_command(
     artifact: Artifact,
     help_text: str,
-    model_type: type[Model],
     pipeline: Pipeline,
 ):
     artifact_name: str = artifact.name
@@ -114,8 +112,7 @@ def build_artifact_command(
         we need the code that uses the storage_provider to be an async function.
         """
         async with storage_provider_context as storage_provider:
-            loaded_model = model_type.deserialize(storage_provider.get_model()[0])
-
+            loaded_model = storage_provider.get_model()[0]
             pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
             artifact_kind = artifact.container.container_type.kind
@@ -207,6 +204,7 @@ def build_artifact_command(
         # Setup the storage provider
         storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
         storage_provider_context = storage_provider_factory.get(
+            base_directory=ctx.obj["base_directory"],
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj["cache_dir"],

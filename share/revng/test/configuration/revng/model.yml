@@ -10,29 +10,26 @@ commands:
     from:
       - type: revng.analyzed-model
     command: |-
-      revng model opt -verify "$INPUT"
+      revng model opt -verify "$INPUT/model.yml"
         | ./serialize-deserialize.py
         | revng model opt -verify
-        | revng model diff /dev/stdin "$INPUT" -o /dev/null
+        | revng model diff /dev/stdin "$INPUT/model.yml" -o /dev/null
     scripts:
       serialize-deserialize.py: |-
         #!/usr/bin/env python3
 
         import sys
-        import yaml
+        from revng.model import Binary
 
-        from revng import model
-
-        m = yaml.load(sys.stdin, Loader=model.YamlLoader)
-        print(yaml.dump(m, Dumper=model.YamlDumper))
+        print(Binary.deserialize(sys.stdin).serialize())
   - type: revng.typescript-model-serialization-roundtrip
     from:
       - type: revng.analyzed-model
     command: |-
-      revng model opt -verify "$INPUT"
+      revng model opt -verify "$INPUT/model.yml"
         | ./serialize-deserialize.js
         | revng model opt -verify
-        | revng model diff /dev/stdin "$INPUT" -o /dev/null
+        | revng model diff /dev/stdin "$INPUT/model.yml" -o /dev/null
     scripts:
       serialize-deserialize.js: |-
         #!/usr/bin/env node
@@ -62,8 +59,14 @@ commands:
         filter: example-executable-2 and with-debug-info
     command: |-
       TEMPORARY=$$(temp -d);
-      revng analyze import-binary "$INPUT1" > $$TEMPORARY/input1.yml;
-      revng analyze import-binary "$INPUT2" > $$TEMPORARY/input2.yml;
-      ( revng model diff $$TEMPORARY/input1.yml $$TEMPORARY/input2.yml || true )
-        | revng model apply $$TEMPORARY/input1.yml
-        | diff -u - $$TEMPORARY/input2.yml
+      mkdir "$$TEMPORARY/project1" "$$TEMPORARY/project2";
+
+      revng2 -C "$$TEMPORARY/project1" project init --no-initial-auto-analysis "$INPUT1";
+      revng2 -C "$$TEMPORARY/project1" project analyze parse-binary -o /dev/null;
+
+      revng2 -C "$$TEMPORARY/project2" project init --no-initial-auto-analysis "$INPUT2";
+      revng2 -C "$$TEMPORARY/project2" project analyze parse-binary -o /dev/null;
+
+      ( revng model diff "$$TEMPORARY/project1/model.yml" "$$TEMPORARY/project2/model.yml" || true )
+        | revng model apply "$$TEMPORARY/project1/model.yml"
+        | diff -u - "$$TEMPORARY/project2/model.yml"

@@ -10,9 +10,16 @@ commands:
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-simplify-switch
-    suffix: /
     command: |-
-      revng artifact
-        --resume "$OUTPUT" --analyze simplify-switch
-        --abi-enforcement-level=no "$INPUT" -o /dev/null ;
-      revng opt -S "$OUTPUT/simplify-switch/functions.bc.zstd" | FileCheck "${SOURCE}.filecheck";
+      WORKDIR=$$(temp -d);
+      revng2 quick artifact simplify-switch "$INPUT"
+        --tar -o "$$WORKDIR/simplify-switch.tar"
+        -- --abi-enforcement-level=no;
+
+      tar -tf "$$WORKDIR/simplify-switch.tar" 2>/dev/null |
+      while IFS= read -r ENTRY; do
+        tar -xf "$$WORKDIR/simplify-switch.tar" "$$ENTRY" --to-stdout 2>/dev/null |
+          revng opt -S >> "$$WORKDIR/simplify-switch.ll";
+      done;
+
+      FileCheck "${SOURCE}.filecheck" < "$$WORKDIR/simplify-switch.ll";

@@ -9,14 +9,16 @@ from collections.abc import Buffer
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import AsyncGenerator, Iterable, Mapping
 
 from revng import __version__ as revng_version
 from revng.pypeline.container import ContainerID
-from revng.pypeline.model import ModelPathSet
+from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
 from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
 from revng.pypeline.utils import Locked
+from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
 from .storage_provider import ConfigurationId, ContainerLocation, FileStorageEntry
@@ -47,6 +49,7 @@ class InMemoryStorageProviderFactory(StorageProviderFactory):
     @asynccontextmanager
     async def get(
         self,
+        base_directory: Path,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
@@ -70,7 +73,7 @@ class InMemoryStorageProvider(StorageProvider):
 
     def __init__(self):
         check_kind_structure()
-        self.model = b""
+        self.model: Model = get_singleton(Model)()
         self.storage: dict[ContainerLocation, dict[ObjectID, bytes]] = {}
         self.dependencies: dict[str, list[DependencyEntry]] = defaultdict(list)
         self.last_change = datetime.now()
@@ -190,13 +193,13 @@ class InMemoryStorageProvider(StorageProvider):
     def get_epoch(self) -> int:
         return self.epoch
 
-    def get_model(self) -> tuple[bytes, int]:
-        return (self.model, self.epoch)
+    def get_model(self) -> tuple[Model, int]:
+        return (self.model.clone(), self.epoch)
 
-    def set_model(self, new_model: bytes) -> int:
+    def set_model(self, new_model: Model) -> int:
         if self.model != new_model:
             self.epoch += 1
-        self.model = new_model
+        self.model = new_model.clone()
         self.last_change = datetime.now()
         return self.epoch
 

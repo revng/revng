@@ -118,11 +118,19 @@ class Model(ABC):
 
     @abstractmethod
     def serialize(self) -> bytes:
+        """
+        Serialize the model to bytes for storage
+        """
         pass
 
     @classmethod
     @abstractmethod
-    def deserialize(cls, data: bytes) -> Model:
+    def deserialize(cls, data: bytes) -> tuple[Model, bool]:
+        """
+        Deserialize the model from bytes. The underlying implementation can
+        change the content (e.g. migrate from a previous version), in that case
+        the returned bool will be set to `true`.
+        """
         pass
 
     @classmethod
@@ -146,6 +154,18 @@ class Model(ABC):
         The file name of the model when saved on disk. This can be used by
         the storage provider to find the model in a project.
         """
+
+    def enable_caching(self):
+        """
+        Enable caching on the instance
+        """
+        pass
+
+    def disable_caching(self):
+        """
+        Disable caching on the instance, all cached data needs to be dropped
+        """
+        pass
 
 
 class ReadOnlyModel[M: Model]:
@@ -182,3 +202,9 @@ class ReadOnlyModel[M: Model]:
         written in C++ where we can enforce the immutability of the model.
         """
         return self._context
+
+    def enable_caching(self):
+        self._context.enable_caching()
+
+    def disable_caching(self):
+        self._context.disable_caching()

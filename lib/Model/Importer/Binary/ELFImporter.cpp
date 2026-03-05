@@ -547,7 +547,7 @@ void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
     TC->finalize();
 
   // Purge cached references and update the reference to Root.
-  Model.evictCachedReferences();
+  Model.disableReferenceCaching();
   Model.initializeReferences();
 
   model::flattenPrimitiveTypedefs(Model);

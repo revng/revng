@@ -79,7 +79,10 @@ int main(int Argc, const char *Argv[]) {
   // Get the vector of container pointers
   auto ContainersPointers = ContainerHandler.getContainers();
 
-  // Run the actual pipe
+  // Disable caching
+  TheModel.disableCaching();
+
+  // Run the actual analysis
   AbortOnError(TheAnalysis->run(TheModel,
                                 ContainersPointers,
                                 Outgoing,

@@ -106,6 +106,9 @@ int main(int Argc, const char *Argv[]) {
   // Get the vector of container pointers
   auto ContainersPointers = ContainerHandler.getContainers();
 
+  // Enable caching
+  TheModel.enableCaching();
+
   // Run the actual pipe
   PipeOutput Output = ThePipe->run(TheModel,
                                    ContainersPointers,

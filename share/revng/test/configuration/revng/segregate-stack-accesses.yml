@@ -3,6 +3,7 @@
 #
 
 commands:
+  # TODO: this crashes with the new pipeline, investigate
   - type: revng.test-segregate-stack-accesses
     from:
       - type: revng-qa.compiled-with-debug-info

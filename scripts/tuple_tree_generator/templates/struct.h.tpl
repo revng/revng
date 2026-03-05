@@ -242,20 +242,18 @@ public:
       /**- endfor -**/
     };
   }
-  bool operator==(const /*= struct.name =*/ &Other) const { return key() == Other.key(); }
   bool operator<(const /*= struct.name =*/ &Other) const { return key() < Other.key(); }
   bool operator>(const /*= struct.name =*/ &Other) const { return key() > Other.key(); }
+  /** endif **/
+  /** endif **/
 
-  /** elif not struct.abstract -**/
   bool operator==(const /*= struct.name =*/ &Other) const {
-    /**- for field in struct.fields **/
+    /**- for field in struct.all_fields **/
     if (/*= field.name =*/() != Other./*= field.name =*/())
       return false;
     /**- endfor **/
     return true;
   }
-  /** endif **/
-  /** endif **/
 
   /**- if emit_tracking **/
 private:

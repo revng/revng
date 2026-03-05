@@ -9,6 +9,7 @@ Changes:
     Add: 8
 ...
 
-# CHECK: lift:
-# CHECK:   root.bc.zstd:
-# CHECK:     - ":root"
+# CHECK: container: llvm-root
+# CHECK: objects:
+# CHECK: - /binary
+# CHECK: savepoint: lifted

@@ -6,6 +6,7 @@ commands:
   #
   # Run detect-stack-size and test against ground truth
   #
+  # TODO: this crashes in the new pipeline, investigate
   - type: revng.test-detect-stack-size
     from:
       - type: revng-qa.compiled-with-debug-info

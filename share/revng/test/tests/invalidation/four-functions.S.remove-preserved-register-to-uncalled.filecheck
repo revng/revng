@@ -7,5 +7,4 @@ Changes:
   - Path:            "/TypeDefinitions/2002-RawFunctionDefinition/RawFunctionDefinition::PreservedRegisters"
     Remove:          rax_x86_64
 ...
-
-# CHECK-NOT: 0x500000:Code_x86_64:isolated
+# CHECK-NOT: - /function/0x500000:Code_x86_64

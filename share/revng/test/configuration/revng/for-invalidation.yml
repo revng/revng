@@ -15,38 +15,28 @@ commands:
     scripts:
       check-invalidations: |-
         #!/usr/bin/env bash
-
         set -euo pipefail
 
         BINARY="$1"
-        shift
+        FILECHECK="$2"
 
-        FILECHECK="$1"
-        shift
+        WORKDIR="$(mktemp -d)"
+        trap 'rm -rf "$WORKDIR"' EXIT
+        cd "$WORKDIR"
 
-        RESUME="$(mktemp -d)"
-        trap 'rm -rf "$RESUME"' EXIT
-
-        revng analyze --resume "$RESUME" import-binary "$BINARY" -o /dev/null
+        revng2 project init --no-initial-auto-analysis "$BINARY";
+        revng2 project analyze parse-binary -o /dev/null;
 
         PRE_ARTIFACT_PATCH="${FILECHECK/.filecheck/.pre-patch.yml}"
-        if test -e "$PRE_ARTIFACT_PATCH"; then
-            revng analyze --resume "$RESUME" \
-                apply-diff \
-                --apply-diff-global-name=model.yml \
-                --apply-diff-diff-content-path="$PRE_ARTIFACT_PATCH" \
-                "$BINARY" \
-                -o /dev/null
+        if [[ -e "$PRE_ARTIFACT_PATCH" ]]; then
+            revng2 project analyze apply-diff \
+              -c "$(cat "$PRE_ARTIFACT_PATCH")" -o /dev/null
         fi
 
-        revng artifact --resume "$RESUME" enforce-abi "$BINARY" -o /dev/null
+        revng2 project artifact enforce-abi -o /dev/null
 
-        revng analyze --resume "$RESUME" \
-            apply-diff \
-            --apply-diff-global-name=model.yml \
-            --apply-diff-diff-content-path="$FILECHECK" \
-            "$BINARY" \
-            -o /dev/null \
-            --save-invalidations "$RESUME/invalidations.yml"
+        revng2 project analyze apply-diff \
+          -c "$(cat "$FILECHECK")" -o /dev/null \
+          --invalidations invalidations.yml
 
-        cat "$RESUME/invalidations.yml" | FileCheck "$FILECHECK"
+        FileCheck "$FILECHECK" < invalidations.yml

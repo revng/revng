@@ -141,7 +141,7 @@ def build_run_analysis_command(
         # Load the model
         loaded_model: Model = model_type()
         with open(model, "rb") as model_file:
-            loaded_model = model_type.deserialize(model_file.read())
+            loaded_model = model_type.deserialize(model_file.read())[0]
 
         pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
@@ -170,6 +170,9 @@ def build_run_analysis_command(
                     kwargs=kwargs,
                 )
             )
+
+        # Disable caching
+        loaded_model.disable_caching()
 
         # Finally, run the analysis
         analysis.run(

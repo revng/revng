@@ -3,6 +3,7 @@
 //
 
 #include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
+#include "revng/ABI/Analyses/ConvertFunctionsToRaw.h"
 #include "revng/Backend/DecompileToSingleFile.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
@@ -20,6 +21,7 @@
 #include "revng/FunctionIsolation/PromoteCSVs.h"
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
 #include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
+#include "revng/ImportFromC/ImportFromCAnalysis.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Lift/LinkSupportPipe.h"
 #include "revng/Model/Importer/Binary/ImportBinaryAnalysis.h"
@@ -136,3 +138,5 @@ static RegisterAnalysis<DetectABI> A7;
 static RegisterAnalysis<DetectStackSize> A8;
 static RegisterAnalysis<AnalyzeDataLayout> A9;
 static RegisterAnalysis<ConvertFunctionsToCABI> A10;
+static RegisterAnalysis<ConvertFunctionsToRaw> A11;
+static RegisterAnalysis<ImportFromC> A12;

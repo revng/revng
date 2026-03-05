@@ -16,6 +16,7 @@ target_link_libraries(
   revngCliftPipes
   revngDataLayoutAnalysis
   revngFunctionIsolation
+  revngImportFromCAnalysis
   revngLift
   revngModelImporter
   revngModelToHeader

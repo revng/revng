@@ -6,6 +6,7 @@ commands:
   #
   # Make revng-daemon produce all the artifacts
   #
+  # TODO: drop this test once the old pipeline is removed
   - type: revng.test-daemon-all-artifacts
     from:
       - type: revng-qa.compiled

@@ -6,6 +6,7 @@ commands:
   #
   # Test storage
   #
+  # TODO: remove this once the old pipeline is removed
   - type: revng.test-s3-storage
     from:
       - type: revng-qa.compiled

@@ -21,6 +21,7 @@
 #include "clang/Tooling/Tooling.h"
 
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
+#include "revng/ImportFromC/ImportFromCAnalysis.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Pipeline/Context.h"
@@ -85,8 +86,14 @@ struct ImportFromCAnalysis {
   llvm::Error run(pipeline::ExecutionContext &EC,
                   std::string LocationToEdit,
                   std::string CCode) {
-    enum ImportFromCOption TheOption;
     auto &Model = revng::getWritableModelFromContext(EC);
+    return run(Model, LocationToEdit, CCode);
+  }
+
+  static llvm::Error run(TupleTree<model::Binary> &Model,
+                         llvm::StringRef LocationToEdit,
+                         llvm::StringRef CCode) {
+    enum ImportFromCOption TheOption;
 
     // This will be used iff {Edit|Add}TypeFeature is used.
     model::TypeDefinition *TypeToEdit = nullptr;
@@ -271,3 +278,34 @@ struct ImportFromCAnalysis {
 };
 
 pipeline::RegisterAnalysis<ImportFromCAnalysis> ImportFromCReg;
+
+struct ImportFromCConfiguration {
+  std::string LocationToEdit;
+  std::string CCode;
+};
+
+template<>
+struct llvm::yaml::MappingTraits<ImportFromCConfiguration> {
+  static void mapping(IO &IO, ImportFromCConfiguration &Fields) {
+    IO.mapRequired("LocationToEdit", Fields.LocationToEdit);
+    IO.mapRequired("CCode", Fields.CCode);
+  }
+};
+
+namespace revng::pypeline::analyses {
+
+llvm::Error ImportFromC::run(Model &Model,
+                             const Request &Incoming,
+                             llvm::StringRef StrConfiguration) {
+  auto
+    MaybeConfiguration = fromString<ImportFromCConfiguration>(StrConfiguration);
+  if (not MaybeConfiguration)
+    return MaybeConfiguration.takeError();
+
+  ImportFromCConfiguration &Configuration = MaybeConfiguration.get();
+  return ImportFromCAnalysis::run(Model.get(),
+                                  Configuration.LocationToEdit,
+                                  Configuration.CCode);
+}
+
+} // namespace revng::pypeline::analyses

@@ -29,7 +29,7 @@ getModelFromContext(const pipeline::Context &Context) {
   using Wrapper = ModelGlobal;
   const auto &Model = llvm::cantFail(Context
                                        .getGlobal<Wrapper>(ModelGlobalName));
-  Model->get().cacheReferences();
+  Model->get().enableReferenceCaching();
   return Model->get();
 }
 
@@ -43,7 +43,7 @@ getWritableModelFromContext(pipeline::Context &Context) {
   using Wrapper = ModelGlobal;
   const auto &Model = llvm::cantFail(Context
                                        .getGlobal<Wrapper>(ModelGlobalName));
-  Model->get().evictCachedReferences();
+  Model->get().disableReferenceCaching();
   return Model->get();
 }
 

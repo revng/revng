@@ -227,6 +227,7 @@ exec \\
 
             return self._pipe_load_results(temp_dir_path, pipe, containers)
         else:
+            model.enable_caching()
             return pipe.run(
                 file_provider=file_provider,
                 model=model,
@@ -278,13 +279,14 @@ exec \\
             self._run_command(temp_dir_path, [*cmd, *cmd_epilogue])
 
             with open(output_model_path, "rb") as f:
-                new_model = model_type.deserialize(f.read())
+                new_model = model_type.deserialize(f.read())[0]
         else:
             # The analysis modifies the model, but we need to invalidate
             # the changes, so we make a clone of the model.
             # This also allows to keep the original model intact
             # in case the analysis fails
             new_model = model.clone()
+            new_model.disable_caching()
             try:
                 analysis.run(
                     model=new_model,

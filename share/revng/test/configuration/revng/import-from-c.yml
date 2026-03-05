@@ -66,19 +66,21 @@ commands:
         filter: import-from-c
     suffix: /
     command: |-
-      if revng analyze
-           --model "${INPUT}/input-model.yml"
-           import-from-c
-           --import-from-c-location-to-edit="$$(grep -vE '^(#|$$)' "${INPUT}/type-to-edit.location")"
-           --import-from-c-ccode="$$(cat "${INPUT}/edit.c")"
-           /dev/null
-           1> "${OUTPUT}/model.yml"
+      LocationToEdit=$$(grep -vE '^(#|$$)' "${INPUT}/type-to-edit.location");
+      CCode=$$(sed 's;^;  ;' "${INPUT}/edit.c");
+      CONFIGURATION="LocationToEdit: $${LocationToEdit}\nCCode: |\n$${CCode}";
+
+      if revng2 pipeline run-analysis import-from-c
+           -c "$$(echo -e "$$CONFIGURATION")"
+           "${INPUT}/input-model.yml"
+           -o "${OUTPUT}/model.yml"
            2> "${OUTPUT}/error.txt"; then
 
         revng model compare "${INPUT}/check-against.yml" "${OUTPUT}/model.yml";
 
       else
 
-        [[ "$$(tail -n +5 "${INPUT}/expected-error.txt")" == "$$(cat "${OUTPUT}/error.txt")" ]];
+        [[ "$$(tail -n +5 "${INPUT}/expected-error.txt")" ==
+           "$$(grep -Pzo '(?<=RuntimeError: )[^\x00]*' "${OUTPUT}/error.txt" | tr -d '\0')" ]];
 
       fi

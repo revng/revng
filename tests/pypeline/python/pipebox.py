@@ -330,7 +330,9 @@ class DictModel(Model):
     def deserialize(cls, data: bytes):
         result = DictModel()
         result._data = yaml.safe_load(data)
-        return result
+        if result._data is None:
+            result._data = {}
+        return (result, False)
 
     def __repr__(self):
         return f"DictModel({self._data!r})"

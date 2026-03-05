@@ -5,6 +5,8 @@
 import importlib
 from abc import ABC, abstractmethod
 
+import yaml
+
 # mypy cannot see the generated code, so this "type: ignore" is necessary
 from revng.model import Binary  # type: ignore
 
@@ -24,6 +26,12 @@ class MigrationBase(ABC):
         pass
 
 
+def migrate_bytes(input_: bytes) -> bytes:
+    model = yaml.safe_load(input_)
+    migrate(model)
+    return yaml.safe_dump(model).encode()
+
+
 def migrate(model: dict):
     """Runs migrations procedures against `model` up to the schema version supported by the current
     version of revng.
@@ -33,6 +41,7 @@ def migrate(model: dict):
     """
 
     if "Version" not in model:
+        model["Version"] = Binary.SchemaVersion
         return
 
     version = model["Version"]

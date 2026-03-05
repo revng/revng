@@ -78,6 +78,7 @@ class Pipeline(Generic[C]):
         "analyses",
         "analysis_lists",
         "savepoint_id_to_artifact",
+        "savepoint_id_to_name",
     )
 
     def __init__(
@@ -92,6 +93,7 @@ class Pipeline(Generic[C]):
         self.declarations = set(declarations)
 
         self.savepoint_id_to_artifact: dict[int, Artifact] = {}
+        self.savepoint_id_to_name: dict[int, str] = {}
 
         self.artifacts: Mapping[str, Artifact] = {}
         """
@@ -157,6 +159,9 @@ class Pipeline(Generic[C]):
             )
             if isinstance(node.task, Pipe):
                 node.pipe_dependencies.add(node.task)
+            if isinstance(node.task, SavePoint):
+                assert node.savepoint_range is not None
+                self.savepoint_id_to_name[node.savepoint_range.start] = node.task.name
 
         for name, artifact in self.artifacts.items():
             self.savepoint_id_to_artifact[artifact.node.id] = artifact
@@ -538,7 +543,7 @@ class Pipeline(Generic[C]):
             pipeline_configuration, storage_provider, diff
         )
         invalidated = storage_provider.invalidate(diff.paths(), custom_invalidated_objects)
-        storage_provider.set_model(new_model.serialize())
+        storage_provider.set_model(new_model)
         return new_model, invalidated
 
     def _compute_custom_invalidation(

@@ -75,14 +75,23 @@ private:
   }
 };
 
+namespace detail {
+
+template<typename T>
+concept HasVersion = requires {
+  requires static_cast<int>(TupleLikeTraits<T>::Fields::Version) == 0;
+};
+
+}
+
 template<TupleTreeCompatible T>
 class TupleTree {
 private:
   std::unique_ptr<T> Root;
-  bool AllReferencesAreCached = false;
+  bool CachingEnabled = false;
 
 public:
-  TupleTree() : Root(new T), AllReferencesAreCached(false) {}
+  TupleTree() : Root(new T), CachingEnabled(false) {}
 
   // Allow expensive copy
   TupleTree(const TupleTree &Other) : Root(std::make_unique<T>()) {
@@ -91,14 +100,14 @@ public:
   TupleTree &operator=(const TupleTree &Other) {
     if (Other.get() == nullptr) {
       Root = nullptr;
-      AllReferencesAreCached = false;
+      CachingEnabled = false;
       return *this;
     }
 
     if (this != &Other) {
       *Root = *Other.Root;
-      AllReferencesAreCached = false;
-      initializeUncachedReferences();
+      CachingEnabled = Other.CachingEnabled;
+      initializeReferences();
     }
     return *this;
   }
@@ -106,22 +115,22 @@ public:
   // Moving is fine
   TupleTree(TupleTree &&Other) { *this = std::move(Other); }
   TupleTree &operator=(TupleTree &&Other) {
-    if (Other.get() == nullptr) {
+    if (Other.Root == nullptr) {
       Root = nullptr;
-      AllReferencesAreCached = false;
+      CachingEnabled = false;
 
       Other.Root.reset();
-      Other.AllReferencesAreCached = false;
+      Other.CachingEnabled = false;
 
       return *this;
     }
 
     if (this != &Other) {
       Root = std::move(Other.Root);
-      AllReferencesAreCached = Other.AllReferencesAreCached;
+      CachingEnabled = Other.CachingEnabled;
 
       Other.Root.reset();
-      Other.AllReferencesAreCached = false;
+      Other.CachingEnabled = false;
     }
     return *this;
   }
@@ -137,8 +146,8 @@ public:
           Reference = It->second;
       }
     };
-    visitReferences(Visitor);
-    evictCachedReferences();
+    visitReferencesInternal(Visitor);
+    disableReferenceCaching();
   }
 
   template<StrictSpecializationOf<TupleTreeReference> TTR,
@@ -150,8 +159,8 @@ public:
           Reference = NewReference;
       }
     };
-    visitReferences(Visitor);
-    evictCachedReferences();
+    visitReferencesInternal(Visitor);
+    disableReferenceCaching();
   }
 
 public:
@@ -163,6 +172,13 @@ public:
       return MaybeRoot.takeError();
 
     *Result.Root = std::move(*MaybeRoot);
+
+    if constexpr (detail::HasVersion<T>) {
+      DisableTracking Guard(*Result.Root);
+      if (Result.Root->Version() == 0) {
+        Result.Root->Version() = T::SchemaVersion;
+      }
+    }
 
     // Update references to root
     Result.initializeReferences();
@@ -207,19 +223,19 @@ public:
 public:
   const T *get() const noexcept { return Root.get(); }
   T *get() noexcept {
-    revng_assert(not AllReferencesAreCached);
+    revng_assert(not CachingEnabled);
     return Root.get();
   }
 
   const T &operator*() const { return *Root; }
   T &operator*() {
-    revng_assert(not AllReferencesAreCached);
+    revng_assert(not CachingEnabled);
     return *Root;
   }
 
   const T *operator->() const noexcept { return Root.operator->(); }
   T *operator->() noexcept {
-    revng_assert(not AllReferencesAreCached);
+    revng_assert(not CachingEnabled);
     return Root.operator->();
   }
 
@@ -227,36 +243,33 @@ public:
   bool verify() const debug_function { return verifyReferences(false); }
   void assertValid() const { verifyReferences(true); }
 
-private:
-  void initializeUncachedReferences() {
-    DisableTracking Guard(*Root);
-    visitReferences([this](auto &Element) {
-      Element.setRoot(Root.get());
-      Element.evictCachedTarget();
-    });
-    AllReferencesAreCached = false;
-  }
-
 public:
   void initializeReferences() {
     DisableTracking Guard(*Root);
-    revng_assert(not AllReferencesAreCached);
-    visitReferences([this](auto &Element) { Element.setRoot(Root.get()); });
+    visitReferencesInternal([this](auto &Element) {
+      Element.setRoot(Root.get());
+      if (CachingEnabled)
+        Element.enableCaching();
+      else
+        Element.disableCaching();
+    });
   }
 
-  void cacheReferences() {
+  void enableReferenceCaching() {
     DisableTracking Guard(*Root);
-    if (not AllReferencesAreCached)
-      visitReferencesInternal([](auto &Element) { Element.cacheTarget(); });
-    AllReferencesAreCached = true;
+    if (not CachingEnabled)
+      visitReferencesInternal([](auto &E) { E.enableCaching(); });
+    CachingEnabled = true;
   }
 
-  void evictCachedReferences() {
+  void disableReferenceCaching() {
     DisableTracking Guard(*Root);
-    if (AllReferencesAreCached)
-      visitReferencesInternal([](auto &E) { E.evictCachedTarget(); });
-    AllReferencesAreCached = false;
+    if (CachingEnabled)
+      visitReferencesInternal([](auto &E) { E.disableCaching(); });
+    CachingEnabled = false;
   }
+
+  bool isReferenceCachingEnabled() { return CachingEnabled; }
 
   template<typename Pre, typename Post>
   void visit(Pre PreCallable, Post PostCallable) const {
@@ -298,7 +311,7 @@ private:
 public:
   template<typename L>
   void visitReferences(L &&InnerVisitor) {
-    revng_assert(not AllReferencesAreCached);
+    revng_assert(not CachingEnabled);
     visitReferencesInternal(std::forward<L>(InnerVisitor));
   }
 

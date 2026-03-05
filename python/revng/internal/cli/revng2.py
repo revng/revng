@@ -14,7 +14,7 @@ import shlex
 import signal
 import sys
 from pathlib import Path
-from typing import Any, AsyncContextManager
+from typing import IO, Any, AsyncContextManager
 
 import click
 import yaml
@@ -26,7 +26,8 @@ from revng.pypeline.cli.common_options import container_format_options, debug_op
 from revng.pypeline.cli.common_options import project_id_option, token_option
 from revng.pypeline.cli.pipeline import pipeline
 from revng.pypeline.cli.project import project
-from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, build_arg_objects, normalize_flag
+from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, build_arg_objects
+from revng.pypeline.cli.utils import compute_objects, normalize_flag
 from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrappablePypeCommand, WrapperOption
 from revng.pypeline.cli.wrappers import exec_with_wrapper, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerDeclaration, ContainerFormat
@@ -41,6 +42,7 @@ from revng.pypeline.storage.storage_provider import FileStorageEntry, StoragePro
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.storage.util import compute_hash
 from revng.pypeline.task.pipe import Pipe
+from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
@@ -66,8 +68,9 @@ def generate_model_with_binaries(binaries: list[Path]):
         name="pipeline",
         parser=lambda path, _ctx: load_pipeline_yaml_file(path),
     ),
-    help='Path to the pipeline file. Defaults to the "PIPELINE" environment if set',
-    default=os.environ.get("PIPELINE", Path(__file__).parent.parent / "pipeline.yml"),
+    help='Path to the pipeline file. Defaults to the "PYPELINE_PIPELINE" environment if set',
+    default=Path(__file__).parent.parent / "pipeline.yml",
+    envvar="PYPELINE_PIPELINE",
     show_default=True,
 )
 @click.pass_context
@@ -108,6 +111,68 @@ class ArtifactArgument(click.Argument):
         return (self.make_metavar(ctx), text)
 
 
+def handle_analysis_argument(
+    pipeline: Pipeline,
+    analyses: str | None,
+    binary: Path,
+    storage_provider: StorageProvider,
+    runner_context: RunnerContext,
+) -> Model:
+    model_type = get_singleton(Model)  # type: ignore[type-abstract]
+    model_raw = yaml.safe_dump(generate_model_with_binaries([binary])).encode()
+    model = model_type.deserialize(model_raw)[0]
+    if analyses is not None:
+        if analyses == "":
+            return model
+
+        analyses_list = analyses.split(",")
+        for analysis_name in analyses_list:
+            if analysis_name not in pipeline.analyses:
+                raise click.UsageError(f"Analysis {analysis_name} does not exist")
+
+        for analysis_name in analyses_list:
+            incoming = Requests()
+            for container_decl in pipeline.analyses[analysis_name].bindings:
+                incoming[container_decl] = compute_objects(
+                    model=ReadOnlyModel(model),
+                    arg_name=container_decl.name,
+                    kind=container_decl.container_type.kind,
+                    kwargs={},
+                )
+
+            model, _ = pipeline.run_analysis(
+                model=ReadOnlyModel(model),
+                analysis_name=analysis_name,
+                requests=incoming,
+                analysis_configuration="",
+                pipeline_configuration={},
+                storage_provider=storage_provider,
+                runner_context=runner_context,
+            )
+    else:
+        analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
+        analysis_configuration = ["" for _ in analysis_list.analyses]
+        model, _ = pipeline.run_analysis_list(
+            model=ReadOnlyModel(model),
+            analysis_list=analysis_list,
+            analysis_configuration=analysis_configuration,
+            pipeline_configuration={},
+            storage_provider=storage_provider,
+            runner_context=runner_context,
+        )
+
+    return model
+
+
+analyses_option = click.option(
+    "--analyses",
+    help=(
+        "Instead of running the default initial auto analysis, run the "
+        "specified list of (comma-separated) analyses"
+    ),
+)
+
+
 @quick.command(
     cls=WrappablePypeCommand,
     name="artifact",
@@ -128,6 +193,7 @@ class ArtifactArgument(click.Argument):
     ),
 )
 @debug_option
+@analyses_option
 @container_format_options
 @exec_wrapper_if_needed
 @click.pass_context
@@ -136,13 +202,13 @@ def artifact(
     artifact: Artifact,
     binary: Path,
     result_path: Path | None,
+    analyses: str | None,
     container_format: ContainerFormat,
     runner_context: RunnerContext,
 ):
     pypeline_logger.debug_log(f'Running artifact: "{artifact}"')
     pypeline_logger.debug_log(f'container_format: "{container_format}"')
     pipeline: Pipeline = ctx.obj["pipeline"]
-    model_type = get_singleton(Model)  # type: ignore[type-abstract]
 
     async def async_part_of_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
@@ -152,17 +218,8 @@ def artifact(
             storage_provider.put_files_in_storage([FileStorageEntry(binary.name, binary)])
 
             # Run initial auto analysis
-            model_raw = yaml.safe_dump(generate_model_with_binaries([binary])).encode()
-            model = model_type.deserialize(model_raw)
-            analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
-            analysis_configuration = ["" for _ in analysis_list.analyses]
-            new_model, _ = pipeline.run_analysis_list(
-                model=ReadOnlyModel(model),
-                analysis_list=analysis_list,
-                analysis_configuration=analysis_configuration,
-                pipeline_configuration={},
-                storage_provider=storage_provider,
-                runner_context=runner_context,
+            new_model = handle_analysis_argument(
+                pipeline, analyses, binary, storage_provider, runner_context
             )
 
             # Compute the requests and produce the artifacts
@@ -187,7 +244,55 @@ def artifact(
                 sys.stdout.buffer.flush()
 
     storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
-    storage_provider_context = storage_provider_factory.get(None, None, None)
+    storage_provider_context = storage_provider_factory.get(
+        ctx.obj["base_directory"], None, None, None
+    )
+    asyncio.run(async_part_of_command(storage_provider_context))
+
+
+@quick.command(
+    cls=WrappablePypeCommand,
+    name="analyze",
+    context_settings={
+        "show_default": True,
+    },
+)
+@click.argument("binary", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "-o",
+    "output_file",
+    type=click.File("wb"),
+    help="Path to write the model to, if not specified, the result will be printed to stdout.",
+    default="-",
+)
+@analyses_option
+@debug_option
+@exec_wrapper_if_needed
+@click.pass_context
+def analyze(
+    ctx,
+    binary: Path,
+    output_file: IO[bytes],
+    analyses: str | None,
+    runner_context: RunnerContext,
+):
+    async def async_part_of_command(
+        storage_provider_context: AsyncContextManager[StorageProvider],
+    ):
+        async with storage_provider_context as storage_provider:
+            # Add binaries to storage
+            storage_provider.put_files_in_storage([FileStorageEntry(binary.name, binary)])
+
+            # Run initial auto analysis
+            model = handle_analysis_argument(
+                ctx.obj["pipeline"], analyses, binary, storage_provider, runner_context
+            )
+            output_file.write(model.serialize())
+
+    storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
+    storage_provider_context = storage_provider_factory.get(
+        ctx.obj["base_directory"], None, None, None
+    )
     asyncio.run(async_part_of_command(storage_provider_context))
 
 
@@ -210,7 +315,7 @@ def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: s
     """Initialize a new project."""
     model_type = get_singleton(Model)  # type: ignore[type-abstract]
     model_name = model_type.model_name()
-    model_file = Path.cwd() / model_name
+    model_file = ctx.obj["base_directory"] / model_name
     if model_file.exists():
         raise click.UsageError(
             f"File {model_name} is already present in the current directory. "
@@ -233,7 +338,7 @@ def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: s
     ):
         pipeline = ctx.obj["pipeline"]
         async with storage_provider_context as storage_provider:
-            model = model_type.deserialize(model_raw)
+            model = model_type.deserialize(model_raw)[0]
             analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
             analysis_configuration = ["" for _ in analysis_list.analyses]
             pipeline.run_analysis_list(
@@ -246,6 +351,7 @@ def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: s
 
     storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
     storage_provider_context = storage_provider_factory.get(
+        base_directory=ctx.obj["base_directory"],
         project_id=project_id,
         token=token,
         cache_dir=ctx.obj["cache_dir"],
@@ -429,16 +535,14 @@ def patch_pype():
     # Replace the default for pipebox
     for param in pype.params:
         if param.name == "pipebox":
-            param.default = os.environ.get("PIPEBOX", Path(__file__).parent.parent / "pipebox.py")
+            param.default = Path(__file__).parent.parent / "pipebox.py"
 
     # Add `init` to project subcommand
     project.add_command(init)
     # Change the default for pipeline
     for param in project.params:
         if param.name == "pipeline":
-            param.default = os.environ.get(
-                "PIPELINE", Path(__file__).parent.parent / "pipeline.yml"
-            )
+            param.default = Path(__file__).parent.parent / "pipeline.yml"
         elif param.name == "cache_dir":
             param.default = cache_directory()
 

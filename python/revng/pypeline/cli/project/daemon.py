@@ -52,6 +52,7 @@ def run_daemon(ctx, production, **kwargs):
         debug=not production,
         storage_provider_url=ctx.obj["storage_provider"],
         cache_dir=ctx.obj["cache_dir"],
+        base_directory=ctx.obj["base_directory"],
     )
 
     # Start the uvicorn server
