@@ -20,25 +20,12 @@ def TypesAreNotEquivalent
 def IsBitcastKind
   : Constraint<CPred<[{ $0.getValue() == clift::CastKind::Bitcast }]>>;
 
-
-def getType : NativeCodeCall<[{ $0.getType() }]>;
-
 def getPointeeType : NativeCodeCall<[{
   mlir::cast<clift::PointerType>(mlir::clift::dealias($0.getType(), /*IgnoreQualifiers=*/true)).getPointeeType()
 }]>;
 
-def getBitcastKind : NativeCodeCall<[{ clift::CastKind::Bitcast }]>;
-
-def createImmediateOp : NativeCodeCall<[{
-  $_builder.create<clift::ImmediateOp>($_loc, $0, $1)
-}]>;
-
-def createCastOp : NativeCodeCall<[{
-  $_builder.create<clift::CastOp>($_loc, $0, $1, $2)
-}]>;
-
-def createAddressofOp : NativeCodeCall<[{
-  $_builder.create<clift::AddressofOp>($_loc, $0, $1)
+def makeInteger : NativeCodeCall<[{
+  $_builder.getIntegerAttr($_builder.getIntegerType(64), $0);
 }]>;
 
 def forceBooleanResult : NativeCodeCall<[{

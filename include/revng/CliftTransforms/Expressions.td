@@ -50,15 +50,14 @@ def XorAllOnesPattern
 // Constraint: T is a primitive integer type
 def CastImmediatePattern
   : Pat<(Clift_CastOp:$res (Clift_ImmediateOp $value), $kind),
-        (createImmediateOp (getType $res),
-                           (NativeCodeCall<"truncateIntegerValue($0, $1)"> $value, $res)),
+        (Clift_ImmediateOp (makeInteger (NativeCodeCall<"truncateIntegerValue($0, $1)"> $value, $res))),
         [(Clift_AnyPrimitiveIntegerType $res)]>;
 
 // (enum E)123 -> A
 // Constraint: A is an enumerator of E whose value is 123.
 def EnumImmediatePattern
   : Pat<(Clift_CastOp:$res (Clift_ImmediateOp $value), $kind),
-        (createImmediateOp (getType $res), $value),
+        (Clift_ImmediateOp $value),
         [(IsBitcastKind $kind),
          (Constraint<CPred<[{ hasEnumeratorValue($0.getType(),
                                                  $1.getValue().getZExtValue()) }]>> $res, $value)]>;
@@ -98,9 +97,9 @@ def AssignTypePunnedPattern
                                                                                           $kind)),
                                      $value),
             [(Clift_AssignOp:$new_res (Clift_IndirectionOp $ptr),
-                                             (createCastOp (getPointeeType $ptr),
-                                                           $value,
-                                                           $kind)),
+                                      (Clift_CastOp $value,
+                                                    $kind,
+                                                    (returnType (getPointeeType $ptr)))),
              (NativeCodeCall<"assignTypePunnedResult($_builder, $0, $1, $2, $3)"> $old_res,
                                                                                   $new_res,
                                                                                   $new_ptr,
@@ -115,9 +114,9 @@ def PointerArithmeticAddImmPattern
   : Pat<(Clift_CastOp:$res (Clift_AddOp $ptr,
                                         (Clift_ImmediateOp:$imm $k)),
                            $kind),
-        (Clift_PtrAddOp (createCastOp (getType $res), $ptr, $kind),
-                        (createImmediateOp (getType $imm),
-                                           (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res))),
+        (Clift_PtrAddOp (Clift_CastOp $ptr, $kind, (returnType $res)),
+                        (Clift_ImmediateOp (makeInteger (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res)),
+                                           (returnType $imm))),
         [(IsBitcastKind $kind),
          (Clift_AnyPointerType $res),
          (Constraint<CPred<"ptrOffsetDivMod($0, $1).Mod == 0">> $k, $res)]>;
@@ -130,10 +129,10 @@ def PointerArithmeticAddMulImmPattern
                                         (Clift_MulOp $n,
                                                      (Clift_ImmediateOp:$imm $k))),
                            $kind),
-        (Clift_PtrAddOp (createCastOp (getType $res), $ptr, $kind),
+        (Clift_PtrAddOp (Clift_CastOp $ptr, $kind, (returnType $res)),
                         (Clift_MulOp $n,
-                                     (createImmediateOp (getType $imm),
-                                                        (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res)))),
+                                     (Clift_ImmediateOp (makeInteger (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res)),
+                                                        (returnType $imm)))),
         [(IsBitcastKind $kind),
          (Clift_AnyPointerType $res),
          (Constraint<CPred<"ptrOffsetDivMod($0, $1).Mod == 0">> $k, $res)]>;
