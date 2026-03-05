@@ -36,11 +36,13 @@ commands:
       revng analyze --resume "$${RESUME}" apply-diff /dev/null --apply-diff-global-name=model.yml -o /dev/null;
 
       while IFS=',' read -r MODEL_FIELD EXPECTED_VALUE; do
-        FOUND_VALUE=$$(yq "$${MODEL_FIELD}" "$${RESUME}/context/model.yml");
-        if [[ "$${FOUND_VALUE}" != "$${EXPECTED_VALUE}" ]]; then
-          echo "Value of '$${MODEL_FIELD}' is '$${FOUND_VALUE}' instead of the expected '$${EXPECTED_VALUE}'";
-          echo "Here's the post-migration model:";
-          cat "$${RESUME}/context/model.yml";
-          exit 1;
+        if [[ -n "$${MODEL_FIELD}" ]]; then
+          FOUND_VALUE=$$(yq "$${MODEL_FIELD}" "$${RESUME}/context/model.yml");
+          if [[ "$${FOUND_VALUE}" != "$${EXPECTED_VALUE}" ]]; then
+            echo "Value of '$${MODEL_FIELD}' is '$${FOUND_VALUE}' instead of the expected '$${EXPECTED_VALUE}'";
+            echo "Here's the post-migration model:";
+            cat "$${RESUME}/context/model.yml";
+            exit 1;
+          fi;
         fi;
       done < <(tail -n +6 "${INPUT}/checks.csv")
