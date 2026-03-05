@@ -4,8 +4,8 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!int32_t = !clift.primitive<signed 4>
-!int64_t = !clift.primitive<signed 8>
+!int32_t = !clift.int<signed 4>
+!int64_t = !clift.int<signed 8>
 
 // CHECK: initializer type must match the variable type
 clift.local : !int32_t = {

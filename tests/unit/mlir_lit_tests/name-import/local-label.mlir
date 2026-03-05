@@ -4,7 +4,7 @@
 
 // RUN: %revngpipe import-descriptive-info %S/model.yml %s /dev/stdout | %revngcliftopt | FileCheck %s
 
-!void = !clift.primitive<void 0>
+!void = !clift.void
 
 !f = !clift.func<"/type-definition/1004-CABIFunctionDefinition" : !void()>
 

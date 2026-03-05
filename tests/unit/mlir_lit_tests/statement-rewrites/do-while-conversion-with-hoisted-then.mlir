@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s --optimize-statements=enable-patterns=do-while-conversion --canonicalize | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!int8_t = !clift.primitive<signed 1>
-!int32_t = !clift.primitive<signed 4>
+!void = !clift.void
+!int8_t = !clift.int<signed 1>
+!int32_t = !clift.int<signed 4>
 
 !f = !clift.func<"" : !void(!int32_t)>
 

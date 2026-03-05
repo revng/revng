@@ -4,8 +4,8 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!int32_t = !clift.primitive<signed 4>
-!uint32_t = !clift.primitive<unsigned 4>
+!int32_t = !clift.int<signed 4>
+!uint32_t = !clift.int<unsigned 4>
 
 !f = !clift.func<
   "/type-definition/1-CABIFunctionDefinition" : !int32_t()

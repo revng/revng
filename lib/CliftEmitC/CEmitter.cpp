@@ -231,7 +231,7 @@ private:
 
         Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
         if (F.getArgumentTypes().empty()) {
-          Parent.emitPrimitiveType(PrimitiveKind::VoidKind, 0);
+          Parent.Tokens.emitKeyword(CTE::Keyword::Void);
         } else {
           if (Declarator->Parameters.has_value())
             if (Declarator->Parameters->size() != F.getArgumentTypes().size())
@@ -275,34 +275,34 @@ private:
 
 //===-------------------------------- Types -------------------------------===//
 
-static std::string getPrimitiveTypeCName(PrimitiveKind Kind, uint64_t Size) {
-  auto GetPrefix = [](PrimitiveKind Kind) -> llvm::StringRef {
-    switch (Kind) {
-    case PrimitiveKind::UnsignedKind:
+static std::string getPrimitiveTypeCName(PrimitiveType Type) {
+  auto GetPrefix = [](PrimitiveType Type) -> llvm::StringRef {
+    if (mlir::isa<FloatType>(Type))
+      return "float";
+
+    switch (auto Kind = mlir::cast<IntegerType>(Type).getKind()) {
+    case IntegerKind::Unsigned:
       return "uint";
-    case PrimitiveKind::SignedKind:
+    case IntegerKind::Signed:
       return "int";
     default:
-      return clift::stringifyPrimitiveKind(Kind);
+      return stringifyIntegerKind(Kind);
     }
   };
 
   std::string Name;
   {
     llvm::raw_string_ostream Out(Name);
-    Out << GetPrefix(Kind);
-
-    if (Kind != PrimitiveKind::VoidKind)
-      Out << (Size * 8) << "_t";
+    Out << GetPrefix(Type) << (Type.getByteSize() * 8) << "_t";
   }
   return Name;
 }
 
-void CEmitter::emitPrimitiveType(clift::PrimitiveKind Kind, uint64_t Size) {
-  if (Kind == PrimitiveKind::VoidKind) {
+void CEmitter::emitPrimitiveType(PrimitiveType Type) {
+  if (mlir::isa<VoidType>(Type)) {
     Tokens.emitKeyword(CTE::Keyword::Void);
   } else {
-    auto TypeName = getPrimitiveTypeCName(Kind, Size);
+    auto TypeName = getPrimitiveTypeCName(Type);
     auto Location = pipeline::locationString(revng::ranks::PrimitiveType,
                                              TypeName);
 

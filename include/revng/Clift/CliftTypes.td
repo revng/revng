@@ -24,33 +24,78 @@ def Clift_LabelType : Clift_Type<"Label", "label"> {
   }];
 }
 
-def Clift_PrimitiveType
-  : Clift_Type<"Primitive",
-               "primitive",
-               [DeclareTypeInterfaceMethods<Clift_ValueType>,
+def Clift_VoidType
+  : Clift_Type<"Void",
+               "void",
+               [Clift_PrimitiveType,
+                DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize"]>,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
-  let summary = "Clift primitive type";
+  let summary = "Clift void type";
 
-  let description = [{
-    Primitive type.
-  }];
+  let parameters = (ins DefaultValuedParameter<"bool", "false">:$is_const);
 
-  let parameters = (ins "PrimitiveKind":$kind,
+  let builders = [
+    TypeBuilder<(ins), [{
+      return $_get($_ctxt, false);
+    }]>,
+  ];
+
+  let assemblyFormat = [{}];
+
+  let genVerifyDecl = 1;
+}
+
+def Clift_IntegerType
+  : Clift_Type<"Integer",
+               "int",
+               [Clift_PrimitiveType,
+                DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
+  let summary = "Clift integer type";
+
+  let parameters = (ins "IntegerKind":$kind,
                         "uint64_t":$size,
                         DefaultValuedParameter<"bool", "false">:$is_const);
 
   let builders = [
-    TypeBuilder<(ins "PrimitiveKind":$Kind,
-                     "uint64_t":$Size), [{
+    TypeBuilder<(ins "IntegerKind":$Kind, "uint64_t":$Size), [{
       return $_get($_ctxt, Kind, Size, false);
     }]>,
   ];
 
-  let genVerifyDecl = 1;
-
   let assemblyFormat = [{
     `<` $kind $size `>`
   }];
+
+  let genVerifyDecl = 1;
+
+  let extraClassDeclaration = [{
+    bool isSigned() { return getKind() == IntegerKind::Signed; }
+  }];
+}
+
+def Clift_FloatType
+  : Clift_Type<"Float",
+               "float",
+               [Clift_PrimitiveType,
+                DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
+  let summary = "Clift float type";
+
+  let parameters = (ins "uint64_t":$size,
+                        DefaultValuedParameter<"bool", "false">:$is_const);
+
+  let builders = [
+    TypeBuilder<(ins "uint64_t":$Size), [{
+      return $_get($_ctxt, Size, false);
+    }]>,
+  ];
+
+  let assemblyFormat = [{
+    `<` $size `>`
+  }];
+
+  let genVerifyDecl = 1;
 }
 
 def Clift_PointerType

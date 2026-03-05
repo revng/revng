@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!char = !clift.primitive<number 1>
+!char = !clift.int<number 1>
 
 // CHECK: result must have const array type
 clift.str "hello" : !clift.array<6 x !char>

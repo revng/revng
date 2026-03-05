@@ -4,7 +4,7 @@
 
 // RUN: %revngcliftopt %s | FileCheck %s
 
-!int32_t = !clift.primitive<signed 4>
+!int32_t = !clift.int<signed 4>
 
 // CHECK: [[M:%[0-9]+]] = clift.undef : !int32_t
 %m = clift.undef : !int32_t

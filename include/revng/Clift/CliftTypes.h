@@ -97,9 +97,6 @@ template<typename TypeT>
 /// a const-qualified type.
 bool isModifiableType(ValueType Type);
 
-/// Determine if the specified primitive kind represents an integer type.
-bool isIntegerKind(PrimitiveKind Kind);
-
 /// Get the underlying primitive integer type of @p Type if it is either
 /// * a primitive integer type, or
 /// * an enum type, or
@@ -107,7 +104,7 @@ bool isIntegerKind(PrimitiveKind Kind);
 ///
 /// Otherwise null is returned. Qualifiers are ignored and the returned type is
 /// always unqualified.
-PrimitiveType getUnderlyingIntegerType(ValueType Type);
+IntegerType getUnderlyingIntegerType(ValueType Type);
 
 /// Determine if the specified type is a complete type. Only class types and
 /// scalar tuple types can ever be incomplete. It is expected that types remain
@@ -126,7 +123,7 @@ bool isVoid(ValueType Type);
 /// Qualifiers are ignored.
 bool isScalarType(ValueType Type);
 
-PrimitiveType getPrimitiveIntegerType(ValueType Type);
+IntegerType getPrimitiveIntegerType(ValueType Type);
 
 /// Determine if the type is a primitive integer type, or a typedef naming such
 /// a type, ignoring qualifiers.

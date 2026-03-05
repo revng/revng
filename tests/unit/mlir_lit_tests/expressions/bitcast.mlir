@@ -4,12 +4,12 @@
 
 // RUN: %revngcliftopt %s
 
-!int32_t = !clift.primitive<signed 4>
+!int32_t = !clift.int<signed 4>
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
-!int32_t$const = !clift.const<!clift.primitive<signed 4>>
+!int32_t$const = !clift.const<!clift.int<signed 4>>
 !int32_t$const$ptr = !clift.ptr<8 to !int32_t$const>
 
-!uint32_t = !clift.primitive<unsigned 4>
+!uint32_t = !clift.int<unsigned 4>
 !uint32_t$ptr = !clift.ptr<8 to !uint32_t>
 
 !my_uint32 = !clift.typedef<

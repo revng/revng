@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!generic64_t = !clift.primitive<generic 8>
-!int32_t = !clift.primitive<signed 4>
+!void = !clift.void
+!generic64_t = !clift.int<generic 8>
+!int32_t = !clift.int<signed 4>
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
 
 !f = !clift.func<
@@ -39,8 +39,8 @@ module attributes {clift.module} {
       %6 = clift.bitcast %5 : !generic64_t -> !clift.ptr<8 to !int32_t>
       %7 = clift.indirection %6 : !clift.ptr<8 to !int32_t>
       // Sign-extend to 64 bits
-      %8 = clift.extend %7 : !int32_t -> !clift.primitive<signed 8>
-      %9 = clift.bitcast %8 : !clift.primitive<signed 8> -> !generic64_t
+      %8 = clift.extend %7 : !int32_t -> !clift.int<signed 8>
+      %9 = clift.bitcast %8 : !clift.int<signed 8> -> !generic64_t
       // Multiply by element size: `index * 4`
       %10 = clift.imm 4 : !generic64_t
       %11 = clift.mul %9, %10 : !generic64_t

@@ -25,12 +25,7 @@ public:
 
   //===------------------------------- Types ------------------------------===//
 
-  void emitPrimitiveType(PrimitiveKind Kind, uint64_t Size);
-
-  void emitPrimitiveType(PrimitiveType Type) {
-    emitPrimitiveType(Type.getKind(), Type.getSize());
-  }
-
+  void emitPrimitiveType(PrimitiveType Type);
   void emitType(ValueType Type);
 
   //===---------------------------- Attributes ----------------------------===//

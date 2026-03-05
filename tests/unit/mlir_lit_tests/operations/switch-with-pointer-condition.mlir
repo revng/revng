@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!pointer = !clift.ptr<8 to !clift.primitive<float 4>>
+!pointer = !clift.ptr<8 to !clift.float<4>>
 
 // CHECK: condition requires an integer type
 clift.switch {

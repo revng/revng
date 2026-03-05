@@ -106,24 +106,22 @@ private:
     return clift::makeCommentAttr<KeyT>(Context, Handle, Comment);
   }
 
-  static clift::PrimitiveKind
-  getPrimitiveKind(const model::PrimitiveType &ModelType) {
-    switch (ModelType.PrimitiveKind()) {
-    case model::PrimitiveKind::Void:
-      return clift::PrimitiveKind::VoidKind;
+  static clift::IntegerKind
+  getIntegerKind(const model::PrimitiveKind::Values Kind) {
+    switch (Kind) {
     case model::PrimitiveKind::Generic:
-      return clift::PrimitiveKind::GenericKind;
+      return clift::IntegerKind::Generic;
     case model::PrimitiveKind::PointerOrNumber:
-      return clift::PrimitiveKind::PointerOrNumberKind;
+      return clift::IntegerKind::PointerOrNumber;
     case model::PrimitiveKind::Number:
-      return clift::PrimitiveKind::NumberKind;
+      return clift::IntegerKind::Number;
     case model::PrimitiveKind::Unsigned:
-      return clift::PrimitiveKind::UnsignedKind;
+      return clift::IntegerKind::Unsigned;
     case model::PrimitiveKind::Signed:
-      return clift::PrimitiveKind::SignedKind;
-    case model::PrimitiveKind::Float:
-      return clift::PrimitiveKind::FloatKind;
+      return clift::IntegerKind::Signed;
 
+    case model::PrimitiveKind::Void:
+    case model::PrimitiveKind::Float:
     case model::PrimitiveKind::Invalid:
     case model::PrimitiveKind::Count:
       revng_abort("These are invalid values. Something has gone wrong.");
@@ -326,9 +324,7 @@ private:
     clift::ValueType ReturnType;
     switch (ModelType.ReturnValues().size()) {
     case 0:
-      ReturnType = make<clift::PrimitiveType>(clift::PrimitiveKind::VoidKind,
-                                              /*Size=*/static_cast<uint64_t>(0),
-                                              /*IsConst=*/false);
+      ReturnType = make<clift::VoidType>();
       break;
 
     case 1:
@@ -585,10 +581,18 @@ private:
     }
 
     if (const auto &P = llvm::dyn_cast<model::PrimitiveType>(&ModelType)) {
-      rc_return make<clift::PrimitiveType>(getPrimitiveKind(*P),
+      switch (auto Kind = P->PrimitiveKind()) {
+      case model::PrimitiveKind::Void:
+        rc_return make<clift::VoidType>(P->IsConst());
+
+      case model::PrimitiveKind::Float:
+        rc_return make<clift::FloatType>(P->Size(), P->IsConst());
+
+      default:
+        rc_return make<clift::IntegerType>(getIntegerKind(Kind),
                                            P->Size(),
                                            P->IsConst());
-
+      }
     } else if (const auto &D = llvm::dyn_cast<model::DefinedType>(&ModelType)) {
       rc_return fromTypeDefinition(D->unwrap(), RequireComplete, D->IsConst());
 

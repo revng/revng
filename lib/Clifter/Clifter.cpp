@@ -166,10 +166,9 @@ private:
     return IntegerWidth / 8;
   }
 
-  clift::ValueType
-  getPrimitiveType(uint64_t Size,
-                   PrimitiveKind Kind = PrimitiveKind::GenericKind) {
-    return PrimitiveType::get(Context, Kind, Size);
+  IntegerType getIntegerType(uint64_t Size,
+                             IntegerKind Kind = IntegerKind::Generic) {
+    return IntegerType::get(Context, Kind, Size);
   }
 
   clift::ValueType makePointerType(clift::ValueType ElementType) {
@@ -178,7 +177,7 @@ private:
 
   clift::ValueType getVoidType() {
     if (not VoidTypeCache)
-      VoidTypeCache = getPrimitiveType(0, PrimitiveKind::VoidKind);
+      VoidTypeCache = VoidType::get(Context);
     return VoidTypeCache;
   }
 
@@ -190,7 +189,7 @@ private:
 
   clift::ValueType getIntptrType() {
     if (not IntptrTypeCache)
-      IntptrTypeCache = getPrimitiveType(PointerSize);
+      IntptrTypeCache = getIntegerType(PointerSize);
     return IntptrTypeCache;
   }
 
@@ -226,10 +225,9 @@ private:
 
   /* LLVM type import */
 
-  clift::ValueType
-  importLLVMIntegerType(const llvm::IntegerType *Type,
-                        PrimitiveKind Kind = PrimitiveKind::GenericKind) {
-    return getPrimitiveType(getIntegerSize(Type->getBitWidth()), Kind);
+  IntegerType importLLVMIntegerType(const llvm::IntegerType *Type,
+                                    IntegerKind Kind = IntegerKind::Generic) {
+    return getIntegerType(getIntegerSize(Type->getBitWidth()), Kind);
   }
 
   clift::ValueType importLLVMPointerType(const llvm::PointerType *Type) {
@@ -539,10 +537,10 @@ private:
     if (GetChar(Length) != 0)
       return false;
 
-    auto CharType = clift::PrimitiveType::get(Context,
-                                              PrimitiveKind::NumberKind,
-                                              1,
-                                              /*IsConst=*/true);
+    auto CharType = clift::IntegerType::get(Context,
+                                            IntegerKind::Number,
+                                            1,
+                                            /*IsConst=*/true);
 
     String.Type = clift::ArrayType::get(CharType, Type->getNumElements());
 
@@ -761,22 +759,22 @@ private:
   // operands are automatically converted to the requested kind, if necessary.
   // After the operation, the result is automaticlaly converted to generic kind.
   mlir::Value emitIntegerOp(mlir::Location Loc,
-                            PrimitiveKind Kind,
+                            IntegerKind Kind,
                             auto ApplyOperation,
                             std::same_as<mlir::Value> auto... Operands) {
-    auto ConvertToKind = [&](mlir::Value &Value, PrimitiveKind Kind) {
+    auto ConvertToKind = [&](mlir::Value &Value, IntegerKind Kind) {
       auto UnderlyingType = getUnderlyingIntegerType(Value.getType());
       revng_assert(UnderlyingType);
 
       uint64_t Size = UnderlyingType.getSize();
-      Value = emitCast<BitCastOp>(Loc, Value, C.getPrimitiveType(Size, Kind));
+      Value = emitCast<BitCastOp>(Loc, Value, C.getIntegerType(Size, Kind));
     };
 
     (ConvertToKind(Operands, Kind), ...);
     mlir::Value Result = ApplyOperation(Operands...);
 
-    if (Kind != PrimitiveKind::GenericKind)
-      ConvertToKind(Result, PrimitiveKind::GenericKind);
+    if (Kind != IntegerKind::Generic)
+      ConvertToKind(Result, IntegerKind::Generic);
 
     return Result;
   }
@@ -786,11 +784,11 @@ private:
   mlir::Value emitIntegerCast(mlir::Location Loc,
                               mlir::Value Operand,
                               uint64_t Size,
-                              PrimitiveKind Kind = PrimitiveKind::GenericKind) {
+                              IntegerKind Kind = IntegerKind::Generic) {
     uint64_t SrcSize = getUnderlyingIntegerType(Operand.getType()).getSize();
 
     auto EmitCast = [&](mlir::Value Operand) {
-      auto NewType = C.getPrimitiveType(Size, Kind);
+      auto NewType = C.getIntegerType(Size, Kind);
 
       if (Size > SrcSize)
         return emitCast<ExtendOp>(Loc, Operand, NewType);
@@ -1112,17 +1110,17 @@ private:
       mlir::Value Rhs = (LoggerIndent(ExpressionLog),
                          rc_recur emitExpression(I->getOperand(1), Loc));
 
-      PrimitiveKind Kind = PrimitiveKind::GenericKind;
+      IntegerKind Kind = IntegerKind::Generic;
       switch (I->getOpcode()) {
       case Operators::SDiv:
       case Operators::SRem:
       case Operators::AShr:
-        Kind = PrimitiveKind::SignedKind;
+        Kind = IntegerKind::Signed;
         break;
       case Operators::UDiv:
       case Operators::URem:
       case Operators::LShr:
-        Kind = PrimitiveKind::UnsignedKind;
+        Kind = IntegerKind::Unsigned;
         break;
       default:
         break;
@@ -1180,19 +1178,19 @@ private:
 
       using enum llvm::ICmpInst::Predicate;
 
-      PrimitiveKind Kind = PrimitiveKind::GenericKind;
+      IntegerKind Kind = IntegerKind::Generic;
       switch (I->getPredicate()) {
       case ICMP_SGT:
       case ICMP_SGE:
       case ICMP_SLT:
       case ICMP_SLE:
-        Kind = PrimitiveKind::SignedKind;
+        Kind = IntegerKind::Signed;
         break;
       case ICMP_UGT:
       case ICMP_UGE:
       case ICMP_ULT:
       case ICMP_ULE:
-        Kind = PrimitiveKind::UnsignedKind;
+        Kind = IntegerKind::Unsigned;
         break;
       default:
         break;
@@ -1209,8 +1207,7 @@ private:
                          rc_recur emitExpression(I->getOperand(1), Loc));
 
       auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
-      auto Type = C.importLLVMIntegerType(IntegerType,
-                                          PrimitiveKind::SignedKind);
+      auto Type = C.importLLVMIntegerType(IntegerType, IntegerKind::Signed);
 
       auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) {
         switch (I->getPredicate()) {
@@ -1270,7 +1267,7 @@ private:
         return ClifterImpl::getIntegerSize(IntegerType->getBitWidth());
       };
 
-      auto EmitIntegerCast = [&](PrimitiveKind Kind) {
+      auto EmitIntegerCast = [&](IntegerKind Kind) {
         return emitIntegerCast(Loc,
                                Operand,
                                GetIntegerSize(V->getType()),
@@ -1280,10 +1277,10 @@ private:
       switch (I->getOpcode()) {
         using Operators = llvm::CastInst::CastOps;
       case Operators::SExt:
-        rc_return EmitIntegerCast(PrimitiveKind::SignedKind);
+        rc_return EmitIntegerCast(IntegerKind::Signed);
       case Operators::ZExt:
       case Operators::Trunc:
-        rc_return EmitIntegerCast(PrimitiveKind::GenericKind);
+        rc_return EmitIntegerCast(IntegerKind::Generic);
       case Operators::PtrToInt:
         Operand = emitCast<BitCastOp>(Loc, Operand, C.getIntptrType());
         if (uint64_t S = GetIntegerSize(I->getDestTy()); S != C.PointerSize)

@@ -4,9 +4,9 @@
 
 // RUN: ../%revngpipe import-descriptive-info %S/../0-import-types/Extra.yml %s /dev/stdout | ../%revngcliftopt | FileCheck %s
 
-!uint8_t = !clift.primitive<unsigned 1>
-!uint16_t = !clift.primitive<unsigned 2>
-!uint32_t = !clift.primitive<unsigned 4>
+!uint8_t = !clift.int<unsigned 1>
+!uint16_t = !clift.int<unsigned 2>
+!uint32_t = !clift.int<unsigned 4>
 
 // CHECK: !cabifunction_0_ = !clift.func<
 // CHECK:   "/type-definition/0-CABIFunctionDefinition" as "cabifunction_0" : !uint8_t(!uint16_t, !uint32_t)

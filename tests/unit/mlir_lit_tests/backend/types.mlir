@@ -5,7 +5,7 @@
 // RUN: %revngcliftopt --emit-c %s | FileCheck %s
 // RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
-!void = !clift.primitive<void 0>
+!void = !clift.void
 
 !f = !clift.func<"f_t" as "f" : !void()>
 !s = !clift.struct<"s" as "s" : size(1) {}>

@@ -4,8 +4,8 @@
 
 // RUN: %revngcliftopt %s
 
-!int32_t = !clift.primitive<signed 4>
-!int32_t$const = !clift.const<!clift.primitive<signed 4>>
+!int32_t = !clift.int<signed 4>
+!int32_t$const = !clift.const<!clift.int<signed 4>>
 
 %m = clift.imm 0 : !int32_t
 %c = clift.undef : !int32_t$const

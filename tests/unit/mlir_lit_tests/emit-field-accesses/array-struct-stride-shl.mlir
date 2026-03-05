@@ -4,10 +4,10 @@
 
 // RUN: %revngcliftopt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!generic64_t = !clift.primitive<generic 8>
-!int64_t = !clift.primitive<signed 8>
-!int16_t = !clift.primitive<signed 2>
+!void = !clift.void
+!generic64_t = !clift.int<generic 8>
+!int64_t = !clift.int<signed 8>
+!int16_t = !clift.int<signed 2>
 !int64_t$ptr = !clift.ptr<8 to !int64_t>
 !int16_t$ptr = !clift.ptr<8 to !int16_t>
 

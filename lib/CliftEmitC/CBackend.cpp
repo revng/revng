@@ -78,24 +78,23 @@ public:
       }
     }
 
-    auto Primitive = getUnderlyingIntegerType(Type);
-
-    auto CInteger = Target.getIntegerKind(Primitive.getSize());
+    auto IntType = mlir::cast<IntegerType>(Type);
+    auto CInteger = Target.getIntegerKind(IntType.getSize());
     if (not CInteger or *CInteger >= CIntegerKind::Extended
-        or not mlir::isa<PrimitiveType>(Type)) {
+        or not mlir::isa<IntegerType>(Type)) {
       // Emit explicit cast if the standard integer type is not known. Emit
       // the literal itself without a suffix (as if int).
-      emitCStyleCast(Primitive);
+      emitCStyleCast(IntType);
       CInteger = CIntegerKind::Int;
     }
 
-    bool IsSigned = Primitive.getKind() == PrimitiveKind::SignedKind;
+    bool IsSigned = IntType.isSigned();
     if (IsSigned and static_cast<int64_t>(Value) < 0) {
       Tokens.emitOperator(ptml::CTokenEmitter::Operator::Minus);
       Value = ~Value + 1;
     }
 
-    Tokens.emitIntegerLiteral(llvm::APInt(Primitive.getSize() * 8,
+    Tokens.emitIntegerLiteral(llvm::APInt(IntType.getSize() * 8,
                                           Value,
                                           IsSigned),
                               CTE::IntegerSuffix{ .Unsigned = not IsSigned,
@@ -301,10 +300,7 @@ public:
     auto IsCastableType = [](ValueType T) {
       T = dealias(T, /*IgnoreQualifiers=*/true);
 
-      if (auto P = mlir::dyn_cast<PrimitiveType>(T))
-        return isIntegerKind(P.getKind());
-
-      return mlir::isa<EnumType, PointerType>(T);
+      return mlir::isa<IntegerType, EnumType, PointerType>(T);
     };
 
     return not IsCastableType(Op.getValue().getType())
@@ -427,10 +423,8 @@ public:
         return true;
 
       if (auto I = V.getDefiningOp<ImmediateOp>()) {
-        if (auto T = mlir::dyn_cast<PrimitiveType>(I.getResult().getType())) {
-          if (T.getKind() == PrimitiveKind::SignedKind)
-            return static_cast<int64_t>(I.getValue()) < 0;
-        }
+        if (auto T = mlir::dyn_cast<IntegerType>(I.getResult().getType()))
+          return T.isSigned() and static_cast<int64_t>(I.getValue()) < 0;
       }
 
       return false;

@@ -428,12 +428,12 @@ mlir::LogicalResult EnumAttr::verify(EmitErrorType EmitError,
                                      llvm::ArrayRef<EnumFieldAttr> Fields) {
   auto [DealiasedType, HasConst] = decomposeTypedef(UnderlyingType);
 
-  auto PrimitiveType = mlir::dyn_cast<clift::PrimitiveType>(DealiasedType);
-  if (not PrimitiveType or HasConst or PrimitiveType.isConst())
+  auto IntType = mlir::dyn_cast<IntegerType>(DealiasedType);
+  if (not IntType or HasConst or IntType.isConst())
     return EmitError() << "Underlying type of enum must be a non-const "
-                          "primitive type";
+                          "integer type";
 
-  const uint64_t BitWidth = PrimitiveType.getSize() * 8;
+  const uint64_t BitWidth = IntType.getSize() * 8;
 
   if (Fields.empty())
     return EmitError() << "enum requires at least one field";
@@ -442,11 +442,11 @@ mlir::LogicalResult EnumAttr::verify(EmitErrorType EmitError,
   uint64_t MaxValue = 0;
   bool IsSigned = false;
 
-  switch (PrimitiveType.getKind()) {
-  case PrimitiveKind::UnsignedKind:
+  switch (IntType.getKind()) {
+  case IntegerKind::Unsigned:
     MaxValue = llvm::APInt::getMaxValue(BitWidth).getZExtValue();
     break;
-  case PrimitiveKind::SignedKind:
+  case IntegerKind::Signed:
     MinValue = llvm::APInt::getSignedMinValue(BitWidth).getSExtValue();
     MaxValue = llvm::APInt::getSignedMaxValue(BitWidth).getSExtValue();
     IsSigned = true;

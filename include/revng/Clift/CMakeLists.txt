@@ -22,6 +22,10 @@ set(LLVM_TARGET_DEFINITIONS CliftTypeInterfacesClass.td)
 mlir_tablegen(CliftTypeInterfacesClass.h.inc -gen-type-interface-decls)
 mlir_tablegen(CliftTypeInterfacesClass.cpp.inc -gen-type-interface-defs)
 
+set(LLVM_TARGET_DEFINITIONS CliftTypeInterfacesPrimitive.td)
+mlir_tablegen(CliftTypeInterfacesPrimitive.h.inc -gen-type-interface-decls)
+mlir_tablegen(CliftTypeInterfacesPrimitive.cpp.inc -gen-type-interface-defs)
+
 set(LLVM_TARGET_DEFINITIONS CliftAttrInterfaces.td)
 mlir_tablegen(CliftAttrInterfaces.h.inc -gen-attr-interface-decls)
 mlir_tablegen(CliftAttrInterfaces.cpp.inc -gen-attr-interface-defs)

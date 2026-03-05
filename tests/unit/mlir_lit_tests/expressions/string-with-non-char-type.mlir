@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!char$const = !clift.const<!clift.primitive<number 1>>
+!char$const = !clift.const<!clift.int<number 1>>
 !char$const$ptr$const = !clift.const<!clift.ptr<8 to !char$const>>
 
 // CHECK: result must have number8_t element type

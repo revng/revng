@@ -129,61 +129,98 @@ static void writeType(clift::LabelType Type,
                       mlir::DialectBytecodeWriter &Writer) {
 }
 
-//===---------------------------- PrimitiveType ---------------------------===//
+//===------------------------------ VoidType ------------------------------===//
 
-mlir::LogicalResult PrimitiveType::verify(EmitErrorType EmitError,
-                                          PrimitiveKind Kind,
-                                          uint64_t Size,
-                                          bool IsConst) {
-  if (Kind == PrimitiveKind::VoidKind and Size != 0)
-    return EmitError() << "primitive type of void kind must have size of 0.";
+mlir::LogicalResult VoidType::verify(EmitErrorType EmitError, bool IsConst) {
+  return mlir::success();
+}
+
+bool VoidType::getAlias(llvm::raw_ostream &OS) const {
+  if (getIsConst())
+    return false;
+
+  OS << "void";
+  return true;
+}
+
+uint64_t VoidType::getByteSize() const {
+  return 0;
+}
+
+ValueType VoidType::addConst() const {
+  if (isConst())
+    return *this;
+
+  return get(getContext(), /*IsConst=*/true);
+}
+
+ValueType VoidType::removeConst() const {
+  if (not isConst())
+    return *this;
+
+  return get(getContext(), /*IsConst=*/false);
+}
+
+template<std::same_as<VoidType>>
+static VoidType readType(mlir::DialectBytecodeReader &Reader) {
+  return VoidType::get(Reader.getContext());
+}
+
+static void writeType(VoidType Type, mlir::DialectBytecodeWriter &Writer) {
+}
+
+//===----------------------------- IntegerType ----------------------------===//
+
+mlir::LogicalResult IntegerType::verify(EmitErrorType EmitError,
+                                        IntegerKind Kind,
+                                        uint64_t Size,
+                                        bool IsConst) {
+  if (Size == 0)
+    return EmitError() << "Integer types must have non-zero size.";
 
   return mlir::success();
 }
 
-static llvm::StringRef getPrimitiveKindAlias(PrimitiveKind Kind) {
+static llvm::StringRef getIntegerKindAlias(IntegerKind Kind) {
   switch (Kind) {
-  case PrimitiveKind::SignedKind:
+  case IntegerKind::Signed:
     return "int";
-  case PrimitiveKind::UnsignedKind:
+  case IntegerKind::Unsigned:
     return "uint";
   default:
-    return stringifyPrimitiveKind(Kind);
+    return stringifyIntegerKind(Kind);
   }
 }
 
-bool PrimitiveType::getAlias(llvm::raw_ostream &OS) const {
+bool IntegerType::getAlias(llvm::raw_ostream &OS) const {
   if (getIsConst())
     return false;
 
-  OS << getPrimitiveKindAlias(getKind());
-  if (getKind() != PrimitiveKind::VoidKind)
-    OS << getByteSize() * 8 << "_t";
-
+  OS << getIntegerKindAlias(getKind()) << getSize() * 8 << "_t";
   return true;
 }
 
-ValueType PrimitiveType::addConst() const {
+ValueType IntegerType::addConst() const {
   if (isConst())
     return *this;
 
   return get(getContext(), getKind(), getSize(), /*IsConst=*/true);
 }
 
-ValueType PrimitiveType::removeConst() const {
+ValueType IntegerType::removeConst() const {
   if (not isConst())
     return *this;
 
   return get(getContext(), getKind(), getSize(), /*IsConst=*/false);
 }
 
-template<std::same_as<clift::PrimitiveType>>
-static clift::PrimitiveType readType(mlir::DialectBytecodeReader &Reader) {
+template<std::same_as<IntegerType>>
+static IntegerType readType(mlir::DialectBytecodeReader &Reader) {
   uint64_t KindInteger;
   if (Reader.readVarInt(KindInteger).failed())
     return {};
 
-  auto Kind = symbolizePrimitiveKind(KindInteger);
+  auto Kind = symbolizeIntegerKind(KindInteger);
   if (not Kind)
     return {};
 
@@ -195,12 +232,61 @@ static clift::PrimitiveType readType(mlir::DialectBytecodeReader &Reader) {
   if (readBool(Const, Reader).failed())
     return {};
 
-  return clift::PrimitiveType::get(Reader.getContext(), *Kind, Size, Const);
+  return IntegerType::get(Reader.getContext(), *Kind, Size, Const);
 }
 
-static void writeType(clift::PrimitiveType Type,
-                      mlir::DialectBytecodeWriter &Writer) {
+static void writeType(IntegerType Type, mlir::DialectBytecodeWriter &Writer) {
   Writer.writeVarInt(static_cast<uint64_t>(Type.getKind()));
+  Writer.writeVarInt(Type.getSize());
+  writeBool(Type.getIsConst(), Writer);
+}
+
+//===------------------------------ FloatType -----------------------------===//
+
+mlir::LogicalResult
+FloatType::verify(EmitErrorType EmitError, uint64_t Size, bool IsConst) {
+  if (Size == 0)
+    return EmitError() << "Floating point types must have non-zero size.";
+
+  return mlir::success();
+}
+
+bool FloatType::getAlias(llvm::raw_ostream &OS) const {
+  if (getIsConst())
+    return false;
+
+  OS << "float" << getSize() * 8 << "_t";
+  return true;
+}
+
+ValueType FloatType::addConst() const {
+  if (isConst())
+    return *this;
+
+  return get(getContext(), getSize(), /*IsConst=*/true);
+}
+
+ValueType FloatType::removeConst() const {
+  if (not isConst())
+    return *this;
+
+  return get(getContext(), getSize(), /*IsConst=*/false);
+}
+
+template<std::same_as<FloatType>>
+static FloatType readType(mlir::DialectBytecodeReader &Reader) {
+  uint64_t Size;
+  if (Reader.readVarInt(Size).failed())
+    return {};
+
+  bool Const;
+  if (readBool(Const, Reader).failed())
+    return {};
+
+  return FloatType::get(Reader.getContext(), Size, Const);
+}
+
+static void writeType(FloatType Type, mlir::DialectBytecodeWriter &Writer) {
   Writer.writeVarInt(Type.getSize());
   writeBool(Type.getIsConst(), Writer);
 }
@@ -1466,31 +1552,14 @@ bool clift::isModifiableType(ValueType Type) {
   return not HasConst and not UnderlyingType.isConst();
 }
 
-bool clift::isIntegerKind(PrimitiveKind Kind) {
-  switch (Kind) {
-  case PrimitiveKind::GenericKind:
-  case PrimitiveKind::PointerOrNumberKind:
-  case PrimitiveKind::NumberKind:
-  case PrimitiveKind::UnsignedKind:
-  case PrimitiveKind::SignedKind:
-    return true;
-
-  case PrimitiveKind::VoidKind:
-  case PrimitiveKind::FloatKind:
-    break;
-  }
-  return false;
-}
-
-PrimitiveType clift::getUnderlyingIntegerType(ValueType Type) {
+IntegerType clift::getUnderlyingIntegerType(ValueType Type) {
   Type = dealias(Type, /*IgnoreQualifiers=*/true);
 
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
-    return isIntegerKind(T.getKind()) ? T : nullptr;
+  if (auto T = mlir::dyn_cast<IntegerType>(Type))
+    return T;
 
-  if (auto T = mlir::dyn_cast<EnumType>(Type)) {
-    return mlir::cast<PrimitiveType>(dealias(T.getUnderlyingType()));
-  }
+  if (auto T = mlir::dyn_cast<EnumType>(Type))
+    return mlir::cast<IntegerType>(dealias(T.getUnderlyingType()));
 
   return nullptr;
 }
@@ -1508,32 +1577,17 @@ bool clift::isCompleteType(ValueType Type) {
 }
 
 bool clift::isVoid(ValueType Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
-
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
-    return T.getKind() == PrimitiveKind::VoidKind;
-
-  return false;
+  return mlir::isa<VoidType>(dealias(Type, /*IgnoreQualifiers=*/true));
 }
 
 bool clift::isScalarType(ValueType Type) {
   Type = dealias(Type, /*IgnoreQualifiers=*/true);
-
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
-    return T.getKind() != PrimitiveKind::VoidKind;
-
-  return mlir::isa<EnumType, PointerType>(Type);
+  return mlir::isa<IntegerType, FloatType, EnumType, PointerType>(Type);
 }
 
-PrimitiveType clift::getPrimitiveIntegerType(ValueType Type) {
+IntegerType clift::getPrimitiveIntegerType(ValueType Type) {
   Type = dealias(Type, /*IgnoreQualifiers=*/true);
-
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
-    if (isIntegerKind(T.getKind()))
-      return T;
-  }
-
-  return nullptr;
+  return mlir::dyn_cast<IntegerType>(Type);
 }
 
 bool clift::isPrimitiveIntegerType(ValueType Type) {
@@ -1542,25 +1596,16 @@ bool clift::isPrimitiveIntegerType(ValueType Type) {
 
 bool clift::isIntegerType(ValueType Type) {
   Type = dealias(Type, /*IgnoreQualifiers=*/true);
-
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
-    return isIntegerKind(T.getKind());
-
-  return mlir::isa<EnumType>(Type);
+  return mlir::isa<IntegerType, EnumType>(Type);
 }
 
 bool clift::isBooleanType(ValueType Type) {
   auto T = getPrimitiveIntegerType(Type);
-  return T and T.getKind() == PrimitiveKind::SignedKind;
+  return T and T.isSigned();
 }
 
 bool clift::isFloatType(ValueType Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
-
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
-    return T.getKind() == PrimitiveKind::FloatKind;
-
-  return false;
+  return mlir::isa<FloatType>(dealias(Type, /*IgnoreQualifiers=*/true));
 }
 
 PointerType clift::getPointerType(ValueType Type) {
@@ -1572,14 +1617,12 @@ bool clift::isPointerType(ValueType Type) {
 }
 
 bool clift::isObjectType(ValueType Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
-
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
-    if (T.getKind() == PrimitiveKind::VoidKind)
-      return false;
-  }
-
-  return not mlir::isa<clift::FunctionType>(Type);
+  return mlir::isa<ArrayType,
+                   ClassType,
+                   EnumType,
+                   FloatType,
+                   IntegerType,
+                   PointerType>(dealias(Type, /*IgnoreQualifiers=*/true));
 }
 
 bool clift::isArrayType(ValueType Type) {
@@ -1688,7 +1731,9 @@ namespace {
 
 enum class CliftTypeKind : uint8_t {
   Label,
-  Primitive,
+  Void,
+  Int,
+  Float,
   Pointer,
   Array,
   Enum,
@@ -1723,8 +1768,12 @@ mlir::Type clift::readType(mlir::DialectBytecodeReader &Reader) {
   switch (TypeKind) {
   case CliftTypeKind::Label:
     return ::readType<clift::LabelType>(Reader);
-  case CliftTypeKind::Primitive:
-    return ::readType<clift::PrimitiveType>(Reader);
+  case CliftTypeKind::Void:
+    return ::readType<clift::VoidType>(Reader);
+  case CliftTypeKind::Int:
+    return ::readType<clift::IntegerType>(Reader);
+  case CliftTypeKind::Float:
+    return ::readType<clift::FloatType>(Reader);
   case CliftTypeKind::Pointer:
     return ::readType<clift::PointerType>(Reader);
   case CliftTypeKind::Array:
@@ -1755,8 +1804,12 @@ mlir::LogicalResult clift::writeType(mlir::Type Type,
 
   if (auto T = mlir::dyn_cast<clift::LabelType>(Type))
     return Write(T, CliftTypeKind::Label);
-  if (auto T = mlir::dyn_cast<clift::PrimitiveType>(Type))
-    return Write(T, CliftTypeKind::Primitive);
+  if (auto T = mlir::dyn_cast<clift::VoidType>(Type))
+    return Write(T, CliftTypeKind::Void);
+  if (auto T = mlir::dyn_cast<clift::IntegerType>(Type))
+    return Write(T, CliftTypeKind::Int);
+  if (auto T = mlir::dyn_cast<clift::FloatType>(Type))
+    return Write(T, CliftTypeKind::Float);
   if (auto T = mlir::dyn_cast<clift::PointerType>(Type))
     return Write(T, CliftTypeKind::Pointer);
   if (auto T = mlir::dyn_cast<clift::ArrayType>(Type))

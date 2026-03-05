@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!void = !clift.primitive<void 0>
+!void = !clift.void
 
 !f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" as "f" : !void()

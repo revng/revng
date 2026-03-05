@@ -4,7 +4,7 @@
 
 // RUN: %revngcliftopt %s
 
-!int32_t = !clift.primitive<signed 4>
+!int32_t = !clift.int<signed 4>
 !int32_t$array = !clift.array<1 x !int32_t>
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
 !typedef$array = !clift.typedef<"" : !int32_t$array>

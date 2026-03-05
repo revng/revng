@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s
 
-!void = !clift.primitive<void 0>
-!int32_t = !clift.primitive<signed 4>
-!int32_t$const = !clift.const<!clift.primitive<signed 4>>
+!void = !clift.void
+!int32_t = !clift.int<signed 4>
+!int32_t$const = !clift.const<!clift.int<signed 4>>
 
 !f = !clift.func<
   "/type-definition/1-CABIFunctionDefinition" : !void()

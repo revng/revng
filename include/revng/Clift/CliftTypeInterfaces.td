@@ -13,5 +13,6 @@
 // Emission: ClassType    DefinedType    ValueType
 
 include "revng/Clift/CliftTypeInterfacesClass.td"
+include "revng/Clift/CliftTypeInterfacesPrimitive.td"
 
 #endif

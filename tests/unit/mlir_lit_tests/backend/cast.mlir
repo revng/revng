@@ -5,11 +5,11 @@
 // RUN: %revngcliftopt --emit-c %s | FileCheck %s
 // RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
-!void = !clift.primitive<void 0>
+!void = !clift.void
 
-!int32_t = !clift.primitive<signed 4>
-!uint32_t = !clift.primitive<unsigned 4>
-!float32_t = !clift.primitive<float 4>
+!int32_t = !clift.int<signed 4>
+!uint32_t = !clift.int<unsigned 4>
+!float32_t = !clift.float<4>
 
 !uint32_t$ptr = !clift.ptr<4 to !uint32_t>
 

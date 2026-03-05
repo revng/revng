@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s --optimize-expressions | FileCheck %s
 
-!void = !clift.primitive<void 0>
+!void = !clift.void
 
-!generic64_t = !clift.primitive<generic 8>
+!generic64_t = !clift.int<generic 8>
 !generic64_t$ptr = !clift.ptr<8 to !generic64_t>
 
 !f = !clift.func<"" : !void(!generic64_t)>

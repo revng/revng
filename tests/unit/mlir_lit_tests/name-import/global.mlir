@@ -4,8 +4,8 @@
 
 // RUN: %revngpipe import-descriptive-info %S/model.yml %s /dev/stdout | %revngcliftopt | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!uint8_t = !clift.primitive<unsigned 1>
+!void = !clift.void
+!uint8_t = !clift.int<unsigned 1>
 
 !segment = !clift.struct<"/type-definition/2005-StructDefinition" : size(1) {
   "/struct-field/2005-StructDefinition/0" : offset(0) !uint8_t

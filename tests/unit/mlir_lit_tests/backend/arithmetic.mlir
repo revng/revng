@@ -5,12 +5,12 @@
 // RUN: %revngcliftopt --emit-c %s | FileCheck %s
 // RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
-!void = !clift.primitive<void 0>
+!void = !clift.void
 
-!int32_t = !clift.primitive<signed 4>
+!int32_t = !clift.int<signed 4>
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
 
-!ptrdiff_t = !clift.primitive<signed 8>
+!ptrdiff_t = !clift.int<signed 8>
 
 !f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" : !void()

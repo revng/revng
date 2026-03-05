@@ -4,8 +4,8 @@
 
 // RUN: %revngcliftopt %s
 
-!int32_t = !clift.primitive<signed 4>
-!int64_t = !clift.primitive<signed 8>
+!int32_t = !clift.int<signed 4>
+!int64_t = !clift.int<signed 8>
 
 !f = !clift.func<
   "/type-definition/1-CABIFunctionDefinition" : !int32_t()

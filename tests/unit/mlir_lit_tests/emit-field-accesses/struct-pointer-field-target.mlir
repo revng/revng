@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!generic64_t = !clift.primitive<generic 8>
-!int32_t = !clift.primitive<signed 4>
+!void = !clift.void
+!generic64_t = !clift.int<generic 8>
+!int32_t = !clift.int<signed 4>
 
 // Generic void function prototype with no argument
 !f = !clift.func<

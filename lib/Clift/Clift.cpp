@@ -372,10 +372,7 @@ mlir::ParseResult FunctionOp::parse(mlir::OpAsmParser &Parser,
                                                         "one result";
 
   if (ResultTypes.empty()) {
-    ResultTypes.push_back(PrimitiveType::get(Parser.getContext(),
-                                             PrimitiveKind::VoidKind,
-                                             0,
-                                             false));
+    ResultTypes.push_back(VoidType::get(Parser.getContext()));
     ResultAttrs.push_back(mlir::DictionaryAttr::get(Parser.getContext()));
   }
 
@@ -1139,8 +1136,8 @@ mlir::LogicalResult StringOp::verify() {
     return emitOpError() << getOperationName()
                          << " result must have const array type.";
 
-  auto CharT = mlir::dyn_cast<PrimitiveType>(ArrayT.getElementType());
-  if (not CharT or CharT.getKind() != PrimitiveKind::NumberKind
+  auto CharT = mlir::dyn_cast<IntegerType>(ArrayT.getElementType());
+  if (not CharT or CharT.getKind() != IntegerKind::Number
       or CharT.getSize() != 1)
     return emitOpError() << getOperationName()
                          << " result must have number8_t element type.";
@@ -1214,11 +1211,11 @@ static mlir::LogicalResult verifyPointerArithmeticOp(mlir::Operation *Op) {
     return Op->emitOpError() << "requires exactly one pointer operand.";
 
   auto PointerType = LhsPT ? LhsPT : RhsPT;
-  auto IntegerType = mlir::dyn_cast<clift::PrimitiveType>(dealias(LhsPT ? RhsT :
-                                                                          LhsT,
-                                                                  true));
+  auto IntegerType = mlir::dyn_cast<clift::IntegerType>(dealias(LhsPT ? RhsT :
+                                                                        LhsT,
+                                                                true));
 
-  if (not IntegerType or not isIntegerKind(IntegerType.getKind()))
+  if (not IntegerType)
     return Op->emitOpError() << "requires an integer operand.";
 
   if (mlir::isa<PtrSubOp>(Op)) {
@@ -1281,9 +1278,9 @@ mlir::LogicalResult PtrDiffOp::verify() {
     return emitOpError() << getOperationName()
                          << " operand pointee must have object type.";
 
-  auto IntegerType = mlir::dyn_cast<PrimitiveType>(getResult().getType());
-  if (not IntegerType or IntegerType.getKind() != PrimitiveKind::SignedKind
-      or IntegerType.getSize() != LhsPT.getPointerSize())
+  auto IntType = mlir::dyn_cast<IntegerType>(getResult().getType());
+  if (not IntType or not IntType.isSigned()
+      or IntType.getSize() != LhsPT.getPointerSize())
     return emitOpError() << getOperationName()
                          << " result must have primitive signed integer type"
                             " with size matching that of the operand type.";

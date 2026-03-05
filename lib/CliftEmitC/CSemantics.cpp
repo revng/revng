@@ -106,20 +106,16 @@ private:
   }
 
   bool isPotentiallyPromotingType(ValueType Type) {
-    if (auto P = mlir::dyn_cast<PrimitiveType>(dealias(Type, true))) {
-      if (isIntegerKind(P.getKind())) {
-        auto Integer = Target.getIntegerKind(P.getSize());
-        return not Integer or *Integer < CIntegerKind::Int;
-      }
+    if (auto IntType = mlir::dyn_cast<IntegerType>(dealias(Type, true))) {
+      auto Integer = Target.getIntegerKind(IntType.getSize());
+      return not Integer or *Integer < CIntegerKind::Int;
     }
     return false;
   }
 
   bool isCanonicalBooleanType(ValueType Type) {
-    if (auto P = mlir::dyn_cast<PrimitiveType>(dealias(Type, true))) {
-      if (isIntegerKind(P.getKind()))
-        return Target.getIntegerKind(P.getSize()) == CIntegerKind::Int;
-    }
+    if (auto IntType = mlir::dyn_cast<IntegerType>(dealias(Type, true)))
+      return Target.getIntegerKind(IntType.getSize()) == CIntegerKind::Int;
     return false;
   }
 

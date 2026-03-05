@@ -302,9 +302,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
       // component, we still emit a `imm 0` to represent the access to `[0]`.
       if (Access.Index.Constant != 0 or not Access.Index.Variable) {
         auto Index = Access.Index.Constant;
-        auto IntegerType = PrimitiveType::get(Builder.getContext(),
-                                              PrimitiveKind::GenericKind,
-                                              PointerSize);
+        auto IntegerType = clift::IntegerType::get(Builder.getContext(),
+                                                   IntegerKind::Generic,
+                                                   PointerSize);
         FixedIndexValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,
                                                       IntegerType,
                                                       Index);
@@ -364,18 +364,18 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
       or not LeftoverOffset.LinearCombination.empty()) {
 
     // Cast pointer to integer
-    auto IntegerType = PrimitiveType::get(Builder.getContext(),
-                                          PrimitiveKind::GenericKind,
-                                          PointerSize);
+    auto IntegerType = clift::IntegerType::get(Builder.getContext(),
+                                               IntegerKind::Generic,
+                                               PointerSize);
     CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
                                              IntegerType,
                                              CurrentValue);
 
     // Add base offset
     if (!LeftoverOffset.BaseOffset.isZero()) {
-      auto IntegerType = PrimitiveType::get(Builder.getContext(),
-                                            PrimitiveKind::GenericKind,
-                                            PointerSize);
+      auto IntegerType = clift::IntegerType::get(Builder.getContext(),
+                                                 IntegerKind::Generic,
+                                                 PointerSize);
 
       auto LeftoverOffsetValue = LeftoverOffset.BaseOffset.getSExtValue();
       auto AddOperandValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,

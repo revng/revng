@@ -103,12 +103,12 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
                                    TargetPointerSize);
   }
 
-  clift::PrimitiveType
+  clift::IntegerType
   makeTargetIntegerType(mlir::PatternRewriter &Rewriter,
-                        clift::PrimitiveType OldIntegerType) const {
-    return clift::PrimitiveType::get(Rewriter.getContext(),
-                                     OldIntegerType.getKind(),
-                                     TargetPointerSize);
+                        clift::IntegerType OldIntegerType) const {
+    return clift::IntegerType::get(Rewriter.getContext(),
+                                   OldIntegerType.getKind(),
+                                   TargetPointerSize);
   }
 
   mlir::LogicalResult replacePointerOperand(mlir::PatternRewriter &Rewriter,
@@ -246,15 +246,15 @@ struct BooleanCanonicalizationPattern
     mlir::OpTraitRewritePattern<mlir::OpTrait::clift::ReturnsBoolean>(Context),
     CanonicalBooleanType(getCanonicalBooleanType(Context, Target)) {}
 
-  clift::PrimitiveType CanonicalBooleanType;
+  clift::IntegerType CanonicalBooleanType;
 
-  static clift::PrimitiveType
+  static clift::IntegerType
   getCanonicalBooleanType(mlir::MLIRContext *Context,
                           const TargetCImplementation &Target) {
-    return clift::PrimitiveType::get(Context,
-                                     clift::PrimitiveKind::SignedKind,
-                                     Target.getIntSize(),
-                                     /*Const=*/false);
+    return clift::IntegerType::get(Context,
+                                   clift::IntegerKind::Signed,
+                                   Target.getIntSize(),
+                                   /*Const=*/false);
   }
 
   mlir::LogicalResult
@@ -262,10 +262,8 @@ struct BooleanCanonicalizationPattern
                   mlir::PatternRewriter &Rewriter) const override {
     mlir::Value Result = Op->getResult(0);
 
-    auto T = mlir::dyn_cast<clift::PrimitiveType>(clift::dealias(Result
-                                                                   .getType(),
-                                                                 true));
-    revng_assert(T and isIntegerKind(T.getKind()));
+    auto T = mlir::dyn_cast<clift::IntegerType>(clift::dealias(Result.getType(),
+                                                               true));
 
     if (T.getSize() == CanonicalBooleanType.getSize())
       return mlir::failure();
@@ -289,11 +287,11 @@ struct IntegerPromotionPattern : mlir::OpRewritePattern<OpT> {
 
   uint64_t PromotionSize;
 
-  clift::PrimitiveType makePromotedType(clift::PrimitiveType Type) const {
-    return clift::PrimitiveType::get(Type.getContext(),
-                                     Type.getKind(),
-                                     PromotionSize,
-                                     /*Const=*/false);
+  clift::IntegerType makePromotedType(clift::IntegerType Type) const {
+    return clift::IntegerType::get(Type.getContext(),
+                                   Type.getKind(),
+                                   PromotionSize,
+                                   /*Const=*/false);
   }
 
   mlir::LogicalResult tryPromoteTypes(mlir::PatternRewriter &Rewriter,

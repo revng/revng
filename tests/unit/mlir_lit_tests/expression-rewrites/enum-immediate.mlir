@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s --optimize-expressions | FileCheck %s
 
-!void = !clift.primitive<void 0>
+!void = !clift.void
 
-!int32_t = !clift.primitive<signed 4>
+!int32_t = !clift.int<signed 4>
 
 !my_enum = !clift.enum<"" as "my_enum" : !int32_t { "" : 0 }>
 !f = !clift.func<"/model-type/1001" : !void()>

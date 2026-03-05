@@ -9,8 +9,8 @@
 
 namespace mlir::clift {
 
-inline PrimitiveType getBooleanType(mlir::MLIRContext *Context) {
-  return PrimitiveType::get(Context, PrimitiveKind::SignedKind, /*Size=*/1);
+inline IntegerType getBooleanType(mlir::MLIRContext *Context) {
+  return IntegerType::get(Context, IntegerKind::Signed, /*Size=*/1);
 }
 
 /// Transform the expression tree in \p Region with a new expression tree.

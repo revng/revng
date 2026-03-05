@@ -7,14 +7,12 @@ include "mlir/IR/OpBase.td"
 
 include "revng/Clift/CliftDialect.td"
 
-def Clift_PrimitiveKind: I32EnumAttr<"PrimitiveKind", "primitive type kinds", [
-    I32EnumAttrCase<"VoidKind",                 1,      "void">,
-    I32EnumAttrCase<"GenericKind",              2,      "generic">,
-    I32EnumAttrCase<"PointerOrNumberKind",      3,      "pointer_or_number">,
-    I32EnumAttrCase<"NumberKind",               4,      "number">,
-    I32EnumAttrCase<"UnsignedKind",             5,      "unsigned">,
-    I32EnumAttrCase<"SignedKind",               6,      "signed">,
-    I32EnumAttrCase<"FloatKind",                7,      "float">,
+def Clift_IntegerKind: I32EnumAttr<"IntegerKind", "integer type kinds", [
+    I32EnumAttrCase<"Generic",                  1,      "generic">,
+    I32EnumAttrCase<"PointerOrNumber",          2,      "pointer_or_number">,
+    I32EnumAttrCase<"Number",                   3,      "number">,
+    I32EnumAttrCase<"Unsigned",                 4,      "unsigned">,
+    I32EnumAttrCase<"Signed",                   5,      "signed">,
   ]> {
   let cppNamespace = "mlir::clift";
   // since we want to wrap this enum into a clift type, do not generate

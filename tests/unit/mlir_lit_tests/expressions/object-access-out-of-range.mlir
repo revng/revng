@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!int32_t = !clift.primitive<signed 4>
+!int32_t = !clift.int<signed 4>
 
 !s = !clift.struct<
   "/type-definition/1-StructDefinition" : size(4) {
