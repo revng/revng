@@ -408,8 +408,8 @@ void DetectABI::preliminaryFunctionAnalysis() {
           // If it's inline, re-enqueue its callers too
           MetaAddress CallerPC = Caller->Address;
           const auto &CallerSummary = Oracle.getLocalFunction(CallerPC);
-          using namespace model::FunctionAttribute;
-          if (CallerSummary.Attributes.contains(Inline))
+          namespace FA = model::FunctionAttribute;
+          if (CallerSummary.Attributes.contains(FA::AlwaysInline))
             InlineFunctionWorklist.insert(Caller);
 
           if (Binary->Functions().at(CallerPC).Prototype().isEmpty()) {

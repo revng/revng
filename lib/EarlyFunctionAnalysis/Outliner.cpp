@@ -164,7 +164,6 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
   // that function.
 
   // What is the function type of the callee?
-  using namespace model::FunctionAttribute;
 
   // Inline if 1) marked as inline, 2) not the caller function itself and 3)
   // not banned from inlining
@@ -174,13 +173,15 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
     auto *T = FunctionCall->getParent()->getTerminator();
     BasicBlock *CalleeBlock = getFunctionCallCallee(T);
 
-    bool IsMarkedInline = Summary->Attributes.contains(Inline);
+    namespace FA = model::FunctionAttribute;
+    bool IsMarkedInline = Summary->Attributes.contains(FA::AlwaysInline);
     bool IsCallingTheCaller = CallerFunction == Callee;
     bool IsBanned = FunctionsMap.isBanned(Callee);
     IsInline = IsMarkedInline and not IsCallingTheCaller and not IsBanned;
   }
 
-  bool IsNoReturn = Summary->Attributes.contains(NoReturn);
+  namespace FA = model::FunctionAttribute;
+  bool IsNoReturn = Summary->Attributes.contains(FA::NoReturn);
 
   if (IsInline) {
     // Emit a call to the function to inline: a later step will inline this call
@@ -298,8 +299,8 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
                                                      PCCallee);
 
       // Unless it's NoReturn, enqueue the call fallthrough
-      using namespace model::FunctionAttribute;
-      bool IsNoReturn = Summary->Attributes.contains(NoReturn);
+      namespace FA = model::FunctionAttribute;
+      bool IsNoReturn = Summary->Attributes.contains(FA::NoReturn);
       if (not IsNoReturn and not IsTailCall) {
         Queue.insert(getFallthrough(Current));
       }
@@ -347,8 +348,6 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
 
       CallToCallee[FunctionCall] = PCCallee;
 
-      using namespace model::FunctionAttribute;
-
       CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
       auto &&[CalleeSummary, IsTailCall] = getCallSiteInfo(FunctionAddress,
                                                            BB,
@@ -356,7 +355,8 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
                                                            JumpToSymbol,
                                                            PCCallee);
 
-      bool IsNoReturn = CalleeSummary->Attributes.contains(NoReturn);
+      namespace FA = model::FunctionAttribute;
+      bool IsNoReturn = CalleeSummary->Attributes.contains(FA::NoReturn);
       if (IsNoReturn) {
         auto *BB = Term->getParent();
         Term->eraseFromParent();
