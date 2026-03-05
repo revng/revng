@@ -516,7 +516,11 @@ class Pipeline:
                 storage_provider=storage_provider,
                 runner_context=runner_context,
             )
-            total_invalidated.update(invalidated)
+            for location, objects in invalidated.items():
+                if location in total_invalidated:
+                    total_invalidated[location] = total_invalidated[location] | objects
+                else:
+                    total_invalidated[location] = objects
             model = ReadOnlyModel(new_model)
 
         return new_model, total_invalidated
