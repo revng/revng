@@ -40,7 +40,7 @@ def import_pipebox(module_path: str, is_autocomplete: bool) -> object:
             return object()
         pypeline_logger.log(
             f'Pipebox file "{module_abspath}" does not exist. Either set it using the '
-            "PIPEBOX env var, or pass the --pipebox option."
+            "PYPELINE_PIPEBOX env var, or pass the --pipebox option."
         )
         sys.exit(1)
     # We guess that the module name is the file name without the extension
@@ -134,10 +134,11 @@ def parse_base_directory(path: str, ctx: click.Context):
         parser=parse_pipebox,
     ),
     help=(
-        'Path to the pipebox file. Defaults to the "PIPEBOX" environment '
-        'variable, then "pipebox.py".'
+        'Path to the pipebox file. Defaults to the "PYPELINE_PIPEBOX" '
+        'environment variable, then "pipebox.py".'
     ),
-    default=os.environ.get("PIPEBOX", "pipebox.py"),
+    default="pipebox.py",
+    envvar="PYPELINE_PIPEBOX",
     show_default=True,
     expose_value=False,
 )

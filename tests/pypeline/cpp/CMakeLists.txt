@@ -57,5 +57,5 @@ set_tests_properties(
              "pypeline;test"
              ENVIRONMENT
              "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH};\
-PIPEBOX=${CMAKE_CURRENT_BINARY_DIR}/pipebox.py;\
-PIPELINE=${CMAKE_CURRENT_SOURCE_DIR}/pipeline.yml")
+PYPELINE_PIPEBOX=${CMAKE_CURRENT_BINARY_DIR}/pipebox.py;\
+PYPELINE_PIPELINE=${CMAKE_CURRENT_SOURCE_DIR}/pipeline.yml")

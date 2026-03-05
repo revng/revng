@@ -2,7 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import os
 from pathlib import Path
 
 import click
@@ -17,8 +16,7 @@ project_id_option = click.option(
     "--project-id",
     type=str,
     help=("Project id to use for the storage provider."),
-    # TODO: discuss env var names
-    default=os.environ.get("PROJECT_ID"),
+    envvar="PYPELINE_PROJECT_ID",
     show_default=True,
 )
 

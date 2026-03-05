@@ -66,8 +66,9 @@ def generate_model_with_binaries(binaries: list[Path]):
         name="pipeline",
         parser=lambda path, _ctx: load_pipeline_yaml_file(path),
     ),
-    help='Path to the pipeline file. Defaults to the "PIPELINE" environment if set',
-    default=os.environ.get("PIPELINE", Path(__file__).parent.parent / "pipeline.yml"),
+    help='Path to the pipeline file. Defaults to the "PYPELINE_PIPELINE" environment if set',
+    default=Path(__file__).parent.parent / "pipeline.yml",
+    envvar="PYPELINE_PIPELINE",
     show_default=True,
 )
 @click.pass_context
@@ -432,16 +433,14 @@ def patch_pype():
     # Replace the default for pipebox
     for param in pype.params:
         if param.name == "pipebox":
-            param.default = os.environ.get("PIPEBOX", Path(__file__).parent.parent / "pipebox.py")
+            param.default = Path(__file__).parent.parent / "pipebox.py"
 
     # Add `init` to project subcommand
     project.add_command(init)
     # Change the default for pipeline
     for param in project.params:
         if param.name == "pipeline":
-            param.default = os.environ.get(
-                "PIPELINE", Path(__file__).parent.parent / "pipeline.yml"
-            )
+            param.default = Path(__file__).parent.parent / "pipeline.yml"
         elif param.name == "cache_dir":
             param.default = cache_directory()
 

@@ -6,10 +6,10 @@ import os
 from pathlib import Path
 
 import click
-from xdg import xdg_cache_home
 
 from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, StorageProviderUrl
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
+from revng.pypeline.utils import cache_directory
 
 from .analyze import analyze
 from .artifact import artifact
@@ -27,8 +27,9 @@ from .daemon import run_daemon
         name="pipeline",
         parser=lambda path, _ctx: load_pipeline_yaml_file(path),
     ),
-    help='Path to the pipeline file. Defaults to the "PIPELINE" environment if set',
-    default=os.environ.get("PIPELINE", "pipeline.yml"),
+    help='Path to the pipeline file. Defaults to the "PYPELINE_PIPELINE" environment if set',
+    default="pipeline.yml",
+    envvar="PYPELINE_PIPELINE",
     show_default=True,
 )
 @click.option(
@@ -36,8 +37,8 @@ from .daemon import run_daemon
     "storage_provider",
     type=StorageProviderUrl(),
     help=("The URL of the storage provider to use."),
-    # TODO: check env var name
-    default=os.environ.get("STORAGE_PROVIDER", "local://"),
+    default="local://",
+    envvar="PYPELINE_STORAGE_PROVIDER",
     show_default=True,
 )
 @click.option(
@@ -45,7 +46,7 @@ from .daemon import run_daemon
     "cache_dir",
     type=click.Path(exists=False, file_okay=False, dir_okay=True, writable=True),
     help=("The directory to use for caching."),
-    default=str(Path(os.environ.get("CACHE_DIR", xdg_cache_home() / "pipeline"))),
+    default=str(cache_directory()),
     show_default=True,
 )
 @click.pass_context
