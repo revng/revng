@@ -232,12 +232,52 @@ python_module(TARGET_NAME revng-merge-dynamic WHEEL revng_internal MODULE_FILES
 #
 # Install revng.project
 #
+
+# Copy the _generated.py file from revng/model to revng/project/model. This file
+# is generated in lib/Model/CMakeLists.txt via `target_tuple_tree_generator`. We
+# need a copy here since it has a relative import to `mixins` which is different
+# for `revng.model` and `revng.project.model`.
+add_custom_command(
+  COMMAND
+    cp -a
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${PYTHON_GENERATED_MODEL_PATH}"
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/_generated.py"
+  OUTPUT
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/_generated.py"
+  DEPENDS
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${PYTHON_GENERATED_MODEL_PATH}")
+
+add_custom_command(
+  COMMAND
+    "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.sh"
+    "${CMAKE_SOURCE_DIR}/python/revng/project/model/mixins.py.tpl"
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/mixins.py"
+  OUTPUT
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/mixins.py"
+  DEPENDS revng-all-binaries
+          "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.py"
+          "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.sh"
+          "${CMAKE_SOURCE_DIR}/python/revng/project/model/mixins.py.tpl"
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+
 set(REVNG_PROJECT_MODULE_FILES
-    revng/project/__init__.py revng/project/cli_project.py
-    revng/project/daemon_project.py revng/project/project.py
-    revng/project/local_daemon_project.py)
-python_module(TARGET_NAME revng-project WHEEL revng MODULE_FILES
-              ${REVNG_PROJECT_MODULE_FILES})
+    revng/project/__init__.py
+    revng/project/cli_project.py
+    revng/project/daemon_project.py
+    revng/project/project.py
+    revng/project/local_daemon_project.py
+    revng/project/model/external.py
+    revng/project/model/__init__.py)
+python_module(
+  TARGET_NAME
+  revng-project
+  WHEEL
+  revng
+  MODULE_FILES
+  ${REVNG_PROJECT_MODULE_FILES}
+  MODULE_GENERATED_FILES
+  revng/project/model/_generated.py
+  revng/project/model/mixins.py)
 
 #
 # Install revng.ptml

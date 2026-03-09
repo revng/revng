@@ -124,7 +124,7 @@ class PythonSubcommand(Subcommand):
             "They will be imported using `from .external import <name>",
         )
         self.parser.add_argument(
-            "--mixins", action="append", default=[], help="Python files containing mixins classes"
+            "--mixins", action="append", default=[], help="Python mixin classes"
         )
 
     def handle(self, args, schema: Schema):
