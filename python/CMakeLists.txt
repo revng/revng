@@ -249,6 +249,7 @@ add_custom_command(
 
 add_custom_command(
   COMMAND
+    env "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}"
     "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.sh"
     "${CMAKE_SOURCE_DIR}/python/revng/project/model/mixins.py.tpl"
     "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/mixins.py"
@@ -260,9 +261,22 @@ add_custom_command(
           "${CMAKE_SOURCE_DIR}/python/revng/project/model/mixins.py.tpl"
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
 
+add_custom_command(
+  COMMAND
+    "${CMAKE_SOURCE_DIR}/scripts/jsonschema_to_py.sh"
+    "${CMAKE_SOURCE_DIR}/python/revng/pypeline/pipeline-description-schema.yml"
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/pipeline_description.py"
+    "PipelineDescription"
+  OUTPUT
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/pipeline_description.py"
+  DEPENDS
+    "${CMAKE_SOURCE_DIR}/scripts/jsonschema_to_py.sh"
+    "${CMAKE_SOURCE_DIR}/python/revng/pypeline/pipeline-description-schema.yml")
+
 set(REVNG_PROJECT_MODULE_FILES
     revng/project/__init__.py
     revng/project/cli_project.py
+    revng/project/common.py
     revng/project/daemon_project.py
     revng/project/project.py
     revng/project/local_daemon_project.py
@@ -277,7 +291,8 @@ python_module(
   ${REVNG_PROJECT_MODULE_FILES}
   MODULE_GENERATED_FILES
   revng/project/model/_generated.py
-  revng/project/model/mixins.py)
+  revng/project/model/mixins.py
+  revng/project/pipeline_description.py)
 
 #
 # Install revng.ptml
