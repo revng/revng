@@ -11,6 +11,7 @@ import yaml
 
 from revng.model.metaaddress import *
 from revng.model.metaaddress import init_metaaddress_yaml_classes
+from revng.support import IgnoreDeepCopy
 from revng.tupletree import DiffSet as TTDiffSet
 from revng.tupletree import Reference, StructBase, TypesMetadata, _FieldVisitor
 from revng.tupletree import _get_element_by_path, init_reference_yaml_classes
@@ -28,13 +29,14 @@ init_reference_yaml_classes(DiffYamlLoader, DiffYamlDumper)
 class Binary(_generated.Binary):
     @staticmethod
     def deserialize(input_: Union[str, TextIOBase], project) -> Binary:
+        project_idc = IgnoreDeepCopy(project)
         obj = yaml.load(input_, Loader=YamlLoader)
         accessor = lambda x: get_element_by_path(x, obj)
         for _, field_obj in iterate_fields(obj):
             if isinstance(field_obj, Reference) and field_obj.is_valid():
                 field_obj._accessor = accessor
             if isinstance(field_obj, AllMixin):
-                field_obj._project = project
+                field_obj._project = project_idc
         return obj
 
 

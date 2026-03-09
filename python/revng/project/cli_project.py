@@ -2,109 +2,106 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import os
-from tempfile import NamedTemporaryFile
-from typing import Optional, Set
+import hashlib
+import json
+import re
+import shutil
+from pathlib import Path
+from subprocess import PIPE
+from tempfile import NamedTemporaryFile, TemporaryFile
+from typing import Dict, List, Optional, Set, Union
 
 import yaml
 
-from revng.pipeline_description import PipelineDescription  # type: ignore[attr-defined]
-from revng.pipeline_description import YamlLoader  # type: ignore[attr-defined]
-from revng.project.model import Binary, DiffSet  # type: ignore[attr-defined]
+from revng.project.common import ALL_OBJECTS, AllObjects, CLIHelper
+from revng.project.model import Binary  # type: ignore[attr-defined]
+from revng.project.pipeline_description import PipelineDescription
+from revng.project.project import Project
+from revng.support import TarDictionary
 
-from .project import CLIProjectMixin, Project, ResumeProjectMixin
 
-
-class CLIProject(Project, CLIProjectMixin, ResumeProjectMixin):
+class CLIProject(Project):
     """
     This class is used to run revng analysis and artifact through
-    the CLI with subprocess.
+    the revng2 CLI with subprocess.
     """
 
     def __init__(
-        self, resume_path: Optional[str] = None, revng_executable_path: Optional[str] = None
+        self, project_directory: Optional[str] = None, executable_path: Optional[str] = None
     ):
-        CLIProjectMixin.__init__(self, revng_executable_path)
-        ResumeProjectMixin.__init__(self, resume_path)
-        Project.__init__(self)
-        self._input_binary_path: Optional[str] = None
+        self._cli_helper = CLIHelper(project_directory, executable_path)
+        # The _cli_helper needs to be initialized first before calling the
+        # parent's init since that calls `_get_pipeline_description`
+        super().__init__()
         self._load_model()
 
-    def set_binary_path(self, binary_path: str):
-        assert os.path.isfile(binary_path)
-        self._input_binary_path = binary_path
+    def upload_binary(self, binary_path: Union[str, Path]) -> str:
+        binary_path = Path(binary_path)
+        shutil.copy(binary_path, self._cli_helper.project_directory / binary_path.name)
+        with open(binary_path, "rb") as f:
+            return hashlib.file_digest(f, "sha256").hexdigest()
 
-    def _get_artifact_impl(self, artifact_name: str, targets: Set[str]) -> bytes:
-        assert self._input_binary_path is not None
-        args = [
-            "artifact",
-            f"--resume={self._resume_path}",
-            artifact_name,
-            self._input_binary_path,
-            *targets,
-        ]
+    def _get_artifact_impl(
+        self,
+        artifact_name: str,
+        objects: Union[Set[str], AllObjects],
+        configuration: Dict[str, str],
+    ) -> Dict[str, bytes]:
+        with NamedTemporaryFile() as tmp_file:
+            args = ["artifact", artifact_name, "--tar", "-o", tmp_file.name]
+            if objects is not ALL_OBJECTS:
+                args.append(",".join(objects))
+            if len(configuration) > 0:
+                args.extend(("-c", json.dumps(configuration)))
 
-        return self._run_revng_cli(args, capture_output=True).stdout
+            self._cli_helper.run(args)
+            tmp_file.seek(0)
+            return dict(TarDictionary(tmp_file))
 
-    def _analyze(self, analysis_name: str, targets={}, options={}):
-        assert analysis_name in self._analysis_names
-        self._analyze_impl(analysis_name, targets, options)
+    def _analyze_impl(
+        self,
+        analysis_name: str,
+        configuration: Dict[str, str],
+        containers: Dict[str, List[str]],
+    ) -> int:
+        args = ["analyze", analysis_name]
 
-    def _analyses_list(self, analysis_list_name: str):
-        assert analysis_list_name in self._analyses_list_names
-        return self._analyze_impl(analysis_list_name)
+        for name, value in configuration.items():
+            if name == analysis_name and analysis_name in self._analysis_names:
+                # Single-analysis specialization
+                args.extend(("-c", value))
+            else:
+                args.extend((f"--{self._normalize_argument(value)}-configuration", value))
 
-    def _analyze_impl(self, analysis_name: str, targets={}, options={}):
-        assert self._input_binary_path is not None
-        # TODO: add `targets` when `revng` allows it
-        assert len(targets) == 0
+        for container_name, obj_list in containers.items():
+            if len(obj_list) > 0:
+                args.extend(
+                    (f"--{self._normalize_argument(container_name)}-objects", ",".join(obj_list))
+                )
 
-        args = ["analyze", f"--resume={self._resume_path}", analysis_name]
-        if options:
-            for name, value in options.items():
-                args.append(f"--{analysis_name}-{name}={value}")
-        args.append(self._input_binary_path)
+        with TemporaryFile("w+") as temp_file:
+            self._cli_helper.run(args, stdout=temp_file)
+            temp_file.seek(0)
+            model = Binary.deserialize(temp_file, self)
 
-        result = self._run_revng_cli(args, capture_output=True).stdout
-        model = Binary.deserialize(result.decode("utf-8"))
         self._set_model(model)
-
-    def _commit(self):
-        diff = DiffSet.make(self._last_saved_model, self.model)
-        if len(diff.Changes) == 0:
-            return
-
-        with NamedTemporaryFile(mode="w") as tmp_diff_file:
-            diff.serialize(tmp_diff_file)
-            tmp_diff_file.flush()
-
-            args = [
-                "analyze",
-                f"--resume={self._resume_path}",
-                "apply-diff",
-                "--apply-diff-global-name=model.yml",
-                f"--apply-diff-diff-content-path={tmp_diff_file.name}",
-                self._input_binary_path,
-            ]
-
-            model = self._run_revng_cli(args, capture_output=True).stdout
-            self._last_saved_model = Binary.deserialize(model.decode("utf-8"))
-
-    def _get_pipeline_description(self) -> PipelineDescription:
-        pipeline_description_path = f"{self._resume_path}/pipeline-description.yml"
-        if not os.path.isfile(pipeline_description_path):
-            self._run_revng_cli(["init", f"--resume={self._resume_path}"])
-        assert os.path.isfile(pipeline_description_path)
-        with open(pipeline_description_path) as f:
-            return yaml.load(f, Loader=YamlLoader)
+        return self._epoch + 1
 
     def _load_model(self):
-        # TODO: We hardcode the path to the `model.yml`, fix when there is a
-        # command to get the model.
-        model_path = f"{self._resume_path}/context/model.yml"
-        if os.path.isfile(model_path):
-            with open(model_path) as f:
-                model = Binary.deserialize(f)
-        else:
-            model = Binary()
-        self._set_model(model)
+        with open(self._cli_helper.model_path) as f:
+            data = f.read()
+
+        if data != "":
+            model = Binary.deserialize(data, self)
+            self._set_model(model)
+
+    def _get_pipeline_description(self) -> PipelineDescription:
+        process = self._cli_helper.run(["dump-pipeline"], stdout=PIPE)
+        return yaml.safe_load(process.stdout)
+
+    def _get_epoch(self) -> int:
+        return 0
+
+    @staticmethod
+    def _normalize_argument(input_: str) -> str:
+        return re.sub(r"\s+", " ", input_).strip().replace(" ", "-").replace("_", "-")

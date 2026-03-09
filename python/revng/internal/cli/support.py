@@ -8,9 +8,7 @@ import signal
 import sys
 from contextlib import contextmanager
 from dataclasses import dataclass
-from io import BytesIO
 from subprocess import Popen
-from tarfile import open as tar_open
 from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Dict, Iterable, List, Literal, Mapping, NoReturn, Optional
 from typing import Tuple, Union
@@ -19,7 +17,7 @@ import yaml
 
 from revng.internal.support.collect import collect_libraries
 from revng.internal.support.elf import is_executable
-from revng.support import get_command
+from revng.support import TarDictionary, get_command
 
 OptionalEnv = Optional[Mapping[str, str]]
 
@@ -164,27 +162,12 @@ def executable_name() -> str:
     return os.path.basename(sys.argv[0])
 
 
-def is_tar(raw: bytes) -> bool:
-    return raw.startswith(b"\x1f\x8b")
-
-
 def to_string(filename: str, raw: bytes) -> str:
     return raw.decode("utf8")
 
 
-def extract_tar(raw: bytes, process: Callable[[str, bytes], Any] = to_string) -> Dict[str, Any]:
-    if not is_tar(raw):
-        raise ValueError("A tar archive was expected")
-
-    result: Dict[str, Any] = {}
-
-    with tar_open(fileobj=BytesIO(raw), mode="r:gz") as file:
-        for element in file.getmembers():
-            extracted_element = file.extractfile(element)
-            if extracted_element is not None:
-                result[element.name] = process(element.name, extracted_element.read())
-
-    return result
+def extract_tar[T](raw: bytes, process: Callable[[str, bytes], Any] = to_string) -> Dict[str, Any]:
+    return {key: process(key, value) for key, value in TarDictionary(raw).items()}
 
 
 def to_yaml(filename: str, raw: bytes) -> str:
