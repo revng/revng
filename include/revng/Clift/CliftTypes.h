@@ -55,6 +55,56 @@ TypedefDecomposition decomposeTypedef(mlir::Type Type);
   return mlir::cast<ValueType>(collapseTypedefs(static_cast<mlir::Type>(Type)));
 }
 
+//===----------------------------- Type casts -----------------------------===//
+
+template<std::derived_from<mlir::Type>... ToTypes,
+         std::derived_from<mlir::Type> FromType>
+[[nodiscard]] bool unwrapped_isa(FromType From) {
+  static_assert(not(std::is_same_v<ToTypes, TypedefType> || ...),
+                "TypedefType would never be matched after unwrapping.");
+
+  // TODO: Find out if there is a way to detect up-casts at compile time.
+  return mlir::isa<ToTypes...>(clift::unwrapTypedefs(From));
+}
+
+template<std::derived_from<mlir::Type>... ToTypes,
+         std::derived_from<mlir::Type> FromType>
+[[nodiscard]] bool unwrapped_isa_and_present(FromType From) {
+  return From and clift::unwrapped_isa<ToTypes...>(From);
+}
+
+template<std::derived_from<mlir::Type> ToType,
+         std::derived_from<mlir::Type> FromType>
+[[nodiscard]] ToType unwrapped_cast(FromType From) {
+  static_assert(not std::is_same_v<ToType, TypedefType>,
+                "TypedefType would never be matched after unwrapping.");
+
+  // TODO: Find out if there is a way to detect up-casts at compile time.
+  return mlir::cast<ToType>(clift::unwrapTypedefs(From));
+}
+
+template<std::derived_from<mlir::Type> ToType,
+         std::derived_from<mlir::Type> FromType>
+[[nodiscard]] ToType unwrapped_cast_if_present(FromType From) {
+  return From ? clift::unwrapped_cast<ToType>(From) : ToType();
+}
+
+template<std::derived_from<mlir::Type> ToType,
+         std::derived_from<mlir::Type> FromType>
+[[nodiscard]] ToType unwrapped_dyn_cast(FromType From) {
+  static_assert(not std::is_same_v<ToType, TypedefType>,
+                "TypedefType would never be matched after unwrapping.");
+
+  // TODO: Find out if there is a way to detect up-casts at compile time.
+  return mlir::dyn_cast<ToType>(clift::unwrapTypedefs(From));
+}
+
+template<std::derived_from<mlir::Type> ToType,
+         std::derived_from<mlir::Type> FromType>
+[[nodiscard]] ToType unwrapped_dyn_cast_if_present(FromType From) {
+  return From ? clift::unwrapped_dyn_cast<ToType>(From) : ToType();
+}
+
 //===---------------------------- CV-Qualifiers ---------------------------===//
 
 /// Determine if the type is top-level const qualified.
