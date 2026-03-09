@@ -262,6 +262,16 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "static_assert",
   "thread_local",
 
+  // Common C stdlib names
+  "assert",
+  "max_align_t",
+  "NULL",
+  "nullptr_t",
+  "offsetof",
+  "ptrdiff_t",
+  "size_t",
+  "wchar_t",
+
   // Convenience macros for atomic types
   "atomic_bool",
   "atomic_char",

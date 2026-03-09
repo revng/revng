@@ -6,11 +6,8 @@
 
 #include "limits.h"
 #include "stdbool.h"
+#include "stddef.h"
 #include "stdint.h"
-
-#ifndef NULL
-#define NULL (0)
-#endif
 
 #define static_assert_size(TYPE, EXPECTED_SIZE) \
   typedef char static_assertion[sizeof(TYPE) == (EXPECTED_SIZE) ? 1 : -1]
