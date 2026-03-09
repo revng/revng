@@ -321,6 +321,7 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "break_to",
   "continue_to",
   "bit_cast",
+  "static_assert_typedef",
 };
 
 /// Returns `true` iff the identifier is exactly the given prefix + a decimal
