@@ -32,9 +32,9 @@ from revng.tupletree import YamlDumper as _ExternalYamlDumper
 from .external import #{ external_type }#
 ## endfor ##
 
-##- for import_string in get_mixins_imports() ##
-#{ import_string }#
-##- endfor -##
+##- for mixin_name in generator.mixins ##
+from .mixins import #{ mixin_name }#
+##- endfor ##
 
 # Every subclass of YamlLoader can register its own independent loaders
 class YamlLoader(_ExternalYamlLoader):

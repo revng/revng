@@ -14,9 +14,9 @@ from tempfile import TemporaryDirectory
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence, Set, TypeAlias, TypeVar
 from typing import Union
 
-from revng.model import Binary, iterate_fields  # type: ignore[attr-defined]
-from revng.model.mixins import AllMixin
 from revng.pipeline_description import Container, PipelineDescription  # type: ignore[attr-defined]
+from revng.project.model import Binary, iterate_fields  # type: ignore[attr-defined]
+from revng.project.model.mixins import AllMixin
 from revng.support.artifacts import Artifact
 from revng.tupletree import StructBase
 

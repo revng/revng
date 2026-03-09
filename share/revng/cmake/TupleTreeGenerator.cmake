@@ -20,10 +20,9 @@ function(tuple_tree_generator_impl)
       GLOBAL_NAME
       PYTHON_PATH
       TYPESCRIPT_PATH
-      DOCS_PATH
-      PYTHON_MIXINS)
+      DOCS_PATH)
   set(multiValueArgs TYPESCRIPT_INCLUDE STRING_TYPES SEPARATE_STRING_TYPES
-                     SCALAR_TYPES)
+                     SCALAR_TYPES PYTHON_MIXINS)
   cmake_parse_arguments(GENERATOR "" "${oneValueArgs}" "${multiValueArgs}"
                         "${ARGN}")
   if(NOT DEFINED GENERATOR_JSONSCHEMA_PATH)
@@ -456,10 +455,9 @@ function(target_tuple_tree_generator TARGET_ID)
       INCLUDE_PATH_PREFIX
       PYTHON_PATH
       TYPESCRIPT_PATH
-      HEADERS_PATH
-      PYTHON_MIXINS)
+      HEADERS_PATH)
   set(multiValueArgs TYPESCRIPT_INCLUDE STRING_TYPES SEPARATE_STRING_TYPES
-                     SCALAR_TYPES)
+                     SCALAR_TYPES PYTHON_MIXINS)
   cmake_parse_arguments(GEN "${options}" "${oneValueArgs}" "${multiValueArgs}"
                         "${ARGN}")
 
@@ -517,7 +515,7 @@ function(target_tuple_tree_generator TARGET_ID)
     EMIT_TRACKING
     ${GEN_EMIT_TRACKING}
     PYTHON_MIXINS
-    "${GEN_PYTHON_MIXINS}")
+    ${GEN_PYTHON_MIXINS})
   if(GEN_INSTALL)
     install(DIRECTORY ${GEN_HEADERS_PATH}
             DESTINATION include/revng/${GEN_HEADER_DIRECTORY})
