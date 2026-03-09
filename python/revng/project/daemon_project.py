@@ -10,9 +10,9 @@ import yaml
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
 
-from revng.model import Binary, DiffSet  # type: ignore[attr-defined]
 from revng.pipeline_description import PipelineDescription  # type: ignore[attr-defined]
 from revng.pipeline_description import YamlLoader  # type: ignore[attr-defined]
+from revng.project.model import Binary, DiffSet  # type: ignore[attr-defined]
 
 from .project import Project
 
