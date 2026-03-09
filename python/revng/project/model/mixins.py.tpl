@@ -2,13 +2,21 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from typing import Dict, Iterable, List, Mapping, Optional, TypeAlias, Union
+from enum import Enum, auto
+from typing import TYPE_CHECKING, Dict, List, Mapping, Optional, Sequence, Union, TypeVar
 
 import revng.support.artifacts as artifacts
+from revng.project.common import AllObjects, ALL_OBJECTS
+from revng.support import IgnoreDeepCopy
 from revng.support.artifacts import Artifact
 from revng.tupletree import StructBase
 
-ArtifactResult: TypeAlias = Union[Artifact, Mapping[str, Artifact]]
+StructBaseT = TypeVar("StructBaseT", bound=StructBase)
+
+def _only(dict_: Mapping[str, Artifact]) -> Artifact:
+    assert isinstance(dict_, dict)
+    assert len(dict_) == 1
+    return dict_[list(dict_)[0]]
 
 
 class AllMixin:
@@ -17,7 +25,55 @@ class AllMixin:
     """
 
     _project = None
-    _keys = None
+    _location = None
+
+
+class BinaryMixin(AllMixin):
+    @property
+    def _location(self):
+        return "/binary"
+
+    def get_artifact(
+        self,
+        artifact_name: str,
+        objects: Union[Sequence[Union[str, StructBaseT]], AllObjects] = ALL_OBJECTS,
+    ) -> Mapping[str, Artifact]:
+        """
+        Fetch the artifacts from the `Binary`.
+        """
+        return self._project.get()._get_artifact(artifact_name, objects)  # type: ignore[attr-defined]
+
+    def commit(self):
+        """
+        Persist the changes to the backend.
+        """
+        self._project.get()._commit()  # type: ignore[attr-defined]
+
+    def revert(self):
+        """
+        Revert changes made since the last call to `commit()`.
+        """
+        self._project.get()._revert()  # type: ignore[attr-defined]
+
+    def analyze(
+        self,
+        analysis_name: str,
+        configuration: Dict[str, str] = {},
+        containers: Dict[str, List[str]] = {},
+    ):
+        """
+        Run a single analysis or an analysis list. In addition to the
+        `analysis_name` you can optionally specify a dict of objects in
+        `containers`. Some analyses require a configuration, which can be
+        passed in the `configuration` dict.
+        """
+        return self._project.get()._analyze(analysis_name, configuration, containers)
+
+{% for artifact in binary_artifacts %}
+    @property
+    def {{ artifact.name | normalize }}(self) -> artifacts.{{ artifact.type_ }}:
+        return _only(self.get_artifact("{{ artifact.name }}"))
+{% endfor %}
 
 
 class _ArtifactMixin(AllMixin):
@@ -25,80 +81,18 @@ class _ArtifactMixin(AllMixin):
     Mixin used to implement the get_artifact function
     """
 
-    def get_artifact(self, artifact_name: str) -> Artifact:
+    def get_artifact(self, name: str) -> Artifact:
         """
         Fetch the artifacts that belong to the current model entity
         """
-        result = self._project._get_artifact(artifact_name, [self])  # type: ignore[attr-defined]
-        if isinstance(result, Mapping):
-            keys = list(result.keys())
-            assert len(keys) == 1
-            return result[keys[0]]
-        else:
-            return result
-
-
-class BinaryMixin(_ArtifactMixin):
-    def get_artifact(self, artifact_name: str, targets=None):
-        """
-        Fetch the artifacts from the `Binary`.
-        """
-        if targets is None:
-            return self._project._get_artifact(artifact_name, [self])  # type: ignore[attr-defined]
-        else:
-            return self._project._get_artifact(artifact_name, targets)  # type: ignore[attr-defined]
-
-    def commit(self):
-        """
-        Persist the changes to the backend.
-        """
-        self._project._commit()  # type: ignore[attr-defined]
-
-    def revert(self):
-        """
-        Revert changes made since the last call to `commit()`.
-        """
-        self._project._revert()  # type: ignore[attr-defined]
-
-    def get_artifacts(
-        self, params: Dict[str, Optional[Iterable[Union[str, StructBase]]]]
-    ) -> Dict[str, ArtifactResult]:
-        """
-        Allows fetching multiple artifacts at once. The `params` is a dict
-        containing the name of the artifact and a list of targets (it can be
-        empty to fetch all the targets).
-        Example `params`:
-        params = {
-            "disassemble": [Function_1, Function_2],
-            "decompile": []
-        }
-        """
-        return self._project._get_artifacts(params)  # type: ignore[attr-defined]
-
-    def analyze(
-        self, analysis_name: str, targets: Dict[str, List[str]] = {}, options: Dict[str, str] = {}
-    ):
-        """
-        Run a single analysis. In addition to the `analysis_name` you need to
-        specify a dict of targets, some analysis require you to also pass an
-        `options` dict.
-        """
-        return self._project._analyze(analysis_name, targets, options)  # type: ignore[attr-defined]
-
-    def analyses_list(self, analysis_name: str):
-        """
-        Run analysis list, these are predefined list of analysis that run sequentially.
-        """
-        return self._project._analyses_list(analysis_name)  # type: ignore[attr-defined]
-
-{% for artifact in binary_artifacts %}
-    @property
-    def {{ artifact.name | normalize }}(self) -> artifacts.{{ artifact.type_ }}:
-        return self.get_artifact("{{ artifact.name }}")
-{% endfor %}
+        return _only(self._project.get()._get_artifact(name, [self]))  # type: ignore[attr-defined]
 
 
 class FunctionMixin(_ArtifactMixin):
+    @property
+    def _location(self):
+        return f"/function/{self.key()}"
+
 {% for artifact in function_artifacts %}
     @property
     def {{ artifact.name | normalize }}(self) -> artifacts.{{ artifact.type_ }}:
@@ -107,10 +101,12 @@ class FunctionMixin(_ArtifactMixin):
 
 
 class TypeDefinitionMixin(_ArtifactMixin):
+    @property
+    def _location(self):
+        return f"/type-definition/{self.key()}"
+
 {% for artifact in typedefinition_artifacts %}
     @property
     def {{ artifact.name | normalize }}(self) -> artifacts.{{ artifact.type_ }}:
         return self.get_artifact("{{ artifact.name }}")
-{% else %}
-    pass
 {% endfor %}
