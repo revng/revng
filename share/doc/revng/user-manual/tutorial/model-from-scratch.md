@@ -36,7 +36,19 @@ Let's now create a simple model that enables us to decompile this simple functio
 
 ### Step 1: Loading
 
-The first thing rev.ng needs to know is the architecture and the ABI of the program:
+The first thing rev.ng needs to know is which binary to load, this is done by specifying a [`BinaryIdentifier`](../../references/model.md#binaryidentifier) entry in `Binaries`:
+
+```yaml title="model.yml"
+Binaries:
+  - Index: 0
+    Name: sum
+    # Output of `sha256sum sum`
+    Hash: bba591a825f58c1b94fc4d8c13f5d3531a89282cb3319a1418ee3f8396880567
+    # Output of `wc -c sum`
+    Size: 8
+```
+
+Then rev.ng needs to know is the architecture and the ABI of the program:
 
 ```yaml title="model.yml"
 Architecture: x86_64
@@ -60,9 +72,10 @@ Segments:
     IsReadable: true
     IsWriteable: false
     IsExecutable: true
+    Binary: /Binaries/0
 ```
 
-The piece of model above tells rev.ng to take 7 bytes from the file and load them at address `0x400000` as `+rx` data (i.e., code).
+The piece of model above tells rev.ng to take 7 bytes from the file and load them at address `0x400000` as `r-x` data (i.e., code).
 
 ### Step 2: Function list
 
@@ -80,21 +93,19 @@ Note how here the type of the `MetaAddress` is not `Generic64` but `Code_x86_64`
 ### Step 3: Disassembly
 
 At this point, we provided rev.ng enough information to be able to show us the disassembly of our program.
-Let's produce the [`disassemble` artifact](../../references/artifacts.md#disassemble-artifact) using [`revng-artifact`](../../references/cli/revng-artifact.md).
+Let's produce the [`disassemble` artifact](../../references/artifacts.md#disassemble-artifact) using [`revng2 project artifact`](../../references/cli/revng2-project-artifact.md).
 
 ```bash
-$ revng artifact disassemble sum --model model.yml | revng ptml
-0x400000:Code_x86_64: |-
+$ revng2 project artifact disassemble | revng ptml
+/function/0x400000:Code_x86_64: |-
   function_0x400000_Code_x86_64:
     400000:    48 01 f7    add rdi, rsi
     400003:    48 89 f8    mov rax, rdi
     400006:    c3          ret
 ```
 
-The output of the `revng artifact disassemble` command is a `tar.gz` composed by one file for each input function. Each file is an assembly listing decorated using [PTML](../../references/ptml.md).
+The output of the `revng2 project artifact disassemble` command is a `yaml` composed by one entry for each input function. Each file is an assembly listing decorated using [PTML](../../references/ptml.md).
 <br />`revng ptml` strips away all this details and outputs a YAML dictionary with one entry for each disassembled function.
-
-For further information on the file types emitted by `revng artifact`, see the [MIME types documentation](../../references/mime-types.md).
 
 ### Step 4: Defining a function prototype
 
@@ -168,14 +179,15 @@ Basically, this specifies that the function type we created above is the prototy
 ### Step 5: Decompiling
 
 At this point, we have all the information we need to successfully decompile our example program.
-To do so, we can ask rev.ng to produce the [`decompile` artifact](../../references/artifacts.md#decompile-artifact):
+To do so, we can ask rev.ng to produce the [`emit-c` artifact](../../references/artifacts.md#emit-c-artifact):
 
-```c
-$ revng artifact decompile sum --model model.yml | revng ptml
-0x400000:Code_x86_64:
-  uint64_t function_0x400000_Code_x86_64(uint64_t unnamed_arg_0, uint64_t unnamed_arg_1) {
-      return unnamed_arg_0 + unnamed_arg_1;
+```bash
+$ revng2 project artifact emit-c | revng ptml
+/function/0x400000:Code_x86_64: |-
+  uint64_t function_0x400000_Code_x86_64(uint64_t argument_0, uint64_t argument_1) {
+    return (uint64_t) ((generic64_t) argument_0 + (generic64_t) argument_1);
   }
+
 ```
 
 ### Step 6: Renaming
@@ -229,11 +241,10 @@ Almost everything in the model can have a name. Let's add a name to the function
 Here's what we get now if we try to decompile again:
 
 ```bash
-$ revng artifact decompile sum --model model.yml | revng ptml
-0x400000:Code_x86_64: |-
-  _ABI(SystemV_x86_64)
+$ revng2 project artifact emit-c | revng ptml
+/function/0x400000:Code_x86_64: |-
   uint64_t Sum(uint64_t FirstAddend, uint64_t SecondAddend) {
-    return FirstAddend + SecondAddend;
+    return (uint64_t) ((generic64_t) FirstAddend + (generic64_t) SecondAddend);
   }
 
 ```

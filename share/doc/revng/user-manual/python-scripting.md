@@ -36,24 +36,21 @@ After that, you can to import a binary and run the [*initial auto analyses*](ref
 
 Once you have successfully loaded a binary, you can obtain the available artifacts:
 
-```{python ignoreoutput=2,6,9,13,20}
-# Get artifact through the `project`
+```{python ignoreoutput=3,7,11,14,17}
+# Get artifact through the `project`, this will return a dictionary mapping the
+# Object ID to the data
 >>> project.model.get_artifact("disassemble")
 
 # Pass functions that you want to get artifacts from, the second argument is a
 # `list` so you can pass multiple functions
 >>> project.model.get_artifact("disassemble", [project.model.Functions[0]])
 
-# Get artifact through a `function`, this is equal to above
+# Get artifact through a `function`, this is the same as above but
+# automatically returns a single element
 >>> project.model.Functions[0].get_artifact("disassemble")
 
-# Get multiple artifacts at once. Pass `None` if you wish to get the artifact
-# for all the targets
->>> project.model.get_artifacts({
-...    "disassemble": [project.model.Functions[0],
-...                    project.model.Functions[1]],
-...    "decompile": None
-... })
+# Short-hand for the above
+>>> project.model.Functions[0].disassemble
 
 # You can also get the artifact for `TypeDefinitions`
 >>> project.model.TypeDefinitions[1].get_artifact("emit-type-definitions")
@@ -62,14 +59,14 @@ Once you have successfully loaded a binary, you can obtain the available artifac
 You can also `parse` the result with `ptml`:
 
 ```{python ignoreoutput=2}
->>> result = project.model.Functions[0].get_artifact("disassemble")
+>>> result = project.model.Functions[0].disassemble
 >>> result.parse()
 ```
 
 LLVM modules can be parsed and explored via the `llvmcpy` python module:
 
 ```python
->>> lifted = project.model.get_artifact("lift")
+>>> lifted = project.model.get_artifact("lift")["/binary"]
 
 # Use the parsed IR
 >>> for function in lifted.module().iter_functions():
@@ -104,7 +101,7 @@ After you make a change, you need to invoke the `commit` method in order for the
 If you want to run a set of predefined analyses, you can run them with:
 
 ```python
->>> project.model.analyses_list("revng-initial-auto-analysis")
+>>> project.model.analyze("initial-auto-analysis")
 ```
 
 If you want to run a specific [analysis](../analyses/) instead, you can do that too.
