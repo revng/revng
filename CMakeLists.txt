@@ -378,6 +378,8 @@ add_custom_command(
           "share/doc/revng/references/cli/revng-common.md"
           "share/doc/revng/references/cli/revng-artifact.md"
           "share/doc/revng/references/cli/revng-analyze.md"
+          "share/doc/revng/references/cli/revng2-project-analyze.md"
+          "share/doc/revng/references/cli/revng2-project-artifact.md"
           "share/doc/revng/user-manual/index.md"
           "share/doc/revng/user-manual/initial-setup.md"
           "share/doc/revng/user-manual/key-concepts/metaaddress.md"

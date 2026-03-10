@@ -36,6 +36,8 @@ nav:
           - revng-common: references/cli/revng-common.md
           - revng-artifact: references/cli/revng-artifact.md
           - revng-analyze: references/cli/revng-analyze.md
+          - revng2-project-artifact: references/cli/revng2-project-artifact.md
+          - revng2-project-analyze: references/cli/revng2-project-analyze.md
       - "MIME types": references/mime-types.md
       - PTML: references/ptml.md
       - Pipeline: references/pipeline.md
