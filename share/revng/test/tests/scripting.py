@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
@@ -7,14 +8,13 @@ import argparse
 import re
 from typing import Callable, Dict, List, Mapping
 
-from revng.model import MetaAddress, MetaAddressType  # type: ignore[attr-defined]
 from revng.project import CLIProject, LocalDaemonProject, Project
 from revng.support.artifacts import PTMLArtifact
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--resume", help="Path to the resume directory", required=True)
+    parser.add_argument("--project-dir", help="Path to the project directory", required=True)
     parser.add_argument("--binary", help="Path to the Binary", required=True)
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--cli", help="Run revng cli", action="store_true")
@@ -28,12 +28,12 @@ def main():
     if args.cli:
 
         def project_getter():
-            return CLIProject(args.resume)
+            return CLIProject(args.project_dir)
 
     elif args.daemon:
 
         def project_getter():
-            return LocalDaemonProject(args.resume, connection_retries=100)
+            return LocalDaemonProject(args.project_dir, connection_retries=100)
 
     else:
         raise ValueError("The script expects either --cli or --daemon")
@@ -60,15 +60,19 @@ def run_test(project_getter: Callable[[], Project], binary: str):
     # Run an artefact on `TypeDefinitions`
     project.model.TypeDefinitions[1].get_artifact("emit-type-definitions")
 
-    all_functions_entry = [function.Entry for function in project.model.Functions]
+    all_functions_entries = [function.Entry for function in project.model.Functions]
     # Assert that when we get the artifact for a single function we get
     # the result of only that function
-    result1 = project.model.Functions[function_idx].get_artifact("disassemble")
+    the_function = project.model.Functions[function_idx]
+    result1 = the_function.get_artifact("disassemble")
+    result1_accessor = the_function.disassemble
     assert isinstance(result1, PTMLArtifact)
+    assert isinstance(result1_accessor, PTMLArtifact)
+    assert result1.parse().text == result1_accessor.parse().text
     parsed1 = result1.parse()
     re_match = re.search(function_original_name, parsed1.text)
     assert re_match is not None
-    for entry in all_functions_entry:
+    for entry in all_functions_entries:
         if entry == function_entry:
             continue
         re_match = re.search(str(entry), parsed1.text)
@@ -78,7 +82,8 @@ def run_test(project_getter: Callable[[], Project], binary: str):
     # the result for all the functions
     result2 = project.model.get_artifact("disassemble")
     assert isinstance(result2, Mapping)
-    assert set(result2.keys()) == set(map(str, all_functions_entry))
+    all_functions_locations = {function._location for function in project.model.Functions}
+    assert set(result2.keys()) == all_functions_locations
     for value in result2.values():
         assert isinstance(value, PTMLArtifact)
         value.parse()
@@ -108,57 +113,24 @@ def run_test(project_getter: Callable[[], Project], binary: str):
     # Stop daemon if `DaemonProject` otherwise the daemon will
     # not persist the data on disk
     if isinstance(project, LocalDaemonProject):
-        project.stop_daemon()
+        project._stop_daemon()
 
     # Load the project again, this should also load the model and
     # pipeline description
     project = project_getter()
-    project.set_binary_path(binary)
+    project.upload_binary(binary)
 
     # make sure that the second name changes was commit
     assert project.model.Functions[function_idx].Name == function_new_name2
 
-    # Get the function by passing a MetaAddress
-    function = str(project.model.Functions[0].Entry).split(":")
-    address = MetaAddress(int(function[0], 16), MetaAddressType[function[1]])
-
-    # Get multiple artifacts
-    result = project.model.get_artifacts(
-        {
-            "disassemble": [project.model.Functions[address], project.model.Functions[1]],
-            "emit-c": None,
-        }
-    )
-    assert isinstance(result["disassemble"], Mapping)
-    for value in result["disassemble"].values():
-        assert isinstance(value, PTMLArtifact)
-        value.parse()
-
-    assert isinstance(result["emit-c"], Mapping)
-    for value in result["emit-c"].values():
-        assert isinstance(value, PTMLArtifact)
-        value.parse()
-
-    # Run an analysis with targets
+    # Run an analysis with objects
     analysis_name = "detect-stack-size"
-    targets: Dict[str, List[str]] = {}
-    for input_, kinds in project.get_analysis_inputs(analysis_name).items():
-        targets[input_] = []
-        for kind in kinds:
-            if kind == "root":
-                targets[input_].append(f":{kind}")
-            else:
-                targets[input_].extend(
-                    f"{_target.key()}:{kind}" for _target in project.model.Functions
-                )
+    containers: Dict[str, List[str]] = {
+        "llvm-functions": [f._location for f in project.model.Functions]
+    }
+    project.model.analyze(analysis_name, containers=containers)
 
-    if isinstance(project, CLIProject):
-        # TODO: drop this if when CLI supports passing targets for analyses
-        project.model.analyze(analysis_name, {})
-    else:
-        project.model.analyze(analysis_name, targets)
-
-    # Run an analysis without targets
+    # Run an analysis without objects
     project.model.analyze(analysis_name)
 
 
