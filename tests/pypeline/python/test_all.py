@@ -17,11 +17,10 @@ from pipebox import PurgeAllAnalysis, PurgeOneAnalysis, RootDictContainer, SameK
 from pipebox import ToHigherKindPipe, ToLowerKindPipe
 
 from revng.pypeline import initialize_pypeline
-from revng.pypeline.analysis import AnalysisBinding
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectSet
-from revng.pypeline.pipeline import Artifact, ArtifactCategory, Pipeline
+from revng.pypeline.pipeline import AnalysisBinding, Artifact, ArtifactCategory, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
@@ -194,7 +193,7 @@ def test_savepoint_prerequisites_for(storage_provider, model) -> None:
 def test_pipeline_inplace(model, storage_provider):
     child_cont: ContainerDeclaration = ContainerDeclaration("arg", ChildDictContainer)
     declarations = [child_cont]
-    pipeline_configuration: PipelineConfiguration = {}
+    configuration: PipelineConfiguration = {}
     storage_provider.set_model(model)
 
     one = ObjectSet(MyKind.CHILD, {MyObjectID(MyKind.CHILD, "one")})
@@ -217,12 +216,12 @@ def test_pipeline_inplace(model, storage_provider):
     container = ChildDictContainer()
     container.add_object(MyObjectID(MyKind.CHILD, "one"))
     container.add_object(MyObjectID(MyKind.CHILD, "two"))
-    begin_configuration_id = begin_node.configuration_id(pipeline_configuration)
+    begin_configuration_id = begin_node.configuration_id(configuration)
     task = ScheduledTask(
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
-        pipeline_configuration,
+        configuration,
         (Requests({child_cont: one_two}), Requests({child_cont: one_two})),
     )
     task.run({child_cont: container}, RunnerContext())
@@ -242,12 +241,12 @@ def test_pipeline_inplace(model, storage_provider):
         model=ReadOnlyModel(model),
         target_node=end_node,
         requests=Requests({child_cont: one}),
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     ).run()
     assert containers[child_cont].objects() == one
 
-    end_configuration_id = end_node.configuration_id(pipeline_configuration)
+    end_configuration_id = end_node.configuration_id(configuration)
     assert list(
         storage_provider.has(
             location=ContainerLocation(
@@ -268,7 +267,7 @@ def test_pipeline_up_down(model, storage_provider):
 
     declarations = [root1, root2, child1, child2]
 
-    pipeline_configuration: PipelineConfiguration = {}
+    configuration: PipelineConfiguration = {}
     storage_provider.set_model(model)
 
     begin_node = PipelineNode(SavePoint("begin", declarations))
@@ -297,7 +296,7 @@ def test_pipeline_up_down(model, storage_provider):
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
-        pipeline_configuration,
+        configuration,
         (requests, requests),
     )
     task.run({root1: container}, RunnerContext())
@@ -306,12 +305,12 @@ def test_pipeline_up_down(model, storage_provider):
         model=ReadOnlyModel(model),
         target_node=end_node,
         requests=Requests({root2: root_obj}),
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     ).run()
     assert containers[root2].objects() == root_obj
 
-    end_configuration_id = end_node.configuration_id(pipeline_configuration)
+    end_configuration_id = end_node.configuration_id(configuration)
     assert set(
         storage_provider.has(
             location=ContainerLocation(
@@ -328,7 +327,7 @@ def test_artifact(model, storage_provider):
     child1: ContainerDeclaration = ContainerDeclaration("source", ChildDictContainer)
     child2: ContainerDeclaration = ContainerDeclaration("destination", ChildDictContainer)
     declarations = [child1, child2]
-    pipeline_configuration: PipelineConfiguration = {}
+    configuration: PipelineConfiguration = {}
     one = ObjectSet.from_list([MyObjectID(MyKind.CHILD, "one")])
     storage_provider.set_model(model)
 
@@ -350,7 +349,7 @@ def test_artifact(model, storage_provider):
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
-        pipeline_configuration,
+        configuration,
         (requests, requests),
     )
     task.run({child1: container}, RunnerContext())
@@ -359,7 +358,7 @@ def test_artifact(model, storage_provider):
         model=ReadOnlyModel(model),
         artifact=artifact,
         requests=one,
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
 
@@ -370,7 +369,7 @@ def test_invalidation(model, storage_provider):
     # TODO: simple test: one pipe, one save point, multiple objects, invalidate one
     child: ContainerDeclaration = ContainerDeclaration("arg", ChildDictContainer)
     declarations = [child]
-    pipeline_configuration: PipelineConfiguration = {}
+    configuration: PipelineConfiguration = {}
     storage_provider.set_model(model)
 
     object_one = MyObjectID(MyKind.CHILD, "one")
@@ -388,7 +387,7 @@ def test_invalidation(model, storage_provider):
         model=ReadOnlyModel(model),
         target_node=savepoint,
         requests=Requests({child: expected_output}),
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     ).run()
     assert containers[child].objects() == expected_output
@@ -398,7 +397,7 @@ def test_invalidation(model, storage_provider):
             location=ContainerLocation(
                 savepoint_id=1,
                 container_id="arg",
-                configuration_id=savepoint.configuration_id(pipeline_configuration),
+                configuration_id=savepoint.configuration_id(configuration),
             ),
             keys=expected_output,
         )
@@ -411,7 +410,7 @@ def test_invalidation(model, storage_provider):
             location=ContainerLocation(
                 savepoint_id=1,
                 container_id="arg",
-                configuration_id=savepoint.configuration_id(pipeline_configuration),
+                configuration_id=savepoint.configuration_id(configuration),
             ),
             keys=expected_output,
         )
@@ -425,7 +424,7 @@ def test_invalidation(model, storage_provider):
             location=ContainerLocation(
                 savepoint_id=1,
                 container_id="arg",
-                configuration_id=savepoint.configuration_id(pipeline_configuration),
+                configuration_id=savepoint.configuration_id(configuration),
             ),
             keys=expected_output,
         )
@@ -436,7 +435,7 @@ def test_analysis(model, storage_provider):
     # TODO: simple test: one pipe, one save point, multiple objects, invalidate one
     child: ContainerDeclaration = ContainerDeclaration("arg", ChildDictContainer)
     declarations = [child]
-    pipeline_configuration: PipelineConfiguration = {}
+    configuration: PipelineConfiguration = {}
 
     model["/test/test"] = "test"
     model["/test/test2"] = "test2"
@@ -482,8 +481,7 @@ def test_analysis(model, storage_provider):
         model=ReadOnlyModel(model),
         analysis_name="NullAnalysis",
         requests=Requests({child: expected_output}),
-        analysis_configuration="",
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
 
@@ -495,8 +493,7 @@ def test_analysis(model, storage_provider):
         model=ReadOnlyModel(model),
         analysis_name="PurgeAllAnalysis",
         requests=Requests({child: expected_output}),
-        analysis_configuration="",
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
 
@@ -507,8 +504,7 @@ def test_analysis(model, storage_provider):
         model=ReadOnlyModel(model),
         analysis_name="PurgeOneAnalysis",
         requests=Requests({child: expected_output}),
-        analysis_configuration="",
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
 
@@ -522,7 +518,7 @@ def test_pipeline(storage_provider):
     """Load the schema and validate the pipeline.yml file against it."""
     root = os.path.dirname(os.path.abspath(__file__))
     pipeline = load_pipeline_yaml_file(os.path.join(root, "pipeline.yml"))
-    pipeline_configuration: PipelineConfiguration = {}
+    configuration: PipelineConfiguration = {}
 
     with open(os.path.join(root, "model.yml"), "rb") as model_file:
         model = DictModel.deserialize(model_file.read())[0]
@@ -531,7 +527,7 @@ def test_pipeline(storage_provider):
         model=ReadOnlyModel(model),
         artifact=pipeline.artifacts["ChildArtifact"],
         requests=ObjectSet(MyKind.CHILD, {MyObjectID(MyKind.CHILD, "one")}),
-        pipeline_configuration={},
+        configuration={},
         storage_provider=storage_provider,
     )
     assert res.objects() == ObjectSet(MyKind.CHILD, {MyObjectID(MyKind.CHILD, "one")})
@@ -540,7 +536,7 @@ def test_pipeline(storage_provider):
         model=ReadOnlyModel(model),
         artifact=pipeline.artifacts["RootArtifact"],
         requests=ObjectSet(MyKind.ROOT, {MyObjectID.root()}),
-        pipeline_configuration={},
+        configuration={},
         storage_provider=storage_provider,
     )
     assert res.objects() == ObjectSet(MyKind.ROOT, {MyObjectID.root()})
@@ -556,8 +552,7 @@ def test_pipeline(storage_provider):
                 ): ObjectSet(MyKind.CHILD, {MyObjectID(MyKind.CHILD, "one")})
             }
         ),
-        analysis_configuration="",
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
     assert isinstance(new_model, DictModel), "The analysis should return the same model type"
@@ -575,8 +570,7 @@ def test_pipeline(storage_provider):
                 ): ObjectSet(MyKind.ROOT, {MyObjectID.root()})
             }
         ),
-        analysis_configuration="",
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
     assert isinstance(new_model, DictModel), "The analysis should return the same model type"
@@ -595,7 +589,7 @@ def test_schedule_serdes(model):
 
     declarations = [root1, root2, child1, child2]
 
-    pipeline_configuration: PipelineConfiguration = {}
+    configuration: PipelineConfiguration = {}
     storage_provider.set_model(model)
 
     begin_node = PipelineNode(SavePoint("begin", declarations))
@@ -624,7 +618,7 @@ def test_schedule_serdes(model):
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
-        pipeline_configuration,
+        configuration,
         (requests, requests),
     )
     task.run({root1: container}, RunnerContext())
@@ -633,7 +627,7 @@ def test_schedule_serdes(model):
         model=ReadOnlyModel(model),
         target_node=end_node,
         requests=Requests({root2: root_obj}),
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
     schedule_str = schedule.serialize()
@@ -707,7 +701,7 @@ def test_custom_invalidation(model, storage_provider: StorageProvider):
     root_decl: ContainerDeclaration = ContainerDeclaration("root", RootDictContainer)
     declarations = [root_decl]
 
-    pipeline_configuration: PipelineConfiguration = {}
+    configuration: PipelineConfiguration = {}
     storage_provider.set_model(model)
 
     begin_node = PipelineNode(GeneratorPipeWithInvalidation(), bindings=[root_decl])
@@ -726,7 +720,7 @@ def test_custom_invalidation(model, storage_provider: StorageProvider):
         model=ReadOnlyModel(model),
         target_node=savepoint_node,
         requests=Requests({root_decl: root_obj}),
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
     schedule.run()
@@ -738,14 +732,13 @@ def test_custom_invalidation(model, storage_provider: StorageProvider):
         model=ReadOnlyModel(model),
         analysis_name=NullRootAnalysis.name,
         requests=Requests({root_decl: root_obj}),
-        analysis_configuration="",
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
 
     # Check that the invalidation is what we expect. There should be `ROOT`
     # invalidated in the only savepoint present.
-    begin_configuration_id = begin_node.configuration_id(pipeline_configuration)
+    begin_configuration_id = begin_node.configuration_id(configuration)
     location = ContainerLocation(1, root_decl.name, begin_configuration_id)
     assert {location} == set(invalidated.keys())
     assert invalidated[location] == {MyObjectID.root()}

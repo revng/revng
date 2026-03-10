@@ -3,7 +3,7 @@
 #
 
 import dataclasses
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Concatenate, ParamSpec, Protocol, TypeVar
 from typing import override
@@ -12,8 +12,10 @@ import click
 
 # Import these only when type-checking to avoid circular imports
 if TYPE_CHECKING:
+    from revng.pypeline.analysis import Analysis
     from revng.pypeline.cli.wrappers import Wrapper
     from revng.pypeline.pipeline import Pipeline
+    from revng.pypeline.task.pipe import Pipe
 
 
 # Placeholder value for an uninitialized field of `ContextObject`
@@ -43,9 +45,12 @@ class ContextObject:
     # This might cause the current process to be re-executed, during the
     # second execution this will be set back to None.
     wrapper: "Wrapper | None" = None
-    # If set to true, help messages will also report help for artifacts that
-    # have a category with `show_by_default == False`
-    show_hidden_artifacts: bool = False
+    # If set to true, help messages will also report commands and options that
+    # are hidden by default (e.g. hidden artifacts, pipe/analysis config
+    # options)
+    show_hidden: bool = False
+    # The configuration for the current pipeline
+    configuration: "dict[Pipe | Analysis, str]" = field(default_factory=dict)
 
     # If we had to be 100% dataclass compliant all of the fields in this
     # dataclass should be `| None = None` because when the dataclass is

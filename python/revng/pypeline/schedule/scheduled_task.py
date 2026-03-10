@@ -41,7 +41,7 @@ class ScheduledTask:
         node: PipelineNode,
         model: ReadOnlyModel,
         storage_provider: StorageProvider,
-        pipeline_configuration: PipelineConfiguration,
+        configuration: PipelineConfiguration,
         requests: tuple[Requests, Requests] | None = None,
         dependencies: list[ScheduledTask] | None = None,
     ):
@@ -51,7 +51,7 @@ class ScheduledTask:
         """The model that this task will run on."""
         self.storage_provider = storage_provider
         """The storage provider that the task will use."""
-        self.pipeline_configuration = pipeline_configuration
+        self.configuration = configuration
         """The pipeline configuration"""
 
         self.completed: bool = False
@@ -117,7 +117,7 @@ class ScheduledTask:
                 containers=containers,
                 incoming=self.incoming,
                 outgoing=self.outgoing,
-                configuration_id=self.node.configuration_id(self.pipeline_configuration),
+                configuration_id=self.node.configuration_id(self.configuration),
                 storage_provider=self.storage_provider,
                 savepoint_range=self.node.savepoint_range,
             )
@@ -127,7 +127,7 @@ class ScheduledTask:
             pipe_containers = [containers[decl] for decl in bindings]
             pipe_incoming = [self.incoming.get(decl) for decl in bindings]
             pipe_outgoing = [self.outgoing.get(decl) for decl in bindings]
-            configuration = self.pipeline_configuration.get(task, "")
+            configuration = self.configuration.get(task, "")
 
             pipe_output = runner_context.run_pipe(
                 pipe=task,

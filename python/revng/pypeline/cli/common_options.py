@@ -2,15 +2,23 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+from enum import Enum
 from pathlib import Path
+from typing import Generator, cast
 
 import click
 from click.core import ParameterSource
+from click_option_group import GroupedOption, OptionGroup
 
+from revng.pypeline.analysis import Analysis, AnalysisList
 from revng.pypeline.cli.context import ClickContext
-from revng.pypeline.cli.utils import EagerParsedPath
+from revng.pypeline.cli.utils import EagerParsedPath, detect_autocomplete, normalize_flag
 from revng.pypeline.container import ContainerFormat
+from revng.pypeline.pipeline import AnalysisBinding, Pipeline
+from revng.pypeline.pipeline_node import PipelineNode
 from revng.pypeline.runner_context import RunnerContext
+from revng.pypeline.task.pipe import Pipe
+from revng.pypeline.utils.registry import get_registry
 
 # Options that are common to multiple commands
 project_id_option = click.option(
@@ -126,17 +134,115 @@ debug_option = click.option(
 )
 
 
-class _ShowHiddenArtifactsParameter(click.ParamType):
-    def convert(self, value, param, ctx):
-        if value:
-            ctx.obj.show_hidden_artifacts = True
+def _show_full_help(ctx: ClickContext, param, value: bool):
+    if not value:
+        return
+
+    ctx.obj.show_hidden = True
+    click.echo(ctx.get_help())
+    ctx.exit()
 
 
-show_hidden_artifact_options = click.option(
-    "--show-hidden-artifacts",
+full_help = click.option(
+    "--help-full",
     is_flag=True,
-    type=_ShowHiddenArtifactsParameter(),
+    callback=_show_full_help,
     is_eager=True,
     expose_value=False,
-    help="Also show artifacts hidden by default",
+    help="Show help with hidden options and exit.",
 )
+
+
+class _ConfigurationOptionType(click.ParamType):
+    def __init__(self, key: type[Pipe] | type[Analysis]):
+        self.name = f"{normalize_flag(key.name)}-configuration"
+        self.key = key
+
+    def convert(self, value, param, ctx: ClickContext):  # type: ignore
+        if issubclass(self.key, Analysis):
+            for binding in ctx.obj.pipeline.analyses.values():
+                if isinstance(binding.analysis, self.key):
+                    ctx.obj.configuration[binding.analysis] = value
+        else:
+            for node in ctx.obj.pipeline.walk_pipeline():
+                if isinstance(node.task, self.key):
+                    ctx.obj.configuration[node.task] = value
+
+
+class _HidableOption(GroupedOption):
+    @property
+    def hidden(self):
+        ctx: ClickContext | None = cast(ClickContext | None, click.get_current_context(silent=True))
+        if detect_autocomplete(ctx):
+            return False
+        return False if ctx is None else not ctx.obj.show_hidden
+
+    @hidden.setter
+    def hidden(self, value):
+        pass
+
+
+class AllAnalysesOption(Enum):
+    ALL_ANALYSES = 0
+
+
+ConfigTarget = PipelineNode | AllAnalysesOption | AnalysisBinding | AnalysisList
+ComponentSet = set[type[Pipe] | type[Analysis]]
+
+
+def _flatten(gen: Generator[ComponentSet, None, None]) -> ComponentSet:
+    result: ComponentSet = set()
+    for element in gen:
+        result.update(element)
+    return result
+
+
+def _get_config_components(pipeline: Pipeline, target: ConfigTarget) -> ComponentSet:
+    result: ComponentSet = set()
+    if isinstance(target, PipelineNode):
+        nodes: list[PipelineNode] = [target]
+        while len(nodes) > 0:
+            node = nodes.pop(0)
+            if isinstance(node.task, Pipe):
+                result.add(node.task.__class__)
+            nodes.extend(node.predecessors)
+        return result
+    elif isinstance(target, AnalysisBinding):
+        return _get_config_components(pipeline, target.node)
+    elif isinstance(target, AnalysisList):
+        for analysis_name in target.analyses:
+            binding = pipeline.analyses[analysis_name]
+            result.add(binding.analysis.__class__)
+            result.update(_get_config_components(pipeline, binding.node))
+        return result
+    elif target is AllAnalysesOption.ALL_ANALYSES:
+        for analysis_type in get_registry(Analysis).values():  # type: ignore[type-abstract]
+            result.add(analysis_type)
+            for analysis_binding in pipeline.analyses.values():
+                if isinstance(analysis_binding.analysis, analysis_type):
+                    result.update(_get_config_components(pipeline, analysis_binding.node))
+        return result
+    else:
+        raise ValueError
+
+
+def add_pipeline_config_options(pipeline: Pipeline, *targets: ConfigTarget):
+    def decorator(func):
+        group = OptionGroup("Pipe/Analysis configuration options")
+        values = _flatten(_get_config_components(pipeline, t) for t in targets)
+        for type_ in sorted(values, key=lambda x: x.name):
+            type_string = "pipe" if issubclass(type_, Pipe) else "analysis"
+            func = group.option(
+                f"--{normalize_flag(type_.name)}-configuration",
+                type=_ConfigurationOptionType(type_),
+                expose_value=False,
+                cls=_HidableOption,
+                metavar="CONFIGURATION",
+                help=f"Configuration for the {type_.name} {type_string}",
+            )(func)
+
+        func = full_help(func)
+
+        return func
+
+    return decorator

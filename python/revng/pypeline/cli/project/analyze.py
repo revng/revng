@@ -8,15 +8,16 @@ from typing import IO, AsyncContextManager
 import click
 import yaml
 
-from revng.pypeline.cli.common_options import debug_option, list_objects_option, project_id_option
-from revng.pypeline.cli.common_options import token_option
+from revng.pypeline.cli.common_options import add_pipeline_config_options, debug_option
+from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
-from revng.pypeline.cli.utils import compute_objects, list_objects_for_container, normalize_flag
-from revng.pypeline.cli.utils import normalize_pos_arg_name, normalize_whitespace
+from revng.pypeline.cli.utils import compute_objects, list_objects_for_container
+from revng.pypeline.cli.utils import normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, AnalysisList, ContainerDeclaration, Pipeline
+from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
@@ -47,7 +48,7 @@ async def async_part_of_command(
     pipeline: Pipeline,
     runner_context: RunnerContext,
     analysis: str | AnalysisList,
-    configuration: str | list[str],
+    configuration: PipelineConfiguration,
     container_decls: tuple[ContainerDeclaration, ...],
     output_file: IO[bytes],
     invalidations_file: IO[bytes] | None,
@@ -74,8 +75,6 @@ async def async_part_of_command(
             return
 
         if isinstance(analysis, str):
-            assert isinstance(configuration, str)
-
             # Compute the requests for the incoming containers of the
             # analysis
             incoming = Requests()
@@ -91,18 +90,15 @@ async def async_part_of_command(
                 model=ReadOnlyModel(loaded_model),
                 analysis_name=analysis,
                 requests=incoming,
-                analysis_configuration=configuration,
-                pipeline_configuration={},
+                configuration=configuration,
                 storage_provider=storage_provider,
                 runner_context=runner_context,
             )
         else:
-            assert isinstance(configuration, list)
             new_model, invalidated = pipeline.run_analysis_list(
                 model=ReadOnlyModel(loaded_model),
                 analysis_list=analysis,
-                analysis_configuration=configuration,
-                pipeline_configuration={},
+                configuration=configuration,
                 storage_provider=storage_provider,
                 runner_context=runner_context,
             )
@@ -178,6 +174,7 @@ class AnalyzeGroup(PypeGroup):
             pipeline=pipeline,
         )
 
+        # Add the `--configuration` option for the analysis
         config = getattr(
             analysis_binding.analysis,
             "configuration_help",
@@ -224,17 +221,6 @@ class AnalyzeGroup(PypeGroup):
             pipeline=pipeline,
         )
 
-        # TODO: allow per-analysis configuration
-        for analysis_name in analysis_list.analyses:
-            config = f'Configuration for the analysis list "{analysis_list_name}".'
-            run_analysis_command = click.option(
-                f"--{normalize_flag(analysis_name)}-configuration",
-                f"{normalize_pos_arg_name(analysis_name)}_configuration",
-                type=str,
-                default="",
-                help=normalize_whitespace(config),
-            )(run_analysis_command)
-
         return run_analysis_command
 
 
@@ -257,6 +243,7 @@ def build_analysis_list_command(
     @list_objects_option
     @project_id_option
     @token_option
+    @add_pipeline_config_options(pipeline, analysis_list)
     @exec_wrapper_if_needed
     @pass_context
     def run_analysis_command(
@@ -280,18 +267,13 @@ def build_analysis_list_command(
             cache_dir=ctx.obj.cache_dir,
         )
 
-        analysis_configuration = [
-            kwargs[f"{normalize_pos_arg_name(analysis_name)}_configuration"]
-            for analysis_name in analysis_list.analyses
-        ]
-
         asyncio.run(
             async_part_of_command(
                 storage_provider_context=storage_provider_context,
                 runner_context=runner_context,
                 pipeline=pipeline,
                 analysis=analysis_list,
-                configuration=analysis_configuration,
+                configuration=ctx.obj.configuration,
                 container_decls=tuple(container_decls.values()),
                 output_file=output_file,
                 invalidations_file=invalidations_file,
@@ -320,6 +302,7 @@ def build_analysis_command(
     @list_objects_option
     @project_id_option
     @token_option
+    @add_pipeline_config_options(pipeline, analysis_binding)
     @exec_wrapper_if_needed
     @pass_context
     def run_analysis_command(
@@ -336,6 +319,9 @@ def build_analysis_command(
         pypeline_logger.debug_log(f'configuration: "{configuration}"')
         pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
 
+        # Patch configuration
+        ctx.obj.configuration[analysis_binding.analysis] = configuration
+
         # Load the model
         storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
         storage_provider_context = storage_provider_factory.get(
@@ -351,7 +337,7 @@ def build_analysis_command(
                 pipeline=pipeline,
                 analysis=analysis_binding.analysis.name,
                 container_decls=analysis_binding.bindings,
-                configuration=configuration,
+                configuration=ctx.obj.configuration,
                 output_file=output_file,
                 invalidations_file=invalidations_file,
                 kwargs=kwargs,

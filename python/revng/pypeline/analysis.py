@@ -4,10 +4,9 @@
 
 from dataclasses import dataclass
 
-from .container import Container, ContainerDeclaration
+from .container import Container
 from .model import Model
 from .object import ObjectSet
-from .pipeline_node import PipelineNode
 from .utils.cabc import ABC, abstractmethod
 
 
@@ -57,30 +56,6 @@ class Analysis(ABC):
         is not available for running will result in an error.
         """
         return True
-
-
-@dataclass(frozen=True, slots=True)
-class AnalysisBinding:
-    """Allows to bind an analysis to a pipeline node."""
-
-    analysis: Analysis
-    bindings: tuple[ContainerDeclaration, ...]
-    node: PipelineNode
-
-    def to_dict(self) -> dict:
-        """Convert the data into a dictionary representation."""
-        return {
-            "name": self.analysis.name,
-            "is_available": self.analysis.is_available(),
-            "bindings": [
-                {
-                    "name": binding.name,
-                    "container_type": binding.container_type.name,
-                }
-                for binding in self.bindings
-            ],
-            "node": self.node.id,
-        }
 
 
 @dataclass(frozen=True, slots=True)

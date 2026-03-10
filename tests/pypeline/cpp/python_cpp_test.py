@@ -11,11 +11,11 @@ import yaml
 
 from revng.internal.support import import_pipebox
 from revng.pypeline import initialize_pypeline
-from revng.pypeline.analysis import Analysis, AnalysisBinding
+from revng.pypeline.analysis import Analysis
 from revng.pypeline.container import Container, ContainerDeclaration
 from revng.pypeline.model import Model, ModelDiff, ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
-from revng.pypeline.pipeline import Pipeline
+from revng.pypeline.pipeline import AnalysisBinding, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.schedule.scheduled_task import ScheduledTask
@@ -134,7 +134,7 @@ def check_simple_pipeline():
     storage_provider = InMemoryStorageProvider()
     child_cont = ContainerDeclaration("Container", StringContainer)
     declarations = [child_cont]
-    pipeline_configuration: PipelineConfiguration = {}
+    configuration: PipelineConfiguration = {}
     storage_provider.set_model(model)
 
     # Create the pipeline
@@ -163,13 +163,13 @@ def check_simple_pipeline():
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
-        pipeline_configuration,
+        configuration,
         (foo_bar_request, foo_bar_request),
     )
     task.run({child_cont: container}, RunnerContext())
 
     # Check
-    begin_node_config = begin_node.configuration_id(pipeline_configuration)
+    begin_node_config = begin_node.configuration_id(configuration)
     container_location_begin = ContainerLocation(1, "Container", begin_node_config)
     compare_dicts(storage_provider.storage[container_location_begin], {foo: b"foo", bar: b"bar"})
 
@@ -178,7 +178,7 @@ def check_simple_pipeline():
         model=ReadOnlyModel(model),
         target_node=end_node,
         requests=Requests({child_cont: ObjectSet(foo.kind(), {foo})}),
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
     schedule.run()
@@ -187,7 +187,7 @@ def check_simple_pipeline():
     schedule.serialize()
 
     # Check
-    end_node_config = end_node.configuration_id(pipeline_configuration)
+    end_node_config = end_node.configuration_id(configuration)
     container_location_end = ContainerLocation(2, "Container", end_node_config)
     compare_dicts(storage_provider.storage[container_location_end], {foo: b"foofoo"})
 
@@ -196,8 +196,7 @@ def check_simple_pipeline():
         model=ReadOnlyModel(model),
         analysis_name="AppendFooLibAnalysis",
         requests=Requests({child_cont: ObjectSet(foo.kind())}),
-        analysis_configuration="",
-        pipeline_configuration=pipeline_configuration,
+        configuration=configuration,
         storage_provider=storage_provider,
     )
 

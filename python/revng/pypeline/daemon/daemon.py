@@ -12,11 +12,10 @@ from revng.pypeline.object import Kind
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.storage.storage_provider import FileStorageEntry
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
-from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils import bytes_to_string
-from revng.pypeline.utils.pipeline import get_pipeline_description
-from revng.pypeline.utils.registry import get_registry, get_singleton
+from revng.pypeline.utils.pipeline import deserialize_configuration, get_pipeline_description
+from revng.pypeline.utils.registry import get_singleton
 
 from .exceptions import EpochError, MalformedRequestError
 from .utils import compute_objects
@@ -129,20 +128,7 @@ class Daemon:
             raise MalformedRequestError(f"Format {format_} is not valid, valid values: json, tar")
 
         # Convert configuration
-        pipes = get_registry(Pipe)  # type: ignore[type-abstract]
-        configuration: dict[Pipe, str] = {}
-        for pipe_name in raw_configuration.values():
-            if pipe_name not in pipes:
-                raise MalformedRequestError(
-                    f"Passed configuration for pipe {pipe_name}, which does not exist"
-                )
-
-        for node in self.pipeline.walk_pipeline():
-            if not isinstance(node.task, Pipe):
-                continue
-            if node.task.name in raw_configuration:
-                configuration[node.task] = raw_configuration[node.task.name]
-
+        configuration = deserialize_configuration(self.pipeline, raw_configuration)
         artifact = self.pipeline.artifacts[artifact_name]
         configuration_hash = artifact.node.configuration_id(configuration)
 
@@ -165,7 +151,7 @@ class Daemon:
                 model=ReadOnlyModel(model),
                 artifact=artifact,
                 requests=object_set,
-                pipeline_configuration=configuration,
+                configuration=configuration,
                 storage_provider=storage_provider,
             )
 
@@ -193,8 +179,7 @@ class Daemon:
         # Extract the data
         epoch = request["epoch"]
         analysis = request["analysis"]
-        configuration = request.get("configuration", "")
-        pipeline_configuration = request.get("pipeline_configuration", {})
+        raw_configuration = request.get("configuration", {})
         containers = request.get("containers", {})
 
         # Validate data and normalize to analysis list
@@ -209,6 +194,7 @@ class Daemon:
             else:
                 raise MalformedRequestError(f"Container {container_name} not found in the pipeline")
 
+        configuration = deserialize_configuration(self.pipeline, raw_configuration)
         storage_provider_context = self._get_storage_provider_context(request)
         async with storage_provider_context as storage_provider:
             # Load the model
@@ -237,19 +223,15 @@ class Daemon:
                     model=current_model,
                     analysis_name=analysis,
                     requests=requests,
-                    analysis_configuration=configuration,
-                    pipeline_configuration=pipeline_configuration,
+                    configuration=configuration,
                     storage_provider=storage_provider,
                 )
             else:
                 analysis_list = self.pipeline.analysis_lists[analysis]
-                if len(configuration) == 0:
-                    configuration = ["" for _ in analysis_list.analyses]
                 new_model, invalidated = self.pipeline.run_analysis_list(
                     model=ReadOnlyModel(model),
                     analysis_list=analysis_list,
-                    analysis_configuration=configuration,
-                    pipeline_configuration=pipeline_configuration,
+                    configuration=configuration,
                     storage_provider=storage_provider,
                 )
 
