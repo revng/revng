@@ -7,7 +7,7 @@ import re
 import sys
 import xml.sax
 from enum import Enum
-from typing import IO, Callable, Dict, List, Optional, Protocol, TextIO, cast
+from typing import IO, Callable, Dict, List, Mapping, Optional, Protocol, TextIO, cast
 
 import yachalk
 from yachalk.supports_color import detect_color_support
@@ -181,3 +181,27 @@ def ptml_print(
     else:
         printer = ColorPrinter(output, color=color)
     ptml_print_with_printer(input_, printer)
+
+
+def ptml_print_mapping(
+    data: Mapping[str, bytes],
+    output: IO[str] = sys.stdout,
+    color: ColorMode = ColorMode.Autodetect,
+    filter_: Callable[[str], bool] = lambda x: True,
+):
+    printer: PrinterBackend
+    if color == ColorMode.Off:
+        printer = PlainPrinter(output, indent="  ")
+        key_writer = lambda key: output.write(f"{key}: |-\n  ")  # noqa: E731
+    else:
+        printer = ColorPrinter(output, indent="  ", color=color)
+        key_color = printer.key_color()
+        key_writer = lambda key: output.write(key_color(f"{key}:") + " |-\n  ")  # noqa: E731
+
+    for key in data:
+        if not filter_(key):
+            continue
+
+        key_writer(key)
+        ptml_print_with_printer(data[key], printer)
+        output.write("\n")
