@@ -21,15 +21,15 @@ import yaml
 
 from revng.internal.support import cache_directory
 from revng.pypeline.analysis import Analysis
-from revng.pypeline.cli.common_options import container_format_options, debug_option
-from revng.pypeline.cli.common_options import project_id_option, show_hidden_artifact_options
-from revng.pypeline.cli.common_options import token_option
+from revng.pypeline.cli.common_options import AllAnalysesOption, add_pipeline_config_options
+from revng.pypeline.cli.common_options import container_format_options, debug_option, full_help
+from revng.pypeline.cli.common_options import project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.pipeline import pipeline
 from revng.pypeline.cli.project import project
 from revng.pypeline.cli.project.artifact import ArtifactGroup as ProjectArtifactGroup
 from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, build_arg_objects
-from revng.pypeline.cli.utils import compute_objects, normalize_flag
+from revng.pypeline.cli.utils import compute_objects, normalize_flag, sort_option_groups
 from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrappablePypeCommand, WrapperOption
 from revng.pypeline.cli.wrappers import exec_with_wrapper, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerDeclaration, ContainerFormat
@@ -37,6 +37,7 @@ from revng.pypeline.main import pype, run
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
 from revng.pypeline.pipeline import Pipeline
+from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.local_provider import TemporaryLocalStorageProviderFactory
@@ -88,6 +89,7 @@ def handle_analysis_argument(
     pipeline: Pipeline,
     analyses: str | None,
     binary: Path,
+    configuration: PipelineConfiguration,
     storage_provider: StorageProvider,
     runner_context: RunnerContext,
 ) -> Model:
@@ -117,19 +119,16 @@ def handle_analysis_argument(
                 model=ReadOnlyModel(model),
                 analysis_name=analysis_name,
                 requests=incoming,
-                analysis_configuration="",
-                pipeline_configuration={},
+                configuration=configuration,
                 storage_provider=storage_provider,
                 runner_context=runner_context,
             )
     else:
         analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
-        analysis_configuration = ["" for _ in analysis_list.analyses]
         model, _ = pipeline.run_analysis_list(
             model=ReadOnlyModel(model),
             analysis_list=analysis_list,
-            analysis_configuration=analysis_configuration,
-            pipeline_configuration={},
+            configuration=configuration,
             storage_provider=storage_provider,
             runner_context=runner_context,
         )
@@ -168,10 +167,13 @@ def _build_artifact_command(pipeline: Pipeline, artifact_name: str):
     @debug_option
     @analyses_option
     @container_format_options
+    @add_pipeline_config_options(
+        pipeline, pipeline.artifacts[artifact_name].node, AllAnalysesOption.ALL_ANALYSES
+    )
     @exec_wrapper_if_needed
-    @click.pass_context
+    @pass_context
     def command(
-        ctx,
+        ctx: ClickContext,
         binary: Path,
         result_path: Path | None,
         analyses: str | None,
@@ -190,7 +192,12 @@ def _build_artifact_command(pipeline: Pipeline, artifact_name: str):
 
                 # Run initial auto analysis
                 new_model = handle_analysis_argument(
-                    pipeline, analyses, binary, storage_provider, runner_context
+                    pipeline,
+                    analyses,
+                    binary,
+                    ctx.obj.configuration,
+                    storage_provider,
+                    runner_context,
                 )
 
                 # Compute the requests and produce the artifacts
@@ -201,7 +208,7 @@ def _build_artifact_command(pipeline: Pipeline, artifact_name: str):
                     model=ReadOnlyModel(new_model),
                     artifact=artifact,
                     requests=incoming,
-                    pipeline_configuration={},
+                    configuration=ctx.obj.configuration,
                     storage_provider=storage_provider,
                     runner_context=runner_context,
                 )
@@ -236,13 +243,26 @@ class ArtifactGroup(ProjectArtifactGroup):
 
 
 @quick.group(cls=ArtifactGroup, help="Run analyses and compute an artifact")
-@show_hidden_artifact_options
+@full_help
 def artifact():
     pass
 
 
+class AnalyzeCommand(WrappablePypeCommand):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._config_options_added = False
+
+    def get_params(self, ctx: ClickContext):  # type: ignore[override]
+        if not self._config_options_added:
+            add_pipeline_config_options(ctx.obj.pipeline, AllAnalysesOption.ALL_ANALYSES)(self)
+            sort_option_groups(self)
+            self._config_options_added = True
+        return super().get_params(ctx)
+
+
 @quick.command(
-    cls=WrappablePypeCommand,
+    cls=AnalyzeCommand,
     name="analyze",
     context_settings={
         "show_default": True,
@@ -259,9 +279,9 @@ def artifact():
 @analyses_option
 @debug_option
 @exec_wrapper_if_needed
-@click.pass_context
+@pass_context
 def analyze(
-    ctx,
+    ctx: ClickContext,
     binary: Path,
     output_file: IO[bytes],
     analyses: str | None,
@@ -276,7 +296,12 @@ def analyze(
 
             # Run initial auto analysis
             model = handle_analysis_argument(
-                ctx.obj.pipeline, analyses, binary, storage_provider, runner_context
+                ctx.obj.pipeline,
+                analyses,
+                binary,
+                ctx.obj.configuration,
+                storage_provider,
+                runner_context,
             )
             output_file.write(model.serialize())
 
@@ -337,12 +362,10 @@ def init(
         async with storage_provider_context as storage_provider:
             model = model_type.deserialize(model_raw)[0]
             analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
-            analysis_configuration = ["" for _ in analysis_list.analyses]
             pipeline.run_analysis_list(
                 model=ReadOnlyModel(model),
                 analysis_list=analysis_list,
-                analysis_configuration=analysis_configuration,
-                pipeline_configuration={},
+                configuration=ctx.obj.configuration,
                 storage_provider=storage_provider,
             )
 
