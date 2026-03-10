@@ -318,12 +318,14 @@ def get_root_command_name(ctx: click.Context) -> str:
     return command.name
 
 
-def detect_autocomplete(ctx: click.Context) -> bool:
+def detect_autocomplete(ctx: click.Context | None) -> bool:
     """Detect if we are in auto-complete mode."""
-    return (
-        "_{}_COMPLETE".format(get_root_command_name(ctx).upper()) in os.environ
-        or "autocomplete" in sys.argv
-    )
+    if ctx is not None:
+        command_name = get_root_command_name(ctx)
+    else:
+        command_name = os.path.basename(sys.argv[0])
+
+    return f"_{command_name.upper()}_COMPLETE" in os.environ or "autocomplete" in sys.argv
 
 
 def add_group_option_fake_title(command: click.Command, group: OptionGroup):

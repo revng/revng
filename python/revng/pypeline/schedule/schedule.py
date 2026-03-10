@@ -36,14 +36,14 @@ class Schedule:
         self,
         declarations: Set[ContainerDeclaration],
         target_task: ScheduledTask,
-        pipeline_configuration: PipelineConfiguration,
+        configuration: PipelineConfiguration,
         model: ReadOnlyModel,
         storage_provider: StorageProvider,
     ):
         self.declarations = set(declarations)
         self.target_task = target_task
         self.tasks: Set[ScheduledTask] = set(target_task.all_dependencies())
-        self.pipeline_configuration: PipelineConfiguration = pipeline_configuration
+        self.configuration: PipelineConfiguration = configuration
         self.model = model
         self.storage_provider = storage_provider
 
@@ -130,9 +130,7 @@ class Schedule:
         while ready:
             pypeline_logger.debug_log(f"Running {ready.node.task.name}")
 
-            configuration: ConfigurationId = ready.node.configuration_id(
-                self.pipeline_configuration
-            )
+            configuration: ConfigurationId = ready.node.configuration_id(self.configuration)
 
             task_output: ScheduledTaskDependencies | None = ready.run(
                 working_containers, runner_context
@@ -211,7 +209,7 @@ class Schedule:
                         "name": pipe.name,
                         "dependencies": [visited_tasks.index(t) for t in task.dependencies],
                         "static_config": pipe.static_configuration,
-                        "dynamic_config": self.pipeline_configuration.get(pipe, ""),
+                        "dynamic_config": self.configuration.get(pipe, ""),
                         "args": args,
                     }
                 )
@@ -228,9 +226,7 @@ class Schedule:
                     sp_containers.append(
                         {
                             "name": declaration.name,
-                            "configuration_hash": task.node.configuration_id(
-                                self.pipeline_configuration
-                            ),
+                            "configuration_hash": task.node.configuration_id(self.configuration),
                             "incoming": incoming,
                             "outgoing": outgoing,
                         }

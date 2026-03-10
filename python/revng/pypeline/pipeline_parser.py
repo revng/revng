@@ -12,9 +12,9 @@ from typing import Any, Optional
 import jsonschema
 import yaml
 
-from .analysis import Analysis, AnalysisBinding, AnalysisList
+from .analysis import Analysis, AnalysisList
 from .container import Container, ContainerDeclaration
-from .pipeline import Artifact, ArtifactCategory, Pipeline
+from .pipeline import AnalysisBinding, Artifact, ArtifactCategory, Pipeline
 from .pipeline_node import DummyPipelineNode, PipelineNode
 from .task.pipe import Pipe
 from .task.savepoint import SavePoint

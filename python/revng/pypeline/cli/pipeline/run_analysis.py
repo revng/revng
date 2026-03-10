@@ -72,14 +72,13 @@ class RunAnalysisGroup(PypeGroup):
             "configuration_help",
             f'Configuration for the analysis "{analysis_name}".',
         )
-        if config is not None:
-            run_analysis_command = click.option(
-                "-c",
-                "--configuration",
-                type=str,
-                default="",
-                help=normalize_whitespace(config),
-            )(run_analysis_command)
+        run_analysis_command = click.option(
+            "-c",
+            "--configuration",
+            type=str,
+            default="",
+            help=normalize_whitespace(config),
+        )(run_analysis_command)
 
         # For each argument, call the `click.argument` decorator to dynamically add
         # them to the command

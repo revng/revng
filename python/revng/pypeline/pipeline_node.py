@@ -8,6 +8,8 @@ from hashlib import sha256
 from typing import TYPE_CHECKING, Annotated, List, Mapping, Optional, Sequence, Set, Union
 from typing import overload
 
+from revng.pypeline.analysis import Analysis
+
 from .container import Configuration, ConfigurationId, Container, ContainerDeclaration
 from .model import ReadOnlyModel
 from .object import ObjectSet
@@ -23,8 +25,9 @@ if TYPE_CHECKING:
 
 
 PipelineConfiguration = Annotated[
-    Mapping[Pipe, Configuration],
-    """A configuration of a pipeline, specifying, for each Pipe, its runtime configuration""",
+    Mapping[Pipe | Analysis, str],
+    "Configuration for an execution of a schedule or analysis, this describes "
+    "the dynamic configuration of each component of the pipeline",
 ]
 
 
@@ -146,7 +149,7 @@ class PipelineNode:
         self,
         model: ReadOnlyModel,
         requests: Requests,
-        pipeline_configuration: PipelineConfiguration,
+        configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
     ) -> Requests:
         # In order to execute the task we might need to remap the requests
@@ -160,7 +163,7 @@ class PipelineNode:
             ), "SavePoint range must be set before calling prerequisites_for on a SavePoint"
             return self.task.prerequisites_for(
                 requests=requests,
-                configuration_id=self.configuration_id(pipeline_configuration),
+                configuration_id=self.configuration_id(configuration),
                 storage_provider=storage_provider,
                 savepoint_range=self.savepoint_range,
             )
