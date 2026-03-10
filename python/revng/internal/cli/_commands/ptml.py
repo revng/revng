@@ -3,16 +3,19 @@
 #
 
 import argparse
+import re
 import sys
+import tarfile
 from contextlib import contextmanager, suppress
 from io import TextIOWrapper
-from typing import IO, Generator, List, Optional, Union, cast
+from typing import IO, Generator, List, Mapping, Optional, Union, cast
+
+import yaml
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
-from revng.internal.cli.support import file_wrapper
-from revng.ptml.printer import ColorMode
+from revng.internal.cli.support import TarDictionary, file_wrapper
+from revng.ptml.printer import ColorMode, ptml_print, ptml_print_mapping
 from revng.support import to_bytes
-from revng.support.artifacts import PTMLArtifact, ptml_artifact_autodetect
 
 
 def normalize_filter_extract(filters: List[str], extract: Optional[str]) -> Union[str, List[str]]:
@@ -68,22 +71,49 @@ def handler(args) -> int:
 
 
 def handler_inner(
-    content: bytes | IO[bytes], output: IO[str], color: ColorMode, filters: Union[str, List[str]]
+    content: bytes | IO[bytes], output: IO[str], color: ColorMode, filters: str | list[str]
 ):
     with to_bytes(content) as wrapped:
-        artifact = ptml_artifact_autodetect(wrapped)
-        if isinstance(artifact, PTMLArtifact):
-            artifact.print(output, color)
+        # Here we have the raw bytes of input, we need to figure out if the
+        # input file is a tar, a yaml or a plain PTML file. None of these
+        # format have magic header bytes to identify them, so the only way to
+        # read them is trying and move on if there is an exception.
+
+        if len(wrapped) == 0:
+            raise ValueError("Input is empty!")
+
+        # Try and read the input as a tar file with one or more PTML files
+        with suppress(tarfile.ReadError):
+            mapper = TarDictionary(wrapped)
+            handle_filters(mapper, filters, output, color)
             return 0
 
-        if isinstance(filters, str):
-            artifact[filters].print(output, color)
-        elif len(filters) == 0:
-            artifact.print(output, color)
-        else:
-            artifact.print(output, color, lambda x: x in cast(List[str], filters))
+        # PTML is based on HTML, so we should be seeing a '<' as the first
+        # non-whitespace character, if this is not the case it might be a YAML
+        # file, try and read it as such.
+        if re.match(rb"\s*<", wrapped) is None:
+            data = None
+            with suppress(yaml.YAMLError):
+                data = yaml.load(wrapped, Loader=yaml.CSafeLoader)
+            if data is not None:
+                handle_filters(data, filters, output, color)
+                return 0
+
+        # We've tried all other options, try and read the file as a plain PTML
+        ptml_print(wrapped, output, color)
 
     return 0
+
+
+def handle_filters(
+    data: Mapping[str, bytes], filters: str | list[str], output: IO[str], color: ColorMode
+):
+    if isinstance(filters, str):
+        ptml_print(data[filters], output, color)
+    elif len(filters) == 0:
+        ptml_print_mapping(data, output, color, lambda x: True)
+    else:
+        ptml_print_mapping(data, output, color, lambda x: x in cast(List[str], filters))
 
 
 class PTMLCommand(Command):

@@ -10,7 +10,6 @@ dependencies = [
     "PyYAML>=6.0.1,<7.0",
     "yachalk>=0.1.7,<1.0",
     "llvmcpy>=0.2.1,<1.0",
-    "zstandard>=0.23.0,<1.0",
     "pycparser>=2.22,<3.0",
     "requests>=2.32.5,<3.0",
     "requests-toolbelt>=1.0.0,<2.0",
