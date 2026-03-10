@@ -15,7 +15,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.responses import Response as StarletteResponse
 from starlette.routing import Route, WebSocketRoute
 from starlette.websockets import WebSocket, WebSocketDisconnect
@@ -169,6 +169,9 @@ def make_starlette(daemon: Daemon) -> Starlette:
         """Process analysis requests"""
         return await daemon.analyze({**await request.json(), **data})
 
+    async def status(request):
+        return PlainTextResponse("OK")
+
     # Define routes
     routes = [
         Route("/api/epoch", epoch_endpoint, methods=["GET"]),
@@ -178,6 +181,7 @@ def make_starlette(daemon: Daemon) -> Starlette:
         Route("/api/artifact", artifact_endpoint, methods=["POST"]),
         Route("/api/analysis", analysis_endpoint, methods=["POST"]),
         WebSocketRoute("/api/subscribe", invalidation_websocket),
+        Route("/status", status, methods=["GET"]),
     ]
 
     origins: list[str] = []
