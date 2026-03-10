@@ -651,8 +651,11 @@ class LocalStorageProvider(StorageProvider):
                 if not path_path.is_absolute():
                     path_path = (self._model_directory / path_path).resolve()
 
-                if path_path.is_file():
-                    found_paths.append(path_path)
+                try:
+                    if path_path.is_file():
+                        found_paths.append(path_path)
+                except OSError:
+                    pypeline_logger.debug_log(f"Skipping missing path {path_path!s}")
 
             # Try and find a file from found_paths that matches the `ModifiedTime`
             mtime = data["ModifiedTime"]
