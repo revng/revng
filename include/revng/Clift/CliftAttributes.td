@@ -4,7 +4,8 @@
 
 #ifndef MLIR_CLIFT_ATTRIBUTE
 #define MLIR_CLIFT_ATTRIBUTE
-include "mlir/IR/EnumAttr.td"
+
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/SubElementInterfaces.td"
 
 include "revng/Clift/CliftDialect.td"
@@ -171,16 +172,6 @@ def Clift_TypedefAttr
   }];
 
   let genVerifyDecl = 1;
-}
-
-// This is a helper attribute used for emitting the bytecode representation of
-// (potentially recursive) class types.
-def Clift_BytecodeClassAttr
-  : AttrDef<Clift_Dialect,
-            "BytecodeClass",
-            [SubElementAttrInterface]> {
-
-  let parameters = (ins "mlir::clift::ClassType":$type);
 }
 
 #endif

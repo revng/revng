@@ -6,6 +6,10 @@ set(LLVM_TARGET_DEFINITIONS CliftAttributes.td)
 mlir_tablegen(CliftAttributes.h.inc -gen-attrdef-decls)
 mlir_tablegen(CliftAttributes.cpp.inc -gen-attrdef-defs)
 
+set(LLVM_TARGET_DEFINITIONS CliftAttributesBytecode.td)
+mlir_tablegen(CliftAttributesBytecode.h.inc -gen-attrdef-decls)
+mlir_tablegen(CliftAttributesBytecode.cpp.inc -gen-attrdef-defs)
+
 set(LLVM_TARGET_DEFINITIONS CliftEnums.td)
 mlir_tablegen(CliftEnums.h.inc -gen-enum-decls)
 mlir_tablegen(CliftEnums.cpp.inc -gen-enum-defs)

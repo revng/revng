@@ -6,13 +6,6 @@
 
 #include "mlir/IR/Attributes.h"
 
-namespace mlir::clift {
-
-class ValueType;
-class ClassType;
-
-} // namespace mlir::clift
-
 #include "revng/Clift/CliftMutableStringAttr.h"
 
 // Prevent reordering:

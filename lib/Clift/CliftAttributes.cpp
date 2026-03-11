@@ -28,6 +28,8 @@
 //
 #define GET_ATTRDEF_CLASSES
 #include "revng/Clift/CliftAttributes.cpp.inc"
+#define GET_ATTRDEF_CLASSES
+#include "revng/Clift/CliftAttributesBytecode.cpp.inc"
 
 using namespace mlir::clift;
 namespace clift = mlir::clift;
@@ -871,7 +873,7 @@ mlir::clift::CAttributeAttr::verify(EmitErrorType EmitError,
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerAttributes() {
-  addAttributes<MutableStringAttr, StructAttr, UnionAttr,
+  addAttributes<MutableStringAttr, StructAttr, UnionAttr, BytecodeClassAttr,
   // Include the list of auto-generated attributes
 #define GET_ATTRDEF_LIST
 #include "revng/Clift/CliftAttributes.cpp.inc"
