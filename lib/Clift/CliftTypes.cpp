@@ -1544,28 +1544,15 @@ mlir::LogicalResult clift::verifyReturnType(EmitErrorType EmitError,
                                             ValueType ReturnType) {
   ValueType UnderlyingType = dealias(ReturnType, /*IgnoreQualifiers=*/true);
 
-  if (isVoid(UnderlyingType))
-    return mlir::success();
+  if (not isVoid(UnderlyingType)) {
+    if (not isObjectType(UnderlyingType))
+      return EmitError() << "must be an object type or void.";
 
-  if (isObjectType(UnderlyingType)) {
     if (isArrayType(UnderlyingType))
       return EmitError() << "cannot be an array type.";
-
-    // Check for pointers to array or function types. Function types returning
-    // pointers to arrays or functions cannot be represented in C.
-    {
-      ValueType T = ReturnType;
-      while (auto P = mlir::dyn_cast<PointerType>(T))
-        T = P.getPointeeType();
-
-      if (mlir::isa<ArrayType, FunctionType>(T))
-        return EmitError() << "cannot be pointer to array or function type.";
-    }
-
-    return mlir::success();
   }
 
-  return EmitError() << "must be an object type or void.";
+  return mlir::success();
 }
 
 //===---------------------------- CliftDialect ----------------------------===//
