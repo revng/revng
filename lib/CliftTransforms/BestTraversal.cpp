@@ -103,8 +103,7 @@ void Traversal::dump() const {
 
 mlir::Type deriveBaseType(mlir::Value BasePointer) {
 
-  auto BasePtrType = getPointerType(BasePointer.getType());
-  revng_assert(BasePtrType);
+  auto BasePtrType = unwrapped_cast<PointerType>(BasePointer.getType());
   auto PointeeType = BasePtrType.getPointeeType();
   auto UnderlyingType = unwrapTypedefs(PointeeType);
 
@@ -117,7 +116,7 @@ mlir::Type deriveBaseType(mlir::Value BasePointer) {
   }
 
   // We don't want to wrap `void` or `function` `Type`s into `array`s.
-  if (not isObjectType(PointeeType)) {
+  if (not unwrapped_isa<ObjectType>(PointeeType)) {
     return PointeeType;
   }
 
@@ -708,7 +707,7 @@ BestTraversalChooser::computeBestTraversal(ExpressionOpInterface
                                              &Arithmetic) {
   // We only perform the substitution for `PointerType`
   auto PointerToReplaceType = PointerToReplace->getResult(0).getType();
-  if (not isPointerType(PointerToReplaceType)) {
+  if (not clift::unwrapped_isa<clift::PointerType>(PointerToReplaceType)) {
     return std::nullopt;
   }
 
@@ -725,13 +724,16 @@ BestTraversalChooser::computeBestTraversal(ExpressionOpInterface
   // Expand to explicit array accesses the input `PointerArithmetic`, so that
   // the constant folded component performed by the compiler is evident in the
   // `LinearCombination` portion of `Arithmetic`
-  PointerBitWidth = getPointerType(PointerToReplaceType).getPointerSize() * 8;
+  PointerBitWidth = clift::unwrapped_cast<PointerType>(PointerToReplaceType)
+                      .getPointerSize()
+                    * 8;
 
   std::vector<PointerArithmetic>
     ExplicitArithmetics = toExplicitArrayAccesses(Arithmetic, BaseType);
 
-  mlir::Type PointeeType = getPointerType(PointerToReplaceType)
-                             .getPointeeType();
+  mlir::Type
+    PointeeType = clift::unwrapped_cast<PointerType>(PointerToReplaceType)
+                    .getPointeeType();
 
   // Obtain the `BestTraversal` for connecting `BaseType` to `PointeeType`,
   // following one of the possible `ExplicitArithmetic`s

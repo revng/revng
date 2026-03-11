@@ -432,7 +432,7 @@ void FunctionOp::print(mlir::OpAsmPrinter &Printer) {
 mlir::LogicalResult FunctionOp::verify() {
   auto ReturnType = getReturnType();
 
-  bool IsVoid = isVoid(ReturnType);
+  bool IsVoid = clift::unwrapped_isa<VoidType>(ReturnType);
   auto Result = (*this)->walk([&](ReturnOp Op) -> mlir::WalkResult {
     mlir::Type Type = getExpressionType(Op.getResult());
 
@@ -1224,7 +1224,7 @@ static mlir::LogicalResult verifyPointerArithmeticOp(mlir::Operation *Op) {
     return Op->emitOpError() << "pointer and integer operand sizes must "
                                 "match.";
 
-  if (not isObjectType(PtrType.getPointeeType()))
+  if (not clift::unwrapped_isa<ObjectType>(PtrType.getPointeeType()))
     return Op->emitOpError() << "operand pointee must have object type.";
 
   if (Op->getResult(0).getType() != removeConst(PtrType))
@@ -1235,12 +1235,12 @@ static mlir::LogicalResult verifyPointerArithmeticOp(mlir::Operation *Op) {
 
 unsigned
 clift::impl::getPointerArithmeticPointerOperandIndex(mlir::Operation *Op) {
-  return isPointerType(Op->getOperand(0).getType()) ? 0 : 1;
+  return clift::unwrapped_isa<PointerType>(Op->getOperand(0).getType()) ? 0 : 1;
 }
 
 unsigned
 clift::impl::getPointerArithmeticOffsetOperandIndex(mlir::Operation *Op) {
-  return isPointerType(Op->getOperand(0).getType()) ? 1 : 0;
+  return clift::unwrapped_isa<PointerType>(Op->getOperand(0).getType()) ? 1 : 0;
 }
 
 //===------------------------------ PtrAddOp ------------------------------===//
@@ -1271,7 +1271,7 @@ mlir::LogicalResult PtrDiffOp::verify() {
                          << " operand pointee types must match, ignoring"
                             " qualifiers.";
 
-  if (not isObjectType(PointeeType))
+  if (not clift::unwrapped_isa<ObjectType>(PointeeType))
     return emitOpError() << getOperationName()
                          << " operand pointee must have object type.";
 
@@ -1321,10 +1321,10 @@ mlir::LogicalResult BitCastOp::verify() {
   auto ResT = unwrapTypedefs(getResult().getType());
   auto ArgT = unwrapTypedefs(getValue().getType());
 
-  if (not isObjectType(ResT) or mlir::isa<ArrayType>(ResT))
+  if (not mlir::isa<ObjectType>(ResT) or mlir::isa<ArrayType>(ResT))
     return emitOpError() << " result must have non-array object type.";
 
-  if (not isObjectType(ArgT) or mlir::isa<ArrayType>(ArgT))
+  if (not mlir::isa<ObjectType>(ArgT) or mlir::isa<ArrayType>(ArgT))
     return emitOpError() << " argument must have non-array object type.";
 
   if (getObjectSize(ResT) != getObjectSize(ArgT))
@@ -1363,8 +1363,8 @@ mlir::LogicalResult TruncateOp::verify() {
 //===----------------------------- PtrResizeOp ----------------------------===//
 
 mlir::LogicalResult PtrResizeOp::verify() {
-  auto ResPtrT = getPointerType(getResult().getType());
-  auto ArgPtrT = getPointerType(getValue().getType());
+  auto ResPtrT = clift::unwrapped_cast<PointerType>(getResult().getType());
+  auto ArgPtrT = clift::unwrapped_cast<PointerType>(getValue().getType());
 
   if (ResPtrT.getPointerSize() == ArgPtrT.getPointerSize())
     return emitOpError() << getOperationName()
@@ -1390,7 +1390,7 @@ mlir::LogicalResult AddressofOp::verify() {
 //===---------------------------- IndirectionOp ---------------------------===//
 
 mlir::LogicalResult IndirectionOp::verify() {
-  if (isVoid(getResult().getType()))
+  if (clift::unwrapped_isa<VoidType>(getResult().getType()))
     return emitOpError() << getOperationName()
                          << " cannot dereference a pointer to void.";
 
@@ -1402,7 +1402,7 @@ mlir::LogicalResult IndirectionOp::verify() {
 mlir::LogicalResult AssignOp::verify() {
   mlir::Type Type = unwrapTypedefs(getLhs().getType());
 
-  if (not isObjectType(Type) or mlir::isa<ArrayType>(Type))
+  if (not mlir::isa<ObjectType>(Type) or mlir::isa<ArrayType>(Type))
     return emitOpError() << getOperationName()
                          << " left operand must be a non-array object type.";
 
@@ -1475,7 +1475,7 @@ mlir::LogicalResult SubscriptOp::verify() {
                          << " operand must have pointer type.";
 
   auto PointeeT = PointerT.getPointeeType();
-  if (not isObjectType(PointeeT))
+  if (not clift::unwrapped_isa<ObjectType>(PointeeT))
     return emitOpError() << getOperationName()
                          << " cannot dereference pointer to non-object type.";
 

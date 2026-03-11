@@ -740,15 +740,15 @@ private:
     if (SourceType == TargetType)
       return Value;
 
-    auto UnderlyingSourceT = unwrapTypedefs(SourceType);
-    auto UnderlyingTargetT = unwrapTypedefs(TargetType);
-
-    if (getObjectSize(UnderlyingSourceT) != getObjectSize(UnderlyingTargetT))
+    auto SourceT = clift::unwrapped_dyn_cast<ObjectType>(SourceType);
+    if (not SourceT)
       return Value;
 
-    if (mlir::isa<ArrayType>(UnderlyingSourceT))
+    auto TargetT = clift::unwrapped_dyn_cast<ObjectType>(TargetType);
+    if (not TargetT)
       return Value;
-    if (mlir::isa<ArrayType>(UnderlyingTargetT))
+
+    if (mlir::isa<ArrayType>(SourceT) or mlir::isa<ArrayType>(TargetT))
       return Value;
 
     return emitCast<BitCastOp>(Loc, Value, TargetType);

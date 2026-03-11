@@ -178,9 +178,6 @@ IntegerType getUnderlyingIntegerType(mlir::Type Type);
 /// incomplete only temporarily during construction of recursive types.
 bool isCompleteType(mlir::Type Type);
 
-/// Determine if the type is exactly void, ignoring type qualifiers.
-bool isVoid(mlir::Type Type);
-
 /// Determine if the type is a scalar type, meaning either
 /// * a primitive object type, or
 /// * an enum type, or
@@ -190,12 +187,6 @@ bool isVoid(mlir::Type Type);
 /// Qualifiers are ignored.
 bool isScalarType(mlir::Type Type);
 
-IntegerType getPrimitiveIntegerType(mlir::Type Type);
-
-/// Determine if the type is a primitive integer type, or a typedef naming such
-/// a type, ignoring qualifiers.
-bool isPrimitiveIntegerType(mlir::Type Type);
-
 /// Determine if the type is an integer type. @see getUnderlyingIntegerType for
 /// a breakdown of the set of integer types.
 bool isIntegerType(mlir::Type Type);
@@ -203,45 +194,6 @@ bool isIntegerType(mlir::Type Type);
 /// Determine if the type is a "boolean" type, i.e. a signed primitive integer
 /// type.
 bool isBooleanType(mlir::Type Type);
-
-/// Determine if the type is a floating point type, or a typedef naming such a
-/// type, ignoring qualifiers.
-bool isFloatType(mlir::Type Type);
-
-PointerType getPointerType(mlir::Type Type);
-
-/// Determine if the type is a pointer type. This includes pointers to objects
-/// as well as pointers to functions. Qualifiers are ignored.
-bool isPointerType(mlir::Type Type);
-
-/// Determine if the type is an object type. This is the set of types
-/// representing program objects. In other words it is the set of types which
-/// can be used to declare a variable, meaning either
-/// * a non-void primitive type, or
-/// * a pointer type, or
-/// * an array type, or
-/// * an enum type, or
-/// * a class type, or
-/// * a typedef naming any such type.
-///
-/// Qualifiers are ignored.
-bool isObjectType(mlir::Type Type);
-
-/// Determine if the type is an array type, unwrapping typedefs and ignoring
-/// qualifiers.
-bool isArrayType(mlir::Type Type);
-
-/// Determine if the type is an enum type, unwrapping typedefs and ignoring
-/// qualifiers
-bool isEnumType(mlir::Type Type);
-
-/// Determine if the type is a class type, meaning either a struct or union.
-/// Qualifiers are ignored.
-bool isClassType(mlir::Type Type);
-
-/// Determine if the type is a function type, unwrapping typedefs and ignoring
-/// qualifiers.
-bool isFunctionType(mlir::Type Type);
 
 /// Determine if the type is a callable type, meaning either
 /// * a function type, or

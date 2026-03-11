@@ -366,7 +366,7 @@ mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,
                                       MutableStringAttr Comment,
                                       uint64_t Offset,
                                       mlir::Type ElementType) {
-  if (not isObjectType(ElementType)) {
+  if (not clift::unwrapped_isa<ObjectType>(ElementType)) {
     return EmitError() << "Struct and union field types must be object types. "
                        << "Field at offset " << Offset << " is not.";
   }

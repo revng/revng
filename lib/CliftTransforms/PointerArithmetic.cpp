@@ -188,8 +188,10 @@ private:
 /// Helper function used to verify if an `ExpressionOpInterface` is
 /// `PointerType`d
 static bool isPointerTyped(ExpressionOpInterface Expr) {
-  return Expr->getNumResults() > 0
-         and isPointerType(Expr->getResult(0).getType());
+  if (mlir::isa<YieldOp>(Expr.getOperation()))
+    return false;
+
+  return clift::unwrapped_isa<clift::PointerType>(Expr->getResult(0).getType());
 }
 
 /// Helper function used to extract the underlying constant value from an
@@ -217,7 +219,9 @@ PointerArithmeticBuilder::computePointerArithmetic(ExpressionOpInterface
   }
 
   // Derive the pointer bit size from the PointerToReplace type
-  auto PtrType = getPointerType(PointerToReplace->getResult(0).getType());
+  auto PtrType = clift::unwrapped_cast<PointerType>(PointerToReplace
+                                                      ->getResult(0)
+                                                      .getType());
   PointerBitWidth = PtrType.getPointerSize() * 8;
 
   // We traverse upwards the dataflow starting from the
@@ -287,7 +291,7 @@ PointerArithmeticBuilder::traverse(mlir::Value V) {
 PointerArithmetic PointerArithmeticBuilder::createLeaf(mlir::Value V) {
   using OffsetExpression = PointerArithmetic::OffsetExpression;
   PointerArithmetic PA{ .Offset = OffsetExpression(PointerBitWidth) };
-  if (isPointerType(V.getType())) {
+  if (clift::unwrapped_isa<PointerType>(V.getType())) {
 
     // Pointer typed expression
     PA.BasePointer = V;
@@ -421,7 +425,9 @@ PointerArithmeticBuilder::composePtrAdd(PtrAddOp PtrAdd) {
 
   // For `ptr_add`, the offset is in units of the pointee type, so we scale
   // the `OffsetOperand` contributions by the `PointeeType` size
-  auto PointerType = getPointerType(PtrAdd.getPointer().getType());
+  auto PointerType = clift::unwrapped_cast<clift::PointerType>(PtrAdd
+                                                                 .getPointer()
+                                                                 .getType());
   auto PointeeSize = getObjectSize(PointerType.getPointeeType());
 
   // Scale `BaseOffset` of the `OffsetOperandPA`

@@ -364,7 +364,7 @@ static void writeType(clift::PointerType Type,
 mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
                                       mlir::Type ElementType,
                                       uint64_t ElementCount) {
-  if (not isObjectType(ElementType))
+  if (not clift::unwrapped_isa<ObjectType>(ElementType))
     return EmitError() << "Array type element type must be an object type.";
   if (ElementCount == 0)
     return EmitError() << "Array type must have no less than one element.";
@@ -683,9 +683,11 @@ FunctionType::verify(EmitErrorType EmitError,
                      llvm::ArrayRef<mlir::Type> Args,
                      llvm::ArrayRef<CAttributeAttr> Attributes) {
   for (mlir::Type T : Args) {
-    if (not isObjectType(T))
+    T = unwrapTypedefs(T);
+
+    if (not mlir::isa<ObjectType>(T))
       return EmitError() << "Function parameter type must be an object type";
-    if (isArrayType(T))
+    if (mlir::isa<ArrayType>(T))
       return EmitError() << "Function parameter type may not be an array type";
   }
 
@@ -1562,21 +1564,9 @@ bool clift::isCompleteType(mlir::Type Type) {
   return true;
 }
 
-bool clift::isVoid(mlir::Type Type) {
-  return mlir::isa<VoidType>(unwrapTypedefs(Type));
-}
-
 bool clift::isScalarType(mlir::Type Type) {
   Type = unwrapTypedefs(Type);
   return mlir::isa<IntegerType, FloatType, EnumType, PointerType>(Type);
-}
-
-IntegerType clift::getPrimitiveIntegerType(mlir::Type Type) {
-  return mlir::dyn_cast<IntegerType>(unwrapTypedefs(Type));
-}
-
-bool clift::isPrimitiveIntegerType(mlir::Type Type) {
-  return mlir::isa<IntegerType>(unwrapTypedefs(Type));
 }
 
 bool clift::isIntegerType(mlir::Type Type) {
@@ -1584,45 +1574,8 @@ bool clift::isIntegerType(mlir::Type Type) {
 }
 
 bool clift::isBooleanType(mlir::Type Type) {
-  auto T = getPrimitiveIntegerType(Type);
+  auto T = clift::unwrapped_dyn_cast<IntegerType>(Type);
   return T and T.isSigned();
-}
-
-bool clift::isFloatType(mlir::Type Type) {
-  return mlir::isa<FloatType>(unwrapTypedefs(Type));
-}
-
-PointerType clift::getPointerType(mlir::Type Type) {
-  return mlir::dyn_cast<PointerType>(unwrapTypedefs(Type));
-}
-
-bool clift::isPointerType(mlir::Type Type) {
-  return mlir::isa<PointerType>(unwrapTypedefs(Type));
-}
-
-bool clift::isObjectType(mlir::Type Type) {
-  return mlir::isa<ArrayType,
-                   ClassType,
-                   EnumType,
-                   FloatType,
-                   IntegerType,
-                   PointerType>(unwrapTypedefs(Type));
-}
-
-bool clift::isArrayType(mlir::Type Type) {
-  return mlir::isa<ArrayType>(unwrapTypedefs(Type));
-}
-
-bool clift::isEnumType(mlir::Type Type) {
-  return mlir::isa<EnumType>(unwrapTypedefs(Type));
-}
-
-bool clift::isClassType(mlir::Type Type) {
-  return mlir::isa<ClassType>(unwrapTypedefs(Type));
-}
-
-bool clift::isFunctionType(mlir::Type Type) {
-  return mlir::isa<clift::FunctionType>(unwrapTypedefs(Type));
 }
 
 clift::FunctionType
@@ -1639,11 +1592,11 @@ mlir::LogicalResult clift::verifyReturnType(EmitErrorType EmitError,
                                             mlir::Type ReturnType) {
   ReturnType = unwrapTypedefs(ReturnType);
 
-  if (not isVoid(ReturnType)) {
-    if (not isObjectType(ReturnType))
+  if (not mlir::isa<VoidType>(ReturnType)) {
+    if (not mlir::isa<ObjectType>(ReturnType))
       return EmitError() << "must be an object type or void.";
 
-    if (isArrayType(ReturnType))
+    if (mlir::isa<ArrayType>(ReturnType))
       return EmitError() << "cannot be an array type.";
   }
 

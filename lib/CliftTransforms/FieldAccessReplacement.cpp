@@ -21,13 +21,10 @@ namespace {
 template<typename CliftType>
 static std::pair<CliftType, bool>
 getAccessedTypeInfo(mlir::Value CurrentValue) {
-  if (isPointerType(CurrentValue.getType())) {
-    auto PtrType = getPointerType(CurrentValue.getType());
-    return { mlir::cast<CliftType>(collapseTypedefs(PtrType.getPointeeType())),
-             true };
+  if (auto P = clift::unwrapped_dyn_cast<PointerType>(CurrentValue.getType())) {
+    return { clift::unwrapped_cast<CliftType>(P.getPointeeType()), true };
   }
-  return { mlir::cast<CliftType>(collapseTypedefs(CurrentValue.getType())),
-           false };
+  return { clift::unwrapped_cast<CliftType>(CurrentValue.getType()), false };
 }
 
 // =============================================================================
@@ -215,7 +212,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
   // access the `struct` fields and `array` members, and to generate the
   // `AddressOp` at the end of the field access substitution. We extract it
   // from the `PointerToReplace` we are processing.
-  auto PointerSize = getPointerType(PointerToReplace->getResult(0).getType())
+  auto PointerSize = clift::unwrapped_cast<PointerType>(PointerToReplace
+                                                          ->getResult(0)
+                                                          .getType())
                        .getPointerSize();
 
   // Set insertion point right before the `PointerToReplace`
@@ -271,7 +270,7 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
       // We need to explicitly handle the `pointer as array` case, where
       // `CurrentValue` is not a `ptr<T>` of `ArrayType` (we virtually wrap it
       // ourselves), so the `indirection` and `cast<decay>` is not needed.
-      if (auto P = getPointerType(CurrentValue.getType());
+      if (auto P = unwrapped_dyn_cast<PointerType>(CurrentValue.getType());
           P and not mlir::isa<ArrayType>(unwrapTypedefs(P.getPointeeType()))) {
         ArrayElementType = P.getPointeeType();
       } else {
@@ -333,10 +332,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
       // `TypeDefType`, we need to cast it to the underlying `PointerType`
       // first.
       if (not mlir::isa<clift::PointerType>(CurrentValue.getType())) {
-        auto UnderlyingType = getPointerType(CurrentValue.getType());
-        revng_assert(UnderlyingType);
+        auto PtrType = unwrapped_cast<PointerType>(CurrentValue.getType());
         CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
-                                                 UnderlyingType,
+                                                 PtrType,
                                                  CurrentValue);
       }
 
@@ -442,8 +440,9 @@ void replaceFieldAccess(ExpressionOpInterface PointerToReplace,
                         const Traversal &BestTraversal) {
 
   // Derive the `PointerBitWidth` from the `PointerToReplace` type
-  unsigned PointerBitWidth = getPointerType(PointerToReplace->getResult(0)
-                                              .getType())
+  unsigned PointerBitWidth = clift::unwrapped_cast<PointerType>(PointerToReplace
+                                                                  ->getResult(0)
+                                                                  .getType())
                                .getPointerSize()
                              * 8;
 

@@ -116,7 +116,8 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
                                             unsigned Index = 0) const {
     mlir::OpOperand &Operand = Op->getOpOperand(Index);
 
-    auto OldType = clift::getPointerType(Operand.get().getType());
+    auto OldType = clift::unwrapped_dyn_cast<PointerType>(Operand.get()
+                                                            .getType());
     if (not OldType or OldType.getPointerSize() == TargetPointerSize)
       return mlir::failure();
 
@@ -131,7 +132,8 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
                                             unsigned Index = 0) const {
     mlir::OpOperand &Operand = Op->getOpOperand(Index);
 
-    auto OldType = clift::getPrimitiveIntegerType(Operand.get().getType());
+    auto OldType = clift::unwrapped_dyn_cast<IntegerType>(Operand.get()
+                                                            .getType());
     if (not OldType or OldType.getSize() == TargetPointerSize)
       return mlir::failure();
 
@@ -144,8 +146,8 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
   mlir::LogicalResult
   replacePointerResult(mlir::PatternRewriter &Rewriter,
                        clift::ExpressionOpInterface Op) const {
-    auto OldType = clift::getPointerType(Op->getResult(0).getType());
-    revng_assert(OldType);
+    auto OldType = clift::unwrapped_cast<PointerType>(Op->getResult(0)
+                                                        .getType());
 
     if (OldType.getPointerSize() == TargetPointerSize)
       return mlir::failure();
@@ -190,8 +192,8 @@ struct ResizePtrDiffPattern : PointerResizePattern<clift::PtrDiffOp> {
 
   mlir::LogicalResult replaceIntegerResult(mlir::PatternRewriter &Rewriter,
                                            clift::PtrDiffOp Op) const {
-    auto OldType = clift::getPrimitiveIntegerType(Op->getResult(0).getType());
-    revng_assert(OldType);
+    auto OldType = clift::unwrapped_cast<IntegerType>(Op->getResult(0)
+                                                        .getType());
 
     if (OldType.getSize() == TargetPointerSize)
       return mlir::failure();

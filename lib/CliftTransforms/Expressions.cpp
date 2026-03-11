@@ -36,16 +36,16 @@ static uint64_t truncateIntegerValue(mlir::IntegerAttr ValueAttr,
 }
 
 static bool assignTypePunnedConstraint(mlir::Value Ptr, mlir::Value Value) {
-  auto PtrType = getPointerType(Ptr.getType());
+  auto PtrType = clift::unwrapped_dyn_cast<PointerType>(Ptr.getType());
   if (not PtrType)
     return false;
 
   mlir::Type SrcType = Value.getType();
   mlir::Type DstType = PtrType.getPointeeType();
 
-  if (not isObjectType(DstType) or isArrayType(DstType)) {
+  mlir::Type T = unwrapTypedefs(DstType);
+  if (not mlir::isa<ObjectType>(T) or mlir::isa<ArrayType>(T))
     return false;
-  }
 
   return SrcType != DstType
          and getObjectSize(SrcType) == getObjectSizeOrZero(DstType);
@@ -89,11 +89,10 @@ struct DivModPair {
 
 static DivModPair ptrOffsetDivMod(mlir::IntegerAttr OffsetAttr,
                                   mlir::Value PointerOperand) {
-  auto PointerType = clift::getPointerType(PointerOperand.getType());
-  revng_assert(PointerType);
+  auto PtrType = clift::unwrapped_cast<PointerType>(PointerOperand.getType());
 
   uint64_t Offset = OffsetAttr.getValue().getZExtValue();
-  uint64_t Size = getObjectSizeOrZero(PointerType.getPointeeType());
+  uint64_t Size = getObjectSizeOrZero(PtrType.getPointeeType());
 
   if (Size == 0) {
     return {

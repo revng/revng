@@ -11,26 +11,21 @@ using namespace clift;
 namespace {
 
 static clift::PointerType getPointerOperationType(mlir::Operation *Op) {
-  auto GetPointerTypeChecked = [&](mlir::Type Type) {
-    auto PointerType = getPointerType(Type);
-    revng_assert(PointerType);
-    return PointerType;
-  };
-
   if (mlir::isa<PtrAddOp, PtrSubOp, AddressofOp>(Op))
-    return GetPointerTypeChecked(Op->getResult(0).getType());
+    return clift::unwrapped_cast<PointerType>(Op->getResult(0).getType());
 
   if (mlir::isa<PtrDiffOp, IndirectionOp, SubscriptOp>(Op))
-    return GetPointerTypeChecked(Op->getOperand(0).getType());
+    return clift::unwrapped_cast<PointerType>(Op->getOperand(0).getType());
 
   if (auto A = mlir::dyn_cast<AccessOp>(Op); A and A.isIndirect())
-    return GetPointerTypeChecked(A.getValue().getType());
+    return clift::unwrapped_cast<PointerType>(A.getValue().getType());
 
   if (auto C = mlir::dyn_cast<DecayOp>(Op))
-    return GetPointerTypeChecked(C.getResult().getType());
+    return clift::unwrapped_cast<PointerType>(C.getResult().getType());
 
   if (auto C = mlir::dyn_cast<CallOp>(Op)) {
-    if (auto T = getPointerType(C.getFunction().getType()))
+    if (auto T = clift::unwrapped_dyn_cast<PointerType>(C.getFunction()
+                                                          .getType()))
       return T;
   }
 

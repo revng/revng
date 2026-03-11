@@ -30,7 +30,7 @@ def Clift_AnyValueType
          "mlir::Type">;
 
 def Clift_AnyObjectType
-  : Type<CPred<"mlir::clift::isObjectType($_self)">,
+  : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::ObjectType>($_self)">,
          "Clift object type",
          "mlir::Type">;
 
@@ -50,17 +50,17 @@ def Clift_AnyIntegerType
          "mlir::Type">;
 
 def Clift_AnyPrimitiveIntegerType
-  : Type<CPred<"mlir::clift::isPrimitiveIntegerType($_self)">,
+  : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::IntegerType>($_self)">,
          "primitive Clift integer type",
          "mlir::Type">;
 
 def Clift_AnyPointerType
-  : Type<CPred<"mlir::clift::isPointerType($_self)">,
+  : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::PointerType>($_self)">,
          "Clift pointer type",
          "mlir::Type">;
 
 def Clift_AnyFunctionType
-  : Type<CPred<"mlir::clift::isFunctionType($_self)">,
+  : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::FunctionType>($_self)">,
          "Clift function type",
          "mlir::Type">;
 
