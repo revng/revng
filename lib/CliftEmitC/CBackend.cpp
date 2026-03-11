@@ -115,6 +115,16 @@ public:
     rc_return;
   }
 
+  static bool isNullPointerConstant(ImmediateOp E) {
+    if (E.getValue() != 0)
+      return false;
+
+    if (auto Cast = getOnlyUser<BitCastOp>(E))
+      return clift::unwrapped_isa<PointerType>(Cast.getResult().getType());
+
+    return false;
+  }
+
   RecursiveCoroutine<void> emitImmediateExpression(mlir::Value V) {
     auto E = V.getDefiningOp<ImmediateOp>();
 
@@ -123,6 +133,11 @@ public:
       Radix = mlir::cast<mlir::IntegerAttr>(Attr).getValue().getZExtValue();
 
     emitIntegerImmediate(E.getValue(), E.getResult().getType(), Radix);
+    rc_return;
+  }
+
+  RecursiveCoroutine<void> emitNullPointerConstant(mlir::Value V) {
+    Tokens.emitLiteralIdentifier("NULL");
     rc_return;
   }
 
@@ -513,7 +528,14 @@ public:
       };
     }
 
-    if (mlir::isa<ImmediateOp>(E)) {
+    if (auto Immediate = mlir::dyn_cast<ImmediateOp>(E.getOperation())) {
+      if (isNullPointerConstant(Immediate)) {
+        return {
+          .Precedence = OperatorPrecedence::Primary,
+          .Emit = &CliftToCEmitter::emitNullPointerConstant,
+        };
+      }
+
       return {
         .Precedence = OperatorPrecedence::Primary,
         .Emit = &CliftToCEmitter::emitImmediateExpression,
