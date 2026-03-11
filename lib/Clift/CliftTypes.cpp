@@ -143,10 +143,6 @@ bool VoidType::getAlias(llvm::raw_ostream &OS) const {
   return true;
 }
 
-uint64_t VoidType::getByteSize() const {
-  return 0;
-}
-
 ValueType VoidType::addConst() const {
   if (isConst())
     return *this;
@@ -198,6 +194,10 @@ bool IntegerType::getAlias(llvm::raw_ostream &OS) const {
 
   OS << getIntegerKindAlias(getKind()) << getSize() * 8 << "_t";
   return true;
+}
+
+uint64_t IntegerType::getObjectSize() const {
+  return getSize();
 }
 
 ValueType IntegerType::addConst() const {
@@ -259,6 +259,10 @@ bool FloatType::getAlias(llvm::raw_ostream &OS) const {
   return true;
 }
 
+uint64_t FloatType::getObjectSize() const {
+  return getSize();
+}
+
 ValueType FloatType::addConst() const {
   if (isConst())
     return *this;
@@ -307,7 +311,7 @@ mlir::LogicalResult PointerType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-uint64_t PointerType::getByteSize() const {
+uint64_t PointerType::getObjectSize() const {
   return getPointerSize();
 }
 
@@ -368,8 +372,8 @@ mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
-uint64_t ArrayType::getByteSize() const {
-  return getElementsCount() * getObjectSize(getElementType());
+uint64_t ArrayType::getObjectSize() const {
+  return getElementsCount() * clift::getObjectSize(getElementType());
 }
 
 bool ArrayType::isConst() const {
@@ -424,8 +428,8 @@ bool EnumType::getAlias(llvm::raw_ostream &OS) const {
   return getDefinedTypeAlias(*this, OS);
 }
 
-uint64_t EnumType::getByteSize() const {
-  return getObjectSize(getUnderlyingType());
+uint64_t EnumType::getObjectSize() const {
+  return clift::getObjectSize(getUnderlyingType());
 }
 
 clift::ValueType EnumType::addConst() const {
@@ -587,10 +591,6 @@ bool TypedefType::getAlias(llvm::raw_ostream &OS) const {
   return getDefinedTypeAlias(*this, OS);
 }
 
-uint64_t TypedefType::getByteSize() const {
-  return getObjectSize(getUnderlyingType());
-}
-
 clift::ValueType TypedefType::addConst() const {
   return Base::get(getContext(), getDefinition(), /*IsConst=*/true);
 }
@@ -701,10 +701,6 @@ FunctionType::verify(EmitErrorType EmitError,
 
 bool FunctionType::getAlias(llvm::raw_ostream &OS) const {
   return getDefinedTypeAlias(*this, OS);
-}
-
-uint64_t FunctionType::getByteSize() const {
-  return 0;
 }
 
 bool FunctionType::isConst() const {
@@ -1525,12 +1521,12 @@ bool clift::equivalent(mlir::Type Lhs, mlir::Type Rhs) {
 //===-------------------------- Object type size --------------------------===//
 
 uint64_t clift::getObjectSize(mlir::Type Type) {
-  return mlir::cast<clift::ValueType>(unwrapTypedefs(Type)).getByteSize();
+  return mlir::cast<ObjectType>(unwrapTypedefs(Type)).getObjectSize();
 }
 
 uint64_t clift::getObjectSizeOrZero(mlir::Type Type) {
-  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(unwrapTypedefs(Type)))
-    return ValueT.getByteSize();
+  if (auto ValueT = mlir::dyn_cast<ObjectType>(unwrapTypedefs(Type)))
+    return ValueT.getObjectSize();
 
   return 0;
 }

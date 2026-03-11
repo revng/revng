@@ -5,7 +5,7 @@
 #ifndef MLIR_CLIFT_TYPE_INTERFACES_PRIMITIVE
 #define MLIR_CLIFT_TYPE_INTERFACES_PRIMITIVE
 
-include "revng/Clift/CliftTypeInterfacesBasic.td"
+include "revng/Clift/CliftTypeInterfacesObject.td"
 
 def Clift_PrimitiveType
   : Clift_TypeInterface<"PrimitiveType",

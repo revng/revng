@@ -5,9 +5,11 @@
 #ifndef MLIR_CLIFT_TYPE_INTERFACES_CLASS
 #define MLIR_CLIFT_TYPE_INTERFACES_CLASS
 
+include "revng/Clift/CliftTypeInterfacesObject.td"
 include "revng/Clift/CliftTypeInterfacesDefined.td"
 
-def Clift_ClassType : Clift_TypeInterface<"ClassType", [Clift_DefinedType]> {
+def Clift_ClassType : Clift_TypeInterface<"ClassType", [Clift_ObjectType,
+                                                        Clift_DefinedType]> {
   let methods = [
     InterfaceMethod<
       "Returns true if the type is not incomplete.",

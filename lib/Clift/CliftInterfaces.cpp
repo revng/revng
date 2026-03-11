@@ -10,6 +10,8 @@
 //
 #include "revng/Clift/CliftTypeInterfacesBasic.cpp.inc"
 //
+#include "revng/Clift/CliftTypeInterfacesObject.cpp.inc"
+//
 #include "revng/Clift/CliftTypeInterfacesDefined.cpp.inc"
 //
 #include "revng/Clift/CliftTypeInterfacesClass.cpp.inc"

@@ -34,14 +34,6 @@ def Clift_ValueType : Clift_TypeInterface<"ValueType"> {
 
   let methods = [
     InterfaceMethod<
-      "returns the size of the type.",
-      "uint64_t", "getByteSize", (ins),
-      /*methodBody=*/[{}],
-      /*defaultImplemetation=*/[{
-        return $_type.getSize();
-      }]
-    >,
-    InterfaceMethod<
       "the constness of the type",
       "bool", "isConst", (ins),
       /*methodBody=*/[{}],

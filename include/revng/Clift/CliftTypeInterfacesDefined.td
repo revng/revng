@@ -7,9 +7,8 @@
 
 include "revng/Clift/CliftTypeInterfacesBasic.td"
 
-def Clift_DefinedType
-  : Clift_TypeInterface<"DefinedType",
-                        [Clift_AliasableType, Clift_ValueType]> {
+def Clift_DefinedType : Clift_TypeInterface<"DefinedType",
+                                            [Clift_AliasableType]> {
 
   let description = [{
     A value type is a type with a ID and Name
