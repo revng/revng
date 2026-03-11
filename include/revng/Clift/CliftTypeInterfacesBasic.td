@@ -14,7 +14,7 @@ class Clift_TypeInterface<string name, list<Interface> baseInterfaces = []>
 
 def Clift_AliasableType : Clift_TypeInterface<"AliasableType"> {
   let description = [{
-    A Aliasable type is a type with a size and a constness
+    Internal implementation detail only used for emission of assembly aliases.
   }];
 
   let methods = [
