@@ -1,9 +1,7 @@
-/// Tests for the Clift Dialect
-
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
-//
+
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftOpInterfaces.h"
 
