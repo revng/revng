@@ -1345,6 +1345,8 @@ void clift::writeUnionDefinition(clift::UnionType Type,
 
 //===---------------------------- Type helpers ----------------------------===//
 
+//===------------------------------ Typedefs ------------------------------===//
+
 TypedefDecomposition clift::decomposeTypedef(ValueType Type) {
   bool HasConstTypedef = false;
 
@@ -1367,6 +1369,22 @@ ValueType clift::dealias(ValueType Type, bool IgnoreQualifiers) {
     UnderlyingType = UnderlyingType.addConst();
 
   return UnderlyingType;
+}
+
+//===---------------------------- CV-Qualifiers ---------------------------===//
+
+bool clift::isConst(mlir::Type Type) {
+  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(Type))
+    return ValueT.isConst();
+
+  return false;
+}
+
+mlir::Type clift::addConst(mlir::Type Type) {
+  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(Type))
+    Type = ValueT.addConst();
+
+  return Type;
 }
 
 mlir::Type clift::removeConst(mlir::Type Type) {
@@ -1393,6 +1411,23 @@ bool clift::equivalent(mlir::Type Lhs, mlir::Type Rhs) {
 
   return LhsVT.removeConst() == RhsVT.removeConst();
 }
+
+//===-------------------------- Object type size --------------------------===//
+
+uint64_t clift::getObjectSize(mlir::Type Type) {
+  Type = dealias(Type, /*IgnoreQualifiers=*/true);
+  return mlir::cast<clift::ValueType>(Type).getByteSize();
+}
+
+uint64_t clift::getObjectSizeOrZero(mlir::Type Type) {
+  Type = dealias(Type, /*IgnoreQualifiers=*/true);
+  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(Type))
+    return ValueT.getByteSize();
+
+  return 0;
+}
+
+//===--------------------------- Type categories --------------------------===//
 
 bool clift::isModifiableType(ValueType Type) {
   auto &&[UnderlyingType, HasConst] = decomposeTypedef(Type);

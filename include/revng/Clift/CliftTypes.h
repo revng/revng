@@ -38,19 +38,47 @@ TypedefDecomposition decomposeTypedef(ValueType Type);
 /// to the returned type. Otherwise such qualifiers are ignored.
 ValueType dealias(ValueType Type, bool IgnoreQualifiers = false);
 
+//===---------------------------- CV-Qualifiers ---------------------------===//
+
+/// Determine if the type is top-level const qualified.
+[[nodiscard]] bool isConst(mlir::Type Type);
+
+/// Add top-level qualification to the given type, if it is a ValueType.
+/// Otherwise returns the type unchanged.
+[[nodiscard]] mlir::Type addConst(mlir::Type Type);
+
+/// Add top-level qualification to the given type, if it is a ValueType.
+/// Otherwise returns the type unchanged.
+template<typename TypeT>
+[[nodiscard]] TypeT addConst(TypeT Type) {
+  return mlir::cast<TypeT>(addConst(mlir::Type(Type)));
+}
+
 /// Remove top-level qualification from the given type, if it is a Clift value
 /// type. Otherwise returns the type unchanged.
-mlir::Type removeConst(mlir::Type Type);
+[[nodiscard]] mlir::Type removeConst(mlir::Type Type);
 
 /// Remove top-level qualification from the given type, if it is a Clift value
 /// type. Otherwise returns the type unchanged.
 template<typename TypeT>
-TypeT removeConst(TypeT Type) {
-  return mlir::cast<TypeT>(removeConst(static_cast<mlir::Type>(Type)));
+[[nodiscard]] TypeT removeConst(TypeT Type) {
+  return mlir::cast<TypeT>(removeConst(mlir::Type(Type)));
 }
 
 /// Determine if the two types are equivalent, ignoring Clift qualifiers.
-bool equivalent(mlir::Type Lhs, mlir::Type Rhs);
+[[nodiscard]] bool equivalent(mlir::Type Lhs, mlir::Type Rhs);
+
+//===-------------------------- Object type size --------------------------===//
+
+/// Returns the size of the given type, assuming it is an ObjectType (after
+/// unwrapping typedefs).
+[[nodiscard]] uint64_t getObjectSize(mlir::Type Type);
+
+/// Returns the size of the given type, if it is an ObjectType (after unwrapping
+/// typedefs). Otherwise returns zero.
+[[nodiscard]] uint64_t getObjectSizeOrZero(mlir::Type Type);
+
+//===--------------------------- Type categories --------------------------===//
 
 /// Determine if the type is non-const. This is different from
 /// `not Type.isConst()` in that the latter returns false for a typedef naming
