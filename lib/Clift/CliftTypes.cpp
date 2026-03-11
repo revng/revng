@@ -1431,14 +1431,11 @@ PrimitiveType clift::getUnderlyingIntegerType(ValueType Type) {
 bool clift::isCompleteType(ValueType Type) {
   Type = dealias(Type, /*IgnoreQualifiers=*/true);
 
-  if (auto D = mlir::dyn_cast<StructType>(Type))
-    return D.isComplete();
+  while (auto Array = mlir::dyn_cast<ArrayType>(Type))
+    Type = dealias(Array.getElementType(), /*IgnoreQualifiers=*/true);
 
-  if (auto D = mlir::dyn_cast<UnionType>(Type))
-    return D.isComplete();
-
-  if (auto T = mlir::dyn_cast<ArrayType>(Type))
-    return isCompleteType(T.getElementType());
+  if (auto Class = mlir::dyn_cast<ClassType>(Type))
+    return Class.isComplete();
 
   return true;
 }
