@@ -145,7 +145,7 @@ def Clift_FunctionOp : Clift_Op<"func",
     }
 
     FunctionType getFunctionType() {
-      return mlir::cast<FunctionType>(unwrapTypedefs(getType()));
+      return clift::unwrapped_cast<FunctionType>(getType());
     }
 
 

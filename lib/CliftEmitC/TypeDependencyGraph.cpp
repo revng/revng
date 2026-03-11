@@ -248,10 +248,9 @@ void Builder<Mode>::addDependenciesFrom(const AssociatedNodes Dependent,
   // also depends on the full definition of the depended-on, across typedefs.
   if (ForwardDeclaration
       and mlir::isa<clift::TypedefType>(DefinitionDependedOn)) {
-    auto Underlying = unwrapTypedefs(DefinitionDependedOn);
-    if (auto Defined = mlir::dyn_cast<clift::DefinedType>(Underlying)) {
-      if (clift::isSeparateDeclarationAllowed(Defined)) {
-        auto TransitivelyDependedOn = Graph->TypeToNodes.at(Defined);
+    if (auto D = clift::unwrapped_dyn_cast<DefinedType>(DefinitionDependedOn)) {
+      if (clift::isSeparateDeclarationAllowed(D)) {
+        auto TransitivelyDependedOn = Graph->TypeToNodes.at(D);
         revng_assert(TransitivelyDependedOn.Definition);
         addAndLogSuccessor(DependentNode, TransitivelyDependedOn.Definition);
       }

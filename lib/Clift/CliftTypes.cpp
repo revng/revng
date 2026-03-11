@@ -1523,11 +1523,11 @@ bool clift::equivalent(mlir::Type Lhs, mlir::Type Rhs) {
 //===-------------------------- Object type size --------------------------===//
 
 uint64_t clift::getObjectSize(mlir::Type Type) {
-  return mlir::cast<ObjectType>(unwrapTypedefs(Type)).getObjectSize();
+  return clift::unwrapped_cast<ObjectType>(Type).getObjectSize();
 }
 
 uint64_t clift::getObjectSizeOrZero(mlir::Type Type) {
-  if (auto ValueT = mlir::dyn_cast<ObjectType>(unwrapTypedefs(Type)))
+  if (auto ValueT = clift::unwrapped_dyn_cast<ObjectType>(Type))
     return ValueT.getObjectSize();
 
   return 0;
@@ -1565,12 +1565,14 @@ bool clift::isCompleteType(mlir::Type Type) {
 }
 
 bool clift::isScalarType(mlir::Type Type) {
-  Type = unwrapTypedefs(Type);
-  return mlir::isa<IntegerType, FloatType, EnumType, PointerType>(Type);
+  return clift::unwrapped_isa<IntegerType, //
+                              FloatType,
+                              EnumType,
+                              PointerType>(Type);
 }
 
 bool clift::isIntegerType(mlir::Type Type) {
-  return mlir::isa<IntegerType, EnumType>(unwrapTypedefs(Type));
+  return clift::unwrapped_isa<IntegerType, EnumType>(Type);
 }
 
 bool clift::isBooleanType(mlir::Type Type) {

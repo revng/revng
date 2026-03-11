@@ -105,13 +105,12 @@ mlir::Type deriveBaseType(mlir::Value BasePointer) {
 
   auto BasePtrType = unwrapped_cast<PointerType>(BasePointer.getType());
   auto PointeeType = BasePtrType.getPointeeType();
-  auto UnderlyingType = unwrapTypedefs(PointeeType);
 
   // If the pointee is a struct, union, or array, use it directly — the
   // traversal analyzer can walk its fields and arrays.
   // Wrapping also a `struct`, would mean rewriting a constant offset access
   // into it as `p[0].field` instead of `p->field`.
-  if (mlir::isa<StructType, UnionType, ArrayType>(UnderlyingType)) {
+  if (unwrapped_isa<StructType, UnionType, ArrayType>(PointeeType)) {
     return PointeeType;
   }
 

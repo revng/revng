@@ -95,7 +95,7 @@ private:
   }
 
   bool isPotentiallyPromotingType(mlir::Type Type) {
-    if (auto IntType = mlir::dyn_cast<IntegerType>(unwrapTypedefs(Type))) {
+    if (auto IntType = clift::unwrapped_dyn_cast<IntegerType>(Type)) {
       auto Integer = Target.getIntegerKind(IntType.getSize());
       return not Integer or *Integer < CIntegerKind::Int;
     }
@@ -103,7 +103,7 @@ private:
   }
 
   bool isCanonicalBooleanType(mlir::Type Type) {
-    if (auto IntType = mlir::dyn_cast<IntegerType>(unwrapTypedefs(Type)))
+    if (auto IntType = clift::unwrapped_dyn_cast<IntegerType>(Type))
       return Target.getIntegerKind(IntType.getSize()) == CIntegerKind::Int;
     return false;
   }

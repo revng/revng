@@ -1178,8 +1178,8 @@ mlir::parseCliftPointerArithmeticOpTypes(mlir::OpAsmParser &Parser,
   if (Parser.parseType(Rhs).failed())
     return mlir::failure();
 
-  auto LhsPT = mlir::dyn_cast<PointerType>(unwrapTypedefs(Lhs));
-  auto RhsPT = mlir::dyn_cast<PointerType>(unwrapTypedefs(Rhs));
+  auto LhsPT = clift::unwrapped_dyn_cast<PointerType>(Lhs);
+  auto RhsPT = clift::unwrapped_dyn_cast<PointerType>(Rhs);
 
   if (static_cast<bool>(LhsPT) == static_cast<bool>(RhsPT))
     return Parser.emitError(TypesLoc, "Expected exactly one pointer type.");
@@ -1258,8 +1258,8 @@ mlir::LogicalResult PtrSubOp::verify() {
 //===------------------------------ PtrDiffOp -----------------------------===//
 
 mlir::LogicalResult PtrDiffOp::verify() {
-  auto LhsPT = mlir::dyn_cast<PointerType>(unwrapTypedefs(getLhs().getType()));
-  auto RhsPT = mlir::dyn_cast<PointerType>(unwrapTypedefs(getRhs().getType()));
+  auto LhsPT = clift::unwrapped_dyn_cast<PointerType>(getLhs().getType());
+  auto RhsPT = clift::unwrapped_dyn_cast<PointerType>(getRhs().getType());
 
   if (not LhsPT or not RhsPT)
     return emitOpError() << getOperationName()
@@ -1289,9 +1289,8 @@ mlir::LogicalResult PtrDiffOp::verify() {
 
 mlir::LogicalResult DecayOp::verify() {
   auto ArgT = collapseTypedefs(getValue().getType());
-  auto ResT = unwrapTypedefs(getResult().getType());
 
-  auto PtrT = mlir::dyn_cast<PointerType>(ResT);
+  auto PtrT = clift::unwrapped_dyn_cast<PointerType>(getResult().getType());
   if (not PtrT)
     return emitOpError() << getOperationName()
                          << " result must have pointer type.";

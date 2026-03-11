@@ -271,7 +271,7 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
       // `CurrentValue` is not a `ptr<T>` of `ArrayType` (we virtually wrap it
       // ourselves), so the `indirection` and `cast<decay>` is not needed.
       if (auto P = unwrapped_dyn_cast<PointerType>(CurrentValue.getType());
-          P and not mlir::isa<ArrayType>(unwrapTypedefs(P.getPointeeType()))) {
+          P and not unwrapped_isa<ArrayType>(P.getPointeeType())) {
         ArrayElementType = P.getPointeeType();
       } else {
         // Standard path emitting `indirection` and `cast<decay>` as needed
