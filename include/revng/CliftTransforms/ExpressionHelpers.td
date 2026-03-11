@@ -18,7 +18,7 @@ def TypesAreNotEquivalent
   : Constraint<CPred<[{ not clift::equivalent($0.getType(), $1.getType()) }]>>;
 
 def getPointeeType : NativeCodeCall<[{
-  mlir::cast<clift::PointerType>(mlir::clift::dealias($0.getType(), /*IgnoreQualifiers=*/true)).getPointeeType()
+  mlir::cast<clift::PointerType>(mlir::clift::unwrapTypedefs($0.getType())).getPointeeType()
 }]>;
 
 def makeInteger : NativeCodeCall<[{

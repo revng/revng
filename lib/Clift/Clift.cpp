@@ -1179,8 +1179,8 @@ mlir::parseCliftPointerArithmeticOpTypes(mlir::OpAsmParser &Parser,
   if (Parser.parseType(Rhs).failed())
     return mlir::failure();
 
-  auto LhsPT = mlir::dyn_cast<PointerType>(dealias(Lhs, true));
-  auto RhsPT = mlir::dyn_cast<PointerType>(dealias(Rhs, true));
+  auto LhsPT = mlir::dyn_cast<PointerType>(unwrapTypedefs(Lhs));
+  auto RhsPT = mlir::dyn_cast<PointerType>(unwrapTypedefs(Rhs));
 
   if (static_cast<bool>(LhsPT) == static_cast<bool>(RhsPT))
     return Parser.emitError(TypesLoc, "Expected exactly one pointer type.");
@@ -1204,16 +1204,16 @@ static mlir::LogicalResult verifyPointerArithmeticOp(mlir::Operation *Op) {
   auto LhsT = mlir::cast<clift::ValueType>(Op->getOperand(0).getType());
   auto RhsT = mlir::cast<clift::ValueType>(Op->getOperand(1).getType());
 
-  auto LhsPT = mlir::dyn_cast<PointerType>(dealias(LhsT, true));
-  auto RhsPT = mlir::dyn_cast<PointerType>(dealias(RhsT, true));
+  auto LhsPT = mlir::dyn_cast<PointerType>(unwrapTypedefs(LhsT));
+  auto RhsPT = mlir::dyn_cast<PointerType>(unwrapTypedefs(RhsT));
 
   if (static_cast<bool>(LhsPT) == static_cast<bool>(RhsPT))
     return Op->emitOpError() << "requires exactly one pointer operand.";
 
   auto PointerType = LhsPT ? LhsPT : RhsPT;
-  auto IntegerType = mlir::dyn_cast<clift::IntegerType>(dealias(LhsPT ? RhsT :
-                                                                        LhsT,
-                                                                true));
+  auto IntegerType = mlir::dyn_cast<clift::IntegerType>(unwrapTypedefs(LhsPT ?
+                                                                         RhsT :
+                                                                         LhsT));
 
   if (not IntegerType)
     return Op->emitOpError() << "requires an integer operand.";
@@ -1261,8 +1261,8 @@ mlir::LogicalResult PtrSubOp::verify() {
 //===------------------------------ PtrDiffOp -----------------------------===//
 
 mlir::LogicalResult PtrDiffOp::verify() {
-  auto LhsPT = mlir::dyn_cast<PointerType>(dealias(getLhs().getType(), true));
-  auto RhsPT = mlir::dyn_cast<PointerType>(dealias(getRhs().getType(), true));
+  auto LhsPT = mlir::dyn_cast<PointerType>(unwrapTypedefs(getLhs().getType()));
+  auto RhsPT = mlir::dyn_cast<PointerType>(unwrapTypedefs(getRhs().getType()));
 
   if (not LhsPT or not RhsPT)
     return emitOpError() << getOperationName()
@@ -1291,8 +1291,8 @@ mlir::LogicalResult PtrDiffOp::verify() {
 //===------------------------------- DecayOp ------------------------------===//
 
 mlir::LogicalResult DecayOp::verify() {
-  auto ArgT = dealias(getValue().getType());
-  auto ResT = dealias(getResult().getType(), /*IgnoreQualifiers=*/true);
+  auto ArgT = collapseTypedefs(getValue().getType());
+  auto ResT = unwrapTypedefs(getResult().getType());
 
   auto PtrT = mlir::dyn_cast<PointerType>(ResT);
   if (not PtrT)
@@ -1321,8 +1321,8 @@ mlir::LogicalResult DecayOp::verify() {
 //===------------------------------ BitCastOp -----------------------------===//
 
 mlir::LogicalResult BitCastOp::verify() {
-  auto ResT = dealias(getResult().getType(), /*IgnoreQualifiers=*/true);
-  auto ArgT = dealias(getValue().getType(), /*IgnoreQualifiers=*/true);
+  auto ResT = unwrapTypedefs(getResult().getType());
+  auto ArgT = unwrapTypedefs(getValue().getType());
 
   if (not isObjectType(ResT) or mlir::isa<ArrayType>(ResT))
     return emitOpError() << " result must have non-array object type.";
@@ -1366,8 +1366,8 @@ mlir::LogicalResult TruncateOp::verify() {
 //===----------------------------- PtrResizeOp ----------------------------===//
 
 mlir::LogicalResult PtrResizeOp::verify() {
-  auto ResT = dealias(getResult().getType(), /*IgnoreQualifiers=*/true);
-  auto ArgT = dealias(getValue().getType(), /*IgnoreQualifiers=*/true);
+  auto ResT = unwrapTypedefs(getResult().getType());
+  auto ArgT = unwrapTypedefs(getValue().getType());
 
   auto ResPtrT = mlir::cast<PointerType>(ResT);
   auto ArgPtrT = mlir::cast<PointerType>(ArgT);
@@ -1406,8 +1406,7 @@ mlir::LogicalResult IndirectionOp::verify() {
 //===------------------------------ AssignOp ------------------------------===//
 
 mlir::LogicalResult AssignOp::verify() {
-  clift::ValueType Type = dealias(getLhs().getType(),
-                                  /*IgnoreQualifiers=*/true);
+  clift::ValueType Type = unwrapTypedefs(getLhs().getType());
 
   if (not isObjectType(Type) or mlir::isa<ArrayType>(Type))
     return emitOpError() << getOperationName()
@@ -1427,11 +1426,11 @@ bool AccessOp::isLvalueExpression() {
 }
 
 ClassType AccessOp::getClassType() {
-  auto ObjectT = dealias(getValue().getType(), /*IgnoreQualifiers=*/true);
+  auto ObjectT = unwrapTypedefs(getValue().getType());
 
   if (isIndirect()) {
     ObjectT = mlir::cast<PointerType>(ObjectT).getPointeeType();
-    ObjectT = dealias(ObjectT, /*IgnoreQualifiers=*/true);
+    ObjectT = unwrapTypedefs(ObjectT);
   }
 
   return mlir::cast<ClassType>(ObjectT.removeConst());
@@ -1442,14 +1441,14 @@ FieldAttr AccessOp::getFieldAttr() {
 }
 
 mlir::LogicalResult AccessOp::verify() {
-  auto ObjectT = dealias(getValue().getType());
+  auto ObjectT = collapseTypedefs(getValue().getType());
 
   if (auto PointerT = mlir::dyn_cast<PointerType>(ObjectT)) {
     if (not isIndirect())
       return emitOpError() << getOperationName()
                            << " operand must have pointer type.";
 
-    ObjectT = dealias(PointerT.getPointeeType(), /*IgnoreQualifiers=*/true);
+    ObjectT = unwrapTypedefs(PointerT.getPointeeType());
   }
 
   auto Class = mlir::dyn_cast<ClassType>(ObjectT);
@@ -1762,7 +1761,7 @@ void mlir::printCliftTernaryOpTypes(mlir::OpAsmPrinter &Printer,
 //===----------------------------- AggregateOp ----------------------------===//
 
 static auto makeAggregateArgumentTypeAccessor(clift::ValueType Type) {
-  auto UnderlyingType = dealias(Type, /*IgnoreQualifiers=*/true);
+  auto UnderlyingType = unwrapTypedefs(Type);
   return [UnderlyingType](unsigned I) -> clift::ValueType {
     if (auto Array = mlir::dyn_cast<ArrayType>(UnderlyingType))
       return Array.getElementType();
@@ -1819,7 +1818,7 @@ void AggregateOp::print(mlir::OpAsmPrinter &Printer) {
 
 mlir::LogicalResult AggregateOp::verify() {
   auto InitializerTypes = getInitializers().getTypes();
-  auto AT = dealias(getResult().getType(), /*IgnoreQualifiers=*/true);
+  auto AT = unwrapTypedefs(getResult().getType());
 
   if (auto T = mlir::dyn_cast<StructType>(AT)) {
     auto Fields = T.getFields();

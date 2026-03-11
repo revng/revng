@@ -66,7 +66,7 @@ public:
 
   void
   emitIntegerImmediate(uint64_t Value, ValueType Type, unsigned Radix = 10) {
-    Type = dealias(Type, /*IgnoreQualifiers=*/true);
+    Type = unwrapTypedefs(Type);
 
     if (auto Enum = mlir::dyn_cast<EnumType>(Type)) {
       if (auto Enumerator = Enum.getFieldByValue(Value)) {
@@ -298,7 +298,7 @@ public:
 
   static bool requiresExplicitBitCast(BitCastOp Op) {
     auto IsCastableType = [](ValueType T) {
-      T = dealias(T, /*IgnoreQualifiers=*/true);
+      T = unwrapTypedefs(T);
 
       return mlir::isa<IntegerType, EnumType, PointerType>(T);
     };

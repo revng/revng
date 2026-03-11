@@ -23,6 +23,8 @@
 
 namespace mlir::clift {
 
+//===------------------------------ Typedefs ------------------------------===//
+
 struct TypedefDecomposition {
   ValueType Type;
   bool HasConstTypedef;
@@ -31,12 +33,15 @@ struct TypedefDecomposition {
 /// Recursively decomposes a typedef into its underlying non-typedef type and a
 /// boolean indicating whether any of the typedefs added const. Note that the
 /// underlying type itself may also be const while the boolean may be false.
-TypedefDecomposition decomposeTypedef(ValueType Type);
+[[nodiscard]] TypedefDecomposition decomposeTypedef(ValueType Type);
 
-/// Recursively remove typedefs and return the underlying type. If
-/// @p IgnoreQualifiers is true, any qualifiers added by a typedef are applied
-/// to the returned type. Otherwise such qualifiers are ignored.
-ValueType dealias(ValueType Type, bool IgnoreQualifiers = false);
+/// Recursively unwraps typedefs and returns the underlying non-typedef type
+/// unchanged.
+[[nodiscard]] ValueType unwrapTypedefs(ValueType Type);
+
+/// Recursively unwraps typedefs and returns the underlying non-typedef type,
+/// with any qualifiers from wrapping typedefs added onto the resulting type.
+[[nodiscard]] ValueType collapseTypedefs(ValueType Type);
 
 //===---------------------------- CV-Qualifiers ---------------------------===//
 

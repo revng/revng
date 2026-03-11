@@ -79,7 +79,7 @@ public:
   // Visit a field type of a class type attribute.
   // RootType is the root class type attribute and is used to detect recursion.
   mlir::LogicalResult visitFieldType(ValueType FieldType, ClassType RootType) {
-    FieldType = dealias(FieldType, /*IgnoreQualifiers=*/true);
+    FieldType = unwrapTypedefs(FieldType);
 
     if (auto T = mlir::dyn_cast<ClassType>(FieldType)) {
       if (equivalent(T, RootType))
@@ -123,7 +123,7 @@ public:
   }
 
   mlir::LogicalResult visitValueType(ValueType Type) {
-    Type = dealias(Type, /*IgnoreQualifiers=*/true);
+    Type = unwrapTypedefs(Type);
 
     if (not isCompleteType(Type))
       return getCurrentOp()->emitError() << "Clift ModuleOp contains an "

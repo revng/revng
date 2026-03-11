@@ -740,8 +740,8 @@ private:
     if (SourceType == TargetType)
       return Value;
 
-    auto UnderlyingSourceT = dealias(SourceType, true);
-    auto UnderlyingTargetT = dealias(TargetType, true);
+    auto UnderlyingSourceT = unwrapTypedefs(SourceType);
+    auto UnderlyingTargetT = unwrapTypedefs(TargetType);
 
     if (UnderlyingSourceT.getByteSize() != UnderlyingTargetT.getByteSize())
       return Value;

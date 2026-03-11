@@ -31,7 +31,7 @@ static bool areAllBitsSet(llvm::APInt Value, mlir::Type Type) {
 static uint64_t truncateIntegerValue(mlir::IntegerAttr ValueAttr,
                                      mlir::Value IntegerOperand) {
   auto ValueType = mlir::cast<clift::ValueType>(IntegerOperand.getType());
-  auto T = mlir::cast<IntegerType>(dealias(ValueType, true));
+  auto T = mlir::cast<IntegerType>(unwrapTypedefs(ValueType));
 
   uint64_t Value = ValueAttr.getValue().getZExtValue();
   return Value & (static_cast<uint64_t>(-1) >> (64 - 8 * T.getSize()));

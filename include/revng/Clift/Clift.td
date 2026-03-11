@@ -145,8 +145,7 @@ def Clift_FunctionOp : Clift_Op<"func",
     }
 
     clift::FunctionType getFunctionType() {
-      return mlir::cast<clift::FunctionType>(dealias(getFunctionValueType(),
-                                                     /*IgnoreQualifiers=*/true));
+      return mlir::cast<clift::FunctionType>(unwrapTypedefs(getFunctionValueType()));
     }
 
 

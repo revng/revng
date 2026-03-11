@@ -23,9 +23,11 @@ static std::pair<CliftType, bool>
 getAccessedTypeInfo(mlir::Value CurrentValue) {
   if (isPointerType(CurrentValue.getType())) {
     auto PtrType = getPointerType(CurrentValue.getType());
-    return { mlir::cast<CliftType>(dealias(PtrType.getPointeeType())), true };
+    return { mlir::cast<CliftType>(collapseTypedefs(PtrType.getPointeeType())),
+             true };
   }
-  return { mlir::cast<CliftType>(dealias(CurrentValue.getType())), false };
+  return { mlir::cast<CliftType>(collapseTypedefs(CurrentValue.getType())),
+           false };
 }
 
 // =============================================================================
@@ -269,11 +271,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
       // We need to explicitly handle the `pointer as array` case, where
       // `CurrentValue` is not a `ptr<T>` of `ArrayType` (we virtually wrap it
       // ourselves), so the `indirection` and `cast<decay>` is not needed.
-      if (auto PtrType = getPointerType(CurrentValue.getType());
-          PtrType
-          and not mlir::isa<ArrayType>(dealias(PtrType.getPointeeType(),
-                                               /*IgnoreQualifiers=*/true))) {
-        ArrayElementType = PtrType.getPointeeType();
+      if (auto P = getPointerType(CurrentValue.getType());
+          P and not mlir::isa<ArrayType>(unwrapTypedefs(P.getPointeeType()))) {
+        ArrayElementType = P.getPointeeType();
       } else {
         // Standard path emitting `indirection` and `cast<decay>` as needed
         auto [ArrayType,

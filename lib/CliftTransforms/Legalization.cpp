@@ -262,8 +262,7 @@ struct BooleanCanonicalizationPattern
                   mlir::PatternRewriter &Rewriter) const override {
     mlir::Value Result = Op->getResult(0);
 
-    auto T = mlir::dyn_cast<clift::IntegerType>(clift::dealias(Result.getType(),
-                                                               true));
+    auto T = mlir::dyn_cast<IntegerType>(unwrapTypedefs(Result.getType()));
 
     if (T.getSize() == CanonicalBooleanType.getSize())
       return mlir::failure();

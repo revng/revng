@@ -106,7 +106,7 @@ mlir::Type deriveBaseType(mlir::Value BasePointer) {
   auto BasePtrType = getPointerType(BasePointer.getType());
   revng_assert(BasePtrType);
   auto PointeeType = BasePtrType.getPointeeType();
-  auto UnderlyingType = dealias(PointeeType, /*IgnoreQualifiers=*/true);
+  auto UnderlyingType = unwrapTypedefs(PointeeType);
 
   // If the pointee is a struct, union, or array, use it directly — the
   // traversal analyzer can walk its fields and arrays.
@@ -207,9 +207,8 @@ static uint64_t commonPrefixStrides(const llvm::ArrayRef<ArrayShape> &LHS,
 static uint64_t typeDistance(mlir::Type Explicit, mlir::Type Ideal) {
 
   // Unwrap any typedefs to compare the underlying types
-  Explicit = dealias(mlir::cast<ValueType>(Explicit),
-                     /*IgnoreQualifiers=*/true);
-  Ideal = dealias(mlir::cast<ValueType>(Ideal), /*IgnoreQualifiers=*/true);
+  Explicit = unwrapTypedefs(mlir::cast<ValueType>(Explicit));
+  Ideal = unwrapTypedefs(mlir::cast<ValueType>(Ideal));
 
   return Explicit == Ideal ? 0 : std::numeric_limits<uint64_t>::max();
 }

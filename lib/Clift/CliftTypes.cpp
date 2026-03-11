@@ -1480,10 +1480,14 @@ TypedefDecomposition clift::decomposeTypedef(ValueType Type) {
   return { Type, HasConstTypedef };
 }
 
-ValueType clift::dealias(ValueType Type, bool IgnoreQualifiers) {
-  auto &&[UnderlyingType, HasConstTypedef] = decomposeTypedef(Type);
+ValueType clift::unwrapTypedefs(ValueType Type) {
+  return decomposeTypedef(Type).Type;
+}
 
-  if (HasConstTypedef and not IgnoreQualifiers)
+ValueType clift::collapseTypedefs(ValueType Type) {
+  auto [UnderlyingType, HasConstTypedef] = decomposeTypedef(Type);
+
+  if (HasConstTypedef)
     UnderlyingType = UnderlyingType.addConst();
 
   return UnderlyingType;
@@ -1533,13 +1537,11 @@ bool clift::equivalent(mlir::Type Lhs, mlir::Type Rhs) {
 //===-------------------------- Object type size --------------------------===//
 
 uint64_t clift::getObjectSize(mlir::Type Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
-  return mlir::cast<clift::ValueType>(Type).getByteSize();
+  return mlir::cast<clift::ValueType>(unwrapTypedefs(Type)).getByteSize();
 }
 
 uint64_t clift::getObjectSizeOrZero(mlir::Type Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
-  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(Type))
+  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(unwrapTypedefs(Type)))
     return ValueT.getByteSize();
 
   return 0;
@@ -1553,22 +1555,22 @@ bool clift::isModifiableType(ValueType Type) {
 }
 
 IntegerType clift::getUnderlyingIntegerType(ValueType Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
+  Type = unwrapTypedefs(Type);
 
   if (auto T = mlir::dyn_cast<IntegerType>(Type))
     return T;
 
   if (auto T = mlir::dyn_cast<EnumType>(Type))
-    return mlir::cast<IntegerType>(dealias(T.getUnderlyingType()));
+    return mlir::cast<IntegerType>(collapseTypedefs(T.getUnderlyingType()));
 
   return nullptr;
 }
 
 bool clift::isCompleteType(ValueType Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
+  Type = unwrapTypedefs(Type);
 
   while (auto Array = mlir::dyn_cast<ArrayType>(Type))
-    Type = dealias(Array.getElementType(), /*IgnoreQualifiers=*/true);
+    Type = unwrapTypedefs(Array.getElementType());
 
   if (auto Class = mlir::dyn_cast<ClassType>(Type))
     return Class.isComplete();
@@ -1577,17 +1579,16 @@ bool clift::isCompleteType(ValueType Type) {
 }
 
 bool clift::isVoid(ValueType Type) {
-  return mlir::isa<VoidType>(dealias(Type, /*IgnoreQualifiers=*/true));
+  return mlir::isa<VoidType>(unwrapTypedefs(Type));
 }
 
 bool clift::isScalarType(ValueType Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
+  Type = unwrapTypedefs(Type);
   return mlir::isa<IntegerType, FloatType, EnumType, PointerType>(Type);
 }
 
 IntegerType clift::getPrimitiveIntegerType(ValueType Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
-  return mlir::dyn_cast<IntegerType>(Type);
+  return mlir::dyn_cast<IntegerType>(unwrapTypedefs(Type));
 }
 
 bool clift::isPrimitiveIntegerType(ValueType Type) {
@@ -1595,8 +1596,7 @@ bool clift::isPrimitiveIntegerType(ValueType Type) {
 }
 
 bool clift::isIntegerType(ValueType Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
-  return mlir::isa<IntegerType, EnumType>(Type);
+  return mlir::isa<IntegerType, EnumType>(unwrapTypedefs(Type));
 }
 
 bool clift::isBooleanType(ValueType Type) {
@@ -1605,11 +1605,11 @@ bool clift::isBooleanType(ValueType Type) {
 }
 
 bool clift::isFloatType(ValueType Type) {
-  return mlir::isa<FloatType>(dealias(Type, /*IgnoreQualifiers=*/true));
+  return mlir::isa<FloatType>(unwrapTypedefs(Type));
 }
 
 PointerType clift::getPointerType(ValueType Type) {
-  return mlir::dyn_cast<PointerType>(dealias(Type, /*IgnoreQualifiers=*/true));
+  return mlir::dyn_cast<PointerType>(unwrapTypedefs(Type));
 }
 
 bool clift::isPointerType(ValueType Type) {
@@ -1622,39 +1622,38 @@ bool clift::isObjectType(ValueType Type) {
                    EnumType,
                    FloatType,
                    IntegerType,
-                   PointerType>(dealias(Type, /*IgnoreQualifiers=*/true));
+                   PointerType>(unwrapTypedefs(Type));
 }
 
 bool clift::isArrayType(ValueType Type) {
-  return mlir::isa<ArrayType>(dealias(Type, /*IgnoreQualifiers=*/true));
+  return mlir::isa<ArrayType>(unwrapTypedefs(Type));
 }
 
 bool clift::isEnumType(ValueType Type) {
-  return mlir::isa<EnumType>(dealias(Type, /*IgnoreQualifiers=*/true));
+  return mlir::isa<EnumType>(unwrapTypedefs(Type));
 }
 
 bool clift::isClassType(ValueType Type) {
-  return mlir::isa<ClassType>(dealias(Type, /*IgnoreQualifiers=*/true));
+  return mlir::isa<ClassType>(unwrapTypedefs(Type));
 }
 
 bool clift::isFunctionType(ValueType Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
-  return mlir::isa<clift::FunctionType>(Type);
+  return mlir::isa<clift::FunctionType>(unwrapTypedefs(Type));
 }
 
 clift::FunctionType
 clift::getFunctionOrFunctionPointerFunctionType(ValueType Type) {
-  Type = dealias(Type, /*IgnoreQualifiers=*/true);
+  Type = unwrapTypedefs(Type);
 
   if (auto P = mlir::dyn_cast<PointerType>(Type))
-    Type = dealias(P.getPointeeType(), /*IgnoreQualifiers=*/true);
+    Type = unwrapTypedefs(P.getPointeeType());
 
   return mlir::dyn_cast<clift::FunctionType>(Type);
 }
 
 mlir::LogicalResult clift::verifyReturnType(EmitErrorType EmitError,
                                             ValueType ReturnType) {
-  ValueType UnderlyingType = dealias(ReturnType, /*IgnoreQualifiers=*/true);
+  ValueType UnderlyingType = unwrapTypedefs(ReturnType);
 
   if (not isVoid(UnderlyingType)) {
     if (not isObjectType(UnderlyingType))
