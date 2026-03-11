@@ -13,88 +13,93 @@
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftOpHelpers.h"
 
-using UnresolvedOperand = mlir::OpAsmParser::UnresolvedOperand;
+using UnresolvedOperandsVector = //
+  llvm::SmallVectorImpl<mlir::OpAsmParser::UnresolvedOperand>;
 
 namespace mlir {
 
-static ParseResult
-parseCliftLoopLabels(OpAsmParser &Parser,
-                     mlir::IntegerAttr &LabelMask,
-                     llvm::SmallVectorImpl<UnresolvedOperand> &Labels);
+static ParseResult parseCliftLoopLabels(mlir::OpAsmParser &Parser,
+                                        mlir::IntegerAttr &LabelMask,
+                                        UnresolvedOperandsVector &Labels);
 
-static void printCliftLoopLabels(OpAsmPrinter &Printer,
+static void printCliftLoopLabels(mlir::OpAsmPrinter &Printer,
                                  mlir::Operation *Op,
                                  mlir::IntegerAttr LabelMask,
                                  mlir::OperandRange Labels);
 
-static ParseResult parseCliftOpTypesImpl(OpAsmParser &Parser,
-                                         Type *Result,
-                                         llvm::ArrayRef<Type *> Arguments);
-
-static void printCliftOpTypesImpl(OpAsmPrinter &Printer,
-                                  Type Result,
-                                  llvm::ArrayRef<Type> Arguments);
-
-template<std::same_as<Type>... Ts>
 static ParseResult
-parseCliftOpTypes(OpAsmParser &Parser, Type &Result, Ts &...Arguments) {
+parseCliftOpTypesImpl(mlir::OpAsmParser &Parser,
+                      mlir::Type *Result,
+                      llvm::ArrayRef<mlir::Type *> Arguments);
+
+static void printCliftOpTypesImpl(mlir::OpAsmPrinter &Printer,
+                                  mlir::Type Result,
+                                  llvm::ArrayRef<mlir::Type> Arguments);
+
+template<std::same_as<mlir::Type>... Ts>
+static mlir::ParseResult parseCliftOpTypes(mlir::OpAsmParser &Parser,
+                                           mlir::Type &Result,
+                                           Ts &...Arguments) {
   static_assert(sizeof...(Ts) > 0);
   return parseCliftOpTypesImpl(Parser, &Result, { &Arguments... });
 }
 
-template<std::same_as<Type>... Ts>
+template<std::same_as<mlir::Type>... Ts>
 static ParseResult
-parseCliftOpOperandTypes(OpAsmParser &Parser, Ts &...Arguments) {
+parseCliftOpOperandTypes(mlir::OpAsmParser &Parser, Ts &...Arguments) {
   static_assert(sizeof...(Ts) > 0);
   return parseCliftOpTypesImpl(Parser, nullptr, { &Arguments... });
 }
 
-template<std::same_as<Type>... Ts>
-static void printCliftOpTypes(OpAsmPrinter &Printer,
-                              Operation *Op,
-                              Type Result,
+template<std::same_as<mlir::Type>... Ts>
+static void printCliftOpTypes(mlir::OpAsmPrinter &Printer,
+                              mlir::Operation *Op,
+                              mlir::Type Result,
                               Ts... Arguments) {
   static_assert(sizeof...(Ts) > 0);
   printCliftOpTypesImpl(Printer, Result, { Arguments... });
 }
 
-template<std::same_as<Type>... Ts>
-static void printCliftOpOperandTypes(OpAsmPrinter &Printer,
-                                     Operation *Op,
+template<std::same_as<mlir::Type>... Ts>
+static void printCliftOpOperandTypes(mlir::OpAsmPrinter &Printer,
+                                     mlir::Operation *Op,
                                      Ts... Arguments) {
   static_assert(sizeof...(Ts) > 0);
   printCliftOpTypesImpl(Printer, nullptr, { Arguments... });
 }
 
-static ParseResult parseCliftPointerArithmeticOpTypes(OpAsmParser &Parser,
-                                                      Type &Result,
-                                                      Type &Lhs,
-                                                      Type &Rhs);
+static mlir::ParseResult
+parseCliftPointerArithmeticOpTypes(mlir::OpAsmParser &Parser,
+                                   mlir::Type &Result,
+                                   mlir::Type &Lhs,
+                                   mlir::Type &Rhs);
 
-static void printCliftPointerArithmeticOpTypes(OpAsmPrinter &Parser,
-                                               Operation *Op,
-                                               Type Result,
-                                               Type Lhs,
-                                               Type Rhs);
+static void printCliftPointerArithmeticOpTypes(mlir::OpAsmPrinter &Parser,
+                                               mlir::Operation *Op,
+                                               mlir::Type Result,
+                                               mlir::Type Lhs,
+                                               mlir::Type Rhs);
 
-static ParseResult parseCliftTernaryOpTypes(OpAsmParser &Parser,
-                                            Type &Condition,
-                                            Type &Lhs,
-                                            Type &Rhs);
+static mlir::ParseResult parseCliftTernaryOpTypes(mlir::OpAsmParser &Parser,
+                                                  mlir::Type &Condition,
+                                                  mlir::Type &Lhs,
+                                                  mlir::Type &Rhs);
 
-static void printCliftTernaryOpTypes(OpAsmPrinter &Printer,
-                                     Operation *Op,
-                                     Type Condition,
-                                     Type Lhs,
-                                     Type Rhs);
+static void printCliftTernaryOpTypes(mlir::OpAsmPrinter &Printer,
+                                     mlir::Operation *Op,
+                                     mlir::Type Condition,
+                                     mlir::Type Lhs,
+                                     mlir::Type Rhs);
 
 } // namespace mlir
 
 #define GET_OP_CLASSES
 #include "revng/Clift/Clift.cpp.inc"
 
-using namespace mlir;
-using namespace mlir::clift;
+namespace func_impl = mlir::function_interface_impl;
+
+namespace clift = mlir::clift;
+using namespace clift;
 
 void CliftDialect::registerOperations() {
   addOperations</* Include the auto-generated clift operations */
@@ -113,7 +118,7 @@ void clift::setModuleAttr(mlir::ModuleOp Module) {
                   mlir::UnitAttr::get(Module.getContext()));
 }
 
-YieldOp clift::getExpressionYieldOp(Region &R) {
+YieldOp clift::getExpressionYieldOp(mlir::Region &R) {
   if (R.empty())
     return {};
 
@@ -125,14 +130,14 @@ YieldOp clift::getExpressionYieldOp(Region &R) {
   return mlir::dyn_cast<clift::YieldOp>(B.back());
 }
 
-mlir::Value clift::getExpressionValue(Region &R) {
+mlir::Value clift::getExpressionValue(mlir::Region &R) {
   if (auto Yield = getExpressionYieldOp(R))
     return Yield.getValue();
 
   return {};
 }
 
-ValueType clift::getExpressionType(Region &R) {
+ValueType clift::getExpressionType(mlir::Region &R) {
   if (auto Value = getExpressionValue(R))
     return mlir::cast<ValueType>(Value.getType());
 
@@ -151,14 +156,14 @@ bool clift::impl::verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind) {
 //===---------------------------- Region types ----------------------------===//
 
 template<typename OpInterface>
-static bool verifyRegionContent(Region &R, const bool Required) {
+static bool verifyRegionContent(mlir::Region &R, const bool Required) {
   if (R.empty())
     return not Required;
 
   if (not R.hasOneBlock())
     return false;
 
-  for (Operation &Op : R.front()) {
+  for (mlir::Operation &Op : R.front()) {
     if (not mlir::isa<OpInterface>(&Op))
       return false;
   }
@@ -166,11 +171,11 @@ static bool verifyRegionContent(Region &R, const bool Required) {
   return true;
 }
 
-bool clift::impl::verifyStatementRegion(Region &R) {
+bool clift::impl::verifyStatementRegion(mlir::Region &R) {
   return verifyRegionContent<StatementOpInterface>(R, false);
 }
 
-bool clift::impl::verifyExpressionRegion(Region &R, const bool Required) {
+bool clift::impl::verifyExpressionRegion(mlir::Region &R, const bool Required) {
   if (not verifyRegionContent<ExpressionOpInterface>(R, Required))
     return false;
 
@@ -180,9 +185,9 @@ bool clift::impl::verifyExpressionRegion(Region &R, const bool Required) {
 //===-------------------------- Operation parsing -------------------------===//
 
 template<typename TypeOrPointer>
-static Type deduceResultType(llvm::ArrayRef<TypeOrPointer> Arguments) {
+static mlir::Type deduceResultType(llvm::ArrayRef<TypeOrPointer> Arguments) {
   const auto getType = [](TypeOrPointer Argument) -> ValueType {
-    if constexpr (std::is_same_v<TypeOrPointer, Type>) {
+    if constexpr (std::is_same_v<TypeOrPointer, mlir::Type>) {
       return mlir::cast<ValueType>(Argument);
     } else {
       return mlir::cast<ValueType>(*Argument);
@@ -219,15 +224,16 @@ static Type deduceResultType(llvm::ArrayRef<TypeOrPointer> Arguments) {
 ///   - !a -> !c
 ///   - (!a, !b)
 ///   - (!a, !b) -> !c
-ParseResult mlir::parseCliftOpTypesImpl(OpAsmParser &Parser,
-                                        Type *Result,
-                                        llvm::ArrayRef<Type *> Arguments) {
-  Type &FirstArgument = *Arguments.front();
+mlir::ParseResult
+mlir::parseCliftOpTypesImpl(mlir::OpAsmParser &Parser,
+                            mlir::Type *Result,
+                            llvm::ArrayRef<mlir::Type *> Arguments) {
+  mlir::Type &FirstArgument = *Arguments.front();
   if (Parser.parseOptionalLParen().succeeded()) {
     if (Parser.parseType(FirstArgument).failed())
       return mlir::failure();
 
-    for (Type *Argument : Arguments.slice(1)) {
+    for (mlir::Type *Argument : Arguments.slice(1)) {
       if (Parser.parseComma().failed())
         return mlir::failure();
       if (Parser.parseType(*Argument).failed())
@@ -240,7 +246,7 @@ ParseResult mlir::parseCliftOpTypesImpl(OpAsmParser &Parser,
     if (Parser.parseType(FirstArgument).failed())
       return mlir::failure();
 
-    for (Type *Argument : Arguments.slice(1))
+    for (mlir::Type *Argument : Arguments.slice(1))
       *Argument = FirstArgument;
   }
 
@@ -266,11 +272,11 @@ ParseResult mlir::parseCliftOpTypesImpl(OpAsmParser &Parser,
 ///
 /// If @p Result is not null and it cannot be deduced from the argument types,
 /// a trailing type is printed.
-void mlir::printCliftOpTypesImpl(OpAsmPrinter &Printer,
-                                 Type Result,
-                                 llvm::ArrayRef<Type> Arguments) {
+void mlir::printCliftOpTypesImpl(mlir::OpAsmPrinter &Printer,
+                                 mlir::Type Result,
+                                 llvm::ArrayRef<mlir::Type> Arguments) {
   bool ArgumentsEqual = llvm::all_equal(Arguments);
-  Type FirstArgument = Arguments.front();
+  mlir::Type FirstArgument = Arguments.front();
 
   if (ArgumentsEqual) {
     Printer << FirstArgument;
@@ -306,8 +312,8 @@ void mlir::printCliftOpTypesImpl(OpAsmPrinter &Printer,
 
 //===----------------------------- FunctionOp -----------------------------===//
 
-void FunctionOp::build(OpBuilder &Builder,
-                       OperationState &State,
+void FunctionOp::build(mlir::OpBuilder &Builder,
+                       mlir::OperationState &State,
                        llvm::StringRef Name,
                        clift::FunctionType FunctionType) {
   size_t ArgumentCount = FunctionType.getArgumentTypes().size();
@@ -329,12 +335,12 @@ void FunctionOp::build(OpBuilder &Builder,
         /*res_attrs=*/GetArrayAttr(1));
 }
 
-mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
-                                    OperationState &Result) {
-  StringAttr SymbolNameAttr;
+mlir::ParseResult FunctionOp::parse(mlir::OpAsmParser &Parser,
+                                    mlir::OperationState &Result) {
+  mlir::StringAttr SymbolNameAttr;
   if (Parser
         .parseSymbolName(SymbolNameAttr,
-                         SymbolTable::getSymbolAttrName(),
+                         mlir::SymbolTable::getSymbolAttrName(),
                          Result.attributes)
         .failed())
     return mlir::failure();
@@ -355,18 +361,18 @@ mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
   if (Parser.parseGreater().failed())
     return mlir::failure();
 
-  llvm::SmallVector<OpAsmParser::Argument> Arguments;
+  llvm::SmallVector<mlir::OpAsmParser::Argument> Arguments;
   llvm::SmallVector<mlir::Type> ResultTypes;
-  llvm::SmallVector<DictionaryAttr> ResultAttrs;
+  llvm::SmallVector<mlir::DictionaryAttr> ResultAttrs;
   bool IsVariadic = false;
 
   auto RoughResultTypeLocation = Parser.getCurrentLocation();
-  if (function_interface_impl::parseFunctionSignature(Parser,
-                                                      /*allowVariadic=*/false,
-                                                      Arguments,
-                                                      IsVariadic,
-                                                      ResultTypes,
-                                                      ResultAttrs)
+  if (func_impl::parseFunctionSignature(Parser,
+                                        /*allowVariadic=*/false,
+                                        Arguments,
+                                        IsVariadic,
+                                        ResultTypes,
+                                        ResultAttrs)
         .failed())
     return mlir::failure();
 
@@ -379,7 +385,7 @@ mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
                                              PrimitiveKind::VoidKind,
                                              0,
                                              false));
-    ResultAttrs.push_back(DictionaryAttr::get(Parser.getContext()));
+    ResultAttrs.push_back(mlir::DictionaryAttr::get(Parser.getContext()));
   }
 
   llvm::SmallVector<mlir::Type> ArgumentTypes;
@@ -392,14 +398,12 @@ mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
   if (Parser.parseOptionalAttrDictWithKeyword(Result.attributes).failed())
     return mlir::failure();
 
-  function_interface_impl::addArgAndResultAttrs(Parser.getBuilder(),
-                                                Result,
-                                                Arguments,
-                                                ResultAttrs,
-                                                getArgAttrsAttrName(Result
-                                                                      .name),
-                                                getResAttrsAttrName(Result
-                                                                      .name));
+  func_impl::addArgAndResultAttrs(Parser.getBuilder(),
+                                  Result,
+                                  Arguments,
+                                  ResultAttrs,
+                                  getArgAttrsAttrName(Result.name),
+                                  getResAttrsAttrName(Result.name));
 
   auto *Body = Result.addRegion();
   auto RegionParseResult = Parser.parseOptionalRegion(*Body, Arguments);
@@ -409,7 +413,7 @@ mlir::ParseResult FunctionOp::parse(OpAsmParser &Parser,
   return mlir::success();
 }
 
-void FunctionOp::print(OpAsmPrinter &Printer) {
+void FunctionOp::print(mlir::OpAsmPrinter &Printer) {
   auto FunctionType = getFunctionType();
 
   Printer << ' ';
@@ -418,19 +422,17 @@ void FunctionOp::print(OpAsmPrinter &Printer) {
   Printer.printType(FunctionType);
   Printer << '>';
 
-  function_interface_impl::printFunctionSignature(Printer,
-                                                  *this,
-                                                  FunctionType
-                                                    .getArgumentTypes(),
-                                                  /*isVariadic=*/false,
-                                                  FunctionType
-                                                    .getResultTypes());
+  func_impl::printFunctionSignature(Printer,
+                                    *this,
+                                    FunctionType.getArgumentTypes(),
+                                    /*isVariadic=*/false,
+                                    FunctionType.getResultTypes());
 
-  function_interface_impl::printFunctionAttributes(Printer,
-                                                   *this,
-                                                   { getFunctionTypeAttrName(),
-                                                     getArgAttrsAttrName(),
-                                                     getResAttrsAttrName() });
+  func_impl::printFunctionAttributes(Printer,
+                                     *this,
+                                     { getFunctionTypeAttrName(),
+                                       getArgAttrsAttrName(),
+                                       getResAttrsAttrName() });
 
   if (Region &Body = getBody(); !Body.empty()) {
     Printer << ' ';
@@ -465,15 +467,16 @@ mlir::LogicalResult FunctionOp::verify() {
   return mlir::failure(Result.wasInterrupted());
 }
 
-ArrayRef<Type> FunctionOp::getArgumentTypes() {
+llvm::ArrayRef<mlir::Type> FunctionOp::getArgumentTypes() {
   return getFunctionType().getArgumentTypes();
 }
 
-ArrayRef<Type> FunctionOp::getResultTypes() {
+llvm::ArrayRef<mlir::Type> FunctionOp::getResultTypes() {
   return getFunctionType().getResultTypes();
 }
 
-Type FunctionOp::cloneTypeWith(TypeRange inputs, TypeRange results) {
+mlir::Type FunctionOp::cloneTypeWith(mlir::TypeRange Inputs,
+                                     mlir::TypeRange Results) {
   revng_abort("Operation not supported");
 }
 
@@ -499,8 +502,8 @@ static mlir::IntegerAttr makeLoopLabelMask(mlir::MLIRContext *Context,
 /// If \p OtherLoop is non-null, assigned label operands are copied from it.
 /// This is useful for any transforms which change the type of a loop, and must
 /// preserve the assigned labels.
-static void buildLoop(OpBuilder &Builder,
-                      OperationState &State,
+static void buildLoop(mlir::OpBuilder &Builder,
+                      mlir::OperationState &State,
                       unsigned RegionCount,
                       LoopOpInterface OtherLoop = {}) {
   if (OtherLoop) {
@@ -516,14 +519,13 @@ static void buildLoop(OpBuilder &Builder,
     State.addRegion();
 }
 
-ParseResult
-mlir::parseCliftLoopLabels(OpAsmParser &Parser,
-                           mlir::IntegerAttr &LabelMask,
-                           llvm::SmallVectorImpl<UnresolvedOperand> &Labels) {
+mlir::ParseResult mlir::parseCliftLoopLabels(mlir::OpAsmParser &Parser,
+                                             mlir::IntegerAttr &LabelMask,
+                                             UnresolvedOperandsVector &Labels) {
   unsigned Mask = 0;
 
   if (Parser.parseOptionalKeyword("break").succeeded()) {
-    UnresolvedOperand Operand;
+    mlir::OpAsmParser::UnresolvedOperand Operand;
     if (Parser.parseOperand(Operand).failed())
       return mlir::failure();
     Labels.push_back(Operand);
@@ -531,7 +533,7 @@ mlir::parseCliftLoopLabels(OpAsmParser &Parser,
   }
 
   if (Parser.parseOptionalKeyword("continue").succeeded()) {
-    UnresolvedOperand Operand;
+    mlir::OpAsmParser::UnresolvedOperand Operand;
     if (Parser.parseOperand(Operand).failed())
       return mlir::failure();
     Labels.push_back(Operand);
@@ -543,7 +545,7 @@ mlir::parseCliftLoopLabels(OpAsmParser &Parser,
   return mlir::success();
 }
 
-void mlir::printCliftLoopLabels(OpAsmPrinter &Printer,
+void mlir::printCliftLoopLabels(mlir::OpAsmPrinter &Printer,
                                 mlir::Operation *Op,
                                 mlir::IntegerAttr LabelMask,
                                 mlir::OperandRange Labels) {
@@ -617,8 +619,8 @@ mlir::LogicalResult ContinueToOp::verify() {
 
 //===------------------------------ DoWhileOp -----------------------------===//
 
-void DoWhileOp::build(OpBuilder &Builder,
-                      OperationState &State,
+void DoWhileOp::build(mlir::OpBuilder &Builder,
+                      mlir::OperationState &State,
                       LoopOpInterface OtherLoop) {
   buildLoop(Builder, State, 2, OtherLoop);
 }
@@ -640,16 +642,17 @@ bool ForOp::isDiscardedExpression(mlir::Region &R) {
   return &R == &getExpression();
 }
 
-void ForOp::build(OpBuilder &Builder,
-                  OperationState &State,
+void ForOp::build(mlir::OpBuilder &Builder,
+                  mlir::OperationState &State,
                   LoopOpInterface OtherLoop) {
   buildLoop(Builder, State, 4, OtherLoop);
 }
 
-mlir::ParseResult ForOp::parse(OpAsmParser &Parser, OperationState &Result) {
+mlir::ParseResult ForOp::parse(mlir::OpAsmParser &Parser,
+                               mlir::OperationState &Result) {
   mlir::IntegerAttr LabelMaskAttr;
-  llvm::SmallVector<UnresolvedOperand, 2> LabelOperands;
-  llvm::SMLoc LabelOperandsLoc = Parser.getCurrentLocation();
+  llvm::SmallVector<mlir::OpAsmParser::UnresolvedOperand, 2> LabelOperands;
+  mlir::SMLoc LabelOperandsLoc = Parser.getCurrentLocation();
 
   if (parseCliftLoopLabels(Parser, LabelMaskAttr, LabelOperands))
     return mlir::failure();
@@ -671,8 +674,8 @@ mlir::ParseResult ForOp::parse(OpAsmParser &Parser, OperationState &Result) {
                       &InitType](mlir::Region &R) -> mlir::LogicalResult {
     llvm::SmallVector<OpAsmParser::Argument, 1> Arguments;
 
-    llvm::SMLoc OperandLoc = Parser.getCurrentLocation();
-    UnresolvedOperand Operand;
+    mlir::SMLoc OperandLoc = Parser.getCurrentLocation();
+    mlir::OpAsmParser::UnresolvedOperand Operand;
 
     if (Parser.parseOptionalLParen().succeeded()) {
       if (Parser.parseOperand(Operand).failed())
@@ -735,7 +738,7 @@ mlir::ParseResult ForOp::parse(OpAsmParser &Parser, OperationState &Result) {
   return mlir::success();
 }
 
-void ForOp::print(OpAsmPrinter &Printer) {
+void ForOp::print(mlir::OpAsmPrinter &Printer) {
   mlir::Type InitType = {};
 
   auto SetInitType = [&InitType](mlir::Region &R) {
@@ -1007,8 +1010,8 @@ ValueType SwitchOp::getConditionType() {
   return getExpressionType(getConditionRegion());
 }
 
-void SwitchOp::build(OpBuilder &OdsBuilder,
-                     OperationState &OdsState,
+void SwitchOp::build(mlir::OpBuilder &OdsBuilder,
+                     mlir::OperationState &OdsState,
                      const llvm::ArrayRef<uint64_t> CaseValues) {
   llvm::SmallVector<int64_t> SignedCaseValues;
   SignedCaseValues.resize_for_overwrite(CaseValues.size());
@@ -1016,12 +1019,13 @@ void SwitchOp::build(OpBuilder &OdsBuilder,
   build(OdsBuilder, OdsState, SignedCaseValues, CaseValues.size());
 }
 
-mlir::ParseResult SwitchOp::parse(OpAsmParser &Parser, OperationState &Result) {
+mlir::ParseResult SwitchOp::parse(mlir::OpAsmParser &Parser,
+                                  mlir::OperationState &Result) {
   // Condition region:
-  Result.addRegion(std::make_unique<Region>());
+  Result.addRegion(std::make_unique<mlir::Region>());
 
   // Default case region:
-  Result.addRegion(std::make_unique<Region>());
+  Result.addRegion(std::make_unique<mlir::Region>());
 
   if (Parser.parseRegion(*Result.regions[0]).failed())
     return Parser.emitError(Parser.getCurrentLocation(),
@@ -1034,7 +1038,7 @@ mlir::ParseResult SwitchOp::parse(OpAsmParser &Parser, OperationState &Result) {
       return Parser.emitError(Parser.getCurrentLocation(),
                               "Expected switch case value");
 
-    auto R = std::make_unique<Region>();
+    auto R = std::make_unique<mlir::Region>();
     if (Parser.parseRegion(*R).failed())
       return Parser.emitError(Parser.getCurrentLocation(),
                               "Expected switch case region");
@@ -1050,8 +1054,8 @@ mlir::ParseResult SwitchOp::parse(OpAsmParser &Parser, OperationState &Result) {
   }
 
   Result.attributes.set("case_values",
-                        DenseI64ArrayAttr::get(Parser.getContext(),
-                                               CaseValues));
+                        mlir::DenseI64ArrayAttr::get(Parser.getContext(),
+                                                     CaseValues));
 
   if (Parser.parseOptionalAttrDictWithKeyword(Result.attributes).failed())
     return mlir::failure();
@@ -1059,7 +1063,7 @@ mlir::ParseResult SwitchOp::parse(OpAsmParser &Parser, OperationState &Result) {
   return mlir::success();
 }
 
-void SwitchOp::print(OpAsmPrinter &Printer) {
+void SwitchOp::print(mlir::OpAsmPrinter &Printer) {
   Printer << ' ';
   Printer.printRegion(getConditionRegion());
 
@@ -1102,8 +1106,8 @@ mlir::LogicalResult SwitchOp::verify() {
 
 //===------------------------------- WhileOp ------------------------------===//
 
-void WhileOp::build(OpBuilder &Builder,
-                    OperationState &State,
+void WhileOp::build(mlir::OpBuilder &Builder,
+                    mlir::OperationState &State,
                     LoopOpInterface OtherLoop) {
   buildLoop(Builder, State, 2, OtherLoop);
 }
@@ -1160,7 +1164,8 @@ mlir::LogicalResult StringOp::verify() {
 
 //===----------------------- UnaryIntegerMutationOp -----------------------===//
 
-mlir::LogicalResult clift::impl::verifyUnaryIntegerMutationOp(Operation *Op) {
+mlir::LogicalResult
+clift::impl::verifyUnaryIntegerMutationOp(mlir::Operation *Op) {
   if (not mlir::clift::isLvalueExpression(Op->getOperand(0)))
     return Op->emitOpError()
            << Op->getName() << " operand must be an lvalue-expression.";
@@ -1170,10 +1175,11 @@ mlir::LogicalResult clift::impl::verifyUnaryIntegerMutationOp(Operation *Op) {
 
 //===------------------- Pointer arithmetic expressions -------------------===//
 
-ParseResult mlir::parseCliftPointerArithmeticOpTypes(OpAsmParser &Parser,
-                                                     Type &Result,
-                                                     Type &Lhs,
-                                                     Type &Rhs) {
+mlir::ParseResult
+mlir::parseCliftPointerArithmeticOpTypes(mlir::OpAsmParser &Parser,
+                                         mlir::Type &Result,
+                                         mlir::Type &Lhs,
+                                         mlir::Type &Rhs) {
   SMLoc TypesLoc = Parser.getCurrentLocation();
 
   if (Parser.parseType(Lhs).failed())
@@ -1196,11 +1202,11 @@ ParseResult mlir::parseCliftPointerArithmeticOpTypes(OpAsmParser &Parser,
   return mlir::success();
 }
 
-void mlir::printCliftPointerArithmeticOpTypes(OpAsmPrinter &Printer,
-                                              Operation *Op,
-                                              Type Result,
-                                              Type Lhs,
-                                              Type Rhs) {
+void mlir::printCliftPointerArithmeticOpTypes(mlir::OpAsmPrinter &Printer,
+                                              mlir::Operation *Op,
+                                              mlir::Type Result,
+                                              mlir::Type Lhs,
+                                              mlir::Type Rhs) {
   Printer << Lhs;
   Printer << ',';
   Printer << Rhs;
@@ -1505,9 +1511,9 @@ mlir::LogicalResult SubscriptOp::verify() {
 //===-------------------------------- UseOp -------------------------------===//
 
 mlir::LogicalResult
-UseOp::verifySymbolUses(SymbolTableCollection &SymbolTable) {
+UseOp::verifySymbolUses(mlir::SymbolTableCollection &SymbolTable) {
   auto Module = getOperation()->getParentOfType<mlir::ModuleOp>();
-  Operation *Op = SymbolTable.lookupSymbolIn(Module, getSymbolNameAttr());
+  mlir::Operation *Op = SymbolTable.lookupSymbolIn(Module, getSymbolNameAttr());
 
   if (auto V = mlir::dyn_cast_or_null<GlobalVariableOp>(Op)) {
     if (getResult().getType() != V.getType())
@@ -1545,7 +1551,7 @@ using DefaultArgumentTypeProvider = //
 ///   (%0 : !int32_t, %1 : !int32_t)
 class ArgumentListParser {
 public:
-  ParseResult parse(OpAsmParser &Parser, bool RequireTypes) {
+  mlir::ParseResult parse(mlir::OpAsmParser &Parser, bool RequireTypes) {
     Location = Parser.getCurrentLocation();
 
     if (Parser.parseLParen().failed())
@@ -1577,13 +1583,15 @@ public:
     return mlir::success();
   }
 
-  ParseResult resolveOperands(OpAsmParser &Parser, OperationState &Result) {
+  mlir::ParseResult resolveOperands(mlir::OpAsmParser &Parser,
+                                    mlir::OperationState &Result) {
     return Parser.resolveOperands(Operands, Types, Location, Result.operands);
   }
 
-  ParseResult resolveOperands(OpAsmParser &Parser,
-                              OperationState &Result,
-                              DefaultArgumentTypeProvider GetDefaultType) {
+  mlir::ParseResult
+  resolveOperands(mlir::OpAsmParser &Parser,
+                  mlir::OperationState &Result,
+                  DefaultArgumentTypeProvider GetDefaultType) {
     for (auto [I, T] : llvm::enumerate(Types)) {
       if (not T) {
         if (clift::ValueType DefaultType = GetDefaultType(I))
@@ -1595,14 +1603,14 @@ public:
   }
 
 private:
-  SMLoc Location;
-  llvm::SmallVector<OpAsmParser::UnresolvedOperand> Operands;
+  mlir::SMLoc Location;
+  llvm::SmallVector<mlir::OpAsmParser::UnresolvedOperand> Operands;
   llvm::SmallVector<mlir::Type> Types;
 };
 
 } // namespace
 
-static void printArgumentList(OpAsmPrinter &Printer,
+static void printArgumentList(mlir::OpAsmPrinter &Printer,
                               mlir::OperandRange Operands,
                               DefaultArgumentTypeProvider GetDefaultType) {
   Printer << '(';
@@ -1627,8 +1635,9 @@ static auto makeCallArgumentTypeAccessor(clift::FunctionType Function) {
   };
 }
 
-mlir::ParseResult CallOp::parse(OpAsmParser &Parser, OperationState &Result) {
-  OpAsmParser::UnresolvedOperand FunctionOperand;
+mlir::ParseResult CallOp::parse(mlir::OpAsmParser &Parser,
+                                mlir::OperationState &Result) {
+  mlir::OpAsmParser::UnresolvedOperand FunctionOperand;
   if (Parser.parseOperand(FunctionOperand).failed())
     return mlir::failure();
 
@@ -1670,7 +1679,7 @@ mlir::ParseResult CallOp::parse(OpAsmParser &Parser, OperationState &Result) {
   return mlir::success();
 }
 
-void CallOp::print(OpAsmPrinter &Printer) {
+void CallOp::print(mlir::OpAsmPrinter &Printer) {
   auto Type = getFunction().getType();
   auto FunctionType = getFunctionOrFunctionPointerFunctionType(Type);
   revng_assert(FunctionType); // Checked by verify.
@@ -1727,10 +1736,10 @@ mlir::LogicalResult CallOp::verify() {
 
 //===------------------------------ TernaryOp -----------------------------===//
 
-ParseResult mlir::parseCliftTernaryOpTypes(OpAsmParser &Parser,
-                                           Type &Condition,
-                                           Type &Lhs,
-                                           Type &Rhs) {
+mlir::ParseResult mlir::parseCliftTernaryOpTypes(mlir::OpAsmParser &Parser,
+                                                 mlir::Type &Condition,
+                                                 mlir::Type &Lhs,
+                                                 mlir::Type &Rhs) {
   if (Parser.parseType(Condition).failed())
     return mlir::failure();
 
@@ -1750,11 +1759,11 @@ ParseResult mlir::parseCliftTernaryOpTypes(OpAsmParser &Parser,
   return mlir::success();
 }
 
-void mlir::printCliftTernaryOpTypes(OpAsmPrinter &Printer,
-                                    Operation *Op,
-                                    Type Condition,
-                                    Type Lhs,
-                                    Type Rhs) {
+void mlir::printCliftTernaryOpTypes(mlir::OpAsmPrinter &Printer,
+                                    mlir::Operation *Op,
+                                    mlir::Type Condition,
+                                    mlir::Type Lhs,
+                                    mlir::Type Rhs) {
   Printer << Condition;
   Printer << ',';
   Printer << Lhs;
@@ -1782,8 +1791,8 @@ static auto makeAggregateArgumentTypeAccessor(clift::ValueType Type) {
   };
 }
 
-mlir::ParseResult AggregateOp::parse(OpAsmParser &Parser,
-                                     OperationState &Result) {
+mlir::ParseResult AggregateOp::parse(mlir::OpAsmParser &Parser,
+                                     mlir::OperationState &Result) {
   ArgumentListParser Arguments;
   if (Arguments.parse(Parser, /*Requiretypes=*/false).failed())
     return mlir::failure();
@@ -1810,7 +1819,7 @@ mlir::ParseResult AggregateOp::parse(OpAsmParser &Parser,
   return mlir::success();
 }
 
-void AggregateOp::print(OpAsmPrinter &Printer) {
+void AggregateOp::print(mlir::OpAsmPrinter &Printer) {
   clift::ValueType ResultType = getResult().getType();
 
   printArgumentList(Printer,
