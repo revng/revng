@@ -9,7 +9,7 @@ include "revng/Clift/CliftTypeInterfacesObject.td"
 
 def Clift_PrimitiveType
   : Clift_TypeInterface<"PrimitiveType",
-                        [Clift_AliasableType, Clift_ValueType]> {
+                        [Clift_AliasableType, Clift_AddressableType]> {
 }
 
 #endif

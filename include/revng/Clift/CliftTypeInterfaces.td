@@ -9,8 +9,8 @@
 // incorrect emission of interface hierarchies. The type interface declarations
 // are split up into separate files in order to emit in the correct order:
 //
-// Tablegen: ValueType -> ObjectType -> ClassType
-// Emission: ClassType    ObjectType    ValueType
+// Tablegen: AddressableType -> ObjectType -> ClassType
+// Emission: AddressableType    ClassType    ObjectType
 
 include "revng/Clift/CliftTypeInterfacesBasic.td"
 //

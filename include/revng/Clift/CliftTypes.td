@@ -28,7 +28,7 @@ def Clift_VoidType
   : Clift_Type<"Void",
                "void",
                [Clift_PrimitiveType,
-                DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
   let summary = "Clift void type";
 
@@ -49,7 +49,7 @@ def Clift_IntegerType
   : Clift_Type<"Integer",
                "int",
                [Clift_PrimitiveType,
-                DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
   let summary = "Clift integer type";
@@ -79,7 +79,7 @@ def Clift_FloatType
   : Clift_Type<"Float",
                "float",
                [Clift_PrimitiveType,
-                DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
   let summary = "Clift float type";
@@ -104,7 +104,7 @@ def Clift_PointerType
   : Clift_Type<"Pointer",
                "ptr",
                [SubElementTypeInterface,
-                DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>]> {
   let summary = "Clift pointer type";
 
@@ -135,7 +135,7 @@ def Clift_ArrayType
   : Clift_Type<"Array",
                "array",
                [SubElementTypeInterface,
-                DeclareTypeInterfaceMethods<Clift_ValueType, ["isConst"]>,
+                DeclareTypeInterfaceMethods<Clift_AddressableType, ["isConst"]>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>]> {
   let summary = "Clift array type";
 
@@ -165,7 +165,7 @@ def Clift_EnumType
                "enum",
                [SubElementTypeInterface,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>,
-                DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
                 DeclareTypeInterfaceMethods<Clift_DefinedType>]> {
 
@@ -221,7 +221,7 @@ def Clift_TypedefType
                "typedef",
                [SubElementTypeInterface,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>,
-                DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_DefinedType>]> {
 
   let summary = "Clift typedef type";
@@ -270,7 +270,7 @@ def Clift_FunctionType
                "func",
                [SubElementTypeInterface,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>,
-                DeclareTypeInterfaceMethods<Clift_ValueType, ["isConst"]>,
+                DeclareTypeInterfaceMethods<Clift_AddressableType, ["isConst"]>,
                 DeclareTypeInterfaceMethods<Clift_DefinedType>]> {
 
   let summary = "Clift function type";
@@ -310,7 +310,7 @@ class Clift_ClassTypeBase<string name, string mnemonic>
                mnemonic,
                [SubElementTypeInterface,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>,
-                DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
                 DeclareTypeInterfaceMethods<Clift_ClassType>]> {
 
@@ -353,11 +353,11 @@ class Clift_ClassTypeBase<string name, string mnemonic>
       return getSize();
     }
 
-    clift::ValueType $cppClass::addConst() const {
+    clift::AddressableType $cppClass::addConst() const {
       return Base::get(getContext(), getDefinition(), /*IsConst=*/true);
     }
 
-    clift::ValueType $cppClass::removeConst() const {
+    clift::AddressableType $cppClass::removeConst() const {
       return Base::get(getContext(), getDefinition(), /*IsConst=*/false);
     }
   }];

@@ -560,7 +560,7 @@ mlir::LogicalResult TypedefAttr::verify(EmitErrorType EmitError,
                                         MutableStringAttr Name,
                                         MutableStringAttr Comment,
                                         mlir::Type UnderlyingType) {
-  if (not mlir::isa<clift::ValueType>(UnderlyingType))
+  if (not mlir::isa<clift::AddressableType>(UnderlyingType))
     return mlir::failure();
 
   return mlir::success();

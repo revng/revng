@@ -143,14 +143,14 @@ bool VoidType::getAlias(llvm::raw_ostream &OS) const {
   return true;
 }
 
-ValueType VoidType::addConst() const {
+AddressableType VoidType::addConst() const {
   if (isConst())
     return *this;
 
   return get(getContext(), /*IsConst=*/true);
 }
 
-ValueType VoidType::removeConst() const {
+AddressableType VoidType::removeConst() const {
   if (not isConst())
     return *this;
 
@@ -200,14 +200,14 @@ uint64_t IntegerType::getObjectSize() const {
   return getSize();
 }
 
-ValueType IntegerType::addConst() const {
+AddressableType IntegerType::addConst() const {
   if (isConst())
     return *this;
 
   return get(getContext(), getKind(), getSize(), /*IsConst=*/true);
 }
 
-ValueType IntegerType::removeConst() const {
+AddressableType IntegerType::removeConst() const {
   if (not isConst())
     return *this;
 
@@ -263,14 +263,14 @@ uint64_t FloatType::getObjectSize() const {
   return getSize();
 }
 
-ValueType FloatType::addConst() const {
+AddressableType FloatType::addConst() const {
   if (isConst())
     return *this;
 
   return get(getContext(), getSize(), /*IsConst=*/true);
 }
 
-ValueType FloatType::removeConst() const {
+AddressableType FloatType::removeConst() const {
   if (not isConst())
     return *this;
 
@@ -315,7 +315,7 @@ uint64_t PointerType::getObjectSize() const {
   return getPointerSize();
 }
 
-ValueType PointerType::addConst() const {
+AddressableType PointerType::addConst() const {
   if (isConst())
     return *this;
 
@@ -325,7 +325,7 @@ ValueType PointerType::addConst() const {
              /*IsConst=*/true);
 }
 
-ValueType PointerType::removeConst() const {
+AddressableType PointerType::removeConst() const {
   if (not isConst())
     return *this;
 
@@ -380,7 +380,7 @@ bool ArrayType::isConst() const {
   return clift::isConst(getElementType());
 }
 
-ValueType ArrayType::addConst() const {
+AddressableType ArrayType::addConst() const {
   auto ElementT = getElementType();
   auto NewElementT = clift::addConst(ElementT);
 
@@ -390,7 +390,7 @@ ValueType ArrayType::addConst() const {
   return get(getContext(), NewElementT, getElementsCount());
 }
 
-ValueType ArrayType::removeConst() const {
+AddressableType ArrayType::removeConst() const {
   auto ElementT = getElementType();
   auto NewElementT = clift::removeConst(ElementT);
 
@@ -432,11 +432,11 @@ uint64_t EnumType::getObjectSize() const {
   return clift::getObjectSize(getUnderlyingType());
 }
 
-clift::ValueType EnumType::addConst() const {
+AddressableType EnumType::addConst() const {
   return Base::get(getContext(), getDefinition(), /*IsConst=*/true);
 }
 
-clift::ValueType EnumType::removeConst() const {
+AddressableType EnumType::removeConst() const {
   return Base::get(getContext(), getDefinition(), /*IsConst=*/false);
 }
 
@@ -591,11 +591,11 @@ bool TypedefType::getAlias(llvm::raw_ostream &OS) const {
   return getDefinedTypeAlias(*this, OS);
 }
 
-clift::ValueType TypedefType::addConst() const {
+AddressableType TypedefType::addConst() const {
   return Base::get(getContext(), getDefinition(), /*IsConst=*/true);
 }
 
-clift::ValueType TypedefType::removeConst() const {
+AddressableType TypedefType::removeConst() const {
   return Base::get(getContext(), getDefinition(), /*IsConst=*/false);
 }
 
@@ -709,11 +709,11 @@ bool FunctionType::isConst() const {
   return false;
 }
 
-ValueType FunctionType::addConst() const {
+AddressableType FunctionType::addConst() const {
   return *this;
 }
 
-ValueType FunctionType::removeConst() const {
+AddressableType FunctionType::removeConst() const {
   return *this;
 }
 
@@ -1482,21 +1482,21 @@ mlir::Type clift::collapseTypedefs(mlir::Type Type) {
 //===---------------------------- CV-Qualifiers ---------------------------===//
 
 bool clift::isConst(mlir::Type Type) {
-  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(Type))
+  if (auto ValueT = mlir::dyn_cast<AddressableType>(Type))
     return ValueT.isConst();
 
   return false;
 }
 
 mlir::Type clift::addConst(mlir::Type Type) {
-  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(Type))
+  if (auto ValueT = mlir::dyn_cast<AddressableType>(Type))
     Type = ValueT.addConst();
 
   return Type;
 }
 
 mlir::Type clift::removeConst(mlir::Type Type) {
-  if (auto ValueT = mlir::dyn_cast<clift::ValueType>(Type))
+  if (auto ValueT = mlir::dyn_cast<AddressableType>(Type))
     Type = ValueT.removeConst();
 
   return Type;
@@ -1509,11 +1509,11 @@ bool clift::equivalent(mlir::Type Lhs, mlir::Type Rhs) {
   if (not Lhs or not Rhs)
     return false;
 
-  auto LhsVT = mlir::dyn_cast<clift::ValueType>(Lhs);
+  auto LhsVT = mlir::dyn_cast<AddressableType>(Lhs);
   if (not LhsVT)
     return false;
 
-  auto RhsVT = mlir::dyn_cast<clift::ValueType>(Rhs);
+  auto RhsVT = mlir::dyn_cast<AddressableType>(Rhs);
   if (not RhsVT)
     return false;
 
@@ -1612,11 +1612,11 @@ void CliftDialect::registerTypes() {
            /* End of auto-generated list */>();
 }
 
-static clift::ValueType parseConstType(mlir::DialectAsmParser &Parser) {
+static AddressableType parseConstType(mlir::DialectAsmParser &Parser) {
   if (Parser.parseLess().failed())
     return {};
 
-  clift::ValueType UnderlyingType;
+  AddressableType UnderlyingType;
   if (Parser.parseType(UnderlyingType).failed())
     return {};
 
@@ -1626,7 +1626,7 @@ static clift::ValueType parseConstType(mlir::DialectAsmParser &Parser) {
   return UnderlyingType.addConst();
 }
 
-static void printConstType(clift::ValueType Type,
+static void printConstType(AddressableType Type,
                            mlir::DialectAsmPrinter &Printer) {
   Printer << "const<";
   Printer.printType(Type);
@@ -1652,7 +1652,7 @@ mlir::Type CliftDialect::parseType(mlir::DialectAsmParser &Parser) const {
 /// Print a type registered to this dialect
 void CliftDialect::printType(mlir::Type Type,
                              mlir::DialectAsmPrinter &Printer) const {
-  if (auto ConstType = mlir::dyn_cast<clift::ValueType>(Type)) {
+  if (auto ConstType = mlir::dyn_cast<AddressableType>(Type)) {
     if (ConstType.isConst())
       return printConstType(ConstType.removeConst(), Printer);
   }

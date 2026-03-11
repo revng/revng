@@ -24,8 +24,8 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 
 //===-------------------------- Type constraints --------------------------===//
 
-def Clift_AnyValueType
-  : Type<CPred<"mlir::isa<mlir::clift::ValueType>($_self)">,
+def Clift_AnyAddressableType
+  : Type<CPred<"mlir::isa<mlir::clift::AddressableType>($_self)">,
          "Clift value type",
          "mlir::Type">;
 
@@ -214,7 +214,7 @@ def Clift_GlobalVariableOp : Clift_Op<"global",
                                        NoRegionArguments,
                                        IsolatedFromAbove]> {
   let arguments = (ins SymbolNameAttr:$sym_name,
-                       TypeAttrOf<Clift_ValueType>:$type,
+                       TypeAttrOf<Clift_AddressableType>:$type,
                        DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let description = [{
@@ -684,7 +684,7 @@ class Clift_ExpressionOp<string mnemonic, list<Trait> traits = []>
   : Clift_BasicExpressionOp<mnemonic, Clift_ExpressionOpInterface, traits>;
 
 def Clift_UndefOp : Clift_ExpressionOp<"undef"> {
-  let results = (outs Clift_AnyValueType:$result);
+  let results = (outs Clift_AnyAddressableType:$result);
 
   let assemblyFormat = [{
     attr-dict `:` type($result)
@@ -695,7 +695,7 @@ def Clift_YieldOp : Clift_Op<"yield", [Clift_ExpressionOpInterface,
                                        Terminator,
                                        NoRegionArguments]> {
 
-  let arguments = (ins Clift_AnyValueType:$value);
+  let arguments = (ins Clift_AnyAddressableType:$value);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value)
@@ -1119,8 +1119,8 @@ def Clift_SubscriptOp
 def Clift_CommaOp : Clift_ExpressionOp<"comma",
                                        [AllTypesMatch<["rhs", "result"]>]> {
 
-  let arguments = (ins Clift_AnyValueType:$lhs,
-                       Clift_AnyValueType:$rhs);
+  let arguments = (ins Clift_AnyAddressableType:$lhs,
+                       Clift_AnyAddressableType:$rhs);
 
   let results = (outs AnyType:$result);
 
@@ -1144,7 +1144,7 @@ def Clift_UseOp
                        [DeclareOpInterfaceMethods<SymbolUserOpInterface>]> {
 
   let arguments = (ins FlatSymbolRefAttr:$symbol_name);
-  let results = (outs Clift_AnyValueType:$result);
+  let results = (outs Clift_AnyAddressableType:$result);
 
   let assemblyFormat = [{
     $symbol_name attr-dict `:` type($result)
@@ -1179,7 +1179,7 @@ def Clift_TernaryOp
                        AnyType:$lhs,
                        AnyType:$rhs);
 
-  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyAddressableType>:$result);
 
   let assemblyFormat = [{
     $condition `,` $lhs `,` $rhs attr-dict `:` `(`

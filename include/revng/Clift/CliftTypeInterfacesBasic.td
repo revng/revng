@@ -27,7 +27,7 @@ def Clift_AliasableType : Clift_TypeInterface<"AliasableType"> {
   ];
 }
 
-def Clift_ValueType : Clift_TypeInterface<"ValueType"> {
+def Clift_AddressableType : Clift_TypeInterface<"AddressableType"> {
   let description = [{
     A value type is a type with a size and a constness
   }];
@@ -43,11 +43,11 @@ def Clift_ValueType : Clift_TypeInterface<"ValueType"> {
     >,
     InterfaceMethod<
       "Returns the unqualified base type of the type.",
-      "mlir::clift::ValueType", "addConst", (ins)
+      "mlir::clift::AddressableType", "addConst", (ins)
     >,
     InterfaceMethod<
       "Returns the unqualified base type of the type.",
-      "mlir::clift::ValueType", "removeConst", (ins)
+      "mlir::clift::AddressableType", "removeConst", (ins)
     >,
   ];
 }

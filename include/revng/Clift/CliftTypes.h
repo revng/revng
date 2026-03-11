@@ -41,8 +41,8 @@ TypedefDecomposition decomposeTypedef(mlir::Type Type);
 
 /// Recursively unwraps typedefs and returns the underlying non-typedef type
 /// unchanged.
-[[nodiscard]] inline ValueType unwrapTypedefs(ValueType Type) {
-  return mlir::cast<ValueType>(unwrapTypedefs(static_cast<mlir::Type>(Type)));
+[[nodiscard]] inline AddressableType unwrapTypedefs(AddressableType Type) {
+  return mlir::cast<AddressableType>(unwrapTypedefs(mlir::Type(Type)));
 }
 
 /// Recursively unwraps typedefs and returns the underlying non-typedef type,
@@ -51,8 +51,8 @@ TypedefDecomposition decomposeTypedef(mlir::Type Type);
 
 /// Recursively unwraps typedefs and returns the underlying non-typedef type,
 /// with any qualifiers from wrapping typedefs added onto the resulting type.
-[[nodiscard]] inline ValueType collapseTypedefs(ValueType Type) {
-  return mlir::cast<ValueType>(collapseTypedefs(static_cast<mlir::Type>(Type)));
+[[nodiscard]] inline AddressableType collapseTypedefs(AddressableType Type) {
+  return mlir::cast<AddressableType>(collapseTypedefs(mlir::Type(Type)));
 }
 
 //===----------------------------- Type casts -----------------------------===//
@@ -110,23 +110,23 @@ template<std::derived_from<mlir::Type> ToType,
 /// Determine if the type is top-level const qualified.
 [[nodiscard]] bool isConst(mlir::Type Type);
 
-/// Add top-level qualification to the given type, if it is a ValueType.
+/// Add top-level qualification to the given type, if it is an AddressableType.
 /// Otherwise returns the type unchanged.
 [[nodiscard]] mlir::Type addConst(mlir::Type Type);
 
-/// Add top-level qualification to the given type, if it is a ValueType.
+/// Add top-level qualification to the given type, if it is an AddressableType.
 /// Otherwise returns the type unchanged.
 template<typename TypeT>
 [[nodiscard]] TypeT addConst(TypeT Type) {
   return mlir::cast<TypeT>(addConst(mlir::Type(Type)));
 }
 
-/// Remove top-level qualification from the given type, if it is a ValueType.
-/// Otherwise returns the type unchanged.
+/// Remove top-level qualification from the given type, if it is an
+/// AddressableType. Otherwise returns the type unchanged.
 [[nodiscard]] mlir::Type removeConst(mlir::Type Type);
 
-/// Remove top-level qualification from the given type, if it is a ValueType.
-/// Otherwise returns the type unchanged.
+/// Remove top-level qualification from the given type, if it is an
+/// AddressableType. Otherwise returns the type unchanged.
 template<typename TypeT>
 [[nodiscard]] TypeT removeConst(TypeT Type) {
   return mlir::cast<TypeT>(removeConst(mlir::Type(Type)));

@@ -7,7 +7,8 @@
 
 include "revng/Clift/CliftTypeInterfacesBasic.td"
 
-def Clift_ObjectType : Clift_TypeInterface<"ObjectType", [Clift_ValueType]> {
+def Clift_ObjectType : Clift_TypeInterface<"ObjectType",
+                                           [Clift_AddressableType]> {
   let description = [{
     The object types is the set of types usable as types of variables and
     fields.

@@ -122,7 +122,7 @@ public:
     return mlir::success();
   }
 
-  mlir::LogicalResult visitValueType(ValueType Type) {
+  mlir::LogicalResult visitAddressableType(AddressableType Type) {
     Type = unwrapTypedefs(Type);
 
     if (not isCompleteType(Type))
@@ -142,8 +142,8 @@ public:
       return getCurrentOp()->emitError() << "Clift ModuleOp a contains "
                                             "non-Clift type";
 
-    if (auto T = mlir::dyn_cast<ValueType>(Type)) {
-      if (visitValueType(Type).failed())
+    if (auto T = mlir::dyn_cast<AddressableType>(Type)) {
+      if (visitAddressableType(Type).failed())
         return mlir::failure();
     }
 
