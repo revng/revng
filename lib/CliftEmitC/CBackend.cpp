@@ -81,7 +81,8 @@ public:
     auto Primitive = getUnderlyingIntegerType(Type);
 
     auto CInteger = Target.getIntegerKind(Primitive.getSize());
-    if (not CInteger or not mlir::isa<PrimitiveType>(Type)) {
+    if (not CInteger or *CInteger >= CIntegerKind::Extended
+        or not mlir::isa<PrimitiveType>(Type)) {
       // Emit explicit cast if the standard integer type is not known. Emit
       // the literal itself without a suffix (as if int).
       emitCast(Primitive);
