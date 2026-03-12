@@ -21,7 +21,7 @@ def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface", [Symbol]> {
   let methods = [
     InterfaceMethod<
       /*desc=*/"Returns the type of the global entity.",
-      "mlir::clift::ValueType", "getType", (ins)
+      "mlir::Type", "getType", (ins)
     >,
     InterfaceMethod<
       /*desc=*/"Returns the user-defined handle of the entity.",

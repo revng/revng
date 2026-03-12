@@ -30,8 +30,8 @@ template<typename ResizeCastOpOrVoid>
 static mlir::Value emitCast(mlir::PatternRewriter &Rewriter,
                             mlir::Location Loc,
                             mlir::Value Value,
-                            clift::ValueType NewType) {
-  clift::ValueType OldType = Value.getType();
+                            mlir::Type NewType) {
+  mlir::Type OldType = Value.getType();
 
   uint64_t OldSize = getObjectSize(OldType);
   uint64_t NewSize = getObjectSize(NewType);
@@ -59,12 +59,12 @@ static mlir::Value emitCast(mlir::PatternRewriter &Rewriter,
 template<typename ResizeCastOpOrVoid = void>
 static void modifyResultType(mlir::PatternRewriter &Rewriter,
                              mlir::Operation *Op,
-                             clift::ValueType NewType,
+                             mlir::Type NewType,
                              bool PreserveExpressionType = true) {
   mlir::OpResult Result = Op->getOpResult(0);
   mlir::OpOperand &OnlyUse = getOnlyUse(Result);
 
-  auto OldType = mlir::cast<clift::ValueType>(Result.getType());
+  mlir::Type OldType = Result.getType();
   Result.setType(NewType);
 
   if (PreserveExpressionType and not clift::isDiscarded(Result)) {
@@ -79,7 +79,7 @@ static void modifyResultType(mlir::PatternRewriter &Rewriter,
 template<typename ResizeCastOpOrVoid = void>
 static void modifyOperandType(mlir::PatternRewriter &Rewriter,
                               mlir::OpOperand &Operand,
-                              clift::ValueType NewType) {
+                              mlir::Type NewType) {
   mlir::Operation *Op = Operand.getOwner();
   mlir::Value Value = Operand.get();
 

@@ -39,7 +39,7 @@ class CEmitter::DeclarationEmitter {
 
   struct StackItem {
     StackItemKind Kind;
-    ValueType Type;
+    mlir::Type Type;
   };
 
   CEmitter &Parent;
@@ -50,7 +50,7 @@ class CEmitter::DeclarationEmitter {
 
 public:
   static void
-  emit(CEmitter &Parent, ValueType Type, DeclaratorInfo const *Declarator) {
+  emit(CEmitter &Parent, mlir::Type Type, DeclaratorInfo const *Declarator) {
     DeclarationEmitter(Parent).emitImpl(Type, Declarator);
   }
 
@@ -63,10 +63,10 @@ private:
     NeedSpace = false;
   }
 
-  void emitConstIfNeeded(ValueType Type) {
+  void emitConstIfNeeded(mlir::Type Type) {
     emitSpaceIfNeeded();
 
-    if (Type.isConst()) {
+    if (isConst(Type)) {
       Parent.Tokens.emitKeyword(CTE::Keyword::Const);
       Parent.Tokens.emitSpace();
     }
@@ -81,7 +81,7 @@ private:
     return Name;
   }
 
-  RecursiveCoroutine<void> emitImpl(ValueType Type,
+  RecursiveCoroutine<void> emitImpl(mlir::Type Type,
                                     DeclaratorInfo const *Declarator) {
     // Expanded function parameter declarator names are only emitted for the
     // outermost function type of a function declarator. When emitting a
@@ -293,7 +293,7 @@ static std::string getPrimitiveTypeCName(PrimitiveType Type) {
   std::string Name;
   {
     llvm::raw_string_ostream Out(Name);
-    Out << GetPrefix(Type) << (Type.getByteSize() * 8) << "_t";
+    Out << GetPrefix(Type) << (getObjectSize(Type) * 8) << "_t";
   }
   return Name;
 }
@@ -313,7 +313,7 @@ void CEmitter::emitPrimitiveType(PrimitiveType Type) {
   }
 }
 
-void CEmitter::emitType(ValueType Type) {
+void CEmitter::emitType(mlir::Type Type) {
   DeclarationEmitter::emit(*this, Type, /*Declarator=*/nullptr);
 }
 
@@ -371,7 +371,7 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
         Tokens.emitIntegerLiteral(Integer.getValue(), std::nullopt);
 
       } else if (auto Type = mlir::dyn_cast<mlir::TypeAttr>(A)) {
-        auto VT = mlir::dyn_cast<mlir::clift::ValueType>(Type.getValue());
+        auto VT = mlir::dyn_cast<mlir::Type>(Type.getValue());
         revng_assert(VT);
         emitType(VT);
 
@@ -409,7 +409,7 @@ void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
 
 //===---------------------------- Declarations ----------------------------===//
 
-void CEmitter::emitDeclaration(ValueType Type,
+void CEmitter::emitDeclaration(mlir::Type Type,
                                DeclaratorInfo const &Declarator) {
   DeclarationEmitter::emit(*this, Type, &Declarator);
 }

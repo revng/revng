@@ -109,12 +109,12 @@ def Clift_PointerType
     Pointer type.
   }];
 
-  let parameters = (ins "mlir::clift::ValueType":$pointee_type,
+  let parameters = (ins "mlir::Type":$pointee_type,
                         "uint64_t":$pointer_size,
                         DefaultValuedParameter<"bool", "false">:$is_const);
 
   let builders = [
-    TypeBuilderWithInferredContext<(ins "mlir::clift::ValueType":$PointeeType,
+    TypeBuilderWithInferredContext<(ins "mlir::Type":$PointeeType,
                                         "uint64_t":$PointerSize,
                                         CArg<"bool", "false">:$Const), [{
       return $_get(PointeeType.getContext(), PointeeType, PointerSize, Const);
@@ -139,11 +139,11 @@ def Clift_ArrayType
     ArrayType type.
   }];
 
-  let parameters = (ins "mlir::clift::ValueType":$element_type,
+  let parameters = (ins "mlir::Type":$element_type,
                         "uint64_t":$elements_count);
 
   let builders = [
-    TypeBuilderWithInferredContext<(ins "mlir::clift::ValueType":$ElementType,
+    TypeBuilderWithInferredContext<(ins "mlir::Type":$ElementType,
                                         "uint64_t":$ElementCount), [{
       return $_get(ElementType.getContext(), ElementType, ElementCount);
     }]>,
@@ -199,7 +199,7 @@ def Clift_EnumType
       return getDefinition().getName();
     }
 
-    clift::ValueType getUnderlyingType() const {
+    mlir::Type getUnderlyingType() const {
       return getDefinition().getUnderlyingType();
     }
 
@@ -250,7 +250,7 @@ def Clift_TypedefType
       return getDefinition().getName();
     }
 
-    clift::ValueType getUnderlyingType() const {
+    mlir::Type getUnderlyingType() const {
       return getDefinition().getUnderlyingType();
     }
   }];
@@ -280,23 +280,6 @@ def Clift_FunctionType
                         "mlir::Type":$return_type,
                         OptionalArrayRefParameter<"mlir::Type">:$argument_types,
                         OptionalArrayRefParameter<"mlir::clift::CAttributeAttr">:$c_attributes);
-
-  let builders = [
-    TypeBuilder<(ins "llvm::StringRef":$Handle,
-                     "mlir::clift::MutableStringAttr":$Name,
-                     "mlir::clift::MutableStringAttr":$Comment,
-                     "mlir::clift::ValueType":$ReturnType,
-                     "llvm::ArrayRef<mlir::clift::ValueType>":$ArgumentTypes,
-                     "llvm::ArrayRef<mlir::clift::CAttributeAttr>":$CAttributes), [{
-      return $_get($_ctxt,
-                   Handle,
-                   Name,
-                   Comment,
-                   ReturnType,
-                   llvm::SmallVector<mlir::Type, 16>(ArgumentTypes),
-                   CAttributes);
-    }]>,
-  ];
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef NameAttrKey = "function-name";
@@ -361,11 +344,11 @@ class Clift_ClassTypeBase<string name, string mnemonic>
 
   let extraClassDefinition = [{
     clift::ValueType $cppClass::addConst() const {
-      return Base::get(getContext(), getDefinition(), true);
+      return Base::get(getContext(), getDefinition(), /*IsConst=*/true);
     }
 
     clift::ValueType $cppClass::removeConst() const {
-      return Base::get(getContext(), getDefinition(), false);
+      return Base::get(getContext(), getDefinition(), /*IsConst=*/false);
     }
   }];
 

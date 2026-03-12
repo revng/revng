@@ -207,8 +207,8 @@ static uint64_t commonPrefixStrides(const llvm::ArrayRef<ArrayShape> &LHS,
 static uint64_t typeDistance(mlir::Type Explicit, mlir::Type Ideal) {
 
   // Unwrap any typedefs to compare the underlying types
-  Explicit = unwrapTypedefs(mlir::cast<ValueType>(Explicit));
-  Ideal = unwrapTypedefs(mlir::cast<ValueType>(Ideal));
+  Explicit = unwrapTypedefs(Explicit);
+  Ideal = unwrapTypedefs(Ideal);
 
   return Explicit == Ideal ? 0 : std::numeric_limits<uint64_t>::max();
 }
@@ -561,7 +561,7 @@ TypeTraversalAnalyzer::traverseImpl(mlir::Type Type,
                             0,
                             FieldPath,
                             CurrentArrayPath);
-    clift::ValueType ElementType = ArrayType.getElementType();
+    mlir::Type ElementType = ArrayType.getElementType();
     uint64_t NumElements = ArrayType.getElementsCount();
     uint64_t ElementSize = getObjectSize(ElementType);
 
@@ -608,7 +608,7 @@ TypeTraversalAnalyzer::traverseImpl(mlir::Type Type,
     llvm::ArrayRef<clift::FieldAttr> Fields = ClassType.getFields();
     for (size_t I = 0; I < Fields.size(); ++I) {
       clift::FieldAttr Field = Fields[I];
-      clift::ValueType FieldType = Field.getType();
+      mlir::Type FieldType = Field.getType();
       int64_t FieldOffset = CurrentOffset + Field.getOffset();
 
       std::vector<uint64_t> NewFieldPath = FieldPath;
@@ -628,7 +628,7 @@ TypeTraversalAnalyzer::traverseImpl(mlir::Type Type,
   if (auto EnumType = mlir::dyn_cast<clift::EnumType>(Type)) {
 
     // We traverse the underlying `EnumType`
-    clift::ValueType UnderlyingType = EnumType.getUnderlyingType();
+    mlir::Type UnderlyingType = EnumType.getUnderlyingType();
 
     // Add traversal for the `enum` itself
     Traversals.emplace_back(EnumType,

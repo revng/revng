@@ -25,58 +25,58 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 //===-------------------------- Type constraints --------------------------===//
 
 def Clift_AnyValueType
-  : Type<CPred<"llvm::isa<mlir::clift::ValueType>($_self)">,
+  : Type<CPred<"mlir::isa<mlir::clift::ValueType>($_self)">,
          "Clift value type",
-         "mlir::clift::ValueType">;
+         "mlir::Type">;
 
 def Clift_AnyObjectType
   : Type<CPred<"mlir::clift::isObjectType($_self)">,
          "Clift object type",
-         "mlir::clift::ValueType">;
+         "mlir::Type">;
 
 def Clift_AnyBooleanType
   : Type<CPred<"mlir::clift::isBooleanType($_self)">,
          "Clift boolean type",
-         "mlir::clift::ValueType">;
+         "mlir::Type">;
 
 def Clift_AnyScalarType
   : Type<CPred<"mlir::clift::isScalarType($_self)">,
          "Clift scalar type",
-         "mlir::clift::ValueType">;
+         "mlir::Type">;
 
 def Clift_AnyIntegerType
   : Type<CPred<"mlir::clift::isIntegerType($_self)">,
          "Clift integer type",
-         "mlir::clift::ValueType">;
+         "mlir::Type">;
 
 def Clift_AnyPrimitiveIntegerType
   : Type<CPred<"mlir::clift::isPrimitiveIntegerType($_self)">,
          "primitive Clift integer type",
-         "mlir::clift::ValueType">;
+         "mlir::Type">;
 
 def Clift_AnyPointerType
   : Type<CPred<"mlir::clift::isPointerType($_self)">,
          "Clift pointer type",
-         "mlir::clift::ValueType">;
+         "mlir::Type">;
 
 def Clift_AnyFunctionType
   : Type<CPred<"mlir::clift::isFunctionType($_self)">,
          "Clift function type",
-         "mlir::clift::ValueType">;
+         "mlir::Type">;
 
 class Clift_AnyNonConstType<Type type>
   : Type<And<[type.predicate,
-              CPred<"not mlir::cast<mlir::clift::ValueType>($_self).isConst()">]>,
+              CPred<"not mlir::clift::isConst($_self)">]>,
          // TODO: Figure out why the string concatenation isn't working here.
          "non-const " # type.description,
-         "mlir::clift::ValueType">;
+         "mlir::Type">;
 
 class Clift_AnyModifiableType<Type type>
   : Type<And<[type.predicate,
               CPred<"mlir::clift::isModifiableType($_self)">]>,
          // TODO: Figure out why the string concatenation isn't working here.
          "modifiable " # type.description,
-         "mlir::clift::ValueType">;
+         "mlir::Type">;
 
 class Clift_AllTypesMatch<list<string> names>
   : AllMatchSameOperatorTrait<names,
@@ -106,7 +106,7 @@ def Clift_FunctionOp : Clift_Op<"func",
                                  AutomaticAllocationScope,
                                  IsolatedFromAbove]> {
   let arguments = (ins StrAttr:$sym_name,
-                       TypeAttrOf<Clift_AnyFunctionType>:$function_value_type,
+                       TypeAttrOf<Clift_AnyFunctionType>:$type,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs,
                        UnitAttr:$noreturn,
@@ -129,28 +129,28 @@ def Clift_FunctionOp : Clift_Op<"func",
 
   code extraClassDeclaration = [{
     static mlir::StringAttr getFunctionTypeAttrName(mlir::OperationName Name) {
-      return getFunctionValueTypeAttrName(Name);
+      return getTypeAttrName(Name);
     }
 
     mlir::StringAttr getFunctionTypeAttrName() {
-      return getFunctionValueTypeAttrName();
+      return getTypeAttrName();
     }
 
     mlir::TypeAttr getFunctionTypeAttr() {
-      return getFunctionValueTypeAttr();
+      return getTypeAttr();
     }
 
     void setFunctionTypeAttr(mlir::TypeAttr Attr) {
-      return setFunctionValueTypeAttr(Attr);
+      return setTypeAttr(Attr);
     }
 
-    clift::FunctionType getFunctionType() {
-      return mlir::cast<clift::FunctionType>(unwrapTypedefs(getFunctionValueType()));
+    FunctionType getFunctionType() {
+      return mlir::cast<FunctionType>(unwrapTypedefs(getType()));
     }
 
 
-    clift::ValueType getReturnType() {
-      return mlir::cast<clift::ValueType>(getFunctionType().getReturnType());
+    mlir::Type getReturnType() {
+      return getFunctionType().getReturnType();
     }
 
     unsigned getArgCount() {
@@ -185,13 +185,6 @@ def Clift_FunctionOp : Clift_Op<"func",
 
     Block::args_iterator args_end() {
         return getBody().front().args_end();
-    }
-
-
-    // Implementation of Clift_GlobalOpInterface
-
-    clift::ValueType getType() {
-      return getFunctionType();
     }
 
 
@@ -535,7 +528,7 @@ def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
   }];
 
   let extraClassDeclaration = [{
-    mlir::clift::ValueType getType() {
+    mlir::Type getType() {
       return getResult().getType();
     }
 
@@ -591,7 +584,7 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
   code extraClassDeclaration = [{
     bool isIndirectlyNoFallthrough() const;
 
-    [[nodiscard]] mlir::clift::ValueType getConditionType();
+    [[nodiscard]] mlir::Type getConditionType();
 
     [[nodiscard]] Region &getConditionRegion() {
       return getRegion(0);

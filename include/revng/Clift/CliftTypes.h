@@ -26,22 +26,34 @@ namespace mlir::clift {
 //===------------------------------ Typedefs ------------------------------===//
 
 struct TypedefDecomposition {
-  ValueType Type;
+  mlir::Type Type;
   bool HasConstTypedef;
 };
 
 /// Recursively decomposes a typedef into its underlying non-typedef type and a
 /// boolean indicating whether any of the typedefs added const. Note that the
 /// underlying type itself may also be const while the boolean may be false.
-[[nodiscard]] TypedefDecomposition decomposeTypedef(ValueType Type);
+TypedefDecomposition decomposeTypedef(mlir::Type Type);
 
 /// Recursively unwraps typedefs and returns the underlying non-typedef type
 /// unchanged.
-[[nodiscard]] ValueType unwrapTypedefs(ValueType Type);
+[[nodiscard]] mlir::Type unwrapTypedefs(mlir::Type Type);
+
+/// Recursively unwraps typedefs and returns the underlying non-typedef type
+/// unchanged.
+[[nodiscard]] inline ValueType unwrapTypedefs(ValueType Type) {
+  return mlir::cast<ValueType>(unwrapTypedefs(static_cast<mlir::Type>(Type)));
+}
 
 /// Recursively unwraps typedefs and returns the underlying non-typedef type,
 /// with any qualifiers from wrapping typedefs added onto the resulting type.
-[[nodiscard]] ValueType collapseTypedefs(ValueType Type);
+[[nodiscard]] mlir::Type collapseTypedefs(mlir::Type Type);
+
+/// Recursively unwraps typedefs and returns the underlying non-typedef type,
+/// with any qualifiers from wrapping typedefs added onto the resulting type.
+[[nodiscard]] inline ValueType collapseTypedefs(ValueType Type) {
+  return mlir::cast<ValueType>(collapseTypedefs(static_cast<mlir::Type>(Type)));
+}
 
 //===---------------------------- CV-Qualifiers ---------------------------===//
 
@@ -59,18 +71,18 @@ template<typename TypeT>
   return mlir::cast<TypeT>(addConst(mlir::Type(Type)));
 }
 
-/// Remove top-level qualification from the given type, if it is a Clift value
-/// type. Otherwise returns the type unchanged.
+/// Remove top-level qualification from the given type, if it is a ValueType.
+/// Otherwise returns the type unchanged.
 [[nodiscard]] mlir::Type removeConst(mlir::Type Type);
 
-/// Remove top-level qualification from the given type, if it is a Clift value
-/// type. Otherwise returns the type unchanged.
+/// Remove top-level qualification from the given type, if it is a ValueType.
+/// Otherwise returns the type unchanged.
 template<typename TypeT>
 [[nodiscard]] TypeT removeConst(TypeT Type) {
   return mlir::cast<TypeT>(removeConst(mlir::Type(Type)));
 }
 
-/// Determine if the two types are equivalent, ignoring Clift qualifiers.
+/// Determine if the two types are equivalent, ignoring Clift CV-qualifiers.
 [[nodiscard]] bool equivalent(mlir::Type Lhs, mlir::Type Rhs);
 
 //===-------------------------- Object type size --------------------------===//
@@ -100,7 +112,7 @@ template<typename TypeT>
 /// Determine if the type is non-const. This is different from
 /// `not Type.isConst()` in that the latter returns false for a typedef naming
 /// a const-qualified type.
-bool isModifiableType(ValueType Type);
+bool isModifiableType(mlir::Type Type);
 
 /// Get the underlying primitive integer type of @p Type if it is either
 /// * a primitive integer type, or
@@ -109,15 +121,15 @@ bool isModifiableType(ValueType Type);
 ///
 /// Otherwise null is returned. Qualifiers are ignored and the returned type is
 /// always unqualified.
-IntegerType getUnderlyingIntegerType(ValueType Type);
+IntegerType getUnderlyingIntegerType(mlir::Type Type);
 
 /// Determine if the specified type is a complete type. Only class types and
 /// scalar tuple types can ever be incomplete. It is expected that types remain
 /// incomplete only temporarily during construction of recursive types.
-bool isCompleteType(ValueType Type);
+bool isCompleteType(mlir::Type Type);
 
 /// Determine if the type is exactly void, ignoring type qualifiers.
-bool isVoid(ValueType Type);
+bool isVoid(mlir::Type Type);
 
 /// Determine if the type is a scalar type, meaning either
 /// * a primitive object type, or
@@ -126,31 +138,31 @@ bool isVoid(ValueType Type);
 /// * a typedef naming any such type.
 ///
 /// Qualifiers are ignored.
-bool isScalarType(ValueType Type);
+bool isScalarType(mlir::Type Type);
 
-IntegerType getPrimitiveIntegerType(ValueType Type);
+IntegerType getPrimitiveIntegerType(mlir::Type Type);
 
 /// Determine if the type is a primitive integer type, or a typedef naming such
 /// a type, ignoring qualifiers.
-bool isPrimitiveIntegerType(ValueType Type);
+bool isPrimitiveIntegerType(mlir::Type Type);
 
 /// Determine if the type is an integer type. @see getUnderlyingIntegerType for
 /// a breakdown of the set of integer types.
-bool isIntegerType(ValueType Type);
+bool isIntegerType(mlir::Type Type);
 
 /// Determine if the type is a "boolean" type, i.e. a signed primitive integer
 /// type.
-bool isBooleanType(ValueType Type);
+bool isBooleanType(mlir::Type Type);
 
 /// Determine if the type is a floating point type, or a typedef naming such a
 /// type, ignoring qualifiers.
-bool isFloatType(ValueType Type);
+bool isFloatType(mlir::Type Type);
 
-PointerType getPointerType(ValueType Type);
+PointerType getPointerType(mlir::Type Type);
 
 /// Determine if the type is a pointer type. This includes pointers to objects
 /// as well as pointers to functions. Qualifiers are ignored.
-bool isPointerType(ValueType Type);
+bool isPointerType(mlir::Type Type);
 
 /// Determine if the type is an object type. This is the set of types
 /// representing program objects. In other words it is the set of types which
@@ -163,23 +175,23 @@ bool isPointerType(ValueType Type);
 /// * a typedef naming any such type.
 ///
 /// Qualifiers are ignored.
-bool isObjectType(ValueType Type);
+bool isObjectType(mlir::Type Type);
 
 /// Determine if the type is an array type, unwrapping typedefs and ignoring
 /// qualifiers.
-bool isArrayType(ValueType Type);
+bool isArrayType(mlir::Type Type);
 
 /// Determine if the type is an enum type, unwrapping typedefs and ignoring
 /// qualifiers
-bool isEnumType(ValueType Type);
+bool isEnumType(mlir::Type Type);
 
 /// Determine if the type is a class type, meaning either a struct or union.
 /// Qualifiers are ignored.
-bool isClassType(ValueType Type);
+bool isClassType(mlir::Type Type);
 
 /// Determine if the type is a function type, unwrapping typedefs and ignoring
 /// qualifiers.
-bool isFunctionType(ValueType Type);
+bool isFunctionType(mlir::Type Type);
 
 /// Determine if the type is a callable type, meaning either
 /// * a function type, or
@@ -187,17 +199,11 @@ bool isFunctionType(ValueType Type);
 /// * a typedef naming any such type.
 ///
 /// Qualifiers are ignored.
-bool isCallableType(ValueType Type);
+bool isCallableType(mlir::Type Type);
 
 /// If the type, after unwrapping typedefs, is a function type or a pointer to a
 /// function type, returns that function type.
-FunctionType getFunctionOrFunctionPointerFunctionType(ValueType Type);
-
-inline FunctionType getFunctionOrFunctionPointerFunctionType(mlir::Type Type) {
-  if (auto T = mlir::dyn_cast<ValueType>(Type))
-    return getFunctionOrFunctionPointerFunctionType(T);
-  return {};
-}
+FunctionType getFunctionOrFunctionPointerFunctionType(mlir::Type Type);
 
 /// Verify that the type is a valid function return type, meaning:
 /// * void, or
@@ -209,6 +215,6 @@ inline FunctionType getFunctionOrFunctionPointerFunctionType(mlir::Type Type) {
 /// Qualifiers are ignored.
 mlir::LogicalResult
 verifyReturnType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                 ValueType Type);
+                 mlir::Type Type);
 
 } // namespace mlir::clift

@@ -92,11 +92,11 @@ class ClifterImpl final : public Clifter {
   const model::Binary &Model;
   mlir::OpBuilder Builder;
 
-  clift::ValueType VoidTypeCache;
+  mlir::Type VoidTypeCache;
 
   uint64_t PointerSize;
-  clift::ValueType VoidPointerTypeCache;
-  clift::ValueType IntptrTypeCache;
+  mlir::Type VoidPointerTypeCache;
+  mlir::Type IntptrTypeCache;
 
   /* Per-module mappings - persisted between imported functions */
 
@@ -171,23 +171,23 @@ private:
     return IntegerType::get(Context, Kind, Size);
   }
 
-  clift::ValueType makePointerType(clift::ValueType ElementType) {
+  mlir::Type makePointerType(mlir::Type ElementType) {
     return PointerType::get(ElementType, PointerSize);
   }
 
-  clift::ValueType getVoidType() {
+  mlir::Type getVoidType() {
     if (not VoidTypeCache)
       VoidTypeCache = VoidType::get(Context);
     return VoidTypeCache;
   }
 
-  clift::ValueType getVoidPointerType() {
+  mlir::Type getVoidPointerType() {
     if (not VoidPointerTypeCache)
       VoidPointerTypeCache = makePointerType(getVoidType());
     return VoidPointerTypeCache;
   }
 
-  clift::ValueType getIntptrType() {
+  mlir::Type getIntptrType() {
     if (not IntptrTypeCache)
       IntptrTypeCache = getIntegerType(PointerSize);
     return IntptrTypeCache;
@@ -202,7 +202,7 @@ private:
 
   /* Model type import */
 
-  clift::ValueType importType(const model::Type &Type) {
+  mlir::Type importType(const model::Type &Type) {
     auto EmitError = [&]() -> mlir::InFlightDiagnostic {
       return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
                                            mlir::DiagnosticSeverity::Error);
@@ -210,7 +210,7 @@ private:
     return clift::importType(EmitError, *Context, Type, Model);
   }
 
-  clift::ValueType importType(const model::TypeDefinition &Type) {
+  mlir::Type importType(const model::TypeDefinition &Type) {
     auto EmitError = [&]() -> mlir::InFlightDiagnostic {
       return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
                                            mlir::DiagnosticSeverity::Error);
@@ -230,17 +230,17 @@ private:
     return getIntegerType(getIntegerSize(Type->getBitWidth()), Kind);
   }
 
-  clift::ValueType importLLVMPointerType(const llvm::PointerType *Type) {
+  mlir::Type importLLVMPointerType(const llvm::PointerType *Type) {
     revng_assert(Type->getAddressSpace() == 0);
     return getVoidPointerType();
   }
 
-  clift::ValueType importLLVMArrayType(const llvm::ArrayType *Type) {
+  mlir::Type importLLVMArrayType(const llvm::ArrayType *Type) {
     auto ElementType = importLLVMType(Type->getElementType());
     return ArrayType::get(ElementType, Type->getNumElements());
   }
 
-  clift::ValueType importLLVMType(const llvm::Type *Type) {
+  mlir::Type importLLVMType(const llvm::Type *Type) {
     if (Type->isVoidTy())
       return getVoidType();
 
@@ -286,8 +286,8 @@ private:
   // Import an LLVM type used as a helper function return type. If the type is a
   // struct type, create a Clift struct type with a handle derived from the
   // helper function name.
-  clift::ValueType importHelperReturnType(const llvm::Type *Type,
-                                          llvm::StringRef HelperName) {
+  mlir::Type importHelperReturnType(const llvm::Type *Type,
+                                    llvm::StringRef HelperName) {
     auto Struct = llvm::dyn_cast<llvm::StructType>(Type);
 
     if (not Struct)
@@ -303,7 +303,7 @@ private:
 
     uint64_t Offset = 0;
     for (auto [I, T] : llvm::enumerate(Struct->elements())) {
-      clift::ValueType FieldType = importLLVMType(T);
+      mlir::Type FieldType = importLLVMType(T);
 
       std::string FieldName = getHelperStructFieldName(I);
       std::string FieldHandle = Location
@@ -320,7 +320,7 @@ private:
                                                                  FieldHandle),
                                       Offset,
                                       FieldType));
-      Offset += FieldType.getByteSize();
+      Offset += getObjectSize(FieldType);
     }
 
     auto Handle = pipeline::locationString(revng::ranks::HelperStructType,
@@ -350,10 +350,10 @@ private:
                                        llvm::StringRef HelperName) {
     revng_assert(not Type->isVarArg());
 
-    clift::ValueType ReturnType = importHelperReturnType(Type->getReturnType(),
-                                                         HelperName);
+    mlir::Type ReturnType = importHelperReturnType(Type->getReturnType(),
+                                                   HelperName);
 
-    llvm::SmallVector<clift::ValueType> ParameterTypes;
+    llvm::SmallVector<mlir::Type> ParameterTypes;
     ParameterTypes.reserve(Type->getNumParams());
 
     for (const llvm::Type *T : Type->params())
@@ -494,7 +494,7 @@ private:
     return emitHelperFunctionDeclaration(F);
   }
 
-  clift::ValueType emitGlobalObject(const llvm::GlobalObject *G) {
+  mlir::Type emitGlobalObject(const llvm::GlobalObject *G) {
     if (const auto *F = llvm::dyn_cast<llvm::Function>(G))
       return emitFunctionDeclaration(F).getFunctionType();
 
@@ -712,7 +712,7 @@ private:
 
   template<typename OpT>
   mlir::Value
-  emitCast(mlir::Location Loc, mlir::Value Value, clift::ValueType TargetType) {
+  emitCast(mlir::Location Loc, mlir::Value Value, mlir::Type TargetType) {
     if (Value.getType() != TargetType)
       Value = Builder.create<OpT>(Loc, TargetType, Value);
 
@@ -734,8 +734,8 @@ private:
   // is available.
   mlir::Value emitImplicitCast(mlir::Location Loc,
                                mlir::Value Value,
-                               clift::ValueType TargetType) {
-    auto SourceType = mlir::cast<clift::ValueType>(Value.getType());
+                               mlir::Type TargetType) {
+    mlir::Type SourceType = Value.getType();
 
     if (SourceType == TargetType)
       return Value;
@@ -743,7 +743,7 @@ private:
     auto UnderlyingSourceT = unwrapTypedefs(SourceType);
     auto UnderlyingTargetT = unwrapTypedefs(TargetType);
 
-    if (UnderlyingSourceT.getByteSize() != UnderlyingTargetT.getByteSize())
+    if (getObjectSize(UnderlyingSourceT) != getObjectSize(UnderlyingTargetT))
       return Value;
 
     if (mlir::isa<ArrayType>(UnderlyingSourceT))
@@ -1057,8 +1057,8 @@ private:
                              rc_recur emitExpression(I->getPointerOperand(),
                                                      Loc));
 
-      clift::ValueType ValueType = C.importLLVMType(V->getType());
-      clift::ValueType PointerType = C.makePointerType(ValueType);
+      mlir::Type ValueType = C.importLLVMType(V->getType());
+      mlir::Type PointerType = C.makePointerType(ValueType);
 
       Pointer = Builder.create<BitCastOp>(Loc, PointerType, Pointer);
 
@@ -1398,11 +1398,8 @@ private:
       mlir::Value False = (LoggerIndent(ExpressionLog),
                            rc_recur emitExpression(I->getFalseValue(), Loc));
 
-      auto TrueType = mlir::cast<clift::ValueType>(True.getType());
-      auto FalseType = mlir::cast<clift::ValueType>(False.getType());
-
-      auto ResultType = TrueType.removeConst();
-      if (ResultType != FalseType.removeConst()) {
+      mlir::Type ResultType = removeConst(True.getType());
+      if (ResultType != removeConst(False.getType())) {
         ResultType = C.importLLVMType(I->getType());
         True = emitImplicitCast(Loc, True, ResultType);
         False = emitImplicitCast(Loc, False, ResultType);
@@ -1606,7 +1603,7 @@ private:
 
         std::optional<std::string> Handle;
 
-        clift::ValueType Type;
+        mlir::Type Type;
         if (hasStackTypeMetadata(Alloca)) {
           Type = C.importType(*getStackTypeFromMetadata(Alloca, C.Model));
           Handle = pipeline::locationString(revng::ranks::StackFrameVariable,
@@ -1706,8 +1703,8 @@ private:
       if (const llvm::Value *Value = Return->getReturnValue()) {
         clift::FunctionType FunctionType = Function.getFunctionType();
 
-        clift::ValueType FuncReturnType = FunctionType.getReturnType();
-        clift::ValueType LLVMReturnType = FuncReturnType;
+        mlir::Type FuncReturnType = FunctionType.getReturnType();
+        mlir::Type LLVMReturnType = FuncReturnType;
 
         // In SPTAR functions, values are returned by address. In this case
         if (FunctionLayout.hasSPTAR())

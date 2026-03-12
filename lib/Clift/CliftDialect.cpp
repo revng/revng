@@ -78,7 +78,7 @@ class ModuleVerifier : public ModuleVisitor<ModuleVerifier> {
 public:
   // Visit a field type of a class type attribute.
   // RootType is the root class type attribute and is used to detect recursion.
-  mlir::LogicalResult visitFieldType(ValueType FieldType, ClassType RootType) {
+  mlir::LogicalResult visitFieldType(mlir::Type FieldType, ClassType RootType) {
     FieldType = unwrapTypedefs(FieldType);
 
     if (auto T = mlir::dyn_cast<ClassType>(FieldType)) {
@@ -101,7 +101,7 @@ public:
   }
 
   mlir::LogicalResult visitDefinedType(DefinedType Type) {
-    auto UnqualifiedType = mlir::cast<DefinedType>(Type.removeConst());
+    auto UnqualifiedType = mlir::cast<DefinedType>(removeConst(Type));
 
     auto const [Iterator, Inserted] = Definitions.try_emplace(Type.getHandle(),
                                                               UnqualifiedType);

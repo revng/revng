@@ -118,6 +118,6 @@ mlir::Value getExpressionValue(Region &R);
 
 /// Returns the type of the expression represented by the region, or a null type
 /// if region is not a valid expression region.
-clift::ValueType getExpressionType(Region &R);
+mlir::Type getExpressionType(Region &R);
 
 } // namespace mlir::clift

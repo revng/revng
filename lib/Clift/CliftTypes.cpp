@@ -294,7 +294,7 @@ static void writeType(FloatType Type, mlir::DialectBytecodeWriter &Writer) {
 //===----------------------------- PointerType ----------------------------===//
 
 mlir::LogicalResult PointerType::verify(EmitErrorType EmitError,
-                                        ValueType ElementType,
+                                        mlir::Type ElementType,
                                         uint64_t PointerSize,
                                         bool IsConst) {
   switch (PointerSize) {
@@ -333,7 +333,7 @@ ValueType PointerType::removeConst() const {
 
 template<std::same_as<clift::PointerType>>
 static clift::PointerType readType(mlir::DialectBytecodeReader &Reader) {
-  clift::ValueType PointeeType;
+  mlir::Type PointeeType;
   if (Reader.readType(PointeeType).failed())
     return {};
 
@@ -358,7 +358,7 @@ static void writeType(clift::PointerType Type,
 //===------------------------------ ArrayType -----------------------------===//
 
 mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
-                                      ValueType ElementType,
+                                      mlir::Type ElementType,
                                       uint64_t ElementCount) {
   if (not isObjectType(ElementType))
     return EmitError() << "Array type element type must be an object type.";
@@ -369,16 +369,16 @@ mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
 }
 
 uint64_t ArrayType::getByteSize() const {
-  return getElementsCount() * getElementType().getByteSize();
+  return getElementsCount() * getObjectSize(getElementType());
 }
 
 bool ArrayType::isConst() const {
-  return getElementType().isConst();
+  return clift::isConst(getElementType());
 }
 
 ValueType ArrayType::addConst() const {
   auto ElementT = getElementType();
-  auto NewElementT = ElementT.addConst();
+  auto NewElementT = clift::addConst(ElementT);
 
   if (ElementT == NewElementT)
     return *this;
@@ -388,7 +388,7 @@ ValueType ArrayType::addConst() const {
 
 ValueType ArrayType::removeConst() const {
   auto ElementT = getElementType();
-  auto NewElementT = ElementT.removeConst();
+  auto NewElementT = clift::removeConst(ElementT);
 
   if (ElementT == NewElementT)
     return *this;
@@ -398,7 +398,7 @@ ValueType ArrayType::removeConst() const {
 
 template<std::same_as<clift::ArrayType>>
 static clift::ArrayType readType(mlir::DialectBytecodeReader &Reader) {
-  clift::ValueType ElementType;
+  mlir::Type ElementType;
   if (Reader.readType(ElementType).failed())
     return {};
 
@@ -425,7 +425,7 @@ bool EnumType::getAlias(llvm::raw_ostream &OS) const {
 }
 
 uint64_t EnumType::getByteSize() const {
-  return getUnderlyingType().getByteSize();
+  return getObjectSize(getUnderlyingType());
 }
 
 clift::ValueType EnumType::addConst() const {
@@ -453,7 +453,7 @@ mlir::Type EnumType::parse(mlir::AsmParser &Parser) {
   if (Parser.parseColon().failed())
     return {};
 
-  clift::ValueType UnderlyingType;
+  mlir::Type UnderlyingType;
   if (Parser.parseType(UnderlyingType).failed())
     return {};
 
@@ -588,7 +588,7 @@ bool TypedefType::getAlias(llvm::raw_ostream &OS) const {
 }
 
 uint64_t TypedefType::getByteSize() const {
-  return getUnderlyingType().getByteSize();
+  return getObjectSize(getUnderlyingType());
 }
 
 clift::ValueType TypedefType::addConst() const {
@@ -616,7 +616,7 @@ mlir::Type TypedefType::parse(mlir::AsmParser &Parser) {
   if (Parser.parseColon().failed())
     return {};
 
-  clift::ValueType UnderlyingType;
+  mlir::Type UnderlyingType;
   if (Parser.parseType(UnderlyingType).failed())
     return {};
 
@@ -681,16 +681,8 @@ FunctionType::verify(EmitErrorType EmitError,
                      MutableStringAttr Comment,
                      mlir::Type ReturnType,
                      llvm::ArrayRef<mlir::Type> Args,
-                     llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
-  auto R = mlir::dyn_cast<clift::ValueType>(ReturnType);
-  if (not R)
-    return EmitError() << "Function return type must be a ValueType";
-
-  for (mlir::Type ArgumentType : Args) {
-    auto T = mlir::dyn_cast<clift::ValueType>(ArgumentType);
-    if (not T)
-      return EmitError() << "Function argument types must be ValueTypes";
-
+                     llvm::ArrayRef<CAttributeAttr> Attributes) {
+  for (mlir::Type T : Args) {
     if (not isObjectType(T))
       return EmitError() << "Function parameter type must be an object type";
     if (isArrayType(T))
@@ -701,7 +693,7 @@ FunctionType::verify(EmitErrorType EmitError,
     return EmitError() << "Function return type ";
   };
 
-  if (verifyReturnType(EmitReturnError, R).failed())
+  if (verifyReturnType(EmitReturnError, ReturnType).failed())
     return mlir::failure();
 
   return mlir::success();
@@ -771,14 +763,14 @@ mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
   if (Parser.parseColon().failed())
     return {};
 
-  clift::ValueType ReturnType;
+  mlir::Type ReturnType;
   if (Parser.parseType(ReturnType).failed())
     return {};
 
-  llvm::SmallVector<clift::ValueType> ParameterTypes;
+  llvm::SmallVector<mlir::Type> ParameterTypes;
   const auto ParseParameterType = [&Parser,
                                    &ParameterTypes]() -> mlir::ParseResult {
-    clift::ValueType ParameterType;
+    mlir::Type ParameterType;
     if (Parser.parseType(ParameterType))
       return mlir::failure();
 
@@ -854,11 +846,7 @@ void FunctionType::print(mlir::AsmPrinter &Printer) const {
 template<std::same_as<clift::FunctionType>>
 static clift::FunctionType readType(mlir::DialectBytecodeReader &Reader) {
   auto ReadType = [&](mlir::Type &Type) -> mlir::LogicalResult {
-    clift::ValueType ValueType;
-    if (Reader.readType(ValueType).failed())
-      return mlir::failure();
-    Type = ValueType;
-    return mlir::success();
+    return Reader.readType(Type);
   };
 
   llvm::StringRef Handle;
@@ -1003,7 +991,7 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
         return mlir::failure();
     }
 
-    clift::ValueType Type;
+    mlir::Type Type;
     if (Parser.parseType(Type).failed())
       return mlir::failure();
 
@@ -1279,7 +1267,7 @@ static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
         return mlir::failure();
     }
 
-    clift::ValueType Type;
+    mlir::Type Type;
     if (Reader.readType(Type).failed())
       return mlir::failure();
 
@@ -1465,7 +1453,7 @@ void clift::writeUnionDefinition(clift::UnionType Type,
 
 //===------------------------------ Typedefs ------------------------------===//
 
-TypedefDecomposition clift::decomposeTypedef(ValueType Type) {
+TypedefDecomposition clift::decomposeTypedef(mlir::Type Type) {
   bool HasConstTypedef = false;
 
   while (true) {
@@ -1474,21 +1462,21 @@ TypedefDecomposition clift::decomposeTypedef(ValueType Type) {
       break;
 
     Type = T.getUnderlyingType();
-    HasConstTypedef |= T.isConst();
+    HasConstTypedef |= T.getIsConst();
   }
 
   return { Type, HasConstTypedef };
 }
 
-ValueType clift::unwrapTypedefs(ValueType Type) {
+mlir::Type clift::unwrapTypedefs(mlir::Type Type) {
   return decomposeTypedef(Type).Type;
 }
 
-ValueType clift::collapseTypedefs(ValueType Type) {
+mlir::Type clift::collapseTypedefs(mlir::Type Type) {
   auto [UnderlyingType, HasConstTypedef] = decomposeTypedef(Type);
 
   if (HasConstTypedef)
-    UnderlyingType = UnderlyingType.addConst();
+    UnderlyingType = addConst(UnderlyingType);
 
   return UnderlyingType;
 }
@@ -1531,7 +1519,7 @@ bool clift::equivalent(mlir::Type Lhs, mlir::Type Rhs) {
   if (not RhsVT)
     return false;
 
-  return LhsVT.removeConst() == RhsVT.removeConst();
+  return removeConst(LhsVT) == removeConst(RhsVT);
 }
 
 //===-------------------------- Object type size --------------------------===//
@@ -1549,12 +1537,12 @@ uint64_t clift::getObjectSizeOrZero(mlir::Type Type) {
 
 //===--------------------------- Type categories --------------------------===//
 
-bool clift::isModifiableType(ValueType Type) {
-  auto &&[UnderlyingType, HasConst] = decomposeTypedef(Type);
-  return not HasConst and not UnderlyingType.isConst();
+bool clift::isModifiableType(mlir::Type Type) {
+  auto [UnderlyingType, HasConst] = decomposeTypedef(Type);
+  return not HasConst and not isConst(UnderlyingType);
 }
 
-IntegerType clift::getUnderlyingIntegerType(ValueType Type) {
+IntegerType clift::getUnderlyingIntegerType(mlir::Type Type) {
   Type = unwrapTypedefs(Type);
 
   if (auto T = mlir::dyn_cast<IntegerType>(Type))
@@ -1566,7 +1554,7 @@ IntegerType clift::getUnderlyingIntegerType(ValueType Type) {
   return nullptr;
 }
 
-bool clift::isCompleteType(ValueType Type) {
+bool clift::isCompleteType(mlir::Type Type) {
   Type = unwrapTypedefs(Type);
 
   while (auto Array = mlir::dyn_cast<ArrayType>(Type))
@@ -1578,45 +1566,45 @@ bool clift::isCompleteType(ValueType Type) {
   return true;
 }
 
-bool clift::isVoid(ValueType Type) {
+bool clift::isVoid(mlir::Type Type) {
   return mlir::isa<VoidType>(unwrapTypedefs(Type));
 }
 
-bool clift::isScalarType(ValueType Type) {
+bool clift::isScalarType(mlir::Type Type) {
   Type = unwrapTypedefs(Type);
   return mlir::isa<IntegerType, FloatType, EnumType, PointerType>(Type);
 }
 
-IntegerType clift::getPrimitiveIntegerType(ValueType Type) {
+IntegerType clift::getPrimitiveIntegerType(mlir::Type Type) {
   return mlir::dyn_cast<IntegerType>(unwrapTypedefs(Type));
 }
 
-bool clift::isPrimitiveIntegerType(ValueType Type) {
-  return static_cast<bool>(getPrimitiveIntegerType(Type));
+bool clift::isPrimitiveIntegerType(mlir::Type Type) {
+  return mlir::isa<IntegerType>(unwrapTypedefs(Type));
 }
 
-bool clift::isIntegerType(ValueType Type) {
+bool clift::isIntegerType(mlir::Type Type) {
   return mlir::isa<IntegerType, EnumType>(unwrapTypedefs(Type));
 }
 
-bool clift::isBooleanType(ValueType Type) {
+bool clift::isBooleanType(mlir::Type Type) {
   auto T = getPrimitiveIntegerType(Type);
   return T and T.isSigned();
 }
 
-bool clift::isFloatType(ValueType Type) {
+bool clift::isFloatType(mlir::Type Type) {
   return mlir::isa<FloatType>(unwrapTypedefs(Type));
 }
 
-PointerType clift::getPointerType(ValueType Type) {
+PointerType clift::getPointerType(mlir::Type Type) {
   return mlir::dyn_cast<PointerType>(unwrapTypedefs(Type));
 }
 
-bool clift::isPointerType(ValueType Type) {
-  return static_cast<bool>(getPointerType(Type));
+bool clift::isPointerType(mlir::Type Type) {
+  return mlir::isa<PointerType>(unwrapTypedefs(Type));
 }
 
-bool clift::isObjectType(ValueType Type) {
+bool clift::isObjectType(mlir::Type Type) {
   return mlir::isa<ArrayType,
                    ClassType,
                    EnumType,
@@ -1625,24 +1613,24 @@ bool clift::isObjectType(ValueType Type) {
                    PointerType>(unwrapTypedefs(Type));
 }
 
-bool clift::isArrayType(ValueType Type) {
+bool clift::isArrayType(mlir::Type Type) {
   return mlir::isa<ArrayType>(unwrapTypedefs(Type));
 }
 
-bool clift::isEnumType(ValueType Type) {
+bool clift::isEnumType(mlir::Type Type) {
   return mlir::isa<EnumType>(unwrapTypedefs(Type));
 }
 
-bool clift::isClassType(ValueType Type) {
+bool clift::isClassType(mlir::Type Type) {
   return mlir::isa<ClassType>(unwrapTypedefs(Type));
 }
 
-bool clift::isFunctionType(ValueType Type) {
+bool clift::isFunctionType(mlir::Type Type) {
   return mlir::isa<clift::FunctionType>(unwrapTypedefs(Type));
 }
 
 clift::FunctionType
-clift::getFunctionOrFunctionPointerFunctionType(ValueType Type) {
+clift::getFunctionOrFunctionPointerFunctionType(mlir::Type Type) {
   Type = unwrapTypedefs(Type);
 
   if (auto P = mlir::dyn_cast<PointerType>(Type))
@@ -1652,14 +1640,14 @@ clift::getFunctionOrFunctionPointerFunctionType(ValueType Type) {
 }
 
 mlir::LogicalResult clift::verifyReturnType(EmitErrorType EmitError,
-                                            ValueType ReturnType) {
-  ValueType UnderlyingType = unwrapTypedefs(ReturnType);
+                                            mlir::Type ReturnType) {
+  ReturnType = unwrapTypedefs(ReturnType);
 
-  if (not isVoid(UnderlyingType)) {
-    if (not isObjectType(UnderlyingType))
+  if (not isVoid(ReturnType)) {
+    if (not isObjectType(ReturnType))
       return EmitError() << "must be an object type or void.";
 
-    if (isArrayType(UnderlyingType))
+    if (isArrayType(ReturnType))
       return EmitError() << "cannot be an array type.";
   }
 

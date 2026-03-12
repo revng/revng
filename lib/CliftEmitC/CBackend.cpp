@@ -57,7 +57,7 @@ public:
     return static_cast<OperatorPrecedence>(static_cast<T>(Precedence) - 1);
   }
 
-  void emitCStyleCast(ValueType Type) {
+  void emitCStyleCast(mlir::Type Type) {
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
     emitType(Type);
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
@@ -65,7 +65,7 @@ public:
   }
 
   void
-  emitIntegerImmediate(uint64_t Value, ValueType Type, unsigned Radix = 10) {
+  emitIntegerImmediate(uint64_t Value, mlir::Type Type, unsigned Radix = 10) {
     Type = unwrapTypedefs(Type);
 
     if (auto Enum = mlir::dyn_cast<EnumType>(Type)) {
@@ -297,7 +297,7 @@ public:
   }
 
   static bool requiresExplicitBitCast(BitCastOp Op) {
-    auto IsCastableType = [](ValueType T) {
+    auto IsCastableType = [](mlir::Type T) {
       T = unwrapTypedefs(T);
 
       return mlir::isa<IntegerType, EnumType, PointerType>(T);
@@ -959,7 +959,7 @@ public:
 
       Tokens.emitNewline();
 
-      ValueType Type = S.getConditionType();
+      mlir::Type Type = S.getConditionType();
       for (unsigned I = 0, Count = S.getNumCases(); I < Count; ++I) {
         Tokens.emitKeyword(CTE::Keyword::Case);
         Tokens.emitSpace();

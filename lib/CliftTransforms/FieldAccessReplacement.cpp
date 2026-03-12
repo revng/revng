@@ -266,7 +266,7 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
 
       // We may need to unwrap the `ArrayType` from a `PointerType`, and emit
       // the needed `IndirectionOp` and `Decay` cast accordingly.
-      clift::ValueType ArrayElementType;
+      mlir::Type ArrayElementType;
 
       // We need to explicitly handle the `pointer as array` case, where
       // `CurrentValue` is not a `ptr<T>` of `ArrayType` (we virtually wrap it

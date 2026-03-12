@@ -138,7 +138,7 @@ public:
   }
 
   template<ConstexprString Macro>
-  void setOrUpdate(mlir::clift::ValueType Type) {
+  void setOrUpdate(mlir::Type Type) {
     ptml::Attributes.assertAnnotationName<Macro>();
 
     auto AttributeLocation = pipeline::location(revng::ranks::Macro,

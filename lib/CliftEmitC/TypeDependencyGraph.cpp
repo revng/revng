@@ -92,7 +92,7 @@ private:
   /// Add all the necessary dependency edges from the \p Dependent to the
   /// nodes associated with the \p DependedOn type.
   void addDependenciesFrom(const AssociatedNodes Dependent,
-                           clift::ValueType DependedOn) const;
+                           mlir::Type DependedOn) const;
 };
 
 static void addAndLogSuccessor(clift::TypeDependencyNode *From,
@@ -147,7 +147,7 @@ struct TypeSpecifierResult {
   bool LastArray = false;
 };
 
-static TypeSpecifierResult unwrapType(clift::ValueType T) {
+static TypeSpecifierResult unwrapType(mlir::Type T) {
   TypeSpecifierResult Result;
 
   while (true) {
@@ -183,7 +183,7 @@ static TypeSpecifierResult unwrapType(clift::ValueType T) {
 
 template<bool Mode>
 void Builder<Mode>::addDependenciesFrom(const AssociatedNodes Dependent,
-                                        clift::ValueType DOn) const {
+                                        mlir::Type DOn) const {
   const auto &[DefinitionDependedOn, FoundPointer, LastArray] = unwrapType(DOn);
 
   // If the definition this depends on is not a type definition, we're done,

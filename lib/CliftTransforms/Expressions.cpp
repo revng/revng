@@ -30,26 +30,25 @@ static bool areAllBitsSet(llvm::APInt Value, mlir::Type Type) {
 
 static uint64_t truncateIntegerValue(mlir::IntegerAttr ValueAttr,
                                      mlir::Value IntegerOperand) {
-  auto ValueType = mlir::cast<clift::ValueType>(IntegerOperand.getType());
-  auto T = mlir::cast<IntegerType>(unwrapTypedefs(ValueType));
-
+  uint64_t Width = getObjectSize(IntegerOperand.getType()) * 8;
   uint64_t Value = ValueAttr.getValue().getZExtValue();
-  return Value & (static_cast<uint64_t>(-1) >> (64 - 8 * T.getSize()));
+  return Value & (static_cast<uint64_t>(-1) >> (64 - Width));
 }
 
 static bool assignTypePunnedConstraint(mlir::Value Ptr, mlir::Value Value) {
-  auto PtrType = mlir::dyn_cast<PointerType>(Ptr.getType());
+  auto PtrType = getPointerType(Ptr.getType());
   if (not PtrType)
     return false;
 
-  auto SrcType = mlir::cast<clift::ValueType>(Value.getType());
-  auto DstType = PtrType.getPointeeType();
+  mlir::Type SrcType = Value.getType();
+  mlir::Type DstType = PtrType.getPointeeType();
 
   if (not isObjectType(DstType) or isArrayType(DstType)) {
     return false;
   }
 
-  return SrcType != DstType and SrcType.getByteSize() == DstType.getByteSize();
+  return SrcType != DstType
+         and getObjectSize(SrcType) == getObjectSizeOrZero(DstType);
 }
 
 static mlir::Value assignTypePunnedResult(mlir::PatternRewriter &Rewriter,
@@ -73,7 +72,7 @@ static mlir::Value assignTypePunnedResult(mlir::PatternRewriter &Rewriter,
   return Result;
 }
 
-static bool hasEnumeratorValue(clift::ValueType Type, uint64_t Value) {
+static bool hasEnumeratorValue(mlir::Type Type, uint64_t Value) {
   if (auto Enum = mlir::dyn_cast<EnumType>(Type)) {
     for (EnumFieldAttr Enumerator : Enum.getFields()) {
       if (Enumerator.getRawValue() == Value)
@@ -94,7 +93,7 @@ static DivModPair ptrOffsetDivMod(mlir::IntegerAttr OffsetAttr,
   revng_assert(PointerType);
 
   uint64_t Offset = OffsetAttr.getValue().getZExtValue();
-  uint64_t Size = PointerType.getPointeeType().getByteSize();
+  uint64_t Size = getObjectSizeOrZero(PointerType.getPointeeType());
 
   if (Size == 0) {
     return {

@@ -363,7 +363,7 @@ mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,
                                       MutableStringAttr Name,
                                       MutableStringAttr Comment,
                                       uint64_t Offset,
-                                      clift::ValueType ElementType) {
+                                      mlir::Type ElementType) {
   if (not isObjectType(ElementType)) {
     return EmitError() << "Struct and union field types must be object types. "
                        << "Field at offset " << Offset << " is not.";
@@ -424,12 +424,12 @@ mlir::LogicalResult EnumAttr::verify(EmitErrorType EmitError,
                                      llvm::StringRef Handle,
                                      MutableStringAttr Name,
                                      MutableStringAttr Comment,
-                                     clift::ValueType UnderlyingType,
+                                     mlir::Type UnderlyingType,
                                      llvm::ArrayRef<EnumFieldAttr> Fields) {
   auto [DealiasedType, HasConst] = decomposeTypedef(UnderlyingType);
 
   auto IntType = mlir::dyn_cast<IntegerType>(DealiasedType);
-  if (not IntType or HasConst or IntType.isConst())
+  if (not IntType or HasConst or isConst(IntType))
     return EmitError() << "Underlying type of enum must be a non-const "
                           "integer type";
 
@@ -517,7 +517,7 @@ static EnumAttr readAttr(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readString(Comment).failed())
     return {};
 
-  clift::ValueType UnderlyingType;
+  mlir::Type UnderlyingType;
   if (Reader.readType(UnderlyingType).failed())
     return {};
 
@@ -557,7 +557,10 @@ mlir::LogicalResult TypedefAttr::verify(EmitErrorType EmitError,
                                         llvm::StringRef Handle,
                                         MutableStringAttr Name,
                                         MutableStringAttr Comment,
-                                        clift::ValueType UnderlyingType) {
+                                        mlir::Type UnderlyingType) {
+  if (not mlir::isa<clift::ValueType>(UnderlyingType))
+    return mlir::failure();
+
   return mlir::success();
 }
 
@@ -575,7 +578,7 @@ static TypedefAttr readAttr(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readString(Comment).failed())
     return {};
 
-  clift::ValueType UnderlyingType;
+  mlir::Type UnderlyingType;
   if (Reader.readType(UnderlyingType).failed())
     return {};
 
@@ -637,7 +640,7 @@ StructAttr::verifyDefinition(EmitErrorType EmitError) const {
         return EmitError() << "Fields of structs must be ordered by offset, "
                               "and they cannot overlap";
 
-      LastEndOffset = Field.getOffset() + Field.getType().getByteSize();
+      LastEndOffset = Field.getOffset() + getObjectSize(Field.getType());
 
       if (not Field.getName().empty()) {
         if (not NameSet.insert(Field.getName()).second)
@@ -714,7 +717,7 @@ StructAttr::getChecked(EmitErrorType EmitError,
 static uint64_t getUnionSize(llvm::ArrayRef<FieldAttr> Fields) {
   uint64_t Max = 0;
   for (auto const &Field : Fields)
-    Max = std::max(Max, Field.getType().getByteSize());
+    Max = std::max(Max, getObjectSize(Field.getType()));
   return Max;
 }
 

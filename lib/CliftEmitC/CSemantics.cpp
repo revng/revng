@@ -50,25 +50,19 @@ public:
     }
 
     if (mlir::isa<ImmediateOp>(Op)) {
-      auto T = mlir::cast<ValueType>(Op->getResult(0).getType());
-
-      if (isPotentiallyPromotingType(T))
+      if (isPotentiallyPromotingType(Op->getResult(0).getType()))
         return Op->emitOpError() << " is not representable in the target"
                                  << " implementation.";
     }
 
     if (isPromotingOp(Op)) {
-      auto T = mlir::cast<ValueType>(Op->getResult(0).getType());
-
-      if (isPotentiallyPromotingType(T))
+      if (isPotentiallyPromotingType(Op->getResult(0).getType()))
         return Op->emitOpError() << " causes integer promotion in the target"
                                     " implementation.";
     }
 
     if (isBooleanOp(Op)) {
-      auto T = mlir::cast<ValueType>(Op->getResult(0).getType());
-
-      if (not isCanonicalBooleanType(T))
+      if (not isCanonicalBooleanType(Op->getResult(0).getType()))
         return Op->emitOpError() << " - not yielding the canonical boolean type"
                                  << " - is not representable in the target"
                                  << " implementation.";
@@ -105,7 +99,7 @@ private:
                      CmpGeOp>(Op);
   }
 
-  bool isPotentiallyPromotingType(ValueType Type) {
+  bool isPotentiallyPromotingType(mlir::Type Type) {
     if (auto IntType = mlir::dyn_cast<IntegerType>(unwrapTypedefs(Type))) {
       auto Integer = Target.getIntegerKind(IntType.getSize());
       return not Integer or *Integer < CIntegerKind::Int;
@@ -113,7 +107,7 @@ private:
     return false;
   }
 
-  bool isCanonicalBooleanType(ValueType Type) {
+  bool isCanonicalBooleanType(mlir::Type Type) {
     if (auto IntType = mlir::dyn_cast<IntegerType>(unwrapTypedefs(Type)))
       return Target.getIntegerKind(IntType.getSize()) == CIntegerKind::Int;
     return false;

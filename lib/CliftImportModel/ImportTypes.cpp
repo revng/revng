@@ -72,18 +72,15 @@ public:
 
   ~CliftConverter() { revng_assert(DefinitionGuardSet.empty()); }
 
-  clift::ValueType
-  convertTypeDefinition(const model::TypeDefinition &ModelType) {
-    const clift::ValueType T = fromTypeDefinition(ModelType,
-                                                  /* RequireComplete = */ true);
+  mlir::Type convertTypeDefinition(const model::TypeDefinition &ModelType) {
+    mlir::Type T = fromTypeDefinition(ModelType, /*RequireComplete=*/true);
     if (T and not processIncompleteTypes())
       return nullptr;
     return T;
   }
 
-  clift::ValueType convertType(const model::Type &ModelType) {
-    const clift::ValueType T = fromType(ModelType,
-                                        /* RequireComplete = */ true);
+  mlir::Type convertType(const model::Type &ModelType) {
+    mlir::Type T = fromType(ModelType, /*RequireComplete=*/true);
     if (T and not processIncompleteTypes())
       return nullptr;
     return T;
@@ -239,7 +236,7 @@ private:
     rc_return clift::EnumType::get(Attr);
   }
 
-  RecursiveCoroutine<clift::ValueType>
+  RecursiveCoroutine<mlir::Type>
   getRegisterSetType(const model::RawFunctionDefinition &ModelType) {
     auto Location = getLocation(ModelType);
 
@@ -267,7 +264,7 @@ private:
         rc_return nullptr;
 
       Fields.push_back(Attr);
-      Offset += RegisterType.getByteSize();
+      Offset += clift::getObjectSize(RegisterType);
     }
 
     auto Handle = Location.transmute(revng::ranks::ArtificialStruct).toString();
@@ -321,7 +318,7 @@ private:
     if (StackArgumentType)
       ArgumentTypes.push_back(StackArgumentType);
 
-    clift::ValueType ReturnType;
+    mlir::Type ReturnType;
     switch (ModelType.ReturnValues().size()) {
     case 0:
       ReturnType = make<clift::VoidType>();
@@ -540,7 +537,7 @@ private:
     revng_abort("Unsupported type definition kind.");
   }
 
-  RecursiveCoroutine<clift::ValueType>
+  RecursiveCoroutine<mlir::Type>
   fromTypeDefinition(const model::TypeDefinition &ModelType,
                      bool RequireComplete = false,
                      const bool Const = false) {
@@ -548,7 +545,7 @@ private:
       auto Type = rc_recur fromTypeDefinition(ModelType,
                                               RequireComplete,
                                               /*Const=*/false);
-      rc_return Type.addConst();
+      rc_return clift::addConst(Type);
     }
 
     if (const auto It = Cache.find(ModelType.ID()); It != Cache.end())
@@ -571,8 +568,8 @@ private:
     rc_return Type;
   }
 
-  RecursiveCoroutine<clift::ValueType> fromType(const model::Type &ModelType,
-                                                bool RequireComplete = false) {
+  RecursiveCoroutine<mlir::Type> fromType(const model::Type &ModelType,
+                                          bool RequireComplete = false) {
     if (not ModelType.verify()) {
       if (EmitError)
         EmitError() << "Invalid model type";
@@ -625,7 +622,7 @@ private:
       const model::TypeDefinition &ModelType = *Iterator->second;
       IncompleteTypes.erase(Iterator);
 
-      clift::ValueType CompleteType;
+      mlir::Type CompleteType;
       if (auto RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&ModelType)) {
         CompleteType = getRegisterSetType(*RFT);
       } else {
@@ -642,7 +639,7 @@ private:
 
 } // namespace
 
-clift::ValueType
+mlir::Type
 clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                   mlir::MLIRContext &Context,
                   const model::TypeDefinition &ModelType,
@@ -651,7 +648,7 @@ clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
     .convertTypeDefinition(ModelType);
 }
 
-clift::ValueType
+mlir::Type
 clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                   mlir::MLIRContext &Context,
                   const model::Type &ModelType,
@@ -708,7 +705,7 @@ clift::importSegmentDeclaration(mlir::ModuleOp Module,
                                 mlir::Location DebugLocation,
                                 llvm::StringRef Name,
                                 llvm::StringRef Handle,
-                                clift::ValueType Type) {
+                                mlir::Type Type) {
   mlir::OpBuilder Builder(Module.getContext());
   mlir::OpBuilder::InsertionGuard Guard(Builder);
   Builder.setInsertionPointToEnd(Module.getBody());

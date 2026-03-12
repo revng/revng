@@ -26,7 +26,7 @@ public:
   //===------------------------------- Types ------------------------------===//
 
   void emitPrimitiveType(PrimitiveType Type);
-  void emitType(ValueType Type);
+  void emitType(mlir::Type Type);
 
   //===---------------------------- Attributes ----------------------------===//
 
@@ -65,7 +65,7 @@ public:
   };
 
   /// Emit a function or variable declaration of the specified type.
-  void emitDeclaration(ValueType Type, DeclaratorInfo const &Declarator);
+  void emitDeclaration(mlir::Type Type, DeclaratorInfo const &Declarator);
 
 private:
   class DeclarationEmitter;
