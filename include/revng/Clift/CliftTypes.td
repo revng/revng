@@ -57,7 +57,7 @@ def Clift_PointerType
   : Clift_Type<"Pointer",
                "ptr",
                [SubElementTypeInterface,
-                DeclareTypeInterfaceMethods<Clift_ValueType>]> {
+                DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize"]>]> {
   let summary = "Clift pointer type";
 
   let description = [{
@@ -81,19 +81,13 @@ def Clift_PointerType
   let assemblyFormat = [{
     `<` $pointer_size `to` $pointee_type `>`
   }];
-
-  let extraClassDeclaration = [{
-    uint64_t getByteSize() const {
-      return getPointerSize();
-    }
-  }];
 }
 
 def Clift_ArrayType
   : Clift_Type<"Array",
                "array",
                [SubElementTypeInterface,
-                DeclareTypeInterfaceMethods<Clift_ValueType>]> {
+                DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize", "isConst"]>]> {
   let summary = "Clift array type";
 
   let description = [{
@@ -115,22 +109,14 @@ def Clift_ArrayType
   let assemblyFormat = [{
     `<` $elements_count `x` $element_type `>`
   }];
-
-  let extraClassDeclaration = [{
-    bool isConst() const {
-      return getElementType().isConst();
-    }
-
-    uint64_t getByteSize() const {
-      return getElementsCount() * getElementType().getByteSize();
-    }
-  }];
 }
 
 def Clift_EnumType
   : Clift_Type<"Enum",
                "enum",
                [SubElementTypeInterface,
+                DeclareTypeInterfaceMethods<Clift_AliasableType>,
+                DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize"]>,
                 DeclareTypeInterfaceMethods<Clift_DefinedType>]> {
 
   let summary = "Clift enum type";
@@ -160,17 +146,6 @@ def Clift_EnumType
       return {};
     }
 
-    // AliasableType
-    bool getAlias(llvm::raw_ostream &OS) const;
-
-    // ValueType
-    uint64_t getByteSize() const {
-      return getUnderlyingType().getByteSize();
-    }
-
-    clift::ValueType addConst() const;
-    clift::ValueType removeConst() const;
-
     llvm::StringRef getHandle() const {
       return getDefinition().getHandle();
     }
@@ -195,6 +170,8 @@ def Clift_TypedefType
   : Clift_Type<"Typedef",
                "typedef",
                [SubElementTypeInterface,
+                DeclareTypeInterfaceMethods<Clift_AliasableType>,
+                DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize"]>,
                 DeclareTypeInterfaceMethods<Clift_DefinedType>]> {
 
   let summary = "Clift typedef type";
@@ -220,14 +197,6 @@ def Clift_TypedefType
     static constexpr llvm::StringRef NameAttrKey = TypedefAttr::NameAttrKey;
     static constexpr llvm::StringRef CommentAttrKey = TypedefAttr::CommentAttrKey;
 
-    // AliasableType
-    bool getAlias(llvm::raw_ostream &OS) const;
-
-    // ValueType
-    uint64_t getByteSize() const;
-    clift::ValueType addConst() const;
-    clift::ValueType removeConst() const;
-
     llvm::StringRef getHandle() const {
       return getDefinition().getHandle();
     }
@@ -250,6 +219,8 @@ def Clift_FunctionType
   : Clift_Type<"Function",
                "func",
                [SubElementTypeInterface,
+                DeclareTypeInterfaceMethods<Clift_AliasableType>,
+                DeclareTypeInterfaceMethods<Clift_ValueType, ["getByteSize", "isConst"]>,
                 DeclareTypeInterfaceMethods<Clift_DefinedType>]> {
 
   let summary = "Clift function type";
@@ -294,26 +265,6 @@ def Clift_FunctionType
       return getMutableComment().getValue();
     }
 
-    // AliasableType
-    bool getAlias(llvm::raw_ostream &OS) const;
-
-    // ValueType
-    uint64_t getByteSize() const {
-      return 0;
-    }
-
-    clift::ValueType addConst() const {
-      return *this;
-    }
-
-    clift::ValueType removeConst() const {
-      return *this;
-    }
-
-    bool isConst() const {
-      return false;
-    }
-
     llvm::ArrayRef<mlir::Type> getResultTypes() const;
   }];
 
@@ -325,6 +276,8 @@ class Clift_ClassTypeBase<string name, string mnemonic>
   : Clift_Type<name,
                mnemonic,
                [SubElementTypeInterface,
+                DeclareTypeInterfaceMethods<Clift_AliasableType>,
+                DeclareTypeInterfaceMethods<Clift_ValueType>,
                 DeclareTypeInterfaceMethods<Clift_ClassType>]> {
 
   let summary = "Clift " # mnemonic # " type";
@@ -359,13 +312,6 @@ class Clift_ClassTypeBase<string name, string mnemonic>
     llvm::ArrayRef<mlir::clift::CAttributeAttr> getCAttributes() const {
       return getDefinition().getCAttributes();
     }
-
-    // AliasableType
-    bool getAlias(llvm::raw_ostream &OS) const;
-
-    // ValueType
-    clift::ValueType addConst() const;
-    clift::ValueType removeConst() const;
   }];
 
   let extraClassDefinition = [{

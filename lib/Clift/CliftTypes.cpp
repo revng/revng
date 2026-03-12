@@ -221,6 +221,10 @@ mlir::LogicalResult PointerType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
+uint64_t PointerType::getByteSize() const {
+  return getPointerSize();
+}
+
 ValueType PointerType::addConst() const {
   if (isConst())
     return *this;
@@ -278,6 +282,14 @@ mlir::LogicalResult ArrayType::verify(EmitErrorType EmitError,
   return mlir::success();
 }
 
+uint64_t ArrayType::getByteSize() const {
+  return getElementsCount() * getElementType().getByteSize();
+}
+
+bool ArrayType::isConst() const {
+  return getElementType().isConst();
+}
+
 ValueType ArrayType::addConst() const {
   auto ElementT = getElementType();
   auto NewElementT = ElementT.addConst();
@@ -324,6 +336,10 @@ bool EnumType::getAlias(llvm::raw_ostream &OS) const {
     return false;
 
   return getDefinedTypeAlias(*this, OS);
+}
+
+uint64_t EnumType::getByteSize() const {
+  return getUnderlyingType().getByteSize();
 }
 
 clift::ValueType EnumType::addConst() const {
@@ -607,6 +623,22 @@ FunctionType::verify(EmitErrorType EmitError,
 
 bool FunctionType::getAlias(llvm::raw_ostream &OS) const {
   return getDefinedTypeAlias(*this, OS);
+}
+
+uint64_t FunctionType::getByteSize() const {
+  return 0;
+}
+
+bool FunctionType::isConst() const {
+  return false;
+}
+
+ValueType FunctionType::addConst() const {
+  return *this;
+}
+
+ValueType FunctionType::removeConst() const {
+  return *this;
 }
 
 llvm::ArrayRef<mlir::Type> FunctionType::getResultTypes() const {
