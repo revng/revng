@@ -1517,6 +1517,11 @@ bool clift::isIntegerType(ValueType Type) {
   return mlir::isa<EnumType>(Type);
 }
 
+bool clift::isBooleanType(ValueType Type) {
+  auto T = getPrimitiveIntegerType(Type);
+  return T and T.getKind() == PrimitiveKind::SignedKind;
+}
+
 bool clift::isFloatType(ValueType Type) {
   Type = dealias(Type, /*IgnoreQualifiers=*/true);
 

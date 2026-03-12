@@ -29,10 +29,14 @@ def Clift_AnyValueType
          "Clift value type",
          "mlir::clift::ValueType">;
 
-class Clift_AnyPrimitiveTypeOf<string Kind>
-  : Type<CPred<"mlir::clift::impl::verifyPrimitiveTypeOf($_self," #
-                                                         "mlir::clift::PrimitiveKind::" # Kind # ")">,
-         "Clift primitive type of " # Kind,
+def Clift_AnyObjectType
+  : Type<CPred<"mlir::clift::isObjectType($_self)">,
+         "Clift object type",
+         "mlir::clift::ValueType">;
+
+def Clift_AnyBooleanType
+  : Type<CPred<"mlir::clift::isBooleanType($_self)">,
+         "Clift boolean type",
          "mlir::clift::ValueType">;
 
 def Clift_AnyScalarType
@@ -523,7 +527,7 @@ def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
   let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$name,
                        DefaultValuedStrAttr<StrAttr, "">:$handle);
 
-  let results = (outs Clift_AnyValueType:$result);
+  let results = (outs Clift_AnyObjectType:$result);
 
   let regions = (region Clift_OptionalExpressionRegion:$initializer);
 
@@ -808,7 +812,7 @@ class Clift_BinaryLogicalOp<string mnemonic>
   let arguments = (ins Clift_AnyScalarType:$lhs,
                        Clift_AnyScalarType:$rhs);
 
-  let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveTypeOf<"SignedKind">>:$result);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyBooleanType>:$result);
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:`
@@ -848,7 +852,7 @@ class Clift_ComparisonOp<string mnemonic>
   let arguments = (ins Clift_AnyScalarType:$lhs,
                        Clift_AnyScalarType:$rhs);
 
-  let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveTypeOf<"SignedKind">>:$result);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyBooleanType>:$result);
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:`
@@ -906,7 +910,7 @@ def Clift_LogicalNotOp
   : Clift_ExpressionOp<"not", [Clift_ReturnsBoolean]> {
 
   let arguments = (ins Clift_AnyIntegerType:$value);
-  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyBooleanType>:$result);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
@@ -1001,7 +1005,7 @@ def Clift_AssignOp
                        [AllTypesMatch<["lhs", "result"]>,
                         Clift_AllTypesMatch<["lhs", "rhs"]>]> {
 
-  let arguments = (ins Clift_AnyModifiableType<Clift_AnyValueType>:$lhs,
+  let arguments = (ins Clift_AnyModifiableType<AnyType>:$lhs,
                        AnyType:$rhs);
 
   let results = (outs AnyType:$result);

@@ -144,15 +144,6 @@ ValueType clift::getExpressionType(mlir::Region &R) {
   return {};
 }
 
-//===-------------------------- Type constraints --------------------------===//
-
-bool clift::impl::verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind) {
-  if (auto T = mlir::dyn_cast<PrimitiveType>(Type))
-    return T.getKind() == Kind;
-
-  return false;
-}
-
 //===---------------------------- Region types ----------------------------===//
 
 template<typename OpInterface>
@@ -1428,6 +1419,13 @@ mlir::LogicalResult IndirectionOp::verify() {
 //===------------------------------ AssignOp ------------------------------===//
 
 mlir::LogicalResult AssignOp::verify() {
+  clift::ValueType Type = dealias(getLhs().getType(),
+                                  /*IgnoreQualifiers=*/true);
+
+  if (not isObjectType(Type) or mlir::isa<ArrayType>(Type))
+    return emitOpError() << getOperationName()
+                         << " left operand must be a non-array object type.";
+
   if (not clift::isLvalueExpression(getLhs()))
     return emitOpError() << getOperationName()
                          << " left operand must be an lvalue-expression.";

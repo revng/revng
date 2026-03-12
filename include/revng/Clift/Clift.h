@@ -34,8 +34,6 @@ inline constexpr unsigned ContinueLabelFlag = 1 << 1;
 bool verifyStatementRegion(Region &R);
 bool verifyExpressionRegion(Region &R, bool Required);
 
-bool verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind);
-
 unsigned getPointerArithmeticPointerOperandIndex(mlir::Operation *Op);
 unsigned getPointerArithmeticOffsetOperandIndex(mlir::Operation *Op);
 
