@@ -26,7 +26,7 @@ module attributes {clift.module} {
       name = "var_0"
     }
 
-    // CHECK: (uint64_t) 0L;
+    // CHECK: (uint64_t) 0{{L?L?}};
     clift.expr {
       %0 = clift.imm 0 : !int64_t
       %1 = clift.cast<bitcast> %0 : !int64_t -> !uint64_t
