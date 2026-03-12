@@ -716,7 +716,7 @@ def Clift_ImmediateOp : Clift_ExpressionOp<"imm", [NoMemoryEffect]> {
 
 def Clift_StringOp : Clift_ExpressionOp<"str", [NoMemoryEffect]> {
   let arguments = (ins StrAttr:$value);
-  let results = (outs Clift_AnyValueType:$result);
+  let results = (outs AnyType:$result);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($result)
@@ -769,8 +769,8 @@ class Clift_PointerArithmeticOp<string mnemonic, list<Trait> traits = []>
                        !listconcat(traits,
                                    [NoMemoryEffect])> {
 
-  let arguments = (ins Clift_AnyValueType:$lhs, Clift_AnyValueType:$rhs);
-  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+  let arguments = (ins AnyType:$lhs, AnyType:$rhs);
+  let results = (outs Clift_AnyNonConstType<AnyType>:$result);
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:` `(`
@@ -895,8 +895,8 @@ def Clift_PtrDiffOp
                        [NoMemoryEffect,
                         Clift_AllTypesMatch<["lhs", "rhs"]>]> {
 
-  let arguments = (ins Clift_AnyValueType:$lhs, Clift_AnyValueType:$rhs);
-  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+  let arguments = (ins AnyType:$lhs, AnyType:$rhs);
+  let results = (outs Clift_AnyNonConstType<AnyType>:$result);
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:`
@@ -970,7 +970,7 @@ def Clift_AddressofOp
                                        "object",
                                        "mlir::cast<PointerType>($_self).getPointeeType()">]> {
 
-  let arguments = (ins Clift_AnyValueType:$object);
+  let arguments = (ins AnyType:$object);
   let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
 
   let assemblyFormat = [{
@@ -989,7 +989,7 @@ def Clift_IndirectionOp
                                        "mlir::cast<PointerType>($_self).getPointeeType()">]> {
 
   let arguments = (ins Clift_AnyPointerType:$pointer);
-  let results = (outs Clift_AnyValueType:$result);
+  let results = (outs AnyType:$result);
 
   let assemblyFormat = [{
     $pointer attr-dict `:` type($pointer)
@@ -1010,9 +1010,9 @@ def Clift_AssignOp
                         Clift_AllTypesMatch<["lhs", "rhs"]>]> {
 
   let arguments = (ins Clift_AnyModifiableType<Clift_AnyValueType>:$lhs,
-                       Clift_AnyValueType:$rhs);
+                       AnyType:$rhs);
 
-  let results = (outs Clift_AnyValueType:$result);
+  let results = (outs AnyType:$result);
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:`
@@ -1029,11 +1029,11 @@ def Clift_AssignOp
 }
 
 def Clift_AccessOp : Clift_ExpressionOp<"access", [NoMemoryEffect]> {
-  let arguments = (ins Clift_AnyValueType:$value,
+  let arguments = (ins AnyType:$value,
                        UnitAttr:$indirect,
                        I64Attr:$member_index);
 
-  let results = (outs Clift_AnyValueType:$result);
+  let results = (outs AnyType:$result);
 
   let assemblyFormat = [{
     `<` (`indirect` $indirect^)? $member_index `>` $value attr-dict
@@ -1061,10 +1061,10 @@ def Clift_SubscriptOp
                                        "pointer",
                                        "result",
                                        "mlir::cast<PointerType>($_self).getPointeeType()">]> {
-  let arguments = (ins Clift_AnyValueType:$pointer,
+  let arguments = (ins AnyType:$pointer,
                        Clift_AnyIntegerType:$index);
 
-  let results = (outs Clift_AnyValueType:$result);
+  let results = (outs AnyType:$result);
 
   let assemblyFormat = [{
     $pointer `,` $index attr-dict `:` `(` type($pointer) `,` type($index) `)`
@@ -1085,7 +1085,8 @@ def Clift_CommaOp : Clift_ExpressionOp<"comma",
 
   let arguments = (ins Clift_AnyValueType:$lhs,
                        Clift_AnyValueType:$rhs);
-  let results = (outs Clift_AnyValueType:$result);
+
+  let results = (outs AnyType:$result);
 
   let assemblyFormat = [{
     $lhs `,` $rhs attr-dict `:` type($lhs) `,` type($rhs)
@@ -1122,10 +1123,10 @@ def Clift_UseOp
 }
 
 def Clift_CallOp : Clift_ExpressionOp<"call"> {
-  let arguments = (ins Clift_AnyValueType:$function,
-                       Variadic<Clift_AnyValueType>:$arguments);
+  let arguments = (ins AnyType:$function,
+                       Variadic<AnyType>:$arguments);
 
-  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+  let results = (outs Clift_AnyNonConstType<AnyType>:$result);
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
@@ -1141,8 +1142,8 @@ def Clift_TernaryOp
                                        "mlir::clift::removeConst($_self)">]> {
 
   let arguments = (ins Clift_AnyScalarType:$condition,
-                       Clift_AnyValueType:$lhs,
-                       Clift_AnyValueType:$rhs);
+                       AnyType:$lhs,
+                       AnyType:$rhs);
 
   let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
 
@@ -1159,8 +1160,8 @@ def Clift_TernaryOp
 }
 
 def Clift_AggregateOp : Clift_ExpressionOp<"aggregate", [NoMemoryEffect]> {
-  let arguments = (ins Variadic<Clift_AnyValueType>:$initializers);
-  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+  let arguments = (ins Variadic<AnyType>:$initializers);
+  let results = (outs Clift_AnyNonConstType<AnyType>:$result);
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
