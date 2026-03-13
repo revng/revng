@@ -9,5 +9,5 @@
 %v = clift.local : !int32_t
 %t = clift.ternary %v, %v, %v : (!int32_t, !int32_t)
 
-// CHECK: operand must be an lvalue-expression
+// CHECK: failed to verify that operand lhs is an lvalue expression
 clift.assign %t, %t : !int32_t

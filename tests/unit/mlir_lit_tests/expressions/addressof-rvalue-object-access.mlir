@@ -16,5 +16,5 @@
 %0 = clift.undef : !s
 %1 = clift.access<0> %0 : !s -> !int32_t
 
-// CHECK: operand must be an lvalue-expression
+// CHECK: failed to verify that operand object is an lvalue expression
 %2 = clift.addressof %1 : !int32_t$ptr

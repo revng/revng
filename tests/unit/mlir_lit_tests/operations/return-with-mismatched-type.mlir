@@ -13,7 +13,7 @@
 
 module attributes {clift.module} {
   clift.func @f<!f>(%arg0 : !int64_t) {
-    // CHECK: type does not match the function return type
+    // CHECK: expression type must match the function return type
     clift.return {
       clift.yield %arg0 : !int64_t
     }

@@ -8,5 +8,5 @@
 
 %rvalue = clift.imm 1 : !int32_t
 
-// CHECK: operand must be an lvalue-expression
+// CHECK: failed to verify that operand value is an lvalue expression
 clift.inc %rvalue : !int32_t

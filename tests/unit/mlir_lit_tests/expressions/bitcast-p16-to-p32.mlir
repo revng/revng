@@ -10,5 +10,5 @@
 
 %p = clift.undef : !int32_t$ptr32
 
-// CHECK: result and argument types must be equal in size
+// CHECK: failed to verify that all of {value, result} have same object size
 clift.bitcast %p : !int32_t$ptr32 -> !int32_t$ptr64

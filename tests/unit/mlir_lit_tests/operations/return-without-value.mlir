@@ -12,7 +12,7 @@
 
 module attributes {clift.module} {
   clift.func @f<!f>() {
-    // CHECK: must return a value in function not returning void
+    // CHECK: expression type must match the function return type
     clift.return {}
   }
 }

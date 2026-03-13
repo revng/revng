@@ -429,31 +429,6 @@ void FunctionOp::print(mlir::OpAsmPrinter &Printer) {
   }
 }
 
-mlir::LogicalResult FunctionOp::verify() {
-  auto ReturnType = getReturnType();
-
-  bool IsVoid = clift::unwrapped_isa<VoidType>(ReturnType);
-  auto Result = (*this)->walk([&](ReturnOp Op) -> mlir::WalkResult {
-    mlir::Type Type = getExpressionType(Op.getResult());
-
-    if (IsVoid) {
-      if (Type)
-        return Op->emitOpError() << "cannot return expression in function "
-                                    "returning void.";
-    } else if (not Type) {
-      return Op->emitOpError() << "must return a value in function not "
-                                  "returning void.";
-    } else if (Type != ReturnType) {
-      return Op->emitOpError() << "type does not match the function return "
-                                  "type";
-    }
-
-    return mlir::success();
-  });
-
-  return mlir::failure(Result.wasInterrupted());
-}
-
 llvm::ArrayRef<mlir::Type> FunctionOp::getArgumentTypes() {
   return getFunctionType().getArgumentTypes();
 }
@@ -975,10 +950,29 @@ mlir::LogicalResult MakeLabelOp::verify() {
 //===------------------------------ ReturnOp ------------------------------===//
 
 mlir::LogicalResult ReturnOp::verify() {
-  if (mlir::Region &R = getResult(); not R.empty()) {
-    if (not clift::unwrapped_isa<VoidType, ValueType>(getExpressionType(R)))
+  mlir::Region &Expression = getResult();
+
+  mlir::Type ExprType = Expression.empty() ? mlir::Type() :
+                                             getExpressionType(Expression);
+
+  if (ExprType and not clift::unwrapped_isa<VoidType, ValueType>(ExprType))
+    return emitOpError() << getOperationName()
+                         << " expression must have void or value type.";
+
+  if (auto Function = getOperation()->getParentOfType<FunctionOp>()) {
+    mlir::Type ReturnType = Function.getReturnType();
+    mlir::Type UnqualifiedExprType = ExprType ? clift::removeConst(ExprType) :
+                                                mlir::Type();
+
+    if (clift::unwrapped_isa<VoidType>(ReturnType)) {
+      if (ExprType)
+        return emitOpError() << " cannot return expression in function "
+                                " returning void.";
+    } else if (UnqualifiedExprType != ReturnType) {
       return emitOpError() << getOperationName()
-                           << " expression must have void or value type.";
+                           << " expression type must match the function return"
+                              " type.";
+    }
   }
 
   return mlir::success();
@@ -1146,17 +1140,6 @@ mlir::LogicalResult StringOp::verify() {
   return mlir::success();
 }
 
-//===----------------------- UnaryIntegerMutationOp -----------------------===//
-
-mlir::LogicalResult
-clift::impl::verifyUnaryIntegerMutationOp(mlir::Operation *Op) {
-  if (not mlir::clift::isLvalueExpression(Op->getOperand(0)))
-    return Op->emitOpError()
-           << Op->getName() << " operand must be an lvalue-expression.";
-
-  return mlir::success();
-}
-
 //===------------------- Pointer arithmetic expressions -------------------===//
 
 mlir::ParseResult
@@ -1255,26 +1238,22 @@ mlir::LogicalResult PtrSubOp::verify() {
 //===------------------------------ PtrDiffOp -----------------------------===//
 
 mlir::LogicalResult PtrDiffOp::verify() {
-  auto LhsPT = clift::unwrapped_dyn_cast<PointerType>(getLhs().getType());
-  auto RhsPT = clift::unwrapped_dyn_cast<PointerType>(getRhs().getType());
+  auto LHS = clift::unwrapped_cast<PointerType>(getLhs().getType());
+  auto RHS = clift::unwrapped_cast<PointerType>(getRhs().getType());
 
-  if (not LhsPT or not RhsPT)
+  if (not clift::equivalent(clift::unwrapTypedefs(LHS.getPointeeType()),
+                            clift::unwrapTypedefs(RHS.getPointeeType())))
     return emitOpError() << getOperationName()
-                         << " requires two pointer operands.";
+                         << " operand pointee types must be equal (ignoring"
+                            " cv-qualifiers).";
 
-  auto PointeeType = LhsPT.getPointeeType();
-  if (not equivalent(PointeeType, RhsPT.getPointeeType()))
-    return emitOpError() << getOperationName()
-                         << " operand pointee types must match, ignoring"
-                            " qualifiers.";
-
-  if (not clift::unwrapped_isa<ObjectType>(PointeeType))
+  if (not clift::unwrapped_isa<ObjectType>(LHS.getPointeeType()))
     return emitOpError() << getOperationName()
                          << " operand pointee must have object type.";
 
   auto IntType = mlir::dyn_cast<IntegerType>(getResult().getType());
   if (not IntType or not IntType.isSigned()
-      or IntType.getSize() != LhsPT.getPointerSize())
+      or IntType.getSize() != LHS.getPointerSize())
     return emitOpError() << getOperationName()
                          << " result must have primitive signed integer type"
                             " with size matching that of the operand type.";
@@ -1311,25 +1290,6 @@ mlir::LogicalResult DecayOp::verify() {
   return mlir::success();
 }
 
-//===------------------------------ BitCastOp -----------------------------===//
-
-mlir::LogicalResult BitCastOp::verify() {
-  auto ResT = unwrapTypedefs(getResult().getType());
-  auto ArgT = unwrapTypedefs(getValue().getType());
-
-  if (not mlir::isa<ValueType>(ResT))
-    return emitOpError() << " result must have value type.";
-
-  if (not mlir::isa<ValueType>(ArgT))
-    return emitOpError() << " argument must have value type.";
-
-  if (getObjectSize(ResT) != getObjectSize(ArgT))
-    return emitOpError() << " result and argument types must be equal in"
-                            " size.";
-
-  return mlir::success();
-}
-
 //===------------------------------ ExtendOp ------------------------------===//
 
 mlir::LogicalResult ExtendOp::verify() {
@@ -1359,50 +1319,12 @@ mlir::LogicalResult TruncateOp::verify() {
 //===----------------------------- PtrResizeOp ----------------------------===//
 
 mlir::LogicalResult PtrResizeOp::verify() {
-  auto ResPtrT = clift::unwrapped_cast<PointerType>(getResult().getType());
-  auto ArgPtrT = clift::unwrapped_cast<PointerType>(getValue().getType());
+  auto ResT = getResult().getType();
+  auto ArgT = getValue().getType();
 
-  if (ResPtrT.getPointerSize() == ArgPtrT.getPointerSize())
+  if (getObjectSize(ResT) == getObjectSize(ArgT))
     return emitOpError() << getOperationName()
                          << " operand size must not match the result.";
-
-  if (ResPtrT.getPointeeType() != ArgPtrT.getPointeeType())
-    return emitOpError() << getOperationName()
-                         << " operand pointee type must match the result.";
-
-  return mlir::success();
-}
-
-//===----------------------------- AddressofOp ----------------------------===//
-
-mlir::LogicalResult AddressofOp::verify() {
-  if (not clift::isLvalueExpression(getObject()))
-    return emitOpError() << getOperationName()
-                         << " operand must be an lvalue-expression.";
-
-  return mlir::success();
-}
-
-//===---------------------------- IndirectionOp ---------------------------===//
-
-mlir::LogicalResult IndirectionOp::verify() {
-  if (clift::unwrapped_isa<VoidType>(getResult().getType()))
-    return emitOpError() << getOperationName()
-                         << " cannot dereference a pointer to void.";
-
-  return mlir::success();
-}
-
-//===------------------------------ AssignOp ------------------------------===//
-
-mlir::LogicalResult AssignOp::verify() {
-  if (not clift::unwrapped_isa<ValueType>(getLhs().getType()))
-    return emitOpError() << getOperationName()
-                         << " left operand must have value type.";
-
-  if (not clift::isLvalueExpression(getLhs()))
-    return emitOpError() << getOperationName()
-                         << " left operand must be an lvalue-expression.";
 
   return mlir::success();
 }

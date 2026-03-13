@@ -26,62 +26,84 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 
 def Clift_AnyAddressableType
   : Type<CPred<"mlir::isa<mlir::clift::AddressableType>($_self)">,
-         "Clift value type",
-         "mlir::Type">;
+         "value type">;
 
 def Clift_AnyObjectType
   : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::ObjectType>($_self)">,
-         "Clift object type",
-         "mlir::Type">;
+         "object type">;
+
+def Clift_AnyValueType
+  : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::ValueType>($_self)">,
+         "value type">;
 
 def Clift_AnyBooleanType
   : Type<CPred<"mlir::clift::isBooleanType($_self)">,
-         "Clift boolean type",
-         "mlir::Type">;
+         "boolean type">;
 
 def Clift_AnyScalarType
   : Type<CPred<"mlir::clift::isScalarType($_self)">,
-         "Clift scalar type",
-         "mlir::Type">;
+         "scalar type">;
 
 def Clift_AnyIntegerType
   : Type<CPred<"mlir::clift::isIntegerType($_self)">,
-         "Clift integer type",
-         "mlir::Type">;
+         "integer type">;
 
 def Clift_AnyPrimitiveIntegerType
   : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::IntegerType>($_self)">,
-         "primitive Clift integer type",
-         "mlir::Type">;
+         "primitive integer type">;
 
 def Clift_AnyPointerType
   : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::PointerType>($_self)">,
-         "Clift pointer type",
-         "mlir::Type">;
+         "pointer type">;
 
 def Clift_AnyFunctionType
   : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::FunctionType>($_self)">,
-         "Clift function type",
-         "mlir::Type">;
+         "function type">;
+
+def Clift_AnyNonVoidType
+  : Type<CPred<"not mlir::clift::unwrapped_isa<mlir::clift::VoidType>($_self)">,
+         "non-void type">;
 
 class Clift_AnyNonConstType<Type type>
   : Type<And<[type.predicate,
               CPred<"not mlir::clift::isConst($_self)">]>,
-         // TODO: Figure out why the string concatenation isn't working here.
-         "non-const " # type.description,
-         "mlir::Type">;
+         "non-const " # type.summary>;
 
 class Clift_AnyModifiableType<Type type>
   : Type<And<[type.predicate,
               CPred<"mlir::clift::isModifiableType($_self)">]>,
-         // TODO: Figure out why the string concatenation isn't working here.
-         "modifiable " # type.description,
-         "mlir::Type">;
+         "modifiable " # type.summary>;
 
 class Clift_AllTypesMatch<list<string> names>
   : AllMatchSameOperatorTrait<names,
                               "mlir::clift::removeConst($_self.getType())",
-                              "type, ignoring qualifiers">;
+                              "type (ignoring qualifiers)">;
+
+class Clift_AllSizesMatch<list<string> names>
+  : AllMatchSameOperatorTrait<names,
+                              "mlir::clift::getObjectSize($_self.getType())",
+                              "object size">;
+
+class Clift_AllPointeeTypesMatch<list<string> names>
+  : AllMatchSameOperatorTrait<names,
+                              "mlir::clift::unwrapped_cast<mlir::clift::PointerType>($_self.getType()).getPointeeType()",
+                              "pointee type">;
+
+class Clift_UnqualifiedTypeMatches<string qualified, string unqualified>
+  : TypesMatchWith<qualified # " type (ignoring qualifiers) matches the " # unqualified # " type",
+                   qualified,
+                   unqualified,
+                   "mlir::clift::removeConst($_self)">;
+
+class Clift_PointeeTypeMatches<string pointer, string value>
+  : TypesMatchWith<pointer # " pointee type matches the " # value # " type",
+                   pointer,
+                   value,
+                   "mlir::clift::unwrapped_cast<mlir::clift::PointerType>($_self).getPointeeType()">;
+
+class Clift_LValueOperand<string name>
+  : PredOpTrait<"operand " # name # " is an lvalue expression",
+                CPred<"mlir::clift::isLvalueExpression($" # name # ")">>;
 
 //===---------------------------- Region types ----------------------------===//
 
@@ -124,7 +146,6 @@ def Clift_FunctionOp : Clift_Op<"func",
                    "mlir::clift::FunctionType":$FunctionType)>
   ];
 
-  let hasVerifier = 1;
   let hasCustomAssemblyFormat = 1;
 
   code extraClassDeclaration = [{
@@ -730,10 +751,7 @@ def Clift_StringOp : Clift_ExpressionOp<"str"> {
 
 class Clift_UnaryArithmeticOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
-                       [TypesMatchWith<"result type must match the value type, ignoring qualifiers",
-                                       "value",
-                                       "result",
-                                       "mlir::clift::removeConst($_self)">]> {
+                       [Clift_UnqualifiedTypeMatches<"value", "result">]> {
 
   let arguments = (ins Clift_AnyPrimitiveIntegerType:$value);
   let results = (outs Clift_AnyNonConstType<Clift_AnyPrimitiveIntegerType>:$result);
@@ -820,10 +838,7 @@ class Clift_BinaryLogicalOp<string mnemonic>
 
 class Clift_ShiftOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
-                       [TypesMatchWith<"result type must match the lhs type, ignoring qualifiers",
-                                       "lhs",
-                                       "result",
-                                       "mlir::clift::removeConst($_self)">]> {
+                       [Clift_UnqualifiedTypeMatches<"lhs", "result">]> {
 
   let arguments = (ins Clift_AnyPrimitiveIntegerType:$lhs,
                        Clift_AnyPrimitiveIntegerType:$rhs);
@@ -854,7 +869,8 @@ class Clift_ComparisonOp<string mnemonic>
 
 class Clift_UnaryIntegerMutationOp<string mnemonic>
   : Clift_ExpressionOp<mnemonic,
-                       [AllTypesMatch<["value", "result"]>]> {
+                       [AllTypesMatch<["value", "result"]>,
+                        Clift_LValueOperand<"value">]> {
 
   let arguments = (ins Clift_AnyModifiableType<Clift_AnyPrimitiveIntegerType>:$value);
   let results = (outs Clift_AnyPrimitiveIntegerType:$result);
@@ -866,10 +882,6 @@ class Clift_UnaryIntegerMutationOp<string mnemonic>
   let extraClassDeclaration = [{
     bool isLvalueExpression() {
       return true;
-    }
-
-    mlir::LogicalResult verify() {
-      return mlir::clift::impl::verifyUnaryIntegerMutationOp(getOperation());
     }
   }];
 }
@@ -884,10 +896,10 @@ def Clift_RemOp : Clift_BinaryArithmeticOp<"rem">;
 def Clift_PtrAddOp : Clift_PointerArithmeticOp<"ptr_add", [Commutative]>;
 def Clift_PtrSubOp : Clift_PointerArithmeticOp<"ptr_sub">;
 
-def Clift_PtrDiffOp
-  : Clift_ExpressionOp<"ptr_diff", [Clift_AllTypesMatch<["lhs", "rhs"]>]> {
+def Clift_PtrDiffOp : Clift_ExpressionOp<"ptr_diff"> {
+  let arguments = (ins Clift_AnyPointerType:$lhs,
+                       Clift_AnyPointerType:$rhs);
 
-  let arguments = (ins AnyType:$lhs, AnyType:$rhs);
   let results = (outs Clift_AnyNonConstType<AnyType>:$result);
 
   let assemblyFormat = [{
@@ -939,8 +951,8 @@ def Clift_DecrementOp : Clift_UnaryIntegerMutationOp<"dec">;
 def Clift_PostIncrementOp : Clift_UnaryIntegerMutationOp<"post_inc">;
 def Clift_PostDecrementOp : Clift_UnaryIntegerMutationOp<"post_dec">;
 
-class Clift_CastExpressionOp<string mnemonic>
-  : Clift_BasicExpressionOp<mnemonic, Clift_CastOpInterface>;
+class Clift_CastExpressionOp<string mnemonic, list<Trait> traits = []>
+  : Clift_BasicExpressionOp<mnemonic, Clift_CastOpInterface, traits>;
 
 def Clift_DecayOp : Clift_CastExpressionOp<"decay"> {
   let arguments = (ins AnyType:$value);
@@ -954,16 +966,16 @@ def Clift_DecayOp : Clift_CastExpressionOp<"decay"> {
   let hasVerifier = 1;
 }
 
-def Clift_BitCastOp : Clift_CastExpressionOp<"bitcast"> {
-  let arguments = (ins AnyType:$value);
+def Clift_BitCastOp
+  : Clift_CastExpressionOp<"bitcast",
+                           [Clift_AllSizesMatch<["value", "result"]>]> {
 
-  let results = (outs Clift_AnyNonConstType<AnyType>:$result);
+  let arguments = (ins Clift_AnyValueType:$value);
+  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
 
   let assemblyFormat = [{
     $value attr-dict `:` type($value) `->` type($result)
   }];
-
-  let hasVerifier = 1;
 }
 
 def Clift_ExtendOp : Clift_CastExpressionOp<"extend"> {
@@ -990,9 +1002,11 @@ def Clift_TruncateOp : Clift_CastExpressionOp<"truncate"> {
   let hasVerifier = 1;
 }
 
-def Clift_PtrResizeOp : Clift_CastExpressionOp<"ptr_resize"> {
-  let arguments = (ins Clift_AnyPointerType:$value);
+def Clift_PtrResizeOp
+  : Clift_CastExpressionOp<"ptr_resize",
+                           [Clift_AllPointeeTypesMatch<["value", "result"]>]> {
 
+  let arguments = (ins Clift_AnyPointerType:$value);
   let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
 
   let assemblyFormat = [{
@@ -1004,10 +1018,8 @@ def Clift_PtrResizeOp : Clift_CastExpressionOp<"ptr_resize"> {
 
 def Clift_AddressofOp
   : Clift_ExpressionOp<"addressof",
-                       [TypesMatchWith<"object type must match the pointee type of the result type",
-                                       "result",
-                                       "object",
-                                       "mlir::cast<PointerType>($_self).getPointeeType()">]> {
+                       [Clift_PointeeTypeMatches<"result", "object">,
+                        Clift_LValueOperand<"object">]> {
 
   let arguments = (ins AnyType:$object);
   let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
@@ -1015,19 +1027,14 @@ def Clift_AddressofOp
   let assemblyFormat = [{
     $object attr-dict `:` type($result)
   }];
-
-  let hasVerifier = 1;
 }
 
 def Clift_IndirectionOp
   : Clift_ExpressionOp<"indirection",
-                       [TypesMatchWith<"result type must match the pointee type of the pointer type",
-                                       "pointer",
-                                       "result",
-                                       "mlir::cast<PointerType>($_self).getPointeeType()">]> {
+                       [Clift_PointeeTypeMatches<"pointer", "result">]> {
 
   let arguments = (ins Clift_AnyPointerType:$pointer);
-  let results = (outs AnyType:$result);
+  let results = (outs Clift_AnyNonVoidType:$result);
 
   let assemblyFormat = [{
     $pointer attr-dict `:` type($pointer)
@@ -1038,16 +1045,15 @@ def Clift_IndirectionOp
       return true;
     }
   }];
-
-  let hasVerifier = 1;
 }
 
 def Clift_AssignOp
   : Clift_ExpressionOp<"assign",
                        [AllTypesMatch<["lhs", "result"]>,
-                        Clift_AllTypesMatch<["lhs", "rhs"]>]> {
+                        Clift_AllTypesMatch<["lhs", "rhs"]>,
+                        Clift_LValueOperand<"lhs">]> {
 
-  let arguments = (ins Clift_AnyModifiableType<AnyType>:$lhs,
+  let arguments = (ins Clift_AnyModifiableType<Clift_AnyValueType>:$lhs,
                        AnyType:$rhs);
 
   let results = (outs AnyType:$result);
@@ -1062,8 +1068,6 @@ def Clift_AssignOp
       return true;
     }
   }];
-
-  let hasVerifier = 1;
 }
 
 def Clift_AccessOp : Clift_ExpressionOp<"access"> {
@@ -1094,10 +1098,7 @@ def Clift_AccessOp : Clift_ExpressionOp<"access"> {
 
 def Clift_SubscriptOp
   : Clift_ExpressionOp<"subscript",
-                       [TypesMatchWith<"result type must match the pointee type of the pointer type",
-                                       "pointer",
-                                       "result",
-                                       "mlir::cast<PointerType>($_self).getPointeeType()">]> {
+                       [Clift_PointeeTypeMatches<"pointer", "result">]> {
   let arguments = (ins AnyType:$pointer,
                        Clift_AnyIntegerType:$index);
 
@@ -1170,10 +1171,7 @@ def Clift_CallOp : Clift_ExpressionOp<"call"> {
 def Clift_TernaryOp
   : Clift_ExpressionOp<"ternary",
                        [Clift_AllTypesMatch<["lhs", "rhs"]>,
-                        TypesMatchWith<"result type must match the value type, ignoring qualifiers",
-                                       "lhs",
-                                       "result",
-                                       "mlir::clift::removeConst($_self)">]> {
+                        Clift_UnqualifiedTypeMatches<"lhs", "result">]> {
 
   let arguments = (ins Clift_AnyScalarType:$condition,
                        AnyType:$lhs,

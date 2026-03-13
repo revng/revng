@@ -12,5 +12,5 @@
 
 %value = clift.undef : !ptr32_int32_t
 
-// CHECK: operand pointee type must match the result
+// CHECK: failed to verify that all of {value, result} have same pointee type
 clift.ptr_resize %value : !ptr32_int32_t -> !ptr64_uint32_t

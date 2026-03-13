@@ -9,5 +9,5 @@
 
 %i = clift.undef : !int16_t
 
-// CHECK: result and argument types must be equal in size
+// CHECK: failed to verify that all of {value, result} have same object size
 clift.bitcast %i : !int16_t -> !int32_t
