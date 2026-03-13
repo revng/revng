@@ -976,12 +976,9 @@ mlir::LogicalResult MakeLabelOp::verify() {
 
 mlir::LogicalResult ReturnOp::verify() {
   if (mlir::Region &R = getResult(); not R.empty()) {
-    auto EmitError = [&]() -> mlir::InFlightDiagnostic {
-      return emitOpError() << getOperationName() << " type ";
-    };
-
-    if (verifyReturnType(EmitError, getExpressionType(R)).failed())
-      return mlir::failure();
+    if (not clift::unwrapped_isa<VoidType, ValueType>(getExpressionType(R)))
+      return emitOpError() << getOperationName()
+                           << " expression must have void or value type.";
   }
 
   return mlir::success();
@@ -1320,11 +1317,11 @@ mlir::LogicalResult BitCastOp::verify() {
   auto ResT = unwrapTypedefs(getResult().getType());
   auto ArgT = unwrapTypedefs(getValue().getType());
 
-  if (not mlir::isa<ObjectType>(ResT) or mlir::isa<ArrayType>(ResT))
-    return emitOpError() << " result must have non-array object type.";
+  if (not mlir::isa<ValueType>(ResT))
+    return emitOpError() << " result must have value type.";
 
-  if (not mlir::isa<ObjectType>(ArgT) or mlir::isa<ArrayType>(ArgT))
-    return emitOpError() << " argument must have non-array object type.";
+  if (not mlir::isa<ValueType>(ArgT))
+    return emitOpError() << " argument must have value type.";
 
   if (getObjectSize(ResT) != getObjectSize(ArgT))
     return emitOpError() << " result and argument types must be equal in"
@@ -1399,11 +1396,9 @@ mlir::LogicalResult IndirectionOp::verify() {
 //===------------------------------ AssignOp ------------------------------===//
 
 mlir::LogicalResult AssignOp::verify() {
-  mlir::Type Type = unwrapTypedefs(getLhs().getType());
-
-  if (not mlir::isa<ObjectType>(Type) or mlir::isa<ArrayType>(Type))
+  if (not clift::unwrapped_isa<ValueType>(getLhs().getType()))
     return emitOpError() << getOperationName()
-                         << " left operand must be a non-array object type.";
+                         << " left operand must have value type.";
 
   if (not clift::isLvalueExpression(getLhs()))
     return emitOpError() << getOperationName()

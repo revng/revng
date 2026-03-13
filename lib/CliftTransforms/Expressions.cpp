@@ -43,8 +43,7 @@ static bool assignTypePunnedConstraint(mlir::Value Ptr, mlir::Value Value) {
   mlir::Type SrcType = Value.getType();
   mlir::Type DstType = PtrType.getPointeeType();
 
-  mlir::Type T = unwrapTypedefs(DstType);
-  if (not mlir::isa<ObjectType>(T) or mlir::isa<ArrayType>(T))
+  if (not clift::unwrapped_isa<ValueType>(DstType))
     return false;
 
   return SrcType != DstType

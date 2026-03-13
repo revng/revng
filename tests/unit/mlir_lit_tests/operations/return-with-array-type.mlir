@@ -7,7 +7,7 @@
 !int32_t = !clift.int<signed 4>
 !array = !clift.array<1 x !int32_t>
 
-// CHECK: return type cannot be an array type
+// CHECK: expression must have void or value type
 clift.return {
   %0 = clift.undef : !array
   clift.yield %0 : !array

@@ -683,20 +683,12 @@ FunctionType::verify(EmitErrorType EmitError,
                      llvm::ArrayRef<mlir::Type> Args,
                      llvm::ArrayRef<CAttributeAttr> Attributes) {
   for (mlir::Type T : Args) {
-    T = unwrapTypedefs(T);
-
-    if (not mlir::isa<ObjectType>(T))
-      return EmitError() << "Function parameter type must be an object type";
-    if (mlir::isa<ArrayType>(T))
-      return EmitError() << "Function parameter type may not be an array type";
+    if (not clift::unwrapped_isa<ValueType>(T))
+      return EmitError() << "Function parameter type must be a value type.";
   }
 
-  auto EmitReturnError = [&]() -> mlir::InFlightDiagnostic {
-    return EmitError() << "Function return type ";
-  };
-
-  if (verifyReturnType(EmitReturnError, ReturnType).failed())
-    return mlir::failure();
+  if (not clift::unwrapped_isa<VoidType, ValueType>(ReturnType))
+    return EmitError() << "Function return type must be a value type or void.";
 
   return mlir::success();
 }
@@ -1588,21 +1580,6 @@ clift::getFunctionOrFunctionPointerFunctionType(mlir::Type Type) {
     Type = unwrapTypedefs(P.getPointeeType());
 
   return mlir::dyn_cast<clift::FunctionType>(Type);
-}
-
-mlir::LogicalResult clift::verifyReturnType(EmitErrorType EmitError,
-                                            mlir::Type ReturnType) {
-  ReturnType = unwrapTypedefs(ReturnType);
-
-  if (not mlir::isa<VoidType>(ReturnType)) {
-    if (not mlir::isa<ObjectType>(ReturnType))
-      return EmitError() << "must be an object type or void.";
-
-    if (mlir::isa<ArrayType>(ReturnType))
-      return EmitError() << "cannot be an array type.";
-  }
-
-  return mlir::success();
 }
 
 //===---------------------------- CliftDialect ----------------------------===//

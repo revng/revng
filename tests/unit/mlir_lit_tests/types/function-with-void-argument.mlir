@@ -6,7 +6,7 @@
 
 !void = !clift.void
 
-// CHECK: parameter type must be an object type
+// CHECK: parameter type must be a value type
 !f = !clift.func<
   "/type-definition/1000-CABIFunctionDefinition" as "f" : !void(!void)
 >

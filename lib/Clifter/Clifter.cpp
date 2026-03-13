@@ -740,15 +740,12 @@ private:
     if (SourceType == TargetType)
       return Value;
 
-    auto SourceT = clift::unwrapped_dyn_cast<ObjectType>(SourceType);
+    auto SourceT = clift::unwrapped_dyn_cast<ValueType>(SourceType);
     if (not SourceT)
       return Value;
 
-    auto TargetT = clift::unwrapped_dyn_cast<ObjectType>(TargetType);
+    auto TargetT = clift::unwrapped_dyn_cast<ValueType>(TargetType);
     if (not TargetT)
-      return Value;
-
-    if (mlir::isa<ArrayType>(SourceT) or mlir::isa<ArrayType>(TargetT))
       return Value;
 
     return emitCast<BitCastOp>(Loc, Value, TargetType);

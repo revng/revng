@@ -207,16 +207,4 @@ bool isCallableType(mlir::Type Type);
 /// function type, returns that function type.
 FunctionType getFunctionOrFunctionPointerFunctionType(mlir::Type Type);
 
-/// Verify that the type is a valid function return type, meaning:
-/// * void, or
-/// * any object type except an array type, or
-/// * a typedef naming any such type, and
-/// * is not a type composed of any non-zero number of pointer indirections to
-///   an array or function (not involving any typedefs).
-///
-/// Qualifiers are ignored.
-mlir::LogicalResult
-verifyReturnType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                 mlir::Type Type);
-
 } // namespace mlir::clift

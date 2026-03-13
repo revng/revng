@@ -51,6 +51,7 @@ def Clift_IntegerType
                [Clift_PrimitiveType,
                 DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
+                DeclareTypeInterfaceMethods<Clift_ValueType>,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
   let summary = "Clift integer type";
 
@@ -81,6 +82,7 @@ def Clift_FloatType
                [Clift_PrimitiveType,
                 DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
+                DeclareTypeInterfaceMethods<Clift_ValueType>,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
   let summary = "Clift float type";
 
@@ -105,7 +107,8 @@ def Clift_PointerType
                "ptr",
                [SubElementTypeInterface,
                 DeclareTypeInterfaceMethods<Clift_AddressableType>,
-                DeclareTypeInterfaceMethods<Clift_ObjectType>]> {
+                DeclareTypeInterfaceMethods<Clift_ObjectType>,
+                DeclareTypeInterfaceMethods<Clift_ValueType>]> {
   let summary = "Clift pointer type";
 
   let description = [{
@@ -167,6 +170,7 @@ def Clift_EnumType
                 DeclareTypeInterfaceMethods<Clift_AliasableType>,
                 DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
+                DeclareTypeInterfaceMethods<Clift_ValueType>,
                 DeclareTypeInterfaceMethods<Clift_DefinedType>]> {
 
   let summary = "Clift enum type";
@@ -312,6 +316,7 @@ class Clift_ClassTypeBase<string name, string mnemonic>
                 DeclareTypeInterfaceMethods<Clift_AliasableType>,
                 DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
+                DeclareTypeInterfaceMethods<Clift_ValueType>,
                 DeclareTypeInterfaceMethods<Clift_ClassType>]> {
 
   let summary = "Clift " # mnemonic # " type";
