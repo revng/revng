@@ -476,96 +476,105 @@ private:
     return mlir::success();
   }
 
+private:
+  void visitFunctionPrototypeImpl(auto Location,
+                                  clift::FunctionOp Op,
+                                  const model::TypeDefinition *Prototype,
+                                  llvm::StringRef Name,
+                                  llvm::StringRef Comment) {
+    ArgumentAttributeMutator Attrs(Op);
+
+    using CF = model::CABIFunctionDefinition;
+    using RF = model::RawFunctionDefinition;
+
+    llvm::StringRef ReturnValueComment = "";
+    if (const auto *T = llvm::dyn_cast<CF>(Prototype)) {
+      revng_assert(Op.getArgCount() == T->Arguments().size());
+      auto TL = pipeline::location(rr::TypeDefinition, T->key());
+
+      for (auto [I, A] : llvm::enumerate(T->Arguments())) {
+        auto AL = TL.extend(rr::CABIArgument, static_cast<uint64_t>(I));
+        Attrs.setString(I, "clift.handle", AL.toString());
+        Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
+        Attrs.setString(I, "clift.comment", A.Comment());
+      }
+
+      ReturnValueComment = T->ReturnValueComment();
+
+    } else if (const auto *T = llvm::dyn_cast<RF>(Prototype)) {
+      bool HasStackArgument = static_cast<bool>(T->StackArgumentsType());
+
+      size_t ArgumentCount = T->Arguments().size() + HasStackArgument;
+      revng_assert(Op.getArgCount() == ArgumentCount);
+
+      auto TL = pipeline::location(rr::TypeDefinition, T->key());
+      for (auto [I, A] : llvm::enumerate(T->Arguments())) {
+        auto AL = TL.extend(rr::RawArgument, A.Location());
+        Attrs.setString(I, "clift.handle", AL.toString());
+        Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
+        Attrs.setString(I, "clift.comment", A.Comment());
+
+        std::string RegisterName = toString(A.Location());
+
+        // TODO: consider using a dedicated
+        //       `/register/$architecture/$name` location.
+        auto RegisterLocation = "";
+
+        clift::CAttributeListBuilder Attributes{
+          *Op.getContext(),
+          Attrs.get(I, "clift.c_attributes"),
+        };
+        Attributes.setOrUpdate<"_REG">(RegisterName, RegisterLocation);
+        Attrs.set(I, "clift.c_attributes", Attributes.get());
+      }
+
+      if (HasStackArgument) {
+        unsigned I = T->Arguments().size();
+
+        auto AL = TL.transmute(rr::RawStackArguments);
+        auto Name = Model.Configuration().Naming().RawStackArgumentName();
+
+        Attrs.setString(I, "clift.handle", AL.toString());
+        Attrs.setString(I, "clift.name", Name);
+
+        clift::CAttributeListBuilder Attributes{
+          *Op.getContext(),
+          Attrs.get(I, "clift.c_attributes"),
+        };
+        Attributes.setOrUpdate<"_STACK">();
+        Attrs.set(I, "clift.c_attributes", Attributes.get());
+      }
+
+      ReturnValueComment = T->ReturnValueComment();
+
+    } else {
+      revng_abort("Invalid function prototype");
+    }
+
+    Attrs.commit();
+
+    Symbols.record(Op, Name);
+    Op->setAttr("clift.comment",
+                mlir::StringAttr::get(Op->getContext(), Comment));
+    Op->setAttr("clift.return_value_comment",
+                mlir::StringAttr::get(Op->getContext(), ReturnValueComment));
+  }
+
+public:
   mlir::LogicalResult visitFunctionOp(clift::FunctionOp Op) {
     CurrentFunction.reset();
 
     if (auto Pair = getModelFunction(Op.getHandle())) {
       auto &[L, MF] = *Pair;
-
-      const auto *Type = Model.prototypeOrDefault(MF.prototype());
+      const auto *Prototype = Model.prototypeOrDefault(MF.prototype());
+      visitFunctionPrototypeImpl(L,
+                                 Op,
+                                 Prototype,
+                                 NameBuilder.name(MF),
+                                 MF.Comment());
 
       if (not Op.getBody().empty())
         CurrentFunction.emplace(*this, Op, std::move(L), MF);
-
-      Symbols.record(Op, NameBuilder.name(MF));
-
-      // No need to use symbol renamer for comments, as they don't affect any
-      // users.
-      Op->setAttr("clift.comment",
-                  mlir::StringAttr::get(Op->getContext(), MF.Comment()));
-
-      llvm::StringRef RVComment = "";
-      if (auto *CFT = llvm::dyn_cast<model::CABIFunctionDefinition>(Type))
-        RVComment = CFT->ReturnValueComment();
-      else if (auto *RFT = llvm::dyn_cast<model::RawFunctionDefinition>(Type))
-        RVComment = RFT->ReturnValueComment();
-
-      Op->setAttr("clift.return_value_comment",
-                  mlir::StringAttr::get(Op->getContext(), RVComment));
-
-      ArgumentAttributeMutator Attrs(Op);
-
-      using CF = model::CABIFunctionDefinition;
-      using RF = model::RawFunctionDefinition;
-
-      if (const auto *T = llvm::dyn_cast<CF>(Type)) {
-        revng_assert(Op.getArgCount() == T->Arguments().size());
-        auto TL = pipeline::location(rr::TypeDefinition, T->key());
-
-        for (auto [I, A] : llvm::enumerate(T->Arguments())) {
-          auto AL = TL.extend(rr::CABIArgument, static_cast<uint64_t>(I));
-          Attrs.setString(I, "clift.handle", AL.toString());
-          Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
-          Attrs.setString(I, "clift.comment", A.Comment());
-        }
-      } else if (const auto *T = llvm::dyn_cast<RF>(Type)) {
-        bool HasStackArgument = static_cast<bool>(T->StackArgumentsType());
-
-        size_t ArgumentCount = T->Arguments().size() + HasStackArgument;
-        revng_assert(Op.getArgCount() == ArgumentCount);
-
-        auto TL = pipeline::location(rr::TypeDefinition, T->key());
-        for (auto [I, A] : llvm::enumerate(T->Arguments())) {
-          auto AL = TL.extend(rr::RawArgument, A.Location());
-          Attrs.setString(I, "clift.handle", AL.toString());
-          Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
-          Attrs.setString(I, "clift.comment", A.Comment());
-
-          std::string RegisterName = toString(A.Location());
-
-          // TODO: consider using a dedicated
-          //       `/register/$architecture/$name` location.
-          auto RegisterLocation = "";
-
-          clift::CAttributeListBuilder Attributes{
-            *Op.getContext(),
-            Attrs.get(I, "clift.c_attributes"),
-          };
-          Attributes.setOrUpdate<"_REG">(RegisterName, RegisterLocation);
-          Attrs.set(I, "clift.c_attributes", Attributes.get());
-        }
-
-        if (HasStackArgument) {
-          unsigned I = T->Arguments().size();
-
-          auto AL = TL.transmute(rr::RawStackArguments);
-          auto Name = Model.Configuration().Naming().RawStackArgumentName();
-
-          Attrs.setString(I, "clift.handle", AL.toString());
-          Attrs.setString(I, "clift.name", Name);
-
-          clift::CAttributeListBuilder Attributes{
-            *Op.getContext(),
-            Attrs.get(I, "clift.c_attributes"),
-          };
-          Attributes.setOrUpdate<"_STACK">();
-          Attrs.set(I, "clift.c_attributes", Attributes.get());
-        }
-      } else {
-        revng_abort("Invalid function prototype");
-      }
-
-      Attrs.commit();
 
       return mlir::success();
     }
