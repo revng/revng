@@ -34,4 +34,11 @@ importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                 const model::Type &ModelType,
                 const model::Binary &Binary);
 
+void importNames(const model::Binary &Model, mlir::ModuleOp Module);
+
+// NOTE: this overload can be dropped together with the old pipeline.
+void importNames(const model::Function &Function,
+                 const model::Binary &Model,
+                 mlir::ModuleOp Module);
+
 } // namespace mlir::clift
