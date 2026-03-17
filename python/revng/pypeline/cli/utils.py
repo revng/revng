@@ -5,11 +5,12 @@
 import re
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 from urllib.parse import urlparse
 
 import click
 
+from revng.pypeline.cli.context import ClickContext
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectID, ObjectSet
@@ -32,7 +33,7 @@ class PypeCommand(click.Command):
             "\n\nNote: All arguments after '--' are passed to the pipebox initialize function."
         )
 
-    def collect_usage_pieces(self, ctx: click.Context) -> list[str]:
+    def collect_usage_pieces(self, ctx) -> list[str]:
         if not isinstance(self, PypeGroup):
             return super().collect_usage_pieces(ctx) + ["--", "[PIPEBOX ARGS...]"]
         else:
@@ -93,8 +94,8 @@ class EagerParsedPath(click.Path):
     This is useful for arguments that need to be parsed in order to provide
     useful auto-completion or validation.
     The cli and other arguments can retrieve the parsed value from the context object
-    using the name of the argument, like `ctx.obj['pipebox']`.
-    Additionally, it stores the path used to parse the value as `ctx.obj[self.name + "_path"]`.
+    using the name of the argument, like `ctx.obj.pipebox`.
+    Additionally, it stores the path used to parse the value as `ctx.obj.<self.name + "_path">`.
     """
 
     # Due to the way click works, the `convert` function below is called with
@@ -108,7 +109,7 @@ class EagerParsedPath(click.Path):
     def __init__(
         self,
         name: str,
-        parser: Callable[[str, click.Context], Any],
+        parser: Callable[[str, "ClickContext"], Any],
         default: Any = None,
         *args,
         **kwargs,
@@ -131,17 +132,14 @@ class EagerParsedPath(click.Path):
         path = super().convert(value, param, ctx)
         if not isinstance(path, str):
             raise ValueError(f"Invalid path: {path!r}")
-        # If the value is a string, we parse it using the provided parser
         if ctx is None:
             raise ValueError("Context is required for parsing")
-        res = self.parser(path, ctx)
-        if ctx is not None:
-            if ctx.obj is None:
-                ctx.obj = {}
-            # Store the parsed value in the context object
-            ctx.obj[self.name] = res
-            # And also store the path to the parsed value
-            ctx.obj[self.name + "_path"] = Path(path).resolve()
+        # If the value is a string, we parse it using the provided parser
+        res = self.parser(path, cast("ClickContext", ctx))
+        # Store the parsed value in the context object
+        setattr(ctx.obj, self.name, res)
+        # And also store the path to the parsed value
+        setattr(ctx.obj, self.name + "_path", Path(path).resolve())
         return res
 
 

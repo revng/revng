@@ -10,6 +10,7 @@ import yaml
 
 from revng.pypeline.cli.common_options import debug_option, list_objects_option, project_id_option
 from revng.pypeline.cli.common_options import token_option
+from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
 from revng.pypeline.cli.utils import compute_objects, list_objects_for_container, normalize_flag
 from revng.pypeline.cli.utils import normalize_pos_arg_name, normalize_whitespace
@@ -136,15 +137,13 @@ class AnalyzeGroup(PypeGroup):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def list_commands(self, ctx):
+    def list_commands(self, ctx: ClickContext):  # type: ignore
         base = super().list_commands(ctx)
-        pipeline = ctx.obj.get("pipeline")
-        if pipeline is None:
-            return base
+        pipeline = ctx.obj.pipeline
         return base + sorted(pipeline.analysis_lists.keys()) + sorted(pipeline.analyses.keys())
 
-    def get_command(self, ctx, cmd_name):
-        pipeline = ctx.obj.get("pipeline")
+    def get_command(self, ctx: ClickContext, cmd_name):  # type: ignore
+        pipeline = ctx.obj.pipeline
         if pipeline is None:
             return super().get_command(ctx, cmd_name)
         if cmd_name in pipeline.analyses:
@@ -259,9 +258,9 @@ def build_analysis_list_command(
     @project_id_option
     @token_option
     @exec_wrapper_if_needed
-    @click.pass_context
+    @pass_context
     def run_analysis_command(
-        ctx: click.Context,
+        ctx: ClickContext,
         project_id: str,
         token: str,
         runner_context: RunnerContext,
@@ -273,12 +272,12 @@ def build_analysis_list_command(
         pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
 
         # Load the model
-        storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
+        storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
         storage_provider_context = storage_provider_factory.get(
-            base_directory=ctx.obj["base_directory"],
+            base_directory=ctx.obj.base_directory,
             project_id=project_id,
             token=token,
-            cache_dir=ctx.obj["cache_dir"],
+            cache_dir=ctx.obj.cache_dir,
         )
 
         analysis_configuration = [
@@ -322,9 +321,9 @@ def build_analysis_command(
     @project_id_option
     @token_option
     @exec_wrapper_if_needed
-    @click.pass_context
+    @pass_context
     def run_analysis_command(
-        ctx: click.Context,
+        ctx: ClickContext,
         configuration: str,
         project_id: str,
         token: str,
@@ -338,12 +337,12 @@ def build_analysis_command(
         pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
 
         # Load the model
-        storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
+        storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
         storage_provider_context = storage_provider_factory.get(
-            base_directory=ctx.obj["base_directory"],
+            base_directory=ctx.obj.base_directory,
             project_id=project_id,
             token=token,
-            cache_dir=ctx.obj["cache_dir"],
+            cache_dir=ctx.obj.cache_dir,
         )
         asyncio.run(
             async_part_of_command(

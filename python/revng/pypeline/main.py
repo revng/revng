@@ -13,6 +13,7 @@ import click
 import psutil
 from click.shell_completion import get_completion_class
 
+from revng.pypeline.cli.context import ClickContext, ContextObject, pass_context
 from revng.pypeline.utils import PypelineException
 
 from . import initialize_pypeline
@@ -69,12 +70,12 @@ def import_pipebox(module_path: str, is_autocomplete: bool) -> object:
     return module
 
 
-def call_pipebox_initialize(pipebox, pipebox_path: str, args: list[str]):
+def call_pipebox_initialize(pipebox, pipebox_path: Path | str, args: list[str]):
     # Get its initialize function
     pipebox_initialize = getattr(pipebox, "initialize", None)
     if pipebox_initialize is None:
         pypeline_logger.log(
-            f'Pipebox file "{pipebox_path}" does not have an "initialize" function.'
+            f'Pipebox file "{pipebox_path!s}" does not have an "initialize" function.'
             " This is required to setup the pypeline."
         )
         sys.exit(1)
@@ -83,14 +84,14 @@ def call_pipebox_initialize(pipebox, pipebox_path: str, args: list[str]):
     pipebox_initialize(args)
 
 
-def get_current_root_name(ctx: click.Context) -> str:
+def get_current_root_name(ctx: ClickContext) -> str:
     root = ctx.find_root()
     command = root.command
     assert command.name is not None, "Command name should not be None"
     return command.name
 
 
-def detect_autocomplete(ctx: click.Context) -> bool:
+def detect_autocomplete(ctx: ClickContext) -> bool:
     """Detect if we are in auto-complete mode."""
     return (
         "_{}_COMPLETE".format(get_current_root_name(ctx).upper()) in os.environ
@@ -98,15 +99,15 @@ def detect_autocomplete(ctx: click.Context) -> bool:
     )
 
 
-def parse_pipebox(path: str, ctx: click.Context):
+def parse_pipebox(path: str, ctx: ClickContext):
     pipebox = import_pipebox(path, detect_autocomplete(ctx))
-    ctx.obj["pipebox"] = pipebox
+    ctx.obj.pipebox = pipebox
     return pipebox
 
 
-def parse_base_directory(path: str, ctx: click.Context):
+def parse_base_directory(path: str, ctx: ClickContext):
     if path:
-        ctx.obj["base_directory"] = Path(path)
+        ctx.obj.base_directory = Path(path)
 
 
 @click.group(cls=PypeGroup)
@@ -121,6 +122,7 @@ def parse_base_directory(path: str, ctx: click.Context):
         parser=parse_base_directory,
     ),
     help="Run the command as it was started in the specified directory",
+    default="",
     expose_value=False,
 )
 @click.option(
@@ -147,12 +149,8 @@ def parse_base_directory(path: str, ctx: click.Context):
     is_flag=True,
     help="Enable debug logging for the pypeline related code.",
 )
-@click.pass_context
-def pype(ctx, verbose: bool) -> None:
-    # If the -C option has not been passed set it to the current dir
-    if "base_directory" not in ctx.obj:
-        ctx.obj["base_directory"] = Path.cwd()
-
+@pass_context
+def pype(ctx: ClickContext, verbose: bool) -> None:
     # Enable debug logging for pypeline if requested
     if verbose:
         pypeline_logger.debug = True
@@ -161,10 +159,8 @@ def pype(ctx, verbose: bool) -> None:
     if detect_autocomplete(ctx):
         return
 
-    # Get the already loaded pipebox module from the context
-    pipebox = ctx.obj["pipebox"]
     # Initialize the pipebox
-    call_pipebox_initialize(pipebox, ctx.obj["pipebox_path"], ctx.obj["pipebox_args"])
+    call_pipebox_initialize(ctx.obj.pipebox, ctx.obj.pipebox_path, ctx.obj.pipebox_args)
 
 
 pype.add_command(pipeline)
@@ -240,7 +236,9 @@ def main(args: Sequence[str]) -> None:
     # This is ok as click will pass the pipebox argument automatically
     try:
         exit_code = pype.main(
-            args=click_args, obj={"pipebox_args": pipebox_args}, standalone_mode=False
+            args=click_args,
+            obj=ContextObject.make(pipebox_args=pipebox_args),
+            standalone_mode=False,
         )
     except click.ClickException as e:
         e.show()

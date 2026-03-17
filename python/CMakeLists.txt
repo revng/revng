@@ -418,6 +418,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/cli/project/daemon.py
     revng/pypeline/cli/__init__.py
     revng/pypeline/cli/common_options.py
+    revng/pypeline/cli/context.py
     revng/pypeline/cli/utils.py
     revng/pypeline/cli/wrappers.py
     revng/pypeline/analysis.py
