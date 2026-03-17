@@ -4,6 +4,7 @@
 
 #include <optional>
 
+#include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
@@ -329,27 +330,40 @@ mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
 }
 
 void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
-  auto Macro = CAttribute.getMacro();
+  auto Name = CAttribute.getName();
 
   Tokens.emitSpace();
-  Tokens.emitIdentifier(Macro.getString(),
-                        Macro.getHandle(),
+  Tokens.emitIdentifier(Name.getName(),
+                        Name.getHandle(),
                         CTE::EntityKind::Attribute,
                         CTE::IdentifierKind::Reference);
 
   if (auto Arguments = CAttribute.getArguments()) {
     Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
-    for (auto [I, A] : llvm::enumerate(*Arguments)) {
+    for (auto [I, A] : llvm::enumerate(Arguments)) {
       if (I != 0) {
         Tokens.emitPunctuator(CTE::Punctuator::Comma);
         Tokens.emitSpace();
       }
 
-      Tokens.emitIdentifier(A.getString(),
-                            A.getHandle(),
-                            CTE::EntityKind::AttributeArgument,
-                            CTE::IdentifierKind::Reference);
+      if (auto Id = mlir::dyn_cast<mlir::clift::CIdentifierAttr>(A)) {
+        Tokens.emitIdentifier(Id.getName(),
+                              Id.getHandle(),
+                              CTE::EntityKind::AttributeArgument,
+                              CTE::IdentifierKind::Reference);
+
+      } else if (auto Integer = mlir::dyn_cast<mlir::IntegerAttr>(A)) {
+        Tokens.emitIntegerLiteral(Integer.getValue(), std::nullopt);
+
+      } else if (auto Type = mlir::dyn_cast<mlir::TypeAttr>(A)) {
+        auto VT = mlir::dyn_cast<mlir::clift::ValueType>(Type.getValue());
+        revng_assert(VT);
+        emitType(VT);
+
+      } else {
+        revng_abort("Unknown c_attribute argument type!");
+      }
     }
 
     Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);

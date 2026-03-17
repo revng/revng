@@ -10,10 +10,13 @@
 #include "llvm/ADT/TypeSwitch.h"
 
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
+#include "mlir/Support/LogicalResult.h"
 
+#include "revng/ADT/STLExtras.h"
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftDialect.h"
 #include "revng/Clift/CliftInterfaces.h"
@@ -253,12 +256,13 @@ template class ClassAttrImpl<UnionAttr>;
 
 //===---------------------------- CAttributeAttr --------------------------===//
 
-static mlir::LogicalResult parseAttributeComponent(mlir::AsmParser &Parser,
-                                                   CAttributeComponentAttr &C) {
+static mlir::LogicalResult
+parseCIdentifierImpl(mlir::AsmParser &Parser,
+                     mlir::clift::CIdentifierAttr &Result) {
   mlir::SMLoc Loc = Parser.getCurrentLocation();
 
-  std::string String;
-  if (Parser.parseString(&String).failed())
+  std::string Name;
+  if (Parser.parseString(&Name).failed())
     return mlir::failure();
 
   std::string Handle;
@@ -267,82 +271,84 @@ static mlir::LogicalResult parseAttributeComponent(mlir::AsmParser &Parser,
       return mlir::failure();
   }
 
-  C = CAttributeComponentAttr::getChecked(getEmitError(Parser, Loc),
-                                          Parser.getContext(),
-                                          String,
-                                          Handle);
+  Result = Result.getChecked(getEmitError(Parser, Loc),
+                             Parser.getContext(),
+                             Name,
+                             Handle);
 
   return mlir::success();
 }
 
-mlir::Attribute CAttributeAttr::parse(mlir::AsmParser &Parser,
-                                      mlir::Type Type) {
+mlir::Attribute CIdentifierAttr::parse(mlir::AsmParser &Parser, mlir::Type) {
   mlir::SMLoc Loc = Parser.getCurrentLocation();
 
   if (Parser.parseLess().failed())
     return {};
 
-  CAttributeComponentAttr Macro;
-  if (parseAttributeComponent(Parser, Macro).failed())
+  CIdentifierAttr Result;
+  if (parseCIdentifierImpl(Parser, Result).failed())
     return {};
-
-  llvm::SmallVector<CAttributeComponentAttr> ArgumentsArray;
-  std::optional<llvm::ArrayRef<CAttributeComponentAttr>> Arguments;
-
-  if (Parser.parseOptionalLParen().succeeded()) {
-    if (Parser.parseOptionalRParen().failed()) {
-      auto ParseArgument = [&Parser, &ArgumentsArray]() -> mlir::ParseResult {
-        CAttributeComponentAttr Argument;
-        if (parseAttributeComponent(Parser, Argument).failed())
-          return mlir::failure();
-
-        ArgumentsArray.push_back(Argument);
-        return mlir::success();
-      };
-
-      if (Parser.parseCommaSeparatedList(ParseArgument).failed())
-        return {};
-
-      if (Parser.parseRParen().failed())
-        return {};
-    }
-
-    Arguments = ArgumentsArray;
-  }
 
   if (Parser.parseGreater().failed())
     return {};
 
+  return Result;
+}
+
+mlir::Attribute CAttributeAttr::parse(mlir::AsmParser &Parser, mlir::Type) {
+  mlir::SMLoc Loc = Parser.getCurrentLocation();
+
+  if (Parser.parseLess().failed())
+    return {};
+
+  mlir::clift::CIdentifierAttr Name;
+  if (parseCIdentifierImpl(Parser, Name).failed())
+    return {};
+
+  mlir::ArrayAttr Arguments = nullptr;
+  if (Parser.parseOptionalGreater().failed()) {
+    if (Parser.parseAttribute(Arguments).failed())
+      return {};
+
+    if (Parser.parseGreater().failed())
+      return {};
+
+    if (not Arguments)
+      Arguments = mlir::ArrayAttr::get(Parser.getContext(), {});
+  }
+
   return CAttributeAttr::getChecked(getEmitError(Parser, Loc),
                                     Parser.getContext(),
-                                    Macro,
+                                    Name,
                                     Arguments);
 }
 
-static void printAttributeComponent(mlir::AsmPrinter &Printer,
-                                    CAttributeComponentAttr C) {
-  printString(Printer, C.getString());
+static void printCIdentifierImpl(mlir::AsmPrinter &Printer,
+                                 clift::CIdentifierAttr Identifier) {
+  printString(Printer, Identifier.getName());
 
-  if (not C.getHandle().empty()) {
+  if (not Identifier.getHandle().empty()) {
     Printer << " : ";
-    printString(Printer, C.getHandle());
+    printString(Printer, Identifier.getHandle());
   }
+}
+
+void CIdentifierAttr::print(mlir::AsmPrinter &Printer) const {
+  Printer << '<';
+
+  printCIdentifierImpl(Printer, *this);
+
+  Printer << '>';
 }
 
 void CAttributeAttr::print(mlir::AsmPrinter &Printer) const {
   Printer << '<';
 
-  printAttributeComponent(Printer, getMacro());
+  printCIdentifierImpl(Printer, getName());
 
   if (const auto &Arguments = getArguments()) {
-    Printer << '(';
-    for (auto [I, A] : llvm::enumerate(*Arguments)) {
-      if (I != 0)
-        Printer << ", ";
-
-      printAttributeComponent(Printer, A);
-    }
-    Printer << ')';
+    Printer << ' ';
+    Printer.printAttribute(Arguments);
   }
 
   Printer << '>';
@@ -853,6 +859,7 @@ mlir::Attribute clift::readAttr(mlir::DialectBytecodeReader &Reader) {
   case CliftAttrKind::Union:
     return BytecodeClassAttr::get(Reader.getContext(),
                                   clift::readUnionDefinition(Reader));
+
   case CliftAttrKind::N:
     break;
   }

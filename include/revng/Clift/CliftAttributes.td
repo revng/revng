@@ -35,18 +35,20 @@ def Clift_StringPairAttr : AttrDef<Clift_Dialect, "StringPair"> {
                         StringRefParameter<>:$second);
 }
 
-def Clift_CAttributeComponentAttr : AttrDef<Clift_Dialect,
-                                            "CAttributeComponent",
-                                            [SubElementAttrInterface]> {
-  let parameters = (ins StringRefParameter<>:$string,
+def Clift_CIdentifierAttr : Clift_Attr<"CIdentifier",
+                                             "identifier",
+                                             [SubElementAttrInterface]> {
+  let parameters = (ins StringRefParameter<>:$name,
                         StringRefParameter<>:$handle);
+
+  let hasCustomAssemblyFormat = 1;
 }
 
 def Clift_CAttributeAttr : Clift_Attr<"CAttribute",
                                       "c_attribute",
                                       [SubElementAttrInterface]> {
-  let parameters = (ins "mlir::clift::CAttributeComponentAttr":$macro,
-                        Clift_OptionalArrayRefParameter<"mlir::clift::CAttributeComponentAttr">:$arguments);
+  let parameters = (ins "mlir::clift::CIdentifierAttr":$name,
+                        "mlir::ArrayAttr":$arguments);
 
   let hasCustomAssemblyFormat = 1;
 }
