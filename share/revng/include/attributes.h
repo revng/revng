@@ -26,3 +26,4 @@
 
 // Real attribute aliases
 #define _PACKED __attribute__((packed))
+#define _ALWAYS_INLINE __attribute__((always_inline))
