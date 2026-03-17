@@ -15,7 +15,7 @@ containers:
   - name: root_destination
     type: RootDictContainer
 
-analysis_lists:
+analysis-lists:
   - name: "all_analyses"
     analyses:
       - AddStuffAnalysis

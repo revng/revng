@@ -63,7 +63,7 @@ class PipelineParser:
         # Then parse analyses lists, we will just do structural parsing, the actual validation
         # will be done in the Pipeline's __init__
         analysis_lists: list[AnalysisList] = []
-        for analysis_list in self.values.get("analysis_lists", []):
+        for analysis_list in self.values.get("analysis-lists", []):
             analysis_lists.append(
                 AnalysisList(
                     name=analysis_list["name"],

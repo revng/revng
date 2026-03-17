@@ -53,7 +53,7 @@ analyses:
   - convert-functions-to-cabi
   - import-from-c
 
-analysis_lists:
+analysis-lists:
   - name: initial-auto-analysis
     analyses:
       - parse-binary
