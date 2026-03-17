@@ -6,6 +6,7 @@
 
 #include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/CEmitter.h"
+#include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
@@ -316,17 +317,21 @@ bool CEmitter::isValidCAttributeArray(mlir::ArrayAttr ArrayAttr) {
 }
 
 mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
-  if (auto Attr = Op->getAttr("clift.c_attributes")) {
-    auto ArrayAttr = mlir::cast<mlir::ArrayAttr>(Attr);
+  clift::CAttributeListBuilder Builder(*Op->getContext(),
+                                       Op->getAttr("clift.c_attributes"));
 
-    if (not isValidCAttributeArray(ArrayAttr)) {
-      Op->dump();
-      revng_abort("Invalid `clift.c_attributes` array");
-    }
+  if (Op->hasAttr("noreturn"))
+    Builder.setOrUpdate<"_NORETURN">();
+  if (Op->hasAttr("always_inline"))
+    Builder.setOrUpdate<"_ALWAYS_INLINE">();
 
-    return ArrayAttr;
+  mlir::ArrayAttr Result = Builder.get();
+  if (not isValidCAttributeArray(Result)) {
+    Op->dump();
+    revng_abort("Invalid `clift.c_attributes` array");
   }
-  return {};
+
+  return Result;
 }
 
 void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
