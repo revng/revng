@@ -17,7 +17,7 @@ $defs:
         uniqueItems: true
         items:
           $ref: "#/$defs/container_decl"
-      analysis_lists:
+      analysis-lists:
         $ref: "#/$defs/analysis_lists"
       analyses:
         type: array
