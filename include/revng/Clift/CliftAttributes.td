@@ -51,6 +51,8 @@ def Clift_CAttributeAttr : Clift_Attr<"CAttribute",
                         "mlir::ArrayAttr":$arguments);
 
   let hasCustomAssemblyFormat = 1;
+
+  let genVerifyDecl = 1;
 }
 
 def Clift_FieldAttr

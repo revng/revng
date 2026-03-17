@@ -784,6 +784,35 @@ uint64_t UnionAttr::getSize() const {
   return Size;
 }
 
+//===--------------------------- CAttributeAttr ---------------------------===//
+
+mlir::LogicalResult
+mlir::clift::CAttributeAttr::verify(EmitErrorType EmitError,
+                                    mlir::clift::CIdentifierAttr Name,
+                                    mlir::ArrayAttr Arguments) {
+  if (not Arguments) {
+    // Missing array indicates that `()` should not be emitted.
+    return mlir::success();
+  }
+
+  if (Arguments.empty()) {
+    // Empty array indicates that `()` should be emitted with nothing inside.
+    return mlir::success();
+  }
+
+  // If it has arguments, check they can be emitted correctly.
+  for (mlir::Attribute ArgumentAttribute : Arguments) {
+    if (not mlir::isa<mlir::clift::CIdentifierAttr,
+                      mlir::IntegerAttr,
+                      mlir::TypeAttr>(ArgumentAttribute)) {
+      return EmitError() << "Only identifier, integer and type C-Attribute "
+                            "arguments are currently supported.";
+    }
+  }
+
+  return mlir::success();
+}
+
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerAttributes() {
