@@ -51,7 +51,7 @@ public:
   struct ParameterDeclaratorInfo {
     llvm::StringRef Identifier;
     llvm::StringRef Location;
-    mlir::ArrayAttr Attributes;
+    mlir::ArrayAttr CAttributes;
   };
 
   /// Describes a declarator. This can be any function or variable declarator,
@@ -61,7 +61,7 @@ public:
   struct DeclaratorInfo {
     llvm::StringRef Identifier;
     llvm::StringRef Location;
-    mlir::ArrayAttr Attributes;
+    mlir::ArrayAttr CAttributes;
     CTE::EntityKind Kind;
 
     std::optional<llvm::ArrayRef<ParameterDeclaratorInfo>> Parameters;

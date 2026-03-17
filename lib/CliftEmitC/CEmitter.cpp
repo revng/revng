@@ -242,7 +242,7 @@ private:
               ParameterDeclarator = DeclaratorInfo{
                 .Identifier = Declarator->Parameters.value()[J].Identifier,
                 .Location = Declarator->Parameters.value()[J].Location,
-                .Attributes = Declarator->Parameters.value()[J].Attributes,
+                .CAttributes = Declarator->Parameters.value()[J].CAttributes,
                 .Kind = CTE::EntityKind::FunctionParameter,
               };
 
@@ -258,7 +258,7 @@ private:
     }
 
     if (Declarator)
-      Parent.emitCAttributes(Declarator->Attributes);
+      Parent.emitCAttributes(Declarator->CAttributes);
   }
 };
 
@@ -413,7 +413,7 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
                   mlir::clift::CEmitter::DeclaratorInfo{
                     .Identifier = Op.getName(),
                     .Location = Op.getHandle(),
-                    .Attributes = getDeclarationOpCAttributes(Op),
+                    .CAttributes = getDeclarationOpCAttributes(Op),
                     .Kind = ptml::CTokenEmitter::EntityKind::Function,
                     .Parameters = Parameters,
                   });
