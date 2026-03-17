@@ -56,9 +56,9 @@ def Clift_FieldAttr
             "Field",
             [SubElementAttrInterface]> {
 
-  let summary = "A attribute representing a field of a struct or a union";
+  let summary = "An attribute representing a field of a struct or a union";
   let description = [{
-    A attribute representing a field of a struct or a union
+    An attribute representing a field of a struct or a union
   }];
 
   let parameters = (ins StringRefParameter<>:$handle,
@@ -82,9 +82,9 @@ def Clift_EnumFieldAttr
             "EnumField",
             [SubElementAttrInterface]> {
 
-  let summary = "A attribute representing a field of enum";
+  let summary = "An attribute representing a field of enum";
   let description = [{
-    A attribute representing a field of a struct or a union
+    An attribute representing a field of a struct or a union
   }];
 
   let parameters = (ins StringRefParameter<>:$handle,
