@@ -11,6 +11,7 @@ import click
 import yaml
 
 from revng.pypeline.cli.common_options import container_format_options, list_objects_option
+from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
 from revng.pypeline.cli.utils import compute_objects, normalize_kwarg_name, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
@@ -163,9 +164,9 @@ def build_pipe_command(
     @container_format_options
     @list_objects_option
     @exec_wrapper_if_needed
-    @click.pass_context
+    @pass_context
     def run_pipe_command(
-        ctx,
+        ctx: ClickContext,
         model: str,
         static_configuration: str,
         configuration: str,
@@ -237,7 +238,7 @@ def build_pipe_command(
                 )
 
         if file_storage is None:
-            file_storage = ctx.obj["base_directory"]
+            file_storage = ctx.obj.base_directory
 
         # Enable model caching
         loaded_model.enable_caching()

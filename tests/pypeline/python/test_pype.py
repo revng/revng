@@ -12,6 +12,7 @@ import pytest
 import yaml
 from click.testing import CliRunner
 
+from revng.pypeline.cli.context import ContextObject
 from revng.pypeline.main import pype
 
 ROOT = Path(__file__).resolve().parent
@@ -85,9 +86,7 @@ def check_file_format(path: Path, expected_format: str):
 def test_pipeline(runner: CliRunner, container_format: str):
     run = run_partial(
         runner,
-        obj={
-            "pipebox_args": ["first pipebox arg", "second pipebox arg"],
-        },
+        obj=ContextObject.make(pipebox_args=["first pipebox arg", "second pipebox arg"]),
     )
 
     # First call some pipes to manually generate some containers
@@ -148,9 +147,7 @@ def test_pipeline(runner: CliRunner, container_format: str):
 def test_project(runner: CliRunner, container_format: str):
     run = run_partial(
         runner,
-        obj={
-            "pipebox_args": ["first pipebox arg", "second pipebox arg"],
-        },
+        obj=ContextObject.make(pipebox_args=["first pipebox arg", "second pipebox arg"]),
     )
 
     # Compute artifacts

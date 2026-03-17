@@ -10,6 +10,7 @@ import click
 
 from revng.pypeline.cli.common_options import container_format_options, debug_option
 from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
+from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import PypeGroup, build_help_text, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
@@ -27,17 +28,13 @@ class ArtifactGroup(PypeGroup):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def list_commands(self, ctx):
+    def list_commands(self, ctx: ClickContext):  # type: ignore
         base = super().list_commands(ctx)
-        pipeline = ctx.obj.get("pipeline")
-        if pipeline is None:
-            return base
+        pipeline = ctx.obj.pipeline
         return base + sorted(pipeline.artifacts.keys())
 
-    def get_command(self, ctx, cmd_name):
-        pipeline = ctx.obj.get("pipeline")
-        if pipeline is None:
-            return super().get_command(ctx, cmd_name)
+    def get_command(self, ctx, cmd_name):  # type: ignore
+        pipeline = ctx.obj.pipeline
         if cmd_name not in pipeline.artifacts:
             return super().get_command(ctx, cmd_name)
         return self._build_artifact_command(
@@ -184,9 +181,9 @@ def build_artifact_command(
     @debug_option
     @container_format_options
     @exec_wrapper_if_needed
-    @click.pass_context
+    @pass_context
     def run_artifact_command(
-        ctx: click.Context,
+        ctx: ClickContext,
         configuration: str,
         project_id: str,
         token: str,
@@ -202,12 +199,12 @@ def build_artifact_command(
         pypeline_logger.debug_log(f'kwargs: "{kwargs}"')
 
         # Setup the storage provider
-        storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
+        storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
         storage_provider_context = storage_provider_factory.get(
-            base_directory=ctx.obj["base_directory"],
+            base_directory=ctx.obj.base_directory,
             project_id=project_id,
             token=token,
-            cache_dir=ctx.obj["cache_dir"],
+            cache_dir=ctx.obj.cache_dir,
         )
         # Switch to the async portion
         asyncio.run(

@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 from click.core import ParameterSource
 
+from revng.pypeline.cli.context import ClickContext
 from revng.pypeline.cli.utils import EagerParsedPath
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.runner_context import RunnerContext
@@ -97,9 +98,8 @@ def container_format_options(func):
     return func
 
 
-def _parse_debug_option(path: str, ctx):
-    pipebox = ctx.obj["pipebox"]
-    return RunnerContext(True, pipebox.argv_hook, Path(path))
+def _parse_debug_option(path: str, ctx: ClickContext):
+    return RunnerContext(True, ctx.obj.pipebox.argv_hook, Path(path))
 
 
 debug_option = click.option(
