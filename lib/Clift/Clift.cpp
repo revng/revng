@@ -1353,13 +1353,14 @@ mlir::LogicalResult CastOp::verify() {
       return emitOpError() << getOperationName()
                            << " result must have pointer type.";
 
-    if (auto ArrayT = mlir::dyn_cast<ArrayType>(ArgT)) {
+    auto DealiasedArgT = dealias(ArgT);
+    if (auto ArrayT = mlir::dyn_cast<ArrayType>(DealiasedArgT)) {
       if (PtrT.getPointeeType() != ArrayT.getElementType())
         return emitOpError() << getOperationName()
                              << " the pointee type of the result type must be"
                                 " equal to the element type of the argument"
                                 " type.";
-    } else if (auto FunctionT = mlir::dyn_cast<FunctionType>(ArgT)) {
+    } else if (auto FunctionT = mlir::dyn_cast<FunctionType>(DealiasedArgT)) {
       if (PtrT.getPointeeType() != FunctionT)
         return emitOpError() << getOperationName()
                              << " the pointee type of the result type must be"

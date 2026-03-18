@@ -25,6 +25,8 @@ PassPtr<clift::FunctionOp> createLoopDetectionPass();
 PassPtr<clift::FunctionOp> createOptimizeStatementsPass();
 PassPtr<clift::FunctionOp> createOptimizeExpressionsPass();
 
+PassPtr<clift::FunctionOp> createEmitFieldAccessesPass();
+
 PassPtr<clift::FunctionOp> createTerminalBranchComplementHoistingPass();
 
 PassPtr<clift::FunctionOp>

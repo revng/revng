@@ -49,6 +49,10 @@ static bool assignTypePunnedConstraint(mlir::Value Ptr, mlir::Value Value) {
   auto SrcType = mlir::cast<clift::ValueType>(Value.getType());
   auto DstType = PtrType.getPointeeType();
 
+  if (not isObjectType(DstType) or isArrayType(DstType)) {
+    return false;
+  }
+
   return SrcType != DstType and SrcType.getByteSize() == DstType.getByteSize();
 }
 

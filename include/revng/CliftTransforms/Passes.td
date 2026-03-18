@@ -43,6 +43,11 @@ def CliftOptimizeExpressions : Clift_Pass<"optimize-expressions",
   let options = RewritePassUtils.options;
 }
 
+def CliftEmitFieldAccesses : Clift_Pass<"emit-field-accesses", "clift::FunctionOp"> {
+  let summary = "Emit field accesses.";
+  let constructor = "mlir::clift::createEmitFieldAccessesPass()";
+}
+
 def CliftTerminalBranchComplementHoisting
   : Clift_Pass<"terminal-branch-complement-hoisting", "clift::FunctionOp"> {
 

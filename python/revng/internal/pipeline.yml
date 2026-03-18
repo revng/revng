@@ -353,6 +353,9 @@ branches:
             - optimize-statements
             - label-merging
             - optimize-expressions
+            - emit-field-accesses
+            - canonicalize
+            - optimize-expressions
             - terminal-branch-complement-hoisting
             - c-legalization
             - deduce-immediate-radices

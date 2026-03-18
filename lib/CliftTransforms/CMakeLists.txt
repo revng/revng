@@ -5,13 +5,17 @@
 revng_add_library_internal(
   revngCliftTransforms
   SHARED
+  BestTraversal.cpp
   BooleanNegations.cpp
+  EmitFieldAccesses.cpp
   Expressions.cpp
+  FieldAccessReplacement.cpp
   ImmediateRadixDeduction.cpp
   LabelMerging.cpp
   Legalization.cpp
   LoopDetection.cpp
   PatternRewriter.cpp
+  PointerArithmetic.cpp
   RewriteHelpers.cpp
   Statements.cpp
   TerminalBranchComplementHoisting.cpp
