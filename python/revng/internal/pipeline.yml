@@ -547,6 +547,11 @@ branches:
     tasks:
       - pipe: process-call-graph
         arguments: [cfg-map, cross-relations]
+        artifacts:
+          - name: cross-relations
+            container: cross-relations
+            category: metadata
+            filename: cross-relations.yml
 
   yield-call-graph:
     from: process-call-graph
