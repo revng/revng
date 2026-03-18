@@ -243,7 +243,7 @@ void DetectStackSize::collectStackBounds(Function &F) {
 
   if (NeedsStackFrame) {
     if (LowerBound.hasValue()) {
-      int64_t Size = -LowerBound.value().getLimitedValue();
+      int64_t Size = -LowerBound.value().sext(64).getSExtValue();
       if (Size > 0)
         FSI.MaxStackSize = Size;
     }
