@@ -292,19 +292,7 @@ PointerArithmeticBuilder::composeBitcast(CastOp Cast) {
   // `PointerArithmetic` produced from it
   auto Operand = Cast->getOperand(0);
 
-  auto OperandPA = rc_recur traverse(Operand);
-
-  // Potentially, every `bitcast` could be treated as a `PointerOperand` leaf in
-  // the exploration, if it was a `PointerType`. This can be useful in cases
-  // where the exploration through the `Operand` produces a `Numeric`
-  // `PointerArithmetic` (not reaching a `PointerType`). In such cases, we use
-  // the current `bitcast` as a `BasePointer`. Better than nothing.
-  if (OperandPA->isNumeric() and isPointerTyped(Cast)) {
-    auto CastPA = createLeaf(Cast);
-    rc_return CastPA;
-  }
-
-  rc_return OperandPA;
+  rc_return rc_recur traverse(Operand);
 }
 
 RecursiveCoroutine<std::optional<PointerArithmetic>>
