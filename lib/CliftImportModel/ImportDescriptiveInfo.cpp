@@ -5,6 +5,8 @@
 #include <ranges>
 #include <type_traits>
 
+#include "llvm/ADT/StringRef.h"
+
 #include "mlir/IR/RegionGraphTraits.h"
 
 #include "revng/Clift/Clift.h"
@@ -491,6 +493,15 @@ private:
       // users.
       Op->setAttr("clift.comment",
                   mlir::StringAttr::get(Op->getContext(), MF.Comment()));
+
+      llvm::StringRef RVComment = "";
+      if (auto *CFT = llvm::dyn_cast<model::CABIFunctionDefinition>(Type))
+        RVComment = CFT->ReturnValueComment();
+      else if (auto *RFT = llvm::dyn_cast<model::RawFunctionDefinition>(Type))
+        RVComment = RFT->ReturnValueComment();
+
+      Op->setAttr("clift.return_value_comment",
+                  mlir::StringAttr::get(Op->getContext(), RVComment));
 
       ArgumentAttributeMutator Attrs(Op);
 
