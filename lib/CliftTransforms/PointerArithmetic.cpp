@@ -161,6 +161,21 @@ private:
   PointerArithmetic multiplyByConstant(PointerArithmetic PA,
                                        const llvm::APInt &Multiplier);
 
+  // Helper to combine two `PointerArithmetic`s that are being added together.
+  // Checks validity (both non-null, not both address), creates the Result with
+  // combined BaseOffset and propagated BasePointer. Returns nullopt on failure.
+  std::optional<PointerArithmetic>
+  combineAddOperands(const std::optional<PointerArithmetic> &LHSPA,
+                     const std::optional<PointerArithmetic> &RHSPA);
+
+  // Merge `LinearCombination`s from LHS and RHS into `Result`, sort by
+  // descending `Stride`, and check for duplicates. Returns `false` if
+  // duplicated `Stride`s are found.
+  using StridedTermVector = llvm::SmallVector<PointerArithmetic::StridedTerm>;
+  bool mergeLinearCombinations(PointerArithmetic &Result,
+                               const StridedTermVector &LHSTerms,
+                               const StridedTermVector &RHSTerms);
+
   // Helper function used to sort linear combination by stride, in descending
   // order
   void sortLinearCombination(PointerArithmetic &PA);
@@ -295,30 +310,26 @@ PointerArithmeticBuilder::composeBitcast(CastOp Cast) {
   rc_return rc_recur traverse(Operand);
 }
 
-RecursiveCoroutine<std::optional<PointerArithmetic>>
-PointerArithmeticBuilder::composeAdd(AddOp Add) {
-  auto LHS = Add.getLhs();
-  auto RHS = Add.getRhs();
+/// Helper to combine two `PointerArithmetic`s that are being added together.
+/// Checks validity (both non-null, not both address), creates the `Result` with
+/// combined `BaseOffset` and propagate the `BasePointer` of the `Address`
+/// component. Returns `nullopt` on failure.
+using PAB = PointerArithmeticBuilder;
+std::optional<PointerArithmetic>
+PAB::combineAddOperands(const std::optional<PointerArithmetic> &LHSPA,
+                        const std::optional<PointerArithmetic> &RHSPA) {
 
-  auto LHSPA = rc_recur traverse(LHS);
-  auto RHSPA = rc_recur traverse(RHS);
-
-  // It may happen that either the LHS or the RHS traversal produced an invalid
-  // `PointerArithmetic` result. In such case, we need to propagate upward the
-  // failure.
+  // Either operand traversal failed
   if (not LHSPA or not RHSPA) {
-    rc_return std::nullopt;
+    return std::nullopt;
   }
 
-  // It may happen that both `LHSPA` or `RHSPA` have an address
-  // `PointerArithmetic`. In such situation, we cannot know which one is the
-  // `BasePointer`, so we bail out from the construction of the
-  // `PointerArithmetic` result.
+  // Both operands are address — ambiguous BasePointer
   if (LHSPA->isAddress() and RHSPA->isAddress()) {
-    rc_return std::nullopt;
+    return std::nullopt;
   }
 
-  // Add the two `PointerArithmetic`s together
+  // Build the combined result
   using OffsetExpression = PointerArithmetic::OffsetExpression;
   PointerArithmetic Result{ .Offset = OffsetExpression(PointerBitWidth) };
 
@@ -326,76 +337,100 @@ PointerArithmeticBuilder::composeAdd(AddOp Add) {
   Result.Offset.BaseOffset = LHSPA->Offset.BaseOffset
                              + RHSPA->Offset.BaseOffset;
 
-  // Append the linear combinations of `LHS` and `RHS`
-  Result.Offset.LinearCombination = LHSPA->Offset.LinearCombination;
-  Result.Offset.LinearCombination
-    .append(RHSPA->Offset.LinearCombination.begin(),
-            RHSPA->Offset.LinearCombination.end());
-
-  // After we combined the `LinearCombination`s coming from the operands, we
-  // sort them in descending order so that larger `Stride`s come before shorter
-  // ones. This is the expected form derived from a nested array access, where
-  // the stride of the _outer_ level is greater than the _inner_ one by
-  // construction. Duplicate strides are checked in the verify phase as an
-  // invariant.
-  sortLinearCombination(Result);
-
-  // After merging and sorting, if both sides contributed terms with the same
-  // `Stride`, the `Result` would have duplicate `Stride`s and not pass verify.
-  // In this situation, we return `nullopt` in order to soft fail the
-  // `PointerArithmetic` construction, instead of not verifying.
-  for (size_t I = 1; I < Result.Offset.LinearCombination.size(); ++I) {
-    const auto &LinearCombination = Result.Offset.LinearCombination;
-    if (LinearCombination[I].Stride == LinearCombination[I - 1].Stride) {
-      rc_return std::nullopt;
-    }
-  }
-
-  // We propagate as the `BasePointer` of the result the one corresponding to
-  // the _address_ part of the traversal
+  // Propagate the `BasePointer` from whichever operand is an address
   if (LHSPA->isAddress()) {
     Result.BasePointer = LHSPA->BasePointer;
   } else if (RHSPA->isAddress()) {
     Result.BasePointer = RHSPA->BasePointer;
   }
 
-  rc_return Result;
+  return Result;
+}
+
+/// Merge `LinearCombinations` from `LHS` and `RHS` into Result and sort the by
+/// descending `Stride`. If duplicates are found, we return `false`.
+bool PAB::mergeLinearCombinations(PointerArithmetic &Result,
+                                  const StridedTermVector &LHSTerms,
+                                  const StridedTermVector &RHSTerms) {
+
+  Result.Offset.LinearCombination = LHSTerms;
+  Result.Offset.LinearCombination.append(RHSTerms.begin(), RHSTerms.end());
+
+  // Sort in descending order so that larger `Stride`s come before shorter
+  // ones. This is the expected form derived from a nested array access, where
+  // the stride of the _outer_ level is greater than the _inner_ one by
+  // construction.
+  sortLinearCombination(Result);
+
+  // After merging and sorting, if both sides contributed terms with the same
+  // `Stride`, the `Result` would have duplicate `Stride`s and not pass verify.
+  for (size_t I = 1; I < Result.Offset.LinearCombination.size(); ++I) {
+    const auto &LC = Result.Offset.LinearCombination;
+    if (LC[I].Stride == LC[I - 1].Stride) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 RecursiveCoroutine<std::optional<PointerArithmetic>>
-PointerArithmeticBuilder::composePtrAdd(PtrAddOp Add) {
+PointerArithmeticBuilder::composeAdd(AddOp Add) {
+  auto LHSPA = rc_recur traverse(Add.getLhs());
+  auto RHSPA = rc_recur traverse(Add.getRhs());
 
-  mlir::Value PointerOperand = Add.getPointer();
-  mlir::Value OffsetOperand = Add.getOffset();
-
-  // Compute the `PointerArithmetic` for both the pointer and offset operands.
-  auto PointerOperandPA = rc_recur traverse(PointerOperand);
-  auto OffsetOperandPA = rc_recur traverse(OffsetOperand);
-
-  // We should check that the pointer and offset operands are not both `numeric`
-  // or `address`
-  if (not PointerOperandPA or not OffsetOperandPA) {
+  auto Result = combineAddOperands(LHSPA, RHSPA);
+  if (not Result) {
     rc_return std::nullopt;
   }
-  revng_assert(not(PointerOperandPA->isAddress()
-                   and OffsetOperandPA->isAddress()));
-  revng_assert(not(PointerOperandPA->isNumeric()
-                   and OffsetOperandPA->isNumeric()));
 
-  // We expect that the offset operand is indeed a numeric `PointerArithmetic`.
-  // We need this so that we can multiply the size of the clift pointee type by
-  // the value that the numeric `PointerArithmetic` brings with it.
-  revng_assert(OffsetOperandPA->isNumeric());
+  // The `mergeLinearCombinations` helper will return `false` when duplicates
+  // are found, and we should bail out in that situation
+  if (not mergeLinearCombinations(*Result,
+                                  LHSPA->Offset.LinearCombination,
+                                  RHSPA->Offset.LinearCombination)) {
+    rc_return std::nullopt;
+  }
 
-  // We multiply the size of the `PointeeType` of the `PointerOperand` operand
-  // by the `OffsetOperand` `BaseOffset`. The multiplication factor is contained
-  // into the `BaseOffset` of the numeric operand.
-  auto PointerOperandType = getPointerType(PointerOperand.getType());
-  auto PointeeSize = PointerOperandType.getPointeeType().getByteSize();
-  PointerOperandPA->Offset.BaseOffset += OffsetOperandPA->Offset.BaseOffset
-                                         * PointeeSize;
+  rc_return *Result;
+}
 
-  rc_return PointerOperandPA;
+RecursiveCoroutine<std::optional<PointerArithmetic>>
+PointerArithmeticBuilder::composePtrAdd(PtrAddOp PtrAdd) {
+
+  auto PointerOperandPA = rc_recur traverse(PtrAdd.getPointer());
+  auto OffsetOperandPA = rc_recur traverse(PtrAdd.getOffset());
+
+  auto Result = combineAddOperands(PointerOperandPA, OffsetOperandPA);
+  if (not Result) {
+    rc_return std::nullopt;
+  }
+
+  // For `ptr_add`, the offset is in units of the pointee type, so we scale
+  // the `OffsetOperand` contributions by the `PointeeType` size
+  auto PointerType = getPointerType(PtrAdd.getPointer().getType());
+  auto PointeeSize = PointerType.getPointeeType().getByteSize();
+
+  // Scale `BaseOffset` of the `OffsetOperandPA`
+  Result->Offset.BaseOffset = PointerOperandPA->Offset.BaseOffset
+                              + OffsetOperandPA->Offset.BaseOffset
+                                  * PointeeSize;
+
+  // Scale the `OffsetOperand` `LinearCombination` strides by `PointeeSize`
+  llvm::SmallVector<PointerArithmetic::StridedTerm> ScaledOffsetTerms;
+  for (const auto &Term : OffsetOperandPA->Offset.LinearCombination) {
+    ScaledOffsetTerms.emplace_back(Term.Stride * PointeeSize, Term.Idx);
+  }
+
+  // The `mergeLinearCombinations` helper will return `false` when duplicates
+  // are found, and we should bail out in that situation
+  if (not mergeLinearCombinations(*Result,
+                                  PointerOperandPA->Offset.LinearCombination,
+                                  ScaledOffsetTerms)) {
+    rc_return std::nullopt;
+  }
+
+  rc_return *Result;
 }
 
 RecursiveCoroutine<std::optional<PointerArithmetic>>
