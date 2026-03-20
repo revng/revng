@@ -562,6 +562,49 @@ private:
   }
 };
 
+static void importNames(const model::Binary &Model, mlir::ModuleOp Module) {
+  SymbolRenamer Symbols;
+
+  auto R = NameImporter::visit(Module, Model, Symbols);
+  revng_assert(R.succeeded());
+
+  Symbols.apply(Module);
+}
+
+static void importNames(const model::Function &Function,
+                        const model::Binary &Model,
+                        mlir::ModuleOp Module) {
+  std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
+  clift::FunctionOp CliftFunction = nullptr;
+  Module->walk([&Function, &CliftFunction](clift::FunctionOp F) {
+    MetaAddress MA = getMetaAddress(F);
+    if (Function.Entry() == MA) {
+      revng_check(CliftFunction == nullptr);
+      CliftFunction = F;
+    }
+  });
+  revng_check(CliftFunction != nullptr, "Requested Clift function not found");
+
+  SymbolRenamer Symbols;
+
+  auto R = NameImporter::visit(CliftFunction, Model, Symbols);
+  revng_assert(R.succeeded());
+
+  for (mlir::Operation &Op : Module.getBody()->getOperations()) {
+    if (auto F = mlir::dyn_cast<clift::FunctionOp>(Op)) {
+      if (getMetaAddress(F).isInvalid()) {
+        auto R = NameImporter::visit(F, Model, Symbols);
+        revng_assert(R.succeeded());
+      }
+    } else if (auto G = mlir::dyn_cast<clift::GlobalVariableOp>(Op)) {
+      auto R = NameImporter::visit(G, Model, Symbols);
+      revng_assert(R.succeeded());
+    }
+  }
+
+  Symbols.apply(Module);
+}
+
 class ImportModelNamesPipe {
 public:
   static constexpr auto Name = "import-model-names";
@@ -582,24 +625,8 @@ public:
     mlir::ModuleOp Module = CliftContainer.getModule();
     const model::Binary &Model = *revng::getModelFromContext(EC);
 
-    std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
-    Module->walk([&Functions](clift::FunctionOp F) {
-      MetaAddress MA = getMetaAddress(F);
-      if (MA.isValid()) {
-        auto [Iterator, Inserted] = Functions.try_emplace(MA, F);
-        revng_assert(Inserted);
-      }
-    });
-
-    SymbolRenamer Symbols;
     for (const model::Function &Function :
          revng::getFunctionsAndCommit(EC, CliftContainer.name())) {
-      auto It = Functions.find(Function.Entry());
-      revng_check(It != Functions.end(), "Requested Clift function not found");
-
-      auto R = NameImporter::visit(It->second, Model, Symbols);
-      revng_assert(R.succeeded());
-
       // Note that this re-imports *every* global for *every* function, which
       // is really bad from the invalidation stand point.
       //
@@ -610,21 +637,8 @@ public:
       //
       // As such, it's not worth fixing it at this point: we can live with
       // a bunch of unnecessary invalidations until we drop the old pipeline.
-
-      for (mlir::Operation &Op : Module.getBody()->getOperations()) {
-        if (auto F = mlir::dyn_cast<clift::FunctionOp>(Op)) {
-          if (getMetaAddress(F).isInvalid()) {
-            auto R = NameImporter::visit(F, Model, Symbols);
-            revng_assert(R.succeeded());
-          }
-        } else if (auto G = mlir::dyn_cast<clift::GlobalVariableOp>(Op)) {
-          auto R = NameImporter::visit(G, Model, Symbols);
-          revng_assert(R.succeeded());
-        }
-      }
+      importNames(Function, Model, Module);
     }
-
-    Symbols.apply(Module);
   }
 };
 
@@ -635,20 +649,8 @@ static pipeline::RegisterPipe<ImportModelNamesPipe> X;
 namespace revng::pypeline::piperuns {
 
 void ImportModelNames::runOnCliftFunction(const model::Function &Function,
-                                          mlir::clift::FunctionOp
-                                            MLIRFunction) {
-  mlir::ModuleOp Module = MLIRFunction->getParentOfType<mlir::ModuleOp>();
-  SymbolRenamer Symbols;
-  for (mlir::Operation &Op : Module.getBody()->getOperations()) {
-    if (auto F = mlir::dyn_cast<clift::FunctionOp>(Op)) {
-      auto R = NameImporter::visit(F, Binary, Symbols);
-      revng_assert(R.succeeded());
-    } else if (auto G = mlir::dyn_cast<clift::GlobalVariableOp>(Op)) {
-      auto R = NameImporter::visit(G, Binary, Symbols);
-      revng_assert(R.succeeded());
-    }
-  }
-  Symbols.apply(Module);
+                                          mlir::clift::FunctionOp MLIR) {
+  importNames(Binary, MLIR->getParentOfType<mlir::ModuleOp>());
 }
 
 } // namespace revng::pypeline::piperuns
