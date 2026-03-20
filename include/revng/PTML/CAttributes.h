@@ -24,9 +24,10 @@ struct Annotation {
 };
 
 struct AttributeRegistry {
-  static constexpr std::array<Attribute, 4> StaticAttributes{
+  static constexpr std::array<Attribute, 5> StaticAttributes{
     Attribute{ .Macro = "_PACKED", .Value = "packed" },
     Attribute{ .Macro = "_ALWAYS_INLINE", .Value = "always_inline" },
+    Attribute{ .Macro = "_NORETURN", .Value = "noreturn" },
 
     Attribute{ .Macro = "_STACK", .Value = "stack" },
     Attribute{ .Macro = "_CAN_CONTAIN_CODE", .Value = "can_contain_code" }
