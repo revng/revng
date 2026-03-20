@@ -715,3 +715,20 @@ clift::importSegmentDeclaration(mlir::ModuleOp Module,
 
   return Result;
 }
+
+void clift::importAllModelTypes(const model::Binary &Model,
+                                mlir::ModuleOp Module) {
+  mlir::MLIRContext *Context = Module.getContext();
+  mlir::Location Loc = mlir::UnknownLoc::get(Context);
+  auto EmitError = [&]() -> mlir::InFlightDiagnostic {
+    return Context->getDiagEngine().emit(Loc, mlir::DiagnosticSeverity::Error);
+  };
+
+  llvm::SmallVector<mlir::Attribute> TypeAttrs;
+  for (const auto &ModelType : Model.TypeDefinitions()) {
+    auto CliftType = clift::importType(EmitError, *Context, *ModelType, Model);
+    TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
+  }
+
+  Module->setAttr("clift.test", mlir::ArrayAttr::get(Context, TypeAttrs));
+}
