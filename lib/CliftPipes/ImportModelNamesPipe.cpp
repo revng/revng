@@ -599,17 +599,28 @@ public:
 
       auto R = NameImporter::visit(It->second, Model, Symbols);
       revng_assert(R.succeeded());
-    }
 
-    for (mlir::Operation &Op : Module.getBody()->getOperations()) {
-      if (auto F = mlir::dyn_cast<clift::FunctionOp>(Op)) {
-        if (getMetaAddress(F).isInvalid()) {
-          auto R = NameImporter::visit(F, Model, Symbols);
+      // Note that this re-imports *every* global for *every* function, which
+      // is really bad from the invalidation stand point.
+      //
+      // The proper solution would be to manually determine which functions
+      // use which globals - and only update those BUT this problem is only
+      // affecting the old pipeline (in the new one, every function is in
+      // a separate module only containing its dependencies).
+      //
+      // As such, it's not worth fixing it at this point: we can live with
+      // a bunch of unnecessary invalidations until we drop the old pipeline.
+
+      for (mlir::Operation &Op : Module.getBody()->getOperations()) {
+        if (auto F = mlir::dyn_cast<clift::FunctionOp>(Op)) {
+          if (getMetaAddress(F).isInvalid()) {
+            auto R = NameImporter::visit(F, Model, Symbols);
+            revng_assert(R.succeeded());
+          }
+        } else if (auto G = mlir::dyn_cast<clift::GlobalVariableOp>(Op)) {
+          auto R = NameImporter::visit(G, Model, Symbols);
           revng_assert(R.succeeded());
         }
-      } else if (auto G = mlir::dyn_cast<clift::GlobalVariableOp>(Op)) {
-        auto R = NameImporter::visit(G, Model, Symbols);
-        revng_assert(R.succeeded());
       }
     }
 
