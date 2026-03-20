@@ -1,0 +1,50 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %revngpipe import-types %s /dev/null /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
+
+# NOTE: comments are intentionally missing from clift at this point!
+#      This test is verifying that they will not get introduced too early.
+#      To see how comment is represented on the IR, take a look at
+#      `import-comments` test reusing this model file (it has the same name).
+
+TypeDefinitions:
+  # CHECK: !_type_definition_0_UnionDefinition = !clift.union<
+  # CHECK:   "/type-definition/0-UnionDefinition" : {
+  # CHECK:     "/union-field/0-UnionDefinition/0" : !uint8_t,
+  # CHECK:     "/union-field/0-UnionDefinition/1" : !uint16_t,
+  # CHECK:     "/union-field/0-UnionDefinition/2" : !uint32_t
+  # CHECK:   }
+  # CHECK: >
+  - ID: 0
+    Kind: UnionDefinition
+    Name: "my_union"
+    Comment: |-
+      Take a look at struct and function comment tests for more "meat".
+
+      This one is just to ensure union-attached comments don't
+      accidentally get broken!
+    Fields:
+      - Index: 0
+        Comment: one-byte field
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 1
+      - Index: 1
+        Comment: two-byte field
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 2
+      - Index: 2
+        Comment: |-
+          four-byte field
+
+          Time to go looking for the three-byte one! /j
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4
+
+Architecture: x86_64

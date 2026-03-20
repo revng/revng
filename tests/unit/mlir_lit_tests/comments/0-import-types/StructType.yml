@@ -1,0 +1,67 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %revngpipe import-types %s /dev/null /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
+
+# NOTE: comments are intentionally missing from clift at this point!
+#      This test is verifying that they will not get introduced too early.
+#      To see how comment is represented on the IR, take a look at
+#      `import-comments` test reusing this model file (it has the same name).
+
+TypeDefinitions:
+  # CHECK: !_type_definition_0_StructDefinition = !clift.struct<
+  # CHECK:   "/type-definition/0-StructDefinition" : size(8) {
+  # CHECK:     "/struct-field/0-StructDefinition/0" : offset(0) !uint8_t,
+  # CHECK:     "/struct-field/0-StructDefinition/2" : offset(2) !uint16_t,
+  # CHECK:     "/struct-field/0-StructDefinition/4" : offset(4) !uint32_t
+  # CHECK:   }
+  # CHECK: >
+  - ID: 0
+    Kind: StructDefinition
+    Name: "my_commented_struct"
+    Comment: |-
+      This struct has a lot of thoughtful and well argumented comments attached
+      to it by the user.
+
+      It's extremely important we preserve these well and display them nicely.
+
+      This comment is also already well-formatted, so there's no extra processing
+      to be done on it.
+    Size: 8
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 1
+        Comment: |-
+          This is the very first field, the comment for it is pretty short.
+      - Offset: 2
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 2
+        Comment: >-
+          This second field is extremely important, so the user put a whole lot
+          of effort into this comment. It ended up really long. But it also turned
+          out messy and mis-formatted! This line is so long, it's crazy!
+          I wonder if we should help the user by introducing the extra formatting
+          this so desperately needs!
+      - Offset: 4
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 4
+        Comment: |-
+          Unlike the previous one, this comment is short, but it contains a code
+          snippet! So we should be careful and not mess this one up!
+          ```cpp
+            int *a = nullopt;
+            *a = 42;
+          ```
+
+          (Your code can have no UB if you write nothing but comments!)
+
+          P. S. This field is also twice the size of the other two!
+
+Architecture: x86_64
