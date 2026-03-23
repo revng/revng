@@ -424,7 +424,7 @@ PointerArithmeticBuilder::composePtrAdd(PtrAddOp PtrAdd) {
   // For `ptr_add`, the offset is in units of the pointee type, so we scale
   // the `OffsetOperand` contributions by the `PointeeType` size
   auto PointerType = getPointerType(PtrAdd.getPointer().getType());
-  auto PointeeSize = PointerType.getPointeeType().getByteSize();
+  auto PointeeSize = getObjectSize(PointerType.getPointeeType());
 
   // Scale `BaseOffset` of the `OffsetOperandPA`
   Result->Offset.BaseOffset = PointerOperandPA->Offset.BaseOffset
