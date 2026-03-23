@@ -31,13 +31,13 @@ module attributes {clift.module} {
 
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !a>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !a> -> !clift.ptr<8 to !void>
-      %3 = clift.cast<bitcast> %2 : !clift.ptr<8 to !void> -> !generic64_t
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !a> -> !clift.ptr<8 to !void>
+      %3 = clift.bitcast %2 : !clift.ptr<8 to !void> -> !generic64_t
       %4 = clift.imm 4 : !generic64_t
       %global = clift.use @global : !generic64_t
       %5 = clift.mul %4, %global : !generic64_t
       %6 = clift.add %3, %5 : !generic64_t
-      %7 = clift.cast<bitcast> %6 : !generic64_t -> !clift.ptr<8 to !int32_t>
+      %7 = clift.bitcast %6 : !generic64_t -> !clift.ptr<8 to !int32_t>
       clift.yield %7 : !int32_t$ptr
     }
   }
@@ -50,7 +50,7 @@ module attributes {clift.module} {
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[ARRAY]] : !clift.ptr<8 to !clift.array<10 x !int32_t>>
   // CHECK: [[USE:%[0-9a-z]+]] = clift.use [[GLOBAL]]
   // CHECK: [[INDIRECTION:%[0-9]+]] = clift.indirection [[ADDRESSOF1]]
-  // CHECK: [[CAST:%[0-9]+]] = clift.cast<decay> [[INDIRECTION]]
+  // CHECK: [[CAST:%[0-9]+]] = clift.decay [[INDIRECTION]]
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[CAST]], [[USE]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !int32_t>

@@ -17,12 +17,36 @@ namespace clift {
 } // namespace mlir
 
 namespace clift = mlir::clift;
+using namespace clift;
 
 namespace {
 
 static mlir::OpOperand &getOnlyUse(mlir::Value Value) {
   revng_assert(Value.hasOneUse());
   return *Value.use_begin();
+}
+
+template<typename ResizeCastOpOrVoid>
+static mlir::Value emitCast(mlir::PatternRewriter &Rewriter,
+                            mlir::Location Loc,
+                            mlir::Value Value,
+                            clift::ValueType NewType) {
+  clift::ValueType OldType = Value.getType();
+
+  uint64_t OldSize = getObjectSize(OldType);
+  uint64_t NewSize = getObjectSize(NewType);
+
+  if (OldSize == NewSize)
+    return Rewriter.create<BitCastOp>(Loc, NewType, Value);
+
+  if constexpr (std::is_void_v<ResizeCastOpOrVoid>) {
+    if (NewSize > OldSize)
+      return Rewriter.create<ExtendOp>(Loc, NewType, Value);
+    else
+      return Rewriter.create<TruncateOp>(Loc, NewType, Value);
+  } else {
+    return Rewriter.create<ResizeCastOpOrVoid>(Loc, NewType, Value);
+  }
 }
 
 /// Changes the type of the first result of the expression \p Op to \p NewType.
@@ -32,6 +56,7 @@ static mlir::OpOperand &getOnlyUse(mlir::Value Value) {
 /// is inserted between \p Op and its user. The caller may set this to false
 /// when it is known that the change in type has no effect on the semantics of
 /// the user of the result.
+template<typename ResizeCastOpOrVoid = void>
 static void modifyResultType(mlir::PatternRewriter &Rewriter,
                              mlir::Operation *Op,
                              clift::ValueType NewType,
@@ -40,37 +65,27 @@ static void modifyResultType(mlir::PatternRewriter &Rewriter,
   mlir::OpOperand &OnlyUse = getOnlyUse(Result);
 
   auto OldType = mlir::cast<clift::ValueType>(Result.getType());
-  auto CastKind = OldType.getByteSize() > NewType.getByteSize() ?
-                    clift::CastKind::Extend :
-                    clift::CastKind::Truncate;
-
   Result.setType(NewType);
 
   if (PreserveExpressionType and not clift::isDiscarded(Result)) {
     Rewriter.setInsertionPointAfter(Op);
-    OnlyUse.set(Rewriter.create<clift::CastOp>(Op->getLoc(),
-                                               OldType,
-                                               Result,
-                                               CastKind));
+    OnlyUse.set(emitCast<ResizeCastOpOrVoid>(Rewriter,
+                                             Op->getLoc(),
+                                             Result,
+                                             OldType));
   }
 }
 
+template<typename ResizeCastOpOrVoid = void>
 static void modifyOperandType(mlir::PatternRewriter &Rewriter,
                               mlir::OpOperand &Operand,
                               clift::ValueType NewType) {
   mlir::Operation *Op = Operand.getOwner();
   mlir::Value Value = Operand.get();
 
-  auto OldType = mlir::cast<clift::ValueType>(Value.getType());
-  auto CastKind = OldType.getByteSize() < NewType.getByteSize() ?
-                    clift::CastKind::Extend :
-                    clift::CastKind::Truncate;
-
   Rewriter.setInsertionPoint(Op);
-  Operand.set(Rewriter.create<clift::CastOp>(Op->getLoc(),
-                                             NewType,
-                                             Value,
-                                             CastKind));
+  Operand
+    .set(emitCast<ResizeCastOpOrVoid>(Rewriter, Op->getLoc(), Value, NewType));
 }
 
 template<typename OpT>
@@ -106,7 +121,7 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
       return mlir::failure();
 
     auto NewType = makeTargetPointerType(OldType);
-    modifyOperandType(Rewriter, Operand, NewType);
+    modifyOperandType<PtrResizeOp>(Rewriter, Operand, NewType);
 
     return mlir::success();
   }
@@ -136,7 +151,7 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
       return mlir::failure();
 
     auto NewType = makeTargetPointerType(OldType);
-    modifyResultType(Rewriter, Op, NewType);
+    modifyResultType<PtrResizeOp>(Rewriter, Op, NewType);
 
     return mlir::success();
   }
@@ -213,15 +228,12 @@ struct ResizeAddressofPattern : PointerResizePattern<clift::AddressofOp> {
   }
 };
 
-struct ResizeDecayCastPattern : PointerResizePattern<clift::CastOp> {
+struct ResizeDecayCastPattern : PointerResizePattern<clift::DecayOp> {
   using PointerResizePattern::PointerResizePattern;
 
   mlir::LogicalResult
-  matchAndRewrite(clift::CastOp Op,
+  matchAndRewrite(clift::DecayOp Op,
                   mlir::PatternRewriter &Rewriter) const override {
-    if (Op.getKind() != clift::CastKind::Decay)
-      return mlir::failure();
-
     return replacePointerResult(Rewriter, Op);
   }
 };

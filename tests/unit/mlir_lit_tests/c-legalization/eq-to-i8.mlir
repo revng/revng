@@ -23,7 +23,7 @@ module attributes {clift.module} {
     clift.expr {
       // CHECK: %2 = clift.eq %0, %0 : !int32_t -> !int32_t
       %2 = clift.eq %0, %0 : !int32_t -> !int8_t
-      // CHECK: %3 = clift.cast<truncate> %2 : !int32_t -> !int8_t
+      // CHECK: %3 = clift.truncate %2 : !int32_t -> !int8_t
       // CHECK: %4 = clift.eq %1, %3 : !int8_t -> !int32_t
       %3 = clift.eq %1, %2 : !int8_t -> !int8_t
       // CHECK: clift.yield %4 : !int32_t

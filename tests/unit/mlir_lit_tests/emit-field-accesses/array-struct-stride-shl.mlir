@@ -43,14 +43,14 @@ module attributes {clift.module} {
     %0 = clift.local : !s_stride8
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !s_stride8>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !s_stride8> -> !clift.ptr<8 to !void>
-      %3 = clift.cast<bitcast> %2 : !clift.ptr<8 to !void> -> !generic64_t
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !s_stride8> -> !clift.ptr<8 to !void>
+      %3 = clift.bitcast %2 : !clift.ptr<8 to !void> -> !generic64_t
       %4 = clift.imm 3 : !generic64_t
       %5 = clift.shl %arg0, %4 : !generic64_t
       %6 = clift.imm 16 : !generic64_t
       %7 = clift.add %5, %6 : !generic64_t
       %8 = clift.add %3, %7 : !generic64_t
-      %9 = clift.cast<bitcast> %8 : !generic64_t -> !int64_t$ptr
+      %9 = clift.bitcast %8 : !generic64_t -> !int64_t$ptr
       clift.yield %9 : !int64_t$ptr
     }
   }
@@ -60,7 +60,7 @@ module attributes {clift.module} {
   // CHECK: [[LOCAL:%[0-9]+]] = clift.local : !_1_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[LOCAL]] : !clift.ptr<8 to !_1_>
   // CHECK: [[ACCESS:%[0-9]+]] = clift.access<indirect 2> [[ADDRESSOF1]]
-  // CHECK: [[CAST:%[0-9]+]] = clift.cast<decay> [[ACCESS]]
+  // CHECK: [[CAST:%[0-9]+]] = clift.decay [[ACCESS]]
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[CAST]], [[ARG0]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !int64_t>
@@ -72,14 +72,14 @@ module attributes {clift.module} {
     %0 = clift.local : !s_stride2
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !s_stride2>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !s_stride2> -> !clift.ptr<8 to !void>
-      %3 = clift.cast<bitcast> %2 : !clift.ptr<8 to !void> -> !generic64_t
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !s_stride2> -> !clift.ptr<8 to !void>
+      %3 = clift.bitcast %2 : !clift.ptr<8 to !void> -> !generic64_t
       %4 = clift.imm 1 : !generic64_t
       %5 = clift.shl %arg0, %4 : !generic64_t
       %6 = clift.imm 8 : !generic64_t
       %7 = clift.add %5, %6 : !generic64_t
       %8 = clift.add %3, %7 : !generic64_t
-      %9 = clift.cast<bitcast> %8 : !generic64_t -> !int16_t$ptr
+      %9 = clift.bitcast %8 : !generic64_t -> !int16_t$ptr
       clift.yield %9 : !int16_t$ptr
     }
   }
@@ -89,7 +89,7 @@ module attributes {clift.module} {
   // CHECK: [[LOCAL:%[0-9]+]] = clift.local : !_2_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[LOCAL]] : !clift.ptr<8 to !_2_>
   // CHECK: [[ACCESS:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
-  // CHECK: [[CAST:%[0-9]+]] = clift.cast<decay> [[ACCESS]]
+  // CHECK: [[CAST:%[0-9]+]] = clift.decay [[ACCESS]]
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[CAST]], [[ARG0]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !int16_t>

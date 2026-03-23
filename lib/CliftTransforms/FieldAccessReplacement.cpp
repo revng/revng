@@ -284,10 +284,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
         }
         ArrayElementType = ArrayType.getElementType();
         auto DecayType = PointerType::get(ArrayElementType, PointerSize);
-        CurrentValue = Builder.create<CastOp>(PointerToReplaceLoc,
-                                              DecayType,
-                                              CurrentValue,
-                                              CastKind::Decay);
+        CurrentValue = Builder.create<DecayOp>(PointerToReplaceLoc,
+                                               DecayType,
+                                               CurrentValue);
       }
 
       // Emit the `mlir::Value` representing the `Index` access.
@@ -336,11 +335,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
       if (not mlir::isa<clift::PointerType>(CurrentValue.getType())) {
         auto UnderlyingType = getPointerType(CurrentValue.getType());
         revng_assert(UnderlyingType);
-        CurrentValue = Builder
-                         .create<CastOp>(PointerToReplaceLoc,
-                                         mlir::cast<mlir::Type>(UnderlyingType),
-                                         CurrentValue,
-                                         CastKind::Bitcast);
+        CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
+                                                 UnderlyingType,
+                                                 CurrentValue);
       }
 
       // Finally, we emit the `SubscriptOp` using as `Index` the `mlir::Value`
@@ -370,10 +367,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
     auto IntegerType = PrimitiveType::get(Builder.getContext(),
                                           PrimitiveKind::GenericKind,
                                           PointerSize);
-    CurrentValue = Builder.create<CastOp>(PointerToReplaceLoc,
-                                          IntegerType,
-                                          CurrentValue,
-                                          CastKind::Bitcast);
+    CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
+                                             IntegerType,
+                                             CurrentValue);
 
     // Add base offset
     if (!LeftoverOffset.BaseOffset.isZero()) {
@@ -411,10 +407,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
 
     // Cast back to pointer
     auto PointerType = PointerType::get(CurrentValue.getType(), PointerSize);
-    CurrentValue = Builder.create<CastOp>(PointerToReplaceLoc,
-                                          PointerType,
-                                          CurrentValue,
-                                          CastKind::Bitcast);
+    CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
+                                             PointerType,
+                                             CurrentValue);
   }
 
   // If the result type differs from PointerToReplace's type, add a cast on
@@ -422,11 +417,10 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
   // `PointerToReplace` `Type`
   auto PointerToReplaceOp = PointerToReplace.getOperation();
   if (CurrentValue.getType() != PointerToReplace->getResult(0).getType()) {
-    CurrentValue = Builder
-                     .create<CastOp>(PointerToReplaceLoc,
-                                     PointerToReplace->getResult(0).getType(),
-                                     CurrentValue,
-                                     CastKind::Bitcast);
+    CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
+                                             PointerToReplace->getResult(0)
+                                               .getType(),
+                                             CurrentValue);
   }
 
   // Replace all uses of `PointerToReplace` with `CurrentValue`

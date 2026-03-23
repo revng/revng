@@ -42,10 +42,10 @@ module attributes {clift.module} {
     %0 = clift.local : !struct_startdistance
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !struct_startdistance>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !struct_startdistance> -> !generic64_t
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !struct_startdistance> -> !generic64_t
       %3 = clift.imm 6 : !generic64_t
       %4 = clift.add %2, %3 : !generic64_t
-      %5 = clift.cast<bitcast> %4 : !generic64_t -> !clift.ptr<8 to !int32_t>
+      %5 = clift.bitcast %4 : !generic64_t -> !clift.ptr<8 to !int32_t>
       clift.yield %5 : !clift.ptr<8 to !int32_t>
     }
   }
@@ -55,11 +55,11 @@ module attributes {clift.module} {
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_1_>
   // CHECK: [[ACCESS1:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS1]]
-  // CHECK: [[CAST1:%[0-9]+]] = clift.cast<bitcast> [[ADDRESSOF2]]
+  // CHECK: [[CAST1:%[0-9]+]] = clift.bitcast [[ADDRESSOF2]]
   // CHECK: [[IMM:%[0-9]+]] = clift.imm 2
   // CHECK: [[ADD:%[0-9]+]] = clift.add [[CAST1]], [[IMM]]
-  // CHECK: [[CAST2:%[0-9]+]] = clift.cast<bitcast> [[ADD]]
-  // CHECK: [[CAST3:%[0-9]+]] = clift.cast<bitcast> [[CAST2]]
+  // CHECK: [[CAST2:%[0-9]+]] = clift.bitcast [[ADD]]
+  // CHECK: [[CAST3:%[0-9]+]] = clift.bitcast [[CAST2]]
   // CHECK: clift.yield [[CAST3]] : !clift.ptr<8 to !int32_t>
 
   // Access, of size 8, at offset 6 - should not select field at offset 4
@@ -69,10 +69,10 @@ module attributes {clift.module} {
     %0 = clift.local : !struct_startdistance
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !struct_startdistance>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !struct_startdistance> -> !generic64_t
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !struct_startdistance> -> !generic64_t
       %3 = clift.imm 6 : !generic64_t
       %4 = clift.add %2, %3 : !generic64_t
-      %5 = clift.cast<bitcast> %4 : !generic64_t -> !clift.ptr<8 to !int64_t>
+      %5 = clift.bitcast %4 : !generic64_t -> !clift.ptr<8 to !int64_t>
       clift.yield %5 : !clift.ptr<8 to !int64_t>
     }
   }
@@ -80,10 +80,10 @@ module attributes {clift.module} {
   // CHECK-LABEL: clift.func @test_enddistance<!f>
   // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_1_
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_1_>
-  // CHECK: [[CAST1:%[0-9]+]] = clift.cast<bitcast> [[ADDRESSOF1]]
+  // CHECK: [[CAST1:%[0-9]+]] = clift.bitcast [[ADDRESSOF1]]
   // CHECK: [[IMM:%[0-9]+]] = clift.imm 6
   // CHECK: [[ADD:%[0-9]+]] = clift.add [[CAST1]], [[IMM]]
-  // CHECK: [[CAST2:%[0-9]+]] = clift.cast<bitcast> [[ADD]]
+  // CHECK: [[CAST2:%[0-9]+]] = clift.bitcast [[ADD]]
   // CHECK: clift.yield [[CAST2]] : !clift.ptr<8 to !int64_t>
   // CHECK-NOT: [[ACCESS1:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
 }

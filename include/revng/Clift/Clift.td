@@ -947,14 +947,64 @@ def Clift_DecrementOp : Clift_UnaryIntegerMutationOp<"dec">;
 def Clift_PostIncrementOp : Clift_UnaryIntegerMutationOp<"post_inc">;
 def Clift_PostDecrementOp : Clift_UnaryIntegerMutationOp<"post_dec">;
 
-def Clift_CastOp : Clift_ExpressionOp<"cast"> {
-  let arguments = (ins Clift_AnyValueType:$value,
-                       Clift_CastKind:$kind);
+class Clift_CastExpressionOp<string mnemonic>
+  : Clift_BasicExpressionOp<mnemonic, Clift_CastOpInterface>;
 
-  let results = (outs Clift_AnyNonConstType<Clift_AnyValueType>:$result);
+def Clift_DecayOp : Clift_CastExpressionOp<"decay"> {
+  let arguments = (ins AnyType:$value);
+
+  let results = (outs Clift_AnyNonConstType<AnyType>:$result);
 
   let assemblyFormat = [{
-    `<` $kind `>` $value attr-dict `:` type($value) `->` type($result)
+    $value attr-dict `:` type($value) `->` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_BitCastOp : Clift_CastExpressionOp<"bitcast"> {
+  let arguments = (ins AnyType:$value);
+
+  let results = (outs Clift_AnyNonConstType<AnyType>:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value) `->` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_ExtendOp : Clift_CastExpressionOp<"extend"> {
+  let arguments = (ins Clift_AnyIntegerType:$value);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value) `->` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_TruncateOp : Clift_CastExpressionOp<"truncate"> {
+  let arguments = (ins Clift_AnyIntegerType:$value);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyIntegerType>:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value) `->` type($result)
+  }];
+
+  let hasVerifier = 1;
+}
+
+def Clift_PtrResizeOp : Clift_CastExpressionOp<"ptr_resize"> {
+  let arguments = (ins Clift_AnyPointerType:$value);
+
+  let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
+
+  let assemblyFormat = [{
+    $value attr-dict `:` type($value) `->` type($result)
   }];
 
   let hasVerifier = 1;

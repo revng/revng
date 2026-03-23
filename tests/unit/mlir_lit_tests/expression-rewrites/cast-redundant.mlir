@@ -14,8 +14,8 @@ module attributes {clift.module} {
   clift.func @f<!f>(%arg0 : !int32_t) -> !void {
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK-NOT: clift.cast
-      %0 = clift.cast<bitcast> %arg0 : !int32_t -> !int32_t
+      // CHECK-NOT: clift.bitcast
+      %0 = clift.bitcast %arg0 : !int32_t -> !int32_t
       // CHECK: clift.yield %arg0
       clift.yield %0 : !int32_t
     }

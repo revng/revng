@@ -102,6 +102,8 @@ struct ExpressionRegionRange
 #include "revng/Clift/CliftOpInterfacesJump.h.inc"
 // Prevent reordering:
 #include "revng/Clift/CliftOpInterfacesControlFlow.h.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftOpInterfacesExpr.h.inc"
 
 namespace mlir::clift {
 

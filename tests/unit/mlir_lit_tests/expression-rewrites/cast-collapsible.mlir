@@ -16,9 +16,9 @@ module attributes {clift.module} {
   clift.func @f<!f>(%arg0 : !int64_t) -> !void {
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK: %0 = clift.cast<truncate> %arg0 : !int64_t -> !int16_t
-      %0 = clift.cast<truncate> %arg0 : !int64_t -> !int32_t
-      %1 = clift.cast<truncate> %0 : !int32_t -> !int16_t
+      // CHECK: %0 = clift.truncate %arg0 : !int64_t -> !int16_t
+      %0 = clift.truncate %arg0 : !int64_t -> !int32_t
+      %1 = clift.truncate %0 : !int32_t -> !int16_t
       // CHECK: clift.yield %0
       clift.yield %1 : !int16_t
     }

@@ -74,9 +74,21 @@ template<typename TypeT>
 /// unwrapping typedefs).
 [[nodiscard]] uint64_t getObjectSize(mlir::Type Type);
 
+/// Returns the size of the given value, assuming its type is an ObjectType
+/// (after unwrapping typedefs).
+[[nodiscard]] inline uint64_t getObjectSize(mlir::Value Value) {
+  return getObjectSize(Value.getType());
+}
+
 /// Returns the size of the given type, if it is an ObjectType (after unwrapping
 /// typedefs). Otherwise returns zero.
 [[nodiscard]] uint64_t getObjectSizeOrZero(mlir::Type Type);
+
+/// Returns the size of the given value, if its type is an ObjectType (after
+/// unwrapping typedefs).
+[[nodiscard]] inline uint64_t getObjectSizeOrZero(mlir::Value Value) {
+  return getObjectSize(Value.getType());
+}
 
 //===--------------------------- Type categories --------------------------===//
 

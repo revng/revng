@@ -17,9 +17,6 @@ def TypesAreEquivalent
 def TypesAreNotEquivalent
   : Constraint<CPred<[{ not clift::equivalent($0.getType(), $1.getType()) }]>>;
 
-def IsBitcastKind
-  : Constraint<CPred<[{ $0.getValue() == clift::CastKind::Bitcast }]>>;
-
 def getPointeeType : NativeCodeCall<[{
   mlir::cast<clift::PointerType>(mlir::clift::dealias($0.getType(), /*IgnoreQualifiers=*/true)).getPointeeType()
 }]>;

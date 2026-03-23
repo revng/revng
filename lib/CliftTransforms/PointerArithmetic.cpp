@@ -143,7 +143,7 @@ private:
   // `PointerArithmetic` with different `clift` `Operation`s that want to
   // traverse during our exploration
   RecursiveCoroutine<std::optional<PointerArithmetic>>
-  composeBitcast(CastOp Bitcast);
+  composeBitcast(BitCastOp Bitcast);
 
   RecursiveCoroutine<std::optional<PointerArithmetic>> composeAdd(AddOp Add);
 
@@ -267,10 +267,8 @@ PointerArithmeticBuilder::traverse(mlir::Value V) {
   // Every time we find a compatible `Expression`, we traverse it in order to
   // compose its operands
   if (auto Expr = V.getDefiningOp<ExpressionOpInterface>()) {
-    if (auto Cast = mlir::dyn_cast<CastOp>(Expr.getOperation())) {
-      if (Cast.getKind() == CastKind::Bitcast) {
-        rc_return rc_recur composeBitcast(Cast);
-      }
+    if (auto Cast = mlir::dyn_cast<BitCastOp>(Expr.getOperation())) {
+      rc_return rc_recur composeBitcast(Cast);
     } else if (auto Add = mlir::dyn_cast<AddOp>(Expr.getOperation())) {
       rc_return rc_recur composeAdd(Add);
     } else if (auto PtrAdd = mlir::dyn_cast<PtrAddOp>(Expr.getOperation())) {
@@ -316,7 +314,7 @@ PointerArithmetic PointerArithmeticBuilder::createLeaf(mlir::Value V) {
 }
 
 RecursiveCoroutine<std::optional<PointerArithmetic>>
-PointerArithmeticBuilder::composeBitcast(CastOp Cast) {
+PointerArithmeticBuilder::composeBitcast(BitCastOp Cast) {
 
   // Retrieve the `bitcast` single `Operand`, and recursively forward the
   // `PointerArithmetic` produced from it

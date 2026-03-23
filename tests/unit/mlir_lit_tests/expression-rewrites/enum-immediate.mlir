@@ -17,8 +17,8 @@ module attributes {clift.module} {
     clift.expr {
       // CHECK-NOT: = clift.imm 0 : !int32_t
       %0 = clift.imm 0 : !int32_t
-      // CHECK-NOT: clift.cast
-      %1 = clift.cast<bitcast> %0 : !int32_t -> !my_enum
+      // CHECK-NOT: clift.bitcast
+      %1 = clift.bitcast %0 : !int32_t -> !my_enum
       // CHECK: %0 = clift.imm 0 : !my_enum
       // CHECK: clift.yield %0 : !my_enum
       clift.yield %1 : !my_enum

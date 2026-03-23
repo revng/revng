@@ -5,8 +5,9 @@
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
 !int32_t = !clift.primitive<signed 4>
+!int32_t$ptr = !clift.ptr<8 to !int32_t>
 
-%value = clift.undef : !int32_t
+%int = clift.undef : !int32_t
 
-// CHECK: result type must be narrower than the argument type
-clift.cast<truncate> %value : !int32_t -> !int32_t
+// CHECK: argument must have array or function type
+clift.decay %int : !int32_t -> !int32_t$ptr

@@ -26,7 +26,7 @@ static clift::PointerType getPointerOperationType(mlir::Operation *Op) {
   if (auto A = mlir::dyn_cast<AccessOp>(Op); A and A.isIndirect())
     return GetPointerTypeChecked(A.getValue().getType());
 
-  if (auto C = mlir::dyn_cast<CastOp>(Op); C and C.getKind() == CastKind::Decay)
+  if (auto C = mlir::dyn_cast<DecayOp>(Op))
     return GetPointerTypeChecked(C.getResult().getType());
 
   if (auto C = mlir::dyn_cast<CallOp>(Op)) {

@@ -1291,107 +1291,97 @@ mlir::LogicalResult PtrDiffOp::verify() {
   return mlir::success();
 }
 
-//===------------------------------- CastOp -------------------------------===//
+//===------------------------------- DecayOp ------------------------------===//
 
-mlir::LogicalResult CastOp::verify() {
-  auto ResT = mlir::cast<ValueType>(getResult().getType());
+mlir::LogicalResult DecayOp::verify() {
+  auto ArgT = dealias(getValue().getType());
+  auto ResT = dealias(getResult().getType(), /*IgnoreQualifiers=*/true);
 
-  if (ResT.isConst())
+  auto PtrT = mlir::dyn_cast<PointerType>(ResT);
+  if (not PtrT)
     return emitOpError() << getOperationName()
-                         << " result must have unqualified type.";
+                         << " result must have pointer type.";
 
-  auto ArgT = mlir::cast<ValueType>(getValue().getType());
-
-  switch (auto Kind = getKind()) {
-  case CastKind::Extend:
-  case CastKind::Truncate: {
-    if (auto ResUnderlyingT = getUnderlyingIntegerType(ResT)) {
-      auto ArgUnderlyingT = getUnderlyingIntegerType(ArgT);
-      if (not ArgUnderlyingT)
-        return emitOpError() << " argument must have integer type.";
-
-      if (ResUnderlyingT.getKind() != ArgUnderlyingT.getKind())
-        return emitOpError() << " result and argument types must be equal in"
-                                " kind.";
-    } else if (auto ResPointerT = getPointerType(ResT)) {
-      auto ArgPointerT = getPointerType(ArgT);
-      if (not ArgPointerT)
-        return emitOpError() << " argument must have pointer type.";
-
-      if (ResPointerT.getPointeeType() != ArgPointerT.getPointeeType())
-        return emitOpError() << " result and argument must have equal pointee "
-                                " types.";
-    } else {
-      return emitOpError() << " result must have integer or pointer type.";
-    }
-
-    if (Kind == CastKind::Extend) {
-      if (ResT.getByteSize() <= ArgT.getByteSize())
-        return emitOpError() << " result type must be wider than the argument"
-                                " type.";
-    } else {
-      if (ResT.getByteSize() >= ArgT.getByteSize())
-        return emitOpError() << " result type must be narrower than the"
-                                " argument type.";
-    }
-  } break;
-  case CastKind::Bitcast: {
-    if (not isObjectType(ResT) or isArrayType(ResT))
-      return emitOpError() << " result must have non-array object type.";
-
-    if (not isObjectType(ArgT) or isArrayType(ArgT))
-      return emitOpError() << " argument must have non-array object type.";
-
-    if (ResT.getByteSize() != ArgT.getByteSize())
-      return emitOpError() << " result and argument types must be equal in"
-                              " size.";
-  } break;
-  case CastKind::Decay: {
-    auto PtrT = mlir::dyn_cast<PointerType>(ResT);
-    if (not PtrT)
+  if (auto ArrayT = mlir::dyn_cast<ArrayType>(ArgT)) {
+    if (PtrT.getPointeeType() != ArrayT.getElementType())
       return emitOpError() << getOperationName()
-                           << " result must have pointer type.";
-
-    auto DealiasedArgT = dealias(ArgT);
-    if (auto ArrayT = mlir::dyn_cast<ArrayType>(DealiasedArgT)) {
-      if (PtrT.getPointeeType() != ArrayT.getElementType())
-        return emitOpError() << getOperationName()
-                             << " the pointee type of the result type must be"
-                                " equal to the element type of the argument"
-                                " type.";
-    } else if (auto FunctionT = mlir::dyn_cast<FunctionType>(DealiasedArgT)) {
-      if (PtrT.getPointeeType() != FunctionT)
-        return emitOpError() << getOperationName()
-                             << " the pointee type of the result type must be"
-                                " equal to the argument type.";
-    } else {
+                           << " the pointee type of the result type must be"
+                              " equal to the element type of the argument"
+                              " type.";
+  } else if (auto FunctionT = mlir::dyn_cast<FunctionType>(ArgT)) {
+    if (PtrT.getPointeeType() != FunctionT)
       return emitOpError() << getOperationName()
-                           << " argument must have array or function type.";
-    }
-  } break;
-  case CastKind::Convert: {
-    bool ArgIsFloat = isFloatType(ArgT);
-    bool ResIsFloat = isFloatType(ResT);
-
-    if (not ArgIsFloat and not isIntegerType(ArgT))
-      return emitOpError() << " operand must have floating point or integer"
-                              " type";
-
-    if (not ResIsFloat and not isIntegerType(ResT))
-      return emitOpError() << " result must have floating point or integer"
-                              " type";
-
-    if (not ArgIsFloat and not ResIsFloat)
-      return emitOpError() << " requires either the operand or result to have"
-                              " floating point type.";
-
-    if (equivalent(ArgT, ResT))
-      return emitOpError() << " result type cannot match the operand type.";
-  } break;
-
-  default:
-    revng_abort("Invalid CastKind value");
+                           << " the pointee type of the result type must be"
+                              " equal to the argument type.";
+  } else {
+    return emitOpError() << getOperationName()
+                         << " argument must have array or function type.";
   }
+
+  return mlir::success();
+}
+
+//===------------------------------ BitCastOp -----------------------------===//
+
+mlir::LogicalResult BitCastOp::verify() {
+  auto ResT = dealias(getResult().getType(), /*IgnoreQualifiers=*/true);
+  auto ArgT = dealias(getValue().getType(), /*IgnoreQualifiers=*/true);
+
+  if (not isObjectType(ResT) or mlir::isa<ArrayType>(ResT))
+    return emitOpError() << " result must have non-array object type.";
+
+  if (not isObjectType(ArgT) or mlir::isa<ArrayType>(ArgT))
+    return emitOpError() << " argument must have non-array object type.";
+
+  if (ResT.getByteSize() != ArgT.getByteSize())
+    return emitOpError() << " result and argument types must be equal in"
+                            " size.";
+
+  return mlir::success();
+}
+
+//===------------------------------ ExtendOp ------------------------------===//
+
+mlir::LogicalResult ExtendOp::verify() {
+  mlir::Type ResT = getResult().getType();
+  mlir::Type ArgT = getValue().getType();
+
+  if (getObjectSize(ArgT) >= getObjectSize(ResT))
+    return emitOpError() << getOperationName()
+                         << " result must be wider than the operand";
+
+  return mlir::success();
+}
+
+//===----------------------------- TruncateOp -----------------------------===//
+
+mlir::LogicalResult TruncateOp::verify() {
+  mlir::Type ResT = getResult().getType();
+  mlir::Type ArgT = getValue().getType();
+
+  if (getObjectSize(ArgT) <= getObjectSize(ResT))
+    return emitOpError() << getOperationName()
+                         << " result must be narrower than the operand";
+
+  return mlir::success();
+}
+
+//===----------------------------- PtrResizeOp ----------------------------===//
+
+mlir::LogicalResult PtrResizeOp::verify() {
+  auto ResT = dealias(getResult().getType(), /*IgnoreQualifiers=*/true);
+  auto ArgT = dealias(getValue().getType(), /*IgnoreQualifiers=*/true);
+
+  auto ResPtrT = mlir::cast<PointerType>(ResT);
+  auto ArgPtrT = mlir::cast<PointerType>(ArgT);
+
+  if (ResPtrT.getPointerSize() == ArgPtrT.getPointerSize())
+    return emitOpError() << getOperationName()
+                         << " operand size must not match the result.";
+
+  if (ResPtrT.getPointeeType() != ArgPtrT.getPointeeType())
+    return emitOpError() << getOperationName()
+                         << " operand pointee type must match the result.";
 
   return mlir::success();
 }

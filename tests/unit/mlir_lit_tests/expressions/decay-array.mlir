@@ -10,7 +10,7 @@
 !typedef$array = !clift.typedef<"" : !int32_t$array>
 
 %array = clift.undef : !int32_t$array
-clift.cast<decay> %array : !int32_t$array -> !int32_t$ptr
+clift.decay %array : !int32_t$array -> !int32_t$ptr
 
 %typedef_array = clift.undef : !typedef$array
-clift.cast<decay> %typedef_array : !typedef$array -> !int32_t$ptr
+clift.decay %typedef_array : !typedef$array -> !int32_t$ptr

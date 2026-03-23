@@ -712,12 +712,11 @@ private:
     return Builder.create<OpT>(Loc, std::forward<ArgsT>(Args)...);
   }
 
-  mlir::Value emitCast(mlir::Location Loc,
-                       mlir::Value Value,
-                       clift::ValueType TargetType,
-                       CastKind Kind = CastKind::Bitcast) {
+  template<typename OpT>
+  mlir::Value
+  emitCast(mlir::Location Loc, mlir::Value Value, clift::ValueType TargetType) {
     if (Value.getType() != TargetType)
-      Value = Builder.create<CastOp>(Loc, TargetType, Value, Kind);
+      Value = Builder.create<OpT>(Loc, TargetType, Value);
 
     return Value;
   }
@@ -754,7 +753,7 @@ private:
     if (mlir::isa<ArrayType>(UnderlyingTargetT))
       return Value;
 
-    return emitCast(Loc, Value, TargetType);
+    return emitCast<BitCastOp>(Loc, Value, TargetType);
   }
 
   // Used for emitting operations acting on integer operands (arithmetic,
@@ -770,7 +769,7 @@ private:
       revng_assert(UnderlyingType);
 
       uint64_t Size = UnderlyingType.getSize();
-      Value = emitCast(Loc, Value, C.getPrimitiveType(Size, Kind));
+      Value = emitCast<BitCastOp>(Loc, Value, C.getPrimitiveType(Size, Kind));
     };
 
     (ConvertToKind(Operands, Kind), ...);
@@ -787,17 +786,19 @@ private:
   mlir::Value emitIntegerCast(mlir::Location Loc,
                               mlir::Value Operand,
                               uint64_t Size,
-                              PrimitiveKind Kind) {
+                              PrimitiveKind Kind = PrimitiveKind::GenericKind) {
     uint64_t SrcSize = getUnderlyingIntegerType(Operand.getType()).getSize();
 
-    CastKind Cast = CastKind::Bitcast;
-    if (Size > SrcSize)
-      Cast = CastKind::Extend;
-    if (Size < SrcSize)
-      Cast = CastKind::Truncate;
-
     auto EmitCast = [&](mlir::Value Operand) {
-      return emitCast(Loc, Operand, C.getPrimitiveType(Size, Kind), Cast);
+      auto NewType = C.getPrimitiveType(Size, Kind);
+
+      if (Size > SrcSize)
+        return emitCast<ExtendOp>(Loc, Operand, NewType);
+
+      if (Size < SrcSize)
+        return emitCast<TruncateOp>(Loc, Operand, NewType);
+
+      return emitCast<BitCastOp>(Loc, Operand, NewType);
     };
 
     return emitIntegerOp(Loc, Kind, EmitCast, Operand);
@@ -944,7 +945,7 @@ private:
                                            std::move(String->Data));
 
         auto Type = C.makePointerType(String->Type.getElementType());
-        rc_return emitCast(SurroundingLocation, Op, Type, CastKind::Decay);
+        rc_return emitCast<DecayOp>(SurroundingLocation, Op, Type);
       }
 
       if (const auto *F = llvm::dyn_cast<llvm::Function>(G)) {
@@ -1013,7 +1014,9 @@ private:
                                             /*Value=*/0);
 
       LoggerIndent Indent(ExpressionLog);
-      rc_return emitCast(SurroundingLocation, Op, C.getVoidPointerType());
+      rc_return emitCast<BitCastOp>(SurroundingLocation,
+                                    Op,
+                                    C.getVoidPointerType());
     }
 
     if (auto E = llvm::dyn_cast<llvm::ConstantExpr>(V)) {
@@ -1059,10 +1062,7 @@ private:
       clift::ValueType ValueType = C.importLLVMType(V->getType());
       clift::ValueType PointerType = C.makePointerType(ValueType);
 
-      Pointer = Builder.create<CastOp>(Loc,
-                                       PointerType,
-                                       Pointer,
-                                       CastKind::Bitcast);
+      Pointer = Builder.create<BitCastOp>(Loc, PointerType, Pointer);
 
       revng_log(ExpressionLog, "IndirectionOp");
       rc_return Builder.create<IndirectionOp>(Loc, ValueType, Pointer);
@@ -1083,10 +1083,9 @@ private:
       mlir::Value Value = (LoggerIndent(ExpressionLog),
                            rc_recur emitExpression(I->getValueOperand(), Loc));
 
-      Pointer = Builder.create<CastOp>(Loc,
-                                       C.makePointerType(Value.getType()),
-                                       Pointer,
-                                       CastKind::Bitcast);
+      Pointer = Builder.create<BitCastOp>(Loc,
+                                          C.makePointerType(Value.getType()),
+                                          Pointer);
 
       revng_log(ExpressionLog, "IndirectionOp");
       mlir::Value Assignee = Builder.create<IndirectionOp>(Loc,
@@ -1249,8 +1248,8 @@ private:
         if (not I->isSigned())
           rc_return EmitOp(Lhs, Rhs);
 
-        Lhs = emitCast(Loc, Lhs, C.getIntptrType());
-        Rhs = emitCast(Loc, Rhs, C.getIntptrType());
+        Lhs = emitCast<BitCastOp>(Loc, Lhs, C.getIntptrType());
+        Rhs = emitCast<BitCastOp>(Loc, Rhs, C.getIntptrType());
       }
 
       rc_return emitIntegerOp(Loc, Kind, EmitOp, Lhs, Rhs);
@@ -1280,30 +1279,20 @@ private:
 
       switch (I->getOpcode()) {
         using Operators = llvm::CastInst::CastOps;
-      case Operators::Trunc:
-        rc_return EmitIntegerCast(PrimitiveKind::GenericKind);
       case Operators::SExt:
         rc_return EmitIntegerCast(PrimitiveKind::SignedKind);
       case Operators::ZExt:
-        rc_return EmitIntegerCast(PrimitiveKind::UnsignedKind);
+      case Operators::Trunc:
+        rc_return EmitIntegerCast(PrimitiveKind::GenericKind);
       case Operators::PtrToInt:
-        Operand = emitCast(Loc, Operand, C.getIntptrType());
-        if (uint64_t S = GetIntegerSize(I->getDestTy()); S > C.PointerSize) {
-          Operand = emitCast(Loc,
-                             Operand,
-                             C.getPrimitiveType(S),
-                             CastKind::Extend);
-        }
+        Operand = emitCast<BitCastOp>(Loc, Operand, C.getIntptrType());
+        if (uint64_t S = GetIntegerSize(I->getDestTy()); S != C.PointerSize)
+          Operand = emitIntegerCast(Loc, Operand, S);
         rc_return Operand;
       case Operators::IntToPtr:
-        if (GetIntegerSize(I->getSrcTy()) > C.PointerSize) {
-          Operand = emitCast(Loc,
-                             Operand,
-                             C.getPrimitiveType(C.PointerSize),
-                             CastKind::Truncate);
-        }
-
-        rc_return emitCast(Loc, Operand, C.getVoidPointerType());
+        if (uint64_t S = GetIntegerSize(I->getSrcTy()); S != C.PointerSize)
+          Operand = emitIntegerCast(Loc, Operand, C.PointerSize);
+        rc_return emitCast<BitCastOp>(Loc, Operand, C.getVoidPointerType());
       default:
         revng_abort("Unsupported LLVM cast operation.");
       }
@@ -1341,13 +1330,14 @@ private:
         // If the callee is a function and not a pointer to function, it must
         // be decayed to a pointer before applying the type conversion:
         if (mlir::isa<clift::FunctionType>(Function.getType())) {
-          Function = emitCast(Loc,
-                              Function,
-                              C.makePointerType(FunctionType),
-                              CastKind::Decay);
+          Function = emitCast<DecayOp>(Loc,
+                                       Function,
+                                       C.makePointerType(FunctionType));
         }
 
-        Function = emitCast(Loc, Function, C.makePointerType(CallType));
+        Function = emitCast<BitCastOp>(Loc,
+                                       Function,
+                                       C.makePointerType(CallType));
       }
 
       llvm::ArrayRef LayoutArguments = getLayoutArguments(Layout);
@@ -1444,7 +1434,7 @@ private:
       uint64_t Index1 = C.getConstantInt((++IndexIterator)->get());
 
       mlir::Location Loc = C.getLocation(I);
-      auto Operand = emitCast(Loc, It->second, PT, CastKind::Decay);
+      auto Operand = emitCast<DecayOp>(Loc, It->second, PT);
 
       mlir::Value Immediate = emitExpr<ImmediateOp>(Loc,
                                                     C.getIntptrType(),
@@ -1736,15 +1726,15 @@ private:
           // must be an lvalue), we can take its address, and read it as the
           // appropriate type (type punning, violates strict aliasing).
           if (auto AT = mlir::dyn_cast<ArrayType>(ReturnValue.getType())) {
-            ReturnValue = emitCast(TerminalLoc,
-                                   ReturnValue,
-                                   C.makePointerType(AT.getElementType()),
-                                   CastKind::Decay);
+            ReturnValue = //
+              emitCast<DecayOp>(TerminalLoc,
+                                ReturnValue,
+                                C.makePointerType(AT.getElementType()));
 
-            ReturnValue = emitCast(TerminalLoc,
-                                   ReturnValue,
-                                   C.makePointerType(LLVMReturnType),
-                                   CastKind::Bitcast);
+            ReturnValue = //
+              emitCast<BitCastOp>(TerminalLoc,
+                                  ReturnValue,
+                                  C.makePointerType(LLVMReturnType));
 
             ReturnValue = Builder.create<IndirectionOp>(TerminalLoc,
                                                         LLVMReturnType,

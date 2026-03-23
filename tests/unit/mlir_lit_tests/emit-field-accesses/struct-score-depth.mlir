@@ -49,7 +49,7 @@ module attributes {clift.module} {
     %0 = clift.local : !struct_depth
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !struct_depth>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !struct_depth> -> !clift.ptr<8 to !int32_t>
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !struct_depth> -> !clift.ptr<8 to !int32_t>
       clift.yield %2 : !clift.ptr<8 to !int32_t>
     }
   }

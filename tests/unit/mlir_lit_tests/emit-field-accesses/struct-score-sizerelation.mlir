@@ -45,7 +45,7 @@ module attributes {clift.module} {
     %0 = clift.local : !struct_sizerelation
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !struct_sizerelation>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int64_t>
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int64_t>
       clift.yield %2 : !clift.ptr<8 to !int64_t>
     }
   }
@@ -63,7 +63,7 @@ module attributes {clift.module} {
     %0 = clift.local : !struct_sizerelation
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !struct_sizerelation>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int32_t>
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int32_t>
       clift.yield %2 : !clift.ptr<8 to !int32_t>
     }
   }
@@ -81,7 +81,7 @@ module attributes {clift.module} {
     %0 = clift.local : !struct_sizerelation
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !struct_sizerelation>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int16_t>
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int16_t>
       clift.yield %2 : !clift.ptr<8 to !int16_t>
     }
   }

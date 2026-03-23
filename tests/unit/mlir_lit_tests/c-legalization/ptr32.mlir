@@ -18,7 +18,7 @@ module attributes {clift.module} {
     // CHECK: %0 = clift.local : !clift.ptr<4 to !int32_t>
     %0 = clift.local : !clift.ptr<4 to !int32_t>
     clift.expr {
-      // CHECK: %1 = clift.cast<extend> %0 : !clift.ptr<4 to !int32_t> -> !clift.ptr<8 to !int32_t>
+      // CHECK: %1 = clift.ptr_resize %0 : !clift.ptr<4 to !int32_t> -> !clift.ptr<8 to !int32_t>
       %1 = clift.indirection %0 : !clift.ptr<4 to !int32_t>
       // CHECK: %2 = clift.indirection %1 : !clift.ptr<8 to !int32_t>
       // CHECK: clift.yield %2 : !int32_t

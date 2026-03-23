@@ -23,10 +23,10 @@ module attributes {clift.module} {
 
   clift.func @test_pointer_as_array__index<!f1>(%arg0 : !int32_t$ptr) {
     clift.expr {
-      %0 = clift.cast<bitcast> %arg0 : !int32_t$ptr -> !generic64_t
+      %0 = clift.bitcast %arg0 : !int32_t$ptr -> !generic64_t
       %1 = clift.imm 12 : !generic64_t
       %2 = clift.add %0, %1 : !generic64_t
-      %3 = clift.cast<bitcast> %2 : !generic64_t -> !int32_t$ptr
+      %3 = clift.bitcast %2 : !generic64_t -> !int32_t$ptr
       clift.yield %3 : !int32_t$ptr
     }
   }
@@ -43,11 +43,11 @@ module attributes {clift.module} {
 
   clift.func @test_pointer_as_array_variable_index<!f2>(%arg0 : !int32_t$ptr, %arg1 : !generic64_t) {
     clift.expr {
-      %0 = clift.cast<bitcast> %arg0 : !int32_t$ptr -> !generic64_t
+      %0 = clift.bitcast %arg0 : !int32_t$ptr -> !generic64_t
       %1 = clift.imm 4 : !generic64_t
       %2 = clift.mul %arg1, %1 : !generic64_t
       %3 = clift.add %0, %2 : !generic64_t
-      %4 = clift.cast<bitcast> %3 : !generic64_t -> !int32_t$ptr
+      %4 = clift.bitcast %3 : !generic64_t -> !int32_t$ptr
       clift.yield %4 : !int32_t$ptr
     }
   }

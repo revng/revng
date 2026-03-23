@@ -23,7 +23,7 @@ module attributes {clift.module} {
     // CHECK: clift.expr {
     clift.expr {
       %2 = clift.addressof %0 : !generic64_t$ptr
-      %3 = clift.cast<bitcast> %2 : !generic64_t$ptr -> !uint64_t$ptr
+      %3 = clift.bitcast %2 : !generic64_t$ptr -> !uint64_t$ptr
       %4 = clift.indirection %3 : !uint64_t$ptr
       %5 = clift.assign %1, %4 : !uint64_t
       clift.yield %5 : !uint64_t

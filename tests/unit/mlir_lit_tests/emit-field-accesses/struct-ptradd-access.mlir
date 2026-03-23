@@ -33,7 +33,7 @@ module attributes {clift.module} {
     %0 = clift.local : !s
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !s>
-      %2 = clift.cast<bitcast> %1 : !s$ptr -> !int32_t$ptr
+      %2 = clift.bitcast %1 : !s$ptr -> !int32_t$ptr
       %3 = clift.imm 2 : !generic64_t
       %4 = clift.ptr_add %2, %3 : (!int32_t$ptr, !generic64_t)
       clift.yield %4 : !int32_t$ptr
@@ -53,9 +53,9 @@ module attributes {clift.module} {
     %0 = clift.local : !s
     clift.expr {
       %1 = clift.imm 4 : !generic64_t
-      %2 = clift.cast<bitcast> %1 : !generic64_t -> !int32_t$ptr
+      %2 = clift.bitcast %1 : !generic64_t -> !int32_t$ptr
       %3 = clift.addressof %0 : !clift.ptr<8 to !s>
-      %4 = clift.cast<bitcast> %3 : !s$ptr -> !generic64_t
+      %4 = clift.bitcast %3 : !s$ptr -> !generic64_t
       %5 = clift.ptr_add %2, %4 : (!int32_t$ptr, !generic64_t)
       clift.yield %5 : !int32_t$ptr
     }

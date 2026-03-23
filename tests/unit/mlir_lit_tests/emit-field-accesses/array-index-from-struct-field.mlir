@@ -32,21 +32,21 @@ module attributes {clift.module} {
     clift.expr {
       // Load the `index` field
       %1 = clift.addressof %0 : !clift.ptr<8 to !s>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !s> -> !clift.ptr<8 to !void>
-      %3 = clift.cast<bitcast> %2 : !clift.ptr<8 to !void> -> !generic64_t
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !s> -> !clift.ptr<8 to !void>
+      %3 = clift.bitcast %2 : !clift.ptr<8 to !void> -> !generic64_t
       %4 = clift.imm 40 : !generic64_t
       %5 = clift.add %3, %4 : !generic64_t
-      %6 = clift.cast<bitcast> %5 : !generic64_t -> !clift.ptr<8 to !int32_t>
+      %6 = clift.bitcast %5 : !generic64_t -> !clift.ptr<8 to !int32_t>
       %7 = clift.indirection %6 : !clift.ptr<8 to !int32_t>
       // Sign-extend to 64 bits
-      %8 = clift.cast<extend> %7 : !int32_t -> !clift.primitive<signed 8>
-      %9 = clift.cast<bitcast> %8 : !clift.primitive<signed 8> -> !generic64_t
+      %8 = clift.extend %7 : !int32_t -> !clift.primitive<signed 8>
+      %9 = clift.bitcast %8 : !clift.primitive<signed 8> -> !generic64_t
       // Multiply by element size: `index * 4`
       %10 = clift.imm 4 : !generic64_t
       %11 = clift.mul %9, %10 : !generic64_t
       // Add to array base: `&struct + index * 4`
       %12 = clift.add %3, %11 : !generic64_t
-      %13 = clift.cast<bitcast> %12 : !generic64_t -> !int32_t$ptr
+      %13 = clift.bitcast %12 : !generic64_t -> !int32_t$ptr
       clift.yield %13 : !int32_t$ptr
     }
   }
@@ -63,9 +63,9 @@ module attributes {clift.module} {
   // CHECK: [[IDX_ACCESS:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
   // CHECK: [[IDX_ADDROF:%[0-9]+]] = clift.addressof [[IDX_ACCESS]]
   // CHECK: [[IDX_LOAD:%[0-9]+]] = clift.indirection [[IDX_ADDROF]]
-  // CHECK: [[IDX_EXT:%[0-9]+]] = clift.cast<extend> [[IDX_LOAD]]
+  // CHECK: [[IDX_EXT:%[0-9]+]] = clift.extend [[IDX_LOAD]]
   // CHECK: [[ARR_ACCESS:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
-  // CHECK: [[ARR_DECAY:%[0-9]+]] = clift.cast<decay> [[ARR_ACCESS]]
+  // CHECK: [[ARR_DECAY:%[0-9]+]] = clift.decay [[ARR_ACCESS]]
   // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[ARR_DECAY]], [[IDX_EXT]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]
   // CHECK: clift.yield [[ADDRESSOF2]] : !clift.ptr<8 to !int32_t>

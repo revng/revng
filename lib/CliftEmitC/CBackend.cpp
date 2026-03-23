@@ -57,7 +57,7 @@ public:
     return static_cast<OperatorPrecedence>(static_cast<T>(Precedence) - 1);
   }
 
-  void emitCast(ValueType Type) {
+  void emitCStyleCast(ValueType Type) {
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
     emitType(Type);
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
@@ -85,7 +85,7 @@ public:
         or not mlir::isa<PrimitiveType>(Type)) {
       // Emit explicit cast if the standard integer type is not known. Emit
       // the literal itself without a suffix (as if int).
-      emitCast(Primitive);
+      emitCStyleCast(Primitive);
       CInteger = CIntegerKind::Int;
     }
 
@@ -281,61 +281,66 @@ public:
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
   }
 
-  static bool isHiddenCast(CastOp Cast) {
-    return Cast.getKind() == CastKind::Decay;
+  static bool isHiddenCast(CastOpInterface Cast) {
+    return mlir::isa<DecayOp>(Cast);
   }
 
-  static mlir::Value unwrapHiddenCasts(CastOp Cast) {
+  static mlir::Value unwrapHiddenCasts(CastOpInterface Cast) {
     revng_assert(isHiddenCast(Cast));
 
     while (true) {
-      auto InnerCast = Cast.getValue().getDefiningOp<CastOp>();
-      if (not InnerCast or not isHiddenCast(InnerCast))
+      auto Inner = Cast.getValue().getDefiningOp<CastOpInterface>();
+      if (not Inner or not isHiddenCast(Inner))
         break;
     }
 
     return Cast.getValue();
   }
 
-  static bool requiresExplicitBitCast(CastOp Op) {
-    if (Op.getKind() != CastKind::Bitcast)
-      return false;
-
+  static bool requiresExplicitBitCast(BitCastOp Op) {
     auto IsCastableType = [](ValueType T) {
-      return mlir::isa<EnumType, PointerType, PrimitiveType>(dealias(T));
+      T = dealias(T, /*IgnoreQualifiers=*/true);
+
+      if (auto P = mlir::dyn_cast<PrimitiveType>(T))
+        return isIntegerKind(P.getKind());
+
+      return mlir::isa<EnumType, PointerType>(T);
     };
 
     return not IsCastableType(Op.getValue().getType())
            or not IsCastableType(Op.getResult().getType());
   }
 
+  RecursiveCoroutine<void> emitBitCastExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<BitCastOp>();
+
+    Tokens.emitLiteralIdentifier("bit_cast");
+    Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+
+    emitType(E.getResult().getType());
+    Tokens.emitPunctuator(CTE::Punctuator::Comma);
+    Tokens.emitSpace();
+
+    CurrentPrecedence = OperatorPrecedence::Parentheses;
+    rc_recur emitExpression(E.getValue());
+
+    Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
+  }
+
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
-    auto E = V.getDefiningOp<CastOp>();
+    auto E = V.getDefiningOp<CastOpInterface>();
 
-    if (requiresExplicitBitCast(E)) {
-      Tokens.emitLiteralIdentifier("bit_cast");
-      Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+    emitCStyleCast(E.getResult().getType());
 
-      emitType(E.getResult().getType());
-      Tokens.emitPunctuator(CTE::Punctuator::Comma);
-      Tokens.emitSpace();
+    // Parenthesizing a nested unary prefix expression is not necessary.
+    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
 
-      CurrentPrecedence = OperatorPrecedence::Parentheses;
-      rc_recur emitExpression(E.getValue());
-
-      Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
-    } else {
-      emitCast(E.getResult().getType());
-
-      // Parenthesizing a nested unary prefix expression is not necessary.
-      CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
-
-      rc_recur emitExpression(E.getValue());
-    }
+    rc_recur emitExpression(E.getValue());
   }
 
   RecursiveCoroutine<void> emitHiddenCastExpression(mlir::Value V) {
-    return emitExpression(unwrapHiddenCasts(V.getDefiningOp<CastOp>()));
+    auto E = V.getDefiningOp<CastOpInterface>();
+    return emitExpression(unwrapHiddenCasts(E));
   }
 
   RecursiveCoroutine<void> emitTernaryExpression(mlir::Value V) {
@@ -572,7 +577,7 @@ public:
       };
     }
 
-    if (auto Cast = mlir::dyn_cast<CastOp>(E.getOperation())) {
+    if (auto Cast = mlir::dyn_cast<CastOpInterface>(E.getOperation())) {
       if (isHiddenCast(Cast)) {
         auto Info = getExpressionEmitInfo(unwrapHiddenCasts(Cast));
 
@@ -580,6 +585,15 @@ public:
           .Precedence = decrementPrecedence(Info.Precedence),
           .Emit = &CliftToCEmitter::emitHiddenCastExpression,
         };
+      }
+
+      if (auto BitCast = mlir::dyn_cast<BitCastOp>(E.getOperation())) {
+        if (requiresExplicitBitCast(BitCast)) {
+          return {
+            .Precedence = OperatorPrecedence::UnaryPostfix,
+            .Emit = &CliftToCEmitter::emitBitCastExpression,
+          };
+        }
       }
 
       return {

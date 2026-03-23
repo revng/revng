@@ -21,7 +21,7 @@ module attributes {clift.module} {
   clift.func @f<!f>() {
     clift.return {
       %0 = clift.imm 0 : !int64_t
-      %g = clift.cast<bitcast> %0 : !int64_t -> !g$ptr
+      %g = clift.bitcast %0 : !int64_t -> !g$ptr
       %i = clift.imm 0 : !int32_t
       %r = clift.call %g(%i) : !g$ptr
       clift.yield %r : !int32_t
