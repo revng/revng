@@ -24,7 +24,7 @@ def IsBitcastKind
 def getType : NativeCodeCall<[{ $0.getType() }]>;
 
 def getPointeeType : NativeCodeCall<[{
-  mlir::cast<clift::PointerType>($0.getType()).getPointeeType()
+  mlir::cast<clift::PointerType>(mlir::clift::dealias($0.getType(), /*IgnoreQualifiers=*/true)).getPointeeType()
 }]>;
 
 def getBitcastKind : NativeCodeCall<[{ clift::CastKind::Bitcast }]>;
