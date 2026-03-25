@@ -86,8 +86,7 @@ Replacement Replacement::make(unsigned PointerBitWidth,
                               const PointerArithmetic &Arithmetic,
                               const Traversal &BestTraversal) {
 
-  auto BasePtrType = getPointerType(Arithmetic.BasePointer.getType());
-  auto BaseType = BasePtrType.getPointeeType();
+  auto BaseType = deriveBaseType(Arithmetic.BasePointer);
 
   // Start with an empty `Replacement` object, which will be populated in this
   // routine
@@ -264,23 +263,32 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
     case FieldAccessInfo::Kind::Array: {
 
       // We may need to unwrap the `ArrayType` from a `PointerType`, and emit
-      // the needed `IndirectionOp` and `Decay` cast accordingly
-      auto [ArrayType,
-            IsIndirect] = getAccessedTypeInfo<clift::ArrayType>(CurrentValue);
-      if (IsIndirect) {
-        // Add the indirection operation
-        CurrentValue = Builder.create<IndirectionOp>(PointerToReplaceLoc,
-                                                     CurrentValue);
-      }
+      // the needed `IndirectionOp` and `Decay` cast accordingly.
+      clift::ValueType ArrayElementType;
 
-      // In this situation, we need to add a `decay` cast in order to be
-      // able to perform the subscript access to the array
-      auto ArrayElementType = ArrayType.getElementType();
-      auto DecayType = PointerType::get(ArrayElementType, PointerSize);
-      CurrentValue = Builder.create<CastOp>(PointerToReplaceLoc,
-                                            DecayType,
-                                            CurrentValue,
-                                            CastKind::Decay);
+      // We need to explicitly handle the `pointer as array` case, where
+      // `CurrentValue` is not a `ptr<T>` of `ArrayType` (we virtually wrap it
+      // ourselves), so the `indirection` and `cast<decay>` is not needed.
+      if (auto PtrType = getPointerType(CurrentValue.getType());
+          PtrType
+          and not mlir::isa<ArrayType>(dealias(PtrType.getPointeeType(),
+                                               /*IgnoreQualifiers=*/true))) {
+        ArrayElementType = PtrType.getPointeeType();
+      } else {
+        // Standard path emitting `indirection` and `cast<decay>` as needed
+        auto [ArrayType,
+              IsIndirect] = getAccessedTypeInfo<clift::ArrayType>(CurrentValue);
+        if (IsIndirect) {
+          CurrentValue = Builder.create<IndirectionOp>(PointerToReplaceLoc,
+                                                       CurrentValue);
+        }
+        ArrayElementType = ArrayType.getElementType();
+        auto DecayType = PointerType::get(ArrayElementType, PointerSize);
+        CurrentValue = Builder.create<CastOp>(PointerToReplaceLoc,
+                                              DecayType,
+                                              CurrentValue,
+                                              CastKind::Decay);
+      }
 
       // Emit the `mlir::Value` representing the `Index` access.
       // We declare all the possible components (constant and variable parts)
