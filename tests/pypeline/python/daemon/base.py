@@ -29,6 +29,9 @@ class TestServer(ABC):
         self.pipebox_path = str(self.tmp_dir_path / "pipebox.py")
         self.pipeline_path = str(self.tmp_dir_path / "pipeline.yml")
 
+    def stop(self):
+        pass
+
     @abstractmethod
     def get_epoch(self) -> Response: ...
 

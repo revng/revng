@@ -38,14 +38,14 @@ def storage_provider_url(request):
 def daemon_server(request, storage_provider_url):
     """Fixture that provides a running daemon server for testing."""
     if request.param == "json":
-        return JsonTestServer(
-            storage_provider_url=storage_provider_url,
-        )
+        instance = JsonTestServer(storage_provider_url=storage_provider_url)
     elif request.param == "starlette":
-        return StarletteTestServer(
-            storage_provider_url=storage_provider_url,
-        )
-    raise ValueError(f"Unknown daemon type {request.param}")
+        instance = StarletteTestServer(storage_provider_url=storage_provider_url)
+    else:
+        raise ValueError(f"Unknown daemon type {request.param}")
+
+    yield instance
+    instance.stop()
 
 
 def test_daemon(daemon_server: TestServer):
