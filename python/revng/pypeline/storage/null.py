@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import AsyncGenerator, Iterable, Mapping
 
-from revng import __version__ as revng_version
+from revng.pypeline import __version__ as version
 from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
@@ -106,7 +106,7 @@ class NullStorageProvider(StorageProvider):
         """
         return ProjectMetadata(
             last_change=self.last_change,
-            revng_version=revng_version,
+            version=version,
         )
 
     def prune_objects(self):
