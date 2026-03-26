@@ -4,16 +4,16 @@
 
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/CliftPipes/ImportModelNamesPipe.h"
+#include "revng/CliftPipes/ImportDescriptiveInfoPipe.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
 //
 // Old style pipes
 //
 
-class ImportFunctionModelNamesPipe {
+class ImportDescriptiveFunctionInfoPipe {
 public:
-  static constexpr auto Name = "import-function-model-names";
+  static constexpr auto Name = "import-descriptive-function-info";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
@@ -48,11 +48,11 @@ public:
   }
 };
 
-static pipeline::RegisterPipe<ImportFunctionModelNamesPipe> X;
+static pipeline::RegisterPipe<ImportDescriptiveFunctionInfoPipe> X;
 
-class ImportModelNamesPipe {
+class ImportDescriptiveInfoPipe {
 public:
-  static constexpr auto Name = "import-model-names";
+  static constexpr auto Name = "import-descriptive-info";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
@@ -74,7 +74,7 @@ public:
   }
 };
 
-static pipeline::RegisterPipe<ImportModelNamesPipe> Y;
+static pipeline::RegisterPipe<ImportDescriptiveInfoPipe> Y;
 
 //
 // New style pipes
@@ -82,14 +82,14 @@ static pipeline::RegisterPipe<ImportModelNamesPipe> Y;
 
 namespace revng::pypeline::piperuns {
 
-using IFMN = ::revng::pypeline::piperuns::ImportFunctionModelNames;
+using IFMN = ImportDescriptiveFunctionInfo;
 void IFMN::runOnCliftFunction(const model::Function &Function,
                               mlir::clift::FunctionOp MLIR) {
   mlir::clift::importDescriptiveInfo(Binary,
                                      MLIR->getParentOfType<mlir::ModuleOp>());
 }
 
-void ImportModelNames::run() {
+void ImportDescriptiveInfo::run() {
   mlir::clift::importDescriptiveInfo(Binary, TypesAndGlobals.getModule());
 }
 
