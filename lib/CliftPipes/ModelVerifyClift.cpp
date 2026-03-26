@@ -4,7 +4,7 @@
 
 #include "revng/CliftImportModel/ModelVerify.h"
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/CliftPipes/ModelVerifyPipe.h"
+#include "revng/CliftPipes/ModelVerifyClift.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
 namespace clift = mlir::clift;

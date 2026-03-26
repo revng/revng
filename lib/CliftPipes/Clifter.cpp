@@ -3,7 +3,7 @@
 //
 
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/CliftPipes/ClifterPipe.h"
+#include "revng/CliftPipes/Clifter.h"
 #include "revng/Clifter/Clifter.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/NameBuilder.h"

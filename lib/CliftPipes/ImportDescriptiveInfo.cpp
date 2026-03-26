@@ -4,7 +4,7 @@
 
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/CliftPipes/ImportDescriptiveInfoPipe.h"
+#include "revng/CliftPipes/ImportDescriptiveInfo.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
 //
