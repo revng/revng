@@ -329,6 +329,20 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
         IndexValue = DynamicIndexValue;
       }
 
+      // The `SubscriptOp` requires its `Pointer` operand to be a `PointerType`.
+      // In case `CurrentValue` is a `PointerType`, wrapped into a
+      // `TypeDefType`, we need to cast it to the underlying `PointerType`
+      // first.
+      if (not mlir::isa<clift::PointerType>(CurrentValue.getType())) {
+        auto UnderlyingType = getPointerType(CurrentValue.getType());
+        revng_assert(UnderlyingType);
+        CurrentValue = Builder
+                         .create<CastOp>(PointerToReplaceLoc,
+                                         mlir::cast<mlir::Type>(UnderlyingType),
+                                         CurrentValue,
+                                         CastKind::Bitcast);
+      }
+
       // Finally, we emit the `SubscriptOp` using as `Index` the `mlir::Value`
       // constructed above
       CurrentValue = Builder.create<SubscriptOp>(PointerToReplaceLoc,
