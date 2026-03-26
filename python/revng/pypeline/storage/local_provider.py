@@ -18,7 +18,7 @@ from uuid import uuid4
 
 import yaml
 
-from revng import __version__ as revng_version
+from revng.pypeline import __version__ as version
 from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS project(
     id              TEXT PRIMARY KEY CHECK (id = 0),
     last_change     REAL,
     epoch           INT NOT NULL,
-    revng_version   TEXT
+    version         TEXT
 ) STRICT;
 
 CREATE TABLE IF NOT EXISTS objects(
@@ -386,7 +386,7 @@ class LocalStorageProvider(StorageProvider):
     def _write_metadata(self, cursor: sqlite3.Cursor):
         cursor.execute(
             "REPLACE INTO project VALUES (0, ?, ?, ?)",
-            (datetime.now().timestamp(), self.epoch, revng_version),
+            (datetime.now().timestamp(), self.epoch, version),
         )
 
     def _get_epoch(self) -> int:
@@ -580,12 +580,12 @@ class LocalStorageProvider(StorageProvider):
 
     def metadata(self) -> ProjectMetadata:
         with self._cursor() as cursor:
-            cursor.execute("SELECT last_change, revng_version FROM project WHERE id is NULL")
+            cursor.execute("SELECT last_change, version FROM project WHERE id is 0")
             result = cursor.fetchone()
 
         return ProjectMetadata(
             last_change=datetime.fromtimestamp(result[0], timezone.utc),
-            revng_version=result[1],
+            version=result[1],
         )
 
     def put_files_in_storage(self, files: list[FileStorageEntry]) -> list[str]:
