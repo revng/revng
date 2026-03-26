@@ -51,7 +51,7 @@ InvalidatedObjects = dict[ContainerLocation, set[ObjectID]]
 @dataclass(frozen=True, slots=True)
 class ProjectMetadata:
     last_change: datetime
-    revng_version: str
+    version: str
 
 
 @dataclass(frozen=True, slots=True)
