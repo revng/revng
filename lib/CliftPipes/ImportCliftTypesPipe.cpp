@@ -12,8 +12,7 @@
 
 namespace clift = mlir::clift;
 
-static void importModelTypes(const model::Binary &Model,
-                             mlir::ModuleOp Module) {
+static void importTypes(const model::Binary &Model, mlir::ModuleOp Module) {
   mlir::MLIRContext *Context = Module->getContext();
   Context->loadDialect<clift::CliftDialect>();
 
@@ -24,10 +23,7 @@ static void importModelTypes(const model::Binary &Model,
 
   llvm::SmallVector<mlir::Attribute> TypeAttrs;
   for (const auto &ModelType : Model.TypeDefinitions()) {
-    auto CliftType = clift::importModelType(EmitError,
-                                            *Context,
-                                            *ModelType,
-                                            Model);
+    auto CliftType = clift::importType(EmitError, *Context, *ModelType, Model);
 
     TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
   }
@@ -52,8 +48,7 @@ public:
 
   void run(pipeline::ExecutionContext &EC,
            revng::pipes::CliftContainer &CliftContainer) {
-    importModelTypes(*revng::getModelFromContext(EC),
-                     CliftContainer.getModule());
+    importTypes(*revng::getModelFromContext(EC), CliftContainer.getModule());
 
     EC.commitAllFor(CliftContainer);
   }

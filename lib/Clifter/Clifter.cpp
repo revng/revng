@@ -202,25 +202,25 @@ private:
 
   /* Model type import */
 
-  clift::ValueType importModelType(const model::Type &Type) {
+  clift::ValueType importType(const model::Type &Type) {
     auto EmitError = [&]() -> mlir::InFlightDiagnostic {
       return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
                                            mlir::DiagnosticSeverity::Error);
     };
-    return clift::importModelType(EmitError, *Context, Type, Model);
+    return clift::importType(EmitError, *Context, Type, Model);
   }
 
-  clift::ValueType importModelType(const model::TypeDefinition &Type) {
+  clift::ValueType importType(const model::TypeDefinition &Type) {
     auto EmitError = [&]() -> mlir::InFlightDiagnostic {
       return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
                                            mlir::DiagnosticSeverity::Error);
     };
-    return clift::importModelType(EmitError, *Context, Type, Model);
+    return clift::importType(EmitError, *Context, Type, Model);
   }
 
   template<typename TypeT, typename ModelTypeT>
-  TypeT importModelType(const ModelTypeT &Type) {
-    return mlir::cast<TypeT>(importModelType(Type));
+  TypeT importType(const ModelTypeT &Type) {
+    return mlir::cast<TypeT>(importType(Type));
   }
 
   /* LLVM type import */
@@ -415,7 +415,7 @@ private:
                                                  const RankT &Rank,
                                                  ArgsT &&...Args) {
     model::UpcastableType Prototype = getPrototype(MF);
-    auto FunctionType = importModelType<clift::FunctionType>(*Prototype);
+    auto FunctionType = importType<clift::FunctionType>(*Prototype);
 
     return getOrEmitSymbol(F, [&]() -> clift::FunctionOp {
       // It is important not to query any model properties in this scope, as
@@ -1283,7 +1283,7 @@ private:
       const auto *ModelCallType = getCallSitePrototype(C.Model, I);
       auto Layout = abi::FunctionType::Layout::make(*ModelCallType);
 
-      auto CallType = C.importModelType<clift::FunctionType>(*ModelCallType);
+      auto CallType = C.importType<clift::FunctionType>(*ModelCallType);
 
       revng_log(ExpressionLog, "Callee subexpression:");
       mlir::Value Function = (LoggerIndent(ExpressionLog),
@@ -1581,12 +1581,11 @@ private:
 
         clift::ValueType Type;
         if (hasStackTypeMetadata(Alloca)) {
-          Type = C.importModelType(*getStackTypeFromMetadata(Alloca, C.Model));
+          Type = C.importType(*getStackTypeFromMetadata(Alloca, C.Model));
           Handle = pipeline::locationString(revng::ranks::StackFrameVariable,
                                             ModelFunction.Entry());
         } else if (hasVariableTypeMetadata(Alloca)) {
-          Type = C.importModelType(*getVariableTypeFromMetadata(Alloca,
-                                                                C.Model));
+          Type = C.importType(*getVariableTypeFromMetadata(Alloca, C.Model));
         } else {
           Type = C.importLLVMType(Alloca->getAllocatedType());
 

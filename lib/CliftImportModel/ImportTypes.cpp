@@ -580,18 +580,18 @@ private:
 } // namespace
 
 clift::ValueType
-clift::importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                       mlir::MLIRContext &Context,
-                       const model::TypeDefinition &ModelType,
-                       const model::Binary &Binary) {
+clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+                  mlir::MLIRContext &Context,
+                  const model::TypeDefinition &ModelType,
+                  const model::Binary &Binary) {
   return CliftConverter(Context, Binary, EmitError)
     .convertTypeDefinition(ModelType);
 }
 
 clift::ValueType
-clift::importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                       mlir::MLIRContext &Context,
-                       const model::Type &ModelType,
-                       const model::Binary &Binary) {
+clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+                  mlir::MLIRContext &Context,
+                  const model::Type &ModelType,
+                  const model::Binary &Binary) {
   return CliftConverter(Context, Binary, EmitError).convertType(ModelType);
 }
