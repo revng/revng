@@ -45,8 +45,11 @@ CREATE TABLE IF NOT EXISTS project(
     id              TEXT PRIMARY KEY CHECK (id = 0),
     last_change     REAL,
     epoch           INT NOT NULL,
-    version         TEXT
+    version         TEXT,
+    model_hash      TEXT,
+    model_mtime     REAL
 ) STRICT;
+INSERT OR IGNORE INTO project (id, epoch) VALUES (0, 0);
 
 CREATE TABLE IF NOT EXISTS objects(
     savepoint_id         INT NOT NULL,
@@ -369,12 +372,15 @@ class LocalStorageProvider(StorageProvider):
         check_kind_structure()
         self._model_path = model_path
         self._model_directory = self._model_path.parent.resolve()
-        self._connection = sqlite3.connect(db_path, autocommit=False)
-        self._connection.commit()
-        self._init_tables()
-        self.epoch = self._get_epoch()
         self._cache_dir = cache_dir
         self._model_type = get_singleton(Model)  # type: ignore[type-abstract]
+
+        self._connection = sqlite3.connect(db_path, autocommit=False)
+        self._init_tables()
+        self.epoch = self._get_epoch()
+
+        self._check_version()
+        self._check_model()
 
     def _cursor(self) -> CursorWrapper:
         return CursorWrapper(self._connection)
@@ -383,23 +389,77 @@ class LocalStorageProvider(StorageProvider):
         with self._cursor() as cursor:
             cursor.executescript(CREATE_TABLES)
 
+    def _check_version(self):
+        with self._cursor() as cursor:
+            cursor.execute("SELECT version FROM project WHERE id is 0")
+            db_version = cursor.fetchone()[0]
+
+        if db_version is not None and db_version != version:
+            self.prune_objects()
+
+        # We either never wrote the version field or we just pruned all objects
+        # because of a version mismatch. In both cases write the current
+        # version string.
+        if db_version is None or db_version != version:
+            with self._cursor() as cursor:
+                cursor.execute("UPDATE project SET version = ? WHERE id is 0", (version,))
+
+    def _check_model(self):
+        with self._cursor() as cursor:
+            cursor.execute("SELECT model_hash, model_mtime FROM project WHERE id is 0")
+            model_metadata = cursor.fetchone()
+
+        model_mtime = self._model_path.stat().st_mtime
+        # We did not previously write the model metadata, write it
+        if model_metadata[0] is None:
+            model_hash = compute_hash(self._model_path)
+            with self._cursor() as cursor:
+                cursor.execute(
+                    "UPDATE project SET model_hash = ?, model_mtime = ? WHERE id is 0",
+                    (model_hash, model_mtime),
+                )
+            return
+
+        # Check if we actually got a non-null result, if so check that the
+        # mtime and hash of the model match (in this order for speed), if
+        # not prune
+        # WARNING: in some cases we might miss a model change if the model
+        #   contents have changed but the mtime hasn't. In the future we might
+        #   introduce extra checks (e.g. size) to alleviate this.
+        if model_metadata[1] == model_mtime:
+            return
+
+        # The mtime changed, check if the hash matches or not
+        model_hash = compute_hash(self._model_path)
+        if model_hash != model_metadata[0]:
+            self.prune_objects()
+            with self._cursor() as cursor:
+                cursor.execute(
+                    "UPDATE project SET model_hash = ?, model_mtime = ? WHERE id is 0",
+                    (model_hash, model_mtime),
+                )
+                self.epoch += 1
+                self._write_metadata(cursor)
+        else:
+            # mtime has changed but the content hasn't, update the mtime to
+            # the new one
+            with self._cursor() as cursor:
+                cursor.execute(
+                    "UPDATE project SET model_mtime = ? WHERE id is 0",
+                    (model_mtime,),
+                )
+
     def _write_metadata(self, cursor: sqlite3.Cursor):
         cursor.execute(
-            "REPLACE INTO project VALUES (0, ?, ?, ?)",
-            (datetime.now().timestamp(), self.epoch, version),
+            "UPDATE project SET last_change = ?, epoch = ? WHERE id is 0",
+            (datetime.now().timestamp(), self.epoch),
         )
 
     def _get_epoch(self) -> int:
         # Try to get the epoch from the DB
         with self._cursor() as cursor:
             cursor.execute("SELECT epoch FROM project WHERE id is 0")
-            result = cursor.fetchone()
-            if result is not None:
-                return result[0]
-            # Otherwise we have to write the metadata at least once
-            self.epoch = 0
-            self._write_metadata(cursor)
-            return self.epoch
+            return cursor.fetchone()[0]
 
     def has(
         self,
@@ -572,8 +632,13 @@ class LocalStorageProvider(StorageProvider):
         return self._write_model(new_model)
 
     def _write_model(self, new_model: Model) -> int:
-        self._model_path.write_bytes(new_model.serialize())
+        model_bytes = new_model.serialize()
+        self._model_path.write_bytes(model_bytes)
         with self._cursor() as cursor:
+            cursor.execute(
+                "UPDATE project SET model_hash = ?, model_mtime = ? WHERE id is 0",
+                (compute_hash(model_bytes), self._model_path.stat().st_mtime),
+            )
             self.epoch += 1
             self._write_metadata(cursor)
             return self.epoch
