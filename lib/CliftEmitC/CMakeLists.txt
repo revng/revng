@@ -10,6 +10,7 @@ revng_add_library_internal(
   CEmitter.cpp
   CSemantics.cpp
   CSemanticsPass.cpp
+  TypeDefinitionEmitter.cpp
   TypeDependencyGraph.cpp)
 
 target_link_libraries(revngCliftEmitC MLIRPass revngClift revngPTML)
