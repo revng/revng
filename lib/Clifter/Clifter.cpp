@@ -430,7 +430,9 @@ private:
     //        exactly (so *any* change to it triggers invalidation).
     auto Attributes = MF.Attributes().unwrap();
 
-    return getOrEmitSymbol(F, [&]() -> clift::FunctionOp {
+    // NOTE: no matter what, do not capture `MF`!
+    auto ImportImpl = [F, FunctionType, Handle, Attributes, this]() // format
+      -> clift::FunctionOp {
       // WARNING: DO NOT QUERY MODEL PROPERTIES WITHIN THIS SCOPE.
       //
       // It is very important not to query any tracked model properties within
@@ -457,7 +459,8 @@ private:
                                        Handle,
                                        FunctionType,
                                        Attributes);
-    });
+    };
+    return getOrEmitSymbol(F, ImportImpl);
   }
 
   clift::FunctionOp emitIsolatedFunctionDeclaration(const llvm::Function *F,
