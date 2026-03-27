@@ -4,7 +4,9 @@
 
 #include <optional>
 
+#include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/CEmitter.h"
+#include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
@@ -88,8 +90,15 @@ private:
     // determine if a given function type is the outermost type and should be
     // expanded.
     if (Declarator and Declarator->Kind == CTE::EntityKind::Function) {
-      if (auto Function = mlir::dyn_cast<FunctionType>(Type))
+      if (auto Function = mlir::dyn_cast<FunctionType>(Type)) {
+        if (Declarator) {
+          Parent.emitCAttributes(Declarator->CAttributes,
+                                 /* SpaceBefore = */ false,
+                                 /* SpaceAfter = */ true);
+        }
+
         OutermostFunctionType = Function;
+      }
     }
 
     // Recurse through the declaration, pushing each level onto the stack until
@@ -241,7 +250,7 @@ private:
               ParameterDeclarator = DeclaratorInfo{
                 .Identifier = Declarator->Parameters.value()[J].Identifier,
                 .Location = Declarator->Parameters.value()[J].Location,
-                .Attributes = Declarator->Parameters.value()[J].Attributes,
+                .CAttributes = Declarator->Parameters.value()[J].CAttributes,
                 .Kind = CTE::EntityKind::FunctionParameter,
               };
 
@@ -256,8 +265,11 @@ private:
       }
     }
 
-    if (Declarator)
-      Parent.emitAttributes(Declarator->Attributes);
+    if (Declarator and not OutermostFunctionType) {
+      Parent.emitCAttributes(Declarator->CAttributes,
+                             /* SpaceBefore = */ true,
+                             /* SpaceAfter = */ false);
+    }
   }
 };
 
@@ -307,55 +319,92 @@ void CEmitter::emitType(ValueType Type) {
 
 //===----------------------------- Attributes -----------------------------===//
 
-bool CEmitter::isValidAttributeArray(mlir::ArrayAttr ArrayAttr) {
-  auto IsAttributeAttr = [](mlir::Attribute Attr) {
-    return mlir::isa<AttributeAttr>(Attr);
+bool CEmitter::isValidCAttributeArray(mlir::ArrayAttr ArrayAttr) {
+  auto IsCAttributeAttr = [](mlir::Attribute Attr) {
+    return mlir::isa<CAttributeAttr>(Attr);
   };
-  return std::ranges::all_of(ArrayAttr, IsAttributeAttr);
+  return std::ranges::all_of(ArrayAttr, IsCAttributeAttr);
 }
 
-mlir::ArrayAttr CEmitter::getDeclarationOpAttributes(mlir::Operation *Op) {
-  if (auto Attr = Op->getAttr("clift.attributes")) {
-    auto ArrayAttr = mlir::cast<mlir::ArrayAttr>(Attr);
-    revng_assert(isValidAttributeArray(ArrayAttr));
-    return ArrayAttr;
+mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
+  clift::CAttributeListBuilder Builder(*Op->getContext(),
+                                       Op->getAttr("clift.c_attributes"));
+
+  if (Op->hasAttr("noreturn"))
+    Builder.setOrUpdate<"_NORETURN">();
+  if (Op->hasAttr("always_inline"))
+    Builder.setOrUpdate<"_ALWAYS_INLINE">();
+
+  mlir::ArrayAttr Result = Builder.get();
+  if (not isValidCAttributeArray(Result)) {
+    Op->dump();
+    revng_abort("Invalid `clift.c_attributes` array");
   }
-  return {};
+
+  return Result;
 }
 
-void CEmitter::emitAttribute(AttributeAttr Attribute) {
-  auto Macro = Attribute.getMacro();
+void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
+  auto Name = CAttribute.getName();
 
-  Tokens.emitSpace();
-  Tokens.emitIdentifier(Macro.getString(),
-                        Macro.getHandle(),
+  Tokens.emitIdentifier(Name.getName(),
+                        Name.getHandle(),
                         CTE::EntityKind::Attribute,
                         CTE::IdentifierKind::Reference);
 
-  if (auto Arguments = Attribute.getArguments()) {
+  if (auto Arguments = CAttribute.getArguments()) {
     Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
-    for (auto [I, A] : llvm::enumerate(*Arguments)) {
+    for (auto [I, A] : llvm::enumerate(Arguments)) {
       if (I != 0) {
         Tokens.emitPunctuator(CTE::Punctuator::Comma);
         Tokens.emitSpace();
       }
 
-      Tokens.emitIdentifier(A.getString(),
-                            A.getHandle(),
-                            CTE::EntityKind::AttributeArgument,
-                            CTE::IdentifierKind::Reference);
+      if (auto Id = mlir::dyn_cast<mlir::clift::CIdentifierAttr>(A)) {
+        Tokens.emitIdentifier(Id.getName(),
+                              Id.getHandle(),
+                              CTE::EntityKind::AttributeArgument,
+                              CTE::IdentifierKind::Reference);
+
+      } else if (auto Integer = mlir::dyn_cast<mlir::IntegerAttr>(A)) {
+        Tokens.emitIntegerLiteral(Integer.getValue(), std::nullopt);
+
+      } else if (auto Type = mlir::dyn_cast<mlir::TypeAttr>(A)) {
+        auto VT = mlir::dyn_cast<mlir::clift::ValueType>(Type.getValue());
+        revng_assert(VT);
+        emitType(VT);
+
+      } else {
+        revng_abort("Unknown c_attribute argument type!");
+      }
     }
 
     Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
   }
 }
 
-void CEmitter::emitAttributes(mlir::ArrayAttr Attributes) {
-  if (Attributes) {
-    for (mlir::Attribute Attr : Attributes)
-      emitAttribute(mlir::cast<AttributeAttr>(Attr));
+void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
+                               bool SpaceBefore,
+                               bool SpaceAfter) {
+  if (not CAttributes or CAttributes.empty())
+    return;
+
+  if (SpaceBefore)
+    Tokens.emitSpace();
+
+  bool First = true;
+  for (mlir::Attribute Attribute : CAttributes) {
+    if (First)
+      First = false;
+    else
+      Tokens.emitSpace();
+
+    emitCAttribute(mlir::cast<mlir::clift::CAttributeAttr>(Attribute));
   }
+
+  if (SpaceAfter)
+    Tokens.emitSpace();
 }
 
 //===---------------------------- Declarations ----------------------------===//
@@ -366,31 +415,36 @@ void CEmitter::emitDeclaration(ValueType Type,
 }
 
 void CEmitter::emitFunctionPrototype(FunctionOp Op) {
+  bool IsHelper = pipeline::locationFromString(revng::ranks::HelperFunction,
+                                               Op.getHandle())
+                    .has_value();
+
+  std::optional<llvm::ArrayRef<ParameterDeclaratorInfo>> Parameters;
   llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
-  for (unsigned I = 0; I < Op.getArgCount(); ++I) {
-    auto Attrs = Op.getArgAttrs(I);
+  if (not IsHelper) {
+    for (unsigned I = 0; I < Op.getArgCount(); ++I) {
+      const auto &Attrs = Op.getArgAttrs(I);
 
-    auto GetStringAttr = [&Attrs](llvm::StringRef Name) {
-      return mlir::cast<mlir::StringAttr>(Attrs.get(Name)).getValue();
-    };
+      revng_assert(Attrs.getOfType<mlir::StringAttr>("clift.name"),
+                   "Function argument name (clift.name) is missing.");
 
-    mlir::ArrayAttr Attributes = {};
-    if (auto Attr = Attrs.get("clift.attributes")) {
-      Attributes = mlir::cast<mlir::ArrayAttr>(Attr);
-      revng_assert(isValidAttributeArray(Attributes));
+      auto Attributes = Attrs.getOfType<mlir::ArrayAttr>("clift.c_attributes");
+      revng_assert(not Attributes or isValidCAttributeArray(Attributes));
+
+      ParameterDeclarators.emplace_back(Attrs.getString("clift.name"),
+                                        Attrs.getStringOrEmpty("clift.handle"),
+                                        Attributes);
     }
 
-    ParameterDeclarators.emplace_back(GetStringAttr("clift.name"),
-                                      GetStringAttr("clift.handle"),
-                                      Attributes);
+    Parameters = ParameterDeclarators;
   }
 
   emitDeclaration(Op.getFunctionType(),
                   mlir::clift::CEmitter::DeclaratorInfo{
                     .Identifier = Op.getName(),
                     .Location = Op.getHandle(),
-                    .Attributes = getDeclarationOpAttributes(Op),
+                    .CAttributes = getDeclarationOpCAttributes(Op),
                     .Kind = ptml::CTokenEmitter::EntityKind::Function,
-                    .Parameters = ParameterDeclarators,
+                    .Parameters = Parameters,
                   });
 }

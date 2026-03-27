@@ -1,0 +1,44 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Version: 8
+
+Functions:
+  - Entry: 0x1000:Code_aarch64
+    Attributes:
+      - NoReturn
+      - Inline
+    CallSitePrototypes:
+      - CallerBlockAddress: 0x1004:Code_aarch64
+        Attributes:
+          - NoReturn
+          - Inline
+
+        Prototype:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/0-CABIFunctionDefinition"
+
+ImportedDynamicFunctions:
+  - Name: whatever
+    Attributes:
+      - NoReturn
+
+# The following is not relevant for this test
+# and is only present to make the model above valid.
+
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
+    ID: 0
+    ABI: AAPCS64
+
+Segments:
+  - StartAddress: "0x1000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+
+Architecture: aarch64

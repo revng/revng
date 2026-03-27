@@ -3,7 +3,7 @@
 //
 
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/CliftPipes/ClifterPipe.h"
+#include "revng/CliftPipes/Clifter.h"
 #include "revng/Clifter/Clifter.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/NameBuilder.h"
@@ -14,9 +14,9 @@ namespace clift = mlir::clift;
 
 namespace {
 
-class LLVMToCliftPipe {
+class ClifterPipe {
 public:
-  static constexpr auto Name = "llvm-to-clift";
+  static constexpr auto Name = "clifter";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
@@ -31,7 +31,7 @@ public:
 
   void run(pipeline::ExecutionContext &EC,
            const pipeline::LLVMContainer &LLVMContainer,
-           revng::pipes::CliftContainer &CliftContainer) {
+           revng::pipes::CliftFunctionContainer &CliftContainer) {
     CliftContainer.getContext()->loadDialect<clift::CliftDialect>();
     auto const &Model = *revng::getModelFromContext(EC);
 
@@ -56,22 +56,22 @@ public:
   }
 };
 
-static pipeline::RegisterPipe<LLVMToCliftPipe> X;
+static pipeline::RegisterPipe<ClifterPipe> X;
 
 } // namespace
 
 namespace revng::pypeline::piperuns {
 
-LLVMToClift::LLVMToClift(const class Model &Model,
-                         llvm::StringRef Config,
-                         llvm::StringRef DynamicConfig,
-                         const LLVMFunctionContainer &Input,
-                         CliftFunctionContainer &Output) :
+Clifter::Clifter(const class Model &Model,
+                 llvm::StringRef Config,
+                 llvm::StringRef DynamicConfig,
+                 const LLVMFunctionContainer &Input,
+                 CliftFunctionContainer &Output) :
   Binary(*Model.get().get()), Input(Input), Output(Output) {
   Output.getContext().loadDialect<clift::CliftDialect>();
 }
 
-void LLVMToClift::runOnFunction(const model::Function &Function) {
+void Clifter::runOnFunction(const model::Function &Function) {
   ObjectID Object(Function.Entry());
   const llvm::Module &Module = Input.getModule(Object);
   const llvm::Function

@@ -165,15 +165,16 @@ public:
     mlir::Operation *Op = E.getOwner()->getParentOp();
 
     if (auto Function = mlir::dyn_cast<FunctionOp>(Op)) {
-      const auto &ArgAttrs = Function.getArgAttrs(E.getArgNumber());
-      const auto GetStringAttr = [&ArgAttrs](llvm::StringRef Name) {
-        return mlir::cast<mlir::StringAttr>(ArgAttrs.get(Name)).getValue();
-      };
+      const auto &Attrs = Function.getArgAttrs(E.getArgNumber());
 
-      Tokens.emitIdentifier(GetStringAttr("clift.name"),
-                            GetStringAttr("clift.handle"),
+      revng_assert(Attrs.getOfType<mlir::StringAttr>("clift.name"),
+                   "Function argument name (clift.name) is missing.");
+
+      Tokens.emitIdentifier(Attrs.getString("clift.name"),
+                            Attrs.getStringOrEmpty("clift.handle"),
                             CTE::EntityKind::FunctionParameter,
                             CTE::IdentifierKind::Reference);
+
     } else if (auto For = mlir::dyn_cast<ForOp>(Op)) {
       auto Local = getOnlyOp<LocalVariableOp>(For.getInitializer());
       rc_recur emitLocalVariableExpression(Local.getResult());
@@ -747,7 +748,7 @@ public:
                     DeclaratorInfo{
                       .Identifier = S.getName(),
                       .Location = S.getHandle(),
-                      .Attributes = getDeclarationOpAttributes(S),
+                      .CAttributes = getDeclarationOpCAttributes(S),
                       .Kind = CTE::EntityKind::LocalVariable,
                     });
 

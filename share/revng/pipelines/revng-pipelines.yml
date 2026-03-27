@@ -44,7 +44,7 @@ Containers:
   - Name: recompilable-archive.tar.gz
     Type: recompilable-archive
   - Name: functions.mlir
-    Type: clift-module
+    Type: clift-functions
   - Name: model-type-definitions.tar.gz
     Type: model-type-definitions
 Branches:
@@ -692,13 +692,13 @@ Branches:
               - inline-divergent-scopes
               - enforce-single-exit
               - materialize-trivial-goto
-          - Type: llvm-to-clift
+          - Type: clifter
             UsedContainers: [functions.bc.zstd, functions.mlir]
           - Type: clift-optimization
             UsedContainers: [functions.mlir]
           - Type: model-verify-clift
             UsedContainers: [functions.mlir]
-          - Type: import-model-names
+          - Type: import-descriptive-function-info
             UsedContainers: [functions.mlir]
           - Type: emit-c
             UsedContainers: [functions.mlir, decompiled.tar.gz]

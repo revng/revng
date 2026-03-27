@@ -5,7 +5,7 @@
 //
 
 #include "revng/Clift/Helpers.h"
-#include "revng/PipeboxCommon/CliftContainer.h"
+#include "revng/PipeboxCommon/CliftContainers.h"
 
 namespace revng::pypeline::piperuns {
 

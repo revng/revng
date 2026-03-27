@@ -2,15 +2,27 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngpipe import-model-names %S/model.yml %s /dev/stdout | %revngcliftopt | FileCheck %s
+// RUN: %revngpipe import-descriptive-info %S/model.yml %s /dev/stdout | %revngcliftopt | FileCheck %s
 
 !void = !clift.primitive<void 0>
 !uint8_t = !clift.primitive<unsigned 1>
 
 // CHECK: !f = !clift.func<"/type-definition/1001-CABIFunctionDefinition" as "f" :
 // CHECK:   !void(!uint8_t)
+// CHECK:   [
+// CHECK:     #clift.c_attribute<"_ABI" : "/macro/_ABI"
+// CHECK:     [
+// CHECK:       #clift.identifier<"SystemV_x86_64">
+// CHECK:     ]>
+// CHECK:   ]
 // CHECK: >
-!f = !clift.func<"/type-definition/1001-CABIFunctionDefinition" : !void(!uint8_t)>
+!f = !clift.func<
+  "/type-definition/1001-CABIFunctionDefinition"
+  : !void(!uint8_t)
+  [
+    #clift.c_attribute<"_ABI" : "/macro/_ABI" [#clift.identifier<"SystemV_x86_64">]>
+  ]
+>
 
 module attributes { clift.module } {
   // CHECK: clift.func @fun_0x40001001<!f>(

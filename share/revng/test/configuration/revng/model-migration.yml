@@ -20,6 +20,7 @@ sources:
       - v4/
       - v5/
       - v6/
+      - v9/
 
 commands:
   - type: revng.model-migration
@@ -32,11 +33,13 @@ commands:
       revng2 project analyze apply-diff -o /dev/null;
 
       while IFS=',' read -r MODEL_FIELD EXPECTED_VALUE; do
-        FOUND_VALUE=$$(yq "$${MODEL_FIELD}" "model.yml");
-        if [[ "$${FOUND_VALUE}" != "$${EXPECTED_VALUE}" ]]; then
-          echo "Value of '$${MODEL_FIELD}' is '$${FOUND_VALUE}' instead of the expected '$${EXPECTED_VALUE}'";
-          echo "Here's the post-migration model:";
-          cat model.yml;
-          exit 1;
+        if !$$(grep -v '^#|^\s*$$' > /dev/null); then
+          FOUND_VALUE=$$(yq "$${MODEL_FIELD}" "model.yml");
+          if [[ "$${FOUND_VALUE}" != "$${EXPECTED_VALUE}" ]]; then
+            echo "Value of '$${MODEL_FIELD}' is '$${FOUND_VALUE}' instead of the expected '$${EXPECTED_VALUE}'";
+            echo "Here's the post-migration model:";
+            cat model.yml;
+            exit 1;
+          fi;
         fi;
       done < <(tail -n +6 "${INPUT}/checks.csv")

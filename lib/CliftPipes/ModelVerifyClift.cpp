@@ -4,7 +4,7 @@
 
 #include "revng/CliftImportModel/ModelVerify.h"
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/CliftPipes/ModelVerifyPipe.h"
+#include "revng/CliftPipes/ModelVerifyClift.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
 namespace clift = mlir::clift;
@@ -27,13 +27,13 @@ public:
   }
 
   void run(pipeline::ExecutionContext &EC,
-           revng::pipes::CliftContainer &CliftContainer) {
+           revng::pipes::CliftFunctionContainer &CliftFunctionContainer) {
 
-    auto R = clift::verifyAgainstModel(CliftContainer.getModule(),
+    auto R = clift::verifyAgainstModel(CliftFunctionContainer.getModule(),
                                        *revng::getModelFromContext(EC));
     revng_assert(R.succeeded());
 
-    EC.commitAllFor(CliftContainer);
+    EC.commitAllFor(CliftFunctionContainer);
   }
 };
 

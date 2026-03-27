@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/GenericDomTree.h"
@@ -27,8 +28,8 @@ using namespace clift;
 
 namespace {
 
-static Logger BasicBlockLog{ "llvm-to-clift-basic-blocks" };
-static Logger ExpressionLog{ "llvm-to-clift-expressions" };
+static Logger BasicBlockLog{ "clifter-basic-blocks" };
+static Logger ExpressionLog{ "clifter-expressions" };
 
 // These helper functions are used to save insertion points *after* an
 // operation, while the usual operating mode of `OpBuilder::InsertPoint` is
@@ -202,25 +203,25 @@ private:
 
   /* Model type import */
 
-  clift::ValueType importModelType(const model::Type &Type) {
+  clift::ValueType importType(const model::Type &Type) {
     auto EmitError = [&]() -> mlir::InFlightDiagnostic {
       return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
                                            mlir::DiagnosticSeverity::Error);
     };
-    return clift::importModelType(EmitError, *Context, Type, Model);
+    return clift::importType(EmitError, *Context, Type, Model);
   }
 
-  clift::ValueType importModelType(const model::TypeDefinition &Type) {
+  clift::ValueType importType(const model::TypeDefinition &Type) {
     auto EmitError = [&]() -> mlir::InFlightDiagnostic {
       return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
                                            mlir::DiagnosticSeverity::Error);
     };
-    return clift::importModelType(EmitError, *Context, Type, Model);
+    return clift::importType(EmitError, *Context, Type, Model);
   }
 
   template<typename TypeT, typename ModelTypeT>
-  TypeT importModelType(const ModelTypeT &Type) {
-    return mlir::cast<TypeT>(importModelType(Type));
+  TypeT importType(const ModelTypeT &Type) {
+    return mlir::cast<TypeT>(importType(Type));
   }
 
   /* LLVM type import */
@@ -317,6 +318,8 @@ private:
                                       makeNameAttr<FieldAttr>(Context,
                                                               FieldHandle,
                                                               FieldName),
+                                      makeCommentAttr<FieldAttr>(Context,
+                                                                 FieldHandle),
                                       Offset,
                                       FieldType));
       Offset += FieldType.getByteSize();
@@ -334,8 +337,11 @@ private:
                                       makeNameAttr<StructAttr>(Context,
                                                                Handle,
                                                                Name),
+                                      makeCommentAttr<StructAttr>(Context,
+                                                                  Handle),
                                       Offset,
-                                      Fields);
+                                      Fields,
+                                      {});
 
     return StructType::get(Context, Definition);
   }
@@ -361,8 +367,10 @@ private:
     return FunctionType::get(Context,
                              Handle,
                              makeNameAttr<FunctionType>(Context, Handle),
+                             makeCommentAttr<FunctionType>(Context, Handle),
                              ReturnType,
-                             ParameterTypes);
+                             ParameterTypes,
+                             {});
   }
 
   // Import a Clift function type from an LLVM function, using the name of the
@@ -415,18 +423,19 @@ private:
                                                  const RankT &Rank,
                                                  ArgsT &&...Args) {
     model::UpcastableType Prototype = getPrototype(MF);
-    auto FunctionType = importModelType<clift::FunctionType>(*Prototype);
+    auto FunctionType = importType<clift::FunctionType>(*Prototype);
+    auto Handle = pipeline::locationString(Rank, std::forward<ArgsT>(Args)...);
 
     return getOrEmitSymbol(F, [&]() -> clift::FunctionOp {
       // It is important not to query any model properties in this scope, as
       // doing so would break invalidation when the import of a function uses a
       // declaration already emitted during the import of previous function.
-      auto Op = Builder.create<FunctionOp>(getLocation(F->getSubprogram()),
-                                           F->getName(),
-                                           FunctionType);
-      Op.setHandle(pipeline::locationString(Rank,
-                                            std::forward<ArgsT>(Args)...));
-      return Op;
+      return importFunctionDeclaration(CurrentModule,
+                                       getLocation(F->getSubprogram()),
+                                       F->getName(),
+                                       Handle,
+                                       FunctionType,
+                                       MF.Attributes());
     });
   }
 
@@ -806,11 +815,18 @@ private:
                                            HelperName.str());
 
     auto NameAttr = makeNameAttr<clift::FunctionType>(Context, Handle);
+    auto CommentAttr = makeCommentAttr<clift::FunctionType>(Context, Handle);
+
+    // TODO: should we add something explicitly identifying this as a helper?
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes = {};
+
     auto FunctionType = clift::FunctionType::get(Context,
                                                  Handle,
                                                  NameAttr,
+                                                 CommentAttr,
                                                  ReturnType,
-                                                 ParameterTypes);
+                                                 ParameterTypes,
+                                                 Attributes);
 
     return emitHelperCall(Loc,
                           C.getHelperFunction(HelperName, FunctionType),
@@ -1283,7 +1299,7 @@ private:
       const auto *ModelCallType = getCallSitePrototype(C.Model, I);
       auto Layout = abi::FunctionType::Layout::make(*ModelCallType);
 
-      auto CallType = C.importModelType<clift::FunctionType>(*ModelCallType);
+      auto CallType = C.importType<clift::FunctionType>(*ModelCallType);
 
       revng_log(ExpressionLog, "Callee subexpression:");
       mlir::Value Function = (LoggerIndent(ExpressionLog),
@@ -1581,12 +1597,11 @@ private:
 
         clift::ValueType Type;
         if (hasStackTypeMetadata(Alloca)) {
-          Type = C.importModelType(*getStackTypeFromMetadata(Alloca, C.Model));
+          Type = C.importType(*getStackTypeFromMetadata(Alloca, C.Model));
           Handle = pipeline::locationString(revng::ranks::StackFrameVariable,
                                             ModelFunction.Entry());
         } else if (hasVariableTypeMetadata(Alloca)) {
-          Type = C.importModelType(*getVariableTypeFromMetadata(Alloca,
-                                                                C.Model));
+          Type = C.importType(*getVariableTypeFromMetadata(Alloca, C.Model));
         } else {
           Type = C.importLLVMType(Alloca->getAllocatedType());
 

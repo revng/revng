@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: %revngpipe import-clift-types %s /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
+# RUN: %revngpipe import-types %s /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
 
 Architecture: x86_64
 TypeDefinitions:
@@ -38,6 +38,14 @@ TypeDefinitions:
     # CHECK:     !clift.ptr<8 to !uint64_t>,
     # CHECK:     !_type_definition_201_StructDefinition
     # CHECK:   )
+    # CHECK:   [
+    # CHECK:     #clift.c_attribute<
+    # CHECK:       "_ABI" : "/macro/_ABI"
+    # CHECK:       [
+    # CHECK:         #clift.identifier<"raw_x86_64">
+    # CHECK:       ]
+    # CHECK:     >
+    # CHECK:   ]
     # CHECK: >
   - ID: 1002
     Kind: RawFunctionDefinition

@@ -34,8 +34,8 @@ public:
   }
 
   void run(pipeline::ExecutionContext &EC,
-           pipes::CliftContainer &CliftContainer) {
-    mlir::PassManager PM(CliftContainer.getContext(),
+           pipes::CliftFunctionContainer &CliftFunctionContainer) {
+    mlir::PassManager PM(CliftFunctionContainer.getContext(),
                          clift::FunctionOp::getOperationName());
 
     // Eliminating trivial returns during statement rewriting (where other
@@ -70,7 +70,7 @@ public:
     PM.addPass(clift::createCLegalizationPass(TargetCImplementation::Default));
     PM.addPass(clift::createImmediateRadixDeductionPass());
 
-    mlir::ModuleOp Module = CliftContainer.getModule();
+    mlir::ModuleOp Module = CliftFunctionContainer.getModule();
 
     std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
     Module->walk([&Functions](clift::FunctionOp F) {
@@ -82,7 +82,7 @@ public:
     });
 
     for (const model::Function &Function :
-         getFunctionsAndCommit(EC, CliftContainer.name())) {
+         getFunctionsAndCommit(EC, CliftFunctionContainer.name())) {
       auto It = Functions.find(Function.Entry());
       revng_check(It != Functions.end()
                   and "Requested Clift function not found");

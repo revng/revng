@@ -8,7 +8,7 @@
 
 using namespace llvm;
 
-// This pass is needed by the llvm-to-clift conversion, because - unlike LLVM IR
+// This pass is needed by the `clifter` conversion, because - unlike LLVM IR
 // - Clift does not permit array prvalues. This makes the conversion much more
 // difficult in those cases. For that reason any array constant returns are
 // converted into allocas of the same array type followed by writes for each

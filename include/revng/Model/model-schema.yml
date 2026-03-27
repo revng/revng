@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-version: 8
+version: 9
 root_type: Binary
 
 definitions:
@@ -1013,8 +1013,8 @@ definitions:
       - name: NoReturn
         doc: The function call does not return.
 
-      - name: Inline
-        doc: The function call must be inlined in the caller.
+      - name: AlwaysInline
+        doc: The function call must always be inlined in the caller.
 
   - name: StatementComment
     type: struct

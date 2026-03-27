@@ -1,0 +1,115 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %revngpipe import-types %s /dev/null /dev/null /dev/stdout | %revngcliftopt | FileCheck %s
+
+# NOTE: comments are intentionally missing from clift at this point!
+#      This test is verifying that they will not get introduced too early.
+#      To see how comment is represented on the IR, take a look at
+#      `import-comments` test reusing this model file (it has the same name).
+
+Functions:
+  - Entry: "0x4:Code_x86_64"
+    Name: "my_commented_function"
+    Comment: |-
+      Unlike many other structures with simpler comments, function types emit
+      theirs as doxygen! They include specific sections for arguments! And
+      return values!
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/0-RawFunctionDefinition"
+
+TypeDefinitions:
+  # CHECK: !_type_definition_1_StructDefinition = !clift.struct<
+  # CHECK:   "/type-definition/1-StructDefinition" : size(8) {
+  # CHECK:     "/struct-field/1-StructDefinition/0" : offset(0) !uint64_t
+  # CHECK:   }
+  # CHECK: >
+  # CHECK: !_type_definition_0_RawFunctionDefinition = !clift.func<
+  # CHECK:   "/type-definition/0-RawFunctionDefinition" : !uint64_t(!uint64_t, !_type_definition_1_StructDefinition)
+  # CHECK:   [
+  # CHECK:     #clift.c_attribute<"_ABI" : "/macro/_ABI"
+  # CHECK:       [
+  # CHECK:         #clift.identifier<"SystemV_x86_64">
+  # CHECK:       ]
+  # CHECK:     >
+  # CHECK:   ]
+  # CHECK: >
+  - ID: 0
+    Kind: RawFunctionDefinition
+    Comment: |-
+      This comment is attached to the prototype (do not mistake it for
+      the comment attached to the function itself!)
+    ReturnValueComment: |-
+      Even though this function only returns one register, who's to say that
+      register is not interesting enough to write a really long essay about it?!
+
+      With multiple line breaks,
+
+      and non-trivial formatting too!
+      ```cpp
+        // Meta comment: comment within a comment
+        // ```cpp
+        //   // Could be within another comment too!!!
+        // ```
+      ```
+
+      Let's see how well this will be handled!!
+    Architecture: x86_64
+    Arguments:
+      - Location: rax_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+        Comment: |-
+          Let's be brief here,
+          to make space for that ugly return value comment!
+    ReturnValues:
+      - Location: rcx_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+        Comment: |-
+          I wonder how well this is handled! Because the types for both return
+          values and arguments are shared, there's a comment field here!
+
+          Together with the name! We have to find a way to display these
+          *somewhere*!
+    PreservedRegisters:
+      - rdi_x86_64
+    FinalStackOffset: 0
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/1-StructDefinition"
+
+  - ID: 1
+    Kind: StructDefinition
+    Name: my_struct
+    Comment: |-
+      Not all arguments are passed in registers! Sometimes there's also a struct!
+
+      Which is the revng-way of representing the stack offsets!
+    Size: 8
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+        Comment: |-
+          And since this is a struct argument, it, obviously, can have comments
+          attached! And with how relevant this comment is for the prototype,
+          we should probably find a way to display it *on* the said prototype!
+
+Segments:
+  - StartAddress: "0x4:Generic64"
+    VirtualSize: 0x40
+    StartOffset: 0
+    FileSize: 0x40
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+
+Architecture: x86_64

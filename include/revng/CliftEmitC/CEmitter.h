@@ -35,11 +35,13 @@ public:
 
   //===---------------------------- Attributes ----------------------------===//
 
-  static bool isValidAttributeArray(mlir::ArrayAttr Array);
-  mlir::ArrayAttr getDeclarationOpAttributes(mlir::Operation *Op);
+  static bool isValidCAttributeArray(mlir::ArrayAttr Array);
+  mlir::ArrayAttr getDeclarationOpCAttributes(mlir::Operation *Op);
 
-  void emitAttribute(AttributeAttr Attribute);
-  void emitAttributes(mlir::ArrayAttr Attributes);
+  void emitCAttribute(CAttributeAttr Attribute);
+  void emitCAttributes(mlir::ArrayAttr Attributes,
+                       bool SpaceBefore,
+                       bool SpaceAfter);
 
   //===---------------------------- Prototype -----------------------------===//
 
@@ -51,7 +53,7 @@ public:
   struct ParameterDeclaratorInfo {
     llvm::StringRef Identifier;
     llvm::StringRef Location;
-    mlir::ArrayAttr Attributes;
+    mlir::ArrayAttr CAttributes;
   };
 
   /// Describes a declarator. This can be any function or variable declarator,
@@ -61,7 +63,7 @@ public:
   struct DeclaratorInfo {
     llvm::StringRef Identifier;
     llvm::StringRef Location;
-    mlir::ArrayAttr Attributes;
+    mlir::ArrayAttr CAttributes;
     CTE::EntityKind Kind;
 
     std::optional<llvm::ArrayRef<ParameterDeclaratorInfo>> Parameters;

@@ -23,7 +23,8 @@
 #include "revng/Clift/CliftOpTraits.h"
 #include "revng/Clift/CliftTypes.h"
 
-namespace mlir::clift::impl {
+namespace mlir::clift {
+namespace impl {
 
 inline constexpr llvm::StringRef LoopLabelMaskAttrName = "label_mask";
 
@@ -40,7 +41,62 @@ unsigned getPointerArithmeticOffsetOperandIndex(mlir::Operation *Op);
 
 mlir::LogicalResult verifyUnaryIntegerMutationOp(Operation *Op);
 
-} // namespace mlir::clift::impl
+} // namespace impl
+
+class AttrDictView {
+  mlir::DictionaryAttr Underlying;
+
+public:
+  explicit AttrDictView(mlir::DictionaryAttr Underlying) :
+    Underlying(Underlying) {}
+
+  [[nodiscard]] mlir::DictionaryAttr getDictionaryAttr() const {
+    return Underlying;
+  }
+
+  [[nodiscard]] mlir::Attribute get(llvm::StringRef Name) const {
+    return Underlying.get(Name);
+  }
+
+  template<std::convertible_to<mlir::Attribute> DefaultT>
+  [[nodiscard]] mlir::Attribute
+  get(llvm::StringRef Name, DefaultT &&Default) const {
+    if (mlir::Attribute Attr = Underlying.get(Name))
+      return Attr;
+    return std::forward<DefaultT>(Default);
+  }
+
+  template<typename AttrT>
+  [[nodiscard]] AttrT getOfType(llvm::StringRef Name) const {
+    return mlir::dyn_cast_or_null<AttrT>(Underlying.get(Name));
+  }
+
+  template<typename AttrT, std::convertible_to<AttrT> DefaultT>
+  [[nodiscard]] AttrT
+  getOfType(llvm::StringRef Name, DefaultT &&Default) const {
+    if (AttrT Attr = mlir::dyn_cast_or_null<AttrT>(Underlying.get(Name)))
+      return Attr;
+    return std::forward<DefaultT>(Default);
+  }
+
+  [[nodiscard]] llvm::StringRef getString(llvm::StringRef Name) const {
+    auto Attr = getOfType<mlir::StringAttr>(Name);
+    revng_assert(Attr);
+    return Attr.getValue();
+  }
+
+  [[nodiscard]] llvm::StringRef getString(llvm::StringRef Name,
+                                          llvm::StringRef Default) const {
+    auto Attr = getOfType<mlir::StringAttr>(Name);
+    return Attr ? Attr.getValue() : Default;
+  }
+
+  [[nodiscard]] llvm::StringRef getStringOrEmpty(llvm::StringRef Name) const {
+    return getString(Name, llvm::StringRef());
+  }
+};
+
+} // namespace mlir::clift
 
 // This include should stay here for correct build procedure
 #define GET_OP_CLASSES

@@ -5,7 +5,7 @@
 #include "llvm/ADT/PostOrderIterator.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
-#include "revng/Support/Annotations.h"
+#include "revng/PTML/CAttributes.h"
 #include "revng/TypeNames/ModelCBuilder.h"
 
 using T = model::TypeDefinition;

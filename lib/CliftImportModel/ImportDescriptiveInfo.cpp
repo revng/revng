@@ -3,18 +3,21 @@
 //
 
 #include <ranges>
+#include <type_traits>
+
+#include "llvm/ADT/StringRef.h"
 
 #include "mlir/IR/RegionGraphTraits.h"
 
-#include "revng/ADT/FilteredGraphTraits.h"
+#include "revng/Clift/Clift.h"
+#include "revng/Clift/CliftTypes.h"
 #include "revng/Clift/Helpers.h"
 #include "revng/Clift/ModuleVisitor.h"
-#include "revng/CliftPipes/CliftContainer.h"
-#include "revng/CliftPipes/ImportModelNamesPipe.h"
+#include "revng/CliftImportModel/CAttributeListBuilder.h"
+#include "revng/CliftImportModel/ImportModel.h"
+#include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/PTML/CommentPlacementHelper.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Support/Identifier.h"
 
 namespace clift = mlir::clift;
@@ -78,8 +81,12 @@ class ArgumentAttributeMutator {
 public:
   explicit ArgumentAttributeMutator(clift::FunctionOp Op) : Function(Op) {
     for (unsigned I = 0; I < Op.getArgCount(); ++I) {
-      AttrLists.emplace_back(Op.getArgAttrs(I));
+      AttrLists.emplace_back(Op.getArgAttrs(I).getDictionaryAttr());
     }
+  }
+
+  mlir::Attribute get(unsigned Index, llvm::StringRef Name) const {
+    return AttrLists[Index].get(Name);
   }
 
   void set(unsigned Index, llvm::StringRef Name, mlir::Attribute Attr) {
@@ -131,7 +138,7 @@ public:
 // by visiting a given operation and all nested operations. Any module-level
 // operations are not renamed directly, but instead the renames are recorded
 // in the specified SymbolRenamer, to be applied all at once.
-class NameImporter : public clift::ModuleVisitor<NameImporter> {
+class Importer : public clift::ModuleVisitor<Importer> {
   struct CurrentFunctionState {
     using LocationType = pipeline::Location<decltype(rr::Function)>;
 
@@ -145,7 +152,7 @@ class NameImporter : public clift::ModuleVisitor<NameImporter> {
                                   CliftStatementTraits>
       Comments;
 
-    explicit CurrentFunctionState(NameImporter &Importer,
+    explicit CurrentFunctionState(Importer &Importer,
                                   clift::FunctionOp Function,
                                   LocationType &&Location,
                                   const model::Function &ModelFunction) :
@@ -163,7 +170,7 @@ class NameImporter : public clift::ModuleVisitor<NameImporter> {
   std::optional<CurrentFunctionState> CurrentFunction;
 
 public:
-  explicit NameImporter(const model::Binary &Model, SymbolRenamer &Symbols) :
+  explicit Importer(const model::Binary &Model, SymbolRenamer &Symbols) :
     Model(Model), Symbols(Symbols), NameBuilder(Model) {}
 
   //===---------------------- ModuleVisitor interface ---------------------===//
@@ -177,9 +184,11 @@ public:
       } else {
         const model::TypeDefinition *MT = getModelType(T.getHandle(),
                                                        rr::TypeDefinition);
-        revng_assert(MT != nullptr);
+        revng_assert(MT != nullptr,
+                     ("Unknown type: '" + T.getHandle().str() + "'").c_str());
 
         T.getMutableName().setValue(NameBuilder.name(*MT));
+        T.getMutableComment().setValue(MT->Comment());
       }
     }
 
@@ -286,6 +295,7 @@ private:
     for (auto F : ST.getFields()) {
       const auto &Field = SMT.Fields().at(F.getOffset());
       F.getMutableName().setValue(NameBuilder.name(SMT, Field));
+      F.getMutableComment().setValue(Field.Comment());
     }
 
     return mlir::success();
@@ -294,6 +304,7 @@ private:
   mlir::LogicalResult visitTypeDefinition(clift::TypeDefinitionAttr T,
                                           const model::TypeDefinition &MT) {
     T.getMutableName().setValue(NameBuilder.name(MT));
+    T.getMutableComment().setValue(MT.Comment());
 
     if (auto ST = mlir::dyn_cast<clift::StructAttr>(T))
       return importStructNames(ST, llvm::cast<model::StructDefinition>(MT));
@@ -304,6 +315,7 @@ private:
       for (auto [I, F] : llvm::enumerate(UT.getFields())) {
         const auto &Field = UMT.Fields().at(static_cast<uint64_t>(I));
         F.getMutableName().setValue(NameBuilder.name(UMT, Field));
+        F.getMutableComment().setValue(Field.Comment());
       }
 
       return mlir::success();
@@ -315,6 +327,7 @@ private:
       for (auto E : ET.getFields()) {
         const auto &Entry = EMT.Entries().at(E.getRawValue());
         E.getMutableName().setValue(NameBuilder.name(EMT, Entry));
+        E.getMutableComment().setValue(Entry.Comment());
       }
 
       return mlir::success();
@@ -351,6 +364,7 @@ private:
     revng_assert(SMT != nullptr);
 
     ST.getMutableName().setValue(NameBuilder.name(FMT));
+    ST.getMutableComment().setValue(SMT->Comment());
 
     return importStructNames(ST, *SMT);
   }
@@ -441,6 +455,8 @@ private:
       Op.setName(CurrentFunction->GotoLabels.automaticName().Name);
     }
 
+    // TODO: label comments.
+
     return mlir::success();
   }
 
@@ -455,69 +471,123 @@ private:
       Op.setName(CurrentFunction->Variables.automaticName().Name);
     }
 
+    // TODO: variable comments.
+
     return mlir::success();
   }
 
+private:
+  void visitFunctionPrototypeImpl(auto Location,
+                                  clift::FunctionOp Op,
+                                  const model::TypeDefinition *Prototype,
+                                  llvm::StringRef Name,
+                                  llvm::StringRef Comment) {
+    ArgumentAttributeMutator Attrs(Op);
+
+    using CF = model::CABIFunctionDefinition;
+    using RF = model::RawFunctionDefinition;
+
+    llvm::StringRef ReturnValueComment = "";
+    if (const auto *T = llvm::dyn_cast<CF>(Prototype)) {
+      revng_assert(Op.getArgCount() == T->Arguments().size());
+      auto TL = pipeline::location(rr::TypeDefinition, T->key());
+
+      for (auto [I, A] : llvm::enumerate(T->Arguments())) {
+        auto AL = TL.extend(rr::CABIArgument, static_cast<uint64_t>(I));
+        Attrs.setString(I, "clift.handle", AL.toString());
+        Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
+        Attrs.setString(I, "clift.comment", A.Comment());
+      }
+
+      ReturnValueComment = T->ReturnValueComment();
+
+    } else if (const auto *T = llvm::dyn_cast<RF>(Prototype)) {
+      bool HasStackArgument = static_cast<bool>(T->StackArgumentsType());
+
+      size_t ArgumentCount = T->Arguments().size() + HasStackArgument;
+      revng_assert(Op.getArgCount() == ArgumentCount);
+
+      auto TL = pipeline::location(rr::TypeDefinition, T->key());
+      for (auto [I, A] : llvm::enumerate(T->Arguments())) {
+        auto AL = TL.extend(rr::RawArgument, A.Location());
+        Attrs.setString(I, "clift.handle", AL.toString());
+        Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
+        Attrs.setString(I, "clift.comment", A.Comment());
+
+        std::string RegisterName = toString(A.Location());
+
+        // TODO: consider using a dedicated
+        //       `/register/$architecture/$name` location.
+        auto RegisterLocation = "";
+
+        clift::CAttributeListBuilder Attributes{
+          *Op.getContext(),
+          Attrs.get(I, "clift.c_attributes"),
+        };
+        Attributes.setOrUpdate<"_REG">(RegisterName, RegisterLocation);
+        Attrs.set(I, "clift.c_attributes", Attributes.get());
+      }
+
+      if (HasStackArgument) {
+        unsigned I = T->Arguments().size();
+
+        auto AL = TL.transmute(rr::RawStackArguments);
+        auto Name = Model.Configuration().Naming().RawStackArgumentName();
+
+        Attrs.setString(I, "clift.handle", AL.toString());
+        Attrs.setString(I, "clift.name", Name);
+
+        clift::CAttributeListBuilder Attributes{
+          *Op.getContext(),
+          Attrs.get(I, "clift.c_attributes"),
+        };
+        Attributes.setOrUpdate<"_STACK">();
+        Attrs.set(I, "clift.c_attributes", Attributes.get());
+      }
+
+      ReturnValueComment = T->ReturnValueComment();
+
+    } else {
+      revng_abort("Invalid function prototype");
+    }
+
+    Attrs.commit();
+
+    Symbols.record(Op, Name);
+    Op->setAttr("clift.comment",
+                mlir::StringAttr::get(Op->getContext(), Comment));
+    Op->setAttr("clift.return_value_comment",
+                mlir::StringAttr::get(Op->getContext(), ReturnValueComment));
+  }
+
+public:
   mlir::LogicalResult visitFunctionOp(clift::FunctionOp Op) {
     CurrentFunction.reset();
 
     if (auto Pair = getModelFunction(Op.getHandle())) {
       auto &[L, MF] = *Pair;
-
-      const auto *Type = Model.prototypeOrDefault(MF.prototype());
+      const auto *Prototype = Model.prototypeOrDefault(MF.prototype());
+      visitFunctionPrototypeImpl(L,
+                                 Op,
+                                 Prototype,
+                                 NameBuilder.name(MF),
+                                 MF.Comment());
 
       if (not Op.getBody().empty())
         CurrentFunction.emplace(*this, Op, std::move(L), MF);
-
-      Symbols.record(Op, NameBuilder.name(MF));
-
-      ArgumentAttributeMutator Attrs(Op);
-
-      using CF = model::CABIFunctionDefinition;
-      using RF = model::RawFunctionDefinition;
-
-      if (const auto *T = llvm::dyn_cast<CF>(Type)) {
-        revng_assert(Op.getArgCount() == T->Arguments().size());
-        auto TL = pipeline::location(rr::TypeDefinition, T->key());
-
-        for (auto [I, A] : llvm::enumerate(T->Arguments())) {
-          auto AL = TL.extend(rr::CABIArgument, static_cast<uint64_t>(I));
-          Attrs.setString(I, "clift.handle", AL.toString());
-          Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
-        }
-      } else if (const auto *T = llvm::dyn_cast<RF>(Type)) {
-        bool HasStackArgument = static_cast<bool>(T->StackArgumentsType());
-
-        size_t ArgumentCount = T->Arguments().size() + HasStackArgument;
-        revng_assert(Op.getArgCount() == ArgumentCount);
-
-        auto TL = pipeline::location(rr::TypeDefinition, T->key());
-        for (auto [I, A] : llvm::enumerate(T->Arguments())) {
-          auto AL = TL.extend(rr::RawArgument, A.Location());
-          Attrs.setString(I, "clift.handle", AL.toString());
-          Attrs.setString(I, "clift.name", NameBuilder.name(*T, A));
-        }
-
-        if (HasStackArgument) {
-          unsigned I = T->Arguments().size();
-
-          auto AL = TL.transmute(rr::RawStackArguments);
-          auto Name = Model.Configuration().Naming().RawStackArgumentName();
-
-          Attrs.setString(I, "clift.handle", AL.toString());
-          Attrs.setString(I, "clift.name", Name);
-        }
-      } else {
-        revng_abort("Invalid function prototype");
-      }
-
-      Attrs.commit();
 
       return mlir::success();
     }
 
     if (auto Pair = getModelDynamicFunction(Op.getHandle())) {
-      Symbols.record(Op, NameBuilder.name(Pair->Object));
+      auto &[L, MF] = *Pair;
+      const auto *Prototype = Model.prototypeOrDefault(MF.prototype());
+      visitFunctionPrototypeImpl(L,
+                                 Op,
+                                 Prototype,
+                                 NameBuilder.name(MF),
+                                 MF.Comment());
+
       return mlir::success();
     }
 
@@ -533,6 +603,12 @@ private:
   mlir::LogicalResult visitGlobalVariableOp(clift::GlobalVariableOp Op) {
     if (const model::Segment *Segment = getModelSegment(Op)) {
       Symbols.record(Op, NameBuilder.name(Model, *Segment));
+
+      // No need to use symbol renamer for comments, as they don't affect any
+      // users.
+      Op->setAttr("clift.comment",
+                  mlir::StringAttr::get(Op->getContext(), Segment->Comment()));
+
       return mlir::success();
     }
 
@@ -562,82 +638,48 @@ private:
   }
 };
 
-class ImportModelNamesPipe {
-public:
-  static constexpr auto Name = "import-model-names";
-
-  std::array<pipeline::ContractGroup, 1> getContract() const {
-    using namespace pipeline;
-    using namespace revng::kinds;
-
-    return { ContractGroup({ Contract(CliftFunction,
-                                      0,
-                                      CliftFunction,
-                                      0,
-                                      InputPreservation::Preserve) }) };
-  }
-
-  void run(pipeline::ExecutionContext &EC,
-           revng::pipes::CliftContainer &CliftContainer) {
-    mlir::ModuleOp Module = CliftContainer.getModule();
-    const model::Binary &Model = *revng::getModelFromContext(EC);
-
-    std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
-    Module->walk([&Functions](clift::FunctionOp F) {
-      MetaAddress MA = getMetaAddress(F);
-      if (MA.isValid()) {
-        auto [Iterator, Inserted] = Functions.try_emplace(MA, F);
-        revng_assert(Inserted);
-      }
-    });
-
-    SymbolRenamer Symbols;
-    for (const model::Function &Function :
-         revng::getFunctionsAndCommit(EC, CliftContainer.name())) {
-      auto It = Functions.find(Function.Entry());
-      revng_check(It != Functions.end(), "Requested Clift function not found");
-
-      auto R = NameImporter::visit(It->second, Model, Symbols);
-      revng_assert(R.succeeded());
-    }
-
-    for (mlir::Operation &Op : Module.getBody()->getOperations()) {
-      if (auto F = mlir::dyn_cast<clift::FunctionOp>(Op)) {
-        if (getMetaAddress(F).isInvalid()) {
-          auto R = NameImporter::visit(F, Model, Symbols);
-          revng_assert(R.succeeded());
-        }
-      } else if (auto G = mlir::dyn_cast<clift::GlobalVariableOp>(Op)) {
-        auto R = NameImporter::visit(G, Model, Symbols);
-        revng_assert(R.succeeded());
-      }
-    }
-
-    Symbols.apply(Module);
-  }
-};
-
-static pipeline::RegisterPipe<ImportModelNamesPipe> X;
-
 } // namespace
 
-namespace revng::pypeline::piperuns {
-
-void ImportModelNames::runOnCliftFunction(const model::Function &Function,
-                                          mlir::clift::FunctionOp
-                                            MLIRFunction) {
-  mlir::ModuleOp Module = MLIRFunction->getParentOfType<mlir::ModuleOp>();
+void clift::importDescriptiveInfo(const model::Binary &Model,
+                                  mlir::ModuleOp Module) {
   SymbolRenamer Symbols;
-  for (mlir::Operation &Op : Module.getBody()->getOperations()) {
-    if (auto F = mlir::dyn_cast<clift::FunctionOp>(Op)) {
-      auto R = NameImporter::visit(F, Binary, Symbols);
-      revng_assert(R.succeeded());
-    } else if (auto G = mlir::dyn_cast<clift::GlobalVariableOp>(Op)) {
-      auto R = NameImporter::visit(G, Binary, Symbols);
-      revng_assert(R.succeeded());
-    }
-  }
+
+  auto R = Importer::visit(Module, Model, Symbols);
+  revng_assert(R.succeeded());
+
   Symbols.apply(Module);
 }
 
-} // namespace revng::pypeline::piperuns
+void clift::importDescriptiveInfo(const model::Function &Function,
+                                  const model::Binary &Model,
+                                  mlir::ModuleOp Module) {
+  std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
+  clift::FunctionOp CliftFunction = nullptr;
+  Module->walk([&Function, &CliftFunction](clift::FunctionOp F) {
+    MetaAddress MA = getMetaAddress(F);
+    if (Function.Entry() == MA) {
+      revng_check(CliftFunction == nullptr);
+      CliftFunction = F;
+    }
+  });
+  revng_check(CliftFunction != nullptr, "Requested Clift function not found");
+
+  SymbolRenamer Symbols;
+
+  auto R = Importer::visit(CliftFunction, Model, Symbols);
+  revng_assert(R.succeeded());
+
+  for (mlir::Operation &Op : Module.getBody()->getOperations()) {
+    if (auto F = mlir::dyn_cast<clift::FunctionOp>(Op)) {
+      if (getMetaAddress(F).isInvalid()) {
+        auto R = Importer::visit(F, Model, Symbols);
+        revng_assert(R.succeeded());
+      }
+    } else if (auto G = mlir::dyn_cast<clift::GlobalVariableOp>(Op)) {
+      auto R = Importer::visit(G, Model, Symbols);
+      revng_assert(R.succeeded());
+    }
+  }
+
+  Symbols.apply(Module);
+}

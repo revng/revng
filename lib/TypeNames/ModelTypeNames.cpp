@@ -22,12 +22,12 @@
 #include "revng/Model/Helpers.h"
 #include "revng/Model/PointerType.h"
 #include "revng/Model/RawFunctionDefinition.h"
+#include "revng/PTML/CAttributes.h"
 #include "revng/PTML/CBuilder.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/Tag.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
-#include "revng/Support/Annotations.h"
 #include "revng/Support/Assert.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/ModelCBuilder.h"
@@ -217,7 +217,7 @@ getFunctionAttributeString(const model::FunctionAttribute::Values &A) {
   case NoReturn:
     return "_Noreturn";
 
-  case Inline:
+  case AlwaysInline:
     return "inline";
 
   default:

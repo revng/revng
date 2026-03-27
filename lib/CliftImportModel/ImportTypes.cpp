@@ -5,10 +5,14 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/FormatVariadic.h"
 
+#include "mlir/IR/BuiltinOps.h"
+
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftDialect.h"
 #include "revng/Clift/CliftTypes.h"
+#include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
@@ -95,6 +99,11 @@ private:
   makeNameAttr(llvm::StringRef Handle, llvm::StringRef Name = {}) {
     return clift::makeNameAttr<KeyT>(Context, Handle, Name);
   }
+  template<typename KeyT>
+  clift::MutableStringAttr
+  makeCommentAttr(llvm::StringRef Handle, llvm::StringRef Comment = {}) {
+    return clift::makeCommentAttr<KeyT>(Context, Handle, Comment);
+  }
 
   static clift::PrimitiveKind
   getPrimitiveKind(const model::PrimitiveType &ModelType) {
@@ -161,12 +170,23 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
+    std::string ABIName = toString(ModelType.ABI());
+
+    // TODO: consider using a dedicated `/abi/$architecture/$name` location.
+    auto ABILocation = "";
+
+    clift::CAttributeListBuilder Attributes(*Context);
+    Attributes.setOrUpdate<"_ABI">(ABIName, ABILocation);
+
     auto Handle = getHandle(ModelType);
     auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
+    auto CommentAttr = makeCommentAttr<clift::FunctionType>(Handle);
     rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
                                         NameAttr,
+                                        CommentAttr,
                                         ReturnType,
-                                        llvm::ArrayRef(ArgumentTypes));
+                                        llvm::ArrayRef(ArgumentTypes),
+                                        Attributes.getRaw());
   }
 
   RecursiveCoroutine<clift::DefinedType>
@@ -193,8 +213,10 @@ private:
                       .toString();
 
       auto NameAttr = makeNameAttr<clift::EnumFieldAttr>(Handle);
+      auto CommentAttr = makeCommentAttr<clift::EnumFieldAttr>(Handle);
       auto Attr = make<clift::EnumFieldAttr>(llvm::StringRef(Handle),
                                              NameAttr,
+                                             CommentAttr,
                                              Entry.Value());
 
       if (not Attr)
@@ -205,8 +227,10 @@ private:
 
     auto Handle = Location.toString();
     auto NameAttr = makeNameAttr<clift::EnumAttr>(Handle);
+    auto CommentAttr = makeCommentAttr<clift::EnumAttr>(Handle);
     auto Attr = make<clift::EnumAttr>(llvm::StringRef(Handle),
                                       NameAttr,
+                                      CommentAttr,
                                       UnderlyingType,
                                       llvm::ArrayRef(Fields));
 
@@ -234,8 +258,10 @@ private:
                       .toString();
 
       auto NameAttr = makeNameAttr<clift::FieldAttr>(Handle);
+      auto CommentAttr = makeCommentAttr<clift::FieldAttr>(Handle);
       auto Attr = make<clift::FieldAttr>(llvm::StringRef(Handle),
                                          NameAttr,
+                                         CommentAttr,
                                          Offset,
                                          RegisterType);
       if (not Attr)
@@ -247,10 +273,14 @@ private:
 
     auto Handle = Location.transmute(revng::ranks::ArtificialStruct).toString();
     auto NameAttr = makeNameAttr<clift::StructAttr>(Handle);
+    auto CommentAttr = makeCommentAttr<clift::StructAttr>(Handle);
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes = {};
     auto Attr = make<clift::StructAttr>(llvm::StringRef(Handle),
                                         NameAttr,
+                                        CommentAttr,
                                         Offset,
-                                        llvm::ArrayRef(Fields));
+                                        llvm::ArrayRef(Fields),
+                                        CAttributes);
 
     if (not Attr)
       rc_return nullptr;
@@ -315,12 +345,24 @@ private:
     if (not ReturnType)
       rc_return nullptr;
 
+    std::string ABIName = "raw_" + toString(ModelType.Architecture());
+
+    // TODO: consider using a dedicated `/raw-abi/$architecture` location.
+    auto ABILocation = "";
+
+    clift::CAttributeListBuilder Attributes(*Context);
+    Attributes.setOrUpdate<"_ABI">(ABIName, ABILocation);
+
     auto Handle = getHandle(ModelType);
     auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
+    auto CommentAttr = makeCommentAttr<clift::FunctionType>(Handle);
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> AttributeArray = {};
     rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
                                         NameAttr,
+                                        CommentAttr,
                                         mlir::Type(ReturnType),
-                                        llvm::ArrayRef(ArgumentTypes));
+                                        llvm::ArrayRef(ArgumentTypes),
+                                        Attributes.getRaw());
   }
 
   RecursiveCoroutine<clift::DefinedType>
@@ -356,8 +398,10 @@ private:
                       .toString();
 
       auto NameAttr = makeNameAttr<clift::FieldAttr>(Handle);
+      auto CommentAttr = makeCommentAttr<clift::FieldAttr>(Handle);
       auto Attr = make<clift::FieldAttr>(llvm::StringRef(Handle),
                                          NameAttr,
+                                         CommentAttr,
                                          Field.Offset(),
                                          FieldType);
       if (not Attr)
@@ -366,12 +410,18 @@ private:
       Fields.push_back(Attr);
     }
 
+    clift::CAttributeListBuilder Attributes(*Context);
+    Attributes.setOrUpdate<"_CAN_CONTAIN_CODE">();
+
     auto Handle = Location.toString();
     auto NameAttr = makeNameAttr<clift::StructAttr>(Handle);
+    auto CommentAttr = makeCommentAttr<clift::StructAttr>(Handle);
     auto Attr = make<clift::StructAttr>(llvm::StringRef(Handle),
                                         NameAttr,
+                                        CommentAttr,
                                         ModelType.Size(),
-                                        llvm::ArrayRef(Fields));
+                                        llvm::ArrayRef(Fields),
+                                        Attributes.getRaw());
 
     if (not Attr)
       rc_return nullptr;
@@ -401,8 +451,10 @@ private:
 
     auto Handle = getHandle(ModelType);
     auto NameAttr = makeNameAttr<clift::TypedefAttr>(Handle);
+    auto CommentAttr = makeCommentAttr<clift::TypedefAttr>(Handle);
     auto Attr = make<clift::TypedefAttr>(llvm::StringRef(Handle),
                                          NameAttr,
+                                         CommentAttr,
                                          UnderlyingType);
 
     if (not Attr)
@@ -444,8 +496,10 @@ private:
                       .toString();
 
       auto NameAttr = makeNameAttr<clift::FieldAttr>(Handle);
+      auto CommentAttr = makeCommentAttr<clift::FieldAttr>(Handle);
       auto Attr = make<clift::FieldAttr>(llvm::StringRef(Handle),
                                          NameAttr,
+                                         CommentAttr,
                                          /*Offset=*/static_cast<uint64_t>(0),
                                          FieldType);
       if (not Attr)
@@ -455,9 +509,13 @@ private:
 
     auto Handle = Location.toString();
     auto NameAttr = makeNameAttr<clift::UnionAttr>(Handle);
+    auto CommentAttr = makeCommentAttr<clift::UnionAttr>(Handle);
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes = {};
     auto Attr = make<clift::UnionAttr>(llvm::StringRef(Handle),
                                        NameAttr,
-                                       llvm::ArrayRef(Fields));
+                                       CommentAttr,
+                                       llvm::ArrayRef(Fields),
+                                       CAttributes);
 
     rc_return clift::UnionType::get(Attr);
   }
@@ -580,18 +638,97 @@ private:
 } // namespace
 
 clift::ValueType
-clift::importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                       mlir::MLIRContext &Context,
-                       const model::TypeDefinition &ModelType,
-                       const model::Binary &Binary) {
+clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+                  mlir::MLIRContext &Context,
+                  const model::TypeDefinition &ModelType,
+                  const model::Binary &Binary) {
   return CliftConverter(Context, Binary, EmitError)
     .convertTypeDefinition(ModelType);
 }
 
 clift::ValueType
-clift::importModelType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                       mlir::MLIRContext &Context,
-                       const model::Type &ModelType,
-                       const model::Binary &Binary) {
+clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+                  mlir::MLIRContext &Context,
+                  const model::Type &ModelType,
+                  const model::Binary &Binary) {
   return CliftConverter(Context, Binary, EmitError).convertType(ModelType);
+}
+
+clift::FunctionOp
+clift::importFunctionDeclaration(mlir::ModuleOp Module,
+                                 mlir::Location DebugLocation,
+                                 llvm::StringRef Name,
+                                 llvm::StringRef Handle,
+                                 clift::FunctionType Prototype,
+                                 const model::Function::TypeOfAttributes
+                                   &Attributes) {
+  mlir::OpBuilder Builder(Module.getContext());
+  mlir::OpBuilder::InsertionGuard Guard(Builder);
+  Builder.setInsertionPointToEnd(Module.getBody());
+
+  auto Result = Builder.create<clift::FunctionOp>(DebugLocation,
+                                                  Name,
+                                                  Prototype);
+  Result.setHandle(Handle);
+
+  mlir::MLIRContext *Context = Module.getContext();
+  llvm::SmallVector<mlir::clift::CAttributeAttr> CliftAttributes;
+  for (model::FunctionAttribute::Values Attribute : Attributes) {
+    // TODO: we might want to express some of these through existing clift
+    //       attributes.
+    switch (Attribute) {
+    case model::FunctionAttribute::NoReturn:
+      Result.setNoreturnAttr(Builder.getUnitAttr());
+      break;
+
+    case model::FunctionAttribute::AlwaysInline:
+      Result.setAlwaysInlineAttr(Builder.getUnitAttr());
+      break;
+
+    default:
+      revng_abort("Unsupported `model::FunctionAttribute`");
+    }
+  }
+
+  llvm::ArrayRef<mlir::Attribute> AttributeArray = { CliftAttributes.begin(),
+                                                     CliftAttributes.end() };
+  Result->setAttr("clift.c_attributes",
+                  mlir::ArrayAttr::get(Context, AttributeArray));
+
+  return Result;
+}
+
+clift::GlobalVariableOp
+clift::importSegmentDeclaration(mlir::ModuleOp Module,
+                                mlir::Location DebugLocation,
+                                llvm::StringRef Name,
+                                llvm::StringRef Handle,
+                                clift::ValueType Type) {
+  mlir::OpBuilder Builder(Module.getContext());
+  mlir::OpBuilder::InsertionGuard Guard(Builder);
+  Builder.setInsertionPointToEnd(Module.getBody());
+
+  auto Result = Builder.create<clift::GlobalVariableOp>(DebugLocation,
+                                                        Name,
+                                                        Type);
+  Result.setHandle(Handle);
+
+  return Result;
+}
+
+void clift::importAllModelTypes(const model::Binary &Model,
+                                mlir::ModuleOp Module) {
+  mlir::MLIRContext *Context = Module.getContext();
+  mlir::Location Loc = mlir::UnknownLoc::get(Context);
+  auto EmitError = [&]() -> mlir::InFlightDiagnostic {
+    return Context->getDiagEngine().emit(Loc, mlir::DiagnosticSeverity::Error);
+  };
+
+  llvm::SmallVector<mlir::Attribute> TypeAttrs;
+  for (const auto &ModelType : Model.TypeDefinitions()) {
+    auto CliftType = clift::importType(EmitError, *Context, *ModelType, Model);
+    TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
+  }
+
+  Module->setAttr("clift.test", mlir::ArrayAttr::get(Context, TypeAttrs));
 }

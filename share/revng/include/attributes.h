@@ -8,23 +8,23 @@
 #define __attribute__(argument)
 #endif
 
-#define STR(x) #x
-// NOLINTNEXTLINE
-// clang-format off
-#define REG_ATTRIBUTE_STRING(reg_name) STR(reg:reg_name)
-#define ABI_ATTRIBUTE_STRING(abi_name) STR(abi:abi_name)
-#define ENUM_ATTRIBUTE_STRING(type_name) STR(enum_underlying_type:type_name)
-#define FIELD_START_ATTRIBUTE_STRING(offset) STR(field_start_offset:offset)
-#define STRUCT_SIZE_ATTRIBUTE_STRING(size) STR(struct_size:size)
-// NOLINTNEXTLINE
-// clang-format on
+// Helper macros
+#define _CUSTOM_ATTRIBUTE(value) __attribute__((annotate(#value)))
+#define _CUSTOM_ANNOTATION(key, value) \
+  __attribute__((annotate(#key ":" #value)))
 
-#define _REG(x) __attribute__((annotate(REG_ATTRIBUTE_STRING(x))))
-#define _ABI(x) __attribute__((annotate(ABI_ATTRIBUTE_STRING(x))))
-#define _STACK __attribute__((annotate("stack")))
+// Custom attributes
+#define _STACK _CUSTOM_ATTRIBUTE(stack)
+#define _CAN_CONTAIN_CODE _CUSTOM_ATTRIBUTE(can_contain_code)
 
-#define _ENUM_UNDERLYING(x) __attribute__((annotate(ENUM_ATTRIBUTE_STRING(x))))
+// Custom attributes with an argument
+#define _REG(x) _CUSTOM_ANNOTATION(reg, x)
+#define _ABI(x) _CUSTOM_ANNOTATION(abi, x)
+#define _STARTS_AT(x) _CUSTOM_ANNOTATION(field_start_offset, x)
+#define _SIZE(x) _CUSTOM_ANNOTATION(struct_size, x)
+#define _ENUM_UNDERLYING(x) _CUSTOM_ANNOTATION(enum_underlying_type, x)
+
+// Real attribute aliases
 #define _PACKED __attribute__((packed))
-#define _CAN_CONTAIN_CODE __attribute__((annotate("can_contain_code")))
-#define _STARTS_AT(x) __attribute__((annotate(FIELD_START_ATTRIBUTE_STRING(x))))
-#define _SIZE(x) __attribute__((annotate(STRUCT_SIZE_ATTRIBUTE_STRING(x))))
+#define _ALWAYS_INLINE __attribute__((always_inline))
+#define _NORETURN __attribute__((noreturn))

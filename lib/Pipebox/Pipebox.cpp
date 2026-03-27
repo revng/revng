@@ -7,10 +7,10 @@
 #include "revng/Backend/DecompileToSingleFile.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
-#include "revng/CliftPipes/CBackendPipe.h"
-#include "revng/CliftPipes/ClifterPipe.h"
-#include "revng/CliftPipes/ImportModelNamesPipe.h"
-#include "revng/CliftPipes/ModelVerifyPipe.h"
+#include "revng/CliftPipes/Clifter.h"
+#include "revng/CliftPipes/EmitC.h"
+#include "revng/CliftPipes/ImportDescriptiveInfo.h"
+#include "revng/CliftPipes/ModelVerifyClift.h"
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
@@ -30,7 +30,7 @@
 #include "revng/Pipebox/MLIRPipe.h"
 #include "revng/Pipebox/MergeLLVMModules.h"
 #include "revng/PipeboxCommon/BinariesContainer.h"
-#include "revng/PipeboxCommon/CliftContainer.h"
+#include "revng/PipeboxCommon/CliftContainers.h"
 #include "revng/PipeboxCommon/Helpers/Registrars.h"
 #include "revng/PipeboxCommon/ModelManipulationAnalyses.h"
 #include "revng/PipeboxCommon/RawContainer.h"
@@ -74,6 +74,8 @@ static RegisterContainer<CrossRelationsContainer> C15;
 static RegisterContainer<CallGraphContainer> C16;
 static RegisterContainer<CallGraphSliceContainer> C17;
 static RegisterContainer<FunctionControlFlowContainer> C18;
+static RegisterContainer<CliftModuleContainer> C19;
+static RegisterContainer<CliftSingleTypeContainer> C20;
 
 //
 // Pipes
@@ -109,10 +111,10 @@ static RegisterFunctionPipeRun<LegacySegregateStackAccesses> P23;
 static RegisterFunctionPipeRun<MakeSegmentRef> P24;
 static RegisterFunctionPipeRun<SegregateStackAccesses> P25;
 static RegisterFunctionPipeRun<SwitchToStatements> P26;
-static RegisterFunctionPipeRun<LLVMToClift> P27;
+static RegisterFunctionPipeRun<Clifter> P27;
 static RegisterPipe<PureMLIRPassesPipe> P28;
 static RegisterFunctionPipeRun<ModelVerifyClift> P29;
-static RegisterFunctionPipeRun<ImportModelNames> P30;
+static RegisterSingleOutputPipeRun<ImportDescriptiveInfo> P30;
 static RegisterFunctionPipeRun<EmitC> P31;
 static RegisterSingleOutputPipeRun<DecompileToSingleFile> P32;
 static RegisterSingleOutputPipeRun<MergeLLVMModules> P33;
@@ -121,6 +123,7 @@ static RegisterSingleOutputPipeRun<ProcessCallGraph> P35;
 static RegisterSingleOutputPipeRun<YieldCallGraph> P36;
 static RegisterFunctionPipeRun<YieldCallGraphSlice> P37;
 static RegisterFunctionPipeRun<YieldCFG> P38;
+static RegisterFunctionPipeRun<ImportDescriptiveFunctionInfo> P39;
 
 //
 // Analyses

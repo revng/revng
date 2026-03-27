@@ -111,6 +111,8 @@ def Clift_FunctionOp : Clift_Op<"func",
                        TypeAttrOf<Clift_AnyFunctionType>:$function_value_type,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs,
+                       UnitAttr:$noreturn,
+                       UnitAttr:$always_inline,
                        DefaultValuedStrAttr<StrAttr, "">:$handle);
 
   let description = [{
@@ -159,43 +161,20 @@ def Clift_FunctionOp : Clift_Op<"func",
     }
 
 
-    mlir::DictionaryAttr getArgAttrs(unsigned Index) {
-      if (auto Attrs = getArgAttrs())
-        return mlir::cast<mlir::DictionaryAttr>((*Attrs)[Index]);
-      return {};
+    mlir::clift::AttrDictView getArgAttrs(unsigned Index) {
+      std::optional<mlir::ArrayAttr> Attrs = getArgAttrs();
+      mlir::DictionaryAttr DictAttr = Attrs ?
+                        mlir::cast<mlir::DictionaryAttr>((*Attrs)[Index]) :
+                        mlir::DictionaryAttr::get(getContext());
+      return AttrDictView(DictAttr);
     }
 
-    mlir::Attribute getArgAttr(unsigned Index, llvm::StringRef Name) {
-      if (auto Attrs = getArgAttrs(Index))
-        return Attrs.get(Name);
-      return {};
-    }
-
-    template<typename AttrT>
-    AttrT getArgAttrOfType(unsigned Index, llvm::StringRef Name) {
-      if (auto Attr = getArgAttr(Index, Name))
-        return mlir::dyn_cast<AttrT>(Attr);
-      return {};
-    }
-
-
-    mlir::DictionaryAttr getResAttrs(unsigned Index) {
-      if (auto Attrs = getResAttrs())
-        return mlir::cast<mlir::DictionaryAttr>((*Attrs)[Index]);
-      return {};
-    }
-
-    mlir::Attribute getResAttr(unsigned Index, llvm::StringRef Name) {
-      if (auto Attrs = getResAttrs(Index))
-        return Attrs.get(Name);
-      return {};
-    }
-
-    template<typename AttrT>
-    AttrT getResAttrOfType(unsigned Index, llvm::StringRef Name) {
-      if (auto Attr = getResAttr(Index, Name))
-        return mlir::dyn_cast<AttrT>(Attr);
-      return {};
+    mlir::clift::AttrDictView getResAttrs(unsigned Index) {
+      std::optional<mlir::ArrayAttr> Attrs = getArgAttrs();
+      mlir::DictionaryAttr DictAttr = Attrs ?
+                        mlir::cast<mlir::DictionaryAttr>((*Attrs)[Index]) :
+                        mlir::DictionaryAttr::get(getContext());
+      return AttrDictView(DictAttr);
     }
 
 

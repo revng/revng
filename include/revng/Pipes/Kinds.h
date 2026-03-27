@@ -107,7 +107,9 @@ inline TypeKind ModelTypeDefinition("model-type-definition",
 inline pipeline::SingleElementKind
   HelpersHeader("helpers-header", Binary, ranks::Binary, {}, {});
 
-inline FunctionKind CliftFunction("clift-module", ranks::Function, {}, {});
+inline pipeline::SingleElementKind
+  CliftModule("clift-module", ranks::Binary, {}, {});
+inline FunctionKind CliftFunction("clift-functions", ranks::Function, {}, {});
 
 inline pipeline::SingleElementKind DecompiledToC("decompiled-to-c",
                                                  Binary,

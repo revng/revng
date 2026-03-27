@@ -7,7 +7,7 @@
 #include "mlir/Pass/PassManager.h"
 
 #include "revng/Pipebox/Containers.h"
-#include "revng/PipeboxCommon/CliftContainer.h"
+#include "revng/PipeboxCommon/CliftContainers.h"
 #include "revng/PipeboxCommon/Model.h"
 
 namespace revng::pypeline::piperuns {

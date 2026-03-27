@@ -4,14 +4,13 @@
 
 revng_add_analyses_library_internal(
   revngCliftPipes
-  CBackendPipe.cpp
   CliftContainer.cpp
-  ClifterPipe.cpp
-  ImportCliftTypesPipe.cpp
-  ImportModelNamesPipe.cpp
-  LegalizationPipe.cpp
-  ModelVerifyPipe.cpp
-  OptimizationPipe.cpp)
+  EmitC.cpp
+  ImportDescriptiveInfo.cpp
+  ImportTypes.cpp
+  Clifter.cpp
+  ModelVerifyClift.cpp
+  Optimization.cpp)
 
 target_link_libraries(
   revngCliftPipes

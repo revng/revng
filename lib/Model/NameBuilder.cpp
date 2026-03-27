@@ -6,7 +6,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
-#include "revng/Support/Annotations.h"
+#include "revng/PTML/CAttributes.h"
 #include "revng/Support/Identifier.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/YAMLTraits.h"

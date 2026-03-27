@@ -8,8 +8,8 @@
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CSemantics.h"
 #include "revng/CliftImportModel/ModelVerify.h"
-#include "revng/CliftPipes/CBackendPipe.h"
 #include "revng/CliftPipes/CliftContainer.h"
+#include "revng/CliftPipes/EmitC.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Containers.h"
 #include "revng/Pipes/Kinds.h"
@@ -35,11 +35,11 @@ public:
   }
 
   void run(pipeline::ExecutionContext &EC,
-           const pipes::CliftContainer &CliftContainer,
+           const pipes::CliftFunctionContainer &CliftFunctionContainer,
            pipes::DecompileStringMap &DecompiledFunctionsContainer) {
     const auto &Target = TargetCImplementation::Default;
 
-    mlir::ModuleOp Module = CliftContainer.getModule();
+    mlir::ModuleOp Module = CliftFunctionContainer.getModule();
     const auto &Model = *revng::getModelFromContext(EC);
 
     revng_assert(clift::verifyCSemantics(Module, Target).succeeded());

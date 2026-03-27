@@ -141,7 +141,7 @@ PTMLTagEmitter::emitListAttribute(llvm::StringRef Name,
       revng_assert(not Value.contains(','),
                    "List attribute values shall not contain commas.");
 
-      if (I == 0)
+      if (I != 0)
         ParentEmitter.OS << ',';
 
       emitAttributeValue(Value);

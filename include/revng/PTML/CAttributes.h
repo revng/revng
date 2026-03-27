@@ -14,7 +14,6 @@ namespace ptml {
 struct Attribute {
   std::string_view Macro;
   std::string_view Value;
-  bool IsReal = false;
 };
 
 /// Annotation is an attribute that can also encode a value
@@ -25,8 +24,11 @@ struct Annotation {
 };
 
 struct AttributeRegistry {
-  static constexpr std::array<Attribute, 3> StaticAttributes{
-    Attribute{ .Macro = "_PACKED", .Value = "packed", .IsReal = true },
+  static constexpr std::array<Attribute, 5> StaticAttributes{
+    Attribute{ .Macro = "_PACKED", .Value = "packed" },
+    Attribute{ .Macro = "_ALWAYS_INLINE", .Value = "always_inline" },
+    Attribute{ .Macro = "_NORETURN", .Value = "noreturn" },
+
     Attribute{ .Macro = "_STACK", .Value = "stack" },
     Attribute{ .Macro = "_CAN_CONTAIN_CODE", .Value = "can_contain_code" }
   };

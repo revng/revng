@@ -505,9 +505,9 @@ void PECOFFImporter::findMissingTypes(const ImporterOptions &Opts) {
       TypeCopier &TheTypeCopier = GetOrMakeACopier(Found->ModuleName);
       Fn.Prototype() = TheTypeCopier.copyTypeInto(Found->Prototype);
 
-      // Copy all the Attributes except for `Inline`.
+      // Copy all the Attributes except for `AlwaysInline`.
       for (auto &Attribute : Found->Attributes)
-        if (Attribute != model::FunctionAttribute::Inline)
+        if (Attribute != model::FunctionAttribute::AlwaysInline)
           Fn.Attributes().insert(Attribute);
     } else {
       revng_log(Log, "Not found");

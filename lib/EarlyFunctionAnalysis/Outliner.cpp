@@ -164,7 +164,6 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
   // that function.
 
   // What is the function type of the callee?
-  using namespace model::FunctionAttribute;
 
   // Inline if 1) marked as inline, 2) not the caller function itself and 3)
   // not banned from inlining
@@ -174,12 +173,14 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
     auto *T = FunctionCall->getParent()->getTerminator();
     BasicBlock *CalleeBlock = getFunctionCallCallee(T);
 
-    bool IsMarkedInline = Summary->Attributes.contains(Inline);
+    using namespace model::FunctionAttribute;
+    bool IsMarkedInline = Summary->Attributes.contains(AlwaysInline);
     bool IsCallingTheCaller = CallerFunction == Callee;
     bool IsBanned = FunctionsMap.isBanned(Callee);
     IsInline = IsMarkedInline and not IsCallingTheCaller and not IsBanned;
   }
 
+  using namespace model::FunctionAttribute;
   bool IsNoReturn = Summary->Attributes.contains(NoReturn);
 
   if (IsInline) {
@@ -347,8 +348,6 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
 
       CallToCallee[FunctionCall] = PCCallee;
 
-      using namespace model::FunctionAttribute;
-
       CallInst *JumpToSymbol = getMarker(BB, "jump_to_symbol");
       auto &&[CalleeSummary, IsTailCall] = getCallSiteInfo(FunctionAddress,
                                                            BB,
@@ -356,6 +355,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
                                                            JumpToSymbol,
                                                            PCCallee);
 
+      using namespace model::FunctionAttribute;
       bool IsNoReturn = CalleeSummary->Attributes.contains(NoReturn);
       if (IsNoReturn) {
         auto *BB = Term->getParent();
