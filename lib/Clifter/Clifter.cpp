@@ -426,6 +426,10 @@ private:
     auto FunctionType = importType<clift::FunctionType>(*Prototype);
     auto Handle = pipeline::locationString(Rank, std::forward<ArgsT>(Args)...);
 
+    // NOTE: `unwrap()` explicitly marks the entire container to have been read
+    //        exactly (so *any* change to it triggers invalidation).
+    auto Attributes = MF.Attributes().unwrap();
+
     return getOrEmitSymbol(F, [&]() -> clift::FunctionOp {
       // It is important not to query any model properties in this scope, as
       // doing so would break invalidation when the import of a function uses a
@@ -435,7 +439,7 @@ private:
                                        F->getName(),
                                        Handle,
                                        FunctionType,
-                                       MF.Attributes());
+                                       Attributes);
     });
   }
 

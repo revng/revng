@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/Support/FormatVariadic.h"
 
@@ -654,14 +655,14 @@ clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
   return CliftConverter(Context, Binary, EmitError).convertType(ModelType);
 }
 
+using AttributeSet = MutableSet<model::FunctionAttribute::Values>;
 clift::FunctionOp
 clift::importFunctionDeclaration(mlir::ModuleOp Module,
                                  mlir::Location DebugLocation,
                                  llvm::StringRef Name,
                                  llvm::StringRef Handle,
                                  clift::FunctionType Prototype,
-                                 const model::Function::TypeOfAttributes
-                                   &Attributes) {
+                                 const AttributeSet &Attributes) {
   mlir::OpBuilder Builder(Module.getContext());
   mlir::OpBuilder::InsertionGuard Guard(Builder);
   Builder.setInsertionPointToEnd(Module.getBody());
