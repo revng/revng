@@ -426,17 +426,41 @@ private:
     auto FunctionType = importType<clift::FunctionType>(*Prototype);
     auto Handle = pipeline::locationString(Rank, std::forward<ArgsT>(Args)...);
 
-    return getOrEmitSymbol(F, [&]() -> clift::FunctionOp {
-      // It is important not to query any model properties in this scope, as
-      // doing so would break invalidation when the import of a function uses a
-      // declaration already emitted during the import of previous function.
+    // NOTE: `unwrap()` explicitly marks the entire container to have been read
+    //        exactly (so *any* change to it triggers invalidation).
+    auto Attributes = MF.Attributes().unwrap();
+
+    // NOTE: no matter what, do not capture `MF`!
+    auto ImportImpl = [F, FunctionType, Handle, Attributes, this]() // format
+      -> clift::FunctionOp {
+      // WARNING: DO NOT QUERY MODEL PROPERTIES WITHIN THIS SCOPE.
+      //
+      // It is very important not to query any tracked model properties within
+      // this scope, as doing so would break invalidation when the import of
+      // a function uses a declaration already emitted during the import of
+      // a previous function.
+      //
+      // To be more precise, this problem arises when:
+      //
+      // 1. The Clifter imports the definition of function F1, where F1 uses
+      //    some other function G. At this point a declaration of G is created
+      //    in this scope.
+      //
+      // 2. The Clifter imports the definition of function F2, where F2 also
+      //    uses G. At this point the declaration of G has already been created
+      //    and this scope is not entered a second time.
+      //
+      // If model properties were queried within this scope, those accesses
+      // would not be tracked during the import of the definition of F2, and
+      // so changes to G would fail to correctly invalidate F2.
       return importFunctionDeclaration(CurrentModule,
                                        getLocation(F->getSubprogram()),
                                        F->getName(),
                                        Handle,
                                        FunctionType,
-                                       MF.Attributes());
-    });
+                                       Attributes);
+    };
+    return getOrEmitSymbol(F, ImportImpl);
   }
 
   clift::FunctionOp emitIsolatedFunctionDeclaration(const llvm::Function *F,

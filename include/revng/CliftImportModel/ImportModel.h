@@ -9,6 +9,7 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Types.h"
 
+#include "revng/ADT/MutableSet.h"
 #include "revng/Clift/Clift.h"
 #include "revng/Model/Binary.h"
 
@@ -41,7 +42,8 @@ importFunctionDeclaration(mlir::ModuleOp Module,
                           llvm::StringRef Name,
                           llvm::StringRef Handle,
                           clift::FunctionType Prototype,
-                          const model::Function::TypeOfAttributes &Attributes);
+                          const MutableSet<model::FunctionAttribute::Values>
+                            &Attributes);
 
 /// Convert the specified model segment into a clift variable.
 ///

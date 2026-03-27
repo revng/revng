@@ -720,9 +720,9 @@ void FunctionType::print(mlir::AsmPrinter &Printer) const {
 
   Printer << ")";
 
-  if (not getAttributes().empty()) {
-    llvm::ArrayRef<mlir::Attribute> Attributes = { getAttributes().begin(),
-                                                   getAttributes().end() };
+  if (not getCAttributes().empty()) {
+    llvm::ArrayRef<mlir::Attribute> Attributes = { getCAttributes().begin(),
+                                                   getCAttributes().end() };
 
     Printer << '\n';
     Printer.printAttribute(mlir::ArrayAttr::get(getContext(), Attributes));
@@ -791,7 +791,7 @@ static void writeType(clift::FunctionType Type,
   Writer.writeList(Type.getArgumentTypes(),
                    [&](mlir::Type Type) { Writer.writeType(Type); });
 
-  Writer.writeList(Type.getAttributes(),
+  Writer.writeList(Type.getCAttributes(),
                    [&](mlir::clift::CAttributeAttr Attribute) {
                      Writer.writeAttribute(Attribute);
                    });
@@ -1016,9 +1016,9 @@ static void printClassType(TypeT Type, mlir::AsmPrinter &Printer) {
   }
   Printer << "}";
 
-  if (not Type.getDefinition().getAttributes().empty()) {
+  if (not Type.getDefinition().getCAttributes().empty()) {
     llvm::SmallVector<mlir::Attribute> Attributes;
-    for (mlir::Attribute Attribute : Type.getDefinition().getAttributes())
+    for (mlir::Attribute Attribute : Type.getDefinition().getCAttributes())
       Attributes.emplace_back(Attribute);
 
     Printer << '\n';
@@ -1253,7 +1253,7 @@ writeClassDefinition(TypeT Type, mlir::DialectBytecodeWriter &Writer) {
     Writer.writeOwnedString(Field.getComment());
   });
 
-  Writer.writeList(Type.getAttributes(),
+  Writer.writeList(Type.getCAttributes(),
                    [&](mlir::clift::CAttributeAttr Attribute) {
                      Writer.writeAttribute(Attribute);
                    });
