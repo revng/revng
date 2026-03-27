@@ -11,14 +11,14 @@
 
 namespace revng::pypeline::piperuns {
 
-class LLVMToClift {
+class Clifter {
 private:
   const model::Binary &Binary;
   const LLVMFunctionContainer &Input;
   CliftFunctionContainer &Output;
 
 public:
-  static constexpr llvm::StringRef Name = "llvm-to-clift";
+  static constexpr llvm::StringRef Name = "clifter";
   using Arguments = TypeList<PipeRunArgument<const LLVMFunctionContainer,
                                              "Input",
                                              "Input LLVM module(s) to be "
@@ -29,11 +29,11 @@ public:
                                              "Clift dialect",
                                              Access::Write>>;
 
-  LLVMToClift(const class Model &Model,
-              llvm::StringRef Config,
-              llvm::StringRef DynamicConfig,
-              const LLVMFunctionContainer &Input,
-              CliftFunctionContainer &Output);
+  Clifter(const class Model &Model,
+          llvm::StringRef Config,
+          llvm::StringRef DynamicConfig,
+          const LLVMFunctionContainer &Input,
+          CliftFunctionContainer &Output);
 
   void runOnFunction(const model::Function &Function);
 };

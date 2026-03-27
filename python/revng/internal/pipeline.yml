@@ -341,7 +341,7 @@ branches:
             - inline-divergent-scopes
             - enforce-single-exit
             - materialize-trivial-goto
-      - pipe: llvm-to-clift
+      - pipe: clifter
         arguments: [llvm-functions, clift-functions]
       - pipe: pure-mlir-passes-pipe
         arguments: [clift-functions]

@@ -111,7 +111,7 @@ static RegisterFunctionPipeRun<LegacySegregateStackAccesses> P23;
 static RegisterFunctionPipeRun<MakeSegmentRef> P24;
 static RegisterFunctionPipeRun<SegregateStackAccesses> P25;
 static RegisterFunctionPipeRun<SwitchToStatements> P26;
-static RegisterFunctionPipeRun<LLVMToClift> P27;
+static RegisterFunctionPipeRun<Clifter> P27;
 static RegisterPipe<PureMLIRPassesPipe> P28;
 static RegisterFunctionPipeRun<ModelVerifyClift> P29;
 static RegisterSingleOutputPipeRun<ImportDescriptiveInfo> P30;

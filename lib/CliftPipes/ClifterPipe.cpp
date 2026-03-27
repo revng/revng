@@ -14,9 +14,9 @@ namespace clift = mlir::clift;
 
 namespace {
 
-class LLVMToCliftPipe {
+class ClifterPipe {
 public:
-  static constexpr auto Name = "llvm-to-clift";
+  static constexpr auto Name = "clifter";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
@@ -56,22 +56,22 @@ public:
   }
 };
 
-static pipeline::RegisterPipe<LLVMToCliftPipe> X;
+static pipeline::RegisterPipe<ClifterPipe> X;
 
 } // namespace
 
 namespace revng::pypeline::piperuns {
 
-LLVMToClift::LLVMToClift(const class Model &Model,
-                         llvm::StringRef Config,
-                         llvm::StringRef DynamicConfig,
-                         const LLVMFunctionContainer &Input,
-                         CliftFunctionContainer &Output) :
+Clifter::Clifter(const class Model &Model,
+                 llvm::StringRef Config,
+                 llvm::StringRef DynamicConfig,
+                 const LLVMFunctionContainer &Input,
+                 CliftFunctionContainer &Output) :
   Binary(*Model.get().get()), Input(Input), Output(Output) {
   Output.getContext().loadDialect<clift::CliftDialect>();
 }
 
-void LLVMToClift::runOnFunction(const model::Function &Function) {
+void Clifter::runOnFunction(const model::Function &Function) {
   ObjectID Object(Function.Entry());
   const llvm::Module &Module = Input.getModule(Object);
   const llvm::Function
