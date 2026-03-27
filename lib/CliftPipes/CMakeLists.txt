@@ -9,7 +9,6 @@ revng_add_analyses_library_internal(
   ClifterPipe.cpp
   ImportTypesPipe.cpp
   ImportDescriptiveInfoPipe.cpp
-  LegalizationPipe.cpp
   ModelVerifyPipe.cpp
   OptimizationPipe.cpp)
 
