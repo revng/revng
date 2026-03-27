@@ -195,7 +195,7 @@ public:
                               Definition.Comment,
                               Definition.Size,
                               Allocator.copyInto(Definition.Fields),
-                              Allocator.copyInto(Definition.Attributes));
+                              Allocator.copyInto(Definition.CAttributes));
 
     return mlir::success();
   }

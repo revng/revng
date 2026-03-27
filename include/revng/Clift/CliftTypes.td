@@ -263,7 +263,7 @@ def Clift_FunctionType
                         "mlir::clift::MutableStringAttr":$mutable_comment,
                         "mlir::Type":$return_type,
                         OptionalArrayRefParameter<"mlir::Type">:$argument_types,
-                        OptionalArrayRefParameter<"mlir::clift::CAttributeAttr">:$attributes);
+                        OptionalArrayRefParameter<"mlir::clift::CAttributeAttr">:$c_attributes);
 
   let builders = [
     TypeBuilder<(ins "llvm::StringRef":$Handle,
@@ -271,14 +271,14 @@ def Clift_FunctionType
                      "mlir::clift::MutableStringAttr":$Comment,
                      "mlir::clift::ValueType":$ReturnType,
                      "llvm::ArrayRef<mlir::clift::ValueType>":$ArgumentTypes,
-                     "llvm::ArrayRef<mlir::clift::CAttributeAttr>":$Attributes), [{
+                     "llvm::ArrayRef<mlir::clift::CAttributeAttr>":$CAttributes), [{
       return $_get($_ctxt,
                    Handle,
                    Name,
                    Comment,
                    ReturnType,
                    llvm::SmallVector<mlir::Type, 16>(ArgumentTypes),
-                   Attributes);
+                   CAttributes);
     }]>,
   ];
 
@@ -356,8 +356,8 @@ class Clift_ClassTypeBase<string name, string mnemonic>
       return getDefinition().getFields();
     }
 
-    llvm::ArrayRef<mlir::clift::CAttributeAttr> getAttributes() const {
-      return getDefinition().getAttributes();
+    llvm::ArrayRef<mlir::clift::CAttributeAttr> getCAttributes() const {
+      return getDefinition().getCAttributes();
     }
 
     // AliasableType

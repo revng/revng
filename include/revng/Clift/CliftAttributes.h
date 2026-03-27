@@ -79,18 +79,18 @@ struct ClassDefinition {
 
   uint64_t Size;
   llvm::ArrayRef<FieldAttr> Fields;
-  llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes;
+  llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes;
 
   ClassDefinition(MutableStringAttr Name,
                   MutableStringAttr Comment,
                   uint64_t Size,
                   llvm::ArrayRef<FieldAttr> Fields,
-                  llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) :
+                  llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes) :
     Name(Name),
     Comment(Comment),
     Size(Size),
     Fields(Fields),
-    Attributes(Attributes) {}
+    CAttributes(CAttributes) {}
 
   MutableStringAttr getMutableName() const { return Name; }
   MutableStringAttr getMutableComment() const { return Comment; }
@@ -99,8 +99,8 @@ struct ClassDefinition {
 
   llvm::ArrayRef<FieldAttr> getFields() const { return Fields; }
 
-  llvm::ArrayRef<mlir::clift::CAttributeAttr> getAttributes() const {
-    return Attributes;
+  llvm::ArrayRef<mlir::clift::CAttributeAttr> getCAttributes() const {
+    return CAttributes;
   }
 
   friend bool operator==(const ClassDefinition &,
@@ -208,8 +208,8 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
 
   uint64_t getSize() const { return getDefinition().getSize(); }
 
-  llvm::ArrayRef<mlir::clift::CAttributeAttr> getAttributes() const {
-    return getDefinition().getAttributes();
+  llvm::ArrayRef<mlir::clift::CAttributeAttr> getCAttributes() const {
+    return getDefinition().getCAttributes();
   }
 };
 
@@ -275,8 +275,8 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
 
   uint64_t getSize() const;
 
-  llvm::ArrayRef<mlir::clift::CAttributeAttr> getAttributes() const {
-    return getDefinition().getAttributes();
+  llvm::ArrayRef<mlir::clift::CAttributeAttr> getCAttributes() const {
+    return getDefinition().getCAttributes();
   }
 };
 
