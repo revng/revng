@@ -462,29 +462,6 @@ mlir::LogicalResult FunctionOp::verify() {
     return mlir::success();
   });
 
-  for (uint64_t Index = 0; Index < getArgCount(); ++Index) {
-    uint64_t RegAttributeCount = 0;
-    uint64_t StackAttributeCount = 0;
-
-    mlir::clift::AttrDictView View = getArgAttrs(Index);
-    if (auto CAs = View.getOfType<mlir::ArrayAttr>("clift.c_attributes")) {
-      for (mlir::Attribute CAttribute : CAs) {
-        auto AttrName = mlir::cast<mlir::clift::CAttributeAttr>(CAttribute)
-                          .getName()
-                          .getName();
-        if (AttrName == "_REG")
-          ++RegAttributeCount;
-        else if (AttrName == "_STACK")
-          ++StackAttributeCount;
-      }
-    }
-
-    revng_assert(RegAttributeCount <= 1 and StackAttributeCount <= 1);
-    if (RegAttributeCount + StackAttributeCount > 1)
-      return emitOpError() << "An argument is not allowed to specify *both* "
-                              " `_REG` and `_STACK` attributes.";
-  }
-
   return mlir::failure(Result.wasInterrupted());
 }
 

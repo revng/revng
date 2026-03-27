@@ -205,6 +205,33 @@ private:
                                             "definition: '"
                                          << Op.getHandle() << "'";
 
+    for (unsigned Index = 0; Index < Op.getArgCount(); ++Index) {
+      bool IsStack = false;
+      bool IsRegister = false;
+
+      mlir::clift::AttrDictView View = Op.getArgAttrs(Index);
+      if (auto CAs = View.getOfType<mlir::ArrayAttr>("clift.c_attributes")) {
+        for (mlir::Attribute CAttribute : CAs) {
+          auto AttrName = mlir::cast<clift::CAttributeAttr>(CAttribute)
+                            .getName()
+                            .getName();
+
+          if (AttrName == "_STACK" and std::exchange(IsStack, true))
+            return getCurrentOp()->emitError() << "Function argument contains "
+                                                  "duplicate _STACK attribute.";
+
+          if (AttrName == "_REG" and std::exchange(IsRegister, true))
+            return getCurrentOp()->emitError() << "Function argument contains "
+                                                  "duplicate _REG attribute.";
+
+          if (IsStack and IsRegister)
+            return getCurrentOp()->emitError() << "Function argument contains "
+                                                  "both _STACK and _REG "
+                                                  "attributes.";
+        }
+      }
+    }
+
     return mlir::success();
   }
 
