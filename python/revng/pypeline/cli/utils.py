@@ -5,12 +5,16 @@
 import os
 import re
 import sys
+from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Callable, Optional, cast
 from urllib.parse import urlparse
 
 import click
+from click_option_group import GroupedOption, OptionGroup
+from click_option_group._core import _GroupTitleFakeOption
+from click_option_group._helpers import get_fake_option_name, resolve_wrappers
 
 from revng.pypeline.cli.context import ClickContext
 from revng.pypeline.container import ContainerDeclaration
@@ -320,3 +324,66 @@ def detect_autocomplete(ctx: click.Context) -> bool:
         "_{}_COMPLETE".format(get_root_command_name(ctx).upper()) in os.environ
         or "autocomplete" in sys.argv
     )
+
+
+def add_group_option_fake_title(command: click.Command, group: OptionGroup):
+    """
+    This functions adds the fake title command-line "option" to allow printing
+    the option group title when outputting the help page. This is equivalent of
+    what the `@optgroup.group` decorator does but can be applied to an
+    already-created command.
+    """
+    command.params.append(_GroupTitleFakeOption((get_fake_option_name(),), group=group))
+
+
+def create_option(group: OptionGroup, command: click.Command, *args, **kwargs):
+    """Create a GroupedOption and add it to the specified option group"""
+    option = GroupedOption(*args, **kwargs, group=group)
+    assert command.callback is not None
+    group._options[resolve_wrappers(command.callback)][option.name] = option
+    return option
+
+
+def sort_option_groups(command: click.Command):
+    """
+    When using the click-option-group decorators, the code assumes the decorator
+    ordering (bottom-to-top). This is reversed once click constructs the
+    `Command` object. To make the output nice we read `command.params` and
+    re-order them so that they are in this order:
+    1. Positional arguments
+    2. Option group tile
+    3. Option group options
+    4. Repeat 2-3 for each option group
+    5. Ungrouped options
+    """
+
+    # Positional arguments
+    arguments: list[click.Argument] = []
+    # Grouped options
+    option_groups: dict[OptionGroup, list[click.Option]] = defaultdict(list)
+    # Ungrouped options
+    options: list[click.Option] = []
+
+    for param in command.params:
+        if isinstance(param, click.Argument):
+            arguments.append(param)
+        elif isinstance(param, _GroupTitleFakeOption):
+            # click-option-group does not expose the `__group` attribute, so
+            # we need to retrieve it manually
+            group = getattr(param, f"{param.__class__.__name__}__group")
+            option_groups[group].insert(0, param)
+        elif isinstance(param, GroupedOption):
+            option_groups[param.group].append(param)
+        else:
+            assert isinstance(param, click.Option)
+            assert not isinstance(param, GroupedOption)
+            options.append(param)
+
+    # Construct the new `params` list
+    new_params: list[click.Parameter] = cast(list[click.Parameter], arguments.copy())
+    for group, group_options in option_groups.items():
+        new_params.extend(group_options)
+    new_params.extend(options)
+
+    # Assign the re-ordered list to the command
+    command.params = new_params
