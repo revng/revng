@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -21,6 +22,32 @@ from .cli.pipeline import pipeline
 from .cli.project import project
 from .cli.utils import EagerParsedPath, PypeGroup, detect_autocomplete, get_root_command_name
 from .utils.logger import pypeline_logger
+
+
+class WideHelpFormatter(click.HelpFormatter):
+    def __init__(self, *args, **kwargs):
+        # Click by default clamps the terminal width to 78 characters (80 - 2),
+        # force the actual terminal width minus 2 to have some margin
+        terminal_width = shutil.get_terminal_size()[0] - 2
+        # Now initialize the formatter with the computed value
+        super().__init__(width=terminal_width, max_width=terminal_width)
+        # Maintain the proportion of 30 columns over a 80 column screen
+        # This value is used to set the maximum column size of the flags column
+        # in the help
+        self.col_max = int(terminal_width * 0.375)
+
+    def write_dl(
+        self,
+        rows: Sequence[tuple[str, str]],
+        col_max: int | None = None,
+        col_spacing: int = 2,
+    ) -> None:
+        if col_max is None:
+            col_max = self.col_max
+        super().write_dl(rows, col_max, col_spacing)
+
+
+click.Context.formatter_class = WideHelpFormatter
 
 
 def import_pipebox(module_path: str, is_autocomplete: bool) -> object:
