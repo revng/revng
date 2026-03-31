@@ -228,6 +228,21 @@ PointerArithmeticBuilder::computePointerArithmetic(ExpressionOpInterface
     return std::nullopt;
   }
 
+  // We skip every replacement where the `PointerToReplace` is equal to the
+  // `BasePointer`. Replacing such expression would create a circular reference:
+  // the new `clift.subscript` uses the `BasePointer` as operand, and
+  // `replaceAllUsesWith` would replace the `BasePointer` uses with the new
+  // `clift.subscript` result, and this insert the circular reference between
+  // mlir `Value`s.
+  if (PointerToReplace->getResult(0) == Result->BasePointer) {
+
+    // We expect this situation only for empty `Result->Offset`
+    const auto &Offset = Result->Offset;
+    revng_assert(Offset.BaseOffset.isZero()
+                 and Offset.LinearCombination.empty());
+    return std::nullopt;
+  }
+
   // Verify invariants for the obtained `PointerArithmetic`
   revng_assert(not Result or Result->verify());
 
