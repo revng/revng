@@ -21,7 +21,7 @@ pype = "revng.pypeline.main:run"
 [tool.setuptools.package-data]
 revng = [
     "pypeline/schema.yml",
-    "pypeline/web_schema.yml"
+    "pypeline/pipeline-description-schema.yml"
 ]
 
 [build-system]

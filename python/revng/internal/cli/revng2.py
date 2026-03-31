@@ -14,7 +14,7 @@ import shlex
 import signal
 import sys
 from pathlib import Path
-from typing import IO, Any, AsyncContextManager
+from typing import IO, Any, AsyncContextManager, Iterable
 
 import click
 import yaml
@@ -23,7 +23,9 @@ from click.shell_completion import CompletionItem
 from revng.internal.support import cache_directory
 from revng.pypeline.analysis import Analysis
 from revng.pypeline.cli.common_options import container_format_options, debug_option
-from revng.pypeline.cli.common_options import project_id_option, token_option
+from revng.pypeline.cli.common_options import project_id_option, show_hidden_artifact_options
+from revng.pypeline.cli.common_options import token_option
+from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.pipeline import pipeline
 from revng.pypeline.cli.project import project
 from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, build_arg_objects
@@ -73,40 +75,48 @@ def generate_model_with_binaries(binaries: list[Path]):
     envvar="PYPELINE_PIPELINE",
     show_default=True,
 )
-@click.pass_context
+@pass_context
 def quick(
-    ctx: click.Context,
-    pipeline: Path,
+    ctx: ClickContext,
+    pipeline: Pipeline,
 ):
-    if ctx.obj is None:
-        ctx.obj = {}
     # Store the params so the subcommands can access them
-    ctx.obj.update({"pipeline": pipeline})
+    ctx.obj.pipeline = pipeline
 
 
 class ArtifactArgument(click.Argument):
     class ArtifactChoice(click.ParamType):
-        def convert(self, value, param, ctx):
+        def convert(self, value, param, ctx: ClickContext):  # type: ignore
             if isinstance(value, Artifact):
                 return value
 
-            artifacts = ctx.obj["pipeline"].artifacts
+            artifacts = ctx.obj.pipeline.artifacts
             if value in artifacts:
                 return artifacts[value]
             else:
                 self.fail(f"{value} is not one of " + ", ".join(sorted(artifacts)))
 
         def shell_complete(self, ctx, param, incomplete: str) -> list[CompletionItem]:
-            artifacts = ctx.obj["pipeline"].artifacts
+            artifacts = ctx.obj.pipeline.artifacts
             matched = (a for a in artifacts if a.startswith(incomplete))
             return [CompletionItem(c) for c in sorted(matched)]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, type=self.__class__.ArtifactChoice())
 
-    def get_help_record(self, ctx: click.Context) -> tuple[str, str] | None:
+    def get_help_record(self, ctx: ClickContext) -> tuple[str, str] | None:  # type: ignore
         text = "One of the following:\n\n\b\n"
-        for artifact in sorted(ctx.obj["pipeline"].artifacts):
+        artifacts: Iterable[str]
+        if ctx.obj.show_hidden_artifacts:
+            artifacts = ctx.obj.pipeline.artifacts.keys()
+        else:
+            artifacts = [
+                artifact_name
+                for artifact_name, artifact in ctx.obj.pipeline.artifacts.items()
+                if artifact.category.show_by_default
+            ]
+
+        for artifact in sorted(artifacts):
             text += f"* {artifact}\n"
         return (self.make_metavar(ctx), text)
 
@@ -195,6 +205,7 @@ analyses_option = click.option(
 @debug_option
 @analyses_option
 @container_format_options
+@show_hidden_artifact_options
 @exec_wrapper_if_needed
 @click.pass_context
 def artifact(
@@ -208,7 +219,7 @@ def artifact(
 ):
     pypeline_logger.debug_log(f'Running artifact: "{artifact}"')
     pypeline_logger.debug_log(f'container_format: "{container_format}"')
-    pipeline: Pipeline = ctx.obj["pipeline"]
+    pipeline: Pipeline = ctx.obj.pipeline
 
     async def async_part_of_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
@@ -237,7 +248,7 @@ def artifact(
 
             if result_path is not None:
                 pypeline_logger.debug_log(f'Writing result to: "{result_path}"')
-                res_container.to_file(result_path, container_format)
+                res_container.to_file(result_path, container_format=container_format)
             else:
                 # Write to stdout the bytes of the container
                 sys.stdout.buffer.write(res_container.to_bytes(container_format=container_format))
@@ -245,7 +256,7 @@ def artifact(
 
     storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
     storage_provider_context = storage_provider_factory.get(
-        ctx.obj["base_directory"], None, None, None
+        ctx.obj.base_directory, None, None, None
     )
     asyncio.run(async_part_of_command(storage_provider_context))
 
@@ -285,13 +296,13 @@ def analyze(
 
             # Run initial auto analysis
             model = handle_analysis_argument(
-                ctx.obj["pipeline"], analyses, binary, storage_provider, runner_context
+                ctx.obj.pipeline, analyses, binary, storage_provider, runner_context
             )
             output_file.write(model.serialize())
 
     storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
     storage_provider_context = storage_provider_factory.get(
-        ctx.obj["base_directory"], None, None, None
+        ctx.obj.base_directory, None, None, None
     )
     asyncio.run(async_part_of_command(storage_provider_context))
 
@@ -310,12 +321,18 @@ def analyze(
 @project_id_option
 @token_option
 @exec_wrapper_if_needed
-@click.pass_context
-def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: str, token: str):
+@pass_context
+def init(
+    ctx: ClickContext,
+    binary: Path | None,
+    no_initial_auto_analysis: bool,
+    project_id: str,
+    token: str,
+):
     """Initialize a new project."""
     model_type = get_singleton(Model)  # type: ignore[type-abstract]
     model_name = model_type.model_name()
-    model_file = ctx.obj["base_directory"] / model_name
+    model_file = ctx.obj.base_directory / model_name
     if model_file.exists():
         raise click.UsageError(
             f"File {model_name} is already present in the current directory. "
@@ -336,7 +353,7 @@ def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: s
     async def async_part_of_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
     ):
-        pipeline = ctx.obj["pipeline"]
+        pipeline = ctx.obj.pipeline
         async with storage_provider_context as storage_provider:
             model = model_type.deserialize(model_raw)[0]
             analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
@@ -349,12 +366,12 @@ def init(ctx, binary: Path | None, no_initial_auto_analysis: bool, project_id: s
                 storage_provider=storage_provider,
             )
 
-    storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
+    storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
     storage_provider_context = storage_provider_factory.get(
-        base_directory=ctx.obj["base_directory"],
+        base_directory=ctx.obj.base_directory,
         project_id=project_id,
         token=token,
-        cache_dir=ctx.obj["cache_dir"],
+        cache_dir=ctx.obj.cache_dir,
     )
     asyncio.run(async_part_of_command(storage_provider_context))
 
@@ -394,7 +411,7 @@ WRAPPER_REGISTRY.register_wrappers(
 
 
 def _generate_load_arguments(ctx):
-    native_libraries: list[Path] = ctx.obj["pipebox"]._native_libraries
+    native_libraries: list[Path] = ctx.obj.pipebox._native_libraries
     return [f"-load={p.resolve()!s}" for p in native_libraries]
 
 
@@ -408,7 +425,7 @@ class RunPipeNativeGroup(PypeGroup):
 
     @staticmethod
     def _get_pipes(ctx) -> dict[str, type[Pipe]]:
-        return ctx.obj["pipebox"]._native_pipes
+        return ctx.obj.pipebox._native_pipes
 
     def list_commands(self, ctx):
         base = super().list_commands(ctx)
@@ -473,7 +490,7 @@ class RunAnalysisNativeGroup(PypeGroup):
 
     @staticmethod
     def _get_analyses(ctx) -> dict[str, type[Analysis]]:
-        return ctx.obj["pipebox"]._native_analyses
+        return ctx.obj.pipebox._native_analyses
 
     def list_commands(self, ctx):
         base = super().list_commands(ctx)
@@ -544,7 +561,7 @@ def patch_pype():
         if param.name == "pipeline":
             param.default = Path(__file__).parent.parent / "pipeline.yml"
         elif param.name == "cache_dir":
-            param.default = cache_directory()
+            param.default = str(cache_directory())
 
     # Add native counterparts to the pipeline subcommand
     pipeline.add_command(run_pipe_native)

@@ -4,8 +4,9 @@
 
 import logging
 import socket
-import threading
 import time
+from multiprocessing import Process
+from signal import SIGTERM
 from tempfile import TemporaryDirectory
 
 import requests
@@ -34,7 +35,6 @@ class StarletteTestServer(TestServer):
     def __init__(self, port=None, storage_provider_url: str = "memory://"):
         super().__init__()
         self.port = port or find_free_port()
-        self.server_thread = None
         self.base_url = f"http://127.0.0.1:{self.port}"
         self.project_id = "test_project_id"
         self.storage_provider_url = storage_provider_url
@@ -46,16 +46,26 @@ class StarletteTestServer(TestServer):
         self.session = requests.Session()
         self.session.headers["X-Projectid"] = self.project_id
 
-        # The server thread has to be a daemon so when the tests finish it will
+        # The server daemon has to be a daemon so when the tests finish it will
         # be killed. But this silences the exceptions, so if it fails, you need
         # to run it manually to fix them.
-        self.server_thread = threading.Thread(target=self._run_server, daemon=True)
-        self.server_thread.start()
+        self.server_process: Process | None = Process(target=self._run_server, daemon=True)
+        self.server_process.start()
         self._wait_for_server()
+
+    def __del__(self):
+        self.stop()
+
+    def stop(self):
+        if self.server_process is not None:
+            self.server_process.terminate()
+            self.server_process.join()
+            assert self.server_process.exitcode in (0, -SIGTERM)
+            self.server_process = None
 
     def _run_server(self):
         """
-        This is the thread that calls the cli to spawn the daemon.
+        This runs in a separate process that calls the cli to spawn the daemon.
         Beware that if it raises an exception it will not be print on stdout or
         stderr, so if the daemon doesn't start, try to run it manually.
         """
@@ -63,7 +73,7 @@ class StarletteTestServer(TestServer):
         main(
             (
                 "-C",
-                self.tmp_dir_path,
+                self.tmp_dir.name,
                 "--pipebox",
                 self.pipebox_path,
                 "project",
@@ -98,61 +108,40 @@ class StarletteTestServer(TestServer):
         logger.info("Getting epoch")
         r = self.session.get(f"{self.base_url}/api/epoch")
         logger.info("Epoch response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
+        return Response(code=r.status_code, body=r.json())
 
     def get_pipeline(self) -> Response:
         logger.info("Getting pipeline")
         r = self.session.get(f"{self.base_url}/api/pipeline")
         logger.info("Pipeline response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
+        return Response(code=r.status_code, body=r.json())
 
     def get_model(self) -> Response:
         logger.info("Getting model")
         r = self.session.get(f"{self.base_url}/api/model")
         logger.info("Model response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
+        return Response(code=r.status_code, body=r.json())
 
-    def get_monitoring(self) -> Response:
-        logger.info("Getting model")
-        r = self.session.get(f"{self.base_url}/api/monitoring")
-        logger.info("Monitoring response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
+    def put_file(self, put_file_request) -> Response:
+        logger.info("Putting file in storage with request %s", put_file_request)
+        r = self.session.post(
+            f"{self.base_url}/api/put-file",
+            files={"file": (put_file_request["name"], put_file_request["contents"])},
         )
+        logger.info("put_file response: %s", r.text)
+        return Response(code=r.status_code, body=r.json())
 
     def run_analysis(self, analysis_request) -> Response:
         logger.info("Running analysis with request %s", analysis_request)
-        r = self.session.post(
-            f"{self.base_url}/api/analysis",
-            json=analysis_request,
-        )
+        r = self.session.post(f"{self.base_url}/api/analysis", json=analysis_request)
         logger.info("Analysis response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
+        return Response(code=r.status_code, body=r.json())
 
     def get_artifact(self, artifact_request) -> Response:
         logger.info("Getting Artifact with request %s", artifact_request)
-        r = self.session.post(
-            f"{self.base_url}/api/artifact",
-            json=artifact_request,
-        )
+        r = self.session.post(f"{self.base_url}/api/artifact", json=artifact_request)
         logger.info("Artifact response: %s", r.text)
-        return Response(
-            code=r.status_code,
-            body=r.json(),
-        )
+        return Response(code=r.status_code, body=r.json())
 
     def subscribe(self):
         return websockets.sync.client.connect(

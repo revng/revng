@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from hashlib import sha256
 
 # Import the pipebox, even if unused it will populate the registries
 import pipebox as _  # noqa: F401
@@ -37,14 +38,14 @@ def storage_provider_url(request):
 def daemon_server(request, storage_provider_url):
     """Fixture that provides a running daemon server for testing."""
     if request.param == "json":
-        return JsonTestServer(
-            storage_provider_url=storage_provider_url,
-        )
+        instance = JsonTestServer(storage_provider_url=storage_provider_url)
     elif request.param == "starlette":
-        return StarletteTestServer(
-            storage_provider_url=storage_provider_url,
-        )
-    raise ValueError(f"Unknown daemon type {request.param}")
+        instance = StarletteTestServer(storage_provider_url=storage_provider_url)
+    else:
+        raise ValueError(f"Unknown daemon type {request.param}")
+
+    yield instance
+    instance.stop()
 
 
 def test_daemon(daemon_server: TestServer):
@@ -61,20 +62,27 @@ def test_daemon(daemon_server: TestServer):
     response = daemon_server.get_pipeline()
     pipeline_data = response.body
     assert "version" in pipeline_data
+    assert "model" in pipeline_data
     assert "containers" in pipeline_data
     assert "kinds" in pipeline_data
-    assert "container_declarations" in pipeline_data
-    assert "root" in pipeline_data
+    assert "container_types" in pipeline_data
+    assert "root_node_id" in pipeline_data
     assert "nodes" in pipeline_data
     assert "artifacts" in pipeline_data
     assert "analyses" in pipeline_data
     assert "analyses_lists" in pipeline_data
     assert pipeline_data["version"] == revng.__version__
 
+    # Validate model metadata
+    model_metadata = pipeline_data["model"]
+    assert model_metadata["is_text"] is True
+    assert model_metadata["mime_type"] == "application/x-yaml"
+    assert model_metadata["name"] == "model.yml"
+
     # Validate containers structure (containers have "class" field)
     containers = pipeline_data["containers"]
-    assert isinstance(containers, list)
-    container_classes = [c["class"] for c in containers]
+    assert isinstance(containers, dict)
+    container_classes = list(containers.values())
     expected_containers = ["RootDictContainer", "ChildDictContainer"]
     for expected in expected_containers:
         assert expected in container_classes, f"Expected container {expected} not found"
@@ -93,10 +101,17 @@ def test_daemon(daemon_server: TestServer):
     assert response.code == 200
     model_data = response.body
     assert "epoch" in model_data
-    assert "is_text" in model_data
     assert "model" in model_data
-    assert model_data["is_text"]  # DictModel is text-based
     initial_model = model_data["model"]
+
+    # Test put_file endpoint
+    logger.info("Testing put_file endpoint")
+    contents = b"Hello world!"
+    response = daemon_server.put_file({"name": "test", "contents": contents})
+    assert response.code == 200
+    put_file_data = response.body
+    assert put_file_data["name"] == "test"
+    assert put_file_data["hash"] == sha256(contents).hexdigest()
 
     # Connect to the websocket
     notifications_websocket = daemon_server.subscribe()
@@ -144,12 +159,12 @@ def test_daemon(daemon_server: TestServer):
     # Test artifact endpoint - request ChildArtifact
     logger.info("Testing artifact endpoint")
     response = daemon_server.get_artifact(
-        {"epoch": new_epoch, "artifacts": {"ChildArtifact": {}}}  # Empty data for the artifact
+        {"epoch": new_epoch, "artifact": "ChildArtifact"}  # Empty data for the artifact
     )
     assert response.code == 200
     artifact_data = response.body
-    assert "artifacts" in artifact_data
-    assert "ChildArtifact" in artifact_data["artifacts"]
+    for element in ("one", "two", "three"):
+        assert f"/CHILD/{element}" in artifact_data
 
     # Test another analysis - PurgeAllAnalysis
     logger.info("Testing PurgeAllAnalysis")
@@ -181,19 +196,15 @@ def test_daemon(daemon_server: TestServer):
     )
     assert response.code == 400
     error_data = response.body
-    assert "msg" in error_data
-    assert "available_analyses" in error_data
+    assert "message" in error_data
 
     # Test error handling - invalid artifact
     logger.info("Testing error handling with invalid artifact")
-    response = daemon_server.get_artifact(
-        {"epoch": final_epoch, "artifacts": {"NonExistentArtifact": {}}}
-    )
+    response = daemon_server.get_artifact({"epoch": final_epoch, "artifact": "NonExistentArtifact"})
     logger.info("NonExistentArtifact response: %s", response.body)
     assert response.code == 400
     error_data = response.body
-    assert "msg" in error_data
-    assert "available_artifacts" in error_data
+    assert "message" in error_data
 
     # Verify final state
     logger.info("Verifying final daemon state")

@@ -2,11 +2,15 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+artifact_categories:
+  - name: main
+    show-by-default: true
+
 containers:
   - name: string-container
     type: RootStringContainer
 
-analysis_lists:
+analysis-lists:
   - name: initial-auto-analysis
     analyses:
       - AppendFooLibAnalysis2
@@ -24,3 +28,4 @@ branches:
         artifacts:
           - name: output
             container: string-container
+            category: main

@@ -11,6 +11,8 @@ from typing import Any, Callable, Mapping
 
 import click
 
+from revng.pypeline.cli.context import ClickContext
+
 from .utils import PypeCommand
 
 
@@ -29,19 +31,19 @@ class WrapperOption:
             self.name = name
             self.prefix_generator = prefix_generator
 
-        def convert(self, value, param, ctx):
+        def convert(self, value, param, ctx: ClickContext):  # type: ignore
             if not value:
                 return
 
-            if ctx.obj.get("wrapper") is not None:
-                wrapper: Wrapper = ctx.obj["wrapper"]
+            if ctx.obj.wrapper is not None:
+                wrapper: Wrapper = ctx.obj.wrapper
                 raise click.UsageError(
                     f"option {param.get_error_hint(ctx)} is incompatible with "
                     f"{wrapper.param.get_error_hint(ctx)}, use one or the other",
                     ctx,
                 )
 
-            ctx.obj["wrapper"] = Wrapper(param, self.prefix_generator(value))
+            ctx.obj.wrapper = Wrapper(param, self.prefix_generator(value))
 
     def __init__(
         self,
@@ -114,7 +116,7 @@ def exec_wrapper_if_needed(obj):
     @functools.wraps(target_function)
     def wrapper(*args, **kwargs):
         ctx = click.get_current_context()
-        wrapper: Wrapper | None = ctx.obj.get("wrapper")
+        wrapper: Wrapper | None = ctx.obj.wrapper
         # If there is no wrapper or we're already wrapped call the function normally
         if wrapper is None or os.environ.get("_PYPE_WRAPPER") == "1":
             return target_function(*args, **kwargs)
@@ -134,7 +136,7 @@ def exec_with_wrapper(args: list[str], env: Mapping[str, str] | None = None):
     if env is None:
         env = os.environ
     ctx = click.get_current_context()
-    wrapper: Wrapper | None = ctx.obj.get("wrapper")
+    wrapper: Wrapper | None = ctx.obj.wrapper
     if wrapper is not None:
         args = [*wrapper.prefix, *args]
     os.execvpe(args[0], args, env)

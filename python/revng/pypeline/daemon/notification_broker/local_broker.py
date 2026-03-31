@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections import defaultdict
 
 from revng.pypeline.storage.storage_provider import ProjectID
@@ -16,12 +15,13 @@ from . import NotificationBroker, NotificationSubscriber, Stream
 
 class LocalNotificationBroker(NotificationBroker):
     def __init__(self):
-        self._lock = asyncio.Lock()
-        self.subscribers: Locked[dict[ProjectID, Locked[set[NotificationSubscriber]]]] = Locked(
-            defaultdict(lambda: Locked(set()))
+        self.subscribers: Locked[dict[ProjectID | None, Locked[set[NotificationSubscriber]]]] = (
+            Locked(defaultdict(lambda: Locked(set())))
         )
 
-    async def subscribe(self, project_id: ProjectID, stream: Stream) -> NotificationSubscriber:
+    async def subscribe(
+        self, project_id: ProjectID | None, stream: Stream
+    ) -> NotificationSubscriber:
         subscriber = NotificationSubscriber(project_id, stream)
 
         async with self.subscribers() as subscribers:
@@ -41,7 +41,7 @@ class LocalNotificationBroker(NotificationBroker):
         subscriber.close()
         pypeline_logger.debug_log(f"Stream unsubscribed from project {subscriber.project_id}")
 
-    async def notify(self, project_id: ProjectID, message: str):
+    async def notify(self, project_id: ProjectID | None, message: str):
         async with self.subscribers() as subscribers:
             if project_id not in subscribers:
                 pypeline_logger.debug_log(f"No subscribers for project {project_id}")

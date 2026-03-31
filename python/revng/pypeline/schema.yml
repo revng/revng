@@ -12,12 +12,26 @@ $defs:
       - branches
     additionalProperties: false
     properties:
+      artifact_categories:
+        type: array
+        items:
+          type: object
+          required:
+            - name
+            - show-by-default
+          properties:
+            name:
+              type: string
+              description: Name of the artifact category
+            show-by-default:
+              type: boolean
+              description: Whether to show the artifact by default
       containers:
         type: array
         uniqueItems: true
         items:
           $ref: "#/$defs/container_decl"
-      analysis_lists:
+      analysis-lists:
         $ref: "#/$defs/analysis_lists"
       analyses:
         type: array
@@ -174,6 +188,26 @@ $defs:
         type: string
         description: The container that will produce the artifact.
         example: my_container
+      category:
+        type: string
+        description: >
+          The category of the artifact, must be one of the ones specified in
+          'artifact_categories'. Specifying categories makes this field compulsory.
       description:
         type: string
         description: The description of the artifact that will appear in the CLI help.
+      filename:
+        type: string
+        description: The filename to use when representing this artifact
+      defined_locations:
+        type: array
+        description: PTML locations that are present in this artifact
+        items:
+          type: string
+      preferred_artifacts:
+        type: array
+        description: >
+          other artifacts where it's preferred to look for definitions of
+          locations defined in this one
+        items:
+          type: string

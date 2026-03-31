@@ -4,13 +4,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import chain
-from typing import Dict, Generator, Generic, Iterable, List, Mapping, Optional, Set, TypeVar
+from typing import Dict, Generator, Iterable, List, Mapping, Optional, Set
 
 import yaml
 
 from revng.pypeline.runner_context import RunnerContext
+from revng.pypeline.utils import PypelineException
 
 from .analysis import AnalysisBinding, AnalysisList
 from .container import Container, ContainerDeclaration
@@ -32,6 +33,15 @@ from .utils.registry import get_singleton
 
 
 @dataclass(frozen=True, slots=True)
+class ArtifactCategory:
+    name: str
+    show_by_default: bool
+
+    def to_dict(self) -> dict:
+        return {"name": self.name, "show_by_default": self.show_by_default}
+
+
+@dataclass(frozen=True, slots=True)
 class Artifact:
     """
     An artifact is a container in a certain point of the pipeline with some extra
@@ -44,26 +54,38 @@ class Artifact:
     name: str
     node: PipelineNode
     container: ContainerDeclaration
+    category: ArtifactCategory
     description: Optional[str] = None
+    filename: str | None = None
+    # TODO: this should be a property of the pipe that inserts the locations,
+    # but for now we define it statically as a property of the artifact.
+    defined_locations: list[str] = field(default_factory=list, hash=False)
+    preferred_artifacts: list[str] = field(default_factory=list, hash=False)
 
     def is_cacheable(self) -> bool:
         """An artifact is cacheable if it's backed by a savepoint."""
         return isinstance(self.node.task, SavePoint)
 
+    def pipe_dependencies(self) -> list[str]:
+        return sorted({p.name for p in self.node.pipe_dependencies})
+
     def to_dict(self) -> dict:
         """Convert the artifact to a dictionary representation."""
-        return {
+        result = {
             "name": self.name,
-            "container_name": self.container.name,
-            "container_type": self.container.container_type.__name__,
+            "container": self.container.name,
             "cacheable": self.is_cacheable(),
+            "pipe_dependencies": self.pipe_dependencies(),
+            "category": self.category.to_dict(),
+            "defined_locations": self.defined_locations,
+            "preferred_artifacts": self.preferred_artifacts,
         }
+        if self.filename is not None:
+            result["filename"] = self.filename
+        return result
 
 
-C = TypeVar("C", bound=Model)
-
-
-class Pipeline(Generic[C]):
+class Pipeline:
     """
     A pipeline is a tree of tasks.
 
@@ -164,12 +186,14 @@ class Pipeline(Generic[C]):
                 self.savepoint_id_to_name[node.savepoint_range.start] = node.task.name
 
         for name, artifact in self.artifacts.items():
-            self.savepoint_id_to_artifact[artifact.node.id] = artifact
             if name != artifact.name:
                 raise ValueError(
                     f"Artifact name {artifact.name} does not match the key "
                     f"{name} in the artifacts map."
                 )
+            if isinstance(artifact.node.task, SavePoint):
+                assert artifact.node.savepoint_range is not None
+                self.savepoint_id_to_artifact[artifact.node.savepoint_range.start] = artifact
 
     @staticmethod
     def assign_savepoint_ranges(node: PipelineNode, current_id: int = 0) -> int:
@@ -465,10 +489,18 @@ class Pipeline(Generic[C]):
             f" Expected {(analysis_list.analyses)}, got {len(analysis_configuration)}."
         )
 
+        for analysis_name in analysis_list.analyses:
+            if analysis_name not in self.analyses:
+                raise PypelineException(f"Analysis {analysis_name} not found in the pipeline")
+
+            if not self.analyses[analysis_name].analysis.is_available():
+                raise PypelineException(
+                    f"Analysis list {analysis_list.name} cannot be run "
+                    f"because analysis {analysis_name} is not available"
+                )
+
         for analysis_name, analysis_config in zip(analysis_list.analyses, analysis_configuration):
             pypeline_logger.debug_log(f"Running analysis {analysis_name}")
-            if analysis_name not in self.analyses:
-                raise ValueError(f"Analysis {analysis_name} not found in the pipeline")
             analysis = self.analyses[analysis_name]
             # Build the requests for the analysis
             requests = Requests()
@@ -484,7 +516,11 @@ class Pipeline(Generic[C]):
                 storage_provider=storage_provider,
                 runner_context=runner_context,
             )
-            total_invalidated.update(invalidated)
+            for location, objects in invalidated.items():
+                if location in total_invalidated:
+                    total_invalidated[location] = total_invalidated[location] | objects
+                else:
+                    total_invalidated[location] = objects
             model = ReadOnlyModel(new_model)
 
         return new_model, total_invalidated
@@ -505,21 +541,24 @@ class Pipeline(Generic[C]):
         in the storage provider.
         """
         if analysis_name not in self.analyses:
-            raise ValueError(f"Analysis {analysis_name} not found in the pipeline")
+            raise PypelineException(f"Analysis {analysis_name} not found in the pipeline")
         analysis_info = self.analyses[analysis_name]
 
         if len(requests) != len(analysis_info.bindings):
-            raise ValueError(
+            raise PypelineException(
                 f"Expected {len(analysis_info.bindings)} requests for analysis "
                 f"{analysis_name}, but got {len(requests)}: {requests}"
             )
 
         for req in requests:
             if req not in analysis_info.bindings:
-                raise ValueError(
+                raise PypelineException(
                     f"Request {req} but it's not compatible with in the "
                     f"analysis bindings: {analysis_info.bindings}"
                 )
+
+        if not analysis_info.analysis.is_available():
+            raise PypelineException(f"Analysis {analysis_name} is not available")
 
         schedule = self.schedule(
             model=model,

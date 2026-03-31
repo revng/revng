@@ -9,8 +9,11 @@ from typing import AsyncContextManager
 import click
 
 from revng.pypeline.cli.common_options import container_format_options, debug_option
-from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
-from revng.pypeline.cli.utils import PypeGroup, build_help_text, normalize_whitespace
+from revng.pypeline.cli.common_options import list_objects_option, project_id_option
+from revng.pypeline.cli.common_options import show_hidden_artifact_options, token_option
+from revng.pypeline.cli.context import ClickContext, pass_context
+from revng.pypeline.cli.utils import PypeGroup, build_help_text, detect_autocomplete
+from revng.pypeline.cli.utils import normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import ReadOnlyModel
@@ -27,17 +30,20 @@ class ArtifactGroup(PypeGroup):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    def list_commands(self, ctx):
+    def list_commands(self, ctx: ClickContext):  # type: ignore
         base = super().list_commands(ctx)
-        pipeline = ctx.obj.get("pipeline")
-        if pipeline is None:
-            return base
-        return base + sorted(pipeline.artifacts.keys())
+        pipeline = ctx.obj.pipeline
+        if ctx.obj.show_hidden_artifacts or detect_autocomplete(ctx):
+            return base + sorted(pipeline.artifacts.keys())
+        else:
+            result = [*base]
+            for artifact_name, artifact in pipeline.artifacts.items():
+                if artifact.category.show_by_default:
+                    result.append(artifact_name)
+            return sorted(result)
 
-    def get_command(self, ctx, cmd_name):
-        pipeline = ctx.obj.get("pipeline")
-        if pipeline is None:
-            return super().get_command(ctx, cmd_name)
+    def get_command(self, ctx, cmd_name):  # type: ignore
+        pipeline = ctx.obj.pipeline
         if cmd_name not in pipeline.artifacts:
             return super().get_command(ctx, cmd_name)
         return self._build_artifact_command(
@@ -154,7 +160,7 @@ def build_artifact_command(
 
             if result_path is not None:
                 pypeline_logger.debug_log(f'Writing result to: "{result_path}"')
-                res_container.to_file(result_path, container_format)
+                res_container.to_file(result_path, container_format=container_format)
             else:
                 # Write to stdout the bytes of the container
                 sys.stdout.buffer.write(res_container.to_bytes(container_format=container_format))
@@ -184,9 +190,9 @@ def build_artifact_command(
     @debug_option
     @container_format_options
     @exec_wrapper_if_needed
-    @click.pass_context
+    @pass_context
     def run_artifact_command(
-        ctx: click.Context,
+        ctx: ClickContext,
         configuration: str,
         project_id: str,
         token: str,
@@ -202,12 +208,12 @@ def build_artifact_command(
         pypeline_logger.debug_log(f'kwargs: "{kwargs}"')
 
         # Setup the storage provider
-        storage_provider_factory = storage_provider_factory_factory(ctx.obj["storage_provider"])
+        storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
         storage_provider_context = storage_provider_factory.get(
-            base_directory=ctx.obj["base_directory"],
+            base_directory=ctx.obj.base_directory,
             project_id=project_id,
             token=token,
-            cache_dir=ctx.obj["cache_dir"],
+            cache_dir=ctx.obj.cache_dir,
         )
         # Switch to the async portion
         asyncio.run(
@@ -228,5 +234,6 @@ def build_artifact_command(
     cls=ArtifactGroup,
     help="Compute an Artifact",
 )
+@show_hidden_artifact_options
 def artifact() -> None:
     pass

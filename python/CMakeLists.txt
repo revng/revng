@@ -418,6 +418,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/cli/project/daemon.py
     revng/pypeline/cli/__init__.py
     revng/pypeline/cli/common_options.py
+    revng/pypeline/cli/context.py
     revng/pypeline/cli/utils.py
     revng/pypeline/cli/wrappers.py
     revng/pypeline/analysis.py
@@ -428,13 +429,14 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/object.py
     revng/pypeline/pipeline_node.py
     revng/pypeline/pipeline_parser.py
+    revng/pypeline/pipeline-description-schema.yml
     revng/pypeline/pipeline.py
     revng/pypeline/runner_context.py
     revng/pypeline/schema.yml
-    revng/pypeline/web_schema.yml
     revng/pypeline/daemon/__init__.py
     revng/pypeline/daemon/app.py
     revng/pypeline/daemon/daemon.py
+    revng/pypeline/daemon/exceptions.py
     revng/pypeline/daemon/notification_broker/__init__.py
     revng/pypeline/daemon/notification_broker/local_broker.py
     revng/pypeline/daemon/utils.py
@@ -454,6 +456,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/task/savepoint.py
     revng/pypeline/task/task.py
     revng/pypeline/utils/default_dict_from_key.py
+    revng/pypeline/utils/pipeline.py
     revng/pypeline/utils/registry.py
     revng/pypeline/utils/logger.py
     revng/pypeline/utils/cabc.py
@@ -468,6 +471,11 @@ python_module(
   revng/pypeline/__init__.py
   MODULE_FILES
   ${REVNG_PYPELINE_MODULE_FILES})
+
+configure_file(
+  revng/pypeline/pipeline-description-schema.yml
+  "${CMAKE_BINARY_DIR}/share/revng/pipeline/pipeline-description-schema.yml"
+  COPYONLY)
 
 #
 # Nanobind module generation and creation of revng.internal.{,_}cpp_pypeline

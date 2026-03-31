@@ -230,7 +230,8 @@ function populateNav(element: HTMLElement) {
 // showHours=false => MM:ss.mmm
 // showHours=true  => hh:MM:ss.mmm
 function formatTime(elapsedSeconds: number, showHours: boolean): string {
-    const seconds = elapsedSeconds % 60;
+    const milliseconds = elapsedSeconds.toFixed(3).split(".", 2)[1];
+    const seconds = padNumber(Math.floor(elapsedSeconds % 60), 2);
     let minutes = 0;
     let hours = 0;
     if (showHours) {
@@ -239,7 +240,7 @@ function formatTime(elapsedSeconds: number, showHours: boolean): string {
     } else {
         minutes = Math.floor(elapsedSeconds / 60);
     }
-    let res = padNumber(minutes, 2) + ":" + padNumber(truncate(seconds, 3), 2);
+    let res = `${padNumber(minutes, 2)}:${seconds}.${milliseconds}`;
     if (showHours) {
         res = padNumber(hours, 2) + ":" + res;
     }

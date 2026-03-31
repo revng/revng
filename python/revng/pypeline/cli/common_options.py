@@ -7,6 +7,7 @@ from pathlib import Path
 import click
 from click.core import ParameterSource
 
+from revng.pypeline.cli.context import ClickContext
 from revng.pypeline.cli.utils import EagerParsedPath
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.runner_context import RunnerContext
@@ -15,7 +16,7 @@ from revng.pypeline.runner_context import RunnerContext
 project_id_option = click.option(
     "--project-id",
     type=str,
-    help=("Project id to use for the storage provider."),
+    help="Project id to use for the storage provider.",
     envvar="PYPELINE_PROJECT_ID",
     show_default=True,
 )
@@ -84,7 +85,7 @@ def container_format_options(func):
         default=ContainerFormat.YAML.value,
         show_default=True,
         callback=handle_format_option,
-        help=("Format to use for the output container, either on stdout or in the result path."),
+        help="Format to use for the output container, either on stdout or in the result path.",
     )(func)
     for member in ContainerFormat:
         func = click.option(
@@ -97,9 +98,8 @@ def container_format_options(func):
     return func
 
 
-def _parse_debug_option(path: str, ctx):
-    pipebox = ctx.obj["pipebox"]
-    return RunnerContext(True, pipebox.argv_hook, Path(path))
+def _parse_debug_option(path: str, ctx: ClickContext):
+    return RunnerContext(True, ctx.obj.pipebox.argv_hook, Path(path))
 
 
 debug_option = click.option(
@@ -123,4 +123,20 @@ debug_option = click.option(
     ),
     default=EagerParsedPath.DEFAULT,
     show_default=False,
+)
+
+
+class _ShowHiddenArtifactsParameter(click.ParamType):
+    def convert(self, value, param, ctx):
+        if value:
+            ctx.obj.show_hidden_artifacts = True
+
+
+show_hidden_artifact_options = click.option(
+    "--show-hidden-artifacts",
+    is_flag=True,
+    type=_ShowHiddenArtifactsParameter(),
+    is_eager=True,
+    expose_value=False,
+    help="Also show artifacts hidden by default",
 )

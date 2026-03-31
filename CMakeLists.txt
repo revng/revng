@@ -410,7 +410,8 @@ add_custom_command(
     "${CMAKE_SOURCE_DIR}/python/revng/internal/cli/_commands/process_docs_yaml/artifacts.md.tpl"
     < "${CMAKE_SOURCE_DIR}/share/revng/pipelines/revng-pipelines.yml" >
     share/doc/revng/references/artifacts.md
-  COMMAND ${MKDOCS} build --quiet --strict --site-dir mkdocs-output
+  COMMAND env NO_MKDOCS_2_WARNING=1 ${MKDOCS} build --quiet --strict --site-dir
+          mkdocs-output
   COMMAND rm -rf "${HTML_DOCS_PATH}"
   COMMAND mv -T mkdocs-output "${HTML_DOCS_PATH}"
   COMMENT "Generating mkdocs")
