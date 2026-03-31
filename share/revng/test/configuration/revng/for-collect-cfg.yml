@@ -8,7 +8,7 @@ commands:
       - type: revng-qa.compiled
         filter: for-collect-cfg and !stripped
     command: |-
-      revng2 quick artifact --analyses=parse-binary,detect-abi emit-cfg "$INPUT" -- --debug-names |
+      revng2 quick artifact emit-cfg --analyses=parse-binary,detect-abi "$INPUT" -- --debug-names |
         yq -r '.[] | values' |
         yq -sy . |
         ./filter.py |
