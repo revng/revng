@@ -106,8 +106,15 @@ def to_bytes(input_: ToBytesInput) -> Generator[bytes, None, None]:
         # Test to exclude things like stdin
         if input_.seekable():
             offset = input_.tell()
-            with mmap.mmap(input_.fileno(), 0, access=mmap.ACCESS_READ, offset=offset) as mm:
-                yield cast(bytes, mm)
+            # mmap throws an error if the file is empty, check for the file
+            # size by seeking to the end
+            size = input_.seek(0, os.SEEK_END)
+            input_.seek(offset)
+            if size == 0:
+                yield b""
+            else:
+                with mmap.mmap(input_.fileno(), 0, access=mmap.ACCESS_READ, offset=offset) as mm:
+                    yield cast(bytes, mm)
         else:
             result = input_.read()
             if isinstance(result, str):
