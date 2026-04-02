@@ -603,7 +603,20 @@ private:
       // complete.
       RequireComplete = false;
 
-      rc_return make<clift::PointerType>(rc_recur fromType(*P->PointeeType(),
+      const model::Type *PointeeType = P->PointeeType().get();
+
+      // NOTE: This is a hack to work around the fact that using arrays it is
+      //       possible to create cyclic types that are unrepresentable in C.
+      //       This can happen when, for example, a struct S has a field
+      //       pointing to an array of S. C requires the element of an array
+      //       type to be complete, but it cannot be because the array type is
+      //       needed in the definition of its element type. Due to the
+      //       difficulty of detecting these cases, all pointers to arrays of T
+      //       are instead converted to pointers to T in the import to Clift.
+      while (auto AT = llvm::dyn_cast<model::ArrayType>(PointeeType))
+        PointeeType = AT->ElementType().get();
+
+      rc_return make<clift::PointerType>(rc_recur fromType(*PointeeType,
                                                            RequireComplete),
                                          P->PointerSize(),
                                          P->IsConst());
