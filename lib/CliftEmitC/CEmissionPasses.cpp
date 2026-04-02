@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <functional>
+
 #include "llvm/Support/ToolOutputFile.h"
 
 #include "mlir/Pass/Pass.h"
@@ -23,7 +25,10 @@ namespace clift = mlir::clift;
 
 namespace {
 
-struct EmitCPass : clift::impl::CliftEmitCBase<EmitCPass> {
+template<template<typename> typename BaseT, auto Impl>
+struct CEmissionPass : BaseT<CEmissionPass<BaseT, Impl>> {
+  using Base = BaseT<CEmissionPass<BaseT, Impl>>;
+
   static std::unique_ptr<llvm::ToolOutputFile>
   tryOpenOutputFile(llvm::StringRef Filename) {
     std::string ErrorMessage;
@@ -38,26 +43,32 @@ struct EmitCPass : clift::impl::CliftEmitCBase<EmitCPass> {
   }
 
   void runOnOperation() override {
-    auto File = tryOpenOutputFile(Output);
-    if (not File) {
-      signalPassFailure();
-      return;
-    }
+    auto File = tryOpenOutputFile(Base::Output);
+    if (not File)
+      return Base::signalPassFailure();
 
-    const auto &Target = TargetCImplementation::Default;
-
-    auto Tagging = static_cast<ptml::Tagging>(EmitTags.getValue());
+    auto Tagging = static_cast<ptml::Tagging>(Base::EmitTags.getValue());
     ptml::CTokenEmitter Emitter(File->os(), Tagging);
 
-    getOperation()->walk([&Emitter](clift::FunctionOp Function) {
-      if (not Function.isExternal())
-        clift::decompile(Function, Emitter, Target);
-    });
+    if (not std::invoke(Impl, Base::getOperation(), Emitter))
+      return Base::signalPassFailure();
   }
 };
 
 } // namespace
 
 clift::PassPtr<mlir::ModuleOp> clift::createEmitCPass() {
-  return std::make_unique<EmitCPass>();
+  static constexpr auto Impl = [](mlir::ModuleOp Module,
+                                  ptml::CTokenEmitter &Emitter) {
+    const auto &Target = TargetCImplementation::Default;
+
+    Module->walk([&Emitter](clift::FunctionOp Function) {
+      if (not Function.isExternal())
+        clift::decompile(Function, Emitter, Target);
+    });
+
+    return true;
+  };
+
+  return std::make_unique<CEmissionPass<impl::CliftEmitCBase, Impl>>();
 }
