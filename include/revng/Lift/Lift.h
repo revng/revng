@@ -217,8 +217,11 @@ public:
 public:
   static llvm::Error checkPrecondition(const class Model &Model);
 
+  static bool requiresCustomInvalidation(const ModelDiff &Diff);
+
   static std::vector<std::set<ObjectID>>
-  invalidate(const InvalidationData &Data, const ModelDiff &Diff);
+  processCustomInvalidation(const InvalidationData &Data,
+                            const ModelDiff &Diff);
 };
 
 } // namespace revng::pypeline::piperuns

@@ -53,7 +53,10 @@ concept HasPipeRunInvalidate = requires(const T &A,
                                         const revng::pypeline::InvalidationData
                                           &ID,
                                         const ModelDiff &Diff) {
-  { T::invalidate(ID, Diff) } -> std::same_as<std::vector<std::set<ObjectID>>>;
+  { T::requiresCustomInvalidation(Diff) } -> std::same_as<bool>;
+  {
+    T::processCustomInvalidation(ID, Diff)
+  } -> std::same_as<std::vector<std::set<ObjectID>>>;
 };
 
 } // namespace detail
@@ -81,12 +84,18 @@ public:
     return T::checkPrecondition(Model);
   }
 
-  std::vector<std::set<ObjectID>>
-  invalidate(const revng::pypeline::InvalidationData &ID,
-             const ModelDiff &Diff) const
+  bool requiresCustomInvalidation(const ModelDiff &Diff) const
     requires detail::HasPipeRunInvalidate<T>
   {
-    return T::invalidate(ID, Diff);
+    return T::requiresCustomInvalidation(Diff);
+  }
+
+  std::vector<std::set<ObjectID>>
+  processCustomInvalidation(const revng::pypeline::InvalidationData &ID,
+                            const ModelDiff &Diff) const
+    requires detail::HasPipeRunInvalidate<T>
+  {
+    return T::processCustomInvalidation(ID, Diff);
   }
 
 protected:

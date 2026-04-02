@@ -179,10 +179,14 @@ concept HasCheckPrecondition = requires(const T &A, const Model &Model) {
 
 /// Optional method that a pipe can implement
 template<typename T>
-concept HasInvalidate = requires(const T &A,
-                                 const revng::pypeline::InvalidationData &ID,
-                                 const ModelDiff &Diff) {
-  { A.invalidate(ID, Diff) } -> std::same_as<std::vector<std::set<ObjectID>>>;
+concept HasCustomInvalidation = requires(const T &A,
+                                         const revng::pypeline::InvalidationData
+                                           &ID,
+                                         const ModelDiff &Diff) {
+  { A.requiresCustomInvalidation(Diff) } -> std::same_as<bool>;
+  {
+    A.processCustomInvalidation(ID, Diff)
+  } -> std::same_as<std::vector<std::set<ObjectID>>>;
 };
 
 //

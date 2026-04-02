@@ -620,6 +620,10 @@ class Pipeline:
             if not node.task.has_custom_invalidation():
                 continue
 
+            # Run the prelimiary check for the pipe
+            if not node.task.requires_custom_invalidation(diff):
+                continue
+
             # Fetch the custom invalidation data from storage
             configuration_id = node.configuration_id(configuration)
             invalidation_data = storage_provider.get_custom_invalidation_data(
@@ -633,7 +637,7 @@ class Pipeline:
                 continue
 
             # Run the pipe's invalidate
-            objects_to_invalidate = node.task.invalidate(invalidation_data, diff)
+            objects_to_invalidate = node.task.process_custom_invalidation(invalidation_data, diff)
             # Convert the invalidated objects in a pipeline-friendly format
             for index, objects in enumerate(objects_to_invalidate):
                 container_decl = node.argument_declarations[index]
