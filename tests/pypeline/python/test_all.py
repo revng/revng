@@ -24,7 +24,7 @@ from revng.pypeline.pipeline import AnalysisBinding, Artifact, ArtifactCategory,
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.schedule.scheduled_task import ScheduledTask
+from revng.pypeline.schedule.scheduled_task import SavepointScheduledTask
 from revng.pypeline.storage.local_provider import LocalStorageProvider
 from revng.pypeline.storage.memory import InMemoryStorageProvider
 from revng.pypeline.storage.storage_provider import ContainerLocation, SavePointsRange
@@ -220,7 +220,7 @@ def test_pipeline_inplace(model, storage_provider):
     container.add_object(MyObjectID(MyKind.CHILD, "one"))
     container.add_object(MyObjectID(MyKind.CHILD, "two"))
     begin_configuration_id = begin_node.configuration_id(configuration)
-    task = ScheduledTask(
+    task = SavepointScheduledTask(
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
@@ -294,7 +294,7 @@ def test_pipeline_up_down(model, storage_provider):
     container = RootDictContainer()
     container.add_object(MyObjectID.root())
     requests = Requests({root1: root_obj})
-    task = ScheduledTask(
+    task = SavepointScheduledTask(
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
@@ -346,7 +346,7 @@ def test_artifact(model, storage_provider):
     container = ChildDictContainer()
     container.add_object(MyObjectID(MyKind.CHILD, "one"))
     requests = Requests({child1: one})
-    task = ScheduledTask(
+    task = SavepointScheduledTask(
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
@@ -612,7 +612,7 @@ def test_schedule_serdes(model):
     container = RootDictContainer()
     container.add_object(MyObjectID.root())
     requests = Requests({root1: root_obj})
-    task = ScheduledTask(
+    task = SavepointScheduledTask(
         begin_node,
         ReadOnlyModel(model),
         storage_provider,

@@ -4,7 +4,8 @@
 
 from __future__ import annotations
 
-from typing import Generator
+from abc import ABC, abstractmethod
+from typing import Generator, cast
 
 from revng.pypeline.container import ContainerDeclaration, ContainerSet
 from revng.pypeline.model import ReadOnlyModel
@@ -17,12 +18,14 @@ from revng.pypeline.task.savepoint import SavePoint
 from revng.pypeline.task.task import TaskArgumentAccess
 
 
-class ScheduledTask:
+class ScheduledTask(ABC):
     """
     The scheduling works by figuring out which tasks to run, and which dependencies
     each task can fulfill.
 
-    The schedule is stored as a Directed Acyclic Graph (DAG) of ScheduledTask objects.
+    The schedule is stored as a Directed Acyclic Graph (DAG) of
+    ScheduledTask objects (which are specialized for the task that will be
+    executed: PipeScheduledTask and SavepointScheduledTask).
 
     While the schedule is originally a path of the pipeline tree, we can apply
     transformations to it that can make it a DAG. An example of this is kind of
@@ -92,6 +95,11 @@ class ScheduledTask:
         self.incoming.merge(incoming)
         self.outgoing.merge(outgoing)
 
+    @abstractmethod
+    def _run_impl(
+        self, containers: ContainerSet, runner_context: RunnerContext
+    ) -> ScheduledTaskDependencies | None: ...
+
     def run(
         self, containers: ContainerSet, runner_context: RunnerContext
     ) -> ScheduledTaskDependencies | None:
@@ -103,75 +111,10 @@ class ScheduledTask:
 
         self.incoming.check(containers)
 
-        task = self.node.task
-        result: ScheduledTaskDependencies | None = None
-
         for container_declaration in self.disposable_containers:
             containers[container_declaration].set_is_disposable()
 
-        if isinstance(task, SavePoint):
-            assert (
-                self.node.savepoint_range is not None
-            ), "SavePoint range must be set before calling run on a SavePoint"
-            task.run(
-                containers=containers,
-                incoming=self.incoming,
-                outgoing=self.outgoing,
-                configuration_id=self.node.configuration_id(self.configuration),
-                storage_provider=self.storage_provider,
-                savepoint_range=self.node.savepoint_range,
-            )
-            # SavePoints do not return any dependencies
-        elif isinstance(task, Pipe):
-            bindings = self.node.bindings
-            pipe_containers = [containers[decl] for decl in bindings]
-            pipe_incoming = [self.incoming.get(decl) for decl in bindings]
-            pipe_outgoing = [self.outgoing.get(decl) for decl in bindings]
-            configuration = self.configuration.get(task, "")
-
-            pipe_output = runner_context.run_pipe(
-                pipe=task,
-                file_provider=StorageProviderFileProvider(self.storage_provider),
-                model=self.model,
-                containers=pipe_containers,
-                incoming=pipe_incoming,
-                outgoing=pipe_outgoing,
-                configuration=configuration,
-            )
-
-            for index, decl in enumerate(bindings):
-                containers[decl] = pipe_containers[index]
-
-            result_pipe: ObjectDependencies = []
-            for index, index_deps in enumerate(pipe_output.dependencies):
-                container_type = task.signature()[index]
-                if container_type.access == TaskArgumentAccess.READ:
-                    assert len(index_deps) == 0, (
-                        "An read only container cannot produce new objects so it can't add "
-                        f"dependencies. For container {container_type.name} got dependencies "
-                        f"{index_deps}"
-                    )
-                result_pipe.extend(
-                    (self.node.bindings[index].name, obj, path) for obj, path in index_deps
-                )
-
-            # Check if the pipe output
-            if not all(len(x) == 0 for x in pipe_output.custom_invalidation):
-                assert task.has_custom_invalidation(), (
-                    f"Pipe {task.name} returned advanced invalidation data"
-                    "but did not override the 'invalidate' method"
-                )
-                for index, invalidation in enumerate(pipe_output.custom_invalidation):
-                    argument = task.signature()[index]
-                    if argument.access == TaskArgumentAccess.READ:
-                        assert len(invalidation) == 0, (
-                            f"Pipe {task.name} returned advanced "
-                            "invalidation data for a read-only container"
-                        )
-
-            result = ScheduledTaskDependencies(result_pipe, pipe_output.custom_invalidation)
-        else:
-            raise TypeError(f"Unsupported task type: {type(task)}")
+        result = self._run_impl(containers, runner_context)
 
         self.outgoing.check(containers)
         self.completed = True
@@ -197,3 +140,81 @@ class ScheduledTask:
         Two instances of the same task will have different ids, and thus different hashes.
         """
         return hash(id(self))
+
+
+class PipeScheduledTask(ScheduledTask):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        assert isinstance(self.node.task, Pipe)
+
+    def _run_impl(
+        self, containers: ContainerSet, runner_context: RunnerContext
+    ) -> ScheduledTaskDependencies:
+        task: Pipe = cast(Pipe, self.node.task)
+        bindings = self.node.bindings
+        pipe_containers = [containers[decl] for decl in bindings]
+        pipe_incoming = [self.incoming.get(decl) for decl in bindings]
+        pipe_outgoing = [self.outgoing.get(decl) for decl in bindings]
+        configuration = self.configuration.get(task, "")
+
+        pipe_output = runner_context.run_pipe(
+            pipe=task,
+            file_provider=StorageProviderFileProvider(self.storage_provider),
+            model=self.model,
+            containers=pipe_containers,
+            incoming=pipe_incoming,
+            outgoing=pipe_outgoing,
+            configuration=configuration,
+        )
+
+        for index, decl in enumerate(bindings):
+            containers[decl] = pipe_containers[index]
+
+        result_pipe: ObjectDependencies = []
+        for index, index_deps in enumerate(pipe_output.dependencies):
+            container_type = task.signature()[index]
+            if container_type.access == TaskArgumentAccess.READ:
+                assert len(index_deps) == 0, (
+                    "An read only container cannot produce new objects so it can't add "
+                    f"dependencies. For container {container_type.name} got dependencies "
+                    f"{index_deps}"
+                )
+            result_pipe.extend(
+                (self.node.bindings[index].name, obj, path) for obj, path in index_deps
+            )
+
+        # Check if the pipe output
+        if not all(len(x) == 0 for x in pipe_output.custom_invalidation):
+            assert task.has_custom_invalidation(), (
+                f"Pipe {task.name} returned advanced invalidation data"
+                "but did not override the 'invalidate' method"
+            )
+            for index, invalidation in enumerate(pipe_output.custom_invalidation):
+                argument = task.signature()[index]
+                if argument.access == TaskArgumentAccess.READ:
+                    assert len(invalidation) == 0, (
+                        f"Pipe {task.name} returned advanced "
+                        "invalidation data for a read-only container"
+                    )
+
+        return ScheduledTaskDependencies(result_pipe, pipe_output.custom_invalidation)
+
+
+class SavepointScheduledTask(ScheduledTask):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        assert isinstance(self.node.task, SavePoint)
+
+    def _run_impl(self, containers: ContainerSet, runner_context: RunnerContext) -> None:
+        task: SavePoint = cast(SavePoint, self.node.task)
+        assert (
+            self.node.savepoint_range is not None
+        ), "SavePoint range must be set before calling run on a SavePoint"
+        task.run(
+            containers=containers,
+            incoming=self.incoming,
+            outgoing=self.outgoing,
+            configuration_id=self.node.configuration_id(self.configuration),
+            storage_provider=self.storage_provider,
+            savepoint_range=self.node.savepoint_range,
+        )

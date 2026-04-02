@@ -18,7 +18,7 @@ from revng.pypeline.object import Kind, ObjectID, ObjectSet
 from revng.pypeline.pipeline import AnalysisBinding, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.schedule.scheduled_task import ScheduledTask
+from revng.pypeline.schedule.scheduled_task import SavepointScheduledTask
 from revng.pypeline.storage.memory import InMemoryStorageProvider
 from revng.pypeline.storage.storage_provider import ContainerLocation
 from revng.pypeline.task.pipe import Pipe
@@ -159,7 +159,7 @@ def check_simple_pipeline():
     foo_bar_request = Requests({child_cont: ObjectSet.from_list([foo, bar])})
 
     # Pre-populate the storage
-    task = ScheduledTask(
+    task = SavepointScheduledTask(
         begin_node,
         ReadOnlyModel(model),
         storage_provider,

@@ -20,7 +20,7 @@ from .model import Model, ModelDiff, ReadOnlyModel
 from .object import ObjectID, ObjectSet
 from .pipeline_node import PipelineConfiguration, PipelineNode
 from .schedule.schedule import Schedule
-from .schedule.scheduled_task import ScheduledTask
+from .schedule.scheduled_task import PipeScheduledTask, SavepointScheduledTask, ScheduledTask
 from .storage.storage_provider import InvalidatedObjects, ObjectsToInvalidate, SavePointsRange
 from .storage.storage_provider import StorageProvider
 from .task.pipe import Pipe
@@ -367,9 +367,13 @@ class Pipeline:
         configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
     ) -> Schedule:
-        tasks: DefaultDictFromKey[PipelineNode, ScheduledTask] = DefaultDictFromKey(
-            lambda pn: ScheduledTask(pn, model, storage_provider, configuration)
-        )
+        def task_generator(pipeline_node: PipelineNode):
+            if isinstance(pipeline_node.task, Pipe):
+                return PipeScheduledTask(pipeline_node, model, storage_provider, configuration)
+            else:
+                return SavepointScheduledTask(pipeline_node, model, storage_provider, configuration)
+
+        tasks: DefaultDictFromKey[PipelineNode, ScheduledTask] = DefaultDictFromKey(task_generator)
         # The pipeline is a tree, so we can just unroll the predecessors,
         # When we parallelize, we will make a subclass that overrides this method,
         # and probably it will first call it to produce the initial schedule and
@@ -673,6 +677,7 @@ class Pipeline:
         scheduled_tasks: list[ScheduledTask] = []
         for task in schedule_dict["tasks"]:
             pipeline_node: PipelineNode = pipeline_nodes[task["node_id"]]
+            dependencies = [scheduled_tasks[i] for i in task["dependencies"]]
             outgoing = Requests()
             incoming = Requests()
 
@@ -692,6 +697,17 @@ class Pipeline:
                     outgoing[container_declaration] = ObjectSet(
                         container_kind, {obj_id_type.deserialize(x) for x in arg["outgoing"]}
                     )
+
+                scheduled_tasks.append(
+                    PipeScheduledTask(
+                        pipeline_node,
+                        model,
+                        storage_provider,
+                        configuration,
+                        (incoming, outgoing),
+                        dependencies,
+                    )
+                )
             elif task["type"] == "SavePoint":
                 assert isinstance(pipeline_node.task, SavePoint)
                 assert task["name"] == pipeline_node.task.name
@@ -706,18 +722,18 @@ class Pipeline:
                     outgoing[container_declaration] = ObjectSet(
                         container_kind, {obj_id_type.deserialize(x) for x in container["outgoing"]}
                     )
+
+                scheduled_tasks.append(
+                    SavepointScheduledTask(
+                        pipeline_node,
+                        model,
+                        storage_provider,
+                        configuration,
+                        (incoming, outgoing),
+                        dependencies,
+                    )
+                )
             else:
                 raise ValueError(f"Unknown task type: \"{task['type']}\"")
-
-            dependencies = [scheduled_tasks[i] for i in task["dependencies"]]
-            scheduled_task = ScheduledTask(
-                pipeline_node,
-                model,
-                storage_provider,
-                configuration,
-                (incoming, outgoing),
-                dependencies,
-            )
-            scheduled_tasks.append(scheduled_task)
 
         return Schedule(declarations, scheduled_tasks[-1], configuration, model, storage_provider)
