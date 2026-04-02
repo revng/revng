@@ -6,13 +6,14 @@ from __future__ import annotations
 
 from collections.abc import Buffer
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncGenerator, Iterable, Mapping
 
 from revng.pypeline import __version__ as version
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
+from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.task.pipe import PipeCustomInvalidation
 from revng.pypeline.utils.registry import get_singleton
 
@@ -35,6 +36,7 @@ class NullStorageProviderFactory(StorageProviderFactory):
     async def get(
         self,
         base_directory: Path,
+        pipeline: Pipeline,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
@@ -53,7 +55,9 @@ class NullStorageProvider(StorageProvider):
 
     def __init__(self):
         self.model = get_singleton(Model)()
-        self.last_change = datetime.now()
+        self.last_fetch = datetime.fromtimestamp(0, timezone.utc)
+        self.last_object_save = datetime.fromtimestamp(0, timezone.utc)
+        self.last_model_save = datetime.fromtimestamp(0, timezone.utc)
 
     def has(
         self,
@@ -75,7 +79,7 @@ class NullStorageProvider(StorageProvider):
         dependencies: list[PipeDependencies],
         objects: Mapping[ContainerLocation, Mapping[ObjectID, Buffer]],
     ) -> None:
-        self.last_change = datetime.now()
+        self.last_object_save = datetime.now(timezone.utc)
 
     def get_epoch(self) -> int:
         return 0
@@ -90,7 +94,7 @@ class NullStorageProvider(StorageProvider):
         custom_invalidations: list[ObjectsToInvalidate],
     ) -> SetModelResult:
         self.model = new_model.clone()
-        self.last_change = datetime.now()
+        self.last_model_save = datetime.now(timezone.utc)
         return SetModelResult(0, {})
 
     def metadata(self) -> ProjectMetadata:
@@ -98,8 +102,11 @@ class NullStorageProvider(StorageProvider):
         Fetch metadata about the current project
         """
         return ProjectMetadata(
-            last_change=self.last_change,
             version=version,
+            pipeline_description_hash="",
+            last_fetch=self.last_fetch,
+            last_object_save=self.last_object_save,
+            last_model_save=self.last_model_save,
         )
 
     def prune_objects(self):

@@ -66,6 +66,7 @@ class Daemon:
         token = request.get("token")
         return self.storage_provider_factory.get(
             base_directory=self.base_directory,
+            pipeline=self.pipeline,
             project_id=project_id,
             token=token,
             cache_dir=self.cache_dir,

@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import enum
+import json
 import os
 import shutil
 import sqlite3
@@ -21,9 +23,11 @@ import yaml
 from revng.pypeline import __version__ as version
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
+from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.task.pipe import PipeCustomInvalidation
 from revng.pypeline.utils import Locked, crypto_hash
 from revng.pypeline.utils.logger import pypeline_logger
+from revng.pypeline.utils.pipeline import get_pipeline_description
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
@@ -42,13 +46,22 @@ _OBJECTID_MASK = f"x'{"ff" * _OBJECTID_MAXSIZE}'"
 CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS project(
     id              TEXT PRIMARY KEY CHECK (id = 0),
-    last_change     REAL,
+    last_fetch         REAL NOT NULL,
+    last_object_save   REAL NOT NULL,
+    last_model_save    REAL NOT NULL,
     epoch           INT NOT NULL,
+    pipeline_hash   TEXT,
     version         TEXT,
     model_hash      TEXT,
     model_mtime     REAL
 ) STRICT;
-INSERT OR IGNORE INTO project (id, epoch) VALUES (0, 0);
+
+-- Add the only row to the DB, this allows to simplify the logic since this row
+-- is always guaranteed to exist and avoids having code that creates it
+-- opportunistically
+INSERT OR IGNORE INTO project
+(id, epoch, last_fetch, last_object_save, last_model_save)
+VALUES (0, 0, 0.0, 0.0, 0.0);
 
 CREATE TABLE IF NOT EXISTS objects(
     savepoint_id         INT NOT NULL,
@@ -233,6 +246,11 @@ class CursorWrapper:
         return False
 
 
+def _compute_pipeline_hash(pipeline: Pipeline) -> str:
+    description = get_pipeline_description(pipeline)
+    return compute_hash(json.dumps(description, sort_keys=True).encode())
+
+
 class _LocalStorageProviderCommon:
     def get_notification_websocket(self) -> str | None:
         return None
@@ -250,11 +268,7 @@ class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFa
         return "local"
 
     def _create_provider(
-        self,
-        base_directory: Path,
-        project_id: ProjectID | None,
-        token: str | None,
-        cache_dir: str,
+        self, base_directory: Path, cache_dir: str, pipeline_hash: str
     ) -> LocalStorageProvider:
         # Figure out how the model should be name
         model_type = get_singleton(Model)  # type: ignore [type-abstract]
@@ -289,12 +303,13 @@ class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFa
             db_path = Path(cache_dir) / db_name
 
         pypeline_logger.debug_log(f'Using DB "{db_path}"')
-        return LocalStorageProvider(db_path, model_path, cache_path)
+        return LocalStorageProvider(db_path, model_path, cache_path, pipeline_hash)
 
     @asynccontextmanager
     async def get(
         self,
         base_directory: Path,
+        pipeline: Pipeline,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
@@ -306,13 +321,9 @@ class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFa
             project_provider: Locked[LocalStorageProvider] | None = providers.get(project_id)
             # If the provider is not found, create a new one and put it in a lock
             if project_provider is None:
+                pipeline_hash = _compute_pipeline_hash(pipeline)
                 project_provider = Locked(
-                    self._create_provider(
-                        base_directory=base_directory,
-                        project_id=project_id,
-                        token=token,
-                        cache_dir=cache_dir,
-                    )
+                    self._create_provider(base_directory, cache_dir, pipeline_hash)
                 )
                 providers[project_id] = project_provider
 
@@ -338,6 +349,7 @@ class TemporaryLocalStorageProviderFactory(_LocalStorageProviderCommon, StorageP
     async def get(
         self,
         base_directory: Path,
+        pipeline: Pipeline,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
@@ -359,6 +371,7 @@ class TemporaryLocalStorageProviderFactory(_LocalStorageProviderCommon, StorageP
                     db_path=temp_dir_path / "db.sqlite",
                     model_path=temp_dir_path / model_name,
                     cache_dir=temp_dir_path / "cache",
+                    pipeline_hash=_compute_pipeline_hash(pipeline),
                 )
                 project_provider = Locked((storage_provider, temporary_dir))
                 providers[project_id] = project_provider
@@ -369,10 +382,16 @@ class TemporaryLocalStorageProviderFactory(_LocalStorageProviderCommon, StorageP
             yield provider[0]
 
 
+class _MetadataUpdate(enum.Enum):
+    FETCH = enum.auto()
+    OBJECT_SAVE = enum.auto()
+    MODEL_SAVE = enum.auto()
+
+
 class LocalStorageProvider(StorageProvider):
     """StorageProvider implementation with backing sqlite3 db"""
 
-    def __init__(self, db_path: str | Path, model_path: Path, cache_dir: Path):
+    def __init__(self, db_path: str | Path, model_path: Path, cache_dir: Path, pipeline_hash: str):
         check_kind_structure()
         self._model_path = model_path
         self._model_directory = self._model_path.parent.resolve()
@@ -383,7 +402,7 @@ class LocalStorageProvider(StorageProvider):
         self._init_tables()
         self.epoch = self._get_epoch()
 
-        self._check_version()
+        self._check_version_and_pipeline_hash(pipeline_hash)
         self._check_model()
 
     def _cursor(self) -> CursorWrapper:
@@ -393,20 +412,25 @@ class LocalStorageProvider(StorageProvider):
         with self._cursor() as cursor:
             cursor.executescript(CREATE_TABLES)
 
-    def _check_version(self):
+    def _check_version_and_pipeline_hash(self, pipeline_hash: str):
         with self._cursor() as cursor:
-            cursor.execute("SELECT version FROM project WHERE id is 0")
-            db_version = cursor.fetchone()[0]
+            cursor.execute("SELECT version, pipeline_hash FROM project WHERE id is 0")
+            db_version, db_pipeline_hash = cursor.fetchone()
 
-        if db_version is not None and db_version != version:
+        if (db_version is not None and db_version != version) or (
+            db_pipeline_hash is not None and db_pipeline_hash != pipeline_hash
+        ):
             self.prune_objects()
 
         # We either never wrote the version field or we just pruned all objects
         # because of a version mismatch. In both cases write the current
         # version string.
-        if db_version is None or db_version != version:
+        if db_version != version or db_pipeline_hash != pipeline_hash:
             with self._cursor() as cursor:
-                cursor.execute("UPDATE project SET version = ? WHERE id is 0", (version,))
+                cursor.execute(
+                    "UPDATE project SET version = ?, pipeline_hash = ? WHERE id is 0",
+                    (version, pipeline_hash),
+                )
 
     def _check_model(self):
         with self._cursor() as cursor:
@@ -443,7 +467,7 @@ class LocalStorageProvider(StorageProvider):
                     (model_hash, model_mtime),
                 )
                 self.epoch += 1
-                self._write_metadata(cursor)
+                self._write_metadata(cursor, _MetadataUpdate.MODEL_SAVE)
         else:
             # mtime has changed but the content hasn't, update the mtime to
             # the new one
@@ -453,10 +477,16 @@ class LocalStorageProvider(StorageProvider):
                     (model_mtime,),
                 )
 
-    def _write_metadata(self, cursor: sqlite3.Cursor):
+    def _write_metadata(self, cursor: sqlite3.Cursor, type_: _MetadataUpdate):
+        change_column = {
+            _MetadataUpdate.FETCH: "last_fetch",
+            _MetadataUpdate.OBJECT_SAVE: "last_object_save",
+            _MetadataUpdate.MODEL_SAVE: "last_model_save",
+        }[type_]
+
         cursor.execute(
-            "UPDATE project SET last_change = ?, epoch = ? WHERE id is 0",
-            (datetime.now().timestamp(), self.epoch),
+            f"UPDATE project SET {change_column} = ?, epoch = ? WHERE id is 0",
+            (datetime.now(timezone.utc).timestamp(), self.epoch),
         )
 
     def _get_epoch(self) -> int:
@@ -558,7 +588,7 @@ class LocalStorageProvider(StorageProvider):
                     )
 
             # Write metadata
-            self._write_metadata(cursor)
+            self._write_metadata(cursor, _MetadataUpdate.OBJECT_SAVE)
 
     def _invalidate(
         self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
@@ -620,7 +650,7 @@ class LocalStorageProvider(StorageProvider):
             cursor.execute(f"DROP TABLE model_paths_{table_uuid};")
             cursor.execute(f"DROP TABLE invalidated_objects_{table_uuid};")
             # Write the last_change field
-            self._write_metadata(cursor)
+            self._write_metadata(cursor, _MetadataUpdate.OBJECT_SAVE)
         return dict(invalidated)
 
     def prune_objects(self):
@@ -628,7 +658,7 @@ class LocalStorageProvider(StorageProvider):
             cursor.execute("DELETE FROM objects")
             cursor.execute("DELETE FROM dependencies")
             cursor.execute("DELETE FROM custom_dependencies")
-            self._write_metadata(cursor)
+            self._write_metadata(cursor, _MetadataUpdate.OBJECT_SAVE)
 
     def get_epoch(self) -> int:
         return self.epoch
@@ -664,17 +694,21 @@ class LocalStorageProvider(StorageProvider):
                 (compute_hash(model_bytes), self._model_path.stat().st_mtime),
             )
             self.epoch += 1
-            self._write_metadata(cursor)
+            self._write_metadata(cursor, _MetadataUpdate.MODEL_SAVE)
             return self.epoch
 
     def metadata(self) -> ProjectMetadata:
+        columns = ("version", "last_fetch", "last_object_save", "last_model_save")
         with self._cursor() as cursor:
-            cursor.execute("SELECT last_change, version FROM project WHERE id is 0")
+            cursor.execute(f"SELECT {", ".join(columns)} FROM project WHERE id is 0")
             result = cursor.fetchone()
 
         return ProjectMetadata(
-            last_change=datetime.fromtimestamp(result[0], timezone.utc),
-            version=result[1],
+            version=result[0],
+            pipeline_description_hash="",
+            last_fetch=datetime.fromtimestamp(result[1], timezone.utc),
+            last_object_save=datetime.fromtimestamp(result[2], timezone.utc),
+            last_model_save=datetime.fromtimestamp(result[3], timezone.utc),
         )
 
     def put_files_in_storage(self, files: list[FileStorageEntry]) -> list[str]:

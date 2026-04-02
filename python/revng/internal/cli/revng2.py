@@ -228,7 +228,7 @@ def _build_artifact_command(pipeline: Pipeline, artifact_name: str):
 
         storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
         storage_provider_context = storage_provider_factory.get(
-            ctx.obj.base_directory, None, None, None
+            ctx.obj.base_directory, ctx.obj.pipeline, None, None, None
         )
         asyncio.run(async_part_of_command(storage_provider_context))
 
@@ -309,7 +309,7 @@ def analyze(
 
     storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
     storage_provider_context = storage_provider_factory.get(
-        ctx.obj.base_directory, None, None, None
+        ctx.obj.base_directory, ctx.obj.pipeline, None, None, None
     )
     asyncio.run(async_part_of_command(storage_provider_context))
 
@@ -374,6 +374,7 @@ def init(
     storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
     storage_provider_context = storage_provider_factory.get(
         base_directory=ctx.obj.base_directory,
+        pipeline=ctx.obj.pipeline,
         project_id=project_id,
         token=token,
         cache_dir=ctx.obj.cache_dir,

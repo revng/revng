@@ -16,6 +16,7 @@ from revng.pypeline import __version__ as version
 from revng.pypeline.container import ContainerID
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
+from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.task.pipe import PipeCustomInvalidation
 from revng.pypeline.utils import Locked
 from revng.pypeline.utils.registry import get_singleton
@@ -50,6 +51,7 @@ class InMemoryStorageProviderFactory(StorageProviderFactory):
     async def get(
         self,
         base_directory: Path,
+        pipeline: Pipeline,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
@@ -79,7 +81,9 @@ class InMemoryStorageProvider(StorageProvider):
         self.model: Model = get_singleton(Model)()  # type: ignore[type-abstract]
         self.storage: dict[ContainerLocation, dict[ObjectID, bytes]] = {}
         self.dependencies: dict[str, list[DependencyEntry]] = defaultdict(list)
-        self.last_change = datetime.now()
+        self.last_fetch = datetime.fromtimestamp(0)
+        self.last_object_save = datetime.fromtimestamp(0)
+        self.last_model_save = datetime.fromtimestamp(0)
         self.files: dict[str, bytes] = {}
         self.epoch = 0
         self.custom_dependencies: dict[tuple[int, str], PipeCustomInvalidation] = {}
@@ -101,6 +105,7 @@ class InMemoryStorageProvider(StorageProvider):
     ) -> Mapping[ObjectID, bytes]:
         if location not in self.storage:
             raise KeyError(f"Savepoint {location} not found in storage.")
+        self.last_fetch = datetime.now()
         storage = self.storage[location]
         return {k: storage[k] for k in keys if k in storage}
 
@@ -131,7 +136,8 @@ class InMemoryStorageProvider(StorageProvider):
             self.storage.setdefault(location, {})
             for key, value in object_dict.items():
                 self.storage[location][key] = bytes(value)
-        self.last_change = datetime.now()
+
+        self.last_object_save = datetime.now()
 
     def _invalidate(
         self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
@@ -210,7 +216,7 @@ class InMemoryStorageProvider(StorageProvider):
         if self.model != new_model:
             self.epoch += 1
         self.model = new_model.clone()
-        self.last_change = datetime.now()
+        self.last_model_save = datetime.now()
         self._send_local_invalidation(invalidated, self.epoch)
         return SetModelResult(self.epoch, invalidated)
 
@@ -219,8 +225,11 @@ class InMemoryStorageProvider(StorageProvider):
         Fetch metadata about the current project
         """
         return ProjectMetadata(
-            last_change=self.last_change,
             version=version,
+            pipeline_description_hash="",
+            last_fetch=self.last_fetch,
+            last_object_save=self.last_object_save,
+            last_model_save=self.last_model_save,
         )
 
     def prune_objects(self):

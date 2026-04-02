@@ -10,7 +10,7 @@ from collections.abc import Buffer
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, AsyncContextManager, Collection, Iterable, Mapping
+from typing import TYPE_CHECKING, Annotated, AsyncContextManager, Collection, Iterable, Mapping
 from urllib.parse import urlparse
 
 from revng.pypeline.container import ConfigurationId, ContainerID
@@ -21,6 +21,9 @@ from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
 from revng.pypeline.utils.registry import get_registry
 
 from .file_provider import FileProvider, FileRequest
+
+if TYPE_CHECKING:
+    from revng.pypeline.pipeline import Pipeline
 
 SavepointID = Annotated[
     int,
@@ -52,8 +55,17 @@ InvalidatedObjects = dict[ContainerLocation, set[ObjectID]]
 
 @dataclass(frozen=True, slots=True)
 class ProjectMetadata:
-    last_change: datetime
+    # The version string of the last client that used the StorageProvider
     version: str
+    # The hash of the pipeline-description used last
+    pipeline_description_hash: str
+
+    # Last time data was fetched from the StorageProvider
+    last_fetch: datetime
+    # Last time objects were saved in the StorageProvider
+    last_object_save: datetime
+    # Last time the model was changed in the StorageProvider
+    last_model_save: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -162,6 +174,7 @@ class StorageProviderFactory(ABC):
     def get(
         self,
         base_directory: Path,
+        pipeline: Pipeline,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,

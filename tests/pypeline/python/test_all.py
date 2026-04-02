@@ -61,7 +61,7 @@ def storage_provider(request, model) -> Generator[StorageProvider, None, None]:
         yield provider
     elif request.param == "local":
         with NamedTemporaryFile() as f, TemporaryDirectory() as d:
-            provider = LocalStorageProvider(":memory:", Path(f.name), Path(d))
+            provider = LocalStorageProvider(":memory:", Path(f.name), Path(d), "")
             provider.set_model(model, set(), [])
             yield provider
     else:
