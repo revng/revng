@@ -30,7 +30,7 @@ from revng.pypeline.utils.registry import get_singleton
 from .file_provider import FileRequest
 from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
 from .storage_provider import ObjectsToInvalidate, ProjectID, ProjectMetadata, SavePointsRange
-from .storage_provider import StorageProvider, StorageProviderFactory
+from .storage_provider import SetModelResult, StorageProvider, StorageProviderFactory
 from .util import _OBJECTID_MAXSIZE, check_kind_structure, check_object_id_supported_by_sql
 from .util import compute_hash
 
@@ -543,7 +543,7 @@ class LocalStorageProvider(StorageProvider):
                 )
             self._write_metadata(cursor)
 
-    def invalidate(
+    def _invalidate(
         self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
     ) -> InvalidatedObjects:
         if len(invalidation_list) == 0 and len(additional_objects) == 0:
@@ -623,13 +623,19 @@ class LocalStorageProvider(StorageProvider):
             self._write_model(model)
         return (model, self.epoch)
 
-    def set_model(self, new_model: Model) -> int:
+    def set_model(
+        self,
+        new_model: Model,
+        changed_paths: ModelPathSet,
+        custom_invalidations: list[ObjectsToInvalidate],
+    ) -> SetModelResult:
+        invalidated = self._invalidate(changed_paths, custom_invalidations)
         # Check if the model was modified
         current_model, _ = self._model_type.deserialize(self._model_path.read_bytes())
-        if current_model == new_model:
-            return self.epoch
-        # if so, write the new model and update the epoch
-        return self._write_model(new_model)
+        if current_model != new_model:
+            # if so, write the new model and update the epoch
+            self._write_model(new_model)
+        return SetModelResult(self.epoch, invalidated)
 
     def _write_model(self, new_model: Model) -> int:
         model_bytes = new_model.serialize()

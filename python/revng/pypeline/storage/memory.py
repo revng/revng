@@ -23,7 +23,7 @@ from revng.pypeline.utils.registry import get_singleton
 from .file_provider import FileRequest
 from .storage_provider import ConfigurationId, ContainerLocation, FileStorageEntry
 from .storage_provider import InvalidatedObjects, ObjectsToInvalidate, ProjectID, ProjectMetadata
-from .storage_provider import SavepointID, SavePointsRange, StorageProvider
+from .storage_provider import SavepointID, SavePointsRange, SetModelResult, StorageProvider
 from .storage_provider import StorageProviderFactory
 from .util import check_kind_structure, compute_hash
 
@@ -129,7 +129,7 @@ class InMemoryStorageProvider(StorageProvider):
             self.storage[location][key] = bytes(value)
         self.last_change = datetime.now()
 
-    def invalidate(
+    def _invalidate(
         self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
     ) -> InvalidatedObjects:
         invalidated: InvalidatedObjects = defaultdict(set)
@@ -196,12 +196,18 @@ class InMemoryStorageProvider(StorageProvider):
     def get_model(self) -> tuple[Model, int]:
         return (self.model.clone(), self.epoch)
 
-    def set_model(self, new_model: Model) -> int:
+    def set_model(
+        self,
+        new_model: Model,
+        changed_paths: ModelPathSet,
+        custom_invalidations: list[ObjectsToInvalidate],
+    ) -> SetModelResult:
+        invalidated = self._invalidate(changed_paths, custom_invalidations)
         if self.model != new_model:
             self.epoch += 1
         self.model = new_model.clone()
         self.last_change = datetime.now()
-        return self.epoch
+        return SetModelResult(self.epoch, invalidated)
 
     def metadata(self) -> ProjectMetadata:
         """

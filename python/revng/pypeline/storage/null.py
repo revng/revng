@@ -18,9 +18,9 @@ from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
-from .storage_provider import ObjectsToInvalidate, ProjectID, ProjectMetadata, SavePointsRange
-from .storage_provider import StorageProvider, StorageProviderFactory
+from .storage_provider import ContainerLocation, FileStorageEntry, ObjectsToInvalidate, ProjectID
+from .storage_provider import ProjectMetadata, SavePointsRange, SetModelResult, StorageProvider
+from .storage_provider import StorageProviderFactory
 from .util import compute_hash
 
 
@@ -83,22 +83,21 @@ class NullStorageProvider(StorageProvider):
     ) -> None:
         self.last_change = datetime.now()
 
-    def invalidate(
-        self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
-    ) -> InvalidatedObjects:
-        self.last_change = datetime.now()
-        return {}
-
     def get_epoch(self) -> int:
         return 0
 
     def get_model(self) -> tuple[Model, int]:
         return (self.model.clone(), self.get_epoch())
 
-    def set_model(self, new_model: Model):
+    def set_model(
+        self,
+        new_model: Model,
+        changed_paths: ModelPathSet,
+        custom_invalidations: list[ObjectsToInvalidate],
+    ) -> SetModelResult:
         self.model = new_model.clone()
         self.last_change = datetime.now()
-        return 0
+        return SetModelResult(0, {})
 
     def metadata(self) -> ProjectMetadata:
         """

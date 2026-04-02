@@ -597,9 +597,10 @@ class Pipeline:
         custom_invalidated_objects = self._compute_custom_invalidation(
             configuration, storage_provider, diff
         )
-        invalidated = storage_provider.invalidate(diff.paths(), custom_invalidated_objects)
-        storage_provider.set_model(new_model)
-        return new_model, invalidated
+        set_model_result = storage_provider.set_model(
+            new_model, diff.paths(), custom_invalidated_objects
+        )
+        return new_model, set_model_result.invalidated_objects
 
     def _compute_custom_invalidation(
         self,

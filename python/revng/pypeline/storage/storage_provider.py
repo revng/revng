@@ -108,6 +108,15 @@ class ObjectsToInvalidate:
     objects: ObjectSet
 
 
+@dataclass
+class SetModelResult:
+    # The new epoch after changing the model
+    epoch: int
+    # The objects that have been pruned from storage, stored as a dictionary
+    # that maps the container location to a list of objects
+    invalidated_objects: InvalidatedObjects
+
+
 class StorageProviderFactory(ABC):
     """
     A possibly stateful factory for a specific storage provider.
@@ -221,17 +230,6 @@ class StorageProvider(ABC):
         """
 
     @abstractmethod
-    def invalidate(
-        self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
-    ) -> InvalidatedObjects:
-        """
-        Inform the storage that certain model paths are no longer valid.
-        The storage should use the stored dependencies to determine which objects
-        need to be invalidated.
-        It returns the list of invalidated objects, in each savepoint.
-        """
-
-    @abstractmethod
     def get_epoch(self) -> int:
         """Get the epoch, i.e. the model version number."""
 
@@ -240,11 +238,23 @@ class StorageProvider(ABC):
         """Get the model and the epoch."""
 
     @abstractmethod
-    def set_model(self, new_model: Model) -> int:
+    def set_model(
+        self,
+        new_model: Model,
+        changed_paths: ModelPathSet,
+        custom_invalidations: list[ObjectsToInvalidate],
+    ) -> SetModelResult:
         """
-        Set the model and return the new epoch (which will be current epoch + 1
-        if the model changed, or current epoch if it didn't, and 0 if there was no
-        model before).
+        Inform the storage that the model has changed, with the list of changed
+        model paths and object to explicitly invalidate (from custom
+        invalidation). This function will compute the overall list of objects
+        to invalidate and set the model. It will return the new epoch (which
+        will be current epoch + 1 if the model changed, or current epoch if it
+        didn't) and the exhaustive list of objects that have been deleted due
+        to the changes in the model.
+        This requires the new model and the list of changed paths separately so
+        that the storage provider does not need to run operations (diff/apply)
+        on the model.
         """
 
     @abstractmethod

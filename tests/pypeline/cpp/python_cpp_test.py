@@ -135,7 +135,7 @@ def check_simple_pipeline():
     child_cont = ContainerDeclaration("Container", StringContainer)
     declarations = [child_cont]
     configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model)
+    storage_provider.set_model(model, set(), [])
 
     # Create the pipeline
     begin_node = PipelineNode(SavePoint("begin", to_save=declarations))
