@@ -10,6 +10,7 @@
 #include "mlir/Support/FileUtilities.h"
 
 #include "revng/CliftEmitC/CBackend.h"
+#include "revng/CliftEmitC/Headers.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftTransforms/Passes.h"
 #include "revng/Support/Debug.h"
@@ -17,6 +18,8 @@
 namespace mlir {
 namespace clift {
 #define GEN_PASS_DEF_CLIFTEMITC
+#define GEN_PASS_DEF_CLIFTEMITTYPEANDGLOBALHEADER
+#define GEN_PASS_DEF_CLIFTEMITHELPERHEADER
 #include "revng/CliftTransforms/Passes.h.inc"
 } // namespace clift
 } // namespace mlir
@@ -71,4 +74,44 @@ clift::PassPtr<mlir::ModuleOp> clift::createEmitCPass() {
   };
 
   return std::make_unique<CEmissionPass<impl::CliftEmitCBase, Impl>>();
+}
+
+template<typename T>
+using TaGHBase = mlir::clift::impl::CliftEmitTypeAndGlobalHeaderBase<T>;
+
+clift::PassPtr<mlir::ModuleOp> clift::createEmitTypeAndGlobalHeaderPass() {
+  static constexpr auto Impl = [](mlir::ModuleOp Module,
+                                  ptml::CTokenEmitter &Tokens) {
+    mlir::clift::TypeEmitterConfiguration Configuration = {
+      .TypeToOmit = {},
+      .EmitMaximumEnumValue = false,
+      .ExplicitPadding = true,
+    };
+
+    // TODO: select target properly
+    const auto &Target = TargetCImplementation::Default;
+
+    clift::emitTypeAndGlobalHeader(Tokens, Target, Module, Configuration);
+
+    return true;
+  };
+
+  return std::make_unique<CEmissionPass<TaGHBase, Impl>>();
+}
+
+template<typename T>
+using HHBase = mlir::clift::impl::CliftEmitHelperHeaderBase<T>;
+
+clift::PassPtr<mlir::ModuleOp> clift::createEmitHelperHeaderPass() {
+  static constexpr auto Impl = [](mlir::ModuleOp Module,
+                                  ptml::CTokenEmitter &Tokens) {
+    // TODO: select target properly
+    const auto &Target = TargetCImplementation::Default;
+
+    clift::emitHelperHeader(Tokens, Target, { Module });
+
+    return true;
+  };
+
+  return std::make_unique<CEmissionPass<HHBase, Impl>>();
 }

@@ -37,6 +37,9 @@ PassPtr<clift::FunctionOp> createImmediateRadixDeductionPass();
 PassPtr<mlir::ModuleOp> createVerifyCPass();
 PassPtr<mlir::ModuleOp> createEmitCPass();
 
+PassPtr<mlir::ModuleOp> createEmitTypeAndGlobalHeaderPass();
+PassPtr<mlir::ModuleOp> createEmitHelperHeaderPass();
+
 #define GEN_PASS_REGISTRATION
 #include "revng/CliftTransforms/Passes.h.inc"
 

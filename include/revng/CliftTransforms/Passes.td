@@ -88,4 +88,19 @@ def CliftEmitC : Clift_EmitPTMLPass<"emit-c", "mlir::ModuleOp"> {
   let constructor = "mlir::clift::createEmitCPass()";
 }
 
+def CliftEmitTypeAndGlobalHeader : Clift_EmitPTMLPass<"emit-type-and-global-header",
+                                                      "mlir::ModuleOp"> {
+  // NOTE: this header is a subject to be split into a set of smaller ones.
+  let summary = "Emit a C header containing the type system with some extras.";
+  let constructor = "mlir::clift::createEmitTypeAndGlobalHeaderPass()";
+}
+
+def CliftEmitHelperHeader : Clift_EmitPTMLPass<"emit-helper-header",
+                                               "mlir::ModuleOp"> {
+  let summary = "Emit a C header containing *declarations* of all the helpers used in the module.";
+  let constructor = "mlir::clift::createEmitHelperHeaderPass()";
+}
+
+// TODO: add the corresponding single-type pass if the need ever arises.
+
 #endif // MLIR_CLIFT_PASSES
