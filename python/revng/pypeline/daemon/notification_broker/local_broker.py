@@ -40,39 +40,3 @@ class LocalNotificationBroker(NotificationBroker):
 
         subscriber.close()
         pypeline_logger.debug_log(f"Stream unsubscribed from project {subscriber.project_id}")
-
-    async def notify(self, project_id: ProjectID | None, message: str):
-        async with self.subscribers() as subscribers:
-            if project_id not in subscribers:
-                pypeline_logger.debug_log(f"No subscribers for project {project_id}")
-                return
-
-            # Get a copy of the subscribers set to avoid modification during iteration
-            async with subscribers[project_id]() as project_subscribers:
-                project_subscribers = project_subscribers.copy()
-
-        pypeline_logger.debug_log(
-            f"Notifying {len(project_subscribers)} subscribers for project {project_id}"
-        )
-
-        # Send messages to all active subscribers
-        inactive_subscribers: set[NotificationSubscriber] = set()
-        for subscriber in project_subscribers:
-            if subscriber.is_active:
-                try:
-                    await subscriber.send_message(message)
-                except Exception as e:
-                    pypeline_logger.log(f"Error queueing message for subscriber: {e}")
-                    inactive_subscribers.add(subscriber)
-            else:
-                inactive_subscribers.add(subscriber)
-
-        # Clean up inactive subscribers
-        if not inactive_subscribers:
-            return
-        async with self.subscribers() as subscribers:
-            if project_id not in subscribers:
-                return
-            async with subscribers[project_id]() as project_subscribers:
-                for subscriber in inactive_subscribers:
-                    project_subscribers.discard(subscriber)

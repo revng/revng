@@ -504,6 +504,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/storage/memory.py
     revng/pypeline/storage/null.py
     revng/pypeline/storage/local_provider.py
+    revng/pypeline/storage/notification_queue.py
     revng/pypeline/storage/storage_provider.py
     revng/pypeline/storage/util.py
     revng/pypeline/storage/__init__.py

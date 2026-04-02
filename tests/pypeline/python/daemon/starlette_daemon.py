@@ -145,6 +145,6 @@ class StarletteTestServer(TestServer):
 
     def subscribe(self):
         return websockets.sync.client.connect(
-            f"ws://127.0.0.1:{self.port}/api/subscribe",
+            f"ws://127.0.0.1:{self.port}/api/notifications",
             additional_headers={"X-ProjectId": self.project_id},
         )

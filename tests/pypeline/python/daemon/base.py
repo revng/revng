@@ -7,7 +7,7 @@ import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 
 @dataclass
@@ -16,6 +16,10 @@ class Response:
     """The HTTP status code of the response."""
     body: Any
     """The response body of the request."""
+
+
+class SubscribeConnection(Protocol):
+    def recv(self) -> bytes: ...
 
 
 class TestServer(ABC):
@@ -51,4 +55,4 @@ class TestServer(ABC):
     def get_artifact(self, artifact_request) -> Response: ...
 
     @abstractmethod
-    def subscribe(self): ...
+    def subscribe(self) -> SubscribeConnection: ...

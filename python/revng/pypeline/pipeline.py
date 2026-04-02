@@ -62,19 +62,21 @@ class Artifact:
     defined_locations: list[str] = field(default_factory=list, hash=False)
     preferred_artifacts: list[str] = field(default_factory=list, hash=False)
 
-    def is_cacheable(self) -> bool:
-        """An artifact is cacheable if it's backed by a savepoint."""
-        return isinstance(self.node.task, SavePoint)
-
     def pipe_dependencies(self) -> list[str]:
         return sorted({p.name for p in self.node.pipe_dependencies})
 
     def to_dict(self) -> dict:
         """Convert the artifact to a dictionary representation."""
+        if isinstance(self.node.task, SavePoint):
+            assert self.node.savepoint_range is not None
+            savepoint_id = self.node.savepoint_range.start
+        else:
+            savepoint_id = -1
+
         result = {
             "name": self.name,
+            "savepoint_id": savepoint_id,
             "container": self.container.name,
-            "cacheable": self.is_cacheable(),
             "pipe_dependencies": self.pipe_dependencies(),
             "category": self.category.to_dict(),
             "defined_locations": self.defined_locations,

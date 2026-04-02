@@ -42,6 +42,9 @@ class NullStorageProviderFactory(StorageProviderFactory):
     ) -> AsyncGenerator[StorageProvider]:
         yield NullStorageProvider()
 
+    def get_notification_websocket(self) -> str | None:
+        return None
+
 
 class NullStorageProvider(StorageProvider):
     """The /dev/null of storage providers. It stores nothing and caches nothing.

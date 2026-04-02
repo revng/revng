@@ -65,6 +65,9 @@ class InMemoryStorageProviderFactory(StorageProviderFactory):
         async with project_provider() as project_data:
             yield project_data
 
+    def get_notification_websocket(self) -> str | None:
+        return None
+
 
 class InMemoryStorageProvider(StorageProvider):
     """A simple in-memory storage provider for testing purposes.
@@ -73,7 +76,7 @@ class InMemoryStorageProvider(StorageProvider):
 
     def __init__(self):
         check_kind_structure()
-        self.model: Model = get_singleton(Model)()
+        self.model: Model = get_singleton(Model)()  # type: ignore[type-abstract]
         self.storage: dict[ContainerLocation, dict[ObjectID, bytes]] = {}
         self.dependencies: dict[str, list[DependencyEntry]] = defaultdict(list)
         self.last_change = datetime.now()
@@ -207,6 +210,7 @@ class InMemoryStorageProvider(StorageProvider):
             self.epoch += 1
         self.model = new_model.clone()
         self.last_change = datetime.now()
+        self._send_local_invalidation(invalidated, self.epoch)
         return SetModelResult(self.epoch, invalidated)
 
     def metadata(self) -> ProjectMetadata:

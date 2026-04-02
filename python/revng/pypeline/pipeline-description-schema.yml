@@ -153,8 +153,8 @@ properties:
       type: object
       required:
         - name
+        - savepoint_id
         - container
-        - cacheable
         - category
         - pipe_dependencies
         - defined_locations
@@ -163,12 +163,12 @@ properties:
         name:
           type: string
           description: The name of the artifact
+        savepoint_id:
+          type: integer
+          description: The node_id that the artifact is associated to
         container:
           type: string
           description: The name of the container instance
-        cacheable:
-          type: boolean
-          description: Whether this artifact can be cached
         pipe_dependencies:
           type: array
           description: >

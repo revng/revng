@@ -34,8 +34,6 @@ class Response:
     """The MIME of the response content."""
     headers: dict[str, str] = field(default_factory=dict)
     """The headers of the response."""
-    notifications: list[Any] = field(default_factory=list)
-    """List of notifications to send through the NotificationBroker."""
 
     def to_dict(self):
         result = {
@@ -44,8 +42,6 @@ class Response:
         }
         if len(self.headers) != 0:
             result["headers"] = self.headers
-        if len(self.notifications) != 0:
-            result["notifications"] = self.notifications
         return result
 
 
@@ -240,36 +236,7 @@ class Daemon:
             # TODO: this can be done much more efficiently
             new_epoch = storage_provider.get_epoch()
 
-        # Only return cacheable artifacts invalidations
-        invalidated_artifacts: list[dict[str, Any]] = []
-        for container_location, object_ids in invalidated.items():
-            artifact = self.pipeline.savepoint_id_to_artifact.get(container_location.savepoint_id)
-            if artifact is None:
-                continue
-            invalidated_artifacts.append(
-                {
-                    "name": artifact.name,
-                    "configuration": container_location.configuration_id,
-                    "object_ids": [object_id.serialize() for object_id in object_ids],
-                }
-            )
-
         model_type = get_singleton(Model)  # type: ignore[type-abstract]
         diff = bytes_to_string(diff_raw, model_type.is_text())
         # Return the updated model
-        return Response(
-            code=200,
-            body={
-                "epoch": new_epoch,
-                "diff": diff,
-            },
-            notifications=[
-                {
-                    "type": "analysis",
-                    "analysis": analysis,
-                    "epoch": new_epoch,
-                    "diff": diff,
-                    "invalidated": invalidated_artifacts,
-                }
-            ],
-        )
+        return Response(code=200, body={"epoch": new_epoch, "diff": diff})

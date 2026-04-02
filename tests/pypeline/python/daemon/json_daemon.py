@@ -4,15 +4,14 @@
 
 import asyncio
 import functools
-import json
 import os
-import queue
 from tempfile import TemporaryDirectory
 
 from revng.pypeline.daemon.daemon import Daemon
 from revng.pypeline.daemon.daemon import Response as DaemonResponse
 from revng.pypeline.daemon.exceptions import DaemonException
 from revng.pypeline.pipeline_parser import load_pipeline_yaml
+from revng.pypeline.storage.notification_queue import LOCAL_QUEUE
 from revng.pypeline.utils import PypelineException
 
 from .base import Response, TestServer
@@ -20,13 +19,10 @@ from .base import Response, TestServer
 
 class WebsocketMock:
     def __init__(self):
-        self.queue = queue.Queue()
+        self.queue = LOCAL_QUEUE.get_queue()
 
-    def send(self, value: str):
-        self.queue.put(value)
-
-    def recv(self) -> str:
-        return self.queue.get()
+    def recv(self) -> bytes:
+        return asyncio.run(self.queue.get())
 
 
 def handle_exceptions(func):
@@ -93,8 +89,6 @@ class JsonTestServer(TestServer):
     def run_analysis(self, analysis_request) -> Response:
         analysis_request.setdefault("project_id", self.project_id)
         response = asyncio.run(self.daemon.analyze(analysis_request))
-        for notification in response.notifications:
-            self.websocket.send(json.dumps(notification))
         return Response(code=response.code, body=response.body)
 
     @handle_exceptions

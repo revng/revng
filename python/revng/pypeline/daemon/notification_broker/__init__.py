@@ -8,6 +8,7 @@ from typing import Protocol
 
 from starlette.websockets import WebSocket
 
+from revng.pypeline.storage.notification_queue import LOCAL_QUEUE
 from revng.pypeline.storage.storage_provider import ProjectID
 
 
@@ -37,17 +38,12 @@ class NotificationSubscriber:
     def __init__(self, project_id: ProjectID | None, stream: Stream):
         self.project_id = project_id
         self.stream = stream
-        self.message_queue: asyncio.Queue[str] = asyncio.Queue()
+        self.message_queue: asyncio.Queue[bytes] = LOCAL_QUEUE.get_queue()
         """The broker will insert messages into this queue, and the subscriber will
         listen for them and insert them into the message queue."""
         self.is_active = True
         """Flag indicating whether the subscriber is active, used so the broker
         can garbage collect inactive subscribers."""
-
-    async def send_message(self, message: str):
-        """Add a message to this subscriber's queue"""
-        if self.is_active:
-            await self.message_queue.put(message)
 
     async def listen_for_messages(self):
         """Listen for messages in the queue and send them via WebSocket"""
@@ -58,7 +54,7 @@ class NotificationSubscriber:
                 if not self.is_active:
                     break
 
-                await self.stream.write(message.encode())
+                await self.stream.write(message)
         finally:
             self.is_active = False
 
@@ -84,7 +80,3 @@ class NotificationBroker(ABC):
     @abstractmethod
     async def unsubscribe(self, subscriber: NotificationSubscriber):
         """Stop receiving notifications for project \"project_id\"."""
-
-    @abstractmethod
-    async def notify(self, project_id: ProjectID | None, message: str):
-        """Notify all subscribers of project \"project_id\" of the given message"""

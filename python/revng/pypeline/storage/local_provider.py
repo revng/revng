@@ -234,7 +234,12 @@ class CursorWrapper:
         return False
 
 
-class LocalStorageProviderFactory(StorageProviderFactory):
+class _LocalStorageProviderCommon:
+    def get_notification_websocket(self) -> str | None:
+        return None
+
+
+class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFactory):
     def __init__(self, url: str):
         assert url == "local://" or "local://?inline"
         # TODO: use urlparse if more options are introduced
@@ -321,7 +326,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
 TemporaryProviderTuple = tuple["LocalStorageProvider", TemporaryDirectory]
 
 
-class TemporaryLocalStorageProviderFactory(StorageProviderFactory):
+class TemporaryLocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFactory):
     def __init__(self, url: str):
         assert url == "temporary://"
         self.providers: Locked[dict[ProjectID | None, Locked[TemporaryProviderTuple]]] = Locked({})
@@ -635,6 +640,7 @@ class LocalStorageProvider(StorageProvider):
         if current_model != new_model:
             # if so, write the new model and update the epoch
             self._write_model(new_model)
+        self._send_local_invalidation(invalidated, self.epoch)
         return SetModelResult(self.epoch, invalidated)
 
     def _write_model(self, new_model: Model) -> int:

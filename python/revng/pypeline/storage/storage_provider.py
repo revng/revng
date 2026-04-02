@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import json
 from abc import ABC, abstractmethod
 from collections.abc import Buffer
 from dataclasses import dataclass, field
@@ -15,6 +16,7 @@ from urllib.parse import urlparse
 from revng.pypeline.container import ConfigurationId, ContainerID
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID, ObjectSet
+from revng.pypeline.storage.notification_queue import LOCAL_QUEUE
 from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
 from revng.pypeline.utils.registry import get_registry
 
@@ -156,6 +158,13 @@ class StorageProviderFactory(ABC):
         of them. The method returns an async context manager that yields the
         storage provider. This is done because we need to lock the storage provider
         based on the project ID because only one user at time can modify a project.
+        """
+
+    @abstractmethod
+    def get_notification_websocket(self) -> str | None:
+        """
+        Get the URL of the notification websocket. If the function returns None
+        then the internal websocket will be used.
         """
 
 
@@ -301,6 +310,28 @@ class StorageProvider(ABC):
         Retrieve custom invalidation data previously stored by
         `add_custom_invalidation_data`.
         """
+
+    @staticmethod
+    def _send_local_invalidation(invalidated: InvalidatedObjects, epoch: int):
+        """
+        Send invalidation data to the local queue. Only to be used on local
+        storage providers where notifications are not handled by the provider.
+        """
+
+        payload = {
+            "type": "invalidation",
+            "epoch": epoch,
+            "invalidated": [
+                {
+                    "savepoint_id": location.savepoint_id,
+                    "container_id": location.container_id,
+                    "configuration": location.configuration_id,
+                    "object_ids": [object_id.serialize() for object_id in object_ids],
+                }
+                for location, object_ids in invalidated.items()
+            ],
+        }
+        LOCAL_QUEUE.send(json.dumps(payload).encode())
 
 
 class StorageProviderFileProvider(FileProvider):

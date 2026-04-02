@@ -3,7 +3,6 @@
 #
 
 import asyncio
-import json
 import os
 from contextlib import asynccontextmanager, suppress
 from functools import wraps
@@ -17,7 +16,7 @@ from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.responses import Response as StarletteResponse
-from starlette.routing import Route, WebSocketRoute
+from starlette.routing import BaseRoute, Route, WebSocketRoute
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from revng.pypeline.utils import PypelineException
@@ -108,9 +107,6 @@ def prepare_endpoint(func):
             # TODO add auth token forwarding
         }
         response: Response = await func(request, data)
-        # Forward any websocket notification
-        for notification in response.notifications:
-            await notification_broker.notify(project_id, json.dumps(notification))
         # Convert the daemon response based on the body type:
         # * a JSON response if the body is a dict or list
         # * a binary response if the body is bytes
@@ -180,16 +176,30 @@ def make_starlette(daemon: Daemon) -> Starlette:
         return PlainTextResponse("OK")
 
     # Define routes
-    routes = [
+    routes: list[BaseRoute] = [
         Route("/api/epoch", epoch_endpoint, methods=["GET"]),
         Route("/api/pipeline", pipeline_endpoint, methods=["GET"]),
         Route("/api/model", model_endpoint, methods=["GET"]),
         Route("/api/put-file", put_file_endpoint, methods=["POST"]),
         Route("/api/artifact", artifact_endpoint, methods=["POST"]),
         Route("/api/analysis", analysis_endpoint, methods=["POST"]),
-        WebSocketRoute("/api/subscribe", invalidation_websocket),
         Route("/status", status, methods=["GET"]),
     ]
+
+    websocket_url = daemon.storage_provider_factory.get_notification_websocket()
+    if websocket_url is not None:
+
+        async def websocket_url_handler(request: Request):
+            return JSONResponse({"url": websocket_url})
+
+        routes.append(Route("/api/websocket-url", websocket_url_handler, methods=["GET"]))
+    else:
+
+        async def websocket_url_handler(request: Request):
+            return JSONResponse({"url": "/api/notifications"})
+
+        routes.append(Route("/api/websocket-url", websocket_url_handler, methods=["GET"]))
+        routes.append(WebSocketRoute("/api/notifications", invalidation_websocket))
 
     origins: list[str] = []
     if "REVNG_ORIGINS" in os.environ:
