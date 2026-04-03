@@ -227,11 +227,11 @@ inline bool hasELFRelocationAddend(Values V) {
   switch (V) {
   case model::Architecture::x86_64:
   case model::Architecture::systemz:
+  case model::Architecture::aarch64:
     return true;
 
   case model::Architecture::x86:
   case model::Architecture::arm:
-  case model::Architecture::aarch64:
   case model::Architecture::mips:
   case model::Architecture::mipsel:
     return false;
