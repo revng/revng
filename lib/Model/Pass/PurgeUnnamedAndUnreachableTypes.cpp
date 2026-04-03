@@ -66,6 +66,7 @@ void model::purgeInvalidTypes(TupleTree<model::Binary> &Model) {
     std::optional<uint64_t> MaybeSize = Field.Type()->size(VH);
     return !Field.Type()->verify(VH) && MaybeSize.has_value();
   };
+  // TODO: purge overlapping struct fields
   for (auto &&Struct : Model->TypeDefinitions() | model::filter::Struct)
     Struct.Fields().erase_if(IsFieldInvalid);
   for (auto &&Union : Model->TypeDefinitions() | model::filter::Union) {
@@ -77,11 +78,13 @@ void model::purgeInvalidTypes(TupleTree<model::Binary> &Model) {
       // Note: changing the key of an element in a sorted container shouldn't
       // be allowed. However, it should be fine in this case, since we
       // preserve the ordering.
+      // TODO: don't do the above, recreate the list
       for (auto &[Index, Field] : llvm::enumerate(Union.Fields()))
         Field.Index() = Index;
       revng_assert(Union.Fields().isSorted());
     }
   }
+  // TODO: purge duplicate enum entries
 
   // If there are still any invalid types, we have to get rid of them.
   auto IsTypeInvalid = [&VH](const model::UpcastableTypeDefinition &T) {

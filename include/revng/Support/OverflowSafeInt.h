@@ -9,6 +9,7 @@
 #include "llvm/Support/MathExtras.h"
 
 #include "revng/ADT/Concepts.h"
+#include "revng/Support/Debug.h"
 
 template<std::integral T>
 class OverflowSafeInt {

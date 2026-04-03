@@ -165,7 +165,7 @@ public:
 
 public:
   static llvm::Expected<TupleTree> fromString(llvm::StringRef YAMLString) {
-    TupleTree Result{};
+    TupleTree Result;
 
     auto MaybeRoot = revng::detail::fromStringImpl<T>(YAMLString);
     if (not MaybeRoot)

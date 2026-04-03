@@ -55,7 +55,7 @@ unsigned dropTypesDependingOnDefinitions(TupleTree<model::Binary> &Model,
   // Prepare for deletion all the nodes reachable from Types
   std::set<const model::TypeDefinition *> ToDelete;
   for (const model::TypeDefinition *Type : Types) {
-    for (const auto *Node : depth_first(TypeToNode.at(Type))) {
+    for (const ForwardNode<TypeNode> *Node : depth_first(TypeToNode.at(Type))) {
       ToDelete.insert(Node->T);
     }
   }

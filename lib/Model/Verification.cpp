@@ -426,7 +426,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   revng_assert(T.Kind() == model::TypeDefinitionKind::EnumDefinition);
 
   if (T.Entries().empty())
-    rc_return VH.fail("Every enum definition must have at least one entry.");
+    rc_return VH.fail("Every enum definition must have at least one entry.", T);
 
   if (T.UnderlyingType().isEmpty())
     rc_return VH.fail("Every enum must have an underlying type.", T);
