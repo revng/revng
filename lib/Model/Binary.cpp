@@ -11,6 +11,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/BinaryIdentifier.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/CommandLine.h"
@@ -102,6 +103,26 @@ uint64_t model::Binary::getAvailableTypeID() const {
     return 0;
 
   return TypeDefinitions().rbegin()->get()->ID() + 1;
+}
+
+model::BinaryReference
+model::Binary::getBinaryIdentifierReference(const model::BinaryIdentifier::Key
+                                              &Key) {
+  using Fields = TupleLikeTraits<model::Binary>::Fields;
+  TupleTreePath BinaryPath;
+  BinaryPath.push_back(static_cast<size_t>(Fields::Binaries));
+  BinaryPath.push_back(std::get<0>(Key));
+  return model::BinaryReference{ this, BinaryPath };
+}
+
+model::BinaryReference
+model::Binary::getBinaryIdentifierReference(const model::BinaryIdentifier::Key
+                                              &Key) const {
+  using Fields = TupleLikeTraits<model::Binary>::Fields;
+  TupleTreePath BinaryPath;
+  BinaryPath.push_back(static_cast<size_t>(Fields::Binaries));
+  BinaryPath.push_back(std::get<0>(Key));
+  return model::BinaryReference{ this, BinaryPath };
 }
 
 namespace model {

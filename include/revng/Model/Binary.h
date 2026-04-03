@@ -214,6 +214,13 @@ public:
   }
 
 public:
+  model::BinaryReference
+  getBinaryIdentifierReference(const model::BinaryIdentifier::Key &Key);
+
+  model::BinaryReference
+  getBinaryIdentifierReference(const model::BinaryIdentifier::Key &Key) const;
+
+public:
   bool verify(VerifyHelper &VH) const;
   bool verify(bool Assert) const debug_function;
   bool verify() const debug_function;
