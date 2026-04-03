@@ -385,6 +385,8 @@ mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
       Builder.setOrUpdate<"_NORETURN">();
     if (FunctionOp->hasAttr("always_inline"))
       Builder.setOrUpdate<"_ALWAYS_INLINE">();
+
+    Builder.append(FunctionOp.getFunctionType().getCAttributes());
   }
 
   mlir::ArrayAttr Result = Builder.get();
