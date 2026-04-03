@@ -506,3 +506,10 @@ template<std::ranges::range Range,
 constexpr Container operator|(Range &&R, revng::detail::ToImpl<Container> T) {
   return T.asContainer(std::forward<Range>(R));
 }
+
+template<typename T = std::string,
+         typename Container = std::initializer_list<T>>
+void appendTo(Container &&Range, auto &Destination) {
+  for (auto &&Element : Range)
+    Destination.push_back(std::forward<decltype(Element)>(Element));
+}

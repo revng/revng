@@ -17,6 +17,7 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/STLExtras.h"
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawBinaryView.h"
@@ -131,13 +132,6 @@ public:
     return Result;
   }
 };
-
-template<typename T = std::string,
-         typename Container = std::initializer_list<T>>
-void appendTo(Container &&Range, auto &Destination) {
-  for (auto &&Element : Range)
-    Destination.push_back(std::forward<decltype(Element)>(Element));
-}
 
 static CommandList linkingArgs(const model::Binary &Model,
                                llvm::StringRef InputBinary,
