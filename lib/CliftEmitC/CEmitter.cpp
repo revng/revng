@@ -330,10 +330,12 @@ mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
   clift::CAttributeListBuilder Builder(*Op->getContext(),
                                        Op->getAttr("clift.c_attributes"));
 
-  if (Op->hasAttr("noreturn"))
-    Builder.setOrUpdate<"_NORETURN">();
-  if (Op->hasAttr("always_inline"))
-    Builder.setOrUpdate<"_ALWAYS_INLINE">();
+  if (auto FunctionOp = mlir::dyn_cast<clift::FunctionOp>(Op)) {
+    if (FunctionOp->hasAttr("noreturn"))
+      Builder.setOrUpdate<"_NORETURN">();
+    if (FunctionOp->hasAttr("always_inline"))
+      Builder.setOrUpdate<"_ALWAYS_INLINE">();
+  }
 
   mlir::ArrayAttr Result = Builder.get();
   if (not isValidCAttributeArray(Result)) {
