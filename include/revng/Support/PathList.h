@@ -13,7 +13,11 @@
 #include "llvm/Support/Path.h"
 
 llvm::StringRef getCurrentRoot();
+
 std::string getCacheDirectory();
+
+std::string getConfigDirectory();
+
 const std::map<std::string, std::string> &getLibrariesFullPath();
 
 template<typename... T>

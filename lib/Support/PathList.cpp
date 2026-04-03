@@ -71,20 +71,27 @@ llvm::StringRef getCurrentRoot() {
   return Resources->CurrentRoot;
 }
 
-std::string getCacheDirectory() {
-  if (auto CacheEnv = llvm::sys::Process::GetEnv("REVNG_CACHE_DIR")) {
-    return *CacheEnv;
-  }
-
+static std::string getXDGDirectory(llvm::StringRef EnvironmentVariable,
+                                   llvm::StringRef DefaultInHome,
+                                   llvm::StringRef Subdirectory) {
   std::string BaseDir;
-  if (auto XDGDir = llvm::sys::Process::GetEnv("XDG_CACHE_HOME")) {
+  if (auto XDGDir = llvm::sys::Process::GetEnv(EnvironmentVariable)) {
     BaseDir = *XDGDir;
   } else {
     llvm::SmallString<64> PathHome;
     llvm::sys::path::home_directory(PathHome);
-    BaseDir = joinPath(PathHome.str(), ".cache");
+    BaseDir = joinPath(PathHome.str(), DefaultInHome);
   }
-  return joinPath(BaseDir, "revng");
+
+  return joinPath(BaseDir, Subdirectory);
+}
+
+std::string getCacheDirectory() {
+  return getXDGDirectory("XDG_CACHE_HOME", ".cache", "revng");
+}
+
+std::string getConfigDirectory() {
+  return getXDGDirectory("XDG_CONFIG_HOME", ".config", "revng");
 }
 
 const std::map<std::string, std::string> &getLibrariesFullPath() {
