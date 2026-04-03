@@ -19,17 +19,17 @@ $ gcc example.c -o example -O2
 
 We run the [`import-binary` analysis](../../references/analyses.md#import-binary-analysis) using [`revng-analyze`](../../references/cli/revng-analyze.md) to automatically collect all the loading information available in the ELF headers:
 
-```{bash ignore="VirtualSize|FileSize"}
+```{bash ignore="VirtualSize|FileSize|Definition"}
 $ revng analyze import-binary example -o example.yml
 $ grep -A7 'Segments:' example.yml
 Segments:
   - StartAddress:    "0x400000:Generic64"
-    VirtualSize:     2528
-    FileSize:        2528
+    VirtualSize:     649036
+    FileSize:        649036
     IsReadable:      true
     IsExecutable:    true
-    Relocations:
-      - Address:         "0x401d88:Generic64"
+    Type:
+      Kind:            DefinedType
 ```
 
 However, the typical workflow does not require the user to manually specify what analyses to run, but there's a set of predefined analyses that should be run on a new project, the *initial autoanalyses*.
