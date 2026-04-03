@@ -530,8 +530,12 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
                                    llvm::StringRef Location,
                                    EntityKind Kind,
                                    IdentifierKind IsDefinition) {
-  revng_assert(not IsEmittingComment,
-               "Cannot emit tokens while an open CommentEmitter exists.");
+  if (IsEmittingComment && IsDefinition == IdentifierKind::Definition) {
+    std::string Error = "An identifier ('" + Identifier.str()
+                        + "') can only be referenced in a comment. Definitions "
+                          "are not allowed.";
+    revng_abort(Error.c_str());
+  }
 
   revng_check(!Identifier.empty());
   if (not validateIdentifier(Identifier)) {
