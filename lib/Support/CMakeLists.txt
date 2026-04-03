@@ -14,6 +14,7 @@ revng_add_library_internal(
   CustomizedLLVMPasses.cpp
   Debug.cpp
   ExplicitSpecializations.cpp
+  FileSystem.cpp
   InitRevng.cpp
   IRHelpers.cpp
   LDDTree.cpp
