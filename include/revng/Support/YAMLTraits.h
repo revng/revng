@@ -243,7 +243,8 @@ namespace revng::detail {
 
 inline void yamlDignosticHandler(const llvm::SMDiagnostic &Diagnostic,
                                  void *Context) {
-  *static_cast<std::string *>(Context) = Diagnostic.getMessage();
+  llvm::raw_string_ostream OS(*static_cast<std::string *>(Context));
+  Diagnostic.print(/*ProgName=*/nullptr, OS, /*ShowColors=*/false);
 }
 
 template<typename T>
