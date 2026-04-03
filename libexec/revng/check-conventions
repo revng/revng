@@ -522,7 +522,7 @@ class CPPCheckPass(TaggedPass):
 
     @staticmethod
     def parethesis_matcher(path: Path, line: str) -> List[re.Match]:
-        if re.search(r"R\"LLVM.*\($", line):
+        if re.search(r"R\"[^ (]*\($", line):
             return []
         main_match = re.search(r"\($", line)
         return [main_match] if main_match else []
