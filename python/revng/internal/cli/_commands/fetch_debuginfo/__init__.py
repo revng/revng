@@ -12,6 +12,7 @@ from elftools.common.exceptions import ELFError
 from elftools.elf.elffile import ELFFile
 
 from revng.internal.cli.commands_registry import Command, CommandsRegistry, Options
+from revng.internal.support import configuration
 from revng.support import log_error
 
 from .common import log, logger
@@ -30,11 +31,18 @@ def log_fail():
     log("Result: No debug info found")
 
 
-def env_or_default(env_key: str, default: List[str]) -> List[str]:
-    if env_key in os.environ:
-        return os.environ[env_key].split(",")
-    else:
+def config_or_default(config_key: str, default: List[str]) -> List[str]:
+    the_configuration = configuration()
+    if "debug-info-server-urls" not in the_configuration:
         return default
+
+    if config_key not in the_configuration["debug-info-server-urls"]:
+        return default
+
+    result = the_configuration["debug-info-server-urls"][config_key]
+    assert isinstance(result, list)
+    assert all(isinstance(entry, str) for entry in result)
+    return result
 
 
 def is_pe(file):
@@ -56,8 +64,8 @@ def is_elf(file):
 class FetchDebugInfoCommand(Command):
     def __init__(self):
         super().__init__(("model", "fetch-debuginfo"), "Fetch Debugging Information.")
-        self.elf_servers = env_or_default("REVNG_FETCH_DEBUGINFO_ELF_SERVERS", DEFAULT_ELF_SERVERS)
-        self.pe_servers = env_or_default("REVNG_FETCH_DEBUGINFO_PE_SERVERS", DEFAULT_PE_SERVERS)
+        self.elf_servers = config_or_default("dwarf", DEFAULT_ELF_SERVERS)
+        self.pe_servers = config_or_default("pe", DEFAULT_PE_SERVERS)
 
     def register_arguments(self, parser):
         parser.formatter_class = RawDescriptionHelpFormatter

@@ -10,6 +10,14 @@ include(share/revng/cmake/Common.cmake)
 
 find_program(CLANG_PATH NAMES clang)
 
+# Copy system configuration.yml
+if(REVNG_SYSTEM_CONFIG AND EXISTS "${REVNG_SYSTEM_CONFIG}")
+  set(REVNG_CONFIG_PATH "${CMAKE_BINARY_DIR}/etc/revng/configuration.yml")
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/etc/revng")
+  file(COPY_FILE "${REVNG_SYSTEM_CONFIG}" "${REVNG_CONFIG_PATH}")
+  install(FILES "${REVNG_CONFIG_PATH}" DESTINATION etc/revng)
+endif()
+
 #
 # Compile flags
 #

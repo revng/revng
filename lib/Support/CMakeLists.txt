@@ -5,6 +5,7 @@
 revng_add_library_internal(
   revngSupport
   SHARED
+  Configuration.cpp
   CTarget.cpp
   ProgramRunner.cpp
   Assert.cpp

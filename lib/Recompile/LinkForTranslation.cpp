@@ -17,12 +17,12 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/ADT/STLExtras.h"
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Recompile/LinkForTranslation.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/Configuration.h"
 #include "revng/Support/PathList.h"
 #include "revng/Support/ProgramRunner.h"
 #include "revng/Support/ResourceFinder.h"
@@ -154,15 +154,8 @@ static CommandList linkingArgs(const model::Binary &Model,
 
   Command Linker("ld.bfd");
 
-  // Parse options from environment variable.
-  if (auto EnvValue = sys::Process::GetEnv("REVNG_TRANSLATE_LDFLAGS")) {
-    SmallVector<const char *, 20> ExtraArguments;
-    BumpPtrAllocator A;
-    StringSaver Saver(A);
-    cl::TokenizeGNUCommandLine(*EnvValue, Saver, ExtraArguments);
-
-    appendTo(ExtraArguments, Linker.Arguments);
-  }
+  // Add flags from configuration
+  appendTo(revng::configuration().TranslationLDFlags, Linker.Arguments);
 
   // Disable PIE
   appendTo({ "-no-pie" }, Linker.Arguments);

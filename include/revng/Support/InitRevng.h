@@ -5,13 +5,7 @@
 //
 
 #include "llvm/Support/CommandLine.h"
-#include "llvm/Support/DebugInfoPreservation.h"
 #include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/PrettyStackTrace.h"
-#include "llvm/Support/Process.h"
-
-#include "revng/Support/IRHelpers.h"
-#include "revng/Support/Statistics.h"
 
 namespace revng {
 
@@ -24,62 +18,15 @@ private:
   static inline bool Initialized = false;
 
 public:
-  InitRevng(int &Argc, auto **&Argv, const char *Overview) :
+  InitRevng(int &Argc, char **&Argv, const char *Overview) :
     InitRevng(Argc, Argv, Overview, {}) {}
 
   InitRevng(int &Argc,
-            auto **&Argv,
+            char **&Argv,
             const char *Overview,
-            llvm::ArrayRef<const llvm::cl::OptionCategory *> CategoriesToHide) :
-    InitLLVM(Argc, Argv, true) {
+            llvm::ArrayRef<const llvm::cl::OptionCategory *> CategoriesToHide);
 
-    revng_assert(not Initialized);
-    Initialized = true;
-
-    OnQuit->install();
-    initializeLLVMLibraries();
-
-    llvm::setBugReportMsg("PLEASE submit a bug report to "
-                          "https://github.com/revng/revng and include the "
-                          "crash backtrace\n");
-
-    if (not CategoriesToHide.empty()) {
-      // NOLINTNEXTLINE
-      llvm::cl::HideUnrelatedOptions(CategoriesToHide);
-    }
-
-    // The EnvVar option in llvm::cl::ParseCommandLineOptions prepends the
-    // contents of the EnvVar environment variable to the argv, this is
-    // undesirable since we have `-load`s in the argv. Here we parse the env
-    // manually (if present) and append the command-line options at the end of
-    // the argv.
-    llvm::BumpPtrAllocator A;
-    llvm::StringSaver Saver(A);
-    llvm::SmallVector<const char *, 0> Arguments(Argv, Argv + Argc);
-    if (auto EnvValue = llvm::sys::Process::GetEnv("REVNG_OPTIONS")) {
-      llvm::cl::TokenizeGNUCommandLine(*EnvValue, Saver, Arguments);
-    }
-
-    // NOLINTNEXTLINE
-    bool Result = llvm::cl::ParseCommandLineOptions(Arguments.size(),
-                                                    Arguments.data(),
-                                                    Overview);
-
-    if (not Result)
-      std::exit(EXIT_FAILURE);
-
-    // Force-enable `--enable-strict-debug-information-preservation-style` for
-    // revng binaries even if it wasn't specified.
-    llvm::EnableStrictDebugInformationPreservationStyle.setInitialValue(true);
-
-    using namespace llvm;
-    StringMap<cl::Option *> &Options(cl::getRegisteredOptions());
-
-    const char *OptionName = "emit-hex-constant-literals-from";
-    getOption<uint64_t>(Options, OptionName)->setInitialValue(4096);
-  }
-
-  ~InitRevng() { OnQuit->quit(); }
+  ~InitRevng();
 
   InitRevng(const InitRevng &) = delete;
   InitRevng &operator=(const InitRevng &) = delete;
