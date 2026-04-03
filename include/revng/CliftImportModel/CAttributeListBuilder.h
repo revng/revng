@@ -77,6 +77,11 @@ public:
                             nullptr) {}
 
 public:
+  void append(CAttributeArray ExistingAttributes) {
+    Result.append(ExistingAttributes.begin(), ExistingAttributes.end());
+  }
+
+public:
   template<ConstexprString Macro>
   CAttributeListBuilder &setOrUpdate() {
     ptml::Attributes.assertAttributeName<Macro>();
