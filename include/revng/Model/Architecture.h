@@ -6,6 +6,8 @@
 
 #include "llvm/ADT/Triple.h"
 
+#include "revng/Model/OperatingSystem.h"
+
 #include "revng/Model/Generated/Early/Architecture.h"
 
 namespace model::Architecture {
@@ -400,6 +402,66 @@ inline constexpr bool hasDelaySlot(Values V) {
   case model::Architecture::mips:
   case model::Architecture::mipsel:
     return true;
+  default:
+    revng_abort();
+  }
+}
+
+inline bool isAvailableFor(Values V,
+                           model::OperatingSystem::Values OperatingSystem) {
+  switch (OperatingSystem) {
+  case model::OperatingSystem::Linux:
+    switch (V) {
+    case Architecture::x86_64:
+    case Architecture::aarch64:
+    case Architecture::x86:
+    case Architecture::arm:
+    case Architecture::mips:
+    case Architecture::mipsel:
+    case Architecture::systemz:
+      return true;
+    case Architecture::Count:
+    case Architecture::Invalid:
+      revng_abort();
+    }
+
+  case model::OperatingSystem::Windows:
+    switch (V) {
+    case Architecture::x86_64:
+    case Architecture::aarch64:
+    case Architecture::x86:
+    case Architecture::arm:
+      return true;
+    case Architecture::mips:
+    case Architecture::mipsel:
+    case Architecture::systemz:
+      return false;
+    case Architecture::Count:
+    case Architecture::Invalid:
+      revng_abort();
+    }
+
+  case model::OperatingSystem::MacOS:
+    switch (V) {
+    case Architecture::x86_64:
+    case Architecture::aarch64:
+      return true;
+    case Architecture::x86:
+    case Architecture::arm:
+    case Architecture::mips:
+    case Architecture::mipsel:
+    case Architecture::systemz:
+      return false;
+    case Architecture::Count:
+    case Architecture::Invalid:
+      revng_abort();
+    }
+
+  case model::OperatingSystem::Invalid:
+    // If unspecified, any architecture goes
+    revng_assert(V != Architecture::Invalid);
+    return true;
+
   default:
     revng_abort();
   }

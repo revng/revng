@@ -25,6 +25,17 @@ definitions:
         doc: The architecture for this binary.
         type: Architecture
 
+      - name: OperatingSystem
+        doc: The operating system for this binary.
+        type: OperatingSystem
+
+      - name: PlatformName
+        doc: |-
+          The name of the platform for this binary (e.g. ubuntu-24-04-x86-64).
+          Used to look up prototypes in the database. If empty, the best
+          platform is elected based on Architecture and OperatingSystem.
+        type: string
+
       - name: EntryPoint
         doc: The program entry point, if any.
         type: MetaAddress
@@ -1078,6 +1089,17 @@ definitions:
       - name: mips
       - name: mipsel
       - name: systemz
+
+  - name: OperatingSystem
+    type: enum
+
+    doc: |-
+      An enum listing all the currently supported operating systems.
+
+    members:
+      - name: Linux
+      - name: Windows
+      - name: MacOS
 
   - name: ABI
     type: enum
