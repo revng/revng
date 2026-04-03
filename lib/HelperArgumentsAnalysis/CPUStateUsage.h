@@ -165,6 +165,7 @@ private:
 public:
   StructPointers(const llvm::Module &M, llvm::StructType &Struct) :
     M(M), DL(M.getDataLayout()) {
+    auto &Log = ArgumentUsageAnalysisLog;
     revng_log(Log, "Analyzing CPU struct");
     LoggerIndent Indent(Log);
     visitType(Struct, 0);

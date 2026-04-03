@@ -36,6 +36,8 @@ static cl::opt<std::string> ModuleDumpPath("analyze-helper-arguments-output",
                                                     "results"),
                                            cl::init(""));
 
+static auto &Log = ArgumentUsageAnalysisLog;
+
 // TODO: use ConstantExpr to perform the constant folding instead of inventing
 //       our own arithmetic framework
 
