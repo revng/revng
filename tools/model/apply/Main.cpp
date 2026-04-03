@@ -29,12 +29,12 @@ static cl::opt<std::string> DiffPath(cl::Positional,
                                      cl::init("-"),
                                      cl::value_desc("model"));
 
-static cl::opt<std::string> OutputFilename("o",
-                                           llvm::cl::init("-"),
-                                           llvm::cl::desc("Override output "
-                                                          "filename"),
-                                           llvm::cl::value_desc("filename"),
-                                           llvm::cl::cat(ThisToolCategory));
+static cl::opt<std::string> OutputPath("o",
+                                       llvm::cl::init("-"),
+                                       llvm::cl::desc("Override output "
+                                                      "filename"),
+                                       llvm::cl::value_desc("filename"),
+                                       llvm::cl::cat(ThisToolCategory));
 
 int main(int Argc, char *Argv[]) {
   revng::InitRevng X(Argc, Argv, "", { &ThisToolCategory });
@@ -50,7 +50,7 @@ int main(int Argc, char *Argv[]) {
   auto Diff = ExitOnError(fromFileOrSTDIN<TypeDiff>(DiffPath));
 
   ExitOnError(Diff.apply(*Model));
-  ExitOnError(Model->toFile(OutputFilename));
+  ExitOnError(Model->toFile(OutputPath));
 
   return EXIT_SUCCESS;
 }

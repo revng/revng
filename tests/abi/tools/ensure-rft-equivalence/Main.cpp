@@ -43,13 +43,13 @@ static cl::opt<std::string> RightModelPath(cl::Positional,
                                            cl::desc("<right input model>"),
                                            cl::value_desc("right model"));
 
-static cl::opt<std::string> OutputFilename("o",
-                                           cl::cat(ThisToolCategory),
-                                           cl::init("-"),
-                                           llvm::cl::desc("Override "
-                                                          "output "
-                                                          "filename"),
-                                           llvm::cl::value_desc("filename"));
+static cl::opt<std::string> OutputPath("o",
+                                       cl::cat(ThisToolCategory),
+                                       cl::init("-"),
+                                       llvm::cl::desc("Override "
+                                                      "output "
+                                                      "filename"),
+                                       llvm::cl::value_desc("filename"));
 
 using DefinitionPair = std::pair<model::DefinitionReference,
                                  model::DefinitionReference>;
@@ -115,7 +115,7 @@ int main(int Argc, char *Argv[]) {
   auto RightModel = ExitOnError(Model::fromFile(RightModelPath));
 
   std::error_code EC;
-  llvm::ToolOutputFile OutputFile(OutputFilename,
+  llvm::ToolOutputFile OutputFile(OutputPath,
                                   EC,
                                   llvm::sys::fs::OpenFlags::OF_Text);
   if (EC)
