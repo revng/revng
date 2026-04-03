@@ -19,12 +19,21 @@ def Clift_ClassType : Clift_TypeInterface<"ClassType", [Clift_ObjectType,
         return $_type.isComplete();
       }]
     >,
+
     InterfaceMethod<
       "Returns the field attributes of this class type",
       "llvm::ArrayRef<mlir::clift::FieldAttr>", "getFields", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
         return $_type.getFields();
+      }]
+    >,
+    InterfaceMethod<
+      "Returns the c attributes attached to this type",
+      "llvm::ArrayRef<mlir::clift::CAttributeAttr>", "getCAttributes", (ins),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/[{
+        return $_type.getCAttributes();
       }]
     >,
   ];

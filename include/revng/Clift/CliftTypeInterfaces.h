@@ -6,6 +6,7 @@
 
 namespace mlir::clift {
 
+class CAttributeAttr;
 class FieldAttr;
 
 } // namespace mlir::clift
