@@ -481,6 +481,8 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
   bool IsHelper = pipeline::locationFromString(revng::ranks::HelperFunction,
                                                Op.getHandle())
                     .has_value();
+  if (not IsHelper)
+    emitFunctionDoxygenComment(Op);
 
   std::optional<llvm::ArrayRef<ParameterDeclaratorInfo>> Parameters;
   llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
