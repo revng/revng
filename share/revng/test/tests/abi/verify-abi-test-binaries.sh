@@ -22,9 +22,13 @@ llvm-dwarfdump \
   "$BINARY" \
   > "$OUTPUT_DIRECTORY/dwarf.dump"
 
+if test -e "${BINARY}.pdb"; then
+    EXTRA_ARGUMENTS=(--use-pdb="${BINARY}.pdb")
+fi
+
 # Import DWARF information
 revng2 -C "$OUTPUT_DIRECTORY" project init --no-initial-auto-analysis "$BINARY"
-revng2 -C "$OUTPUT_DIRECTORY" project analyze parse-binary -o /dev/null -- --use-pdb="${BINARY}.pdb"
+revng2 -C "$OUTPUT_DIRECTORY" project analyze parse-binary -o /dev/null -- "${EXTRA_ARGUMENTS[@]}"
 
 # Remove all the functions we don't find relevant, then force-override the ABI
 # field of all the renaming prototypes because DWARF information is not always
