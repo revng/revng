@@ -49,12 +49,6 @@ ObjectDependencies = Annotated[
 ]
 
 
-@dataclass
-class ScheduledTaskDependencies:
-    dependencies: ObjectDependencies
-    custom_invalidation: PipeCustomInvalidation = field(default_factory=list)
-
-
 class Pipe(ABC):
     """
     A Pipe is a task that, given some input objects, a configuration string and the model, produces

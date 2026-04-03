@@ -27,8 +27,8 @@ from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.schedule.scheduled_task import SavepointScheduledTask
 from revng.pypeline.storage.local_provider import LocalStorageProvider
 from revng.pypeline.storage.memory import InMemoryStorageProvider
-from revng.pypeline.storage.storage_provider import ContainerLocation, SavePointsRange
-from revng.pypeline.storage.storage_provider import StorageProvider
+from revng.pypeline.storage.storage_provider import ContainerLocation, PipeDependencies
+from revng.pypeline.storage.storage_provider import SavePointsRange, StorageProvider
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.savepoint import SavePoint
@@ -168,6 +168,7 @@ def test_savepoint_prerequisites_for(storage_provider) -> None:
         configuration_id=configuration_id,
         storage_provider=storage_provider,
         savepoint_range=savepoint_range,
+        pipes_dependencies=[],
     )
 
     result = save_point.prerequisites_for(
@@ -655,13 +656,17 @@ def test_storage_invalidation(storage_provider: StorageProvider):
     function2 = MyObjectID(MyKind.CHILD, "func2")
 
     def add_object(save_start: int, save_end: int, object_id, path: str):
-        storage_provider.put(
-            ContainerLocation(save_start, container_id, configuration_id), {object_id: b""}
-        )
-        storage_provider.add_dependencies(
-            SavePointsRange(save_start, save_end),
-            configuration_id,
-            [(container_id, object_id, path)],
+        storage_provider.add_objects(
+            [
+                PipeDependencies(
+                    0,
+                    SavePointsRange(save_start, save_end),
+                    configuration_id,
+                    [(container_id, object_id, path)],
+                    [],
+                )
+            ],
+            {ContainerLocation(save_start, container_id, configuration_id): {object_id: b""}},
         )
 
     # Check basic invalidation

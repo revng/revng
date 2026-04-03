@@ -19,17 +19,16 @@ from uuid import uuid4
 import yaml
 
 from revng.pypeline import __version__ as version
-from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
-from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
+from revng.pypeline.task.pipe import PipeCustomInvalidation
 from revng.pypeline.utils import Locked, crypto_hash
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
 from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
-from .storage_provider import ObjectsToInvalidate, ProjectID, ProjectMetadata, SavePointsRange
+from .storage_provider import ObjectsToInvalidate, PipeDependencies, ProjectID, ProjectMetadata
 from .storage_provider import SetModelResult, StorageProvider, StorageProviderFactory
 from .util import _OBJECTID_MAXSIZE, check_kind_structure, check_object_id_supported_by_sql
 from .util import compute_hash
@@ -507,45 +506,58 @@ class LocalStorageProvider(StorageProvider):
         obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
         return {obj_id_type.from_bytes(x[0]): x[1] for x in result}
 
-    def add_dependencies(
+    def add_objects(
         self,
-        savepoint_range: SavePointsRange,
-        configuration_id: ConfigurationId,
-        deps: ObjectDependencies,
+        dependencies: list[PipeDependencies],
+        objects: Mapping[ContainerLocation, Mapping[ObjectID, Buffer]],
     ) -> None:
         with self._cursor() as cursor:
-            for container_id, object_id, model_path in deps:
-                check_object_id_supported_by_sql(object_id)
-                cursor.execute(
-                    PUT_DEPENDENCIES_QUERY,
-                    (
-                        savepoint_range.start,
-                        savepoint_range.end,
-                        container_id,
-                        configuration_id,
-                        object_id.to_bytes(),
-                        model_path,
-                    ),
-                )
-            self._write_metadata(cursor)
+            # Save dependencies
+            for dependency in dependencies:
+                # Save ordinary dependencies
+                for container_id, object_id, model_path in dependency.dependencies:
+                    check_object_id_supported_by_sql(object_id)
+                    cursor.execute(
+                        PUT_DEPENDENCIES_QUERY,
+                        (
+                            dependency.savepoints_range.start,
+                            dependency.savepoints_range.end,
+                            container_id,
+                            dependency.configuration,
+                            object_id.to_bytes(),
+                            model_path,
+                        ),
+                    )
 
-    def put(
-        self,
-        location: ContainerLocation,
-        values: Mapping[ObjectID, Buffer],
-    ) -> None:
-        with self._cursor() as cursor:
-            for object_id, content in values.items():
-                cursor.execute(
-                    PUT_QUERY,
-                    (
-                        location.savepoint_id,
-                        location.container_id,
-                        location.configuration_id,
-                        object_id.to_bytes(),
-                        bytes(content),
-                    ),
-                )
+                # Save custom dependencies
+                for index, container_data in enumerate(dependency.custom_invalidation):
+                    for object_id, invalidation_blob in container_data:
+                        cursor.execute(
+                            "REPLACE INTO custom_dependencies VALUES (?, ?, ?, ?, ?)",
+                            (
+                                dependency.pipe_id,
+                                dependency.configuration,
+                                index,
+                                object_id.to_bytes(),
+                                bytes(invalidation_blob),
+                            ),
+                        )
+
+            # Save objects
+            for location, objects_set in objects.items():
+                for object_id, content in objects_set.items():
+                    cursor.execute(
+                        PUT_QUERY,
+                        (
+                            location.savepoint_id,
+                            location.container_id,
+                            location.configuration_id,
+                            object_id.to_bytes(),
+                            bytes(content),
+                        ),
+                    )
+
+            # Write metadata
             self._write_metadata(cursor)
 
     def _invalidate(
@@ -774,24 +786,6 @@ class LocalStorageProvider(StorageProvider):
             and (request.size is None or path.stat().st_size == request.size)
             and compute_hash(path) == request.hash
         )
-
-    def add_custom_invalidation_data(
-        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
-    ):
-        with self._cursor() as cursor:
-            for index, container_data in enumerate(data):
-                for object_id, invalidation_blob in container_data:
-                    cursor.execute(
-                        "REPLACE INTO custom_dependencies VALUES (?, ?, ?, ?, ?)",
-                        (
-                            pipe_id,
-                            configuration_hash,
-                            index,
-                            object_id.to_bytes(),
-                            bytes(invalidation_blob),
-                        ),
-                    )
-            self._write_metadata(cursor)
 
     def get_custom_invalidation_data(
         self, pipe_id: int, configuration_hash: str

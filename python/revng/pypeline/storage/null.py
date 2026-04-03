@@ -11,16 +11,15 @@ from pathlib import Path
 from typing import AsyncGenerator, Iterable, Mapping
 
 from revng.pypeline import __version__ as version
-from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
-from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
+from revng.pypeline.task.pipe import PipeCustomInvalidation
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, ObjectsToInvalidate, ProjectID
-from .storage_provider import ProjectMetadata, SavePointsRange, SetModelResult, StorageProvider
-from .storage_provider import StorageProviderFactory
+from .storage_provider import ContainerLocation, FileStorageEntry, ObjectsToInvalidate
+from .storage_provider import PipeDependencies, ProjectID, ProjectMetadata, SetModelResult
+from .storage_provider import StorageProvider, StorageProviderFactory
 from .util import compute_hash
 
 
@@ -71,18 +70,10 @@ class NullStorageProvider(StorageProvider):
         assert not keys, "NullStorageProvider does not support get operation."
         return {}
 
-    def add_dependencies(
+    def add_objects(
         self,
-        savepoint_range: SavePointsRange,
-        configuration_id: ConfigurationId,
-        deps: ObjectDependencies,
-    ) -> None:
-        self.last_change = datetime.now()
-
-    def put(
-        self,
-        location: ContainerLocation,
-        values: Mapping[ObjectID, Buffer],
+        dependencies: list[PipeDependencies],
+        objects: Mapping[ContainerLocation, Mapping[ObjectID, Buffer]],
     ) -> None:
         self.last_change = datetime.now()
 
@@ -127,11 +118,6 @@ class NullStorageProvider(StorageProvider):
 
     def get_files_from_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
         raise ValueError("Unsupported")
-
-    def add_custom_invalidation_data(
-        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
-    ) -> None:
-        pass
 
     def get_custom_invalidation_data(
         self, pipe_id: int, configuration_hash: str

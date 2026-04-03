@@ -16,14 +16,14 @@ from revng.pypeline import __version__ as version
 from revng.pypeline.container import ContainerID
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
-from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
+from revng.pypeline.task.pipe import PipeCustomInvalidation
 from revng.pypeline.utils import Locked
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
 from .storage_provider import ConfigurationId, ContainerLocation, FileStorageEntry
-from .storage_provider import InvalidatedObjects, ObjectsToInvalidate, ProjectID, ProjectMetadata
-from .storage_provider import SavepointID, SavePointsRange, SetModelResult, StorageProvider
+from .storage_provider import InvalidatedObjects, ObjectsToInvalidate, PipeDependencies, ProjectID
+from .storage_provider import ProjectMetadata, SavepointID, SetModelResult, StorageProvider
 from .storage_provider import StorageProviderFactory
 from .util import check_kind_structure, compute_hash
 
@@ -104,32 +104,33 @@ class InMemoryStorageProvider(StorageProvider):
         storage = self.storage[location]
         return {k: storage[k] for k in keys if k in storage}
 
-    def add_dependencies(
+    def add_objects(
         self,
-        savepoint_range: SavePointsRange,
-        configuration_id: ConfigurationId,
-        deps: ObjectDependencies,
+        dependencies: list[PipeDependencies],
+        objects: Mapping[ContainerLocation, Mapping[ObjectID, Buffer]],
     ) -> None:
-        for container_name, obj, path in deps:
-            self.dependencies[path].append(
-                DependencyEntry(
-                    savepoint_range.start,
-                    savepoint_range.end,
-                    container_name,
-                    configuration_id,
-                    obj,
+        for dependency in dependencies:
+            for container_name, obj, path in dependency.dependencies:
+                self.dependencies[path].append(
+                    DependencyEntry(
+                        dependency.savepoints_range.start,
+                        dependency.savepoints_range.end,
+                        container_name,
+                        dependency.configuration,
+                        obj,
+                    )
                 )
-            )
-        self.last_change = datetime.now()
+            if dependency.has_custom_invalidation():
+                storage = [
+                    [(oid, bytes(d)) for oid, d in entry]
+                    for entry in dependency.custom_invalidation
+                ]
+                self.custom_dependencies[(dependency.pipe_id, dependency.configuration)] = storage
 
-    def put(
-        self,
-        location: ContainerLocation,
-        values: Mapping[ObjectID, Buffer],
-    ) -> None:
-        self.storage.setdefault(location, {})
-        for key, value in values.items():
-            self.storage[location][key] = bytes(value)
+        for location, object_dict in objects.items():
+            self.storage.setdefault(location, {})
+            for key, value in object_dict.items():
+                self.storage[location][key] = bytes(value)
         self.last_change = datetime.now()
 
     def _invalidate(
@@ -247,12 +248,6 @@ class InMemoryStorageProvider(StorageProvider):
 
     def get_files_from_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
         return {r.hash: self.files[r.hash] for r in requests}
-
-    def add_custom_invalidation_data(
-        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
-    ):
-        storage = [[(oid, bytes(d)) for oid, d in entry] for entry in data]
-        self.custom_dependencies[(pipe_id, configuration_hash)] = storage
 
     def get_custom_invalidation_data(
         self, pipe_id: int, configuration_hash: str

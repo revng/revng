@@ -472,7 +472,6 @@ class Pipeline:
         return Schedule(
             {v for v in self.declarations if v.name in used_declatations},
             tasks[target_node],
-            configuration,
             model,
             storage_provider,
         )
@@ -736,4 +735,4 @@ class Pipeline:
             else:
                 raise ValueError(f"Unknown task type: \"{task['type']}\"")
 
-        return Schedule(declarations, scheduled_tasks[-1], configuration, model, storage_provider)
+        return Schedule(declarations, scheduled_tasks[-1], model, storage_provider)

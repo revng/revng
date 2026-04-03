@@ -4,15 +4,17 @@
 
 from __future__ import annotations
 
+import enum
 from abc import ABC, abstractmethod
 from typing import Generator, cast
 
-from revng.pypeline.container import ContainerDeclaration, ContainerSet
+from revng.pypeline.container import ConfigurationId, ContainerDeclaration, ContainerSet
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.storage.storage_provider import StorageProvider, StorageProviderFileProvider
-from revng.pypeline.task.pipe import ObjectDependencies, Pipe, ScheduledTaskDependencies
+from revng.pypeline.storage.storage_provider import PipeDependencies, StorageProvider
+from revng.pypeline.storage.storage_provider import StorageProviderFileProvider
+from revng.pypeline.task.pipe import ObjectDependencies, Pipe
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.savepoint import SavePoint
 from revng.pypeline.task.task import TaskArgumentAccess
@@ -96,13 +98,9 @@ class ScheduledTask(ABC):
         self.outgoing.merge(outgoing)
 
     @abstractmethod
-    def _run_impl(
-        self, containers: ContainerSet, runner_context: RunnerContext
-    ) -> ScheduledTaskDependencies | None: ...
+    def _run_impl(self, containers: ContainerSet, runner_context: RunnerContext) -> None: ...
 
-    def run(
-        self, containers: ContainerSet, runner_context: RunnerContext
-    ) -> ScheduledTaskDependencies | None:
+    def run(self, containers: ContainerSet, runner_context: RunnerContext) -> None:
         """
         Run the task with the requests computed during the scheduling phase.
         """
@@ -114,14 +112,12 @@ class ScheduledTask(ABC):
         for container_declaration in self.disposable_containers:
             containers[container_declaration].set_is_disposable()
 
-        result = self._run_impl(containers, runner_context)
+        self._run_impl(containers, runner_context)
 
         self.outgoing.check(containers)
         self.completed = True
         for container_declaration in self.disposable_containers:
             containers[container_declaration].dispose_if_possible()
-
-        return result
 
     def all_dependencies(self) -> Generator[ScheduledTask, None, None]:
         """
@@ -142,14 +138,31 @@ class ScheduledTask(ABC):
         return hash(id(self))
 
 
+class DependenciesPlaceholder(enum.Enum):
+    UNSET = enum.auto()
+    PROCESSED = enum.auto()
+
+
 class PipeScheduledTask(ScheduledTask):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         assert isinstance(self.node.task, Pipe)
 
-    def _run_impl(
-        self, containers: ContainerSet, runner_context: RunnerContext
-    ) -> ScheduledTaskDependencies:
+        # This stores the dependencies (both normal and custom) of the pipe
+        # after it has run. It goes through 3 states:
+        # 1. `DependenciesPlaceholder.UNSET`: This is the initial state when
+        #      the task is initialized
+        # 2. `PipeDependencies`: this are the actual dependencies computed
+        #      after running the pipe
+        # 3. `DependenciesPlaceholder.PROCESSED`: this is set by a
+        #      `SavepointScheduledTask` after it has persisted the dependencies
+        #      to storage to avoid having the dependencies being saved multiple
+        #      times
+        self.computed_dependencies: PipeDependencies | DependenciesPlaceholder = (
+            DependenciesPlaceholder.UNSET
+        )
+
+    def _run_impl(self, containers: ContainerSet, runner_context: RunnerContext):
         task: Pipe = cast(Pipe, self.node.task)
         bindings = self.node.bindings
         pipe_containers = [containers[decl] for decl in bindings]
@@ -170,7 +183,7 @@ class PipeScheduledTask(ScheduledTask):
         for index, decl in enumerate(bindings):
             containers[decl] = pipe_containers[index]
 
-        result_pipe: ObjectDependencies = []
+        dependencies: ObjectDependencies = []
         for index, index_deps in enumerate(pipe_output.dependencies):
             container_type = task.signature()[index]
             if container_type.access == TaskArgumentAccess.READ:
@@ -179,7 +192,7 @@ class PipeScheduledTask(ScheduledTask):
                     f"dependencies. For container {container_type.name} got dependencies "
                     f"{index_deps}"
                 )
-            result_pipe.extend(
+            dependencies.extend(
                 (self.node.bindings[index].name, obj, path) for obj, path in index_deps
             )
 
@@ -197,7 +210,15 @@ class PipeScheduledTask(ScheduledTask):
                         "invalidation data for a read-only container"
                     )
 
-        return ScheduledTaskDependencies(result_pipe, pipe_output.custom_invalidation)
+        assert self.node.savepoint_range is not None, "Savepoint range should be set for all Pipes"
+        configuration_id: ConfigurationId = self.node.configuration_id(self.configuration)
+        self.computed_dependencies = PipeDependencies(
+            self.node.id,
+            self.node.savepoint_range,
+            configuration_id,
+            dependencies,
+            pipe_output.custom_invalidation,
+        )
 
 
 class SavepointScheduledTask(ScheduledTask):
@@ -205,11 +226,28 @@ class SavepointScheduledTask(ScheduledTask):
         super().__init__(*args, **kwargs)
         assert isinstance(self.node.task, SavePoint)
 
-    def _run_impl(self, containers: ContainerSet, runner_context: RunnerContext) -> None:
+        self.dependant_pipes: list[PipeScheduledTask] = []
+
+    def _run_impl(self, containers: ContainerSet, runner_context: RunnerContext):
         task: SavePoint = cast(SavePoint, self.node.task)
         assert (
             self.node.savepoint_range is not None
         ), "SavePoint range must be set before calling run on a SavePoint"
+
+        pipes_dependencies: list[PipeDependencies] = []
+        for pipe_task in self.dependant_pipes:
+            if pipe_task.computed_dependencies == DependenciesPlaceholder.PROCESSED:
+                continue
+
+            assert isinstance(
+                pipe_task.computed_dependencies, PipeDependencies
+            ), "Pipe scheduled task did not save its computed dependencies"
+
+            if not pipe_task.computed_dependencies.empty():
+                pipes_dependencies.append(pipe_task.computed_dependencies)
+
+            pipe_task.computed_dependencies = DependenciesPlaceholder.PROCESSED
+
         task.run(
             containers=containers,
             incoming=self.incoming,
@@ -217,4 +255,5 @@ class SavepointScheduledTask(ScheduledTask):
             configuration_id=self.node.configuration_id(self.configuration),
             storage_provider=self.storage_provider,
             savepoint_range=self.node.savepoint_range,
+            pipes_dependencies=pipes_dependencies,
         )

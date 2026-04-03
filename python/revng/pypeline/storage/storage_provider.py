@@ -119,6 +119,21 @@ class SetModelResult:
     invalidated_objects: InvalidatedObjects
 
 
+@dataclass
+class PipeDependencies:
+    pipe_id: int
+    savepoints_range: SavePointsRange
+    configuration: ConfigurationId
+    dependencies: ObjectDependencies
+    custom_invalidation: PipeCustomInvalidation
+
+    def empty(self) -> bool:
+        return len(self.dependencies) == 0 and not self.has_custom_invalidation()
+
+    def has_custom_invalidation(self):
+        return not all(len(x) == 0 for x in self.custom_invalidation)
+
+
 class StorageProviderFactory(ABC):
     """
     A possibly stateful factory for a specific storage provider.
@@ -214,28 +229,16 @@ class StorageProvider(ABC):
         """
 
     @abstractmethod
-    def add_dependencies(
+    def add_objects(
         self,
-        savepoint_range: SavePointsRange,
-        configuration_id: ConfigurationId,
-        deps: ObjectDependencies,
+        dependencies: list[PipeDependencies],
+        objects: Mapping[ContainerLocation, Mapping[ObjectID, Buffer]],
     ) -> None:
         """
-        Store the dependencies between the objects and the model paths.
-        This is has to be called **BEFORE** `put`.
-        It can, and probably will, contain duplicated dependencies from previous
-        calls, but the storage should handle this gracefully.
-        """
-
-    @abstractmethod
-    def put(
-        self,
-        location: ContainerLocation,
-        values: Mapping[ObjectID, Buffer],
-    ) -> None:
-        """
-        Put a set of serialized objects into the storage.
-        This has always to be called **AFTER** `add_dependencies`
+        Store dependencies and custom invalidation for an arbitrary number of
+        pipes while storing objects to storage. This guarantees that the
+        objects stored and their dependencies are stored atomically and avoids
+        dangling dependencies.
         """
 
     @abstractmethod
@@ -291,15 +294,6 @@ class StorageProvider(ABC):
         """
         Get a file from storage, given a list of requests. Returns a dictionary
         mapping the hash to the contents.
-        """
-
-    @abstractmethod
-    def add_custom_invalidation_data(
-        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
-    ) -> None:
-        """
-        Add custom invalidation data to storage, will be used to produce
-        additional objects to invalidate later on.
         """
 
     @abstractmethod
