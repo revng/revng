@@ -138,12 +138,12 @@ NB_MODULE(_pipebox, m) {
     static std::vector<std::string> Args = { "" };
     append(ArgVector, Args);
 
-    static std::vector<const char *> Argv;
-    for (const std::string &String : Args)
-      Argv.push_back(String.c_str());
+    static std::vector<char *> Argv;
+    for (std::string &String : Args)
+      Argv.push_back(&String[0]);
 
     static int Argc = Argv.size();
-    static const char **ArgvPtr = Argv.data();
+    static char **ArgvPtr = Argv.data();
     // use a capsule to call the destructor when the Python module is unloaded
     m.attr("__init_revng__") = makeCapsule<revng::InitRevng>(Argc, ArgvPtr, "");
 

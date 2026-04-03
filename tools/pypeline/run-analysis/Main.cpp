@@ -46,7 +46,7 @@ static list<std::string> Arguments(Positional,
 
 } // namespace Options
 
-int main(int Argc, const char *Argv[]) {
+int main(int Argc, char *Argv[]) {
   using namespace revng::pypeline;
   using namespace revng::pypeline::helpers::native;
 
