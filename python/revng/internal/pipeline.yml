@@ -65,7 +65,7 @@ analyses:
   - verify-diff
   - set-model
   - verify-model
-  - import-well-known-models
+  - import-prototypes-from-db
   - convert-functions-to-cabi
   - import-from-c
 
@@ -73,7 +73,7 @@ analysis-lists:
   - name: initial-auto-analysis
     analyses:
       - parse-binary
-      - import-well-known-models
+      - import-prototypes-from-db
       - detect-abi
       - detect-stack-size
       - analyze-data-layout

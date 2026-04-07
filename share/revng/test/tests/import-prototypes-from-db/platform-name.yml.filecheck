@@ -1,0 +1,15 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Verify that PlatformName direct lookup works
+CHECK:       - Name:{{.*}}ExitProcess
+CHECK-NEXT:    Prototype:
+CHECK-NEXT:      Kind:{{.*}}DefinedType
+
+CHECK:       - Name:{{.*}}GetLastError
+CHECK-NEXT:    Prototype:
+CHECK-NEXT:      Kind:{{.*}}DefinedType
+
+CHECK:       TypeDefinitions:
+CHECK:       Kind:{{.*}}CABIFunctionDefinition
