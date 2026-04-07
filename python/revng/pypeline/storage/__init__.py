@@ -8,6 +8,7 @@ from revng.pypeline.utils.registry import register_all_subclasses
 from . import local_provider  # noqa: F401
 from . import memory  # noqa: F401
 from . import null  # noqa: F401
+from . import rss  # noqa: F401
 from .storage_provider import StorageProviderFactory
 
 register_all_subclasses(StorageProviderFactory)

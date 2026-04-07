@@ -513,6 +513,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/schedule/scheduled_task.py
     revng/pypeline/schedule/schedule.py
     revng/pypeline/storage/file_provider.py
+    revng/pypeline/storage/rss.py
     revng/pypeline/storage/memory.py
     revng/pypeline/storage/null.py
     revng/pypeline/storage/local_provider.py
@@ -537,6 +538,20 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/utils/cabc.py
     revng/pypeline/utils/__init__.py)
 
+# Copy buffered_reader.py from revng.support to revng.pypeline.utils, since
+# pypeline cannot depend on revng and having revng depend on pypeline would be
+# morally wrong. TODO: split off all the generic functionality
+add_custom_command(
+  COMMAND
+    cp -a
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/support/buffered_reader.py"
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/pypeline/utils/buffered_reader.py"
+  OUTPUT
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/pypeline/utils/buffered_reader.py"
+  DEPENDS
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/support/buffered_reader.py"
+)
+
 python_module(
   TARGET_NAME
   revng-python-pypeline
@@ -545,7 +560,9 @@ python_module(
   MODULE_INIT
   revng/pypeline/__init__.py
   MODULE_FILES
-  ${REVNG_PYPELINE_MODULE_FILES})
+  ${REVNG_PYPELINE_MODULE_FILES}
+  MODULE_GENERATED_FILES
+  revng/pypeline/utils/buffered_reader.py)
 
 configure_file(
   revng/pypeline/pipeline-description-schema.yml
