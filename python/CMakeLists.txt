@@ -455,8 +455,8 @@ python_module(TARGET_NAME revng-python-internal-support WHEEL revng_internal
 # Install revng.support
 #
 set(REVNG_SUPPORT_MODULE_FILES
-    revng/support/__init__.py revng/support/artifacts.py
-    revng/support/location.py)
+    revng/support/__init__.py revng/support/buffered_reader.py
+    revng/support/artifacts.py revng/support/location.py)
 python_module(TARGET_NAME revng-python-support WHEEL revng MODULE_FILES
               ${REVNG_SUPPORT_MODULE_FILES})
 

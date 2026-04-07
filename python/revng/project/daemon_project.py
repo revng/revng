@@ -4,100 +4,17 @@
 
 import os
 import re
-from io import IOBase
 from pathlib import Path
-from tempfile import SpooledTemporaryFile
 from typing import Dict, List, Set, Union
 from urllib.parse import urlparse
 
 import requests
-from urllib3.response import HTTPResponse
 
 from revng.project.common import ALL_OBJECTS, AllObjects, HTTPError, ProjectError
 from revng.project.model import Binary  # type: ignore[attr-defined]
 from revng.project.project import Project
 from revng.support import TarDictionary
-
-
-class BufferedReader(IOBase):
-    """
-    Adapter class that buffers an urllib3 HTTPResponse content in a spooled file
-    """
-
-    CHUNK_SIZE = 1 * 1024 * 1024
-
-    def __init__(self, response: HTTPResponse):
-        self.response = response
-        self.file = SpooledTemporaryFile(max_size=2 * 1024 * 1024)
-        self.max_offset = 0
-        self.position = 0
-        self.end = False
-
-    def close(self):
-        self.response.close()
-        self.file.close()
-
-    def fileno(self):
-        # We do not want to return self.file.fileno(), we want users to use
-        # read instead so we can perform buffering gradually
-        raise OSError
-
-    def seekable(self) -> bool:
-        return True
-
-    def readable(self) -> bool:
-        return True
-
-    def writable(self) -> bool:
-        return False
-
-    def read(self, size: int = -1) -> bytes:
-        if size == 0:
-            return b""
-
-        if size == -1 and not self.end:
-            self._read_internal(-1)
-
-        if size > 0 and self.position + size > self.max_offset:
-            self._read_internal(self.position + size - self.max_offset)
-
-        self.file.seek(self.position, os.SEEK_SET)
-        result = self.file.read(size)
-        self.position += len(result)
-        return result
-
-    def _read_internal(self, size: int):
-        chunk_size = self.__class__.CHUNK_SIZE
-        self.file.seek(self.max_offset)
-        if size == -1:
-            while (buffer := self.response.read(chunk_size)) != b"":
-                self.file.write(buffer)
-                self.max_offset += len(buffer)
-            self.end = True
-        else:
-            while size > 0:
-                size_to_read = chunk_size if size > chunk_size else size
-                buffer = self.response.read(size_to_read)
-                if buffer == b"":
-                    self.end = True
-                    break
-
-                self.file.write(buffer)
-                self.max_offset += len(buffer)
-                size -= len(buffer)
-
-    def seek(self, offset: int, whence=os.SEEK_SET):
-        if whence == os.SEEK_SET:
-            self.position = offset
-            return self.position
-        elif whence == os.SEEK_CUR:
-            self.position += offset
-            return self.position
-        else:
-            raise ValueError
-
-    def tell(self) -> int:
-        return self.position
+from revng.support.buffered_reader import BufferedReader
 
 
 class DaemonProject(Project):
