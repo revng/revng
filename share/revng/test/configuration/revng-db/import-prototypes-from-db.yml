@@ -1,0 +1,25 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+tags:
+  - name: import-prototypes-from-db
+
+sources:
+  - tags: [import-prototypes-from-db]
+    prefix: share/revng/test/tests/import-prototypes-from-db
+    members:
+      - windows-x86-64.yml
+      - arch-mismatch.yml
+      - platform-name.yml
+
+commands:
+  - type: revng-db.import-prototypes-from-db-test
+    from:
+      - type: source
+        filter: import-prototypes-from-db
+    command: |-
+      revng analyze import-prototypes-from-db /dev/null
+        --model "$INPUT"
+        | revng model opt -verify
+        | FileCheck "${SOURCE}.filecheck"

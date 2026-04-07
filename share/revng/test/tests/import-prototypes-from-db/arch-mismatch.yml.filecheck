@@ -1,0 +1,10 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# No matching platform for arm/Windows, so no prototypes should be imported
+CHECK:       - Name:{{.*}}CreateFileW
+CHECK-NOT:     Prototype:
+CHECK:       - Name:{{.*}}ExitProcess
+CHECK-NOT:     Prototype:
+CHECK-NOT:   TypeDefinitions:
