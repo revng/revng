@@ -18,7 +18,7 @@ from revng.pypeline.task.pipe import PipeCustomInvalidation
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, ObjectsToInvalidate
+from .storage_provider import ContainerLocation, FileStorageEntry, LockType, ObjectsToInvalidate
 from .storage_provider import PipeDependencies, ProjectID, ProjectMetadata, SetModelResult
 from .storage_provider import StorageProvider, StorageProviderFactory
 from .util import compute_hash
@@ -37,6 +37,7 @@ class NullStorageProviderFactory(StorageProviderFactory):
         self,
         base_directory: Path,
         pipeline: Pipeline,
+        lock_type: LockType,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,

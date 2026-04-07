@@ -18,7 +18,7 @@ from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, AnalysisList, ContainerDeclaration, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.storage.storage_provider import StorageProvider
+from revng.pypeline.storage.storage_provider import LockType, StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils.logger import pypeline_logger
@@ -262,6 +262,7 @@ def build_analysis_list_command(
         storage_provider_context = storage_provider_factory.get(
             base_directory=ctx.obj.base_directory,
             pipeline=ctx.obj.pipeline,
+            lock_type=LockType.ANALYSIS,
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj.cache_dir,
@@ -327,6 +328,7 @@ def build_analysis_command(
         storage_provider_context = storage_provider_factory.get(
             base_directory=ctx.obj.base_directory,
             pipeline=ctx.obj.pipeline,
+            lock_type=LockType.ANALYSIS,
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj.cache_dir,

@@ -41,7 +41,7 @@ from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.local_provider import TemporaryLocalStorageProviderFactory
-from revng.pypeline.storage.storage_provider import FileStorageEntry, StorageProvider
+from revng.pypeline.storage.storage_provider import FileStorageEntry, LockType, StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.storage.util import compute_hash
 from revng.pypeline.task.pipe import Pipe
@@ -228,7 +228,7 @@ def _build_artifact_command(pipeline: Pipeline, artifact_name: str):
 
         storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
         storage_provider_context = storage_provider_factory.get(
-            ctx.obj.base_directory, ctx.obj.pipeline, None, None, None
+            ctx.obj.base_directory, ctx.obj.pipeline, LockType.ARTIFACT, None, None, None
         )
         asyncio.run(async_part_of_command(storage_provider_context))
 
@@ -309,7 +309,7 @@ def analyze(
 
     storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
     storage_provider_context = storage_provider_factory.get(
-        ctx.obj.base_directory, ctx.obj.pipeline, None, None, None
+        ctx.obj.base_directory, ctx.obj.pipeline, LockType.ANALYSIS, None, None, None
     )
     asyncio.run(async_part_of_command(storage_provider_context))
 
@@ -375,6 +375,7 @@ def init(
     storage_provider_context = storage_provider_factory.get(
         base_directory=ctx.obj.base_directory,
         pipeline=ctx.obj.pipeline,
+        lock_type=LockType.ANALYSIS,
         project_id=project_id,
         token=token,
         cache_dir=ctx.obj.cache_dir,

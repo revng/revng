@@ -23,9 +23,9 @@ from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
 from .storage_provider import ConfigurationId, ContainerLocation, FileStorageEntry
-from .storage_provider import InvalidatedObjects, ObjectsToInvalidate, PipeDependencies, ProjectID
-from .storage_provider import ProjectMetadata, SavepointID, SetModelResult, StorageProvider
-from .storage_provider import StorageProviderFactory
+from .storage_provider import InvalidatedObjects, LockType, ObjectsToInvalidate, PipeDependencies
+from .storage_provider import ProjectID, ProjectMetadata, SavepointID, SetModelResult
+from .storage_provider import StorageProvider, StorageProviderFactory
 from .util import check_kind_structure, compute_hash
 
 
@@ -52,6 +52,7 @@ class InMemoryStorageProviderFactory(StorageProviderFactory):
         self,
         base_directory: Path,
         pipeline: Pipeline,
+        lock_type: LockType,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,

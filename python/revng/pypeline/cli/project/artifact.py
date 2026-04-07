@@ -20,7 +20,7 @@ from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.storage.storage_provider import StorageProvider
+from revng.pypeline.storage.storage_provider import LockType, StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
@@ -198,6 +198,7 @@ def build_artifact_command(
         storage_provider_context = storage_provider_factory.get(
             base_directory=ctx.obj.base_directory,
             pipeline=ctx.obj.pipeline,
+            lock_type=LockType.ARTIFACT,
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj.cache_dir,
