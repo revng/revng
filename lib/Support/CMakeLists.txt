@@ -30,6 +30,7 @@ revng_add_library_internal(
   GzipTarFile.cpp
   Tar.cpp
   GzipStream.cpp
+  WindowsApiSetSchemaParser.cpp
   ZstdStream.cpp)
 
 include(FindLibArchive)

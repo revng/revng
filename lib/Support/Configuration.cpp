@@ -17,6 +17,7 @@ extern "C" {
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/OperatingSystem.h"
 #include "revng/Support/Configuration.h"
+#include "revng/Support/FileSystem.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/PathList.h"
 #include "revng/Support/WindowsApiSetSchemaParser.h"

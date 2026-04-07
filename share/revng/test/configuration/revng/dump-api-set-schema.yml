@@ -1,0 +1,27 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+tags:
+  - name: api-set-schema
+sources:
+  - tags: [api-set-schema]
+    prefix: share/revng/test/tests/api-set-schema
+    members:
+      - windows-7-x86.filecheck
+      - windows-8-x86-64.filecheck
+      - windows-8-1-x86-64.filecheck
+      - windows-aarch64.filecheck
+      - windows-x86-64.filecheck
+commands:
+  - type: revng.test-api-set-schema
+    from:
+      - type: source
+        filter: api-set-schema
+    # We extract the name of the rootfs from the filecheck name and apply it
+    # against the apisetschema.dll files in there.
+    command: |-
+      ROOTFS=$$(basename "$INPUT" .filecheck);
+      INSTALL_ROOT=$$(echo "$INPUT" | sed 's|/share/revng/test/.*||');
+      DLL=$$(find "$$INSTALL_ROOT/share/roots/windows/$$ROOTFS" -iname apisetschema.dll -path "*/System32/*" -not -path "*/UtilityVM/*" | head -1);
+      revng internal dump-api-set-schema "$$DLL" | FileCheck "$INPUT"

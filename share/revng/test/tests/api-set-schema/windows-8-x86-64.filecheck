@@ -1,0 +1,12 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# ApiSet V4
+
+CHECK: PrefixLength: 4
+CHECK-DAG: ms-win-wwan-wwapi-l1-1-0 -> wwapi.dll
+CHECK-DAG: ms-win-shell32-shellfolders-l1-1-0 -> shell32.dll
+CHECK-DAG: ms-win-core-memory-l1-1-0 -> kernelbase.dll
+CHECK-DAG: ms-win-advapi32-auth-l1-1-0 -> advapi32.dll
+CHECK-DAG: ms-win-shlwapi-ie-l1-1-0 -> shlwapi.dll
