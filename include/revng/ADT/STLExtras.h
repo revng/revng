@@ -342,16 +342,20 @@ std::set<T *> intersect(const std::set<T *> &First, const std::set<T *> &Last) {
   return Output;
 }
 
-inline void
+inline bool
 replaceAll(std::string &Input, const std::string &From, const std::string &To) {
   if (From.empty())
-    return;
+    return false;
 
+  unsigned Count = 0;
   size_t Start = 0;
   while ((Start = Input.find(From, Start)) != std::string::npos) {
     Input.replace(Start, From.length(), To);
+    ++Count;
     Start += To.length();
   }
+
+  return Count > 0;
 }
 
 //
