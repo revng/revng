@@ -2,6 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,7 @@ def get_pipeline_description(pipeline: Pipeline) -> dict[str, Any]:
     """
 
     model_type: type[Model] = get_singleton(Model)  # type: ignore [type-abstract]
+    sort_by_name = partial(sorted, key=lambda x: x["name"])
     # Build the pipeline description
     pipeline_description = {
         "version": revng.pypeline.__version__,
@@ -35,22 +37,25 @@ def get_pipeline_description(pipeline: Pipeline) -> dict[str, Any]:
             "mime_type": model_type.mime_type(),
             "is_text": model_type.is_text(),
         },
-        "kinds": get_singleton(Kind).type_dict(),  # type: ignore
-        "container_types": [
-            container.type_dict()
-            for container in get_registry(Container).values()  # type: ignore [type-abstract]
-        ],
+        "kinds": sort_by_name(get_singleton(Kind).type_dict()),  # type: ignore
+        "container_types": sorted(
+            [
+                container.type_dict()
+                for container in get_registry(Container).values()  # type: ignore [type-abstract]
+            ],
+            key=lambda x: x["class"],
+        ),
         "containers": {
             declaration.name: declaration.container_type.name
-            for declaration in pipeline.declarations
+            for declaration in sorted(pipeline.declarations, key=lambda x: x.name)
         },
         "root_node_id": pipeline.root.id,
         "nodes": [node.to_dict() for node in pipeline.walk_pipeline(stable=True)],
-        "artifacts": [artifact.to_dict() for artifact in pipeline.artifacts.values()],
-        "analyses": [analysis.to_dict() for analysis in pipeline.analyses.values()],
-        "analyses_lists": [
-            analysis_list.to_dict() for analysis_list in pipeline.analysis_lists.values()
-        ],
+        "artifacts": sort_by_name([artifact.to_dict() for artifact in pipeline.artifacts.values()]),
+        "analyses": sort_by_name([analysis.to_dict() for analysis in pipeline.analyses.values()]),
+        "analyses_lists": sort_by_name(
+            [analysis_list.to_dict() for analysis_list in pipeline.analysis_lists.values()]
+        ),
     }
 
     # Ensure that it respects the agreed schema

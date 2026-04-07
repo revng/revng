@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from graphlib import TopologicalSorter
 from itertools import chain
 from typing import Dict, Generator, Iterable, List, Mapping, Optional, Set
 
@@ -190,6 +191,12 @@ class Pipeline:
             # Add the analysis list
             self.analysis_lists[analysis_list.name] = analysis_list
 
+        # Compute the hash for each `PipelineNode`, this needs to be done
+        # before doing any other operation that relies on
+        # `walk_pipeline(stable=True)` or `node.sorted_successors`
+        self._compute_nodes_hash()
+        # Assign the savepoint ranges, this works deterministically by leveraging
+        # `node.sorted_successors`
         Pipeline.assign_savepoint_ranges(root)
 
         id_index = 0
@@ -220,6 +227,15 @@ class Pipeline:
             if isinstance(artifact.node.task, SavePoint):
                 assert artifact.node.savepoint_range is not None
                 self.savepoint_id_to_artifact[artifact.node.savepoint_range.start] = artifact
+
+    def _compute_nodes_hash(self):
+        # Call each node's `_compute_node_hash` in post-order
+        sorter: TopologicalSorter[PipelineNode] = TopologicalSorter()
+        for node in self.walk_pipeline():
+            sorter.add(node, *node.successors)
+
+        for node in sorter.static_order():
+            node._compute_node_hash()
 
     @staticmethod
     def assign_savepoint_ranges(node: PipelineNode, current_id: int = 0) -> int:
