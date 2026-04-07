@@ -219,10 +219,6 @@ definitions:
         type: uint64_t
         default: -1
 
-      - name: Type
-        doc: The type of the argument.
-        type: Type
-
       - name: Name
         doc: The name of the argument.
         type: string
@@ -232,6 +228,10 @@ definitions:
           A comment that will be emitted as part of this function's definition
           in the `\param ${NAME} ${COMMENT}` shape.
         type: string
+
+      - name: Type
+        doc: The type of the argument.
+        type: Type
 
   - name: EnumDefinition
     inherits: TypeDefinition
@@ -372,10 +372,6 @@ definitions:
         doc: The register this argument or return value is created for.
         type: Register
 
-      - name: Type
-        doc: The type of this argument or return value.
-        type: Type
-
       - name: Name
         doc: The name for this argument or return value.
         type: string
@@ -383,6 +379,10 @@ definitions:
       - name: Comment
         doc: The comment for this argument or return value.
         type: string
+
+      - name: Type
+        doc: The type of this argument or return value.
+        type: Type
 
   - name: TypedefDefinition
     inherits: TypeDefinition
@@ -741,6 +741,12 @@ definitions:
           created for this segment.
         type: string
 
+      - name: Type
+        doc: |-
+          The struct type associated to this segment.
+          Informally, each field of such a `struct` is a global variable.
+        type: Type
+
       - name: CanonicalRegisterValues
         doc: |-
           The list of registers that are assumed to have a canonical value set
@@ -756,12 +762,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: Relocation
-
-      - name: Type
-        doc: |-
-          The struct type associated to this segment.
-          Informally, each field of such a `struct` is a global variable.
-        type: Type
 
   - name: Function
     type: struct
