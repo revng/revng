@@ -41,7 +41,7 @@ The first thing rev.ng needs to know is which binary to load, this is done by sp
 ```yaml title="model.yml"
 Binaries:
   - Index: 0
-    Name: sum
+    CanonicalPath: sum
     # Output of `sha256sum sum`
     Hash: bba591a825f58c1b94fc4d8c13f5d3531a89282cb3319a1418ee3f8396880567
     # Output of `wc -c sum`

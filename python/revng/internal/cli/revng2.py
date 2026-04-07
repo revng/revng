@@ -58,7 +58,9 @@ def generate_model_with_binaries(binaries: list[Path]):
         with open(binary, "rb") as f:
             hash_ = compute_hash(f)
             size = f.seek(0, os.SEEK_END)
-        result.append({"Index": index, "Hash": hash_, "Size": size, "Name": str(binary.resolve())})
+        result.append(
+            {"Index": index, "Hash": hash_, "Size": size, "CanonicalPath": str(binary.resolve())}
+        )
 
     return {"Binaries": result}
 

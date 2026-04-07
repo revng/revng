@@ -37,7 +37,7 @@ public:
     // reliable than the filename of the file on disk (this is still used as a
     // fallback in order to be compatible with the old pipeline).
     if (Reference.isValid())
-      return Reference.get()->Name();
+      return Reference.get()->Path();
     else if (not InputPath.empty())
       return InputPath;
     else if (not ObjectFile.getFileName().empty())

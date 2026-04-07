@@ -668,10 +668,19 @@ definitions:
         doc: The size of the binary (in bytes)
         type: uint64_t
 
-      - name: Name
+      - name: CanonicalPath
         doc: |-
-          The binary's filename at the time when it was imported. This is kept
-          as an heuristic to re-search the file if it is missing.
+          The path of the binary in its "canonical" position (if sensible).
+          For instance, for `sh`, it makes sense to use `/bin/sh`.
+          This enables to lookup debug information and libraries relative to its
+          "canonical" position.
+
+          Moreover, if `Hash` is not enough to obtain the actual content of the
+          binary, this field will be used to perform a fuzzy search in sensible
+          place.
+
+          In case of Windows binaries, use UNIX paths relative to C:\ (e.g., use
+          /Windows for C:\Windows).
         type: string
 
   - name: Segment
