@@ -311,11 +311,11 @@ void CodeGenerator::translate(LibTcg &LibTcg,
 
   std::vector<BasicBlock *> Blocks;
 
-  bool EndianessMismatch;
+  bool EndiannessMismatch;
   {
     using namespace model::Architecture;
     bool SourceIsLittleEndian = isLittleEndian(Model->Architecture());
-    EndianessMismatch = TargetIsLittleEndian != SourceIsLittleEndian;
+    EndiannessMismatch = TargetIsLittleEndian != SourceIsLittleEndian;
   }
 
   T.advance("Lifting code", true);
@@ -326,7 +326,7 @@ void CodeGenerator::translate(LibTcg &LibTcg,
                                    Variables,
                                    JumpTargets,
                                    Blocks,
-                                   EndianessMismatch,
+                                   EndiannessMismatch,
                                    PCH.get());
 
   std::tie(VirtualAddress, Entry) = JumpTargets.peek();
