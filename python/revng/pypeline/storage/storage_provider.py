@@ -291,7 +291,10 @@ class StorageProvider(ABC):
     @abstractmethod
     def prune_objects(self):
         """
-        Prunes all the objects (except metadata) from storage
+        Prunes all the objects (except metadata) from storage. This is a debug
+        method and should not be relied upon in other parts of the codebase.
+        This method can throw an exception if the provider does not support
+        pruning.
         """
 
     @abstractmethod
