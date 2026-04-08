@@ -117,10 +117,12 @@ public:
       }
     }
 
-    if (GOT->isAvailable())
-      this->registerRelocations(MIPSImplicitRelocations,
+    if (GOT->isAvailable()) {
+      this->registerRelocations("MIPS .got",
+                                MIPSImplicitRelocations,
                                 *this->DynsymPortion.get(),
                                 *this->DynstrPortion.get());
+    }
   }
 
   llvm::Error import(const ImporterOptions &Options) override {

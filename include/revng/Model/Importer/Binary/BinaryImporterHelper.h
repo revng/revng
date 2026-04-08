@@ -9,20 +9,24 @@
 #include "llvm/ADT/ArrayRef.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/Importer/Binary/BinaryDescriptor.h"
+#include "revng/Model/Importer/Binary/Options.h"
+#include "revng/Model/Importer/ImportLogger.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/LDDTree.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/MetaAddressRange.h"
 
 class BinaryImporterHelper {
 protected:
-  model::Binary &Binary;
+  TupleTree<model::Binary> &Binary;
   uint64_t BaseAddress = 0;
   Logger &Logger;
   MetaAddressRangeSet ExecutableRanges;
   bool SegmentsInitialized = false;
 
 public:
-  BinaryImporterHelper(model::Binary &Binary,
+  BinaryImporterHelper(TupleTree<model::Binary> &Binary,
                        uint64_t BaseAddress,
                        ::Logger &Logger) :
     Binary(Binary), BaseAddress(BaseAddress), Logger(Logger) {}
@@ -39,8 +43,8 @@ public:
   MetaAddress toPC(const MetaAddress &Generic) const {
     revng_assert(Generic.isGeneric());
     using namespace model::Architecture;
-    revng_assert(Binary.Architecture() != Invalid);
-    return MetaAddress::fromPC(Binary.Architecture(),
+    revng_assert(Binary->Architecture() != Invalid);
+    return MetaAddress::fromPC(Binary->Architecture(),
                                Generic.address(),
                                Generic.epoch(),
                                Generic.addressSpace());
@@ -48,19 +52,19 @@ public:
 
   MetaAddress fromPC(uint64_t PC) const {
     using namespace model::Architecture;
-    revng_assert(Binary.Architecture() != Invalid);
-    return MetaAddress::fromPC(Binary.Architecture(), PC);
+    revng_assert(Binary->Architecture() != Invalid);
+    return MetaAddress::fromPC(Binary->Architecture(), PC);
   }
 
   MetaAddress fromGeneric(uint64_t Address) const {
     using namespace model::Architecture;
-    revng_assert(Binary.Architecture() != Invalid);
-    return MetaAddress::fromGeneric(Binary.Architecture(), Address);
+    revng_assert(Binary->Architecture() != Invalid);
+    return MetaAddress::fromGeneric(Binary->Architecture(), Address);
   }
 
 public:
   void processSegments() {
-    ExecutableRanges = Binary.executableRanges();
+    ExecutableRanges = Binary->executableRanges();
     SegmentsInitialized = true;
   }
 
@@ -73,7 +77,7 @@ public:
       return;
     }
 
-    Binary.ExtraCodeAddresses().insert(Address);
+    Binary->ExtraCodeAddresses().insert(Address);
   }
 
   model::Function *registerFunctionEntry(const MetaAddress &Address) {
@@ -84,7 +88,10 @@ public:
       return nullptr;
     }
 
-    return &Binary.Functions()[Address];
+    if (not Binary->Functions().contains(Address))
+      revng_log(Logger, "Registering new function at " << Address.toString());
+
+    return &Binary->Functions()[Address];
   }
 
   void setEntryPoint(const MetaAddress &Address) {
@@ -95,7 +102,7 @@ public:
       return;
     }
 
-    Binary.EntryPoint() = Address;
+    Binary->EntryPoint() = Address;
   }
 
 public:
@@ -113,4 +120,13 @@ private:
   bool isExecutable(const MetaAddress &Address) const {
     return ExecutableRanges.contains(Address);
   }
+
+protected:
+  ImportLogger importLogger(llvm::StringRef Path) {
+    return ImportLogger(Binary, Logger, Path);
+  }
+
+  template<IsObjectFile T>
+  std::optional<LDDTree>
+  identifyDependencies(const T &ObjectFile, llvm::StringRef CanonicalPath);
 };

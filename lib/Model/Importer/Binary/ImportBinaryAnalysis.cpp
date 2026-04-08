@@ -14,15 +14,6 @@
 
 using namespace revng::pipes;
 
-static model::BinaryReference makeReference(model::Binary &Binary,
-                                            size_t Index) {
-  using Fields = TupleLikeTraits<model::Binary>::Fields;
-  TupleTreePath BinaryPath;
-  BinaryPath.push_back(static_cast<size_t>(Fields::Binaries));
-  BinaryPath.push_back(Index);
-  return model::BinaryReference{ &Binary, BinaryPath };
-}
-
 llvm::Error ImportBinaryAnalysis::run(pipeline::ExecutionContext &Context,
                                       const BinaryFileContainer &SourceBinary) {
   if (not SourceBinary.exists())
@@ -31,30 +22,26 @@ llvm::Error ImportBinaryAnalysis::run(pipeline::ExecutionContext &Context,
   TupleTree<model::Binary> &Model = getWritableModelFromContext(Context);
 
   const ImporterOptions &Options = importerOptions();
-  llvm::StringRef BinaryPath = *SourceBinary.path();
-  auto MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(BinaryPath,
-                                                        false,
-                                                        false);
-  if (not MaybeBuffer)
-    return llvm::errorCodeToError(MaybeBuffer.getError());
 
   llvm::Task T(2, "Import binary");
   T.advance("Import main binary", true);
 
   model::BinaryReference Reference;
-  if (Model->Binaries().size() > 0)
-    Reference = makeReference(*Model.get(), 0);
+  if (Model->Binaries().size() > 0) {
+    // TODO: do this unconditionally once we drop the old pipeline
+    Reference = Model->getBinaryIdentifierReference(0);
+  }
 
   if (llvm::Error Error = importBinary(Model,
-                                       **MaybeBuffer,
-                                       BinaryPath,
+                                       *SourceBinary.path(),
                                        Options,
-                                       Reference))
+                                       Reference)) {
     return Error;
+  }
 
   T.advance("Import additional debug info", true);
   if (!Options.AdditionalDebugInfoPaths.empty()) {
-    DwarfImporter Importer(Model);
+    DwarfImporter Importer(Model, std::nullopt);
     llvm::Task T2(Options.AdditionalDebugInfoPaths.size(),
                   "Import additional debug info");
     for (const std::string &Path : Options.AdditionalDebugInfoPaths) {
@@ -70,6 +57,7 @@ static pipeline::RegisterAnalysis<ImportBinaryAnalysis> E;
 
 namespace revng::pypeline::analyses {
 
+// TODO: have a configuration to list the "preferred" roots to use for import
 llvm::Error ParseBinaryAnalysis::run(Model &Model,
                                      const Request &Incoming,
                                      llvm::StringRef Configuration,
@@ -80,14 +68,9 @@ llvm::Error ParseBinaryAnalysis::run(Model &Model,
   T.advance("Import main binary", true);
 
   for (size_t I = 0; I < Binaries.size(); I++) {
-    llvm::ArrayRef<char> Ref = Binaries.getFile(I);
-    auto Buffer = llvm::MemoryBuffer::getMemBuffer({ Ref.begin(), Ref.size() },
-                                                   "",
-                                                   false);
 
-    model::BinaryReference Reference = makeReference(*Model.get().get(), I);
+    auto Reference = Model.get()->getBinaryIdentifierReference(I);
     if (llvm::Error Error = importBinary(Model.get(),
-                                         *Buffer,
                                          Binaries.getFilePath(I),
                                          Options,
                                          Reference))
@@ -95,8 +78,8 @@ llvm::Error ParseBinaryAnalysis::run(Model &Model,
   }
 
   T.advance("Import additional debug info", true);
-  if (!Options.AdditionalDebugInfoPaths.empty()) {
-    DwarfImporter Importer(Model.get());
+  if (not Options.AdditionalDebugInfoPaths.empty()) {
+    DwarfImporter Importer(Model.get(), std::nullopt);
     llvm::Task T2(Options.AdditionalDebugInfoPaths.size(),
                   "Import additional debug info");
     for (const std::string &Path : Options.AdditionalDebugInfoPaths) {

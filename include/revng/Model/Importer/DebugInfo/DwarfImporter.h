@@ -7,18 +7,29 @@
 #include "llvm/Object/Binary.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/Importer/Binary/BinaryDescriptor.h"
+#include "revng/Support/Configuration.h"
 
 struct ImporterOptions;
 
 class DwarfImporter {
+public:
+  using AddressWhitelist = std::set<uint64_t>;
+
 private:
   TupleTree<model::Binary> &Model;
   std::vector<std::string> LoadedFiles;
   using DwarfID = std::pair<size_t, size_t>;
   std::map<DwarfID, model::UpcastableType> DwarfToModel;
+  const AddressWhitelist *FunctionWhitelist = nullptr;
 
 public:
-  DwarfImporter(TupleTree<model::Binary> &Model) : Model(Model) {}
+  DwarfImporter(TupleTree<model::Binary> &Model,
+                const std::optional<AddressWhitelist> &FunctionWhitelist) :
+    Model(Model),
+    FunctionWhitelist(FunctionWhitelist.has_value() ?
+                        &*FunctionWhitelist :
+                        static_cast<const AddressWhitelist *>(nullptr)) {}
 
 public:
   model::UpcastableType findType(DwarfID ID) {
@@ -35,16 +46,25 @@ public:
 
   TupleTree<model::Binary> &getModel() { return Model; }
 
-public:
-  void import(llvm::StringRef FileName, const ImporterOptions &Options);
+  bool isFunctionAllowed(uint64_t Address) const {
+    if (FunctionWhitelist == nullptr)
+      return true;
 
-  void import(llvm::MemoryBufferRef Buffer,
-              llvm::StringRef Filepath,
-              const ImporterOptions &Options,
-              llvm::StringRef Filename);
+    return FunctionWhitelist->contains(Address);
+  }
+
+public:
+  size_t import(llvm::StringRef FileName, const ImporterOptions &Options);
+
+  /// \p Root Optional.
+  size_t import(const revng::RootEntry *Root,
+                const ELFBinary &Binary,
+                const ImporterOptions &Options);
 
 private:
-  void import(const llvm::object::Binary &TheBinary,
-              llvm::StringRef FileName,
-              uint64_t PreferredBaseAddress);
+  // \return the index the imported Dwarf file, use this for DwarfID.
+  size_t import(const llvm::object::Binary &TheBinary,
+                llvm::StringRef CanonicalPath,
+                uint64_t PreferredBaseAddress,
+                size_t AltIndex);
 };

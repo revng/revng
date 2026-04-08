@@ -20,7 +20,7 @@ using namespace llvm;
 
 Error importBinary(TupleTree<model::Binary> &Model,
                    llvm::object::ObjectFile &ObjectFile,
-                   llvm::StringRef Filepath,
+                   llvm::StringRef FullPathForExternalTools,
                    const ImporterOptions &Options,
                    model::BinaryReference &BinaryReference) {
   using namespace llvm::object;
@@ -39,20 +39,19 @@ Error importBinary(TupleTree<model::Binary> &Model,
   revng_check(not Result);
   if (auto *TheBinary = dyn_cast<ELFObjectFileBase>(&ObjectFile)) {
     ELFBinary Binary(*TheBinary,
-                     ObjectFile.getMemoryBufferRef(),
-                     Filepath,
+                     FullPathForExternalTools.str(),
                      BinaryReference);
     Result = importELF(Model, Binary, Options);
   } else if (auto *TheBinary = dyn_cast<COFFObjectFile>(&ObjectFile)) {
+    Model->OperatingSystem() = model::OperatingSystem::Windows;
     COFFBinary Binary(*TheBinary,
-                      ObjectFile.getMemoryBufferRef(),
-                      Filepath,
+                      FullPathForExternalTools.str(),
                       BinaryReference);
     Result = importPECOFF(Model, Binary, Options);
   } else if (auto *TheBinary = dyn_cast<MachOObjectFile>(&ObjectFile)) {
+    Model->OperatingSystem() = model::OperatingSystem::MacOS;
     MachOBinary Binary(*TheBinary,
-                       ObjectFile.getMemoryBufferRef(),
-                       Filepath,
+                       FullPathForExternalTools.str(),
                        BinaryReference);
     Result = importMachO(Model, Binary, Options);
   } else {
@@ -70,11 +69,18 @@ Error importBinary(TupleTree<model::Binary> &Model,
 }
 
 Error importBinary(TupleTree<model::Binary> &Model,
-                   llvm::MemoryBuffer &Buffer,
-                   llvm::StringRef Filepath,
+                   llvm::StringRef FullPathForExternalTools,
                    const ImporterOptions &Options,
                    model::BinaryReference &BinaryReference) {
-  auto BinaryOrError = object::createBinary(Buffer);
+
+  auto
+    MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(FullPathForExternalTools,
+                                                     false,
+                                                     false);
+  if (not MaybeBuffer)
+    return llvm::errorCodeToError(MaybeBuffer.getError());
+
+  auto BinaryOrError = object::createBinary(**MaybeBuffer);
   if (not BinaryOrError)
     return BinaryOrError.takeError();
 
@@ -89,7 +95,7 @@ Error importBinary(TupleTree<model::Binary> &Model,
 
   return importBinary(Model,
                       cast<object::ObjectFile>(Binary),
-                      Filepath,
+                      FullPathForExternalTools,
                       Options,
                       BinaryReference);
 }

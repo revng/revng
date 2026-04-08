@@ -14,15 +14,16 @@ revng_add_library_internal(
   CommonOptions.cpp
   CustomizedLLVMPasses.cpp
   Debug.cpp
+  ELFLDDTree.cpp
   ExplicitSpecializations.cpp
   FileSystem.cpp
   InitRevng.cpp
   IRHelpers.cpp
-  LDDTree.cpp
   MetaAddress.cpp
   ModuleStatistics.cpp
   OnQuit.cpp
   PathList.cpp
+  PECOFFLDDTree.cpp
   Progress.cpp
   ResourceFinder.cpp
   Statistics.cpp
