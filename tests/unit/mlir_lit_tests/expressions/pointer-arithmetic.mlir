@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s
 
-!int32_t = !clift.primitive<signed 4>
+!int32_t = !clift.int<signed 4>
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
-!ptrdiff_t = !clift.primitive<signed 8>
+!ptrdiff_t = !clift.int<signed 8>
 
 %p = clift.undef : !int32_t$ptr
 %i = clift.imm 0 : !ptrdiff_t

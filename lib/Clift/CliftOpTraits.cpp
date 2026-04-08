@@ -5,14 +5,15 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftOpTraits.h"
 
-using namespace mlir;
-using namespace mlir::clift;
+namespace traits_impl = mlir::OpTrait::clift::impl;
 
-namespace traits_impl = OpTrait::clift::impl;
+namespace clift = mlir::clift;
+using namespace clift;
 
-LogicalResult traits_impl::verifyNoFallthroughTrait(Operation *const Op) {
-  if (Block *const B = Op->getBlock()) {
-    Operation *const NextOp = B->getOperations().getNextNode(*Op);
+mlir::LogicalResult
+traits_impl::verifyNoFallthroughTrait(mlir::Operation *const Op) {
+  if (mlir::Block *const B = Op->getBlock()) {
+    mlir::Operation *const NextOp = B->getOperations().getNextNode(*Op);
     if (NextOp != nullptr and not mlir::isa<AssignLabelOp>(NextOp))
       return Op->emitOpError() << "Operation may not be followed by a non-label"
                                   "operation";
@@ -20,7 +21,8 @@ LogicalResult traits_impl::verifyNoFallthroughTrait(Operation *const Op) {
   return mlir::success();
 }
 
-LogicalResult traits_impl::verifyAssignsLoopLabelsTrait(Operation *const Op) {
+mlir::LogicalResult
+traits_impl::verifyAssignsLoopLabelsTrait(mlir::Operation *const Op) {
   constexpr auto AttrName = mlir::clift::impl::LoopLabelMaskAttrName;
   auto LabelMaskAttr = Op->getAttrOfType<mlir::IntegerAttr>(AttrName);
   revng_assert(LabelMaskAttr);

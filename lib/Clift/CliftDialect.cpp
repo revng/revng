@@ -78,23 +78,21 @@ class ModuleVerifier : public ModuleVisitor<ModuleVerifier> {
 public:
   // Visit a field type of a class type attribute.
   // RootType is the root class type attribute and is used to detect recursion.
-  mlir::LogicalResult visitFieldType(ValueType FieldType,
-                                     DefinedType RootType) {
-    FieldType = dealias(FieldType);
+  mlir::LogicalResult visitFieldType(mlir::Type FieldType, ClassType RootType) {
+    FieldType = unwrapTypedefs(FieldType);
 
-    if (auto T = mlir::dyn_cast<DefinedType>(FieldType)) {
-      if (T == RootType)
+    if (auto T = mlir::dyn_cast<ClassType>(FieldType)) {
+      if (equivalent(T, RootType))
         return getCurrentOp()->emitError() << "Clift ModuleOp contains a "
                                               "recursive class type.";
 
-      return maybeVisitClassType(T, RootType);
+      return visitClassType(T, RootType);
     }
 
     return mlir::success();
   }
 
-  template<typename ClassTypeT>
-  mlir::LogicalResult visitClassType(ClassTypeT Type, DefinedType RootType) {
+  mlir::LogicalResult visitClassType(ClassType Type, ClassType RootType) {
     for (FieldAttr Field : Type.getFields()) {
       if (visitFieldType(Field.getType(), RootType).failed())
         return mlir::failure();
@@ -102,19 +100,8 @@ public:
     return mlir::success();
   }
 
-  // Call visitClassType if Type is a class type. RootType is the root class
-  // type and is used to detect recursion.
-  mlir::LogicalResult maybeVisitClassType(DefinedType Type,
-                                          DefinedType RootType) {
-    if (auto T = mlir::dyn_cast<StructType>(Type))
-      return visitClassType(T, RootType);
-    if (auto T = mlir::dyn_cast<UnionType>(Type))
-      return visitClassType(T, RootType);
-    return mlir::success();
-  }
-
   mlir::LogicalResult visitDefinedType(DefinedType Type) {
-    auto UnqualifiedType = mlir::cast<DefinedType>(Type.removeConst());
+    auto UnqualifiedType = mlir::cast<DefinedType>(removeConst(Type));
 
     auto const [Iterator, Inserted] = Definitions.try_emplace(Type.getHandle(),
                                                               UnqualifiedType);
@@ -125,14 +112,18 @@ public:
                                             "handle: '"
                                          << UnqualifiedType.getHandle() << '\'';
 
-    if (maybeVisitClassType(Type, Type).failed())
-      return mlir::failure();
+    if (auto Class = mlir::dyn_cast<ClassType>(Type)) {
+      if (visitClassType(Class, Class).failed())
+        return mlir::failure();
+
+      ClassTypes.insert(Class);
+    }
 
     return mlir::success();
   }
 
-  mlir::LogicalResult visitValueType(ValueType Type) {
-    Type = dealias(Type);
+  mlir::LogicalResult visitAddressableType(AddressableType Type) {
+    Type = unwrapTypedefs(Type);
 
     if (not isCompleteType(Type))
       return getCurrentOp()->emitError() << "Clift ModuleOp contains an "
@@ -151,13 +142,10 @@ public:
       return getCurrentOp()->emitError() << "Clift ModuleOp a contains "
                                             "non-Clift type";
 
-    if (auto T = mlir::dyn_cast<ValueType>(Type)) {
-      if (visitValueType(Type).failed())
+    if (auto T = mlir::dyn_cast<AddressableType>(Type)) {
+      if (visitAddressableType(Type).failed())
         return mlir::failure();
     }
-
-    if (auto T = mlir::dyn_cast<ClassType>(Type))
-      ClassTypes.insert(T);
 
     return mlir::success();
   }

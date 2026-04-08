@@ -4,8 +4,8 @@
 
 // RUN: not %revngcliftopt --verify-c %s 2>&1 | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!int32_t = !clift.primitive<signed 4>
+!void = !clift.void
+!int32_t = !clift.int<signed 4>
 
 !s = !clift.struct<"/type-definition/1-StructDefinition" : size(4) {
   "/type-definition/1-StructDefinition/0" : offset(0) !int32_t

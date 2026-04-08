@@ -4,9 +4,9 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!int32_t = !clift.primitive<signed 4>
+!int32_t = !clift.int<signed 4>
 
 %value = clift.undef : !int32_t
 
-// CHECK: result type must be narrower than the argument type
-clift.cast<truncate> %value : !int32_t -> !int32_t
+// CHECK: result must be wider than the operand
+clift.extend %value : !int32_t -> !int32_t

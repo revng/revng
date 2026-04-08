@@ -6,19 +6,27 @@
 
 #include "limits.h"
 #include "stdbool.h"
+#include "stddef.h"
 #include "stdint.h"
 
-#ifndef NULL
-#define NULL (0)
+// NOTE: a portable definition of static_assert is provided, but whether the
+//       single argument form is valid is implementation-defined. For this
+//       reason, the two argument form must always be used where the standard
+//       version of the target implementation is not known.
+
+#if __STDC_VERSION__ >= 201112L
+#if __STDC_VERSION__ < 202311L
+#define static_assert _Static_assert
+#endif
+#else
+#define static_assert(condition, ...) \
+  typedef char static_assert_typedef[(condition) ? 1 : 0]
 #endif
 
-#define static_assert_size(TYPE, EXPECTED_SIZE) \
-  typedef char static_assertion[sizeof(TYPE) == (EXPECTED_SIZE) ? 1 : -1]
-
-_Static_assert(CHAR_MIN == SCHAR_MIN, "CHAR_MIN != SCHAR_MIN");
-_Static_assert(CHAR_MAX == SCHAR_MAX, "CHAR_MAX != SCHAR_MAX");
-_Static_assert(CHAR_MIN == INT8_MIN, "CHAR_MIN != INT8_MIN");
-_Static_assert(CHAR_MAX == INT8_MAX, "CHAR_MAX != INT8_MAX");
+static_assert(CHAR_MIN == SCHAR_MIN, "CHAR_MIN != SCHAR_MIN");
+static_assert(CHAR_MAX == SCHAR_MAX, "CHAR_MAX != SCHAR_MAX");
+static_assert(CHAR_MIN == INT8_MIN, "CHAR_MIN != INT8_MIN");
+static_assert(CHAR_MAX == INT8_MAX, "CHAR_MAX != INT8_MAX");
 
 //
 // Generic
@@ -49,14 +57,14 @@ typedef struct {
 typedef unsigned __int128 generic128_t;
 #endif
 
-static_assert_size(generic8_t, 1);
-static_assert_size(generic16_t, 2);
-static_assert_size(generic32_t, 4);
-static_assert_size(generic64_t, 8);
-static_assert_size(generic80_t, 10);
-static_assert_size(generic96_t, 12);
+static_assert(sizeof(generic8_t) == 1, "");
+static_assert(sizeof(generic16_t) == 2, "");
+static_assert(sizeof(generic32_t) == 4, "");
+static_assert(sizeof(generic64_t) == 8, "");
+static_assert(sizeof(generic80_t) == 10, "");
+static_assert(sizeof(generic96_t) == 12, "");
 #ifdef __SIZEOF_INT128__
-static_assert_size(generic128_t, 16);
+static_assert(sizeof(generic128_t) == 16, "");
 #endif
 
 //
@@ -71,12 +79,12 @@ typedef uint64_t pointer_or_number64_t;
 typedef unsigned __int128 pointer_or_number128_t;
 #endif
 
-static_assert_size(pointer_or_number8_t, 1);
-static_assert_size(pointer_or_number16_t, 2);
-static_assert_size(pointer_or_number32_t, 4);
-static_assert_size(pointer_or_number64_t, 8);
+static_assert(sizeof(pointer_or_number8_t) == 1, "");
+static_assert(sizeof(pointer_or_number16_t) == 2, "");
+static_assert(sizeof(pointer_or_number32_t) == 4, "");
+static_assert(sizeof(pointer_or_number64_t) == 8, "");
 #ifdef __SIZEOF_INT128__
-static_assert_size(pointer_or_number128_t, 16);
+static_assert(sizeof(pointer_or_number128_t) == 16, "");
 #endif
 
 //
@@ -91,12 +99,12 @@ typedef uint64_t number64_t;
 typedef unsigned __int128 number128_t;
 #endif
 
-static_assert_size(number8_t, 1);
-static_assert_size(number16_t, 2);
-static_assert_size(number32_t, 4);
-static_assert_size(number64_t, 8);
+static_assert(sizeof(number8_t) == 1, "");
+static_assert(sizeof(number16_t) == 2, "");
+static_assert(sizeof(number32_t) == 4, "");
+static_assert(sizeof(number64_t) == 8, "");
 #ifdef __SIZEOF_INT128__
-static_assert_size(number128_t, 16);
+static_assert(sizeof(number128_t) == 16, "");
 #endif
 
 //
@@ -109,20 +117,20 @@ typedef __int128 int128_t;
 typedef unsigned __int128 uint128_t;
 #endif
 
-static_assert_size(int8_t, 1);
-static_assert_size(int16_t, 2);
-static_assert_size(int32_t, 4);
-static_assert_size(int64_t, 8);
+static_assert(sizeof(int8_t) == 1, "");
+static_assert(sizeof(int16_t) == 2, "");
+static_assert(sizeof(int32_t) == 4, "");
+static_assert(sizeof(int64_t) == 8, "");
 #ifdef __SIZEOF_INT128__
-static_assert_size(int128_t, 16);
+static_assert(sizeof(int128_t) == 16, "");
 #endif
 
-static_assert_size(uint8_t, 1);
-static_assert_size(uint16_t, 2);
-static_assert_size(uint32_t, 4);
-static_assert_size(uint64_t, 8);
+static_assert(sizeof(uint8_t) == 1, "");
+static_assert(sizeof(uint16_t) == 2, "");
+static_assert(sizeof(uint32_t) == 4, "");
+static_assert(sizeof(uint64_t) == 8, "");
 #ifdef __SIZEOF_INT128__
-static_assert_size(uint128_t, 16);
+static_assert(sizeof(uint128_t) == 16, "");
 #endif
 
 //
@@ -183,12 +191,12 @@ typedef struct {
 #endif
 #endif
 
-static_assert_size(float16_t, 2);
-static_assert_size(float32_t, 4);
-static_assert_size(float64_t, 8);
-static_assert_size(float80_t, 10);
-static_assert_size(float96_t, 12);
-static_assert_size(float128_t, 16);
+static_assert(sizeof(float16_t) == 2, "");
+static_assert(sizeof(float32_t) == 4, "");
+static_assert(sizeof(float64_t) == 8, "");
+static_assert(sizeof(float80_t) == 10, "");
+static_assert(sizeof(float96_t) == 12, "");
+static_assert(sizeof(float128_t) == 16, "");
 
 //
 // Pointers
@@ -203,8 +211,6 @@ static_assert_size(float128_t, 16);
 #define pointer32_t(T) uint32_t
 #define pointer64_t(T) uint64_t
 #endif
-
-#undef static_assert_size
 
 //
 // Undefined values

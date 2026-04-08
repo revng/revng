@@ -4,8 +4,8 @@
 
 // RUN: %revngcliftopt %s | FileCheck %s
 
-!int16_t = !clift.primitive<signed 2>
-!int32_t = !clift.primitive<signed 4>
+!int16_t = !clift.int<signed 2>
+!int32_t = !clift.int<signed 4>
 
 // CHECK: [[M16:%[0-9]+]] = clift.undef : !int16_t
 %m16 = clift.undef : !int16_t

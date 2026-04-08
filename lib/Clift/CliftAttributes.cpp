@@ -28,6 +28,8 @@
 //
 #define GET_ATTRDEF_CLASSES
 #include "revng/Clift/CliftAttributes.cpp.inc"
+#define GET_ATTRDEF_CLASSES
+#include "revng/Clift/CliftAttributesBytecode.cpp.inc"
 
 using namespace mlir::clift;
 namespace clift = mlir::clift;
@@ -363,8 +365,8 @@ mlir::LogicalResult FieldAttr::verify(EmitErrorType EmitError,
                                       MutableStringAttr Name,
                                       MutableStringAttr Comment,
                                       uint64_t Offset,
-                                      clift::ValueType ElementType) {
-  if (not isObjectType(ElementType)) {
+                                      mlir::Type ElementType) {
+  if (not clift::unwrapped_isa<ObjectType>(ElementType)) {
     return EmitError() << "Struct and union field types must be object types. "
                        << "Field at offset " << Offset << " is not.";
   }
@@ -424,16 +426,16 @@ mlir::LogicalResult EnumAttr::verify(EmitErrorType EmitError,
                                      llvm::StringRef Handle,
                                      MutableStringAttr Name,
                                      MutableStringAttr Comment,
-                                     clift::ValueType UnderlyingType,
+                                     mlir::Type UnderlyingType,
                                      llvm::ArrayRef<EnumFieldAttr> Fields) {
   auto [DealiasedType, HasConst] = decomposeTypedef(UnderlyingType);
 
-  auto PrimitiveType = mlir::dyn_cast<clift::PrimitiveType>(DealiasedType);
-  if (not PrimitiveType or HasConst or PrimitiveType.isConst())
+  auto IntType = mlir::dyn_cast<IntegerType>(DealiasedType);
+  if (not IntType or HasConst or isConst(IntType))
     return EmitError() << "Underlying type of enum must be a non-const "
-                          "primitive type";
+                          "integer type";
 
-  const uint64_t BitWidth = PrimitiveType.getSize() * 8;
+  const uint64_t BitWidth = IntType.getSize() * 8;
 
   if (Fields.empty())
     return EmitError() << "enum requires at least one field";
@@ -442,11 +444,11 @@ mlir::LogicalResult EnumAttr::verify(EmitErrorType EmitError,
   uint64_t MaxValue = 0;
   bool IsSigned = false;
 
-  switch (PrimitiveType.getKind()) {
-  case PrimitiveKind::UnsignedKind:
+  switch (IntType.getKind()) {
+  case IntegerKind::Unsigned:
     MaxValue = llvm::APInt::getMaxValue(BitWidth).getZExtValue();
     break;
-  case PrimitiveKind::SignedKind:
+  case IntegerKind::Signed:
     MinValue = llvm::APInt::getSignedMinValue(BitWidth).getSExtValue();
     MaxValue = llvm::APInt::getSignedMaxValue(BitWidth).getSExtValue();
     IsSigned = true;
@@ -517,7 +519,7 @@ static EnumAttr readAttr(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readString(Comment).failed())
     return {};
 
-  clift::ValueType UnderlyingType;
+  mlir::Type UnderlyingType;
   if (Reader.readType(UnderlyingType).failed())
     return {};
 
@@ -557,7 +559,10 @@ mlir::LogicalResult TypedefAttr::verify(EmitErrorType EmitError,
                                         llvm::StringRef Handle,
                                         MutableStringAttr Name,
                                         MutableStringAttr Comment,
-                                        clift::ValueType UnderlyingType) {
+                                        mlir::Type UnderlyingType) {
+  if (not mlir::isa<clift::AddressableType>(UnderlyingType))
+    return mlir::failure();
+
   return mlir::success();
 }
 
@@ -575,7 +580,7 @@ static TypedefAttr readAttr(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readString(Comment).failed())
     return {};
 
-  clift::ValueType UnderlyingType;
+  mlir::Type UnderlyingType;
   if (Reader.readType(UnderlyingType).failed())
     return {};
 
@@ -637,7 +642,7 @@ StructAttr::verifyDefinition(EmitErrorType EmitError) const {
         return EmitError() << "Fields of structs must be ordered by offset, "
                               "and they cannot overlap";
 
-      LastEndOffset = Field.getOffset() + Field.getType().getByteSize();
+      LastEndOffset = Field.getOffset() + getObjectSize(Field.getType());
 
       if (not Field.getName().empty()) {
         if (not NameSet.insert(Field.getName()).second)
@@ -714,7 +719,7 @@ StructAttr::getChecked(EmitErrorType EmitError,
 static uint64_t getUnionSize(llvm::ArrayRef<FieldAttr> Fields) {
   uint64_t Max = 0;
   for (auto const &Field : Fields)
-    Max = std::max(Max, Field.getType().getByteSize());
+    Max = std::max(Max, getObjectSize(Field.getType()));
   return Max;
 }
 
@@ -868,7 +873,7 @@ mlir::clift::CAttributeAttr::verify(EmitErrorType EmitError,
 //===---------------------------- CliftDialect ----------------------------===//
 
 void CliftDialect::registerAttributes() {
-  addAttributes<MutableStringAttr, StructAttr, UnionAttr,
+  addAttributes<MutableStringAttr, StructAttr, UnionAttr, BytecodeClassAttr,
   // Include the list of auto-generated attributes
 #define GET_ATTRDEF_LIST
 #include "revng/Clift/CliftAttributes.cpp.inc"

@@ -72,18 +72,15 @@ public:
 
   ~CliftConverter() { revng_assert(DefinitionGuardSet.empty()); }
 
-  clift::ValueType
-  convertTypeDefinition(const model::TypeDefinition &ModelType) {
-    const clift::ValueType T = fromTypeDefinition(ModelType,
-                                                  /* RequireComplete = */ true);
+  mlir::Type convertTypeDefinition(const model::TypeDefinition &ModelType) {
+    mlir::Type T = fromTypeDefinition(ModelType, /*RequireComplete=*/true);
     if (T and not processIncompleteTypes())
       return nullptr;
     return T;
   }
 
-  clift::ValueType convertType(const model::Type &ModelType) {
-    const clift::ValueType T = fromType(ModelType,
-                                        /* RequireComplete = */ true);
+  mlir::Type convertType(const model::Type &ModelType) {
+    mlir::Type T = fromType(ModelType, /*RequireComplete=*/true);
     if (T and not processIncompleteTypes())
       return nullptr;
     return T;
@@ -106,24 +103,22 @@ private:
     return clift::makeCommentAttr<KeyT>(Context, Handle, Comment);
   }
 
-  static clift::PrimitiveKind
-  getPrimitiveKind(const model::PrimitiveType &ModelType) {
-    switch (ModelType.PrimitiveKind()) {
-    case model::PrimitiveKind::Void:
-      return clift::PrimitiveKind::VoidKind;
+  static clift::IntegerKind
+  getIntegerKind(const model::PrimitiveKind::Values Kind) {
+    switch (Kind) {
     case model::PrimitiveKind::Generic:
-      return clift::PrimitiveKind::GenericKind;
+      return clift::IntegerKind::Generic;
     case model::PrimitiveKind::PointerOrNumber:
-      return clift::PrimitiveKind::PointerOrNumberKind;
+      return clift::IntegerKind::PointerOrNumber;
     case model::PrimitiveKind::Number:
-      return clift::PrimitiveKind::NumberKind;
+      return clift::IntegerKind::Number;
     case model::PrimitiveKind::Unsigned:
-      return clift::PrimitiveKind::UnsignedKind;
+      return clift::IntegerKind::Unsigned;
     case model::PrimitiveKind::Signed:
-      return clift::PrimitiveKind::SignedKind;
-    case model::PrimitiveKind::Float:
-      return clift::PrimitiveKind::FloatKind;
+      return clift::IntegerKind::Signed;
 
+    case model::PrimitiveKind::Void:
+    case model::PrimitiveKind::Float:
     case model::PrimitiveKind::Invalid:
     case model::PrimitiveKind::Count:
       revng_abort("These are invalid values. Something has gone wrong.");
@@ -241,7 +236,7 @@ private:
     rc_return clift::EnumType::get(Attr);
   }
 
-  RecursiveCoroutine<clift::ValueType>
+  RecursiveCoroutine<mlir::Type>
   getRegisterSetType(const model::RawFunctionDefinition &ModelType) {
     auto Location = getLocation(ModelType);
 
@@ -269,7 +264,7 @@ private:
         rc_return nullptr;
 
       Fields.push_back(Attr);
-      Offset += RegisterType.getByteSize();
+      Offset += clift::getObjectSize(RegisterType);
     }
 
     auto Handle = Location.transmute(revng::ranks::ArtificialStruct).toString();
@@ -323,12 +318,10 @@ private:
     if (StackArgumentType)
       ArgumentTypes.push_back(StackArgumentType);
 
-    clift::ValueType ReturnType;
+    mlir::Type ReturnType;
     switch (ModelType.ReturnValues().size()) {
     case 0:
-      ReturnType = make<clift::PrimitiveType>(clift::PrimitiveKind::VoidKind,
-                                              /*Size=*/static_cast<uint64_t>(0),
-                                              /*IsConst=*/false);
+      ReturnType = make<clift::VoidType>();
       break;
 
     case 1:
@@ -544,7 +537,7 @@ private:
     revng_abort("Unsupported type definition kind.");
   }
 
-  RecursiveCoroutine<clift::ValueType>
+  RecursiveCoroutine<mlir::Type>
   fromTypeDefinition(const model::TypeDefinition &ModelType,
                      bool RequireComplete = false,
                      const bool Const = false) {
@@ -552,7 +545,7 @@ private:
       auto Type = rc_recur fromTypeDefinition(ModelType,
                                               RequireComplete,
                                               /*Const=*/false);
-      rc_return Type.addConst();
+      rc_return clift::addConst(Type);
     }
 
     if (const auto It = Cache.find(ModelType.ID()); It != Cache.end())
@@ -575,8 +568,8 @@ private:
     rc_return Type;
   }
 
-  RecursiveCoroutine<clift::ValueType> fromType(const model::Type &ModelType,
-                                                bool RequireComplete = false) {
+  RecursiveCoroutine<mlir::Type> fromType(const model::Type &ModelType,
+                                          bool RequireComplete = false) {
     if (not ModelType.verify()) {
       if (EmitError)
         EmitError() << "Invalid model type";
@@ -585,10 +578,18 @@ private:
     }
 
     if (const auto &P = llvm::dyn_cast<model::PrimitiveType>(&ModelType)) {
-      rc_return make<clift::PrimitiveType>(getPrimitiveKind(*P),
+      switch (auto Kind = P->PrimitiveKind()) {
+      case model::PrimitiveKind::Void:
+        rc_return make<clift::VoidType>(P->IsConst());
+
+      case model::PrimitiveKind::Float:
+        rc_return make<clift::FloatType>(P->Size(), P->IsConst());
+
+      default:
+        rc_return make<clift::IntegerType>(getIntegerKind(Kind),
                                            P->Size(),
                                            P->IsConst());
-
+      }
     } else if (const auto &D = llvm::dyn_cast<model::DefinedType>(&ModelType)) {
       rc_return fromTypeDefinition(D->unwrap(), RequireComplete, D->IsConst());
 
@@ -602,7 +603,20 @@ private:
       // complete.
       RequireComplete = false;
 
-      rc_return make<clift::PointerType>(rc_recur fromType(*P->PointeeType(),
+      const model::Type *PointeeType = P->PointeeType().get();
+
+      // NOTE: This is a hack to work around the fact that using arrays it is
+      //       possible to create cyclic types that are unrepresentable in C.
+      //       This can happen when, for example, a struct S has a field
+      //       pointing to an array of S. C requires the element of an array
+      //       type to be complete, but it cannot be because the array type is
+      //       needed in the definition of its element type. Due to the
+      //       difficulty of detecting these cases, all pointers to arrays of T
+      //       are instead converted to pointers to T in the import to Clift.
+      while (auto AT = llvm::dyn_cast<model::ArrayType>(PointeeType))
+        PointeeType = AT->ElementType().get();
+
+      rc_return make<clift::PointerType>(rc_recur fromType(*PointeeType,
                                                            RequireComplete),
                                          P->PointerSize(),
                                          P->IsConst());
@@ -621,7 +635,7 @@ private:
       const model::TypeDefinition &ModelType = *Iterator->second;
       IncompleteTypes.erase(Iterator);
 
-      clift::ValueType CompleteType;
+      mlir::Type CompleteType;
       if (auto RFT = llvm::dyn_cast<model::RawFunctionDefinition>(&ModelType)) {
         CompleteType = getRegisterSetType(*RFT);
       } else {
@@ -638,7 +652,7 @@ private:
 
 } // namespace
 
-clift::ValueType
+mlir::Type
 clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                   mlir::MLIRContext &Context,
                   const model::TypeDefinition &ModelType,
@@ -647,7 +661,7 @@ clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
     .convertTypeDefinition(ModelType);
 }
 
-clift::ValueType
+mlir::Type
 clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                   mlir::MLIRContext &Context,
                   const model::Type &ModelType,
@@ -704,7 +718,7 @@ clift::importSegmentDeclaration(mlir::ModuleOp Module,
                                 mlir::Location DebugLocation,
                                 llvm::StringRef Name,
                                 llvm::StringRef Handle,
-                                clift::ValueType Type) {
+                                mlir::Type Type) {
   mlir::OpBuilder Builder(Module.getContext());
   mlir::OpBuilder::InsertionGuard Guard(Builder);
   Builder.setInsertionPointToEnd(Module.getBody());

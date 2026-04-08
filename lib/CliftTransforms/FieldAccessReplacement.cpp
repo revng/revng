@@ -21,11 +21,10 @@ namespace {
 template<typename CliftType>
 static std::pair<CliftType, bool>
 getAccessedTypeInfo(mlir::Value CurrentValue) {
-  if (isPointerType(CurrentValue.getType())) {
-    auto PtrType = getPointerType(CurrentValue.getType());
-    return { mlir::cast<CliftType>(dealias(PtrType.getPointeeType())), true };
+  if (auto P = clift::unwrapped_dyn_cast<PointerType>(CurrentValue.getType())) {
+    return { clift::unwrapped_cast<CliftType>(P.getPointeeType()), true };
   }
-  return { mlir::cast<CliftType>(dealias(CurrentValue.getType())), false };
+  return { clift::unwrapped_cast<CliftType>(CurrentValue.getType()), false };
 }
 
 // =============================================================================
@@ -213,7 +212,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
   // access the `struct` fields and `array` members, and to generate the
   // `AddressOp` at the end of the field access substitution. We extract it
   // from the `PointerToReplace` we are processing.
-  auto PointerSize = getPointerType(PointerToReplace->getResult(0).getType())
+  auto PointerSize = clift::unwrapped_cast<PointerType>(PointerToReplace
+                                                          ->getResult(0)
+                                                          .getType())
                        .getPointerSize();
 
   // Set insertion point right before the `PointerToReplace`
@@ -264,16 +265,14 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
 
       // We may need to unwrap the `ArrayType` from a `PointerType`, and emit
       // the needed `IndirectionOp` and `Decay` cast accordingly.
-      clift::ValueType ArrayElementType;
+      mlir::Type ArrayElementType;
 
       // We need to explicitly handle the `pointer as array` case, where
       // `CurrentValue` is not a `ptr<T>` of `ArrayType` (we virtually wrap it
       // ourselves), so the `indirection` and `cast<decay>` is not needed.
-      if (auto PtrType = getPointerType(CurrentValue.getType());
-          PtrType
-          and not mlir::isa<ArrayType>(dealias(PtrType.getPointeeType(),
-                                               /*IgnoreQualifiers=*/true))) {
-        ArrayElementType = PtrType.getPointeeType();
+      if (auto P = unwrapped_dyn_cast<PointerType>(CurrentValue.getType());
+          P and not unwrapped_isa<ArrayType>(P.getPointeeType())) {
+        ArrayElementType = P.getPointeeType();
       } else {
         // Standard path emitting `indirection` and `cast<decay>` as needed
         auto [ArrayType,
@@ -284,10 +283,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
         }
         ArrayElementType = ArrayType.getElementType();
         auto DecayType = PointerType::get(ArrayElementType, PointerSize);
-        CurrentValue = Builder.create<CastOp>(PointerToReplaceLoc,
-                                              DecayType,
-                                              CurrentValue,
-                                              CastKind::Decay);
+        CurrentValue = Builder.create<DecayOp>(PointerToReplaceLoc,
+                                               DecayType,
+                                               CurrentValue);
       }
 
       // Emit the `mlir::Value` representing the `Index` access.
@@ -303,9 +301,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
       // component, we still emit a `imm 0` to represent the access to `[0]`.
       if (Access.Index.Constant != 0 or not Access.Index.Variable) {
         auto Index = Access.Index.Constant;
-        auto IntegerType = PrimitiveType::get(Builder.getContext(),
-                                              PrimitiveKind::GenericKind,
-                                              PointerSize);
+        auto IntegerType = clift::IntegerType::get(Builder.getContext(),
+                                                   IntegerKind::Generic,
+                                                   PointerSize);
         FixedIndexValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,
                                                       IntegerType,
                                                       Index);
@@ -334,13 +332,10 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
       // `TypeDefType`, we need to cast it to the underlying `PointerType`
       // first.
       if (not mlir::isa<clift::PointerType>(CurrentValue.getType())) {
-        auto UnderlyingType = getPointerType(CurrentValue.getType());
-        revng_assert(UnderlyingType);
-        CurrentValue = Builder
-                         .create<CastOp>(PointerToReplaceLoc,
-                                         mlir::cast<mlir::Type>(UnderlyingType),
-                                         CurrentValue,
-                                         CastKind::Bitcast);
+        auto PtrType = unwrapped_cast<PointerType>(CurrentValue.getType());
+        CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
+                                                 PtrType,
+                                                 CurrentValue);
       }
 
       // Finally, we emit the `SubscriptOp` using as `Index` the `mlir::Value`
@@ -367,19 +362,18 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
       or not LeftoverOffset.LinearCombination.empty()) {
 
     // Cast pointer to integer
-    auto IntegerType = PrimitiveType::get(Builder.getContext(),
-                                          PrimitiveKind::GenericKind,
-                                          PointerSize);
-    CurrentValue = Builder.create<CastOp>(PointerToReplaceLoc,
-                                          IntegerType,
-                                          CurrentValue,
-                                          CastKind::Bitcast);
+    auto IntegerType = clift::IntegerType::get(Builder.getContext(),
+                                               IntegerKind::Generic,
+                                               PointerSize);
+    CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
+                                             IntegerType,
+                                             CurrentValue);
 
     // Add base offset
     if (!LeftoverOffset.BaseOffset.isZero()) {
-      auto IntegerType = PrimitiveType::get(Builder.getContext(),
-                                            PrimitiveKind::GenericKind,
-                                            PointerSize);
+      auto IntegerType = clift::IntegerType::get(Builder.getContext(),
+                                                 IntegerKind::Generic,
+                                                 PointerSize);
 
       auto LeftoverOffsetValue = LeftoverOffset.BaseOffset.getSExtValue();
       auto AddOperandValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,
@@ -411,10 +405,9 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
 
     // Cast back to pointer
     auto PointerType = PointerType::get(CurrentValue.getType(), PointerSize);
-    CurrentValue = Builder.create<CastOp>(PointerToReplaceLoc,
-                                          PointerType,
-                                          CurrentValue,
-                                          CastKind::Bitcast);
+    CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
+                                             PointerType,
+                                             CurrentValue);
   }
 
   // If the result type differs from PointerToReplace's type, add a cast on
@@ -422,11 +415,10 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
   // `PointerToReplace` `Type`
   auto PointerToReplaceOp = PointerToReplace.getOperation();
   if (CurrentValue.getType() != PointerToReplace->getResult(0).getType()) {
-    CurrentValue = Builder
-                     .create<CastOp>(PointerToReplaceLoc,
-                                     PointerToReplace->getResult(0).getType(),
-                                     CurrentValue,
-                                     CastKind::Bitcast);
+    CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
+                                             PointerToReplace->getResult(0)
+                                               .getType(),
+                                             CurrentValue);
   }
 
   // Replace all uses of `PointerToReplace` with `CurrentValue`
@@ -448,8 +440,9 @@ void replaceFieldAccess(ExpressionOpInterface PointerToReplace,
                         const Traversal &BestTraversal) {
 
   // Derive the `PointerBitWidth` from the `PointerToReplace` type
-  unsigned PointerBitWidth = getPointerType(PointerToReplace->getResult(0)
-                                              .getType())
+  unsigned PointerBitWidth = clift::unwrapped_cast<PointerType>(PointerToReplace
+                                                                  ->getResult(0)
+                                                                  .getType())
                                .getPointerSize()
                              * 8;
 

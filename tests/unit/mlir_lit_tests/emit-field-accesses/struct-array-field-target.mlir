@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!generic64_t = !clift.primitive<generic 8>
-!int32_t = !clift.primitive<signed 4>
+!void = !clift.void
+!generic64_t = !clift.int<generic 8>
+!int32_t = !clift.int<signed 4>
 
 // Generic void function prototype with no argument
 !f = !clift.func<
@@ -32,11 +32,11 @@ module attributes {clift.module} {
     %0 = clift.local : !s
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !s>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !s> -> !clift.ptr<8 to !void>
-      %3 = clift.cast<bitcast> %2 : !clift.ptr<8 to !void> -> !generic64_t
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !s> -> !clift.ptr<8 to !void>
+      %3 = clift.bitcast %2 : !clift.ptr<8 to !void> -> !generic64_t
       %4 = clift.imm 4 : !generic64_t
       %5 = clift.add %3, %4 : !generic64_t
-      %6 = clift.cast<bitcast> %5 : !generic64_t -> !a_ptr
+      %6 = clift.bitcast %5 : !generic64_t -> !a_ptr
       clift.yield %6 : !a_ptr
     }
   }

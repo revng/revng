@@ -25,13 +25,8 @@ public:
 
   //===------------------------------- Types ------------------------------===//
 
-  void emitPrimitiveType(PrimitiveKind Kind, uint64_t Size);
-
-  void emitPrimitiveType(PrimitiveType Type) {
-    emitPrimitiveType(Type.getKind(), Type.getSize());
-  }
-
-  void emitType(ValueType Type);
+  void emitPrimitiveType(PrimitiveType Type);
+  void emitType(mlir::Type Type);
 
   //===---------------------------- Attributes ----------------------------===//
 
@@ -70,7 +65,7 @@ public:
   };
 
   /// Emit a function or variable declaration of the specified type.
-  void emitDeclaration(ValueType Type, DeclaratorInfo const &Declarator);
+  void emitDeclaration(mlir::Type Type, DeclaratorInfo const &Declarator);
 
 private:
   class DeclarationEmitter;

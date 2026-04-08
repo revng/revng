@@ -4,7 +4,7 @@
 
 // RUN: ../%revngpipe import-descriptive-info %S/../0-import-types/EnumType.yml %s /dev/stdout | ../%revngcliftopt | FileCheck %s
 
-!uint64_t = !clift.primitive<unsigned 8>
+!uint64_t = !clift.int<unsigned 8>
 
 // CHECK: !my_commented_enum = !clift.enum<
 // CHECK:   "/type-definition/0-EnumDefinition" as "my_commented_enum" : !uint64_t {

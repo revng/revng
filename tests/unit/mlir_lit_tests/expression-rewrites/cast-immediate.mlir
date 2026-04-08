@@ -4,10 +4,10 @@
 
 // RUN: %revngcliftopt %s --optimize-expressions | FileCheck %s
 
-!void = !clift.primitive<void 0>
+!void = !clift.void
 
-!int32_t = !clift.primitive<signed 4>
-!int64_t = !clift.primitive<signed 8>
+!int32_t = !clift.int<signed 4>
+!int64_t = !clift.int<signed 8>
 
 !f = !clift.func<"/model-type/1001" : !void()>
 
@@ -17,7 +17,7 @@ module attributes {clift.module} {
     clift.expr {
       // CHECK: %0 = clift.imm 3567587328 : !int32_t
       %0 = clift.imm 1000000000000 : !int64_t
-      %1 = clift.cast<truncate> %0 : !int64_t -> !int32_t
+      %1 = clift.truncate %0 : !int64_t -> !int32_t
       // CHECK: clift.yield %0 : !int32_t
       clift.yield %1 : !int32_t
     }

@@ -4,8 +4,8 @@
 
 // RUN: %revngpipe model-verify-clift %S/model.yml %s /dev/null
 
-!void = !clift.primitive<void 0>
-!int32_t = !clift.primitive<signed 4>
+!void = !clift.void
+!int32_t = !clift.int<signed 4>
 
 !s = !clift.struct<"/type-definition/1001-StructDefinition" : size(1) {}>
 !u = !clift.union<"/type-definition/1002-UnionDefinition" : {

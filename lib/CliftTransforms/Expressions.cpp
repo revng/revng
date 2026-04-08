@@ -30,30 +30,24 @@ static bool areAllBitsSet(llvm::APInt Value, mlir::Type Type) {
 
 static uint64_t truncateIntegerValue(mlir::IntegerAttr ValueAttr,
                                      mlir::Value IntegerOperand) {
-  auto ValueType = mlir::cast<clift::ValueType>(IntegerOperand.getType());
-  auto T = mlir::cast<PrimitiveType>(dealias(ValueType, true));
-
+  uint64_t Width = getObjectSize(IntegerOperand.getType()) * 8;
   uint64_t Value = ValueAttr.getValue().getZExtValue();
-  return Value & (static_cast<uint64_t>(-1) >> (64 - 8 * T.getSize()));
-}
-
-static bool isCollapsibleCastKind(CastKind Kind) {
-  return Kind != CastKind::Convert;
+  return Value & (static_cast<uint64_t>(-1) >> (64 - Width));
 }
 
 static bool assignTypePunnedConstraint(mlir::Value Ptr, mlir::Value Value) {
-  auto PtrType = mlir::dyn_cast<PointerType>(Ptr.getType());
+  auto PtrType = clift::unwrapped_dyn_cast<PointerType>(Ptr.getType());
   if (not PtrType)
     return false;
 
-  auto SrcType = mlir::cast<clift::ValueType>(Value.getType());
-  auto DstType = PtrType.getPointeeType();
+  mlir::Type SrcType = Value.getType();
+  mlir::Type DstType = PtrType.getPointeeType();
 
-  if (not isObjectType(DstType) or isArrayType(DstType)) {
+  if (not clift::unwrapped_isa<ValueType>(DstType))
     return false;
-  }
 
-  return SrcType != DstType and SrcType.getByteSize() == DstType.getByteSize();
+  return SrcType != DstType
+         and getObjectSize(SrcType) == getObjectSizeOrZero(DstType);
 }
 
 static mlir::Value assignTypePunnedResult(mlir::PatternRewriter &Rewriter,
@@ -66,25 +60,18 @@ static mlir::Value assignTypePunnedResult(mlir::PatternRewriter &Rewriter,
     mlir::Location PointerCastLoc = PointerCast.getDefiningOp()->getLoc();
     mlir::Location IndirectionLoc = Indirection.getDefiningOp()->getLoc();
 
-    auto NewPointerType = mlir::cast<PointerType>(PointerCast.getType());
-    auto OldPointerType = PointerType::get(NewAssignment.getType(),
-                                           NewPointerType.getPointerSize());
+    auto NewPtrType = mlir::cast<PointerType>(PointerCast.getType());
+    auto OldPtrType = PointerType::get(NewAssignment.getType(),
+                                       NewPtrType.getPointerSize());
 
-    Result = Rewriter.create<AddressofOp>(IndirectionLoc,
-                                          OldPointerType,
-                                          Result);
-
-    Result = Rewriter.create<CastOp>(PointerCastLoc,
-                                     NewPointerType,
-                                     Result,
-                                     CastKind::Bitcast);
-
+    Result = Rewriter.create<AddressofOp>(IndirectionLoc, OldPtrType, Result);
+    Result = Rewriter.create<BitCastOp>(PointerCastLoc, NewPtrType, Result);
     Result = Rewriter.create<IndirectionOp>(IndirectionLoc, Result);
   }
   return Result;
 }
 
-static bool hasEnumeratorValue(clift::ValueType Type, uint64_t Value) {
+static bool hasEnumeratorValue(mlir::Type Type, uint64_t Value) {
   if (auto Enum = mlir::dyn_cast<EnumType>(Type)) {
     for (EnumFieldAttr Enumerator : Enum.getFields()) {
       if (Enumerator.getRawValue() == Value)
@@ -101,11 +88,10 @@ struct DivModPair {
 
 static DivModPair ptrOffsetDivMod(mlir::IntegerAttr OffsetAttr,
                                   mlir::Value PointerOperand) {
-  auto PointerType = clift::getPointerType(PointerOperand.getType());
-  revng_assert(PointerType);
+  auto PtrType = clift::unwrapped_cast<PointerType>(PointerOperand.getType());
 
   uint64_t Offset = OffsetAttr.getValue().getZExtValue();
-  uint64_t Size = PointerType.getPointeeType().getByteSize();
+  uint64_t Size = getObjectSizeOrZero(PtrType.getPointeeType());
 
   if (Size == 0) {
     return {
@@ -122,6 +108,29 @@ static DivModPair ptrOffsetDivMod(mlir::IntegerAttr OffsetAttr,
 
 #include "revng/CliftTransforms/Expressions.h.inc"
 
+struct CastCollapsingPattern
+  : mlir::OpInterfaceRewritePattern<CastOpInterface> {
+
+  using OpInterfaceRewritePattern::OpInterfaceRewritePattern;
+
+  mlir::LogicalResult
+  matchAndRewrite(CastOpInterface Outer,
+                  mlir::PatternRewriter &Rewriter) const override {
+    auto Inner = Outer.getValue().getDefiningOp<CastOpInterface>();
+    if (not Inner)
+      return mlir::failure();
+
+    if (Outer->getName() != Inner->getName())
+      return mlir::failure();
+
+    Rewriter.updateRootInPlace(Outer, [&]() {
+      Outer->getOpOperand(0).set(Inner.getValue());
+    });
+
+    return mlir::failure();
+  }
+};
+
 struct OptimizeExpressionsPass
   : impl::CliftOptimizeExpressionsBase<OptimizeExpressionsPass> {
 
@@ -129,6 +138,8 @@ struct OptimizeExpressionsPass
     mlir::RewritePatternSet Set(Context);
     populateWithGenerated(Set);
     populateWithBooleanNegationPatterns(Set);
+
+    Set.add<CastCollapsingPattern>(Context);
 
     Patterns = mlir::FrozenRewritePatternSet(std::move(Set),
                                              disabledPatterns,

@@ -6,5 +6,5 @@
 
 module attributes {clift.module} {
   // CHECK: clift.undef cannot be directly nested within a ModuleOp
-  clift.undef : !clift.primitive<void 0>
+  clift.undef : !clift.void
 }

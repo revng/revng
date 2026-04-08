@@ -18,11 +18,6 @@ using namespace clift;
 
 static Logger Log("best-traversal");
 
-/// Helper function used to retrieve the byte size of any `mlir::Type`
-static uint64_t getTypeSize(mlir::Type Type) {
-  return mlir::cast<clift::ValueType>(Type).getByteSize();
-}
-
 /// Helper function which converts a generic `ArrayPath` to a compatible form
 /// used to store the `array` traversal into the `Traversal` class. The
 /// re-ordering in descending `Stride` order is provided by the comparison
@@ -70,7 +65,7 @@ int64_t Traversal::begin() const {
 }
 
 int64_t Traversal::end() const {
-  return begin() + getTypeSize(TargetType);
+  return begin() + getObjectSizeOrZero(TargetType);
 }
 
 void Traversal::dump() const {
@@ -108,21 +103,19 @@ void Traversal::dump() const {
 
 mlir::Type deriveBaseType(mlir::Value BasePointer) {
 
-  auto BasePtrType = getPointerType(BasePointer.getType());
-  revng_assert(BasePtrType);
+  auto BasePtrType = unwrapped_cast<PointerType>(BasePointer.getType());
   auto PointeeType = BasePtrType.getPointeeType();
-  auto UnderlyingType = dealias(PointeeType, /*IgnoreQualifiers=*/true);
 
   // If the pointee is a struct, union, or array, use it directly — the
   // traversal analyzer can walk its fields and arrays.
   // Wrapping also a `struct`, would mean rewriting a constant offset access
   // into it as `p[0].field` instead of `p->field`.
-  if (mlir::isa<StructType, UnionType, ArrayType>(UnderlyingType)) {
+  if (unwrapped_isa<StructType, UnionType, ArrayType>(PointeeType)) {
     return PointeeType;
   }
 
   // We don't want to wrap `void` or `function` `Type`s into `array`s.
-  if (not isObjectType(PointeeType)) {
+  if (not unwrapped_isa<ObjectType>(PointeeType)) {
     return PointeeType;
   }
 
@@ -212,9 +205,8 @@ static uint64_t commonPrefixStrides(const llvm::ArrayRef<ArrayShape> &LHS,
 static uint64_t typeDistance(mlir::Type Explicit, mlir::Type Ideal) {
 
   // Unwrap any typedefs to compare the underlying types
-  Explicit = dealias(mlir::cast<ValueType>(Explicit),
-                     /*IgnoreQualifiers=*/true);
-  Ideal = dealias(mlir::cast<ValueType>(Ideal), /*IgnoreQualifiers=*/true);
+  Explicit = unwrapTypedefs(Explicit);
+  Ideal = unwrapTypedefs(Ideal);
 
   return Explicit == Ideal ? 0 : std::numeric_limits<uint64_t>::max();
 }
@@ -492,7 +484,9 @@ TypeTraversalAnalyzer::traverse(mlir::Type BaseType) {
               if (A.StartOffset != B.StartOffset) {
                 return A.StartOffset < B.StartOffset;
               } else {
-                return getTypeSize(A.TargetType) < getTypeSize(B.TargetType);
+                auto ASize = getObjectSizeOrZero(A.TargetType);
+                auto BSize = getObjectSizeOrZero(B.TargetType);
+                return ASize < BSize;
               }
             });
 
@@ -518,7 +512,7 @@ TypeTraversalAnalyzer::traverseImpl(mlir::Type Type,
 
   // We should never reach a type with zero size - if we do, it means there is
   // something severely wrong in the types we're working with
-  revng_assert(getTypeSize(Type) > 0);
+  revng_assert(getObjectSizeOrZero(Type) > 0);
 
   if (auto PrimitiveType = mlir::dyn_cast<clift::PrimitiveType>(Type)) {
     // `PrimitiveType` is a leaf node in our traversal
@@ -565,9 +559,9 @@ TypeTraversalAnalyzer::traverseImpl(mlir::Type Type,
                             0,
                             FieldPath,
                             CurrentArrayPath);
-    clift::ValueType ElementType = ArrayType.getElementType();
+    mlir::Type ElementType = ArrayType.getElementType();
     uint64_t NumElements = ArrayType.getElementsCount();
-    uint64_t ElementSize = ElementType.getByteSize();
+    uint64_t ElementSize = getObjectSize(ElementType);
 
     // Add this array to the current array path
     NestedArrayShape ArrayInfo;
@@ -612,7 +606,7 @@ TypeTraversalAnalyzer::traverseImpl(mlir::Type Type,
     llvm::ArrayRef<clift::FieldAttr> Fields = ClassType.getFields();
     for (size_t I = 0; I < Fields.size(); ++I) {
       clift::FieldAttr Field = Fields[I];
-      clift::ValueType FieldType = Field.getType();
+      mlir::Type FieldType = Field.getType();
       int64_t FieldOffset = CurrentOffset + Field.getOffset();
 
       std::vector<uint64_t> NewFieldPath = FieldPath;
@@ -632,7 +626,7 @@ TypeTraversalAnalyzer::traverseImpl(mlir::Type Type,
   if (auto EnumType = mlir::dyn_cast<clift::EnumType>(Type)) {
 
     // We traverse the underlying `EnumType`
-    clift::ValueType UnderlyingType = EnumType.getUnderlyingType();
+    mlir::Type UnderlyingType = EnumType.getUnderlyingType();
 
     // Add traversal for the `enum` itself
     Traversals.emplace_back(EnumType,
@@ -712,7 +706,7 @@ BestTraversalChooser::computeBestTraversal(ExpressionOpInterface
                                              &Arithmetic) {
   // We only perform the substitution for `PointerType`
   auto PointerToReplaceType = PointerToReplace->getResult(0).getType();
-  if (not isPointerType(PointerToReplaceType)) {
+  if (not clift::unwrapped_isa<clift::PointerType>(PointerToReplaceType)) {
     return std::nullopt;
   }
 
@@ -722,20 +716,23 @@ BestTraversalChooser::computeBestTraversal(ExpressionOpInterface
 
   // It may be that the `PointerToReplace` points to a `void 0` type, in that
   // case we cannot provide a `Traversal` for sure
-  if (mlir::cast<ValueType>(BaseType).getByteSize() == 0) {
+  if (getObjectSizeOrZero(BaseType) == 0) {
     return std::nullopt;
   }
 
   // Expand to explicit array accesses the input `PointerArithmetic`, so that
   // the constant folded component performed by the compiler is evident in the
   // `LinearCombination` portion of `Arithmetic`
-  PointerBitWidth = getPointerType(PointerToReplaceType).getPointerSize() * 8;
+  PointerBitWidth = clift::unwrapped_cast<PointerType>(PointerToReplaceType)
+                      .getPointerSize()
+                    * 8;
 
   std::vector<PointerArithmetic>
     ExplicitArithmetics = toExplicitArrayAccesses(Arithmetic, BaseType);
 
-  mlir::Type PointeeType = getPointerType(PointerToReplaceType)
-                             .getPointeeType();
+  mlir::Type
+    PointeeType = clift::unwrapped_cast<PointerType>(PointerToReplaceType)
+                    .getPointeeType();
 
   // Obtain the `BestTraversal` for connecting `BaseType` to `PointeeType`,
   // following one of the possible `ExplicitArithmetic`s

@@ -39,7 +39,7 @@ class CEmitter::DeclarationEmitter {
 
   struct StackItem {
     StackItemKind Kind;
-    ValueType Type;
+    mlir::Type Type;
   };
 
   CEmitter &Parent;
@@ -50,7 +50,7 @@ class CEmitter::DeclarationEmitter {
 
 public:
   static void
-  emit(CEmitter &Parent, ValueType Type, DeclaratorInfo const *Declarator) {
+  emit(CEmitter &Parent, mlir::Type Type, DeclaratorInfo const *Declarator) {
     DeclarationEmitter(Parent).emitImpl(Type, Declarator);
   }
 
@@ -63,10 +63,10 @@ private:
     NeedSpace = false;
   }
 
-  void emitConstIfNeeded(ValueType Type) {
+  void emitConstIfNeeded(mlir::Type Type) {
     emitSpaceIfNeeded();
 
-    if (Type.isConst()) {
+    if (isConst(Type)) {
       Parent.Tokens.emitKeyword(CTE::Keyword::Const);
       Parent.Tokens.emitSpace();
     }
@@ -81,7 +81,7 @@ private:
     return Name;
   }
 
-  RecursiveCoroutine<void> emitImpl(ValueType Type,
+  RecursiveCoroutine<void> emitImpl(mlir::Type Type,
                                     DeclaratorInfo const *Declarator) {
     // Expanded function parameter declarator names are only emitted for the
     // outermost function type of a function declarator. When emitting a
@@ -231,7 +231,7 @@ private:
 
         Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
         if (F.getArgumentTypes().empty()) {
-          Parent.emitPrimitiveType(PrimitiveKind::VoidKind, 0);
+          Parent.Tokens.emitKeyword(CTE::Keyword::Void);
         } else {
           if (Declarator->Parameters.has_value())
             if (Declarator->Parameters->size() != F.getArgumentTypes().size())
@@ -275,34 +275,34 @@ private:
 
 //===-------------------------------- Types -------------------------------===//
 
-static std::string getPrimitiveTypeCName(PrimitiveKind Kind, uint64_t Size) {
-  auto GetPrefix = [](PrimitiveKind Kind) -> llvm::StringRef {
-    switch (Kind) {
-    case PrimitiveKind::UnsignedKind:
+static std::string getPrimitiveTypeCName(PrimitiveType Type) {
+  auto GetPrefix = [](PrimitiveType Type) -> llvm::StringRef {
+    if (mlir::isa<FloatType>(Type))
+      return "float";
+
+    switch (auto Kind = mlir::cast<IntegerType>(Type).getKind()) {
+    case IntegerKind::Unsigned:
       return "uint";
-    case PrimitiveKind::SignedKind:
+    case IntegerKind::Signed:
       return "int";
     default:
-      return clift::stringifyPrimitiveKind(Kind);
+      return stringifyIntegerKind(Kind);
     }
   };
 
   std::string Name;
   {
     llvm::raw_string_ostream Out(Name);
-    Out << GetPrefix(Kind);
-
-    if (Kind != PrimitiveKind::VoidKind)
-      Out << (Size * 8) << "_t";
+    Out << GetPrefix(Type) << (getObjectSize(Type) * 8) << "_t";
   }
   return Name;
 }
 
-void CEmitter::emitPrimitiveType(clift::PrimitiveKind Kind, uint64_t Size) {
-  if (Kind == PrimitiveKind::VoidKind) {
+void CEmitter::emitPrimitiveType(PrimitiveType Type) {
+  if (mlir::isa<VoidType>(Type)) {
     Tokens.emitKeyword(CTE::Keyword::Void);
   } else {
-    auto TypeName = getPrimitiveTypeCName(Kind, Size);
+    auto TypeName = getPrimitiveTypeCName(Type);
     auto Location = pipeline::locationString(revng::ranks::PrimitiveType,
                                              TypeName);
 
@@ -313,7 +313,7 @@ void CEmitter::emitPrimitiveType(clift::PrimitiveKind Kind, uint64_t Size) {
   }
 }
 
-void CEmitter::emitType(ValueType Type) {
+void CEmitter::emitType(mlir::Type Type) {
   DeclarationEmitter::emit(*this, Type, /*Declarator=*/nullptr);
 }
 
@@ -371,7 +371,7 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
         Tokens.emitIntegerLiteral(Integer.getValue(), std::nullopt);
 
       } else if (auto Type = mlir::dyn_cast<mlir::TypeAttr>(A)) {
-        auto VT = mlir::dyn_cast<mlir::clift::ValueType>(Type.getValue());
+        auto VT = mlir::dyn_cast<mlir::Type>(Type.getValue());
         revng_assert(VT);
         emitType(VT);
 
@@ -409,7 +409,7 @@ void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
 
 //===---------------------------- Declarations ----------------------------===//
 
-void CEmitter::emitDeclaration(ValueType Type,
+void CEmitter::emitDeclaration(mlir::Type Type,
                                DeclaratorInfo const &Declarator) {
   DeclarationEmitter::emit(*this, Type, &Declarator);
 }

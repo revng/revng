@@ -13,52 +13,33 @@ namespace ranks = revng::ranks;
 namespace {
 
 static constexpr model::PrimitiveKind::Values
-kindToKind(const clift::PrimitiveKind Kind) {
-  return static_cast<model::PrimitiveKind::Values>(Kind);
-}
-
-/// Test that kindToKind converts each clift::PrimitiveKind to the matching
-/// model::PrimitiveKind. Use a switch converting in the opposite direction
-/// in order to produce a warning if a new primitive kind is ever added.
-static consteval bool testKindToKind() {
-  clift::PrimitiveKind UninitializedKind;
-  const auto TestSwitch = [&](const model::PrimitiveKind::Values Kind) {
-    switch (Kind) {
-    case model::PrimitiveKind::Float:
-      return clift::PrimitiveKind::FloatKind;
-    case model::PrimitiveKind::Generic:
-      return clift::PrimitiveKind::GenericKind;
-    case model::PrimitiveKind::Number:
-      return clift::PrimitiveKind::NumberKind;
-    case model::PrimitiveKind::PointerOrNumber:
-      return clift::PrimitiveKind::PointerOrNumberKind;
-    case model::PrimitiveKind::Signed:
-      return clift::PrimitiveKind::SignedKind;
-    case model::PrimitiveKind::Unsigned:
-      return clift::PrimitiveKind::UnsignedKind;
-    case model::PrimitiveKind::Void:
-      return clift::PrimitiveKind::VoidKind;
-
-    case model::PrimitiveKind::Invalid:
-    case model::PrimitiveKind::Count:
-      // Unreachable. This causes an error during constant evaluation.
-      return UninitializedKind;
-    }
-  };
-
-  for (int I = 0; I < static_cast<int>(model::PrimitiveKind::Count); ++I) {
-    auto const Kind = static_cast<model::PrimitiveKind::Values>(I);
-    if (Kind != model::PrimitiveKind::Invalid) {
-      if (kindToKind(TestSwitch(Kind)) != Kind)
-        return false;
-    }
+integerToPrimitiveKind(clift::IntegerKind Kind) {
+  switch (Kind) {
+  case clift::IntegerKind::Generic:
+    return model::PrimitiveKind::Generic;
+  case clift::IntegerKind::PointerOrNumber:
+    return model::PrimitiveKind::PointerOrNumber;
+  case clift::IntegerKind::Number:
+    return model::PrimitiveKind::Number;
+  case clift::IntegerKind::Unsigned:
+    return model::PrimitiveKind::Unsigned;
+  case clift::IntegerKind::Signed:
+    return model::PrimitiveKind::Signed;
+  default:
+    return model::PrimitiveKind::Invalid;
   }
-  return true;
 }
-static_assert(testKindToKind());
 
-static auto getModelPrimitiveType(clift::PrimitiveType T) {
-  return model::PrimitiveType::make(kindToKind(T.getKind()), T.getSize());
+static auto getModelPrimitiveType(clift::PrimitiveType Type) {
+  if (mlir::isa<clift::VoidType>(Type))
+    return model::PrimitiveType::makeVoid();
+
+  if (auto T = mlir::dyn_cast<clift::FloatType>(Type))
+    return model::PrimitiveType::make(model::PrimitiveKind::Float, T.getSize());
+
+  auto T = mlir::cast<clift::IntegerType>(Type);
+  auto Kind = integerToPrimitiveKind(T.getKind());
+  return model::PrimitiveType::make(Kind, T.getSize());
 }
 
 class Verifier : public clift::ModuleVisitor<Verifier> {
@@ -204,6 +185,33 @@ private:
                                             "non-isolated function with a "
                                             "definition: '"
                                          << Op.getHandle() << "'";
+
+    for (unsigned Index = 0; Index < Op.getArgCount(); ++Index) {
+      bool IsStack = false;
+      bool IsRegister = false;
+
+      mlir::clift::AttrDictView View = Op.getArgAttrs(Index);
+      if (auto CAs = View.getOfType<mlir::ArrayAttr>("clift.c_attributes")) {
+        for (mlir::Attribute CAttribute : CAs) {
+          auto AttrName = mlir::cast<clift::CAttributeAttr>(CAttribute)
+                            .getName()
+                            .getName();
+
+          if (AttrName == "_STACK" and std::exchange(IsStack, true))
+            return getCurrentOp()->emitError() << "Function argument contains "
+                                                  "duplicate _STACK attribute.";
+
+          if (AttrName == "_REG" and std::exchange(IsRegister, true))
+            return getCurrentOp()->emitError() << "Function argument contains "
+                                                  "duplicate _REG attribute.";
+
+          if (IsStack and IsRegister)
+            return getCurrentOp()->emitError() << "Function argument contains "
+                                                  "both _STACK and _REG "
+                                                  "attributes.";
+        }
+      }
+    }
 
     return mlir::success();
   }

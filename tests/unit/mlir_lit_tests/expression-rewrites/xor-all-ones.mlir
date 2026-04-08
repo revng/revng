@@ -4,8 +4,8 @@
 
 // RUN: %revngcliftopt %s --optimize-expressions | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!uint32_t = !clift.primitive<unsigned 4>
+!void = !clift.void
+!uint32_t = !clift.int<unsigned 4>
 
 !f = !clift.func<"/model-type/1001" : !void(!uint32_t)>
 

@@ -92,7 +92,7 @@ private:
   /// Add all the necessary dependency edges from the \p Dependent to the
   /// nodes associated with the \p DependedOn type.
   void addDependenciesFrom(const AssociatedNodes Dependent,
-                           clift::ValueType DependedOn) const;
+                           mlir::Type DependedOn) const;
 };
 
 static void addAndLogSuccessor(clift::TypeDependencyNode *From,
@@ -147,7 +147,7 @@ struct TypeSpecifierResult {
   bool LastArray = false;
 };
 
-static TypeSpecifierResult unwrapType(clift::ValueType T) {
+static TypeSpecifierResult unwrapType(mlir::Type T) {
   TypeSpecifierResult Result;
 
   while (true) {
@@ -183,7 +183,7 @@ static TypeSpecifierResult unwrapType(clift::ValueType T) {
 
 template<bool Mode>
 void Builder<Mode>::addDependenciesFrom(const AssociatedNodes Dependent,
-                                        clift::ValueType DOn) const {
+                                        mlir::Type DOn) const {
   const auto &[DefinitionDependedOn, FoundPointer, LastArray] = unwrapType(DOn);
 
   // If the definition this depends on is not a type definition, we're done,
@@ -248,11 +248,9 @@ void Builder<Mode>::addDependenciesFrom(const AssociatedNodes Dependent,
   // also depends on the full definition of the depended-on, across typedefs.
   if (ForwardDeclaration
       and mlir::isa<clift::TypedefType>(DefinitionDependedOn)) {
-    auto Underlying = dealias(DefinitionDependedOn,
-                              /* IgnoreQualifiers= */ true);
-    if (auto Defined = mlir::dyn_cast<clift::DefinedType>(Underlying)) {
-      if (clift::isSeparateDeclarationAllowed(Defined)) {
-        auto TransitivelyDependedOn = Graph->TypeToNodes.at(Defined);
+    if (auto D = clift::unwrapped_dyn_cast<DefinedType>(DefinitionDependedOn)) {
+      if (clift::isSeparateDeclarationAllowed(D)) {
+        auto TransitivelyDependedOn = Graph->TypeToNodes.at(D);
         revng_assert(TransitivelyDependedOn.Definition);
         addAndLogSuccessor(DependentNode, TransitivelyDependedOn.Definition);
       }

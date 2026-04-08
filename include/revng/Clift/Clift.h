@@ -34,8 +34,6 @@ inline constexpr unsigned ContinueLabelFlag = 1 << 1;
 bool verifyStatementRegion(Region &R);
 bool verifyExpressionRegion(Region &R, bool Required);
 
-bool verifyPrimitiveTypeOf(ValueType Type, PrimitiveKind Kind);
-
 unsigned getPointerArithmeticPointerOperandIndex(mlir::Operation *Op);
 unsigned getPointerArithmeticOffsetOperandIndex(mlir::Operation *Op);
 
@@ -120,6 +118,6 @@ mlir::Value getExpressionValue(Region &R);
 
 /// Returns the type of the expression represented by the region, or a null type
 /// if region is not a valid expression region.
-clift::ValueType getExpressionType(Region &R);
+mlir::Type getExpressionType(Region &R);
 
 } // namespace mlir::clift

@@ -92,11 +92,11 @@ class ClifterImpl final : public Clifter {
   const model::Binary &Model;
   mlir::OpBuilder Builder;
 
-  clift::ValueType VoidTypeCache;
+  mlir::Type VoidTypeCache;
 
   uint64_t PointerSize;
-  clift::ValueType VoidPointerTypeCache;
-  clift::ValueType IntptrTypeCache;
+  mlir::Type VoidPointerTypeCache;
+  mlir::Type IntptrTypeCache;
 
   /* Per-module mappings - persisted between imported functions */
 
@@ -166,31 +166,30 @@ private:
     return IntegerWidth / 8;
   }
 
-  clift::ValueType
-  getPrimitiveType(uint64_t Size,
-                   PrimitiveKind Kind = PrimitiveKind::GenericKind) {
-    return PrimitiveType::get(Context, Kind, Size);
+  IntegerType getIntegerType(uint64_t Size,
+                             IntegerKind Kind = IntegerKind::Generic) {
+    return IntegerType::get(Context, Kind, Size);
   }
 
-  clift::ValueType makePointerType(clift::ValueType ElementType) {
+  mlir::Type makePointerType(mlir::Type ElementType) {
     return PointerType::get(ElementType, PointerSize);
   }
 
-  clift::ValueType getVoidType() {
+  mlir::Type getVoidType() {
     if (not VoidTypeCache)
-      VoidTypeCache = getPrimitiveType(0, PrimitiveKind::VoidKind);
+      VoidTypeCache = VoidType::get(Context);
     return VoidTypeCache;
   }
 
-  clift::ValueType getVoidPointerType() {
+  mlir::Type getVoidPointerType() {
     if (not VoidPointerTypeCache)
       VoidPointerTypeCache = makePointerType(getVoidType());
     return VoidPointerTypeCache;
   }
 
-  clift::ValueType getIntptrType() {
+  mlir::Type getIntptrType() {
     if (not IntptrTypeCache)
-      IntptrTypeCache = getPrimitiveType(PointerSize);
+      IntptrTypeCache = getIntegerType(PointerSize);
     return IntptrTypeCache;
   }
 
@@ -203,7 +202,7 @@ private:
 
   /* Model type import */
 
-  clift::ValueType importType(const model::Type &Type) {
+  mlir::Type importType(const model::Type &Type) {
     auto EmitError = [&]() -> mlir::InFlightDiagnostic {
       return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
                                            mlir::DiagnosticSeverity::Error);
@@ -211,7 +210,7 @@ private:
     return clift::importType(EmitError, *Context, Type, Model);
   }
 
-  clift::ValueType importType(const model::TypeDefinition &Type) {
+  mlir::Type importType(const model::TypeDefinition &Type) {
     auto EmitError = [&]() -> mlir::InFlightDiagnostic {
       return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
                                            mlir::DiagnosticSeverity::Error);
@@ -226,23 +225,22 @@ private:
 
   /* LLVM type import */
 
-  clift::ValueType
-  importLLVMIntegerType(const llvm::IntegerType *Type,
-                        PrimitiveKind Kind = PrimitiveKind::GenericKind) {
-    return getPrimitiveType(getIntegerSize(Type->getBitWidth()), Kind);
+  IntegerType importLLVMIntegerType(const llvm::IntegerType *Type,
+                                    IntegerKind Kind = IntegerKind::Generic) {
+    return getIntegerType(getIntegerSize(Type->getBitWidth()), Kind);
   }
 
-  clift::ValueType importLLVMPointerType(const llvm::PointerType *Type) {
+  mlir::Type importLLVMPointerType(const llvm::PointerType *Type) {
     revng_assert(Type->getAddressSpace() == 0);
     return getVoidPointerType();
   }
 
-  clift::ValueType importLLVMArrayType(const llvm::ArrayType *Type) {
+  mlir::Type importLLVMArrayType(const llvm::ArrayType *Type) {
     auto ElementType = importLLVMType(Type->getElementType());
     return ArrayType::get(ElementType, Type->getNumElements());
   }
 
-  clift::ValueType importLLVMType(const llvm::Type *Type) {
+  mlir::Type importLLVMType(const llvm::Type *Type) {
     if (Type->isVoidTy())
       return getVoidType();
 
@@ -288,8 +286,8 @@ private:
   // Import an LLVM type used as a helper function return type. If the type is a
   // struct type, create a Clift struct type with a handle derived from the
   // helper function name.
-  clift::ValueType importHelperReturnType(const llvm::Type *Type,
-                                          llvm::StringRef HelperName) {
+  mlir::Type importHelperReturnType(const llvm::Type *Type,
+                                    llvm::StringRef HelperName) {
     auto Struct = llvm::dyn_cast<llvm::StructType>(Type);
 
     if (not Struct)
@@ -305,7 +303,7 @@ private:
 
     uint64_t Offset = 0;
     for (auto [I, T] : llvm::enumerate(Struct->elements())) {
-      clift::ValueType FieldType = importLLVMType(T);
+      mlir::Type FieldType = importLLVMType(T);
 
       std::string FieldName = getHelperStructFieldName(I);
       std::string FieldHandle = Location
@@ -322,7 +320,7 @@ private:
                                                                  FieldHandle),
                                       Offset,
                                       FieldType));
-      Offset += FieldType.getByteSize();
+      Offset += getObjectSize(FieldType);
     }
 
     auto Handle = pipeline::locationString(revng::ranks::HelperStructType,
@@ -352,10 +350,10 @@ private:
                                        llvm::StringRef HelperName) {
     revng_assert(not Type->isVarArg());
 
-    clift::ValueType ReturnType = importHelperReturnType(Type->getReturnType(),
-                                                         HelperName);
+    mlir::Type ReturnType = importHelperReturnType(Type->getReturnType(),
+                                                   HelperName);
 
-    llvm::SmallVector<clift::ValueType> ParameterTypes;
+    llvm::SmallVector<mlir::Type> ParameterTypes;
     ParameterTypes.reserve(Type->getNumParams());
 
     for (const llvm::Type *T : Type->params())
@@ -496,7 +494,7 @@ private:
     return emitHelperFunctionDeclaration(F);
   }
 
-  clift::ValueType emitGlobalObject(const llvm::GlobalObject *G) {
+  mlir::Type emitGlobalObject(const llvm::GlobalObject *G) {
     if (const auto *F = llvm::dyn_cast<llvm::Function>(G))
       return emitFunctionDeclaration(F).getFunctionType();
 
@@ -539,10 +537,10 @@ private:
     if (GetChar(Length) != 0)
       return false;
 
-    auto CharType = clift::PrimitiveType::get(Context,
-                                              PrimitiveKind::NumberKind,
-                                              1,
-                                              /*IsConst=*/true);
+    auto CharType = clift::IntegerType::get(Context,
+                                            IntegerKind::Number,
+                                            1,
+                                            /*IsConst=*/true);
 
     String.Type = clift::ArrayType::get(CharType, Type->getNumElements());
 
@@ -712,12 +710,11 @@ private:
     return Builder.create<OpT>(Loc, std::forward<ArgsT>(Args)...);
   }
 
-  mlir::Value emitCast(mlir::Location Loc,
-                       mlir::Value Value,
-                       clift::ValueType TargetType,
-                       CastKind Kind = CastKind::Bitcast) {
+  template<typename OpT>
+  mlir::Value
+  emitCast(mlir::Location Loc, mlir::Value Value, mlir::Type TargetType) {
     if (Value.getType() != TargetType)
-      Value = Builder.create<CastOp>(Loc, TargetType, Value, Kind);
+      Value = Builder.create<OpT>(Loc, TargetType, Value);
 
     return Value;
   }
@@ -737,24 +734,21 @@ private:
   // is available.
   mlir::Value emitImplicitCast(mlir::Location Loc,
                                mlir::Value Value,
-                               clift::ValueType TargetType) {
-    auto SourceType = mlir::cast<clift::ValueType>(Value.getType());
+                               mlir::Type TargetType) {
+    mlir::Type SourceType = Value.getType();
 
     if (SourceType == TargetType)
       return Value;
 
-    auto UnderlyingSourceT = dealias(SourceType, true);
-    auto UnderlyingTargetT = dealias(TargetType, true);
-
-    if (UnderlyingSourceT.getByteSize() != UnderlyingTargetT.getByteSize())
+    auto SourceT = clift::unwrapped_dyn_cast<ValueType>(SourceType);
+    if (not SourceT)
       return Value;
 
-    if (mlir::isa<ArrayType>(UnderlyingSourceT))
-      return Value;
-    if (mlir::isa<ArrayType>(UnderlyingTargetT))
+    auto TargetT = clift::unwrapped_dyn_cast<ValueType>(TargetType);
+    if (not TargetT)
       return Value;
 
-    return emitCast(Loc, Value, TargetType);
+    return emitCast<BitCastOp>(Loc, Value, TargetType);
   }
 
   // Used for emitting operations acting on integer operands (arithmetic,
@@ -762,22 +756,22 @@ private:
   // operands are automatically converted to the requested kind, if necessary.
   // After the operation, the result is automaticlaly converted to generic kind.
   mlir::Value emitIntegerOp(mlir::Location Loc,
-                            PrimitiveKind Kind,
+                            IntegerKind Kind,
                             auto ApplyOperation,
                             std::same_as<mlir::Value> auto... Operands) {
-    auto ConvertToKind = [&](mlir::Value &Value, PrimitiveKind Kind) {
+    auto ConvertToKind = [&](mlir::Value &Value, IntegerKind Kind) {
       auto UnderlyingType = getUnderlyingIntegerType(Value.getType());
       revng_assert(UnderlyingType);
 
       uint64_t Size = UnderlyingType.getSize();
-      Value = emitCast(Loc, Value, C.getPrimitiveType(Size, Kind));
+      Value = emitCast<BitCastOp>(Loc, Value, C.getIntegerType(Size, Kind));
     };
 
     (ConvertToKind(Operands, Kind), ...);
     mlir::Value Result = ApplyOperation(Operands...);
 
-    if (Kind != PrimitiveKind::GenericKind)
-      ConvertToKind(Result, PrimitiveKind::GenericKind);
+    if (Kind != IntegerKind::Generic)
+      ConvertToKind(Result, IntegerKind::Generic);
 
     return Result;
   }
@@ -787,17 +781,19 @@ private:
   mlir::Value emitIntegerCast(mlir::Location Loc,
                               mlir::Value Operand,
                               uint64_t Size,
-                              PrimitiveKind Kind) {
+                              IntegerKind Kind = IntegerKind::Generic) {
     uint64_t SrcSize = getUnderlyingIntegerType(Operand.getType()).getSize();
 
-    CastKind Cast = CastKind::Bitcast;
-    if (Size > SrcSize)
-      Cast = CastKind::Extend;
-    if (Size < SrcSize)
-      Cast = CastKind::Truncate;
-
     auto EmitCast = [&](mlir::Value Operand) {
-      return emitCast(Loc, Operand, C.getPrimitiveType(Size, Kind), Cast);
+      auto NewType = C.getIntegerType(Size, Kind);
+
+      if (Size > SrcSize)
+        return emitCast<ExtendOp>(Loc, Operand, NewType);
+
+      if (Size < SrcSize)
+        return emitCast<TruncateOp>(Loc, Operand, NewType);
+
+      return emitCast<BitCastOp>(Loc, Operand, NewType);
     };
 
     return emitIntegerOp(Loc, Kind, EmitCast, Operand);
@@ -944,7 +940,7 @@ private:
                                            std::move(String->Data));
 
         auto Type = C.makePointerType(String->Type.getElementType());
-        rc_return emitCast(SurroundingLocation, Op, Type, CastKind::Decay);
+        rc_return emitCast<DecayOp>(SurroundingLocation, Op, Type);
       }
 
       if (const auto *F = llvm::dyn_cast<llvm::Function>(G)) {
@@ -1013,7 +1009,9 @@ private:
                                             /*Value=*/0);
 
       LoggerIndent Indent(ExpressionLog);
-      rc_return emitCast(SurroundingLocation, Op, C.getVoidPointerType());
+      rc_return emitCast<BitCastOp>(SurroundingLocation,
+                                    Op,
+                                    C.getVoidPointerType());
     }
 
     if (auto E = llvm::dyn_cast<llvm::ConstantExpr>(V)) {
@@ -1056,13 +1054,10 @@ private:
                              rc_recur emitExpression(I->getPointerOperand(),
                                                      Loc));
 
-      clift::ValueType ValueType = C.importLLVMType(V->getType());
-      clift::ValueType PointerType = C.makePointerType(ValueType);
+      mlir::Type ValueType = C.importLLVMType(V->getType());
+      mlir::Type PointerType = C.makePointerType(ValueType);
 
-      Pointer = Builder.create<CastOp>(Loc,
-                                       PointerType,
-                                       Pointer,
-                                       CastKind::Bitcast);
+      Pointer = Builder.create<BitCastOp>(Loc, PointerType, Pointer);
 
       revng_log(ExpressionLog, "IndirectionOp");
       rc_return Builder.create<IndirectionOp>(Loc, ValueType, Pointer);
@@ -1083,10 +1078,9 @@ private:
       mlir::Value Value = (LoggerIndent(ExpressionLog),
                            rc_recur emitExpression(I->getValueOperand(), Loc));
 
-      Pointer = Builder.create<CastOp>(Loc,
-                                       C.makePointerType(Value.getType()),
-                                       Pointer,
-                                       CastKind::Bitcast);
+      Pointer = Builder.create<BitCastOp>(Loc,
+                                          C.makePointerType(Value.getType()),
+                                          Pointer);
 
       revng_log(ExpressionLog, "IndirectionOp");
       mlir::Value Assignee = Builder.create<IndirectionOp>(Loc,
@@ -1113,17 +1107,17 @@ private:
       mlir::Value Rhs = (LoggerIndent(ExpressionLog),
                          rc_recur emitExpression(I->getOperand(1), Loc));
 
-      PrimitiveKind Kind = PrimitiveKind::GenericKind;
+      IntegerKind Kind = IntegerKind::Generic;
       switch (I->getOpcode()) {
       case Operators::SDiv:
       case Operators::SRem:
       case Operators::AShr:
-        Kind = PrimitiveKind::SignedKind;
+        Kind = IntegerKind::Signed;
         break;
       case Operators::UDiv:
       case Operators::URem:
       case Operators::LShr:
-        Kind = PrimitiveKind::UnsignedKind;
+        Kind = IntegerKind::Unsigned;
         break;
       default:
         break;
@@ -1181,19 +1175,19 @@ private:
 
       using enum llvm::ICmpInst::Predicate;
 
-      PrimitiveKind Kind = PrimitiveKind::GenericKind;
+      IntegerKind Kind = IntegerKind::Generic;
       switch (I->getPredicate()) {
       case ICMP_SGT:
       case ICMP_SGE:
       case ICMP_SLT:
       case ICMP_SLE:
-        Kind = PrimitiveKind::SignedKind;
+        Kind = IntegerKind::Signed;
         break;
       case ICMP_UGT:
       case ICMP_UGE:
       case ICMP_ULT:
       case ICMP_ULE:
-        Kind = PrimitiveKind::UnsignedKind;
+        Kind = IntegerKind::Unsigned;
         break;
       default:
         break;
@@ -1210,8 +1204,7 @@ private:
                          rc_recur emitExpression(I->getOperand(1), Loc));
 
       auto *IntegerType = llvm::cast<llvm::IntegerType>(V->getType());
-      auto Type = C.importLLVMIntegerType(IntegerType,
-                                          PrimitiveKind::SignedKind);
+      auto Type = C.importLLVMIntegerType(IntegerType, IntegerKind::Signed);
 
       auto EmitOp = [&](mlir::Value Lhs, mlir::Value Rhs) {
         switch (I->getPredicate()) {
@@ -1249,8 +1242,8 @@ private:
         if (not I->isSigned())
           rc_return EmitOp(Lhs, Rhs);
 
-        Lhs = emitCast(Loc, Lhs, C.getIntptrType());
-        Rhs = emitCast(Loc, Rhs, C.getIntptrType());
+        Lhs = emitCast<BitCastOp>(Loc, Lhs, C.getIntptrType());
+        Rhs = emitCast<BitCastOp>(Loc, Rhs, C.getIntptrType());
       }
 
       rc_return emitIntegerOp(Loc, Kind, EmitOp, Lhs, Rhs);
@@ -1271,7 +1264,7 @@ private:
         return ClifterImpl::getIntegerSize(IntegerType->getBitWidth());
       };
 
-      auto EmitIntegerCast = [&](PrimitiveKind Kind) {
+      auto EmitIntegerCast = [&](IntegerKind Kind) {
         return emitIntegerCast(Loc,
                                Operand,
                                GetIntegerSize(V->getType()),
@@ -1280,30 +1273,20 @@ private:
 
       switch (I->getOpcode()) {
         using Operators = llvm::CastInst::CastOps;
-      case Operators::Trunc:
-        rc_return EmitIntegerCast(PrimitiveKind::GenericKind);
       case Operators::SExt:
-        rc_return EmitIntegerCast(PrimitiveKind::SignedKind);
+        rc_return EmitIntegerCast(IntegerKind::Signed);
       case Operators::ZExt:
-        rc_return EmitIntegerCast(PrimitiveKind::UnsignedKind);
+      case Operators::Trunc:
+        rc_return EmitIntegerCast(IntegerKind::Generic);
       case Operators::PtrToInt:
-        Operand = emitCast(Loc, Operand, C.getIntptrType());
-        if (uint64_t S = GetIntegerSize(I->getDestTy()); S > C.PointerSize) {
-          Operand = emitCast(Loc,
-                             Operand,
-                             C.getPrimitiveType(S),
-                             CastKind::Extend);
-        }
+        Operand = emitCast<BitCastOp>(Loc, Operand, C.getIntptrType());
+        if (uint64_t S = GetIntegerSize(I->getDestTy()); S != C.PointerSize)
+          Operand = emitIntegerCast(Loc, Operand, S);
         rc_return Operand;
       case Operators::IntToPtr:
-        if (GetIntegerSize(I->getSrcTy()) > C.PointerSize) {
-          Operand = emitCast(Loc,
-                             Operand,
-                             C.getPrimitiveType(C.PointerSize),
-                             CastKind::Truncate);
-        }
-
-        rc_return emitCast(Loc, Operand, C.getVoidPointerType());
+        if (uint64_t S = GetIntegerSize(I->getSrcTy()); S != C.PointerSize)
+          Operand = emitIntegerCast(Loc, Operand, C.PointerSize);
+        rc_return emitCast<BitCastOp>(Loc, Operand, C.getVoidPointerType());
       default:
         revng_abort("Unsupported LLVM cast operation.");
       }
@@ -1341,13 +1324,14 @@ private:
         // If the callee is a function and not a pointer to function, it must
         // be decayed to a pointer before applying the type conversion:
         if (mlir::isa<clift::FunctionType>(Function.getType())) {
-          Function = emitCast(Loc,
-                              Function,
-                              C.makePointerType(FunctionType),
-                              CastKind::Decay);
+          Function = emitCast<DecayOp>(Loc,
+                                       Function,
+                                       C.makePointerType(FunctionType));
         }
 
-        Function = emitCast(Loc, Function, C.makePointerType(CallType));
+        Function = emitCast<BitCastOp>(Loc,
+                                       Function,
+                                       C.makePointerType(CallType));
       }
 
       llvm::ArrayRef LayoutArguments = getLayoutArguments(Layout);
@@ -1411,11 +1395,8 @@ private:
       mlir::Value False = (LoggerIndent(ExpressionLog),
                            rc_recur emitExpression(I->getFalseValue(), Loc));
 
-      auto TrueType = mlir::cast<clift::ValueType>(True.getType());
-      auto FalseType = mlir::cast<clift::ValueType>(False.getType());
-
-      auto ResultType = TrueType.removeConst();
-      if (ResultType != FalseType.removeConst()) {
+      mlir::Type ResultType = removeConst(True.getType());
+      if (ResultType != removeConst(False.getType())) {
         ResultType = C.importLLVMType(I->getType());
         True = emitImplicitCast(Loc, True, ResultType);
         False = emitImplicitCast(Loc, False, ResultType);
@@ -1444,7 +1425,7 @@ private:
       uint64_t Index1 = C.getConstantInt((++IndexIterator)->get());
 
       mlir::Location Loc = C.getLocation(I);
-      auto Operand = emitCast(Loc, It->second, PT, CastKind::Decay);
+      auto Operand = emitCast<DecayOp>(Loc, It->second, PT);
 
       mlir::Value Immediate = emitExpr<ImmediateOp>(Loc,
                                                     C.getIntptrType(),
@@ -1619,7 +1600,7 @@ private:
 
         std::optional<std::string> Handle;
 
-        clift::ValueType Type;
+        mlir::Type Type;
         if (hasStackTypeMetadata(Alloca)) {
           Type = C.importType(*getStackTypeFromMetadata(Alloca, C.Model));
           Handle = pipeline::locationString(revng::ranks::StackFrameVariable,
@@ -1719,8 +1700,8 @@ private:
       if (const llvm::Value *Value = Return->getReturnValue()) {
         clift::FunctionType FunctionType = Function.getFunctionType();
 
-        clift::ValueType FuncReturnType = FunctionType.getReturnType();
-        clift::ValueType LLVMReturnType = FuncReturnType;
+        mlir::Type FuncReturnType = FunctionType.getReturnType();
+        mlir::Type LLVMReturnType = FuncReturnType;
 
         // In SPTAR functions, values are returned by address. In this case
         if (FunctionLayout.hasSPTAR())
@@ -1736,15 +1717,15 @@ private:
           // must be an lvalue), we can take its address, and read it as the
           // appropriate type (type punning, violates strict aliasing).
           if (auto AT = mlir::dyn_cast<ArrayType>(ReturnValue.getType())) {
-            ReturnValue = emitCast(TerminalLoc,
-                                   ReturnValue,
-                                   C.makePointerType(AT.getElementType()),
-                                   CastKind::Decay);
+            ReturnValue = //
+              emitCast<DecayOp>(TerminalLoc,
+                                ReturnValue,
+                                C.makePointerType(AT.getElementType()));
 
-            ReturnValue = emitCast(TerminalLoc,
-                                   ReturnValue,
-                                   C.makePointerType(LLVMReturnType),
-                                   CastKind::Bitcast);
+            ReturnValue = //
+              emitCast<BitCastOp>(TerminalLoc,
+                                  ReturnValue,
+                                  C.makePointerType(LLVMReturnType));
 
             ReturnValue = Builder.create<IndirectionOp>(TerminalLoc,
                                                         LLVMReturnType,

@@ -4,18 +4,18 @@
 
 // RUN: %revngcliftopt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!generic64_t = !clift.primitive<generic 8>
-!int8_t = !clift.primitive<signed 1>
-!int16_t = !clift.primitive<signed 2>
-!int32_t = !clift.primitive<signed 4>
-!int64_t = !clift.primitive<signed 8>
-!uint8_t = !clift.primitive<unsigned 1>
-!uint16_t = !clift.primitive<unsigned 2>
-!uint32_t = !clift.primitive<unsigned 4>
-!uint64_t = !clift.primitive<unsigned 8>
-!float32_t = !clift.primitive<float 4>
-!float64_t = !clift.primitive<float 8>
+!void = !clift.void
+!generic64_t = !clift.int<generic 8>
+!int8_t = !clift.int<signed 1>
+!int16_t = !clift.int<signed 2>
+!int32_t = !clift.int<signed 4>
+!int64_t = !clift.int<signed 8>
+!uint8_t = !clift.int<unsigned 1>
+!uint16_t = !clift.int<unsigned 2>
+!uint32_t = !clift.int<unsigned 4>
+!uint64_t = !clift.int<unsigned 8>
+!float32_t = !clift.float<4>
+!float64_t = !clift.float<8>
 
 // Generic void function prototype with no argument
 !f = !clift.func<
@@ -52,10 +52,10 @@ module attributes {clift.module} {
     %0 = clift.local : !struct_commonstrides
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !struct_commonstrides>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !struct_commonstrides> -> !generic64_t
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !struct_commonstrides> -> !generic64_t
       %3 = clift.imm 28 : !generic64_t
       %4 = clift.add %2, %3 : !generic64_t
-      %5 = clift.cast<bitcast> %4 : !generic64_t -> !clift.ptr<8 to !int32_t>
+      %5 = clift.bitcast %4 : !generic64_t -> !clift.ptr<8 to !int32_t>
       clift.yield %5 : !clift.ptr<8 to !int32_t>
     }
   }
@@ -65,10 +65,10 @@ module attributes {clift.module} {
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_2_>
   // CHECK: [[ACCESS1:%[0-9]+]] = clift.access<indirect 0> [[ADDRESSOF1]]
   // CHECK: [[ACCESS2:%[0-9]+]] = clift.access< 1> [[ACCESS1]]
-  // CHECK: [[CAST1:%[0-9]+]] = clift.cast<decay> [[ACCESS2]]
+  // CHECK: [[CAST1:%[0-9]+]] = clift.decay [[ACCESS2]]
   // CHECK: [[IMM1:%[0-9]+]] = clift.imm 1
   // CHECK: [[SUBSCRIPT1:%[0-9]+]] = clift.subscript [[CAST1]], [[IMM1]]
-  // CHECK: [[CAST2:%[0-9]+]] = clift.cast<decay> [[SUBSCRIPT1]]
+  // CHECK: [[CAST2:%[0-9]+]] = clift.decay [[SUBSCRIPT1]]
   // CHECK: [[IMM2:%[0-9]+]] = clift.imm 2
   // CHECK: [[SUBSCRIPT2:%[0-9]+]] = clift.subscript [[CAST2]], [[IMM2]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPT2]]

@@ -4,9 +4,9 @@
 
 // RUN: %revngcliftopt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!generic64_t = !clift.primitive<generic 8>
-!int32_t = !clift.primitive<signed 4>
+!void = !clift.void
+!generic64_t = !clift.int<generic 8>
+!int32_t = !clift.int<signed 4>
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
 
 // Generic void function prototype with no argument
@@ -30,11 +30,11 @@ module attributes {clift.module} {
     %0 = clift.local : !outer
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !outer>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !outer> -> !clift.ptr<8 to !void>
-      %3 = clift.cast<bitcast> %2 : !clift.ptr<8 to !void> -> !generic64_t
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !outer> -> !clift.ptr<8 to !void>
+      %3 = clift.bitcast %2 : !clift.ptr<8 to !void> -> !generic64_t
       %4 = clift.imm 4 : !generic64_t
       %5 = clift.add %3, %4 : !generic64_t
-      %6 = clift.cast<bitcast> %5 : !generic64_t -> !int32_t$ptr
+      %6 = clift.bitcast %5 : !generic64_t -> !int32_t$ptr
       clift.yield %6 : !int32_t$ptr
     }
   }
@@ -44,10 +44,10 @@ module attributes {clift.module} {
   // CHECK: [[ARRAY:%[0-9]+]] = clift.local : !clift.array<3 x !clift.array<1 x !int32_t>>
   // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[ARRAY]] : !clift.ptr<8 to !clift.array<3 x !clift.array<1 x !int32_t>>>
   // CHECK: [[INDIR:%[0-9]+]] = clift.indirection [[ADDRESSOF1]]
-  // CHECK: [[CAST1:%[0-9]+]] = clift.cast<decay> [[INDIR]]
+  // CHECK: [[CAST1:%[0-9]+]] = clift.decay [[INDIR]]
   // CHECK: [[IMM1:%[0-9]+]] = clift.imm 1
   // CHECK: [[SUBSCRIPT1:%[0-9]+]] = clift.subscript [[CAST1]], [[IMM1]]
-  // CHECK: [[CAST2:%[0-9]+]] = clift.cast<decay> [[SUBSCRIPT1]]
+  // CHECK: [[CAST2:%[0-9]+]] = clift.decay [[SUBSCRIPT1]]
   // CHECK: [[IMM2:%[0-9]+]] = clift.imm 0
   // CHECK: [[SUBSCRIPT2:%[0-9]+]] = clift.subscript [[CAST2]], [[IMM2]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[SUBSCRIPT2]]

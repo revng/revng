@@ -5,7 +5,7 @@
 // RUN: %revngcliftopt --emit-c %s | FileCheck %s
 // RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
-!void = !clift.primitive<void 0>
+!void = !clift.void
 
 !f = !clift.func<
   "/type-definition/1001-CABIFunctionDefinition" as "fun_0x40001001_t" : !void()
@@ -21,7 +21,7 @@ module attributes {clift.module} {
     // CHECK: fun_0x40001001_t *var_0 = fun_0x40001001;
     clift.local : !f$ptr = {
       %f = clift.use @fun_0x40001001 : !f
-      %r = clift.cast<decay> %f : !f -> !f$ptr
+      %r = clift.decay %f : !f -> !f$ptr
       clift.yield %r : !f$ptr
     } attributes {
       handle = "/local-variable/0x40001001:Code_x86_64/0",

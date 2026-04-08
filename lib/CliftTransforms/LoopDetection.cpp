@@ -12,6 +12,7 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftTransforms/Passes.h"
+#include "revng/CliftTransforms/RewriteHelpers.h"
 
 namespace mlir {
 namespace clift {
@@ -127,9 +128,7 @@ static void createLoop(FunctionOp Function,
 
   Builder.setInsertionPointToStart(&Loop.getCondition().emplaceBlock());
 
-  auto Bool = PrimitiveType::get(Builder.getContext(),
-                                 PrimitiveKind::SignedKind,
-                                 /*Size=*/1);
+  auto Bool = getBooleanType(Builder.getContext());
   auto True = Builder.create<ImmediateOp>(LoopLoc, Bool, 1);
 
   Builder.create<YieldOp>(LoopLoc, True);

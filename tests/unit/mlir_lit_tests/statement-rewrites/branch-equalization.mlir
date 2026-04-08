@@ -4,8 +4,8 @@
 
 // RUN: %revngcliftopt %s --optimize-statements | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!int32_t = !clift.primitive<signed 4>
+!void = !clift.void
+!int32_t = !clift.int<signed 4>
 !f = !clift.func<"/model-type/1001" : !void()>
 
 // CHECK: module attributes {clift.module} {

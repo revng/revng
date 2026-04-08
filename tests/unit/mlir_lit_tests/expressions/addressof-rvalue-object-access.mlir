@@ -4,7 +4,7 @@
 
 // RUN: not %revngcliftopt %s 2>&1 | FileCheck %s
 
-!int32_t = !clift.primitive<signed 4>
+!int32_t = !clift.int<signed 4>
 !int32_t$ptr = !clift.ptr<8 to !int32_t>
 
 !s = !clift.struct<
@@ -16,5 +16,5 @@
 %0 = clift.undef : !s
 %1 = clift.access<0> %0 : !s -> !int32_t
 
-// CHECK: operand must be an lvalue-expression
+// CHECK: failed to verify that operand object is an lvalue expression
 %2 = clift.addressof %1 : !int32_t$ptr

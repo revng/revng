@@ -11,26 +11,21 @@ using namespace clift;
 namespace {
 
 static clift::PointerType getPointerOperationType(mlir::Operation *Op) {
-  auto GetPointerTypeChecked = [&](mlir::Type Type) {
-    auto PointerType = getPointerType(Type);
-    revng_assert(PointerType);
-    return PointerType;
-  };
-
   if (mlir::isa<PtrAddOp, PtrSubOp, AddressofOp>(Op))
-    return GetPointerTypeChecked(Op->getResult(0).getType());
+    return clift::unwrapped_cast<PointerType>(Op->getResult(0).getType());
 
   if (mlir::isa<PtrDiffOp, IndirectionOp, SubscriptOp>(Op))
-    return GetPointerTypeChecked(Op->getOperand(0).getType());
+    return clift::unwrapped_cast<PointerType>(Op->getOperand(0).getType());
 
   if (auto A = mlir::dyn_cast<AccessOp>(Op); A and A.isIndirect())
-    return GetPointerTypeChecked(A.getValue().getType());
+    return clift::unwrapped_cast<PointerType>(A.getValue().getType());
 
-  if (auto C = mlir::dyn_cast<CastOp>(Op); C and C.getKind() == CastKind::Decay)
-    return GetPointerTypeChecked(C.getResult().getType());
+  if (auto C = mlir::dyn_cast<DecayOp>(Op))
+    return clift::unwrapped_cast<PointerType>(C.getResult().getType());
 
   if (auto C = mlir::dyn_cast<CallOp>(Op)) {
-    if (auto T = getPointerType(C.getFunction().getType()))
+    if (auto T = clift::unwrapped_dyn_cast<PointerType>(C.getFunction()
+                                                          .getType()))
       return T;
   }
 
@@ -50,25 +45,19 @@ public:
     }
 
     if (mlir::isa<ImmediateOp>(Op)) {
-      auto T = mlir::cast<ValueType>(Op->getResult(0).getType());
-
-      if (isPotentiallyPromotingType(T))
+      if (isPotentiallyPromotingType(Op->getResult(0).getType()))
         return Op->emitOpError() << " is not representable in the target"
                                  << " implementation.";
     }
 
     if (isPromotingOp(Op)) {
-      auto T = mlir::cast<ValueType>(Op->getResult(0).getType());
-
-      if (isPotentiallyPromotingType(T))
+      if (isPotentiallyPromotingType(Op->getResult(0).getType()))
         return Op->emitOpError() << " causes integer promotion in the target"
                                     " implementation.";
     }
 
     if (isBooleanOp(Op)) {
-      auto T = mlir::cast<ValueType>(Op->getResult(0).getType());
-
-      if (not isCanonicalBooleanType(T))
+      if (not isCanonicalBooleanType(Op->getResult(0).getType()))
         return Op->emitOpError() << " - not yielding the canonical boolean type"
                                  << " - is not representable in the target"
                                  << " implementation.";
@@ -105,21 +94,17 @@ private:
                      CmpGeOp>(Op);
   }
 
-  bool isPotentiallyPromotingType(ValueType Type) {
-    if (auto P = mlir::dyn_cast<PrimitiveType>(dealias(Type, true))) {
-      if (isIntegerKind(P.getKind())) {
-        auto Integer = Target.getIntegerKind(P.getSize());
-        return not Integer or *Integer < CIntegerKind::Int;
-      }
+  bool isPotentiallyPromotingType(mlir::Type Type) {
+    if (auto IntType = clift::unwrapped_dyn_cast<IntegerType>(Type)) {
+      auto Integer = Target.getIntegerKind(IntType.getSize());
+      return not Integer or *Integer < CIntegerKind::Int;
     }
     return false;
   }
 
-  bool isCanonicalBooleanType(ValueType Type) {
-    if (auto P = mlir::dyn_cast<PrimitiveType>(dealias(Type, true))) {
-      if (isIntegerKind(P.getKind()))
-        return Target.getIntegerKind(P.getSize()) == CIntegerKind::Int;
-    }
+  bool isCanonicalBooleanType(mlir::Type Type) {
+    if (auto IntType = clift::unwrapped_dyn_cast<IntegerType>(Type))
+      return Target.getIntegerKind(IntType.getSize()) == CIntegerKind::Int;
     return false;
   }
 

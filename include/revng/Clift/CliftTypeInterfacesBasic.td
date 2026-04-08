@@ -14,7 +14,7 @@ class Clift_TypeInterface<string name, list<Interface> baseInterfaces = []>
 
 def Clift_AliasableType : Clift_TypeInterface<"AliasableType"> {
   let description = [{
-    A Aliasable type is a type with a size and a constness
+    Internal implementation detail only used for emission of assembly aliases.
   }];
 
   let methods = [
@@ -27,20 +27,12 @@ def Clift_AliasableType : Clift_TypeInterface<"AliasableType"> {
   ];
 }
 
-def Clift_ValueType : Clift_TypeInterface<"ValueType"> {
+def Clift_AddressableType : Clift_TypeInterface<"AddressableType"> {
   let description = [{
     A value type is a type with a size and a constness
   }];
 
   let methods = [
-    InterfaceMethod<
-      "returns the size of the type.",
-      "uint64_t", "getByteSize", (ins),
-      /*methodBody=*/[{}],
-      /*defaultImplemetation=*/[{
-        return $_type.getSize();
-      }]
-    >,
     InterfaceMethod<
       "the constness of the type",
       "bool", "isConst", (ins),
@@ -51,11 +43,11 @@ def Clift_ValueType : Clift_TypeInterface<"ValueType"> {
     >,
     InterfaceMethod<
       "Returns the unqualified base type of the type.",
-      "mlir::clift::ValueType", "addConst", (ins)
+      "mlir::clift::AddressableType", "addConst", (ins)
     >,
     InterfaceMethod<
       "Returns the unqualified base type of the type.",
-      "mlir::clift::ValueType", "removeConst", (ins)
+      "mlir::clift::AddressableType", "removeConst", (ins)
     >,
   ];
 }

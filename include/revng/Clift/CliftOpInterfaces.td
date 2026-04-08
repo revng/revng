@@ -9,5 +9,6 @@
 // incorrect emission of interface hierarchies.
 
 include "revng/Clift/CliftOpInterfacesControlFlow.td"
+include "revng/Clift/CliftOpInterfacesExpr.td"
 
 #endif

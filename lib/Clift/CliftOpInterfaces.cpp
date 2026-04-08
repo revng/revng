@@ -1,9 +1,7 @@
-/// Tests for the Clift Dialect
-
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
-//
+
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftOpInterfaces.h"
 
@@ -17,6 +15,8 @@ namespace mlir {
 #include "revng/Clift/CliftOpInterfacesJump.cpp.inc"
 // Prevent reordering:
 #include "revng/Clift/CliftOpInterfacesControlFlow.cpp.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftOpInterfacesExpr.cpp.inc"
 
 } // namespace mlir
 

@@ -4,7 +4,7 @@
 
 // RUN: ../%revngpipe import-descriptive-info %S/../0-import-types/Segment.yml %s /dev/stdout | ../%revngcliftopt | FileCheck %s
 
-!uint8_t = !clift.primitive<unsigned 1>
+!uint8_t = !clift.int<unsigned 1>
 
 // CHECK: module attributes {clift.module} {
 // CHECK:   clift.global @my_named_segment : !clift.array<64 x !uint8_t>

@@ -4,18 +4,18 @@
 
 // RUN: %revngcliftopt %s -emit-field-accesses -canonicalize 2>&1 | FileCheck %s
 
-!void = !clift.primitive<void 0>
-!generic64_t = !clift.primitive<generic 8>
-!int8_t = !clift.primitive<signed 1>
-!int16_t = !clift.primitive<signed 2>
-!int32_t = !clift.primitive<signed 4>
-!int64_t = !clift.primitive<signed 8>
-!uint8_t = !clift.primitive<unsigned 1>
-!uint16_t = !clift.primitive<unsigned 2>
-!uint32_t = !clift.primitive<unsigned 4>
-!uint64_t = !clift.primitive<unsigned 8>
-!float32_t = !clift.primitive<float 4>
-!float64_t = !clift.primitive<float 8>
+!void = !clift.void
+!generic64_t = !clift.int<generic 8>
+!int8_t = !clift.int<signed 1>
+!int16_t = !clift.int<signed 2>
+!int32_t = !clift.int<signed 4>
+!int64_t = !clift.int<signed 8>
+!uint8_t = !clift.int<unsigned 1>
+!uint16_t = !clift.int<unsigned 2>
+!uint32_t = !clift.int<unsigned 4>
+!uint64_t = !clift.int<unsigned 8>
+!float32_t = !clift.float<4>
+!float64_t = !clift.float<8>
 
 // Generic void function prototype with no argument
 !f = !clift.func<
@@ -45,7 +45,7 @@ module attributes {clift.module} {
     %0 = clift.local : !struct_sizerelation
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !struct_sizerelation>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int64_t>
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int64_t>
       clift.yield %2 : !clift.ptr<8 to !int64_t>
     }
   }
@@ -63,7 +63,7 @@ module attributes {clift.module} {
     %0 = clift.local : !struct_sizerelation
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !struct_sizerelation>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int32_t>
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int32_t>
       clift.yield %2 : !clift.ptr<8 to !int32_t>
     }
   }
@@ -81,7 +81,7 @@ module attributes {clift.module} {
     %0 = clift.local : !struct_sizerelation
     clift.expr {
       %1 = clift.addressof %0 : !clift.ptr<8 to !struct_sizerelation>
-      %2 = clift.cast<bitcast> %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int16_t>
+      %2 = clift.bitcast %1 : !clift.ptr<8 to !struct_sizerelation> -> !clift.ptr<8 to !int16_t>
       clift.yield %2 : !clift.ptr<8 to !int16_t>
     }
   }

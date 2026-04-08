@@ -16,8 +16,8 @@
 //
 // RUN: diff -q <(%revngcliftopt %s | %revngcliftopt --emit-bytecode | %revngcliftopt) <(%revngcliftopt %s)
 
-!int32_t = !clift.primitive<signed 4>
-!uint32_t = !clift.primitive<unsigned 8>
+!int32_t = !clift.int<signed 4>
+!uint32_t = !clift.int<unsigned 8>
 
 !my_enum = !clift.enum<
   "/type-definition/1001-EnumDefinition" as "my_enum" : !uint32_t {
@@ -32,15 +32,15 @@
 
 !my_struct$const = !clift.const<!clift.struct<
   "/type-definition/1003-StructDefinition" as "my_struct" : size(40) {
-    "/struct-field/1003-StructDefinition/10" as "my_struct_10" : offset(10) !clift.const<!clift.primitive<signed 4>>,
-    "/struct-field/1003-StructDefinition/20" as "my_struct_20" : offset(20) !clift.primitive<signed 4>
+    "/struct-field/1003-StructDefinition/10" as "my_struct_10" : offset(10) !clift.const<!clift.int<signed 4>>,
+    "/struct-field/1003-StructDefinition/20" as "my_struct_20" : offset(20) !clift.int<signed 4>
   }
 >>
 
 !my_union$const = !clift.const<!clift.union<
   "/type-definition/1004-UnionDefinition" as "my_union" : {
-    "/union-field/1004-UnionDefinition/0" as "my_union_10" : !clift.const<!clift.primitive<signed 4>>,
-    "/union-field/1004-UnionDefinition/1" as "my_union_20" : !clift.primitive<signed 4>
+    "/union-field/1004-UnionDefinition/0" as "my_union_10" : !clift.const<!clift.int<signed 4>>,
+    "/union-field/1004-UnionDefinition/1" as "my_union_20" : !clift.int<signed 4>
   }
 >>
 
@@ -50,7 +50,7 @@
 
 !my_recursive_union = !clift.const<!clift.union<
   "/type-definition/1006-UnionDefinition" as "my_recursive_union" : {
-    "/union-field/1006-UnionDefinition/0" as "my_recursive_union_10" : !clift.const<!clift.primitive<signed 4>>,
+    "/union-field/1006-UnionDefinition/0" as "my_recursive_union_10" : !clift.const<!clift.int<signed 4>>,
     "/union-field/1006-UnionDefinition/1" as "my_recursive_union_20" : !clift.ptr<8 to !clift.const<!clift.union<"/type-definition/1006-UnionDefinition">>>
   }
 >>

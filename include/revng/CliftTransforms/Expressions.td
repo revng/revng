@@ -48,19 +48,31 @@ def XorAllOnesPattern
 
 // (T)123 -> 123
 // Constraint: T is a primitive integer type
-def CastImmediatePattern
-  : Pat<(Clift_CastOp:$res (Clift_ImmediateOp $value), $kind),
-        (createImmediateOp (getType $res),
-                           (NativeCodeCall<"truncateIntegerValue($0, $1)"> $value, $res)),
+def BitCastImmediatePattern
+  : Pat<(Clift_BitCastOp:$res (Clift_ImmediateOp $value)),
+        (Clift_ImmediateOp (makeInteger (NativeCodeCall<"truncateIntegerValue($0, $1)"> $value, $res))),
+        [(Clift_AnyPrimitiveIntegerType $res)]>;
+
+// (T)123 -> 123
+// Constraint: T is a primitive integer type
+def ExtendImmediatePattern
+  : Pat<(Clift_ExtendOp:$res (Clift_ImmediateOp $value)),
+        (Clift_ImmediateOp (makeInteger (NativeCodeCall<"truncateIntegerValue($0, $1)"> $value, $res))),
+        [(Clift_AnyPrimitiveIntegerType $res)]>;
+
+// (T)123 -> 123
+// Constraint: T is a primitive integer type
+def TruncateImmediatePattern
+  : Pat<(Clift_TruncateOp:$res (Clift_ImmediateOp $value)),
+        (Clift_ImmediateOp (makeInteger (NativeCodeCall<"truncateIntegerValue($0, $1)"> $value, $res))),
         [(Clift_AnyPrimitiveIntegerType $res)]>;
 
 // (enum E)123 -> A
 // Constraint: A is an enumerator of E whose value is 123.
 def EnumImmediatePattern
-  : Pat<(Clift_CastOp:$res (Clift_ImmediateOp $value), $kind),
-        (createImmediateOp (getType $res), $value),
-        [(IsBitcastKind $kind),
-         (Constraint<CPred<[{ hasEnumeratorValue($0.getType(),
+  : Pat<(Clift_BitCastOp:$res (Clift_ImmediateOp $value)),
+        (Clift_ImmediateOp $value),
+        [(Constraint<CPred<[{ hasEnumeratorValue($0.getType(),
                                                  $1.getValue().getZExtValue()) }]>> $res, $value)]>;
 
 // *&x -> x
@@ -75,67 +87,51 @@ def AddressofIndirectionPattern
 
 // (T)x -> x
 // Constraint: the type of x is equivalent to T.
-def RedundantCastPattern
-  : Pat<(Clift_CastOp:$res $arg, $kind),
+def RedundantBitCastPattern
+  : Pat<(Clift_BitCastOp:$res $arg),
         (replaceWithValue $arg),
         [(TypesAreEquivalent $res, $arg)]>;
-
-// (T)(U)x -> (T)x
-// Constraint: the cast kinds are the same.
-// Constraint: the cast kind is collapsible (implemented in .cpp file).
-def CollapsibleCastPattern
-  : Pat<(Clift_CastOp:$res (Clift_CastOp $arg, $inner_kind), $outer_kind),
-        (Clift_CastOp $arg, $inner_kind),
-        [(ValuesAreEqual $inner_kind, $outer_kind),
-         (Constraint<CPred<"isCollapsibleCastKind($0.getValue())">> $inner_kind)]>;
 
 // *(T*)p = x ->         *p = (T)x
 //            -> *(T*)&( *p = (T)x )
 // Note: The choice of replacement depends on whether the result is discarded.
 // Constraint: p is of type U* and x is convertible to type U using a bitcast.
 def AssignTypePunnedPattern
-  : Pattern<(Clift_AssignOp:$old_res (Clift_IndirectionOp:$old_ref (Clift_CastOp:$new_ptr $ptr,
-                                                                                          $kind)),
+  : Pattern<(Clift_AssignOp:$old_res (Clift_IndirectionOp:$old_ref (Clift_BitCastOp:$new_ptr $ptr)),
                                      $value),
             [(Clift_AssignOp:$new_res (Clift_IndirectionOp $ptr),
-                                             (createCastOp (getPointeeType $ptr),
-                                                           $value,
-                                                           $kind)),
+                                      (Clift_BitCastOp $value,
+                                                       (returnType (getPointeeType $ptr)))),
              (NativeCodeCall<"assignTypePunnedResult($_builder, $0, $1, $2, $3)"> $old_res,
                                                                                   $new_res,
                                                                                   $new_ptr,
                                                                                   $old_ref)],
-            [(IsBitcastKind $kind),
-             (Constraint<CPred<"assignTypePunnedConstraint($0, $1)">> $ptr, $value)]>;
+            [(Constraint<CPred<"assignTypePunnedConstraint($0, $1)">> $ptr, $value)]>;
 
 // (T*)(i + k_1) -> (T*)i + k_2
 // Note: k_2 = k_1 / sizeof(T)
 // Constraint: k_1 % sizeof(T) == 0
 def PointerArithmeticAddImmPattern
-  : Pat<(Clift_CastOp:$res (Clift_AddOp $ptr,
-                                        (Clift_ImmediateOp:$imm $k)),
-                           $kind),
-        (Clift_PtrAddOp (createCastOp (getType $res), $ptr, $kind),
-                        (createImmediateOp (getType $imm),
-                                           (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res))),
-        [(IsBitcastKind $kind),
-         (Clift_AnyPointerType $res),
+  : Pat<(Clift_BitCastOp:$res (Clift_AddOp $ptr,
+                                           (Clift_ImmediateOp:$imm $k))),
+        (Clift_PtrAddOp (Clift_BitCastOp $ptr, (returnType $res)),
+                        (Clift_ImmediateOp (makeInteger (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res)),
+                                           (returnType $imm))),
+        [(Clift_AnyPointerType $res),
          (Constraint<CPred<"ptrOffsetDivMod($0, $1).Mod == 0">> $k, $res)]>;
 
 // (T*)(i + n * k_1) -> (T*)i + n * k_2
 // Note: k_2 = k_1 / sizeof(T)
 // Constraint: k_1 % sizeof(T) == 0
 def PointerArithmeticAddMulImmPattern
-  : Pat<(Clift_CastOp:$res (Clift_AddOp $ptr,
-                                        (Clift_MulOp $n,
-                                                     (Clift_ImmediateOp:$imm $k))),
-                           $kind),
-        (Clift_PtrAddOp (createCastOp (getType $res), $ptr, $kind),
+  : Pat<(Clift_BitCastOp:$res (Clift_AddOp $ptr,
+                                           (Clift_MulOp $n,
+                                                        (Clift_ImmediateOp:$imm $k)))),
+        (Clift_PtrAddOp (Clift_BitCastOp $ptr, (returnType $res)),
                         (Clift_MulOp $n,
-                                     (createImmediateOp (getType $imm),
-                                                        (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res)))),
-        [(IsBitcastKind $kind),
-         (Clift_AnyPointerType $res),
+                                     (Clift_ImmediateOp (makeInteger (NativeCodeCall<"ptrOffsetDivMod($0, $1).Div"> $k, $res)),
+                                                        (returnType $imm)))),
+        [(Clift_AnyPointerType $res),
          (Constraint<CPred<"ptrOffsetDivMod($0, $1).Mod == 0">> $k, $res)]>;
 
 // (&x)->m -> x.m

@@ -10,7 +10,8 @@ const TargetCImplementation TargetCImplementation::Default = {
     { 1, CIntegerKind::Char },
     { 2, CIntegerKind::Short },
     { 4, CIntegerKind::Int },
-    { 8, CIntegerKind::Long },
+    { 4, CIntegerKind::Long },
+    { 8, CIntegerKind::LongLong },
     { 16, CIntegerKind::Extended },
   },
 };

@@ -543,18 +543,6 @@ target_link_libraries(
 add_test(NAME test_dla_steps COMMAND test_dla_steps)
 
 #
-# test_clift
-#
-
-revng_add_test_executable(test_clift "${SRC}/Clift.cpp")
-target_compile_definitions(test_clift PRIVATE "BOOST_TEST_DYN_LINK=1")
-target_include_directories(test_clift PRIVATE "${CMAKE_SOURCE_DIR}"
-                                              "${Boost_INCLUDE_DIRS}")
-target_link_libraries(test_clift revngClift Boost::unit_test_framework
-                      revngUnitTestHelpers ${LLVM_LIBRARIES} MLIRTransforms)
-add_test(NAME test_clift COMMAND test_clift)
-
-#
 # test_clift_type
 #
 

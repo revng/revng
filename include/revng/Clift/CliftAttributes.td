@@ -4,7 +4,8 @@
 
 #ifndef MLIR_CLIFT_ATTRIBUTE
 #define MLIR_CLIFT_ATTRIBUTE
-include "mlir/IR/EnumAttr.td"
+
+include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/SubElementInterfaces.td"
 
 include "revng/Clift/CliftDialect.td"
@@ -69,7 +70,7 @@ def Clift_FieldAttr
                         "mlir::clift::MutableStringAttr":$mutable_name,
                         "mlir::clift::MutableStringAttr":$mutable_comment,
                         "uint64_t":$offset,
-                        "mlir::clift::ValueType":$type);
+                        "mlir::Type":$type);
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef NameAttrKey = "field-name";
@@ -127,7 +128,7 @@ def Clift_EnumAttr
   let parameters = (ins StringRefParameter<>:$handle,
                         "mlir::clift::MutableStringAttr":$mutable_name,
                         "mlir::clift::MutableStringAttr":$mutable_comment,
-                        "mlir::clift::ValueType":$underlying_type,
+                        "mlir::Type":$underlying_type,
                         ArrayRefParameter<"mlir::clift::EnumFieldAttr">:$fields);
 
   let extraClassDeclaration = [{
@@ -155,7 +156,7 @@ def Clift_TypedefAttr
   let parameters = (ins StringRefParameter<>:$handle,
                         "mlir::clift::MutableStringAttr":$mutable_name,
                         "mlir::clift::MutableStringAttr":$mutable_comment,
-                        "mlir::clift::ValueType":$underlying_type);
+                        "mlir::Type":$underlying_type);
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef NameAttrKey = "typedef-name";
@@ -171,16 +172,6 @@ def Clift_TypedefAttr
   }];
 
   let genVerifyDecl = 1;
-}
-
-// This is a helper attribute used for emitting the bytecode representation of
-// (potentially recursive) class types.
-def Clift_BytecodeClassAttr
-  : AttrDef<Clift_Dialect,
-            "BytecodeClass",
-            [SubElementAttrInterface]> {
-
-  let parameters = (ins "mlir::clift::ClassType":$type);
 }
 
 #endif

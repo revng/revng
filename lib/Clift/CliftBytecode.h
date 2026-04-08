@@ -8,6 +8,10 @@
 
 #include "revng/Clift/CliftTypes.h"
 
+// This include should stay here for correct build procedure
+#define GET_ATTRDEF_CLASSES
+#include "revng/Clift/CliftAttributesBytecode.h.inc"
+
 namespace mlir::clift {
 
 mlir::Attribute readAttr(mlir::DialectBytecodeReader &Reader);

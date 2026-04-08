@@ -57,48 +57,35 @@ public:
     return static_cast<OperatorPrecedence>(static_cast<T>(Precedence) - 1);
   }
 
-  void emitCast(ValueType Type) {
+  void emitCStyleCast(mlir::Type Type) {
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
     emitType(Type);
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
     Tokens.emitSpace();
   }
 
-  void
-  emitIntegerImmediate(uint64_t Value, ValueType Type, unsigned Radix = 10) {
-    Type = dealias(Type, /*IgnoreQualifiers=*/true);
+  void emitEnumImmediate(uint64_t Value, EnumType Type) {
+    auto Enumerator = Type.getFieldByValue(Value);
+    revng_assert(Enumerator);
 
-    if (auto Enum = mlir::dyn_cast<EnumType>(Type)) {
-      if (auto Enumerator = Enum.getFieldByValue(Value)) {
-        Tokens.emitIdentifier(Enumerator.getName(),
-                              Enumerator.getHandle(),
-                              CTE::EntityKind::Enumerator,
-                              CTE::IdentifierKind::Reference);
-        return;
-      }
-    }
+    Tokens.emitIdentifier(Enumerator.getName(),
+                          Enumerator.getHandle(),
+                          CTE::EntityKind::Enumerator,
+                          CTE::IdentifierKind::Reference);
+  }
 
-    auto Primitive = getUnderlyingIntegerType(Type);
-
-    auto CInteger = Target.getIntegerKind(Primitive.getSize());
-    if (not CInteger or not mlir::isa<PrimitiveType>(Type)) {
-      // Emit explicit cast if the standard integer type is not known. Emit
-      // the literal itself without a suffix (as if int).
-      emitCast(Primitive);
-      CInteger = CIntegerKind::Int;
-    }
-
-    bool IsSigned = Primitive.getKind() == PrimitiveKind::SignedKind;
+  void emitIntegerLiteral(uint64_t Value,
+                          bool IsSigned,
+                          CIntegerKind CKind,
+                          unsigned Radix) {
     if (IsSigned and static_cast<int64_t>(Value) < 0) {
       Tokens.emitOperator(ptml::CTokenEmitter::Operator::Minus);
       Value = ~Value + 1;
     }
 
-    Tokens.emitIntegerLiteral(llvm::APInt(Primitive.getSize() * 8,
-                                          Value,
-                                          IsSigned),
+    Tokens.emitIntegerLiteral(llvm::APInt(64, Value, IsSigned),
                               CTE::IntegerSuffix{ .Unsigned = not IsSigned,
-                                                  .MinimumType = *CInteger },
+                                                  .MinimumType = CKind },
                               Radix);
   }
 
@@ -115,14 +102,47 @@ public:
     rc_return;
   }
 
+  static bool isNullPointerConstant(ImmediateOp E) {
+    if (E.getValue() != 0)
+      return false;
+
+    if (auto Cast = getOnlyUser<BitCastOp>(E))
+      return clift::unwrapped_isa<PointerType>(Cast.getResult().getType());
+
+    return false;
+  }
+
   RecursiveCoroutine<void> emitImmediateExpression(mlir::Value V) {
     auto E = V.getDefiningOp<ImmediateOp>();
+    mlir::Type Type = unwrapTypedefs(E.getType());
+
+    if (auto Enum = mlir::dyn_cast<EnumType>(Type))
+      rc_return emitEnumImmediate(E.getValue(), Enum);
 
     unsigned Radix = 10;
     if (auto Attr = E->getAttr("clift.radix"))
       Radix = mlir::cast<mlir::IntegerAttr>(Attr).getValue().getZExtValue();
 
-    emitIntegerImmediate(E.getValue(), E.getResult().getType(), Radix);
+    auto IntType = mlir::cast<IntegerType>(Type);
+    auto CKind = CIntegerKind::Int;
+
+    // Using any specific integer suffix is only required when the value is not
+    // immediately converted to another integer type. While such casts are
+    // usually removed by expression rewriting, some may be reintroduced during
+    // legalization.
+    auto Cast = getOnlyUser<CastOpInterface>(V);
+    if (not Cast or not isIntegerType(Cast.getResult().getType())) {
+      auto K = Target.getIntegerKind(IntType.getSize());
+      revng_assert(K, "Integer immediate not representable in C.");
+      CKind = *K;
+    }
+
+    emitIntegerLiteral(E.getValue(), IntType.isSigned(), CKind, Radix);
+    rc_return;
+  }
+
+  RecursiveCoroutine<void> emitNullPointerConstant(mlir::Value V) {
+    Tokens.emitLiteralIdentifier("NULL");
     rc_return;
   }
 
@@ -280,61 +300,61 @@ public:
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
   }
 
-  static bool isHiddenCast(CastOp Cast) {
-    return Cast.getKind() == CastKind::Decay;
+  static bool isHiddenCast(CastOpInterface Cast) {
+    return mlir::isa<DecayOp>(Cast);
   }
 
-  static mlir::Value unwrapHiddenCasts(CastOp Cast) {
+  static mlir::Value unwrapHiddenCasts(CastOpInterface Cast) {
     revng_assert(isHiddenCast(Cast));
 
     while (true) {
-      auto InnerCast = Cast.getValue().getDefiningOp<CastOp>();
-      if (not InnerCast or not isHiddenCast(InnerCast))
+      auto Inner = Cast.getValue().getDefiningOp<CastOpInterface>();
+      if (not Inner or not isHiddenCast(Inner))
         break;
     }
 
     return Cast.getValue();
   }
 
-  static bool requiresExplicitBitCast(CastOp Op) {
-    if (Op.getKind() != CastKind::Bitcast)
-      return false;
-
-    auto IsCastableType = [](ValueType T) {
-      return mlir::isa<EnumType, PointerType, PrimitiveType>(dealias(T));
+  static bool requiresExplicitBitCast(BitCastOp Op) {
+    auto IsCastableType = [](mlir::Type T) {
+      return clift::unwrapped_isa<IntegerType, EnumType, PointerType>(T);
     };
 
     return not IsCastableType(Op.getValue().getType())
            or not IsCastableType(Op.getResult().getType());
   }
 
+  RecursiveCoroutine<void> emitBitCastExpression(mlir::Value V) {
+    auto E = V.getDefiningOp<BitCastOp>();
+
+    Tokens.emitLiteralIdentifier("bit_cast");
+    Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+
+    emitType(E.getResult().getType());
+    Tokens.emitPunctuator(CTE::Punctuator::Comma);
+    Tokens.emitSpace();
+
+    CurrentPrecedence = OperatorPrecedence::Parentheses;
+    rc_recur emitExpression(E.getValue());
+
+    Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
+  }
+
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
-    auto E = V.getDefiningOp<CastOp>();
+    auto E = V.getDefiningOp<CastOpInterface>();
 
-    if (requiresExplicitBitCast(E)) {
-      Tokens.emitLiteralIdentifier("bit_cast");
-      Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+    emitCStyleCast(E.getResult().getType());
 
-      emitType(E.getResult().getType());
-      Tokens.emitPunctuator(CTE::Punctuator::Comma);
-      Tokens.emitSpace();
+    // Parenthesizing a nested unary prefix expression is not necessary.
+    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
 
-      CurrentPrecedence = OperatorPrecedence::Parentheses;
-      rc_recur emitExpression(E.getValue());
-
-      Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
-    } else {
-      emitCast(E.getResult().getType());
-
-      // Parenthesizing a nested unary prefix expression is not necessary.
-      CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
-
-      rc_recur emitExpression(E.getValue());
-    }
+    rc_recur emitExpression(E.getValue());
   }
 
   RecursiveCoroutine<void> emitHiddenCastExpression(mlir::Value V) {
-    return emitExpression(unwrapHiddenCasts(V.getDefiningOp<CastOp>()));
+    auto E = V.getDefiningOp<CastOpInterface>();
+    return emitExpression(unwrapHiddenCasts(E));
   }
 
   RecursiveCoroutine<void> emitTernaryExpression(mlir::Value V) {
@@ -421,10 +441,8 @@ public:
         return true;
 
       if (auto I = V.getDefiningOp<ImmediateOp>()) {
-        if (auto T = mlir::dyn_cast<PrimitiveType>(I.getResult().getType())) {
-          if (T.getKind() == PrimitiveKind::SignedKind)
-            return static_cast<int64_t>(I.getValue()) < 0;
-        }
+        if (auto T = mlir::dyn_cast<IntegerType>(I.getResult().getType()))
+          return T.isSigned() and static_cast<int64_t>(I.getValue()) < 0;
       }
 
       return false;
@@ -515,7 +533,14 @@ public:
       };
     }
 
-    if (mlir::isa<ImmediateOp>(E)) {
+    if (auto Immediate = mlir::dyn_cast<ImmediateOp>(E.getOperation())) {
+      if (isNullPointerConstant(Immediate)) {
+        return {
+          .Precedence = OperatorPrecedence::Primary,
+          .Emit = &CliftToCEmitter::emitNullPointerConstant,
+        };
+      }
+
       return {
         .Precedence = OperatorPrecedence::Primary,
         .Emit = &CliftToCEmitter::emitImmediateExpression,
@@ -571,7 +596,7 @@ public:
       };
     }
 
-    if (auto Cast = mlir::dyn_cast<CastOp>(E.getOperation())) {
+    if (auto Cast = mlir::dyn_cast<CastOpInterface>(E.getOperation())) {
       if (isHiddenCast(Cast)) {
         auto Info = getExpressionEmitInfo(unwrapHiddenCasts(Cast));
 
@@ -579,6 +604,15 @@ public:
           .Precedence = decrementPrecedence(Info.Precedence),
           .Emit = &CliftToCEmitter::emitHiddenCastExpression,
         };
+      }
+
+      if (auto BitCast = mlir::dyn_cast<BitCastOp>(E.getOperation())) {
+        if (requiresExplicitBitCast(BitCast)) {
+          return {
+            .Precedence = OperatorPrecedence::UnaryPostfix,
+            .Emit = &CliftToCEmitter::emitBitCastExpression,
+          };
+        }
       }
 
       return {
@@ -928,6 +962,42 @@ public:
     }
   }
 
+  class CaseValueEmitter {
+    CliftToCEmitter &Parent;
+    mlir::Type Type;
+    EnumType Enum;
+    bool IsSigned;
+    unsigned Radix;
+
+  public:
+    explicit CaseValueEmitter(CliftToCEmitter &Parent,
+                              mlir::Type Type,
+                              unsigned Radix) :
+      CaseValueEmitter(Parent, Type, unwrapTypedefs(Type), Radix) {}
+
+    void emit(uint64_t Value) const {
+      if (Enum) {
+        if (auto Enumerator = Enum.getFieldByValue(Value))
+          return Parent.emitEnumImmediate(Value, Enum);
+
+        Parent.emitCStyleCast(Type);
+      }
+
+      Parent.emitIntegerLiteral(Value, IsSigned, CIntegerKind::Int, Radix);
+    }
+
+  private:
+    explicit CaseValueEmitter(CliftToCEmitter &Parent,
+                              mlir::Type Type,
+                              mlir::Type UnwrappedType,
+                              unsigned Radix) :
+      Parent(Parent),
+      Type(Type),
+      Enum(mlir::dyn_cast<EnumType>(UnwrappedType)),
+      IsSigned(getUnderlyingIntegerType(UnwrappedType).isSigned()),
+      Radix(Radix) {}
+  };
+
   RecursiveCoroutine<void> emitSwitchStatement(SwitchOp S) {
     unsigned Radix = 10;
     if (auto Attr = S->getAttr("clift.radix"))
@@ -950,11 +1020,13 @@ public:
 
       Tokens.emitNewline();
 
-      ValueType Type = S.getConditionType();
+      CaseValueEmitter CVE(*this, S.getConditionType(), Radix);
       for (unsigned I = 0, Count = S.getNumCases(); I < Count; ++I) {
         Tokens.emitKeyword(CTE::Keyword::Case);
         Tokens.emitSpace();
-        emitIntegerImmediate(S.getCaseValue(I), Type, Radix);
+
+        CVE.emit(S.getCaseValue(I));
+
         Tokens.emitPunctuator(CTE::Punctuator::Colon);
         rc_recur emitCaseRegion(S.getCaseRegion(I));
       }

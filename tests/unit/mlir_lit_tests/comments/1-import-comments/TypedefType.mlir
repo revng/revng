@@ -4,7 +4,7 @@
 
 // RUN: ../%revngpipe import-descriptive-info %S/../0-import-types/TypedefType.yml %s /dev/stdout | ../%revngcliftopt | FileCheck %s
 
-!float96_t = !clift.primitive<float 12>
+!float96_t = !clift.float<12>
 
 // CHECK: !my_float = !clift.typedef<
 // CHECK:   "/type-definition/0-TypedefDefinition" as "my_float" : !float96_t
