@@ -405,7 +405,9 @@ private:
     }
 
     clift::CAttributeListBuilder Attributes(*Context);
-    Attributes.setOrUpdate<"_CAN_CONTAIN_CODE">();
+
+    if (ModelType.CanContainCode())
+      Attributes.setOrUpdate<"_CAN_CONTAIN_CODE">();
 
     auto Handle = Location.toString();
     auto NameAttr = makeNameAttr<clift::StructAttr>(Handle);
