@@ -36,3 +36,47 @@ public:
 };
 
 static pipeline::RegisterPipe<ImportTypesPipe> Y;
+
+class ImportFunctionDeclarationsPipe {
+public:
+  static constexpr auto Name = "import-function-declarations";
+
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    return { pipeline::ContractGroup(revng::kinds::CliftModule, 0) };
+  }
+
+  void run(pipeline::ExecutionContext &EC,
+           revng::pipes::CliftContainer &CliftContainer) {
+    mlir::MLIRContext *Context = CliftContainer.getContext();
+    Context->loadDialect<clift::CliftDialect>();
+
+    clift::importAllModelFunctionDeclarations(*revng::getModelFromContext(EC),
+                                              CliftContainer.getModule());
+
+    EC.commitAllFor(CliftContainer);
+  }
+};
+
+static pipeline::RegisterPipe<ImportFunctionDeclarationsPipe> IFD;
+
+class ImportSegmentDeclarationsPipe {
+public:
+  static constexpr auto Name = "import-segment-declarations";
+
+  std::array<pipeline::ContractGroup, 1> getContract() const {
+    return { pipeline::ContractGroup(revng::kinds::CliftModule, 0) };
+  }
+
+  void run(pipeline::ExecutionContext &EC,
+           revng::pipes::CliftContainer &CliftContainer) {
+    mlir::MLIRContext *Context = CliftContainer.getContext();
+    Context->loadDialect<clift::CliftDialect>();
+
+    clift::importAllModelSegmentDeclarations(*revng::getModelFromContext(EC),
+                                             CliftContainer.getModule());
+
+    EC.commitAllFor(CliftContainer);
+  }
+};
+
+static pipeline::RegisterPipe<ImportSegmentDeclarationsPipe> ISD;
