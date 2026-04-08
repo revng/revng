@@ -9,7 +9,7 @@
 struct TypeEmitterConfiguration {
   /// We don't always want the complete type system. For example, when one
   /// of the types is being edited, we cannot include the type in question!
-  // As well as every type that depends on its definition.
+  /// As well as every type that depends on its definition.
   ///
   /// Note: the type is identified by its handle.
   llvm::StringRef TypeToOmit;
