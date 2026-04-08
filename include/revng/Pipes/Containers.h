@@ -16,4 +16,5 @@ using DecompileStringMap = FunctionStringMap<&kinds::Decompiled,
                                              DecompileName,
                                              DecompileMime,
                                              DecompileExtension>;
+
 } // namespace revng::pipes

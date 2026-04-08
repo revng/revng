@@ -238,7 +238,7 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
     emitDoxygenComment(Enum);
     Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Enum);
 
-    clift::ValueType Type = Enum.getUnderlyingType();
+    mlir::Type Type = Enum.getUnderlyingType();
     emitCAttributes(clift::CAttributeListBuilder(Enum.getContext())
                       .setOrUpdate<"_ENUM_UNDERLYING">(Type)
                       .setOrUpdate<"_PACKED">()

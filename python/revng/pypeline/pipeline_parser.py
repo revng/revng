@@ -100,7 +100,7 @@ class PipelineParser:
             for preferred_artifact in artifact.preferred_artifacts:
                 if preferred_artifact not in artifact_names:
                     raise ValueError(
-                        f"Artifact {artifact.name} defines {preferred_artifact}"
+                        f"Artifact {artifact.name} defines {preferred_artifact} "
                         "as a preferred artifact but it does not exist"
                     )
 

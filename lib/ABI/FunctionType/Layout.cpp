@@ -461,7 +461,7 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
 
       // Disambiguate scalar and aggregate arguments.
       // Scalars are passed by value,
-      // aggregates and pointer-to-copy values - as a pointer.
+      // aggregates and pointers-to-copy values - as a pointer.
       if (Distributed.UsesPointerToCopy)
         Current.Kind = ArgumentKind::PointerToCopy;
       else if (Current.Type->isScalar())
