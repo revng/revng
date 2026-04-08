@@ -32,15 +32,10 @@ TypeDefinitions:
     Arguments:
       - Index: 0
         Type:
-          Kind: DefinedType
-          Definition: "/TypeDefinitions/1817-TypedefDefinition"
-  - Kind: TypedefDefinition
-    ID: 1817
-    UnderlyingType:
-      Kind: PointerType
-      PointeeType:
-        Kind: DefinedType
-        Definition: "/TypeDefinitions/1822-StructDefinition"
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1822-StructDefinition"
   - Kind: StructDefinition
     ID: 1822
     Name: Foo

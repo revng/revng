@@ -2,8 +2,14 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-revng_add_library_internal(revngModelImporterDebugInfo SHARED DwarfImporter.cpp
-                           PDBImporter.cpp)
+revng_add_library_internal(
+  revngModelImporterDebugInfo
+  SHARED
+  DwarfImporter.cpp
+  DwarfToModelConverter.cpp
+  PDBImporter.cpp
+  PDBImporterImpl.cpp
+  PDBTypeResolver.cpp)
 
 llvm_map_components_to_libnames(
   LLVM_LIBRARIES

@@ -176,7 +176,7 @@ public:
   MachOImporter(TupleTree<model::Binary> &Model,
                 MachOBinary &TheBinary,
                 uint64_t BaseAddress) :
-    BinaryImporterHelper(*Model, BaseAddress, Log),
+    BinaryImporterHelper(Model, BaseAddress, Log),
     File(*Model, toArrayRef(TheBinary.ObjectFile.getData())),
     Model(Model),
     TheBinary(TheBinary) {}
@@ -319,6 +319,8 @@ void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
     return;
   }
 
+  // TODO: do the following unconditionally once the old pipeline has been
+  //       dropped.
   if (TheBinary.Reference.isValid())
     Segment.Binary() = TheBinary.Reference;
   Segment.Name() = SegmentCommand.segname;

@@ -5,6 +5,7 @@
 revng_add_analyses_library_internal(
   revngModelImporterBinary
   BinaryImporter.cpp
+  BinaryImporterHelper.cpp
   ELFImporter.cpp
   MachOImporter.cpp
   Options.cpp
