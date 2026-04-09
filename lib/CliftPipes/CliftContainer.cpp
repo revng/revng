@@ -217,6 +217,7 @@ CliftFunctionContainer::cloneFiltered(const pipeline::TargetsList &Filter)
 
   MLIRContext &DestinationContext = *DestinationContainer->Context;
   DestinationContext.appendDialectRegistry(Context->getDialectRegistry());
+  DestinationContext.loadDialect<clift::CliftDialect>();
 
   OwningModuleRef &DestinationModule = DestinationContainer->Module;
   DestinationModule = cloneModuleInto(*TemporaryModule,
@@ -238,6 +239,7 @@ void CliftFunctionContainer::mergeBackImpl(CliftFunctionContainer
 
   // Register the dialects of the other container in this container.
   Context->appendDialectRegistry(SourceContainer.Context->getDialectRegistry());
+  Context->loadDialect<clift::CliftDialect>();
 
   // Clone the other container's module into this container's context.
   // This module is automatically erased at the end of scope.
@@ -331,7 +333,6 @@ CliftFunctionContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   auto NewContext = clift::makeContext();
 
   OwningModuleRef NewModule;
-
   if (Buffer.getBufferSize() == 0) {
     NewModule = clift::makeModule(*NewContext);
 
@@ -367,6 +368,7 @@ CliftContainer::cloneFiltered(const pipeline::TargetsList &Targets) const {
 
   MLIRContext &DestinationContext = *DestinationContainer->Context;
   DestinationContext.appendDialectRegistry(Context->getDialectRegistry());
+  DestinationContext.loadDialect<clift::CliftDialect>();
 
   OwningModuleRef &DestinationModule = DestinationContainer->Module;
   DestinationModule = cloneModuleInto(*Module, *DestinationContainer->Context);
@@ -403,6 +405,7 @@ void CliftContainer::mergeBackImpl(CliftContainer &&SourceContainer) {
 
   // Register the dialects of the other container in this container.
   Context->appendDialectRegistry(SourceContainer.Context->getDialectRegistry());
+  Context->loadDialect<clift::CliftDialect>();
 
   // Clone the other container's module into this container's context.
   // This module is automatically erased at the end of scope.
@@ -462,7 +465,6 @@ llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   auto NewContext = clift::makeContext();
 
   OwningModuleRef NewModule;
-
   if (Buffer.getBufferSize() == 0) {
     NewModule = clift::makeModule(*NewContext);
 
