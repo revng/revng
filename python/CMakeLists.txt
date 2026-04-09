@@ -478,6 +478,9 @@ python_module(
 # Install pypeline
 #
 set(REVNG_PYPELINE_MODULE_FILES
+    revng/pypeline/cli/rss/__init__.py
+    revng/pypeline/cli/rss/relay.py
+    revng/pypeline/cli/rss/server.py
     revng/pypeline/cli/pipeline/__init__.py
     revng/pypeline/cli/pipeline/run_analysis.py
     revng/pypeline/cli/pipeline/run_pipe.py
@@ -509,6 +512,12 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/daemon/daemon.py
     revng/pypeline/daemon/exceptions.py
     revng/pypeline/daemon/utils.py
+    revng/pypeline/rss_server/__init__.py
+    revng/pypeline/rss_server/postgres.py
+    revng/pypeline/rss_server/relay.py
+    revng/pypeline/rss_server/server.py
+    revng/pypeline/rss_server/storage.py
+    revng/pypeline/rss_server/postgres_migrations/v1.sql
     revng/pypeline/schedule/__init__.py
     revng/pypeline/schedule/scheduled_task.py
     revng/pypeline/schedule/schedule.py

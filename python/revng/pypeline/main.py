@@ -20,6 +20,7 @@ from revng.pypeline.utils import PypelineException
 from . import initialize_pypeline
 from .cli.pipeline import pipeline
 from .cli.project import project
+from .cli.rss import rss
 from .cli.utils import EagerParsedPath, detect_autocomplete, get_root_command_name
 from .utils.logger import pypeline_logger
 
@@ -177,6 +178,7 @@ def pype(ctx: ClickContext, verbose: bool) -> None:
 
 pype.add_command(pipeline)
 pype.add_command(project)
+pype.add_command(rss)
 
 
 def detect_shell() -> str:
