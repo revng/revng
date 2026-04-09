@@ -16,6 +16,9 @@ struct DoxygenCommentConfiguration {
   llvm::StringRef LinePrefix;
 };
 
+/// An Emitter capable of emitting Doxygen comments. While at the time of
+/// creation only C comments are emitted (using CDoxygenEmitter via
+/// CTokenEmitter::CommentEmitter), future use for assembly comments is planned.
 template<PTMLEmitter EmitterT>
 class DoxygenEmitter : EmitterT {
   DoxygenCommentConfiguration Configuration;
