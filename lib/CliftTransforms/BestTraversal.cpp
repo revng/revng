@@ -198,17 +198,20 @@ static uint64_t commonPrefixStrides(const llvm::ArrayRef<ArrayShape> &LHS,
 }
 
 /// The `typeDistance` function computes the distance between two `Type`s.
-/// Returns 0 if the types are equal (after stripping `typedef`s), or infinity
-/// otherwise. The return type is kept as `uint64_t` to allow future refinement
-/// of the scoring criterion, enabling more fine grained control over this
-/// score.
+/// Returns 0 if the types are exactly equal (after stripping `typedef`s), 1 if
+/// they only differ in CV-qualifiers, or infinity otherwise. The return type is
+/// kept as `uint64_t` to allow future refinement of the scoring criterion,
+/// enabling more fine grained control over this score.
 static uint64_t typeDistance(mlir::Type Explicit, mlir::Type Ideal) {
+  if (unwrapTypedefs(Explicit) == unwrapTypedefs(Ideal)) {
+    return 0;
+  }
 
-  // Unwrap any typedefs to compare the underlying types
-  Explicit = unwrapTypedefs(Explicit);
-  Ideal = unwrapTypedefs(Ideal);
+  if (equivalentUnwrapped(Explicit, Ideal)) {
+    return 1;
+  }
 
-  return Explicit == Ideal ? 0 : std::numeric_limits<uint64_t>::max();
+  return std::numeric_limits<uint64_t>::max();
 }
 
 // =============================================================================
