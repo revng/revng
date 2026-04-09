@@ -33,7 +33,7 @@ commands:
       revng2 project analyze apply-diff -o /dev/null;
 
       while IFS=',' read -r MODEL_FIELD EXPECTED_VALUE; do
-        if !$$(grep -v '^#|^\s*$$' > /dev/null); then
+        if ! $$(grep -v '^#|^\s*$$' > /dev/null); then
           FOUND_VALUE=$$(yq "$${MODEL_FIELD}" "model.yml");
           if [[ "$${FOUND_VALUE}" != "$${EXPECTED_VALUE}" ]]; then
             echo "Value of '$${MODEL_FIELD}' is '$${FOUND_VALUE}' instead of the expected '$${EXPECTED_VALUE}'";
