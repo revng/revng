@@ -7,6 +7,10 @@
 #include "BestTraversal.h"
 #include "PointerArithmetic.h"
 
-void replaceFieldAccess(mlir::clift::ExpressionOpInterface PointerToReplace,
+/// Perform the replacement of the pointer arithmetic access
+/// (`PointerToReplace`), with operations equivalent to the `BestTraversal`.
+/// Returns `true` if a type was propagated through an `indirection`, signaling
+/// that a subsequent EFA pass may find new rewriting opportunities.
+bool replaceFieldAccess(mlir::clift::ExpressionOpInterface PointerToReplace,
                         const PointerArithmetic &Arithmetic,
                         const Traversal &BestTraversal);
