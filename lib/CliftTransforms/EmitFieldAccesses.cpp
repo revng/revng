@@ -49,37 +49,48 @@ struct PlannedReplacement {
 /// anonymous namespace in this translation unit
 mlir::LogicalResult emitFieldAccessesImpl(clift::FunctionOp Function) {
 
-  // `TraversalInfoMap` cache. Even if not elegant, we store the data computed
-  // at the pass level so that we can cache it instead of recomputing it every
-  // time
-  TraversalInfoMap TraversalMap;
+  bool PropagatedThroughIndirection = false;
 
-  // Phase 1-2: Collect all planned `Replacement`s without modifying the IR
-  llvm::SmallVector<PlannedReplacement> Replacements;
-  Function->walk([&TraversalMap,
-                  &Replacements](clift::ExpressionOpInterface Op) {
-    // 1. We inspect all the `ExpressionOp`s in the current `Function`
-    std::optional<PointerArithmetic> PA = computePointerArithmetic(Op);
+  do {
+    PropagatedThroughIndirection = false;
 
-    // The `PointerArithmetic` returned object could be empty at the moment of
-    // return, and this is a signal that we could not compute a
-    // `PointerArithmetic` for the current `ExpressionOpInterface`
+    // `TraversalInfoMap` cache. Even if not elegant, we store the data
+    // computed at the pass level so that we can cache it instead of
+    // recomputing it every time
+    TraversalInfoMap TraversalMap;
 
-    // 2. We proceed with the computation of the `BestTraversal` for the current
-    //    `PointerArithmetic`
-    if (PA) {
-      std::optional<Traversal> BT = computeBestTraversal(Op, *PA, TraversalMap);
+    // Phase 1-2: Collect all planned `Replacement`s without modifying the IR
+    llvm::SmallVector<PlannedReplacement> Replacements;
+    Function->walk([&TraversalMap,
+                    &Replacements](clift::ExpressionOpInterface Op) {
+      // 1. We inspect all the `ExpressionOp`s in the current `Function`
+      std::optional<PointerArithmetic> PA = computePointerArithmetic(Op);
 
-      if (BT) {
-        Replacements.push_back({ Op, std::move(*PA), std::move(*BT) });
+      // The `PointerArithmetic` returned object could be empty at the moment
+      // of return, and this is a signal that we could not compute a
+      // `PointerArithmetic` for the current `ExpressionOpInterface`
+
+      // 2. We proceed with the computation of the `BestTraversal` for the
+      //    current `PointerArithmetic`
+      if (PA) {
+        std::optional<Traversal> BT = computeBestTraversal(Op,
+                                                           *PA,
+                                                           TraversalMap);
+
+        if (BT) {
+          Replacements.push_back({ Op, std::move(*PA), std::move(*BT) });
+        }
       }
-    }
-  });
+    });
 
-  // Phase 3: Apply all replacements
-  for (const auto &R : Replacements) {
-    replaceFieldAccess(R.Op, R.PA, R.BestTraversal);
-  }
+    // Phase 3: Apply all replacements. If any replacement propagates a type
+    // through an indirection, we rerun the whole EFA to discover new
+    // rewriting opportunities enabled by the newly typed pointers.
+    for (const auto &R : Replacements) {
+      if (replaceFieldAccess(R.Op, R.PA, R.BestTraversal))
+        PropagatedThroughIndirection = true;
+    }
+  } while (PropagatedThroughIndirection);
 
   // The IR is always in a valid state, regardless of whether we performed an
   // operation rewrite or not.
