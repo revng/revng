@@ -5,6 +5,7 @@
 //
 
 #include "revng/ADT/RecursiveCoroutine.h"
+#include "revng/Model/ForwardDecls.h"
 #include "revng/Model/PrimitiveKind.h"
 
 namespace model {
@@ -68,6 +69,38 @@ public:
       return *Result;
     else
       revng_abort("Not a prototype!");
+  }
+
+  model::CABIFunctionDefinition *getCABIFunction();
+  const model::CABIFunctionDefinition *getCABIFunction() const;
+  bool isCABIFunction() const { return getCABIFunction() != nullptr; }
+  model::CABIFunctionDefinition &toCABIFunction() {
+    if (model::CABIFunctionDefinition *Result = getCABIFunction())
+      return *Result;
+    else
+      revng_abort("Not a C ABI function!");
+  }
+  const model::CABIFunctionDefinition &toCABIFunction() const {
+    if (const model::CABIFunctionDefinition *Result = getCABIFunction())
+      return *Result;
+    else
+      revng_abort("Not a C ABI function!");
+  }
+
+  model::RawFunctionDefinition *getRawFunction();
+  const model::RawFunctionDefinition *getRawFunction() const;
+  bool isRawFunction() const { return getRawFunction() != nullptr; }
+  model::RawFunctionDefinition &toRawFunction() {
+    if (model::RawFunctionDefinition *Result = getRawFunction())
+      return *Result;
+    else
+      revng_abort("Not a raw function!");
+  }
+  const model::TypeDefinition &toRawFunction() const {
+    if (const model::TypeDefinition *Result = getRawFunction())
+      return *Result;
+    else
+      revng_abort("Not a raw function!");
   }
 
   model::StructDefinition *getStruct();
