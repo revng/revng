@@ -8,6 +8,7 @@
 #include "llvm/ADT/SmallString.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/ADT/LineRange.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/PTML/Constants.h"
 #include "revng/Support/Assert.h"
@@ -773,13 +774,15 @@ CTokenEmitter::CommentEmitter::~CommentEmitter() {
 
 void CTokenEmitter::CommentEmitter::emit(llvm::StringRef Content) {
   if (not Content.empty()) {
-    for (auto [I, R] : llvm::enumerate(std::views::split(Content, '\n'))) {
-      llvm::StringRef Line = std::string_view(R.begin(), R.end());
+    bool EmitLinePrefix = IsAtBeginningOfLine;
 
-      if (I != 0)
+    for (auto Line : LineRange(Content)) {
+      if (std::exchange(EmitLinePrefix, true))
+        emitLinePrefix();
+
+      if (Line == "\n")
         PTML.emit("\n");
-
-      if (not Line.empty())
+      else
         emitEscaped(Line);
     }
 
@@ -800,11 +803,6 @@ void CTokenEmitter::CommentEmitter::emitLinePrefix() {
 
 void CTokenEmitter::CommentEmitter::emitEscaped(llvm::StringRef Content) {
   revng_assert(not Content.empty());
-
-  if (IsAtBeginningOfLine) {
-    emitLinePrefix();
-    IsAtBeginningOfLine = false;
-  }
 
   switch (Kind) {
   case CommentKind::Line:

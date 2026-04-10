@@ -8,19 +8,19 @@
 
 #include "llvm/ADT/STLExtras.h"
 
+#include "revng/ADT/LineRange.h"
 #include "revng/PTML/Emitter.h"
 #include "revng/Support/Assert.h"
 
 namespace ptml {
 
-template<typename EmitterT>
-concept IndentableEmitter = //
-  Emitter<EmitterT> and requires(EmitterT &Emitter) {
-    Emitter.emitIndentation(static_cast<unsigned>(0));
-  };
+struct IndentString : llvm::StringRef {
+  explicit IndentString(llvm::StringRef String) : llvm::StringRef(String) {}
+};
 
-template<IndentableEmitter EmitterT>
+template<Emitter EmitterT>
 class IndentingEmitter : protected EmitterT {
+  llvm::StringRef IndentationString;
   unsigned Indentation = 0;
   bool IsAtBeginningOfLine = true;
 
@@ -28,6 +28,11 @@ public:
   template<typename... ArgsT>
     requires std::constructible_from<EmitterT, ArgsT...>
   explicit IndentingEmitter(ArgsT &&...Args) :
+    IndentingEmitter(IndentString("  "), std::forward<ArgsT>(Args)...) {}
+
+  template<typename... ArgsT>
+    requires std::constructible_from<EmitterT, ArgsT...>
+  explicit IndentingEmitter(IndentString Indent, ArgsT &&...Args) :
     EmitterT(std::forward<ArgsT>(Args)...) {}
 
   void indent(int Offset) {
@@ -39,20 +44,16 @@ public:
 
   [[nodiscard]] unsigned indentation() const { return Indentation; }
 
-  [[nodiscard]] bool isAtBeginningOfLine() const { return IsAtBeginningOfLine; }
-
   void emit(llvm::StringRef String) {
     if (not String.empty()) {
-      for (auto [I, R] : llvm::enumerate(std::views::split(String, '\n'))) {
-        llvm::StringRef Line = std::string_view(R.begin(), R.end());
+      bool EmitIndent = IsAtBeginningOfLine;
 
-        if (I != 0)
-          emitNewline();
+      for (auto Line : LineRange(String)) {
+        if (std::exchange(EmitIndent, true))
+          emitIndentation();
 
-        if (not Line.empty()) {
-          emitIndentationIfNeeded();
+        if (not Line.empty())
           EmitterT::emit(Line);
-        }
       }
 
       IsAtBeginningOfLine = String.back() == '\n';
@@ -68,8 +69,14 @@ protected:
   void emitIndentationIfNeeded() {
     if (IsAtBeginningOfLine) {
       IsAtBeginningOfLine = false;
-      EmitterT::emitIndentation(Indentation);
+      emitIndentation();
     }
+  }
+
+private:
+  void emitIndentation() {
+    for (unsigned I = 0; I < Indentation; ++I)
+      EmitterT::emit(IndentationString);
   }
 };
 

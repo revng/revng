@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/ADT/LineRange.h"
 #include "revng/PTML/Constants.h"
 
 namespace ptml {
@@ -15,45 +16,23 @@ struct DoxygenCommentConfiguration {
   llvm::StringRef LinePrefix;
 };
 
-namespace detail {
-
-template<typename EmitterT>
-class DoxygenEmitterBase : public EmitterT {
-protected:
-  DoxygenCommentConfiguration Configuration;
-
-public:
-  template<typename... ArgsT>
-    requires std::constructible_from<EmitterT, ArgsT...>
-  explicit DoxygenEmitterBase(const DoxygenCommentConfiguration &Configuration,
-                              ArgsT &&...Args) :
-    EmitterT(std::forward<ArgsT>(Args)...), Configuration(Configuration) {}
-
-  void emitIndentation(unsigned Indentation) {
-    static constexpr llvm::StringRef IndentString = "  ";
-
-    EmitterT::emit(Configuration.LinePrefix);
-    for (unsigned I = 0; I < Indentation; ++I)
-      EmitterT::emit(IndentString);
-  }
-};
-
-} // namespace detail
-
+/// An Emitter capable of emitting Doxygen comments. While at the time of
+/// creation only C comments are emitted (using CDoxygenEmitter via
+/// CTokenEmitter::CommentEmitter), future use for assembly comments is planned.
 template<PTMLEmitter EmitterT>
-class DoxygenEmitter : IndentingEmitter<detail::DoxygenEmitterBase<EmitterT>> {
-  using Base = detail::DoxygenEmitterBase<EmitterT>;
-  using IndentingEmitter = IndentingEmitter<Base>;
+class DoxygenEmitter : EmitterT {
+  DoxygenCommentConfiguration Configuration;
+  bool IsAtBeginningOfLine = true;
 
 public:
   template<typename... ArgsT>
     requires std::constructible_from<EmitterT, ArgsT...>
   explicit DoxygenEmitter(const DoxygenCommentConfiguration &Configuration,
                           ArgsT &&...Args) :
-    IndentingEmitter(Configuration, std::forward<ArgsT>(Args)...) {
-    if (Base::Configuration.CommentHeader) {
-      EmitterT::emit(*Base::Configuration.CommentHeader);
-      IndentingEmitter::emit("\n");
+    EmitterT(std::forward<ArgsT>(Args)...), Configuration(Configuration) {
+    if (Configuration.CommentHeader) {
+      EmitterT::emit(*Configuration.CommentHeader);
+      EmitterT::emit(llvm::StringRef("\n"));
     }
   }
 
@@ -62,23 +41,41 @@ public:
     Tag.emitAttribute(ptml::attributes::Token, ptml::doxygen::tokens::Keyword);
     Tag.finalizeOpenTag();
 
-    char Signifier = Base::Configuration.KeywordSignifier;
-    IndentingEmitter::emit(llvm::StringRef(&Signifier, 1));
-    IndentingEmitter::emit(Keyword);
+    emit(llvm::StringRef(&Configuration.KeywordSignifier, 1));
+    emit(Keyword);
   }
 
   DoxygenEmitter(const DoxygenEmitter &) = delete;
   DoxygenEmitter &operator=(const DoxygenEmitter &) = delete;
 
   ~DoxygenEmitter() {
-    if (Base::Configuration.CommentFooter) {
-      if (not IndentingEmitter::isAtBeginningOfLine())
-        IndentingEmitter::emit("\n");
-      EmitterT::emit(*Base::Configuration.CommentFooter);
+    if (Configuration.CommentFooter) {
+      if (not IsAtBeginningOfLine)
+        EmitterT::emit(llvm::StringRef("\n"));
+      EmitterT::emit(*Configuration.CommentFooter);
     }
   }
 
-  using IndentingEmitter::emit;
+  void emit(llvm::StringRef Content) {
+    if (not Content.empty()) {
+      bool EmitLinePrefix = IsAtBeginningOfLine;
+
+      for (auto Line : LineRange(Content)) {
+        if (std::exchange(EmitLinePrefix, true))
+          emitLinePrefix(Line == "\n");
+
+        EmitterT::emit(Line);
+      }
+
+      IsAtBeginningOfLine = Content.back() == '\n';
+    }
+  }
+
+private:
+  void emitLinePrefix(bool IsEmptyLine) {
+    llvm::StringRef Prefix = Configuration.LinePrefix;
+    EmitterT::emit(IsEmptyLine ? Prefix.rtrim() : Prefix);
+  }
 };
 
 } // namespace ptml

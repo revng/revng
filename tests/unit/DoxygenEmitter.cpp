@@ -21,9 +21,12 @@ BOOST_AUTO_TEST_CASE(LineComment) {
     Doxygen.emitKeyword("brief");
     Doxygen.emit(" This does something.");
     Doxygen.emit("\n");
+    Doxygen.emit("\n\n");
     Doxygen.emit("And also note this other thing.");
   }
   constexpr auto &Expected = "/// \\brief This does something.\n"
+                             "///\n"
+                             "///\n"
                              "/// And also note this other thing.\n";
   revng_assert(Content == Expected);
 }
@@ -38,10 +41,13 @@ BOOST_AUTO_TEST_CASE(BlockComment) {
     Doxygen.emitKeyword("brief");
     Doxygen.emit(" This does something.");
     Doxygen.emit("\n");
+    Doxygen.emit("\n\n");
     Doxygen.emit("And also note this other thing.");
   }
   constexpr auto Expected = "/**\n"
                             " * \\brief This does something.\n"
+                            " *\n"
+                            " *\n"
                             " * And also note this other thing.\n"
                             " */";
   revng_assert(Content == Expected);

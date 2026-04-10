@@ -30,8 +30,6 @@ protected:
 public:
   explicit PTMLEmitterBase(llvm::raw_ostream &OS, Tagging Tags) :
     StreamEmitter(OS), EmitTags(Tags == Tagging::Enabled) {}
-
-  void emitIndentation(unsigned Indentation);
 };
 
 } // namespace detail
@@ -128,7 +126,6 @@ public:
 
   using IndentingEmitter::indent;
   using IndentingEmitter::indentation;
-  using IndentingEmitter::isAtBeginningOfLine;
 
   /// Returns an initializer object which can be used for delayed initialization
   /// of a PTMLTagEmitter.
