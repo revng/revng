@@ -232,12 +232,67 @@ python_module(TARGET_NAME revng-merge-dynamic WHEEL revng_internal MODULE_FILES
 #
 # Install revng.project
 #
+
+# Copy the _generated.py file from revng/model to revng/project/model. This file
+# is generated in lib/Model/CMakeLists.txt via `target_tuple_tree_generator`. We
+# need a copy here since it has a relative import to `mixins` which is different
+# for `revng.model` and `revng.project.model`.
+add_custom_command(
+  COMMAND
+    cp -a
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${PYTHON_GENERATED_MODEL_PATH}"
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/_generated.py"
+  OUTPUT
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/_generated.py"
+  DEPENDS
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${PYTHON_GENERATED_MODEL_PATH}")
+
+add_custom_command(
+  COMMAND
+    env "PYTHONPATH=${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}"
+    "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.sh"
+    "${CMAKE_SOURCE_DIR}/python/revng/project/model/mixins.py.tpl"
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/mixins.py"
+  OUTPUT
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/model/mixins.py"
+  DEPENDS revng-all-binaries
+          "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.py"
+          "${CMAKE_SOURCE_DIR}/scripts/generate-project-mixins.sh"
+          "${CMAKE_SOURCE_DIR}/python/revng/project/model/mixins.py.tpl"
+  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+
+add_custom_command(
+  COMMAND
+    "${CMAKE_SOURCE_DIR}/scripts/jsonschema_to_py.sh"
+    "${CMAKE_SOURCE_DIR}/python/revng/pypeline/pipeline-description-schema.yml"
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/pipeline_description.py"
+    "PipelineDescription"
+  OUTPUT
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/project/pipeline_description.py"
+  DEPENDS
+    "${CMAKE_SOURCE_DIR}/scripts/jsonschema_to_py.sh"
+    "${CMAKE_SOURCE_DIR}/python/revng/pypeline/pipeline-description-schema.yml")
+
 set(REVNG_PROJECT_MODULE_FILES
-    revng/project/__init__.py revng/project/cli_project.py
-    revng/project/daemon_project.py revng/project/project.py
-    revng/project/local_daemon_project.py)
-python_module(TARGET_NAME revng-project WHEEL revng MODULE_FILES
-              ${REVNG_PROJECT_MODULE_FILES})
+    revng/project/__init__.py
+    revng/project/cli_project.py
+    revng/project/common.py
+    revng/project/daemon_project.py
+    revng/project/project.py
+    revng/project/local_daemon_project.py
+    revng/project/model/external.py
+    revng/project/model/__init__.py)
+python_module(
+  TARGET_NAME
+  revng-project
+  WHEEL
+  revng
+  MODULE_FILES
+  ${REVNG_PROJECT_MODULE_FILES}
+  MODULE_GENERATED_FILES
+  revng/project/model/_generated.py
+  revng/project/model/mixins.py
+  revng/project/pipeline_description.py)
 
 #
 # Install revng.ptml
@@ -416,6 +471,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/cli/project/analyze.py
     revng/pypeline/cli/project/artifact.py
     revng/pypeline/cli/project/daemon.py
+    revng/pypeline/cli/project/dump_pipeline.py
     revng/pypeline/cli/__init__.py
     revng/pypeline/cli/common_options.py
     revng/pypeline/cli/context.py

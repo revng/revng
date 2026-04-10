@@ -8,9 +8,9 @@ from typing import AsyncContextManager
 
 import click
 
-from revng.pypeline.cli.common_options import container_format_options, debug_option
-from revng.pypeline.cli.common_options import list_objects_option, project_id_option
-from revng.pypeline.cli.common_options import show_hidden_artifact_options, token_option
+from revng.pypeline.cli.common_options import add_pipeline_config_options
+from revng.pypeline.cli.common_options import container_format_options, debug_option, full_help
+from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import PypeGroup, build_help_text, detect_autocomplete
 from revng.pypeline.cli.utils import normalize_whitespace
@@ -19,6 +19,7 @@ from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
+from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.storage_provider import StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
@@ -33,7 +34,7 @@ class ArtifactGroup(PypeGroup):
     def list_commands(self, ctx: ClickContext):  # type: ignore
         base = super().list_commands(ctx)
         pipeline = ctx.obj.pipeline
-        if ctx.obj.show_hidden_artifacts or detect_autocomplete(ctx):
+        if ctx.obj.show_hidden or detect_autocomplete(ctx):
             return base + sorted(pipeline.artifacts.keys())
         else:
             result = [*base]
@@ -74,20 +75,6 @@ class ArtifactGroup(PypeGroup):
             pipeline=pipeline,
         )
 
-        config = getattr(
-            artifact,
-            "configuration_help",
-            f'Configuration for the artifact "{artifact_name}".',
-        )
-        if config is not None:
-            run_artifact_command = click.option(
-                "-c",
-                "--configuration",
-                type=str,
-                default="",
-                help=normalize_whitespace(config),
-            )(run_artifact_command)
-
         # Add the `objects` argument to the command to specify the objects to produce
         run_artifact_command = click.argument(
             "objects",
@@ -109,6 +96,7 @@ def build_artifact_command(
     async def async_part_of_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
         objects: str | None,
+        configuration: PipelineConfiguration,
         result_path: Path | None,
         container_format: ContainerFormat,
         runner_context: RunnerContext,
@@ -152,7 +140,7 @@ def build_artifact_command(
                 model=ReadOnlyModel(loaded_model),
                 artifact=artifact,
                 requests=incoming,
-                pipeline_configuration={},
+                configuration=configuration,
                 storage_provider=storage_provider,
                 runner_context=runner_context,
             )
@@ -189,11 +177,11 @@ def build_artifact_command(
     )
     @debug_option
     @container_format_options
+    @add_pipeline_config_options(pipeline, artifact.node)
     @exec_wrapper_if_needed
     @pass_context
     def run_artifact_command(
         ctx: ClickContext,
-        configuration: str,
         project_id: str,
         token: str,
         objects: str | None,
@@ -203,7 +191,6 @@ def build_artifact_command(
         **kwargs,
     ) -> None:
         pypeline_logger.debug_log(f'Running artifact: "{artifact_name}"')
-        pypeline_logger.debug_log(f'configuration: "{configuration}"')
         pypeline_logger.debug_log(f'container_format: "{container_format}"')
         pypeline_logger.debug_log(f'kwargs: "{kwargs}"')
 
@@ -220,6 +207,7 @@ def build_artifact_command(
             async_part_of_command(
                 storage_provider_context=storage_provider_context,
                 objects=objects,
+                configuration=ctx.obj.configuration,
                 result_path=result_path,
                 container_format=container_format,
                 runner_context=runner_context,
@@ -234,6 +222,6 @@ def build_artifact_command(
     cls=ArtifactGroup,
     help="Compute an Artifact",
 )
-@show_hidden_artifact_options
+@full_help
 def artifact() -> None:
     pass

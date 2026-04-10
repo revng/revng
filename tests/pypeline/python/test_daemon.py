@@ -122,8 +122,7 @@ def test_daemon(daemon_server: TestServer):
         {
             "epoch": current_epoch,
             "analysis": "AddStuffAnalysis",
-            "configuration": "",
-            "pipeline_configuration": {},
+            "configuration": {},
             "containers": {
                 # Empty list means all objects of this container
                 "child_source": []
@@ -172,8 +171,7 @@ def test_daemon(daemon_server: TestServer):
         {
             "epoch": new_epoch,
             "analysis": "PurgeAllAnalysis",
-            "configuration": "",
-            "pipeline_configuration": {},
+            "configuration": {},
             "containers": {"root_source": []},
         }
     )

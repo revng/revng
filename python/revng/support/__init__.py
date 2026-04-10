@@ -5,10 +5,13 @@ import mmap
 import os
 import re
 import sys
+import tarfile
+from collections.abc import Mapping
 from contextlib import contextmanager
+from io import BytesIO, IOBase
 from pathlib import Path
 from shutil import which
-from typing import IO, Generator, Iterable, List, Optional, TypeVar, Union, cast
+from typing import IO, Generator, Generic, Iterable, List, Optional, TypeVar, Union, cast
 
 from llvmcpy import LLVMCPy
 
@@ -106,8 +109,15 @@ def to_bytes(input_: ToBytesInput) -> Generator[bytes, None, None]:
         # Test to exclude things like stdin
         if input_.seekable():
             offset = input_.tell()
-            with mmap.mmap(input_.fileno(), 0, access=mmap.ACCESS_READ, offset=offset) as mm:
-                yield cast(bytes, mm)
+            # mmap throws an error if the file is empty, check for the file
+            # size by seeking to the end
+            size = input_.seek(0, os.SEEK_END)
+            input_.seek(offset)
+            if size == 0:
+                yield b""
+            else:
+                with mmap.mmap(input_.fileno(), 0, access=mmap.ACCESS_READ, offset=offset) as mm:
+                    yield cast(bytes, mm)
         else:
             result = input_.read()
             if isinstance(result, str):
@@ -129,3 +139,50 @@ def get_example_binary_path() -> str:
         if re.match(r"^calc-x86-64-static-revng-qa\.compiled-[0-9a-f]{8}$", entry.name):
             return str(entry.resolve())
     raise ValueError("Could not find calc binary")
+
+
+class TarDictionary(Mapping):
+    """Class that allows wrapping a tar file and treat it as a dictionary, the
+    entries are eagerly computed, the content of the files will be lazily
+    returned when calling __getitem__."""
+
+    def __init__(self, data: Union[IO[bytes], IOBase, bytes], mode="r"):
+        fileobj: IO[bytes] | IOBase
+        if isinstance(data, bytes):
+            fileobj = BytesIO(data)
+        else:
+            fileobj = data
+
+        self._tar_file: tarfile.TarFile = tarfile.open(fileobj=fileobj, mode=mode)
+        self._keys = {m.name: m for m in self._tar_file.getmembers()}
+
+    def __getitem__(self, key: str) -> bytes:
+        if key not in self._keys:
+            raise KeyError
+        member = self._tar_file.extractfile(self._keys[key])
+        assert member is not None
+        return member.read()
+
+    def __contains__(self, key) -> bool:
+        return key in self._keys
+
+    def __len__(self) -> int:
+        return len(self._keys)
+
+    def __iter__(self):
+        return iter(self._keys)
+
+
+class IgnoreDeepCopy(Generic[T]):
+    """This class is a wrapper class that allows to have a value that will not
+    be deep-copied when using the deepcopy library function.
+    """
+
+    def __init__(self, value: T):
+        self.value: T = value
+
+    def get(self) -> T:
+        return self.value
+
+    def __deepcopy__(self, memo):
+        return self

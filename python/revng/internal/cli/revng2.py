@@ -14,29 +14,30 @@ import shlex
 import signal
 import sys
 from pathlib import Path
-from typing import IO, Any, AsyncContextManager, Iterable
+from typing import IO, Any, AsyncContextManager
 
 import click
 import yaml
-from click.shell_completion import CompletionItem
 
 from revng.internal.support import cache_directory
 from revng.pypeline.analysis import Analysis
-from revng.pypeline.cli.common_options import container_format_options, debug_option
-from revng.pypeline.cli.common_options import project_id_option, show_hidden_artifact_options
-from revng.pypeline.cli.common_options import token_option
+from revng.pypeline.cli.common_options import AllAnalysesOption, add_pipeline_config_options
+from revng.pypeline.cli.common_options import container_format_options, debug_option, full_help
+from revng.pypeline.cli.common_options import project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.pipeline import pipeline
 from revng.pypeline.cli.project import project
+from revng.pypeline.cli.project.artifact import ArtifactGroup as ProjectArtifactGroup
 from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, build_arg_objects
-from revng.pypeline.cli.utils import compute_objects, normalize_flag
+from revng.pypeline.cli.utils import compute_objects, normalize_flag, sort_option_groups
 from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrappablePypeCommand, WrapperOption
 from revng.pypeline.cli.wrappers import exec_with_wrapper, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerDeclaration, ContainerFormat
 from revng.pypeline.main import pype, run
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import ObjectSet
-from revng.pypeline.pipeline import Artifact, Pipeline
+from revng.pypeline.pipeline import Pipeline
+from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.local_provider import TemporaryLocalStorageProviderFactory
@@ -84,47 +85,11 @@ def quick(
     ctx.obj.pipeline = pipeline
 
 
-class ArtifactArgument(click.Argument):
-    class ArtifactChoice(click.ParamType):
-        def convert(self, value, param, ctx: ClickContext):  # type: ignore
-            if isinstance(value, Artifact):
-                return value
-
-            artifacts = ctx.obj.pipeline.artifacts
-            if value in artifacts:
-                return artifacts[value]
-            else:
-                self.fail(f"{value} is not one of " + ", ".join(sorted(artifacts)))
-
-        def shell_complete(self, ctx, param, incomplete: str) -> list[CompletionItem]:
-            artifacts = ctx.obj.pipeline.artifacts
-            matched = (a for a in artifacts if a.startswith(incomplete))
-            return [CompletionItem(c) for c in sorted(matched)]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, type=self.__class__.ArtifactChoice())
-
-    def get_help_record(self, ctx: ClickContext) -> tuple[str, str] | None:  # type: ignore
-        text = "One of the following:\n\n\b\n"
-        artifacts: Iterable[str]
-        if ctx.obj.show_hidden_artifacts:
-            artifacts = ctx.obj.pipeline.artifacts.keys()
-        else:
-            artifacts = [
-                artifact_name
-                for artifact_name, artifact in ctx.obj.pipeline.artifacts.items()
-                if artifact.category.show_by_default
-            ]
-
-        for artifact in sorted(artifacts):
-            text += f"* {artifact}\n"
-        return (self.make_metavar(ctx), text)
-
-
 def handle_analysis_argument(
     pipeline: Pipeline,
     analyses: str | None,
     binary: Path,
+    configuration: PipelineConfiguration,
     storage_provider: StorageProvider,
     runner_context: RunnerContext,
 ) -> Model:
@@ -154,19 +119,16 @@ def handle_analysis_argument(
                 model=ReadOnlyModel(model),
                 analysis_name=analysis_name,
                 requests=incoming,
-                analysis_configuration="",
-                pipeline_configuration={},
+                configuration=configuration,
                 storage_provider=storage_provider,
                 runner_context=runner_context,
             )
     else:
         analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
-        analysis_configuration = ["" for _ in analysis_list.analyses]
         model, _ = pipeline.run_analysis_list(
             model=ReadOnlyModel(model),
             analysis_list=analysis_list,
-            analysis_configuration=analysis_configuration,
-            pipeline_configuration={},
+            configuration=configuration,
             storage_provider=storage_provider,
             runner_context=runner_context,
         )
@@ -183,86 +145,124 @@ analyses_option = click.option(
 )
 
 
-@quick.command(
-    cls=WrappablePypeCommand,
-    name="artifact",
-    context_settings={
-        "show_default": True,
-    },
-)
-@click.argument("artifact", cls=ArtifactArgument)
-@click.argument("binary", type=click.Path(exists=True, dir_okay=False, path_type=Path))
-@click.option(
-    "-o",
-    "result_path",
-    type=click.Path(dir_okay=False, writable=True),
-    help=(
-        "Path to write the computed artifacts to, if not specified, the "
-        "result will be printed to stdout. "
-        "The default container_format when printing to stdout is json."
-    ),
-)
-@debug_option
-@analyses_option
-@container_format_options
-@show_hidden_artifact_options
-@exec_wrapper_if_needed
-@click.pass_context
-def artifact(
-    ctx,
-    artifact: Artifact,
-    binary: Path,
-    result_path: Path | None,
-    analyses: str | None,
-    container_format: ContainerFormat,
-    runner_context: RunnerContext,
-):
-    pypeline_logger.debug_log(f'Running artifact: "{artifact}"')
-    pypeline_logger.debug_log(f'container_format: "{container_format}"')
-    pipeline: Pipeline = ctx.obj.pipeline
-
-    async def async_part_of_command(
-        storage_provider_context: AsyncContextManager[StorageProvider],
-    ):
-        async with storage_provider_context as storage_provider:
-            # Add binaries to storage
-            storage_provider.put_files_in_storage([FileStorageEntry(binary.name, binary)])
-
-            # Run initial auto analysis
-            new_model = handle_analysis_argument(
-                pipeline, analyses, binary, storage_provider, runner_context
-            )
-
-            # Compute the requests and produce the artifacts
-            artifact_kind = artifact.container.container_type.kind
-            incoming: ObjectSet = new_model.all_objects(artifact_kind)
-            res_container = pipeline.get_artifact(
-                model=ReadOnlyModel(new_model),
-                artifact=artifact,
-                requests=incoming,
-                pipeline_configuration={},
-                storage_provider=storage_provider,
-                runner_context=runner_context,
-            )
-            pypeline_logger.debug_log("Artifact computed")
-
-            if result_path is not None:
-                pypeline_logger.debug_log(f'Writing result to: "{result_path}"')
-                res_container.to_file(result_path, container_format=container_format)
-            else:
-                # Write to stdout the bytes of the container
-                sys.stdout.buffer.write(res_container.to_bytes(container_format=container_format))
-                sys.stdout.buffer.flush()
-
-    storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
-    storage_provider_context = storage_provider_factory.get(
-        ctx.obj.base_directory, None, None, None
+def _build_artifact_command(pipeline: Pipeline, artifact_name: str):
+    @quick.command(
+        cls=WrappablePypeCommand,
+        name=artifact_name,
+        context_settings={
+            "show_default": True,
+        },
     )
-    asyncio.run(async_part_of_command(storage_provider_context))
+    @click.argument("binary", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+    @click.option(
+        "-o",
+        "result_path",
+        type=click.Path(dir_okay=False, writable=True),
+        help=(
+            "Path to write the computed artifacts to, if not specified, the "
+            "result will be printed to stdout. "
+            "The default container_format when printing to stdout is json."
+        ),
+    )
+    @debug_option
+    @analyses_option
+    @container_format_options
+    @add_pipeline_config_options(
+        pipeline, pipeline.artifacts[artifact_name].node, AllAnalysesOption.ALL_ANALYSES
+    )
+    @exec_wrapper_if_needed
+    @pass_context
+    def command(
+        ctx: ClickContext,
+        binary: Path,
+        result_path: Path | None,
+        analyses: str | None,
+        container_format: ContainerFormat,
+        runner_context: RunnerContext,
+    ):
+        pypeline_logger.debug_log(f'Running artifact: "{artifact_name}"')
+        pypeline_logger.debug_log(f'container_format: "{container_format}"')
+
+        async def async_part_of_command(
+            storage_provider_context: AsyncContextManager[StorageProvider],
+        ):
+            async with storage_provider_context as storage_provider:
+                # Add binaries to storage
+                storage_provider.put_files_in_storage([FileStorageEntry(binary.name, binary)])
+
+                # Run initial auto analysis
+                new_model = handle_analysis_argument(
+                    pipeline,
+                    analyses,
+                    binary,
+                    ctx.obj.configuration,
+                    storage_provider,
+                    runner_context,
+                )
+
+                # Compute the requests and produce the artifacts
+                artifact = pipeline.artifacts[artifact_name]
+                artifact_kind = artifact.container.container_type.kind
+                incoming: ObjectSet = new_model.all_objects(artifact_kind)
+                res_container = pipeline.get_artifact(
+                    model=ReadOnlyModel(new_model),
+                    artifact=artifact,
+                    requests=incoming,
+                    configuration=ctx.obj.configuration,
+                    storage_provider=storage_provider,
+                    runner_context=runner_context,
+                )
+                pypeline_logger.debug_log("Artifact computed")
+
+                if result_path is not None:
+                    pypeline_logger.debug_log(f'Writing result to: "{result_path}"')
+                    res_container.to_file(result_path, container_format=container_format)
+                else:
+                    # Write to stdout the bytes of the container
+                    sys.stdout.buffer.write(
+                        res_container.to_bytes(container_format=container_format)
+                    )
+                    sys.stdout.buffer.flush()
+
+        storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
+        storage_provider_context = storage_provider_factory.get(
+            ctx.obj.base_directory, None, None, None
+        )
+        asyncio.run(async_part_of_command(storage_provider_context))
+
+    return command
+
+
+class ArtifactGroup(ProjectArtifactGroup):
+    def get_command(self, ctx: ClickContext, cmd_name):  # type: ignore
+        pipeline = ctx.obj.pipeline
+        if cmd_name in pipeline.artifacts:
+            return _build_artifact_command(pipeline, cmd_name)
+        else:
+            return super().get_command(ctx, cmd_name)
+
+
+@quick.group(cls=ArtifactGroup, help="Run analyses and compute an artifact")
+@full_help
+def artifact():
+    pass
+
+
+class AnalyzeCommand(WrappablePypeCommand):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._config_options_added = False
+
+    def get_params(self, ctx: ClickContext):  # type: ignore[override]
+        if not self._config_options_added:
+            add_pipeline_config_options(ctx.obj.pipeline, AllAnalysesOption.ALL_ANALYSES)(self)
+            sort_option_groups(self)
+            self._config_options_added = True
+        return super().get_params(ctx)
 
 
 @quick.command(
-    cls=WrappablePypeCommand,
+    cls=AnalyzeCommand,
     name="analyze",
     context_settings={
         "show_default": True,
@@ -279,9 +279,9 @@ def artifact(
 @analyses_option
 @debug_option
 @exec_wrapper_if_needed
-@click.pass_context
+@pass_context
 def analyze(
-    ctx,
+    ctx: ClickContext,
     binary: Path,
     output_file: IO[bytes],
     analyses: str | None,
@@ -296,7 +296,12 @@ def analyze(
 
             # Run initial auto analysis
             model = handle_analysis_argument(
-                ctx.obj.pipeline, analyses, binary, storage_provider, runner_context
+                ctx.obj.pipeline,
+                analyses,
+                binary,
+                ctx.obj.configuration,
+                storage_provider,
+                runner_context,
             )
             output_file.write(model.serialize())
 
@@ -357,12 +362,10 @@ def init(
         async with storage_provider_context as storage_provider:
             model = model_type.deserialize(model_raw)[0]
             analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
-            analysis_configuration = ["" for _ in analysis_list.analyses]
             pipeline.run_analysis_list(
                 model=ReadOnlyModel(model),
                 analysis_list=analysis_list,
-                analysis_configuration=analysis_configuration,
-                pipeline_configuration={},
+                configuration=ctx.obj.configuration,
                 storage_provider=storage_provider,
             )
 

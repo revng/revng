@@ -10,10 +10,11 @@ from dataclasses import dataclass
 from typing import Any, Callable, Mapping
 
 import click
+from click_option_group import OptionGroup
 
 from revng.pypeline.cli.context import ClickContext
 
-from .utils import PypeCommand
+from .utils import PypeCommand, add_group_option_fake_title, create_option, sort_option_groups
 
 
 @dataclass
@@ -61,9 +62,11 @@ class WrapperOption:
         assert self.prefix is not None
         return self.prefix
 
-    def make_option(self) -> click.Option:
+    def make_option(self, group: OptionGroup, command: click.Command):
         assert self.type_ in (bool, str)
-        return click.Option(
+        return create_option(
+            group,
+            command,
             (f"--{self.name}",),
             type=self.__class__.WrapperType(name=self.name, prefix_generator=self.generate_prefix),
             help=self.help,
@@ -76,15 +79,22 @@ class WrapperRegistry:
     def __init__(self):
         self.wrappers: list[WrapperOption] = []
         self.commands: list[click.Command] = []
+        self.group = OptionGroup(
+            "Wrappers", help="Run program(s) wrapped inside one of the specified wrappers"
+        )
 
     def register_command(self, command: click.Command):
+        add_group_option_fake_title(command, self.group)
         self.commands.append(command)
-        command.params = [w.make_option() for w in self.wrappers] + command.params
+        for wrapper in self.wrappers:
+            command.params.append(wrapper.make_option(self.group, command))
+        sort_option_groups(command)
 
     def register_wrapper(self, wrapper: WrapperOption):
         self.wrappers.append(wrapper)
         for command in self.commands:
-            command.params.insert(len(self.wrappers) - 1, wrapper.make_option())
+            command.params.append(wrapper.make_option(self.group, command))
+        sort_option_groups(command)
 
     def register_wrappers(self, *wrappers: WrapperOption):
         for wrapper in wrappers:

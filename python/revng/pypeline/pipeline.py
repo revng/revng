@@ -13,7 +13,7 @@ import yaml
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.utils import PypelineException
 
-from .analysis import AnalysisBinding, AnalysisList
+from .analysis import Analysis, AnalysisList
 from .container import Container, ContainerDeclaration
 from .graph import Graph
 from .model import Model, ModelDiff, ReadOnlyModel
@@ -83,6 +83,30 @@ class Artifact:
         if self.filename is not None:
             result["filename"] = self.filename
         return result
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisBinding:
+    """Allows to bind an analysis to a pipeline node."""
+
+    analysis: Analysis
+    bindings: tuple[ContainerDeclaration, ...]
+    node: PipelineNode
+
+    def to_dict(self) -> dict:
+        """Convert the data into a dictionary representation."""
+        return {
+            "name": self.analysis.name,
+            "is_available": self.analysis.is_available(),
+            "bindings": [
+                {
+                    "name": binding.name,
+                    "container_type": binding.container_type.name,
+                }
+                for binding in self.bindings
+            ],
+            "node": self.node.id,
+        }
 
 
 class Pipeline:
@@ -338,11 +362,11 @@ class Pipeline:
         model: ReadOnlyModel,
         target_node: PipelineNode,
         requests: Requests,
-        pipeline_configuration: PipelineConfiguration,
+        configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
     ) -> Schedule:
         tasks: DefaultDictFromKey[PipelineNode, ScheduledTask] = DefaultDictFromKey(
-            lambda pn: ScheduledTask(pn, model, storage_provider, pipeline_configuration)
+            lambda pn: ScheduledTask(pn, model, storage_provider, configuration)
         )
         # The pipeline is a tree, so we can just unroll the predecessors,
         # When we parallelize, we will make a subclass that overrides this method,
@@ -361,7 +385,7 @@ class Pipeline:
             node_ingoing_requests = node.prerequisites_for(
                 model=model,
                 requests=node_outgoing_requests,
-                pipeline_configuration=pipeline_configuration,
+                configuration=configuration,
                 storage_provider=storage_provider,
             )
             assert orig == repr(node_outgoing_requests), (
@@ -442,7 +466,7 @@ class Pipeline:
         return Schedule(
             {v for v in self.declarations if v.name in used_declatations},
             tasks[target_node],
-            pipeline_configuration,
+            configuration,
             model,
             storage_provider,
         )
@@ -452,7 +476,7 @@ class Pipeline:
         model: ReadOnlyModel,
         artifact: Artifact,
         requests: ObjectSet,
-        pipeline_configuration: PipelineConfiguration,
+        configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
         runner_context: RunnerContext = RunnerContext(),
     ) -> Container:
@@ -460,7 +484,7 @@ class Pipeline:
             model=model,
             target_node=artifact.node,
             requests=Requests({artifact.container: requests}),
-            pipeline_configuration=pipeline_configuration,
+            configuration=configuration,
             storage_provider=storage_provider,
         )
         return schedule.run(runner_context)[artifact.container]
@@ -469,8 +493,7 @@ class Pipeline:
         self,
         model: ReadOnlyModel,
         analysis_list: AnalysisList,
-        analysis_configuration: list[str],
-        pipeline_configuration: PipelineConfiguration,
+        configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
         runner_context: RunnerContext = RunnerContext(),
     ) -> tuple[Model, InvalidatedObjects]:
@@ -484,11 +507,6 @@ class Pipeline:
 
         pypeline_logger.debug_log(f"Running analysis list {analysis_list.name}")
 
-        assert len(analysis_list.analyses) == len(analysis_configuration), (
-            "Analysis configuration list length does not match the number of analyses in the list."
-            f" Expected {(analysis_list.analyses)}, got {len(analysis_configuration)}."
-        )
-
         for analysis_name in analysis_list.analyses:
             if analysis_name not in self.analyses:
                 raise PypelineException(f"Analysis {analysis_name} not found in the pipeline")
@@ -499,7 +517,7 @@ class Pipeline:
                     f"because analysis {analysis_name} is not available"
                 )
 
-        for analysis_name, analysis_config in zip(analysis_list.analyses, analysis_configuration):
+        for analysis_name in analysis_list.analyses:
             pypeline_logger.debug_log(f"Running analysis {analysis_name}")
             analysis = self.analyses[analysis_name]
             # Build the requests for the analysis
@@ -511,8 +529,7 @@ class Pipeline:
                 model=model,
                 analysis_name=analysis_name,
                 requests=requests,
-                analysis_configuration=analysis_config,
-                pipeline_configuration=pipeline_configuration,
+                configuration=configuration,
                 storage_provider=storage_provider,
                 runner_context=runner_context,
             )
@@ -530,8 +547,7 @@ class Pipeline:
         model: ReadOnlyModel,
         analysis_name: str,
         requests: Requests,
-        analysis_configuration: str,
-        pipeline_configuration: PipelineConfiguration,
+        configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
         runner_context: RunnerContext = RunnerContext(),
     ) -> tuple[Model, InvalidatedObjects]:
@@ -564,7 +580,7 @@ class Pipeline:
             model=model,
             target_node=analysis_info.node,
             requests=requests,
-            pipeline_configuration=pipeline_configuration,
+            configuration=configuration,
             storage_provider=storage_provider,
         )
         all_containers = schedule.run(runner_context)
@@ -574,12 +590,12 @@ class Pipeline:
             model=model,
             containers=[all_containers[decl] for decl in analysis_info.bindings],
             incoming=[requests.get(decl) for decl in analysis_info.bindings],
-            configuration=analysis_configuration,
+            configuration=configuration.get(analysis_info.analysis, ""),
         )
 
         diff = model.diff(ReadOnlyModel(new_model))
         custom_invalidated_objects = self._compute_custom_invalidation(
-            pipeline_configuration, storage_provider, diff
+            configuration, storage_provider, diff
         )
         invalidated = storage_provider.invalidate(diff.paths(), custom_invalidated_objects)
         storage_provider.set_model(new_model)
@@ -587,7 +603,7 @@ class Pipeline:
 
     def _compute_custom_invalidation(
         self,
-        pipeline_configuration: PipelineConfiguration,
+        configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
         diff: ModelDiff,
     ) -> list[ObjectsToInvalidate]:
@@ -605,7 +621,7 @@ class Pipeline:
                 continue
 
             # Fetch the custom invalidation data from storage
-            configuration_id = node.configuration_id(pipeline_configuration)
+            configuration_id = node.configuration_id(configuration)
             invalidation_data = storage_provider.get_custom_invalidation_data(
                 node.id, configuration_id
             )
@@ -646,7 +662,7 @@ class Pipeline:
         container_map = {x.name: x for x in self.declarations}
 
         obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
-        configuration = {}
+        configuration: dict[Pipe | Analysis, str] = {}
         scheduled_tasks: list[ScheduledTask] = []
         for task in schedule_dict["tasks"]:
             pipeline_node: PipelineNode = pipeline_nodes[task["node_id"]]

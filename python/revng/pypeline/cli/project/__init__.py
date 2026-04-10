@@ -15,6 +15,7 @@ from revng.pypeline.utils import cache_directory
 from .analyze import analyze
 from .artifact import artifact
 from .daemon import run_daemon
+from .dump_pipeline import dump_pipeline
 
 
 @click.group(
@@ -67,3 +68,4 @@ def project(
 project.add_command(analyze)
 project.add_command(artifact)
 project.add_command(run_daemon, name="daemon")
+project.add_command(dump_pipeline, name="dump-pipeline")
