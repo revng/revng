@@ -45,6 +45,8 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
   // TODO: checks are only omitted here because of unit tests.
   revng::NonDebugInfoCheckingIRBuilder Builder(LLVMCtx);
 
+  llvm::SmallVector<llvm::WeakTrackingVH, 8> Dead;
+
   for (ExtractValueInst *I : ToReplace) {
     Builder.SetInsertPoint(I);
 
@@ -69,8 +71,10 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
                                                 ArgValues);
     I->replaceAllUsesWith(InjectedCall);
     InjectedCall->copyMetadata(*I);
-    llvm::RecursivelyDeleteTriviallyDeadInstructions(I);
+    Dead.push_back(I);
   }
+
+  llvm::RecursivelyDeleteTriviallyDeadInstructions(Dead);
 
   return true;
 }

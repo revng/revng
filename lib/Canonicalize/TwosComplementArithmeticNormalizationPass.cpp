@@ -117,7 +117,7 @@ bool TANP::runOnFunction(llvm::Function &F) {
 
   bool Changed = false;
 
-  SmallVector<Instruction *, 8> DeadInsts;
+  llvm::SmallVector<llvm::WeakTrackingVH, 8> DeadInsts;
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
 
@@ -308,8 +308,7 @@ bool TANP::runOnFunction(llvm::Function &F) {
     }
   }
 
-  for (auto *I : DeadInsts)
-    llvm::RecursivelyDeleteTriviallyDeadInstructions(I);
+  llvm::RecursivelyDeleteTriviallyDeadInstructions(DeadInsts);
 
   return Changed;
 }

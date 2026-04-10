@@ -9,7 +9,6 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
-#include "revng/FunctionIsolation/StructInitializers.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"
 #include "revng/Pipeline/AllRegistries.h"
@@ -58,7 +57,6 @@ public:
 
 class PromoteCSVs final : public pipeline::FunctionPassImpl {
 private:
-  StructInitializers Initializers;
   OpaqueFunctionsPool<StringRef> CSVInitializers;
   std::map<WrapperKey, Function *> Wrappers;
   SetVector<GlobalVariable *> CSVs;
@@ -103,7 +101,6 @@ PromoteCSVs::PromoteCSVs(ModulePass &Pass,
                          const model::Binary &Binary,
                          llvm::Module &M) :
   pipeline::FunctionPassImpl(Pass),
-  Initializers(&M),
   CSVInitializers(&M, false),
   Architecture(Binary.Architecture()),
   Configuration(Binary.Configuration().Naming()),
@@ -115,7 +112,6 @@ PromoteCSVs::PromoteCSVs(const model::Binary &Binary,
                          llvm::Module &M,
                          GeneratedCodeBasicInfo &GCBI) :
   pipeline::FunctionPassImpl(),
-  Initializers(&M),
   CSVInitializers(&M, false),
   Architecture(Binary.Architecture()),
   Configuration(Binary.Configuration().Naming()),
