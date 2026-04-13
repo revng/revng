@@ -6,4 +6,4 @@
 
 #include "revng/Clift/Clift.h"
 
-mlir::LogicalResult emitFieldAccesses(mlir::clift::FunctionOp Function);
+mlir::LogicalResult emitFieldAccesses(clift::FunctionOp Function);

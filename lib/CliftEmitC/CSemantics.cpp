@@ -5,7 +5,6 @@
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftEmitC/CSemantics.h"
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 namespace {

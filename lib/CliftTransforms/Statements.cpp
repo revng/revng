@@ -11,14 +11,11 @@
 #include "revng/CliftTransforms/Passes.h"
 #include "revng/CliftTransforms/RewriteHelpers.h"
 
-namespace mlir {
 namespace clift {
 #define GEN_PASS_DEF_CLIFTOPTIMIZESTATEMENTS
 #include "revng/CliftTransforms/Passes.h.inc"
 } // namespace clift
-} // namespace mlir
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 namespace {

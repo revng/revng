@@ -10,8 +10,6 @@
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/IRHelpers.h"
 
-namespace clift = mlir::clift;
-
 namespace {
 
 class ClifterPipe {

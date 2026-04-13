@@ -7,7 +7,6 @@
 #include "revng/CliftTransforms/BooleanNegations.h"
 #include "revng/CliftTransforms/ExpressionHelpers.h"
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 namespace {

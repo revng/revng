@@ -25,98 +25,98 @@ class Clift_Op<string mnemonic, list<Trait> traits = []>
 //===-------------------------- Type constraints --------------------------===//
 
 def Clift_AnyAddressableType
-  : Type<CPred<"mlir::isa<mlir::clift::AddressableType>($_self)">,
+  : Type<CPred<"mlir::isa<clift::AddressableType>($_self)">,
          "value type">;
 
 def Clift_AnyObjectType
-  : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::ObjectType>($_self)">,
+  : Type<CPred<"clift::unwrapped_isa<clift::ObjectType>($_self)">,
          "object type">;
 
 def Clift_AnyValueType
-  : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::ValueType>($_self)">,
+  : Type<CPred<"clift::unwrapped_isa<clift::ValueType>($_self)">,
          "value type">;
 
 def Clift_AnyBooleanType
-  : Type<CPred<"mlir::clift::isBooleanType($_self)">,
+  : Type<CPred<"clift::isBooleanType($_self)">,
          "boolean type">;
 
 def Clift_AnyScalarType
-  : Type<CPred<"mlir::clift::isScalarType($_self)">,
+  : Type<CPred<"clift::isScalarType($_self)">,
          "scalar type">;
 
 def Clift_AnyIntegerType
-  : Type<CPred<"mlir::clift::isIntegerType($_self)">,
+  : Type<CPred<"clift::isIntegerType($_self)">,
          "integer type">;
 
 def Clift_AnyPrimitiveIntegerType
-  : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::IntegerType>($_self)">,
+  : Type<CPred<"clift::unwrapped_isa<clift::IntegerType>($_self)">,
          "primitive integer type">;
 
 def Clift_AnyPointerType
-  : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::PointerType>($_self)">,
+  : Type<CPred<"clift::unwrapped_isa<clift::PointerType>($_self)">,
          "pointer type">;
 
 def Clift_AnyFunctionType
-  : Type<CPred<"mlir::clift::unwrapped_isa<mlir::clift::FunctionType>($_self)">,
+  : Type<CPred<"clift::unwrapped_isa<clift::FunctionType>($_self)">,
          "function type">;
 
 def Clift_AnyNonVoidType
-  : Type<CPred<"not mlir::clift::unwrapped_isa<mlir::clift::VoidType>($_self)">,
+  : Type<CPred<"not clift::unwrapped_isa<clift::VoidType>($_self)">,
          "non-void type">;
 
 class Clift_AnyNonConstType<Type type>
   : Type<And<[type.predicate,
-              CPred<"not mlir::clift::isConst($_self)">]>,
+              CPred<"not clift::isConst($_self)">]>,
          "non-const " # type.summary>;
 
 class Clift_AnyModifiableType<Type type>
   : Type<And<[type.predicate,
-              CPred<"mlir::clift::isModifiableType($_self)">]>,
+              CPred<"clift::isModifiableType($_self)">]>,
          "modifiable " # type.summary>;
 
 class Clift_AllTypesMatch<list<string> names>
   : AllMatchSameOperatorTrait<names,
-                              "mlir::clift::removeConst($_self.getType())",
+                              "clift::removeConst($_self.getType())",
                               "type (ignoring qualifiers)">;
 
 class Clift_AllSizesMatch<list<string> names>
   : AllMatchSameOperatorTrait<names,
-                              "mlir::clift::getObjectSize($_self.getType())",
+                              "clift::getObjectSize($_self.getType())",
                               "object size">;
 
 class Clift_AllPointeeTypesMatch<list<string> names>
   : AllMatchSameOperatorTrait<names,
-                              "mlir::clift::unwrapped_cast<mlir::clift::PointerType>($_self.getType()).getPointeeType()",
+                              "clift::unwrapped_cast<clift::PointerType>($_self.getType()).getPointeeType()",
                               "pointee type">;
 
 class Clift_UnqualifiedTypeMatches<string qualified, string unqualified>
   : TypesMatchWith<qualified # " type (ignoring qualifiers) matches the " # unqualified # " type",
                    qualified,
                    unqualified,
-                   "mlir::clift::removeConst($_self)">;
+                   "clift::removeConst($_self)">;
 
 class Clift_PointeeTypeMatches<string pointer, string value>
   : TypesMatchWith<pointer # " pointee type matches the " # value # " type",
                    pointer,
                    value,
-                   "mlir::clift::unwrapped_cast<mlir::clift::PointerType>($_self).getPointeeType()">;
+                   "clift::unwrapped_cast<clift::PointerType>($_self).getPointeeType()">;
 
 class Clift_LValueOperand<string name>
   : PredOpTrait<"operand " # name # " is an lvalue expression",
-                CPred<"mlir::clift::isLvalueExpression($" # name # ")">>;
+                CPred<"clift::isLvalueExpression($" # name # ")">>;
 
 //===---------------------------- Region types ----------------------------===//
 
 def Clift_StatementRegion
-  : Region<CPred<"::mlir::clift::impl::verifyStatementRegion($_self)">,
+  : Region<CPred<"clift::impl::verifyStatementRegion($_self)">,
            "Region containing statements">;
 
 def Clift_ExpressionRegion
-  : Region<CPred<"::mlir::clift::impl::verifyExpressionRegion($_self, true)">,
+  : Region<CPred<"clift::impl::verifyExpressionRegion($_self, true)">,
            "Region representing an expression">;
 
 def Clift_OptionalExpressionRegion
-  : Region<CPred<"::mlir::clift::impl::verifyExpressionRegion($_self, false)">,
+  : Region<CPred<"clift::impl::verifyExpressionRegion($_self, false)">,
            "Optional region representing an expression">;
 
 //===------------------------ Top level operations ------------------------===//
@@ -143,7 +143,7 @@ def Clift_FunctionOp : Clift_Op<"func",
 
   let builders = [
     OpBuilder<(ins "llvm::StringRef":$Name,
-                   "mlir::clift::FunctionType":$FunctionType)>
+                   "clift::FunctionType":$FunctionType)>
   ];
 
   let hasCustomAssemblyFormat = 1;
@@ -179,7 +179,7 @@ def Clift_FunctionOp : Clift_Op<"func",
     }
 
 
-    mlir::clift::AttrDictView getArgAttrs(unsigned Index) {
+    clift::AttrDictView getArgAttrs(unsigned Index) {
       std::optional<mlir::ArrayAttr> Attrs = getArgAttrs();
       mlir::DictionaryAttr DictAttr = Attrs ?
                         mlir::cast<mlir::DictionaryAttr>((*Attrs)[Index]) :
@@ -187,7 +187,7 @@ def Clift_FunctionOp : Clift_Op<"func",
       return AttrDictView(DictAttr);
     }
 
-    mlir::clift::AttrDictView getResAttrs(unsigned Index) {
+    clift::AttrDictView getResAttrs(unsigned Index) {
       std::optional<mlir::ArrayAttr> Attrs = getArgAttrs();
       mlir::DictionaryAttr DictAttr = Attrs ?
                         mlir::cast<mlir::DictionaryAttr>((*Attrs)[Index]) :
@@ -200,33 +200,33 @@ def Clift_FunctionOp : Clift_Op<"func",
         return getBody().getBlocks();
     }
 
-    Block::args_iterator args_begin() {
+    mlir::Block::args_iterator args_begin() {
         return getBody().front().args_begin();
     }
 
-    Block::args_iterator args_end() {
+    mlir::Block::args_iterator args_end() {
         return getBody().front().args_end();
     }
 
 
     // Implementation of CallableOpInterface
 
-    Region *getCallableRegion() {
+    mlir::Region *getCallableRegion() {
         return isExternal() ? nullptr : &getBody();
     }
 
     /// Returns the result types of this function.
-    ArrayRef<Type> getCallableResults() {
+    llvm::ArrayRef<mlir::Type> getCallableResults() {
       return getResultTypes();
     }
 
 
     // Implementation of FunctionOpInterface
 
-    ArrayRef<Type> getArgumentTypes();
-    ArrayRef<Type> getResultTypes();
+    llvm::ArrayRef<mlir::Type> getArgumentTypes();
+    llvm::ArrayRef<mlir::Type> getResultTypes();
 
-    Type cloneTypeWith(TypeRange inputs, TypeRange results);
+    mlir::Type cloneTypeWith(mlir::TypeRange inputs, mlir::TypeRange results);
   }];
 }
 
@@ -288,7 +288,7 @@ class Clift_LoopStatementOp<string mnemonic, list<Trait> traits = []>
   let skipDefaultBuilders = 1;
 
   let builders = [
-    OpBuilder<(ins CArg<"mlir::clift::LoopOpInterface", "{}">:$OtherLoop)>
+    OpBuilder<(ins CArg<"clift::LoopOpInterface", "{}">:$OtherLoop)>
   ];
 }
 
@@ -309,7 +309,7 @@ def Clift_MakeLabelOp : Clift_StatementOp<"make_label"> {
     OpBuilder<(ins), [{
       build($_builder,
             $_state,
-            mlir::clift::LabelType::get($_builder.getContext()));
+            clift::LabelType::get($_builder.getContext()));
     }]>
   ];
 
@@ -607,7 +607,7 @@ def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
 
     [[nodiscard]] mlir::Type getConditionType();
 
-    [[nodiscard]] Region &getConditionRegion() {
+    [[nodiscard]] mlir::Region &getConditionRegion() {
       return getRegion(0);
     }
 
@@ -799,7 +799,7 @@ class Clift_PointerArithmeticOp<string mnemonic, list<Trait> traits = []>
 
   let extraClassDeclaration = [{
     unsigned getPointerOperandIndex() {
-      return mlir::clift::impl::getPointerArithmeticPointerOperandIndex(getOperation());
+      return clift::impl::getPointerArithmeticPointerOperandIndex(getOperation());
     }
 
     mlir::Value getPointer() {
@@ -807,7 +807,7 @@ class Clift_PointerArithmeticOp<string mnemonic, list<Trait> traits = []>
     }
 
     unsigned getOffsetOperandIndex() {
-      return mlir::clift::impl::getPointerArithmeticOffsetOperandIndex(getOperation());
+      return clift::impl::getPointerArithmeticOffsetOperandIndex(getOperation());
     }
 
     mlir::Value getOffset() {
@@ -1131,7 +1131,7 @@ def Clift_CommaOp : Clift_ExpressionOp<"comma",
 
   let extraClassDeclaration = [{
     bool isLvalueExpression() {
-      return mlir::clift::isLvalueExpression(getRhs());
+      return clift::isLvalueExpression(getRhs());
     }
 
     [[nodiscard]] bool isDiscardedOperand(mlir::OpOperand &Operand) {

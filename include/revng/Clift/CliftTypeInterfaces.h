@@ -4,11 +4,11 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-namespace mlir::clift {
+namespace clift {
 
 class FieldAttr;
 
-} // namespace mlir::clift
+} // namespace clift
 
 #include "mlir/IR/Types.h"
 

@@ -6,33 +6,32 @@
 
 #include "mlir/IR/OpDefinition.h"
 
-namespace mlir {
-namespace OpTrait {
 namespace clift {
 namespace impl {
 
-LogicalResult verifyNoFallthroughTrait(Operation *Op);
-LogicalResult verifyAssignsLoopLabelsTrait(Operation *Op);
+mlir::LogicalResult verifyNoFallthroughTrait(mlir::Operation *Op);
+mlir::LogicalResult verifyAssignsLoopLabelsTrait(mlir::Operation *Op);
 
 } // namespace impl
 
 template<typename ConcreteType>
-class NoFallthrough : public OpTrait::TraitBase<ConcreteType, NoFallthrough> {
-  using Base = OpTrait::TraitBase<ConcreteType, NoFallthrough>;
+class NoFallthrough
+  : public mlir::OpTrait::TraitBase<ConcreteType, NoFallthrough> {
+  using Base = mlir::OpTrait::TraitBase<ConcreteType, NoFallthrough>;
 
 public:
-  static LogicalResult verifyTrait(Operation *const Op) {
+  static mlir::LogicalResult verifyTrait(mlir::Operation *const Op) {
     return impl::verifyNoFallthroughTrait(Op);
   }
 };
 
 template<typename ConcreteType>
 class AssignsLoopLabels
-  : public OpTrait::TraitBase<ConcreteType, AssignsLoopLabels> {
-  using Base = OpTrait::TraitBase<ConcreteType, AssignsLoopLabels>;
+  : public mlir::OpTrait::TraitBase<ConcreteType, AssignsLoopLabels> {
+  using Base = mlir::OpTrait::TraitBase<ConcreteType, AssignsLoopLabels>;
 
 public:
-  static LogicalResult verifyTrait(Operation *const Op) {
+  static mlir::LogicalResult verifyTrait(mlir::Operation *const Op) {
     return impl::verifyAssignsLoopLabelsTrait(Op);
   }
 
@@ -47,10 +46,9 @@ public:
 };
 
 template<typename ConcreteType>
-class ReturnsBoolean : public OpTrait::TraitBase<ConcreteType, ReturnsBoolean> {
-  using Base = OpTrait::TraitBase<ConcreteType, ReturnsBoolean>;
+class ReturnsBoolean
+  : public mlir::OpTrait::TraitBase<ConcreteType, ReturnsBoolean> {
+  using Base = mlir::OpTrait::TraitBase<ConcreteType, ReturnsBoolean>;
 };
 
 } // namespace clift
-} // namespace OpTrait
-} // namespace mlir

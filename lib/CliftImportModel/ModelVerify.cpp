@@ -7,7 +7,6 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
-namespace clift = mlir::clift;
 namespace ranks = revng::ranks;
 
 namespace {
@@ -190,7 +189,7 @@ private:
       bool IsStack = false;
       bool IsRegister = false;
 
-      mlir::clift::AttrDictView View = Op.getArgAttrs(Index);
+      clift::AttrDictView View = Op.getArgAttrs(Index);
       if (auto CAs = View.getOfType<mlir::ArrayAttr>("clift.c_attributes")) {
         for (mlir::Attribute CAttribute : CAs) {
           auto AttrName = mlir::cast<clift::CAttributeAttr>(CAttribute)

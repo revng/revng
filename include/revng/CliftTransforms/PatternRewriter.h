@@ -6,7 +6,7 @@
 
 #include "mlir/IR/PatternMatch.h"
 
-namespace mlir::clift {
+namespace clift {
 
 //===------------------ Future PatternRewriter functions ------------------===//
 
@@ -28,4 +28,4 @@ inline void clearRegion(mlir::PatternRewriter &Rewriter, mlir::Region &Region) {
     Rewriter.eraseBlock(&Region.front());
 }
 
-} // namespace mlir::clift
+} // namespace clift

@@ -20,8 +20,6 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 
-namespace clift = mlir::clift;
-
 static Logger Log{ "clift-type-dependency-graph" };
 
 std::string clift::DefinedTypeNode::label() const {

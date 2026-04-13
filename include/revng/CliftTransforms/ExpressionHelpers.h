@@ -9,7 +9,7 @@
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/Support/Debug.h"
 
-namespace mlir::clift::impl {
+namespace clift::impl {
 
 inline mlir::Value forceBooleanResult(mlir::PatternRewriter &Rewriter,
                                       mlir::Value OldValue,
@@ -32,4 +32,4 @@ inline mlir::Value forceBooleanResult(mlir::PatternRewriter &Rewriter,
   return NewValue;
 }
 
-} // namespace mlir::clift::impl
+} // namespace clift::impl

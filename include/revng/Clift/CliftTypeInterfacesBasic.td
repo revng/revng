@@ -9,7 +9,7 @@ include "mlir/IR/OpBase.td"
 
 class Clift_TypeInterface<string name, list<Interface> baseInterfaces = []>
   : TypeInterface<name, baseInterfaces> {
-  let cppNamespace = "mlir::clift";
+  let cppNamespace = "clift";
 }
 
 def Clift_AliasableType : Clift_TypeInterface<"AliasableType"> {
@@ -43,11 +43,11 @@ def Clift_AddressableType : Clift_TypeInterface<"AddressableType"> {
     >,
     InterfaceMethod<
       "Returns the unqualified base type of the type.",
-      "mlir::clift::AddressableType", "addConst", (ins)
+      "clift::AddressableType", "addConst", (ins)
     >,
     InterfaceMethod<
       "Returns the unqualified base type of the type.",
-      "mlir::clift::AddressableType", "removeConst", (ins)
+      "clift::AddressableType", "removeConst", (ins)
     >,
   ];
 }

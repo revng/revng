@@ -8,7 +8,7 @@
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Support/CTarget.h"
 
-namespace mlir::clift {
+namespace clift {
 
 /// Base class with common utilities for emitters emitting C from Clift.
 class CEmitter {
@@ -74,7 +74,7 @@ public:
   //===--------------------------- Other Helpers --------------------------===//
 
   static ptml::CTokenEmitter::EntityKind
-  chooseEntityKind(mlir::clift::DefinedType Type);
+  chooseEntityKind(clift::DefinedType Type);
 };
 
 /// Determines whether the type can be forward-declared or not.
@@ -84,4 +84,4 @@ inline bool isSeparateDeclarationAllowed(DefinedType Type) {
   return mlir::isa<ClassType>(Type);
 }
 
-} // namespace mlir::clift
+} // namespace clift

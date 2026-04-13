@@ -11,8 +11,7 @@
 #include "FieldAccessReplacement.h"
 #include "PointerArithmetic.h"
 
-namespace clift = mlir::clift;
-using namespace mlir::clift;
+using namespace clift;
 
 namespace {
 

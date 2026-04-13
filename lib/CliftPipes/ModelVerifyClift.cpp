@@ -7,8 +7,6 @@
 #include "revng/CliftPipes/ModelVerifyClift.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
-namespace clift = mlir::clift;
-
 namespace {
 
 class ModelVerifyPipe {
@@ -44,8 +42,7 @@ static pipeline::RegisterPipe<ModelVerifyPipe> X;
 namespace revng::pypeline::piperuns {
 
 void ModelVerifyClift::runOnCliftFunction(const model::Function &Function,
-                                          mlir::clift::FunctionOp
-                                            MLIRFunction) {
+                                          clift::FunctionOp MLIRFunction) {
   // If the verify logger is disabled, this pipe does nothing
   if (not ModelVerifyLogger.isEnabled())
     return;

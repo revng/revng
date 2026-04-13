@@ -15,7 +15,7 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/Clift/CliftTypeInterfaces.h"
 
-namespace mlir::clift {
+namespace clift {
 
 /// Represents a defined type in the dependency graph.
 struct DefinedTypeNode {
@@ -79,14 +79,14 @@ private:
   class Builder;
 };
 
-} // namespace mlir::clift
+} // namespace clift
 
 template<>
-struct llvm::DOTGraphTraits<mlir::clift::TypeDependencyGraph *>
+struct llvm::DOTGraphTraits<clift::TypeDependencyGraph *>
   : public llvm::DefaultDOTGraphTraits {
 
   using llvm::DefaultDOTGraphTraits::DefaultDOTGraphTraits;
 
-  std::string getNodeLabel(const mlir::clift::TypeDependencyNode *N,
-                           const mlir::clift::TypeDependencyGraph *G);
+  std::string getNodeLabel(const clift::TypeDependencyNode *N,
+                           const clift::TypeDependencyGraph *G);
 };

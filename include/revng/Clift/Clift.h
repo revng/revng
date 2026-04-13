@@ -23,7 +23,7 @@
 #include "revng/Clift/CliftOpTraits.h"
 #include "revng/Clift/CliftTypes.h"
 
-namespace mlir::clift {
+namespace clift {
 namespace impl {
 
 inline constexpr llvm::StringRef LoopLabelMaskAttrName = "label_mask";
@@ -31,13 +31,13 @@ inline constexpr llvm::StringRef LoopLabelMaskAttrName = "label_mask";
 inline constexpr unsigned BreakLabelFlag = 1 << 0;
 inline constexpr unsigned ContinueLabelFlag = 1 << 1;
 
-bool verifyStatementRegion(Region &R);
-bool verifyExpressionRegion(Region &R, bool Required);
+bool verifyStatementRegion(mlir::Region &R);
+bool verifyExpressionRegion(mlir::Region &R, bool Required);
 
 unsigned getPointerArithmeticPointerOperandIndex(mlir::Operation *Op);
 unsigned getPointerArithmeticOffsetOperandIndex(mlir::Operation *Op);
 
-mlir::LogicalResult verifyUnaryIntegerMutationOp(Operation *Op);
+mlir::LogicalResult verifyUnaryIntegerMutationOp(mlir::Operation *Op);
 
 } // namespace impl
 
@@ -94,13 +94,13 @@ public:
   }
 };
 
-} // namespace mlir::clift
+} // namespace clift
 
 // This include should stay here for correct build procedure
 #define GET_OP_CLASSES
 #include "revng/Clift/Clift.h.inc"
 
-namespace mlir::clift {
+namespace clift {
 
 /// Returns true if the module has a Clift module attribute.
 bool hasModuleAttr(mlir::ModuleOp Module);
@@ -110,14 +110,14 @@ void setModuleAttr(mlir::ModuleOp Module);
 
 /// Returns the terminating YieldOp of the expression represented by the region,
 /// or a operation if the region is not a valid expression region.
-YieldOp getExpressionYieldOp(Region &R);
+YieldOp getExpressionYieldOp(mlir::Region &R);
 
 /// Returns the value of the expression represented by the region region, or a
 /// null value if the region is not a valid expression region.
-mlir::Value getExpressionValue(Region &R);
+mlir::Value getExpressionValue(mlir::Region &R);
 
 /// Returns the type of the expression represented by the region, or a null type
 /// if region is not a valid expression region.
-mlir::Type getExpressionType(Region &R);
+mlir::Type getExpressionType(mlir::Region &R);
 
-} // namespace mlir::clift
+} // namespace clift

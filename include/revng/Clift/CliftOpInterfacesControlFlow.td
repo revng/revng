@@ -53,7 +53,7 @@ def Clift_LoopOpInterface
       "mlir::Value", "getBreakLabel", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return mlir::clift::impl::getLoopLabel($_op, 0);
+        return clift::impl::getLoopLabel($_op, 0);
       }]
     >,
     InterfaceMethod<
@@ -61,7 +61,7 @@ def Clift_LoopOpInterface
       "void", "setBreakLabel", (ins "mlir::Value":$Label),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return mlir::clift::impl::setLoopLabel($_op, 0, Label);
+        return clift::impl::setLoopLabel($_op, 0, Label);
       }]
     >,
     InterfaceMethod<
@@ -69,7 +69,7 @@ def Clift_LoopOpInterface
       "mlir::Value", "getContinueLabel", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return mlir::clift::impl::getLoopLabel($_op, 1);
+        return clift::impl::getLoopLabel($_op, 1);
       }]
     >,
     InterfaceMethod<
@@ -77,7 +77,7 @@ def Clift_LoopOpInterface
       "void", "setContinueLabel", (ins "mlir::Value":$Label),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return mlir::clift::impl::setLoopLabel($_op, 1, Label);
+        return clift::impl::setLoopLabel($_op, 1, Label);
       }]
     >,
     InterfaceMethod<

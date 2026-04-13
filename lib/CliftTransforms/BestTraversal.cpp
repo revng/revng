@@ -13,7 +13,6 @@
 #include "BestTraversal.h"
 #include "PointerArithmetic.h"
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 static Logger Log("best-traversal");

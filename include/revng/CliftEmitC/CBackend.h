@@ -11,10 +11,10 @@
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Support/CTarget.h"
 
-namespace mlir::clift {
+namespace clift {
 
 void decompile(FunctionOp Function,
                ptml::CTokenEmitter &Emitter,
                const TargetCImplementation &Target);
 
-} // namespace mlir::clift
+} // namespace clift

@@ -12,7 +12,7 @@ include "revng/Clift/CliftDialect.td"
 // This is a helper attribute used for emitting the bytecode representation of
 // (potentially recursive) class types.
 def Clift_BytecodeClassAttr : AttrDef<Clift_Dialect, "BytecodeClass"> {
-  let parameters = (ins "mlir::clift::ClassType":$type);
+  let parameters = (ins "clift::ClassType":$type);
 }
 
 #endif

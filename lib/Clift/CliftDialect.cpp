@@ -16,7 +16,7 @@
 // comment to force generated files to be included be after regular includes
 #include "revng/Clift/CliftDialect.cpp.inc"
 
-using namespace mlir::clift;
+using namespace clift;
 
 namespace {
 
@@ -49,23 +49,23 @@ public:
 
   mlir::Attribute
   readAttribute(mlir::DialectBytecodeReader &Reader) const override {
-    return mlir::clift::readAttr(Reader);
+    return clift::readAttr(Reader);
   }
 
   mlir::Type readType(mlir::DialectBytecodeReader &Reader) const override {
-    return mlir::clift::readType(Reader);
+    return clift::readType(Reader);
   }
 
   mlir::LogicalResult
   writeAttribute(mlir::Attribute Attr,
                  mlir::DialectBytecodeWriter &Writer) const override {
-    return mlir::clift::writeAttr(Attr, Writer);
+    return clift::writeAttr(Attr, Writer);
   }
 
   mlir::LogicalResult
   writeType(mlir::Type Type,
             mlir::DialectBytecodeWriter &Writer) const override {
-    return mlir::clift::writeType(Type, Writer);
+    return clift::writeType(Type, Writer);
   }
 };
 

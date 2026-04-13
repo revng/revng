@@ -7,9 +7,9 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Support/CTarget.h"
 
-namespace mlir::clift {
+namespace clift {
 
 mlir::LogicalResult verifyCSemantics(mlir::ModuleOp Module,
                                      const TargetCImplementation &Target);
 
-} // namespace mlir::clift
+} // namespace clift

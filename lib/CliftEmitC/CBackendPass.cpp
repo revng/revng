@@ -12,14 +12,10 @@
 #include "revng/CliftTransforms/Passes.h"
 #include "revng/Support/Debug.h"
 
-namespace mlir {
 namespace clift {
 #define GEN_PASS_DEF_CLIFTEMITC
 #include "revng/CliftTransforms/Passes.h.inc"
 } // namespace clift
-} // namespace mlir
-
-namespace clift = mlir::clift;
 
 namespace {
 

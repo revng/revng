@@ -10,7 +10,6 @@
 #include "EmitFieldAccesses.h"
 #include "PointerArithmetic.h"
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 static Logger Log("pointer-arithmetic");
@@ -128,7 +127,7 @@ public:
 
   // Compute pointer arithmetic for a given `PointerToReplace`
   std::optional<PointerArithmetic>
-  computePointerArithmetic(mlir::clift::ExpressionOpInterface PointerToReplace);
+  computePointerArithmetic(clift::ExpressionOpInterface PointerToReplace);
 
 private:
   // Traversal function to inspect the operands. Uses RecursiveCoroutine
@@ -538,7 +537,7 @@ void PointerArithmeticBuilder::sortLinearCombination(PointerArithmetic &PA) {
 }
 
 std::optional<PointerArithmetic>
-computePointerArithmetic(mlir::clift::ExpressionOpInterface PointerToReplace) {
+computePointerArithmetic(clift::ExpressionOpInterface PointerToReplace) {
   auto Impl = PointerArithmeticBuilder();
   return Impl.computePointerArithmetic(PointerToReplace);
 }

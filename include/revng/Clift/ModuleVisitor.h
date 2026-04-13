@@ -9,7 +9,7 @@
 #include "revng/ADT/ScopedExchange.h"
 #include "revng/Clift/Clift.h"
 
-namespace mlir::clift {
+namespace clift {
 
 /// CRTP base class for ModuleOp visitation. The derived class must inherit from
 /// this class template publicly. This class invokes a number of customization
@@ -183,7 +183,7 @@ private:
         return mlir::failure();
     }
 
-    const auto Visitor = [&](Operation *NestedOp) -> mlir::WalkResult {
+    const auto Visitor = [&](mlir::Operation *NestedOp) -> mlir::WalkResult {
       if (NestedOp == Op)
         return mlir::success();
 
@@ -226,4 +226,4 @@ private:
   llvm::SmallPtrSet<mlir::Attribute, 32> VisitedAttrs;
 };
 
-} // namespace mlir::clift
+} // namespace clift

@@ -13,7 +13,7 @@
 #include "revng/Clift/CliftOpTraits.h"
 #include "revng/Clift/CliftTypes.h"
 
-namespace mlir::clift {
+namespace clift {
 
 class LabelAssignmentOpInterface;
 class StatementRegionOpInterface;
@@ -92,7 +92,7 @@ struct ExpressionRegionRange
   static mlir::Region &dereference(mlir::Operation *Op, ptrdiff_t Index);
 };
 
-} // namespace mlir::clift
+} // namespace clift
 
 // Prevent reordering:
 #include "revng/Clift/CliftOpInterfacesBasic.h.inc"
@@ -105,7 +105,7 @@ struct ExpressionRegionRange
 // Prevent reordering:
 #include "revng/Clift/CliftOpInterfacesExpr.h.inc"
 
-namespace mlir::clift {
+namespace clift {
 
 inline mlir::Region &StatementRegionRange::dereference(mlir::Operation *Op,
                                                        ptrdiff_t Index) {
@@ -125,4 +125,4 @@ inline mlir::Region &ExpressionRegionRange::dereference(mlir::Operation *Op,
 
 bool isLvalueExpression(mlir::Value Value);
 
-} // namespace mlir::clift
+} // namespace clift

@@ -43,7 +43,7 @@ public:
       //
       // As such, it's not worth fixing it at this point: we can live with
       // a bunch of unnecessary invalidations until we drop the old pipeline.
-      mlir::clift::importDescriptiveInfo(Function, Model, Module);
+      clift::importDescriptiveInfo(Function, Model, Module);
     }
   }
 };
@@ -67,8 +67,8 @@ public:
 
   void run(pipeline::ExecutionContext &EC,
            revng::pipes::CliftContainer &CliftContainer) {
-    mlir::clift::importDescriptiveInfo(*revng::getModelFromContext(EC),
-                                       CliftContainer.getModule());
+    clift::importDescriptiveInfo(*revng::getModelFromContext(EC),
+                                 CliftContainer.getModule());
 
     EC.commitUniqueTarget(CliftContainer);
   }
@@ -84,13 +84,12 @@ namespace revng::pypeline::piperuns {
 
 using IFMN = ImportDescriptiveFunctionInfo;
 void IFMN::runOnCliftFunction(const model::Function &Function,
-                              mlir::clift::FunctionOp MLIR) {
-  mlir::clift::importDescriptiveInfo(Binary,
-                                     MLIR->getParentOfType<mlir::ModuleOp>());
+                              clift::FunctionOp MLIR) {
+  clift::importDescriptiveInfo(Binary, MLIR->getParentOfType<mlir::ModuleOp>());
 }
 
 void ImportDescriptiveInfo::run() {
-  mlir::clift::importDescriptiveInfo(Binary, TypesAndGlobals.getModule());
+  clift::importDescriptiveInfo(Binary, TypesAndGlobals.getModule());
 }
 
 } // namespace revng::pypeline::piperuns

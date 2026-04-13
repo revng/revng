@@ -13,7 +13,7 @@
 
 static bool Initialized = ([]() {
   mlir::registerTransformsPasses();
-  mlir::clift::registerCliftPasses();
+  clift::registerCliftPasses();
   return true;
 })();
 
@@ -102,7 +102,7 @@ PipeOutput PureMLIRPassesPipe::run(const Model &TheModel,
                                    const revng::pypeline::Request &Outgoing,
                                    llvm::StringRef Configuration,
                                    CliftFunctionContainer &Container) {
-  using namespace mlir::clift;
+  using namespace clift;
   llvm::Task T(Outgoing[0].size(), TaskName);
   mlir::PassManager PM(&Container.getContext(), FunctionOp::getOperationName());
   auto ErrorHandler = [&](const llvm::Twine &Msg) {

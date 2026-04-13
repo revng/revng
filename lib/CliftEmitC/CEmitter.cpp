@@ -10,20 +10,19 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
-namespace clift = mlir::clift;
-using namespace mlir::clift;
+using namespace clift;
 
 ptml::CTokenEmitter::EntityKind
-CEmitter::chooseEntityKind(mlir::clift::DefinedType Type) {
-  if (mlir::isa<mlir::clift::FunctionType>(Type))
+CEmitter::chooseEntityKind(clift::DefinedType Type) {
+  if (mlir::isa<clift::FunctionType>(Type))
     return ptml::CTokenEmitter::EntityKind::Function;
-  else if (mlir::isa<mlir::clift::StructType>(Type))
+  else if (mlir::isa<clift::StructType>(Type))
     return ptml::CTokenEmitter::EntityKind::Struct;
-  else if (mlir::isa<mlir::clift::UnionType>(Type))
+  else if (mlir::isa<clift::UnionType>(Type))
     return ptml::CTokenEmitter::EntityKind::Union;
-  else if (mlir::isa<mlir::clift::EnumType>(Type))
+  else if (mlir::isa<clift::EnumType>(Type))
     return ptml::CTokenEmitter::EntityKind::Enum;
-  else if (mlir::isa<mlir::clift::TypedefType>(Type))
+  else if (mlir::isa<clift::TypedefType>(Type))
     return ptml::CTokenEmitter::EntityKind::Typedef;
   else
     revng_abort("Unsupported defined type");
@@ -361,7 +360,7 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
         Tokens.emitSpace();
       }
 
-      if (auto Id = mlir::dyn_cast<mlir::clift::CIdentifierAttr>(A)) {
+      if (auto Id = mlir::dyn_cast<clift::CIdentifierAttr>(A)) {
         Tokens.emitIdentifier(Id.getName(),
                               Id.getHandle(),
                               CTE::EntityKind::AttributeArgument,
@@ -400,7 +399,7 @@ void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
     else
       Tokens.emitSpace();
 
-    emitCAttribute(mlir::cast<mlir::clift::CAttributeAttr>(Attribute));
+    emitCAttribute(mlir::cast<clift::CAttributeAttr>(Attribute));
   }
 
   if (SpaceAfter)
@@ -440,7 +439,7 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
   }
 
   emitDeclaration(Op.getFunctionType(),
-                  mlir::clift::CEmitter::DeclaratorInfo{
+                  clift::CEmitter::DeclaratorInfo{
                     .Identifier = Op.getName(),
                     .Location = Op.getHandle(),
                     .CAttributes = getDeclarationOpCAttributes(Op),
