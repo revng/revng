@@ -272,7 +272,7 @@ inline mlir::OpOperand *getOnlyUse(mlir::Value Value) {
 template<typename OpT = mlir::Operation *>
 OpT getOnlyUser(mlir::Value Value) {
   if (mlir::OpOperand *Operand = getOnlyUse(Value)) {
-    if constexpr (std::is_same_v<Operation, mlir::Operation *>) {
+    if constexpr (std::is_same_v<OpT, mlir::Operation *>) {
       return Operand->getOwner();
     } else {
       return mlir::dyn_cast<OpT>(Operand->getOwner());
