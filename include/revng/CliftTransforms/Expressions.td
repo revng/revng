@@ -140,4 +140,12 @@ def DirectAccessPattern
         (Clift_AccessOp $arg, (NativeCodeCall<"mlir::UnitAttr(nullptr)">), $member_index),
         [(Constraint<CPred<"not $0">> $indirect)]>;
 
+// x[0] -> *x
+// Constraint: the subscript index is a constant zero.
+def SubscriptZeroPattern
+  : Pat<(Clift_SubscriptOp $ptr, (Clift_ImmediateOp $value)),
+        (Clift_IndirectionOp $ptr),
+        [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
+
+
 #endif
