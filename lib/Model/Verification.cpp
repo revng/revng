@@ -2,10 +2,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <tuple>
+
 #include "llvm/ADT/SmallSet.h"
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Model/NamingConfiguration.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/Configuration.h"
 #include "revng/Support/Error.h"
@@ -794,66 +797,27 @@ bool Binary::verifyTypeDefinitions(VerifyHelper &VH) const {
 //
 
 bool Configuration::verify(VerifyHelper &VH) const {
-  // TODO: as this helper grows, split it up.
+  using TT = TupleLikeTraits<model::NamingConfiguration>;
+  return compile_time::repeatAnd<std::tuple_size_v<TT::tuple>>([&VH]<size_t I> {
+    using Current = std::tuple_element_t<I, TT::tuple>;
 
-  // These checks are not necessary for now since the can't return an empty
-  // string but they will be needed after the have a way to specify the default
-  // value of a TTG field (since the default value helpers will go away).
-  //
-  // As such, let's add them now so that they don't end up forgotten.
+    if constexpr (size_t(TT::Fields::UnnamedTypeDefinitionPrefix) == I) {
+      // This is the only field we explicitly allow to be empty.
+      return true;
 
-  if (Configuration().Naming().UnnamedSegmentPrefix().empty())
-    return VH.fail("Segment prefix must not be empty.");
+    } else if constexpr (not std::is_same_v<Current, std::string>) {
+      // Do not check non-string fields.
+      return true;
 
-  if (Configuration().Naming().UnnamedFunctionPrefix().empty())
-    return VH.fail("Function prefix must not be empty.");
+    } else if (not model::get<I>(Configuration().Naming()).empty()) {
+      // The value is not empty, we're good.
+      return true;
 
-  if (Configuration().Naming().UnnamedDynamicFunctionPrefix().empty())
-    return VH.fail("Dynamic function prefix must not be empty.");
-
-  // `UnnamedTypeDefinitionPrefix` can be empty.
-
-  if (Configuration().Naming().UnnamedEnumEntryPrefix().empty())
-    return VH.fail("Enum entry prefix must not be empty.");
-
-  if (Configuration().Naming().UnnamedStructFieldPrefix().empty())
-    return VH.fail("Struct field prefix must not be empty.");
-
-  if (Configuration().Naming().UnnamedUnionFieldPrefix().empty())
-    return VH.fail("Union field prefix must not be empty.");
-
-  if (Configuration().Naming().UnnamedFunctionArgumentPrefix().empty())
-    return VH.fail("Argument prefix must not be empty.");
-
-  if (Configuration().Naming().UnnamedFunctionRegisterPrefix().empty())
-    return VH.fail("Register prefix must not be empty.");
-
-  if (Configuration().Naming().UnnamedLocalVariablePrefix().empty())
-    return VH.fail("Local variable prefix must not be empty.");
-  if (Configuration().Naming().UnnamedBreakFromLoopVariablePrefix().empty())
-    return VH.fail("\"Break from loop\" variable prefix must not be empty.");
-  if (Configuration().Naming().UnnamedGotoLabelPrefix().empty())
-    return VH.fail("Goto label prefix must not be empty.");
-
-  if (Configuration().Naming().StructPaddingPrefix().empty())
-    return VH.fail("Padding prefix must not be empty.");
-
-  if (Configuration().Naming().OpaqueCSVValuePrefix().empty())
-    return VH.fail("Opaque CSV prefix must not be empty.");
-  if (Configuration().Naming().MaximumEnumValuePrefix().empty())
-    return VH.fail("Maximum enum value prefix must not be empty.");
-
-  if (Configuration().Naming().UnnamedStackFrameVariableName().empty())
-    return VH.fail("Stack frame variable name must not be empty.");
-  if (Configuration().Naming().RawStackArgumentName().empty())
-    return VH.fail("Raw stack argument name must not be empty.");
-  if (Configuration().Naming().LoopStateVariableName().empty())
-    return VH.fail("Loop state variable name must not be empty.");
-
-  if (Configuration().Naming().ArtificialReturnValuePrefix().empty())
-    return VH.fail("Artificial return value prefix must not be empty.");
-
-  return true;
+    } else {
+      return VH.fail("`NamingConfiguration::" + TT::FieldNames[I]
+                     + "` field must not be empty.");
+    }
+  });
 }
 
 //
