@@ -84,7 +84,10 @@ clift::PassPtr<mlir::ModuleOp> clift::createEmitTypeAndGlobalHeaderPass() {
       .ExplicitPadding = true,
     };
 
-    emitTypeAndGlobalHeader(Tokens, Module, Configuration);
+    emitTypeAndGlobalHeader(Tokens,
+                            Module,
+                            Configuration,
+                            /* DefineOpaqueTypes = */ true);
     return true;
   };
 
