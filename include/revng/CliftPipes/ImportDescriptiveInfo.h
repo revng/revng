@@ -28,7 +28,7 @@ public:
     CliftFunctionMixin(ModuleContainer), Binary(*Model.get().get()) {}
 
   void runOnCliftFunction(const model::Function &Function,
-                          mlir::clift::FunctionOp MLIRFunction);
+                          clift::FunctionOp MLIRFunction);
 };
 
 class ImportDescriptiveInfo {

@@ -18,9 +18,6 @@
 
 inline Logger TypePrinterLog{ "clift-type-definition-printer" };
 
-namespace clift = mlir::clift;
-using TypeDefinitionEmitter = TypeDefinitionEmitter;
-
 void TypeDefinitionEmitter::emitTypeKeyword(clift::DefinedType Type) {
   if (mlir::isa<clift::StructType>(Type))
     Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Struct);
@@ -235,7 +232,7 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
       Tokens.emitNewline();
 
       PreviousOffset = Field.getOffset()
-                       + mlir::clift::getObjectSize(Field.getType());
+                       + clift::getObjectSize(Field.getType());
     }
   }
 

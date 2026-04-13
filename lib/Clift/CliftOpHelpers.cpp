@@ -4,7 +4,6 @@
 
 #include "revng/Clift/CliftOpHelpers.h"
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 template<auto TestOperand>

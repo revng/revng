@@ -14,7 +14,6 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
-namespace clift = mlir::clift;
 namespace ranks = revng::ranks;
 
 namespace {
@@ -131,8 +130,8 @@ private:
                                 "argument. See '"
                              << Type.getHandle() << "'";
 
-            using CIA = mlir::clift::CIdentifierAttr;
-            auto Identifier = mlir::dyn_cast<CIA>(Arguments[0]);
+            using clift::CIdentifierAttr;
+            auto Identifier = mlir::dyn_cast<CIdentifierAttr>(Arguments[0]);
             if (not Identifier)
               return error() << "`_ABI` attribute argument must be "
                                 "an identifier. See '"
@@ -292,7 +291,7 @@ private:
       bool IsStack = false;
       bool IsRegister = false;
 
-      mlir::clift::AttrDictView View = Op.getArgAttrs(Index);
+      clift::AttrDictView View = Op.getArgAttrs(Index);
       auto Handle = View.getStringOrEmpty("clift.handle");
       if (Handle.empty())
         Handle = "(a no-handle argument)";
@@ -364,8 +363,8 @@ private:
                                 "argument. See '"
                              << Handle << "' of '" << Op.getHandle() << "'";
 
-            using CIA = mlir::clift::CIdentifierAttr;
-            auto Identifier = mlir::dyn_cast<CIA>(Arguments[0]);
+            using clift::CIdentifierAttr;
+            auto Identifier = mlir::dyn_cast<CIdentifierAttr>(Arguments[0]);
             if (not Identifier)
               return error() << "`_REG` attribute argument must be "
                                 "an identifier. See '"

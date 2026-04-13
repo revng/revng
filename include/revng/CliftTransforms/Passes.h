@@ -9,7 +9,7 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Support/CTarget.h"
 
-namespace mlir::clift {
+namespace clift {
 
 template<typename OpT>
 using PassPtr = std::unique_ptr<mlir::OperationPass<OpT>>;
@@ -43,4 +43,4 @@ PassPtr<mlir::ModuleOp> createEmitHelperHeaderPass();
 #define GEN_PASS_REGISTRATION
 #include "revng/CliftTransforms/Passes.h.inc"
 
-} // namespace mlir::clift
+} // namespace clift

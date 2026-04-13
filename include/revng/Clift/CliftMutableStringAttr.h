@@ -8,17 +8,17 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
 
-namespace mlir::clift {
+namespace clift {
 
 class MutableStringAttrStorage;
 
 template<typename AttrT>
-using MutableStringAttrBase = Attribute::AttrBase<
+using MutableStringAttrBase = mlir::Attribute::AttrBase<
   AttrT,
-  Attribute,
+  mlir::Attribute,
   MutableStringAttrStorage,
-  AttributeTrait::IsMutable,
-  SubElementAttrInterface::Trait>;
+  mlir::AttributeTrait::IsMutable,
+  mlir::SubElementAttrInterface::Trait>;
 
 // Pair-like attribute containing an arbitrary attribute used as key and a
 // string value. Only the key participates in hashing and comparison, while the
@@ -44,10 +44,13 @@ public:
   llvm::StringRef getValue() const;
   void setValue(llvm::StringRef Value);
 
-  void walkImmediateSubElements(llvm::function_ref<void(Attribute)> WalkAttrs,
-                                llvm::function_ref<void(Type)> WalkTypes) const;
-  Attribute replaceImmediateSubElements(llvm::ArrayRef<Attribute> NewAttrs,
-                                        llvm::ArrayRef<Type> NewTypes) const;
+  void
+  walkImmediateSubElements(llvm::function_ref<void(mlir::Attribute)> WalkAttrs,
+                           llvm::function_ref<void(mlir::Type)> WalkTypes)
+    const;
+  mlir::Attribute
+  replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute> NewAttrs,
+                              llvm::ArrayRef<mlir::Type> NewTypes) const;
 };
 
-} // namespace mlir::clift
+} // namespace clift

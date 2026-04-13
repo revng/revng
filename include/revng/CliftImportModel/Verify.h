@@ -8,9 +8,9 @@
 
 #include "revng/Model/Binary.h"
 
-namespace mlir::clift {
+namespace clift {
 
 mlir::LogicalResult verifyAgainstModel(mlir::ModuleOp Module,
                                        const model::Binary &Model);
 
-} // namespace mlir::clift
+} // namespace clift

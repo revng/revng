@@ -15,16 +15,12 @@
 #include "revng/CliftTransforms/Passes.h"
 #include "revng/Support/Debug.h"
 
-namespace mlir {
 namespace clift {
 #define GEN_PASS_DEF_CLIFTEMITC
 #define GEN_PASS_DEF_CLIFTEMITTYPEANDGLOBALHEADER
 #define GEN_PASS_DEF_CLIFTEMITHELPERHEADER
 #include "revng/CliftTransforms/Passes.h.inc"
 } // namespace clift
-} // namespace mlir
-
-namespace clift = mlir::clift;
 
 namespace {
 
@@ -77,7 +73,7 @@ clift::PassPtr<mlir::ModuleOp> clift::createEmitCPass() {
 }
 
 template<typename T>
-using TaGHBase = mlir::clift::impl::CliftEmitTypeAndGlobalHeaderBase<T>;
+using TaGHBase = clift::impl::CliftEmitTypeAndGlobalHeaderBase<T>;
 
 clift::PassPtr<mlir::ModuleOp> clift::createEmitTypeAndGlobalHeaderPass() {
   static constexpr auto Impl = [](mlir::ModuleOp Module,
@@ -100,7 +96,7 @@ clift::PassPtr<mlir::ModuleOp> clift::createEmitTypeAndGlobalHeaderPass() {
 }
 
 template<typename T>
-using HHBase = mlir::clift::impl::CliftEmitHelperHeaderBase<T>;
+using HHBase = clift::impl::CliftEmitHelperHeaderBase<T>;
 
 clift::PassPtr<mlir::ModuleOp> clift::createEmitHelperHeaderPass() {
   static constexpr auto Impl = [](mlir::ModuleOp Module,

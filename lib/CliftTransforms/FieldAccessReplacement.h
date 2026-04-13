@@ -11,6 +11,6 @@
 /// (`PointerToReplace`), with operations equivalent to the `BestTraversal`.
 /// Returns `true` if a type was propagated through an `indirection`, signaling
 /// that a subsequent EFA pass may find new rewriting opportunities.
-bool replaceFieldAccess(mlir::clift::ExpressionOpInterface PointerToReplace,
+bool replaceFieldAccess(clift::ExpressionOpInterface PointerToReplace,
                         const PointerArithmetic &Arithmetic,
                         const Traversal &BestTraversal);

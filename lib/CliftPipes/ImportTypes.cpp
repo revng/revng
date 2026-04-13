@@ -28,10 +28,10 @@ public:
   void run(pipeline::ExecutionContext &EC,
            revng::pipes::CliftContainer &CliftContainer) {
     mlir::MLIRContext *Context = CliftContainer.getContext();
-    Context->loadDialect<mlir::clift::CliftDialect>();
+    Context->loadDialect<clift::CliftDialect>();
 
-    mlir::clift::importAllModelTypes(*revng::getModelFromContext(EC),
-                                     CliftContainer.getModule());
+    clift::importAllModelTypes(*revng::getModelFromContext(EC),
+                               CliftContainer.getModule());
 
     EC.commitAllFor(CliftContainer);
   }

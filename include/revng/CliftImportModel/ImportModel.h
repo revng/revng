@@ -13,7 +13,7 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Model/Binary.h"
 
-namespace mlir::clift {
+namespace clift {
 
 /// Convert the specified unqualified model type to a Clift type in the
 /// specified context.
@@ -63,4 +63,4 @@ void importDescriptiveInfo(const model::Function &Function,
                            const model::Binary &Model,
                            mlir::ModuleOp Module);
 
-} // namespace mlir::clift
+} // namespace clift

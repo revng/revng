@@ -7,7 +7,7 @@
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftTransforms/PatternRewriter.h"
 
-namespace mlir::clift {
+namespace clift {
 
 inline IntegerType getBooleanType(mlir::MLIRContext *Context) {
   return IntegerType::get(Context, IntegerKind::Signed, /*Size=*/1);
@@ -19,7 +19,8 @@ inline IntegerType getBooleanType(mlir::MLIRContext *Context) {
 /// with the expression tree root value of \p Region.
 void transformExpression(mlir::PatternRewriter &Rewriter,
                          mlir::Region &Region,
-                         llvm::function_ref<Value(Value)> Transform);
+                         llvm::function_ref<mlir::Value(mlir::Value)>
+                           Transform);
 
 /// Move the expression tree from \p SourceRegion into \p TargetRegion and
 /// merge the two expressions together into a single expression at the root of
@@ -31,7 +32,8 @@ void transformExpression(mlir::PatternRewriter &Rewriter,
 void mergeExpressionInto(mlir::PatternRewriter &Rewriter,
                          mlir::Region &SourceRegion,
                          mlir::Region &TargetRegion,
-                         llvm::function_ref<Value(Value, Value)> Merge);
+                         llvm::function_ref<mlir::Value(mlir::Value,
+                                                        mlir::Value)> Merge);
 
 /// Returns true if the condition described the specified region is a non-zero
 /// ImmediateOp.
@@ -51,4 +53,4 @@ void invertIfStatement(mlir::PatternRewriter &Rewriter, IfOp If);
 /// loop is encountered.
 BlockPosition getFallthroughTarget(BlockPosition Position);
 
-} // namespace mlir::clift
+} // namespace clift

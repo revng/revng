@@ -132,6 +132,6 @@ mlir::Type deriveBaseType(mlir::Value BasePointer);
 /// Main entry point used to compute the `BestTraversal` from an `Expression`
 /// and PointerArithmetic`.
 std::optional<Traversal>
-computeBestTraversal(mlir::clift::ExpressionOpInterface PointerToReplace,
+computeBestTraversal(clift::ExpressionOpInterface PointerToReplace,
                      const PointerArithmetic &Arithmetic,
                      TraversalInfoMap &Data);

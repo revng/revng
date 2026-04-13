@@ -20,8 +20,6 @@
 
 namespace {
 
-namespace clift = mlir::clift;
-
 template<typename Attribute>
 using AttributeVector = llvm::SmallVector<Attribute, 16>;
 
@@ -270,7 +268,7 @@ private:
     auto Handle = Location.transmute(revng::ranks::ArtificialStruct).toString();
     auto NameAttr = makeNameAttr<clift::StructAttr>(Handle);
     auto CommentAttr = makeCommentAttr<clift::StructAttr>(Handle);
-    llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes = {};
+    llvm::ArrayRef<clift::CAttributeAttr> CAttributes = {};
     auto Attr = make<clift::StructAttr>(llvm::StringRef(Handle),
                                         NameAttr,
                                         CommentAttr,
@@ -350,7 +348,7 @@ private:
     auto Handle = getHandle(ModelType);
     auto NameAttr = makeNameAttr<clift::FunctionType>(Handle);
     auto CommentAttr = makeCommentAttr<clift::FunctionType>(Handle);
-    llvm::ArrayRef<mlir::clift::CAttributeAttr> AttributeArray = {};
+    llvm::ArrayRef<clift::CAttributeAttr> AttributeArray = {};
     rc_return make<clift::FunctionType>(llvm::StringRef(Handle),
                                         NameAttr,
                                         CommentAttr,
@@ -506,7 +504,7 @@ private:
     auto Handle = Location.toString();
     auto NameAttr = makeNameAttr<clift::UnionAttr>(Handle);
     auto CommentAttr = makeCommentAttr<clift::UnionAttr>(Handle);
-    llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes = {};
+    llvm::ArrayRef<clift::CAttributeAttr> CAttributes = {};
     auto Attr = make<clift::UnionAttr>(llvm::StringRef(Handle),
                                        NameAttr,
                                        CommentAttr,

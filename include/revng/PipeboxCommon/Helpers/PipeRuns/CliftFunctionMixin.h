@@ -13,7 +13,7 @@ template<typename T>
 concept HasRunOnCliftFunctionFunction = requires(T &PipeRun,
                                                  const model::Function
                                                    &Function,
-                                                 mlir::clift::FunctionOp
+                                                 clift::FunctionOp
                                                    MLIRFunction) {
   { PipeRun.runOnCliftFunction(Function, MLIRFunction) } -> std::same_as<void>;
 };
@@ -32,7 +32,7 @@ public:
 
   void runOnFunction(const model::Function &Function) {
     static_assert(HasRunOnCliftFunctionFunction<Derived>);
-    using namespace mlir::clift;
+    using namespace clift;
     mlir::ModuleOp Module = ModuleContainer
                               .getModule(ObjectID(Function.Entry()));
     FunctionOp MLIRFunction = getUniqueIsolatedFunction(Module,

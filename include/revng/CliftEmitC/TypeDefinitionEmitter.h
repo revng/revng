@@ -25,33 +25,30 @@ public:
     CEmitter(PTML, Target), Context(&Context), Configuration(Configuration) {}
 
 private:
-  void emitTypeKeyword(mlir::clift::DefinedType Type);
+  void emitTypeKeyword(clift::DefinedType Type);
   void emitDeclarationTypedef(mlir::MLIRContext &Context,
-                              mlir::clift::DefinedType Type);
+                              clift::DefinedType Type);
   void emitPaddingField(mlir::MLIRContext &Context,
                         uint64_t CurrentOffset,
                         uint64_t NextOffset);
 
 public:
   void emitForwardDeclaration(mlir::MLIRContext &Context,
-                              mlir::clift::DefinedType Type) {
+                              clift::DefinedType Type) {
     revng_assert(isSeparateDeclarationAllowed(Type));
 
     emitDeclarationTypedef(Context, Type);
   }
 
-  void emitTypedefDefinition(mlir::clift::TypedefType Typedef);
-  void emitFunctionTypedef(mlir::clift::FunctionType Function);
-  void emitTypeDeclaration(mlir::MLIRContext &Context,
-                           mlir::clift::DefinedType Type);
+  void emitTypedefDefinition(clift::TypedefType Typedef);
+  void emitFunctionTypedef(clift::FunctionType Function);
+  void emitTypeDeclaration(mlir::MLIRContext &Context, clift::DefinedType Type);
 
 public:
   void emitClassDefinition(mlir::MLIRContext &Context,
-                           mlir::clift::ClassType StructOrUnion);
-  void emitEnumDefinition(mlir::MLIRContext &Context,
-                          mlir::clift::EnumType Enum);
-  void emitTypeDefinition(mlir::MLIRContext &Context,
-                          mlir::clift::DefinedType Type);
+                           clift::ClassType StructOrUnion);
+  void emitEnumDefinition(mlir::MLIRContext &Context, clift::EnumType Enum);
+  void emitTypeDefinition(mlir::MLIRContext &Context, clift::DefinedType Type);
 
 private:
   using NodeSet = std::unordered_set<const TypeDependencyNode *>;

@@ -21,10 +21,10 @@ static constexpr char ToolName[] = "Standalone optimizer driver\n";
 int main(int Argc, char *Argv[]) {
   mlir::DialectRegistry Registry;
 
-  Registry.insert<mlir::clift::CliftDialect>();
+  Registry.insert<clift::CliftDialect>();
 
   mlir::registerTransformsPasses();
-  mlir::clift::registerCliftPasses();
+  clift::registerCliftPasses();
 
   using mlir::asMainReturnCode;
   using mlir::MlirOptMain;

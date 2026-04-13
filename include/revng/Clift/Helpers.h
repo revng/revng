@@ -11,7 +11,7 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/MetaAddress.h"
 
-namespace mlir::clift {
+namespace clift {
 
 inline MetaAddress getMetaAddress(clift::FunctionOp F) {
   if (auto L = pipeline::locationFromString(revng::ranks::Function,
@@ -50,4 +50,4 @@ getUniqueIsolatedFunction(ConstOrNot<mlir::ModuleOp> auto Module,
   return *FoundFunction;
 }
 
-} // namespace mlir::clift
+} // namespace clift

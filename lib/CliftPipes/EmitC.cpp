@@ -15,7 +15,6 @@
 #include "revng/Pipes/Kinds.h"
 
 using namespace revng;
-namespace clift = mlir::clift;
 
 namespace {
 
@@ -87,7 +86,7 @@ EmitC::EmitC(const Model &Model,
 }
 
 void EmitC::runOnFunction(const model::Function &Function) {
-  using namespace mlir::clift;
+  using namespace clift;
 
   const auto &Target = TargetCImplementation::Default;
   ObjectID Object(Function.Entry());

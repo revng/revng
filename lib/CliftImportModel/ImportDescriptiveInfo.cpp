@@ -20,7 +20,6 @@
 #include "revng/PTML/CommentPlacementHelper.h"
 #include "revng/Support/Identifier.h"
 
-namespace clift = mlir::clift;
 namespace rr = revng::ranks;
 
 namespace {

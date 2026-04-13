@@ -9,14 +9,11 @@
 #include "revng/CliftTransforms/Legalization.h"
 #include "revng/CliftTransforms/Passes.h"
 
-namespace mlir {
 namespace clift {
 #define GEN_PASS_DEF_CLIFTCLEGALIZATION
 #include "revng/CliftTransforms/Passes.h.inc"
 } // namespace clift
-} // namespace mlir
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 namespace {
@@ -255,12 +252,12 @@ struct ResizeDecayCastPattern : PointerResizePattern<clift::DecayOp> {
 };
 
 struct BooleanCanonicalizationPattern
-  : mlir::OpTraitRewritePattern<mlir::OpTrait::clift::ReturnsBoolean> {
+  : mlir::OpTraitRewritePattern<clift::ReturnsBoolean> {
   IntegerType IntType;
 
   explicit BooleanCanonicalizationPattern(mlir::MLIRContext *Context,
                                           const TargetInfo &Target) :
-    mlir::OpTraitRewritePattern<mlir::OpTrait::clift::ReturnsBoolean>(Context),
+    mlir::OpTraitRewritePattern<clift::ReturnsBoolean>(Context),
     IntType(Target.IntType) {}
 
   mlir::LogicalResult

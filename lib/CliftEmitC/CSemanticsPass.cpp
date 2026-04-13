@@ -7,14 +7,10 @@
 #include "revng/CliftEmitC/CSemantics.h"
 #include "revng/CliftTransforms/Passes.h"
 
-namespace mlir {
 namespace clift {
 #define GEN_PASS_DEF_CLIFTVERIFYC
 #include "revng/CliftTransforms/Passes.h.inc"
 } // namespace clift
-} // namespace mlir
-
-namespace clift = mlir::clift;
 
 namespace {
 

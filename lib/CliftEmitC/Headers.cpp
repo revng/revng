@@ -90,7 +90,7 @@ private:
     CEmitter Emitter(Tokens, Target);
 
     bool CommentEmitted = false;
-    Module->walk([&](mlir::clift::FunctionOp Function) {
+    Module->walk([&](clift::FunctionOp Function) {
       if (pipeline::locationFromString(Rank, Function.getHandle())) {
         if (not CommentEmitted) {
           Emitter.emitCategoryComment(CategoryComment);
@@ -123,7 +123,7 @@ public:
     bool CommentEmitted = false;
     Module->walk([this,
                   &Emitter,
-                  &CommentEmitted](mlir::clift::GlobalVariableOp Segment) {
+                  &CommentEmitted](clift::GlobalVariableOp Segment) {
       auto MaybeLocation = pipeline::locationFromString(revng::ranks::Segment,
                                                         Segment.getHandle());
       revng_assert(MaybeLocation.has_value());
@@ -179,7 +179,7 @@ public:
       Module->walk([this,
                     &Emitter,
                     &CommentEmitted,
-                    &EmittedFunctions](mlir::clift::FunctionOp Function) {
+                    &EmittedFunctions](clift::FunctionOp Function) {
         if (EmittedFunctions.contains(Function.getHandle()))
           return;
 

@@ -21,7 +21,7 @@
 #define GET_TYPEDEF_CLASSES
 #include "revng/Clift/CliftTypes.h.inc"
 
-namespace mlir::clift {
+namespace clift {
 
 //===------------------------------ Typedefs ------------------------------===//
 
@@ -213,4 +213,4 @@ bool isCallableType(mlir::Type Type);
 /// function type, returns that function type.
 FunctionType getFunctionOrFunctionPointerFunctionType(mlir::Type Type);
 
-} // namespace mlir::clift
+} // namespace clift

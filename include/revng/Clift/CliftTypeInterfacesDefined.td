@@ -25,7 +25,7 @@ def Clift_DefinedType : Clift_TypeInterface<"DefinedType",
     >,
     InterfaceMethod<
       "Returns the mutable name attribute of the DefinedType.",
-      "mlir::clift::MutableStringAttr", "getMutableName", (ins),
+      "clift::MutableStringAttr", "getMutableName", (ins),
       /*methodBody=*/[{}],
       /*defaultImplemetation=*/[{
         return $_type.getDefinition().getMutableName();
@@ -41,7 +41,7 @@ def Clift_DefinedType : Clift_TypeInterface<"DefinedType",
     >,
     InterfaceMethod<
       "Returns the mutable comment attribute attached to the DefinedType.",
-      "mlir::clift::MutableStringAttr", "getMutableComment", (ins),
+      "clift::MutableStringAttr", "getMutableComment", (ins),
       /*methodBody=*/[{}],
       /*defaultImplemetation=*/[{
         return $_type.getDefinition().getMutableComment();

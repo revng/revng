@@ -9,7 +9,7 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Model/Binary.h"
 
-namespace mlir::clift {
+namespace clift {
 
 class Clifter {
 public:
@@ -26,4 +26,4 @@ protected:
   Clifter &operator=(const Clifter &) = default;
 };
 
-} // namespace mlir::clift
+} // namespace clift

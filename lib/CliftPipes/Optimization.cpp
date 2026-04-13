@@ -14,7 +14,6 @@
 #include "revng/Pipes/Kinds.h"
 
 using namespace revng;
-namespace clift = mlir::clift;
 
 namespace {
 

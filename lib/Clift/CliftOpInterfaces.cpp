@@ -5,8 +5,6 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftOpInterfaces.h"
 
-namespace mlir {
-
 // Prevent reordering:
 #include "revng/Clift/CliftOpInterfacesBasic.cpp.inc"
 // Prevent reordering:
@@ -18,9 +16,6 @@ namespace mlir {
 // Prevent reordering:
 #include "revng/Clift/CliftOpInterfacesExpr.cpp.inc"
 
-} // namespace mlir
-
-namespace clift = mlir::clift;
 using namespace clift;
 
 LabelAssignmentOpInterface
@@ -30,7 +25,7 @@ clift::impl::getLabelAssignmentOp(mlir::Value Label) {
 
 bool clift::isLvalueExpression(mlir::Value Value) {
   if (auto Argument = mlir::dyn_cast<mlir::BlockArgument>(Value)) {
-    Block *B = Argument.getOwner();
+    mlir::Block *B = Argument.getOwner();
     if (B == nullptr)
       return false;
 

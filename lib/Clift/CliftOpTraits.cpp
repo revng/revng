@@ -5,9 +5,8 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftOpTraits.h"
 
-namespace traits_impl = mlir::OpTrait::clift::impl;
+namespace traits_impl = clift::impl;
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 mlir::LogicalResult
@@ -23,7 +22,7 @@ traits_impl::verifyNoFallthroughTrait(mlir::Operation *const Op) {
 
 mlir::LogicalResult
 traits_impl::verifyAssignsLoopLabelsTrait(mlir::Operation *const Op) {
-  constexpr auto AttrName = mlir::clift::impl::LoopLabelMaskAttrName;
+  constexpr auto AttrName = impl::LoopLabelMaskAttrName;
   auto LabelMaskAttr = Op->getAttrOfType<mlir::IntegerAttr>(AttrName);
   revng_assert(LabelMaskAttr);
 

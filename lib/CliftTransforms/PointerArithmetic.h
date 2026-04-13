@@ -75,4 +75,4 @@ struct PointerArithmetic {
 
 /// `PointerArithmetic` computation function entrypoint
 std::optional<PointerArithmetic>
-computePointerArithmetic(mlir::clift::ExpressionOpInterface PointerToReplace);
+computePointerArithmetic(clift::ExpressionOpInterface PointerToReplace);

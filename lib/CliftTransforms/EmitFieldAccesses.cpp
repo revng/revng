@@ -17,14 +17,11 @@
 #include "FieldAccessReplacement.h"
 #include "PointerArithmetic.h"
 
-namespace mlir {
 namespace clift {
 #define GEN_PASS_DEF_CLIFTEMITFIELDACCESSES
 #include "revng/CliftTransforms/Passes.h.inc"
 } // namespace clift
-} // namespace mlir
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 namespace {

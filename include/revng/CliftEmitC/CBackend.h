@@ -11,6 +11,6 @@
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Support/CTarget.h"
 
-void decompile(mlir::clift::FunctionOp Function,
+void decompile(clift::FunctionOp Function,
                ptml::CTokenEmitter &Emitter,
                const TargetCImplementation &Target);

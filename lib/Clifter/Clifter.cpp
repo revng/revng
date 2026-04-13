@@ -23,7 +23,6 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/Identifier.h"
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 namespace {
@@ -838,7 +837,7 @@ private:
     auto CommentAttr = makeCommentAttr<clift::FunctionType>(Context, Handle);
 
     // TODO: should we add something explicitly identifying this as a helper?
-    llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes = {};
+    llvm::ArrayRef<clift::CAttributeAttr> Attributes = {};
 
     auto FunctionType = clift::FunctionType::get(Context,
                                                  Handle,

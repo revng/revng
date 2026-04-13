@@ -48,7 +48,7 @@ def Clift_CIdentifierAttr : Clift_Attr<"CIdentifier",
 def Clift_CAttributeAttr : Clift_Attr<"CAttribute",
                                       "c_attribute",
                                       [SubElementAttrInterface]> {
-  let parameters = (ins "mlir::clift::CIdentifierAttr":$name,
+  let parameters = (ins "clift::CIdentifierAttr":$name,
                         "mlir::ArrayAttr":$arguments);
 
   let hasCustomAssemblyFormat = 1;
@@ -67,8 +67,8 @@ def Clift_FieldAttr
   }];
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        "mlir::clift::MutableStringAttr":$mutable_name,
-                        "mlir::clift::MutableStringAttr":$mutable_comment,
+                        "clift::MutableStringAttr":$mutable_name,
+                        "clift::MutableStringAttr":$mutable_comment,
                         "uint64_t":$offset,
                         "mlir::Type":$type);
 
@@ -99,8 +99,8 @@ def Clift_EnumFieldAttr
   }];
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        "mlir::clift::MutableStringAttr":$mutable_name,
-                        "mlir::clift::MutableStringAttr":$mutable_comment,
+                        "clift::MutableStringAttr":$mutable_name,
+                        "clift::MutableStringAttr":$mutable_comment,
                         "uint64_t":$raw_value);
 
   let extraClassDeclaration = [{
@@ -126,10 +126,10 @@ def Clift_EnumAttr
              SubElementAttrInterface]> {
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        "mlir::clift::MutableStringAttr":$mutable_name,
-                        "mlir::clift::MutableStringAttr":$mutable_comment,
+                        "clift::MutableStringAttr":$mutable_name,
+                        "clift::MutableStringAttr":$mutable_comment,
                         "mlir::Type":$underlying_type,
-                        ArrayRefParameter<"mlir::clift::EnumFieldAttr">:$fields);
+                        ArrayRefParameter<"clift::EnumFieldAttr">:$fields);
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef NameAttrKey = "enum-name";
@@ -154,8 +154,8 @@ def Clift_TypedefAttr
              SubElementAttrInterface]> {
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        "mlir::clift::MutableStringAttr":$mutable_name,
-                        "mlir::clift::MutableStringAttr":$mutable_comment,
+                        "clift::MutableStringAttr":$mutable_name,
+                        "clift::MutableStringAttr":$mutable_comment,
                         "mlir::Type":$underlying_type);
 
   let extraClassDeclaration = [{

@@ -10,8 +10,7 @@
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
 
-namespace clift = mlir::clift;
-using namespace mlir::clift;
+using namespace clift;
 
 namespace {
 
