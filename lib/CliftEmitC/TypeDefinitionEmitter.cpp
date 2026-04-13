@@ -181,6 +181,13 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
                                    ptml::CTokenEmitter::Delimiter::Braces);
     Tokens.emitNewline();
 
+    if (Class.getFields().empty()) {
+      // We print padding here even when `Configuration.ExplicitPadding` is
+      // `false` because otherwise the struct is empty and is not valid in C99
+      // (empty structs are a language extension).
+      emitPaddingField(Class, 0, Class.getObjectSize());
+    }
+
     uint64_t PreviousOffset = 0;
     for (const auto &Field : Class.getFields()) {
       if (IsStruct and Configuration.ExplicitPadding)
