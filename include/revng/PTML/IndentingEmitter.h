@@ -33,7 +33,7 @@ public:
   template<typename... ArgsT>
     requires std::constructible_from<EmitterT, ArgsT...>
   explicit IndentingEmitter(IndentString Indent, ArgsT &&...Args) :
-    EmitterT(std::forward<ArgsT>(Args)...) {}
+    EmitterT(std::forward<ArgsT>(Args)...), IndentationString(Indent) {}
 
   void indent(int Offset) {
     revng_assert(Offset >= 0 or static_cast<unsigned>(-Offset) <= Indentation,
