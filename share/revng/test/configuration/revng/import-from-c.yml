@@ -66,9 +66,9 @@ commands:
         filter: import-from-c
     suffix: /
     command: |-
-      LocationToEdit=$$(grep -vE '^(#|$$)' "${INPUT}/type-to-edit.location");
-      CCode=$$(sed 's;^;  ;' "${INPUT}/edit.c");
-      CONFIGURATION="LocationToEdit: $${LocationToEdit}\nCCode: |\n$${CCode}";
+      LOCATION_TO_EDIT=$$(grep -vE '^(#|$$)' "${INPUT}/type-to-edit.location");
+      C_CODE=$$(sed 's;^;  ;' "${INPUT}/edit.c");
+      CONFIGURATION="LocationToEdit: $${LOCATION_TO_EDIT}\nCCode: |\n$${C_CODE}";
 
       if revng2 pipeline run-analysis import-from-c
            -c "$$(echo -e "$$CONFIGURATION")"
@@ -80,7 +80,12 @@ commands:
 
       else
 
-        [[ "$$(tail -n +5 "${INPUT}/expected-error.txt")" ==
-           "$$(grep -Pzo '(?<=RuntimeError: )[^\x00]*' "${OUTPUT}/error.txt" | tr -d '\0')" ]];
-
+        if ! [[ "$$(tail -n +5 "${INPUT}/expected-error.txt")" ==
+           "$$(grep -Pzo '(?<=RuntimeError: )[^\x00]*' "${OUTPUT}/error.txt" | tr -d '\0')" ]]; then
+          echo "Expected:"
+          cat "${INPUT}/expected-error.txt"
+          echo "Got:"
+          echo "${OUTPUT}/error.txt"
+          exit 1;
+        fi;
       fi
