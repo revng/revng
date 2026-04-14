@@ -17,8 +17,7 @@
 #include "revng/Support/Configuration.h"
 #include "revng/Support/LDDTree.h"
 
-#include "CrossModelFindTypeHelper.h"
-
+#include "FindMissingTypes.h"
 template<IsObjectFile T>
 std::optional<LDDTree>
 BinaryImporterHelper::identifyDependencies(const T &ObjectFile,
