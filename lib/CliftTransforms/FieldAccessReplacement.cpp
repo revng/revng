@@ -71,8 +71,9 @@ struct Replacement {
                           const PointerArithmetic &Arithmetic,
                           const Traversal &BestTraversal);
 
-  /// This method performs the actual `clift` IR rewriting,
-  void replace(ExpressionOpInterface PointerToReplace,
+  /// This method performs the actual `clift` IR rewriting. Returns `true` if
+  /// a type was propagated through an indirection.
+  bool replace(ExpressionOpInterface PointerToReplace,
                const PointerArithmetic &Arithmetic) const;
 };
 
@@ -205,8 +206,9 @@ Replacement Replacement::make(unsigned PointerBitWidth,
   return Result;
 }
 
-void Replacement::replace(ExpressionOpInterface PointerToReplace,
+bool Replacement::replace(ExpressionOpInterface PointerToReplace,
                           const PointerArithmetic &Arithmetic) const {
+  bool PropagatedThroughIndirection = false;
 
   // We need the `PointerSize` in order to generate the `ImmediateOp`s used to
   // access the `struct` fields and `array` members, and to generate the
@@ -357,6 +359,12 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
                                              CurrentValuePointerType,
                                              CurrentValue);
 
+  // After we emit the `addressof`, we save the resulting `RichValue`, which may
+  // contain a _rich_ type information of the emitted access. We collect this
+  // here before the subsequent `cast` strips it of the type information`. We
+  // then propagate the type information into `indirection` uses.
+  mlir::Value RichValue = CurrentValue;
+
   // If there is a non-null `LeftoverOffset`, we add it as integer arithmetic
   if (not LeftoverOffset.BaseOffset.isZero()
       or not LeftoverOffset.LinearCombination.empty()) {
@@ -410,10 +418,8 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
                                              CurrentValue);
   }
 
-  // If the result type differs from PointerToReplace's type, add a cast on
-  // `clift` IR in order to make the replacement fit the replaced
-  // `PointerToReplace` `Type`
-  auto PointerToReplaceOp = PointerToReplace.getOperation();
+  // If the result type differs from PointerToReplace's type, prepare a cast
+  // to make the replacement fit the replaced `PointerToReplace` type.
   if (CurrentValue.getType() != PointerToReplace->getResult(0).getType()) {
     CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
                                              PointerToReplace->getResult(0)
@@ -421,21 +427,110 @@ void Replacement::replace(ExpressionOpInterface PointerToReplace,
                                              CurrentValue);
   }
 
-  // Replace all uses of `PointerToReplace` with `CurrentValue`
+  // Replace all the `Use`s of `PointerToReplace`, handling `IndirectionOp`s
+  // specially: instead of giving them the "type-erased" `CurrentValue` (through
+  // the `BitCast`) we give the `RichValue` directly so their result type
+  // reflects the actual pointed-to type.
   if (CurrentValue != Arithmetic.BasePointer) {
-    PointerToReplace->getResult(0).replaceAllUsesWith(CurrentValue);
+
+    // Collect the `Use`s before the iteration, to avoid invalidation
+    llvm::SmallVector<mlir::OpOperand *> Uses;
+    for (auto &Use : PointerToReplace->getResult(0).getUses()) {
+      Uses.push_back(&Use);
+    }
+
+    for (auto *Use : Uses) {
+
+      // Check if we can propagate the _rich_ type through `indirection` uses.
+      // We are interested in the `ptr<ptr<...>>` pattern, where the
+      // `indirection` loads a pointer through which further field accesses can
+      // be chained.
+      // If we are inspecting a non-`IndirectionOp`, or if the propagation is
+      // not applicable, we just redirect the `Use` to the type-matched
+      // `CurrentValue`
+      auto Indirection = mlir::dyn_cast<IndirectionOp>(Use->getOwner());
+      auto RichPointerType = unwrapped_dyn_cast<PointerType>(RichValue
+                                                               .getType());
+      bool CanPropagate = RichPointerType
+                          and unwrapped_isa<PointerType>(RichPointerType
+                                                           .getPointeeType());
+      if (not Indirection or not CanPropagate) {
+        Use->set(CurrentValue);
+        continue;
+      }
+
+      auto RichPointeeType = RichPointerType.getPointeeType();
+      auto IndirectionResultType = Indirection.getResult().getType();
+
+      // Size guard: the rich `pointee` must have the same byte size as the
+      // `IndirectionOp` result for the retyping to be safe
+      auto RichPointeeSize = getObjectSizeOrZero(RichPointeeType);
+      auto IndirectionResultSize = getObjectSizeOrZero(IndirectionResultType);
+      if (RichPointeeSize != IndirectionResultSize) {
+        Use->set(CurrentValue);
+        continue;
+      }
+
+      // Types already match — no propagation needed
+      if (RichPointeeType == IndirectionResultType) {
+        Use->set(CurrentValue);
+        continue;
+      }
+
+      // Create a new typed `IndirectionOp` with the `RichValue` as operand,
+      // so its result type is inferred from the `RichPointeeType`
+      Builder.setInsertionPoint(Indirection);
+      auto NewIndirection = Builder.create<IndirectionOp>(PointerToReplaceLoc,
+                                                          RichValue);
+
+      // Insert a `FixupCast` from the typed result to the old untyped result,
+      // so existing users that expect the original type still verify
+      auto FixupCast = Builder.create<BitCastOp>(PointerToReplaceLoc,
+                                                 IndirectionResultType,
+                                                 NewIndirection);
+
+      // Redirect the old `IndirectionOp`'s uses to the `FixupCast`.
+      // Lvalue uses (assign LHS) stay on the old `IndirectionOp`: a `BitCastOp`
+      // is not an lvalue, and changing the LHS type would break the assign's
+      // type constraints. The old `IndirectionOp` is left for DCE.
+      llvm::SmallVector<mlir::OpOperand *> IndirectionUses;
+      for (auto &IndirUse : Indirection.getResult().getUses()) {
+        if (mlir::isa<AssignOp>(IndirUse.getOwner())
+            and IndirUse.getOperandNumber() == 0) {
+          continue;
+        }
+        IndirectionUses.push_back(&IndirUse);
+      }
+
+      for (auto *IndirectionUse : IndirectionUses) {
+        IndirectionUse->set(FixupCast);
+      }
+
+      if (not IndirectionUses.empty()) {
+        PropagatedThroughIndirection = true;
+      }
+
+      // The old indirection's operand stays as-is (for assign LHS uses)
+      Use->set(CurrentValue);
+    }
   }
 
   // At this point, we are left in the `clift` IR with a set of dead `Value`s
   // representing the old `PointerArithmetic`. We rely on a subsequent DCE
   // pass to clean up all the dead `Value`s.
+
+  // We signal at the above level that we propagated the `Type` info through an
+  // `IndirectionOp`, which requires another iteration to find new rewriting
+  // opportunities
+  return PropagatedThroughIndirection;
 }
 } // namespace
 
 /// Entry point function to perform the replacement of the pointer arithmetic
 /// access (`PointerToReplace`), with operations equivalent to the
-/// `BestTraversal` elected in the previous steps
-void replaceFieldAccess(ExpressionOpInterface PointerToReplace,
+/// `BestTraversal` elected in the previous steps.
+/// Returns `true` if a type was propagated through an `indirection`.
+bool replaceFieldAccess(ExpressionOpInterface PointerToReplace,
                         const PointerArithmetic &Arithmetic,
                         const Traversal &BestTraversal) {
 
@@ -451,5 +546,5 @@ void replaceFieldAccess(ExpressionOpInterface PointerToReplace,
   auto R = Replacement::make(PointerBitWidth, Arithmetic, BestTraversal);
 
   // We actually perform the replacement
-  R.replace(PointerToReplace, Arithmetic);
+  return R.replace(PointerToReplace, Arithmetic);
 }

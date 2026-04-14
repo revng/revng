@@ -135,6 +135,12 @@ template<typename TypeT>
 /// Determine if the two types are equivalent, ignoring Clift CV-qualifiers.
 [[nodiscard]] bool equivalent(mlir::Type Lhs, mlir::Type Rhs);
 
+/// Determine if the two types are equivalent after unwrapping typedefs and
+/// ignoring Clift CV-qualifiers.
+[[nodiscard]] inline bool equivalentUnwrapped(mlir::Type Lhs, mlir::Type Rhs) {
+  return equivalent(unwrapTypedefs(Lhs), unwrapTypedefs(Rhs));
+}
+
 //===-------------------------- Object type size --------------------------===//
 
 /// Returns the size of the given type, assuming it is an ObjectType (after
