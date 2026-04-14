@@ -122,8 +122,9 @@ findFileInPaths(llvm::StringRef FileName,
     }
   }
 
-  revng_assert(FoundFileName,
-               ("Failed to find `" + FileName + "`.").str().c_str());
+  if (not FoundFileName.has_value()) {
+    revng_log(Log, "Failed to find `" << FileName.str() << "`.");
+  }
 
   return FoundFileName;
 }
