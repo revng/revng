@@ -479,7 +479,8 @@ CallInst *EnforceABI::generateCall(revng::IRBuilder &Builder,
   revng_assert(Result->getDebugLoc());
   setStringMetadata(Result,
                     PrototypeMDName,
-                    Binary.getDefinitionReference(Prototype->key()).toString());
+                    Binary.getTypeDefinitionReference(Prototype->key())
+                      .toString());
 
   if (ReturnCSVs.size() != 1) {
     unsigned I = 0;

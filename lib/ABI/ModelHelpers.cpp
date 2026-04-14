@@ -119,7 +119,7 @@ model::UpcastableType fromLLVMString(llvm::Value *V,
                "`model::UpcastableType::empty()`. How did it slip through?");
 
   if (model::DefinedType *Defined = (*ParsedType)->skipToDefinedType()) {
-    model::DefinitionReference &Reference = Defined->Definition();
+    model::TypeDefinitionReference &Reference = Defined->Definition();
 
     revng_assert(Reference.isValid() == false);
     Reference.setRoot(&Model);

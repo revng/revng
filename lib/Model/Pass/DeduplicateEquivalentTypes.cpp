@@ -342,7 +342,7 @@ void model::deduplicateEquivalentTypes(TupleTree<model::Binary> &Model) {
   auto EquivalentTypes = TypeSystemDeduplicator::run(Model);
 
   std::set<model::TypeDefinition *> ToErase;
-  std::map<DefinitionReference, DefinitionReference> Replacements;
+  std::map<TypeDefinitionReference, TypeDefinitionReference> Replacements;
   for (auto LeaderIt = EquivalentTypes.begin(), End = EquivalentTypes.end();
        LeaderIt != End;
        ++LeaderIt) {
@@ -350,12 +350,14 @@ void model::deduplicateEquivalentTypes(TupleTree<model::Binary> &Model) {
     if (!LeaderIt->isLeader())
       continue;
 
-    auto LeaderR = Model->getDefinitionReference(LeaderIt->getData()->key());
+    auto Key = LeaderIt->getData()->key();
+    auto LeaderR = Model->getTypeDefinitionReference(Key);
 
     for (model::TypeDefinition *ToCollapse :
          make_range(++EquivalentTypes.member_begin(LeaderIt),
                     EquivalentTypes.member_end())) {
-      Replacements[Model->getDefinitionReference(ToCollapse->key())] = LeaderR;
+      auto Key = ToCollapse->key();
+      Replacements[Model->getTypeDefinitionReference(Key)] = LeaderR;
       ToErase.insert(ToCollapse);
     }
   }

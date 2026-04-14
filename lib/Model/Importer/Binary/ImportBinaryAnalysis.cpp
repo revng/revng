@@ -26,7 +26,7 @@ llvm::Error ImportBinaryAnalysis::run(pipeline::ExecutionContext &Context,
   llvm::Task T(2, "Import binary");
   T.advance("Import main binary", true);
 
-  model::BinaryReference Reference;
+  model::BinaryIdentifierReference Reference;
   if (Model->Binaries().size() > 0) {
     // TODO: do this unconditionally once we drop the old pipeline
     Reference = Model->getBinaryIdentifierReference(0);

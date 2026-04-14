@@ -51,7 +51,7 @@ std::optional<uint64_t> model::TypeDefinition::trySize() const {
   return trySize(VH);
 }
 
-using DefR = model::DefinitionReference;
+using DefR = model::TypeDefinitionReference;
 template DefR DefR::fromString<model::Binary>(model::Binary *Root,
                                               llvm::StringRef Path);
 template DefR DefR::fromString<const model::Binary>(const model::Binary *Root,

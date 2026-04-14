@@ -30,7 +30,8 @@ getCallSitePrototype(T &Binary, const llvm::Instruction *Call) {
   revng_assert(llvm::isa<llvm::CallInst>(Call));
 
   llvm::StringRef SerializedRef = fromStringMetadata(Call, PrototypeMDName);
-  auto Result = model::DefinitionReference::fromString(&Binary, SerializedRef);
+  auto Result = model::TypeDefinitionReference::fromString(&Binary,
+                                                           SerializedRef);
 
   if constexpr (std::is_const_v<T>)
     return Result.getConst();

@@ -36,7 +36,7 @@ public:
   /// fetch-debug-info). In native code, you should use ObjectFile above.
   std::string FullPathForExternalTools;
 
-  const model::BinaryReference Reference;
+  const model::BinaryIdentifierReference Reference;
 
   /// This returns the path where the binary is supposed to be on the file
   /// system.

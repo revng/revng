@@ -252,7 +252,7 @@ static void convertFunctionsToCABI(TupleTree<model::Binary> &Model,
 
     revng_log(Log,
               "Converting a function: "
-                << toString(Model->getDefinitionReference(Key)));
+                << toString(Model->getTypeDefinitionReference(Key)));
 
     std::string Names;
     constexpr llvm::StringRef Separator = ", ";
