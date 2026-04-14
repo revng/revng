@@ -205,9 +205,10 @@ BOOST_AUTO_TEST_CASE(EnumTypes) {
 
   // But if we break the underlying, making it point to a type that does not
   // exist, we're not good anymore
-  auto BrokenPath = DefinitionReference::fromString(T.get(),
-                                                    "/TypeDefinitions"
-                                                    "/42-TypedefDefinition");
+  auto BrokenPath = TypeDefinitionReference::fromString(T.get(),
+                                                        "/TypeDefinitions"
+                                                        "/42-"
+                                                        "TypedefDefinition");
   EnumDefinition.UnderlyingType() = model::DefinedType::make(BrokenPath);
   revng_check(not verify(EnumDefinition, *T, false));
   revng_check(not verify(*T, false));

@@ -133,7 +133,7 @@ void findMissingTypes(LDDTree &Dependencies,
     // Craft a minimal (temporary) model for the sole purpose of being imported
     auto &DependencyModel = ModelsOfLibraries[DependencyName];
     DependencyModel->Architecture() = Binary->Architecture();
-    BinaryReference BinaryReference;
+    BinaryIdentifierReference BinaryReference;
     BinaryIdentifier Identifier;
     Identifier.Index() = 0;
     Identifier.Hash() = ("00000000000000000000000000000000"

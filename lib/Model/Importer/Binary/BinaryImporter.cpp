@@ -22,7 +22,7 @@ Error importBinary(TupleTree<model::Binary> &Model,
                    llvm::object::ObjectFile &ObjectFile,
                    llvm::StringRef FullPathForExternalTools,
                    const ImporterOptions &Options,
-                   model::BinaryReference &BinaryReference) {
+                   model::BinaryIdentifierReference &BinaryReference) {
   using namespace llvm::object;
   using namespace model::Architecture;
 
@@ -71,7 +71,7 @@ Error importBinary(TupleTree<model::Binary> &Model,
 Error importBinary(TupleTree<model::Binary> &Model,
                    llvm::StringRef FullPathForExternalTools,
                    const ImporterOptions &Options,
-                   model::BinaryReference &BinaryReference) {
+                   model::BinaryIdentifierReference &BinaryReference) {
 
   auto
     MaybeBuffer = llvm::MemoryBuffer::getFileOrSTDIN(FullPathForExternalTools,

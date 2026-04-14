@@ -21,9 +21,9 @@ llvm::Error importBinary(TupleTree<model::Binary> &Model,
                          llvm::object::ObjectFile &ObjectFile,
                          llvm::StringRef FullPathForExternalTools,
                          const ImporterOptions &Options,
-                         model::BinaryReference &BinaryReference);
+                         model::BinaryIdentifierReference &BinaryReference);
 
 llvm::Error importBinary(TupleTree<model::Binary> &Model,
                          llvm::StringRef FullPathForExternalTools,
                          const ImporterOptions &Options,
-                         model::BinaryReference &BinaryReference);
+                         model::BinaryIdentifierReference &BinaryReference);

@@ -54,7 +54,7 @@ public:
       // Return the copy
       TypeDefinition::Key Key = { OldToNew[Definition.ID()],
                                   Definition.Kind() };
-      auto Reference = DestinationModel->getDefinitionReference(Key);
+      auto Reference = DestinationModel->getTypeDefinitionReference(Key);
       return model::DefinedType::make(std::move(Reference));
     } else {
       return cloneType(Definition);
@@ -83,8 +83,8 @@ public:
     // according to the map
     auto Visitor = [this](auto &Element) {
       using T = std::decay_t<decltype(Element)>;
-      if constexpr (std::is_same_v<T, model::DefinitionReference>) {
-        model::DefinitionReference &Path = Element;
+      if constexpr (std::is_same_v<T, model::TypeDefinitionReference>) {
+        model::TypeDefinitionReference &Path = Element;
         if (Path.empty())
           return;
 
@@ -93,7 +93,7 @@ public:
         auto &&[ID, Kind] = *TypeKey.tryGet<model::TypeDefinition::Key>();
         revng_assert(OldToNew.count(ID) == 1);
         model::TypeDefinition::Key Key = { OldToNew[ID], Kind };
-        Path = DestinationModel->getDefinitionReference(Key);
+        Path = DestinationModel->getTypeDefinitionReference(Key);
       }
     };
 

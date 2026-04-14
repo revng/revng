@@ -21,9 +21,9 @@ namespace abi::FunctionType {
 /// \param Old The type references of which should be replaced.
 /// \param New The new type to replace references to.
 inline void replaceTypeDefinition(const model::TypeDefinition::Key &Old,
-                                  const model::DefinitionReference &New,
+                                  const model::TypeDefinitionReference &New,
                                   TupleTree<model::Binary> &Binary) {
-  using Reference = model::DefinitionReference;
+  using Reference = model::TypeDefinitionReference;
   Binary.replaceReferencesIf(New, [&Old](const Reference &Path) -> bool {
     if (Path.empty())
       return false;

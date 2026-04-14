@@ -55,17 +55,16 @@ public:
 };
 
 namespace model {
-using DefinitionReference = TupleTreeReference<model::TypeDefinition,
-                                               model::Binary>;
+using TypeDefinitionReference = TupleTreeReference<model::TypeDefinition,
+                                                   model::Binary>;
 }
 
-extern template model::DefinitionReference
-model::DefinitionReference::fromString<model::Binary>(model::Binary *Root,
-                                                      llvm::StringRef Path);
+extern template model::TypeDefinitionReference
+model::TypeDefinitionReference::fromString<model::Binary>(model::Binary *Root,
+                                                          llvm::StringRef Path);
 
-extern template model::DefinitionReference
-model::DefinitionReference::fromString<const model::Binary>(const model::Binary
-                                                              *,
-                                                            llvm::StringRef);
+extern template model::TypeDefinitionReference
+model::TypeDefinitionReference::fromString<
+  const model::Binary>(const model::Binary *, llvm::StringRef);
 
 #include "revng/Model/Generated/Late/TypeDefinition.h"
