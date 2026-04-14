@@ -19,7 +19,7 @@
 #include "revng/Support/Error.h"
 #include "revng/Support/MetaAddress.h"
 
-#include "CrossModelFindTypeHelper.h"
+#include "FindMissingTypes.h"
 #include "Importers.h"
 
 using namespace llvm;

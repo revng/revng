@@ -29,9 +29,9 @@
 #include "revng/Support/LDDTree.h"
 #include "revng/TupleTree/TupleTree.h"
 
-#include "CrossModelFindTypeHelper.h"
 #include "DwarfReader.h"
 #include "ELFImporter.h"
+#include "FindMissingTypes.h"
 #include "Importers.h"
 #include "MIPSELFImporter.h"
 
