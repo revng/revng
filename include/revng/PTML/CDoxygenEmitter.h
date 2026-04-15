@@ -11,21 +11,31 @@ namespace ptml {
 
 using CDoxygenEmitter = DoxygenEmitter<CTokenEmitter::CommentEmitter>;
 
+namespace detail {
+
+inline constexpr DoxygenCommentConfiguration LineCommentConfiguration = {
+  .LinePrefix = "/ "
+};
+
+inline constexpr DoxygenCommentConfiguration BlockCommentConfiguration = {
+  .CommentHeader = "*",
+  .CommentFooter = " ",
+  .LinePrefix = " * ",
+};
+
+} // namespace detail
+
 [[nodiscard]] inline CDoxygenEmitter emitDoxygenLineComment(CTokenEmitter &CE) {
-  return CDoxygenEmitter({ .LinePrefix = "/ " },
+  return CDoxygenEmitter(detail::LineCommentConfiguration,
                          CE,
                          CTokenEmitter::CommentKind::Line);
 }
 
 [[nodiscard]] inline CDoxygenEmitter
 emitDoxygenBlockComment(CTokenEmitter &CE) {
-  DoxygenCommentConfiguration Configuration = {
-    .CommentHeader = "*",
-    .CommentFooter = " ",
-    .LinePrefix = " * ",
-  };
-
-  return CDoxygenEmitter(Configuration, CE, CTokenEmitter::CommentKind::Block);
+  return CDoxygenEmitter(detail::BlockCommentConfiguration,
+                         CE,
+                         CTokenEmitter::CommentKind::Block);
 }
 
 } // namespace ptml
