@@ -689,8 +689,6 @@ clift::importFunctionDeclaration(mlir::ModuleOp Module,
   mlir::MLIRContext *Context = Module.getContext();
   llvm::SmallVector<mlir::clift::CAttributeAttr> CliftAttributes;
   for (model::FunctionAttribute::Values Attribute : Attributes) {
-    // TODO: we might want to express some of these through existing clift
-    //       attributes.
     switch (Attribute) {
     case model::FunctionAttribute::NoReturn:
       Result.setNoreturnAttr(Builder.getUnitAttr());
