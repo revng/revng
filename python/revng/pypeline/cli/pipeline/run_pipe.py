@@ -12,8 +12,8 @@ import yaml
 
 from revng.pypeline.cli.common_options import container_format_options, list_objects_option
 from revng.pypeline.cli.context import ClickContext, pass_context
-from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
-from revng.pypeline.cli.utils import compute_objects, normalize_kwarg_name, normalize_whitespace
+from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
+from revng.pypeline.cli.utils import normalize_kwarg_name, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
@@ -45,7 +45,7 @@ class SimpleFileProvider(FileProvider):
         return {r.hash: (self._directory / r.hash).read_bytes() for r in requests}
 
 
-class RunPipeGroup(PypeGroup):
+class RunPipeGroup(click.Group):
     """We need to create a custom command for each pipe we loaded from the registry.
     Since we already have to generate the code dynamically, we do it lazily so
     we generate only the commands that are requested."""

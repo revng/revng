@@ -12,8 +12,7 @@ from revng.pypeline.cli.common_options import add_pipeline_config_options
 from revng.pypeline.cli.common_options import container_format_options, debug_option, full_help
 from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
-from revng.pypeline.cli.utils import PypeGroup, build_help_text, detect_autocomplete
-from revng.pypeline.cli.utils import normalize_whitespace
+from revng.pypeline.cli.utils import build_help_text, detect_autocomplete, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import ReadOnlyModel
@@ -27,7 +26,7 @@ from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
 
 
-class ArtifactGroup(PypeGroup):
+class ArtifactGroup(click.Group):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

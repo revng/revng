@@ -28,8 +28,8 @@ from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.pipeline import pipeline
 from revng.pypeline.cli.project import project
 from revng.pypeline.cli.project.artifact import ArtifactGroup as ProjectArtifactGroup
-from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, build_arg_objects
-from revng.pypeline.cli.utils import compute_objects, normalize_flag, sort_option_groups
+from revng.pypeline.cli.utils import EagerParsedPath, build_arg_objects, compute_objects
+from revng.pypeline.cli.utils import normalize_flag, sort_option_groups
 from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrappablePypeCommand, WrapperOption
 from revng.pypeline.cli.wrappers import exec_with_wrapper, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerDeclaration, ContainerFormat
@@ -65,7 +65,7 @@ def generate_model_with_binaries(binaries: list[Path]):
     return {"Binaries": result}
 
 
-@click.group(cls=PypeGroup, help="Quick commands (japanese toilet)")
+@click.group(help="Quick commands (japanese toilet)")
 @click.option(
     "--pipeline",
     "pipeline",
@@ -420,7 +420,7 @@ def _generate_load_arguments(ctx):
     return [f"-load={p.resolve()!s}" for p in native_libraries]
 
 
-class RunPipeNativeGroup(PypeGroup):
+class RunPipeNativeGroup(click.Group):
     """
     This implements the "run-pipe-native" command group, subcommands of this
     group are exclusively native pipes that can be run without python.
@@ -485,7 +485,7 @@ def run_pipe_native() -> None:
     pass
 
 
-class RunAnalysisNativeGroup(PypeGroup):
+class RunAnalysisNativeGroup(click.Group):
     """
     This implements the "run-analysis-native" command group, subcommands of
     this group are exclusively native analyses that can be run without python.

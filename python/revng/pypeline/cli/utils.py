@@ -40,27 +40,7 @@ class PypeCommand(click.Command):
         )
 
     def collect_usage_pieces(self, ctx) -> list[str]:
-        if not isinstance(self, PypeGroup):
-            return super().collect_usage_pieces(ctx) + ["--", "[PIPEBOX ARGS...]"]
-        else:
-            return super().collect_usage_pieces(ctx)
-
-
-class PypeGroup(click.Group, PypeCommand):
-    """
-    An extension of click.Group that inherits the changes from `PypeCommand`,
-    and verifies that all sub-commands inherit from `PypeCommand`.
-    """
-
-    def add_command(self, cmd: click.Command, name: str | None = None) -> None:
-        if isinstance(cmd, click.Group) and not isinstance(cmd, PypeGroup):
-            raise ValueError(f"All sub-groups must be of type PypeGroup, {name}: {type(cmd)}")
-        return super().add_command(cmd, name)
-
-    def collect_usage_pieces(self, ctx: click.Context) -> list[str]:
-        rv = super().collect_usage_pieces(ctx)
-        rv.extend(["--", "[PIPEBOX ARGS...]"])
-        return rv
+        return super().collect_usage_pieces(ctx) + ["--", "[PIPEBOX ARGS...]"]
 
 
 class RegistryChoice(click.Choice):

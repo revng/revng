@@ -11,9 +11,8 @@ import yaml
 from revng.pypeline.cli.common_options import add_pipeline_config_options, debug_option
 from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
-from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
-from revng.pypeline.cli.utils import compute_objects, list_objects_for_container
-from revng.pypeline.cli.utils import normalize_whitespace
+from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
+from revng.pypeline.cli.utils import list_objects_for_container, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, AnalysisList, ContainerDeclaration, Pipeline
@@ -129,7 +128,7 @@ async def async_part_of_command(
             yaml.safe_dump(data, invalidations_file)
 
 
-class AnalyzeGroup(PypeGroup):
+class AnalyzeGroup(click.Group):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

@@ -20,7 +20,7 @@ from revng.pypeline.utils import PypelineException
 from . import initialize_pypeline
 from .cli.pipeline import pipeline
 from .cli.project import project
-from .cli.utils import EagerParsedPath, PypeGroup, detect_autocomplete, get_root_command_name
+from .cli.utils import EagerParsedPath, detect_autocomplete, get_root_command_name
 from .utils.logger import pypeline_logger
 
 
@@ -122,7 +122,7 @@ def parse_base_directory(path: str, ctx: ClickContext):
         ctx.obj.base_directory = Path(path)
 
 
-@click.group(cls=PypeGroup)
+@click.group
 @click.option(
     "-C",
     "--directory",
