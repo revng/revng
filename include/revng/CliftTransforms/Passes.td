@@ -75,14 +75,17 @@ def CliftVerifyC : Clift_Pass<"verify-c", "mlir::ModuleOp"> {
   let constructor = "mlir::clift::createVerifyCPass()";
 }
 
-def CliftEmitC : Clift_Pass<"emit-c", "mlir::ModuleOp"> {
-  let summary = "Emit C code (optionally with PTML tags) from the Clift code.";
-  let constructor = "mlir::clift::createEmitCPass()";
-
+// A class gathering up options common for all the PTML emitters.
+class Clift_EmitPTMLPass<string arg, string operation> : Clift_Pass<arg, operation> {
   let options = [
     Option<"EmitTags", "ptml", "bool", /*default=*/"false", "Emit PTML tags">,
     Option<"Output", "output", "std::string", /*default*/"\"-\"", "C output path">
   ];
+}
+
+def CliftEmitC : Clift_EmitPTMLPass<"emit-c", "mlir::ModuleOp"> {
+  let summary = "Emit C code (optionally with PTML tags) from the Clift code.";
+  let constructor = "mlir::clift::createEmitCPass()";
 }
 
 #endif // MLIR_CLIFT_PASSES
