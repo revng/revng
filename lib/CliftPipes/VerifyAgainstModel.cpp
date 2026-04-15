@@ -2,18 +2,18 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/CliftImportModel/ModelVerify.h"
+#include "revng/CliftImportModel/Verify.h"
 #include "revng/CliftPipes/CliftContainer.h"
-#include "revng/CliftPipes/ModelVerifyClift.h"
+#include "revng/CliftPipes/VerifyAgainstModel.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
 namespace clift = mlir::clift;
 
 namespace {
 
-class ModelVerifyPipe {
+class VerifyAgainstModelPipe {
 public:
-  static constexpr auto Name = "model-verify-clift";
+  static constexpr auto Name = "verify-against-model";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
@@ -37,15 +37,15 @@ public:
   }
 };
 
-static pipeline::RegisterPipe<ModelVerifyPipe> X;
+static pipeline::RegisterPipe<VerifyAgainstModelPipe> X;
 
 } // namespace
 
 namespace revng::pypeline::piperuns {
 
-void ModelVerifyClift::runOnCliftFunction(const model::Function &Function,
-                                          mlir::clift::FunctionOp
-                                            MLIRFunction) {
+void VerifyAgainstModel::runOnCliftFunction(const model::Function &Function,
+                                            mlir::clift::FunctionOp
+                                              MLIRFunction) {
   // If the verify logger is disabled, this pipe does nothing
   if (not ModelVerifyLogger.isEnabled())
     return;

@@ -386,7 +386,7 @@ branches:
             - terminal-branch-complement-hoisting
             - c-legalization
             - deduce-immediate-radices
-      - pipe: model-verify-clift
+      - pipe: verify-against-model
         arguments: [clift-functions]
       - savepoint: decompile-clift
         containers: [clift-functions]

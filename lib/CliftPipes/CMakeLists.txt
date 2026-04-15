@@ -9,8 +9,8 @@ revng_add_analyses_library_internal(
   EmitC.cpp
   ImportDescriptiveInfo.cpp
   ImportTypes.cpp
-  ModelVerifyClift.cpp
-  Optimization.cpp)
+  Optimization.cpp
+  VerifyAgainstModel.cpp)
 
 target_link_libraries(
   revngCliftPipes

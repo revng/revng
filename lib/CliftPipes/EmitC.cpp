@@ -7,7 +7,7 @@
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CSemantics.h"
-#include "revng/CliftImportModel/ModelVerify.h"
+#include "revng/CliftImportModel/Verify.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/EmitC.h"
 #include "revng/Pipeline/RegisterPipe.h"

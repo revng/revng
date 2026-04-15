@@ -3,7 +3,7 @@
 //
 
 #include "revng/Clift/ModuleVisitor.h"
-#include "revng/CliftImportModel/ModelVerify.h"
+#include "revng/CliftImportModel/Verify.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 

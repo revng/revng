@@ -10,20 +10,20 @@
 
 namespace revng::pypeline::piperuns {
 
-class ModelVerifyClift : public CliftFunctionMixin<ModelVerifyClift> {
+class VerifyAgainstModel : public CliftFunctionMixin<VerifyAgainstModel> {
 private:
   const model::Binary &Binary;
 
 public:
-  static constexpr llvm::StringRef Name = "model-verify-clift";
+  static constexpr llvm::StringRef Name = "verify-against-model";
   using Arguments = TypeList<PipeRunArgument<CliftFunctionContainer,
                                              "Modules",
                                              "function MLIR module(s)">>;
 
-  ModelVerifyClift(const class Model &Model,
-                   llvm::StringRef StaticConfiguration,
-                   llvm::StringRef Configuration,
-                   CliftFunctionContainer &ModuleContainer) :
+  VerifyAgainstModel(const class Model &Model,
+                     llvm::StringRef StaticConfiguration,
+                     llvm::StringRef Configuration,
+                     CliftFunctionContainer &ModuleContainer) :
     CliftFunctionMixin(ModuleContainer), Binary(*Model.get().get()) {}
 
   void runOnCliftFunction(const model::Function &Function,

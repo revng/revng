@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngpipe model-verify-clift %S/model.yml %s /dev/null
+// RUN: %revngpipe verify-against-model %S/model.yml %s /dev/null
 
 !void = !clift.void
 !int32_t = !clift.int<signed 4>
