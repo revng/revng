@@ -101,93 +101,98 @@ private:
       }
     }
 
-    // Recurse through the declaration, pushing each level onto the stack until
-    // a terminal type is encountered. Primitive types as well as defined types
-    // are considered terminal. Function types are not considered terminal if
-    // function type expansion is enabled. Pointers with size not matching the
-    // pointer size of the target implementation are considered terminal and
-    // are printed by recursively entering this function.
-    while (true) {
-      StackItem Item = { StackItemKind::Terminal, Type };
+    {
+      // Recurse through the declaration, pushing each level onto the stack
+      // until a terminal type is encountered. Primitive types as well as
+      // defined types are considered terminal. Function types are not
+      // considered terminal if function type expansion is enabled.
+      // Pointers with size not matching the pointer size of the target
+      // implementation are considered terminal and are printed by recursively
+      // entering this function.
+      while (true) {
+        StackItem Item = { StackItemKind::Terminal, Type };
 
-      if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
-        emitConstIfNeeded(T);
-        Parent.emitPrimitiveType(T);
-        NeedSpace = true;
-      } else if (auto T = mlir::dyn_cast<PointerType>(Type)) {
-        if (T.getPointerSize() == Parent.Target.PointerSize) {
-          Item.Kind = StackItemKind::Pointer;
-          Type = T.getPointeeType();
-        } else {
-          auto Macro = getForeignPointerMacroName(T.getPointerSize());
-
+        if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
           emitConstIfNeeded(T);
-          Parent.Tokens.emitLiteralIdentifier(Macro);
-          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-
-          rc_recur DeclarationEmitter(Parent).emitImpl(T.getPointeeType(),
-                                                       /*Declarator=*/nullptr);
-
-          Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
+          Parent.emitPrimitiveType(T);
           NeedSpace = true;
-        }
-      } else if (auto T = mlir::dyn_cast<ArrayType>(Type)) {
-        Item.Kind = StackItemKind::Array;
-        Type = T.getElementType();
-      } else if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
-        auto F = mlir::dyn_cast<FunctionType>(T);
+        } else if (auto T = mlir::dyn_cast<PointerType>(Type)) {
+          if (T.getPointerSize() == Parent.Target.PointerSize) {
+            Item.Kind = StackItemKind::Pointer;
+            Type = T.getPointeeType();
+          } else {
+            auto Macro = getForeignPointerMacroName(T.getPointerSize());
 
-        // The outermost function type is expanded into a function-declarator,
-        // while for any inner function type, a typedef name is emitted instead.
-        if (F and F == OutermostFunctionType) {
-          Item.Kind = StackItemKind::Function;
-          Type = F.getReturnType();
-        } else {
-          emitConstIfNeeded(T);
-          Parent.Tokens.emitIdentifier(T.getName(),
-                                       T.getHandle(),
-                                       chooseEntityKind(T),
-                                       CTE::IdentifierKind::Reference);
+            emitConstIfNeeded(T);
+            Parent.Tokens.emitLiteralIdentifier(Macro);
+            Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
-          NeedSpace = true;
+            rc_recur DeclarationEmitter(Parent)
+              .emitImpl(T.getPointeeType(),
+                        /*Declarator=*/nullptr);
+
+            Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
+            NeedSpace = true;
+          }
+        } else if (auto T = mlir::dyn_cast<ArrayType>(Type)) {
+          Item.Kind = StackItemKind::Array;
+          Type = T.getElementType();
+        } else if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
+          auto F = mlir::dyn_cast<FunctionType>(T);
+
+          // The outermost function type is expanded into a function-declarator,
+          // while for any inner function type, a typedef name is emitted
+          // instead.
+          if (F and F == OutermostFunctionType) {
+            Item.Kind = StackItemKind::Function;
+            Type = F.getReturnType();
+          } else {
+            emitConstIfNeeded(T);
+            Parent.Tokens.emitIdentifier(T.getName(),
+                                         T.getHandle(),
+                                         chooseEntityKind(T),
+                                         CTE::IdentifierKind::Reference);
+
+            NeedSpace = true;
+          }
         }
+
+        Stack.push_back(Item);
+
+        if (Item.Kind == StackItemKind::Terminal)
+          break;
       }
 
-      Stack.push_back(Item);
+      // Print type syntax appearing before the declarator name. This includes
+      // cv-qualifiers, stars indicating a pointer, as well as left parentheses
+      // used to disambiguate non-root array and function types. The types must
+      // be handled inside out, so the stack is visited in reverse order.
+      for (auto [RI, SI] : llvm::enumerate(std::views::reverse(Stack))) {
+        const size_t I = Stack.size() - RI - 1;
 
-      if (Item.Kind == StackItemKind::Terminal)
-        break;
-    }
-
-    // Print type syntax appearing before the declarator name. This includes
-    // cv-qualifiers, stars indicating a pointer, as well as left parentheses
-    // used to disambiguate non-root array and function types. The types must be
-    // handled inside out, so the stack is visited in reverse order.
-    for (auto [RI, SI] : llvm::enumerate(std::views::reverse(Stack))) {
-      const size_t I = Stack.size() - RI - 1;
-
-      switch (SI.Kind) {
-      case StackItemKind::Terminal: {
-        // Do nothing
-      } break;
-      case StackItemKind::Pointer: {
-        auto T = mlir::dyn_cast<PointerType>(SI.Type);
-        emitSpaceIfNeeded();
-        Parent.Tokens.emitPunctuator(CTE::Punctuator::Star);
-        emitConstIfNeeded(T);
-      } break;
-      case StackItemKind::Array: {
-        if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array) {
-          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-          NeedSpace = false;
+        switch (SI.Kind) {
+        case StackItemKind::Terminal: {
+          // Do nothing
+        } break;
+        case StackItemKind::Pointer: {
+          auto T = mlir::dyn_cast<PointerType>(SI.Type);
+          emitSpaceIfNeeded();
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::Star);
+          emitConstIfNeeded(T);
+        } break;
+        case StackItemKind::Array: {
+          if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array) {
+            Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+            NeedSpace = false;
+          }
+        } break;
+        case StackItemKind::Function: {
+          if (I != 0) {
+            Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+            NeedSpace = false;
+          }
+        } break;
         }
-      } break;
-      case StackItemKind::Function: {
-        if (I != 0) {
-          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-          NeedSpace = false;
-        }
-      } break;
       }
     }
 
