@@ -10,24 +10,46 @@
 
 namespace revng::pypeline::piperuns {
 
-class VerifyAgainstModel : public CliftFunctionMixin<VerifyAgainstModel> {
+class VerifyFunctionAgainstModel
+  : public CliftFunctionMixin<VerifyFunctionAgainstModel> {
 private:
   const model::Binary &Binary;
 
 public:
-  static constexpr llvm::StringRef Name = "verify-against-model";
+  static constexpr llvm::StringRef Name = "verify-function-against-model";
   using Arguments = TypeList<PipeRunArgument<CliftFunctionContainer,
                                              "Modules",
                                              "function MLIR module(s)">>;
 
-  VerifyAgainstModel(const class Model &Model,
-                     llvm::StringRef StaticConfiguration,
-                     llvm::StringRef Configuration,
-                     CliftFunctionContainer &ModuleContainer) :
+  VerifyFunctionAgainstModel(const class Model &Model,
+                             llvm::StringRef StaticConfiguration,
+                             llvm::StringRef Configuration,
+                             CliftFunctionContainer &ModuleContainer) :
     CliftFunctionMixin(ModuleContainer), Binary(*Model.get().get()) {}
 
   void runOnCliftFunction(const model::Function &Function,
                           mlir::clift::FunctionOp MLIRFunction);
+};
+
+class VerifyAgainstModel {
+private:
+  const model::Binary &Binary;
+  CliftModuleContainer &TypesAndGlobals;
+
+public:
+  static constexpr llvm::StringRef Name = "verify-against-model";
+  using Arguments = TypeList<PipeRunArgument<CliftModuleContainer,
+                                             "TypesAndGlobals",
+                                             "MLIR container to verify",
+                                             Access::ReadWrite>>;
+
+  VerifyAgainstModel(const class Model &Model,
+                     llvm::StringRef StaticConfiguration,
+                     llvm::StringRef Configuration,
+                     CliftModuleContainer &TypesAndGlobals) :
+    Binary(*Model.get().get()), TypesAndGlobals(TypesAndGlobals) {}
+
+  void run();
 };
 
 } // namespace revng::pypeline::piperuns

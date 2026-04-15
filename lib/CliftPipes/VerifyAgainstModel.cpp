@@ -5,6 +5,7 @@
 #include "revng/CliftImportModel/Verify.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/VerifyAgainstModel.h"
+#include "revng/Model/Binary.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
 namespace clift = mlir::clift;
@@ -41,11 +42,13 @@ static pipeline::RegisterPipe<VerifyAgainstModelPipe> X;
 
 } // namespace
 
-namespace revng::pypeline::piperuns {
+//
+// New pipeline logic starts here.
+//
 
-void VerifyAgainstModel::runOnCliftFunction(const model::Function &Function,
-                                            mlir::clift::FunctionOp
-                                              MLIRFunction) {
+namespace {
+
+void verifyImpl(mlir::ModuleOp Module, const model::Binary &Binary) {
   // If the verify logger is disabled, this pipe does nothing
   if (not ModelVerifyLogger.isEnabled())
     return;
@@ -55,9 +58,23 @@ void VerifyAgainstModel::runOnCliftFunction(const model::Function &Function,
   // any way. Because of this, we disable the tracking temporarily as to not
   // have the model paths read here count for invalidation purposes.
   DisableTracking<model::Binary> Guard(Binary);
-  mlir::ModuleOp Module = MLIRFunction->getParentOfType<mlir::ModuleOp>();
+
   auto R = clift::verifyAgainstModel(Module, Binary);
   revng_assert(R.succeeded());
+}
+
+} // namespace
+
+namespace revng::pypeline::piperuns {
+
+void VerifyFunctionAgainstModel::runOnCliftFunction(const model::Function &,
+                                                    mlir::clift::FunctionOp
+                                                      Function) {
+  verifyImpl(Function->getParentOfType<mlir::ModuleOp>(), Binary);
+}
+
+void VerifyAgainstModel::run() {
+  verifyImpl(TypesAndGlobals.getModule(), Binary);
 }
 
 } // namespace revng::pypeline::piperuns
