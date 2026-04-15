@@ -1,0 +1,15 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+TypeDefinitions:
+  - ID: 0
+    Kind: StructDefinition
+    Size: 64
+    Fields: []
+
+  - ID: 1
+    Kind: StructDefinition
+    Size: 64
+    Fields: []
+    CanContainCode: true
