@@ -1,0 +1,48 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+TypeDefinitions:
+  - ID: 0
+    Kind: CABIFunctionDefinition
+    ABI: AAPCS64
+    Arguments: []
+
+Functions:
+  - Entry: "0x1004:Code_aarch64"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/0-CABIFunctionDefinition"
+    Attributes: []
+
+  - Entry: "0x1024:Code_aarch64"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/0-CABIFunctionDefinition"
+    Attributes:
+      - NoReturn
+
+  - Entry: "0x1044:Code_aarch64"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/0-CABIFunctionDefinition"
+    Attributes:
+      - AlwaysInline
+
+  - Entry: "0x1064:Code_aarch64"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/0-CABIFunctionDefinition"
+    Attributes:
+      - NoReturn
+      - AlwaysInline
+
+Architecture: aarch64
+Segments:
+  - StartAddress: "0x1000:Generic64"
+    VirtualSize: 0x1000
+    StartOffset: 0
+    FileSize: 0x1000
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
