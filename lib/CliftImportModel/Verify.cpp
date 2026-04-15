@@ -2,8 +2,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "mlir/IR/BuiltinAttributes.h"
+
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftImportModel/Verify.h"
+#include "revng/Model/RawFunctionDefinition.h"
+#include "revng/Model/TypeDefinition.h"
+#include "revng/PTML/CAttributes.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
@@ -150,6 +155,8 @@ private:
     };
 
     bool IsIsolated = false;
+    const model::TypeDefinition *Prototype = nullptr;
+
     if (auto L = GetLocation(ranks::Function)) {
       const auto &[Key] = L->at(ranks::Function);
       auto It = Model.Functions().find(Key);
@@ -157,7 +164,10 @@ private:
         return error() << "Clift ModuleOp contains an isolated function with "
                           "an invalid handle: '"
                        << Op.getHandle() << "'";
+
+      Prototype = It->prototype();
       IsIsolated = true;
+
     } else if (auto L = GetLocation(ranks::DynamicFunction)) {
       const auto &[Key] = L->at(ranks::DynamicFunction);
       auto It = Model.ImportedDynamicFunctions().find(Key);
@@ -165,6 +175,9 @@ private:
         return error() << "Clift ModuleOp contains an imported function with "
                           "an invalid handle: '"
                        << Op.getHandle() << "'";
+
+      Prototype = It->prototype();
+
     } else if (auto L = GetLocation(ranks::HelperFunction)) {
     } else {
       return error() << "Clift ModuleOp contains a function with an invalid "
@@ -188,21 +201,99 @@ private:
         Handle = "(a no-handle argument)";
 
       if (auto CAs = View.getOfType<mlir::ArrayAttr>("clift.c_attributes")) {
-        for (mlir::Attribute CAttribute : CAs) {
-          auto AttrName = mlir::cast<clift::CAttributeAttr>(CAttribute)
-                            .getName()
-                            .getName();
+        for (mlir::Attribute RawCAttribute : CAs) {
+          auto CAttribute = mlir::cast<clift::CAttributeAttr>(RawCAttribute);
+          auto AttributeName = CAttribute.getName().getName();
+          auto Arguments = CAttribute.getArguments();
 
-          if (AttrName == "_STACK" and std::exchange(IsStack, true))
-            return error() << "More than one _STACK attribute is attached to '"
-                           << Handle << "' of '" << Op.getHandle() << "'";
+          ptml::Attributes.assertAttributeName<"_STACK">();
+          ptml::Attributes.assertAnnotationName<"_REG">();
 
-          if (AttrName == "_REG" and std::exchange(IsRegister, true))
-            return error() << "More than one _REG attribute is attached to '"
-                           << Handle << "' of '" << Op.getHandle() << "'";
+          if (AttributeName == "_STACK") {
+            if (std::exchange(IsStack, true))
+              return error() << "More than one `_STACK` attribute is "
+                                "attached to '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            if (Arguments)
+              return error() << "`_STACK` attribute must not have any "
+                                "arguments. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            if (Index != Op.getArgCount() - 1)
+              return error() << "`_STACK` attribute is only allowed on the "
+                                "very last argument. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+            if (not Prototype)
+              return error() << "`_STACK` attribute is only allowed on "
+                                "functions with a prototype. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            const auto *RFT = Prototype->getRawFunction();
+            if (not RFT)
+              return error() << "`_STACK` attribute is only allowed on "
+                                "functions with a *raw* prototype. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            if (not RFT->StackArgumentsType())
+              return error() << "`_STACK` attribute is only allowed on "
+                                "functions that have stack arguments in the "
+                                "model. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+          }
+
+          if (AttributeName == "_REG") {
+            if (std::exchange(IsRegister, true))
+              return error() << "More than one `_REG` attribute is "
+                                "attached to '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            if (not Arguments)
+              return error() << "`_REG` attribute must have an argument. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            auto ArgumentArray = mlir::cast<mlir::ArrayAttr>(Arguments);
+            if (ArgumentArray.size() != 1)
+              return error() << "`_REG` attribute must have exactly one "
+                                "argument. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            using CIA = mlir::clift::CIdentifierAttr;
+            auto Identifier = mlir::dyn_cast<CIA>(Arguments[0]);
+            if (not Identifier)
+              return error() << "`_REG` attribute argument must be "
+                                "an identifier. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            if (not Prototype)
+              return error() << "`_REG` attribute is only allowed on "
+                                "functions with a prototype. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            const auto *RFT = Prototype->getRawFunction();
+            if (not RFT)
+              return error() << "`_REG` attribute is only allowed on "
+                                "functions with a *raw* prototype. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            if (RFT->Arguments().size() <= Index)
+              return error() << "`_REG` attribute is attached to "
+                                "a non-existent register argument. See '"
+                             << Handle << "' of '" << Op.getHandle() << "'";
+
+            const auto &Argument = *std::next(RFT->Arguments().begin(), Index);
+            auto RegisterName = model::Register::getName(Argument.Location());
+
+            llvm::StringRef AttrArgumentName = Identifier.getName();
+            if (AttrArgumentName != RegisterName)
+              return error() << "`_REG` attribute ('" << AttrArgumentName
+                             << "') differs from the model value ('"
+                             << RegisterName << "'). See '" << Handle
+                             << "' of '" << Op.getHandle() << "'";
+          }
 
           if (IsStack and IsRegister)
-            return error() << "*Both* _STACK and _REG attributes are "
+            return error() << "*Both* `_STACK` and `_REG` attributes are "
                               "attached to '"
                            << Handle << "' of '" << Op.getHandle() << "'";
         }
