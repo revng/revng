@@ -689,7 +689,6 @@ clift::importFunctionDeclaration(mlir::ModuleOp Module,
   Result.setHandle(Handle);
 
   mlir::MLIRContext *Context = Module.getContext();
-  llvm::SmallVector<mlir::clift::CAttributeAttr> CliftAttributes;
   for (model::FunctionAttribute::Values Attribute : Attributes) {
     switch (Attribute) {
     case model::FunctionAttribute::NoReturn:
@@ -705,10 +704,7 @@ clift::importFunctionDeclaration(mlir::ModuleOp Module,
     }
   }
 
-  llvm::ArrayRef<mlir::Attribute> AttributeArray = { CliftAttributes.begin(),
-                                                     CliftAttributes.end() };
-  Result->setAttr("clift.c_attributes",
-                  mlir::ArrayAttr::get(Context, AttributeArray));
+  Result->setAttr("clift.c_attributes", mlir::ArrayAttr::get(Context, {}));
 
   return Result;
 }
