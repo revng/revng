@@ -4,6 +4,7 @@
 
 #include "mlir/IR/BuiltinAttributes.h"
 
+#include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftImportModel/Verify.h"
 #include "revng/Model/FunctionAttribute.h"
@@ -115,11 +116,35 @@ private:
           return error() << "Clift ModuleOp contains an EnumType with "
                             "an invalid handle: '"
                          << Type.getHandle() << "'";
-      } else if (mlir::isa<clift::StructType>(Type)) {
+      } else if (auto ST = mlir::dyn_cast<clift::StructType>(Type)) {
         if (not llvm::isa<model::StructDefinition>(D))
           return error() << "Clift ModuleOp contains a StructType with "
                             "an invalid handle: '"
                          << Type.getHandle() << "'";
+
+        ptml::Attributes.assertAttributeName<"_CAN_CONTAIN_CODE">();
+
+        bool CodeFound = false;
+        for (clift::CAttributeAttr Attr : ST.getCAttributes()) {
+          if (Attr.getName().getName() == "_CAN_CONTAIN_CODE") {
+            if (std::exchange(CodeFound, true))
+              return error() << "Duplicate `_CAN_CONTAIN_CODE` attributes "
+                                "found in: '"
+                             << Type.getHandle() << "'";
+
+            if (Attr.getArguments())
+              return error() << "`_CAN_CONTAIN_CODE` attribute must not have "
+                                "any arguments. See '"
+                             << Type.getHandle() << "'";
+          }
+        }
+
+        bool IsCode = llvm::cast<model::StructDefinition>(D).CanContainCode();
+        if (CodeFound != IsCode)
+          return error() << "`_CAN_CONTAIN_CODE` status ('" << CodeFound
+                         << "') does not match the model value ('" << IsCode
+                         << "') for : '" << Type.getHandle() << "'";
+
       } else if (mlir::isa<clift::UnionType>(Type)) {
         if (not llvm::isa<model::UnionDefinition>(D))
           return error() << "Clift ModuleOp contains a UnionType with "
