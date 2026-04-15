@@ -6,6 +6,7 @@
 
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftImportModel/Verify.h"
+#include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/TypeDefinition.h"
 #include "revng/PTML/CAttributes.h"
@@ -156,6 +157,7 @@ private:
 
     bool IsIsolated = false;
     const model::TypeDefinition *Prototype = nullptr;
+    const model::Function::TypeOfAttributes *Attributes = nullptr;
 
     if (auto L = GetLocation(ranks::Function)) {
       const auto &[Key] = L->at(ranks::Function);
@@ -166,6 +168,7 @@ private:
                        << Op.getHandle() << "'";
 
       Prototype = It->prototype();
+      Attributes = &It->Attributes();
       IsIsolated = true;
 
     } else if (auto L = GetLocation(ranks::DynamicFunction)) {
@@ -177,6 +180,7 @@ private:
                        << Op.getHandle() << "'";
 
       Prototype = It->prototype();
+      Attributes = &It->Attributes();
 
     } else if (auto L = GetLocation(ranks::HelperFunction)) {
     } else {
@@ -298,6 +302,42 @@ private:
                            << Handle << "' of '" << Op.getHandle() << "'";
         }
       }
+    }
+
+    std::size_t AttributeCount = 0;
+    if (Op->hasAttr("noreturn")) {
+      if (Attributes == nullptr)
+        return error() << "`_NO_RETURN` is attached to a function that does "
+                          "not support attributes. See '"
+                       << Op.getHandle() << "'";
+
+      if (not Attributes->contains(model::FunctionAttribute::NoReturn))
+        return error() << "`_NO_RETURN` is attached to a function that does "
+                          "not have it in the model. See '"
+                       << Op.getHandle() << "'";
+
+      ++AttributeCount;
+    }
+
+    if (Op->hasAttr("always_inline")) {
+      if (Attributes == nullptr)
+        return error() << "`_ALWAYS_INLINE` is attached to a function that "
+                          "does not support attributes. See '"
+                       << Op.getHandle() << "'";
+
+      if (not Attributes->contains(model::FunctionAttribute::AlwaysInline))
+        return error() << "`_ALWAYS_INLINE` is attached to a function that "
+                          "does not have it in the model. See '"
+                       << Op.getHandle() << "'";
+
+      ++AttributeCount;
+    }
+
+    if (Attributes and AttributeCount != Attributes->size()) {
+      return error() << "Attached function attribute count ('" << AttributeCount
+                     << "') does not match the model value ('"
+                     << Attributes->size() << "'). See '" << Op.getHandle()
+                     << "'";
     }
 
     return mlir::success();
