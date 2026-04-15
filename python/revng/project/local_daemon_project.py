@@ -46,7 +46,7 @@ class LocalDaemonProject(DaemonProject):
         """
         Start the `revng2 project daemon` and wait for it to be ready.
         """
-        cli_args = ["daemon", "--host", self._host, "--port", str(self._port)]
+        cli_args = ["daemon", "--bind", f"{self._host}:{self._port!s}"]
         process = self._cli_helper.popen(cli_args, stdout=DEVNULL, stderr=STDOUT)
 
         failed_retries = 0

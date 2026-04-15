@@ -84,8 +84,8 @@ class StarletteTestServer(TestServer):
                 "--cache-dir",
                 self.cache_dir.name,
                 "daemon",
-                "--port",
-                str(self.port),
+                "--bind",
+                f"127.0.0.1:{self.port!s}",
             )
         )
         logger.critical("Server exiting")
