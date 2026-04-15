@@ -338,31 +338,31 @@ def init(
 ):
     """Initialize a new project."""
     model_type = get_singleton(Model)  # type: ignore[type-abstract]
-    model_name = model_type.model_name()
-    model_file = ctx.obj.base_directory / model_name
-    if model_file.exists():
+
+    storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
+    if not storage_provider_factory.init(ctx.obj.base_directory):
+        model_name = model_type.model_name()
         raise click.UsageError(
             f"File {model_name} is already present in the current directory. "
             "Refusing to overwrite it."
         )
-    model_file.touch()
-
-    if binary is not None:
-        model_raw = yaml.safe_dump(generate_model_with_binaries([binary])).encode()
-        with open(model_file, "wb") as f:
-            f.write(model_raw)
-    else:
-        model_raw = b""
-
-    if no_initial_auto_analysis:
-        return
 
     async def async_part_of_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
     ):
-        pipeline = ctx.obj.pipeline
         async with storage_provider_context as storage_provider:
-            model = model_type.deserialize(model_raw)[0]
+            if binary is not None:
+                model_raw = yaml.safe_dump(generate_model_with_binaries([binary])).encode()
+                model = model_type.deserialize(model_raw)[0]
+                storage_provider.set_model(model, set(), [])
+
+                file_entry = FileStorageEntry(binary.name, path=binary.resolve())
+                storage_provider.put_files_in_storage([file_entry])
+
+            if no_initial_auto_analysis:
+                return
+
+            pipeline = ctx.obj.pipeline
             analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
             pipeline.run_analysis_list(
                 model=ReadOnlyModel(model),
@@ -371,7 +371,6 @@ def init(
                 storage_provider=storage_provider,
             )
 
-    storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
     storage_provider_context = storage_provider_factory.get(
         base_directory=ctx.obj.base_directory,
         pipeline=ctx.obj.pipeline,

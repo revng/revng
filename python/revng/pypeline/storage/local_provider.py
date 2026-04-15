@@ -221,6 +221,16 @@ class _LocalStorageProviderCommon:
     def get_notification_websocket(self) -> str | None:
         return None
 
+    def init(self, directory: Path):
+        model_type = get_singleton(Model)  # type: ignore [type-abstract]
+        model_name = model_type.model_name()
+        model_path = directory / model_name
+        if not model_path.exists():
+            model_path.touch()
+            return True
+        else:
+            return False
+
 
 class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFactory):
     def __init__(self, url: str):

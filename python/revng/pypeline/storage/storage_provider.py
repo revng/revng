@@ -202,6 +202,14 @@ class StorageProviderFactory(ABC):
         then the internal websocket will be used.
         """
 
+    def init(self, directory: Path) -> bool:
+        """
+        Initialize the specified directory to become a storage directory, can
+        be overridden by local storage providers. Returns true if the directory
+        was initted or false if it was previously initted.
+        """
+        return True
+
 
 # TODO: find a more suitable name
 def storage_provider_factory_factory(url: str) -> StorageProviderFactory:
