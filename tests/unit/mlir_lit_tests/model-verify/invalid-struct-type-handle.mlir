@@ -6,5 +6,5 @@
 
 !t = !clift.struct<"/type-definition/1002-UnionDefinition" : size(1) {}>
 
-// CHECK: StructType with invalid handle: '/type-definition/1002-UnionDefinition'
+// CHECK: a StructType with an invalid handle: '/type-definition/1002-UnionDefinition'
 module attributes {clift.module, clift.test = !t} {}

@@ -7,5 +7,5 @@
 !void = !clift.void
 !t = !clift.func<"/type-definition/1001-StructDefinition" : !void()>
 
-// CHECK: FunctionType with invalid handle: '/type-definition/1001-StructDefinition'
+// CHECK: a FunctionType with an invalid handle: '/type-definition/1001-StructDefinition'
 module attributes {clift.module, clift.test = !t} {}

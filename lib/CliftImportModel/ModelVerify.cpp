@@ -88,56 +88,56 @@ private:
     if (auto L = GetLocation(ranks::TypeDefinition)) {
       auto It = Model.TypeDefinitions().find(L->at(ranks::TypeDefinition));
       if (It == Model.TypeDefinitions().end())
-        return error() << "Clift ModuleOp contains DefinedType with invalid "
-                          "handle: '"
+        return error() << "Clift ModuleOp contains a DefinedType with "
+                          "an invalid handle: '"
                        << Type.getHandle() << "'";
       const model::TypeDefinition &D = **It;
 
       if (mlir::isa<clift::FunctionType>(Type)) {
         if (not llvm::isa<model::CABIFunctionDefinition>(D)
             and not llvm::isa<model::RawFunctionDefinition>(D))
-          return error() << "Clift ModuleOp contains FunctionType with invalid "
-                            "handle: '"
+          return error() << "Clift ModuleOp contains a FunctionType with "
+                            "an invalid handle: '"
                          << Type.getHandle() << "'";
       } else if (mlir::isa<clift::TypedefType>(Type)) {
         if (not llvm::isa<model::TypedefDefinition>(D))
-          return error() << "Clift ModuleOp contains TypedefType with invalid "
-                            "handle: '"
+          return error() << "Clift ModuleOp contains a TypedefType with "
+                            "an invalid handle: '"
                          << Type.getHandle() << "'";
       } else if (mlir::isa<clift::EnumType>(Type)) {
         if (not llvm::isa<model::EnumDefinition>(D))
-          return error() << "Clift ModuleOp contains EnumType with invalid "
-                            "handle: '"
+          return error() << "Clift ModuleOp contains an EnumType with "
+                            "an invalid handle: '"
                          << Type.getHandle() << "'";
       } else if (mlir::isa<clift::StructType>(Type)) {
         if (not llvm::isa<model::StructDefinition>(D))
-          return error() << "Clift ModuleOp contains StructType with invalid "
-                            "handle: '"
+          return error() << "Clift ModuleOp contains a StructType with "
+                            "an invalid handle: '"
                          << Type.getHandle() << "'";
       } else if (mlir::isa<clift::UnionType>(Type)) {
         if (not llvm::isa<model::UnionDefinition>(D))
-          return error() << "Clift ModuleOp contains UnionType with invalid "
-                            "handle: '"
+          return error() << "Clift ModuleOp contains a UnionType with "
+                            "an invalid handle: '"
                          << Type.getHandle() << "'";
       }
     } else if (auto L = GetLocation(ranks::HelperStructType)) {
       if (not mlir::isa<clift::StructType>(Type))
-        return error() << "Clift ModuleOp contains non-struct type with "
-                          "HelperStructType handle: '"
+        return error() << "Clift ModuleOp contains a non-struct type with "
+                          "a HelperStructType handle: '"
                        << Type.getHandle() << "'";
     } else if (auto L = GetLocation(ranks::HelperFunction)) {
       if (not mlir::isa<clift::FunctionType>(Type))
-        return error() << "Clift ModuleOp contains non-function type with "
-                          "HelperFunction handle: '"
+        return error() << "Clift ModuleOp contains a non-function type with "
+                          "a HelperFunction handle: '"
                        << Type.getHandle() << "'";
     } else if (auto L = GetLocation(ranks::ArtificialStruct)) {
       if (not mlir::isa<clift::StructType>(Type))
-        return error() << "Clift ModuleOp contains non-struct type with "
-                          "ArtificialStruct handle: '"
+        return error() << "Clift ModuleOp contains a non-struct type with "
+                          "an ArtificialStruct handle: '"
                        << Type.getHandle() << "'";
     } else {
-      return error() << "Clift ModuleOp contains DefinedType with invalid "
-                        "handle: '"
+      return error() << "Clift ModuleOp contains a DefinedType with "
+                        "an invalid handle: '"
                      << Type.getHandle() << "'";
     }
 
@@ -154,27 +154,28 @@ private:
       const auto &[Key] = L->at(ranks::Function);
       auto It = Model.Functions().find(Key);
       if (It == Model.Functions().end())
-        return error() << "Clift ModuleOp contains function with invalid "
-                          "isolated handle: '"
+        return error() << "Clift ModuleOp contains an isolated function with "
+                          "an invalid handle: '"
                        << Op.getHandle() << "'";
       IsIsolated = true;
     } else if (auto L = GetLocation(ranks::DynamicFunction)) {
       const auto &[Key] = L->at(ranks::DynamicFunction);
       auto It = Model.ImportedDynamicFunctions().find(Key);
       if (It == Model.ImportedDynamicFunctions().end())
-        return error() << "Clift ModuleOp contains function with invalid "
-                          "imported handle: '"
+        return error() << "Clift ModuleOp contains an imported function with "
+                          "an invalid handle: '"
                        << Op.getHandle() << "'";
     } else if (auto L = GetLocation(ranks::HelperFunction)) {
     } else {
-      return error() << "Clift ModuleOp contains function with invalid handle: "
+      return error() << "Clift ModuleOp contains a function with an invalid "
+                        "handle: "
                         "'"
                      << Op.getHandle() << "'";
     }
 
     if (not IsIsolated and not Op.isExternal())
-      return error() << "Clift ModuleOp contains non-isolated function with a "
-                        "definition: '"
+      return error() << "Clift ModuleOp contains a non-isolated function with "
+                        "a definition: '"
                      << Op.getHandle() << "'";
 
     for (unsigned Index = 0; Index < Op.getArgCount(); ++Index) {
@@ -182,6 +183,10 @@ private:
       bool IsRegister = false;
 
       mlir::clift::AttrDictView View = Op.getArgAttrs(Index);
+      auto Handle = View.getStringOrEmpty("clift.handle");
+      if (Handle.empty())
+        Handle = "(a no-handle argument)";
+
       if (auto CAs = View.getOfType<mlir::ArrayAttr>("clift.c_attributes")) {
         for (mlir::Attribute CAttribute : CAs) {
           auto AttrName = mlir::cast<clift::CAttributeAttr>(CAttribute)
@@ -189,16 +194,17 @@ private:
                             .getName();
 
           if (AttrName == "_STACK" and std::exchange(IsStack, true))
-            return error() << "Function argument contains duplicate _STACK "
-                              "attribute.";
+            return error() << "More than one _STACK attribute is attached to '"
+                           << Handle << "' of '" << Op.getHandle() << "'";
 
           if (AttrName == "_REG" and std::exchange(IsRegister, true))
-            return error() << "Function argument contains duplicate _REG "
-                              "attribute.";
+            return error() << "More than one _REG attribute is attached to '"
+                           << Handle << "' of '" << Op.getHandle() << "'";
 
           if (IsStack and IsRegister)
-            return error() << "Function argument contains both _STACK and _REG "
-                              "attributes.";
+            return error() << "*Both* _STACK and _REG attributes are "
+                              "attached to '"
+                           << Handle << "' of '" << Op.getHandle() << "'";
         }
       }
     }
@@ -210,12 +216,12 @@ private:
     if (auto L = pipeline::locationFromString(ranks::Segment, Op.getHandle())) {
       auto It = Model.Segments().find(L->at(ranks::Segment));
       if (It == Model.Segments().end())
-        return error() << "Clift ModuleOp contains global variable with "
-                          "invalid segment handle: '"
+        return error() << "Clift ModuleOp contains a segment with "
+                          "an invalid handle: '"
                        << Op.getHandle() << "'";
     } else {
-      return error() << "Clift ModuleOp contains global variable with invalid "
-                        "handle: '"
+      return error() << "Clift ModuleOp contains a global variable with "
+                        "an invalid handle: '"
                      << Op.getHandle() << "'";
     }
 

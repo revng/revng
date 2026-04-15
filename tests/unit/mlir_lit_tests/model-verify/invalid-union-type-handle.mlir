@@ -8,5 +8,5 @@
   "/struct-field/1001-StructDefinition/0" : !clift.int<signed 4>
 }>
 
-// CHECK: UnionType with invalid handle: '/type-definition/1001-StructDefinition'
+// CHECK: a UnionType with an invalid handle: '/type-definition/1001-StructDefinition'
 module attributes {clift.module, clift.test = !t} {}

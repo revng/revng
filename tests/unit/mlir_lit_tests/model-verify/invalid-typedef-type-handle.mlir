@@ -6,5 +6,5 @@
 
 !t = !clift.typedef<"/type-definition/1001-StructDefinition" : !clift.int<signed 4>>
 
-// CHECK: TypedefType with invalid handle: '/type-definition/1001-StructDefinition'
+// CHECK: a TypedefType with an invalid handle: '/type-definition/1001-StructDefinition'
 module attributes {clift.module, clift.test = !t} {}

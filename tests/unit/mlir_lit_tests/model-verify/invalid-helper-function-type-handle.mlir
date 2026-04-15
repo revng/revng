@@ -8,5 +8,5 @@
   "/helper-struct-field/foo/field_0" : !clift.int<signed 4>
 }>
 
-// CHECK: non-function type with HelperFunction handle: '/helper-function/foo'
+// CHECK: a non-function type with a HelperFunction handle: '/helper-function/foo'
 module attributes {clift.module, clift.test = !t} {}

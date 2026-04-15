@@ -8,5 +8,5 @@
   "/helper-struct-field/foo/field_0" : !clift.int<signed 4>
 }>
 
-// CHECK: non-struct type with HelperStructType handle: '/helper-struct-type/foo'
+// CHECK: a non-struct type with a HelperStructType handle: '/helper-struct-type/foo'
 module attributes {clift.module, clift.test = !t} {}

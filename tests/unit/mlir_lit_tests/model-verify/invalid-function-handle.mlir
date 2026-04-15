@@ -8,7 +8,7 @@
 !f = !clift.func<"/type-definition/1004-CABIFunctionDefinition" : !void()>
 
 module attributes {clift.module} {
-  // CHECK: function with invalid handle: '/made-up-kind/something'
+  // CHECK: a function with an invalid handle: '/made-up-kind/something'
   clift.func @f<!f>() attributes {
     handle = "/made-up-kind/something"
   }

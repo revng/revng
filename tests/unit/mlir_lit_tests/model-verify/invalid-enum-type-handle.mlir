@@ -8,5 +8,5 @@
   "/enum-entry/1001-EnumDefinition/0" : 0
 }>
 
-// CHECK: EnumType with invalid handle: '/type-definition/1001-StructDefinition'
+// CHECK: an EnumType with an invalid handle: '/type-definition/1001-StructDefinition'
 module attributes {clift.module, clift.test = !t} {}

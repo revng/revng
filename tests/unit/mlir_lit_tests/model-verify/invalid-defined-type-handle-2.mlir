@@ -6,5 +6,5 @@
 
 !s = !clift.struct<"/made-up-kind/something" : size(1) {}>
 
-// CHECK: DefinedType with invalid handle: '/made-up-kind/something'
+// CHECK: a DefinedType with an invalid handle: '/made-up-kind/something'
 module attributes {clift.module, clift.test = !s} {}

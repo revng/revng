@@ -8,7 +8,7 @@
 !f = !clift.func<"/type-definition/1004-CABIFunctionDefinition" : !void()>
 
 module attributes {clift.module} {
-  // CHECK: function with invalid imported handle: '/dynamic-function/bar'
+  // CHECK: an imported function with an invalid handle: '/dynamic-function/bar'
   clift.func @f<!f>() attributes {
     handle = "/dynamic-function/bar"
   }
