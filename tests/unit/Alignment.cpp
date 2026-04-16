@@ -44,14 +44,14 @@ void testAlignment(model::UpcastableType &&Type, const Types &...TestCases) {
 static bool ABIhasIntsOfSizes(const abi::Definition &ABI,
                               std::initializer_list<uint64_t> Values) {
   return std::ranges::all_of(Values, [&ABI](uint64_t Value) {
-    return ABI.ScalarTypes().contains(Value);
+    return ABI.findIntegerType(Value) != nullptr;
   });
 }
 
 static bool ABIhasFloatsOfSizes(const abi::Definition &ABI,
                                 std::initializer_list<uint64_t> Values) {
   return std::ranges::all_of(Values, [&ABI](uint64_t Value) {
-    return ABI.FloatingPointScalarTypes().contains(Value);
+    return ABI.findFloatingPointType(Value) != nullptr;
   });
 }
 

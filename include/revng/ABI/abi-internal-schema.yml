@@ -102,11 +102,6 @@ definitions:
           type: SortedVector
           elementType: ScalarType
 
-      - name: FloatingPointScalarTypes
-        sequence:
-          type: SortedVector
-          elementType: ScalarType
-
     key:
       - ABI
 
@@ -116,9 +111,17 @@ definitions:
       Represents type specific information ABI needs to be aware of,
       for example, alignment.
     fields:
+      - name: Kind
+        type: ScalarKind
+
       - name: Size
         type: uint64_t
         default: -1
+
+        # TODO: For MS x86 ABIs, alignment of 4 is incorrectly used for long
+        #       long. The reason being that the MS ABI seems to align all stack
+        #       arguments to 4 bytes. To fix this, a separate stack alignment
+        #       field is probably needed (single per-ABI value may be enough).
 
       - name: AlignedAt
         doc: |
@@ -126,5 +129,29 @@ definitions:
         type: uint64_t
         default: 0
 
+      - name: CTypes
+        sequence:
+          type: SortedVector
+          elementType: CType
+
     key:
+      - Kind
       - Size
+
+  - name: ScalarKind
+    type: enum
+    members:
+      - name: Integer
+      - name: FloatingPoint
+
+  - name: CType
+    type: enum
+    members:
+      - name: Char
+      - name: Short
+      - name: Int
+      - name: Long
+      - name: LongLong
+      - name: Float
+      - name: Double
+      - name: LongDouble

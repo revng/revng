@@ -12,6 +12,7 @@
 #include "revng/Model/ABI.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/Register.h"
+#include "revng/Support/CDataModel.h"
 #include "revng/Support/Debug.h"
 #include "revng/TupleTree/TupleTree.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
@@ -33,6 +34,11 @@ public:
   model::Architecture::Values getArchitecture() const {
     return model::ABI::getArchitecture(ABI());
   }
+
+  [[nodiscard]] const ScalarType *findIntegerType(uint64_t Size) const;
+  [[nodiscard]] const ScalarType *findFloatingPointType(uint64_t Size) const;
+
+  const ScalarType &getWidestIntegerType() const;
 
   /// Make sure current definition is valid.
   bool verify() const debug_function;
@@ -107,6 +113,8 @@ public:
   uint64_t alignedOffset(uint64_t Offset, const AnyType &Type) const {
     return alignedOffset(Offset, *alignment(Type));
   }
+
+  [[nodiscard]] CDataModel getDataModel() const;
 
 public:
   using RegisterSet = std::set<model::Register::Values>;
