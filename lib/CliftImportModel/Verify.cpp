@@ -151,6 +151,11 @@ private:
               return error() << "`_ABI` attribute value ('" << AttrABIName
                              << "') differs from the model value ('" << ModelABI
                              << "'). See '" << Type.getHandle() << "'";
+
+          } else {
+            return error() << "Forbidden c-attribute ('"
+                           << Attr.getName().getName() << "') found in '"
+                           << Type.getHandle() << "'";
           }
         }
 
@@ -194,6 +199,11 @@ private:
               return error() << "`_CAN_CONTAIN_CODE` attribute must not have "
                                 "any arguments. See '"
                              << Type.getHandle() << "'";
+
+          } else {
+            return error() << "Forbidden c-attribute ('"
+                           << Attr.getName().getName() << "') found in '"
+                           << Type.getHandle() << "'";
           }
         }
 
@@ -337,9 +347,8 @@ private:
                                 "functions that have stack arguments in the "
                                 "model. See '"
                              << Handle << "' of '" << Op.getHandle() << "'";
-          }
 
-          if (AttributeName == "_REG") {
+          } else if (AttributeName == "_REG") {
             if (std::exchange(IsRegister, true))
               return error() << "More than one `_REG` attribute is "
                                 "attached to '"
@@ -387,6 +396,11 @@ private:
                              << "') differs from the model value ('"
                              << RegisterName << "'). See '" << Handle
                              << "' of '" << Op.getHandle() << "'";
+
+          } else {
+            return error() << "Forbidden c-attribute ('" << AttributeName
+                           << "') found in '" << Handle << "' of '"
+                           << Op.getHandle() << "'";
           }
 
           if (IsStack and IsRegister)
@@ -442,10 +456,16 @@ private:
                             "the `c_attributes` in '"
                          << Op.getHandle() << "'";
 
-        if (not ptml::Attributes.isMacro(CAttribute.getName().getName()))
+        if (not ptml::Attributes.isMacro(CAttribute.getName().getName())) {
           return error() << "Unknown c-attribute ('"
                          << CAttribute.getName().getName() << "') found in '"
                          << Op.getHandle() << "'";
+
+        } else {
+          return error() << "Forbidden c-attribute ('"
+                         << CAttribute.getName().getName() << "') found in '"
+                         << Op.getHandle() << "'";
+        }
       }
     }
 
