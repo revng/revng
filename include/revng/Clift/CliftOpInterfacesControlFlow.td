@@ -10,7 +10,8 @@ include "revng/Clift/CliftOpInterfacesJump.td"
 def Clift_BranchOpInterface
   : Clift_OpInterface<"BranchOpInterface",
                       [Clift_StatementOpInterface,
-                       Clift_StatementRegionOpInterface]> {
+                       Clift_StatementRegionOpInterface,
+                       Clift_ExpressionRegionOpInterface]> {
 
   let description = [{
     Common interface for branch statements, providing generic access to
@@ -40,7 +41,8 @@ def Clift_BranchOpInterface
 
 def Clift_LoopOpInterface
   : Clift_OpInterface<"LoopOpInterface", [Clift_LabelAssignmentOpInterface,
-                                          Clift_StatementRegionOpInterface]> {
+                                          Clift_StatementRegionOpInterface,
+                                          Clift_ExpressionRegionOpInterface]> {
 
   let description = [{
     Common interface for loop statements, providing generic access to assigned
