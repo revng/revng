@@ -12,6 +12,9 @@ include "revng/Clift/CliftDialect.td"
 include "revng/Clift/CliftAttrInterfaces.td"
 include "revng/Clift/CliftEnums.td"
 
+class Clift_ConstRefParameter<string type, string desc = "">
+  : AttrOrTypeParameter<type, desc, "const " # type # " &">;
+
 class Clift_OptionalArrayRefParameter<string elementType, string desc = "">
   : AttrOrTypeParameter<"std::optional<llvm::ArrayRef<" # elementType # ">>", desc> {
 
@@ -29,6 +32,17 @@ class Clift_OptionalArrayRefParameter<string elementType, string desc = "">
 class Clift_Attr<string name, string attrMnemonic, list<Trait> traits = []>
   : AttrDef<Clift_Dialect, name, traits> {
   let mnemonic = attrMnemonic;
+}
+
+def Clift_DataModelAttr
+  : Clift_Attr<"DataModel",
+               "data_model",
+               [DeclareAttrInterfaceMethods<Clift_AliasableAttr>]> {
+
+  let parameters = (ins Clift_ConstRefParameter<"CDataModel">:$DataModel);
+
+  let hasCustomAssemblyFormat = 1;
+  let genVerifyDecl = 1;
 }
 
 def Clift_StringPairAttr : AttrDef<Clift_Dialect, "StringPair"> {

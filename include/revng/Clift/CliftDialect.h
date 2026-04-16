@@ -10,6 +10,12 @@
 #include "revng/Clift/CliftInterfaces.h"
 #include "revng/Support/Debug.h"
 
+namespace clift {
+
+struct CliftDialectImpl;
+
+} // namespace clift
+
 // Preserve ordering:
 #include "revng/Clift/CliftDialect.h.inc"
 

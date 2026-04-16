@@ -25,8 +25,11 @@ def Clift_Dialect : Dialect {
   let useDefaultAttributePrinterParser = 0;
   let hasOperationAttrVerify = 1;
   let useFoldAPI = kEmitFoldAdaptorFolder;
+  let hasNonDefaultDestructor = 1;
 
   let extraClassDeclaration = [{
+    CliftDialectImpl* Impl;
+
     void registerTypes();
     void registerAttributes();
     void registerOperations();
@@ -34,6 +37,13 @@ def Clift_Dialect : Dialect {
     static llvm::StringRef getModuleAttrName() {
       return "clift.module";
     }
+
+    static llvm::StringRef getDataModelAttrName() {
+      return "clift.data_model";
+    }
+
+    const CDataModel *getDefaultDataModel() const;
+    void setDefaultDataModel(const CDataModel &DataModel);
 
     mlir::Attribute parseAttribute(mlir::DialectAsmParser &Parser,
                                    mlir::Type Type) const override;

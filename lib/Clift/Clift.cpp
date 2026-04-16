@@ -113,6 +113,29 @@ void clift::setModuleAttr(mlir::ModuleOp Module) {
                   mlir::UnitAttr::get(Module.getContext()));
 }
 
+const CDataModel &clift::getDataModel(mlir::ModuleOp Module) {
+  if (auto Attr = Module->getAttr(CliftDialect::getDataModelAttrName()))
+    return mlir::cast<DataModelAttr>(Attr).getDataModel();
+
+  if (auto Dialect = Module->getContext()->getLoadedDialect<CliftDialect>()) {
+    if (const auto *DM = Dialect->getDefaultDataModel())
+      return *DM;
+  }
+
+  revng_abort("The module does not specify a data model.");
+}
+
+const CDataModel &clift::getDataModel(FunctionOp Function) {
+  auto Module = Function->getParentOfType<mlir::ModuleOp>();
+  revng_assert(Module, "The function must be contained within a module.");
+  return getDataModel(Module);
+}
+
+void clift::setDataModel(mlir::ModuleOp Module, const CDataModel &DataModel) {
+  Module->setAttr(CliftDialect::getDataModelAttrName(),
+                  DataModelAttr::get(Module.getContext(), DataModel));
+}
+
 YieldOp clift::getExpressionYieldOp(mlir::Region &R) {
   if (R.empty())
     return {};

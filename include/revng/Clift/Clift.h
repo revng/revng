@@ -108,6 +108,18 @@ bool hasModuleAttr(mlir::ModuleOp Module);
 /// Sets the Clift module attribute on the specified module.
 void setModuleAttr(mlir::ModuleOp Module);
 
+/// Returns the data model for the specified module.
+/// \note The module must have an associated data model.
+const CDataModel &getDataModel(mlir::ModuleOp Module);
+
+/// Returns the data model for the specified function.
+/// \note The function must be contained within a module, and that module must
+///       have an associated data model.
+const CDataModel &getDataModel(FunctionOp Function);
+
+/// Assigns the module data model.
+void setDataModel(mlir::ModuleOp Module, const CDataModel &DataModel);
+
 /// Returns the terminating YieldOp of the expression represented by the region,
 /// or a operation if the region is not a valid expression region.
 YieldOp getExpressionYieldOp(mlir::Region &R);

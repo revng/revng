@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
+
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
@@ -209,13 +211,50 @@ static mlir::LogicalResult verifyModuleAttr(mlir::Operation *Op,
   return ModuleVerifier::visit(Module);
 }
 
+static mlir::LogicalResult verifyDataModelAttr(mlir::Operation *Op,
+                                               mlir::Attribute Attr) {
+  if (not mlir::isa<DataModelAttr>(Attr))
+    return Op->emitOpError()
+           << "expected '" << CliftDialect::getDataModelAttrName()
+           << "' attribute to be of type DataModelAttr.";
+
+  if (not mlir::isa<mlir::ModuleOp>(Op))
+    return Op->emitOpError()
+           << "expected '" << CliftDialect::getDataModelAttrName()
+           << "' attribute to be attached to '"
+           << mlir::ModuleOp::getOperationName() << "'";
+
+  return mlir::success();
+}
+
 } // namespace
 
+struct clift::CliftDialectImpl {
+  std::optional<CDataModel> DefaultDataModel;
+};
+
 void CliftDialect::initialize() {
+  Impl = new CliftDialectImpl();
+
   registerTypes();
   registerOperations();
   registerAttributes();
   addInterfaces<CliftOpAsmDialectInterface, CliftBytecodeDialectInterface>();
+}
+
+CliftDialect::~CliftDialect() {
+  delete Impl;
+}
+
+const CDataModel *CliftDialect::getDefaultDataModel() const {
+  if (const auto &DM = Impl->DefaultDataModel)
+    return &*DM;
+
+  return nullptr;
+}
+
+void CliftDialect::setDefaultDataModel(const CDataModel &DataModel) {
+  Impl->DefaultDataModel = DataModel;
 }
 
 mlir::LogicalResult
@@ -223,6 +262,9 @@ CliftDialect::verifyOperationAttribute(mlir::Operation *Op,
                                        mlir::NamedAttribute Attr) {
   if (Attr.getName() == getModuleAttrName())
     return verifyModuleAttr(Op, Attr.getValue());
+
+  if (Attr.getName() == getDataModelAttrName())
+    return verifyDataModelAttr(Op, Attr.getValue());
 
   return mlir::success();
 }

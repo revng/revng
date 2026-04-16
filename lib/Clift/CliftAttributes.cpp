@@ -257,7 +257,132 @@ template class ClassAttrImpl<UnionAttr>;
 
 } // namespace clift
 
-//===---------------------------- CAttributeAttr --------------------------===//
+//===---------------------------- DataModelAttr ---------------------------===//
+
+mlir::LogicalResult DataModelAttr::verify(EmitErrorType EmitError,
+                                          CDataModel DM) {
+  if (not DM.verify())
+    return EmitError() << "the specified data model is invalid";
+
+  return mlir::success();
+}
+
+bool DataModelAttr::getAlias(llvm::raw_ostream &OS) const {
+  OS << "data_model";
+  return true;
+}
+
+mlir::Attribute DataModelAttr::parse(mlir::AsmParser &Parser, mlir::Type) {
+  mlir::SMLoc AttrLoc = Parser.getCurrentLocation();
+
+  CDataModel DM;
+  auto ParseTypeDefinition = [&]() -> mlir::LogicalResult {
+    mlir::SMLoc KWLoc = Parser.getCurrentLocation();
+
+    llvm::StringRef Keyword;
+    if (Parser.parseKeyword(&Keyword).failed())
+      return mlir::failure();
+
+    std::string Name = std::string(Keyword);
+    while (Parser.parseOptionalKeyword(&Keyword).succeeded()) {
+      Name += ' ';
+      Name += std::string_view(Keyword);
+    }
+
+    uint8_t *SizeField = &DM.PointerSize;
+    if (Name != "pointer") {
+      // In order to provide good diagnostics like GCC, the special case of
+      // extremely long integer types is handled separately.
+      if (Name.starts_with("long long long"))
+        return Parser.emitError(KWLoc) << Name << " is too long for Clift.";
+
+      auto Type = findCStandardType(Name);
+      if (not Type)
+        return Parser.emitError(KWLoc) << "invalid type '" << Name << "'";
+
+      SizeField = &DM.getStandardTypeSize(*Type);
+    }
+
+    if (Parser.parseEqual().failed())
+      return mlir::failure();
+
+    uint8_t NewSize;
+    mlir::SMLoc SizeLoc = Parser.getCurrentLocation();
+    if (Parser.parseInteger(NewSize).failed())
+      return mlir::failure();
+
+    if (NewSize == 0)
+      return Parser.emitError(SizeLoc)
+             << "the size of type '" << Name << "' cannot be 0";
+
+    if (*SizeField != 0)
+      return Parser.emitError(KWLoc)
+             << "the size of type '" << Name << "' was already specified";
+
+    *SizeField = NewSize;
+    return mlir::success();
+  };
+
+  if (Parser
+        .parseCommaSeparatedList(mlir::AsmParser::Delimiter::LessGreater,
+                                 ParseTypeDefinition,
+                                 " in data model definition")
+        .failed())
+    return {};
+
+  if (DM.PointerSize == 0) {
+    Parser.emitError(AttrLoc) << "size of pointer must be specified";
+    return {};
+  }
+
+  auto Defaults = CDataModel::getDefaultDataModel(DM.PointerSize);
+
+  // Set each unspecified field to its default value based on the pointer size.
+  for (int I = 0; I < static_cast<int>(CStandardType::Count); ++I) {
+    uint8_t &SizeField = DM.StandardTypeSize[I];
+
+    if (SizeField == 0)
+      SizeField = Defaults.StandardTypeSize[I];
+  }
+
+  return DataModelAttr::get(Parser.getContext(), DM);
+}
+
+void DataModelAttr::print(mlir::AsmPrinter &Printer) const {
+  const CDataModel &DM = getDataModel();
+
+  Printer << '<';
+
+  bool PrintComma = false;
+  auto PrintTypeDefinition = [&](llvm::StringRef Name, unsigned Size) {
+    revng_assert(Size != 0);
+
+    if (std::exchange(PrintComma, true))
+      Printer << ',';
+
+    Printer << '\n';
+    Printer << "  ";
+    Printer << Name;
+    Printer << " = ";
+    Printer << Size;
+  };
+
+  PrintTypeDefinition("pointer", DM.PointerSize);
+
+  auto Defaults = CDataModel::getDefaultDataModel(DM.PointerSize);
+
+  // Print any field that does not have its default value.
+  for (int I = 0; I < static_cast<int>(CStandardType::Count); ++I) {
+    uint8_t Size = DM.StandardTypeSize[I];
+    if (Size != Defaults.StandardTypeSize[I])
+      PrintTypeDefinition(CStandardTypeName[I], Size);
+  }
+
+  Printer << '\n';
+  Printer << '>';
+}
+
+//===--------------------------- CAttributeAttr ---------------------------===//
 
 static mlir::LogicalResult
 parseCIdentifierImpl(mlir::AsmParser &Parser, clift::CIdentifierAttr &Result) {
