@@ -197,15 +197,13 @@ static mlir::LogicalResult verifyModuleAttr(mlir::Operation *Op,
   if (not mlir::isa<mlir::UnitAttr>(Attr))
     return Op->emitOpError()
            << "expected '" << CliftDialect::getModuleAttrName()
-           << "' "
-              "attribute to be mlir::UnitAttr.";
+           << "' attribute to be mlir::UnitAttr.";
 
   auto Module = mlir::dyn_cast<mlir::ModuleOp>(Op);
   if (not Module)
     return Op->emitOpError()
            << "expected '" << CliftDialect::getModuleAttrName()
-           << "' "
-              "attribute to be attached to '"
+           << "' attribute to be attached to '"
            << mlir::ModuleOp::getOperationName() << "'";
 
   return ModuleVerifier::visit(Module);
