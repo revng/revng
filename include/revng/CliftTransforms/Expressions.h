@@ -8,6 +8,7 @@
 
 namespace clift {
 
+void populateWithCastCanonicalizations(mlir::RewritePatternSet &Set);
 void populateWithBooleanNegationPatterns(mlir::RewritePatternSet &Set);
 
 } // namespace clift

@@ -212,8 +212,7 @@ struct OptimizeExpressionsPass
     mlir::RewritePatternSet Set(Context);
     populateWithGenerated(Set);
     populateWithBooleanNegationPatterns(Set);
-
-    Set.add<CastCollapsingPattern>(Context);
+    populateWithCastCanonicalizations(Set);
 
     Patterns = mlir::FrozenRewritePatternSet(std::move(Set),
                                              disabledPatterns,
@@ -239,6 +238,10 @@ struct OptimizeExpressionsPass
 };
 
 } // namespace
+
+void clift::populateWithCastCanonicalizations(mlir::RewritePatternSet &Set) {
+  Set.add<CastCollapsingPattern>(Set.getContext());
+}
 
 PassPtr<FunctionOp> clift::createOptimizeExpressionsPass() {
   return std::make_unique<OptimizeExpressionsPass>();
