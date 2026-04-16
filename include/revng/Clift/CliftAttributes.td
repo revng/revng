@@ -37,8 +37,8 @@ def Clift_StringPairAttr : AttrDef<Clift_Dialect, "StringPair"> {
 }
 
 def Clift_CIdentifierAttr : Clift_Attr<"CIdentifier",
-                                             "identifier",
-                                             [SubElementAttrInterface]> {
+                                       "identifier",
+                                       [SubElementAttrInterface]> {
   let parameters = (ins StringRefParameter<>:$name,
                         StringRefParameter<>:$handle);
 
