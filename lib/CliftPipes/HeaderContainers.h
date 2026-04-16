@@ -43,6 +43,11 @@ inline constexpr char HeaderSuffix[] = ".h";
 template<auto... Values>
 using SBF = revng::pipes::StringBufferContainer<Values...>;
 
+// The real class is used here because aliasing an alias is not allowed.
+namespace RPD = revng::pipes::detail;
+template<auto... Values>
+using TSM = RPD::GenericStringMap<&revng::ranks::TypeDefinition, Values...>;
+
 template<typename T>
 using RegisterDCC = pipeline::RegisterDefaultConstructibleContainer<T>;
 

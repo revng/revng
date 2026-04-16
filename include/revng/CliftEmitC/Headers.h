@@ -6,6 +6,7 @@
 
 #include "mlir/IR/BuiltinOps.h"
 
+#include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/Configuration.h"
 #include "revng/PTML/CTokenEmitter.h"
 
@@ -16,3 +17,8 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
                       llvm::ArrayRef<mlir::ModuleOp> Modules);
+
+void emitSingleTypeDefinition(ptml::CTokenEmitter &Tokens,
+                              const CDataModel &DataModel,
+                              clift::DefinedType Type,
+                              TypeEmitterConfiguration Configuration = {});

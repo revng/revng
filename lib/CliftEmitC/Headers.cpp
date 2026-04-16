@@ -281,3 +281,13 @@ void emitHelperHeader(ptml::CTokenEmitter &Tokens,
 
   Emitter.emitOpaqueTypes(Context, Emitter.collectOpaqueByteSizes(Modules));
 }
+
+void emitSingleTypeDefinition(ptml::CTokenEmitter &Tokens,
+                              const CDataModel &DataModel,
+                              clift::DefinedType Type,
+                              TypeEmitterConfiguration Config) {
+  TypeDefinitionEmitter Emitter(Tokens, DataModel, Config);
+
+  Emitter.emitTypeDefinition(Type);
+  Tokens.emitNewline();
+}
