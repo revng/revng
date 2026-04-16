@@ -451,6 +451,8 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   // Literal typing
   Set.add<ImmediateCastPattern>(Context, DataModel);
 
+  populateWithCastCanonicalizations(Set);
+
   auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
   return mlir::applyPatternsAndFoldGreedily(Function, Patterns);
 }
