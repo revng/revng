@@ -1,0 +1,41 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+TypeDefinitions:
+  - ID: 0
+    Kind: StructDefinition
+    Size: 64
+    Fields: []
+
+  - ID: 1
+    Kind: CABIFunctionDefinition
+    ABI: AAPCS64
+    Arguments: []
+
+  - ID: 2
+    Kind: RawFunctionDefinition
+    Architecture: aarch64
+
+    Arguments:
+      - Location: x0_aarch64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+
+Functions:
+  - Entry: "0x1004:Code_aarch64"
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/2-RawFunctionDefinition"
+
+Architecture: aarch64
+Segments:
+  - StartAddress: "0x1000:Generic64"
+    VirtualSize: 0x1000
+    StartOffset: 0
+    FileSize: 0x1000
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
