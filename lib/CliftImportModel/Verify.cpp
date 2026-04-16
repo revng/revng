@@ -100,12 +100,60 @@ private:
                        << Type.getHandle() << "'";
       const model::TypeDefinition &D = **It;
 
-      if (mlir::isa<clift::FunctionType>(Type)) {
+      if (auto FT = mlir::dyn_cast<clift::FunctionType>(Type)) {
         if (not llvm::isa<model::CABIFunctionDefinition>(D)
             and not llvm::isa<model::RawFunctionDefinition>(D))
           return error() << "Clift ModuleOp contains a FunctionType with "
                             "an invalid handle: '"
                          << Type.getHandle() << "'";
+
+        ptml::Attributes.assertAnnotationName<"_ABI">();
+
+        bool ABIFound = false;
+        for (clift::CAttributeAttr Attr : FT.getCAttributes()) {
+          if (Attr.getName().getName() == "_ABI") {
+            if (std::exchange(ABIFound, true))
+              return error() << "Duplicate `_ABI` attributes found in: '"
+                             << Type.getHandle() << "'";
+
+            mlir::ArrayAttr Arguments = Attr.getArguments();
+            if (not Arguments)
+              return error() << "`_ABI` attribute must have an argument. See '"
+                             << Type.getHandle() << "'";
+
+            if (Arguments.size() != 1)
+              return error() << "`_ABI` attribute must have exactly one "
+                                "argument. See '"
+                             << Type.getHandle() << "'";
+
+            using CIA = mlir::clift::CIdentifierAttr;
+            auto Identifier = mlir::dyn_cast<CIA>(Arguments[0]);
+            if (not Identifier)
+              return error() << "`_ABI` attribute argument must be "
+                                "an identifier. See '"
+                             << Type.getHandle() << "'";
+
+            std::string ModelABI = "raw_";
+            if (auto CF = llvm::dyn_cast<model::CABIFunctionDefinition>(&D))
+              ModelABI = model::ABI::getName(CF->ABI());
+            else if (auto RF = llvm::dyn_cast<model::RawFunctionDefinition>(&D))
+              ModelABI += model::Architecture::getName(RF->Architecture());
+            else
+              revng_abort("Unsupported function type");
+
+            llvm::StringRef AttrABIName = Identifier.getName();
+            if (AttrABIName != ModelABI)
+              return error() << "`_ABI` attribute value ('" << AttrABIName
+                             << "') differs from the model value ('" << ModelABI
+                             << "'). See '" << Type.getHandle() << "'";
+          }
+        }
+
+        if (not ABIFound)
+          return error() << "`_ABI` attribute is required on every function "
+                            "type. See '"
+                         << Type.getHandle() << "'";
+
       } else if (mlir::isa<clift::TypedefType>(Type)) {
         if (not llvm::isa<model::TypedefDefinition>(D))
           return error() << "Clift ModuleOp contains a TypedefType with "
