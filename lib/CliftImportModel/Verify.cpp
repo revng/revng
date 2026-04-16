@@ -111,6 +111,11 @@ private:
 
         bool ABIFound = false;
         for (clift::CAttributeAttr Attr : FT.getCAttributes()) {
+          if (not ptml::Attributes.isMacro(Attr.getName().getName()))
+            return error() << "Unknown c-attribute ('"
+                           << Attr.getName().getName() << "') found in '"
+                           << Type.getHandle() << "'";
+
           if (Attr.getName().getName() == "_ABI") {
             if (std::exchange(ABIFound, true))
               return error() << "Duplicate `_ABI` attributes found in: '"
@@ -174,6 +179,11 @@ private:
 
         bool CodeFound = false;
         for (clift::CAttributeAttr Attr : ST.getCAttributes()) {
+          if (not ptml::Attributes.isMacro(Attr.getName().getName()))
+            return error() << "Unknown c-attribute ('"
+                           << Attr.getName().getName() << "') found in '"
+                           << Type.getHandle() << "'";
+
           if (Attr.getName().getName() == "_CAN_CONTAIN_CODE") {
             if (std::exchange(CodeFound, true))
               return error() << "Duplicate `_CAN_CONTAIN_CODE` attributes "
@@ -278,10 +288,20 @@ private:
         Handle = "(a no-handle argument)";
 
       if (auto CAs = View.getOfType<mlir::ArrayAttr>("clift.c_attributes")) {
-        for (mlir::Attribute RawCAttribute : CAs) {
-          auto CAttribute = mlir::cast<clift::CAttributeAttr>(RawCAttribute);
+        for (mlir::Attribute RawCAttr : CAs) {
+          auto CAttribute = mlir::dyn_cast<clift::CAttributeAttr>(RawCAttr);
+          if (not CAttribute)
+            return error() << "A non c-attribute was found among "
+                              "the `c_attributes` in '"
+                           << Op.getHandle() << "'";
+
           auto AttributeName = CAttribute.getName().getName();
           auto Arguments = CAttribute.getArguments();
+
+          if (not ptml::Attributes.isMacro(AttributeName))
+            return error() << "Unknown c-attribute ('" << AttributeName
+                           << "') found in '" << Handle << "' of '"
+                           << Op.getHandle() << "'";
 
           ptml::Attributes.assertAttributeName<"_STACK">();
           ptml::Attributes.assertAnnotationName<"_REG">();
@@ -411,6 +431,22 @@ private:
                      << "') does not match the model value ('"
                      << Attributes->size() << "'). See '" << Op.getHandle()
                      << "'";
+    }
+
+    if (mlir::Attribute RawAttributes = Op->getAttr("clift.c_attributes")) {
+      mlir::ArrayAttr Attributes = mlir::cast<mlir::ArrayAttr>(RawAttributes);
+      for (mlir::Attribute RawCAttribute : Attributes) {
+        auto CAttribute = mlir::dyn_cast<clift::CAttributeAttr>(RawCAttribute);
+        if (not CAttribute)
+          return error() << "A non c-attribute was found among "
+                            "the `c_attributes` in '"
+                         << Op.getHandle() << "'";
+
+        if (not ptml::Attributes.isMacro(CAttribute.getName().getName()))
+          return error() << "Unknown c-attribute ('"
+                         << CAttribute.getName().getName() << "') found in '"
+                         << Op.getHandle() << "'";
+      }
     }
 
     return mlir::success();
