@@ -27,3 +27,5 @@ class FieldAttr;
 #include "revng/Clift/CliftTypeInterfacesClass.h.inc"
 // Prevent reordering:
 #include "revng/Clift/CliftTypeInterfacesPrimitive.h.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftTypeInterfacesIntegral.h.inc"

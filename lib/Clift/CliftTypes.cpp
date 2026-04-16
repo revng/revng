@@ -439,6 +439,14 @@ AddressableType EnumType::removeConst() const {
   return Base::get(getContext(), getDefinition(), /*IsConst=*/false);
 }
 
+bool EnumType::isSigned() const {
+  return clift::isSigned(getUnderlyingType());
+}
+
+bool EnumType::isUnsigned() const {
+  return clift::isUnsigned(getUnderlyingType());
+}
+
 mlir::Type EnumType::parse(mlir::AsmParser &Parser) {
   mlir::SMLoc Loc = Parser.getCurrentLocation();
 
@@ -1520,6 +1528,18 @@ uint64_t clift::getObjectSizeOrZero(mlir::Type Type) {
     return ValueT.getObjectSize();
 
   return 0;
+}
+
+//===--------------------------- Integral types ---------------------------===//
+
+bool clift::isSigned(mlir::Type Type) {
+  auto T = clift::unwrapped_dyn_cast<IntegralType>(Type);
+  return T and T.isSigned();
+}
+
+bool clift::isUnsigned(mlir::Type Type) {
+  auto T = clift::unwrapped_dyn_cast<IntegralType>(Type);
+  return T and T.isUnsigned();
 }
 
 //===--------------------------- Type categories --------------------------===//

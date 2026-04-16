@@ -163,6 +163,16 @@ template<typename TypeT>
   return getObjectSize(Value.getType());
 }
 
+//===--------------------------- Integral types ---------------------------===//
+
+/// Returns true if the specified type is a signed integer type (including
+/// enum with a signed underlying type), or a typedef for such a type.
+bool isSigned(mlir::Type Type);
+
+/// Returns true if the specified type is an unsigned integer type (including
+/// enum with an unsigned underlying type), or a typedef for such a type.
+bool isUnsigned(mlir::Type Type);
+
 //===--------------------------- Type categories --------------------------===//
 
 /// Determine if the type is non-const. This is different from

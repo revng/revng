@@ -52,6 +52,7 @@ def Clift_IntegerType
                 DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
                 DeclareTypeInterfaceMethods<Clift_ValueType>,
+                Clift_IntegralType,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
   let summary = "Clift integer type";
 
@@ -72,7 +73,8 @@ def Clift_IntegerType
   let genVerifyDecl = 1;
 
   let extraClassDeclaration = [{
-    bool isSigned() { return getKind() == IntegerKind::Signed; }
+    bool isSigned() const { return getKind() == IntegerKind::Signed; }
+    bool isUnsigned() const { return getKind() != IntegerKind::Signed; }
   }];
 }
 
@@ -171,6 +173,7 @@ def Clift_EnumType
                 DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
                 DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_IntegralType>,
                 DeclareTypeInterfaceMethods<Clift_DefinedType>]> {
 
   let summary = "Clift enum type";
