@@ -138,7 +138,7 @@ def PointerArithmeticAddMulImmPattern
 def DirectAccessPattern
   : Pat<(Clift_AccessOp (Clift_AddressofOp $arg), $indirect, $member_index),
         (Clift_AccessOp $arg, (NativeCodeCall<"mlir::UnitAttr(nullptr)">), $member_index),
-        [(Constraint<CPred<"not $0">> $indirect)]>;
+        [(Constraint<CPred<"$0">> $indirect)]>;
 
 // x[0] -> *x
 // Constraint: the subscript index is a constant zero.
