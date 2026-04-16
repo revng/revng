@@ -6,7 +6,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "revng/Clift/Clift.h"
-#include "revng/CliftTransforms/BooleanNegations.h"
+#include "revng/CliftTransforms/Expressions.h"
 #include "revng/CliftTransforms/Passes.h"
 #include "revng/CliftTransforms/RewriteHelpers.h"
 

@@ -4,8 +4,8 @@
 
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftOpHelpers.h"
-#include "revng/CliftTransforms/BooleanNegations.h"
 #include "revng/CliftTransforms/ExpressionHelpers.h"
+#include "revng/CliftTransforms/Expressions.h"
 
 using namespace clift;
 
