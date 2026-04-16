@@ -110,21 +110,98 @@ struct CastCollapsingPattern
 
   using OpInterfaceRewritePattern::OpInterfaceRewritePattern;
 
+  struct CastRewriter {
+    mlir::PatternRewriter &Rewriter;
+    CastOpInterface Outer;
+    CastOpInterface Inner;
+
+    template<typename CastOpT>
+    mlir::LogicalResult collapse() {
+      mlir::Value Result = Outer.getResult();
+      auto Op = Rewriter.create<CastOpT>(Outer->getLoc(),
+                                         Result.getType(),
+                                         Inner.getValue());
+
+      Rewriter.replaceOp(Outer, { Op.getResult() });
+      return mlir::success();
+    }
+
+    mlir::LogicalResult rewrite() {
+      mlir::Type OuterT = Outer.getResult().getType();
+      mlir::Type InnerT = Inner.getResult().getType();
+      mlir::Type ValueT = Inner.getValue().getType();
+
+      if (mlir::isa<BitCastOp>(Outer)) {
+        if (mlir::isa<BitCastOp>(Inner))
+          return collapse<BitCastOp>();
+
+        if (not unwrapped_isa<IntegralType>(OuterT))
+          return mlir::failure();
+
+        if (mlir::isa<ExtendOp>(Inner))
+          return collapse<ExtendOp>();
+
+        if (mlir::isa<TruncateOp>(Inner))
+          return collapse<TruncateOp>();
+
+        return mlir::failure();
+      }
+
+      if (mlir::isa<ExtendOp>(Outer)) {
+        if (isSigned(InnerT) != isSigned(ValueT))
+          return mlir::failure();
+
+        if (mlir::isa<BitCastOp>(Inner)) {
+          if (not unwrapped_isa<IntegralType>(ValueT))
+            return mlir::failure();
+
+          return collapse<ExtendOp>();
+        }
+
+        if (mlir::isa<ExtendOp>(Inner))
+          return collapse<ExtendOp>();
+
+        return mlir::failure();
+      }
+
+      if (mlir::isa<TruncateOp>(Outer)) {
+        if (mlir::isa<BitCastOp>(Inner)) {
+          if (not unwrapped_isa<IntegralType>(ValueT))
+            return mlir::failure();
+
+          return collapse<TruncateOp>();
+        }
+
+        if (mlir::isa<ExtendOp>(Inner)) {
+          auto SourceSize = getObjectSize(ValueT);
+          auto TargetSize = getObjectSize(OuterT);
+
+          if (TargetSize > SourceSize)
+            return collapse<ExtendOp>();
+
+          if (TargetSize < SourceSize)
+            return collapse<TruncateOp>();
+
+          return collapse<BitCastOp>();
+        }
+
+        if (mlir::isa<TruncateOp>(Inner))
+          return collapse<TruncateOp>();
+
+        return mlir::failure();
+      }
+
+      return mlir::failure();
+    }
+  };
+
   mlir::LogicalResult
   matchAndRewrite(CastOpInterface Outer,
                   mlir::PatternRewriter &Rewriter) const override {
     auto Inner = Outer.getValue().getDefiningOp<CastOpInterface>();
     if (not Inner)
       return mlir::failure();
-
-    if (Outer->getName() != Inner->getName())
-      return mlir::failure();
-
-    Rewriter.updateRootInPlace(Outer, [&]() {
-      Outer->getOpOperand(0).set(Inner.getValue());
-    });
-
-    return mlir::failure();
+    return CastRewriter(Rewriter, Outer, Inner).rewrite();
   }
 };
 
