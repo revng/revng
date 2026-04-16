@@ -10,6 +10,7 @@ revng_add_library_internal(
   ProgramRunner.cpp
   Assert.cpp
   BasicBlockID.cpp
+  CDataModel.cpp
   CommandLine.cpp
   CommonOptions.cpp
   CustomizedLLVMPasses.cpp
