@@ -13,3 +13,16 @@ TypeDefinitions:
     Size: 64
     Fields: []
     CanContainCode: true
+
+  - ID: 2
+    Kind: CABIFunctionDefinition
+    ABI: AAPCS64
+    Arguments: []
+
+  - ID: 3
+    Kind: RawFunctionDefinition
+    Architecture: aarch64
+    Arguments: []
+    ReturnValues: []
+
+Architecture: aarch64
