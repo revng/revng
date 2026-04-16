@@ -10,7 +10,6 @@
 
 #include "revng/Clift/CliftEnums.h"
 #include "revng/CliftTransforms/Passes.h"
-#include "revng/Support/CTarget.h"
 
 #include "BestTraversal.h"
 #include "EmitFieldAccesses.h"
