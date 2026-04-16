@@ -44,6 +44,10 @@ definitions:
         doc: The default ABI to adopt for analysis purposes.
         type: ABI
 
+      - name: TargetABI
+        doc: The target ABI to adopt for emission purposes.
+        type: ABI
+
       - name: DefaultPrototype
         doc: |-
           The default function prototype to adopt for functions that do not provide

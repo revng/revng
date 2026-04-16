@@ -145,6 +145,23 @@ model::Binary::getBinaryIdentifierReference(const model::BinaryIdentifier::Key
   return model::BinaryIdentifierReference{ this, BinaryPath };
 }
 
+model::ABI::Values model::Binary::targetABI() const {
+  model::ABI::Values ABI = TargetABI();
+
+  if (ABI == model::ABI::Invalid) {
+    ABI = DefaultABI();
+
+    // TODO: We should do something smarter here:
+    //       * Pick a better fallback (maybe other model properties), and/or
+    //       * after exhausting all fallbacks, return invalid and additionally
+    //         check the availability of a valid ABI in `checkPrecondition`.
+    if (ABI == model::ABI::Invalid)
+      ABI = model::ABI::SystemV_x86_64;
+  }
+
+  return ABI;
+}
+
 namespace model {
 
 MetaAddressRangeSet Binary::executableRanges() const {
