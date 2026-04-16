@@ -384,6 +384,12 @@ branches:
             - canonicalize
             - optimize-expressions
             - terminal-branch-complement-hoisting
+      - pipe: import-function-data-model
+        arguments: [clift-functions]
+      - pipe: pure-mlir-passes-pipe
+        arguments: [clift-functions]
+        configuration:
+          passes:
             - c-legalization
             - deduce-immediate-radices
       - pipe: verify-function-against-model

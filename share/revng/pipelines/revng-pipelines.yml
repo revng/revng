@@ -695,6 +695,8 @@ Branches:
             UsedContainers: [functions.bc.zstd, functions.mlir]
           - Type: clift-generic-optimization
             UsedContainers: [functions.mlir]
+          - Type: import-function-data-model
+            UsedContainers: [functions.mlir]
           - Type: clift-target-optimization
             UsedContainers: [functions.mlir]
           - Type: verify-against-model

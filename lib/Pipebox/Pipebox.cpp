@@ -9,6 +9,7 @@
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/Clifter.h"
 #include "revng/CliftPipes/EmitC.h"
+#include "revng/CliftPipes/ImportDataModel.h"
 #include "revng/CliftPipes/ImportDescriptiveInfo.h"
 #include "revng/CliftPipes/VerifyAgainstModel.h"
 #include "revng/DataLayoutAnalysis/DLA.h"
@@ -126,6 +127,7 @@ static RegisterFunctionPipeRun<YieldCallGraphSlice> P37;
 static RegisterFunctionPipeRun<YieldCFG> P38;
 static RegisterFunctionPipeRun<ImportDescriptiveFunctionInfo> P39;
 static RegisterFunctionPipeRun<VerifyFunctionAgainstModel> P40;
+static RegisterFunctionPipeRun<ImportFunctionDataModel> P41;
 
 //
 // Analyses
