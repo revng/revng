@@ -301,7 +301,7 @@ public:
   }
 
   static bool isHiddenCast(CastOpInterface Cast) {
-    return mlir::isa<DecayOp>(Cast);
+    return mlir::isa<DecayOp>(Cast) or Cast->hasAttr("clift.implicit");
   }
 
   static mlir::Value unwrapHiddenCasts(CastOpInterface Cast) {
