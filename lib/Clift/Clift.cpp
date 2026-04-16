@@ -1426,6 +1426,10 @@ UseOp::verifySymbolUses(mlir::SymbolTableCollection &SymbolTable) {
 
 //===-------------------------------- CallOp ------------------------------===//
 
+FunctionType CallOp::getFunctionType() {
+  return getFunctionOrFunctionPointerFunctionType(getFunction().getType());
+}
+
 namespace {
 
 using DefaultArgumentTypeProvider = llvm::function_ref<mlir::Type(unsigned)>;

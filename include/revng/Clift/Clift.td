@@ -1166,6 +1166,10 @@ def Clift_CallOp : Clift_ExpressionOp<"call"> {
 
   let hasCustomAssemblyFormat = 1;
   let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    FunctionType getFunctionType();
+  }];
 }
 
 def Clift_TernaryOp
