@@ -17,9 +17,9 @@ class CHeaderEmitterImpl : TypeDefinitionEmitter {
 
 public:
   explicit CHeaderEmitterImpl(ptml::CTokenEmitter &Tokens,
-                              const TargetCImplementation &Target,
+                              const CDataModel &DataModel,
                               TypeEmitterConfiguration Configuration) :
-    TypeDefinitionEmitter(Tokens, Target, Configuration) {}
+    TypeDefinitionEmitter(Tokens, DataModel, Configuration) {}
 
 public:
   void emitHeaderPrologue() {
@@ -135,8 +135,6 @@ public:
 
 public:
   void emitHelpers(llvm::ArrayRef<mlir::ModuleOp> Modules) {
-    revng_check(not Modules.empty());
-
     // TODO: emit `#include`s
 
     auto Graph = TypeDependencyGraph::makeHelperGraph(Modules);
@@ -179,10 +177,11 @@ public:
 };
 
 void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
-                             const TargetCImplementation &Target,
                              mlir::ModuleOp Module,
                              TypeEmitterConfiguration Configuration) {
-  CHeaderEmitterImpl Emitter(Tokens, Target, Configuration);
+  CHeaderEmitterImpl Emitter(Tokens,
+                             clift::getDataModel(Module),
+                             Configuration);
 
   Emitter.emitHeaderPrologue();
   Emitter.emitCommonIncludes();
@@ -195,13 +194,20 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
 }
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
-                      const TargetCImplementation &Target,
                       llvm::ArrayRef<mlir::ModuleOp> Modules) {
+  revng_check(not Modules.empty());
+
+  const CDataModel &DataModel = clift::getDataModel(Modules.front());
+  revng_assert(llvm::all_of(Modules.drop_front(),
+                            [&DataModel](mlir::ModuleOp Module) {
+                              return clift::getDataModel(Module) == DataModel;
+                            }));
+
   TypeEmitterConfiguration Configuration = {
     .ExplicitPadding = true,
   };
 
-  CHeaderEmitterImpl Emitter(Tokens, Target, Configuration);
+  CHeaderEmitterImpl Emitter(Tokens, DataModel, Configuration);
 
   Emitter.emitHeaderPrologue();
   Emitter.emitHelpers(Modules);

@@ -6,6 +6,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "revng/Clift/CliftOpHelpers.h"
+#include "revng/CliftTransforms/Expressions.h"
 #include "revng/CliftTransforms/Legalization.h"
 #include "revng/CliftTransforms/Passes.h"
 
@@ -19,18 +20,9 @@ using namespace clift;
 namespace {
 
 static IntegerType getIntType(mlir::MLIRContext *Context,
-                              const TargetCImplementation &Target) {
-  return IntegerType::get(Context, IntegerKind::Signed, Target.getIntSize());
+                              const CDataModel &DataModel) {
+  return IntegerType::get(Context, IntegerKind::Signed, DataModel.getIntSize());
 }
-
-struct TargetInfo {
-  const TargetCImplementation &Target;
-  IntegerType IntType;
-
-  explicit TargetInfo(mlir::MLIRContext *Context,
-                      const TargetCImplementation &Target) :
-    Target(Target), IntType(getIntType(Context, Target)) {}
-};
 
 static mlir::OpOperand &getOnlyUse(mlir::Value Value) {
   revng_assert(Value.hasOneUse());
@@ -104,9 +96,9 @@ struct PointerResizePattern : mlir::OpRewritePattern<OpT> {
   uint64_t TargetPointerSize;
 
   explicit PointerResizePattern(mlir::MLIRContext *Context,
-                                const TargetInfo &Target) :
+                                const CDataModel &DataModel) :
     mlir::OpRewritePattern<OpT>(Context),
-    TargetPointerSize(Target.Target.PointerSize) {}
+    TargetPointerSize(DataModel.PointerSize) {}
 
   clift::PointerType
   makeTargetPointerType(clift::PointerType OldPointerType) const {
@@ -256,9 +248,9 @@ struct BooleanCanonicalizationPattern
   IntegerType IntType;
 
   explicit BooleanCanonicalizationPattern(mlir::MLIRContext *Context,
-                                          const TargetInfo &Target) :
+                                          const CDataModel &DataModel) :
     mlir::OpTraitRewritePattern<clift::ReturnsBoolean>(Context),
-    IntType(Target.IntType) {}
+    IntType(getIntType(Context, DataModel)) {}
 
   mlir::LogicalResult
   matchAndRewrite(mlir::Operation *Op,
@@ -281,8 +273,9 @@ struct ArithmeticPromotionPattern : mlir::OpRewritePattern<OpT> {
   IntegerType IntType;
 
   explicit ArithmeticPromotionPattern(mlir::MLIRContext *Context,
-                                      const TargetInfo &Target) :
-    mlir::OpRewritePattern<OpT>(Context), IntType(Target.IntType) {}
+                                      const CDataModel &DataModel) :
+    mlir::OpRewritePattern<OpT>(Context),
+    IntType(getIntType(Context, DataModel)) {}
 
   mlir::LogicalResult tryPromoteTypes(mlir::PatternRewriter &Rewriter,
                                       clift::ExpressionOpInterface Op,
@@ -335,14 +328,11 @@ struct ShiftPromotionPattern : ArithmeticPromotionPattern<OpT> {
 // * 0 -> (my_enum)0, where the original expression has type my_enum and my_enum
 //                    does not have an enumerator with a value of 0.
 struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
-  const TargetCImplementation &Target;
-  uint64_t IntSize;
+  const CDataModel &DataModel;
 
   explicit ImmediateCastPattern(mlir::MLIRContext *Context,
-                                const TargetInfo &Target) :
-    mlir::OpRewritePattern<ImmediateOp>(Context),
-    Target(Target.Target),
-    IntSize(Target.IntType.getSize()) {}
+                                const CDataModel &DataModel) :
+    mlir::OpRewritePattern<ImmediateOp>(Context), DataModel(DataModel) {}
 
   mlir::LogicalResult rewriteWithCast(ImmediateOp Op,
                                       mlir::Type NewImmediateType,
@@ -370,8 +360,8 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
   }
 
   bool isRepresentableLiteralSize(uint64_t Size) const {
-    auto C = Target.getIntegerKind(Size);
-    return C and CIntegerKind::Int <= *C and *C <= CIntegerKind::LongLong;
+    auto Range = DataModel.getStandardIntegerRange(Size);
+    return Range and Range->second >= CStandardType::Int;
   }
 
   mlir::LogicalResult
@@ -382,7 +372,9 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
       return mlir::failure();
 
     // Sizes in the range [sizeof(int), 8] must be representable in the target.
-    uint64_t NewSize = std::clamp<uint64_t>(Type.getSize(), IntSize, 8);
+    uint64_t NewSize = std::clamp<uint64_t>(Type.getSize(),
+                                            DataModel.getIntSize(),
+                                            8);
 
     revng_assert(NewSize != Type.getSize());
     revng_assert(isRepresentableLiteralSize(NewSize));
@@ -414,62 +406,55 @@ struct ImmediateCastPattern : mlir::OpRewritePattern<ImmediateOp> {
 struct CLegalizationPass
   : clift::impl::CliftCLegalizationBase<CLegalizationPass> {
 
-  const TargetCImplementation &Target;
-
-  explicit CLegalizationPass(const TargetCImplementation &Target) :
-    Target(Target) {}
-
   void runOnOperation() override {
-    if (legalizeForC(getOperation(), Target).failed())
+    if (legalizeForC(getOperation()).failed())
       signalPassFailure();
   }
 };
 
 } // namespace
 
-mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function,
-                                        const TargetCImplementation &Target) {
+mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   mlir::MLIRContext *Context = Function.getContext();
   mlir::RewritePatternSet Set(Context);
 
-  TargetInfo T(Context, Target);
+  const CDataModel &DataModel = getDataModel(Function);
 
   // Pointer resizing
-  Set.add<ResizePtrAddPattern>(Context, T);
-  Set.add<ResizePtrSubPattern>(Context, T);
-  Set.add<ResizePtrDiffPattern>(Context, T);
-  Set.add<PointerResizePattern<IndirectionOp>>(Context, T);
-  Set.add<PointerResizePattern<SubscriptOp>>(Context, T);
-  Set.add<PointerResizePattern<AccessOp>>(Context, T);
-  Set.add<PointerResizePattern<CallOp>>(Context, T);
-  Set.add<ResizeAddressofPattern>(Context, T);
-  Set.add<ResizeDecayCastPattern>(Context, T);
+  Set.add<ResizePtrAddPattern>(Context, DataModel);
+  Set.add<ResizePtrSubPattern>(Context, DataModel);
+  Set.add<ResizePtrDiffPattern>(Context, DataModel);
+  Set.add<PointerResizePattern<IndirectionOp>>(Context, DataModel);
+  Set.add<PointerResizePattern<SubscriptOp>>(Context, DataModel);
+  Set.add<PointerResizePattern<AccessOp>>(Context, DataModel);
+  Set.add<PointerResizePattern<CallOp>>(Context, DataModel);
+  Set.add<ResizeAddressofPattern>(Context, DataModel);
+  Set.add<ResizeDecayCastPattern>(Context, DataModel);
 
   // Boolean canonicalization
-  Set.add<BooleanCanonicalizationPattern>(Context, T);
+  Set.add<BooleanCanonicalizationPattern>(Context, DataModel);
 
   // Integer promotion
-  Set.add<ArithmeticPromotionPattern<NegOp>>(Context, T);
-  Set.add<ArithmeticPromotionPattern<AddOp>>(Context, T);
-  Set.add<ArithmeticPromotionPattern<SubOp>>(Context, T);
-  Set.add<ArithmeticPromotionPattern<MulOp>>(Context, T);
-  Set.add<ArithmeticPromotionPattern<DivOp>>(Context, T);
-  Set.add<ArithmeticPromotionPattern<RemOp>>(Context, T);
-  Set.add<ArithmeticPromotionPattern<BitwiseNotOp>>(Context, T);
-  Set.add<ArithmeticPromotionPattern<BitwiseAndOp>>(Context, T);
-  Set.add<ArithmeticPromotionPattern<BitwiseOrOp>>(Context, T);
-  Set.add<ArithmeticPromotionPattern<BitwiseXorOp>>(Context, T);
-  Set.add<ShiftPromotionPattern<ShiftLeftOp>>(Context, T);
-  Set.add<ShiftPromotionPattern<ShiftRightOp>>(Context, T);
+  Set.add<ArithmeticPromotionPattern<NegOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<AddOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<SubOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<MulOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<DivOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<RemOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<BitwiseNotOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<BitwiseAndOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<BitwiseOrOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<BitwiseXorOp>>(Context, DataModel);
+  Set.add<ShiftPromotionPattern<ShiftLeftOp>>(Context, DataModel);
+  Set.add<ShiftPromotionPattern<ShiftRightOp>>(Context, DataModel);
 
   // Literal typing
-  Set.add<ImmediateCastPattern>(Context, T);
+  Set.add<ImmediateCastPattern>(Context, DataModel);
 
   auto Patterns = mlir::FrozenRewritePatternSet(std::move(Set));
   return mlir::applyPatternsAndFoldGreedily(Function, Patterns);
 }
 
-clift::PassPtr<clift::FunctionOp>
-clift::createCLegalizationPass(const TargetCImplementation &Target) {
-  return std::make_unique<CLegalizationPass>(Target);
+clift::PassPtr<clift::FunctionOp> clift::createCLegalizationPass() {
+  return std::make_unique<CLegalizationPass>();
 }

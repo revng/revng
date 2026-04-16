@@ -7,7 +7,6 @@
 #include "mlir/Pass/Pass.h"
 
 #include "revng/Clift/Clift.h"
-#include "revng/Support/CTarget.h"
 
 namespace clift {
 
@@ -29,8 +28,7 @@ PassPtr<clift::FunctionOp> createEmitFieldAccessesPass();
 
 PassPtr<clift::FunctionOp> createTerminalBranchComplementHoistingPass();
 
-PassPtr<clift::FunctionOp>
-createCLegalizationPass(const TargetCImplementation &Target);
+PassPtr<clift::FunctionOp> createCLegalizationPass();
 
 PassPtr<clift::FunctionOp> createImmediateRadixDeductionPass();
 

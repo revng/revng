@@ -16,9 +16,9 @@ namespace {
 
 struct VerifyCPass : clift::impl::CliftVerifyCBase<VerifyCPass> {
   void runOnOperation() override {
-    const auto &Target = TargetCImplementation::Default;
+    mlir::ModuleOp Module = getOperation();
 
-    if (mlir::failed(verifyCSemantics(getOperation(), Target)))
+    if (mlir::failed(verifyCSemantics(Module)))
       signalPassFailure();
   }
 };

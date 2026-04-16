@@ -46,10 +46,12 @@ struct CEmissionPass : BaseT<CEmissionPass<BaseT, Impl>> {
     if (not File)
       return Base::signalPassFailure();
 
+    mlir::ModuleOp Module = Base::getOperation();
+
     auto Tagging = static_cast<ptml::Tagging>(Base::EmitTags.getValue());
     ptml::CTokenEmitter Emitter(File->os(), Tagging);
 
-    if (not std::invoke(Impl, Base::getOperation(), Emitter))
+    if (not Impl(Module, Emitter))
       return Base::signalPassFailure();
   }
 };
@@ -59,11 +61,9 @@ struct CEmissionPass : BaseT<CEmissionPass<BaseT, Impl>> {
 clift::PassPtr<mlir::ModuleOp> clift::createEmitCPass() {
   static constexpr auto Impl = [](mlir::ModuleOp Module,
                                   ptml::CTokenEmitter &Emitter) {
-    const auto &Target = TargetCImplementation::Default;
-
     Module->walk([&Emitter](clift::FunctionOp Function) {
       if (not Function.isExternal())
-        decompile(Function, Emitter, Target);
+        decompile(Function, Emitter);
     });
 
     return true;
@@ -84,11 +84,7 @@ clift::PassPtr<mlir::ModuleOp> clift::createEmitTypeAndGlobalHeaderPass() {
       .ExplicitPadding = true,
     };
 
-    // TODO: select target properly
-    const auto &Target = TargetCImplementation::Default;
-
-    emitTypeAndGlobalHeader(Tokens, Target, Module, Configuration);
-
+    emitTypeAndGlobalHeader(Tokens, Module, Configuration);
     return true;
   };
 
@@ -101,11 +97,7 @@ using HHBase = clift::impl::CliftEmitHelperHeaderBase<T>;
 clift::PassPtr<mlir::ModuleOp> clift::createEmitHelperHeaderPass() {
   static constexpr auto Impl = [](mlir::ModuleOp Module,
                                   ptml::CTokenEmitter &Tokens) {
-    // TODO: select target properly
-    const auto &Target = TargetCImplementation::Default;
-
-    emitHelperHeader(Tokens, Target, { Module });
-
+    emitHelperHeader(Tokens, { Module });
     return true;
   };
 

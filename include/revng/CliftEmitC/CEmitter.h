@@ -7,7 +7,7 @@
 #include "revng/Clift/Clift.h"
 #include "revng/PTML/CDoxygenEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
-#include "revng/Support/CTarget.h"
+#include "revng/Support/CDataModel.h"
 
 template<typename Type>
 concept EntityWithComment = requires(Type const &Value) {
@@ -20,12 +20,11 @@ protected:
   using CTE = ptml::CTokenEmitter;
 
   ptml::CTokenEmitter &Tokens;
-  const TargetCImplementation &Target;
+  const CDataModel &DataModel;
 
 public:
-  explicit CEmitter(ptml::CTokenEmitter &Emitter,
-                    const TargetCImplementation &Target) :
-    Tokens(Emitter), Target(Target) {}
+  explicit CEmitter(ptml::CTokenEmitter &Emitter, const CDataModel &DataModel) :
+    Tokens(Emitter), DataModel(DataModel) {}
 
   //===------------------------------- Types ------------------------------===//
 

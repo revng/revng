@@ -158,7 +158,7 @@ private:
           Parent.emitPrimitiveType(T);
           NeedSpace = true;
         } else if (auto T = mlir::dyn_cast<PointerType>(Type)) {
-          if (T.getPointerSize() == Parent.Target.PointerSize) {
+          if (T.getPointerSize() == Parent.DataModel.PointerSize) {
             Item.Kind = StackItemKind::Pointer;
             Type = T.getPointeeType();
           } else {

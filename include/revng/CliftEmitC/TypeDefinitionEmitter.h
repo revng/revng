@@ -18,9 +18,9 @@ private:
 
 public:
   explicit TypeDefinitionEmitter(ptml::CTokenEmitter &Tokens,
-                                 const TargetCImplementation &Target,
+                                 const CDataModel &DataModel,
                                  TypeEmitterConfiguration Configuration) :
-    CEmitter(Tokens, Target), Configuration(Configuration) {}
+    CEmitter(Tokens, DataModel), Configuration(Configuration) {}
 
 private:
   void emitTypeKeyword(clift::DefinedType Type);

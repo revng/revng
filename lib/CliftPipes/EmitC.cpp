@@ -36,12 +36,10 @@ public:
   void run(pipeline::ExecutionContext &EC,
            const pipes::CliftFunctionContainer &CliftFunctionContainer,
            pipes::DecompileStringMap &DecompiledFunctionsContainer) {
-    const auto &Target = TargetCImplementation::Default;
-
     mlir::ModuleOp Module = CliftFunctionContainer.getModule();
-    const auto &Model = *revng::getModelFromContext(EC);
 
-    revng_assert(verifyCSemantics(Module, Target).succeeded());
+    const auto &Model = *revng::getModelFromContext(EC);
+    revng_assert(verifyCSemantics(Module).succeeded());
 
     std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
     Module->walk([&](clift::FunctionOp F) {
@@ -62,7 +60,7 @@ public:
       {
         llvm::raw_string_ostream OS(Code);
         ptml::CTokenEmitter Emitter(OS, ptml::Tagging::Enabled);
-        decompile(It->second, Emitter, Target);
+        decompile(It->second, Emitter);
       }
 
       DecompiledFunctionsContainer.insert_or_assign(Function.Entry(),
@@ -88,18 +86,16 @@ EmitC::EmitC(const Model &Model,
 void EmitC::runOnFunction(const model::Function &Function) {
   using namespace clift;
 
-  const auto &Target = TargetCImplementation::Default;
   ObjectID Object(Function.Entry());
 
   mlir::ModuleOp Module = Input.getModule(Object);
-  revng_assert(verifyCSemantics(Module, Target).succeeded());
+
+  revng_assert(verifyCSemantics(Module).succeeded());
   FunctionOp MLIRFunction = getUniqueIsolatedFunction(Module, Function.Entry());
 
-  {
-    auto OS = Output.getOStream(Object);
-    ptml::CTokenEmitter Emitter(*OS, ptml::Tagging::Enabled);
-    decompile(MLIRFunction, Emitter, Target);
-  }
+  auto OS = Output.getOStream(Object);
+  ptml::CTokenEmitter Emitter(*OS, ptml::Tagging::Enabled);
+  decompile(MLIRFunction, Emitter);
 }
 
 } // namespace revng::pypeline::piperuns

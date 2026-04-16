@@ -18,10 +18,16 @@ using namespace llvm::cl;
 
 static constexpr char ToolName[] = "Standalone optimizer driver\n";
 
+static void initializeCliftDialect(mlir::MLIRContext *Context,
+                                   clift::CliftDialect *Dialect) {
+  Dialect->setDefaultDataModel(CDataModel::getDefaultDataModel(8));
+}
+
 int main(int Argc, char *Argv[]) {
   mlir::DialectRegistry Registry;
 
   Registry.insert<clift::CliftDialect>();
+  Registry.addExtension(initializeCliftDialect);
 
   mlir::registerTransformsPasses();
   clift::registerCliftPasses();

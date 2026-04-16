@@ -273,7 +273,7 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
         Tokens.emitIntegerLiteral(llvm::APInt{ 64, Value },
                                   ptml::CTokenEmitter::IntegerSuffix{
                                     .Unsigned = true,
-                                    .MinimumType = CIntegerKind::Int,
+                                    .MinimumType = CStandardType::Int,
                                   },
                                   16);
 

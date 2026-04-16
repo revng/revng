@@ -43,13 +43,13 @@ module attributes {clift.module} {
       clift.yield %u : !uint32_t
     }
 
-    // CHECK: 0LL;
+    // CHECK: 0L;
     clift.expr {
       %0 = clift.imm 0 : !int64_t
       clift.yield %0 : !int64_t
     }
 
-    // CHECK: 0ULL;
+    // CHECK: 0UL;
     clift.expr {
       %0 = clift.imm 0 : !uint64_t
       clift.yield %0 : !uint64_t

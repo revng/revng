@@ -10,10 +10,8 @@
 #include "revng/PTML/CTokenEmitter.h"
 
 void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
-                             const TargetCImplementation &Target,
                              mlir::ModuleOp Module,
                              TypeEmitterConfiguration Configuration);
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
-                      const TargetCImplementation &Target,
                       llvm::ArrayRef<mlir::ModuleOp> Modules);

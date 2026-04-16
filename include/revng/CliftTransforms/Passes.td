@@ -58,9 +58,7 @@ def CliftTerminalBranchComplementHoisting
 
 def CliftCLegalization : Clift_Pass<"c-legalization", "clift::FunctionOp"> {
   let summary = "Legalize the input for emitting C code.";
-
-  // Use the default target C implementation for clift-opt:
-  let constructor = "clift::createCLegalizationPass(TargetCImplementation::Default)";
+  let constructor = "clift::createCLegalizationPass()";
 }
 
 def CliftImmediateRadixDeduction : Clift_Pass<"deduce-immediate-radices",

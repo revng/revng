@@ -69,11 +69,11 @@ static llvm::StringRef
 getCIntegerLiteralSuffix(const ptml::CTokenEmitter::IntegerSuffix &Suffix) {
   switch (Suffix.MinimumType) {
   default:
-  case CIntegerKind::Int:
+  case CStandardType::Int:
     return Suffix.Unsigned ? "U" : "";
-  case CIntegerKind::Long:
+  case CStandardType::Long:
     return Suffix.Unsigned ? "UL" : "L";
-  case CIntegerKind::LongLong:
+  case CStandardType::LongLong:
     return Suffix.Unsigned ? "ULL" : "LL";
   }
 }
@@ -593,6 +593,7 @@ static bool isRadixSupported(uint64_t Radix) {
 void CTokenEmitter::emitIntegerLiteral(llvm::APInt Value,
                                        std::optional<IntegerSuffix> Suffix,
                                        uint64_t Radix) {
+  revng_assert(not Suffix or isIntegerType(Suffix->MinimumType));
   revng_assert(not IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");
 

@@ -100,7 +100,7 @@ struct TargetOptimizationPipe {
   static constexpr auto Name = "clift-target-optimization";
 
   static void configurePassManager(mlir::PassManager &PM) {
-    PM.addPass(clift::createCLegalizationPass(TargetCImplementation::Default));
+    PM.addPass(clift::createCLegalizationPass());
     PM.addPass(clift::createImmediateRadixDeductionPass());
   }
 };

@@ -5,9 +5,8 @@
 //
 
 #include "revng/Clift/Clift.h"
-#include "revng/Support/CTarget.h"
+#include "revng/Support/CDataModel.h"
 
 // TODO: does this really belong with the emitters?
 
-mlir::LogicalResult verifyCSemantics(mlir::ModuleOp Module,
-                                     const TargetCImplementation &Target);
+mlir::LogicalResult verifyCSemantics(mlir::ModuleOp Module);
