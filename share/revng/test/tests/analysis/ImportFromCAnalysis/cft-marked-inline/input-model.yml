@@ -1,0 +1,30 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Functions:
+  - Entry: "0x400000:Code_x86_64"
+    Name: "is_this_function_always_inline"
+
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/0-CABIFunctionDefinition"
+
+TypeDefinitions:
+  - Kind: CABIFunctionDefinition
+    ID: 0
+    ABI: SystemV_x86_64
+
+    Arguments: []
+
+Segments:
+  - StartAddress: "0x400000:Generic64"
+    VirtualSize: 4096
+    StartOffset: 0
+    FileSize: 4096
+    IsReadable: true
+    IsWriteable: false
+    IsExecutable: true
+
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
