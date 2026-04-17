@@ -8,6 +8,7 @@
 #include "clang/Frontend/TextDiagnostic.h"
 
 #include "revng/ABI/ModelHelpers.h"
+#include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/Processing.h"
 #include "revng/PTML/CAttributes.h"
 #include "revng/PTML/CBuilder.h"
@@ -704,6 +705,14 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
   // Update the name in case it changed.
   auto &ModelFunction = Model->Functions()[FunctionEntry];
+
+  if (FD->hasAttr<clang::NoReturnAttr>()
+      || FD->hasAttr<clang::C11NoReturnAttr>()) {
+    ModelFunction.Attributes().emplace(model::FunctionAttribute::NoReturn);
+  }
+
+  if (FD->hasAttr<clang::AlwaysInlineAttr>())
+    ModelFunction.Attributes().emplace(model::FunctionAttribute::AlwaysInline);
 
   // TODO: we shouldn't write generated names into the model.
   ModelFunction.Name() = FD->getName();
