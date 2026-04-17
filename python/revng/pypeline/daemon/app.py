@@ -4,9 +4,8 @@
 
 import asyncio
 import os
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from functools import wraps
-from typing import Mapping
 
 from starlette.applications import Starlette
 from starlette.datastructures import UploadFile
@@ -17,17 +16,23 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.responses import Response as StarletteResponse
 from starlette.routing import BaseRoute, Route, WebSocketRoute
-from starlette.websockets import WebSocket, WebSocketDisconnect
 
+from revng.pypeline.storage.notification_queue import LOCAL_QUEUE
+from revng.pypeline.storage.storage_provider import ProjectID
 from revng.pypeline.utils import PypelineException
-from revng.pypeline.utils.logger import pypeline_logger
+from revng.pypeline.utils.notification_broker import NotificationBroker
+from revng.pypeline.utils.starlette import NotificationWebsocket, get_project_id
 
 from .daemon import Daemon, Response
 from .exceptions import DaemonException, MalformedRequestError
-from .notification_broker import WebSocketStream
-from .notification_broker.local_broker import LocalNotificationBroker
 
 # Global instances
+
+
+class LocalNotificationBroker(NotificationBroker):
+    async def get_queue(self, project_id: ProjectID | None) -> asyncio.Queue[bytes]:
+        return LOCAL_QUEUE.get_queue()
+
 
 notification_broker = LocalNotificationBroker()
 # This is initialized by the `lifespan` function below, once the actual event
@@ -46,51 +51,6 @@ def pypeline_exception_handler(request: Request, exc: Exception) -> JSONResponse
     assert isinstance(exc, PypelineException)
     """Handle BasicHTTPException and return JSON response"""
     return JSONResponse(content={"message": str(exc)}, status_code=500)
-
-
-def get_project_id(headers: Mapping[str, str]) -> str | None:
-    """Extract project ID from headers, return none if missing"""
-    return headers.get("x-project-id")
-
-
-async def invalidation_websocket(websocket: WebSocket):
-    """Handle WebSocket connections for invalidations"""
-    assert shutdown_begun is not None
-    await websocket.accept()
-    subscriber = None
-    pending = None
-
-    try:
-        project_id = get_project_id(websocket.headers)
-        subscriber = await notification_broker.subscribe(project_id, WebSocketStream(websocket))
-        done, pending = await asyncio.wait(
-            (
-                asyncio.create_task(shutdown_begun.wait()),
-                asyncio.create_task(subscriber.listen_for_messages()),
-            ),
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        # If we're here the `asyncio.wait` finished, this means that:
-        # * `done` contains exactly one task
-        # * the task in `done` might have an exception
-        # Iterate over it and raise the exception if present
-        for done_task in done:
-            if (exc := done_task.exception()) is not None:
-                raise exc
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        pypeline_logger.log(f"Uncaught exception: {str(e)}")
-        with suppress(RuntimeError):
-            await websocket.close(code=500, reason=f"Internal server error: {str(e)}")
-    finally:
-        # Clean up unfinished tasks
-        if pending is not None:
-            for task in pending:
-                task.cancel()
-        # Clean up the subscription
-        if subscriber is not None:
-            await notification_broker.unsubscribe(subscriber)
 
 
 def prepare_endpoint(func):
@@ -199,7 +159,8 @@ def make_starlette(daemon: Daemon) -> Starlette:
             return JSONResponse({"url": "/api/notifications"})
 
         routes.append(Route("/api/websocket-url", websocket_url_handler, methods=["GET"]))
-        routes.append(WebSocketRoute("/api/notifications", invalidation_websocket))
+        ws_notifications = NotificationWebsocket(notification_broker, lambda: shutdown_begun)
+        routes.append(WebSocketRoute("/api/notifications", ws_notifications.endpoint))
 
     origins: list[str] = []
     if "REVNG_ORIGINS" in os.environ:

@@ -508,8 +508,6 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/daemon/app.py
     revng/pypeline/daemon/daemon.py
     revng/pypeline/daemon/exceptions.py
-    revng/pypeline/daemon/notification_broker/__init__.py
-    revng/pypeline/daemon/notification_broker/local_broker.py
     revng/pypeline/daemon/utils.py
     revng/pypeline/schedule/__init__.py
     revng/pypeline/schedule/scheduled_task.py
@@ -531,8 +529,10 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/task/task.py
     revng/pypeline/utils/db_migrator.py
     revng/pypeline/utils/default_dict_from_key.py
+    revng/pypeline/utils/notification_broker.py
     revng/pypeline/utils/pipeline.py
     revng/pypeline/utils/registry.py
+    revng/pypeline/utils/starlette.py
     revng/pypeline/utils/logger.py
     revng/pypeline/utils/cabc.py
     revng/pypeline/utils/__init__.py)
