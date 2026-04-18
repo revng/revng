@@ -54,6 +54,8 @@ private:
   const CliftFunctionContainer &Input;
   PTMLCBytesContainer &Output;
 
+  CEmissionPipeConfiguration Configuration;
+
 public:
   static constexpr llvm::StringRef Name = "emit-helper-header";
   using Arguments = TypeList<PipeRunArgument<CliftFunctionContainer,
@@ -66,11 +68,14 @@ public:
                                              Access::Write>>;
 
   EmitHelperHeader(const class Model &Model,
-                   llvm::StringRef Config,
+                   llvm::StringRef Configuration,
                    llvm::StringRef DynamicConfig,
                    const CliftFunctionContainer &Input,
                    PTMLCBytesContainer &Output) :
-    Binary(*Model.get().get()), Input(Input), Output(Output){};
+    Binary(*Model.get().get()),
+    Input(Input),
+    Output(Output),
+    Configuration(parseCEmissionPipeConfiguration(Configuration)){};
 
   void run();
 };
