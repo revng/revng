@@ -4,6 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "revng/CliftPipes/Configuration.h"
 #include "revng/Pipebox/Containers.h"
 #include "revng/PipeboxCommon/CliftContainers.h"
 #include "revng/PipeboxCommon/Common.h"
@@ -17,6 +18,8 @@ private:
   const model::Binary &Binary;
   const CliftModuleContainer &Input;
   PTMLCBytesContainer &Output;
+
+  CEmissionPipeConfiguration Configuration;
 
 public:
   static constexpr llvm::StringRef Name = "emit-type-and-global-header";
@@ -33,11 +36,14 @@ public:
                                              Access::Write>>;
 
   EmitTypeAndGlobalHeader(const class Model &Model,
-                          llvm::StringRef Config,
+                          llvm::StringRef Configuration,
                           llvm::StringRef DynamicConfig,
                           const CliftModuleContainer &Input,
                           PTMLCBytesContainer &Output) :
-    Binary(*Model.get().get()), Input(Input), Output(Output){};
+    Binary(*Model.get().get()),
+    Input(Input),
+    Output(Output),
+    Configuration(parseCEmissionPipeConfiguration(Configuration)){};
 
   void run();
 };
