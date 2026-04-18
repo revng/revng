@@ -86,6 +86,8 @@ private:
   const CliftModuleContainer &Input;
   PTMLCTypeBytesContainer &Output;
 
+  CEmissionPipeConfiguration Configuration;
+
 public:
   static constexpr llvm::StringRef Name = "emit-single-type-definition";
   using Arguments = TypeList<PipeRunArgument<CliftModuleContainer,
@@ -99,11 +101,14 @@ public:
                                              Access::Write>>;
 
   EmitSingleTypeDefinition(const class Model &Model,
-                           llvm::StringRef Config,
+                           llvm::StringRef Configuration,
                            llvm::StringRef DynamicConfig,
                            const CliftModuleContainer &Input,
                            PTMLCTypeBytesContainer &Output) :
-    Binary(*Model.get().get()), Input(Input), Output(Output){};
+    Binary(*Model.get().get()),
+    Input(Input),
+    Output(Output),
+    Configuration(parseCEmissionPipeConfiguration(Configuration)){};
 
   void runOnTypeDefinition(const model::UpcastableTypeDefinition &Type);
 };
