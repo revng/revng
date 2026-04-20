@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngcliftopt --emit-c %s | FileCheck %s
+// RUN: %revngcliftopt --emit-c %s -o /dev/null | FileCheck %s
 // RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
 !void = !clift.void
