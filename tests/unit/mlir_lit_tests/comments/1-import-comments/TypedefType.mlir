@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: ../%revngpipe import-descriptive-info %S/../0-import-types/TypedefType.yml %s /dev/stdout | ../%revngcliftopt | FileCheck %s
+// RUN: %revngpipe import-descriptive-info %S/../0-import-types/TypedefType.yml %s /dev/stdout | %revngcliftopt | FileCheck %s
 
 !float96_t = !clift.float<12>
 

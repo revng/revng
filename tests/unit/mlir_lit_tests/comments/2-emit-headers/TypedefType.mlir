@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: ../%revngcliftopt --emit-type-and-global-header %s -o /dev/null | FileCheck %s
-// RUN: ../%revngcliftopt --emit-type-and-global-header=ptml %s -o /dev/null | ../%revngptml | FileCheck %s
+// RUN: %revngcliftopt --emit-type-and-global-header %s -o /dev/null | FileCheck %s
+// RUN: %revngcliftopt --emit-type-and-global-header=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
 !float96_t = !clift.float<12>
 

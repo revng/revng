@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: ../%revngpipe import-descriptive-info %S/../0-import-types/Extra.yml %s /dev/stdout | ../%revngcliftopt | FileCheck %s
+// RUN: %revngpipe import-descriptive-info %S/../0-import-types/Extra.yml %s /dev/stdout | %revngcliftopt | FileCheck %s
 
 !uint8_t = !clift.int<unsigned 1>
 !uint16_t = !clift.int<unsigned 2>

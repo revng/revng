@@ -6,8 +6,8 @@
 //       non-comment-related header test, so I'm putting it here instead of
 //       making a subdirectory of its own.
 
-// RUN: ../%revngcliftopt --emit-helper-header %s -o /dev/null | FileCheck %s
-// RUN: ../%revngcliftopt --emit-helper-header=ptml %s -o /dev/null | ../%revngptml | FileCheck %s
+// RUN: %revngcliftopt --emit-helper-header %s -o /dev/null | FileCheck %s
+// RUN: %revngcliftopt --emit-helper-header=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
 !void = !clift.void
 !generic32_t = !clift.int<generic 4>
