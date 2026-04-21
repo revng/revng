@@ -10,6 +10,8 @@
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
+#include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
 
 using namespace clift;
 
@@ -1163,11 +1165,22 @@ public:
     mlir::Operation *Op = Statement.getOperation();
 
     if (auto Comments = getComments(Statement)) {
-      // TODO: Add a comment formatting layer on top of CE.
-      //       At least spaces at the start of each line would be nice.
-      auto CE = Tokens.emitComment(CTE::CommentKind::Line);
+      FunctionOp ParentFunction = Op->getParentOfType<FunctionOp>();
+      auto FLoc = pipeline::locationFromString(revng::ranks::Function,
+                                               ParentFunction.getHandle());
+      revng_assert(FLoc.has_value());
 
-      for (mlir::Attribute CommentAttr : Comments) {
+      for (auto [CommentIndex, CommentAttr] : llvm::enumerate(Comments)) {
+        auto Location = pipeline::location(revng::ranks::StatementComment,
+                                           FLoc->at(revng::ranks::Function),
+                                           CommentIndex);
+
+        auto Guard = Tokens.enterRegion(CTE::RegionKind::Commentable,
+                                        Location.toString());
+
+        // TODO: Add a comment formatting layer on top of CE.
+        //       At least spaces at the start of each line would be nice.
+        auto CE = Tokens.emitComment(CTE::CommentKind::Line);
         CE.emit(mlir::cast<mlir::StringAttr>(CommentAttr).getValue());
         CE.emit("\n");
       }
