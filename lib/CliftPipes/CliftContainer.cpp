@@ -14,6 +14,7 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Parser/Parser.h"
 
+#include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftDialect.h"
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftPipes/CliftContainer.h"
@@ -315,10 +316,9 @@ bool CliftFunctionContainer::removeImpl(const pipeline::TargetsList &List) {
 
 void CliftFunctionContainer::clearImpl() {
   auto NewContext = clift::makeContext();
-  Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
-  Context = std::move(NewContext);
+  Module = clift::makeModule(*NewContext);
 
-  clift::setModuleAttr(Module.get());
+  Context = std::move(NewContext);
 }
 
 llvm::Error CliftFunctionContainer::serialize(llvm::raw_ostream &OS) const {
@@ -333,8 +333,8 @@ CliftFunctionContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   OwningModuleRef NewModule;
 
   if (Buffer.getBufferSize() == 0) {
-    NewModule = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
-    clift::setModuleAttr(NewModule.get());
+    NewModule = clift::makeModule(*NewContext);
+
   } else {
     const mlir::ParserConfig Config(NewContext.get());
     NewModule = mlir::parseSourceString<ModuleOp>(Buffer.getBuffer(), Config);
@@ -448,10 +448,9 @@ pipeline::TargetsList CliftContainer::enumerate() const {
 
 void CliftContainer::clearImpl() {
   auto NewContext = clift::makeContext();
-  Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
-  Context = std::move(NewContext);
+  Module = clift::makeModule(*NewContext);
 
-  clift::setModuleAttr(Module.get());
+  Context = std::move(NewContext);
 }
 
 llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
@@ -465,8 +464,8 @@ llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
   OwningModuleRef NewModule;
 
   if (Buffer.getBufferSize() == 0) {
-    NewModule = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
-    clift::setModuleAttr(NewModule.get());
+    NewModule = clift::makeModule(*NewContext);
+
   } else {
     const mlir::ParserConfig Config(NewContext.get());
     NewModule = mlir::parseSourceString<ModuleOp>(Buffer.getBuffer(), Config);
