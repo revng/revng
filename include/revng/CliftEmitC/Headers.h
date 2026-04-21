@@ -9,8 +9,6 @@
 #include "revng/CliftEmitC/Configuration.h"
 #include "revng/PTML/CTokenEmitter.h"
 
-namespace mlir::clift {
-
 void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
                              const TargetCImplementation &Target,
                              mlir::ModuleOp Module,
@@ -19,5 +17,3 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
                       const TargetCImplementation &Target,
                       llvm::MutableArrayRef<mlir::ModuleOp> Modules);
-
-} // namespace mlir::clift

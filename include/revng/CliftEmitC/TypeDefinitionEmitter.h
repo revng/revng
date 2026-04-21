@@ -12,50 +12,49 @@
 #include "revng/CliftEmitC/Configuration.h"
 #include "revng/CliftEmitC/TypeDependencyGraph.h"
 
-namespace mlir::clift {
-
-class TypeDefinitionEmitter : public clift::CEmitter {
+class TypeDefinitionEmitter : public CEmitter {
 private:
   mlir::MLIRContext *Context;
-  clift::TypeEmitterConfiguration Configuration;
+  TypeEmitterConfiguration Configuration;
 
 public:
   TypeDefinitionEmitter(ptml::CTokenEmitter &PTML,
                         const TargetCImplementation &Target,
                         mlir::MLIRContext &Context,
-                        clift::TypeEmitterConfiguration Configuration) :
-    clift::CEmitter(PTML, Target),
-    Context(&Context),
-    Configuration(Configuration) {}
+                        TypeEmitterConfiguration Configuration) :
+    CEmitter(PTML, Target), Context(&Context), Configuration(Configuration) {}
 
 private:
-  void emitTypeKeyword(clift::DefinedType Type);
+  void emitTypeKeyword(mlir::clift::DefinedType Type);
   void emitDeclarationTypedef(mlir::MLIRContext &Context,
-                              clift::DefinedType Type);
+                              mlir::clift::DefinedType Type);
   void emitPaddingField(mlir::MLIRContext &Context,
                         uint64_t CurrentOffset,
                         uint64_t NextOffset);
 
 public:
   void emitForwardDeclaration(mlir::MLIRContext &Context,
-                              clift::DefinedType Type) {
-    revng_assert(clift::isSeparateDeclarationAllowed(Type));
+                              mlir::clift::DefinedType Type) {
+    revng_assert(isSeparateDeclarationAllowed(Type));
 
     emitDeclarationTypedef(Context, Type);
   }
 
-  void emitTypedefDefinition(clift::TypedefType Typedef);
-  void emitFunctionTypedef(clift::FunctionType Function);
-  void emitTypeDeclaration(mlir::MLIRContext &Context, clift::DefinedType Type);
+  void emitTypedefDefinition(mlir::clift::TypedefType Typedef);
+  void emitFunctionTypedef(mlir::clift::FunctionType Function);
+  void emitTypeDeclaration(mlir::MLIRContext &Context,
+                           mlir::clift::DefinedType Type);
 
 public:
   void emitClassDefinition(mlir::MLIRContext &Context,
-                           clift::ClassType StructOrUnion);
-  void emitEnumDefinition(mlir::MLIRContext &Context, clift::EnumType Enum);
-  void emitTypeDefinition(mlir::MLIRContext &Context, clift::DefinedType Type);
+                           mlir::clift::ClassType StructOrUnion);
+  void emitEnumDefinition(mlir::MLIRContext &Context,
+                          mlir::clift::EnumType Enum);
+  void emitTypeDefinition(mlir::MLIRContext &Context,
+                          mlir::clift::DefinedType Type);
 
 private:
-  using NodeSet = std::unordered_set<const clift::TypeDependencyNode *>;
+  using NodeSet = std::unordered_set<const TypeDependencyNode *>;
 
 public:
   /// This is a helper for emitting the entire tree of types in one fell swoop.
@@ -65,8 +64,6 @@ public:
   ///         for all invocations of this method. It's a way to guarantee than
   ///         no type is emitted more than once.
   void emitTypeTree(mlir::MLIRContext &Context,
-                    const clift::TypeDependencyNode &Root,
+                    const TypeDependencyNode &Root,
                     NodeSet &Emitted);
 };
-
-} // namespace mlir::clift

@@ -19,7 +19,7 @@
 inline Logger TypePrinterLog{ "clift-type-definition-printer" };
 
 namespace clift = mlir::clift;
-using TypeDefinitionEmitter = clift::TypeDefinitionEmitter;
+using TypeDefinitionEmitter = TypeDefinitionEmitter;
 
 void TypeDefinitionEmitter::emitTypeKeyword(clift::DefinedType Type) {
   if (mlir::isa<clift::StructType>(Type))
@@ -69,7 +69,7 @@ TypeDefinitionEmitter::emitTypedefDefinition(clift::TypedefType Typedef) {
   Tokens.emitSpace();
 
   emitDeclaration(Typedef.getUnderlyingType(),
-                  clift::CEmitter::DeclaratorInfo{
+                  CEmitter::DeclaratorInfo{
                     .Identifier = Typedef.getName(),
                     .Location = Typedef.getHandle(),
                     .CAttributes = {},
@@ -89,9 +89,10 @@ TypeDefinitionEmitter::emitFunctionTypedef(clift::FunctionType Function) {
   Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
   Tokens.emitSpace();
 
-  auto Attrs = CAttributeListBuilder{ *Context, Function.getCAttributes() };
+  auto Attrs = clift::CAttributeListBuilder{ *Context,
+                                             Function.getCAttributes() };
   emitDeclaration(Function,
-                  clift::CEmitter::DeclaratorInfo{
+                  CEmitter::DeclaratorInfo{
                     .Identifier = Function.getName(),
                     .Location = Function.getHandle(),
                     .CAttributes = Attrs.get(),
@@ -104,7 +105,7 @@ TypeDefinitionEmitter::emitFunctionTypedef(clift::FunctionType Function) {
 
 void TypeDefinitionEmitter::emitTypeDeclaration(mlir::MLIRContext &Context,
                                                 clift::DefinedType Type) {
-  if (clift::isSeparateDeclarationAllowed(Type)) {
+  if (isSeparateDeclarationAllowed(Type)) {
     emitForwardDeclaration(Context, Type);
 
   } else if (auto Typedef = mlir::dyn_cast<clift::TypedefType>(Type)) {
@@ -203,7 +204,7 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
 
       emitDoxygenComment(Field);
       emitDeclaration(Field.getType(),
-                      clift::CEmitter::DeclaratorInfo{
+                      CEmitter::DeclaratorInfo{
                         .Identifier = Field.getName(),
                         .Location = Field.getHandle(),
                         .CAttributes = {},
@@ -233,7 +234,8 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
       Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
       Tokens.emitNewline();
 
-      PreviousOffset = Field.getOffset() + getObjectSize(Field.getType());
+      PreviousOffset = Field.getOffset()
+                       + mlir::clift::getObjectSize(Field.getType());
     }
   }
 
@@ -335,7 +337,7 @@ void TypeDefinitionEmitter::emitTypeDefinition(mlir::MLIRContext &Context,
     emitClassDefinition(Context, StructOrUnion);
     return;
 
-  } else if (not clift::isSeparateDeclarationAllowed(Type)) {
+  } else if (not isSeparateDeclarationAllowed(Type)) {
     emitTypeDeclaration(Context, Type);
     Tokens.emitNewline();
     return;
@@ -347,7 +349,7 @@ void TypeDefinitionEmitter::emitTypeDefinition(mlir::MLIRContext &Context,
 
 void // formatting
 TypeDefinitionEmitter::emitTypeTree(mlir::MLIRContext &Context,
-                                    const clift::TypeDependencyNode &Root,
+                                    const TypeDependencyNode &Root,
                                     NodeSet &Emitted) {
   revng_log(TypePrinterLog,
             "Starting a post order visit from:" << Root.label());
@@ -372,7 +374,7 @@ TypeDefinitionEmitter::emitTypeTree(mlir::MLIRContext &Context,
 
     if (Node->IsDefinition) {
       revng_assert(Node->IsDefinition);
-      revng_assert(clift::isSeparateDeclarationAllowed(Type));
+      revng_assert(isSeparateDeclarationAllowed(Type));
 
       revng_log(TypePrinterLog, "Definition");
       emitTypeDefinition(Context, Type);

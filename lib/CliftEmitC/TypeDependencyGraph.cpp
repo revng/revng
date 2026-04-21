@@ -24,13 +24,13 @@ namespace clift = mlir::clift;
 
 static Logger Log{ "clift-type-dependency-graph" };
 
-std::string clift::DefinedTypeNode::label() const {
+std::string DefinedTypeNode::label() const {
   return "[" + T.getHandle().str() + " "
          + (IsDefinition ? "definition" : "declaration") + "]";
 }
 
-using DepNode = clift::TypeDependencyNode;
-using DepGraph = clift::TypeDependencyGraph;
+using DepNode = TypeDependencyNode;
+using DepGraph = TypeDependencyGraph;
 std::string llvm::DOTGraphTraits<DepGraph *>::getNodeLabel(const DepNode *N,
                                                            const DepGraph *G) {
   return N->label();
@@ -40,7 +40,7 @@ template<typename VisitorT>
 using ModuleVisitor = clift::ModuleVisitor<VisitorT>;
 
 template<bool ModelMode>
-using Builder = clift::TypeDependencyGraph::Builder<ModelMode>;
+using Builder = TypeDependencyGraph::Builder<ModelMode>;
 
 /// This is a private graph builder.
 ///
@@ -49,10 +49,9 @@ using Builder = clift::TypeDependencyGraph::Builder<ModelMode>;
 /// a `clift.types` attribute) OR from everything else (in practice, just
 /// helpers).
 template<bool ModelMode>
-class clift::TypeDependencyGraph::Builder
-  : public ModuleVisitor<Builder<ModelMode>> {
+class TypeDependencyGraph::Builder : public ModuleVisitor<Builder<ModelMode>> {
   /// A pointer to the dependency graph being constructed and initialized.
-  clift::TypeDependencyGraph *Graph = nullptr;
+  TypeDependencyGraph *Graph = nullptr;
 
   using Base = ModuleVisitor<Builder<ModelMode>>;
 
@@ -95,8 +94,8 @@ private:
                            mlir::Type DependedOn) const;
 };
 
-static void addAndLogSuccessor(clift::TypeDependencyNode *From,
-                               clift::TypeDependencyNode *To) {
+static void addAndLogSuccessor(TypeDependencyNode *From,
+                               TypeDependencyNode *To) {
   revng_assert(From);
   revng_assert(To);
   revng_log(Log, "Added edge: " << From->label() << " --> " << To->label());
@@ -110,13 +109,13 @@ void Builder<Mode>::addNodes(clift::DefinedType Type) const {
     return;
   }
 
-  using DefinedTypeNode = clift::DefinedTypeNode;
+  using DefinedTypeNode = DefinedTypeNode;
   auto *DeclNode = Graph->addNode(DefinedTypeNode::declaration(Type));
 
   revng_log(Log, "Added node: " << DeclNode->label());
 
-  clift::TypeDependencyNode *DefNode = nullptr;
-  if (clift::isSeparateDeclarationAllowed(Type)) {
+  TypeDependencyNode *DefNode = nullptr;
+  if (isSeparateDeclarationAllowed(Type)) {
     DefNode = Graph->addNode(DefinedTypeNode::definition(Type));
 
     revng_log(Log, "Added node: " << DefNode->label());
@@ -237,7 +236,7 @@ void Builder<Mode>::addDependenciesFrom(const AssociatedNodes Dependent,
   // declaration we add a dependency from `DependentNode` to the `Definition`
   // of the `NodesDependedOn`.
   if (ForwardDeclaration
-      and clift::isSeparateDeclarationAllowed(DefinitionDependedOn)) {
+      and isSeparateDeclarationAllowed(DefinitionDependedOn)) {
     addAndLogSuccessor(DependentNode, NodesDependedOn.Definition);
   }
 
@@ -248,8 +247,9 @@ void Builder<Mode>::addDependenciesFrom(const AssociatedNodes Dependent,
   // also depends on the full definition of the depended-on, across typedefs.
   if (ForwardDeclaration
       and mlir::isa<clift::TypedefType>(DefinitionDependedOn)) {
+    using DefinedType = clift::DefinedType;
     if (auto D = clift::unwrapped_dyn_cast<DefinedType>(DefinitionDependedOn)) {
-      if (clift::isSeparateDeclarationAllowed(D)) {
+      if (isSeparateDeclarationAllowed(D)) {
         auto TransitivelyDependedOn = Graph->TypeToNodes.at(D);
         revng_assert(TransitivelyDependedOn.Definition);
         addAndLogSuccessor(DependentNode, TransitivelyDependedOn.Definition);
@@ -310,16 +310,15 @@ mlir::LogicalResult Builder<ModelMode>::visitType(mlir::Type T) {
   return mlir::success();
 }
 
-clift::TypeDependencyGraph
-clift::TypeDependencyGraph::makeModelGraph(mlir::ModuleOp Module) {
+TypeDependencyGraph TypeDependencyGraph::makeModelGraph(mlir::ModuleOp Module) {
   return Builder<true>::make({ Module });
 }
 
-using TDG = clift::TypeDependencyGraph;
+using TDG = TypeDependencyGraph;
 TDG TDG::makeHelperGraph(llvm::ArrayRef<mlir::ModuleOp> Modules) {
   return Builder<false>::make(Modules);
 }
 
-void clift::TypeDependencyGraph::viewGraph() const {
+void TypeDependencyGraph::viewGraph() const {
   llvm::ViewGraph(this, "type-dependency-graph.dot");
 }

@@ -31,7 +31,7 @@ public:
     Tokens.emitPragmaOnceDirective();
     Tokens.emitNewline();
 
-    mlir::clift::CEmitter Emitter(Tokens, Target);
+    CEmitter Emitter(Tokens, Target);
     Emitter.emitCategoryComment("This header has been generated using rev.ng.");
 
     // TODO: emit the license information, revng version information, etc.
@@ -51,12 +51,12 @@ public:
 
 private:
   void emitTypeGraph(mlir::MLIRContext &Context,
-                     const mlir::clift::TypeDependencyGraph &Graph,
-                     mlir::clift::TypeDefinitionEmitter &Emitter) {
+                     const TypeDependencyGraph &Graph,
+                     TypeDefinitionEmitter &Emitter) {
     // In order to improve the printing order, do the visit it in two parts:
     // first only start from nodes without any successors (real roots),
     // only then, resolve potential loops by starting from arbitrary nodes.
-    std::unordered_set<const mlir::clift::TypeDependencyNode *> Emitted;
+    std::unordered_set<const TypeDependencyNode *> Emitted;
     for (const auto *Root : Graph.nodes())
       if (not Root->predecessorCount())
         Emitter.emitTypeTree(Context, *Root, Emitted);
@@ -68,13 +68,13 @@ private:
 
 public:
   void emitTypes(mlir::ModuleOp Module,
-                 mlir::clift::TypeEmitterConfiguration Configuration) {
-    mlir::clift::TypeDefinitionEmitter Emitter(Tokens,
-                                               Target,
-                                               *Module.getContext(),
-                                               Configuration);
+                 TypeEmitterConfiguration Configuration) {
+    TypeDefinitionEmitter Emitter(Tokens,
+                                  Target,
+                                  *Module.getContext(),
+                                  Configuration);
 
-    auto Graph = mlir::clift::TypeDependencyGraph::makeModelGraph(Module);
+    auto Graph = TypeDependencyGraph::makeModelGraph(Module);
     if (not Graph.empty()) {
       Emitter.emitCategoryComment("Types");
       emitTypeGraph(*Module.getContext(), Graph, Emitter);
@@ -87,7 +87,7 @@ private:
   void emitFunctionsImpl(mlir::ModuleOp Module,
                          const RankFilter &Rank,
                          llvm::StringRef CategoryComment) {
-    mlir::clift::CEmitter Emitter(Tokens, Target);
+    CEmitter Emitter(Tokens, Target);
 
     bool CommentEmitted = false;
     Module->walk([&](mlir::clift::FunctionOp Function) {
@@ -118,7 +118,7 @@ public:
 
 public:
   void emitSegments(mlir::ModuleOp Module) {
-    mlir::clift::CEmitter Emitter(Tokens, Target);
+    CEmitter Emitter(Tokens, Target);
 
     bool CommentEmitted = false;
     Module->walk([this,
@@ -137,7 +137,7 @@ public:
 
       static constexpr auto G = ptml::CTokenEmitter::EntityKind::GlobalVariable;
       Emitter.emitDeclaration(Segment.getType(),
-                              mlir::clift::CEmitter::DeclaratorInfo{
+                              CEmitter::DeclaratorInfo{
                                 .Identifier = Segment.getName(),
                                 .Location = Segment.getHandle(),
                                 .CAttributes = {},
@@ -154,19 +154,18 @@ public:
   void emitHelpers(llvm::MutableArrayRef<mlir::ModuleOp> Modules) {
     revng_check(not Modules.empty());
 
-    namespace clift = mlir::clift;
-    clift::TypeDefinitionEmitter Emitter(Tokens,
-                                         Target,
-                                         *Modules.front().getContext(),
-                                         clift::TypeEmitterConfiguration{
-                                           .TypeToOmit = {},
-                                           .EmitMaximumEnumValue = false,
-                                           .ExplicitPadding = true,
-                                         });
+    TypeDefinitionEmitter Emitter(Tokens,
+                                  Target,
+                                  *Modules.front().getContext(),
+                                  TypeEmitterConfiguration{
+                                    .TypeToOmit = {},
+                                    .EmitMaximumEnumValue = false,
+                                    .ExplicitPadding = true,
+                                  });
 
     // TODO: emit `#include`s
 
-    auto Graph = clift::TypeDependencyGraph::makeHelperGraph(Modules);
+    auto Graph = TypeDependencyGraph::makeHelperGraph(Modules);
     if (not Graph.empty()) {
       Emitter.emitCategoryComment("Types");
 
@@ -206,11 +205,10 @@ public:
   }
 };
 
-void mlir::clift::emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
-                                          const TargetCImplementation &Target,
-                                          mlir::ModuleOp Module,
-                                          TypeEmitterConfiguration
-                                            Configuration) {
+void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
+                             const TargetCImplementation &Target,
+                             mlir::ModuleOp Module,
+                             TypeEmitterConfiguration Configuration) {
   CHeaderEmitterImpl Emitter(Tokens, Target);
 
   Emitter.emitHeaderPrologue();
@@ -223,10 +221,9 @@ void mlir::clift::emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
   Emitter.emitSegments(Module);
 }
 
-void mlir::clift::emitHelperHeader(ptml::CTokenEmitter &Tokens,
-                                   const TargetCImplementation &Target,
-                                   llvm::MutableArrayRef<mlir::ModuleOp>
-                                     Modules) {
+void emitHelperHeader(ptml::CTokenEmitter &Tokens,
+                      const TargetCImplementation &Target,
+                      llvm::MutableArrayRef<mlir::ModuleOp> Modules) {
   CHeaderEmitterImpl Emitter(Tokens, Target);
 
   Emitter.emitHeaderPrologue();

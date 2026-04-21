@@ -6,8 +6,6 @@
 
 #include "llvm/ADT/StringRef.h"
 
-namespace mlir::clift {
-
 struct TypeEmitterConfiguration {
   /// We don't always want the complete type system. For example, when one
   /// of the types is being edited, we cannot include the type in question!
@@ -34,5 +32,3 @@ struct TypeEmitterConfiguration {
   /// is not affected because it explicitly handles `_STARTS_AT` attribute).
   bool ExplicitPadding;
 };
-
-} // namespace mlir::clift

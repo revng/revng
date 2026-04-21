@@ -16,6 +16,8 @@
 namespace clift = mlir::clift;
 using namespace mlir::clift;
 
+using CEmitter = CEmitter;
+
 ptml::CTokenEmitter::EntityKind
 CEmitter::chooseEntityKind(mlir::clift::DefinedType Type) {
   if (mlir::isa<mlir::clift::FunctionType>(Type))
@@ -507,7 +509,7 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
   }
 
   emitDeclaration(Op.getFunctionType(),
-                  mlir::clift::CEmitter::DeclaratorInfo{
+                  CEmitter::DeclaratorInfo{
                     .Identifier = Op.getName(),
                     .Location = Op.getHandle(),
                     .CAttributes = getDeclarationOpCAttributes(Op),
@@ -519,7 +521,7 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
 // Accounts for a `\` before it and a space after.
 static constexpr uint64_t ExtraKeywordIndentation = 2;
 
-void clift::CEmitter::emitFunctionDoxygenComment(clift::FunctionOp Function) {
+void CEmitter::emitFunctionDoxygenComment(clift::FunctionOp Function) {
   auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Function.getHandle());
 
@@ -604,7 +606,7 @@ void clift::CEmitter::emitFunctionDoxygenComment(clift::FunctionOp Function) {
   }
 }
 
-void clift::CEmitter::emitGlobalDoxygenComment(clift::GlobalVariableOp Global) {
+void CEmitter::emitGlobalDoxygenComment(clift::GlobalVariableOp Global) {
   if (auto CommentAttribute = Global->getAttr("clift.comment")) {
     auto String = mlir::dyn_cast<mlir::StringAttr>(CommentAttribute);
     revng_assert(String != nullptr);

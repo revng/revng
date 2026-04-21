@@ -67,7 +67,7 @@ clift::PassPtr<mlir::ModuleOp> clift::createEmitCPass() {
 
     Module->walk([&Emitter](clift::FunctionOp Function) {
       if (not Function.isExternal())
-        clift::decompile(Function, Emitter, Target);
+        decompile(Function, Emitter, Target);
     });
 
     return true;
@@ -82,7 +82,7 @@ using TaGHBase = mlir::clift::impl::CliftEmitTypeAndGlobalHeaderBase<T>;
 clift::PassPtr<mlir::ModuleOp> clift::createEmitTypeAndGlobalHeaderPass() {
   static constexpr auto Impl = [](mlir::ModuleOp Module,
                                   ptml::CTokenEmitter &Tokens) {
-    mlir::clift::TypeEmitterConfiguration Configuration = {
+    TypeEmitterConfiguration Configuration = {
       .TypeToOmit = {},
       .EmitMaximumEnumValue = false,
       .ExplicitPadding = true,
@@ -91,7 +91,7 @@ clift::PassPtr<mlir::ModuleOp> clift::createEmitTypeAndGlobalHeaderPass() {
     // TODO: select target properly
     const auto &Target = TargetCImplementation::Default;
 
-    clift::emitTypeAndGlobalHeader(Tokens, Target, Module, Configuration);
+    emitTypeAndGlobalHeader(Tokens, Target, Module, Configuration);
 
     return true;
   };
@@ -108,7 +108,7 @@ clift::PassPtr<mlir::ModuleOp> clift::createEmitHelperHeaderPass() {
     // TODO: select target properly
     const auto &Target = TargetCImplementation::Default;
 
-    clift::emitHelperHeader(Tokens, Target, { Module });
+    emitHelperHeader(Tokens, Target, { Module });
 
     return true;
   };
