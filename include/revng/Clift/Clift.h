@@ -110,7 +110,7 @@ std::unique_ptr<mlir::MLIRContext> makeContext();
 mlir::OwningOpRef<mlir::ModuleOp> makeModule(mlir::MLIRContext &Context);
 
 /// Returns true if the module has a Clift module attribute.
-bool hasModuleAttr(mlir::ModuleOp Module);
+bool isCliftModule(mlir::ModuleOp Module);
 
 /// Returns the data model for the specified module.
 /// \note The module must have an associated data model.

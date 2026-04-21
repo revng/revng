@@ -127,7 +127,7 @@ public:
     Model(Model),
     Builder(Context),
     DataLayout(nullptr) {
-    revng_assert(clift::hasModuleAttr(Module));
+    revng_assert(clift::isCliftModule(Module));
     Builder.setInsertionPointToEnd(Module.getBody());
   }
 
