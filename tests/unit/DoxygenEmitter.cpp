@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_CASE(LineComment) {
   {
     llvm::raw_string_ostream Out(Emitted);
     ptml::CTokenEmitter C(Out, ptml::Tagging::Disabled);
-    auto Doxygen = ptml::emitDoxygenLineComment(C);
+    auto Doxygen = ptml::CDoxygenEmitter::emitLineComment(C);
 
     Doxygen.emitKeyword("brief");
     Doxygen.emit(" This does something.");
@@ -43,7 +43,7 @@ BOOST_AUTO_TEST_CASE(BlockComment) {
   {
     llvm::raw_string_ostream Out(Emitted);
     ptml::CTokenEmitter C(Out, ptml::Tagging::Disabled);
-    auto Doxygen = ptml::emitDoxygenBlockComment(C);
+    auto Doxygen = ptml::CDoxygenEmitter::emitBlockComment(C);
 
     Doxygen.emitKeyword("brief");
     Doxygen.emit(" This does something.");

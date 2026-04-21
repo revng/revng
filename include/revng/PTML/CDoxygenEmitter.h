@@ -9,33 +9,35 @@
 
 namespace ptml {
 
-using CDoxygenEmitter = DoxygenEmitter<CTokenEmitter::CommentEmitter>;
+class CDoxygenEmitter : public DoxygenEmitter<CTokenEmitter::CommentEmitter> {
+  using Base = DoxygenEmitter<CTokenEmitter::CommentEmitter>;
 
-namespace detail {
+private:
+  static constexpr DoxygenCommentConfiguration LineCommentConfiguration = {
+    .LinePrefix = "/ "
+  };
 
-inline constexpr DoxygenCommentConfiguration LineCommentConfiguration = {
-  .LinePrefix = "/ "
+  static constexpr DoxygenCommentConfiguration BlockCommentConfiguration = {
+    .CommentHeader = "*",
+    .CommentFooter = " ",
+    .LinePrefix = " * ",
+  };
+
+public:
+  using Base::Base;
+
+public:
+  [[nodiscard]] static CDoxygenEmitter emitLineComment(CTokenEmitter &CE) {
+    return CDoxygenEmitter(LineCommentConfiguration,
+                           CE,
+                           CTokenEmitter::CommentKind::Line);
+  }
+
+  [[nodiscard]] static CDoxygenEmitter emitBlockComment(CTokenEmitter &CE) {
+    return CDoxygenEmitter(BlockCommentConfiguration,
+                           CE,
+                           CTokenEmitter::CommentKind::Block);
+  }
 };
-
-inline constexpr DoxygenCommentConfiguration BlockCommentConfiguration = {
-  .CommentHeader = "*",
-  .CommentFooter = " ",
-  .LinePrefix = " * ",
-};
-
-} // namespace detail
-
-[[nodiscard]] inline CDoxygenEmitter emitDoxygenLineComment(CTokenEmitter &CE) {
-  return CDoxygenEmitter(detail::LineCommentConfiguration,
-                         CE,
-                         CTokenEmitter::CommentKind::Line);
-}
-
-[[nodiscard]] inline CDoxygenEmitter
-emitDoxygenBlockComment(CTokenEmitter &CE) {
-  return CDoxygenEmitter(detail::BlockCommentConfiguration,
-                         CE,
-                         CTokenEmitter::CommentKind::Block);
-}
 
 } // namespace ptml
