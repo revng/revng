@@ -9,6 +9,7 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/StringRef.h"
 
+#include "revng/PTML/Constants.h"
 #include "revng/PTML/PTMLEmitter.h"
 #include "revng/Support/CTarget.h"
 
@@ -26,9 +27,19 @@ class CTokenEmitter {
   // Used to ensure that only one comment emitter may exist at any given time.
   bool IsEmittingComment = false;
 
+  // This ensures the extra `<div></div>` we need for multi-element artifacts
+  // is properly emitted (PTML requires each document to be a single tag).
+  //
+  // TODO: eventually we will want to introduce a separate emitter layer (think
+  //       along the lines of a `DocumentEmitter`) to take care of this instead.
+  PTMLTagEmitter MainTag;
+
 public:
   explicit CTokenEmitter(llvm::raw_ostream &OS, Tagging Tags) :
-    PTML(OS, Tags) {}
+    PTML(OS, Tags), MainTag(PTML.makeTagInitializer(ptml::tags::Div)) {
+
+    MainTag.finalizeOpenTag();
+  }
 
   void emitSpace() { PTML.emit(" "); }
   void emitNewline() { PTML.emit("\n"); }
