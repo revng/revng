@@ -76,13 +76,12 @@ void Clifter::runOnFunction(const model::Function &Function) {
     &LLVMFunction = getUniqueIsolatedFunction(Module, Function.Entry());
 
   mlir::MLIRContext *Context = Output.getContext();
-  auto ModuleOpObject = mlir::ModuleOp::create(mlir::UnknownLoc::get(Context));
-  clift::setModuleAttr(ModuleOpObject);
+  auto ModuleOpObject = clift::makeModule(*Context);
 
-  auto Importer = clift::Clifter::make(ModuleOpObject, Binary);
+  auto Importer = clift::Clifter::make(ModuleOpObject.get(), Binary);
   Importer->import(&LLVMFunction);
 
-  Output.assign(Object, ModuleOpObject);
+  Output.assign(Object, ModuleOpObject.get());
 }
 
 } // namespace revng::pypeline::piperuns

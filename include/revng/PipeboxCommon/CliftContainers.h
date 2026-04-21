@@ -182,11 +182,7 @@ private:
 
 public:
   CliftModuleContainer() :
-    Context(clift::makeContext()),
-    Module(mlir::ModuleOp::create(mlir::UnknownLoc::get(&*Context))) {
-
-    clift::setModuleAttr(Module.get());
-  }
+    Context(clift::makeContext()), Module(clift::makeModule(*Context)) {}
 
 public:
   std::set<ObjectID> objects() const {

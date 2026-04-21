@@ -26,6 +26,18 @@ std::unique_ptr<mlir::MLIRContext> clift::makeContext() {
   return Result;
 }
 
+mlir::OwningOpRef<mlir::ModuleOp>
+clift::makeModule(mlir::MLIRContext &Context) {
+  auto DebugLocation = mlir::UnknownLoc::get(&Context);
+  mlir::OwningOpRef<mlir::ModuleOp>
+    Result = mlir::ModuleOp::create(DebugLocation);
+
+  Result.get()->setAttr(CliftDialect::getModuleAttrName(),
+                        mlir::UnitAttr::get(&Context));
+
+  return Result;
+}
+
 using UnresolvedOperandsVector = //
   llvm::SmallVectorImpl<mlir::OpAsmParser::UnresolvedOperand>;
 
@@ -119,11 +131,6 @@ void CliftDialect::registerOperations() {
 bool clift::hasModuleAttr(mlir::ModuleOp Module) {
   llvm::StringRef AttrName = CliftDialect::getModuleAttrName();
   return Module->hasAttrOfType<mlir::UnitAttr>(AttrName);
-}
-
-void clift::setModuleAttr(mlir::ModuleOp Module) {
-  Module->setAttr(CliftDialect::getModuleAttrName(),
-                  mlir::UnitAttr::get(Module.getContext()));
 }
 
 const CDataModel &clift::getDataModel(mlir::ModuleOp Module) {
