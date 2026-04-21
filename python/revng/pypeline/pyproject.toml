@@ -23,6 +23,7 @@ revng = [
     "pypeline/schema.yml",
     "pypeline/pipeline-description-schema.yml",
     "pypeline/storage/local_provider_migrations/v1.sql",
+    "pypeline/storage/local_provider_migrations/v2.sql",
 ]
 
 [build-system]

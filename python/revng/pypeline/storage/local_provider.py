@@ -81,8 +81,9 @@ WHERE
   AND object_id IN ({id_list})"""
 
 PUT_QUERY = """
-REPLACE INTO objects(savepoint_id, container_id, configuration_hash, object_id, content)
-VALUES (?, ?, ?, ?, ?)
+REPLACE INTO objects(savepoint_id, container_id, configuration_hash, object_id,
+ object_id_string, content)
+VALUES (?, ?, ?, ?, ?, ?)
 """
 
 PUT_DEPENDENCIES_QUERY = "REPLACE INTO dependencies VALUES (?, ?, ?, ?, ?, ?)"
@@ -549,6 +550,7 @@ class LocalStorageProvider(StorageProvider):
                             location.container_id,
                             location.configuration_id,
                             object_id.to_bytes(),
+                            object_id.serialize(),
                             bytes(content),
                         ),
                     )
