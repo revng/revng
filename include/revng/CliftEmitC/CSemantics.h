@@ -9,6 +9,8 @@
 
 namespace mlir::clift {
 
+// TODO: does this really belong with the emitters?
+
 mlir::LogicalResult verifyCSemantics(mlir::ModuleOp Module,
                                      const TargetCImplementation &Target);
 
