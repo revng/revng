@@ -7,6 +7,7 @@
 #include <bit>
 
 #include "mlir/IR/FunctionInterfaces.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
@@ -101,6 +102,9 @@ public:
 #include "revng/Clift/Clift.h.inc"
 
 namespace clift {
+
+/// Creates a new MLIR context with the Clift dialect pre-loaded.
+std::unique_ptr<mlir::MLIRContext> makeContext();
 
 /// Returns true if the module has a Clift module attribute.
 bool hasModuleAttr(mlir::ModuleOp Module);

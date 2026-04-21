@@ -13,6 +13,19 @@
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftOpHelpers.h"
 
+std::unique_ptr<mlir::MLIRContext> clift::makeContext() {
+  static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
+  static const mlir::DialectRegistry Registry = []() -> mlir::DialectRegistry {
+    mlir::DialectRegistry Registry;
+    Registry.insert<clift::CliftDialect>();
+    return Registry;
+  }();
+
+  auto Result = std::make_unique<mlir::MLIRContext>(Registry, Threading);
+  Result->loadDialect<CliftDialect>();
+  return Result;
+}
+
 using UnresolvedOperandsVector = //
   llvm::SmallVectorImpl<mlir::OpAsmParser::UnresolvedOperand>;
 
