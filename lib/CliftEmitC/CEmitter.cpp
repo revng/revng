@@ -9,6 +9,7 @@
 #include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftImportModel/CAttributeListBuilder.h"
+#include "revng/PTML/CDoxygenEmitter.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
@@ -509,4 +510,102 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
                     .Kind = ptml::CTokenEmitter::EntityKind::Function,
                     .Parameters = Parameters,
                   });
+}
+
+// Accounts for a `\` before it and a space after.
+static constexpr uint64_t ExtraKeywordIndentation = 2;
+
+void clift::CEmitter::emitFunctionDoxygenComment(clift::FunctionOp Function) {
+  auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                  Function.getHandle());
+
+  std::optional<ptml::CDoxygenEmitter> Emitter = std::nullopt;
+
+  // Function comment
+  mlir::Attribute RawAttribute = Function->getAttr("clift.comment");
+  if (RawAttribute != nullptr) {
+    auto CommentBody = mlir::cast<mlir::StringAttr>(RawAttribute).getValue();
+    if (not CommentBody.empty()) {
+      ptml::CDoxygenEmitter::emitLineComment(Emitter, Tokens);
+      Emitter->emit(CommentBody);
+      Emitter->emit("\n");
+    }
+  }
+
+  // `\param` comments
+  for (unsigned I = 0; I < Function.getArgCount(); ++I) {
+    auto Attrs = Function.getArgAttrs(I);
+    llvm::StringRef CommentBody = Attrs.getStringOrEmpty("clift.comment");
+    if (CommentBody.empty())
+      continue;
+
+    if (Emitter.has_value())
+      Emitter->emit("\n");
+    else
+      ptml::CDoxygenEmitter::emitLineComment(Emitter, Tokens);
+
+    llvm::StringRef Handle = Attrs.getString("clift.handle");
+    auto ArgG = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                   Handle);
+
+    static constexpr llvm::StringRef Keyword = "param";
+    Emitter->emitKeyword(Keyword);
+    Emitter->emit(" ");
+
+    llvm::StringRef EmittedName = Attrs.getString("clift.name");
+    Tokens.emitIdentifier(EmittedName,
+                          Handle,
+                          ptml::CTokenEmitter::EntityKind::FunctionParameter,
+                          ptml::CTokenEmitter::IdentifierKind::Reference);
+    Emitter->emit(" ");
+
+    uint64_t Indentation = Keyword.size() + ExtraKeywordIndentation
+                           + EmittedName.size() + 1;
+
+    Emitter->indent(Indentation);
+    Emitter->emit(CommentBody);
+    Emitter->indent(-Indentation);
+    Emitter->emit("\n");
+  }
+
+  // `\returns` comment
+  RawAttribute = Function->getAttr("clift.return_value_comment");
+  if (RawAttribute != nullptr) {
+    auto CommentBody = mlir::cast<mlir::StringAttr>(RawAttribute).getValue();
+    if (not CommentBody.empty()) {
+      if (Emitter.has_value())
+        Emitter->emit("\n");
+      else
+        ptml::CDoxygenEmitter::emitLineComment(Emitter, Tokens);
+
+      auto FunctionTypeHandle = Function.getFunctionType().getHandle();
+      auto FTLoc = pipeline::locationFromString(revng::ranks::TypeDefinition,
+                                                FunctionTypeHandle);
+      revng_assert(FTLoc.has_value());
+      auto RVLoc = FTLoc->transmute(revng::ranks::ReturnValue).toString();
+
+      using RegionKind = ptml::CTokenEmitter::RegionKind;
+      auto Guard = Tokens.enterRegion(RegionKind::Commentable, RVLoc);
+
+      static constexpr llvm::StringRef Keyword = "returns";
+      Emitter->emitKeyword(Keyword);
+      Emitter->emit(" ");
+
+      size_t Indentation = Keyword.size() + ExtraKeywordIndentation;
+
+      Emitter->indent(Indentation);
+      Emitter->emit(CommentBody);
+      Emitter->indent(-Indentation);
+    }
+  }
+}
+
+void clift::CEmitter::emitGlobalDoxygenComment(clift::GlobalVariableOp Global) {
+  if (auto CommentAttribute = Global->getAttr("clift.comment")) {
+    auto String = mlir::dyn_cast<mlir::StringAttr>(CommentAttribute);
+    revng_assert(String != nullptr);
+
+    if (not String.getValue().empty())
+      ptml::CDoxygenEmitter::emitLineComment(Tokens, String.getValue());
+  }
 }

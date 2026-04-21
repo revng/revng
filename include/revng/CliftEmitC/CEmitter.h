@@ -5,10 +5,16 @@
 //
 
 #include "revng/Clift/Clift.h"
+#include "revng/PTML/CDoxygenEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Support/CTarget.h"
 
 namespace mlir::clift {
+
+template<typename Type>
+concept EntityWithComment = requires(Type const &Value) {
+  { Value.getComment() } -> std::convertible_to<llvm::StringRef>;
+};
 
 /// Base class with common utilities for emitters emitting C from Clift.
 class CEmitter {
@@ -72,6 +78,22 @@ public:
 
 private:
   class DeclarationEmitter;
+
+public:
+  //===----------------------------- Comments -----------------------------===//
+  template<EntityWithComment Type>
+  void emitDoxygenComment(const Type &Value) {
+    llvm::StringRef CommentContent = Value.getComment();
+    if (CommentContent.empty())
+      return;
+
+    Tokens.emitNewline();
+    ptml::CDoxygenEmitter::emitLineComment(Tokens, CommentContent);
+  }
+
+  void emitFunctionDoxygenComment(clift::FunctionOp Function);
+
+  void emitGlobalDoxygenComment(clift::GlobalVariableOp Global);
 
 public:
   //===--------------------------- Other Helpers --------------------------===//
