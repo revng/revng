@@ -44,11 +44,35 @@ public:
   }
 
   void emitKeyword(llvm::StringRef Keyword) {
+    // TODO: emitting the signifier before the tag leads to it not being
+    //       highlighted as a part of the keyword, but it's still better than
+    //       the alternative of the tag extending over the line comment
+    //       introducer (which is a bug).
+    //
+    // Here is an illustration of what I mean:
+    //
+    // With signifier *after* the tag, we emit (old behavior, bug):
+    // ```xml
+    //   <keyword-start-tag>/// \\param<keyword-end-tag> . . .
+    // ```
+    //
+    // With signifier *before* the tag, we emit (current behavior, workaround):
+    // ```xml
+    //   /// \\<keyword-start-tag>param<keyword-end-tag> . . .
+    // ```
+    //
+    // Ideally we want:
+    // ```xml
+    //   /// <keyword-start-tag>\\param<keyword-end-tag> . . .
+    // ```
+    // but that requires non-trivial changes to the emitter hierarchy.
+    // Hence the TODO.
+    DoxygenEmitter::emit(llvm::StringRef(&Configuration.KeywordSignifier, 1));
+
     auto Tag = BaseEmitter::initializeOpenTag(ptml::tags::Span);
     Tag.emitAttribute(ptml::attributes::Token, ptml::doxygen::tokens::Keyword);
     Tag.finalizeOpenTag();
 
-    DoxygenEmitter::emit(llvm::StringRef(&Configuration.KeywordSignifier, 1));
     DoxygenEmitter::emit(Keyword);
   }
 
