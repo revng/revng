@@ -96,6 +96,22 @@ public:
   void emitGlobalDoxygenComment(clift::GlobalVariableOp Global);
 
 public:
+  /// A convenience function for emitting a comment with extra empty lines
+  /// before and after it. For example:
+  ///
+  /// ```cpp
+  ///   //
+  ///   // All of the content, no matter how long it is,
+  ///   // goes *here*.
+  ///   //
+  /// ```
+  void emitCategoryComment(llvm::StringRef Content) {
+    Tokens.emitComment("\n " + Content.str() + "\n\n",
+                       ptml::CTokenEmitter::CommentKind::Line);
+    Tokens.emitNewline();
+  }
+
+public:
   //===--------------------------- Other Helpers --------------------------===//
 
   static ptml::CTokenEmitter::EntityKind
