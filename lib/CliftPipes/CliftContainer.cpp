@@ -78,20 +78,6 @@ static void visit(ModuleOp Module, Visitor visitor) {
   }
 }
 
-static const mlir::DialectRegistry &getDialectRegistry() {
-  static const mlir::DialectRegistry Registry = []() -> mlir::DialectRegistry {
-    mlir::DialectRegistry Registry;
-    Registry.insert<clift::CliftDialect>();
-    return Registry;
-  }();
-  return Registry;
-}
-
-static ContextPtr makeContext() {
-  const auto Threading = MLIRContext::Threading::DISABLED;
-  return std::make_unique<MLIRContext>(getDialectRegistry(), Threading);
-}
-
 // Cloning MLIR from one module into another requires first serialising the
 // source and then deserialising it again into the target module. We do this
 // a) when cloning operations from one container to another, and
@@ -317,7 +303,7 @@ bool CliftFunctionContainer::removeImpl(const pipeline::TargetsList &List) {
 
     pruneUnusedSymbols(*Module);
 
-    auto NewContext = makeContext();
+    auto NewContext = clift::makeContext();
     auto NewModule = cloneModuleInto(*Module, *NewContext);
 
     Module = std::move(NewModule);
@@ -328,8 +314,7 @@ bool CliftFunctionContainer::removeImpl(const pipeline::TargetsList &List) {
 }
 
 void CliftFunctionContainer::clearImpl() {
-  auto NewContext = makeContext();
-
+  auto NewContext = clift::makeContext();
   Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
   Context = std::move(NewContext);
 
@@ -343,7 +328,8 @@ llvm::Error CliftFunctionContainer::serialize(llvm::raw_ostream &OS) const {
 
 llvm::Error
 CliftFunctionContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
-  auto NewContext = makeContext();
+  auto NewContext = clift::makeContext();
+
   OwningModuleRef NewModule;
 
   if (Buffer.getBufferSize() == 0) {
@@ -461,8 +447,7 @@ pipeline::TargetsList CliftContainer::enumerate() const {
 }
 
 void CliftContainer::clearImpl() {
-  auto NewContext = makeContext();
-
+  auto NewContext = clift::makeContext();
   Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
   Context = std::move(NewContext);
 
@@ -475,7 +460,8 @@ llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
 }
 
 llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
-  auto NewContext = makeContext();
+  auto NewContext = clift::makeContext();
+
   OwningModuleRef NewModule;
 
   if (Buffer.getBufferSize() == 0) {

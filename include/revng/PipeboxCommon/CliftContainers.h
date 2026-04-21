@@ -24,21 +24,12 @@ public:
   static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
 
 private:
-  static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
-  static inline const mlir::DialectRegistry MLIRDialectRegistry = ([]() {
-    mlir::DialectRegistry Registry;
-    Registry.insert<clift::CliftDialect>();
-    return Registry;
-  })();
-
-private:
   bool Disposable = false;
-  std::optional<mlir::MLIRContext> Context;
+  std::unique_ptr<mlir::MLIRContext> Context;
   std::map<ObjectID, mlir::OwningOpRef<mlir::ModuleOp>> Modules;
 
 public:
-  CliftFunctionContainer() :
-    Context(std::in_place_t{}, MLIRDialectRegistry, Threading) {}
+  CliftFunctionContainer() : Context(clift::makeContext()) {}
 
 public:
   std::set<ObjectID> objects() const {
@@ -83,7 +74,7 @@ public:
       return;
 
     Modules.clear();
-    Context.emplace(MLIRDialectRegistry, Threading);
+    Context = clift::makeContext();
     Disposable = false;
   }
 
@@ -109,21 +100,12 @@ public:
   static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
 
 private:
-  static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
-  static inline const mlir::DialectRegistry MLIRDialectRegistry = ([]() {
-    mlir::DialectRegistry Registry;
-    Registry.insert<clift::CliftDialect>();
-    return Registry;
-  })();
-
-private:
   bool Disposable = false;
-  std::optional<mlir::MLIRContext> Context;
+  std::unique_ptr<mlir::MLIRContext> Context;
   std::map<ObjectID, mlir::OwningOpRef<mlir::ModuleOp>> Modules;
 
 public:
-  CliftSingleTypeContainer() :
-    Context(std::in_place_t{}, MLIRDialectRegistry, Threading) {}
+  CliftSingleTypeContainer() : Context(clift::makeContext()) {}
 
 public:
   std::set<ObjectID> objects() const {
@@ -168,7 +150,7 @@ public:
       return;
 
     Modules.clear();
-    Context.emplace(MLIRDialectRegistry, Threading);
+    Context = clift::makeContext();
     Disposable = false;
   }
 
@@ -194,22 +176,14 @@ public:
   static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
 
 private:
-  static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
-  static inline const mlir::DialectRegistry MLIRDialectRegistry = ([]() {
-    mlir::DialectRegistry Registry;
-    Registry.insert<clift::CliftDialect>();
-    return Registry;
-  })();
-
-private:
   bool Disposable = false;
-  std::optional<mlir::MLIRContext> Context;
+  std::unique_ptr<mlir::MLIRContext> Context;
   mlir::OwningOpRef<mlir::ModuleOp> Module;
 
 public:
   CliftModuleContainer() :
-    Context(std::in_place_t{}, MLIRDialectRegistry, Threading),
-    Module(mlir::ModuleOp::create(mlir::UnknownLoc::get(&Context.value()))) {
+    Context(clift::makeContext()),
+    Module(mlir::ModuleOp::create(mlir::UnknownLoc::get(&*Context))) {
 
     clift::setModuleAttr(Module.get());
   }
@@ -260,7 +234,7 @@ public:
       return;
 
     Module = {};
-    Context.emplace(MLIRDialectRegistry, Threading);
+    Context = clift::makeContext();
     Disposable = false;
   }
 
