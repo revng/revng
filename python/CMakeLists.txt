@@ -133,8 +133,21 @@ function(python_wheel)
       "${WHEEL_FILES_${PYTHON_WHEEL_NAME}}"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}")
 
-  add_custom_target("generate-${PYTHON_WHEEL_NAME}-wheel" ALL
-                    DEPENDS "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}")
+  set(DISTINFO_NAME "${PYTHON_WHEEL_NAME}-${PYTHON_WHL_VERSION}.dist-info")
+  add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${DISTINFO_NAME}/RECORD"
+    COMMAND
+      sh -c
+      'rm -r \"${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${PYTHON_WHEEL_NAME}\"-*.dist-info'
+    COMMAND unzip -q "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
+            "${DISTINFO_NAME}/*" -d "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}"
+    DEPENDS "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}")
+
+  add_custom_target(
+    "generate-${PYTHON_WHEEL_NAME}-wheel" ALL
+    DEPENDS "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
+            "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${DISTINFO_NAME}/RECORD"
+  )
   install(FILES "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
           DESTINATION "${CMAKE_INSTALL_PREFIX}/share/python")
   install(
@@ -508,11 +521,13 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/storage/storage_provider.py
     revng/pypeline/storage/util.py
     revng/pypeline/storage/__init__.py
+    revng/pypeline/storage/local_provider_migrations/v1.sql
     revng/pypeline/task/__init__.py
     revng/pypeline/task/pipe.py
     revng/pypeline/task/requests.py
     revng/pypeline/task/savepoint.py
     revng/pypeline/task/task.py
+    revng/pypeline/utils/db_migrator.py
     revng/pypeline/utils/default_dict_from_key.py
     revng/pypeline/utils/pipeline.py
     revng/pypeline/utils/registry.py
