@@ -391,6 +391,7 @@ branches:
         configuration:
           passes:
             - c-legalization
+            - elide-implicit-casts
             - deduce-immediate-radices
       - pipe: verify-function-against-model
         arguments: [clift-functions]

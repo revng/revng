@@ -67,6 +67,12 @@ def CliftImmediateRadixDeduction : Clift_Pass<"deduce-immediate-radices",
   let constructor = "clift::createImmediateRadixDeductionPass()";
 }
 
+def CliftImplicitCastElision : Clift_Pass<"elide-implicit-casts",
+                                          "clift::FunctionOp"> {
+  let summary = "Mark implicit casts for elision by the backend.";
+  let constructor = "clift::createImplicitCastElisionPass()";
+}
+
 def CliftVerifyC : Clift_Pass<"verify-c", "mlir::ModuleOp"> {
   let summary = "Verify that the Clift semantics correspond to C semantics " #
                 "in the specified target implementation.";

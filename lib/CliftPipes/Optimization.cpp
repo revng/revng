@@ -101,6 +101,7 @@ struct TargetOptimizationPipe {
 
   static void configurePassManager(mlir::PassManager &PM) {
     PM.addPass(clift::createCLegalizationPass());
+    PM.addPass(clift::createImplicitCastElisionPass());
     PM.addPass(clift::createImmediateRadixDeductionPass());
   }
 };

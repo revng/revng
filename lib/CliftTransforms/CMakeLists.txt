@@ -11,6 +11,7 @@ revng_add_library_internal(
   Expressions.cpp
   FieldAccessReplacement.cpp
   ImmediateRadixDeduction.cpp
+  ImplicitCastElision.cpp
   LabelMerging.cpp
   Legalization.cpp
   LoopDetection.cpp

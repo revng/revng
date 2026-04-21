@@ -31,6 +31,7 @@ PassPtr<clift::FunctionOp> createTerminalBranchComplementHoistingPass();
 PassPtr<clift::FunctionOp> createCLegalizationPass();
 
 PassPtr<clift::FunctionOp> createImmediateRadixDeductionPass();
+PassPtr<clift::FunctionOp> createImplicitCastElisionPass();
 
 PassPtr<mlir::ModuleOp> createVerifyCPass();
 PassPtr<mlir::ModuleOp> createEmitCPass();
