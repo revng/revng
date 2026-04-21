@@ -170,7 +170,7 @@ const char CliftFunctionContainer::ID = 0;
 
 void CliftFunctionContainer::setModule(OwningModuleRef &&NewModule) {
   revng_assert(NewModule);
-  revng_assert(clift::hasModuleAttr(NewModule.get()));
+  revng_assert(clift::isCliftModule(NewModule.get()));
 
   // Make any non-target functions external.
   visit(*NewModule, [&](clift::FunctionOp F) {
@@ -343,7 +343,7 @@ CliftFunctionContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
     if (not NewModule)
       return revng::createError("Cannot load MLIR module.");
 
-    if (not clift::hasModuleAttr(NewModule.get()))
+    if (not clift::isCliftModule(NewModule.get()))
       return revng::createError("MLIR module is not a Clift module.");
   }
 
@@ -475,7 +475,7 @@ llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
     if (not NewModule)
       return revng::createError("Cannot load MLIR module.");
 
-    if (not clift::hasModuleAttr(NewModule.get()))
+    if (not clift::isCliftModule(NewModule.get()))
       return revng::createError("MLIR module is not a Clift module.");
   }
 

@@ -128,7 +128,7 @@ void CliftDialect::registerOperations() {
                 /* End of operations list */>();
 }
 
-bool clift::hasModuleAttr(mlir::ModuleOp Module) {
+bool clift::isCliftModule(mlir::ModuleOp Module) {
   llvm::StringRef AttrName = CliftDialect::getModuleAttrName();
   return Module->hasAttrOfType<mlir::UnitAttr>(AttrName);
 }
