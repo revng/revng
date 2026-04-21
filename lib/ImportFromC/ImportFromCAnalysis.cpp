@@ -197,13 +197,7 @@ struct ImportFromCAnalysis {
 
       if (TheOption == ImportFromCOption::EditType
           and isSeparateDeclarationAllowed(*TypeToEdit)) {
-
-        mlir::Location Loc = mlir::UnknownLoc::get(Context.get());
-        auto EmitError = [&]() -> mlir::InFlightDiagnostic {
-          return Context->getDiagEngine().emit(Loc,
-                                               mlir::DiagnosticSeverity::Error);
-        };
-        auto Current = clift::importType(EmitError, Context.get(), *TypeToEdit);
+        auto Current = clift::importType(Context.get(), *TypeToEdit);
 
         // TODO: we only need information about one type, don't import them all!
         clift::importDescriptiveInfo(*Model, *HeaderModule);

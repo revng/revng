@@ -231,25 +231,9 @@ private:
 
   //===------------------------- Model type import ------------------------===//
 
-  mlir::Type importType(const model::Type &Type) {
-    auto EmitError = [&]() -> mlir::InFlightDiagnostic {
-      return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
-                                           mlir::DiagnosticSeverity::Error);
-    };
-    return clift::importType(EmitError, Context, Type);
-  }
-
-  mlir::Type importType(const model::TypeDefinition &Type) {
-    auto EmitError = [&]() -> mlir::InFlightDiagnostic {
-      return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
-                                           mlir::DiagnosticSeverity::Error);
-    };
-    return clift::importType(EmitError, Context, Type);
-  }
-
   template<typename TypeT, typename ModelTypeT>
   TypeT importType(const ModelTypeT &Type) {
-    return mlir::cast<TypeT>(importType(Type));
+    return mlir::cast<TypeT>(clift::importType(Context, Type));
   }
 
   //===------------------------- LLVM type import -------------------------===//
@@ -1661,7 +1645,7 @@ private:
         if (hasStackFrameMetadata(A)) {
           auto StackType = ModelFunction.stackFrameType();
           revng_assert(StackType);
-          Type = cast<clift::StructType>(C.importType(*StackType));
+          Type = C.importType<clift::StructType>(*StackType);
           Handle = pipeline::locationString(revng::ranks::StackFrameVariable,
                                             ModelFunction.Entry());
         } else {
