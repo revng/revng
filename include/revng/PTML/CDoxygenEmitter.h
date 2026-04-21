@@ -40,6 +40,14 @@ public:
   }
 
 public:
+  static void emitLineComment(CTokenEmitter &CE, llvm::StringRef Contents) {
+    emitLineComment(CE).emit(Contents);
+  }
+  static void emitBlockComment(CTokenEmitter &CE, llvm::StringRef Contents) {
+    emitBlockComment(CE).emit(Contents);
+  }
+
+public:
   // Taking target optional to emplace into is pretty awkward, but, to allow
   // conditional construction (as the constructor has non-trivial side-effects),
   // we have to resort to either having a dedicated factory OR exposing
