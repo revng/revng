@@ -7,8 +7,10 @@
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CSemantics.h"
+#include "revng/CliftEmitC/Configuration.h"
 #include "revng/CliftImportModel/Verify.h"
 #include "revng/CliftPipes/CliftContainer.h"
+#include "revng/CliftPipes/Configuration.h"
 #include "revng/CliftPipes/EmitC.h"
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/Containers.h"
@@ -76,11 +78,13 @@ static pipeline::RegisterPipe<CBackendPipe> X;
 namespace revng::pypeline::piperuns {
 
 EmitC::EmitC(const Model &Model,
-             llvm::StringRef Config,
+             llvm::StringRef Configuration,
              llvm::StringRef DynamicConfig,
              CliftFunctionContainer &Input,
              PTMLCFunctionBytesContainer &Output) :
-  Input(Input), Output(Output) {
+  Input(Input),
+  Output(Output),
+  Configuration(parseCEmissionPipeConfiguration(Configuration)) {
 }
 
 void EmitC::runOnFunction(const model::Function &Function) {
@@ -93,8 +97,35 @@ void EmitC::runOnFunction(const model::Function &Function) {
   revng_assert(verifyCSemantics(Module).succeeded());
   FunctionOp MLIRFunction = getUniqueIsolatedFunction(Module, Function.Entry());
 
+  // TODO: once we emit any type definitions, in the decompiled code, we should
+  //       carry a `TypeEmitterConfiguration` set from `Options` from here
+  //       all the way to wherever the TypeDefinitionEmitter is constructed.
+  TypeEmitterConfiguration TEConfiguration = {
+    .TypeToOmit = {},
+    .EmitMaximumEnumValue = false,
+    .ExplicitPadding = true,
+  };
+
+  switch (Configuration.Mode) {
+  case EmissionMode::Editable:
+    TEConfiguration.EmitMaximumEnumValue = true;
+    TEConfiguration.ExplicitPadding = false;
+    break;
+
+  case EmissionMode::Recompilable:
+    TEConfiguration.EmitMaximumEnumValue = false;
+    TEConfiguration.ExplicitPadding = true;
+    break;
+
+  default:
+    revng_abort("Unsupported emission style.");
+  };
+
   auto OS = Output.getOStream(Object);
-  ptml::CTokenEmitter Emitter(*OS, ptml::Tagging::Enabled);
+  ptml::CTokenEmitter Emitter(*OS,
+                              Configuration.DisableMarkup ?
+                                ptml::Tagging::Disabled :
+                                ptml::Tagging::Enabled);
   decompile(MLIRFunction, Emitter);
 }
 
