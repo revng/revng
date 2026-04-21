@@ -1059,7 +1059,7 @@ void SwitchOp::print(mlir::OpAsmPrinter &Printer) {
 }
 
 mlir::LogicalResult SwitchOp::verify() {
-  if (not isIntegerType(getExpressionType(getCondition())))
+  if (not unwrapped_isa<IntegralType>(getExpressionType(getCondition())))
     return emitOpError() << getOperationName()
                          << " condition requires an integer type.";
 

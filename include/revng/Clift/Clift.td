@@ -45,7 +45,7 @@ def Clift_AnyScalarType
          "scalar type">;
 
 def Clift_AnyIntegerType
-  : Type<CPred<"clift::isIntegerType($_self)">,
+  : Type<CPred<"clift::unwrapped_isa<clift::IntegralType>($_self)">,
          "integer type">;
 
 def Clift_AnyPrimitiveIntegerType

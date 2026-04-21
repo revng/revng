@@ -1580,10 +1580,6 @@ bool clift::isScalarType(mlir::Type Type) {
                               PointerType>(Type);
 }
 
-bool clift::isIntegerType(mlir::Type Type) {
-  return clift::unwrapped_isa<IntegerType, EnumType>(Type);
-}
-
 bool clift::isBooleanType(mlir::Type Type) {
   auto T = clift::unwrapped_dyn_cast<IntegerType>(Type);
   return T and T.isSigned();

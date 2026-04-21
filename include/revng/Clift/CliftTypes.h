@@ -203,10 +203,6 @@ bool isCompleteType(mlir::Type Type);
 /// Qualifiers are ignored.
 bool isScalarType(mlir::Type Type);
 
-/// Determine if the type is an integer type. @see getUnderlyingIntegerType for
-/// a breakdown of the set of integer types.
-bool isIntegerType(mlir::Type Type);
-
 /// Determine if the type is a "boolean" type, i.e. a signed primitive integer
 /// type.
 bool isBooleanType(mlir::Type Type);

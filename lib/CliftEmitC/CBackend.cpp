@@ -130,7 +130,8 @@ public:
     // usually removed by expression rewriting, some may be reintroduced during
     // legalization.
     auto Cast = getOnlyUser<CastOpInterface>(V);
-    if (not Cast or not isIntegerType(Cast.getResult().getType())) {
+    if (not Cast
+        or not unwrapped_isa<IntegralType>(Cast.getResult().getType())) {
       auto K = Target.getIntegerKind(IntType.getSize());
       revng_assert(K, "Integer immediate not representable in C.");
       CKind = *K;
