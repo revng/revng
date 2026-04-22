@@ -75,14 +75,32 @@ def CliftVerifyC : Clift_Pass<"verify-c", "mlir::ModuleOp"> {
   let constructor = "mlir::clift::createVerifyCPass()";
 }
 
-def CliftEmitC : Clift_Pass<"emit-c", "mlir::ModuleOp"> {
-  let summary = "Emit C code (optionally with PTML tags) from the Clift code.";
-  let constructor = "mlir::clift::createEmitCPass()";
-
+// A class gathering up options common for all the PTML emitters.
+class Clift_EmitPTMLPass<string arg, string operation> : Clift_Pass<arg, operation> {
   let options = [
     Option<"EmitTags", "ptml", "bool", /*default=*/"false", "Emit PTML tags">,
     Option<"Output", "output", "std::string", /*default*/"\"-\"", "C output path">
   ];
 }
+
+def CliftEmitC : Clift_EmitPTMLPass<"emit-c", "mlir::ModuleOp"> {
+  let summary = "Emit C code (optionally with PTML tags) from the Clift code.";
+  let constructor = "mlir::clift::createEmitCPass()";
+}
+
+def CliftEmitTypeAndGlobalHeader : Clift_EmitPTMLPass<"emit-type-and-global-header",
+                                                      "mlir::ModuleOp"> {
+  // NOTE: this header is a subject to be split into a set of smaller ones.
+  let summary = "Emit a C header containing the type system with some extras.";
+  let constructor = "mlir::clift::createEmitTypeAndGlobalHeaderPass()";
+}
+
+def CliftEmitHelperHeader : Clift_EmitPTMLPass<"emit-helper-header",
+                                               "mlir::ModuleOp"> {
+  let summary = "Emit a C header containing *declarations* of all the helpers used in the module.";
+  let constructor = "mlir::clift::createEmitHelperHeaderPass()";
+}
+
+// TODO: add the corresponding single-type pass if the need ever arises.
 
 #endif // MLIR_CLIFT_PASSES

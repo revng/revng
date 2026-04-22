@@ -1279,8 +1279,8 @@ public:
 
 } // namespace
 
-void clift::decompile(FunctionOp Function,
-                      ptml::CTokenEmitter &Emitter,
-                      const TargetCImplementation &Target) {
+void decompile(FunctionOp Function,
+               ptml::CTokenEmitter &Emitter,
+               const TargetCImplementation &Target) {
   CliftToCEmitter(Emitter, Target).emitFunction(Function);
 }

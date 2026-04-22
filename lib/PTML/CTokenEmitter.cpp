@@ -530,8 +530,12 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
                                    llvm::StringRef Location,
                                    EntityKind Kind,
                                    IdentifierKind IsDefinition) {
-  revng_assert(not IsEmittingComment,
-               "Cannot emit tokens while an open CommentEmitter exists.");
+  if (IsEmittingComment && IsDefinition == IdentifierKind::Definition) {
+    std::string Error = "An identifier ('" + Identifier.str()
+                        + "') can only be referenced in a comment. Definitions "
+                          "are not allowed.";
+    revng_abort(Error.c_str());
+  }
 
   revng_check(!Identifier.empty());
   if (not validateIdentifier(Identifier)) {
@@ -651,22 +655,26 @@ void CTokenEmitter::emitComment(llvm::StringRef Content, CommentKind Kind) {
   emitComment(Kind).emit(Content);
 }
 
+static void emitDirectiveIdentifier(ptml::PTMLStreamEmitter &PTML,
+                                    llvm::StringRef Name) {
+  auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
+  Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Directive);
+  Tag.finalizeOpenTag();
+
+  PTML.emit("#");
+
+  revng_assert(validateIdentifier(Name));
+  PTML.emit(Name);
+}
+
 void CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
                                          llvm::StringRef Location,
                                          IncludeMode Mode) {
   revng_assert(not IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");
 
-  // Emit include directive token:
-  {
-    auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
-    Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Directive);
-    Tag.finalizeOpenTag();
-
-    PTML.emit("#include");
-  }
-
-  PTML.emit(" ");
+  emitDirectiveIdentifier(PTML, "include");
+  emitSpace();
 
   // Emit include path:
   {
@@ -680,6 +688,21 @@ void CTokenEmitter::emitIncludeDirective(llvm::StringRef Content,
   }
 
   PTML.emit("\n");
+}
+
+void ptml::CTokenEmitter::emitPragmaOnceDirective() {
+  emitDirectiveIdentifier(PTML, "pragma");
+  emitSpace();
+
+  {
+    auto Tag = PTML.initializeOpenTag(ptml::tags::Span);
+    Tag.emitAttribute(ptml::attributes::Token, ptml::c::tokens::Constant);
+    Tag.finalizeOpenTag();
+
+    PTML.emit("once");
+  }
+
+  emitNewline();
 }
 
 CTokenEmitter::Scope::Scope(CTokenEmitter &Emitter,
@@ -717,7 +740,20 @@ CTokenEmitter::Region::Region(CTokenEmitter &Emitter,
   if (Location.empty())
     return;
 
-  auto Actions = getAllowedActions(Location);
+  llvm::SmallVector<llvm::StringRef, 2> Actions = {};
+  switch (Kind) {
+  case RegionKind::Expression:
+    Actions = getAllowedActions(Location);
+    break;
+
+  case RegionKind::Commentable:
+    Actions = { ptml::actions::Comment };
+    break;
+
+  default:
+    revng_abort("Unknown region kind");
+  };
+
   if (Actions.empty())
     return;
 

@@ -6,10 +6,12 @@ revng_add_library_internal(
   revngCliftEmitC
   SHARED
   CBackend.cpp
-  CBackendPass.cpp
+  CEmissionPasses.cpp
   CEmitter.cpp
   CSemantics.cpp
   CSemanticsPass.cpp
+  Headers.cpp
+  TypeDefinitionEmitter.cpp
   TypeDependencyGraph.cpp)
 
 target_link_libraries(revngCliftEmitC MLIRPass revngClift revngPTML)

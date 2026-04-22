@@ -10,7 +10,7 @@
 #include "revng/CliftPipes/Clifter.h"
 #include "revng/CliftPipes/EmitC.h"
 #include "revng/CliftPipes/ImportDescriptiveInfo.h"
-#include "revng/CliftPipes/ModelVerifyClift.h"
+#include "revng/CliftPipes/VerifyAgainstModel.h"
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
@@ -114,7 +114,7 @@ static RegisterFunctionPipeRun<SegregateStackAccesses> P25;
 static RegisterFunctionPipeRun<SwitchToStatements> P26;
 static RegisterFunctionPipeRun<Clifter> P27;
 static RegisterPipe<PureMLIRPassesPipe> P28;
-static RegisterFunctionPipeRun<ModelVerifyClift> P29;
+static RegisterSingleOutputPipeRun<VerifyAgainstModel> P29;
 static RegisterSingleOutputPipeRun<ImportDescriptiveInfo> P30;
 static RegisterFunctionPipeRun<EmitC> P31;
 static RegisterSingleOutputPipeRun<DecompileToSingleFile> P32;
@@ -125,6 +125,7 @@ static RegisterSingleOutputPipeRun<YieldCallGraph> P36;
 static RegisterFunctionPipeRun<YieldCallGraphSlice> P37;
 static RegisterFunctionPipeRun<YieldCFG> P38;
 static RegisterFunctionPipeRun<ImportDescriptiveFunctionInfo> P39;
+static RegisterFunctionPipeRun<VerifyFunctionAgainstModel> P40;
 
 //
 // Analyses

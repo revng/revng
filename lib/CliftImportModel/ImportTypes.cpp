@@ -405,7 +405,9 @@ private:
     }
 
     clift::CAttributeListBuilder Attributes(*Context);
-    Attributes.setOrUpdate<"_CAN_CONTAIN_CODE">();
+
+    if (ModelType.CanContainCode())
+      Attributes.setOrUpdate<"_CAN_CONTAIN_CODE">();
 
     auto Handle = Location.toString();
     auto NameAttr = makeNameAttr<clift::StructAttr>(Handle);
@@ -687,10 +689,7 @@ clift::importFunctionDeclaration(mlir::ModuleOp Module,
   Result.setHandle(Handle);
 
   mlir::MLIRContext *Context = Module.getContext();
-  llvm::SmallVector<mlir::clift::CAttributeAttr> CliftAttributes;
   for (model::FunctionAttribute::Values Attribute : Attributes) {
-    // TODO: we might want to express some of these through existing clift
-    //       attributes.
     switch (Attribute) {
     case model::FunctionAttribute::NoReturn:
       Result.setNoreturnAttr(Builder.getUnitAttr());
@@ -705,10 +704,7 @@ clift::importFunctionDeclaration(mlir::ModuleOp Module,
     }
   }
 
-  llvm::ArrayRef<mlir::Attribute> AttributeArray = { CliftAttributes.begin(),
-                                                     CliftAttributes.end() };
-  Result->setAttr("clift.c_attributes",
-                  mlir::ArrayAttr::get(Context, AttributeArray));
+  Result->setAttr("clift.c_attributes", mlir::ArrayAttr::get(Context, {}));
 
   return Result;
 }

@@ -4,14 +4,19 @@
 
 #include <optional>
 
+#include "llvm/ADT/ArrayRef.h"
+
 #include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftImportModel/CAttributeListBuilder.h"
+#include "revng/PTML/CDoxygenEmitter.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
 namespace clift = mlir::clift;
 using namespace mlir::clift;
+
+using CEmitter = CEmitter;
 
 ptml::CTokenEmitter::EntityKind
 CEmitter::chooseEntityKind(mlir::clift::DefinedType Type) {
@@ -81,6 +86,44 @@ private:
     return Name;
   }
 
+  std::optional<ptml::CTokenEmitter::Region> commentableReturnValueGuard() {
+    if (OutermostFunctionType == nullptr)
+      return std::nullopt;
+
+    auto FTHandle = OutermostFunctionType.getHandle();
+    auto FTLoc = pipeline::locationFromString(revng::ranks::TypeDefinition,
+                                              FTHandle);
+    if (not FTLoc)
+      return std::nullopt;
+
+    using RK = ptml::CTokenEmitter::RegionKind;
+    auto RVLoc = FTLoc->transmute(revng::ranks::ReturnValue).toString();
+    return std::make_optional<ptml::CTokenEmitter::Region>(Parent.Tokens,
+                                                           RK::Commentable,
+                                                           RVLoc);
+  }
+
+  std::optional<ptml::CTokenEmitter::Region>
+  commentableParameterGuard(clift::FunctionType const CurrentFunction,
+                            DeclaratorInfo const *Declarator,
+                            uint64_t Index) {
+    if (OutermostFunctionType == nullptr)
+      return std::nullopt;
+
+    if (OutermostFunctionType != CurrentFunction)
+      return std::nullopt;
+
+    if (not Declarator->Parameters)
+      return std::nullopt;
+
+    auto CurrentLocation = Declarator->Parameters.value()[Index].Location;
+
+    using RKind = ptml::CTokenEmitter::RegionKind;
+    return std::make_optional<ptml::CTokenEmitter::Region>(Parent.Tokens,
+                                                           RKind::Commentable,
+                                                           CurrentLocation);
+  }
+
   RecursiveCoroutine<void> emitImpl(mlir::Type Type,
                                     DeclaratorInfo const *Declarator) {
     // Expanded function parameter declarator names are only emitted for the
@@ -101,93 +144,100 @@ private:
       }
     }
 
-    // Recurse through the declaration, pushing each level onto the stack until
-    // a terminal type is encountered. Primitive types as well as defined types
-    // are considered terminal. Function types are not considered terminal if
-    // function type expansion is enabled. Pointers with size not matching the
-    // pointer size of the target implementation are considered terminal and
-    // are printed by recursively entering this function.
-    while (true) {
-      StackItem Item = { StackItemKind::Terminal, Type };
+    {
+      auto Guard = commentableReturnValueGuard();
 
-      if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
-        emitConstIfNeeded(T);
-        Parent.emitPrimitiveType(T);
-        NeedSpace = true;
-      } else if (auto T = mlir::dyn_cast<PointerType>(Type)) {
-        if (T.getPointerSize() == Parent.Target.PointerSize) {
-          Item.Kind = StackItemKind::Pointer;
-          Type = T.getPointeeType();
-        } else {
-          auto Macro = getForeignPointerMacroName(T.getPointerSize());
+      // Recurse through the declaration, pushing each level onto the stack
+      // until a terminal type is encountered. Primitive types as well as
+      // defined types are considered terminal. Function types are not
+      // considered terminal if function type expansion is enabled.
+      // Pointers with size not matching the pointer size of the target
+      // implementation are considered terminal and are printed by recursively
+      // entering this function.
+      while (true) {
+        StackItem Item = { StackItemKind::Terminal, Type };
 
+        if (auto T = mlir::dyn_cast<PrimitiveType>(Type)) {
           emitConstIfNeeded(T);
-          Parent.Tokens.emitLiteralIdentifier(Macro);
-          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-
-          rc_recur DeclarationEmitter(Parent).emitImpl(T.getPointeeType(),
-                                                       /*Declarator=*/nullptr);
-
-          Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
+          Parent.emitPrimitiveType(T);
           NeedSpace = true;
-        }
-      } else if (auto T = mlir::dyn_cast<ArrayType>(Type)) {
-        Item.Kind = StackItemKind::Array;
-        Type = T.getElementType();
-      } else if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
-        auto F = mlir::dyn_cast<FunctionType>(T);
+        } else if (auto T = mlir::dyn_cast<PointerType>(Type)) {
+          if (T.getPointerSize() == Parent.Target.PointerSize) {
+            Item.Kind = StackItemKind::Pointer;
+            Type = T.getPointeeType();
+          } else {
+            auto Macro = getForeignPointerMacroName(T.getPointerSize());
 
-        // The outermost function type is expanded into a function-declarator,
-        // while for any inner function type, a typedef name is emitted instead.
-        if (F and F == OutermostFunctionType) {
-          Item.Kind = StackItemKind::Function;
-          Type = F.getReturnType();
-        } else {
-          emitConstIfNeeded(T);
-          Parent.Tokens.emitIdentifier(T.getName(),
-                                       T.getHandle(),
-                                       chooseEntityKind(T),
-                                       CTE::IdentifierKind::Reference);
+            emitConstIfNeeded(T);
+            Parent.Tokens.emitLiteralIdentifier(Macro);
+            Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
-          NeedSpace = true;
+            rc_recur DeclarationEmitter(Parent)
+              .emitImpl(T.getPointeeType(),
+                        /*Declarator=*/nullptr);
+
+            Parent.Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
+            NeedSpace = true;
+          }
+        } else if (auto T = mlir::dyn_cast<ArrayType>(Type)) {
+          Item.Kind = StackItemKind::Array;
+          Type = T.getElementType();
+        } else if (auto T = mlir::dyn_cast<DefinedType>(Type)) {
+          auto F = mlir::dyn_cast<FunctionType>(T);
+
+          // The outermost function type is expanded into a function-declarator,
+          // while for any inner function type, a typedef name is emitted
+          // instead.
+          if (F and F == OutermostFunctionType) {
+            Item.Kind = StackItemKind::Function;
+            Type = F.getReturnType();
+          } else {
+            emitConstIfNeeded(T);
+            Parent.Tokens.emitIdentifier(T.getName(),
+                                         T.getHandle(),
+                                         chooseEntityKind(T),
+                                         CTE::IdentifierKind::Reference);
+
+            NeedSpace = true;
+          }
         }
+
+        Stack.push_back(Item);
+
+        if (Item.Kind == StackItemKind::Terminal)
+          break;
       }
 
-      Stack.push_back(Item);
+      // Print type syntax appearing before the declarator name. This includes
+      // cv-qualifiers, stars indicating a pointer, as well as left parentheses
+      // used to disambiguate non-root array and function types. The types must
+      // be handled inside out, so the stack is visited in reverse order.
+      for (auto [RI, SI] : llvm::enumerate(std::views::reverse(Stack))) {
+        const size_t I = Stack.size() - RI - 1;
 
-      if (Item.Kind == StackItemKind::Terminal)
-        break;
-    }
-
-    // Print type syntax appearing before the declarator name. This includes
-    // cv-qualifiers, stars indicating a pointer, as well as left parentheses
-    // used to disambiguate non-root array and function types. The types must be
-    // handled inside out, so the stack is visited in reverse order.
-    for (auto [RI, SI] : llvm::enumerate(std::views::reverse(Stack))) {
-      const size_t I = Stack.size() - RI - 1;
-
-      switch (SI.Kind) {
-      case StackItemKind::Terminal: {
-        // Do nothing
-      } break;
-      case StackItemKind::Pointer: {
-        auto T = mlir::dyn_cast<PointerType>(SI.Type);
-        emitSpaceIfNeeded();
-        Parent.Tokens.emitPunctuator(CTE::Punctuator::Star);
-        emitConstIfNeeded(T);
-      } break;
-      case StackItemKind::Array: {
-        if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array) {
-          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-          NeedSpace = false;
+        switch (SI.Kind) {
+        case StackItemKind::Terminal: {
+          // Do nothing
+        } break;
+        case StackItemKind::Pointer: {
+          auto T = mlir::dyn_cast<PointerType>(SI.Type);
+          emitSpaceIfNeeded();
+          Parent.Tokens.emitPunctuator(CTE::Punctuator::Star);
+          emitConstIfNeeded(T);
+        } break;
+        case StackItemKind::Array: {
+          if (I != 0 and Stack[I - 1].Kind != StackItemKind::Array) {
+            Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+            NeedSpace = false;
+          }
+        } break;
+        case StackItemKind::Function: {
+          if (I != 0) {
+            Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+            NeedSpace = false;
+          }
+        } break;
         }
-      } break;
-      case StackItemKind::Function: {
-        if (I != 0) {
-          Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-          NeedSpace = false;
-        }
-      } break;
       }
     }
 
@@ -242,6 +292,8 @@ private:
               Parent.Tokens.emitPunctuator(CTE::Punctuator::Comma);
               Parent.Tokens.emitSpace();
             }
+
+            auto Guard = commentableParameterGuard(F, Declarator, J);
 
             DeclaratorInfo ParameterDeclarator;
             DeclaratorInfo const *InnerDeclarator = nullptr;
@@ -330,10 +382,14 @@ mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
   clift::CAttributeListBuilder Builder(*Op->getContext(),
                                        Op->getAttr("clift.c_attributes"));
 
-  if (Op->hasAttr("noreturn"))
-    Builder.setOrUpdate<"_NORETURN">();
-  if (Op->hasAttr("always_inline"))
-    Builder.setOrUpdate<"_ALWAYS_INLINE">();
+  if (auto FunctionOp = mlir::dyn_cast<clift::FunctionOp>(Op)) {
+    if (FunctionOp->hasAttr("noreturn"))
+      Builder.setOrUpdate<"_NORETURN">();
+    if (FunctionOp->hasAttr("always_inline"))
+      Builder.setOrUpdate<"_ALWAYS_INLINE">();
+
+    Builder.append(FunctionOp.getFunctionType().getCAttributes());
+  }
 
   mlir::ArrayAttr Result = Builder.get();
   if (not isValidCAttributeArray(Result)) {
@@ -384,27 +440,38 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
   }
 }
 
-void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
-                               bool SpaceBefore,
-                               bool SpaceAfter) {
-  if (not CAttributes or CAttributes.empty())
+void // formatting
+CEmitter::emitCAttributes(llvm::ArrayRef<clift::CAttributeAttr> CAttributes,
+                          bool SpaceBefore,
+                          bool SpaceAfter) {
+  if (CAttributes.empty())
     return;
 
   if (SpaceBefore)
     Tokens.emitSpace();
 
   bool First = true;
-  for (mlir::Attribute Attribute : CAttributes) {
+  for (mlir::clift::CAttributeAttr Attribute : CAttributes) {
     if (First)
       First = false;
     else
       Tokens.emitSpace();
 
-    emitCAttribute(mlir::cast<mlir::clift::CAttributeAttr>(Attribute));
+    emitCAttribute(Attribute);
   }
 
   if (SpaceAfter)
     Tokens.emitSpace();
+}
+
+void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
+                               bool SpaceBefore,
+                               bool SpaceAfter) {
+  if (not CAttributes)
+    return;
+
+  auto Range = llvm::to_vector(CAttributes.getAsRange<clift::CAttributeAttr>());
+  emitCAttributes(Range, SpaceBefore, SpaceAfter);
 }
 
 //===---------------------------- Declarations ----------------------------===//
@@ -418,6 +485,8 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
   bool IsHelper = pipeline::locationFromString(revng::ranks::HelperFunction,
                                                Op.getHandle())
                     .has_value();
+  if (not IsHelper)
+    emitFunctionDoxygenComment(Op);
 
   std::optional<llvm::ArrayRef<ParameterDeclaratorInfo>> Parameters;
   llvm::SmallVector<ParameterDeclaratorInfo> ParameterDeclarators;
@@ -440,11 +509,109 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
   }
 
   emitDeclaration(Op.getFunctionType(),
-                  mlir::clift::CEmitter::DeclaratorInfo{
+                  CEmitter::DeclaratorInfo{
                     .Identifier = Op.getName(),
                     .Location = Op.getHandle(),
                     .CAttributes = getDeclarationOpCAttributes(Op),
                     .Kind = ptml::CTokenEmitter::EntityKind::Function,
                     .Parameters = Parameters,
                   });
+}
+
+// Accounts for a `\` before it and a space after.
+static constexpr uint64_t ExtraKeywordIndentation = 2;
+
+void CEmitter::emitFunctionDoxygenComment(clift::FunctionOp Function) {
+  auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                  Function.getHandle());
+
+  std::optional<ptml::CDoxygenEmitter> Emitter = std::nullopt;
+
+  // Function comment
+  mlir::Attribute RawAttribute = Function->getAttr("clift.comment");
+  if (RawAttribute != nullptr) {
+    auto CommentBody = mlir::cast<mlir::StringAttr>(RawAttribute).getValue();
+    if (not CommentBody.empty()) {
+      ptml::CDoxygenEmitter::emitLineComment(Emitter, Tokens);
+      Emitter->emit(CommentBody);
+      Emitter->emit("\n");
+    }
+  }
+
+  // `\param` comments
+  for (unsigned I = 0; I < Function.getArgCount(); ++I) {
+    auto Attrs = Function.getArgAttrs(I);
+    llvm::StringRef CommentBody = Attrs.getStringOrEmpty("clift.comment");
+    if (CommentBody.empty())
+      continue;
+
+    if (Emitter.has_value())
+      Emitter->emit("\n");
+    else
+      ptml::CDoxygenEmitter::emitLineComment(Emitter, Tokens);
+
+    llvm::StringRef Handle = Attrs.getString("clift.handle");
+    auto ArgG = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                   Handle);
+
+    static constexpr llvm::StringRef Keyword = "param";
+    Emitter->emitKeyword(Keyword);
+    Emitter->emit(" ");
+
+    llvm::StringRef EmittedName = Attrs.getString("clift.name");
+    Tokens.emitIdentifier(EmittedName,
+                          Handle,
+                          ptml::CTokenEmitter::EntityKind::FunctionParameter,
+                          ptml::CTokenEmitter::IdentifierKind::Reference);
+    Emitter->emit(" ");
+
+    uint64_t Indentation = Keyword.size() + ExtraKeywordIndentation
+                           + EmittedName.size() + 1;
+
+    Emitter->indent(Indentation);
+    Emitter->emit(CommentBody);
+    Emitter->indent(-Indentation);
+    Emitter->emit("\n");
+  }
+
+  // `\returns` comment
+  RawAttribute = Function->getAttr("clift.return_value_comment");
+  if (RawAttribute != nullptr) {
+    auto CommentBody = mlir::cast<mlir::StringAttr>(RawAttribute).getValue();
+    if (not CommentBody.empty()) {
+      if (Emitter.has_value())
+        Emitter->emit("\n");
+      else
+        ptml::CDoxygenEmitter::emitLineComment(Emitter, Tokens);
+
+      auto FunctionTypeHandle = Function.getFunctionType().getHandle();
+      auto FTLoc = pipeline::locationFromString(revng::ranks::TypeDefinition,
+                                                FunctionTypeHandle);
+      revng_assert(FTLoc.has_value());
+      auto RVLoc = FTLoc->transmute(revng::ranks::ReturnValue).toString();
+
+      using RegionKind = ptml::CTokenEmitter::RegionKind;
+      auto Guard = Tokens.enterRegion(RegionKind::Commentable, RVLoc);
+
+      static constexpr llvm::StringRef Keyword = "returns";
+      Emitter->emitKeyword(Keyword);
+      Emitter->emit(" ");
+
+      size_t Indentation = Keyword.size() + ExtraKeywordIndentation;
+
+      Emitter->indent(Indentation);
+      Emitter->emit(CommentBody);
+      Emitter->indent(-Indentation);
+    }
+  }
+}
+
+void CEmitter::emitGlobalDoxygenComment(clift::GlobalVariableOp Global) {
+  if (auto CommentAttribute = Global->getAttr("clift.comment")) {
+    auto String = mlir::dyn_cast<mlir::StringAttr>(CommentAttribute);
+    revng_assert(String != nullptr);
+
+    if (not String.getValue().empty())
+      ptml::CDoxygenEmitter::emitLineComment(Tokens, String.getValue());
+  }
 }

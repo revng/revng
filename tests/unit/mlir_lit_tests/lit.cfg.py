@@ -12,6 +12,8 @@ config.test_format = lit.formats.ShTest(True)
 config.suffixes = [".mlir"]
 config.test_source_root = os.path.dirname(__file__)
 config.test_exec_root = config.my_obj_root
-config.substitutions.append(("%revngcliftopt", "../bin/revng clift-opt"))
-config.substitutions.append(("%revngpipe", "../bin/revng pipe"))
-config.substitutions.append(("%revngptml", "../bin/revng ptml"))
+
+bin_dir = f"{config.my_obj_root}/bin"
+config.substitutions.append(("%revngcliftopt", f"{bin_dir}/revng clift-opt"))
+config.substitutions.append(("%revngpipe", f"{bin_dir}/revng pipe"))
+config.substitutions.append(("%revngptml", f"{bin_dir}/revng ptml"))

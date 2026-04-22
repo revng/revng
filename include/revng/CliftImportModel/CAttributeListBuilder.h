@@ -77,8 +77,13 @@ public:
                             nullptr) {}
 
 public:
+  void append(CAttributeArray ExistingAttributes) {
+    Result.append(ExistingAttributes.begin(), ExistingAttributes.end());
+  }
+
+public:
   template<ConstexprString Macro>
-  void setOrUpdate() {
+  CAttributeListBuilder &setOrUpdate() {
     ptml::Attributes.assertAttributeName<Macro>();
 
     using IdentifierAttr = mlir::clift::CIdentifierAttr;
@@ -97,7 +102,8 @@ public:
   // currently no need for multi-argument attributes.
 
   template<ConstexprString Macro>
-  void setOrUpdate(llvm::StringRef Argument, llvm::StringRef ArgumentLocation) {
+  CAttributeListBuilder &
+  setOrUpdate(llvm::StringRef Argument, llvm::StringRef ArgumentLocation) {
     ptml::Attributes.assertAnnotationName<Macro>();
 
     auto AttributeLocation = pipeline::location(revng::ranks::Macro,
@@ -117,7 +123,7 @@ public:
   }
 
   template<ConstexprString Macro>
-  void setOrUpdate(uint64_t Value) {
+  CAttributeListBuilder &setOrUpdate(uint64_t Value) {
     ptml::Attributes.assertAnnotationName<Macro>();
 
     revng_assert(Value == uint32_t(Value));
@@ -138,7 +144,7 @@ public:
   }
 
   template<ConstexprString Macro>
-  void setOrUpdate(mlir::Type Type) {
+  CAttributeListBuilder &setOrUpdate(mlir::Type Type) {
     ptml::Attributes.assertAnnotationName<Macro>();
 
     auto AttributeLocation = pipeline::location(revng::ranks::Macro,
@@ -162,7 +168,8 @@ public:
   }
 
 private:
-  void setOrUpdateImpl(mlir::clift::CAttributeAttr NewAttribute) {
+  CAttributeListBuilder &
+  setOrUpdateImpl(mlir::clift::CAttributeAttr NewAttribute) {
     llvm::StringRef NewAttributeName = NewAttribute.getName().getName();
 
     bool AlreadyPresent = false;
@@ -178,6 +185,8 @@ private:
 
     if (not AlreadyPresent)
       Result.emplace_back(NewAttribute);
+
+    return *this;
   }
 };
 

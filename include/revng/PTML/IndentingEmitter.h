@@ -60,11 +60,6 @@ public:
     }
   }
 
-  void emitNewline() {
-    EmitterT::emit(llvm::StringRef("\n"));
-    IsAtBeginningOfLine = true;
-  }
-
 protected:
   void emitIndentationIfNeeded() {
     if (IsAtBeginningOfLine) {

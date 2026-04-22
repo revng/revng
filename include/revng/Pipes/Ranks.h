@@ -197,7 +197,7 @@ inline auto ReturnValue = defineRank<"return-value", detail::TDK>(Binary);
 /// Examples:
 /// ```
 /// /raw-argument/13-RawFunctionDefinition/rdi_x86_64
-/// /raw-argument/14-RawFunctionDefinition/r3_aarch64
+/// /raw-argument/14-RawFunctionDefinition/x3_aarch64
 /// /raw-argument/15-RawFunctionDefinition/r3_s390x
 /// ```
 inline auto RawArgument = defineRank<"raw-argument",
@@ -227,7 +227,7 @@ inline auto RawStackArguments = defineRank<"raw-stack-arguments",
 /// Examples:
 /// ```
 /// /return-register/18-RawFunctionDefinition/rax_x86_64
-/// /return-register/19-RawFunctionDefinition/r2_aarch64
+/// /return-register/19-RawFunctionDefinition/x2_aarch64
 /// /return-register/20-RawFunctionDefinition/r2_s390x
 /// ```
 inline auto ReturnRegister = defineRank<"return-register",

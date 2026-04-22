@@ -5,12 +5,12 @@
 revng_add_analyses_library_internal(
   revngCliftPipes
   CliftContainer.cpp
+  Clifter.cpp
   EmitC.cpp
   ImportDescriptiveInfo.cpp
   ImportTypes.cpp
-  Clifter.cpp
-  ModelVerifyClift.cpp
-  Optimization.cpp)
+  Optimization.cpp
+  VerifyAgainstModel.cpp)
 
 target_link_libraries(
   revngCliftPipes

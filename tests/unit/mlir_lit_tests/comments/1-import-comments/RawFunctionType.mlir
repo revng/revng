@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: ../%revngpipe import-descriptive-info %S/../0-import-types/RawFunctionType.yml %s /dev/stdout | ../%revngcliftopt | FileCheck %s
+// RUN: %revngpipe import-descriptive-info %S/../0-import-types/RawFunctionType.yml %s /dev/stdout | %revngcliftopt | FileCheck %s
 
 !uint64_t = !clift.int<unsigned 8>
 

@@ -5,10 +5,14 @@
 //
 
 #include "revng/Clift/Clift.h"
+#include "revng/PTML/CDoxygenEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Support/CTarget.h"
 
-namespace mlir::clift {
+template<typename Type>
+concept EntityWithComment = requires(Type const &Value) {
+  { Value.getComment() } -> std::convertible_to<llvm::StringRef>;
+};
 
 /// Base class with common utilities for emitters emitting C from Clift.
 class CEmitter {
@@ -25,7 +29,7 @@ public:
 
   //===------------------------------- Types ------------------------------===//
 
-  void emitPrimitiveType(PrimitiveType Type);
+  void emitPrimitiveType(mlir::clift::PrimitiveType Type);
   void emitType(mlir::Type Type);
 
   //===---------------------------- Attributes ----------------------------===//
@@ -33,14 +37,17 @@ public:
   static bool isValidCAttributeArray(mlir::ArrayAttr Array);
   mlir::ArrayAttr getDeclarationOpCAttributes(mlir::Operation *Op);
 
-  void emitCAttribute(CAttributeAttr Attribute);
+  void emitCAttribute(mlir::clift::CAttributeAttr Attribute);
+  void emitCAttributes(llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes,
+                       bool SpaceBefore,
+                       bool SpaceAfter);
   void emitCAttributes(mlir::ArrayAttr Attributes,
                        bool SpaceBefore,
                        bool SpaceAfter);
 
   //===---------------------------- Prototype -----------------------------===//
 
-  void emitFunctionPrototype(FunctionOp Function);
+  void emitFunctionPrototype(mlir::clift::FunctionOp Function);
 
   //===--------------------------- Declarations ---------------------------===//
 
@@ -71,6 +78,38 @@ private:
   class DeclarationEmitter;
 
 public:
+  //===----------------------------- Comments -----------------------------===//
+  template<EntityWithComment Type>
+  void emitDoxygenComment(const Type &Value) {
+    llvm::StringRef CommentContent = Value.getComment();
+    if (CommentContent.empty())
+      return;
+
+    Tokens.emitNewline();
+    ptml::CDoxygenEmitter::emitLineComment(Tokens, CommentContent);
+  }
+
+  void emitFunctionDoxygenComment(mlir::clift::FunctionOp Function);
+
+  void emitGlobalDoxygenComment(mlir::clift::GlobalVariableOp Global);
+
+public:
+  /// A convenience function for emitting a comment with extra empty lines
+  /// before and after it. For example:
+  ///
+  /// ```cpp
+  ///   //
+  ///   // All of the content, no matter how long it is,
+  ///   // goes *here*.
+  ///   //
+  /// ```
+  void emitCategoryComment(llvm::StringRef Content) {
+    Tokens.emitComment("\n " + Content.str() + "\n\n",
+                       ptml::CTokenEmitter::CommentKind::Line);
+    Tokens.emitNewline();
+  }
+
+public:
   //===--------------------------- Other Helpers --------------------------===//
 
   static ptml::CTokenEmitter::EntityKind
@@ -80,8 +119,6 @@ public:
 /// Determines whether the type can be forward-declared or not.
 ///
 /// This is true for `struct`s and `union`s. False for everything else.
-inline bool isSeparateDeclarationAllowed(DefinedType Type) {
-  return mlir::isa<ClassType>(Type);
+inline bool isSeparateDeclarationAllowed(mlir::clift::DefinedType Type) {
+  return mlir::isa<mlir::clift::ClassType>(Type);
 }
-
-} // namespace mlir::clift

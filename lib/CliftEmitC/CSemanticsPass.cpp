@@ -22,7 +22,7 @@ struct VerifyCPass : clift::impl::CliftVerifyCBase<VerifyCPass> {
   void runOnOperation() override {
     const auto &Target = TargetCImplementation::Default;
 
-    if (mlir::failed(clift::verifyCSemantics(getOperation(), Target)))
+    if (mlir::failed(verifyCSemantics(getOperation(), Target)))
       signalPassFailure();
   }
 };

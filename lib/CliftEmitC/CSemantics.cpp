@@ -113,8 +113,7 @@ private:
 
 } // namespace
 
-mlir::LogicalResult
-clift::verifyCSemantics(mlir::ModuleOp Module,
-                        const TargetCImplementation &Target) {
+mlir::LogicalResult verifyCSemantics(mlir::ModuleOp Module,
+                                     const TargetCImplementation &Target) {
   return CVerifier::visit(Module, Target);
 }

@@ -7,7 +7,7 @@
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CSemantics.h"
-#include "revng/CliftImportModel/ModelVerify.h"
+#include "revng/CliftImportModel/Verify.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/EmitC.h"
 #include "revng/Pipeline/RegisterPipe.h"
@@ -42,7 +42,7 @@ public:
     mlir::ModuleOp Module = CliftFunctionContainer.getModule();
     const auto &Model = *revng::getModelFromContext(EC);
 
-    revng_assert(clift::verifyCSemantics(Module, Target).succeeded());
+    revng_assert(verifyCSemantics(Module, Target).succeeded());
 
     std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
     Module->walk([&](clift::FunctionOp F) {
@@ -63,7 +63,7 @@ public:
       {
         llvm::raw_string_ostream OS(Code);
         ptml::CTokenEmitter Emitter(OS, ptml::Tagging::Enabled);
-        clift::decompile(It->second, Emitter, Target);
+        decompile(It->second, Emitter, Target);
       }
 
       DecompiledFunctionsContainer.insert_or_assign(Function.Entry(),
@@ -93,13 +93,13 @@ void EmitC::runOnFunction(const model::Function &Function) {
   ObjectID Object(Function.Entry());
 
   mlir::ModuleOp Module = Input.getModule(Object);
-  revng_assert(clift::verifyCSemantics(Module, Target).succeeded());
+  revng_assert(verifyCSemantics(Module, Target).succeeded());
   FunctionOp MLIRFunction = getUniqueIsolatedFunction(Module, Function.Entry());
 
   {
     auto OS = Output.getOStream(Object);
     ptml::CTokenEmitter Emitter(*OS, ptml::Tagging::Enabled);
-    clift::decompile(MLIRFunction, Emitter, Target);
+    decompile(MLIRFunction, Emitter, Target);
   }
 }
 
