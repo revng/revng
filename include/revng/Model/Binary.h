@@ -138,34 +138,18 @@ public:
   }
 
 public:
-  /// \note Only use this when absolutely necessary, for example, when doing
-  ///       bulk reference replacement.
-  ///       In the general case prefer \ref makeType instead.
-  model::DefinitionReference
-  getDefinitionReference(const model::TypeDefinition::Key &Key) {
-    return DefinitionReference::fromString(this,
-                                           "/TypeDefinitions/"
-                                             + getNameFromYAMLScalar(Key));
-  }
-  model::DefinitionReference
-  getDefinitionReference(const model::TypeDefinition::Key &Key) const {
-    return DefinitionReference::fromString(this,
-                                           "/TypeDefinitions/"
-                                             + getNameFromYAMLScalar(Key));
-  }
-
   model::UpcastableType makeType(const model::TypeDefinition::Key &Key) {
-    return model::DefinedType::make(getDefinitionReference(Key));
+    return model::DefinedType::make(getTypeDefinitionReference(Key));
   }
   model::UpcastableType makeConstType(const model::TypeDefinition::Key &Key) {
-    return model::DefinedType::makeConst(getDefinitionReference(Key));
+    return model::DefinedType::makeConst(getTypeDefinitionReference(Key));
   }
   model::UpcastableType makeType(const model::TypeDefinition::Key &Key) const {
-    return model::DefinedType::make(getDefinitionReference(Key));
+    return model::DefinedType::make(getTypeDefinitionReference(Key));
   }
   model::UpcastableType
   makeConstType(const model::TypeDefinition::Key &Key) const {
-    return model::DefinedType::makeConst(getDefinitionReference(Key));
+    return model::DefinedType::makeConst(getTypeDefinitionReference(Key));
   }
 
   /// Return the first available type ID
@@ -212,6 +196,22 @@ public:
 
     return defaultPrototype();
   }
+
+public:
+  /// \note Only use this when absolutely necessary, for example, when doing
+  ///       bulk reference replacement.
+  ///       In the general case prefer \ref makeType instead.
+  model::TypeDefinitionReference
+  getTypeDefinitionReference(const model::TypeDefinition::Key &Key);
+
+  model::TypeDefinitionReference
+  getTypeDefinitionReference(const model::TypeDefinition::Key &Key) const;
+
+  model::BinaryIdentifierReference
+  getBinaryIdentifierReference(const model::BinaryIdentifier::Key &Key);
+
+  model::BinaryIdentifierReference
+  getBinaryIdentifierReference(const model::BinaryIdentifier::Key &Key) const;
 
 public:
   bool verify(VerifyHelper &VH) const;

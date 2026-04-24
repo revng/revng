@@ -81,7 +81,7 @@ public:
   ELFImporter(TupleTree<model::Binary> &Model,
               const ELFBinary &TheBinary,
               uint64_t BaseAddress) :
-    BinaryImporterHelper(*Model, BaseAddress, ELFImporterLog),
+    BinaryImporterHelper(Model, BaseAddress, ELFImporterLog),
     File(*Model, toArrayRef(TheBinary.ObjectFile.getData())),
     Model(Model),
     TheBinary(TheBinary) {}
@@ -146,15 +146,13 @@ private:
   void parseDynamicSymbol(llvm::object::Elf_Sym_Impl<T> &Symbol,
                           llvm::StringRef Dynstr);
 
-  void findMissingTypes(llvm::object::ELFFile<T> &TheELF,
-                        const ImporterOptions &Options);
-
 protected:
   template<typename Q>
   using SmallVectorImpl = llvm::SmallVectorImpl<Q>;
 
   /// Register a label for each input relocation
-  void registerRelocations(Elf_Rel_Array Relocations,
+  void registerRelocations(llvm::StringRef Name,
+                           Elf_Rel_Array Relocations,
                            const FilePortion &Dynsym,
                            const FilePortion &Dynstr);
 

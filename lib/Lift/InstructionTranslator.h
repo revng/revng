@@ -45,7 +45,7 @@ public:
                         VariableManager &Variables,
                         JumpTargetManager &JumpTargets,
                         std::vector<llvm::BasicBlock *> Blocks,
-                        bool EndianessMismatch,
+                        bool EndiannessMismatch,
                         ProgramCounterHandler *PCH);
 
   // Emit a call to newpc
@@ -146,7 +146,7 @@ private:
 
   llvm::Function *TheFunction;
 
-  bool EndianessMismatch;
+  bool EndiannessMismatch;
 
   llvm::Function *NewPCMarker;
 

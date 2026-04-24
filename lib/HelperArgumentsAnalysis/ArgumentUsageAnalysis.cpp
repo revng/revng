@@ -7,6 +7,8 @@
 
 #include "ArgumentUsageAnalysis.h"
 
+static auto &Log = ArgumentUsageAnalysisLog;
+
 static bool isVarArg(const llvm::Function &F) {
   if (not F.isVarArg())
     return false;

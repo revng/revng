@@ -88,12 +88,11 @@ Branches:
               From debug information, all the data structures and function
               prototypes are imported.
               We currently support DWARF and CodeView (`.pdb`) debug info.
-          - Name: import-well-known-models
-            Type: import-well-known-models
+          - Name: import-prototypes-from-db
+            Type: import-prototypes-from-db
             UsedContainers: []
             Docs: |-
-              Import the prototype of certain well-known functions from the C
-              standard library.
+              Import function prototypes from a database.
           - Name: convert-functions-to-cabi
             Type: convert-functions-to-cabi
             UsedContainers: []
@@ -725,7 +724,7 @@ AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:
       - import-binary
-      - import-well-known-models
+      - import-prototypes-from-db
       - detect-abi
       - detect-stack-size
       - analyze-data-layout

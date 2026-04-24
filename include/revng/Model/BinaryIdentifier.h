@@ -20,8 +20,8 @@ public:
 
 namespace model {
 
-using BinaryReference = TupleTreeReference<model::BinaryIdentifier,
-                                           model::Binary>;
+using BinaryIdentifierReference = TupleTreeReference<model::BinaryIdentifier,
+                                                     model::Binary>;
 
 }
 

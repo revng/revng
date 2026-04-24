@@ -196,7 +196,7 @@ class Project(ABC):
 
         size = Path(binary_path).stat().st_size
         self.model.Binaries.append(
-            BinaryIdentifier(Index=0, Hash=hash_, Size=size, Name=Path(binary_path).name)
+            BinaryIdentifier(Index=0, Hash=hash_, Size=size, CanonicalPath=Path(binary_path).name)
         )
         self._commit()
         self._analyze("initial-auto-analysis")

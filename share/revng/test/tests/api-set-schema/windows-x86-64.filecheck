@@ -1,0 +1,12 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# ApiSet V6
+
+CHECK-NOT: PrefixLength:
+CHECK-DAG: ext-ms-win-wwaext-module-l1-1 -> wwaext.dll
+CHECK-DAG: api-ms-win-core-processthreads-l1-1 -> kernel32.dll
+CHECK-DAG: api-ms-win-core-heap-l1-1 -> kernelbase.dll
+CHECK-DAG: api-ms-win-security-base-l1-1 -> kernelbase.dll
+CHECK-DAG: api-ms-onecoreuap-print-render-l1-1 -> printrenderapihost.dll

@@ -150,8 +150,9 @@ static bool _rp_initialize(int argc,
   }
 
   revng_check(not InitRevngInstance.has_value());
+  char **MutableArgv = const_cast<char **>(argv);
   InitRevngInstance.emplace(argc,
-                            argv,
+                            MutableArgv,
                             "",
                             llvm::ArrayRef<llvm::cl::OptionCategory *>());
 

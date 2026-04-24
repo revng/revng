@@ -21,15 +21,13 @@ We run the [`import-binary` analysis](../../references/analyses.md#import-binary
 
 ```{bash ignore="VirtualSize|FileSize"}
 $ revng analyze import-binary example -o example.yml
-$ grep -A7 'Segments:' example.yml
+$ grep -A5 'Segments:' example.yml
 Segments:
   - StartAddress:    "0x400000:Generic64"
     VirtualSize:     2528
     FileSize:        2528
     IsReadable:      true
     IsExecutable:    true
-    Relocations:
-      - Address:         "0x401d88:Generic64"
 ```
 
 However, the typical workflow does not require the user to manually specify what analyses to run, but there's a set of predefined analyses that should be run on a new project, the *initial autoanalyses*.

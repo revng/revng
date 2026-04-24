@@ -38,7 +38,7 @@ def fetch_pdb(file_path, urls):
             guid += f"{e.entry.Signature_Data4:02x}"
             guid += f"{e.entry.Signature_Data5:02x}"
             guid += f'{int.from_bytes(e.entry.Signature_Data6, byteorder="big"):012x}'
-            pdb_id = f"{guid.upper()}{e.entry.Age:x}"
+            pdb_id = f"{guid.upper()}{e.entry.Age:x}".lower()
 
             log("PDBID: " + pdb_id)
 

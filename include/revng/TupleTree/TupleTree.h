@@ -165,7 +165,7 @@ public:
 
 public:
   static llvm::Expected<TupleTree> fromString(llvm::StringRef YAMLString) {
-    TupleTree Result{};
+    TupleTree Result;
 
     auto MaybeRoot = revng::detail::fromStringImpl<T>(YAMLString);
     if (not MaybeRoot)
@@ -174,7 +174,6 @@ public:
     *Result.Root = std::move(*MaybeRoot);
 
     if constexpr (detail::HasVersion<T>) {
-      DisableTracking Guard(*Result.Root);
       if (Result.Root->Version() == 0) {
         Result.Root->Version() = T::SchemaVersion;
       }
@@ -245,7 +244,6 @@ public:
 
 public:
   void initializeReferences() {
-    DisableTracking Guard(*Root);
     visitReferencesInternal([this](auto &Element) {
       Element.setRoot(Root.get());
       if (CachingEnabled)
@@ -256,14 +254,12 @@ public:
   }
 
   void enableReferenceCaching() {
-    DisableTracking Guard(*Root);
     if (not CachingEnabled)
       visitReferencesInternal([](auto &E) { E.enableCaching(); });
     CachingEnabled = true;
   }
 
   void disableReferenceCaching() {
-    DisableTracking Guard(*Root);
     if (CachingEnabled)
       visitReferencesInternal([](auto &E) { E.disableCaching(); });
     CachingEnabled = false;

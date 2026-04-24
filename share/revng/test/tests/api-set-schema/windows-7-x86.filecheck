@@ -1,0 +1,12 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# ApiSet V2
+
+CHECK: PrefixLength: 4
+CHECK-DAG: ms-win-security-base-l1-1-0 -> kernelbase.dll
+CHECK-DAG: ms-win-core-processthreads-l1-1-0 -> kernel32.dll
+CHECK-DAG: ms-win-core-rtlsupport-l1-1-0 -> ntdll.dll
+CHECK-DAG: ms-win-core-heap-l1-1-0 -> kernelbase.dll
+CHECK-DAG: ms-win-core-console-l1-1-0 -> kernel32.dll

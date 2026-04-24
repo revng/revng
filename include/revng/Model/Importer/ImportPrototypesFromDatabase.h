@@ -9,9 +9,9 @@
 
 namespace revng::pypeline::analyses {
 
-class ImportWellKnownModelsAnalysis {
+class ImportPrototypesFromDatabase {
 public:
-  static constexpr llvm::StringRef Name = "import-well-known-models";
+  static constexpr llvm::StringRef Name = "import-prototypes-from-db";
 
   llvm::Error
   run(Model &Model, const Request &Incoming, llvm::StringRef Configuration);

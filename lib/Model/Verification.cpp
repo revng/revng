@@ -7,6 +7,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/Support/Configuration.h"
 #include "revng/Support/Error.h"
 
 #include "NamespaceBuilder.h"
@@ -426,7 +427,7 @@ static RecursiveCoroutine<bool> verifyImpl(VerifyHelper &VH,
   revng_assert(T.Kind() == model::TypeDefinitionKind::EnumDefinition);
 
   if (T.Entries().empty())
-    rc_return VH.fail("Every enum definition must have at least one entry.");
+    rc_return VH.fail("Every enum definition must have at least one entry.", T);
 
   if (T.UnderlyingType().isEmpty())
     rc_return VH.fail("Every enum must have an underlying type.", T);
@@ -989,6 +990,37 @@ bool Binary::verify(VerifyHelper &VH) const {
       std::string Error = "Overlapping segments:\n" + ::toString(LHS) + "and\n"
                           + ::toString(RHS);
       return VH.fail(Error);
+    }
+  }
+
+  // Check PlatformName against configuration roots
+  if (not PlatformName().empty()) {
+    const auto &Roots = revng::configuration().Root;
+    auto RootIterator = Roots.find(std::string(PlatformName()));
+    if (RootIterator == Roots.end()) {
+      revng_log(ModelVerifyLogger,
+                "Warning: PlatformName \""
+                  << PlatformName() << "\" does not match any configured root");
+    } else {
+      const revng::RootEntry &Root = RootIterator->second;
+
+      if (Root.Architecture != Architecture()) {
+        revng_log(ModelVerifyLogger,
+                  "Warning: root \""
+                    << PlatformName() << "\" has architecture "
+                    << model::Architecture::getName(Root.Architecture)
+                    << " but the model specifies "
+                    << model::Architecture::getName(Architecture()));
+      }
+
+      if (Root.OperatingSystem != OperatingSystem()) {
+        revng_log(ModelVerifyLogger,
+                  "Warning: root \""
+                    << PlatformName() << "\" has operating system "
+                    << model::OperatingSystem::getName(Root.OperatingSystem)
+                    << " but the model specifies "
+                    << model::OperatingSystem::getName(OperatingSystem()));
+      }
     }
   }
 

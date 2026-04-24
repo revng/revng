@@ -1,0 +1,12 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+OperatingSystem: Windows
+ImportedDynamicFunctions:
+  - Name: CloseHandle
+  - Name: ExitProcess
+  - Name: GetLastError
+  - Name: NonExistentFunction

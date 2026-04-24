@@ -13,7 +13,7 @@
 #include "Context.h"
 #include "Value.h"
 
-inline Logger Log("argument-usage-analysis");
+inline Logger ArgumentUsageAnalysisLog("argument-usage-analysis");
 
 template<typename O>
 void dumpCall(O &Output, const llvm::CallInst *Call) {
@@ -223,16 +223,17 @@ public:
   }
 
   void logEscapedValue(llvm::StringRef Context, const Value &EscapedValue) {
-    if (Log.isEnabled()) {
+    if (ArgumentUsageAnalysisLog.isEnabled()) {
       llvm::DenseSet<unsigned> EscapedArguments = EscapedValue
                                                     .collectArguments();
       if (EscapedArguments.size() != 0) {
-        Log << "In " << Context.str()
-            << " the following value escapes: " << EscapedValue.toString()
-            << ". Therefore, the following arguments escape: {";
+        ArgumentUsageAnalysisLog
+          << "In " << Context.str()
+          << " the following value escapes: " << EscapedValue.toString()
+          << ". Therefore, the following arguments escape: {";
         for (unsigned ArgumentIndex : EscapedArguments)
-          Log << " " << ArgumentIndex;
-        Log << " }" << DoLog;
+          ArgumentUsageAnalysisLog << " " << ArgumentIndex;
+        ArgumentUsageAnalysisLog << " }" << DoLog;
       }
     }
   }

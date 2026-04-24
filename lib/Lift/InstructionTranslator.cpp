@@ -363,7 +363,7 @@ IT::InstructionTranslator(class LibTcg &LibTcg,
                           VariableManager &Variables,
                           JumpTargetManager &JumpTargets,
                           std::vector<BasicBlock *> Blocks,
-                          bool EndianessMismatch,
+                          bool EndiannessMismatch,
                           ProgramCounterHandler *PCH) :
   LibTcg(LibTcg),
   Builder(Builder),
@@ -372,7 +372,7 @@ IT::InstructionTranslator(class LibTcg &LibTcg,
   Blocks(Blocks),
   TheModule(*Builder.GetInsertBlock()->getParent()->getParent()),
   TheFunction(Builder.GetInsertBlock()->getParent()),
-  EndianessMismatch(EndianessMismatch),
+  EndiannessMismatch(EndiannessMismatch),
   NewPCMarker(nullptr),
   LastPC(MetaAddress::invalid()),
   PCH(PCH) {
@@ -881,7 +881,7 @@ IT::translateOpcode(LibTcgOpcode Opcode,
     // TODO: it might be a bit overkill, but it be nice to make this function
     //       template-parametric w.r.t. endianness mismatch
     Function *BSwapFunction = nullptr;
-    if (MemoryType != Builder.getInt8Ty() and EndianessMismatch)
+    if (MemoryType != Builder.getInt8Ty() and EndiannessMismatch)
       BSwapFunction = Intrinsic::getDeclaration(&TheModule,
                                                 Intrinsic::bswap,
                                                 { MemoryType });

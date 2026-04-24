@@ -100,6 +100,7 @@ PointerSet PointerSet::fromValue(const Value &V) {
 std::optional<llvm::DenseSet<uint64_t>>
 CPUStateUsageAnalysis::computeAccessesInRoot(const Value &Offset) const {
   llvm::DenseSet<uint64_t> Result;
+  auto &Log = ArgumentUsageAnalysisLog;
 
   revng_log(Log, "PointerSet: " << PointerSet::fromValue(Offset).toString());
 
@@ -243,6 +244,7 @@ CPUStateUsageAnalysis::computeAccessesInRoot(const Value &Offset) const {
 }
 
 void CPUStateUsageAnalysis::analyze(llvm::Function &Function) {
+  auto &Log = ArgumentUsageAnalysisLog;
   llvm::Task T(2, "Analyze CPU state usage of " + Function.getName());
   FastValuePrinter Printer(*Function.getParent());
   revng_log(Log, "Collecting interprocedural data in " << Function.getName());
@@ -373,6 +375,7 @@ void CPUStateUsageAnalysis::analyze(llvm::Function &Function) {
 
 GlobalAUAResults
 CPUStateUsageAnalysis::collectGlobalAUAResults(const llvm::Function &Function) {
+  auto &Log = ArgumentUsageAnalysisLog;
   llvm::Task T({}, "Collecting global Argument Usage Analysis results");
   FastValuePrinter Printer(*Function.getParent());
 
@@ -540,6 +543,8 @@ void CPUStateUsageAnalysis::annotate(llvm::Module &M) const {
 }
 
 void StructPointers::visitType(llvm::Type &Type, uint64_t StartingOffset) {
+  auto &Log = ArgumentUsageAnalysisLog;
+
   // Note: this function is recursive but its depth is limited by build time
   //       features, i.e., the depth of the CPU state.
   if (auto *Struct = dyn_cast<llvm::StructType>(&Type)) {

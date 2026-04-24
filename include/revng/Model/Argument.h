@@ -17,7 +17,7 @@ class model::Argument : public model::generated::Argument {
 public:
   using generated::Argument::Argument;
   Argument(uint64_t Index, UpcastableType &&Type) :
-    model::generated::Argument(Index, std::move(Type), {}, {}) {}
+    model::generated::Argument(Index, {}, {}, std::move(Type)) {}
 
 public:
   bool verify() const debug_function;

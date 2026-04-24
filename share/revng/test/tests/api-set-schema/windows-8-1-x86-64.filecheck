@@ -1,0 +1,12 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# ApiSet V4
+
+CHECK: PrefixLength: 4
+CHECK-DAG: ms-win-wsclient-devlicense-l1-1-0 -> wsclient.dll
+CHECK-DAG: ms-win-winrt-storage-l1-1-0 -> shell32.dll
+CHECK-DAG: ms-win-core-handle-l1-1-0 -> kernelbase.dll
+CHECK-DAG: ms-win-advapi32-encryptedfile-l1-1-0 -> advapi32.dll
+CHECK-DAG: ms-win-usp10-l1-1-0 -> usp10.dll

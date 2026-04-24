@@ -16,8 +16,7 @@ ARTIFACT="$3"
 OLD_PATH="$WORKDIR/old"
 NEW_PATH="$WORKDIR/new"
 mkdir "$WORKDIR/cache"
-export REVNG_CACHE_DIR="$WORKDIR/cache"
-
+export XDG_CACHE_HOME="$WORKDIR/cache"
 
 function files_in_dir() {
     find "$1" -type f -printf '%f\n'

@@ -820,7 +820,9 @@ private:
     // Analyze stack usage
     //
 
-    // Analysis preparation: split basic blocks at call sites
+    // Analysis preparation: split basic blocks at call sites.
+    // This enables us to use the *final* value of the monotone framework
+    // associated to the basic block of stack_size_at_call_site.
     {
       std::set<Instruction *> SplitPoints;
       for (BasicBlock &BB : F)
@@ -855,7 +857,7 @@ private:
             handleCallSite(AnalysisResult, SSACSCall);
 
     //
-    // Handle memory access, possibly targeting stack arguments
+    // Handle memory access, possibly targeting formal stack arguments
     //
     if (Redirector != nullptr)
       for (BasicBlock &BB : F)
@@ -1304,6 +1306,9 @@ private:
     };
     std::map<StoreInst *, StoreInfo> Stores;
     BasicBlock *BB = SSACSCall->getParent();
+
+    // We use the *final* value. In fact, we split the basic block before the
+    // call to the isolated function as appropriate.
     const std::set<StoredByte> &BlockFinalResult = AnalysisResult.at(BB)
                                                      .OutValue;
     for (const StoredByte &Byte : BlockFinalResult) {

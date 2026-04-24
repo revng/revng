@@ -162,7 +162,7 @@ static RecursiveCoroutine<bool> addOperandType(const llvm::Value *Operand,
       const model::Function &Function = Model.Functions().at(EntryAddress);
       const auto &Prototype = Model.prototypeOrDefault(Function.prototype());
       const auto &Key = Prototype->getPrototype()->key();
-      auto PrototypeReference = Model.getDefinitionReference(Key);
+      auto PrototypeReference = Model.getTypeDefinitionReference(Key);
       auto PrototypeType = DefinedType::make(PrototypeReference);
       auto PointerSize = Architecture::getPointerSize(Model.Architecture());
       auto Pointer = PointerType::make(std::move(PrototypeType), PointerSize);

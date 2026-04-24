@@ -10,6 +10,14 @@ include(share/revng/cmake/Common.cmake)
 
 find_program(CLANG_PATH NAMES clang)
 
+# Copy system configuration.yml
+if(REVNG_SYSTEM_CONFIG AND EXISTS "${REVNG_SYSTEM_CONFIG}")
+  set(REVNG_CONFIG_PATH "${CMAKE_BINARY_DIR}/etc/revng/configuration.yml")
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/etc/revng")
+  file(COPY_FILE "${REVNG_SYSTEM_CONFIG}" "${REVNG_CONFIG_PATH}")
+  install(FILES "${REVNG_CONFIG_PATH}" DESTINATION etc/revng)
+endif()
+
 #
 # Compile flags
 #
@@ -282,35 +290,6 @@ foreach(
   process_helper_module(
     NAME declarations-only PASSES helpers-module-to-declarations globaldce
     strip-dead-debug-info)
-endforeach()
-
-# Produce well-known-models
-file(
-  GLOB
-  WELL_KNOWN_BINARIES
-  "${CMAKE_INSTALL_PREFIX}/share/revng/test/tests/well-known-models/*revng-qa.compiled-with-debug*"
-)
-
-add_custom_target(well-known-binaries ALL)
-
-foreach(WELL_KNOWN_BINARY IN LISTS WELL_KNOWN_BINARIES)
-
-  get_filename_component(BASENAME "${WELL_KNOWN_BINARY}" NAME)
-  set(MODEL_PATH "share/revng/well-known-models/${BASENAME}.yml")
-  set(FULL_MODEL_PATH "${CMAKE_BINARY_DIR}/${MODEL_PATH}")
-
-  add_custom_command(
-    OUTPUT "${FULL_MODEL_PATH}"
-    COMMAND "./bin/revng" analyze import-binary -o "${FULL_MODEL_PATH}"
-            "${WELL_KNOWN_BINARY}"
-    MAIN_DEPENDENCY "${WELL_KNOWN_BINARY}"
-    DEPENDS revng-all-binaries generate-revngModel-tuple-tree-code
-            generate-revngPipeline-tuple-tree-code
-    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
-  add_custom_target("import-${BASENAME}" DEPENDS "${FULL_MODEL_PATH}")
-
-  add_dependencies(well-known-binaries "import-${BASENAME}")
-
 endforeach()
 
 # Custom command to create .clang-format file from revng-check-conventions

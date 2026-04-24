@@ -15,12 +15,12 @@ namespace cl = llvm::cl;
 static cl::OptionCategory ThisToolCategory("Tool options", "");
 extern cl::OptionCategory ModelPassCategory;
 
-static cl::opt<std::string> OutputFilename("o",
-                                           llvm::cl::init("-"),
-                                           llvm::cl::desc("Override output "
-                                                          "filename"),
-                                           llvm::cl::value_desc("filename"),
-                                           llvm::cl::cat(ThisToolCategory));
+static cl::opt<std::string> OutputPath("o",
+                                       llvm::cl::init("-"),
+                                       llvm::cl::desc("Override output "
+                                                      "filename"),
+                                       llvm::cl::value_desc("filename"),
+                                       llvm::cl::cat(ThisToolCategory));
 
 static cl::opt<std::string> InputFilename(cl::Positional,
                                           cl::desc("<input model file>"),
@@ -82,5 +82,5 @@ int main(int Argc, char *Argv[]) {
   }
 
   // Serialize
-  ExitOnError(MaybeModel.toFile(OutputFilename));
+  ExitOnError(MaybeModel.toFile(OutputPath));
 }

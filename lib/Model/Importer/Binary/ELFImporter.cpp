@@ -15,18 +15,23 @@
 #include "revng/ABI/DefaultFunctionPrototype.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/Importer/Binary/BinaryDescriptor.h"
+#include "revng/Model/Importer/Binary/BinaryImporter.h"
 #include "revng/Model/Importer/Binary/BinaryImporterHelper.h"
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Model/Pass/AllPasses.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Support/CommandLine.h"
+#include "revng/Support/Configuration.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/Error.h"
 #include "revng/Support/LDDTree.h"
+#include "revng/TupleTree/TupleTree.h"
 
-#include "CrossModelFindTypeHelper.h"
 #include "DwarfReader.h"
 #include "ELFImporter.h"
+#include "FindMissingTypes.h"
 #include "Importers.h"
 #include "MIPSELFImporter.h"
 
@@ -93,8 +98,13 @@ ArrayRef<T> FilePortion::extractAs() const {
   auto Data = extractData();
 
   const size_t TypeSize = sizeof(T);
-  if (Data.size() % TypeSize != 0)
+  if (Data.size() % TypeSize != 0) {
+    revng_log(ELFImporterLog,
+              "Warning: cannot extract objects of size "
+                << TypeSize
+                << ". File portion size is not a multiple: " << Data.size());
     return {};
+  }
 
   return ArrayRef<T>(reinterpret_cast<const T *>(Data.data()),
                      Data.size() / TypeSize);
@@ -156,8 +166,9 @@ uint64_t symbolsCount(const FilePortion &Relocations) {
 
   uint32_t SymbolsCount = 0;
 
-  for (Elf_Rel Relocation : Relocations.extractAs<Elf_Rel>())
+  for (Elf_Rel Relocation : Relocations.extractAs<Elf_Rel>()) {
     SymbolsCount = std::max(SymbolsCount, Relocation.getSymbol(false) + 1);
+  }
 
   return SymbolsCount;
 }
@@ -165,7 +176,9 @@ uint64_t symbolsCount(const FilePortion &Relocations) {
 template<typename T, bool HasAddend>
 Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   revng_log(ELFImporterLog, "Starting ELF import");
-  llvm::Task Task(13, "Import ELF");
+  LoggerIndent Indent(ELFImporterLog);
+
+  llvm::Task Task(14, "Import ELF");
   Task.advance("Parse ELF", true);
 
   // Parse the ELF file
@@ -173,6 +186,13 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   if (not TheELFOrErr)
     return TheELFOrErr.takeError();
   object::ELFFile<T> &TheELF = *TheELFOrErr;
+
+  // Set operating system from the ELF OSABI field
+  {
+    unsigned char OSABI = TheELF.getHeader().e_ident[llvm::ELF::EI_OSABI];
+    if (OSABI == llvm::ELF::ELFOSABI_NONE or OSABI == llvm::ELF::ELFOSABI_LINUX)
+      Model->OperatingSystem() = model::OperatingSystem::Linux;
+  }
 
   // Parse segments
   Task.advance("Parse segments", true);
@@ -311,6 +331,9 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
     revng_log(ELFImporterLog, "Cannot access dynamic entries: " << Error);
     consumeError(std::move(Error));
   } else {
+    revng_log(ELFImporterLog, "Parsing .dynamic");
+    LoggerIndent Indent(ELFImporterLog);
+
     SmallVector<uint64_t, 10> NeededLibraryNameOffsets;
 
     // TODO: use std::optional
@@ -351,6 +374,10 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
                               symbolsCount<T, HasAddend>(*RelpltPortion.get()));
     }
 
+    revng_log(ELFImporterLog, "SymbolsCount: " << SymbolsCount.value_or(0));
+    revng_log(ELFImporterLog,
+              "DynsymPortion->isAvailable(): " << DynsymPortion->isAvailable());
+
     // Collect function addresses contained in dynamic symbols
     if (SymbolsCount and *SymbolsCount > 0 and DynsymPortion->isAvailable()) {
       Task.advance("Parse dynamic symbols", true);
@@ -365,7 +392,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
       using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
       if (ReldynPortion->isAvailable()) {
-        registerRelocations(ReldynPortion->extractAs<Elf_Rel>(),
+        registerRelocations(".rela.dyn",
+                            ReldynPortion->extractAs<Elf_Rel>(),
                             *DynsymPortion.get(),
                             *DynstrPortion.get());
       }
@@ -388,7 +416,8 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
       }
 
       if (RelpltPortion->isAvailable()) {
-        registerRelocations(RelpltPortion->extractAs<Elf_Rel>(),
+        registerRelocations(".rela.plt",
+                            RelpltPortion->extractAs<Elf_Rel>(),
                             *DynsymPortion.get(),
                             *DynstrPortion.get());
       }
@@ -414,19 +443,47 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   Model->DefaultPrototype() = abi::registerDefaultFunctionPrototype(Ptr);
 
   if (AdjustedOptions.DebugInfo != DebugInfoLevel::No) {
-    Task.advance("Parse debug info", true);
 
-    // Import Dwarf
-    DwarfImporter Importer(Model);
+    auto Handler = [&](const auto &ObjectFile) {
+      Task.advance("Identifying dependencies", true);
+      std::optional<LDDTree>
+        MaybeDependencies = identifyDependencies(ObjectFile,
+                                                 TheBinary.canonicalPath());
 
-    Importer.import(TheBinary.Buffer,
-                    TheBinary.Path,
-                    AdjustedOptions,
-                    TheBinary.getFilename());
+      bool HasRoot = MaybeDependencies.has_value();
+      const revng::RootEntry *Root = HasRoot ? MaybeDependencies->Root :
+                                               nullptr;
 
-    // Now we try to find missing types in the dependencies.
-    Task.advance("Find missing types from debug info", true);
-    findMissingTypes(TheELF, AdjustedOptions);
+      // Import Dwarf
+      Task.advance("Parse debug info", true);
+      {
+        auto ImportLogger = importLogger(TheBinary.canonicalPath());
+        DwarfImporter Importer(Model, std::nullopt);
+        Importer.import(Root, TheBinary, AdjustedOptions);
+      }
+
+      // Now we try to find missing types in the dependencies
+      Task.advance("Find missing types from debug info", true);
+
+      if (HasRoot) {
+        findMissingTypes<ELFBinary, DwarfImporter>(*MaybeDependencies,
+                                                   Options,
+                                                   Logger,
+                                                   Model);
+      }
+    };
+
+    auto *GenericObjectFile = &TheBinary.ObjectFile;
+    if (auto *ObjectFile = dyn_cast<ELF32LEObjectFile>(GenericObjectFile))
+      Handler(*ObjectFile);
+    else if (auto *ObjectFile = dyn_cast<ELF32BEObjectFile>(GenericObjectFile))
+      Handler(*ObjectFile);
+    else if (auto *ObjectFile = dyn_cast<ELF64LEObjectFile>(GenericObjectFile))
+      Handler(*ObjectFile);
+    else if (auto *ObjectFile = dyn_cast<ELF64BEObjectFile>(GenericObjectFile))
+      Handler(*ObjectFile);
+    else
+      revng_abort();
   }
 
   Task.advance("Flatten primitive typedefs", true);
@@ -436,123 +493,6 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   model::deduplicateCollidingNames(Model);
 
   return Error::success();
-}
-
-template<typename T, bool HasAddend>
-void ELFImporter<T, HasAddend>::findMissingTypes(object::ELFFile<T> &TheELF,
-                                                 const ImporterOptions &Opts) {
-  if (Opts.DebugInfo != DebugInfoLevel::Yes)
-    return;
-
-  ModelMap ModelsOfLibraries;
-  TypeCopierMap TypeCopiers;
-
-  // TODO: disclose a way to modify this value with
-  //       the `ImporterOptions::DebugInfo`, if the need ever arises.
-  unsigned MaximumRecursionDepth = 1;
-
-  LDDTree Dependencies;
-  lddtree(Dependencies, TheBinary.getFilename(), MaximumRecursionDepth);
-  for (auto &Library : Dependencies) {
-    revng_log(ELFImporterLog,
-              "Importing Models for dependencies of " << Library.first << ":");
-    for (auto &DependencyLibrary : Library.second) {
-      if (ModelsOfLibraries.contains(DependencyLibrary))
-        continue;
-      revng_log(ELFImporterLog, " Importing Model for: " << DependencyLibrary);
-      auto BinaryOrErr = llvm::object::createBinary(DependencyLibrary);
-      if (auto Error = BinaryOrErr.takeError()) {
-        // TODO: emit a diagnostic message for the user.
-        revng_log(ELFImporterLog,
-                  "Can't create object for " << DependencyLibrary << " due to "
-                                             << Error);
-        llvm::consumeError(std::move(Error));
-        continue;
-      }
-
-      auto &Object = *cast<llvm::object::ObjectFile>(BinaryOrErr->getBinary());
-      auto *TheBinary = dyn_cast<ELFObjectFileBase>(&Object);
-      if (!TheBinary) {
-        // TODO: emit a diagnostic message for the user.
-        revng_log(ELFImporterLog, "Can't parse the binary");
-        continue;
-      }
-
-      revng_assert(!ModelsOfLibraries.contains(DependencyLibrary));
-      TupleTree<model::Binary> &DepModel = ModelsOfLibraries[DependencyLibrary];
-      DepModel->Architecture() = Model->Architecture();
-      ImporterOptions AdjustedOptions{
-        .BaseAddress = Opts.BaseAddress,
-        .DebugInfo = DebugInfoLevel::IgnoreLibraries,
-        .EnableRemoteDebugInfo = Opts.EnableRemoteDebugInfo,
-        .AdditionalDebugInfoPaths = Opts.AdditionalDebugInfoPaths
-      };
-      ELFBinary Binary(*TheBinary,
-                       TheBinary->getMemoryBufferRef(),
-                       DependencyLibrary,
-                       this->TheBinary.Reference);
-
-      if (auto Error = importELF(DepModel, Binary, AdjustedOptions)) {
-        // TODO: emit a diagnostic message for the user.
-        revng_log(ELFImporterLog,
-                  "Can't import model for " << DependencyLibrary << " due to "
-                                            << Error);
-        llvm::consumeError(std::move(Error));
-        ModelsOfLibraries.erase(DependencyLibrary);
-        continue;
-      }
-    }
-  }
-
-  auto GetOrMakeACopier = [&](llvm::StringRef Name) -> TypeCopier & {
-    if (auto It = TypeCopiers.find(Name.str()); It != TypeCopiers.end())
-      return *It->second;
-
-    auto Iterator = ModelsOfLibraries.find(Name.str());
-    revng_assert(Iterator != ModelsOfLibraries.end());
-
-    auto NewCopier = std::make_unique<TypeCopier>(Iterator->second, Model);
-    auto &&[Result, Success] = TypeCopiers.emplace(Name.str(),
-                                                   std::move(NewCopier));
-    revng_assert(Success);
-    return *Result->second;
-  };
-
-  for (auto &Fn : Model->ImportedDynamicFunctions()) {
-    if (not Fn.Prototype().isEmpty() or Fn.Name().size() == 0)
-      continue;
-
-    if (auto Found = findPrototype(Fn.Name(), ModelsOfLibraries)) {
-      revng_assert(!Found->ModuleName.empty());
-      revng_assert(Found->Prototype.verify(true));
-
-      model::UpcastableTypeDefinition SerializablePrototype = Found->Prototype;
-      revng_log(ELFImporterLog,
-                "Found type for " << Fn.Name() << " in " << Found->ModuleName
-                                  << ": " << toString(SerializablePrototype));
-      TypeCopier &TheTypeCopier = GetOrMakeACopier(Found->ModuleName);
-      Fn.Prototype() = TheTypeCopier.copyTypeInto(Found->Prototype);
-
-      // Copy all the Attributes except for `AlwaysInline`.
-      for (auto &Attribute : Found->Attributes)
-        if (Attribute != model::FunctionAttribute::AlwaysInline)
-          Fn.Attributes().insert(Attribute);
-    } else {
-      revng_log(ELFImporterLog, "Prototype for " << Fn.Name() << " not found");
-    }
-  }
-
-  // Finalize the copies
-  for (auto &[_, TC] : TypeCopiers)
-    TC->finalize();
-
-  // Purge cached references and update the reference to Root.
-  Model.disableReferenceCaching();
-  Model.initializeReferences();
-
-  model::flattenPrimitiveTypedefs(Model);
-  deduplicateEquivalentTypes(Model);
-  model::deduplicateCollidingNames(Model);
 }
 
 using Libs = SmallVectorImpl<uint64_t>;
@@ -684,9 +624,6 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
         auto *Function = registerFunctionEntry(Address);
         if (Function != nullptr and MaybeName and MaybeName->size() > 0) {
           Function->Name() = *MaybeName;
-          // Insert Original name into exported ones, since it is by default
-          // true.
-          Function->ExportedNames().insert((*MaybeName).str());
         }
       }
     } else if (IsDataObject and Size > 0) {
@@ -732,6 +669,8 @@ void ELFImporter<T, HasAddend>::parseSegments(ELFFile<T> &TheELF) {
 
       model::Segment NewSegment({ Start, ProgramHeader.p_memsz });
 
+      // TODO: do the following unconditionally once the old pipeline has been
+      //       dropped.
       if (TheBinary.Reference.isValid())
         NewSegment.Binary() = TheBinary.Reference;
       NewSegment.StartOffset() = ProgramHeader.p_offset;
@@ -826,6 +765,10 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
   }
 
   StringRef Name = *MaybeName;
+
+  revng_log(ELFImporterLog, "Considering dynamic symbol " << Name);
+  LoggerIndent Indent(ELFImporterLog);
+
   if (Name.contains('\0')) {
     revng_log(ELFImporterLog,
               "SymbolName contains a NUL character: \"" << Name.str() << "\"");
@@ -835,17 +778,22 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
   bool IsCode = Symbol.getType() == ELF::STT_FUNC;
   bool IsDataObject = Symbol.getType() == ELF::STT_OBJECT;
 
-  if (shouldIgnoreSymbol(Name))
+  if (shouldIgnoreSymbol(Name)) {
+    revng_log(ELFImporterLog, "Ignoring");
     return;
+  }
 
   if (Symbol.st_shndx == ELF::SHN_UNDEF) {
+    revng_log(ELFImporterLog, "This is an imported symbol");
     if (IsCode) {
       // Create dynamic function symbol
       Model->ImportedDynamicFunctions()[Name.str()];
     } else {
       // TODO: create dynamic global variable
+      revng_log(ELFImporterLog, "Ignoring non-code");
     }
   } else {
+    revng_log(ELFImporterLog, "It's a local exported function");
     MetaAddress Address = MetaAddress::invalid();
     uint64_t Size = Symbol.st_size;
 
@@ -889,7 +837,7 @@ ELFImporter<T, HasAddend>::ehFrameFromEhFrameHdr() {
   ArrayRef<uint8_t> EHFrameHdr = *MaybeEHFrameHdr;
 
   using namespace model::Architecture;
-  DwarfReader<T> EHFrameHdrReader(Binary.Architecture(),
+  DwarfReader<T> EHFrameHdrReader(Binary->Architecture(),
                                   EHFrameHdr,
                                   *EHFrameHdrAddress);
 
@@ -1127,8 +1075,6 @@ void ELFImporter<T, HasAddend>::parseEHFrame(MetaAddress EHFrameAddress,
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseLSDA(MetaAddress FDEStart,
                                           MetaAddress LSDAAddress) {
-  logAddress(ELFImporterLog, "LSDAAddress: ", LSDAAddress);
-
   auto MaybeLSDA = File.getFromAddressOn(LSDAAddress);
   if (not MaybeLSDA) {
     revng_log(ELFImporterLog, "LSDA not available in any segment");
@@ -1146,8 +1092,6 @@ void ELFImporter<T, HasAddend>::parseLSDA(MetaAddress FDEStart,
   } else {
     LandingPadBase = FDEStart;
   }
-
-  logAddress(ELFImporterLog, "LandingPadBase: ", LandingPadBase);
 
   uint32_t TypeTableEncoding = LSDAReader.readNextU8();
   if (TypeTableEncoding != dwarf::DW_EH_PE_omit)
@@ -1195,11 +1139,11 @@ struct RelocationHelper<T, false> {
 };
 
 template<typename T, bool HasAddend>
-void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
+void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
+                                                    Elf_Rel_Array Relocations,
                                                     const FilePortion &Dynsym,
                                                     const FilePortion &Dynstr) {
   using namespace llvm::object;
-  using Elf_Rel = Elf_Rel_Impl<T, HasAddend>;
   using Elf_Sym = Elf_Sym_Impl<T>;
 
   model::Segment *LowestSegment = nullptr;
@@ -1210,7 +1154,10 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
   if (Dynsym.isAvailable())
     Symbols = Dynsym.extractAs<Elf_Sym>();
 
-  for (Elf_Rel Relocation : Relocations) {
+  revng_log(ELFImporterLog, "Parsing relocations in " << Name.str());
+  LoggerIndent Indent(ELFImporterLog);
+
+  for (auto [Index, Relocation] : llvm::enumerate(Relocations)) {
     auto Type = static_cast<unsigned char>(Relocation.getType(false));
     uint64_t Addend = RelocationHelper<T, HasAddend>::getAddend(Relocation);
     MetaAddress Address = relocate(fromGeneric(Relocation.r_offset));
@@ -1229,7 +1176,9 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
       auto MaybeName = Symbol.getName(Dynstr.extractString());
 
       if (auto Error = MaybeName.takeError()) {
-        revng_log(ELFImporterLog, "Cannot access symbol name: " << Error);
+        revng_log(ELFImporterLog,
+                  "Cannot access symbol name for relocation #" << Index << ": "
+                                                               << Error);
         consumeError(std::move(Error));
       } else {
         SymbolName = *MaybeName;
@@ -1246,7 +1195,8 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
                                                    Type);
     if (RelocationType == Invalid) {
       revng_log(ELFImporterLog,
-                "Ignoring unknown relocation: " << RelocationName);
+                "Ignoring unknown relocation #" << Index << ": "
+                                                << RelocationName);
       continue;
     }
 
@@ -1258,12 +1208,13 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
 
     if (HasName and IsBaseRelative) {
       revng_log(ELFImporterLog,
-                "We found a base-relative relocation ("
-                  << RelocationName << ") associated to a symbol, ignoring.");
+                "We found a base-relative relocation #"
+                  << Index << " (" << RelocationName
+                  << ") associated to a symbol, ignoring.");
     } else if (not HasName and not IsBaseRelative) {
       if (ELFImporterLog.isEnabled()) {
-        ELFImporterLog << "We found a non-base-relative relocation ("
-                       << RelocationName
+        ELFImporterLog << "We found a non-base-relative relocation #" << Index
+                       << " (" << RelocationName
                        << ") not associated to a symbol, ignoring." << DoLog;
       }
     } else if (HasName) {
@@ -1285,8 +1236,10 @@ void ELFImporter<T, HasAddend>::registerRelocations(Elf_Rel_Array Relocations,
         LowestSegment->Relocations().insert(NewRelocation);
       } else {
         revng_log(ELFImporterLog,
-                  "Found a base-relative relocation, but no segment is "
-                  "available! Ignoring.");
+                  "Found a base-relative relocation #" << Index
+                                                       << ", but no segment is "
+                                                          "available! "
+                                                          "Ignoring.");
       }
     }
   }

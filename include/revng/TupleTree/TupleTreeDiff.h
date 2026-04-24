@@ -63,7 +63,7 @@ template<typename T>
 concept TupleTreeRootLike = StrictSpecializationOf<AllowedTupleTreeTypes<T>,
                                                    std::variant>;
 
-namespace detail {
+namespace revng::detail {
 template<TupleTreeRootLike Model>
 struct CheckTypeIsCorrect {
   const AllowedTupleTreeTypes<Model> *Alternatives = nullptr;
@@ -111,7 +111,7 @@ llvm::Error checkTypeIsCorrect(const TupleTreePath &Path,
   return llvm::Error::success();
 }
 
-} // namespace detail
+} // namespace revng::detail
 
 template<TupleTreeRootLike T>
 struct Change {
@@ -132,18 +132,18 @@ public:
 
 public:
   static Change createRemoval(TupleTreePath Path, Variant Old) {
-    revng_check(not detail::checkTypeIsCorrect<T>(Path, Old));
+    revng_check(not revng::detail::checkTypeIsCorrect<T>(Path, Old));
     return Change(std::move(Path), std::move(Old), std::nullopt);
   }
 
   static Change createAddition(TupleTreePath Path, Variant New) {
-    revng_check(not detail::checkTypeIsCorrect<T>(Path, New));
+    revng_check(not revng::detail::checkTypeIsCorrect<T>(Path, New));
     return Change(std::move(Path), std::nullopt, std::move(New));
   }
 
   static Change createChange(TupleTreePath Path, Variant Old, Variant New) {
-    revng_check(not detail::checkTypeIsCorrect<T>(Path, New));
-    revng_check(not detail::checkTypeIsCorrect<T>(Path, Old));
+    revng_check(not revng::detail::checkTypeIsCorrect<T>(Path, New));
+    revng_check(not revng::detail::checkTypeIsCorrect<T>(Path, Old));
     return Change(std::move(Path), std::move(Old), std::move(New));
   }
 };

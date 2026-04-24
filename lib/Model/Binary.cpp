@@ -11,6 +11,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/BinaryIdentifier.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/CommandLine.h"
@@ -102,6 +103,46 @@ uint64_t model::Binary::getAvailableTypeID() const {
     return 0;
 
   return TypeDefinitions().rbegin()->get()->ID() + 1;
+}
+
+model::TypeDefinitionReference
+model::Binary::getTypeDefinitionReference(const model::TypeDefinition::Key
+                                            &Key) {
+  using Fields = TupleLikeTraits<model::Binary>::Fields;
+  TupleTreePath BinaryPath;
+  BinaryPath.push_back(static_cast<size_t>(Fields::TypeDefinitions));
+  BinaryPath.push_back(Key);
+  return model::TypeDefinitionReference{ this, BinaryPath };
+}
+
+model::TypeDefinitionReference
+model::Binary::getTypeDefinitionReference(const model::TypeDefinition::Key &Key)
+  const {
+  using Fields = TupleLikeTraits<model::Binary>::Fields;
+  TupleTreePath BinaryPath;
+  BinaryPath.push_back(static_cast<size_t>(Fields::TypeDefinitions));
+  BinaryPath.push_back(Key);
+  return model::TypeDefinitionReference{ this, BinaryPath };
+}
+
+model::BinaryIdentifierReference
+model::Binary::getBinaryIdentifierReference(const model::BinaryIdentifier::Key
+                                              &Key) {
+  using Fields = TupleLikeTraits<model::Binary>::Fields;
+  TupleTreePath BinaryPath;
+  BinaryPath.push_back(static_cast<size_t>(Fields::Binaries));
+  BinaryPath.push_back(std::get<0>(Key));
+  return model::BinaryIdentifierReference{ this, BinaryPath };
+}
+
+model::BinaryIdentifierReference
+model::Binary::getBinaryIdentifierReference(const model::BinaryIdentifier::Key
+                                              &Key) const {
+  using Fields = TupleLikeTraits<model::Binary>::Fields;
+  TupleTreePath BinaryPath;
+  BinaryPath.push_back(static_cast<size_t>(Fields::Binaries));
+  BinaryPath.push_back(std::get<0>(Key));
+  return model::BinaryIdentifierReference{ this, BinaryPath };
 }
 
 namespace model {

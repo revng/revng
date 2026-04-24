@@ -342,16 +342,20 @@ std::set<T *> intersect(const std::set<T *> &First, const std::set<T *> &Last) {
   return Output;
 }
 
-inline void
+inline bool
 replaceAll(std::string &Input, const std::string &From, const std::string &To) {
   if (From.empty())
-    return;
+    return false;
 
+  unsigned Count = 0;
   size_t Start = 0;
   while ((Start = Input.find(From, Start)) != std::string::npos) {
     Input.replace(Start, From.length(), To);
+    ++Count;
     Start += To.length();
   }
+
+  return Count > 0;
 }
 
 //
@@ -505,4 +509,11 @@ template<std::ranges::range Range,
          revng::detail::IteratorConstructible<Range> Container>
 constexpr Container operator|(Range &&R, revng::detail::ToImpl<Container> T) {
   return T.asContainer(std::forward<Range>(R));
+}
+
+template<typename T = std::string,
+         typename Container = std::initializer_list<T>>
+void appendTo(Container &&Range, auto &Destination) {
+  for (auto &&Element : Range)
+    Destination.push_back(std::forward<decltype(Element)>(Element));
 }

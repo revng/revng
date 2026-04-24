@@ -104,7 +104,7 @@ class ImportFiles(Pipe):
         requests: list[FileRequest] = []
         for binary in model_obj.Binaries:
             indexes.append(binary.Index)
-            requests.append(FileRequest(binary.Hash, binary.Name, binary.Size))
+            requests.append(FileRequest(binary.Hash, binary.CanonicalPath, binary.Size))
 
         return (indexes, requests)
 

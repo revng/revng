@@ -21,19 +21,6 @@ Functions:
       Kind: DefinedType
       Definition: "/TypeDefinitions/17913232940792519997-CABIFunctionDefinition"
 TypeDefinitions:
-  - Kind: TypedefDefinition
-    ID: 14210609572455956746
-    UnderlyingType:
-      Kind: PrimitiveType
-      PrimitiveKind: Void
-  - Kind: TypedefDefinition
-    ID: 3290784804431442976
-    UnderlyingType:
-      Kind: PointerType
-      PointeeType:
-        Kind: DefinedType
-        IsConst: true
-        Definition: "/TypeDefinitions/14210609572455956746-TypedefDefinition"
   - Kind: CABIFunctionDefinition
     ID: 5944255354151483434
     ReturnType:
@@ -43,19 +30,27 @@ TypeDefinitions:
     Arguments:
       - Index: 0
         Type:
-          Kind: DefinedType
-          Definition: "/TypeDefinitions/3290784804431442976-TypedefDefinition"
+          Kind: PointerType
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Void
+            IsConst: true
       - Index: 1
         Type:
-          Kind: DefinedType
-          Definition: "/TypeDefinitions/3290784804431442976-TypedefDefinition"
+          Kind: PointerType
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Void
+            IsConst: true
   - Kind: CABIFunctionDefinition
     ID: 17913232940792519997
     Arguments:
       - Index: 0
         Type:
-          Kind: DefinedType
-          Definition: "/TypeDefinitions/9032570991415481170-TypedefDefinition"
+          Kind: PointerType
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Void
       - Index: 1
         Type:
           Kind: PrimitiveType
@@ -66,19 +61,7 @@ TypeDefinitions:
           PrimitiveKind: Unsigned
       - Index: 3
         Type:
-          Kind: DefinedType
-          Definition: "/TypeDefinitions/17163826859945186478-TypedefDefinition"
-  - Kind: TypedefDefinition
-    ID: 9032570991415481170
-    UnderlyingType:
-      Kind: PointerType
-      PointeeType:
-        Kind: PrimitiveType
-        PrimitiveKind: Void
-  - Kind: TypedefDefinition
-    ID: 17163826859945186478
-    UnderlyingType:
-      Kind: PointerType
-      PointeeType:
-        Kind: DefinedType
-        Definition: "/TypeDefinitions/5944255354151483434-CABIFunctionDefinition"
+          Kind: PointerType
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/5944255354151483434-CABIFunctionDefinition"

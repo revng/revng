@@ -25,6 +25,17 @@ definitions:
         doc: The architecture for this binary.
         type: Architecture
 
+      - name: OperatingSystem
+        doc: The operating system for this binary.
+        type: OperatingSystem
+
+      - name: PlatformName
+        doc: |-
+          The name of the platform for this binary (e.g. ubuntu-24-04-x86-64).
+          Used to look up prototypes in the database. If empty, the best
+          platform is elected based on Architecture and OperatingSystem.
+        type: string
+
       - name: EntryPoint
         doc: The program entry point, if any.
         type: MetaAddress
@@ -208,10 +219,6 @@ definitions:
         type: uint64_t
         default: -1
 
-      - name: Type
-        doc: The type of the argument.
-        type: Type
-
       - name: Name
         doc: The name of the argument.
         type: string
@@ -221,6 +228,10 @@ definitions:
           A comment that will be emitted as part of this function's definition
           in the `\param ${NAME} ${COMMENT}` shape.
         type: string
+
+      - name: Type
+        doc: The type of the argument.
+        type: Type
 
   - name: EnumDefinition
     inherits: TypeDefinition
@@ -361,10 +372,6 @@ definitions:
         doc: The register this argument or return value is created for.
         type: Register
 
-      - name: Type
-        doc: The type of this argument or return value.
-        type: Type
-
       - name: Name
         doc: The name for this argument or return value.
         type: string
@@ -372,6 +379,10 @@ definitions:
       - name: Comment
         doc: The comment for this argument or return value.
         type: string
+
+      - name: Type
+        doc: The type of this argument or return value.
+        type: Type
 
   - name: TypedefDefinition
     inherits: TypeDefinition
@@ -657,10 +668,19 @@ definitions:
         doc: The size of the binary (in bytes)
         type: uint64_t
 
-      - name: Name
+      - name: CanonicalPath
         doc: |-
-          The binary's filename at the time when it was imported. This is kept
-          as an heuristic to re-search the file if it is missing.
+          The path of the binary in its "canonical" position (if sensible).
+          For instance, for `sh`, it makes sense to use `/bin/sh`.
+          This enables to lookup debug information and libraries relative to its
+          "canonical" position.
+
+          Moreover, if `Hash` is not enough to obtain the actual content of the
+          binary, this field will be used to perform a fuzzy search in sensible
+          place.
+
+          In case of Windows binaries, use UNIX paths relative to C:\ (e.g., use
+          /Windows for C:\Windows).
         type: string
 
   - name: Segment
@@ -721,6 +741,12 @@ definitions:
           created for this segment.
         type: string
 
+      - name: Type
+        doc: |-
+          The struct type associated to this segment.
+          Informally, each field of such a `struct` is a global variable.
+        type: Type
+
       - name: CanonicalRegisterValues
         doc: |-
           The list of registers that are assumed to have a canonical value set
@@ -736,12 +762,6 @@ definitions:
         sequence:
           type: SortedVector
           elementType: Relocation
-
-      - name: Type
-        doc: |-
-          The struct type associated to this segment.
-          Informally, each field of such a `struct` is a global variable.
-        type: Type
 
   - name: Function
     type: struct
@@ -1078,6 +1098,17 @@ definitions:
       - name: mips
       - name: mipsel
       - name: systemz
+
+  - name: OperatingSystem
+    type: enum
+
+    doc: |-
+      An enum listing all the currently supported operating systems.
+
+    members:
+      - name: Linux
+      - name: Windows
+      - name: MacOS
 
   - name: ABI
     type: enum

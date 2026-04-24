@@ -43,16 +43,16 @@ static cl::opt<std::string> RightModelPath(cl::Positional,
                                            cl::desc("<right input model>"),
                                            cl::value_desc("right model"));
 
-static cl::opt<std::string> OutputFilename("o",
-                                           cl::cat(ThisToolCategory),
-                                           cl::init("-"),
-                                           llvm::cl::desc("Override "
-                                                          "output "
-                                                          "filename"),
-                                           llvm::cl::value_desc("filename"));
+static cl::opt<std::string> OutputPath("o",
+                                       cl::cat(ThisToolCategory),
+                                       cl::init("-"),
+                                       llvm::cl::desc("Override "
+                                                      "output "
+                                                      "filename"),
+                                       llvm::cl::value_desc("filename"));
 
-using DefinitionPair = std::pair<model::DefinitionReference,
-                                 model::DefinitionReference>;
+using DefinitionPair = std::pair<model::TypeDefinitionReference,
+                                 model::TypeDefinitionReference>;
 static std::optional<DefinitionPair>
 ensureIDMatch(const model::TypeDefinition::Key &Left,
               const model::TypeDefinition::Key &Right,
@@ -64,7 +64,8 @@ ensureIDMatch(const model::TypeDefinition::Key &Left,
 
   if (LeftID != RightID) {
     // Find the type
-    model::DefinitionReference OldPath = Model.getDefinitionReference(Right);
+    model::TypeDefinitionReference
+      OldPath = Model.getTypeDefinitionReference(Right);
     auto LeftIterator = Model.TypeDefinitions().find(Left);
     auto RightIterator = Model.TypeDefinitions().find(Right);
 
@@ -91,7 +92,7 @@ ensureIDMatch(const model::TypeDefinition::Key &Left,
 
     // Replace the ID of the moved out type.
     MovedOut->ID() = LeftID;
-    auto NewPath = Model.getDefinitionReference(MovedOut->key());
+    auto NewPath = Model.getTypeDefinitionReference(MovedOut->key());
 
     // Reinsert the type.
     auto &&[_, Success] = Model.TypeDefinitions().insert(std::move(MovedOut));
@@ -115,7 +116,7 @@ int main(int Argc, char *Argv[]) {
   auto RightModel = ExitOnError(Model::fromFile(RightModelPath));
 
   std::error_code EC;
-  llvm::ToolOutputFile OutputFile(OutputFilename,
+  llvm::ToolOutputFile OutputFile(OutputPath,
                                   EC,
                                   llvm::sys::fs::OpenFlags::OF_Text);
   if (EC)
@@ -219,7 +220,8 @@ int main(int Argc, char *Argv[]) {
   // the same IDs. This makes it possible to use simple diff for comparing two
   // models instead of doing that manually, since the ID is the only piece
   // of the types that is allowed to change.
-  std::map<model::DefinitionReference, model::DefinitionReference> Replacements;
+  std::map<model::TypeDefinitionReference, model::TypeDefinitionReference>
+    Replacements;
   for (auto &&[Name, Pair] : Functions) {
     auto &&[LKey, RKey] = Pair;
 
