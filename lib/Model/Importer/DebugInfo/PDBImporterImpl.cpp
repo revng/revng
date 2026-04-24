@@ -510,10 +510,8 @@ PDBImporterImpl::recordType(TypeIndex Index,
     // of the outer wrapper follows from the inner.
   }
 
-  return ProcessedTypes.record(Index,
-                               std::move(Result),
-                               Definition,
-                               IsSizeAvailable)
+  return ProcessedTypes
+    .record(Index, std::move(Result), Definition, IsSizeAvailable)
     .Type;
 }
 
