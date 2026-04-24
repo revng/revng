@@ -635,9 +635,13 @@ void PDBImporterImpl::run() {
 
   populateTypes();
 
+  // Only preregistered entries (Definition != nullptr) need to be size-
+  // available: Modifier/BitField wrappers resolved behind a pointer path
+  // legitimately stay IsSizeAvailable=false, but since they transitively
+  // depend on preregistered definitions, checking those is sufficient.
   bool HasUnresolved = false;
   for (const auto &[Index, Entry] : ProcessedTypes) {
-    if (not Entry.IsSizeAvailable) {
+    if (Entry.Definition != nullptr and not Entry.IsSizeAvailable) {
       if (not HasUnresolved) {
         dbg << "The following TypeDefinitions were not resolved:\n";
         HasUnresolved = true;
