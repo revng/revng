@@ -97,7 +97,10 @@ private:
     if (NeedsSize and not Entry.IsSizeAvailable) {
       // Unfortunately, no LLVM-style RTTI here
       auto &Record = *reinterpret_cast<RecordType *>(TheType);
-      auto *Definition = cast<DefinitionType>(Entry.Type->skipToDefinition());
+      revng_assert(Entry.Definition != nullptr,
+                   "handle<RecordType, DefinitionType> requires a "
+                   "pre-registered TypeDefinition");
+      auto *Definition = cast<DefinitionType>(Entry.Definition);
 
       // Flip size-available up front so that if processDefinition transitively
       // reaches us via a non-pointer edge, the recursion check triggers

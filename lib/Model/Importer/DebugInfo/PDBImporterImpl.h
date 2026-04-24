@@ -78,6 +78,14 @@ public:
   struct Entry {
     model::UpcastableType Type;
 
+    /// The TypeDefinition that was pre-registered for this TypeIndex, if any.
+    ///
+    /// This is the definition processDefinition should populate. It is not
+    /// necessarily the same as Type->skipToDefinition(): when recordType wraps
+    /// Type in an outer UDT typedef, skipToDefinition returns the wrapper, not
+    /// the inner definition preregisterTypeDefinition created.
+    model::TypeDefinition *Definition = nullptr;
+
     /// True if and only if calling size() on Type is guaranteed to succeed.
     bool IsSizeAvailable = false;
   };
@@ -107,11 +115,14 @@ public:
   auto end() const { return Map.end(); }
 
 public:
-  Entry &
-  record(TypeIndex Index, model::UpcastableType &&Type, bool SizeAvailable) {
-    auto [It,
-          Inserted] = Map.insert({ Index,
-                                   Entry{ std::move(Type), SizeAvailable } });
+  Entry &record(TypeIndex Index,
+                model::UpcastableType &&Type,
+                model::TypeDefinition *Definition,
+                bool SizeAvailable) {
+    auto [It, Inserted] = Map.insert({ Index,
+                                       Entry{ std::move(Type),
+                                              Definition,
+                                              SizeAvailable } });
     revng_assert(Inserted);
     return It->second;
   }
@@ -202,7 +213,10 @@ public:
   std::pair<T &, const model::UpcastableType &>
   registerTypeDefinition(TypeIndex TypeIndex) {
     auto [Definition, Type] = Model->makeTypeDefinition<T>();
-    const auto &CachedType = recordType(TypeIndex, std::move(Type), false);
+    const auto &CachedType = recordType(TypeIndex,
+                                        std::move(Type),
+                                        &Definition,
+                                        false);
     return { Definition, CachedType };
   }
 
@@ -212,6 +226,13 @@ public:
 
   const model::UpcastableType &recordType(TypeIndex Index,
                                           model::UpcastableType &&Result,
+                                          bool SizeAvailable) {
+    return recordType(Index, std::move(Result), nullptr, SizeAvailable);
+  }
+
+  const model::UpcastableType &recordType(TypeIndex Index,
+                                          model::UpcastableType &&Result,
+                                          model::TypeDefinition *Definition,
                                           bool SizeAvailable);
 
   ProcessedTypeMap::Entry *tryGetEntry(TypeIndex Index) {

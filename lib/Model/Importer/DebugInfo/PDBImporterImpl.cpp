@@ -461,6 +461,7 @@ public:
 const model::UpcastableType &
 PDBImporterImpl::recordType(TypeIndex Index,
                             model::UpcastableType &&Result,
+                            model::TypeDefinition *Definition,
                             bool IsSizeAvailable) {
   using namespace llvm;
   using namespace model;
@@ -509,7 +510,11 @@ PDBImporterImpl::recordType(TypeIndex Index,
     // of the outer wrapper follows from the inner.
   }
 
-  return ProcessedTypes.record(Index, std::move(Result), IsSizeAvailable).Type;
+  return ProcessedTypes.record(Index,
+                               std::move(Result),
+                               Definition,
+                               IsSizeAvailable)
+    .Type;
 }
 
 template<typename T>
