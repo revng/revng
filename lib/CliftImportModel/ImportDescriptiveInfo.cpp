@@ -520,7 +520,7 @@ private:
         auto RegisterLocation = "";
 
         clift::CAttributeListBuilder Attributes{
-          *Op.getContext(),
+          Op.getContext(),
           Attrs.get(I, "clift.c_attributes"),
         };
         Attributes.setOrUpdate<"_REG">(RegisterName, RegisterLocation);
@@ -537,7 +537,7 @@ private:
         Attrs.setString(I, "clift.name", Name);
 
         clift::CAttributeListBuilder Attributes{
-          *Op.getContext(),
+          Op.getContext(),
           Attrs.get(I, "clift.c_attributes"),
         };
         Attributes.setOrUpdate<"_STACK">();

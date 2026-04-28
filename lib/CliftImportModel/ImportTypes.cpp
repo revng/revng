@@ -59,11 +59,11 @@ class CliftConverter {
   };
 
 public:
-  explicit CliftConverter(mlir::MLIRContext &Context,
+  explicit CliftConverter(mlir::MLIRContext *Context,
                           const model::Binary &Binary,
                           llvm::function_ref<mlir::InFlightDiagnostic()>
                             EmitError) :
-    Context(&Context), EmitError(EmitError) {}
+    Context(Context), EmitError(EmitError) {}
 
   CliftConverter(const CliftConverter &) = delete;
   CliftConverter &operator=(const CliftConverter &) = delete;
@@ -169,7 +169,7 @@ private:
     // TODO: consider using a dedicated `/abi/$architecture/$name` location.
     auto ABILocation = "";
 
-    clift::CAttributeListBuilder Attributes(*Context);
+    clift::CAttributeListBuilder Attributes(Context);
     Attributes.setOrUpdate<"_ABI">(ABIName, ABILocation);
 
     auto Handle = getHandle(ModelType);
@@ -342,7 +342,7 @@ private:
     // TODO: consider using a dedicated `/raw-abi/$architecture` location.
     auto ABILocation = "";
 
-    clift::CAttributeListBuilder Attributes(*Context);
+    clift::CAttributeListBuilder Attributes(Context);
     Attributes.setOrUpdate<"_ABI">(ABIName, ABILocation);
 
     auto Handle = getHandle(ModelType);
@@ -402,7 +402,7 @@ private:
       Fields.push_back(Attr);
     }
 
-    clift::CAttributeListBuilder Attributes(*Context);
+    clift::CAttributeListBuilder Attributes(Context);
 
     if (ModelType.CanContainCode())
       Attributes.setOrUpdate<"_CAN_CONTAIN_CODE">();
@@ -654,7 +654,7 @@ private:
 
 mlir::Type
 clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                  mlir::MLIRContext &Context,
+                  mlir::MLIRContext *Context,
                   const model::TypeDefinition &ModelType,
                   const model::Binary &Binary) {
   return CliftConverter(Context, Binary, EmitError)
@@ -663,7 +663,7 @@ clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
 
 mlir::Type
 clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                  mlir::MLIRContext &Context,
+                  mlir::MLIRContext *Context,
                   const model::Type &ModelType,
                   const model::Binary &Binary) {
   return CliftConverter(Context, Binary, EmitError).convertType(ModelType);
@@ -686,7 +686,6 @@ clift::importFunctionDeclaration(mlir::ModuleOp Module,
                                                   Prototype);
   Result.setHandle(Handle);
 
-  mlir::MLIRContext *Context = Module.getContext();
   for (model::FunctionAttribute::Values Attribute : Attributes) {
     switch (Attribute) {
     case model::FunctionAttribute::NoReturn:
@@ -702,7 +701,8 @@ clift::importFunctionDeclaration(mlir::ModuleOp Module,
     }
   }
 
-  Result->setAttr("clift.c_attributes", mlir::ArrayAttr::get(Context, {}));
+  Result->setAttr("clift.c_attributes",
+                  mlir::ArrayAttr::get(Module.getContext(), {}));
 
   return Result;
 }
@@ -735,7 +735,7 @@ void clift::importAllModelTypes(const model::Binary &Model,
 
   llvm::SmallVector<mlir::Attribute> TypeAttrs;
   for (const auto &ModelType : Model.TypeDefinitions()) {
-    auto CliftType = clift::importType(EmitError, *Context, *ModelType, Model);
+    auto CliftType = clift::importType(EmitError, Context, *ModelType, Model);
     TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
   }
 

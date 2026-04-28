@@ -50,7 +50,7 @@ public:
   }
 
 private:
-  void emitTypeGraph(mlir::MLIRContext &Context,
+  void emitTypeGraph(mlir::MLIRContext *Context,
                      const TypeDependencyGraph &Graph,
                      TypeDefinitionEmitter &Emitter) {
     // In order to improve the printing order, do the visit it in two parts:
@@ -71,13 +71,13 @@ public:
                  TypeEmitterConfiguration Configuration) {
     TypeDefinitionEmitter Emitter(Tokens,
                                   Target,
-                                  *Module.getContext(),
+                                  Module.getContext(),
                                   Configuration);
 
     auto Graph = TypeDependencyGraph::makeModelGraph(Module);
     if (not Graph.empty()) {
       Emitter.emitCategoryComment("Types");
-      emitTypeGraph(*Module.getContext(), Graph, Emitter);
+      emitTypeGraph(Module.getContext(), Graph, Emitter);
       Tokens.emitNewline();
     }
   }
@@ -156,7 +156,7 @@ public:
 
     TypeDefinitionEmitter Emitter(Tokens,
                                   Target,
-                                  *Modules.front().getContext(),
+                                  Modules.front().getContext(),
                                   TypeEmitterConfiguration{
                                     .TypeToOmit = {},
                                     .EmitMaximumEnumValue = false,
@@ -170,7 +170,7 @@ public:
       Emitter.emitCategoryComment("Types");
 
       revng_assert(!Modules.empty());
-      emitTypeGraph(*Modules.front().getContext(), Graph, Emitter);
+      emitTypeGraph(Modules.front().getContext(), Graph, Emitter);
     }
 
     bool CommentEmitted = false;

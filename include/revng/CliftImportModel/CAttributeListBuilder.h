@@ -55,21 +55,21 @@ private:
   llvm::SmallVector<clift::CAttributeAttr> Result;
 
 public:
-  CAttributeListBuilder(mlir::MLIRContext &Context,
+  CAttributeListBuilder(mlir::MLIRContext *Context,
                         CAttributeArray ExistingAttributes = {}) :
-    Context(&Context),
+    Context(Context),
     Result(ExistingAttributes.begin(), ExistingAttributes.end()) {}
 
-  CAttributeListBuilder(mlir::MLIRContext &Context,
+  CAttributeListBuilder(mlir::MLIRContext *Context,
                         mlir::ArrayAttr CAttributes) :
-    Context(&Context), Result{} {
+    Context(Context), Result{} {
 
     if (CAttributes != nullptr)
       for (auto Attribute : CAttributes)
         Result.emplace_back(mlir::cast<clift::CAttributeAttr>(Attribute));
   }
 
-  CAttributeListBuilder(mlir::MLIRContext &Context,
+  CAttributeListBuilder(mlir::MLIRContext *Context,
                         mlir::Attribute CAttributes) :
     CAttributeListBuilder(Context,
                           CAttributes ?

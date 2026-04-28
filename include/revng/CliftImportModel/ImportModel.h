@@ -20,7 +20,7 @@ namespace clift {
 ///
 /// \return The corresponding Clift type, or null on failure.
 mlir::Type importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                      mlir::MLIRContext &Context,
+                      mlir::MLIRContext *Context,
                       const model::TypeDefinition &ModelType,
                       const model::Binary &Binary);
 
@@ -29,7 +29,7 @@ mlir::Type importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
 ///
 /// \return The corresponding Clift type, or null on failure.
 mlir::Type importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                      mlir::MLIRContext &Context,
+                      mlir::MLIRContext *Context,
                       const model::Type &ModelType,
                       const model::Binary &Binary);
 

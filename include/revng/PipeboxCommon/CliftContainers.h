@@ -88,8 +88,7 @@ public:
   }
 
 public:
-  mlir::MLIRContext &getContext() { return *Context; }
-  const mlir::MLIRContext &getContext() const { return *Context; }
+  mlir::MLIRContext *getContext() { return &*Context; }
 
   const mlir::ModuleOp getModule(const ObjectID &ID) const {
     return *Modules.at(ID);
@@ -174,8 +173,7 @@ public:
   }
 
 public:
-  mlir::MLIRContext &getContext() { return *Context; }
-  const mlir::MLIRContext &getContext() const { return *Context; }
+  mlir::MLIRContext *getContext() { return &*Context; }
 
   const mlir::ModuleOp getModule(const ObjectID &ID) const {
     return *Modules.at(ID);
@@ -267,8 +265,7 @@ public:
   }
 
 public:
-  mlir::MLIRContext &getContext() { return *Context; }
-  const mlir::MLIRContext &getContext() const { return *Context; }
+  mlir::MLIRContext *getContext() { return &*Context; }
 
   const mlir::ModuleOp getModule() const { return Module.get(); }
   mlir::ModuleOp getModule() { return Module.get(); }

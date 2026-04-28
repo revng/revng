@@ -375,7 +375,7 @@ bool CEmitter::isValidCAttributeArray(mlir::ArrayAttr ArrayAttr) {
 }
 
 mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
-  CAttributeListBuilder Builder(*Op->getContext(),
+  CAttributeListBuilder Builder(Op->getContext(),
                                 Op->getAttr("clift.c_attributes"));
 
   if (auto Function = mlir::dyn_cast<FunctionOp>(Op)) {

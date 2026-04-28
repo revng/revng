@@ -206,7 +206,7 @@ private:
       return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
                                            mlir::DiagnosticSeverity::Error);
     };
-    return clift::importType(EmitError, *Context, Type, Model);
+    return clift::importType(EmitError, Context, Type, Model);
   }
 
   mlir::Type importType(const model::TypeDefinition &Type) {
@@ -214,7 +214,7 @@ private:
       return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
                                            mlir::DiagnosticSeverity::Error);
     };
-    return clift::importType(EmitError, *Context, Type, Model);
+    return clift::importType(EmitError, Context, Type, Model);
   }
 
   template<typename TypeT, typename ModelTypeT>

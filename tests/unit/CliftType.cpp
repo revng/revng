@@ -17,13 +17,13 @@ static auto withContext(CallableType Callable) {
                                         mlir::DiagnosticSeverity::Remark);
   };
 
-  return Callable(EmitError, Context);
+  return Callable(EmitError, &Context);
 }
 
 static bool verify(const model::TypeDefinition &ModelType,
                    const model::Binary &Binary,
                    const bool Assert) {
-  return withContext([&](const auto EmitError, mlir::MLIRContext &Context) {
+  return withContext([&](const auto EmitError, mlir::MLIRContext *Context) {
     return static_cast<bool>(clift::importType(EmitError,
                                                Context,
                                                ModelType,
@@ -33,7 +33,7 @@ static bool verify(const model::TypeDefinition &ModelType,
 
 static bool
 verify(const model::Type &ModelType, const model::Binary &Binary, bool Assert) {
-  return withContext([&](const auto EmitError, mlir::MLIRContext &Context) {
+  return withContext([&](const auto EmitError, mlir::MLIRContext *Context) {
     return static_cast<bool>(clift::importType(EmitError,
                                                Context,
                                                ModelType,
