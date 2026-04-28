@@ -2,8 +2,6 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-import os
-
 import click
 
 import revng.pypeline.daemon.app as app
@@ -18,10 +16,6 @@ from revng.pypeline.daemon.daemon import Daemon
 @pass_context
 def run_daemon(ctx: ClickContext, production: bool):
     """Start the HTTP daemon."""
-
-    if not production:
-        os.environ["REVNG_ORIGINS"] = "*"
-
     daemon = Daemon(
         pipeline=ctx.obj.pipeline,
         storage_provider_url=ctx.obj.storage_provider_url,
@@ -34,7 +28,7 @@ def run_daemon(ctx: ClickContext, production: bool):
         app.shutdown_begun.set()
 
     return run_hypercorn(
-        lambda: app.make_starlette(daemon),
+        lambda: app.make_starlette(production, daemon),
         ctx.obj.hypercorn_configuration,
         on_shutdown,
     )

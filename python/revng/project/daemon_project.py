@@ -23,9 +23,14 @@ class DaemonProject(Project):
     the revng daemon via HTTP.
     """
 
-    def __init__(self, url: str):
+    def __init__(self, url: str, project_id: str | None = None, token: str | None = None):
         self._base_url = urlparse(url)
         self._session = requests.Session()
+        if project_id is not None:
+            self._session.headers["x-project-id"] = project_id
+        if token is not None:
+            self._session.headers["authorization"] = f"Bearer {token}"
+
         self._session.hooks["response"].append(self._response_hook)
 
         # The constructor calls `_get_pipeline_description`, so we need to

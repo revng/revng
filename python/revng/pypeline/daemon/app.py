@@ -3,15 +3,11 @@
 #
 
 import asyncio
-import os
 from contextlib import asynccontextmanager
 from functools import wraps
 
 from starlette.applications import Starlette
 from starlette.datastructures import UploadFile
-from starlette.middleware import Middleware
-from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.responses import Response as StarletteResponse
@@ -21,7 +17,8 @@ from revng.pypeline.storage.notification_queue import LOCAL_QUEUE
 from revng.pypeline.storage.storage_provider import ProjectID
 from revng.pypeline.utils import PypelineException
 from revng.pypeline.utils.notification_broker import NotificationBroker
-from revng.pypeline.utils.starlette import NotificationWebsocket, get_project_id
+from revng.pypeline.utils.starlette import NotificationWebsocket, get_middlewares, get_project_id
+from revng.pypeline.utils.starlette import get_token
 
 from .daemon import Daemon, Response
 from .exceptions import DaemonException, MalformedRequestError
@@ -59,12 +56,11 @@ def prepare_endpoint(func):
 
     @wraps(func)
     async def wrapper(request: Request) -> StarletteResponse:
-        project_id = get_project_id(request.headers)
         # Prepare the data dictionary with the common attributes we extract
         # from the headers
         data = {
-            "project_id": project_id,
-            # TODO add auth token forwarding
+            "project_id": get_project_id(request.headers),
+            "token": get_token(request.headers),
         }
         response: Response = await func(request, data)
         # Convert the daemon response based on the body type:
@@ -90,7 +86,7 @@ def prepare_endpoint(func):
     return wrapper
 
 
-def make_starlette(daemon: Daemon) -> Starlette:
+def make_starlette(production: bool, daemon: Daemon) -> Starlette:
     # This doesn't use `prepare_endpoint` as it doesn't need the project_id nor token
     async def pipeline_endpoint(request: Request) -> JSONResponse:
         """Get pipeline information"""
@@ -162,14 +158,6 @@ def make_starlette(daemon: Daemon) -> Starlette:
         ws_notifications = NotificationWebsocket(notification_broker, lambda: shutdown_begun)
         routes.append(WebSocketRoute("/api/notifications", ws_notifications.endpoint))
 
-    origins: list[str] = []
-    if "REVNG_ORIGINS" in os.environ:
-        origins = os.environ["REVNG_ORIGINS"].split(",")
-
-    expose_headers: list[str] = ["x-pypeline-configuration-hash"]
-    if "REVNG_EXPOSE_HEADERS" in os.environ:
-        expose_headers.extend(os.environ["REVNG_EXPOSE_HEADERS"].split(","))
-
     @asynccontextmanager
     async def lifespan(app):
         global shutdown_begun
@@ -178,21 +166,16 @@ def make_starlette(daemon: Daemon) -> Starlette:
 
     # Create the Starlette application
     return Starlette(
-        debug=False,
+        debug=not production,
         routes=routes,
         exception_handlers={
             DaemonException: daemon_exception_handler,
             PypelineException: pypeline_exception_handler,
         },
-        middleware=[
-            Middleware(  # type: ignore
-                CORSMiddleware,  # type: ignore
-                allow_origins=origins,
-                expose_headers=expose_headers,
-                allow_methods=["*"],
-                allow_headers=["*"],
-            ),
-            Middleware(GZipMiddleware, minimum_size=1024),  # type: ignore
-        ],
+        middleware=get_middlewares(
+            production,
+            extra_expose_headers={"x-pypeline-configuration-hash"},
+            unauthenticated_paths={"/api/websocket-url"},
+        ),
         lifespan=lifespan,
     )
