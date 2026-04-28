@@ -147,7 +147,7 @@ public:
   }
 
 public:
-  void emitHelpers(llvm::MutableArrayRef<mlir::ModuleOp> Modules) {
+  void emitHelpers(llvm::ArrayRef<mlir::ModuleOp> Modules) {
     revng_check(not Modules.empty());
 
     TypeDefinitionEmitter Emitter(Tokens,
@@ -218,7 +218,7 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
                       const TargetCImplementation &Target,
-                      llvm::MutableArrayRef<mlir::ModuleOp> Modules) {
+                      llvm::ArrayRef<mlir::ModuleOp> Modules) {
   CHeaderEmitterImpl Emitter(Tokens, Target);
 
   Emitter.emitHeaderPrologue();

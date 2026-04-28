@@ -16,4 +16,4 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
                       const TargetCImplementation &Target,
-                      llvm::MutableArrayRef<mlir::ModuleOp> Modules);
+                      llvm::ArrayRef<mlir::ModuleOp> Modules);
