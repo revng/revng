@@ -146,36 +146,34 @@ void TypeDefinitionEmitter::emitPaddingField(clift::ClassType Class,
   Tokens.emitNewline();
 }
 
-void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType
-                                                  StructOrUnion) {
+void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
   {
     auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
-                                StructOrUnion.getHandle());
+                                Class.getHandle());
 
-    emitDoxygenComment(StructOrUnion);
-    emitTypeKeyword(StructOrUnion);
+    emitDoxygenComment(Class);
+    emitTypeKeyword(Class);
 
-    clift::CAttributeListBuilder AttributeBuilder{
-      StructOrUnion.getContext(), StructOrUnion.getCAttributes()
-    };
+    clift::CAttributeListBuilder AttributeBuilder{ Class.getContext(),
+                                                   Class.getCAttributes() };
     AttributeBuilder.setOrUpdate<"_PACKED">();
 
-    if (auto S = mlir::dyn_cast<clift::StructType>(StructOrUnion))
+    if (auto S = mlir::dyn_cast<clift::StructType>(Class))
       AttributeBuilder.setOrUpdate<"_SIZE">(S.getSize());
 
     emitCAttributes(AttributeBuilder.getRaw(),
                     /* SpaceBefore = */ true,
                     /* SpaceAfter = */ true);
 
-    Tokens.emitIdentifier(StructOrUnion.getName(),
-                          StructOrUnion.getHandle(),
-                          chooseEntityKind(StructOrUnion),
+    Tokens.emitIdentifier(Class.getName(),
+                          Class.getHandle(),
+                          chooseEntityKind(Class),
                           ptml::CTokenEmitter::IdentifierKind::Definition);
     Tokens.emitSpace();
   }
 
   {
-    bool IsStruct = mlir::isa<clift::StructType>(StructOrUnion);
+    bool IsStruct = mlir::isa<clift::StructType>(Class);
 
     using ScopeKind = ptml::CTokenEmitter::ScopeKind;
     auto Scope = Tokens.enterScope(IsStruct ? ScopeKind::StructDefinition :
@@ -184,9 +182,9 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType
     Tokens.emitNewline();
 
     uint64_t PreviousOffset = 0;
-    for (const auto &Field : StructOrUnion.getFields()) {
+    for (const auto &Field : Class.getFields()) {
       if (IsStruct and Configuration.ExplicitPadding)
-        emitPaddingField(StructOrUnion, PreviousOffset, Field.getOffset());
+        emitPaddingField(Class, PreviousOffset, Field.getOffset());
 
       auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Field.getHandle());
@@ -212,8 +210,7 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType
         if (not UnconfiguredNB.isAutomaticName(FakeStruct,
                                                FakeField,
                                                Field.getName())) {
-          emitCAttributes(clift::CAttributeListBuilder(StructOrUnion
-                                                         .getContext())
+          emitCAttributes(clift::CAttributeListBuilder(Class.getContext())
                             .setOrUpdate<"_STARTS_AT">(Field.getOffset())
                             .getRaw(),
                           /* SpaceBefore = */ true,
@@ -321,8 +318,8 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
 }
 
 void TypeDefinitionEmitter::emitTypeDefinition(clift::DefinedType Type) {
-  if (auto StructOrUnion = mlir::dyn_cast<clift::ClassType>(Type)) {
-    emitClassDefinition(StructOrUnion);
+  if (auto Class = mlir::dyn_cast<clift::ClassType>(Type)) {
+    emitClassDefinition(Class);
     return;
 
   } else if (not isSeparateDeclarationAllowed(Type)) {
