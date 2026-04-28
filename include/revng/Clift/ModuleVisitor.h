@@ -34,6 +34,9 @@ namespace clift {
 ///   // Invoked for each module level operation nested directly within the
 ///   // module operation.
 ///   mlir::LogicalResult visitModuleLevelOp(mlir::Operation* Op);
+///
+///   // Invoked for the root module operation.
+///   mlir::LogicalResult visitModuleOp(mlir::ModuleOp Op);
 /// };
 template<typename VisitorT>
 class ModuleVisitor {
@@ -202,6 +205,11 @@ private:
 
     if (internalVisitOp(Module.getOperation()).failed())
       return mlir::failure();
+
+    if constexpr (requires { getVisitor().visitModuleOp(Module); }) {
+      if (getVisitor().visitModuleOp(Module).failed())
+        return mlir::failure();
+    }
 
     for (mlir::Block &Block : Module.getRegion().getBlocks()) {
       for (mlir::Operation &Op : Block) {
