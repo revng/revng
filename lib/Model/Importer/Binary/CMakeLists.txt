@@ -13,5 +13,5 @@ revng_add_analyses_library_internal(
   ImportBinaryAnalysis.cpp)
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES Object)
-target_link_libraries(revngModelImporterBinary revngModel
+target_link_libraries(revngModelImporterBinary revngModel revngModelImporter
                       revngModelImporterDebugInfo revngABI ${LLVM_LIBRARIES})

@@ -59,6 +59,23 @@ struct LibraryInfo {
   std::string Header;
 };
 
+// model::Function is queried by its ExportedNames (its dynamic-symbol names).
+// Name is a local identifier and is never used as a lookup key.
+inline llvm::SmallVector<llvm::StringRef, 4>
+lookupNames(const model::Function &Function) {
+  llvm::SmallVector<llvm::StringRef, 4> Names;
+  for (const auto &Name : Function.ExportedNames())
+    Names.emplace_back(Name);
+  return Names;
+}
+
+inline llvm::SmallVector<llvm::StringRef, 4>
+lookupNames(const model::DynamicFunction &Function) {
+  if (Function.Name().empty())
+    return {};
+  return { llvm::StringRef(Function.Name()) };
+}
+
 class PrototypeDatabase {
   sqlite::Database Database;
 
