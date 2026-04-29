@@ -1,0 +1,25 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# NonExistentFunction should have no prototype
+CHECK:       - Name:{{.*}}NonExistentFunction
+CHECK-NOT:     Prototype:
+
+# Verify that typed symbols get prototypes imported
+CHECK:       - Name:{{.*}}calloc
+CHECK-NEXT:    Prototype:
+CHECK-NEXT:      Kind:{{.*}}DefinedType
+
+CHECK:       - Name:{{.*}}malloc
+CHECK-NEXT:    Prototype:
+CHECK-NEXT:      Kind:{{.*}}DefinedType
+
+CHECK:       - Name:{{.*}}realloc
+CHECK-NEXT:    Prototype:
+CHECK-NEXT:      Kind:{{.*}}DefinedType
+
+CHECK:       TypeDefinitions:
+
+# Verify that type definitions were imported
+CHECK:       Kind:{{.*}}CABIFunctionDefinition

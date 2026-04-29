@@ -10,6 +10,7 @@ sources:
     prefix: share/revng/test/tests/import-prototypes-from-db
     members:
       - windows-x86-64.yml
+      - linux-x86-64.yml
       - arch-mismatch.yml
       - platform-name.yml
 
