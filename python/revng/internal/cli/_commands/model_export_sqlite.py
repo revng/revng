@@ -218,7 +218,15 @@ class ModelExportSqliteCommand(Command):
         parser.add_argument(
             "--library",
             default=None,
-            help="Override library name (default: filename stem)",
+            help="Override library name (default: filename stem, "
+            "or path relative to --prefix with .yml stripped)",
+        )
+        parser.add_argument(
+            "--prefix",
+            default=None,
+            help="When set, library name defaults to the path of the YAML "
+            "relative to this prefix, with the .yml suffix stripped. "
+            "Ignored if --library is also set.",
         )
         parser.add_argument(
             "models",
@@ -234,10 +242,16 @@ class ModelExportSqliteCommand(Command):
         connection.execute("PRAGMA synchronous=NORMAL")
         create_schema(connection)
 
+        prefix = Path(args.prefix).resolve() if args.prefix is not None else None
+
         for model_path in args.models:
             path = Path(model_path)
             log(f"Importing {path.name}...")
-            import_model(connection, path, args.platform, args.operating_system, args.library)
+            library_name = args.library
+            if library_name is None and prefix is not None:
+                relative = path.resolve().relative_to(prefix)
+                library_name = relative.with_suffix("").as_posix()
+            import_model(connection, path, args.platform, args.operating_system, library_name)
 
         connection.commit()
         connection.close()
