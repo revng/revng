@@ -174,21 +174,36 @@ def import_model(
                     (original_id_to_database_id[reference_id], database_id),
                 )
 
-    for function in model.get("ImportedDynamicFunctions", []):
-        type_definition_database_id = None
+    def resolve_prototype_id(function: dict) -> int | None:
         prototype = function.get("Prototype")
-        if prototype and prototype.get("Kind") == "DefinedType":
-            match = TYPE_DEFINITION_REFERENCE_PATTERN.search(prototype.get("Definition", ""))
-            if match:
-                type_definition_database_id = original_id_to_database_id.get(int(match.group(1)))
-        connection.execute(
-            "INSERT INTO Symbol (LibraryID, Name, Kind, TypeDefinitionID) " "VALUES (?, ?, ?, ?)",
+        if not prototype or prototype.get("Kind") != "DefinedType":
+            return None
+        match = TYPE_DEFINITION_REFERENCE_PATTERN.search(prototype.get("Definition", ""))
+        if not match:
+            return None
+        return original_id_to_database_id.get(int(match.group(1)))
+
+    symbol_rows: list[tuple[int, str, str, int | None]] = []
+
+    for function in model.get("ImportedDynamicFunctions", []):
+        symbol_rows.append(
             (
                 library_id,
                 function["Name"],
                 "ImportedDynamicFunction",
-                type_definition_database_id,
-            ),
+                resolve_prototype_id(function),
+            )
+        )
+
+    for function in model.get("Functions", []):
+        type_definition_database_id = resolve_prototype_id(function)
+        for name in function.get("ExportedNames") or []:
+            symbol_rows.append((library_id, name, "Function", type_definition_database_id))
+
+    if symbol_rows:
+        connection.executemany(
+            "INSERT INTO Symbol (LibraryID, Name, Kind, TypeDefinitionID) VALUES (?, ?, ?, ?)",
+            symbol_rows,
         )
 
 
