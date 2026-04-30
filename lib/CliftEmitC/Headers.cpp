@@ -241,6 +241,15 @@ void emitCommonIncludes(ptml::CTokenEmitter &Tokens,
   Emitter.emitCommonIncludes();
 }
 
+void emitTypes(ptml::CTokenEmitter &Tokens,
+               mlir::ModuleOp Module,
+               TypeEmitterConfiguration Configuration) {
+  CHeaderEmitterImpl Emitter(Tokens,
+                             clift::getDataModel(Module),
+                             Configuration);
+  Emitter.emitTypes(Module);
+}
+
 void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
                              mlir::ModuleOp Module,
                              TypeEmitterConfiguration Configuration,

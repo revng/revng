@@ -13,6 +13,10 @@
 void emitCommonIncludes(ptml::CTokenEmitter &Tokens,
                         const CDataModel &DataModel);
 
+void emitTypes(ptml::CTokenEmitter &Tokens,
+               mlir::ModuleOp Module,
+               TypeEmitterConfiguration Configuration);
+
 void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
                              mlir::ModuleOp Module,
                              TypeEmitterConfiguration Configuration,
