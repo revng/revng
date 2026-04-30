@@ -10,6 +10,9 @@
 #include "revng/CliftEmitC/Configuration.h"
 #include "revng/PTML/CTokenEmitter.h"
 
+void emitCommonIncludes(ptml::CTokenEmitter &Tokens,
+                        const CDataModel &DataModel);
+
 void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
                              mlir::ModuleOp Module,
                              TypeEmitterConfiguration Configuration,

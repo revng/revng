@@ -235,6 +235,12 @@ public:
   }
 };
 
+void emitCommonIncludes(ptml::CTokenEmitter &Tokens,
+                        const CDataModel &DataModel) {
+  CHeaderEmitterImpl Emitter(Tokens, DataModel, TypeEmitterConfiguration{});
+  Emitter.emitCommonIncludes();
+}
+
 void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
                              mlir::ModuleOp Module,
                              TypeEmitterConfiguration Configuration,
