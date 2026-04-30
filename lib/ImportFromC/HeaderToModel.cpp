@@ -553,6 +553,9 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
       // TODO: we shouldn't write generated names into the model.
       NewArgument.Name() = FD->getParamDecl(I)->getName();
 
+      // TODO: This discard whatever comments might have been attached to
+      //       the original argument.
+
       NewArgument.Type() = std::move(ParamType);
       ++Index;
     }
@@ -699,6 +702,9 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         ParamReg.Type() = std::move(ParamType);
         if (not ParamDecl->getName().empty())
           ParamReg.Name() = ParamDecl->getName();
+
+        // TODO: This discard whatever comments might have been attached to
+        //       the original register.
       }
     }
   }
@@ -716,6 +722,9 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
   // TODO: we shouldn't write generated names into the model.
   ModelFunction.Name() = FD->getName();
+
+  // TODO: This discard whatever comments might have been attached to
+  //       the original function.
 
   // TODO: remember/clone StackFrameType as well.
 
@@ -775,6 +784,9 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
 
   // TODO: we shouldn't write generated names into the model.
   TheTypeTypeDef->Name() = D->getName();
+
+  // TODO: This discard whatever comments might have been attached to
+  //       the original type.
 
   if (AnalysisOption == ImportFromCOption::EditType) {
     revng_assert(*Type == NewTypedef->key());
@@ -882,6 +894,9 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
 
   // TODO: we shouldn't write generated names into the model.
   NewType->Name() = RD->getName();
+
+  // TODO: This discard whatever comments might have been attached to
+  //       the original type.
 
   auto *Struct = cast<model::StructDefinition>(NewType.get());
   uint64_t CurrentOffset = 0;
@@ -991,6 +1006,9 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
       // TODO: we shouldn't write generated names into the model.
       FieldModelType.Name() = Field->getName();
 
+      // TODO: This discard whatever comments might have been attached to
+      //       the original field.
+
       FieldModelType.Type() = std::move(ModelField);
     } else {
       // Do not create fields for padding
@@ -1056,6 +1074,9 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
   // TODO: we shouldn't write generated names into the model.
   NewType->Name() = RD->getName();
 
+  // TODO: This discard whatever comments might have been attached to
+  //       the original type.
+
   auto Union = cast<model::UnionDefinition>(NewType.get());
 
   uint64_t CurrentIndex = 0;
@@ -1082,6 +1103,9 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
 
     // TODO: we shouldn't write generated names into the model.
     FieldModelType.Name() = Field->getName();
+
+    // TODO: This discard whatever comments might have been attached to
+    //       the original field.
 
     FieldModelType.Type() = std::move(TheFieldType);
 
@@ -1190,10 +1214,16 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   // TODO: we shouldn't write generated names into the model.
   NewType->Name() = Definition->getName();
 
+  // TODO: This discard whatever comments might have been attached to
+  //       the original type.
+
   for (const auto *Enum : Definition->enumerators()) {
     auto Value = Enum->getInitVal().getExtValue();
     auto NewIterator = NewType->Entries().insert(Value).first;
     NewIterator->Name() = Enum->getName().str();
+
+    // TODO: This discard whatever comments might have been attached to
+    //       the original entry.
   }
 
   return true;
