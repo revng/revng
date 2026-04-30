@@ -97,7 +97,7 @@ class ClifterImpl final : public Clifter {
   mlir::Type VoidPointerTypeCache;
   mlir::Type IntptrTypeCache;
 
-  /* Per-module mappings - persisted between imported functions */
+  //===---- Per-module mappings - persisted between imported functions ----===//
 
   // Maps LLVM object to a Clift global op. Each used global object is only
   // emitted once and hence forth the operation stored in this table is used.
@@ -127,7 +127,7 @@ public:
   }
 
 private:
-  /* Debug info */
+  //===---------------------------- Debug info ----------------------------===//
 
   mlir::Location getLocation(const llvm::DISubprogram *Subprogram) {
     if (Subprogram == nullptr)
@@ -153,7 +153,7 @@ private:
     return getLocation(I->getDebugLoc());
   }
 
-  /* Type utilities */
+  //===-------------------------- Type utilities --------------------------===//
 
   static uint64_t getIntegerSize(unsigned IntegerWidth) {
     if (IntegerWidth == 1)
@@ -199,7 +199,7 @@ private:
     return Model.makeType(Model.defaultPrototype()->key());
   }
 
-  /* Model type import */
+  //===------------------------- Model type import ------------------------===//
 
   mlir::Type importType(const model::Type &Type) {
     auto EmitError = [&]() -> mlir::InFlightDiagnostic {
@@ -222,7 +222,7 @@ private:
     return mlir::cast<TypeT>(importType(Type));
   }
 
-  /* LLVM type import */
+  //===------------------------- LLVM type import -------------------------===//
 
   IntegerType importLLVMIntegerType(const llvm::IntegerType *Type,
                                     IntegerKind Kind = IntegerKind::Generic) {
@@ -255,7 +255,7 @@ private:
     revng_abort("Unsupported LLVM type");
   }
 
-  /* LLVM global import */
+  //===------------------------ LLVM global import ------------------------===//
 
   uint64_t getConstantInt(const llvm::Value *Value) {
     return llvm::cast<llvm::ConstantInt>(Value)->getZExtValue();
@@ -689,7 +689,7 @@ private:
     return abi::FunctionType::Layout::make(*Clifter.getPrototype(Model));
   }
 
-  /* LLVM expression import */
+  //===---------------------- LLVM expression import ----------------------===//
 
   // Determines if a argument is passed as a pointer to the actual value. In
   // these cases an indirection must be inserted when using the argument.
@@ -1478,7 +1478,7 @@ private:
     return { B, Type };
   }
 
-  /* LLVM control flow import */
+  //===--------------------- LLVM control flow import ---------------------===//
 
   template<typename OpT, typename... ArgsT>
   OpT emitLocalDeclaration(mlir::Location Loc, ArgsT &&...Args) {
@@ -1879,7 +1879,7 @@ private:
     }
   }
 
-  /* LLVM function import */
+  //===----------------------- LLVM function import -----------------------===//
 
   static llvm::ArrayRef<abi::FunctionType::Layout::Argument>
   getLayoutArguments(const abi::FunctionType::Layout &Layout) {
