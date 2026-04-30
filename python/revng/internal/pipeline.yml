@@ -368,6 +368,11 @@ branches:
             - inline-divergent-scopes
             - enforce-single-exit
             - materialize-trivial-goto
+        artifacts:
+          - name: clifter-input
+            container: llvm-functions
+            category: debug
+            filename: clifter_input.bc
       - pipe: clifter
         arguments: [llvm-functions, clift-functions]
       - pipe: pure-mlir-passes-pipe
