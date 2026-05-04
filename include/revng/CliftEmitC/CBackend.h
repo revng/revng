@@ -9,6 +9,5 @@
 
 #include "revng/Clift/Clift.h"
 #include "revng/PTML/CTokenEmitter.h"
-#include "revng/Support/CDataModel.h"
 
 void decompile(clift::FunctionOp Function, ptml::CTokenEmitter &Emitter);
