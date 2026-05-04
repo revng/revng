@@ -26,7 +26,7 @@ def makeInteger : NativeCodeCall<[{
 }]>;
 
 def forceBooleanResult : NativeCodeCall<[{
-  mlir::clift::impl::forceBooleanResult($_builder, $0, $1)
+  clift::impl::forceBooleanResult($_builder, $0, $1)
 }]>;
 
 #endif

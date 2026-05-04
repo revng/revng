@@ -7,7 +7,7 @@
 #include "revng/Clift/Clift.h"
 #include "revng/PTML/CDoxygenEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
-#include "revng/Support/CTarget.h"
+#include "revng/Support/CDataModel.h"
 
 template<typename Type>
 concept EntityWithComment = requires(Type const &Value) {
@@ -20,16 +20,15 @@ protected:
   using CTE = ptml::CTokenEmitter;
 
   ptml::CTokenEmitter &Tokens;
-  const TargetCImplementation &Target;
+  const CDataModel &DataModel;
 
 public:
-  explicit CEmitter(ptml::CTokenEmitter &Emitter,
-                    const TargetCImplementation &Target) :
-    Tokens(Emitter), Target(Target) {}
+  explicit CEmitter(ptml::CTokenEmitter &Emitter, const CDataModel &DataModel) :
+    Tokens(Emitter), DataModel(DataModel) {}
 
   //===------------------------------- Types ------------------------------===//
 
-  void emitPrimitiveType(mlir::clift::PrimitiveType Type);
+  void emitPrimitiveType(clift::PrimitiveType Type);
   void emitType(mlir::Type Type);
 
   //===---------------------------- Attributes ----------------------------===//
@@ -37,8 +36,8 @@ public:
   static bool isValidCAttributeArray(mlir::ArrayAttr Array);
   mlir::ArrayAttr getDeclarationOpCAttributes(mlir::Operation *Op);
 
-  void emitCAttribute(mlir::clift::CAttributeAttr Attribute);
-  void emitCAttributes(llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes,
+  void emitCAttribute(clift::CAttributeAttr Attribute);
+  void emitCAttributes(llvm::ArrayRef<clift::CAttributeAttr> Attributes,
                        bool SpaceBefore,
                        bool SpaceAfter);
   void emitCAttributes(mlir::ArrayAttr Attributes,
@@ -47,7 +46,7 @@ public:
 
   //===---------------------------- Prototype -----------------------------===//
 
-  void emitFunctionPrototype(mlir::clift::FunctionOp Function);
+  void emitFunctionPrototype(clift::FunctionOp Function);
 
   //===--------------------------- Declarations ---------------------------===//
 
@@ -89,9 +88,9 @@ public:
     ptml::CDoxygenEmitter::emitLineComment(Tokens, CommentContent);
   }
 
-  void emitFunctionDoxygenComment(mlir::clift::FunctionOp Function);
+  void emitFunctionDoxygenComment(clift::FunctionOp Function);
 
-  void emitGlobalDoxygenComment(mlir::clift::GlobalVariableOp Global);
+  void emitGlobalDoxygenComment(clift::GlobalVariableOp Global);
 
 public:
   /// A convenience function for emitting a comment with extra empty lines
@@ -113,12 +112,12 @@ public:
   //===--------------------------- Other Helpers --------------------------===//
 
   static ptml::CTokenEmitter::EntityKind
-  chooseEntityKind(mlir::clift::DefinedType Type);
+  chooseEntityKind(clift::DefinedType Type);
 };
 
 /// Determines whether the type can be forward-declared or not.
 ///
 /// This is true for `struct`s and `union`s. False for everything else.
-inline bool isSeparateDeclarationAllowed(mlir::clift::DefinedType Type) {
-  return mlir::isa<mlir::clift::ClassType>(Type);
+inline bool isSeparateDeclarationAllowed(clift::DefinedType Type) {
+  return mlir::isa<clift::ClassType>(Type);
 }

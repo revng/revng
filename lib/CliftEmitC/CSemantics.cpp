@@ -5,7 +5,6 @@
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftEmitC/CSemantics.h"
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 namespace {
@@ -33,12 +32,12 @@ static clift::PointerType getPointerOperationType(mlir::Operation *Op) {
 }
 
 class CVerifier : public ModuleVisitor<CVerifier> {
-public:
-  explicit CVerifier(const TargetCImplementation &Target) : Target(Target) {}
+  std::optional<CDataModel> DataModel;
 
+public:
   mlir::LogicalResult visitNestedOp(mlir::Operation *Op) {
     if (auto T = getPointerOperationType(Op)) {
-      if (T.getPointerSize() != Target.PointerSize)
+      if (T.getPointerSize() != DataModel->PointerSize)
         return getCurrentOp()->emitOpError() << "Pointer operation is not "
                                                 "representable in the target "
                                                 "implementation.";
@@ -63,6 +62,11 @@ public:
                                  << " implementation.";
     }
 
+    return mlir::success();
+  }
+
+  mlir::LogicalResult visitModuleOp(mlir::ModuleOp Op) {
+    DataModel = getDataModel(Op);
     return mlir::success();
   }
 
@@ -95,25 +99,20 @@ private:
   }
 
   bool isPotentiallyPromotingType(mlir::Type Type) {
-    if (auto IntType = clift::unwrapped_dyn_cast<IntegerType>(Type)) {
-      auto Integer = Target.getIntegerKind(IntType.getSize());
-      return not Integer or *Integer < CIntegerKind::Int;
-    }
+    if (auto IntType = clift::unwrapped_dyn_cast<IntegerType>(Type))
+      return IntType.getSize() < DataModel->getIntSize();
     return false;
   }
 
   bool isCanonicalBooleanType(mlir::Type Type) {
     if (auto IntType = clift::unwrapped_dyn_cast<IntegerType>(Type))
-      return Target.getIntegerKind(IntType.getSize()) == CIntegerKind::Int;
+      return IntType.getSize() == DataModel->getIntSize();
     return false;
   }
-
-  const TargetCImplementation &Target;
 };
 
 } // namespace
 
-mlir::LogicalResult verifyCSemantics(mlir::ModuleOp Module,
-                                     const TargetCImplementation &Target) {
-  return CVerifier::visit(Module, Target);
+mlir::LogicalResult verifyCSemantics(mlir::ModuleOp Module) {
+  return CVerifier::visit(Module);
 }

@@ -9,7 +9,7 @@ include "mlir/IR/OpBase.td"
 
 class Clift_AttrInterface<string name, list<Interface> baseInterfaces = []>
   : AttrInterface<name, baseInterfaces> {
-  let cppNamespace = "mlir::clift";
+  let cppNamespace = "clift";
 }
 
 def Clift_AliasableAttr : Clift_AttrInterface<"AliasableAttr"> {
@@ -39,7 +39,7 @@ def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
     >,
     InterfaceMethod<
       "Returns the mutable name attribute of the DefinedType.",
-      "mlir::clift::MutableStringAttr", "getMutableName", (ins),
+      "clift::MutableStringAttr", "getMutableName", (ins),
       /*methodBody=*/[{}],
       /*defaultImplemetation=*/[{}]
     >,
@@ -53,7 +53,7 @@ def Clift_TypeDefinitionAttr : Clift_AttrInterface<"TypeDefinitionAttr"> {
     >,
     InterfaceMethod<
       "Returns the mutable comment attribute attached to the DefinedType.",
-      "mlir::clift::MutableStringAttr", "getMutableComment", (ins),
+      "clift::MutableStringAttr", "getMutableComment", (ins),
       /*methodBody=*/[{}],
       /*defaultImplemetation=*/[{}]
     >,

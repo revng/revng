@@ -11,7 +11,7 @@
 
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/PTMLEmitter.h"
-#include "revng/Support/CTarget.h"
+#include "revng/Support/CDataModel.h"
 
 namespace ptml {
 
@@ -194,7 +194,7 @@ public:
 
   struct IntegerSuffix {
     bool Unsigned;
-    CIntegerKind MinimumType;
+    CStandardType MinimumType;
   };
 
   /// \pre \param Radix must be one of 2, 8, 10 or 16.

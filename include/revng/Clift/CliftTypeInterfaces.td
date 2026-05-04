@@ -20,6 +20,8 @@ include "revng/Clift/CliftTypeInterfacesValue.td"
 //
 include "revng/Clift/CliftTypeInterfacesPrimitive.td"
 //
+include "revng/Clift/CliftTypeInterfacesIntegral.td"
+//
 include "revng/Clift/CliftTypeInterfacesDefined.td"
 //
 include "revng/Clift/CliftTypeInterfacesClass.td"

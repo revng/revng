@@ -12,6 +12,9 @@ include "revng/Clift/CliftDialect.td"
 include "revng/Clift/CliftAttrInterfaces.td"
 include "revng/Clift/CliftEnums.td"
 
+class Clift_ConstRefParameter<string type, string desc = "">
+  : AttrOrTypeParameter<type, desc, "const " # type # " &">;
+
 class Clift_OptionalArrayRefParameter<string elementType, string desc = "">
   : AttrOrTypeParameter<"std::optional<llvm::ArrayRef<" # elementType # ">>", desc> {
 
@@ -31,14 +34,25 @@ class Clift_Attr<string name, string attrMnemonic, list<Trait> traits = []>
   let mnemonic = attrMnemonic;
 }
 
+def Clift_DataModelAttr
+  : Clift_Attr<"DataModel",
+               "data_model",
+               [DeclareAttrInterfaceMethods<Clift_AliasableAttr>]> {
+
+  let parameters = (ins Clift_ConstRefParameter<"CDataModel">:$DataModel);
+
+  let hasCustomAssemblyFormat = 1;
+  let genVerifyDecl = 1;
+}
+
 def Clift_StringPairAttr : AttrDef<Clift_Dialect, "StringPair"> {
   let parameters = (ins StringRefParameter<>:$first,
                         StringRefParameter<>:$second);
 }
 
 def Clift_CIdentifierAttr : Clift_Attr<"CIdentifier",
-                                             "identifier",
-                                             [SubElementAttrInterface]> {
+                                       "identifier",
+                                       [SubElementAttrInterface]> {
   let parameters = (ins StringRefParameter<>:$name,
                         StringRefParameter<>:$handle);
 
@@ -48,7 +62,7 @@ def Clift_CIdentifierAttr : Clift_Attr<"CIdentifier",
 def Clift_CAttributeAttr : Clift_Attr<"CAttribute",
                                       "c_attribute",
                                       [SubElementAttrInterface]> {
-  let parameters = (ins "mlir::clift::CIdentifierAttr":$name,
+  let parameters = (ins "clift::CIdentifierAttr":$name,
                         "mlir::ArrayAttr":$arguments);
 
   let hasCustomAssemblyFormat = 1;
@@ -67,8 +81,8 @@ def Clift_FieldAttr
   }];
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        "mlir::clift::MutableStringAttr":$mutable_name,
-                        "mlir::clift::MutableStringAttr":$mutable_comment,
+                        "clift::MutableStringAttr":$mutable_name,
+                        "clift::MutableStringAttr":$mutable_comment,
                         "uint64_t":$offset,
                         "mlir::Type":$type);
 
@@ -99,8 +113,8 @@ def Clift_EnumFieldAttr
   }];
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        "mlir::clift::MutableStringAttr":$mutable_name,
-                        "mlir::clift::MutableStringAttr":$mutable_comment,
+                        "clift::MutableStringAttr":$mutable_name,
+                        "clift::MutableStringAttr":$mutable_comment,
                         "uint64_t":$raw_value);
 
   let extraClassDeclaration = [{
@@ -126,10 +140,10 @@ def Clift_EnumAttr
              SubElementAttrInterface]> {
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        "mlir::clift::MutableStringAttr":$mutable_name,
-                        "mlir::clift::MutableStringAttr":$mutable_comment,
+                        "clift::MutableStringAttr":$mutable_name,
+                        "clift::MutableStringAttr":$mutable_comment,
                         "mlir::Type":$underlying_type,
-                        ArrayRefParameter<"mlir::clift::EnumFieldAttr">:$fields);
+                        ArrayRefParameter<"clift::EnumFieldAttr">:$fields);
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef NameAttrKey = "enum-name";
@@ -154,8 +168,8 @@ def Clift_TypedefAttr
              SubElementAttrInterface]> {
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        "mlir::clift::MutableStringAttr":$mutable_name,
-                        "mlir::clift::MutableStringAttr":$mutable_comment,
+                        "clift::MutableStringAttr":$mutable_name,
+                        "clift::MutableStringAttr":$mutable_comment,
                         "mlir::Type":$underlying_type);
 
   let extraClassDeclaration = [{

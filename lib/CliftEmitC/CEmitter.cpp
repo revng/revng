@@ -13,22 +13,18 @@
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
-namespace clift = mlir::clift;
-using namespace mlir::clift;
+using namespace clift;
 
-using CEmitter = CEmitter;
-
-ptml::CTokenEmitter::EntityKind
-CEmitter::chooseEntityKind(mlir::clift::DefinedType Type) {
-  if (mlir::isa<mlir::clift::FunctionType>(Type))
+ptml::CTokenEmitter::EntityKind CEmitter::chooseEntityKind(DefinedType Type) {
+  if (mlir::isa<FunctionType>(Type))
     return ptml::CTokenEmitter::EntityKind::Function;
-  else if (mlir::isa<mlir::clift::StructType>(Type))
+  else if (mlir::isa<StructType>(Type))
     return ptml::CTokenEmitter::EntityKind::Struct;
-  else if (mlir::isa<mlir::clift::UnionType>(Type))
+  else if (mlir::isa<UnionType>(Type))
     return ptml::CTokenEmitter::EntityKind::Union;
-  else if (mlir::isa<mlir::clift::EnumType>(Type))
+  else if (mlir::isa<EnumType>(Type))
     return ptml::CTokenEmitter::EntityKind::Enum;
-  else if (mlir::isa<mlir::clift::TypedefType>(Type))
+  else if (mlir::isa<TypedefType>(Type))
     return ptml::CTokenEmitter::EntityKind::Typedef;
   else
     revng_abort("Unsupported defined type");
@@ -104,7 +100,7 @@ private:
   }
 
   std::optional<ptml::CTokenEmitter::Region>
-  commentableParameterGuard(clift::FunctionType const CurrentFunction,
+  commentableParameterGuard(FunctionType const CurrentFunction,
                             DeclaratorInfo const *Declarator,
                             uint64_t Index) {
     if (OutermostFunctionType == nullptr)
@@ -162,7 +158,7 @@ private:
           Parent.emitPrimitiveType(T);
           NeedSpace = true;
         } else if (auto T = mlir::dyn_cast<PointerType>(Type)) {
-          if (T.getPointerSize() == Parent.Target.PointerSize) {
+          if (T.getPointerSize() == Parent.DataModel.PointerSize) {
             Item.Kind = StackItemKind::Pointer;
             Type = T.getPointeeType();
           } else {
@@ -379,16 +375,16 @@ bool CEmitter::isValidCAttributeArray(mlir::ArrayAttr ArrayAttr) {
 }
 
 mlir::ArrayAttr CEmitter::getDeclarationOpCAttributes(mlir::Operation *Op) {
-  clift::CAttributeListBuilder Builder(*Op->getContext(),
-                                       Op->getAttr("clift.c_attributes"));
+  CAttributeListBuilder Builder(Op->getContext(),
+                                Op->getAttr("clift.c_attributes"));
 
-  if (auto FunctionOp = mlir::dyn_cast<clift::FunctionOp>(Op)) {
-    if (FunctionOp->hasAttr("noreturn"))
+  if (auto Function = mlir::dyn_cast<FunctionOp>(Op)) {
+    if (Function->hasAttr("noreturn"))
       Builder.setOrUpdate<"_NORETURN">();
-    if (FunctionOp->hasAttr("always_inline"))
+    if (Function->hasAttr("always_inline"))
       Builder.setOrUpdate<"_ALWAYS_INLINE">();
 
-    Builder.append(FunctionOp.getFunctionType().getCAttributes());
+    Builder.append(Function.getFunctionType().getCAttributes());
   }
 
   mlir::ArrayAttr Result = Builder.get();
@@ -417,7 +413,7 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
         Tokens.emitSpace();
       }
 
-      if (auto Id = mlir::dyn_cast<mlir::clift::CIdentifierAttr>(A)) {
+      if (auto Id = mlir::dyn_cast<CIdentifierAttr>(A)) {
         Tokens.emitIdentifier(Id.getName(),
                               Id.getHandle(),
                               CTE::EntityKind::AttributeArgument,
@@ -441,7 +437,7 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
 }
 
 void // formatting
-CEmitter::emitCAttributes(llvm::ArrayRef<clift::CAttributeAttr> CAttributes,
+CEmitter::emitCAttributes(llvm::ArrayRef<CAttributeAttr> CAttributes,
                           bool SpaceBefore,
                           bool SpaceAfter) {
   if (CAttributes.empty())
@@ -451,7 +447,7 @@ CEmitter::emitCAttributes(llvm::ArrayRef<clift::CAttributeAttr> CAttributes,
     Tokens.emitSpace();
 
   bool First = true;
-  for (mlir::clift::CAttributeAttr Attribute : CAttributes) {
+  for (CAttributeAttr Attribute : CAttributes) {
     if (First)
       First = false;
     else
@@ -470,7 +466,7 @@ void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
   if (not CAttributes)
     return;
 
-  auto Range = llvm::to_vector(CAttributes.getAsRange<clift::CAttributeAttr>());
+  auto Range = llvm::to_vector(CAttributes.getAsRange<CAttributeAttr>());
   emitCAttributes(Range, SpaceBefore, SpaceAfter);
 }
 
@@ -521,7 +517,7 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
 // Accounts for a `\` before it and a space after.
 static constexpr uint64_t ExtraKeywordIndentation = 2;
 
-void CEmitter::emitFunctionDoxygenComment(clift::FunctionOp Function) {
+void CEmitter::emitFunctionDoxygenComment(FunctionOp Function) {
   auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Function.getHandle());
 
@@ -606,7 +602,7 @@ void CEmitter::emitFunctionDoxygenComment(clift::FunctionOp Function) {
   }
 }
 
-void CEmitter::emitGlobalDoxygenComment(clift::GlobalVariableOp Global) {
+void CEmitter::emitGlobalDoxygenComment(GlobalVariableOp Global) {
   if (auto CommentAttribute = Global->getAttr("clift.comment")) {
     auto String = mlir::dyn_cast<mlir::StringAttr>(CommentAttribute);
     revng_assert(String != nullptr);

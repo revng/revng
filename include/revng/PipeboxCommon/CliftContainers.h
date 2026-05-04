@@ -27,7 +27,7 @@ private:
   static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
   static inline const mlir::DialectRegistry MLIRDialectRegistry = ([]() {
     mlir::DialectRegistry Registry;
-    Registry.insert<mlir::clift::CliftDialect>();
+    Registry.insert<clift::CliftDialect>();
     return Registry;
   })();
 
@@ -52,7 +52,7 @@ public:
       llvm::StringRef String(Buffer.data(), Buffer.size());
       auto NewModule = mlir::parseSourceString<mlir::ModuleOp>(String, Config);
       revng_assert(NewModule);
-      revng_assert(mlir::clift::hasModuleAttr(NewModule.get()));
+      revng_assert(clift::hasModuleAttr(NewModule.get()));
       Modules[*Object] = std::move(NewModule);
     }
   }
@@ -88,8 +88,7 @@ public:
   }
 
 public:
-  mlir::MLIRContext &getContext() { return *Context; }
-  const mlir::MLIRContext &getContext() const { return *Context; }
+  mlir::MLIRContext *getContext() { return &*Context; }
 
   const mlir::ModuleOp getModule(const ObjectID &ID) const {
     return *Modules.at(ID);
@@ -113,7 +112,7 @@ private:
   static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
   static inline const mlir::DialectRegistry MLIRDialectRegistry = ([]() {
     mlir::DialectRegistry Registry;
-    Registry.insert<mlir::clift::CliftDialect>();
+    Registry.insert<clift::CliftDialect>();
     return Registry;
   })();
 
@@ -138,7 +137,7 @@ public:
       llvm::StringRef String(Buffer.data(), Buffer.size());
       auto NewModule = mlir::parseSourceString<mlir::ModuleOp>(String, Config);
       revng_assert(NewModule);
-      revng_assert(mlir::clift::hasModuleAttr(NewModule.get()));
+      revng_assert(clift::hasModuleAttr(NewModule.get()));
       Modules[*Object] = std::move(NewModule);
     }
   }
@@ -174,8 +173,7 @@ public:
   }
 
 public:
-  mlir::MLIRContext &getContext() { return *Context; }
-  const mlir::MLIRContext &getContext() const { return *Context; }
+  mlir::MLIRContext *getContext() { return &*Context; }
 
   const mlir::ModuleOp getModule(const ObjectID &ID) const {
     return *Modules.at(ID);
@@ -199,7 +197,7 @@ private:
   static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
   static inline const mlir::DialectRegistry MLIRDialectRegistry = ([]() {
     mlir::DialectRegistry Registry;
-    Registry.insert<mlir::clift::CliftDialect>();
+    Registry.insert<clift::CliftDialect>();
     return Registry;
   })();
 
@@ -213,7 +211,7 @@ public:
     Context(std::in_place_t{}, MLIRDialectRegistry, Threading),
     Module(mlir::ModuleOp::create(mlir::UnknownLoc::get(&Context.value()))) {
 
-    mlir::clift::setModuleAttr(Module.get());
+    clift::setModuleAttr(Module.get());
   }
 
 public:
@@ -235,7 +233,7 @@ public:
       llvm::StringRef String(Buffer.data(), Buffer.size());
       Module = mlir::parseSourceString<mlir::ModuleOp>(String, Config);
       revng_assert(Module);
-      revng_assert(mlir::clift::hasModuleAttr(Module.get()));
+      revng_assert(clift::hasModuleAttr(Module.get()));
     }
   }
 
@@ -267,8 +265,7 @@ public:
   }
 
 public:
-  mlir::MLIRContext &getContext() { return *Context; }
-  const mlir::MLIRContext &getContext() const { return *Context; }
+  mlir::MLIRContext *getContext() { return &*Context; }
 
   const mlir::ModuleOp getModule() const { return Module.get(); }
   mlir::ModuleOp getModule() { return Module.get(); }

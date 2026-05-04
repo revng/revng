@@ -14,14 +14,11 @@
 #include "revng/Pipes/Kinds.h"
 
 using namespace revng;
-namespace clift = mlir::clift;
 
 namespace {
 
-class OptimizationPipe {
-public:
-  static constexpr auto Name = "clift-optimization";
-
+template<typename BaseT>
+struct OptimizationPipe : BaseT {
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
     using namespace kinds;
@@ -38,6 +35,35 @@ public:
     mlir::PassManager PM(CliftFunctionContainer.getContext(),
                          clift::FunctionOp::getOperationName());
 
+    BaseT::configurePassManager(PM);
+
+    mlir::ModuleOp Module = CliftFunctionContainer.getModule();
+
+    std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
+    Module->walk([&Functions](clift::FunctionOp F) {
+      MetaAddress MA = getMetaAddress(F);
+      if (MA.isValid()) {
+        auto [Iterator, Inserted] = Functions.try_emplace(MA, F);
+        revng_assert(Inserted);
+      }
+    });
+
+    for (const model::Function &Function :
+         getFunctionsAndCommit(EC, CliftFunctionContainer.name())) {
+      auto It = Functions.find(Function.Entry());
+      revng_check(It != Functions.end()
+                  and "Requested Clift function not found");
+
+      mlir::LogicalResult R = PM.run(It->second);
+      revng_check(R.succeeded());
+    }
+  }
+};
+
+struct GenericOptimizationPipe {
+  static constexpr auto Name = "clift-generic-optimization";
+
+  static void configurePassManager(mlir::PassManager &PM) {
     // Eliminating trivial returns during statement rewriting (where other
     // trivial jumps are eliminated) is difficult, because the triviality of a
     // jump is dependent on its context, and if the rewrite targets the context
@@ -66,33 +92,19 @@ public:
     PM.addPass(clift::createOptimizeExpressionsPass());
 
     PM.addPass(clift::createTerminalBranchComplementHoistingPass());
-
-    PM.addPass(clift::createCLegalizationPass(TargetCImplementation::Default));
-    PM.addPass(clift::createImmediateRadixDeductionPass());
-
-    mlir::ModuleOp Module = CliftFunctionContainer.getModule();
-
-    std::unordered_map<MetaAddress, clift::FunctionOp> Functions;
-    Module->walk([&Functions](clift::FunctionOp F) {
-      MetaAddress MA = getMetaAddress(F);
-      if (MA.isValid()) {
-        auto [Iterator, Inserted] = Functions.try_emplace(MA, F);
-        revng_assert(Inserted);
-      }
-    });
-
-    for (const model::Function &Function :
-         getFunctionsAndCommit(EC, CliftFunctionContainer.name())) {
-      auto It = Functions.find(Function.Entry());
-      revng_check(It != Functions.end()
-                  and "Requested Clift function not found");
-
-      mlir::LogicalResult R = PM.run(It->second);
-      revng_check(R.succeeded());
-    }
   }
 };
+static pipeline::RegisterPipe<OptimizationPipe<GenericOptimizationPipe>> X;
 
-static pipeline::RegisterPipe<OptimizationPipe> X;
+struct TargetOptimizationPipe {
+  static constexpr auto Name = "clift-target-optimization";
+
+  static void configurePassManager(mlir::PassManager &PM) {
+    PM.addPass(clift::createCLegalizationPass());
+    PM.addPass(clift::createImplicitCastElisionPass());
+    PM.addPass(clift::createImmediateRadixDeductionPass());
+  }
+};
+static pipeline::RegisterPipe<OptimizationPipe<TargetOptimizationPipe>> Y;
 
 } // namespace

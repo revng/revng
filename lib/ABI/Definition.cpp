@@ -13,6 +13,8 @@
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/YAMLTraits.h"
 
+namespace {
+
 template<std::ranges::range RegisterContainer>
 bool verifyRegisters(const RegisterContainer &Registers,
                      model::Architecture::Values Architecture) {
@@ -29,7 +31,7 @@ bool verifyRegisters(const RegisterContainer &Registers,
   return true;
 }
 
-static bool isVectorRegister(model::Register::Values Register) {
+bool isVectorRegister(model::Register::Values Register) {
   using model::Register::primitiveKind;
   return primitiveKind(Register) == model::PrimitiveKind::Float;
 }
@@ -41,7 +43,7 @@ static bool isVectorRegister(model::Register::Values Register) {
 /// see the `static_assert` that invokes it in \ref distributeArguments
 ///
 /// \return `true` if the ABI is valid, `false` otherwise.
-static bool verifyReturnValueLocation(const abi::Definition &D) {
+bool verifyReturnValueLocation(const abi::Definition &D) {
   if (not model::Register::isValid(D.ReturnValueLocationRegister())) {
     // Skip ABIs that do not allow returning big values.
     // They do not benefit from this check.
@@ -74,7 +76,41 @@ static bool verifyReturnValueLocation(const abi::Definition &D) {
   return true;
 }
 
+abi::ScalarKind::Values getScalarKind(abi::CType::Values Type) {
+  if (abi::CType::Char <= Type and Type <= abi::CType::LongLong)
+    return abi::ScalarKind::Integer;
+
+  if (abi::CType::Float <= Type and Type <= abi::CType::LongDouble)
+    return abi::ScalarKind::FloatingPoint;
+
+  return abi::ScalarKind::Invalid;
+}
+
+} // namespace
+
 namespace abi {
+
+const ScalarType *Definition::findIntegerType(uint64_t Size) const {
+  // TODO: If and when invalidation tracking is introduced for ABI definitions,
+  //       this function should be changed to use tryGet in place of find.
+  auto I = ScalarTypes().find({ ScalarKind::Integer, Size });
+  return I != ScalarTypes().end() ? &*I : nullptr;
+}
+
+const ScalarType *Definition::findFloatingPointType(uint64_t Size) const {
+  // TODO: If and when invalidation tracking is introduced for ABI definitions,
+  //       this function should be changed to use tryGet in place of find.
+  auto I = ScalarTypes().find({ ScalarKind::FloatingPoint, Size });
+  return I != ScalarTypes().end() ? &*I : nullptr;
+}
+
+const ScalarType &Definition::getWidestIntegerType() const {
+  for (const ScalarType &Type : llvm::reverse(ScalarTypes())) {
+    if (Type.Kind() == ScalarKind::Integer)
+      return Type;
+  }
+  revng_abort("Invalid ABI definition.");
+}
 
 bool Definition::verify() const {
   if (not model::ABI::isValid(ABI()))
@@ -104,16 +140,39 @@ bool Definition::verify() const {
   if (ScalarTypes().empty())
     return false;
 
-  for (const abi::ScalarType &Type : ScalarTypes())
+  bool CTypes[CType::Count] = {};
+  bool HasIntegerScalar = false;
+
+  for (const abi::ScalarType &Type : ScalarTypes()) {
+    if (Type.Kind() == ScalarKind::Invalid)
+      return false;
+
+    if (Type.Kind() == ScalarKind::Integer)
+      HasIntegerScalar = true;
+
     if (Type.Size() == 0)
       return false;
 
-  if (FloatingPointScalarTypes().empty())
+    for (auto CT : Type.CTypes()) {
+      if (CT == CType::Invalid)
+        return false;
+
+      // The C type kind must match the scalar kind.
+      if (getScalarKind(CT) != Type.Kind())
+        return false;
+
+      // The ABI may not associate the same C type with multiple scalars.
+      if (std::exchange(CTypes[CT], true))
+        return false;
+    }
+  }
+
+  // The ABI must define at least one integer scalar.
+  if (not HasIntegerScalar)
     return false;
 
-  for (const abi::ScalarType &Type : FloatingPointScalarTypes())
-    if (Type.Size() == 0)
-      return false;
+  if (not getDataModel().verify())
+    return false;
 
   return true;
 }
@@ -337,7 +396,7 @@ naturalAlignment(const abi::Definition &ABI,
 
   } else if (const auto *P = llvm::dyn_cast<model::PointerType>(&Type)) {
     // Doesn't matter what the type is, use alignment of the pointer.
-    rc_return AlignmentInfo{ ABI.ScalarTypes().at(P->PointerSize()).alignedAt(),
+    rc_return AlignmentInfo{ ABI.findIntegerType(P->PointerSize())->alignedAt(),
                              true };
 
   } else if (const auto *P = llvm::dyn_cast<model::PrimitiveType>(&Type)) {
@@ -348,17 +407,15 @@ naturalAlignment(const abi::Definition &ABI,
 
       rc_return AlignmentInfo{ 0, false };
     } else if (P->PrimitiveKind() == model::PrimitiveKind::Float) {
-      auto Iterator = ABI.FloatingPointScalarTypes().find(P->Size());
-      if (Iterator == ABI.FloatingPointScalarTypes().end())
-        rc_return std::nullopt;
+      if (auto ABIType = ABI.findFloatingPointType(P->Size()))
+        rc_return AlignmentInfo{ ABIType->alignedAt(), true };
 
-      rc_return AlignmentInfo{ Iterator->alignedAt(), true };
+      rc_return std::nullopt;
     } else {
-      auto Iterator = ABI.ScalarTypes().find(P->Size());
-      if (Iterator == ABI.ScalarTypes().end())
-        rc_return std::nullopt;
+      if (auto ABIType = ABI.findIntegerType(P->Size()))
+        rc_return AlignmentInfo{ ABIType->alignedAt(), true };
 
-      rc_return AlignmentInfo{ Iterator->alignedAt(), true };
+      rc_return std::nullopt;
     }
   } else {
     revng_abort("Unsupported type.");
@@ -416,6 +473,46 @@ Definition::hasNaturalAlignment(const model::TypeDefinition &Type,
     return std::nullopt;
 
   return Result->IsNatural;
+}
+
+CDataModel Definition::getDataModel() const {
+  CDataModel DM = CDataModel::getDefaultDataModel(getPointerSize());
+
+  for (const ScalarType &Type : ScalarTypes()) {
+    for (auto CT : Type.CTypes()) {
+      switch (CT) {
+      case CType::Char:
+        DM.getStandardTypeSize(CStandardType::Char) = Type.Size();
+        break;
+      case CType::Short:
+        DM.getStandardTypeSize(CStandardType::Short) = Type.Size();
+        break;
+      case CType::Int:
+        DM.getStandardTypeSize(CStandardType::Int) = Type.Size();
+        break;
+      case CType::Long:
+        DM.getStandardTypeSize(CStandardType::Long) = Type.Size();
+        break;
+      case CType::LongLong:
+        DM.getStandardTypeSize(CStandardType::LongLong) = Type.Size();
+        break;
+      case CType::Float:
+        DM.getStandardTypeSize(CStandardType::Float) = Type.Size();
+        break;
+      case CType::Double:
+        DM.getStandardTypeSize(CStandardType::Double) = Type.Size();
+        break;
+      case CType::LongDouble:
+        DM.getStandardTypeSize(CStandardType::LongDouble) = Type.Size();
+        break;
+      case CType::Invalid:
+      case CType::Count:
+        revng_abort("Invalid C type in ABI definition.");
+      }
+    }
+  }
+
+  return DM;
 }
 
 } // namespace abi

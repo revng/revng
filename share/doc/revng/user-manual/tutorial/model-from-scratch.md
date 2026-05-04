@@ -185,7 +185,7 @@ To do so, we can ask rev.ng to produce the [`emit-c` artifact](../../references/
 $ revng2 project artifact emit-c | revng ptml
 /function/0x400000:Code_x86_64: |-
   _ABI(SystemV_x86_64) uint64_t function_0x400000_Code_x86_64(uint64_t argument_0, uint64_t argument_1) {
-    return (uint64_t) ((generic64_t) argument_0 + (generic64_t) argument_1);
+    return argument_0 + argument_1;
   }
 
 ```
@@ -244,7 +244,7 @@ Here's what we get now if we try to decompile again:
 $ revng2 project artifact emit-c | revng ptml
 /function/0x400000:Code_x86_64: |-
   _ABI(SystemV_x86_64) uint64_t Sum(uint64_t FirstAddend, uint64_t SecondAddend) {
-    return (uint64_t) ((generic64_t) FirstAddend + (generic64_t) SecondAddend);
+    return FirstAddend + SecondAddend;
   }
 
 ```

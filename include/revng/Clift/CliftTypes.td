@@ -52,6 +52,7 @@ def Clift_IntegerType
                 DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
                 DeclareTypeInterfaceMethods<Clift_ValueType>,
+                Clift_IntegralType,
                 DeclareTypeInterfaceMethods<Clift_AliasableType>]> {
   let summary = "Clift integer type";
 
@@ -72,7 +73,8 @@ def Clift_IntegerType
   let genVerifyDecl = 1;
 
   let extraClassDeclaration = [{
-    bool isSigned() { return getKind() == IntegerKind::Signed; }
+    bool isSigned() const { return getKind() == IntegerKind::Signed; }
+    bool isUnsigned() const { return getKind() != IntegerKind::Signed; }
   }];
 }
 
@@ -171,6 +173,7 @@ def Clift_EnumType
                 DeclareTypeInterfaceMethods<Clift_AddressableType>,
                 DeclareTypeInterfaceMethods<Clift_ObjectType>,
                 DeclareTypeInterfaceMethods<Clift_ValueType>,
+                DeclareTypeInterfaceMethods<Clift_IntegralType>,
                 DeclareTypeInterfaceMethods<Clift_DefinedType>]> {
 
   let summary = "Clift enum type";
@@ -178,15 +181,15 @@ def Clift_EnumType
     Clift enum type.
   }];
 
-  let parameters = (ins "mlir::clift::EnumAttr":$definition,
+  let parameters = (ins "clift::EnumAttr":$definition,
                         DefaultValuedParameter<"bool", "false">:$is_const);
 
   let builders = [
-    TypeBuilder<(ins "mlir::clift::EnumAttr":$Definition), [{
+    TypeBuilder<(ins "clift::EnumAttr":$Definition), [{
       return $_get($_ctxt, Definition, /*IsConst=*/false);
     }]>,
 
-    TypeBuilderWithInferredContext<(ins "mlir::clift::EnumAttr":$Definition), [{
+    TypeBuilderWithInferredContext<(ins "clift::EnumAttr":$Definition), [{
       return $_get(Definition.getContext(), Definition, /*IsConst=*/false);
     }]>,
   ];
@@ -234,15 +237,15 @@ def Clift_TypedefType
     the underlying type.
   }];
 
-  let parameters = (ins "mlir::clift::TypedefAttr":$definition,
+  let parameters = (ins "clift::TypedefAttr":$definition,
                         DefaultValuedParameter<"bool", "false">:$is_const);
 
   let builders = [
-    TypeBuilder<(ins "mlir::clift::TypedefAttr":$Definition), [{
+    TypeBuilder<(ins "clift::TypedefAttr":$Definition), [{
       return $_get($_ctxt, Definition, /*IsConst=*/false);
     }]>,
 
-    TypeBuilderWithInferredContext<(ins "mlir::clift::TypedefAttr":$Definition), [{
+    TypeBuilderWithInferredContext<(ins "clift::TypedefAttr":$Definition), [{
       return $_get(Definition.getContext(), Definition, /*IsConst=*/false);
     }]>,
   ];
@@ -284,11 +287,11 @@ def Clift_FunctionType
   }];
 
   let parameters = (ins StringRefParameter<>:$handle,
-                        "mlir::clift::MutableStringAttr":$mutable_name,
-                        "mlir::clift::MutableStringAttr":$mutable_comment,
+                        "clift::MutableStringAttr":$mutable_name,
+                        "clift::MutableStringAttr":$mutable_comment,
                         "mlir::Type":$return_type,
                         OptionalArrayRefParameter<"mlir::Type">:$argument_types,
-                        OptionalArrayRefParameter<"mlir::clift::CAttributeAttr">:$c_attributes);
+                        OptionalArrayRefParameter<"clift::CAttributeAttr">:$c_attributes);
 
   let extraClassDeclaration = [{
     static constexpr llvm::StringRef NameAttrKey = "function-name";
@@ -321,7 +324,7 @@ class Clift_ClassTypeBase<string name, string mnemonic>
 
   let summary = "Clift " # mnemonic # " type";
 
-  let parameters = (ins "mlir::clift::" # name # "Attr":$definition,
+  let parameters = (ins "clift::" # name # "Attr":$definition,
                         DefaultValuedParameter<"bool", "false">:$is_const);
 
   let extraClassDeclaration = [{
@@ -348,7 +351,7 @@ class Clift_ClassTypeBase<string name, string mnemonic>
       return getDefinition().getFields();
     }
 
-    llvm::ArrayRef<mlir::clift::CAttributeAttr> getCAttributes() const {
+    llvm::ArrayRef<clift::CAttributeAttr> getCAttributes() const {
       return getDefinition().getCAttributes();
     }
   }];
@@ -377,11 +380,11 @@ def Clift_StructType : Clift_ClassTypeBase<"Struct", "struct"> {
       return $_get($_ctxt, StructAttr::get($_ctxt, Handle), IsConst);
     }]>,
 
-    TypeBuilder<(ins "mlir::clift::StructAttr":$Definition), [{
+    TypeBuilder<(ins "clift::StructAttr":$Definition), [{
       return $_get($_ctxt, Definition, /*IsConst=*/false);
     }]>,
 
-    TypeBuilderWithInferredContext<(ins "mlir::clift::StructAttr":$Definition,
+    TypeBuilderWithInferredContext<(ins "clift::StructAttr":$Definition,
                                         CArg<"bool", "false">:$IsConst), [{
       return $_get(Definition.getContext(), Definition, IsConst);
     }]>,
@@ -395,11 +398,11 @@ def Clift_UnionType : Clift_ClassTypeBase<"Union", "union"> {
       return $_get($_ctxt, UnionAttr::get($_ctxt, Handle), IsConst);
     }]>,
 
-    TypeBuilder<(ins "mlir::clift::UnionAttr":$Definition), [{
+    TypeBuilder<(ins "clift::UnionAttr":$Definition), [{
       return $_get($_ctxt, Definition, /*IsConst=*/false);
     }]>,
 
-    TypeBuilderWithInferredContext<(ins "mlir::clift::UnionAttr":$Definition,
+    TypeBuilderWithInferredContext<(ins "clift::UnionAttr":$Definition,
                                         CArg<"bool", "false">:$IsConst), [{
       return $_get(Definition.getContext(), Definition, IsConst);
     }]>,

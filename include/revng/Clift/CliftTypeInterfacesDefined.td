@@ -7,8 +7,9 @@
 
 include "revng/Clift/CliftTypeInterfacesBasic.td"
 
-def Clift_DefinedType : Clift_TypeInterface<"DefinedType",
-                                            [Clift_AliasableType]> {
+def Clift_DefinedType
+  : Clift_TypeInterface<"DefinedType",
+                        [Clift_AliasableType, Clift_AddressableType]> {
 
   let description = [{
     A value type is a type with a ID and Name
@@ -25,7 +26,7 @@ def Clift_DefinedType : Clift_TypeInterface<"DefinedType",
     >,
     InterfaceMethod<
       "Returns the mutable name attribute of the DefinedType.",
-      "mlir::clift::MutableStringAttr", "getMutableName", (ins),
+      "clift::MutableStringAttr", "getMutableName", (ins),
       /*methodBody=*/[{}],
       /*defaultImplemetation=*/[{
         return $_type.getDefinition().getMutableName();
@@ -41,7 +42,7 @@ def Clift_DefinedType : Clift_TypeInterface<"DefinedType",
     >,
     InterfaceMethod<
       "Returns the mutable comment attribute attached to the DefinedType.",
-      "mlir::clift::MutableStringAttr", "getMutableComment", (ins),
+      "clift::MutableStringAttr", "getMutableComment", (ins),
       /*methodBody=*/[{}],
       /*defaultImplemetation=*/[{
         return $_type.getDefinition().getMutableComment();

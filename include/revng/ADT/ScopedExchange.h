@@ -15,16 +15,21 @@ class ScopedExchange {
 public:
   template<std::convertible_to<T> NewValueT>
   explicit ScopedExchange(T &Object, NewValueT &&NewValue) :
-    Object(Object), OldValue(std::move(Object)) {
+    Object(std::addressof(Object)), OldValue(std::move(Object)) {
     Object = std::forward<NewValueT>(NewValue);
   }
 
   ScopedExchange(const ScopedExchange &) = delete;
   ScopedExchange &operator=(const ScopedExchange &) = delete;
 
-  ~ScopedExchange() { Object = std::move(OldValue); }
+  ~ScopedExchange() {
+    if (Object != nullptr)
+      *Object = std::move(OldValue);
+  }
+
+  void commit() { Object = nullptr; }
 
 private:
-  T &Object;
+  T *Object;
   T OldValue;
 };

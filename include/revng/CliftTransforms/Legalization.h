@@ -5,11 +5,9 @@
 //
 
 #include "revng/Clift/Clift.h"
-#include "revng/Support/CTarget.h"
 
-namespace mlir::clift {
+namespace clift {
 
-mlir::LogicalResult legalizeForC(clift::FunctionOp Function,
-                                 const TargetCImplementation &Target);
+mlir::LogicalResult legalizeForC(clift::FunctionOp Function);
 
-} // namespace mlir::clift
+} // namespace clift

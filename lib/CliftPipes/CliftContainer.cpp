@@ -22,7 +22,6 @@
 
 using namespace revng;
 using namespace revng::pipes;
-namespace clift = mlir::clift;
 
 using mlir::MLIRContext;
 using mlir::ModuleOp;
@@ -82,7 +81,7 @@ static void visit(ModuleOp Module, Visitor visitor) {
 static const mlir::DialectRegistry &getDialectRegistry() {
   static const mlir::DialectRegistry Registry = []() -> mlir::DialectRegistry {
     mlir::DialectRegistry Registry;
-    Registry.insert<mlir::clift::CliftDialect>();
+    Registry.insert<clift::CliftDialect>();
     return Registry;
   }();
   return Registry;

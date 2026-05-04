@@ -10,8 +10,7 @@
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
 
-namespace clift = mlir::clift;
-using namespace mlir::clift;
+using namespace clift;
 
 namespace {
 
@@ -76,7 +75,7 @@ public:
 
   void emitIntegerLiteral(uint64_t Value,
                           bool IsSigned,
-                          CIntegerKind CKind,
+                          CStandardType Type,
                           unsigned Radix) {
     if (IsSigned and static_cast<int64_t>(Value) < 0) {
       Tokens.emitOperator(ptml::CTokenEmitter::Operator::Minus);
@@ -85,7 +84,7 @@ public:
 
     Tokens.emitIntegerLiteral(llvm::APInt(64, Value, IsSigned),
                               CTE::IntegerSuffix{ .Unsigned = not IsSigned,
-                                                  .MinimumType = CKind },
+                                                  .MinimumType = Type },
                               Radix);
   }
 
@@ -124,20 +123,21 @@ public:
       Radix = mlir::cast<mlir::IntegerAttr>(Attr).getValue().getZExtValue();
 
     auto IntType = mlir::cast<IntegerType>(Type);
-    auto CKind = CIntegerKind::Int;
+    auto CType = CStandardType::Int;
 
     // Using any specific integer suffix is only required when the value is not
     // immediately converted to another integer type. While such casts are
     // usually removed by expression rewriting, some may be reintroduced during
     // legalization.
     auto Cast = getOnlyUser<CastOpInterface>(V);
-    if (not Cast or not isIntegerType(Cast.getResult().getType())) {
-      auto K = Target.getIntegerKind(IntType.getSize());
-      revng_assert(K, "Integer immediate not representable in C.");
-      CKind = *K;
+    if (not Cast
+        or not unwrapped_isa<IntegralType>(Cast.getResult().getType())) {
+      auto Range = DataModel.getStandardIntegerRange(IntType.getSize());
+      revng_assert(Range, "Integer immediate not representable in C.");
+      CType = Range->first;
     }
 
-    emitIntegerLiteral(E.getValue(), IntType.isSigned(), CKind, Radix);
+    emitIntegerLiteral(E.getValue(), IntType.isSigned(), CType, Radix);
     rc_return;
   }
 
@@ -301,7 +301,7 @@ public:
   }
 
   static bool isHiddenCast(CastOpInterface Cast) {
-    return mlir::isa<DecayOp>(Cast);
+    return mlir::isa<DecayOp>(Cast) or Cast->hasAttr("clift.implicit");
   }
 
   static mlir::Value unwrapHiddenCasts(CastOpInterface Cast) {
@@ -983,7 +983,7 @@ public:
         Parent.emitCStyleCast(Type);
       }
 
-      Parent.emitIntegerLiteral(Value, IsSigned, CIntegerKind::Int, Radix);
+      Parent.emitIntegerLiteral(Value, IsSigned, CStandardType::Int, Radix);
     }
 
   private:
@@ -1279,8 +1279,6 @@ public:
 
 } // namespace
 
-void decompile(FunctionOp Function,
-               ptml::CTokenEmitter &Emitter,
-               const TargetCImplementation &Target) {
-  CliftToCEmitter(Emitter, Target).emitFunction(Function);
+void decompile(FunctionOp Function, ptml::CTokenEmitter &Emitter) {
+  CliftToCEmitter(Emitter, getDataModel(Function)).emitFunction(Function);
 }

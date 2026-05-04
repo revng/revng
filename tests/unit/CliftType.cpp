@@ -10,34 +10,34 @@
 template<typename CallableType>
 static auto withContext(CallableType Callable) {
   mlir::MLIRContext Context;
-  Context.loadDialect<mlir::clift::CliftDialect>();
+  Context.loadDialect<clift::CliftDialect>();
 
   const auto EmitError = [&]() -> mlir::InFlightDiagnostic {
     return Context.getDiagEngine().emit(mlir::UnknownLoc::get(&Context),
                                         mlir::DiagnosticSeverity::Remark);
   };
 
-  return Callable(EmitError, Context);
+  return Callable(EmitError, &Context);
 }
 
 static bool verify(const model::TypeDefinition &ModelType,
                    const model::Binary &Binary,
                    const bool Assert) {
-  return withContext([&](const auto EmitError, mlir::MLIRContext &Context) {
-    return static_cast<bool>(mlir::clift::importType(EmitError,
-                                                     Context,
-                                                     ModelType,
-                                                     Binary));
+  return withContext([&](const auto EmitError, mlir::MLIRContext *Context) {
+    return static_cast<bool>(clift::importType(EmitError,
+                                               Context,
+                                               ModelType,
+                                               Binary));
   });
 }
 
 static bool
 verify(const model::Type &ModelType, const model::Binary &Binary, bool Assert) {
-  return withContext([&](const auto EmitError, mlir::MLIRContext &Context) {
-    return static_cast<bool>(mlir::clift::importType(EmitError,
-                                                     Context,
-                                                     ModelType,
-                                                     Binary));
+  return withContext([&](const auto EmitError, mlir::MLIRContext *Context) {
+    return static_cast<bool>(clift::importType(EmitError,
+                                               Context,
+                                               ModelType,
+                                               Binary));
   });
 }
 

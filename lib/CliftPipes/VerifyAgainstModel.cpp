@@ -8,8 +8,6 @@
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
-namespace clift = mlir::clift;
-
 namespace {
 
 class VerifyAgainstModelPipe {
@@ -68,7 +66,7 @@ void verifyImpl(mlir::ModuleOp Module, const model::Binary &Binary) {
 namespace revng::pypeline::piperuns {
 
 void VerifyFunctionAgainstModel::runOnCliftFunction(const model::Function &,
-                                                    mlir::clift::FunctionOp
+                                                    clift::FunctionOp
                                                       Function) {
   verifyImpl(Function->getParentOfType<mlir::ModuleOp>(), Binary);
 }

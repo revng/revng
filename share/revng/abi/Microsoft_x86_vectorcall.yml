@@ -50,13 +50,18 @@ ReturnValueLocationOnStack: true
 ReturnValueLocationIsReturned: true
 
 ScalarTypes:
-  - Size: 1
-  - Size: 2
-  - Size: 4
-  - Size: 8
-    AlignedAt: 4
-
-FloatingPointScalarTypes:
-  - Size: 4
-  - Size: 8
-    AlignedAt: 4
+  - Kind: Integer
+    Size: 1
+  - Kind: Integer
+    Size: 2
+  - Kind: Integer
+    Size: 4
+  - Kind: Integer
+    Size: 8
+    AlignedAt: 4 # TODO: The correct value is 8, but stack arguments align to 4.
+  - Kind: FloatingPoint
+    Size: 2 # IEEE Binary16
+  - Kind: FloatingPoint
+    Size: 4 # IEEE Binary32
+  - Kind: FloatingPoint
+    Size: 8 # IEEE Binary64

@@ -7,13 +7,14 @@
 
 include "mlir/IR/OpBase.td"
 
-def Clift_NoFallthrough :
-  NativeOpTrait<"clift::NoFallthrough">;
+class Clift_NativeOpTrait<string name, list<Trait> traits = []>
+  : NativeOpTrait<name, traits> {
 
-def Clift_AssignsLoopLabels :
-  NativeOpTrait<"clift::AssignsLoopLabels">;
+  let cppNamespace = "clift";
+}
 
-def Clift_ReturnsBoolean :
-  NativeOpTrait<"clift::ReturnsBoolean">;
+def Clift_NoFallthrough : Clift_NativeOpTrait<"NoFallthrough">;
+def Clift_AssignsLoopLabels : Clift_NativeOpTrait<"AssignsLoopLabels">;
+def Clift_ReturnsBoolean : Clift_NativeOpTrait<"ReturnsBoolean">;
 
 #endif

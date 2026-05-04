@@ -9,8 +9,6 @@
 
 #include "revng/Clift/Clift.h"
 #include "revng/PTML/CTokenEmitter.h"
-#include "revng/Support/CTarget.h"
+#include "revng/Support/CDataModel.h"
 
-void decompile(mlir::clift::FunctionOp Function,
-               ptml::CTokenEmitter &Emitter,
-               const TargetCImplementation &Target);
+void decompile(clift::FunctionOp Function, ptml::CTokenEmitter &Emitter);

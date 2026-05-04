@@ -7,9 +7,8 @@
 #include "mlir/Pass/Pass.h"
 
 #include "revng/Clift/Clift.h"
-#include "revng/Support/CTarget.h"
 
-namespace mlir::clift {
+namespace clift {
 
 template<typename OpT>
 using PassPtr = std::unique_ptr<mlir::OperationPass<OpT>>;
@@ -29,10 +28,10 @@ PassPtr<clift::FunctionOp> createEmitFieldAccessesPass();
 
 PassPtr<clift::FunctionOp> createTerminalBranchComplementHoistingPass();
 
-PassPtr<clift::FunctionOp>
-createCLegalizationPass(const TargetCImplementation &Target);
+PassPtr<clift::FunctionOp> createCLegalizationPass();
 
 PassPtr<clift::FunctionOp> createImmediateRadixDeductionPass();
+PassPtr<clift::FunctionOp> createImplicitCastElisionPass();
 
 PassPtr<mlir::ModuleOp> createVerifyCPass();
 PassPtr<mlir::ModuleOp> createEmitCPass();
@@ -43,4 +42,4 @@ PassPtr<mlir::ModuleOp> createEmitHelperHeaderPass();
 #define GEN_PASS_REGISTRATION
 #include "revng/CliftTransforms/Passes.h.inc"
 
-} // namespace mlir::clift
+} // namespace clift

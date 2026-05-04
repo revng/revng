@@ -12,14 +12,11 @@
 #include "revng/Clift/Clift.h"
 #include "revng/CliftTransforms/Passes.h"
 
-namespace mlir {
 namespace clift {
 #define GEN_PASS_DEF_CLIFTIMMEDIATERADIXDEDUCTION
 #include "revng/CliftTransforms/Passes.h.inc"
 } // namespace clift
-} // namespace mlir
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 namespace {
@@ -138,7 +135,7 @@ struct SwitchCaseRadixReductionPattern : mlir::OpRewritePattern<SwitchOp> {
 };
 
 template<typename T>
-using PassBase = mlir::clift::impl::CliftImmediateRadixDeductionBase<T>;
+using PassBase = clift::impl::CliftImmediateRadixDeductionBase<T>;
 
 struct ImmediateRadixDeductionPass : PassBase<ImmediateRadixDeductionPass> {
   void runOnOperation() override {

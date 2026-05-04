@@ -197,6 +197,9 @@ public:
     return defaultPrototype();
   }
 
+  /// Returns a valid ABI describing the target used for the emission of C.
+  model::ABI::Values targetABI() const;
+
 public:
   /// \note Only use this when absolutely necessary, for example, when doing
   ///       bulk reference replacement.

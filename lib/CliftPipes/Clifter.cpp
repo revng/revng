@@ -10,8 +10,6 @@
 #include "revng/Pipeline/RegisterPipe.h"
 #include "revng/Pipes/IRHelpers.h"
 
-namespace clift = mlir::clift;
-
 namespace {
 
 class ClifterPipe {
@@ -68,7 +66,7 @@ Clifter::Clifter(const class Model &Model,
                  const LLVMFunctionContainer &Input,
                  CliftFunctionContainer &Output) :
   Binary(*Model.get().get()), Input(Input), Output(Output) {
-  Output.getContext().loadDialect<clift::CliftDialect>();
+  Output.getContext()->loadDialect<clift::CliftDialect>();
 }
 
 void Clifter::runOnFunction(const model::Function &Function) {
@@ -77,8 +75,8 @@ void Clifter::runOnFunction(const model::Function &Function) {
   const llvm::Function
     &LLVMFunction = getUniqueIsolatedFunction(Module, Function.Entry());
 
-  mlir::MLIRContext &Context = Output.getContext();
-  auto ModuleOpObject = mlir::ModuleOp::create(mlir::UnknownLoc::get(&Context));
+  mlir::MLIRContext *Context = Output.getContext();
+  auto ModuleOpObject = mlir::ModuleOp::create(mlir::UnknownLoc::get(Context));
   clift::setModuleAttr(ModuleOpObject);
 
   auto Importer = clift::Clifter::make(ModuleOpObject, Binary);

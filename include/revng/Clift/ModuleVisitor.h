@@ -9,7 +9,7 @@
 #include "revng/ADT/ScopedExchange.h"
 #include "revng/Clift/Clift.h"
 
-namespace mlir::clift {
+namespace clift {
 
 /// CRTP base class for ModuleOp visitation. The derived class must inherit from
 /// this class template publicly. This class invokes a number of customization
@@ -34,6 +34,9 @@ namespace mlir::clift {
 ///   // Invoked for each module level operation nested directly within the
 ///   // module operation.
 ///   mlir::LogicalResult visitModuleLevelOp(mlir::Operation* Op);
+///
+///   // Invoked for the root module operation.
+///   mlir::LogicalResult visitModuleOp(mlir::ModuleOp Op);
 /// };
 template<typename VisitorT>
 class ModuleVisitor {
@@ -183,7 +186,7 @@ private:
         return mlir::failure();
     }
 
-    const auto Visitor = [&](Operation *NestedOp) -> mlir::WalkResult {
+    const auto Visitor = [&](mlir::Operation *NestedOp) -> mlir::WalkResult {
       if (NestedOp == Op)
         return mlir::success();
 
@@ -202,6 +205,11 @@ private:
 
     if (internalVisitOp(Module.getOperation()).failed())
       return mlir::failure();
+
+    if constexpr (requires { getVisitor().visitModuleOp(Module); }) {
+      if (getVisitor().visitModuleOp(Module).failed())
+        return mlir::failure();
+    }
 
     for (mlir::Block &Block : Module.getRegion().getBlocks()) {
       for (mlir::Operation &Op : Block) {
@@ -226,4 +234,4 @@ private:
   llvm::SmallPtrSet<mlir::Attribute, 32> VisitedAttrs;
 };
 
-} // namespace mlir::clift
+} // namespace clift

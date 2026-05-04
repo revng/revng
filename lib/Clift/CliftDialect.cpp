@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <optional>
+
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpImplementation.h"
@@ -16,7 +18,7 @@
 // comment to force generated files to be included be after regular includes
 #include "revng/Clift/CliftDialect.cpp.inc"
 
-using namespace mlir::clift;
+using namespace clift;
 
 namespace {
 
@@ -49,23 +51,23 @@ public:
 
   mlir::Attribute
   readAttribute(mlir::DialectBytecodeReader &Reader) const override {
-    return mlir::clift::readAttr(Reader);
+    return clift::readAttr(Reader);
   }
 
   mlir::Type readType(mlir::DialectBytecodeReader &Reader) const override {
-    return mlir::clift::readType(Reader);
+    return clift::readType(Reader);
   }
 
   mlir::LogicalResult
   writeAttribute(mlir::Attribute Attr,
                  mlir::DialectBytecodeWriter &Writer) const override {
-    return mlir::clift::writeAttr(Attr, Writer);
+    return clift::writeAttr(Attr, Writer);
   }
 
   mlir::LogicalResult
   writeType(mlir::Type Type,
             mlir::DialectBytecodeWriter &Writer) const override {
-    return mlir::clift::writeType(Type, Writer);
+    return clift::writeType(Type, Writer);
   }
 };
 
@@ -197,27 +199,62 @@ static mlir::LogicalResult verifyModuleAttr(mlir::Operation *Op,
   if (not mlir::isa<mlir::UnitAttr>(Attr))
     return Op->emitOpError()
            << "expected '" << CliftDialect::getModuleAttrName()
-           << "' "
-              "attribute to be mlir::UnitAttr.";
+           << "' attribute to be mlir::UnitAttr.";
 
   auto Module = mlir::dyn_cast<mlir::ModuleOp>(Op);
   if (not Module)
     return Op->emitOpError()
            << "expected '" << CliftDialect::getModuleAttrName()
-           << "' "
-              "attribute to be attached to '"
+           << "' attribute to be attached to '"
            << mlir::ModuleOp::getOperationName() << "'";
 
   return ModuleVerifier::visit(Module);
 }
 
+static mlir::LogicalResult verifyDataModelAttr(mlir::Operation *Op,
+                                               mlir::Attribute Attr) {
+  if (not mlir::isa<DataModelAttr>(Attr))
+    return Op->emitOpError()
+           << "expected '" << CliftDialect::getDataModelAttrName()
+           << "' attribute to be of type DataModelAttr.";
+
+  if (not mlir::isa<mlir::ModuleOp>(Op))
+    return Op->emitOpError()
+           << "expected '" << CliftDialect::getDataModelAttrName()
+           << "' attribute to be attached to '"
+           << mlir::ModuleOp::getOperationName() << "'";
+
+  return mlir::success();
+}
+
 } // namespace
 
+struct clift::CliftDialectImpl {
+  std::optional<CDataModel> DefaultDataModel;
+};
+
 void CliftDialect::initialize() {
+  Impl = new CliftDialectImpl();
+
   registerTypes();
   registerOperations();
   registerAttributes();
   addInterfaces<CliftOpAsmDialectInterface, CliftBytecodeDialectInterface>();
+}
+
+CliftDialect::~CliftDialect() {
+  delete Impl;
+}
+
+const CDataModel *CliftDialect::getDefaultDataModel() const {
+  if (const auto &DM = Impl->DefaultDataModel)
+    return &*DM;
+
+  return nullptr;
+}
+
+void CliftDialect::setDefaultDataModel(const CDataModel &DataModel) {
+  Impl->DefaultDataModel = DataModel;
 }
 
 mlir::LogicalResult
@@ -225,6 +262,9 @@ CliftDialect::verifyOperationAttribute(mlir::Operation *Op,
                                        mlir::NamedAttribute Attr) {
   if (Attr.getName() == getModuleAttrName())
     return verifyModuleAttr(Op, Attr.getValue());
+
+  if (Attr.getName() == getDataModelAttrName())
+    return verifyDataModelAttr(Op, Attr.getValue());
 
   return mlir::success();
 }

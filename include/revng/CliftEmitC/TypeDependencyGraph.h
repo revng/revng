@@ -17,14 +17,14 @@
 
 /// Represents a defined type in the dependency graph.
 struct DefinedTypeNode {
-  const mlir::clift::DefinedType T;
+  const clift::DefinedType T;
   const bool IsDefinition = true;
 
-  static DefinedTypeNode definition(const mlir::clift::DefinedType T) {
+  static DefinedTypeNode definition(const clift::DefinedType T) {
     return DefinedTypeNode(T, true);
   }
 
-  static DefinedTypeNode declaration(const mlir::clift::DefinedType T) {
+  static DefinedTypeNode declaration(const clift::DefinedType T) {
     return DefinedTypeNode(T, false);
   }
 
@@ -45,15 +45,14 @@ private:
 
   // Allow using `clift::DefinedType` as a map key.
   struct HandleComparator {
-    auto operator()(mlir::clift::DefinedType LHS,
-                    mlir::clift::DefinedType RHS) const {
+    auto operator()(clift::DefinedType LHS, clift::DefinedType RHS) const {
       return LHS.getHandle() < RHS.getHandle();
     }
   };
 
   /// A map type that maps a type definition to a pair of nodes, representing
   //  respectively the declaration and the definition of such type definition.
-  using TypeToNodesMap = std::map<mlir::clift::DefinedType, // formatting
+  using TypeToNodesMap = std::map<clift::DefinedType, // formatting
                                   AssociatedNodes,
                                   HandleComparator>;
 

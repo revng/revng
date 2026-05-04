@@ -6,8 +6,9 @@
 
 #include "mlir/IR/PatternMatch.h"
 
-namespace mlir::clift {
+namespace clift {
 
+void populateWithCastCanonicalizations(mlir::RewritePatternSet &Set);
 void populateWithBooleanNegationPatterns(mlir::RewritePatternSet &Set);
 
-} // namespace mlir::clift
+} // namespace clift

@@ -14,7 +14,7 @@ def Clift_IntegerKind: I32EnumAttr<"IntegerKind", "integer type kinds", [
     I32EnumAttrCase<"Unsigned",                 4,      "unsigned">,
     I32EnumAttrCase<"Signed",                   5,      "signed">,
   ]> {
-  let cppNamespace = "mlir::clift";
+  let cppNamespace = "clift";
   // since we want to wrap this enum into a clift type, do not generate
   // attribute wrapping it.
   let genSpecializedAttr = 0;

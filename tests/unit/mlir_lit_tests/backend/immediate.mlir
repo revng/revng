@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %revngcliftopt --emit-c %s | FileCheck %s
+// RUN: %revngcliftopt --emit-c %s -o /dev/null | FileCheck %s
 // RUN: %revngcliftopt --emit-c=ptml %s -o /dev/null | %revngptml | FileCheck %s
 
 !void = !clift.void
@@ -43,13 +43,13 @@ module attributes {clift.module} {
       clift.yield %u : !uint32_t
     }
 
-    // CHECK: 0LL;
+    // CHECK: 0L;
     clift.expr {
       %0 = clift.imm 0 : !int64_t
       clift.yield %0 : !int64_t
     }
 
-    // CHECK: 0ULL;
+    // CHECK: 0UL;
     clift.expr {
       %0 = clift.imm 0 : !uint64_t
       clift.yield %0 : !uint64_t

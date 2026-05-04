@@ -20,7 +20,6 @@
 #include "revng/PTML/CommentPlacementHelper.h"
 #include "revng/Support/Identifier.h"
 
-namespace clift = mlir::clift;
 namespace rr = revng::ranks;
 
 namespace {
@@ -521,7 +520,7 @@ private:
         auto RegisterLocation = "";
 
         clift::CAttributeListBuilder Attributes{
-          *Op.getContext(),
+          Op.getContext(),
           Attrs.get(I, "clift.c_attributes"),
         };
         Attributes.setOrUpdate<"_REG">(RegisterName, RegisterLocation);
@@ -538,7 +537,7 @@ private:
         Attrs.setString(I, "clift.name", Name);
 
         clift::CAttributeListBuilder Attributes{
-          *Op.getContext(),
+          Op.getContext(),
           Attrs.get(I, "clift.c_attributes"),
         };
         Attributes.setOrUpdate<"_STACK">();

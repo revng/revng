@@ -10,7 +10,8 @@ include "revng/Clift/CliftOpInterfacesJump.td"
 def Clift_BranchOpInterface
   : Clift_OpInterface<"BranchOpInterface",
                       [Clift_StatementOpInterface,
-                       Clift_StatementRegionOpInterface]> {
+                       Clift_StatementRegionOpInterface,
+                       Clift_ExpressionRegionOpInterface]> {
 
   let description = [{
     Common interface for branch statements, providing generic access to
@@ -40,7 +41,8 @@ def Clift_BranchOpInterface
 
 def Clift_LoopOpInterface
   : Clift_OpInterface<"LoopOpInterface", [Clift_LabelAssignmentOpInterface,
-                                          Clift_StatementRegionOpInterface]> {
+                                          Clift_StatementRegionOpInterface,
+                                          Clift_ExpressionRegionOpInterface]> {
 
   let description = [{
     Common interface for loop statements, providing generic access to assigned
@@ -53,7 +55,7 @@ def Clift_LoopOpInterface
       "mlir::Value", "getBreakLabel", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return mlir::clift::impl::getLoopLabel($_op, 0);
+        return clift::impl::getLoopLabel($_op, 0);
       }]
     >,
     InterfaceMethod<
@@ -61,7 +63,7 @@ def Clift_LoopOpInterface
       "void", "setBreakLabel", (ins "mlir::Value":$Label),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return mlir::clift::impl::setLoopLabel($_op, 0, Label);
+        return clift::impl::setLoopLabel($_op, 0, Label);
       }]
     >,
     InterfaceMethod<
@@ -69,7 +71,7 @@ def Clift_LoopOpInterface
       "mlir::Value", "getContinueLabel", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return mlir::clift::impl::getLoopLabel($_op, 1);
+        return clift::impl::getLoopLabel($_op, 1);
       }]
     >,
     InterfaceMethod<
@@ -77,7 +79,7 @@ def Clift_LoopOpInterface
       "void", "setContinueLabel", (ins "mlir::Value":$Label),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/[{
-        return mlir::clift::impl::setLoopLabel($_op, 1, Label);
+        return clift::impl::setLoopLabel($_op, 1, Label);
       }]
     >,
     InterfaceMethod<

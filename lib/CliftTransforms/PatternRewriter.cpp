@@ -4,10 +4,10 @@
 
 #include "revng/CliftTransforms/PatternRewriter.h"
 
-void mlir::clift::inlineBlockBefore(mlir::PatternRewriter &Rewriter,
-                                    mlir::Block *Src,
-                                    mlir::Block *Dst,
-                                    mlir::Block::iterator Pos) {
+void clift::inlineBlockBefore(mlir::PatternRewriter &Rewriter,
+                              mlir::Block *Src,
+                              mlir::Block *Dst,
+                              mlir::Block::iterator Pos) {
   mlir::Operation *SrcOp = Src->getParentOp();
   mlir::Operation *DstOp = Dst->getParentOp();
 

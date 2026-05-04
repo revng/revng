@@ -4,12 +4,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-namespace mlir::clift {
+namespace clift {
 
 class CAttributeAttr;
 class FieldAttr;
 
-} // namespace mlir::clift
+} // namespace clift
 
 #include "mlir/IR/Types.h"
 
@@ -27,3 +27,5 @@ class FieldAttr;
 #include "revng/Clift/CliftTypeInterfacesClass.h.inc"
 // Prevent reordering:
 #include "revng/Clift/CliftTypeInterfacesPrimitive.h.inc"
+// Prevent reordering:
+#include "revng/Clift/CliftTypeInterfacesIntegral.h.inc"

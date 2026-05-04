@@ -10,14 +10,11 @@
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftTransforms/Passes.h"
 
-namespace mlir {
 namespace clift {
 #define GEN_PASS_DEF_CLIFTLABELMERGING
 #include "revng/CliftTransforms/Passes.h.inc"
 } // namespace clift
-} // namespace mlir
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 namespace {
@@ -77,8 +74,7 @@ struct LoopLabelMergingPattern
   }
 };
 
-struct LabelMergingPass
-  : mlir::clift::impl::CliftLabelMergingBase<LabelMergingPass> {
+struct LabelMergingPass : clift::impl::CliftLabelMergingBase<LabelMergingPass> {
 
   void runOnOperation() override {
     mlir::MLIRContext *Context = &getContext();

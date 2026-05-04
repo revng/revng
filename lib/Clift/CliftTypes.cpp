@@ -26,8 +26,7 @@
 #define GET_TYPEDEF_CLASSES
 #include "revng/Clift/CliftTypes.cpp.inc"
 
-using namespace mlir::clift;
-namespace clift = mlir::clift;
+using namespace clift;
 
 using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 
@@ -440,6 +439,14 @@ AddressableType EnumType::removeConst() const {
   return Base::get(getContext(), getDefinition(), /*IsConst=*/false);
 }
 
+bool EnumType::isSigned() const {
+  return clift::isSigned(getUnderlyingType());
+}
+
+bool EnumType::isUnsigned() const {
+  return clift::isUnsigned(getUnderlyingType());
+}
+
 mlir::Type EnumType::parse(mlir::AsmParser &Parser) {
   mlir::SMLoc Loc = Parser.getCurrentLocation();
 
@@ -710,12 +717,12 @@ AddressableType FunctionType::removeConst() const {
 }
 
 llvm::ArrayRef<mlir::Type> FunctionType::getResultTypes() const {
-  return ArrayRef<Type>(getImpl()->return_type);
+  return llvm::ArrayRef<Type>(getImpl()->return_type);
 }
 
 static mlir::LogicalResult
 parseAttributeArrayImpl(mlir::AsmParser &Parser,
-                        llvm::SmallVector<mlir::clift::CAttributeAttr> &Out) {
+                        llvm::SmallVector<clift::CAttributeAttr> &Out) {
   revng_assert(Out.empty());
 
   mlir::ArrayAttr RawAttributes;
@@ -727,7 +734,7 @@ parseAttributeArrayImpl(mlir::AsmParser &Parser,
     return mlir::failure();
 
   for (mlir::Attribute RawAttribute : RawAttributes) {
-    if (auto CAttribute = mlir::cast<mlir::clift::CAttributeAttr>(RawAttribute))
+    if (auto CAttribute = mlir::cast<clift::CAttributeAttr>(RawAttribute))
       Out.emplace_back(CAttribute);
     else
       return mlir::failure();
@@ -775,7 +782,7 @@ mlir::Type FunctionType::parse(mlir::AsmParser &Parser) {
         .failed())
     return {};
 
-  llvm::SmallVector<mlir::clift::CAttributeAttr> Attributes;
+  llvm::SmallVector<clift::CAttributeAttr> Attributes;
   if (parseAttributeArrayImpl(Parser, Attributes).failed())
     return {};
 
@@ -855,8 +862,8 @@ static clift::FunctionType readType(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readList(ParameterTypes, ReadType).failed())
     return {};
 
-  llvm::SmallVector<mlir::clift::CAttributeAttr> Attributes;
-  auto ReadAttribute = [&](mlir::clift::CAttributeAttr &Attribute) {
+  llvm::SmallVector<clift::CAttributeAttr> Attributes;
+  auto ReadAttribute = [&](clift::CAttributeAttr &Attribute) {
     return Reader.readAttribute(Attribute);
   };
   if (Reader.readList(Attributes, ReadAttribute).failed())
@@ -887,10 +894,9 @@ static void writeType(clift::FunctionType Type,
   Writer.writeList(Type.getArgumentTypes(),
                    [&](mlir::Type Type) { Writer.writeType(Type); });
 
-  Writer.writeList(Type.getCAttributes(),
-                   [&](mlir::clift::CAttributeAttr Attribute) {
-                     Writer.writeAttribute(Attribute);
-                   });
+  Writer.writeList(Type.getCAttributes(), [&](clift::CAttributeAttr Attribute) {
+    Writer.writeAttribute(Attribute);
+  });
 
   Writer.writeOwnedString(Type.getComment());
 }
@@ -1015,7 +1021,7 @@ static TypeT parseClassType(mlir::AsmParser &Parser) {
         .failed())
     return {};
 
-  llvm::SmallVector<mlir::clift::CAttributeAttr> Attributes;
+  llvm::SmallVector<clift::CAttributeAttr> Attributes;
   if (parseAttributeArrayImpl(Parser, Attributes).failed())
     return {};
 
@@ -1287,8 +1293,8 @@ static TypeT readClassDefinition(mlir::DialectBytecodeReader &Reader) {
   if (Reader.readList(Fields, ReadField).failed())
     return {};
 
-  llvm::SmallVector<mlir::clift::CAttributeAttr> Attributes;
-  auto ReadAttribute = [&](mlir::clift::CAttributeAttr &Attribute) {
+  llvm::SmallVector<clift::CAttributeAttr> Attributes;
+  auto ReadAttribute = [&](clift::CAttributeAttr &Attribute) {
     return Reader.readAttribute(Attribute);
   };
   if (Reader.readList(Attributes, ReadAttribute).failed())
@@ -1349,10 +1355,9 @@ writeClassDefinition(TypeT Type, mlir::DialectBytecodeWriter &Writer) {
     Writer.writeOwnedString(Field.getComment());
   });
 
-  Writer.writeList(Type.getCAttributes(),
-                   [&](mlir::clift::CAttributeAttr Attribute) {
-                     Writer.writeAttribute(Attribute);
-                   });
+  Writer.writeList(Type.getCAttributes(), [&](clift::CAttributeAttr Attribute) {
+    Writer.writeAttribute(Attribute);
+  });
 
   Writer.writeOwnedString(Type.getComment());
 }
@@ -1525,6 +1530,18 @@ uint64_t clift::getObjectSizeOrZero(mlir::Type Type) {
   return 0;
 }
 
+//===--------------------------- Integral types ---------------------------===//
+
+bool clift::isSigned(mlir::Type Type) {
+  auto T = clift::unwrapped_dyn_cast<IntegralType>(Type);
+  return T and T.isSigned();
+}
+
+bool clift::isUnsigned(mlir::Type Type) {
+  auto T = clift::unwrapped_dyn_cast<IntegralType>(Type);
+  return T and T.isUnsigned();
+}
+
 //===--------------------------- Type categories --------------------------===//
 
 bool clift::isModifiableType(mlir::Type Type) {
@@ -1561,10 +1578,6 @@ bool clift::isScalarType(mlir::Type Type) {
                               FloatType,
                               EnumType,
                               PointerType>(Type);
-}
-
-bool clift::isIntegerType(mlir::Type Type) {
-  return clift::unwrapped_isa<IntegerType, EnumType>(Type);
 }
 
 bool clift::isBooleanType(mlir::Type Type) {

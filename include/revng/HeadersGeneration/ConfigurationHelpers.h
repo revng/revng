@@ -13,12 +13,14 @@ inline uint64_t getExplicitPointerSize(const model::Binary &Model) {
   if (Model.Architecture() == model::Architecture::Invalid)
     return 0;
 
-  uint64_t PointerSize = getPointerSize(Model.Architecture());
+  uint64_t BinaryPointerSize = getPointerSize(Model.Architecture());
+  uint64_t TargetPointerSize = getPointerSize(getArchitecture(Model
+                                                                .targetABI()));
 
-  // Currently we hardcode the target pointer size as 8 (64-bit), so there is
-  // no reason to emit explicit pointer sizes for binaries with matching size.
-  if (PointerSize == 8)
+  // If the binary and target pointer sizes match, there is no need to emit
+  // explicit pointer sizes.
+  if (BinaryPointerSize == TargetPointerSize)
     return 0;
 
-  return PointerSize;
+  return TargetPointerSize;
 }

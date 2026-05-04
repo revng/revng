@@ -19,3 +19,5 @@
 #include "revng/Clift/CliftTypeInterfacesClass.cpp.inc"
 //
 #include "revng/Clift/CliftTypeInterfacesPrimitive.cpp.inc"
+//
+#include "revng/Clift/CliftTypeInterfacesIntegral.cpp.inc"

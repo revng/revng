@@ -31,8 +31,7 @@
 #define GET_ATTRDEF_CLASSES
 #include "revng/Clift/CliftAttributesBytecode.cpp.inc"
 
-using namespace mlir::clift;
-namespace clift = mlir::clift;
+using namespace clift;
 
 using EmitErrorType = llvm::function_ref<mlir::InFlightDiagnostic()>;
 
@@ -56,7 +55,7 @@ using WalkTypeT = llvm::function_ref<void(mlir::Type)>;
 using ReplaceAttrT = llvm::ArrayRef<mlir::Attribute>;
 using ReplaceTypeT = llvm::ArrayRef<mlir::Type>;
 
-namespace mlir::clift {
+namespace clift {
 
 class MutableStringAttrStorage : public mlir::AttributeStorage {
   struct Pair {
@@ -137,7 +136,7 @@ void MutableStringAttr::walkImmediateSubElements(WalkAttrT WalkAttrs,
   WalkAttrs(getImpl()->getKey());
 }
 
-Attribute
+mlir::Attribute
 MutableStringAttr::replaceImmediateSubElements(ReplaceAttrT NewAttrs,
                                                ReplaceTypeT NewTypes) const {
   revng_assert(NewAttrs.size() == 1);
@@ -256,13 +255,137 @@ ClassAttrImpl<AttrT>::replaceImmediateSubElements(ReplaceAttrT NewAttrs,
 template class ClassAttrImpl<StructAttr>;
 template class ClassAttrImpl<UnionAttr>;
 
-} // namespace mlir::clift
+} // namespace clift
 
-//===---------------------------- CAttributeAttr --------------------------===//
+//===---------------------------- DataModelAttr ---------------------------===//
+
+mlir::LogicalResult DataModelAttr::verify(EmitErrorType EmitError,
+                                          CDataModel DM) {
+  if (not DM.verify())
+    return EmitError() << "the specified data model is invalid";
+
+  return mlir::success();
+}
+
+bool DataModelAttr::getAlias(llvm::raw_ostream &OS) const {
+  OS << "data_model";
+  return true;
+}
+
+mlir::Attribute DataModelAttr::parse(mlir::AsmParser &Parser, mlir::Type) {
+  mlir::SMLoc AttrLoc = Parser.getCurrentLocation();
+
+  CDataModel DM;
+  auto ParseTypeDefinition = [&]() -> mlir::LogicalResult {
+    mlir::SMLoc KWLoc = Parser.getCurrentLocation();
+
+    llvm::StringRef Keyword;
+    if (Parser.parseKeyword(&Keyword).failed())
+      return mlir::failure();
+
+    std::string Name = std::string(Keyword);
+    while (Parser.parseOptionalKeyword(&Keyword).succeeded()) {
+      Name += ' ';
+      Name += std::string_view(Keyword);
+    }
+
+    uint8_t *SizeField = &DM.PointerSize;
+    if (Name != "pointer") {
+      // In order to provide good diagnostics like GCC, the special case of
+      // extremely long integer types is handled separately.
+      if (Name.starts_with("long long long"))
+        return Parser.emitError(KWLoc) << Name << " is too long for Clift.";
+
+      auto Type = findCStandardType(Name);
+      if (not Type)
+        return Parser.emitError(KWLoc) << "invalid type '" << Name << "'";
+
+      SizeField = &DM.getStandardTypeSize(*Type);
+    }
+
+    if (Parser.parseEqual().failed())
+      return mlir::failure();
+
+    uint8_t NewSize;
+    mlir::SMLoc SizeLoc = Parser.getCurrentLocation();
+    if (Parser.parseInteger(NewSize).failed())
+      return mlir::failure();
+
+    if (NewSize == 0)
+      return Parser.emitError(SizeLoc)
+             << "the size of type '" << Name << "' cannot be 0";
+
+    if (*SizeField != 0)
+      return Parser.emitError(KWLoc)
+             << "the size of type '" << Name << "' was already specified";
+
+    *SizeField = NewSize;
+    return mlir::success();
+  };
+
+  if (Parser
+        .parseCommaSeparatedList(mlir::AsmParser::Delimiter::LessGreater,
+                                 ParseTypeDefinition,
+                                 " in data model definition")
+        .failed())
+    return {};
+
+  if (DM.PointerSize == 0) {
+    Parser.emitError(AttrLoc) << "size of pointer must be specified";
+    return {};
+  }
+
+  auto Defaults = CDataModel::getDefaultDataModel(DM.PointerSize);
+
+  // Set each unspecified field to its default value based on the pointer size.
+  for (int I = 0; I < static_cast<int>(CStandardType::Count); ++I) {
+    uint8_t &SizeField = DM.StandardTypeSize[I];
+
+    if (SizeField == 0)
+      SizeField = Defaults.StandardTypeSize[I];
+  }
+
+  return DataModelAttr::get(Parser.getContext(), DM);
+}
+
+void DataModelAttr::print(mlir::AsmPrinter &Printer) const {
+  const CDataModel &DM = getDataModel();
+
+  Printer << '<';
+
+  bool PrintComma = false;
+  auto PrintTypeDefinition = [&](llvm::StringRef Name, unsigned Size) {
+    revng_assert(Size != 0);
+
+    if (std::exchange(PrintComma, true))
+      Printer << ',';
+
+    Printer << '\n';
+    Printer << "  ";
+    Printer << Name;
+    Printer << " = ";
+    Printer << Size;
+  };
+
+  PrintTypeDefinition("pointer", DM.PointerSize);
+
+  auto Defaults = CDataModel::getDefaultDataModel(DM.PointerSize);
+
+  // Print any field that does not have its default value.
+  for (int I = 0; I < static_cast<int>(CStandardType::Count); ++I) {
+    uint8_t Size = DM.StandardTypeSize[I];
+    if (Size != Defaults.StandardTypeSize[I])
+      PrintTypeDefinition(CStandardTypeName[I], Size);
+  }
+
+  Printer << '\n';
+  Printer << '>';
+}
+
+//===--------------------------- CAttributeAttr ---------------------------===//
 
 static mlir::LogicalResult
-parseCIdentifierImpl(mlir::AsmParser &Parser,
-                     mlir::clift::CIdentifierAttr &Result) {
+parseCIdentifierImpl(mlir::AsmParser &Parser, clift::CIdentifierAttr &Result) {
   mlir::SMLoc Loc = Parser.getCurrentLocation();
 
   std::string Name;
@@ -305,7 +428,7 @@ mlir::Attribute CAttributeAttr::parse(mlir::AsmParser &Parser, mlir::Type) {
   if (Parser.parseLess().failed())
     return {};
 
-  mlir::clift::CIdentifierAttr Name;
+  clift::CIdentifierAttr Name;
   if (parseCIdentifierImpl(Parser, Name).failed())
     return {};
 
@@ -622,7 +745,7 @@ StructAttr::verify(EmitErrorType EmitError,
                    MutableStringAttr Comment,
                    uint64_t Size,
                    llvm::ArrayRef<FieldAttr> Fields,
-                   llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
+                   llvm::ArrayRef<clift::CAttributeAttr> Attributes) {
   return mlir::success();
 }
 
@@ -658,17 +781,17 @@ StructAttr::verifyDefinition(EmitErrorType EmitError) const {
   return mlir::success();
 }
 
-StructAttr StructAttr::get(MLIRContext *Context, llvm::StringRef Handle) {
+StructAttr StructAttr::get(mlir::MLIRContext *Context, llvm::StringRef Handle) {
   return Base::get(Context, Handle);
 }
 
 StructAttr StructAttr::getChecked(EmitErrorType EmitError,
-                                  MLIRContext *Context,
+                                  mlir::MLIRContext *Context,
                                   llvm::StringRef Handle) {
   return Base::get(Context, Handle);
 }
 
-StructAttr StructAttr::get(MLIRContext *Context,
+StructAttr StructAttr::get(mlir::MLIRContext *Context,
                            llvm::StringRef Handle,
                            const ClassDefinition &Definition) {
   auto Attr = Base::get(Context, Handle);
@@ -680,20 +803,19 @@ StructAttr StructAttr::get(MLIRContext *Context,
 }
 
 StructAttr StructAttr::getChecked(EmitErrorType EmitError,
-                                  MLIRContext *Context,
+                                  mlir::MLIRContext *Context,
                                   llvm::StringRef Handle,
                                   const ClassDefinition &Definition) {
   return get(Context, Handle, Definition);
 }
 
-StructAttr
-StructAttr::get(MLIRContext *Context,
-                llvm::StringRef Handle,
-                MutableStringAttr Name,
-                MutableStringAttr Comment,
-                uint64_t Size,
-                llvm::ArrayRef<FieldAttr> Fields,
-                llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
+StructAttr StructAttr::get(mlir::MLIRContext *Context,
+                           llvm::StringRef Handle,
+                           MutableStringAttr Name,
+                           MutableStringAttr Comment,
+                           uint64_t Size,
+                           llvm::ArrayRef<FieldAttr> Fields,
+                           llvm::ArrayRef<clift::CAttributeAttr> Attributes) {
   return get(Context,
              Handle,
              ClassDefinition{ Name, Comment, Size, Fields, Attributes });
@@ -701,13 +823,13 @@ StructAttr::get(MLIRContext *Context,
 
 StructAttr
 StructAttr::getChecked(EmitErrorType EmitError,
-                       MLIRContext *Context,
+                       mlir::MLIRContext *Context,
                        llvm::StringRef Handle,
                        MutableStringAttr Name,
                        MutableStringAttr Comment,
                        uint64_t Size,
                        llvm::ArrayRef<FieldAttr> Fields,
-                       llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
+                       llvm::ArrayRef<clift::CAttributeAttr> Attributes) {
   return getChecked(EmitError,
                     Context,
                     Handle,
@@ -740,7 +862,7 @@ UnionAttr::verify(EmitErrorType EmitError,
                   MutableStringAttr Name,
                   MutableStringAttr Comment,
                   llvm::ArrayRef<FieldAttr> Fields,
-                  llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
+                  llvm::ArrayRef<clift::CAttributeAttr> Attributes) {
   return mlir::success();
 }
 
@@ -764,17 +886,17 @@ mlir::LogicalResult UnionAttr::verifyDefinition(EmitErrorType EmitError) const {
   return mlir::success();
 }
 
-UnionAttr UnionAttr::get(MLIRContext *Context, llvm::StringRef Handle) {
+UnionAttr UnionAttr::get(mlir::MLIRContext *Context, llvm::StringRef Handle) {
   return Base::get(Context, Handle);
 }
 
 UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
-                                MLIRContext *Context,
+                                mlir::MLIRContext *Context,
                                 llvm::StringRef Handle) {
   return Base::get(Context, Handle);
 }
 
-UnionAttr UnionAttr::get(MLIRContext *Context,
+UnionAttr UnionAttr::get(mlir::MLIRContext *Context,
                          llvm::StringRef Handle,
                          const ClassDefinition &Definition) {
   auto Attr = Base::get(Context, Handle);
@@ -793,19 +915,18 @@ UnionAttr UnionAttr::get(MLIRContext *Context,
 }
 
 UnionAttr UnionAttr::getChecked(EmitErrorType EmitError,
-                                MLIRContext *Context,
+                                mlir::MLIRContext *Context,
                                 llvm::StringRef Handle,
                                 const ClassDefinition &Definition) {
   return get(Context, Handle, Definition);
 }
 
-UnionAttr
-UnionAttr::get(MLIRContext *Context,
-               llvm::StringRef Handle,
-               MutableStringAttr Name,
-               MutableStringAttr Comment,
-               llvm::ArrayRef<FieldAttr> Fields,
-               llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
+UnionAttr UnionAttr::get(mlir::MLIRContext *Context,
+                         llvm::StringRef Handle,
+                         MutableStringAttr Name,
+                         MutableStringAttr Comment,
+                         llvm::ArrayRef<FieldAttr> Fields,
+                         llvm::ArrayRef<clift::CAttributeAttr> Attributes) {
   return get(Context,
              Handle,
              ClassDefinition{ Name, Comment, 0, Fields, Attributes });
@@ -813,12 +934,12 @@ UnionAttr::get(MLIRContext *Context,
 
 UnionAttr
 UnionAttr::getChecked(EmitErrorType EmitError,
-                      MLIRContext *Context,
+                      mlir::MLIRContext *Context,
                       llvm::StringRef Handle,
                       MutableStringAttr Name,
                       MutableStringAttr Comment,
                       llvm::ArrayRef<FieldAttr> Fields,
-                      llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes) {
+                      llvm::ArrayRef<clift::CAttributeAttr> Attributes) {
   return getChecked(EmitError,
                     Context,
                     Handle,
@@ -843,10 +964,9 @@ uint64_t UnionAttr::getSize() const {
 
 //===--------------------------- CAttributeAttr ---------------------------===//
 
-mlir::LogicalResult
-mlir::clift::CAttributeAttr::verify(EmitErrorType EmitError,
-                                    mlir::clift::CIdentifierAttr Name,
-                                    mlir::ArrayAttr Arguments) {
+mlir::LogicalResult clift::CAttributeAttr::verify(EmitErrorType EmitError,
+                                                  clift::CIdentifierAttr Name,
+                                                  mlir::ArrayAttr Arguments) {
   if (not Arguments) {
     // Missing array indicates that `()` should not be emitted.
     return mlir::success();
@@ -859,7 +979,7 @@ mlir::clift::CAttributeAttr::verify(EmitErrorType EmitError,
 
   // If it has arguments, check they can be emitted correctly.
   for (mlir::Attribute ArgumentAttribute : Arguments) {
-    if (not mlir::isa<mlir::clift::CIdentifierAttr,
+    if (not mlir::isa<clift::CIdentifierAttr,
                       mlir::IntegerAttr,
                       mlir::TypeAttr>(ArgumentAttribute)) {
       return EmitError() << "Only identifier, integer and type C-Attribute "

@@ -72,15 +72,23 @@ ReturnValueLocationRegister: r2_systemz
 ReturnValueLocationIsReturned: true
 
 ScalarTypes:
-  - Size: 1
-  - Size: 2
-  - Size: 4
-  - Size: 8
-  - Size: 16
+  - Kind: Integer
+    Size: 1
+  - Kind: Integer
+    Size: 2
+  - Kind: Integer
+    Size: 4
+  - Kind: Integer
+    Size: 8
+  - Kind: Integer
+    Size: 16
     AlignedAt: 8
-
-FloatingPointScalarTypes:
-  - Size: 4
-  - Size: 8
-  - Size: 16
+  - Kind: FloatingPoint
+    Size: 4 # IEEE Binary32
+  - Kind: FloatingPoint
+    Size: 8 # IEEE Binary16
+  - Kind: FloatingPoint
+    Size: 16 # IEEE Binary128
     AlignedAt: 8
+    CTypes:
+      - LongDouble

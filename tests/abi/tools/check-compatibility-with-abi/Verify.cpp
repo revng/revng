@@ -269,8 +269,7 @@ VH::LeftToVerify VH::verifyAnArgument(const runtime_test::State &State,
       }
     }
 
-    revng_assert(!ABI.ScalarTypes().empty());
-    auto &BiggestScalarType = *std::prev(ABI.ScalarTypes().end());
+    auto &BiggestScalarType = ABI.getWidestIntegerType();
     if (BiggestScalarType.alignedAt() != ABI.getPointerSize()) {
       // If the ABI supports unusual alignment, try to account for it,
       // by dropping an conflicting part of the stack data.

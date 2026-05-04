@@ -12,7 +12,7 @@
 #define GET_ATTRDEF_CLASSES
 #include "revng/Clift/CliftAttributesBytecode.h.inc"
 
-namespace mlir::clift {
+namespace clift {
 
 mlir::Attribute readAttr(mlir::DialectBytecodeReader &Reader);
 
@@ -34,4 +34,4 @@ clift::UnionType readUnionDefinition(mlir::DialectBytecodeReader &Reader);
 void writeUnionDefinition(clift::UnionType Type,
                           mlir::DialectBytecodeWriter &Writer);
 
-} // namespace mlir::clift
+} // namespace clift

@@ -6,7 +6,7 @@
 
 #include "revng/Clift/Clift.h"
 
-namespace mlir::clift {
+namespace clift {
 
 struct BlockPosition {
   mlir::Block *Block;
@@ -229,7 +229,7 @@ inline StatementOpInterface getLastStatement(mlir::Region &R) {
 
 inline StatementOpInterface getLastNoFallthroughStatement(mlir::Region &R) {
   return getLastStatementIf(R, [](auto Op) {
-    return Op->template hasTrait<mlir::OpTrait::clift::NoFallthrough>();
+    return Op->template hasTrait<clift::NoFallthrough>();
   });
 }
 
@@ -237,7 +237,7 @@ inline bool isIndirectlyNoFallthrough(mlir::Region &R) {
   StatementOpInterface Op = getLastStatement(R);
   if (not Op)
     return false;
-  if (Op->template hasTrait<mlir::OpTrait::clift::NoFallthrough>())
+  if (Op->template hasTrait<clift::NoFallthrough>())
     return true;
   return Op.isIndirectlyNoFallthrough();
 }
@@ -256,7 +256,7 @@ inline ExpressionOpInterface getRootExpression(mlir::Region &R) {
 
 inline bool isBooleanExpression(mlir::Value Value) {
   mlir::Operation *Op = Value.getDefiningOp();
-  return Op and Op->hasTrait<mlir::OpTrait::clift::ReturnsBoolean>();
+  return Op and Op->hasTrait<clift::ReturnsBoolean>();
 }
 
 inline mlir::OpOperand *getOnlyUse(mlir::Value Value) {
@@ -272,7 +272,7 @@ inline mlir::OpOperand *getOnlyUse(mlir::Value Value) {
 template<typename OpT = mlir::Operation *>
 OpT getOnlyUser(mlir::Value Value) {
   if (mlir::OpOperand *Operand = getOnlyUse(Value)) {
-    if constexpr (std::is_same_v<Operation, mlir::Operation *>) {
+    if constexpr (std::is_same_v<OpT, mlir::Operation *>) {
       return Operand->getOwner();
     } else {
       return mlir::dyn_cast<OpT>(Operand->getOwner());
@@ -292,4 +292,4 @@ bool isDiscarded(mlir::Value Value);
 /// expression.
 bool isBooleanTested(mlir::Value Value);
 
-} // namespace mlir::clift
+} // namespace clift

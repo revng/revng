@@ -368,6 +368,11 @@ branches:
             - inline-divergent-scopes
             - enforce-single-exit
             - materialize-trivial-goto
+        artifacts:
+          - name: clifter-input
+            container: llvm-functions
+            category: debug
+            filename: clifter_input.bc
       - pipe: clifter
         arguments: [llvm-functions, clift-functions]
       - pipe: pure-mlir-passes-pipe
@@ -384,7 +389,14 @@ branches:
             - canonicalize
             - optimize-expressions
             - terminal-branch-complement-hoisting
+      - pipe: import-function-data-model
+        arguments: [clift-functions]
+      - pipe: pure-mlir-passes-pipe
+        arguments: [clift-functions]
+        configuration:
+          passes:
             - c-legalization
+            - elide-implicit-casts
             - deduce-immediate-radices
       - pipe: verify-function-against-model
         arguments: [clift-functions]

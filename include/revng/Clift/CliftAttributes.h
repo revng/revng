@@ -16,8 +16,9 @@
 #include "revng/Clift/CliftInterfaces.h"
 #include "revng/Clift/CliftMutableStringAttr.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/CDataModel.h"
 
-namespace mlir::clift {
+namespace clift {
 
 template<typename T>
 MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
@@ -28,13 +29,13 @@ MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
                                   llvm::StringRef Handle,
                                   llvm::StringRef Name = "");
 
-} // namespace mlir::clift
+} // namespace clift
 
 // This include should stay here for correct build procedure
 #define GET_ATTRDEF_CLASSES
 #include "revng/Clift/CliftAttributes.h.inc"
 
-namespace mlir::clift {
+namespace clift {
 
 template<typename T>
 MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
@@ -66,12 +67,13 @@ MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
 class ClassAttrStorage;
 
 template<typename AttrT>
-using ClassAttrBase = Attribute::AttrBase<AttrT,
-                                          Attribute,
-                                          ClassAttrStorage,
-                                          AttributeTrait::IsMutable,
-                                          TypeDefinitionAttr::Trait,
-                                          SubElementAttrInterface::Trait>;
+using ClassAttrBase = mlir::Attribute::AttrBase<
+  AttrT,
+  mlir::Attribute,
+  ClassAttrStorage,
+  mlir::AttributeTrait::IsMutable,
+  TypeDefinitionAttr::Trait,
+  mlir::SubElementAttrInterface::Trait>;
 
 struct ClassDefinition {
   MutableStringAttr Name;
@@ -79,13 +81,13 @@ struct ClassDefinition {
 
   uint64_t Size;
   llvm::ArrayRef<FieldAttr> Fields;
-  llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes;
+  llvm::ArrayRef<CAttributeAttr> CAttributes;
 
   ClassDefinition(MutableStringAttr Name,
                   MutableStringAttr Comment,
                   uint64_t Size,
                   llvm::ArrayRef<FieldAttr> Fields,
-                  llvm::ArrayRef<mlir::clift::CAttributeAttr> CAttributes) :
+                  llvm::ArrayRef<CAttributeAttr> CAttributes) :
     Name(Name),
     Comment(Comment),
     Size(Size),
@@ -99,9 +101,7 @@ struct ClassDefinition {
 
   llvm::ArrayRef<FieldAttr> getFields() const { return Fields; }
 
-  llvm::ArrayRef<mlir::clift::CAttributeAttr> getCAttributes() const {
-    return CAttributes;
-  }
+  llvm::ArrayRef<CAttributeAttr> getCAttributes() const { return CAttributes; }
 
   friend bool operator==(const ClassDefinition &,
                          const ClassDefinition &) = default;
@@ -138,10 +138,13 @@ public:
   const ClassDefinition *getDefinitionOrNull() const;
   const ClassDefinition &getDefinition() const;
 
-  void walkImmediateSubElements(llvm::function_ref<void(Attribute)> WalkAttrs,
-                                llvm::function_ref<void(Type)> WalkTypes) const;
-  Attribute replaceImmediateSubElements(llvm::ArrayRef<Attribute> NewAttrs,
-                                        llvm::ArrayRef<Type> NewTypes) const;
+  void
+  walkImmediateSubElements(llvm::function_ref<void(mlir::Attribute)> WalkAttrs,
+                           llvm::function_ref<void(mlir::Type)> WalkTypes)
+    const;
+  mlir::Attribute
+  replaceImmediateSubElements(llvm::ArrayRef<mlir::Attribute> NewAttrs,
+                              llvm::ArrayRef<mlir::Type> NewTypes) const;
 };
 
 struct StructAttr : ClassAttrImpl<StructAttr> {
@@ -150,65 +153,66 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
 
   using ClassAttrImpl::ClassAttrImpl;
 
-  static LogicalResult
-  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+  static mlir::LogicalResult
+  verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle);
 
   static mlir::LogicalResult
-  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+  verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle,
          const ClassDefinition &Definition);
 
   static mlir::LogicalResult
-  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+  verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle,
          MutableStringAttr Name,
          MutableStringAttr Comment,
          uint64_t Size,
          llvm::ArrayRef<FieldAttr> Fields,
-         llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
+         llvm::ArrayRef<CAttributeAttr> Attributes);
 
   mlir::LogicalResult
-  verifyDefinition(llvm::function_ref<InFlightDiagnostic()> EmitError) const;
+  verifyDefinition(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError)
+    const;
 
-  static StructAttr get(MLIRContext *Context, llvm::StringRef Handle);
+  static StructAttr get(mlir::MLIRContext *Context, llvm::StringRef Handle);
 
   static StructAttr
-  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *Context,
+  getChecked(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+             mlir::MLIRContext *Context,
              llvm::StringRef Handle);
 
-  static StructAttr get(MLIRContext *Context,
+  static StructAttr get(mlir::MLIRContext *Context,
                         llvm::StringRef Handle,
                         const ClassDefinition &Definition);
 
   static StructAttr
-  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *Context,
+  getChecked(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+             mlir::MLIRContext *Context,
              llvm::StringRef Handle,
              const ClassDefinition &Definition);
 
-  static StructAttr get(MLIRContext *Context,
+  static StructAttr get(mlir::MLIRContext *Context,
                         llvm::StringRef Handle,
                         MutableStringAttr Name,
                         MutableStringAttr Comment,
                         uint64_t Size,
                         llvm::ArrayRef<FieldAttr> Fields,
-                        llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
+                        llvm::ArrayRef<CAttributeAttr> Attributes);
 
   static StructAttr
-  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *Context,
+  getChecked(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+             mlir::MLIRContext *Context,
              llvm::StringRef Handle,
              MutableStringAttr Name,
              MutableStringAttr Comment,
              uint64_t Size,
              llvm::ArrayRef<FieldAttr> Fields,
-             llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
+             llvm::ArrayRef<CAttributeAttr> Attributes);
 
   uint64_t getSize() const { return getDefinition().getSize(); }
 
-  llvm::ArrayRef<mlir::clift::CAttributeAttr> getCAttributes() const {
+  llvm::ArrayRef<CAttributeAttr> getCAttributes() const {
     return getDefinition().getCAttributes();
   }
 };
@@ -220,62 +224,63 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
   using ClassAttrImpl::ClassAttrImpl;
   using ClassAttrImpl::verify;
 
-  static LogicalResult
-  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+  static mlir::LogicalResult
+  verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle);
 
-  static LogicalResult
-  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+  static mlir::LogicalResult
+  verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle,
          const ClassDefinition &Definition);
 
-  static LogicalResult
-  verify(llvm::function_ref<InFlightDiagnostic()> EmitError,
+  static mlir::LogicalResult
+  verify(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
          llvm::StringRef Handle,
          MutableStringAttr Name,
          MutableStringAttr Comment,
          llvm::ArrayRef<FieldAttr> Fields,
-         llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
+         llvm::ArrayRef<CAttributeAttr> Attributes);
 
   mlir::LogicalResult
-  verifyDefinition(llvm::function_ref<InFlightDiagnostic()> EmitError) const;
+  verifyDefinition(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError)
+    const;
 
-  static UnionAttr get(MLIRContext *Context, llvm::StringRef Handle);
+  static UnionAttr get(mlir::MLIRContext *Context, llvm::StringRef Handle);
 
   static UnionAttr
-  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *Context,
+  getChecked(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+             mlir::MLIRContext *Context,
              llvm::StringRef Handle);
 
-  static UnionAttr get(MLIRContext *Context,
+  static UnionAttr get(mlir::MLIRContext *Context,
                        llvm::StringRef Handle,
                        const ClassDefinition &Definition);
 
   static UnionAttr
-  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *Context,
+  getChecked(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+             mlir::MLIRContext *Context,
              llvm::StringRef Handle,
              const ClassDefinition &Definition);
 
-  static UnionAttr get(MLIRContext *Context,
+  static UnionAttr get(mlir::MLIRContext *Context,
                        llvm::StringRef Handle,
                        MutableStringAttr Name,
                        MutableStringAttr Comment,
                        llvm::ArrayRef<FieldAttr> Fields,
-                       llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
+                       llvm::ArrayRef<CAttributeAttr> Attributes);
 
   static UnionAttr
-  getChecked(llvm::function_ref<InFlightDiagnostic()> EmitError,
-             MLIRContext *Context,
+  getChecked(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
+             mlir::MLIRContext *Context,
              llvm::StringRef Handle,
              MutableStringAttr Name,
              MutableStringAttr Comment,
              llvm::ArrayRef<FieldAttr> Fields,
-             llvm::ArrayRef<mlir::clift::CAttributeAttr> Attributes);
+             llvm::ArrayRef<CAttributeAttr> Attributes);
 
   uint64_t getSize() const;
 
-  llvm::ArrayRef<mlir::clift::CAttributeAttr> getCAttributes() const {
+  llvm::ArrayRef<CAttributeAttr> getCAttributes() const {
     return getDefinition().getCAttributes();
   }
 };
@@ -283,4 +288,4 @@ struct UnionAttr : ClassAttrImpl<UnionAttr> {
 extern template class ClassAttrImpl<StructAttr>;
 extern template class ClassAttrImpl<UnionAttr>;
 
-} // namespace mlir::clift
+} // namespace clift

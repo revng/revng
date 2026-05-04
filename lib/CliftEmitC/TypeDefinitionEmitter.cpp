@@ -18,9 +18,6 @@
 
 inline Logger TypePrinterLog{ "clift-type-definition-printer" };
 
-namespace clift = mlir::clift;
-using TypeDefinitionEmitter = TypeDefinitionEmitter;
-
 void TypeDefinitionEmitter::emitTypeKeyword(clift::DefinedType Type) {
   if (mlir::isa<clift::StructType>(Type))
     Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Struct);
@@ -32,15 +29,13 @@ void TypeDefinitionEmitter::emitTypeKeyword(clift::DefinedType Type) {
     revng_abort("Declaration typedef of an unknown type was encountered");
 }
 
-void // formatting
-TypeDefinitionEmitter::emitDeclarationTypedef(mlir::MLIRContext &Context,
-                                              clift::DefinedType Type) {
+void TypeDefinitionEmitter::emitDeclarationTypedef(clift::DefinedType Type) {
   Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
   Tokens.emitSpace();
 
   emitTypeKeyword(Type);
 
-  emitCAttributes(clift::CAttributeListBuilder{ Context }
+  emitCAttributes(clift::CAttributeListBuilder(Type.getContext())
                     .setOrUpdate<"_PACKED">()
                     .getRaw(),
                   /* SpaceBefore = */ true,
@@ -59,8 +54,7 @@ TypeDefinitionEmitter::emitDeclarationTypedef(mlir::MLIRContext &Context,
   Tokens.emitNewline();
 }
 
-void // formatting
-TypeDefinitionEmitter::emitTypedefDefinition(clift::TypedefType Typedef) {
+void TypeDefinitionEmitter::emitTypedefDefinition(clift::TypedefType Typedef) {
   auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Typedef.getHandle());
 
@@ -78,8 +72,7 @@ TypeDefinitionEmitter::emitTypedefDefinition(clift::TypedefType Typedef) {
   Tokens.emitNewline();
 }
 
-void // formatting
-TypeDefinitionEmitter::emitFunctionTypedef(clift::FunctionType Function) {
+void TypeDefinitionEmitter::emitFunctionTypedef(clift::FunctionType Function) {
   revng_assert(!Function.getName().empty());
 
   auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
@@ -89,8 +82,8 @@ TypeDefinitionEmitter::emitFunctionTypedef(clift::FunctionType Function) {
   Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
   Tokens.emitSpace();
 
-  auto Attrs = clift::CAttributeListBuilder{ *Context,
-                                             Function.getCAttributes() };
+  auto Attrs = clift::CAttributeListBuilder(Function.getContext(),
+                                            Function.getCAttributes());
   emitDeclaration(Function,
                   CEmitter::DeclaratorInfo{
                     .Identifier = Function.getName(),
@@ -103,16 +96,15 @@ TypeDefinitionEmitter::emitFunctionTypedef(clift::FunctionType Function) {
   Tokens.emitNewline();
 }
 
-void TypeDefinitionEmitter::emitTypeDeclaration(mlir::MLIRContext &Context,
-                                                clift::DefinedType Type) {
+void TypeDefinitionEmitter::emitTypeDeclaration(clift::DefinedType Type) {
   if (isSeparateDeclarationAllowed(Type)) {
-    emitForwardDeclaration(Context, Type);
+    emitForwardDeclaration(Type);
 
   } else if (auto Typedef = mlir::dyn_cast<clift::TypedefType>(Type)) {
     emitTypedefDefinition(Typedef);
 
   } else if (auto Enum = mlir::dyn_cast<clift::EnumType>(Type)) {
-    emitEnumDefinition(Context, Enum);
+    emitEnumDefinition(Enum);
 
   } else if (auto Function = mlir::dyn_cast<clift::FunctionType>(Type)) {
     emitFunctionTypedef(Function);
@@ -132,16 +124,16 @@ static std::string paddingFieldName(uint64_t CurrentOffset) {
   return Builder.paddingFieldName(CurrentOffset);
 }
 
-void TypeDefinitionEmitter::emitPaddingField(mlir::MLIRContext &Context,
+void TypeDefinitionEmitter::emitPaddingField(clift::ClassType Class,
                                              uint64_t CurrentOffset,
                                              uint64_t NextOffset) {
   revng_assert(CurrentOffset <= NextOffset);
   if (CurrentOffset == NextOffset)
     return; // There is no padding
 
-  auto Char = clift::IntegerType::get(&Context,
+  auto Char = clift::IntegerType::get(Class.getContext(),
                                       clift::IntegerKind::Unsigned,
-                                      1);
+                                      /*Size=*/1);
   auto Array = clift::ArrayType::get(Char, NextOffset - CurrentOffset);
   emitDeclaration(Array,
                   DeclaratorInfo{
@@ -154,37 +146,34 @@ void TypeDefinitionEmitter::emitPaddingField(mlir::MLIRContext &Context,
   Tokens.emitNewline();
 }
 
-using TDEmitter = TypeDefinitionEmitter;
-void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
-                                    clift::ClassType StructOrUnion) {
+void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
   {
     auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
-                                StructOrUnion.getHandle());
+                                Class.getHandle());
 
-    emitDoxygenComment(StructOrUnion);
-    emitTypeKeyword(StructOrUnion);
+    emitDoxygenComment(Class);
+    emitTypeKeyword(Class);
 
-    clift::CAttributeListBuilder AttributeBuilder{
-      Context, StructOrUnion.getCAttributes()
-    };
+    clift::CAttributeListBuilder AttributeBuilder{ Class.getContext(),
+                                                   Class.getCAttributes() };
     AttributeBuilder.setOrUpdate<"_PACKED">();
 
-    if (auto S = mlir::dyn_cast<clift::StructType>(StructOrUnion))
+    if (auto S = mlir::dyn_cast<clift::StructType>(Class))
       AttributeBuilder.setOrUpdate<"_SIZE">(S.getSize());
 
     emitCAttributes(AttributeBuilder.getRaw(),
                     /* SpaceBefore = */ true,
                     /* SpaceAfter = */ true);
 
-    Tokens.emitIdentifier(StructOrUnion.getName(),
-                          StructOrUnion.getHandle(),
-                          chooseEntityKind(StructOrUnion),
+    Tokens.emitIdentifier(Class.getName(),
+                          Class.getHandle(),
+                          chooseEntityKind(Class),
                           ptml::CTokenEmitter::IdentifierKind::Definition);
     Tokens.emitSpace();
   }
 
   {
-    bool IsStruct = mlir::isa<clift::StructType>(StructOrUnion);
+    bool IsStruct = mlir::isa<clift::StructType>(Class);
 
     using ScopeKind = ptml::CTokenEmitter::ScopeKind;
     auto Scope = Tokens.enterScope(IsStruct ? ScopeKind::StructDefinition :
@@ -193,11 +182,9 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
     Tokens.emitNewline();
 
     uint64_t PreviousOffset = 0;
-    for (const auto &Field : StructOrUnion.getFields()) {
+    for (const auto &Field : Class.getFields()) {
       if (IsStruct and Configuration.ExplicitPadding)
-        emitPaddingField(*Field.getContext(),
-                         PreviousOffset,
-                         Field.getOffset());
+        emitPaddingField(Class, PreviousOffset, Field.getOffset());
 
       auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                   Field.getHandle());
@@ -223,7 +210,7 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
         if (not UnconfiguredNB.isAutomaticName(FakeStruct,
                                                FakeField,
                                                Field.getName())) {
-          emitCAttributes(clift::CAttributeListBuilder{ Context }
+          emitCAttributes(clift::CAttributeListBuilder(Class.getContext())
                             .setOrUpdate<"_STARTS_AT">(Field.getOffset())
                             .getRaw(),
                           /* SpaceBefore = */ true,
@@ -235,7 +222,7 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
       Tokens.emitNewline();
 
       PreviousOffset = Field.getOffset()
-                       + mlir::clift::getObjectSize(Field.getType());
+                       + clift::getObjectSize(Field.getType());
     }
   }
 
@@ -243,8 +230,7 @@ void TDEmitter::emitClassDefinition(mlir::MLIRContext &Context,
   Tokens.emitNewline();
 }
 
-void TypeDefinitionEmitter::emitEnumDefinition(mlir::MLIRContext &Context,
-                                               clift::EnumType Enum) {
+void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
   {
     auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
                                 Enum.getHandle());
@@ -253,7 +239,7 @@ void TypeDefinitionEmitter::emitEnumDefinition(mlir::MLIRContext &Context,
     Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Enum);
 
     clift::ValueType Type = Enum.getUnderlyingType();
-    emitCAttributes(clift::CAttributeListBuilder{ Context }
+    emitCAttributes(clift::CAttributeListBuilder(Enum.getContext())
                       .setOrUpdate<"_ENUM_UNDERLYING">(Type)
                       .setOrUpdate<"_PACKED">()
                       .getRaw(),
@@ -287,7 +273,7 @@ void TypeDefinitionEmitter::emitEnumDefinition(mlir::MLIRContext &Context,
         Tokens.emitIntegerLiteral(llvm::APInt{ 64, Value },
                                   ptml::CTokenEmitter::IntegerSuffix{
                                     .Unsigned = true,
-                                    .MinimumType = CIntegerKind::Int,
+                                    .MinimumType = CStandardType::Int,
                                   },
                                   16);
 
@@ -328,17 +314,16 @@ void TypeDefinitionEmitter::emitEnumDefinition(mlir::MLIRContext &Context,
   Tokens.emitNewline();
 
   // Allow using `MyEnum` instead of `enum MyEnum`.
-  emitDeclarationTypedef(Context, Enum);
+  emitDeclarationTypedef(Enum);
 }
 
-void TypeDefinitionEmitter::emitTypeDefinition(mlir::MLIRContext &Context,
-                                               clift::DefinedType Type) {
-  if (auto StructOrUnion = mlir::dyn_cast<clift::ClassType>(Type)) {
-    emitClassDefinition(Context, StructOrUnion);
+void TypeDefinitionEmitter::emitTypeDefinition(clift::DefinedType Type) {
+  if (auto Class = mlir::dyn_cast<clift::ClassType>(Type)) {
+    emitClassDefinition(Class);
     return;
 
   } else if (not isSeparateDeclarationAllowed(Type)) {
-    emitTypeDeclaration(Context, Type);
+    emitTypeDeclaration(Type);
     Tokens.emitNewline();
     return;
   }
@@ -347,10 +332,8 @@ void TypeDefinitionEmitter::emitTypeDefinition(mlir::MLIRContext &Context,
   revng_abort("Unknown defined type.");
 }
 
-void // formatting
-TypeDefinitionEmitter::emitTypeTree(mlir::MLIRContext &Context,
-                                    const TypeDependencyNode &Root,
-                                    NodeSet &Emitted) {
+void TypeDefinitionEmitter::emitTypeTree(const TypeDependencyNode &Root,
+                                         NodeSet &Emitted) {
   revng_log(TypePrinterLog,
             "Starting a post order visit from:" << Root.label());
 
@@ -377,11 +360,11 @@ TypeDefinitionEmitter::emitTypeTree(mlir::MLIRContext &Context,
       revng_assert(isSeparateDeclarationAllowed(Type));
 
       revng_log(TypePrinterLog, "Definition");
-      emitTypeDefinition(Context, Type);
+      emitTypeDefinition(Type);
 
     } else {
       revng_log(TypePrinterLog, "Declaration");
-      emitTypeDeclaration(Context, Type);
+      emitTypeDeclaration(Type);
     }
   }
 

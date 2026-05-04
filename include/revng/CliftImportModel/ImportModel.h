@@ -13,14 +13,14 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Model/Binary.h"
 
-namespace mlir::clift {
+namespace clift {
 
 /// Convert the specified unqualified model type to a Clift type in the
 /// specified context.
 ///
 /// \return The corresponding Clift type, or null on failure.
 mlir::Type importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                      mlir::MLIRContext &Context,
+                      mlir::MLIRContext *Context,
                       const model::TypeDefinition &ModelType,
                       const model::Binary &Binary);
 
@@ -29,7 +29,7 @@ mlir::Type importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
 ///
 /// \return The corresponding Clift type, or null on failure.
 mlir::Type importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
-                      mlir::MLIRContext &Context,
+                      mlir::MLIRContext *Context,
                       const model::Type &ModelType,
                       const model::Binary &Binary);
 
@@ -63,4 +63,4 @@ void importDescriptiveInfo(const model::Function &Function,
                            const model::Binary &Model,
                            mlir::ModuleOp Module);
 
-} // namespace mlir::clift
+} // namespace clift

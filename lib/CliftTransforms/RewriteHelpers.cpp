@@ -4,12 +4,12 @@
 
 #include "revng/CliftTransforms/RewriteHelpers.h"
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 void clift::transformExpression(mlir::PatternRewriter &Rewriter,
                                 mlir::Region &Region,
-                                llvm::function_ref<Value(Value)> Transform) {
+                                llvm::function_ref<mlir::Value(mlir::Value)>
+                                  Transform) {
   auto Yield = clift::getYieldOp(Region);
   revng_assert(Yield);
 
@@ -25,7 +25,9 @@ void clift::transformExpression(mlir::PatternRewriter &Rewriter,
 void clift::mergeExpressionInto(mlir::PatternRewriter &Rewriter,
                                 mlir::Region &SourceRegion,
                                 mlir::Region &TargetRegion,
-                                llvm::function_ref<Value(Value, Value)> Merge) {
+                                llvm::function_ref<mlir::Value(mlir::Value,
+                                                               mlir::Value)>
+                                  Merge) {
   auto SourceYield = clift::getYieldOp(SourceRegion);
   revng_assert(SourceYield);
 

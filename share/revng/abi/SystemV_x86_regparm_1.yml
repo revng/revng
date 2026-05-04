@@ -42,16 +42,26 @@ ReturnValueLocationRegister: eax_x86
 ReturnValueLocationIsReturned: true
 
 ScalarTypes:
-  - Size: 1
-  - Size: 2
-  - Size: 4
-  - Size: 8
+  - Kind: Integer
+    Size: 1
+  - Kind: Integer
+    Size: 2
+  - Kind: Integer
+    Size: 4
+  - Kind: Integer
+    Size: 8
     AlignedAt: 4
-
-FloatingPointScalarTypes:
-  - Size: 4
-  - Size: 8
+  - Kind: FloatingPoint
+    Size: 2 # IEEE Binary16
+  - Kind: FloatingPoint
+    Size: 4 # IEEE Binary32
+  - Kind: FloatingPoint
+    Size: 8 # IEEE Binary64
     AlignedAt: 4
-  - Size: 12
+  - Kind: FloatingPoint
+    Size: 12 # x87 Extended
     AlignedAt: 4
-  - Size: 16
+    CTypes:
+      - LongDouble
+  - Kind: FloatingPoint
+    Size: 16 # IEEE Binary128

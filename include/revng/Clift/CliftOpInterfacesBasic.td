@@ -10,7 +10,7 @@ include "mlir/IR/SymbolInterfaces.td"
 
 class Clift_OpInterface<string name, list<Interface> baseInterfaces = []>
   : OpInterface<name, baseInterfaces> {
-  let cppNamespace = "mlir::clift";
+  let cppNamespace = "clift";
 }
 
 def Clift_GlobalOpInterface : Clift_OpInterface<"GlobalOpInterface", [Symbol]> {
@@ -49,7 +49,7 @@ def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
       "bool", "isIndirectlyNoFallthrough", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/ [{
-        return ConcreteOp::template hasTrait<mlir::OpTrait::clift::NoFallthrough>();
+        return ConcreteOp::template hasTrait<clift::NoFallthrough>();
       }]
     >,
     InterfaceMethod<
@@ -132,7 +132,7 @@ def Clift_StatementRegionOpInterface
     >,
     InterfaceMethod<
       /*desc=*/"Returns the statement regions of this operation.",
-      "mlir::clift::StatementRegionRange", "getStatementRegions", (ins),
+      "clift::StatementRegionRange", "getStatementRegions", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/ [{
         return StatementRegionRange($_op, 0, $_op.getStatementRegionCount());
@@ -165,7 +165,7 @@ def Clift_ExpressionRegionOpInterface
     >,
     InterfaceMethod<
       /*desc=*/"Returns the expression regions of this operation.",
-      "mlir::clift::ExpressionRegionRange", "getExpressionRegions", (ins),
+      "clift::ExpressionRegionRange", "getExpressionRegions", (ins),
       /*methodBody=*/[{}],
       /*defaultImplementation=*/ [{
         return ExpressionRegionRange($_op, 0, $_op.getExpressionRegionCount());

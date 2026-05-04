@@ -70,11 +70,15 @@ ReturnValueLocationRegister: v0_mips
 ReturnValueLocationIsReturned: true
 
 ScalarTypes:
-  - Size: 1
-  - Size: 2
-  - Size: 4
-  - Size: 8
-
-FloatingPointScalarTypes:
-  - Size: 4
-  - Size: 8
+  - Kind: Integer
+    Size: 1
+  - Kind: Integer
+    Size: 2
+  - Kind: Integer
+    Size: 4
+  - Kind: Integer
+    Size: 8
+  - Kind: FloatingPoint
+    Size: 4 # IEEE Binary32
+  - Kind: FloatingPoint
+    Size: 8 # IEEE Binary64

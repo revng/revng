@@ -21,7 +21,7 @@
 #define GET_TYPEDEF_CLASSES
 #include "revng/Clift/CliftTypes.h.inc"
 
-namespace mlir::clift {
+namespace clift {
 
 //===------------------------------ Typedefs ------------------------------===//
 
@@ -163,6 +163,16 @@ template<typename TypeT>
   return getObjectSize(Value.getType());
 }
 
+//===--------------------------- Integral types ---------------------------===//
+
+/// Returns true if the specified type is a signed integer type (including
+/// enum with a signed underlying type), or a typedef for such a type.
+bool isSigned(mlir::Type Type);
+
+/// Returns true if the specified type is an unsigned integer type (including
+/// enum with an unsigned underlying type), or a typedef for such a type.
+bool isUnsigned(mlir::Type Type);
+
 //===--------------------------- Type categories --------------------------===//
 
 /// Determine if the type is non-const. This is different from
@@ -193,10 +203,6 @@ bool isCompleteType(mlir::Type Type);
 /// Qualifiers are ignored.
 bool isScalarType(mlir::Type Type);
 
-/// Determine if the type is an integer type. @see getUnderlyingIntegerType for
-/// a breakdown of the set of integer types.
-bool isIntegerType(mlir::Type Type);
-
 /// Determine if the type is a "boolean" type, i.e. a signed primitive integer
 /// type.
 bool isBooleanType(mlir::Type Type);
@@ -213,4 +219,4 @@ bool isCallableType(mlir::Type Type);
 /// function type, returns that function type.
 FunctionType getFunctionOrFunctionPointerFunctionType(mlir::Type Type);
 
-} // namespace mlir::clift
+} // namespace clift

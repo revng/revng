@@ -698,7 +698,7 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
       //       into preserving it at least partially.
       uint64_t PointerSize = model::ABI::getPointerSize(ABI.ABI());
       uint64_t PrimitiveSize = Ordered.size() * PointerSize;
-      if (ABI.ScalarTypes().contains(PrimitiveSize)) {
+      if (ABI.findIntegerType(PrimitiveSize) != nullptr) {
         return model::PrimitiveType::makeGeneric(PrimitiveSize);
       } else {
         revng_log(Log,

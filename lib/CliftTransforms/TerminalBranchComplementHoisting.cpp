@@ -6,18 +6,15 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "revng/Clift/Clift.h"
-#include "revng/CliftTransforms/BooleanNegations.h"
+#include "revng/CliftTransforms/Expressions.h"
 #include "revng/CliftTransforms/Passes.h"
 #include "revng/CliftTransforms/RewriteHelpers.h"
 
-namespace mlir {
 namespace clift {
 #define GEN_PASS_DEF_CLIFTTERMINALBRANCHCOMPLEMENTHOISTING
 #include "revng/CliftTransforms/Passes.h.inc"
 } // namespace clift
-} // namespace mlir
 
-namespace clift = mlir::clift;
 using namespace clift;
 
 namespace {

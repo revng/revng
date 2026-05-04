@@ -6,6 +6,9 @@
 
 #include <cstdint>
 
+#include "revng/ABI/CType.h"
+#include "revng/ABI/ScalarKind.h"
+
 #include "revng/ABI/Generated/Early/ScalarType.h"
 
 namespace abi {
