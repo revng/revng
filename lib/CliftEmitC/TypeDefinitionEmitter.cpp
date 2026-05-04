@@ -30,6 +30,9 @@ void TypeDefinitionEmitter::emitTypeKeyword(clift::DefinedType Type) {
 }
 
 void TypeDefinitionEmitter::emitDeclarationTypedef(clift::DefinedType Type) {
+  auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                  Type.getHandle());
+
   Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
   Tokens.emitSpace();
 
