@@ -347,9 +347,7 @@ private:
                         const model::RawFunctionDefinition &FMT) {
     revng_assert(ST.getFields().size() == FMT.ReturnValues().size());
 
-    std::string
-      Name = (Model.Configuration().Naming().ArtificialReturnValuePrefix()
-              + NameBuilder.name(FMT));
+    std::string Name = NameBuilder.artificialReturnValueWrapperName(FMT);
 
     ST.getMutableName().setValue(Name);
 
