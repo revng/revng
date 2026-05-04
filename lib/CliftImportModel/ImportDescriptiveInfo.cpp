@@ -351,8 +351,10 @@ private:
 
     ST.getMutableName().setValue(Name);
 
-    for (auto [F, R] : llvm::zip(ST.getFields(), FMT.ReturnValues()))
+    for (auto [F, R] : llvm::zip(ST.getFields(), FMT.ReturnValues())) {
       F.getMutableName().setValue(NameBuilder.name(FMT, R));
+      F.getMutableComment().setValue(R.Comment());
+    }
 
     return mlir::success();
   }
