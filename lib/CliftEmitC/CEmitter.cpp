@@ -532,9 +532,6 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
 static constexpr uint64_t ExtraKeywordIndentation = 2;
 
 void CEmitter::emitFunctionDoxygenComment(FunctionOp Function) {
-  auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
-                                  Function.getHandle());
-
   std::optional<ptml::CDoxygenEmitter> Emitter = std::nullopt;
 
   // Function comment
@@ -543,6 +540,10 @@ void CEmitter::emitFunctionDoxygenComment(FunctionOp Function) {
     auto CommentBody = mlir::cast<mlir::StringAttr>(RawAttribute).getValue();
     if (not CommentBody.empty()) {
       ptml::CDoxygenEmitter::emitLineComment(Emitter, Tokens);
+
+      auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                  Function.getHandle());
+
       Emitter->emit(CommentBody);
       Emitter->emit("\n");
     }
