@@ -16,7 +16,7 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
+#include "revng/HeadersGeneration/Helpers.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/PTML/CAttributes.h"
@@ -27,6 +27,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/TypeNames/LLVMTypeNames.h"
+#include "revng/TypeNames/ModelCBuilder.h"
 
 using llvm::dyn_cast;
 
@@ -116,7 +117,7 @@ static bool hasUnprintableArgsOrRetTypes(const llvm::Function &F) {
   return llvm::any_of(F.getFunctionType()->params(), IsUnprintable);
 }
 
-bool ptml::HeaderBuilder::printHelpersHeader(const llvm::Module &M) {
+bool ptml::printHelpersHeader(ptml::ModelCBuilder &B, const llvm::Module &M) {
   auto Scope = B.getScopeTag(ptml::tags::Div);
   std::string Includes = B.getPragmaOnce() + B.getIncludeAngle("stdint.h")
                          + B.getIncludeAngle("stdbool.h")

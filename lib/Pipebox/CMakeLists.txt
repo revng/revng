@@ -20,7 +20,6 @@ target_link_libraries(
   revngLLMRenameAnalysis
   revngLift
   revngModelImporter
-  revngModelToHeader
   revngPromoteStackPointer
   revngRecompile
   revngRemoveExtractValues
