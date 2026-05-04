@@ -12,7 +12,7 @@ struct TypeEmitterConfiguration {
   /// As well as every type that depends on its definition.
   ///
   /// Note: the type is identified by its handle.
-  llvm::StringRef TypeToOmit;
+  llvm::StringRef TypeToOmit = "";
 
   /// Because we are emitting C11, we cannot specify underlying enum type
   /// (the feature was only backported from C++ in C23), which means that
@@ -21,7 +21,7 @@ struct TypeEmitterConfiguration {
   /// we emit the maximum value possible - and then use it to figure out
   /// the original size.
   /// Setting this flag to `true` enables emitting of such entry.
-  bool EmitMaximumEnumValue;
+  bool EmitMaximumEnumValue = true;
 
   /// When editing types, it would be extremely annoying to have to do every
   /// change twice. As such, we need a way to disable emission of the explicit
@@ -30,5 +30,5 @@ struct TypeEmitterConfiguration {
   /// Note that setting this leads to changes in the struct layout were they
   /// recompiled with a normal compiler (*our* wrapper used when editing types
   /// is not affected because it explicitly handles `_STARTS_AT` attribute).
-  bool ExplicitPadding;
+  bool ExplicitPadding = true;
 };
