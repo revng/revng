@@ -9,14 +9,16 @@ set -euo pipefail
 WORKDIR=$(mktemp --tmpdir -d tmp.revng-pypeline-compare.XXXXXXXXXX)
 trap 'rm -r "$WORKDIR"' EXIT
 
-MODEL="$1"
-BINARY="$2"
+MODEL="$(realpath "$1")"
+BINARY="$(realpath "$2")"
 ARTIFACT="$3"
 
 OLD_PATH="$WORKDIR/old"
 NEW_PATH="$WORKDIR/new"
 mkdir "$WORKDIR/cache"
 export XDG_CACHE_HOME="$WORKDIR/cache"
+cp -raT "$PWD" "$WORKDIR/scratch"
+cd "$WORKDIR/scratch"
 
 function files_in_dir() {
     find "$1" -type f -printf '%f\n'

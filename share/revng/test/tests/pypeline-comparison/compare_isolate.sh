@@ -9,11 +9,13 @@ set -euo pipefail
 WORKDIR=$(mktemp --tmpdir -d tmp.revng-pypeline-compare.XXXXXXXXXX)
 trap 'rm -r "$WORKDIR"' EXIT
 
-MODEL="$1"
-BINARY="$2"
+MODEL="$(realpath "$1")"
+BINARY="$(realpath "$2")"
 
 mkdir "$WORKDIR/cache" "$WORKDIR/old" "$WORKDIR/new"
 export XDG_CACHE_HOME="$WORKDIR/cache"
+cp -raT "$PWD" "$WORKDIR/scratch"
+cd "$WORKDIR/scratch"
 
 # This function takes a bitcode file and normalizes it a bit, with the following:
 # * extract just the isolated function with `llvm-extract`, converting the
