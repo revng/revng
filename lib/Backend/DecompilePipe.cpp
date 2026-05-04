@@ -4,7 +4,6 @@
 
 #include "revng/Backend/DecompileFunction.h"
 #include "revng/Backend/DecompilePipe.h"
-#include "revng/HeadersGeneration/Options.h"
 #include "revng/Model/Binary.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipes/Kinds.h"
@@ -145,12 +144,9 @@ void Decompile::run(pipeline::ExecutionContext &EC,
   const model::Binary &Model = *getModelFromContext(EC);
   ControlFlowGraphCache Cache(CFGMap);
 
-  namespace options = revng::options;
-  ptml::ModelCBuilder
-    B(llvm::nulls(),
-      Model,
-      /* EnableTaglessMode = */ false,
-      { .EnableStackFrameInlining = options::EnableStackFrameInlining });
+  ptml::ModelCBuilder B(llvm::nulls(),
+                        Model,
+                        /* EnableTaglessMode = */ false);
 
   for (const model::Function &Function :
        getFunctionsAndCommit(EC, DecompiledFunctions.name())) {

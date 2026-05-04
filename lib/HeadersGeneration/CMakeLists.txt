@@ -6,7 +6,7 @@
 
 revng_add_analyses_library_internal(
   revngModelToHeader ModelToHeader.cpp ModelToHeaderPipe.cpp
-  ModelTypeDefinitionPipe.cpp Options.cpp)
+  ModelTypeDefinitionPipe.cpp)
 
 target_link_libraries(
   revngModelToHeader

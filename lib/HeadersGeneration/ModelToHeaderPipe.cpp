@@ -4,7 +4,6 @@
 
 #include "revng/HeadersGeneration/ConfigurationHelpers.h"
 #include "revng/HeadersGeneration/ModelToHeaderPipe.h"
-#include "revng/HeadersGeneration/Options.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/RegisterContainerFactory.h"
@@ -26,8 +25,7 @@ void ModelToHeader::run() {
     B(*Out,
       Binary,
       /* EnableTaglessMode = */ false,
-      { .EnableStackFrameInlining = revng::options::EnableStackFrameInlining,
-        .EnablePrintingOfTheMaximumEnumValue = true,
+      { .EnablePrintingOfTheMaximumEnumValue = true,
         .ExplicitTargetPointerSize = getExplicitPointerSize(Binary) });
   ptml::HeaderBuilder(B).printModelHeader(/*DefineOpaqueTypes*/ true);
   Out->flush();
