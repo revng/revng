@@ -2,44 +2,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallString.h"
-#include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/Twine.h"
-#include "llvm/IR/DerivedTypes.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Type.h"
-#include "llvm/Support/Casting.h"
-#include "llvm/Support/GraphWriter.h"
-#include "llvm/Support/raw_ostream.h"
-
 #include "revng/ABI/FunctionType/Layout.h"
-#include "revng/ABI/ModelHelpers.h"
-#include "revng/Model/Binary.h"
-#include "revng/Model/CABIFunctionDefinition.h"
-#include "revng/Model/FunctionAttribute.h"
-#include "revng/Model/FunctionTags.h"
-#include "revng/Model/Helpers.h"
-#include "revng/Model/PointerType.h"
-#include "revng/Model/RawFunctionDefinition.h"
 #include "revng/PTML/CAttributes.h"
-#include "revng/PTML/CBuilder.h"
-#include "revng/PTML/Constants.h"
-#include "revng/PTML/Tag.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
-#include "revng/Support/Assert.h"
-#include "revng/TypeNames/LLVMTypeNames.h"
 #include "revng/TypeNames/ModelCBuilder.h"
-
-using llvm::dyn_cast;
-using llvm::StringRef;
-using llvm::Twine;
-
-using ptml::Tag;
-namespace attributes = ptml::attributes;
-namespace tokens = ptml::c::tokens;
-namespace ranks = revng::ranks;
 
 struct NamedCInstanceImpl {
   const ptml::ModelCBuilder &B;
@@ -160,7 +125,7 @@ private:
 
 using PCTB = ptml::ModelCBuilder;
 std::string PCTB::getNamedCInstance(const model::Type &Type,
-                                    StringRef InstanceName,
+                                    llvm::StringRef InstanceName,
                                     bool OmitInnerTypeName) const {
   NamedCInstanceImpl Helper(*this, OmitInnerTypeName);
 
@@ -287,9 +252,9 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
   if (RF.Arguments().empty() and RF.StackArgumentsType().isEmpty()) {
     Result += "(" + B.getVoidTag() + ")";
   } else {
-    const StringRef Open = "(";
-    const StringRef Comma = ", ";
-    StringRef Separator = Open;
+    const llvm::StringRef Open = "(";
+    const llvm::StringRef Comma = ", ";
+    llvm::StringRef Separator = Open;
     for (const model::NamedTypedRegister &Argument : RF.Arguments()) {
       std::string ArgumentName;
       if (Function != nullptr)
@@ -347,9 +312,9 @@ std::string printFunctionPrototypeImpl(const FunctionType *Function,
   if (CF.Arguments().empty()) {
     Result += "(" + B.getVoidTag() + ")";
   } else {
-    const StringRef Open = "(";
-    const StringRef Comma = ", ";
-    StringRef Separator = Open;
+    const llvm::StringRef Open = "(";
+    const llvm::StringRef Comma = ", ";
+    llvm::StringRef Separator = Open;
 
     for (const auto &Argument : CF.Arguments()) {
       std::string ArgumentName;
@@ -376,14 +341,14 @@ std::string printFunctionPrototypeImpl(const model::TypeDefinition &FT,
                                        const ptml::ModelCBuilder &B,
                                        bool SingleLine) {
   std::string Result;
-  if (auto *RF = dyn_cast<model::RawFunctionDefinition>(&FT)) {
+  if (auto *RF = llvm::dyn_cast<model::RawFunctionDefinition>(&FT)) {
     Result = printFunctionPrototypeImpl(Function,
                                         *RF,
                                         FunctionName,
                                         B,
                                         SingleLine);
 
-  } else if (auto *CF = dyn_cast<model::CABIFunctionDefinition>(&FT)) {
+  } else if (auto *CF = llvm::dyn_cast<model::CABIFunctionDefinition>(&FT)) {
     Result = printFunctionPrototypeImpl(Function,
                                         *CF,
                                         FunctionName,
@@ -410,40 +375,6 @@ void MCB::printFunctionPrototype(const model::TypeDefinition &FT,
                                      getDefinitionTag(Function),
                                      *this,
                                      SingleLine);
-}
-
-void MCB::printFunctionPrototype(const model::TypeDefinition &FT,
-                                 const model::DynamicFunction &Function,
-                                 bool SingleLine) {
-  *Out << printFunctionPrototypeImpl(FT,
-                                     &Function,
-                                     getDefinitionTag(Function),
-                                     *this,
-                                     SingleLine);
-}
-
-void ptml::ModelCBuilder::printFunctionPrototype(const model::TypeDefinition
-                                                   &FT) {
-  *Out << printFunctionPrototypeImpl(FT,
-                                     (const model::Function *) nullptr,
-                                     getDefinitionTag(FT),
-                                     *this,
-                                     true);
-}
-
-void ptml::ModelCBuilder::printSegmentType(const model::Segment &Segment) {
-  std::string Result = "\n" + getModelCommentWithoutLeadingNewline(Segment);
-  if (not Segment.Type().isEmpty()) {
-    Result += getNamedCInstance(*Segment.Type(), getDefinitionTag(Segment));
-
-  } else {
-    // If the segment has no type, emit it as an array of bytes.
-    auto Array = model::ArrayType::make(model::PrimitiveType::makeGeneric(1),
-                                        Segment.VirtualSize());
-    Result += getNamedCInstance(*Array, getDefinitionTag(Segment));
-  }
-
-  *Out << getCommentableTag(std::move(Result) + ";\n", Binary, Segment);
 }
 
 Logger VariableNamingLog("variable-naming");
@@ -517,4 +448,117 @@ ptml::ModelCBuilder::getReservedVariableTags(const model::Function &Function,
                                        Location,
                                        Actions)
   };
+}
+
+void ptml::ModelCBuilder::printPadding(uint64_t FieldOffset,
+                                       uint64_t NextOffset) {
+  if (Configuration.EnableExplicitPadding) {
+    revng_assert(FieldOffset <= NextOffset);
+    if (FieldOffset == NextOffset)
+      return; // There is no padding
+
+    *Out << tokenTag("uint8_t", ptml::c::tokens::Type) << " "
+         << tokenTag(NameBuilder.paddingFieldName(FieldOffset),
+                     ptml::c::tokens::Field)
+         << "[" << getNumber(NextOffset - FieldOffset) << "];\n";
+  }
+}
+
+void ptml::ModelCBuilder::printOpaqueTypeDefinition(uint64_t ByteSize) {
+
+  // Print the typedef inline with the struct definition.
+  std::string
+    StructLine = getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
+                 + getKeyword(ptml::CBuilder::Keyword::Struct) + " "
+                 + ptml::Attributes.getAttributeString<"_PACKED">() + " "
+                 + getOpaqueTypeDeclarationTag</*IsDefinition*/ false>(ByteSize)
+                 + " ";
+  *Out << std::move(StructLine);
+  {
+    Scope Scope(*Out, ptml::c::scopes::StructBody);
+
+    // We print padding even when Configuration.EnableExplicitPadding == false
+    // because otherwise the struct is empty and is not valid C99 (empty structs
+    // are a language extension).
+    *Out << tokenTag("uint8_t", ptml::c::tokens::Type) << " "
+         << tokenTag(NameBuilder.paddingFieldName(0), ptml::c::tokens::Field)
+         << "[" << getNumber(ByteSize) << "];\n";
+  }
+
+  *Out << " " << getOpaqueTypeDeclarationTag</*IsDefinition*/ true>(ByteSize)
+       << ";\n";
+}
+
+std::set<uint64_t> ptml::ModelCBuilder::getModelOpaqueByteSizes() {
+
+  std::set<uint64_t> ByteSizes = { 1, 2, 4, 8, 10, 12, 16 };
+
+  for (const model::UpcastableTypeDefinition &Type : Binary.TypeDefinitions()) {
+    uint64_t ByteSize = Type->size().value_or(0);
+    if (ByteSize)
+      ByteSizes.insert(ByteSize);
+
+    llvm::SmallVector<model::UpcastableType> Dependencies;
+
+    const model::TypeDefinition *Definition = Type->tryGetAsDefinition();
+    if (not Definition)
+      continue;
+
+    if (const auto *TD = llvm::dyn_cast<model::TypedefDefinition>(Definition))
+      Dependencies.push_back(TD->UnderlyingType());
+
+    if (const auto *S = Definition->getStruct())
+      for (const auto &Field : S->Fields())
+        Dependencies.push_back(Field.Type());
+
+    if (const auto *U = Definition->getUnion())
+      for (const auto &Field : U->Fields())
+        Dependencies.push_back(Field.Type());
+
+    if (const auto *R = Definition->getRawFunction()) {
+      for (const auto &A : R->Arguments())
+        Dependencies.push_back(A.Type());
+
+      uint64_t ReturnTypeSize = 0;
+      for (const auto &RV : R->ReturnValues()) {
+        Dependencies.push_back(RV.Type());
+        ReturnTypeSize += RV.Type()->size().value_or(0);
+      }
+      if (ReturnTypeSize)
+        ByteSizes.insert(ReturnTypeSize);
+    }
+
+    if (const auto *C = Definition->getCABIFunction()) {
+      for (const auto &A : C->Arguments())
+        Dependencies.push_back(A.Type());
+      if (not C->ReturnType().isEmpty())
+        Dependencies.push_back(C->ReturnType());
+    }
+
+    for (const model::UpcastableType &D : Dependencies)
+      if (uint64_t ByeSize = D->trySize().value_or(0))
+        ByteSizes.insert(ByteSize);
+  }
+
+  return ByteSizes;
+}
+
+void ptml::ModelCBuilder::printModelOpaqueTypeDefinitions() {
+  std::set<uint64_t> ByteSizes = getModelOpaqueByteSizes();
+  for (uint64_t ByteSize : ByteSizes) {
+    *Out << "\n";
+    printOpaqueTypeDefinition(ByteSize);
+  }
+}
+
+using MCB = ptml::ModelCBuilder;
+using SizeSet = std::set<uint64_t>;
+void MCB::printHelperOpaqueTypeDefinitions(const SizeSet &HelperByteSizes) {
+  std::set<uint64_t> ModelByteSizes = getModelOpaqueByteSizes();
+  for (uint64_t ByteSize : HelperByteSizes) {
+    if (not ModelByteSizes.contains(ByteSize)) {
+      *Out << "\n";
+      printOpaqueTypeDefinition(ByteSize);
+    }
+  }
 }

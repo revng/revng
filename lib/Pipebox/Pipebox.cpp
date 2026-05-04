@@ -24,8 +24,6 @@
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
-#include "revng/HeadersGeneration/ModelToHeaderPipe.h"
-#include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
 #include "revng/ImportFromC/ImportFromCAnalysis.h"
 #include "revng/LLMRename/LLMRenameAnalysis.h"
 #include "revng/Lift/Lift.h"
@@ -84,7 +82,6 @@ REGISTER(Container, ObjectFileContainer);
 REGISTER(Container, PTMLCBytesContainer);
 REGISTER(Container, PTMLCFunctionBytesContainer);
 REGISTER(Container, PTMLCTypeBytesContainer);
-REGISTER(Container, PTMLCTypeContainer);
 REGISTER(Container, RecompilableArchiveContainer);
 REGISTER(Container, TranslatedContainer);
 
@@ -141,13 +138,11 @@ REGISTER(SingleOutputPipeRun, Lift);
 REGISTER(SingleOutputPipeRun, LinkForTranslation);
 REGISTER(SingleOutputPipeRun, LinkSupport);
 REGISTER(SingleOutputPipeRun, MergeLLVMModules);
-REGISTER(SingleOutputPipeRun, ModelToHeader);
 REGISTER(SingleOutputPipeRun, ProcessCallGraph);
 REGISTER(SingleOutputPipeRun, VerifyAgainstModel);
 REGISTER(SingleOutputPipeRun, YieldCallGraph);
 
 REGISTER(TypeDefinitionPipeRun, EmitSingleTypeDefinition);
-REGISTER(TypeDefinitionPipeRun, GenerateModelTypeDefinition);
 
 //
 // Analyses

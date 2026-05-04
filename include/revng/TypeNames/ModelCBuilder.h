@@ -782,12 +782,6 @@ public:
   void printFunctionPrototype(const model::TypeDefinition &FunctionType,
                               const model::Function &Function,
                               bool SingleLine = false);
-  void printFunctionPrototype(const model::TypeDefinition &FunctionType,
-                              const model::DynamicFunction &Function,
-                              bool SingleLine = false);
-  void printFunctionPrototype(const model::TypeDefinition &FunctionType);
-
-  void printSegmentType(const model::Segment &Segment);
 
 public:
   /// Returns true for types we never print definitions for a give type

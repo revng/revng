@@ -2,12 +2,28 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/HeadersGeneration/ConfigurationHelpers.h"
-#include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
+#include "revng/HeadersGeneration/Helpers.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/RegisterContainerFactory.h"
 #include "revng/Pipes/FileContainer.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/TypeNames/ModelCBuilder.h"
+
+static uint64_t getExplicitPointerSize(const model::Binary &Model) {
+  // If the model does not specify architecture, there is no point in emitting
+  // anything other than target-native pointer types.
+  if (Model.Architecture() == model::Architecture::Invalid)
+    return 0;
+
+  uint64_t PointerSize = getPointerSize(Model.Architecture());
+
+  // Currently we hardcode the target pointer size as 8 (64-bit), so there is
+  // no reason to emit explicit pointer sizes for binaries with matching size.
+  if (PointerSize == 8)
+    return 0;
+
+  return PointerSize;
+}
 
 namespace revng::pipes {
 
@@ -52,7 +68,7 @@ public:
         Model,
         /* EnableTaglessMode = */ false,
         { .ExplicitTargetPointerSize = getExplicitPointerSize(Model) });
-    ptml::HeaderBuilder(B).printHelpersHeader(IRContainer.getModule());
+    ptml::printHelpersHeader(B, IRContainer.getModule());
     Header.flush();
     ErrorCode = Header.error();
     if (ErrorCode)
