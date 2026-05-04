@@ -1,0 +1,87 @@
+# shellcheck shell=bash
+
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+SCRIPT_DIR=$(realpath "$(dirname "${BASH_SOURCE[0]}")")
+WORKDIR=$(mktemp --tmpdir -d tmp.revng-prss-test.XXXXXXXXXX)
+mkdir "$WORKDIR/data" "$WORKDIR/sockets"
+PIDS_TO_KILL=()
+
+function cleanup() {
+    for PID in "${PIDS_TO_KILL[@]}"; do
+        kill -9 "$PID"
+    done
+    rm -rf "$WORKDIR"
+}
+trap cleanup EXIT
+
+function available_port() {
+    python -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'
+}
+
+function wait_for_status() {
+    local PORT="$1"
+    for _ in {1..100}; do
+        if curl -s -o /dev/null --max-time 10 "http://127.0.0.1:${PORT}/status"; then
+            return 0
+        else
+            sleep 1
+        fi
+    done
+    return 1
+}
+
+function start_postgres() {
+    initdb "$WORKDIR/data" &> "$WORKDIR/initdb.log"
+
+    POSTGRES_PORT=$(available_port)
+    postgres \
+        -D "$WORKDIR/data" \
+        -c "hba_file=$SCRIPT_DIR/pg_hba.conf" \
+        -c "port=$POSTGRES_PORT" \
+        -c "unix_socket_directories=$WORKDIR/sockets" \
+        &> "$WORKDIR/postgres.log" &
+    PIDS_TO_KILL+=($!)
+
+    PSQL_CMD=(psql -h "$WORKDIR/sockets" -d postgres -p "$POSTGRES_PORT")
+    while ! "${PSQL_CMD[@]}" -c 'SELECT 1' &> /dev/null; do
+        sleep 1
+    done
+
+    "${PSQL_CMD[@]}" -c 'CREATE DATABASE rss' &> /dev/null
+}
+
+function start_relay_server() {
+    RELAY_NOTIFICATIONS_PORT=$(available_port)
+    RELAY_PUBLISH_PORT=$(available_port)
+    RELAY_PSK=$(dd if=/dev/random bs=1 count=32 status=none | base64 | sed 's;=*$;;')
+
+    revng2 rss relay \
+        --psk "$RELAY_PSK" \
+        --notifications-bind "127.0.0.1:$RELAY_NOTIFICATIONS_PORT" \
+        --publish-bind "127.0.0.1:$RELAY_PUBLISH_PORT" \
+        &> "$WORKDIR/relay.log" &
+    PIDS_TO_KILL+=($!)
+    wait_for_status "$RELAY_NOTIFICATIONS_PORT"
+}
+
+function start_rss_server() {
+    RSS_SERVER_PORT=$(available_port)
+    RSS_SERVER_OPTS=()
+    if [[ -n "${RELAY_PUBLISH_PORT:-}" ]]; then
+        RSS_SERVER_OPTS+=(--notification-url "http://127.0.0.1:$RELAY_PUBLISH_PORT")
+        RSS_SERVER_OPTS+=(--notification-psk "$RELAY_PSK")
+        RSS_SERVER_OPTS+=(--public-notification-url "http://127.0.0.1:$RELAY_NOTIFICATIONS_PORT")
+    fi
+
+    revng2 rss server \
+        --bind "127.0.0.1:$RSS_SERVER_PORT" \
+        --storage-driver postgres \
+        --connection-string "postgresql://127.0.0.1:$POSTGRES_PORT/rss" \
+        "${RSS_SERVER_OPTS[@]}" \
+        &> "$WORKDIR/rss_server.log" &
+    PIDS_TO_KILL+=($!)
+    wait_for_status "$RSS_SERVER_PORT"
+}
