@@ -518,14 +518,6 @@ public:
   TagPair getReservedVariableTags(const model::Function &Function,
                                   llvm::StringRef Name) const;
 
-  /// Special case handling for goto labels.
-  ///
-  /// \note that both tags are acquired at once, this removes the need to keep
-  ///       track of already emitted automated names.
-  TagPair
-  getGotoLabelTags(GotoLabelNameBuilder &LabelNameBuilder,
-                   const SortedVector<MetaAddress> &UserLocationSet) const;
-
 public:
   std::string getPrimitiveTag(model::PrimitiveKind::Values Kind,
                               uint64_t Size) const {
