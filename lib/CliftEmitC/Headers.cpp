@@ -146,19 +146,26 @@ public:
         CommentEmitted = true;
       }
 
-      emitGlobalDoxygenComment(Segment);
+      {
+        using RegionKind = ptml::CTokenEmitter::RegionKind;
+        auto Guard = Tokens.enterRegion(RegionKind::Commentable,
+                                        Segment.getHandle());
 
-      using EntityKind = ptml::CTokenEmitter::EntityKind;
-      emitDeclaration(Segment.getType(),
-                      CEmitter::DeclaratorInfo{
-                        .Identifier = Segment.getName(),
-                        .Location = Segment.getHandle(),
-                        .CAttributes = {},
-                        .Kind = EntityKind::GlobalVariable,
-                        .Parameters = {} });
+        emitGlobalDoxygenComment(Segment);
 
-      Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
-      Tokens.emitNewline();
+        using EntityKind = ptml::CTokenEmitter::EntityKind;
+        emitDeclaration(Segment.getType(),
+                        CEmitter::DeclaratorInfo{
+                          .Identifier = Segment.getName(),
+                          .Location = Segment.getHandle(),
+                          .CAttributes = {},
+                          .Kind = EntityKind::GlobalVariable,
+                          .Parameters = {} });
+
+        Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+        Tokens.emitNewline();
+      }
+
       Tokens.emitNewline();
     });
   }
