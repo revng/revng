@@ -200,7 +200,7 @@ static model::UpcastableType traverseModelGEP(const model::Binary &Model,
   return *Result;
 }
 
-llvm::SmallVector<model::UpcastableType>
+static llvm::SmallVector<model::UpcastableType>
 flattenReturnTypes(const abi::FunctionType::Layout &Layout,
                    const model::Binary &Model) {
 

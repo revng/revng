@@ -68,10 +68,6 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model);
 extern llvm::SmallVector<model::UpcastableType>
 getExpectedModelType(const llvm::Use *U, const model::Binary &Model);
 
-extern llvm::SmallVector<model::UpcastableType>
-flattenReturnTypes(const abi::FunctionType::Layout &Layout,
-                   const model::Binary &Model);
-
 /// \note This is the final prototype, after segregate-stack-access
 template<bool LegacyLocalVariables>
 inline llvm::FunctionType &
