@@ -381,22 +381,27 @@ void DwarfToModelConverter::materializeTypesWithIdentity() {
   TypesWithIdentityCount = Placeholders.size();
 }
 
-std::string DwarfToModelConverter::getName(const DWARFDie &Die) const {
-  if (auto MaybeName = Die.find(DW_AT_name)) {
-    auto MaybeString = MaybeName->getAsCString();
-    if (auto Error = MaybeString.takeError()) {
-      revng_log(DILogger, "Can't get DIE name: " << Error);
-      consumeError(std::move(Error));
-      return {};
-    } else {
+std::string DwarfToModelConverter::getName(const DWARFDie &InitialDie) const {
+  DWARFDie Die = InitialDie;
+  std::set<uint64_t> Visited;
+  while (Die.isValid()) {
+    if (auto MaybeName = Die.find(DW_AT_name)) {
+      auto MaybeString = MaybeName->getAsCString();
+      if (auto Error = MaybeString.takeError()) {
+        revng_log(DILogger, "Can't get DIE name: " << Error);
+        consumeError(std::move(Error));
+        return {};
+      }
       return *MaybeString;
     }
-  } else if (auto MaybeOrigin = Die.find(DW_AT_abstract_origin)) {
-    DWARFDie Origin = Context.getDIEForOffset(*MaybeOrigin->getAsReference());
-    return getName(Origin);
-  } else {
-    return {};
+    auto MaybeOrigin = Die.find(DW_AT_abstract_origin);
+    if (not MaybeOrigin)
+      return {};
+    if (not Visited.insert(Die.getOffset()).second)
+      return {};
+    Die = Context.getDIEForOffset(*MaybeOrigin->getAsReference());
   }
+  return {};
 }
 
 static bool isNoReturn(DWARFUnit &CU, const DWARFDie &Die) {
