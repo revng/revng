@@ -515,4 +515,8 @@ CDataModel Definition::getDataModel() const {
   return DM;
 }
 
+[[nodiscard]] CDataModel getDataModel(const model::Binary &Binary) {
+  return abi::Definition::get(Binary.targetABI()).getDataModel();
+}
+
 } // namespace abi

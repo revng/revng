@@ -249,6 +249,8 @@ public:
   }
 };
 
+[[nodiscard]] CDataModel getDataModel(const model::Binary &Binary);
+
 } // namespace abi
 
 #include "revng/ABI/Generated/Late/Definition.h"
