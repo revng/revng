@@ -95,7 +95,7 @@ static RegisterPipe<PureLLVMPassesPipe> P3;
 static RegisterFunctionPipeRun<CollectCFG> P6;
 static RegisterFunctionPipeRun<Isolate> P7;
 static RegisterFunctionPipeRun<AttachDebugInfo> P8;
-static RegisterFunctionPipeRun<piperuns::EnforceABI> P9;
+static RegisterFunctionPipeRun<EnforceABI> P9;
 static RegisterFunctionPipeRun<PromoteCSVs> P10;
 static RegisterSingleOutputPipeRun<HexDump> P11;
 static RegisterFunctionPipeRun<ProcessAssembly> P12;
