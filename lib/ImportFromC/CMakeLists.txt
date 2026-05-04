@@ -18,7 +18,6 @@ target_link_libraries(
   revngPipeline
   revngPipes
   revngSupport
-  revngTypeNames
   clangAST
   clangBasic
   clangDriver

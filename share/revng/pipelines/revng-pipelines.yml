@@ -33,8 +33,6 @@ Containers:
     Type: function-control-flow-graph-svg
   - Name: cfg.yml.tar.gz
     Type: cfg
-  - Name: legacy-helpers.h
-    Type: legacy-helpers-header
   - Name: decompiled.c
     Type: decompiled-c-code
   - Name: decompiled.tar.gz
