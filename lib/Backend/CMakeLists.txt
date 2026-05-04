@@ -9,7 +9,6 @@ target_link_libraries(
   revngBackend
   revngHelpersToHeader
   revngInitModelTypes
-  revngModelToHeader
   revngRestructureCFG
   revngSupport
   revngTypeNames

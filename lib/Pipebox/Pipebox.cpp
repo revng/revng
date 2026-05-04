@@ -23,8 +23,6 @@
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
-#include "revng/HeadersGeneration/ModelToHeaderPipe.h"
-#include "revng/HeadersGeneration/ModelTypeDefinitionPipe.h"
 #include "revng/ImportFromC/ImportFromCAnalysis.h"
 #include "revng/LLMRename/LLMRenameAnalysis.h"
 #include "revng/Lift/Lift.h"
@@ -66,7 +64,6 @@ static RegisterContainer<LLVMRootContainer> C1;
 static RegisterContainer<LLVMFunctionContainer> C3;
 static RegisterContainer<PTMLCBytesContainer> C4;
 static RegisterContainer<BinariesContainer> C5;
-static RegisterContainer<PTMLCTypeContainer> C6;
 static RegisterContainer<CFGMap> C7;
 static RegisterContainer<HexDumpContainer> C8;
 static RegisterContainer<AssemblyInternalContainer> C9;
@@ -95,8 +92,6 @@ namespace piperuns = revng::pypeline::piperuns;
 static RegisterSingleOutputPipeRun<Lift> P1;
 static RegisterPipe<PureLLVMPassesRootPipe> P2;
 static RegisterPipe<PureLLVMPassesPipe> P3;
-static RegisterSingleOutputPipeRun<ModelToHeader> P4;
-static RegisterTypeDefinitionPipeRun<GenerateModelTypeDefinition> P5;
 static RegisterFunctionPipeRun<CollectCFG> P6;
 static RegisterFunctionPipeRun<Isolate> P7;
 static RegisterFunctionPipeRun<AttachDebugInfo> P8;
