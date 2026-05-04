@@ -6,7 +6,7 @@ revng_add_test(
   NAME
   test_pypeline
   COMMAND
-  "${Python_EXECUTABLE}"
+  "${Python3_EXECUTABLE}"
   -m
   pytest
   -p
@@ -24,7 +24,7 @@ revng_add_test(
   NAME
   test_pypeline_daemon
   COMMAND
-  "${Python_EXECUTABLE}"
+  "${Python3_EXECUTABLE}"
   -m
   pytest
   -p
@@ -42,7 +42,7 @@ revng_add_test(
   NAME
   test_pype
   COMMAND
-  "${Python_EXECUTABLE}"
+  "${Python3_EXECUTABLE}"
   -m
   pytest
   -p

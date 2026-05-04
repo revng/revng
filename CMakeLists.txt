@@ -334,11 +334,11 @@ enable_testing()
 # $Python_INCLUDE_DIRS and $Python_LIBRARIES variables
 #
 find_package(
-  Python
+  Python3
   COMPONENTS Interpreter Development
   REQUIRED)
 file(RELATIVE_PATH PYTHON_INSTALL_PATH "${CMAKE_INSTALL_PREFIX}"
-     "${Python_SITELIB}")
+     "${Python3_SITELIB}")
 
 #
 # Build docs

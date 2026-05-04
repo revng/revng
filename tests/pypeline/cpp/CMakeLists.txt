@@ -13,13 +13,13 @@ target_link_libraries(mockPipeboxImpl ${LLVM_LIBRARIES} revngSupport revngModel)
 target_link_libraries(
   mockPipebox
   mockPipeboxImpl
-  ${Python_LIBRARIES}
+  ${Python3_LIBRARIES}
   ${LLVM_LIBRARIES}
   nanobind
   revngSupport
   revngClift)
 
-target_include_directories(mockPipebox PUBLIC ${Python_INCLUDE_DIRS})
+target_include_directories(mockPipebox PUBLIC ${Python3_INCLUDE_DIRS})
 
 configure_file(pipebox.py "${CMAKE_CURRENT_BINARY_DIR}" COPYONLY)
 

@@ -549,9 +549,9 @@ set_target_properties(
              LIBRARY_OUTPUT_DIRECTORY
              "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/internal")
 target_link_libraries(
-  "${CPP_MODULE_NAME}" PUBLIC ${Python_LIBRARIES} ${LLVM_LIBRARIES} nanobind
+  "${CPP_MODULE_NAME}" PUBLIC ${Python3_LIBRARIES} ${LLVM_LIBRARIES} nanobind
                               revngSupport revngModel)
-target_include_directories("${CPP_MODULE_NAME}" PUBLIC ${Python_INCLUDE_DIRS})
+target_include_directories("${CPP_MODULE_NAME}" PUBLIC ${Python3_INCLUDE_DIRS})
 
 python_module(
   TARGET_NAME
