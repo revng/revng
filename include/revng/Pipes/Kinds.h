@@ -86,9 +86,6 @@ inline FunctionKind Decompiled("decompiled",
                                { &StackAccessesSegregated });
 
 inline pipeline::SingleElementKind
-  LegacyHelpersHeader("legacy-helpers-header", Binary, ranks::Binary, {}, {});
-
-inline pipeline::SingleElementKind
   CliftModule("clift-module", ranks::Binary, {}, {});
 inline FunctionKind CliftFunction("clift-functions", ranks::Function, {}, {});
 

@@ -12,10 +12,8 @@ revng_add_analyses_library_internal(
   ExtractValueToGEP.cpp
   FoldModelGEP.cpp
   HoistStructPhis.cpp
-  ImplicitModelCastPass.cpp
   LoopRewriteWithCanonicalIV.cpp
   MakeLocalVariables.cpp
-  MakeModelCastPass.cpp
   MakeModelGEPPass.cpp
   OperatorPrecedenceResolutionPass.cpp
   PeepholeOptimizationPass.cpp
@@ -34,7 +32,6 @@ revng_add_analyses_library_internal(
 target_link_libraries(
   revngCanonicalize
   revngInitModelTypes
-  revngTypeNames
   revngSupport
   revngABI
   revngLocalVariables
