@@ -4,15 +4,12 @@
 
 #include "llvm/Support/Process.h"
 
-#include "revng/Backend/DecompilePipe.h"
 #include "revng/LLMRename/LLMRenameAnalysis.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/ProgramRunner.h"
 #include "revng/TupleTree/VisitsImpl.h"
-
-using revng::pipes::DecompileStringMap;
 
 static llvm::Error doRename(model::Binary &Model, llvm::StringRef Contents) {
   using ModelT = model::Binary;
@@ -46,33 +43,6 @@ static llvm::Error doRename(model::Binary &Model, llvm::StringRef Contents) {
   return llvm::Error::success();
 }
 
-struct LLMRename {
-  static constexpr auto Name = "llm-rename";
-  constexpr static std::tuple Options = {};
-
-  static bool isAvailable() {
-    auto Env = llvm::sys::Process::GetEnv("OPENAI_API_KEY");
-    return Env.has_value() and not Env->empty();
-  }
-
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::kinds::Decompiled }
-  };
-
-  llvm::Error run(pipeline::ExecutionContext &EC,
-                  const DecompileStringMap &Container) {
-    TupleTree<model::Binary> &Model = revng::getWritableModelFromContext(EC);
-    for (auto &&[_, Contents] : Container) {
-      if (auto Error = doRename(*Model, Contents))
-        return Error;
-    }
-
-    return llvm::Error::success();
-  }
-};
-
-pipeline::RegisterAnalysis<LLMRename> LLMRenameAnalysis;
-
 namespace revng::pypeline::analyses {
 
 llvm::Error LLMRename::run(Model &Model,
@@ -89,7 +59,8 @@ llvm::Error LLMRename::run(Model &Model,
 }
 
 bool LLMRename::isAvailable() const {
-  return ::LLMRename::isAvailable();
+  auto Env = llvm::sys::Process::GetEnv("OPENAI_API_KEY");
+  return Env.has_value() and not Env->empty();
 }
 
 } // namespace revng::pypeline::analyses

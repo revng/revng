@@ -13,10 +13,8 @@ revng_add_analyses_library_internal(
   FixPointerSize.cpp
   FoldModelGEP.cpp
   SplitStructPhis.cpp
-  ImplicitModelCastPass.cpp
   LoopRewriteWithCanonicalIV.cpp
   MakeLocalVariables.cpp
-  MakeModelCastPass.cpp
   MakeModelGEPPass.cpp
   OperatorPrecedenceResolutionPass.cpp
   PeepholeOptimizationPass.cpp
@@ -36,7 +34,6 @@ target_link_libraries(
   revngCanonicalize
   revngFunctionIsolation
   revngInitModelTypes
-  revngTypeNames
   revngSupport
   revngABI
   revngLocalVariables
