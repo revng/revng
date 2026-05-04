@@ -512,6 +512,12 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
     Parameters = ParameterDeclarators;
   }
 
+  std::optional<ptml::CTokenEmitter::Region> MaybeRegion;
+  if (not IsHelper) {
+    using RegionKind = ptml::CTokenEmitter::RegionKind;
+    MaybeRegion.emplace(Tokens, RegionKind::Commentable, Op.getHandle());
+  }
+
   emitDeclaration(Op.getFunctionType(),
                   CEmitter::DeclaratorInfo{
                     .Identifier = Op.getName(),
