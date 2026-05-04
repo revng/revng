@@ -28,16 +28,6 @@ protected:
 
 public:
   struct ConfigurationOptions {
-    /// When set to true, function stack frame types are printed also inside the
-    /// function body, and not just in the header.
-    /// This may break the property that we emit syntactically valid C code,
-    /// because including the header will cause the definition of the stack
-    /// frame type to be duplicated in the header and inside the function body.
-    /// For this reason it's disabled by default. And it should only be turned
-    /// on when printing artifacts that only show the body of the function, for
-    /// which emitting recompilable C code is not a strict requirement.
-    bool EnableStackFrameInlining = false;
-
     /// Because we are emitting C11, we cannot specify underlying enum type
     /// (the feature was only backported from C++ in C23), which means that
     /// when we need to preserve enum size across the compilation boundary
