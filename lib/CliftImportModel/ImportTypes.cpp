@@ -740,7 +740,7 @@ void clift::importAllModelTypes(const model::Binary &Model,
     TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
   }
 
-  Module->setAttr("clift.test", mlir::ArrayAttr::get(Context, TypeAttrs));
+  Module->setAttr("clift.types", mlir::ArrayAttr::get(Context, TypeAttrs));
 }
 
 template<typename FunctionT, typename RankT>
