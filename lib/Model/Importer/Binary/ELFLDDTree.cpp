@@ -10,6 +10,7 @@
 #include "revng/Support/ObjectFile.h"
 #include "revng/Support/OverflowSafeInt.h"
 
+#include "ELFImporter.h"
 #include "LDDTreeObjectFileTraits.h"
 
 using namespace llvm;
@@ -115,47 +116,9 @@ public:
   using QueueEntry = typename Queue<ResolutionInfo>::Entry;
 
 public:
-  static std::vector<std::pair<llvm::StringRef, uint64_t>>
+  static std::vector<std::pair<std::string, uint64_t>>
   getExportedSymbols(const T &ELFObjectFile) {
-    std::vector<std::pair<llvm::StringRef, uint64_t>> Result;
-
-    for (object::ELFSymbolRef Symbol :
-         llvm::make_range(ELFObjectFile.dynamic_symbol_begin(),
-                          ELFObjectFile.dynamic_symbol_end())) {
-
-      // TODO: consider global objects as well
-      if (Symbol.getELFType() != ELF::STT_FUNC
-          and Symbol.getELFType() != ELF::STT_GNU_IFUNC)
-        continue;
-
-      auto MaybeName = Symbol.getName();
-      if (auto Error = MaybeName.takeError()) {
-        revng_log(LDDTreeLog, "Couldn't get the name of a dynamic symbol");
-        continue;
-      }
-
-      auto MaybeSection = Symbol.getSection();
-      if (auto Error = MaybeSection.takeError()) {
-        revng_log(LDDTreeLog,
-                  "Couldn't get the section of dynamic symbol " << *MaybeName);
-        continue;
-      }
-
-      // Skip undefined symbols
-      if (*MaybeSection == ELFObjectFile.section_end())
-        continue;
-
-      auto MaybeAddress = Symbol.getAddress();
-      if (auto Error = MaybeAddress.takeError()) {
-        revng_log(LDDTreeLog,
-                  "Couldn't get the address of dynamic symbol " << *MaybeName);
-        continue;
-      }
-
-      Result.push_back({ *MaybeName, *MaybeAddress });
-    }
-
-    return Result;
+    return elfExportedSymbols(ELFObjectFile);
   }
 
   static std::vector<QueueEntry>
