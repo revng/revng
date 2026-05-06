@@ -7,9 +7,11 @@ revng_add_analyses_library_internal(
   BinaryImporter.cpp
   BinaryImporterHelper.cpp
   ELFImporter.cpp
+  ELFLDDTree.cpp
   MachOImporter.cpp
   Options.cpp
   PECOFFImporter.cpp
+  PECOFFLDDTree.cpp
   ImportBinaryAnalysis.cpp)
 
 llvm_map_components_to_libnames(LLVM_LIBRARIES Object)

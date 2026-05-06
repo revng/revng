@@ -17,12 +17,11 @@ extern "C" {
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/OperatingSystem.h"
 #include "revng/Support/Configuration.h"
+#include "revng/Support/FileSystem.h"
 #include "revng/Support/Generator.h"
 #include "revng/Support/PathList.h"
 #include "revng/Support/WindowsApiSetSchemaParser.h"
 #include "revng/Support/YAMLTraits.h"
-
-#include "LDDTreeObjectFileTraits.h"
 
 using namespace llvm;
 using yaml::IO;
