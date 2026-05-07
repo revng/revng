@@ -1699,7 +1699,7 @@ private:
         std::optional<std::string> Handle;
 
         mlir::Type Type;
-        if (hasStackTypeMetadata(A)) {
+        if (hasStackFrameMetadata(A)) {
           auto StackType = ModelFunction.stackFrameType();
           revng_assert(StackType);
           Type = cast<clift::StructType>(C.importType(*StackType));

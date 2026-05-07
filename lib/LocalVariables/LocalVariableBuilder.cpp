@@ -325,7 +325,7 @@ Instruction *VB::createStackFrameVariable(model::UpcastableType FrameType) {
 
   auto *ArrayType = ArrayType::get(Types.Int8Ty, StackSize);
   auto [AllocaStackFrame, PtrToInt] = createAllocaWithPtrToInt(F, ArrayType);
-  setStackTypeMetadata(AllocaStackFrame, *FrameType.get());
+  setStackFrameMetadata(AllocaStackFrame);
   return cast<Instruction>(PtrToInt);
 }
 
