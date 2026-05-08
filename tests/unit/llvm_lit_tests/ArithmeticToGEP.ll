@@ -528,6 +528,80 @@ define i64 @chain_with_intermediate_casts(i64 %arg, i64 %a, i64 %b) !revng.point
   ret i64 %a3
 }
 
+; =============================================================================
+; =============================================================================
+; Tests where the only initial pointer is the return value (per the
+; !revng.pointers metadata) and is computed as
+;
+;   %arg + (%a * %b + %c * %d)   (and deeper variants)
+;
+; %arg is the actual base pointer but is not used directly from the root add:
+; the offset side is itself an add of all-non-pointer multiplications. To
+; disambiguate the root add, the discovery walk has to recognise that the
+; inner add of two clearly-non-pointer values is itself a non-pointer.
+;
+; This means cannotBePointer must recurse through Add when both operands
+; cannot be pointers.
+; =============================================================================
+; =============================================================================
+
+; The simplest case: %result = %arg + (%a*%b + %c*%d). Discovery from the
+; pointer return must see that the inner add (%a*%b + %c*%d) cannot be a
+; pointer because both its operands are clearly non-pointer multiplications,
+; and conclude that %arg is the only viable base pointer of the outer add.
+;
+; CHECK-LABEL: define i64 @backward_through_inner_add_subtree
+; CHECK: [[M1:%[a-zA-Z0-9_]+]] = mul i64 %a, %b
+; CHECK: [[M2:%[a-zA-Z0-9_]+]] = mul i64 %c, %d
+; CHECK: [[OFFSET:%[a-zA-Z0-9_]+]] = add i64 [[M1]], [[M2]]
+; CHECK: [[PTR:%[a-zA-Z0-9_]+]] = inttoptr i64 %arg to ptr
+; CHECK: [[GEP:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[PTR]], i64 [[OFFSET]]
+; CHECK: [[INT:%[a-zA-Z0-9_]+]] = ptrtoint ptr [[GEP]] to i64
+; CHECK-NEXT: ret i64 [[INT]]
+define i64 @backward_through_inner_add_subtree(i64 %arg,
+                                                i64 %a, i64 %b,
+                                                i64 %c, i64 %d)
+                                                !revng.pointers !2102 {
+  %m1 = mul i64 %a, %b
+  %m2 = mul i64 %c, %d
+  %inner = add i64 %m1, %m2
+  %result = add i64 %arg, %inner
+  ret i64 %result
+}
+
+; Same idea but with a deeper non-pointer cone: the offset is
+; ((%a*%b + %c*%d) + (%e*%f + %g*%h)). cannotBePointer must recurse through
+; two layers of Add to determine that the whole offset cannot be a pointer.
+;
+; CHECK-LABEL: define i64 @backward_through_deep_inner_add_subtree
+; CHECK: [[M1:%[a-zA-Z0-9_]+]] = mul i64 %a, %b
+; CHECK: [[M2:%[a-zA-Z0-9_]+]] = mul i64 %c, %d
+; CHECK: [[M3:%[a-zA-Z0-9_]+]] = mul i64 %e, %f
+; CHECK: [[M4:%[a-zA-Z0-9_]+]] = mul i64 %g, %h
+; CHECK: [[I1:%[a-zA-Z0-9_]+]] = add i64 [[M1]], [[M2]]
+; CHECK: [[I2:%[a-zA-Z0-9_]+]] = add i64 [[M3]], [[M4]]
+; CHECK: [[OFFSET:%[a-zA-Z0-9_]+]] = add i64 [[I1]], [[I2]]
+; CHECK: [[PTR:%[a-zA-Z0-9_]+]] = inttoptr i64 %arg to ptr
+; CHECK: [[GEP:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[PTR]], i64 [[OFFSET]]
+; CHECK: [[INT:%[a-zA-Z0-9_]+]] = ptrtoint ptr [[GEP]] to i64
+; CHECK-NEXT: ret i64 [[INT]]
+define i64 @backward_through_deep_inner_add_subtree(i64 %arg,
+                                                     i64 %a, i64 %b,
+                                                     i64 %c, i64 %d,
+                                                     i64 %e, i64 %f,
+                                                     i64 %g, i64 %h)
+                                                     !revng.pointers !2202 {
+  %m1 = mul i64 %a, %b
+  %m2 = mul i64 %c, %d
+  %m3 = mul i64 %e, %f
+  %m4 = mul i64 %g, %h
+  %inner1 = add i64 %m1, %m2
+  %inner2 = add i64 %m3, %m4
+  %offset = add i64 %inner1, %inner2
+  %result = add i64 %arg, %offset
+  ret i64 %result
+}
+
 !0 = !{ i1 false }
 !1 = !{ i1 true }
 ; non-pointer return return type, non-pointer operand type
@@ -549,3 +623,13 @@ define i64 @chain_with_intermediate_casts(i64 %arg, i64 %a, i64 %b) !revng.point
 !2001 = !{ !0, !3 }
 ; 3-args: pointer return, no pointer operand
 !2002 = !{ !1, !2 }
+
+; Metadata for the 5- and 9-argument backward-discovery tests below. None of
+; the args are flagged as pointers; only the return value is.
+!4 = !{ i1 false, i1 false, i1 false, i1 false, i1 false }
+!5 = !{ i1 false, i1 false, i1 false, i1 false, i1 false,
+        i1 false, i1 false, i1 false, i1 false }
+; 5-args: pointer return, no pointer operand
+!2102 = !{ !1, !4 }
+; 9-args: pointer return, no pointer operand
+!2202 = !{ !1, !5 }

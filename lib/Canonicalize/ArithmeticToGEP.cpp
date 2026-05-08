@@ -681,6 +681,16 @@ private:
     case llvm::Instruction::Sub:
       rc_return U.getOperandNo() != 0;
 
+    // An Add is the only ambiguous instruction we recurse through here:
+    // when both of its operands cannot be pointers, the result of the Add
+    // cannot be a pointer either.
+    // This lets disambiguation in canDisambiguatePointerOperand see through
+    // a sub-tree of nested Adds whose leaves are all clearly-non-pointer
+    // values.
+    case llvm::Instruction::Add:
+      rc_return rc_recur cannotBePointer(I->getOperandUse(0))
+        and rc_recur cannotBePointer(I->getOperandUse(1));
+
     // Floats cannot be pointers.
     case llvm::Instruction::FCmp:
     case llvm::Instruction::FAdd:
