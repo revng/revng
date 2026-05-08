@@ -291,6 +291,10 @@ struct AvailableExpressionsMonotoneFramework {
 
   LatticeElement applyTransferFunction(ProgramPointNode *L,
                                        const LatticeElement &E) const;
+
+private:
+  bool mayClobber(Instruction *Access, Instruction *Affected) const;
+  void applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const;
 };
 
 template<bool IsLegacy>
@@ -578,48 +582,47 @@ static bool localVariablesNoAlias(const Instruction *I, const Instruction *J) {
 }
 
 template<bool IsLegacy>
-static bool noAlias(const Instruction *I, const Instruction *J) {
-  revng_log(Log, "noAlias?");
-  LoggerIndent X{ Log };
-  revng_log(Log, "I: " << dumpToString(I));
-  revng_log(Log, "J: " << dumpToString(J));
-  LoggerIndent XX{ Log };
+bool AEMFP<IsLegacy>::mayClobber(Instruction *Access,
+                                 Instruction *Affected) const {
+
+  revng_log(Log, "mayClobber");
+  LoggerIndent Indent{ Log };
+  revng_log(Log, "Access: " << dumpToString(Access));
+  revng_log(Log, "Affected: " << dumpToString(Affected));
+  LoggerIndent MoreIndent{ Log };
+
+  bool Result = true;
+
   // If either instruction doesn't access memory, they are noAlias for sure.
-  if (not I->mayReadOrWriteMemory()) {
-    revng_log(Log, "I->mayReadOrWriteMemory() == false");
-    return true;
-  }
-  if (not J->mayReadOrWriteMemory()) {
-    revng_log(Log, "J->mayReadOrWriteMemory() == false");
-    return true;
-  }
+  if (not Access->mayReadOrWriteMemory()) {
+    revng_log(Log, "Access->mayReadOrWriteMemory() == false");
+    Result = false;
+  } else if (not Affected->mayReadOrWriteMemory()) {
+    revng_log(Log, "Affected->mayReadOrWriteMemory() == false");
+    return false;
+  } else {
+    // Here both instructions access memory.
 
-  // Here both instructions access memory.
-
-  // First, handle LocalVariables specifically.
-  // TODO: this is a poor's man alias analysis, which only explicitly handles
-  // stuff that is frequent and that we care about. In the future we have plans
-  // to replace it with a full fledged AliasAnalysis from LLVM
-  if (localVariablesNoAlias<IsLegacy>(I, J)) {
-    revng_log(Log, "I and J both access local variables that do not alias");
-    return true;
+    // Just handle LocalVariables specifically.
+    // TODO: this is a poor's man alias analysis, which only explicitly
+    // handles stuff that is frequent and that we care about. In the future we
+    // have plans to replace it with a full fledged AliasAnalysis from LLVM
+    Result = not localVariablesNoAlias<IsLegacy>(Access, Affected);
   }
-
-  // TODO: In all the other cases, to reason accurately about aliasing, we would
-  // need LLVM's alias analysis. At the moment this is out of scope, so we
-  // always fall back to false, meaning that we can't say for sure that I and J
-  // do not alias.
-  revng_log(Log, "I and J aren't provably noAlias");
-  return false;
+  revng_log(Log,
+            "Access may " << (Result ? std::string() : std::string("not "))
+                          << "clobber Affected");
+  return Result;
 }
 
 template<bool IsLegacy>
-static void applyTransferFunction(Instruction *I, LatticeElement<IsLegacy> &E) {
+void AEMFP<IsLegacy>::applyTransferFunctionImpl(Instruction *I,
+                                                LatticeElement &E) const {
   using AvailableExpression = AvailableExpression<IsLegacy>;
   using AssignType = AssignType<IsLegacy>;
 
-  revng_log(Log, "applyTransferFunction on Instruction: " << dumpToString(I));
-  LoggerIndent X{ Log };
+  revng_log(Log, "applyTransferFunction on Instruction I: " << dumpToString(I));
+  LoggerIndent Indent{ Log };
 
   if constexpr (IsLegacy) {
     revng_assert(not isa<LoadInst>(I) and not isa<StoreInst>(I));
@@ -636,41 +639,27 @@ static void applyTransferFunction(Instruction *I, LatticeElement<IsLegacy> &E) {
       revng_log(Log, "Available: " << dumpToString(Available));
       revng_log(Log, "Assign: " << dumpToString(Assign));
       LoggerIndent XXX{ Log };
-      if (not noAlias<IsLegacy>(I, Available)) {
-        revng_log(Log, "Available: " << dumpToString(Available));
-        revng_log(Log, "is not noAlias (MayAlias) with I");
+      if (mayClobber(I, Available)) {
+        revng_log(Log, "I may clobber Available: " << dumpToString(Available));
         revng_log(Log, "erase Available");
         E.erase(A);
-      } else if (Assign and not noAlias<IsLegacy>(I, Assign)) {
-        revng_log(Log, "Assign: " << dumpToString(Assign));
+      } else if (Assign and mayClobber(I, Assign)) {
+        revng_log(Log, "I may clobber Assign: " << dumpToString(Assign));
         revng_log(Log, "erase Available");
         E.erase(A);
-      } else {
-        revng_log(Log, "is noAlias with I");
       }
     }
   }
 
-  Instruction *AssignedValue = nullptr;
-  if constexpr (IsLegacy) {
-    // In legacy mode assignments are calls to custom opcode Assign function
-    if (auto *Assign = getCallToTagged(I, FunctionTags::Assign)) {
-      AssignedValue = dyn_cast<Instruction>(Assign->getArgOperand(0));
-    }
-  } else {
-    // In non-legacy mode assignments are StoreInst
-    if (auto *Store = dyn_cast<StoreInst>(I)) {
-      AssignedValue = dyn_cast<Instruction>(Store->getValueOperand());
-    }
-  }
-
-  if (AssignedValue) {
+  auto *StoredOperand = getStoreValueOperand<IsLegacy>(I);
+  auto *AssignedInstruction = dyn_cast_or_null<Instruction>(StoredOperand);
+  if (AssignedInstruction) {
     revng_log(Log, "I is Assign");
-    revng_log(Log, "insert Available: " << dumpToString(AssignedValue));
+    revng_log(Log, "insert Available: " << dumpToString(AssignedInstruction));
     revng_log(Log, "       Assign: " << dumpToString(I));
 
     E.insert(AvailableExpression{
-      .Expression = AssignedValue,
+      .Expression = AssignedInstruction,
       .Assignment = cast<AssignType>(I),
     });
   }
@@ -682,14 +671,6 @@ static void applyTransferFunction(Instruction *I, LatticeElement<IsLegacy> &E) {
       .Assignment = nullptr,
     });
   }
-}
-
-static void applyTransferFunction(Instruction *I, LatticeElement<true> &E) {
-  return applyTransferFunction<true>(I, E);
-}
-
-static void applyTransferFunction(Instruction *I, LatticeElement<false> &E) {
-  return applyTransferFunction<false>(I, E);
 }
 
 template<bool IsLegacy>
@@ -714,7 +695,7 @@ AEMFP<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
     }
   }
 
-  ::applyTransferFunction(I, Result);
+  applyTransferFunctionImpl(I, Result);
 
   revng_log(Log, "final set");
   if (Log.isEnabled()) {
