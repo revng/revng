@@ -6,6 +6,7 @@
 #include <functional>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <memory_resource>
 #include <set>
 #include <type_traits>
@@ -30,6 +31,7 @@
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Verifier.h"
@@ -471,9 +473,12 @@ public:
 
 private:
   AliasAnalysis *AA;
+  llvm::ModuleSlotTracker &MST;
 
 public:
-  AvailableExpressionsMonotoneFramework(AliasAnalysis *A) : AA(A) {}
+  AvailableExpressionsMonotoneFramework(AliasAnalysis *A,
+                                        llvm::ModuleSlotTracker &TheMST) :
+    AA(A), MST(TheMST) {}
 
 public:
   LatticeElement combineValues(const LatticeElement &LHS,
@@ -541,8 +546,8 @@ bool AEMFP<IsLegacy>::mayClobber(Instruction *Access,
 
   revng_log(Log, "mayClobber");
   LoggerIndent Indent{ Log };
-  revng_log(Log, "Access: " << dumpToString(Access));
-  revng_log(Log, "Affected: " << dumpToString(Affected));
+  revng_log(Log, "Access: " << dumpToString(Access, MST));
+  revng_log(Log, "Affected: " << dumpToString(Affected, MST));
   LoggerIndent MoreIndent{ Log };
 
   bool Result = true;
@@ -579,7 +584,8 @@ void AEMFP<IsLegacy>::applyTransferFunctionImpl(Instruction *I,
   using AvailableExpression = AvailableExpression<IsLegacy>;
   using AssignType = AssignType<IsLegacy>;
 
-  revng_log(Log, "applyTransferFunction on Instruction I: " << dumpToString(I));
+  revng_log(Log,
+            "applyTransferFunction on Instruction I: " << dumpToString(I, MST));
   LoggerIndent Indent{ Log };
 
   if constexpr (IsLegacy) {
@@ -594,15 +600,16 @@ void AEMFP<IsLegacy>::applyTransferFunctionImpl(Instruction *I,
     LoggerIndent XX{ Log };
     for (const AvailableExpression &A : llvm::make_early_inc_range(E)) {
       const auto &[Available, Assign] = A;
-      revng_log(Log, "Available: " << dumpToString(Available));
-      revng_log(Log, "Assign: " << dumpToString(Assign));
+      revng_log(Log, "Available: " << dumpToString(Available, MST));
+      revng_log(Log, "Assign: " << dumpToString(Assign, MST));
       LoggerIndent XXX{ Log };
       if (mayClobber(I, Available)) {
-        revng_log(Log, "I may clobber Available: " << dumpToString(Available));
+        revng_log(Log,
+                  "I may clobber Available: " << dumpToString(Available, MST));
         revng_log(Log, "erase Available");
         E.erase(A);
       } else if (Assign and mayClobber(I, Assign)) {
-        revng_log(Log, "I may clobber Assign: " << dumpToString(Assign));
+        revng_log(Log, "I may clobber Assign: " << dumpToString(Assign, MST));
         revng_log(Log, "erase Available");
         E.erase(A);
       }
@@ -613,8 +620,9 @@ void AEMFP<IsLegacy>::applyTransferFunctionImpl(Instruction *I,
   auto *AssignedInstruction = dyn_cast_or_null<Instruction>(StoredOperand);
   if (AssignedInstruction) {
     revng_log(Log, "I is Assign");
-    revng_log(Log, "insert Available: " << dumpToString(AssignedInstruction));
-    revng_log(Log, "       Assign: " << dumpToString(I));
+    revng_log(Log,
+              "insert Available: " << dumpToString(AssignedInstruction, MST));
+    revng_log(Log, "       Assign: " << dumpToString(I, MST));
 
     E.insert(AvailableExpression{
       .Expression = AssignedInstruction,
@@ -639,7 +647,8 @@ AEMFP<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
 
   Instruction *I = ProgramPoint->TheInstruction;
 
-  revng_log(Log, "applyTransferFunction on ProgramPoint: " << dumpToString(I));
+  revng_log(Log,
+            "applyTransferFunction on ProgramPoint: " << dumpToString(I, MST));
   LoggerIndent Indent{ Log };
 
   LatticeElement Result = E;
@@ -648,8 +657,8 @@ AEMFP<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
   if (Log.isEnabled()) {
     LoggerIndent ModeIndent{ Log };
     for (const auto &[Available, Assign] : Result) {
-      revng_log(Log, "Available: " << dumpToString(Available));
-      revng_log(Log, "Assign: " << dumpToString(Assign));
+      revng_log(Log, "Available: " << dumpToString(Available, MST));
+      revng_log(Log, "Assign: " << dumpToString(Assign, MST));
     }
   }
 
@@ -659,8 +668,8 @@ AEMFP<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
   if (Log.isEnabled()) {
     LoggerIndent ModeIndent{ Log };
     for (const auto &[Available, Assign] : Result) {
-      revng_log(Log, "Available: " << dumpToString(Available));
-      revng_log(Log, "Assign: " << dumpToString(Assign));
+      revng_log(Log, "Available: " << dumpToString(Available, MST));
+      revng_log(Log, "Assign: " << dumpToString(Assign, MST));
     }
   }
 
@@ -759,14 +768,19 @@ private:
   // ProgramPointsGraph.
   InstructionProgramPoint NextProgramPointInBlock;
 
+  llvm::ModuleSlotTracker &MST;
+
 public:
+  AvailableExpressionsResult(llvm::ModuleSlotTracker &TheMST) : MST(TheMST) {}
+
   // Factory from llvm::Function
-  static AvailableExpressionsResult makeFromFunction(Function &F) {
+  static AvailableExpressionsResult
+  makeFromFunction(Function &F, llvm::ModuleSlotTracker &MST) {
 
     SmallMap<BasicBlock *, std::pair<ProgramPointNode *, ProgramPointNode *>, 8>
       BlockToBeginEndNode;
 
-    AvailableExpressionsResult Result;
+    AvailableExpressionsResult Result(MST);
 
     ProgramPointsCFG &TheCFG = Result.ProgramPointsGraph;
     InstructionProgramPoint &ProgramPoint = Result.ProgramPoint;
@@ -844,8 +858,8 @@ public:
   auto getAvailableAt(Instruction *I, const Instruction *Where) const {
 
     revng_log(Log, "IsAvailableAt");
-    revng_log(Log, "Available?: " << dumpToString(I));
-    revng_log(Log, "Where: " << dumpToString(Where));
+    revng_log(Log, "Available?: " << dumpToString(I, MST));
+    revng_log(Log, "Where: " << dumpToString(Where, MST));
 
     auto ProgramPointIt = ProgramPoint.find(Where);
     if (ProgramPointIt != ProgramPoint.end()) {
@@ -864,7 +878,7 @@ public:
       ProgramPointNode *UserProgramPoint = PreviousPointIt->second;
       revng_log(Log,
                 "Previous ProgramPoint: "
-                  << dumpToString(UserProgramPoint->TheInstruction));
+                  << dumpToString(UserProgramPoint->TheInstruction, MST));
       const AvailableSet &Available = AvailableExpressions.at(UserProgramPoint)
                                         .OutValue;
       return findAvailableRange(Available, I);
@@ -877,7 +891,7 @@ public:
       ProgramPointNode *UserProgramPoint = NextProgramPointIt->second;
       revng_log(Log,
                 "first ProgramPoint in BasicBlock: "
-                  << dumpToString(UserProgramPoint->TheInstruction));
+                  << dumpToString(UserProgramPoint->TheInstruction, MST));
       const AvailableSet &Available = AvailableExpressions.at(UserProgramPoint)
                                         .InValue;
       return findAvailableRange(Available, I);
@@ -908,14 +922,16 @@ using AEResult = AvailableExpressionsResult<IsLegacy>;
 
 template<bool IsLegacy>
 static AEResult<IsLegacy>
-getAvailableExpressions(Function &F, AliasAnalysis *AA) {
+getAvailableExpressions(Function &F,
+                        AliasAnalysis *AA,
+                        llvm::ModuleSlotTracker &MST) {
   revng_log(Log, "getAvailableExpressions: " << F.getName());
 
   using AvailableExpression = AvailableExpression<IsLegacy>;
   using AvailableSet = AvailableSet<IsLegacy>;
   using AssignType = AssignType<IsLegacy>;
 
-  auto Result = AEResult<IsLegacy>::makeFromFunction(F);
+  auto Result = AEResult<IsLegacy>::makeFromFunction(F, MST);
 
   AvailableSet Bottom;
   for (ProgramPointNode *N : llvm::nodes(&Result.ProgramPointsGraph)) {
@@ -942,7 +958,7 @@ getAvailableExpressions(Function &F, AliasAnalysis *AA) {
   ProgramPointsCFG *Graph = &Result.ProgramPointsGraph;
   ProgramPointNode *Entry = Graph->getEntryNode();
 
-  AEMFP<IsLegacy> AvailableExpressionsMF{ AA };
+  AEMFP<IsLegacy> AvailableExpressionsMF{ AA, MST };
   // std::exchange here is only needed to make revng check-conventions happy.
   std::exchange(Result.AvailableExpressions,
                 MFP::getMaximalFixedPoint<>(AvailableExpressionsMF,
@@ -962,6 +978,34 @@ struct PickedInstructions {
   SmallPtrSet<AssignType<IsLegacy> *, 8> AssignToRemove = {};
 };
 
+// LLVM doesn't ship a function-level analysis that produces a
+// ModuleSlotTracker, so we add one here. The Result owns the MST through a
+// std::unique_ptr because ModuleSlotTracker is neither copyable nor movable
+// (its copy is deleted via a unique_ptr member, and its user-declared virtual
+// destructor suppresses the implicit move), and the FAM cache requires the
+// Result to be movable.
+class ModuleSlotTrackerAnalysis
+  : public llvm::AnalysisInfoMixin<ModuleSlotTrackerAnalysis> {
+
+  friend llvm::AnalysisInfoMixin<ModuleSlotTrackerAnalysis>;
+  static llvm::AnalysisKey Key;
+
+public:
+  struct Result {
+    std::unique_ptr<llvm::ModuleSlotTracker> MST;
+  };
+
+  Result run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
+    using llvm::ModuleSlotTracker;
+    Result R{ std::make_unique<ModuleSlotTracker>(F.getParent(),
+                                                  /* InitMetadata = */ false) };
+    R.MST->incorporateFunction(F);
+    return R;
+  }
+};
+
+llvm::AnalysisKey ModuleSlotTrackerAnalysis::Key = {};
+
 template<bool IsLegacy>
 class AvailableExpressionsAnalysis
   : public llvm::AnalysisInfoMixin<AvailableExpressionsAnalysis<IsLegacy>> {
@@ -973,7 +1017,8 @@ public:
   using Result = AvailableExpressionsResult<IsLegacy>;
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
     AliasAnalysis *AA = IsLegacy ? nullptr : &FAM.getResult<AAManager>(F);
-    return getAvailableExpressions<IsLegacy>(F, AA);
+    auto &MST = *FAM.getResult<ModuleSlotTrackerAnalysis>(F).MST;
+    return getAvailableExpressions<IsLegacy>(F, AA, MST);
   }
 };
 
@@ -1001,6 +1046,9 @@ private:
   std::unordered_map<const Instruction *, size_t> ProgramOrdering = {};
   Result Picked;
   AliasAnalysis *AA;
+  // A pointer (rather than a reference) so the picker can be default
+  // constructed by the FAM factory; the MST is fetched and assigned in run().
+  llvm::ModuleSlotTracker *MST = nullptr;
 
 public:
   InstructionToSerializePicker() :
@@ -1011,6 +1059,7 @@ public:
     if constexpr (not IsLegacy) {
       AA = &FAM.getResult<AAManager>(F);
     }
+    MST = FAM.getResult<ModuleSlotTrackerAnalysis>(F).MST.get();
     AvailableExpressions = &FAM.getResult<AEA<IsLegacy>>(F);
 
     Picked = {};
@@ -1032,7 +1081,7 @@ private:
 
   void pick(llvm::Instruction *I) {
     LoggerIndent Indent{ Log };
-    revng_log(Log, "pick(I), I: " << dumpToString(I));
+    revng_log(Log, "pick(I), I: " << dumpToString(I, *MST));
     Picked.ToSerialize.insert(I);
   };
 
@@ -1093,8 +1142,8 @@ private:
 
   RecursiveCoroutine<void>
   pickInstructionForMemoryRead(Instruction *I, Instruction *MemoryRead) {
-    revng_log(Log, "PickFrom I: " << dumpToString(I));
-    revng_log(Log, "MemoryRead: " << dumpToString(MemoryRead));
+    revng_log(Log, "PickFrom I: " << dumpToString(I, *MST));
+    revng_log(Log, "MemoryRead: " << dumpToString(MemoryRead, *MST));
 
     LoggerIndent Indent{ Log };
 
@@ -1196,7 +1245,7 @@ private:
       auto *User = cast<Instruction>(U.getUser());
       revng_log(Log,
                 "UseNo: " << U.getOperandNo()
-                          << " User: " << dumpToString(User));
+                          << " User: " << dumpToString(User, *MST));
       LoggerIndent MoreUserIndent{ Log };
 
       // U of I could have already been picked in a previous iteration, from a
@@ -1208,7 +1257,8 @@ private:
         revng_log(Log,
                   "I was already picked and it's available at User, reading "
                   "from: "
-                    << dumpToString(Picked.ToReplaceWithAvailable.lookup(&U)));
+                    << dumpToString(Picked.ToReplaceWithAvailable.lookup(&U),
+                                    *MST));
         continue;
       }
 
@@ -1247,7 +1297,7 @@ private:
         revng_log(Log, "I is not available at User via other assignments");
         rc_return pick(I);
       }
-      revng_log(Log, "SelectedAssign: " << dumpToString(SelectedAssign));
+      revng_log(Log, "SelectedAssign: " << dumpToString(SelectedAssign, *MST));
 
       // Case 4.
       // If the user is not writing to memory, it cannot interact in any way
@@ -1316,7 +1366,7 @@ private:
       LoggerIndent UserIndent{ Log };
       revng_log(Log,
                 "UseNo: " << U->getOperandNo()
-                          << " User: " << dumpToString(User));
+                          << " User: " << dumpToString(User, *MST));
       LoggerIndent MoreUserIndent{ Log };
       rc_recur pickInstructionForMemoryRead(User, MemoryRead);
     }
@@ -1337,8 +1387,8 @@ private:
     if (Log.isEnabled()) {
       LoggerIndent Indent{ Log };
       for (const AvailableExpression &AE : Available) {
-        revng_log(Log, "AE.Available = " << dumpToString(AE.Expression));
-        revng_log(Log, "AE.Assignment = " << dumpToString(AE.Assignment));
+        revng_log(Log, "AE.Available = " << dumpToString(AE.Expression, *MST));
+        revng_log(Log, "AE.Assignment = " << dumpToString(AE.Assignment, *MST));
       }
     }
 
@@ -1371,7 +1421,8 @@ private:
                });
 
     AssignType *CandidateAssign = AssignsWhereIIsAvailable.front();
-    revng_log(Log, "First CandidateAssign: " << dumpToString(CandidateAssign));
+    revng_log(Log,
+              "First CandidateAssign: " << dumpToString(CandidateAssign, *MST));
     return CandidateAssign;
   }
 };
@@ -1557,15 +1608,15 @@ bool VI<IsLegacy>::serializeToLocalVariable(Instruction *I) {
   return true;
 }
 
-template<bool IsLegacy>
-void registerCommonAnalyses(FunctionAnalysisManager &FAM) {
-
+static void registerAliasAnalysis(FunctionAnalysisManager &FAM) {
   PassBuilder PB;
   PB.registerFunctionAnalyses(FAM);
+  FAM.registerPass([] { return llvm::registerAAAnalyses(); });
+}
 
-  if constexpr (not IsLegacy) {
-    FAM.registerPass([] { return llvm::registerAAAnalyses(); });
-  }
+template<bool IsLegacy>
+static void registerCommonAnalyses(FunctionAnalysisManager &FAM) {
+  FAM.registerPass([] { return ModuleSlotTrackerAnalysis(); });
   FAM.registerPass([] { return AvailableExpressionsAnalysis<IsLegacy>(); });
   FAM.registerPass([] { return InstructionToSerializePicker<IsLegacy>(); });
 }
@@ -1644,6 +1695,7 @@ public:
     requires(not IsLegacy)
   {
     using PipelineElementArray = ArrayRef<PassBuilder::PipelineElement>;
+    PB.registerAnalysisRegistrationCallback(registerAliasAnalysis);
     PB.registerAnalysisRegistrationCallback(registerCommonAnalyses<false>);
     PB.registerPipelineParsingCallback([](StringRef Name,
                                           FunctionPassManager &FPM,
@@ -1677,6 +1729,12 @@ bool switchToStatements<true>(const model::Binary *Model, llvm::Function &F) {
   revng_log(Log, "switchToStatements (legacy): " << F.getName());
 
   FunctionAnalysisManager FAM;
+
+  // FPM.run queries some standard LLVM analyses unconditionally (e.g.
+  // PassInstrumentationAnalysis), so we need to register them on the FAM.
+  PassBuilder PB;
+  PB.registerFunctionAnalyses(FAM);
+
   registerCommonAnalyses<true>(FAM);
 
   FunctionPassManager FPM;
@@ -1707,9 +1765,10 @@ bool switchToStatements<false>(const model::Binary *Model, llvm::Function &F) {
   // which is a module-level pass.
   PassBuilder PB;
   PB.registerModuleAnalyses(MAM);
-
+  // Register the standard LLVM function analyses (PassInstrumentationAnalysis,
+  // ...) and the alias analyses we use further down.
+  registerAliasAnalysis(FAM);
   registerCommonAnalyses<false>(FAM);
-
   FunctionPassManager FPM;
   FPM.addPass(SwitchToStatements<false>(getPointerSize(Model->Architecture())));
   llvm::PreservedAnalyses Preserved = FPM.run(F, FAM);
