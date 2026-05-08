@@ -873,6 +873,20 @@ public:
   /// on every type, as types can depend on each other.
   /// This method ensures they are printed in a valid order.
   void printTypeDefinitions();
+
+  /// Print all opaque type definitions required by the types in the model.
+  void printModelOpaqueTypeDefinitions();
+
+  /// Print all opaque type definitions required by the types in the headers,
+  /// that are not otherwise printed by printModelOpaqueTypeDefinitions.
+  void
+  printHelperOpaqueTypeDefinitions(const std::set<uint64_t> &HelperByteSizes);
+
+private:
+  std::set<uint64_t> getModelOpaqueByteSizes();
+
+  /// Print a single opaque type definitions with given ByteSize
+  void printOpaqueTypeDefinition(uint64_t ByteSize);
 };
 
 } // namespace ptml

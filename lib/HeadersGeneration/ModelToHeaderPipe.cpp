@@ -60,8 +60,7 @@ public:
         { .EnableStackFrameInlining = options::EnableStackFrameInlining,
           .EnablePrintingOfTheMaximumEnumValue = true,
           .ExplicitTargetPointerSize = getExplicitPointerSize(Model) });
-    ptml::HeaderBuilder(B).printModelHeader();
-
+    ptml::HeaderBuilder(B).printModelHeader(/*DefineOpaqueTypes*/ true);
     Header.flush();
     ErrorCode = Header.error();
     if (ErrorCode)
@@ -95,7 +94,7 @@ void ModelToHeader::run() {
       { .EnableStackFrameInlining = revng::options::EnableStackFrameInlining,
         .EnablePrintingOfTheMaximumEnumValue = true,
         .ExplicitTargetPointerSize = getExplicitPointerSize(Binary) });
-  ptml::HeaderBuilder(B).printModelHeader();
+  ptml::HeaderBuilder(B).printModelHeader(/*DefineOpaqueTypes*/ true);
   Out->flush();
 }
 

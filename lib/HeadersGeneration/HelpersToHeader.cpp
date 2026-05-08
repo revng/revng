@@ -95,6 +95,8 @@ bool ptml::HeaderBuilder::printHelpersHeader(const llvm::Module &M) {
                          + B.getIncludeQuote("primitive-types.h") + "\n";
   B.append(std::move(Includes));
 
+  std::set<uint64_t> OpaqueByteSizes;
+
   for (const llvm::Function &F : M.functions()) {
 
     // Skip non-helpers
@@ -140,6 +142,10 @@ bool ptml::HeaderBuilder::printHelpersHeader(const llvm::Module &M) {
     const auto *RetTy = F.getReturnType();
     if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
       printLLVMTypeDeclaration(RetStructTy, F, B);
+      const auto &DataLayout = F.getParent()->getDataLayout();
+
+      OpaqueByteSizes
+        .insert(DataLayout.getStructLayout(RetStructTy)->getSizeInBytes());
       B.append("\n");
     }
 
@@ -148,8 +154,22 @@ bool ptml::HeaderBuilder::printHelpersHeader(const llvm::Module &M) {
     }
 
     printHelperPrototype(&F, B);
+
     B.append("\n");
   }
+
+  // Always print the opaque type definitions here.
+  // The helper header is only used if we have the function body, which will
+  // need these definitions.
+  B.appendLineComment("\\defgroup Opaque Types");
+  B.appendLineComment("\\{");
+
+  auto OpaqueTypeScope = B.getScopeTag(ptml::tags::Div);
+
+  B.printHelperOpaqueTypeDefinitions(OpaqueByteSizes);
+
+  B.appendLineComment("\\}");
+  B.append("\n");
 
   return true;
 }
