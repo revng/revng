@@ -44,11 +44,36 @@ static void printLLVMTypeDeclaration(const llvm::StructType *S,
   {
     auto Scope = B.getCurvedBracketScope(ptml::c::scopes::StructBody.str());
 
-    for (const auto &Field : llvm::enumerate(S->elements())) {
-      B.append(getReturnStructFieldTypeReferenceTag(&F, Field.index(), B) + " "
-               + getReturnStructFieldDefinitionTag(&F, Field.index(), B)
-               + ";\n");
+    const auto &DataLayout = F.getParent()->getDataLayout();
+    const auto *StructLayout = DataLayout.getStructLayout(S);
+    uint64_t StructByteSize = StructLayout->getSizeInBytes();
+
+    uint64_t PreviousOffsetInBits = 0ULL;
+
+    for (auto [Index, FieldType] : llvm::enumerate(S->elements())) {
+      revng_assert(PreviousOffsetInBits % 8 == 0);
+
+      uint64_t FieldOffsetInBits = StructLayout->getElementOffsetInBits(Index);
+      revng_assert(FieldOffsetInBits % 8 == 0);
+
+      B.printPadding(PreviousOffsetInBits / 8, FieldOffsetInBits / 8);
+
+      B.append(getReturnStructFieldTypeReferenceTag(&F, Index, B) + " "
+               + getReturnStructFieldDefinitionTag(&F, Index, B) + ";\n");
+
+      uint64_t FieldSizeInBits = DataLayout.getTypeSizeInBits(FieldType);
+      revng_assert(FieldSizeInBits % 8 == 0,
+                   (F.getName().str()
+                    + " returns a StructType with a field whose size "
+                      "is not a multiple of 8 bits. Field index: "
+                    + std::to_string(Index)
+                    + ". FieldSizeInBits: " + std::to_string(FieldSizeInBits))
+                     .c_str());
+
+      PreviousOffsetInBits = FieldOffsetInBits + FieldSizeInBits;
     }
+    revng_assert(PreviousOffsetInBits % 8 == 0);
+    revng_assert(PreviousOffsetInBits / 8 == StructByteSize);
   }
 
   B.append(" " + getReturnTypeDefinitionTag(&F, B) + ";\n");
@@ -142,10 +167,13 @@ bool ptml::HeaderBuilder::printHelpersHeader(const llvm::Module &M) {
     const auto *RetTy = F.getReturnType();
     if (auto *RetStructTy = dyn_cast<llvm::StructType>(RetTy)) {
       printLLVMTypeDeclaration(RetStructTy, F, B);
-      const auto &DataLayout = F.getParent()->getDataLayout();
 
-      OpaqueByteSizes
-        .insert(DataLayout.getStructLayout(RetStructTy)->getSizeInBytes());
+      const auto &DataLayout = F.getParent()->getDataLayout();
+      const auto *StructLayout = DataLayout.getStructLayout(RetStructTy);
+      uint64_t ByteSize = StructLayout->getSizeInBytes();
+      revng_assert(StructLayout->getSizeInBits() == 8 * ByteSize);
+      OpaqueByteSizes.insert(StructLayout->getSizeInBytes());
+
       B.append("\n");
     }
 
