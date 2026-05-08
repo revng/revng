@@ -377,3 +377,82 @@ else:
   %loaded = load i64, ptr %loc
   ret i64 %loaded
 }
+
+; ============================================================================
+; Same three call patterns as the previous variants, but the store of %val
+; into the pre-existing alloca happens BEFORE the call instead of after it.
+; The expected outcome (number of NEW allocas generated) is the same as in
+; the previous variants: the position of the store relative to the call
+; does not change the picker's decision.
+; ============================================================================
+
+; Variant of @call_rw_one_use_with_alloca with the store before the call.
+; Same outcome: no NEW alloca generated, only the pre-existing one survives.
+;
+; CHECK-LABEL: define i64 @call_rw_one_use_with_alloca_store_before(
+; CHECK: alloca i64
+; CHECK-NOT: alloca
+
+define i64 @call_rw_one_use_with_alloca_store_before(ptr %arg, i64 %val) {
+entry:
+  %loc = alloca i64
+  store i64 %val, ptr %loc
+  %call = call i64 @rw_func(ptr %arg)
+  %cmp = icmp ne i64 %call, 0
+  br i1 %cmp, label %then, label %else
+
+then:
+  %loaded_then = load i64, ptr %loc
+  ret i64 %loaded_then
+
+else:
+  %loaded_else = load i64, ptr %loc
+  ret i64 %loaded_else
+}
+
+; Variant of @call_rw_two_uses_with_alloca with the store before the call.
+; Same outcome: 2 allocas total (pre-existing + new for the picked call).
+;
+; CHECK-LABEL: define i64 @call_rw_two_uses_with_alloca_store_before(
+; CHECK: alloca i64
+; CHECK: alloca i64
+; CHECK-NOT: alloca
+
+define i64 @call_rw_two_uses_with_alloca_store_before(ptr %arg, i64 %val) {
+entry:
+  %loc = alloca i64
+  store i64 %val, ptr %loc
+  %call = call i64 @rw_func(ptr %arg)
+  %cmp = icmp ne i64 %call, 0
+  br i1 %cmp, label %then, label %else
+
+then:
+  ret i64 %call
+
+else:
+  %loaded = load i64, ptr %loc
+  ret i64 %loaded
+}
+
+; Variant of @call_ro_two_uses_with_alloca with the store before the call.
+; Same outcome: no NEW alloca generated, only the pre-existing one survives.
+;
+; CHECK-LABEL: define i64 @call_ro_two_uses_with_alloca_store_before(
+; CHECK: alloca i64
+; CHECK-NOT: alloca
+
+define i64 @call_ro_two_uses_with_alloca_store_before(ptr %arg, i64 %val) {
+entry:
+  %loc = alloca i64
+  store i64 %val, ptr %loc
+  %call = call i64 @ro_func(ptr %arg)
+  %cmp = icmp ne i64 %call, 0
+  br i1 %cmp, label %then, label %else
+
+then:
+  ret i64 %call
+
+else:
+  %loaded = load i64, ptr %loc
+  ret i64 %loaded
+}
