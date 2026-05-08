@@ -1666,6 +1666,11 @@ definitions:
         type: string
         default: artificial_struct_returned_by_
 
+      - name: OpaqueTypePrefix
+        doc: The prefix for an artificial struct wrapping a model array type.
+        type: string
+        default: opaque_type_
+
       - name: ReserveNamesStartingWithUnderscore
         doc: |-
           When this is set to `true`, all the names starting with underscores will
