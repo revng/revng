@@ -289,15 +289,7 @@ VB::LocalVarType *VB::createLocalVariable(const model::Type &VariableType) {
   revng::NonDebugInfoCheckingIRBuilder B(F->getContext());
   setInsertPointToFirstNonAlloca(B, *F);
 
-  // Create an alloca of array type with number of elements equal to
-  // VariableSize (alloca [n x i8]), instead of creating an alloca of
-  // VariableSize Int8Ty (alloca i8, n).
-  // If we do the latter, LLVM's instcombine turns it into the former, but it
-  // loses the variable type metadata that we need in the clifter.
-  llvm::ArrayType *Array = llvm::ArrayType::get(Int8Ty, VariableSize);
-  auto *AllocaLocalVariable = B.CreateAlloca(Array);
-  setVariableTypeMetadata(AllocaLocalVariable, VariableType);
-  return AllocaLocalVariable;
+  return B.CreateAlloca(llvm::ArrayType::get(Int8Ty, VariableSize));
 }
 
 template<>
