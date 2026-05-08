@@ -340,6 +340,194 @@ define i64 @dont_optimize(i64 %arg) {
   ret i64 %result
 }
 
+; =============================================================================
+; =============================================================================
+; Tests with deep cones of dataflow, where many add instructions are chained
+; and only one of the operands is a valid base pointer. The base pointer is
+; not used directly from the root AddInst, so discovery has to propagate
+; through many layers of ambiguous Add operations to find it.
+; =============================================================================
+; =============================================================================
+
+; Eight chained adds. The non-pointer operand of every add is the result of a
+; clearly-non-pointer operation (mul, ashr, shl, and, or, xor, sdiv, srem).
+; Discovery starts from the !revng.pointers metadata on the function (return
+; type is a pointer) and must walk backwards through 8 adds before it lands
+; on %arg as the only viable base pointer.
+;
+; CHECK-LABEL: define i64 @deep_chain_to_return
+; CHECK: [[PTR:%[a-zA-Z0-9_]+]] = inttoptr i64 %arg to ptr
+; CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[PTR]], i64 %m
+; CHECK: [[GEP2:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP1]], i64 %as
+; CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP2]], i64 %sh
+; CHECK: [[GEP4:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP3]], i64 %an
+; CHECK: [[GEP5:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP4]], i64 %o1
+; CHECK: [[GEP6:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP5]], i64 %x1
+; CHECK: [[GEP7:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP6]], i64 %dv
+; CHECK: [[GEP8:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP7]], i64 %rm
+; CHECK: [[INT:%[a-zA-Z0-9_]+]] = ptrtoint ptr [[GEP8]] to i64
+; CHECK-NEXT: ret i64 [[INT]]
+define i64 @deep_chain_to_return(i64 %arg, i64 %a, i64 %b) !revng.pointers !2002 {
+  %m  = mul  i64 %a, %b
+  %a1 = add  i64 %arg, %m
+  %as = ashr i64 %a, 3
+  %a2 = add  i64 %a1, %as
+  %sh = shl  i64 %a, 4
+  %a3 = add  i64 %a2, %sh
+  %an = and  i64 %a, %b
+  %a4 = add  i64 %a3, %an
+  %o1 = or   i64 %a, %b
+  %a5 = add  i64 %a4, %o1
+  %x1 = xor  i64 %a, %b
+  %a6 = add  i64 %a5, %x1
+  %dv = sdiv i64 %a, %b
+  %a7 = add  i64 %a6, %dv
+  %rm = srem i64 %a, %b
+  %a8 = add  i64 %a7, %rm
+  ret i64 %a8
+}
+
+; Pointer argument drives a chain of 4 adds. The non-pointer operand of every
+; add is a clearly-non-pointer multiplication. Here there is no backwards
+; discovery: the obvious pointer is %arg itself. The chain is rewritten by
+; propagating forward through each Add user.
+;
+; CHECK-LABEL: define i64 @deep_chain_from_arg
+; CHECK: [[PTR:%[a-zA-Z0-9_]+]] = inttoptr i64 %arg to ptr
+; CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[PTR]], i64 %m1
+; CHECK: [[GEP2:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP1]], i64 %m2
+; CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP2]], i64 %m3
+; CHECK: [[GEP4:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP3]], i64 %m4
+; CHECK: [[INT:%[a-zA-Z0-9_]+]] = ptrtoint ptr [[GEP4]] to i64
+; CHECK-NEXT: ret i64 [[INT]]
+define i64 @deep_chain_from_arg(i64 %arg, i64 %a, i64 %b) !revng.pointers !2001 {
+  %m1 = mul i64 %a, %b
+  %a1 = add i64 %arg, %m1
+  %m2 = mul i64 %a, %b
+  %a2 = add i64 %a1, %m2
+  %m3 = mul i64 %a, %b
+  %a3 = add i64 %a2, %m3
+  %m4 = mul i64 %a, %b
+  %a4 = add i64 %a3, %m4
+  ret i64 %a4
+}
+
+; A chain of 4 adds feeds the integer argument of a call whose argument is
+; known (via metadata) to be a pointer. Discovery starts from the call-site
+; pointer use and walks backwards through 4 adds to identify %arg as the
+; base pointer.
+;
+; CHECK-LABEL: define i64 @deep_chain_to_call_arg
+; CHECK: [[PTR:%[a-zA-Z0-9_]+]] = inttoptr i64 %arg to ptr
+; CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[PTR]], i64 %m1
+; CHECK: [[GEP2:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP1]], i64 %m2
+; CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP2]], i64 %m3
+; CHECK: [[GEP4:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP3]], i64 %m4
+; CHECK: [[INT:%[a-zA-Z0-9_]+]] = ptrtoint ptr [[GEP4]] to i64
+; CHECK: [[CALL:%[a-zA-Z0-9_]+]] = call i64 @xb(i64 [[INT]])
+; CHECK-NEXT: ret i64 [[CALL]]
+define i64 @deep_chain_to_call_arg(i64 %arg, i64 %a, i64 %b) !revng.pointers !2000 {
+  %m1 = mul i64 %a, %b
+  %a1 = add i64 %arg, %m1
+  %m2 = mul i64 %a, %b
+  %a2 = add i64 %a1, %m2
+  %m3 = mul i64 %a, %b
+  %a3 = add i64 %a2, %m3
+  %m4 = mul i64 %a, %b
+  %a4 = add i64 %a3, %m4
+  %result = call i64 @xb(i64 %a4)
+  ret i64 %result
+}
+
+; Chain of 4 adds where the position of the pointer operand alternates
+; between operand 0 and operand 1 of each add. Discovery must check both
+; sides of every add when disambiguating.
+;
+; CHECK-LABEL: define i64 @mixed_operand_order
+; CHECK: [[PTR:%[a-zA-Z0-9_]+]] = inttoptr i64 %arg to ptr
+; CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[PTR]], i64 %m1
+; CHECK: [[GEP2:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP1]], i64 %m2
+; CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP2]], i64 %m3
+; CHECK: [[GEP4:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP3]], i64 %m4
+; CHECK: [[INT:%[a-zA-Z0-9_]+]] = ptrtoint ptr [[GEP4]] to i64
+; CHECK-NEXT: ret i64 [[INT]]
+define i64 @mixed_operand_order(i64 %arg, i64 %a, i64 %b) !revng.pointers !2002 {
+  %m1 = mul i64 %a, %b
+  %a1 = add i64 %arg, %m1   ; pointer is operand 0
+  %m2 = mul i64 %a, %b
+  %a2 = add i64 %m2, %a1    ; pointer is operand 1
+  %m3 = mul i64 %a, %b
+  %a3 = add i64 %a2, %m3    ; pointer is operand 0
+  %m4 = mul i64 %a, %b
+  %a4 = add i64 %m4, %a3    ; pointer is operand 1
+  ret i64 %a4
+}
+
+; Chain of 2 adds where the non-pointer operand of each add is reached
+; through a freeze of a multiplication. cannotBePointer must recurse through
+; freeze to determine that the operand cannot be a pointer.
+;
+; CHECK-LABEL: define i64 @non_pointer_via_freeze
+; CHECK: [[PTR:%[a-zA-Z0-9_]+]] = inttoptr i64 %arg to ptr
+; CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[PTR]], i64 %f1
+; CHECK: [[GEP2:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP1]], i64 %f2
+; CHECK: [[INT:%[a-zA-Z0-9_]+]] = ptrtoint ptr [[GEP2]] to i64
+; CHECK-NEXT: ret i64 [[INT]]
+define i64 @non_pointer_via_freeze(i64 %arg, i64 %a, i64 %b) !revng.pointers !2002 {
+  %m1 = mul i64 %a, %b
+  %f1 = freeze i64 %m1
+  %a1 = add i64 %arg, %f1
+  %m2 = mul i64 %a, %b
+  %f2 = freeze i64 %m2
+  %a2 = add i64 %a1, %f2
+  ret i64 %a2
+}
+
+; Chain of 3 adds that all reuse the same multiplication as their offset.
+; This exercises the fact that disambiguation is done independently for each
+; add and is robust to the offset side being a shared sub-expression.
+;
+; CHECK-LABEL: define i64 @shared_offset_mul
+; CHECK: [[PTR:%[a-zA-Z0-9_]+]] = inttoptr i64 %arg to ptr
+; CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[PTR]], i64 %m
+; CHECK: [[GEP2:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP1]], i64 %m
+; CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP2]], i64 %m
+; CHECK: [[INT:%[a-zA-Z0-9_]+]] = ptrtoint ptr [[GEP3]] to i64
+; CHECK-NEXT: ret i64 [[INT]]
+define i64 @shared_offset_mul(i64 %arg, i64 %a, i64 %b) !revng.pointers !2002 {
+  %m  = mul i64 %a, %b
+  %a1 = add i64 %arg, %m
+  %a2 = add i64 %a1, %m
+  %a3 = add i64 %a2, %m
+  ret i64 %a3
+}
+
+; Chain where the chain itself is interrupted by ptrtoint/inttoptr round
+; trips between adds. cannotBePointer's recursion through these casts (via
+; the same paths used for transparent passthroughs) must still allow
+; disambiguation to identify the chain side.
+;
+; CHECK-LABEL: define i64 @chain_with_intermediate_casts
+; CHECK: [[PTR:%[a-zA-Z0-9_]+]] = inttoptr i64 %arg to ptr
+; CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[PTR]], i64 %m1
+; CHECK: [[GEP2:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP1]], i64 %m2
+; CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr i8, ptr [[GEP2]], i64 %m3
+; CHECK: [[INT:%[a-zA-Z0-9_]+]] = ptrtoint ptr [[GEP3]] to i64
+; CHECK-NEXT: ret i64 [[INT]]
+define i64 @chain_with_intermediate_casts(i64 %arg, i64 %a, i64 %b) !revng.pointers !2002 {
+  %m1 = mul i64 %a, %b
+  %a1 = add i64 %arg, %m1
+  %p1 = inttoptr i64 %a1 to ptr
+  %i1 = ptrtoint ptr %p1 to i64
+  %m2 = mul i64 %a, %b
+  %a2 = add i64 %i1, %m2
+  %p2 = inttoptr i64 %a2 to ptr
+  %i2 = ptrtoint ptr %p2 to i64
+  %m3 = mul i64 %a, %b
+  %a3 = add i64 %i2, %m3
+  ret i64 %a3
+}
+
 !0 = !{ i1 false }
 !1 = !{ i1 true }
 ; non-pointer return return type, non-pointer operand type
@@ -350,3 +538,14 @@ define i64 @dont_optimize(i64 %arg) {
 !1002 = !{ !1, !0 }
 ; pointer return return type, pointer operand type
 !1003 = !{ !1, !1 }
+
+; Metadata used by the deep-chain tests below, which all take 3 i64 arguments
+; (only the first one being a pointer, when applicable).
+!2 = !{ i1 false, i1 false, i1 false }
+!3 = !{ i1 true, i1 false, i1 false }
+; 3-args: non-pointer return, no pointer operand
+!2000 = !{ !0, !2 }
+; 3-args: non-pointer return, first operand is a pointer
+!2001 = !{ !0, !3 }
+; 3-args: pointer return, no pointer operand
+!2002 = !{ !1, !2 }
