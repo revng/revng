@@ -370,6 +370,7 @@ branches:
             - inline-divergent-scopes
             - enforce-single-exit
             - materialize-trivial-goto
+            - strip-dead-prototypes
         artifacts:
           - name: clifter-input
             container: llvm-functions
