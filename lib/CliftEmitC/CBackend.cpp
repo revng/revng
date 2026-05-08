@@ -348,42 +348,17 @@ public:
     auto ResultType = E.getResult().getType();
     auto BitCast = mlir::dyn_cast<BitCastOp>(E.getOperation());
     if (BitCast and requiresExplicitBitCast(BitCast)) {
-      if (auto ArrayResultType = mlir::dyn_cast<clift::ArrayType>(ResultType)) {
+      Tokens.emitLiteralIdentifier("bit_cast");
+      Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
-        Tokens.emitLiteralIdentifier("bit_cast_to_array");
-        Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+      emitType(ResultType);
+      Tokens.emitPunctuator(CTE::Punctuator::Comma);
+      Tokens.emitSpace();
 
-        emitType(ArrayResultType.getElementType());
-        Tokens.emitPunctuator(CTE::Punctuator::Comma);
-        Tokens.emitSpace();
+      CurrentPrecedence = OperatorPrecedence::Parentheses;
+      rc_recur emitExpression(E.getValue());
 
-        emitIntegerLiteral(ArrayResultType.getElementsCount(),
-                           /*IsSigned=*/true,
-                           CStandardType::Int,
-                           10);
-
-        Tokens.emitPunctuator(CTE::Punctuator::Comma);
-        Tokens.emitSpace();
-
-        CurrentPrecedence = OperatorPrecedence::Parentheses;
-        rc_recur emitExpression(E.getValue());
-
-        Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
-
-      } else {
-
-        Tokens.emitLiteralIdentifier("bit_cast");
-        Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-
-        emitType(ResultType);
-        Tokens.emitPunctuator(CTE::Punctuator::Comma);
-        Tokens.emitSpace();
-
-        CurrentPrecedence = OperatorPrecedence::Parentheses;
-        rc_recur emitExpression(E.getValue());
-
-        Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
-      }
+      Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
     } else {
       emitCStyleCast(ResultType);
 

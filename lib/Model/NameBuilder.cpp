@@ -324,7 +324,6 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "__typeof__",
   "bit_cast",
   "static_assert_typedef",
-  "bit_cast_to_array",
   "assign_array",
 };
 

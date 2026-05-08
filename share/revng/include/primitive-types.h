@@ -283,11 +283,3 @@ extern uintmax_t undef_value(void);
   (*(__typeof__(x) *) __builtin_memcpy(&(x),             \
                                        &((__VA_ARGS__)), \
                                        sizeof(__typeof__(x))))
-
-// The macro is variadic so we can pass in expressions that contain commas.
-#define bit_cast_to_array(element_type, num_elements, ...) \
-  (((union {                                               \
-     __typeof__((__VA_ARGS__)) src;                        \
-     element_type dst[num_elements];                       \
-   }){ .src = ((__VA_ARGS__)) })                           \
-     .dst)
