@@ -100,11 +100,7 @@ class ClifterImpl final : public Clifter {
 
   const llvm::DataLayout *DataLayout;
 
-  mlir::Type VoidTypeCache;
-  mlir::Type VoidPointerTypeCache;
-  mlir::Type IntptrTypeCache;
-
-  //===---- Per-module mappings - persisted between imported functions ----===//
+  /* Per-module mappings - persisted between imported functions */
 
   // Maps LLVM object to a Clift global op. Each used global object is only
   // emitted once and hence forth the operation stored in this table is used.
@@ -173,7 +169,7 @@ private:
   }
 
   IntegerType getIntegerType(uint64_t Size,
-                             IntegerKind Kind = IntegerKind::Generic) {
+                             IntegerKind Kind = IntegerKind::Generic) const {
     return IntegerType::get(Context, Kind, Size);
   }
 
@@ -182,27 +178,17 @@ private:
     return DataLayout->getPointerSize();
   }
 
-  mlir::Type makePointerType(mlir::Type ElementType) {
+  mlir::Type getPointerType(mlir::Type ElementType) const {
     return PointerType::get(ElementType, getPointerSize());
   }
 
-  mlir::Type getVoidType() {
-    if (not VoidTypeCache)
-      VoidTypeCache = VoidType::get(Context);
-    return VoidTypeCache;
+  mlir::Type getVoidType() const { return VoidType::get(Context); }
+
+  mlir::Type getVoidPointerType() const {
+    return getPointerType(getVoidType());
   }
 
-  mlir::Type getVoidPointerType() {
-    if (not VoidPointerTypeCache)
-      VoidPointerTypeCache = makePointerType(getVoidType());
-    return VoidPointerTypeCache;
-  }
-
-  mlir::Type getIntptrType() {
-    if (not IntptrTypeCache)
-      IntptrTypeCache = getIntegerType(getPointerSize());
-    return IntptrTypeCache;
-  }
+  mlir::Type getIntptrType() { return getIntegerType(getPointerSize()); }
 
   clift::ValueType getConstCharType() {
     return clift::IntegerType::get(Context,
@@ -1015,7 +1001,7 @@ private:
                                            String->Type,
                                            std::move(String->Data));
 
-        auto Type = C.makePointerType(String->Type.getElementType());
+        auto Type = C.getPointerType(String->Type.getElementType());
         rc_return emitCast<DecayOp>(SurroundingLocation, Op, Type);
       }
 
@@ -1041,7 +1027,7 @@ private:
 
       if (It->second.TakeAddressOnUse) {
         Value = Builder.create<AddressofOp>(SurroundingLocation,
-                                            C.makePointerType(Value.getType()),
+                                            C.getPointerType(Value.getType()),
                                             Value);
       }
 
@@ -1098,7 +1084,7 @@ private:
       auto It = AllocaMapping.find(I);
       revng_assert(It != AllocaMapping.end());
 
-      auto Type = C.makePointerType(It->second.getType());
+      auto Type = C.getPointerType(It->second.getType());
       auto Value = Builder.create<AddressofOp>(Loc, Type, It->second);
       rc_return emitImplicitCast(Loc, Value, C.importLLVMType(I->getType()));
     }
@@ -1115,7 +1101,7 @@ private:
                                                      Loc));
 
       mlir::Type ValueType = C.importLLVMType(V->getType());
-      mlir::Type PointerType = C.makePointerType(ValueType);
+      mlir::Type PointerType = C.getPointerType(ValueType);
 
       Pointer = Builder.create<BitCastOp>(Loc, PointerType, Pointer);
 
@@ -1139,7 +1125,7 @@ private:
                            rc_recur emitExpression(I->getValueOperand(), Loc));
 
       Pointer = Builder.create<BitCastOp>(Loc,
-                                          C.makePointerType(Value.getType()),
+                                          C.getPointerType(Value.getType()),
                                           Pointer);
 
       revng_log(ExpressionLog, "IndirectionOp");
@@ -1366,7 +1352,7 @@ private:
         mlir::Value Value = It->second;
 
         Value = Builder.create<AddressofOp>(SurroundingLocation,
-                                            C.makePointerType(Value.getType()),
+                                            C.getPointerType(Value.getType()),
                                             Value);
 
         rc_return Value;
@@ -1400,12 +1386,12 @@ private:
         if (mlir::isa<clift::FunctionType>(Function.getType())) {
           Function = emitCast<DecayOp>(Loc,
                                        Function,
-                                       C.makePointerType(FunctionType));
+                                       C.getPointerType(FunctionType));
         }
 
         Function = emitCast<BitCastOp>(Loc,
                                        Function,
-                                       C.makePointerType(CallType));
+                                       C.getPointerType(CallType));
       }
 
       llvm::ArrayRef LayoutArguments = getLayoutArguments(Layout);
@@ -1427,7 +1413,7 @@ private:
         // to make the resulting Clift expression valid. In either case, an
         // implicit cast is first applied if necessary.
         if (isByAddressParameter(L)) {
-          Argument = emitImplicitCast(Loc, Argument, C.makePointerType(T));
+          Argument = emitImplicitCast(Loc, Argument, C.getPointerType(T));
           Argument = Builder.create<IndirectionOp>(Loc, T, Argument);
         } else {
           Argument = emitImplicitCast(Loc, Argument, T);
@@ -1491,7 +1477,7 @@ private:
           and GEP->getSourceElementType()->isIntegerTy(8)) {
 
         auto UnsignedCharType = C.getIntegerType(1, IntegerKind::Unsigned);
-        auto PointerType = C.makePointerType(UnsignedCharType);
+        auto PointerType = C.getPointerType(UnsignedCharType);
 
         llvm::Value *GEPIndex = GEP->idx_begin()->get();
         mlir::Value Index = rc_recur emitExpression(GEPIndex, Loc);
@@ -1778,7 +1764,7 @@ private:
 
         // In SPTAR functions, values are returned by address. In this case
         if (FunctionLayout.hasSPTAR())
-          LLVMReturnType = C.makePointerType(LLVMReturnType);
+          LLVMReturnType = C.getPointerType(LLVMReturnType);
 
         // Emit the expression tree rooted at the return instruction directly
         // into the expression region of the newly created return operation:
@@ -1793,12 +1779,12 @@ private:
             ReturnValue = //
               emitCast<DecayOp>(TerminalLoc,
                                 ReturnValue,
-                                C.makePointerType(AT.getElementType()));
+                                C.getPointerType(AT.getElementType()));
 
             ReturnValue = //
               emitCast<BitCastOp>(TerminalLoc,
                                   ReturnValue,
-                                  C.makePointerType(LLVMReturnType));
+                                  C.getPointerType(LLVMReturnType));
 
             ReturnValue = Builder.create<IndirectionOp>(TerminalLoc,
                                                         LLVMReturnType,
