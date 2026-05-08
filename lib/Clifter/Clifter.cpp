@@ -13,6 +13,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/ADT/ScopedExchange.h"
+#include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftDialect.h"
 #include "revng/Clift/CliftTypes.h"
 #include "revng/CliftImportModel/ImportModel.h"
@@ -196,6 +197,28 @@ private:
     return IntptrTypeCache;
   }
 
+  clift::ValueType getConstCharType() {
+    return clift::IntegerType::get(Context,
+                                   IntegerKind::Number,
+                                   1,
+                                   /*IsConst=*/true);
+  }
+
+  clift::ArrayType getConstCharArrayType(uint64_t NumElements) {
+    return clift::ArrayType::get(getConstCharType(), NumElements);
+  }
+
+  clift::ValueType getCharType() {
+    return clift::IntegerType::get(Context,
+                                   IntegerKind::Number,
+                                   1,
+                                   /*IsConst=*/false);
+  }
+
+  clift::ArrayType getCharArrayType(uint64_t NumElements) {
+    return clift::ArrayType::get(getCharType(), NumElements);
+  }
+
   template<typename FunctionT>
   model::UpcastableType getPrototype(const FunctionT &Function) {
     if (auto &&Type = Function.Prototype())
@@ -238,9 +261,57 @@ private:
     return getVoidPointerType();
   }
 
-  mlir::Type importLLVMArrayType(const llvm::ArrayType *Type) {
-    auto ElementType = importLLVMType(Type->getElementType());
-    return ArrayType::get(ElementType, Type->getNumElements());
+  static std::string getOpaqueTypeFieldName() { return "array"; }
+
+  std::string getOpaqueTypeFieldHandle(uint64_t ByteSize) {
+    return pipeline::locationString(revng::ranks::OpaqueTypeField,
+                                    ByteSize,
+                                    getOpaqueTypeFieldName());
+  }
+
+  std::string getOpaqueTypeHandle(uint64_t ByteSize) {
+    return pipeline::locationString(revng::ranks::OpaqueType, ByteSize);
+  }
+
+  clift::StructType importOpaqueStruct(uint64_t NumBytes) {
+    std::string FieldHandle = getOpaqueTypeFieldHandle(NumBytes);
+    std::string FieldName = getOpaqueTypeFieldName();
+    mlir::Type FieldType = getCharArrayType(NumBytes);
+
+    llvm::SmallVector<clift::FieldAttr> Fields;
+    Fields.push_back(FieldAttr::get(Context,
+                                    FieldHandle,
+                                    makeNameAttr<FieldAttr>(Context,
+                                                            FieldHandle,
+                                                            FieldName),
+                                    makeCommentAttr<FieldAttr>(Context,
+                                                               FieldHandle),
+                                    (uint64_t) 0,
+                                    FieldType));
+
+    std::string Handle = getOpaqueTypeHandle(NumBytes);
+
+    auto NameAttr = makeNameAttr<StructAttr>(Context, Handle);
+    auto CommentAttr = makeCommentAttr<StructAttr>(Context, Handle);
+    auto Attrs = llvm::ArrayRef<clift::CAttributeAttr>{};
+    auto Def = clift::StructAttr::get(Context,
+                                      Handle,
+                                      NameAttr,
+                                      CommentAttr,
+                                      NumBytes,
+                                      llvm::ArrayRef(Fields),
+                                      Attrs);
+
+    return clift::StructType::get(Def);
+  }
+  clift::StructType importOpaqueStruct(const llvm::ArrayType *Array) {
+    const auto *ElementType = Array->getElementType();
+    revng_assert(ElementType->isIntegerTy());
+    revng_assert(ElementType->getIntegerBitWidth() == 8);
+    uint64_t NumBytes = Array->getNumElements()
+                        * (ElementType->getIntegerBitWidth() / 8);
+
+    return importOpaqueStruct(NumBytes);
   }
 
   mlir::Type importLLVMType(const llvm::Type *Type) {
@@ -254,7 +325,7 @@ private:
       return importLLVMPointerType(T);
 
     if (auto *T = llvm::dyn_cast<llvm::ArrayType>(Type))
-      return importLLVMArrayType(T);
+      return importOpaqueStruct(T);
 
     if (auto *StructT = llvm::dyn_cast<llvm::StructType>(Type)) {
       // TODO: we should actually do something like the following.
@@ -269,11 +340,7 @@ private:
         StructByteSize += FieldSize.getObjectSize();
       }
       revng_assert(StructByteSize);
-      auto CharType = clift::IntegerType::get(Context,
-                                              IntegerKind::Number,
-                                              1,
-                                              /*IsConst=*/false);
-      return ArrayType::get(CharType, StructByteSize);
+      return importOpaqueStruct(StructByteSize);
     }
 
     revng_abort("Unsupported LLVM type");
@@ -560,12 +627,7 @@ private:
     if (GetChar(Length) != 0)
       return false;
 
-    auto CharType = clift::IntegerType::get(Context,
-                                            IntegerKind::Number,
-                                            1,
-                                            /*IsConst=*/true);
-
-    String.Type = clift::ArrayType::get(CharType, Type->getNumElements());
+    String.Type = getConstCharArrayType(Type->getNumElements());
 
     String.Data.reserve(Length);
     for (unsigned I = 0; I < Length; ++I)
@@ -1572,10 +1634,11 @@ private:
       // Alloca instructions get special handling and are emitted as local
       // variables in Clift:
       if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
-        const auto *Size = Alloca->getArraySize();
+        const auto *NumElements = Alloca->getArraySize();
 
         // Non-constant alloca is not supported:
-        revng_assert(not Size or llvm::isa<llvm::ConstantInt>(Size));
+        revng_assert(not NumElements
+                     or llvm::isa<llvm::ConstantInt>(NumElements));
 
         std::optional<std::string> Handle;
 
@@ -1589,7 +1652,7 @@ private:
         } else {
           Type = C.importLLVMType(Alloca->getAllocatedType());
           if (Alloca->isArrayAllocation())
-            Type = ArrayType::get(Context, Type, C.getConstantInt(Size));
+            Type = ArrayType::get(Context, Type, C.getConstantInt(NumElements));
         }
 
         auto Op = emitLocalDeclaration<LocalVariableOp>(C.getLocation(Alloca),
