@@ -298,7 +298,7 @@ template<bool IsLegacy>
 using MFPResult = AEMFP<IsLegacy>::MFPResult;
 
 template<bool IsLegacy>
-using ResultMap = std::map<ProgramPointNode *, MFPResult<IsLegacy>>;
+using AvailableExpressionsMap = MFP::MFIResultMap<AEMFP<IsLegacy>>;
 
 //
 // Helpers for statements and side effects.
@@ -741,14 +741,15 @@ using InstructionProgramPoint = std::unordered_map<const Instruction *,
 // An extended version of ProgramPointsCFG, that holds a graph of statements
 // points, along with a map from each Instruction to its previous statement.
 template<bool IsLegacy>
-class ProgramPointsGraphWithInstructionMap {
+class AvailableExpressionsResult {
 public:
   using AvailableExpression = AvailableExpression<IsLegacy>;
   using AvailableSet = AvailableSet<IsLegacy>;
-  using ResultMap = ResultMap<IsLegacy>;
+  using AvailableExpressionsMap = AvailableExpressionsMap<IsLegacy>;
 
 public:
   ProgramPointsCFG ProgramPointsGraph;
+  AvailableExpressionsMap AvailableExpressions;
 
 private:
   // Map an Instruction to its associated program point in ProgramPointsGraph
@@ -764,12 +765,12 @@ private:
 
 public:
   // Factory from llvm::Function
-  static ProgramPointsGraphWithInstructionMap makeFromFunction(Function &F) {
+  static AvailableExpressionsResult makeFromFunction(Function &F) {
 
     SmallMap<BasicBlock *, std::pair<ProgramPointNode *, ProgramPointNode *>, 8>
       BlockToBeginEndNode;
 
-    ProgramPointsGraphWithInstructionMap Result;
+    AvailableExpressionsResult Result;
 
     ProgramPointsCFG &TheCFG = Result.ProgramPointsGraph;
     InstructionProgramPoint &ProgramPoint = Result.ProgramPoint;
@@ -844,12 +845,10 @@ public:
   }
 
 public:
-  auto getAvailableAt(Instruction *I,
-                      const Instruction *Where,
-                      const ResultMap &MFPResultMap) const {
+  auto getAvailableAt(Instruction *I, const Instruction *Where) const {
 
     revng_log(Log, "IsAvailableAt");
-    revng_log(Log, "I: " << dumpToString(I));
+    revng_log(Log, "Available?: " << dumpToString(I));
     revng_log(Log, "Where: " << dumpToString(Where));
 
     auto ProgramPointIt = ProgramPoint.find(Where);
@@ -857,7 +856,8 @@ public:
       revng_log(Log, "is ProgramPoint");
 
       ProgramPointNode *UserProgramPoint = ProgramPointIt->second;
-      const AvailableSet &Available = MFPResultMap.at(UserProgramPoint).InValue;
+      const AvailableSet &Available = AvailableExpressions.at(UserProgramPoint)
+                                        .InValue;
       return findAvailableRange(Available, I);
     }
 
@@ -869,7 +869,7 @@ public:
       revng_log(Log,
                 "Previous ProgramPoint: "
                   << dumpToString(UserProgramPoint->TheInstruction));
-      const AvailableSet &Available = MFPResultMap.at(UserProgramPoint)
+      const AvailableSet &Available = AvailableExpressions.at(UserProgramPoint)
                                         .OutValue;
       return findAvailableRange(Available, I);
     }
@@ -882,34 +882,46 @@ public:
       revng_log(Log,
                 "first ProgramPoint in BasicBlock: "
                   << dumpToString(UserProgramPoint->TheInstruction));
-      const AvailableSet &Available = MFPResultMap.at(UserProgramPoint).InValue;
+      const AvailableSet &Available = AvailableExpressions.at(UserProgramPoint)
+                                        .InValue;
       return findAvailableRange(Available, I);
     }
 
     revng_abort();
   }
 
-  bool isAvailableAt(Instruction *I,
-                     const Instruction *Where,
-                     const ResultMap &MFPResultMap) const {
-    bool Result = not getAvailableAt(I, Where, MFPResultMap).empty();
+  auto getAvailableAt(Instruction *I, const Use &U) const {
+    const auto *UserInstruction = cast<Instruction>(U.getUser());
+    return getAvailableAt(I, UserInstruction);
+  }
+
+  bool isAvailableAt(Instruction *I, const Instruction *Where) const {
+    bool Result = not getAvailableAt(I, Where).empty();
     revng_log(Log, "Result: " << Result);
     return Result;
+  }
+
+  bool isAvailableAt(Instruction *I, const Use &U) const {
+    const auto *UserInstruction = cast<Instruction>(U.getUser());
+    return isAvailableAt(I, UserInstruction);
   }
 };
 
 template<bool IsLegacy>
-using PPGWithInstructionMap = ProgramPointsGraphWithInstructionMap<IsLegacy>;
+using AEResult = AvailableExpressionsResult<IsLegacy>;
 
 template<bool IsLegacy>
-static ResultMap<IsLegacy> getMFP(ProgramPointsCFG *TheGraph) {
+static AEResult<IsLegacy> getAvailableExpressions(Function &F) {
+  revng_log(Log, "getAvailableExpressions: " << F.getName());
+
   using AvailableExpression = AvailableExpression<IsLegacy>;
   using AvailableSet = AvailableSet<IsLegacy>;
-  using AEMFP = AEMFP<IsLegacy>;
   using AssignType = AssignType<IsLegacy>;
 
+  auto Result = AEResult<IsLegacy>::makeFromFunction(F);
+
   AvailableSet Bottom;
-  for (ProgramPointNode *N : llvm::nodes(TheGraph)) {
+  for (ProgramPointNode *N : llvm::nodes(&Result.ProgramPointsGraph)) {
     Instruction *I = N->TheInstruction;
 
     if (mayReadMemory(*I)) {
@@ -941,11 +953,18 @@ static ResultMap<IsLegacy> getMFP(ProgramPointsCFG *TheGraph) {
   }
 
   AvailableSet Empty{};
-  return MFP::getMaximalFixedPoint<AEMFP>({},
-                                          TheGraph,
-                                          Bottom,
-                                          Empty,
-                                          { TheGraph->getEntryNode() });
+  ProgramPointsCFG *Graph = &Result.ProgramPointsGraph;
+  ProgramPointNode *Entry = Graph->getEntryNode();
+
+  using ConcreteAEMFP = AEMFP<IsLegacy>;
+  // std::exchange here is only needed to make revng check-conventions happy.
+  std::exchange(Result.AvailableExpressions,
+                MFP::getMaximalFixedPoint<ConcreteAEMFP>({},
+                                                         Graph,
+                                                         Bottom,
+                                                         Empty,
+                                                         { Entry }));
+  return Result;
 }
 
 template<bool IsLegacy>
@@ -959,16 +978,13 @@ template<bool IsLegacy>
 class InstructionToSerializePicker {
 public:
   using PickedInstructions = PickedInstructions<IsLegacy>;
-  using PPGWithInstructionMap = PPGWithInstructionMap<IsLegacy>;
-  using ResultMap = ResultMap<IsLegacy>;
+  using AEResult = AEResult<IsLegacy>;
   using AvailableExpression = AvailableExpression<IsLegacy>;
   using AssignType = AssignType<IsLegacy>;
 
 public:
-  InstructionToSerializePicker(Function &TheF,
-                               const PPGWithInstructionMap &TheGraph,
-                               const ResultMap &TheMFPResult) :
-    F(TheF), Graph(TheGraph), MFPResultMap(TheMFPResult), Picked() {}
+  InstructionToSerializePicker(Function &TheF, const AEResult &TheGraph) :
+    F(TheF), Graph(TheGraph), Picked() {}
 
 public:
   const PickedInstructions &pick() {
@@ -1043,8 +1059,7 @@ private:
     LoggerIndent UserIndent{ Log };
 
     const auto IsMemoryReadAvailableAt = [this, MemoryRead](const Use &TheUse) {
-      const auto *UserInstruction = cast<Instruction>(TheUse.getUser());
-      return Graph.isAvailableAt(MemoryRead, UserInstruction, MFPResultMap);
+      return Graph.isAvailableAt(MemoryRead, TheUse);
     };
 
     const auto SerializeI =
@@ -1101,9 +1116,7 @@ private:
         }
       }
 
-      auto AvailableRange = Graph.getAvailableAt(I,
-                                                 UserInstruction,
-                                                 MFPResultMap);
+      auto AvailableRange = Graph.getAvailableAt(I, UserInstruction);
       if (AvailableRange.empty()) {
         revng_log(Log, "Found unavailable use. Serialize I");
         rc_return SerializeI();
@@ -1257,8 +1270,7 @@ private:
 
 private:
   Function &F;
-  const PPGWithInstructionMap &Graph;
-  const ResultMap &MFPResultMap;
+  const AEResult &Graph;
   PickedInstructions Picked;
   std::unordered_map<const Instruction *, size_t> ProgramOrdering;
 };
@@ -1477,19 +1489,14 @@ public:
 
 template<bool IsLegacy>
 static bool switchToStatements(const model::Binary *Model, llvm::Function &F) {
-  using PPGWithInstructionMap = PPGWithInstructionMap<IsLegacy>;
-  using ResultMap = ResultMap<IsLegacy>;
-
   revng_log(Log, "SwitchToStatements: " << F.getName());
 
-  auto Graph = PPGWithInstructionMap::makeFromFunction(F);
-
-  ResultMap Result = getMFP<IsLegacy>(&Graph.ProgramPointsGraph);
+  auto Graph = getAvailableExpressions<IsLegacy>(F);
 
   auto ModelFunction = llvmToModelFunction(*Model, F);
   revng_assert(ModelFunction != nullptr);
 
-  InstructionToSerializePicker InstructionPicker{ F, Graph, Result };
+  InstructionToSerializePicker InstructionPicker{ F, Graph };
 
   TypeMap InstructionTypes = {};
   if constexpr (IsLegacy) {
