@@ -1060,6 +1060,17 @@ template<bool IsLegacy>
 using LVB = LocalVariableBuilder<IsLegacy>;
 
 template<bool IsLegacy>
+LocalVariableBuilder<IsLegacy>
+makeVariableBuilder(Function &F, const model::Binary &Model) {
+  if constexpr (IsLegacy) {
+    return LVB<IsLegacy>::makeLegacy(Model, &F);
+  } else {
+    VariableBuilderTypes Types{ Model, *F.getParent() };
+    return LVB<IsLegacy>::make(Types, &F);
+  }
+}
+
+template<bool IsLegacy>
 class VariableInserter {
 public:
   using PickedInstructions = PickedInstructions<IsLegacy>;
@@ -1071,7 +1082,7 @@ public:
     Model(TheModel),
     TheTypeMap(std::move(TMap)),
     F(TheF),
-    LocalVariableBuilder(LVB<IsLegacy>::make(TheModel, TheF)) {}
+    LocalVariableBuilder(makeVariableBuilder<IsLegacy>(TheF, TheModel)) {}
 
 public:
   bool run(const PickedInstructions &Picked) {

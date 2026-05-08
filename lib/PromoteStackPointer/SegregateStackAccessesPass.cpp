@@ -273,15 +273,12 @@ using LVB = LocalVariableBuilder<IsLegacy>;
 
 template<bool IsLegacy>
 static LocalVariableBuilder<IsLegacy>
-makeVariableBuilder(const model::Binary &Binary,
-                    llvm::Module &Module,
-                    OpaqueFunctionsPool<FunctionTags::TypePair>
-                      &AddressOfPool) {
+makeVariableBuilder(const model::Binary &Binary, llvm::Module &Module) {
 
   if constexpr (IsLegacy) {
-    return LVB<IsLegacy>::makeLegacyStackBuilder(Binary, Module, AddressOfPool);
+    return LVB<IsLegacy>::makeLegacy(Binary, Module);
   } else {
-    return LocalVariableBuilder<IsLegacy>::make(Binary, Module);
+    return LVB<IsLegacy>::make(VariableBuilderTypes(Binary, Module));
   }
 }
 
@@ -352,8 +349,8 @@ private:
 
   llvm::Type *TargetPointerSizedInteger = nullptr;
   llvm::Type *OpaquePointerType = nullptr;
-  OpaqueFunctionsPool<FunctionTags::TypePair> AddressOfPool;
   LocalVariableBuilder<LegacyLocalVariables> VariableBuilder;
+  OpaqueFunctionsPool<FunctionTags::TypePair> *AddressOfPool = nullptr;
 
 public:
   SegregateStackAccesses(llvm::ModulePass &Pass,
@@ -368,10 +365,8 @@ public:
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(),
                                                      Binary.Architecture())),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
-    AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary,
-                                                              M,
-                                                              AddressOfPool)) {}
+    VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary, M)),
+    AddressOfPool(VariableBuilder.getAddressOfPool()) {}
 
   SegregateStackAccesses(const model::Binary &Binary, llvm::Module &M) :
     pipeline::FunctionPassImpl(),
@@ -383,10 +378,8 @@ public:
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(),
                                                      Binary.Architecture())),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
-    AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary,
-                                                              M,
-                                                              AddressOfPool)) {}
+    VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary, M)),
+    AddressOfPool(VariableBuilder.getAddressOfPool()) {}
 
 public:
   static void getAnalysisUsage(llvm::AnalysisUsage &AU);
@@ -435,10 +428,10 @@ private:
     Constant *ModelTypeString = toLLVMString(AllocatedType, M);
     auto *AddressOfFunctionType = getAddressOfType(TargetPointerSizedInteger,
                                                    ArgType);
-    auto *AddressOfFunction = AddressOfPool.get({ TargetPointerSizedInteger,
-                                                  ArgType },
-                                                AddressOfFunctionType,
-                                                "AddressOf");
+    auto *AddressOfFunction = AddressOfPool->get({ TargetPointerSizedInteger,
+                                                   ArgType },
+                                                 AddressOfFunctionType,
+                                                 "AddressOf");
     return B.CreateCall(AddressOfFunction, { ModelTypeString, V });
   }
 
@@ -1424,9 +1417,11 @@ private:
     // Create call and rebase SP0, if StackFrameSize is not zero
     //
     if (StackFrameSize != 0) {
+
+      model::UpcastableType FrameType = ModelFunction.StackFrame().Type();
       VariableBuilder.setTargetFunction(&F);
       Instruction *StackFrameAddress = VariableBuilder
-                                         .createStackFrameVariable();
+                                         .createStackFrameVariable(FrameType);
 
       revng::IRBuilder Builder(InitLocalSPCall);
       auto *SP0 = Builder.CreateAdd(StackFrameAddress,
