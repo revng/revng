@@ -211,3 +211,84 @@ define %s @s_swapped(ptr %arg) {
 
 ;; We should test that a call that returns a struct and an store of it into an
 ;; array-typed alloca don't create an additional struct typed local variable
+
+; ============================================================================
+; Calls handled correctly based on memory effects and number of uses.
+; ============================================================================
+
+declare i64 @rw_func(ptr) memory(readwrite) nounwind willreturn
+declare i64 @ro_func(ptr) memory(read) nounwind willreturn
+
+; A call to a read+write function whose only use is an icmp that is itself
+; only used by a conditional branch. Because the call has a single use, it
+; is not picked for serialisation: no new alloca is created.
+;
+; CHECK-LABEL: define i64 @call_rw_one_use(
+; CHECK-NOT: alloca
+
+define i64 @call_rw_one_use(ptr %arg) {
+entry:
+  %call = call i64 @rw_func(ptr %arg)
+  %cmp = icmp ne i64 %call, 0
+  br i1 %cmp, label %then, label %else
+
+then:
+  ret i64 1
+
+else:
+  ret i64 2
+}
+
+; Same shape as @call_rw_one_use, but the call has two uses (the icmp and a
+; ret in the `then` block). Since the function may read+write memory and
+; the call has more than one use, the call is picked for serialisation:
+; - a new alloca of the call's return type is created at the top of entry,
+; - the result of the call is stored into the alloca right after the call,
+; - every user of the call uses a load from the alloca instead of the call
+;   directly.
+;
+; CHECK-LABEL: define i64 @call_rw_two_uses(
+; CHECK: [[ALLOCA:%[a-zA-Z0-9_]+]] = alloca i64
+; CHECK-NEXT: [[CALL:%[a-zA-Z0-9_]+]] = call i64 @rw_func(ptr %arg)
+; CHECK-NEXT: store i64 [[CALL]], ptr [[ALLOCA]]
+; CHECK-NEXT: [[CMP_LD:%[a-zA-Z0-9_]+]] = load i64, ptr [[ALLOCA]]
+; CHECK-NEXT: [[CMP:%[a-zA-Z0-9_]+]] = icmp ne i64 [[CMP_LD]], 0
+; CHECK-NEXT: br i1 [[CMP]], label %then, label %else
+; CHECK: then:
+; CHECK-NEXT: [[RET_LD:%[a-zA-Z0-9_]+]] = load i64, ptr [[ALLOCA]]
+; CHECK-NEXT: ret i64 [[RET_LD]]
+; CHECK: else:
+; CHECK-NEXT: ret i64 0
+
+define i64 @call_rw_two_uses(ptr %arg) {
+entry:
+  %call = call i64 @rw_func(ptr %arg)
+  %cmp = icmp ne i64 %call, 0
+  br i1 %cmp, label %then, label %else
+
+then:
+  ret i64 %call
+
+else:
+  ret i64 0
+}
+
+; Same shape as @call_rw_two_uses, but the called function only reads
+; memory. The call is not considered to have side effects, so it is not
+; picked for serialisation: no new alloca is created.
+;
+; CHECK-LABEL: define i64 @call_ro_two_uses(
+; CHECK-NOT: alloca
+
+define i64 @call_ro_two_uses(ptr %arg) {
+entry:
+  %call = call i64 @ro_func(ptr %arg)
+  %cmp = icmp ne i64 %call, 0
+  br i1 %cmp, label %then, label %else
+
+then:
+  ret i64 %call
+
+else:
+  ret i64 0
+}
