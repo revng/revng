@@ -6,6 +6,7 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Clift/CliftOpHelpers.h"
+#include "revng/Clift/CliftTypes.h"
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
@@ -344,12 +345,53 @@ public:
   RecursiveCoroutine<void> emitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOpInterface>();
 
-    emitCStyleCast(E.getResult().getType());
+    auto ResultType = E.getResult().getType();
+    auto BitCast = mlir::dyn_cast<BitCastOp>(E.getOperation());
+    if (BitCast and requiresExplicitBitCast(BitCast)) {
+      if (auto ArrayResultType = mlir::dyn_cast<clift::ArrayType>(ResultType)) {
 
-    // Parenthesizing a nested unary prefix expression is not necessary.
-    CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
+        Tokens.emitLiteralIdentifier("bit_cast_to_array");
+        Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
-    rc_recur emitExpression(E.getValue());
+        emitType(ArrayResultType.getElementType());
+        Tokens.emitPunctuator(CTE::Punctuator::Comma);
+        Tokens.emitSpace();
+
+        emitIntegerLiteral(ArrayResultType.getElementsCount(),
+                           /*IsSigned=*/true,
+                           CStandardType::Int,
+                           10);
+
+        Tokens.emitPunctuator(CTE::Punctuator::Comma);
+        Tokens.emitSpace();
+
+        CurrentPrecedence = OperatorPrecedence::Parentheses;
+        rc_recur emitExpression(E.getValue());
+
+        Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
+
+      } else {
+
+        Tokens.emitLiteralIdentifier("bit_cast");
+        Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+
+        emitType(ResultType);
+        Tokens.emitPunctuator(CTE::Punctuator::Comma);
+        Tokens.emitSpace();
+
+        CurrentPrecedence = OperatorPrecedence::Parentheses;
+        rc_recur emitExpression(E.getValue());
+
+        Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
+      }
+    } else {
+      emitCStyleCast(ResultType);
+
+      // Parenthesizing a nested unary prefix expression is not necessary.
+      CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPrefix);
+
+      rc_recur emitExpression(E.getValue());
+    }
   }
 
   RecursiveCoroutine<void> emitHiddenCastExpression(mlir::Value V) {
@@ -470,6 +512,26 @@ public:
     CurrentPrecedence = decrementPrecedence(OperatorPrecedence::UnaryPostfix);
 
     Tokens.emitOperator(getOperator(Op));
+  }
+
+  RecursiveCoroutine<void> emitAssignMacroExpression(mlir::Value V) {
+    auto Assign = V.getDefiningOp<AssignOp>();
+
+    auto LHS = Assign.getOperand(0);
+    auto RHS = Assign.getOperand(1);
+
+    Tokens.emitLiteralIdentifier("assign_array");
+    Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
+
+    rc_recur emitExpression(LHS);
+
+    Tokens.emitPunctuator(CTE::Punctuator::Comma);
+    Tokens.emitSpace();
+    CurrentPrecedence = OperatorPrecedence::Parentheses;
+
+    rc_recur emitExpression(RHS);
+
+    Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
   }
 
   RecursiveCoroutine<void> emitInfixExpression(mlir::Value V) {
@@ -704,7 +766,16 @@ public:
       };
     }
 
-    if (mlir::isa<AssignOp>(E)) {
+    if (auto Assign = V.getDefiningOp<AssignOp>()) {
+      auto LHS = Assign.getOperand(0);
+      auto RHS = Assign.getOperand(1);
+      if (isa<clift::ArrayType>(LHS.getType())
+          or isa<clift::ArrayType>(RHS.getType())) {
+        return {
+          .Precedence = OperatorPrecedence::UnaryPostfix,
+          .Emit = &CliftToCEmitter::emitAssignMacroExpression,
+        };
+      }
       return {
         .Precedence = OperatorPrecedence::Assignment,
         .Emit = &CliftToCEmitter::emitInfixExpression,
