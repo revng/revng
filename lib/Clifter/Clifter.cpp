@@ -329,18 +329,30 @@ private:
     if (auto *T = llvm::dyn_cast<llvm::ArrayType>(Type))
       return importOpaqueStruct(T);
 
-    if (auto *StructT = llvm::dyn_cast<llvm::StructType>(Type)) {
-      // TODO: we should actually do something like the following.
-      // const llvm::StructLayout *L = DataLayout->getStructLayout(StructT);
-      // uint64_t StructByteSize = L->getSizeInBytes();
-      // But we don't have a DataLayout here yet.
-      uint64_t StructByteSize = 0;
-      for (llvm::Type *FieldType : StructT->elements()) {
-        revng_assert(FieldType->isIntOrPtrTy());
-        mlir::Type ImportedType = importLLVMType(FieldType);
-        auto FieldSize = mlir::cast<clift::ValueType>(ImportedType);
-        StructByteSize += FieldSize.getObjectSize();
+    if (auto *S = llvm::dyn_cast<llvm::StructType>(Type)) {
+      const auto *StructLayout = DataLayout->getStructLayout(S);
+      uint64_t StructByteSize = StructLayout->getSizeInBytes();
+
+      uint64_t PreviousOffsetInBits = 0ULL;
+
+      for (auto [Index, FieldType] : llvm::enumerate(S->elements())) {
+        revng_assert(PreviousOffsetInBits % 8 == 0);
+
+        uint64_t OffsetInBits = StructLayout->getElementOffsetInBits(Index);
+        revng_assert(OffsetInBits % 8 == 0);
+
+        uint64_t FieldSizeInBits = DataLayout->getTypeSizeInBits(FieldType);
+        revng_assert(FieldSizeInBits % 8 == 0,
+                     ("StructType with a field whose size is not a multiple of "
+                      " 8 bits. Field index: "
+                      + std::to_string(Index)
+                      + ". FieldSizeInBits: " + std::to_string(FieldSizeInBits))
+                       .c_str());
+
+        PreviousOffsetInBits = OffsetInBits + FieldSizeInBits;
       }
+      revng_assert(PreviousOffsetInBits % 8 == 0);
+      revng_assert(PreviousOffsetInBits / 8 == StructByteSize);
       revng_assert(StructByteSize);
       return importOpaqueStruct(StructByteSize);
     }
