@@ -8,6 +8,7 @@ revng_add_analyses_library_internal(
   DiscardBrokenDebugInformation.cpp
   EmbedStatementComments.cpp
   ExitSSAPass.cpp
+  ExtractValueToGEP.cpp
   FoldModelGEP.cpp
   HoistStructPhis.cpp
   ImplicitModelCastPass.cpp

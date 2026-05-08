@@ -354,6 +354,7 @@ branches:
             - ternary-reduction
             - exit-ssa
             - arithmetic-to-gep
+            - extractvalue-to-gep
       - pipe: switch-to-statements
         arguments: [llvm-functions]
       - pipe: pure-llvm-passes-pipe

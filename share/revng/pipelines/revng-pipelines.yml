@@ -424,6 +424,7 @@ Branches:
               - legacy-segregate-stack-accesses
               - cleanup-stack-size-markers
               - dce
+              - dse
               - sroa
               - instcombine
               - remove-extractvalues
@@ -682,6 +683,7 @@ Branches:
               - ternary-reduction
               - exit-ssa
               - arithmetic-to-gep
+              - extractvalue-to-gep
               - switch-to-statements
               - remove-constant-array-returns
               - dagify
