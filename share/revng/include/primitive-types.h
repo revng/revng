@@ -232,7 +232,7 @@ extern uintmax_t undef_value(void);
 //
 
 // __typeof__ is required for properly implementing a generic bitcast primitive
-// and a generic array_assignment primitive that only need the destination type.
+// that only needs the destination type.
 #if defined(__GNUC__) // For Clang and GCC, they both have __typeof__
 // Don't do anything, __typeof__ is already available
 #elif __STDC_VERSION__ >= 202311L // C23 has typeof
@@ -274,12 +274,3 @@ extern uintmax_t undef_value(void);
      .dst)
 
 #endif // defined(__GNU_C_)
-
-//
-// array_assign and array_bit_cast
-//
-
-#define assign_array(x, ...)                             \
-  (*(__typeof__(x) *) __builtin_memcpy(&(x),             \
-                                       &((__VA_ARGS__)), \
-                                       sizeof(__typeof__(x))))

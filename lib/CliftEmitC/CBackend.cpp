@@ -489,26 +489,6 @@ public:
     Tokens.emitOperator(getOperator(Op));
   }
 
-  RecursiveCoroutine<void> emitAssignMacroExpression(mlir::Value V) {
-    auto Assign = V.getDefiningOp<AssignOp>();
-
-    auto LHS = Assign.getOperand(0);
-    auto RHS = Assign.getOperand(1);
-
-    Tokens.emitLiteralIdentifier("assign_array");
-    Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
-
-    rc_recur emitExpression(LHS);
-
-    Tokens.emitPunctuator(CTE::Punctuator::Comma);
-    Tokens.emitSpace();
-    CurrentPrecedence = OperatorPrecedence::Parentheses;
-
-    rc_recur emitExpression(RHS);
-
-    Tokens.emitPunctuator(CTE::Punctuator::RightParenthesis);
-  }
-
   RecursiveCoroutine<void> emitInfixExpression(mlir::Value V) {
     mlir::Operation *Op = V.getDefiningOp();
 
@@ -744,13 +724,6 @@ public:
     if (auto Assign = V.getDefiningOp<AssignOp>()) {
       auto LHS = Assign.getOperand(0);
       auto RHS = Assign.getOperand(1);
-      if (isa<clift::ArrayType>(LHS.getType())
-          or isa<clift::ArrayType>(RHS.getType())) {
-        return {
-          .Precedence = OperatorPrecedence::UnaryPostfix,
-          .Emit = &CliftToCEmitter::emitAssignMacroExpression,
-        };
-      }
       return {
         .Precedence = OperatorPrecedence::Assignment,
         .Emit = &CliftToCEmitter::emitInfixExpression,
