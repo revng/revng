@@ -265,13 +265,13 @@ using ProgramPointNode = BidirectionalNode<ProgramPointData>;
 using ProgramPointsCFG = GenericGraph<ProgramPointNode>;
 
 template<bool IsLegacy>
-struct AvailableExpressionsAnalysis;
+struct AvailableExpressionsMonotoneFramework;
 
 template<bool IsLegacy>
-using AEA = AvailableExpressionsAnalysis<IsLegacy>;
+using AEMFP = AvailableExpressionsMonotoneFramework<IsLegacy>;
 
 template<bool IsLegacy>
-struct AvailableExpressionsAnalysis {
+struct AvailableExpressionsMonotoneFramework {
   using GraphType = ProgramPointsCFG *;
   using LatticeElement = AvailableSet<IsLegacy>;
   using Label = ProgramPointNode *;
@@ -292,10 +292,10 @@ struct AvailableExpressionsAnalysis {
 };
 
 template<bool IsLegacy>
-using LatticeElement = AEA<IsLegacy>::LatticeElement;
+using LatticeElement = AEMFP<IsLegacy>::LatticeElement;
 
 template<bool IsLegacy>
-using MFPResult = AEA<IsLegacy>::MFPResult;
+using MFPResult = AEMFP<IsLegacy>::MFPResult;
 
 template<bool IsLegacy>
 using ResultMap = std::map<ProgramPointNode *, MFPResult<IsLegacy>>;
@@ -691,9 +691,9 @@ static void applyTransferFunction(Instruction *I, LatticeElement<false> &E) {
 }
 
 template<bool IsLegacy>
-AEA<IsLegacy>::LatticeElement
-AEA<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
-                                     const AEA<IsLegacy>::LatticeElement &E)
+AEMFP<IsLegacy>::LatticeElement
+AEMFP<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
+                                       const AEMFP<IsLegacy>::LatticeElement &E)
   const {
 
   Instruction *I = ProgramPoint->TheInstruction;
@@ -905,7 +905,7 @@ template<bool IsLegacy>
 static ResultMap<IsLegacy> getMFP(ProgramPointsCFG *TheGraph) {
   using AvailableExpression = AvailableExpression<IsLegacy>;
   using AvailableSet = AvailableSet<IsLegacy>;
-  using AEA = AEA<IsLegacy>;
+  using AEMFP = AEMFP<IsLegacy>;
   using AssignType = AssignType<IsLegacy>;
 
   AvailableSet Bottom;
@@ -941,11 +941,11 @@ static ResultMap<IsLegacy> getMFP(ProgramPointsCFG *TheGraph) {
   }
 
   AvailableSet Empty{};
-  return MFP::getMaximalFixedPoint<AEA>({},
-                                        TheGraph,
-                                        Bottom,
-                                        Empty,
-                                        { TheGraph->getEntryNode() });
+  return MFP::getMaximalFixedPoint<AEMFP>({},
+                                          TheGraph,
+                                          Bottom,
+                                          Empty,
+                                          { TheGraph->getEntryNode() });
 }
 
 template<bool IsLegacy>
