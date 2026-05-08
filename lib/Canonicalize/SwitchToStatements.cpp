@@ -55,6 +55,171 @@ using CopyType = std::conditional_t<IsLegacy, CallInst, LoadInst>;
 template<bool IsLegacy>
 using LocalVarType = std::conditional_t<IsLegacy, CallInst, AllocaInst>;
 
+//
+// Templated helpers for getting pointer and value operands for copy and assign
+// instructions.
+// These are only necessary because we still have the legacy version where a
+// copy is not just a LoadInst but a call to an opaque function, and an
+// assignment is not just a StoreInst but it's also a call to another opaque
+// function.
+// We can drop the template when we drop legacy mode, and just remove these
+// helpers or at lease greatly simplify them.
+//
+
+template<bool IsLegacy>
+static Use *getStorePointerOperandUse(Instruction *I) {
+  if (not I)
+    return nullptr;
+
+  if constexpr (IsLegacy) {
+    if (CallInst *Assign = getCallToTagged(I, FunctionTags::Assign))
+      return &Assign->getArgOperandUse(1);
+  } else {
+    if (auto *Assign = dyn_cast<StoreInst>(I))
+      return &Assign->getOperandUse(1);
+  }
+  return nullptr;
+}
+
+template<bool IsLegacy>
+static const Use *getStorePointerOperandUse(const Instruction *I) {
+  if (not I)
+    return nullptr;
+
+  if constexpr (IsLegacy) {
+    if (const CallInst *Assign = getCallToTagged(I, FunctionTags::Assign))
+      return &Assign->getArgOperandUse(1);
+  } else {
+    if (const auto *Assign = dyn_cast<StoreInst>(I))
+      return &Assign->getOperandUse(1);
+  }
+  return nullptr;
+}
+
+template<bool IsLegacy>
+static Value *getStorePointerOperand(Instruction *I) {
+  Use *U = getStorePointerOperandUse<IsLegacy>(I);
+  return U ? U->get() : nullptr;
+}
+
+template<bool IsLegacy>
+static const Value *getStorePointerOperand(const Instruction *I) {
+  const Use *U = getStorePointerOperandUse<IsLegacy>(I);
+  return U ? U->get() : nullptr;
+}
+
+template<bool IsLegacy>
+static bool isStorePointerOperand(const Use &U, const Instruction *I) {
+  return getStorePointerOperandUse<IsLegacy>(I) == &U;
+}
+
+template<bool IsLegacy>
+static Use *getStoreValueOperandUse(Instruction *I) {
+  if (not I)
+    return nullptr;
+
+  if constexpr (IsLegacy) {
+    if (CallInst *Assign = getCallToTagged(I, FunctionTags::Assign))
+      return &Assign->getArgOperandUse(0);
+  } else {
+    if (auto *Assign = dyn_cast<StoreInst>(I))
+      return &Assign->getOperandUse(0);
+  }
+  return nullptr;
+}
+
+template<bool IsLegacy>
+static const Use *getStoreValueOperandUse(const Instruction *I) {
+  if (not I)
+    return nullptr;
+
+  if constexpr (IsLegacy) {
+    if (const CallInst *Assign = getCallToTagged(I, FunctionTags::Assign))
+      return &Assign->getArgOperandUse(0);
+  } else {
+    if (const auto *Assign = dyn_cast<StoreInst>(I))
+      return &Assign->getOperandUse(0);
+  }
+  return nullptr;
+}
+
+template<bool IsLegacy>
+static Value *getStoreValueOperand(Instruction *I) {
+  Use *U = getStoreValueOperandUse<IsLegacy>(I);
+  return U ? U->get() : nullptr;
+}
+
+template<bool IsLegacy>
+static const Value *getStoreValueOperand(const Instruction *I) {
+  const Use *U = getStoreValueOperandUse<IsLegacy>(I);
+  return U ? U->get() : nullptr;
+}
+
+template<bool IsLegacy>
+static bool isStoreValueOperand(const Use &U, const Instruction *I) {
+  return getStoreValueOperandUse<IsLegacy>(I) == &U;
+}
+
+template<bool IsLegacy>
+static Use *getLoadPointerOperandUse(Instruction *I) {
+  if (not I)
+    return nullptr;
+
+  if constexpr (IsLegacy) {
+    if (CallInst *Assign = getCallToTagged(I, FunctionTags::Copy))
+      return &Assign->getArgOperandUse(0);
+  } else {
+    if (auto *Assign = dyn_cast<LoadInst>(I))
+      return &Assign->getOperandUse(0);
+  }
+  return nullptr;
+}
+
+template<bool IsLegacy>
+static const Use *getLoadPointerOperandUse(const Instruction *I) {
+  if (not I)
+    return nullptr;
+
+  if constexpr (IsLegacy) {
+    if (const CallInst *Assign = getCallToTagged(I, FunctionTags::Copy))
+      return &Assign->getArgOperandUse(0);
+  } else {
+    if (const auto *Assign = dyn_cast<LoadInst>(I))
+      return &Assign->getOperandUse(0);
+  }
+  return nullptr;
+}
+
+template<bool IsLegacy>
+static Value *getLoadPointerOperand(Instruction *I) {
+  Use *U = getLoadPointerOperandUse<IsLegacy>(I);
+  return U ? U->get() : nullptr;
+}
+
+template<bool IsLegacy>
+static const Value *getLoadPointerOperand(const Instruction *I) {
+  const Use *U = getLoadPointerOperandUse<IsLegacy>(I);
+  return U ? U->get() : nullptr;
+}
+
+template<bool IsLegacy>
+static Value *getPointerOperand(Instruction *I) {
+  if (auto *V = getLoadPointerOperand<IsLegacy>(I))
+    return V;
+  if (auto *V = getStorePointerOperand<IsLegacy>(I))
+    return V;
+  return nullptr;
+}
+
+template<bool IsLegacy>
+static const Value *getPointerOperand(const Instruction *I) {
+  if (const auto *V = getLoadPointerOperand<IsLegacy>(I))
+    return V;
+  if (const auto *V = getStorePointerOperand<IsLegacy>(I))
+    return V;
+  return nullptr;
+}
+
 template<bool IsLegacy>
 struct AvailableExpression {
   using AssignType = AssignType<IsLegacy>;
