@@ -1318,12 +1318,6 @@ private:
                 "UseNo: " << U->getOperandNo()
                           << " User: " << dumpToString(User));
       LoggerIndent MoreUserIndent{ Log };
-      if (auto *Call = dyn_cast<CallInst>(User)) {
-        if (Call->isArgOperand(U)) {
-          revng_log(Log, "User is CallInst and User->isArgOperand(U)");
-          continue;
-        }
-      }
       rc_recur pickInstructionForMemoryRead(User, MemoryRead);
     }
     rc_return;
