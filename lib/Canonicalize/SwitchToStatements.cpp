@@ -1217,6 +1217,19 @@ private:
                           << " User: " << dumpToString(User));
       LoggerIndent MoreUserIndent{ Log };
 
+      // U of I could have already been picked in a previous iteration, from a
+      // different memory read.
+      // Detect that case and quickly bail out, because in practice we have
+      // already taken that decision and we will reuse that.
+      // No need to recur here.
+      if (Picked.ToReplaceWithAvailable.count(&U)) {
+        revng_log(Log,
+                  "I was already picked and it's available at User, reading "
+                  "from: "
+                    << dumpToString(Picked.ToReplaceWithAvailable.lookup(&U)));
+        continue;
+      }
+
       if constexpr (IsLegacy) {
         // Skip over the Assign operand representing target variables for
         // assignments, because in legacy mode we need to preserve them.
@@ -1232,6 +1245,8 @@ private:
         }
       }
 
+      revng_log(Log, "Find where I is available");
+
       // Case 1. and 2. of the description above.
       // If the MemoryRead is available in U either directly or via an
       // assignment S we're fine and we start looking at the next use.
@@ -1241,21 +1256,6 @@ private:
         continue;
       }
       revng_log(Log, "not isAvailableAt(MemoryRead, User)");
-
-      // The same use U of I could have already been picked in a previous
-      // iteration, from a different memory read.
-      // Detect that case and quickly bail out, because in practice we have
-      // already taken that decision and we will reuse that.
-      if (Picked.ToReplaceWithAvailable.count(&U)) {
-        revng_log(Log,
-                  "I was already picked and it's available at User, reading "
-                  "from: "
-                    << dumpToString(Picked.ToReplaceWithAvailable.lookup(&U)));
-        UsesToRecurOn.push_back(&U);
-        continue;
-      }
-
-      revng_log(Log, "Find where I is available");
 
       // Case 3. If selectAssignment fails I is not available at U via any
       // assignment, so we pick I and bail out..
