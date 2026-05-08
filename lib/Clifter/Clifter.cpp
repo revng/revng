@@ -5,6 +5,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/Support/Casting.h"
@@ -26,6 +27,7 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/Identifier.h"
 
 using namespace clift;
@@ -376,26 +378,43 @@ private:
   // Import an LLVM type used as a helper function return type. If the type is a
   // struct type, create a Clift struct type with a handle derived from the
   // helper function name.
-  mlir::Type importHelperReturnType(const llvm::Type *Type,
-                                    llvm::StringRef HelperName) {
-    auto Struct = llvm::dyn_cast<llvm::StructType>(Type);
+  mlir::Type importHelperReturnType(const llvm::Function *HelperFunction) {
+
+    const llvm::FunctionType *HelperType = HelperFunction->getFunctionType();
+    const llvm::Type *ReturnType = HelperType->getReturnType();
+    auto Struct = llvm::dyn_cast<llvm::StructType>(ReturnType);
 
     if (not Struct)
-      return importLLVMType(Type);
+      return importLLVMType(ReturnType);
 
     revng_assert(Struct->isLiteral());
 
+    llvm::StringRef HelperName = HelperFunction->getName();
     auto Location = pipeline::location(revng::ranks::HelperStructType,
                                        HelperName.str());
 
     llvm::SmallVector<FieldAttr> Fields;
     Fields.reserve(Struct->getNumElements());
 
-    uint64_t Offset = 0;
-    for (auto [I, T] : llvm::enumerate(Struct->elements())) {
-      mlir::Type FieldType = importLLVMType(T);
+    // For this artificial struct we have to use the byte size and the field
+    // offsets provided by the LLVM DataLayout, because that's how LLVM reasons
+    // about this struct anyway, and that's how all the GEPs that index into an
+    // alloca with this StructType will reason about. Using a size and offsets
+    // will break semantics, because the semantic used by all of LLVM's analysis
+    // and transformations is the semantic dictated by the DataLayout.
+    const auto &DataLayout = HelperFunction->getParent()->getDataLayout();
+    const auto *StructLayout = DataLayout.getStructLayout(Struct);
+    uint64_t StructByteSize = StructLayout->getSizeInBytes();
 
-      std::string FieldName = getHelperStructFieldName(I);
+    uint64_t PreviousOffsetInBits = 0ULL;
+    for (auto [Index, T] : llvm::enumerate(Struct->elements())) {
+      mlir::Type FieldType = importLLVMType(T);
+      revng_assert(PreviousOffsetInBits % 8 == 0);
+
+      uint64_t FieldOffsetInBits = StructLayout->getElementOffsetInBits(Index);
+      revng_assert(FieldOffsetInBits % 8 == 0);
+
+      std::string FieldName = getHelperStructFieldName(Index);
       std::string FieldHandle = Location
                                   .extend(revng::ranks::HelperStructField,
                                           FieldName)
@@ -408,10 +427,23 @@ private:
                                                               FieldName),
                                       makeCommentAttr<FieldAttr>(Context,
                                                                  FieldHandle),
-                                      Offset,
+                                      FieldOffsetInBits / 8,
                                       FieldType));
-      Offset += getObjectSize(FieldType);
+
+      uint64_t FieldSizeInBits = DataLayout.getTypeSizeInBits(T);
+      revng_assert(FieldSizeInBits % 8 == 0,
+                   (HelperFunction->getName().str()
+                    + " returns a StructType with a field whose size "
+                      "is not a multiple of 8 bits. Field index: "
+                    + std::to_string(Index)
+                    + ". FieldSizeInBits: " + std::to_string(FieldSizeInBits))
+                     .c_str());
+
+      PreviousOffsetInBits = FieldOffsetInBits + FieldSizeInBits;
     }
+    revng_assert(PreviousOffsetInBits % 8 == 0);
+    revng_assert(PreviousOffsetInBits / 8 == StructByteSize);
+    revng_assert(StructByteSize);
 
     auto Handle = pipeline::locationString(revng::ranks::HelperStructType,
                                            HelperName.str());
@@ -427,30 +459,29 @@ private:
                                                                Name),
                                       makeCommentAttr<StructAttr>(Context,
                                                                   Handle),
-                                      Offset,
+                                      StructByteSize,
                                       Fields,
                                       {});
 
     return StructType::get(Context, Definition);
   }
 
-  // Import a Clift function type from an LLVM function type and a helper name
-  // used for deriving the type handle.
-  clift::FunctionType importHelperType(const llvm::FunctionType *Type,
-                                       llvm::StringRef HelperName) {
-    revng_assert(not Type->isVarArg());
+  // Import a Clift function type from an LLVM function, using the name of the
+  // function for deriving the type handle.
+  clift::FunctionType importHelperType(const llvm::Function *HelperFunction) {
+    const llvm::FunctionType *HelperType = HelperFunction->getFunctionType();
+    revng_assert(not HelperType->isVarArg());
 
-    mlir::Type ReturnType = importHelperReturnType(Type->getReturnType(),
-                                                   HelperName);
+    mlir::Type ReturnType = importHelperReturnType(HelperFunction);
 
     llvm::SmallVector<mlir::Type> ParameterTypes;
-    ParameterTypes.reserve(Type->getNumParams());
+    ParameterTypes.reserve(HelperType->getNumParams());
 
-    for (const llvm::Type *T : Type->params())
+    for (const llvm::Type *T : HelperType->params())
       ParameterTypes.push_back(importLLVMType(T));
 
     auto Handle = pipeline::locationString(revng::ranks::HelperFunction,
-                                           HelperName.str());
+                                           HelperFunction->getName().str());
 
     return FunctionType::get(Context,
                              Handle,
@@ -459,12 +490,6 @@ private:
                              ReturnType,
                              ParameterTypes,
                              {});
-  }
-
-  // Import a Clift function type from an LLVM function, using the name of the
-  // function for deriving the type handle.
-  clift::FunctionType importHelperType(const llvm::Function *F) {
-    return importHelperType(F->getFunctionType(), F->getName());
   }
 
   clift::FunctionOp
