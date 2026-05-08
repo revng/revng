@@ -1252,11 +1252,11 @@ bool VariableInserter<IsLegacy>::serializeToLocalVariable(Instruction *I) {
 }
 
 template<bool IsLegacy>
-struct SwitchToStatements : public FunctionPass {
+class SwitchToStatementsPass : public FunctionPass {
 public:
   static char ID;
 
-  SwitchToStatements() : FunctionPass(ID) {}
+  SwitchToStatementsPass() : FunctionPass(ID) {}
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
@@ -1300,24 +1300,27 @@ static bool switchToStatements(const model::Binary *Model, llvm::Function &F) {
 }
 
 template<>
-char SwitchToStatements<false>::ID = 0;
+char SwitchToStatementsPass<false>::ID = 0;
+template class SwitchToStatementsPass<false>;
 
 template<>
-char SwitchToStatements<true>::ID = 0;
+char SwitchToStatementsPass<true>::ID = 0;
+template class SwitchToStatementsPass<true>;
 
 template<bool IsLegacy>
-bool SwitchToStatements<IsLegacy>::runOnFunction(llvm::Function &F) {
+bool SwitchToStatementsPass<IsLegacy>::runOnFunction(llvm::Function &F) {
   auto
     *Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel().get();
   return switchToStatements<IsLegacy>(Model, F);
 }
 
-using RegisterLegacy = RegisterPass<SwitchToStatements<true>>;
+using RegisterLegacy = RegisterPass<SwitchToStatementsPass<true>>;
 static RegisterLegacy
   X("legacy-switch-to-statements", "LegacySwitchToStatements", false, false);
 
-using Register = RegisterPass<SwitchToStatements<false>>;
-static Register Y("switch-to-statements", "SwitchToStatements", false, false);
+using Register = RegisterPass<SwitchToStatementsPass<false>>;
+static Register
+  Y("switch-to-statements", "SwitchToStatementsPass", false, false);
 
 namespace revng::pypeline::piperuns {
 
