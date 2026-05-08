@@ -300,6 +300,10 @@ using MFPResult = AEA<IsLegacy>::MFPResult;
 template<bool IsLegacy>
 using ResultMap = std::map<ProgramPointNode *, MFPResult<IsLegacy>>;
 
+//
+// Helpers for statements and side effects.
+//
+
 static bool causesExponentialDataflowPaths(const Instruction *I) {
   // This forces all various kinds of instructions to get their value stored
   // into a local variable.
@@ -330,9 +334,44 @@ static bool causesExponentialDataflowPaths(const Instruction *I) {
   return false;
 }
 
-template<bool IsLegacy>
-static bool isStatement(const Instruction *I) {
-  return causesExponentialDataflowPaths(I) or hasSideEffects(*I);
+static bool doesNotAccessMemory(const Instruction &I) {
+  // We have to hardcode revng_call_stack_arguments and revng_stack_frame
+  // because SegregateStackAccesses has to mark them as functions that read
+  // inaccessible memory, in order to prevent some LLVM optimizations.
+  // Same for OpaqueExtractValue.
+  if (auto *Call = dyn_cast<CallInst>(&I)) {
+    if (llvm::Function *Callee = getCalledFunction(Call)) {
+      StringRef Name = Callee->getName();
+      if (Name.startswith("revng_call_stack_arguments")
+          or Name.startswith("revng_stack_frame")) {
+        return true;
+      }
+    }
+    if (getCallToTagged(&I, FunctionTags::OpaqueExtractValue))
+      return true;
+    if (getCallToTagged(&I, FunctionTags::StructInitializer))
+      return true;
+  }
+  return false;
+}
+
+static bool mayHaveSideEffects(const Instruction *I) {
+  // TODO: this is a workaround. This should be split up in a separate pass to
+  // run before SwitchToStatements.
+  if (causesExponentialDataflowPaths(I))
+    return true;
+
+  if (doesNotAccessMemory(*I))
+    return false;
+
+  return I->mayHaveSideEffects();
+}
+
+static bool mayReadMemory(const Instruction &I) {
+  if (doesNotAccessMemory(I))
+    return false;
+
+  return I.mayReadFromMemory();
 }
 
 template<bool IsLegacy>
@@ -374,6 +413,10 @@ static bool isProgramPoint(const Instruction *I) {
         or isCallToTagged(I, FunctionTags::BooleanNot)) {
       UnexpectedInstruction = I;
     }
+    // We also don't expect PHINodes, since SwitchToStatements is designed to be
+    // the last pass in the decompilation pipeline that injects local variables.
+    if (isa<PHINode>(I))
+      UnexpectedInstruction = I;
   }
 
   if (nullptr != UnexpectedInstruction) {
@@ -381,7 +424,7 @@ static bool isProgramPoint(const Instruction *I) {
     revng_abort("Unexpected Instruction");
   }
 
-  return I == &I->getParent()->front() or isStatement<IsLegacy>(I)
+  return I == &I->getParent()->front() or mayHaveSideEffects(I)
          or mayReadMemory(*I);
 }
 
@@ -583,8 +626,8 @@ static void applyTransferFunction(Instruction *I, LatticeElement<IsLegacy> &E) {
                  and not isCallToTagged(I, FunctionTags::Assign));
   }
 
-  if (isStatement<IsLegacy>(I)) {
-    revng_log(Log, "isStatement");
+  if (mayHaveSideEffects(I)) {
+    revng_log(Log, "mayHaveSideEffects");
     LoggerIndent XX{ Log };
     for (const AvailableExpression &A : llvm::make_early_inc_range(E)) {
       const auto &[Available, Assign] = A;
@@ -939,7 +982,7 @@ public:
     size_t NextOrder = 0;
     for (BasicBlock *BB : RPO) {
       for (Instruction &I : *BB) {
-        if (isStatement<IsLegacy>(&I) and not I.getType()->isVoidTy()
+        if (mayHaveSideEffects(&I) and not I.getType()->isVoidTy()
             and not I.getType()->isAggregateType()) {
           revng_log(Log, "I: " << dumpToString(I));
           revng_log(Log, "Picked.ToSerialize.insert(I)");
@@ -976,9 +1019,10 @@ private:
       rc_return false;
     }
 
-    // If it's a statement we must have already picked it. Just return false.
-    if (isStatement<IsLegacy>(I)) {
-      revng_log(Log, "I isStatement");
+    // If it has side effects, we must have already picked it. Just return
+    // false.
+    if (mayHaveSideEffects(I)) {
+      revng_log(Log, "I mayHaveSideEffects");
       if (not IType->isVoidTy() and not IType->isAggregateType()) {
         revng_assert(Picked.ToSerialize.contains(I));
       }
