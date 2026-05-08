@@ -1549,17 +1549,7 @@ bool VI<IsLegacy>::serializeToLocalVariable(Instruction *I) {
   } else {
     revng::NonDebugInfoCheckingIRBuilder B(F.getContext());
     B.SetInsertPointPastAllocas(&F, I->getDebugLoc());
-
-    auto *IType = I->getType();
-    if (auto *TheStructType = dyn_cast<StructType>(IType)) {
-      const DataLayout &DL = F.getParent()->getDataLayout();
-      const StructLayout *Layout = DL.getStructLayout(TheStructType);
-      uint64_t ByteSize = Layout->getSizeInBytes();
-      auto *Int8Ty = llvm::IntegerType::getInt8Ty(B.getContext());
-      LocalVariable = B.CreateAlloca(llvm::ArrayType::get(Int8Ty, ByteSize));
-    } else {
-      LocalVariable = B.CreateAlloca(IType);
-    }
+    LocalVariable = B.CreateAlloca(I->getType());
   }
 
   // Then, we have to replace all the uses of I so that they make a Copy
