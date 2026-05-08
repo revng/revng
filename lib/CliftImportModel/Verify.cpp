@@ -233,6 +233,11 @@ private:
         return error() << "Clift ModuleOp contains a non-struct type with "
                           "an ArtificialStruct handle: '"
                        << Type.getHandle() << "'";
+    } else if (auto L = GetLocation(ranks::OpaqueType)) {
+      if (not mlir::isa<clift::StructType>(Type))
+        return error() << "Clift ModuleOp contains a non-struct type with "
+                          "an OpaqueType handle: '"
+                       << Type.getHandle() << "'";
     } else {
       return error() << "Clift ModuleOp contains a DefinedType with "
                         "an invalid handle: '"
