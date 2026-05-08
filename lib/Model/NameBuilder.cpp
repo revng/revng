@@ -536,6 +536,9 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
     return revng::createError("it is reserved for an automatic register "
                               "argument name");
 
+  if (isPrefixAndIndex(Name, Configuration.OpaqueTypePrefix()))
+    return revng::createError("it is reserved for an opaque type");
+
   // NOTE: since artificial return value struct name depends on a (potentially
   //       unreserved) function type name, we have no choice but to reserve
   //       everything starting with this prefix.

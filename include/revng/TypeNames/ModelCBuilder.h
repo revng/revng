@@ -244,6 +244,9 @@ private:
                                     Function.key(),
                                     Argument.key());
   }
+  std::string locationString(uint64_t ByteSize) const {
+    return pipeline::locationString(revng::ranks::OpaqueType, ByteSize);
+  }
 
 private:
   std::string variableLocationString(const model::Function &Function,
@@ -547,6 +550,33 @@ public:
 
     std::string Name = NameBuilder.artificialReturnValueWrapperName(RFT);
     return getNameTagImpl<IsDefinition>(tokenTag(Name, ptml::c::tokens::Type),
+                                        Location,
+                                        Actions);
+  }
+
+  /// Special case handling for the opaque types.
+  template<bool IsDefinition>
+  std::string getOpaqueTypeDeclarationTag(uint64_t ByteSize) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    auto Location = pipeline::locationString(revng::ranks::OpaqueType,
+                                             ByteSize);
+
+    std::string Name = NameBuilder.opaqueTypeName(ByteSize);
+    return getNameTagImpl<IsDefinition>(tokenTag(Name, ptml::c::tokens::Type),
+                                        Location,
+                                        Actions);
+  }
+
+  /// Special case handling for fields of opaque types.
+  template<bool IsDefinition>
+  std::string getOpaqueTypeFieldTag(uint64_t ByteSize) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    std::string FieldName = NameBuilder.opaqueTypeFieldName();
+    auto Location = pipeline::locationString(revng::ranks::OpaqueTypeField,
+                                             ByteSize,
+                                             FieldName);
+    return getNameTagImpl<IsDefinition>(tokenTag(FieldName,
+                                                 ptml::c::tokens::Field),
                                         Location,
                                         Actions);
   }
