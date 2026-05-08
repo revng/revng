@@ -1689,8 +1689,8 @@ private:
 
       // Alloca instructions get special handling and are emitted as local
       // variables in Clift:
-      if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
-        const auto *NumElements = Alloca->getArraySize();
+      if (auto *A = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
+        const auto *NumElements = A->getArraySize();
 
         // Non-constant alloca is not supported:
         revng_assert(not NumElements
@@ -1699,20 +1699,34 @@ private:
         std::optional<std::string> Handle;
 
         mlir::Type Type;
-        if (hasStackTypeMetadata(Alloca)) {
+        if (hasStackTypeMetadata(A)) {
           auto StackType = ModelFunction.stackFrameType();
           revng_assert(StackType);
           Type = cast<clift::StructType>(C.importType(*StackType));
           Handle = pipeline::locationString(revng::ranks::StackFrameVariable,
                                             ModelFunction.Entry());
         } else {
-          Type = C.importLLVMType(Alloca->getAllocatedType());
-          if (Alloca->isArrayAllocation())
-            Type = ArrayType::get(Context, Type, C.getConstantInt(NumElements));
+          revng_assert(*A->getAllocationSizeInBits(*C.DataLayout) % 8 == 0);
+          llvm::Type *Allocated = A->getAllocatedType();
+          revng_assert(Allocated->isSized());
+
+          if (not Allocated->isArrayTy() and not A->isArrayAllocation()) {
+            Type = C.importLLVMType(Allocated);
+
+          } else {
+            uint64_t FieldBitSize = C.DataLayout->getTypeSizeInBits(Allocated);
+            revng_assert(FieldBitSize % 8 == 0);
+            uint64_t ElementSizeInBytes = FieldBitSize / 8;
+            const auto
+              *NumElements = cast<llvm::ConstantInt>(A->getArraySize());
+            uint64_t NBytes = NumElements->getZExtValue() * ElementSizeInBytes;
+            auto *ByteType = llvm::IntegerType::get(A->getContext(), 8);
+            auto *ByteArrayType = llvm::ArrayType::get(ByteType, NBytes);
+            Type = C.importLLVMType(ByteArrayType);
+          }
         }
 
-        auto Op = emitLocalDeclaration<LocalVariableOp>(C.getLocation(Alloca),
-                                                        Type);
+        auto Op = emitLocalDeclaration<LocalVariableOp>(C.getLocation(A), Type);
 
         if (not Handle) {
           // For any local variables without a more specific handle (e.g. stack
@@ -1724,7 +1738,7 @@ private:
 
         Op.setHandle(*Handle);
 
-        auto [Iterator, Inserted] = AllocaMapping.try_emplace(Alloca, Op);
+        auto [Iterator, Inserted] = AllocaMapping.try_emplace(A, Op);
         revng_assert(Inserted);
 
         continue;
