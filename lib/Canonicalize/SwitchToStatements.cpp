@@ -244,12 +244,6 @@ static const Value *getPointerOperand(const Instruction *I) {
   return nullptr;
 }
 
-static llvm::TypeSize getAccessedSize(const llvm::StoreInst *Store) {
-  llvm::DataLayout TheDataLayout = Store->getModule()->getDataLayout();
-  llvm::Type *ValueType = Store->getValueOperand()->getType();
-  return TheDataLayout.getTypeStoreSize(ValueType);
-}
-
 //
 // Helpers for statements and side effects.
 //
@@ -717,10 +711,6 @@ static bool isProgramPoint(const Instruction *I) {
         or isCallToTagged(I, FunctionTags::BooleanNot)) {
       UnexpectedInstruction = I;
     }
-    // We also don't expect PHINodes, since SwitchToStatements is designed to be
-    // the last pass in the decompilation pipeline that injects local variables.
-    if (isa<PHINode>(I))
-      UnexpectedInstruction = I;
   }
 
   if (nullptr != UnexpectedInstruction) {
@@ -967,6 +957,8 @@ template<bool IsLegacy>
 struct PickedInstructions {
   SetVector<Instruction *> ToSerialize = {};
   MapVector<Use *, AssignType<IsLegacy> *> ToReplaceWithAvailable = {};
+  // TODO: This is workaround for some limitations of legacy mode. It should be
+  // unused in non-legacy mode, and can be removed when we drop legacy mode.
   SmallPtrSet<AssignType<IsLegacy> *, 8> AssignToRemove = {};
 };
 
@@ -1099,18 +1091,6 @@ private:
     return Picked;
   }
 
-  bool assignSameLocation(const AssignType *X, const AssignType *Y)
-    requires(not IsLegacy)
-  {
-
-    if (getAccessedSize(X) != getAccessedSize(Y))
-      return false;
-
-    const Value *XPointer = getStorePointerOperand<false>(X);
-    const Value *YPointer = getStorePointerOperand<false>(Y);
-    return AA->isMustAlias(XPointer, YPointer);
-  }
-
   RecursiveCoroutine<void>
   pickInstructionForMemoryRead(Instruction *I, Instruction *MemoryRead) {
     revng_log(Log, "PickFrom I: " << dumpToString(I));
@@ -1152,8 +1132,10 @@ private:
     LoggerIndent UserIndent{ Log };
 
     MapVector<Use *, AssignType *> ToReplaceWithAvailable;
-    SmallPtrSet<AssignType *, 8> AssignToRemove;
     SmallVector<Use *> UsesToRecurOn;
+    // TODO: This is workaround for some limitations of legacy mode. It should
+    // be unused in non-legacy mode, and can be removed when we drop legacy mode
+    SmallPtrSet<AssignType *, 8> AssignToRemove;
 
     // If we're here, I hasn't been picked for serialization yet.
     // If possible we want to avoid picking it, because our broader goal is to
@@ -1272,19 +1254,21 @@ private:
       // with the memory written to by SelectedAssign.
       // Just mark U to be replaced from a read from the location assigned by
       // SelectedAssign.
-      if (not mayWriteToMemory<IsLegacy>(User)) {
+      if (not mayWriteToMemory<IsLegacy>(User) or not IsLegacy) {
         ToReplaceWithAvailable[&U] = SelectedAssign;
         revng_log(Log, "not mayWriteToMemory(User)");
         // We don't need to recur on uses of U, because all of them will
         // effectively be replaced by reads from SelectedAssign, so the
         // MemoryRead will not be affecting them anymore.
         continue;
-      }
-      revng_log(Log, "mayWriteToMemory(User)");
-
-      // The following is a workaround to avoid emitting self-assigments in C,
-      // which are perfectly fine semantically but ugly to see.
-      if constexpr (IsLegacy) {
+      } else if constexpr (IsLegacy) {
+        // TODO: This is workaround for some limitations of legacy mode. It
+        // should be unused in non-legacy mode, and can be removed when we drop
+        // legacy mode.
+        //
+        // The following is a workaround to avoid emitting self-assigments in C,
+        // which are perfectly fine semantically but ugly to see.
+        revng_log(Log, "IsLegacy and mayWriteToMemory(User)");
 
         // If User is an Assign, and it assigns the same local variable as the
         // SelectedAssign, replacing U with a Copy from the LocalVar assigned by
@@ -1301,24 +1285,6 @@ private:
           // In all the other cases it's fine to replace U with a Copy from the
           // LocalVar assigned by SelectedAssign
           ToReplaceWithAvailable[&U] = SelectedAssign;
-          UsesToRecurOn.push_back(&U);
-        }
-
-      } else {
-
-        // If User is a store, and it assigns the same location as the
-        // SelectedAssign, replacing U with a load from the alloca assigned by
-        // SelectedAssign would turn User into a self assignment.
-        auto *UserAssign = dyn_cast<StoreInst>(User);
-        if (UserAssign and assignSameLocation(UserAssign, SelectedAssign)) {
-          AssignToRemove.insert(UserAssign);
-          // In principle we should recur on this but Assign is always
-          // guaranteed to have zero uses.
-        } else {
-          // In all the other cases it's fine to replace U with a Copy from the
-          // LocalVar assigned by SelectedAssign
-          ToReplaceWithAvailable[&U] = SelectedAssign;
-          UsesToRecurOn.push_back(&U);
         }
       }
     }
@@ -1330,8 +1296,12 @@ private:
       Picked.ToReplaceWithAvailable.insert(Element);
 
     // And we can also commit the fact that we want to remove the Assign.
-    for (const auto &Assign : AssignToRemove)
-      Picked.AssignToRemove.insert(Assign);
+    // TODO: This is workaround for some limitations of legacy mode. It
+    // should be unused in non-legacy mode, and can be removed when we drop
+    // legacy mode.
+    if constexpr (IsLegacy)
+      for (const auto &Assign : AssignToRemove)
+        Picked.AssignToRemove.insert(Assign);
 
     // If we reach this point I is has not been picked for serialization, and
     // MemoryRead is available to all users of I, either directly of via some
@@ -1477,9 +1447,14 @@ public:
       TheUse->set(Copy);
     }
 
-    for (Instruction *I : Picked.AssignToRemove) {
-      Changed = true;
-      I->eraseFromParent();
+    // TODO: This is workaround for some limitations of legacy mode. It
+    // should be unused in non-legacy mode, and can be removed when we drop
+    // legacy mode.
+    if constexpr (IsLegacy) {
+      for (Instruction *I : Picked.AssignToRemove) {
+        Changed = true;
+        I->eraseFromParent();
+      }
     }
 
     for (Instruction *I : Picked.ToSerialize) {
@@ -1506,11 +1481,13 @@ using VI = VariableInserter<IsLegacy>;
 template<bool IsLegacy>
 bool VI<IsLegacy>::shouldReplaceUseWithCopies(const Instruction *I,
                                               const Use &U) const {
-  auto *Call = getCallToIsolatedFunction(I);
-  if (not Call)
+  if constexpr (not IsLegacy) {
     return true;
+  } else {
 
-  if constexpr (IsLegacy) {
+    auto *Call = getCallToIsolatedFunction(I);
+    if (not Call)
+      return true;
 
     const auto *ProtoT = getCallSitePrototype(Model, cast<CallInst>(I));
     abi::FunctionType::Layout Layout = abi::FunctionType::Layout::make(*ProtoT);
@@ -1542,7 +1519,6 @@ bool VI<IsLegacy>::shouldReplaceUseWithCopies(const Instruction *I,
                  or isCallToTagged(U.getUser(), FunctionTags::ModelGEPRef));
     return false;
   }
-  return true;
 }
 
 template<bool IsLegacy>
