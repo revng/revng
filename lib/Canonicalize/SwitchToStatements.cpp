@@ -21,9 +21,11 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/PassManager.h"
 #include "llvm/IR/PatternMatch.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Pass.h"
+#include "llvm/Passes/PassBuilder.h"
 #include "llvm/Support/Debug.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
@@ -968,6 +970,28 @@ static AEResult<IsLegacy> getAvailableExpressions(Function &F) {
 }
 
 template<bool IsLegacy>
+class AvailableExpressionsAnalysis
+  : public llvm::AnalysisInfoMixin<AvailableExpressionsAnalysis<IsLegacy>> {
+
+  friend llvm::AnalysisInfoMixin<AvailableExpressionsAnalysis<IsLegacy>>;
+  static llvm::AnalysisKey Key;
+
+public:
+  using Result = AvailableExpressionsResult<IsLegacy>;
+  Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
+    return getAvailableExpressions<IsLegacy>(F);
+  }
+};
+
+template<>
+AnalysisKey AvailableExpressionsAnalysis<true>::Key = {};
+template<>
+AnalysisKey AvailableExpressionsAnalysis<false>::Key = {};
+
+template<bool IsLegacy>
+using AEA = AvailableExpressionsAnalysis<IsLegacy>;
+
+template<bool IsLegacy>
 struct PickedInstructions {
   SetVector<Instruction *> ToSerialize = {};
   MapVector<Use *, AssignType<IsLegacy> *> ToReplaceWithAvailable = {};
@@ -975,23 +999,30 @@ struct PickedInstructions {
 };
 
 template<bool IsLegacy>
-class InstructionToSerializePicker {
+class InstructionToSerializePicker
+  : public AnalysisInfoMixin<InstructionToSerializePicker<IsLegacy>> {
+  friend llvm::AnalysisInfoMixin<InstructionToSerializePicker<IsLegacy>>;
+  static llvm::AnalysisKey Key;
+
 public:
+  using Result = PickedInstructions<IsLegacy>;
   using PickedInstructions = PickedInstructions<IsLegacy>;
   using AEResult = AEResult<IsLegacy>;
   using AvailableExpression = AvailableExpression<IsLegacy>;
   using AssignType = AssignType<IsLegacy>;
 
 public:
-  InstructionToSerializePicker(Function &TheF, const AEResult &TheGraph) :
-    F(TheF), Graph(TheGraph), Picked() {}
+  InstructionToSerializePicker() : F(nullptr), Graph(nullptr), Picked() {}
 
 public:
-  const PickedInstructions &pick() {
+  Result run(Function &TheF, FunctionAnalysisManager &FAM) {
+    F = &TheF;
+    Graph = &FAM.getResult<AEA<IsLegacy>>(TheF);
     Picked = {};
+    ProgramOrdering = {};
 
     // Visit in RPO for determinism
-    const auto RPO = llvm::ReversePostOrderTraversal(&F);
+    const auto RPO = llvm::ReversePostOrderTraversal(F);
 
     // First, pick all the statements amenable for serialization
     // Also compute the program order of instructions.
@@ -1059,7 +1090,7 @@ private:
     LoggerIndent UserIndent{ Log };
 
     const auto IsMemoryReadAvailableAt = [this, MemoryRead](const Use &TheUse) {
-      return Graph.isAvailableAt(MemoryRead, TheUse);
+      return Graph->isAvailableAt(MemoryRead, TheUse);
     };
 
     const auto SerializeI =
@@ -1116,7 +1147,7 @@ private:
         }
       }
 
-      auto AvailableRange = Graph.getAvailableAt(I, UserInstruction);
+      auto AvailableRange = Graph->getAvailableAt(I, UserInstruction);
       if (AvailableRange.empty()) {
         revng_log(Log, "Found unavailable use. Serialize I");
         rc_return SerializeI();
@@ -1269,11 +1300,16 @@ private:
   }
 
 private:
-  Function &F;
-  const AEResult &Graph;
+  Function *F;
+  const AEResult *Graph;
   PickedInstructions Picked;
   std::unordered_map<const Instruction *, size_t> ProgramOrdering;
 };
+
+template<>
+AnalysisKey InstructionToSerializePicker<true>::Key = {};
+template<>
+AnalysisKey InstructionToSerializePicker<false>::Key = {};
 
 using TypeMap = std::map<const Value *, const model::UpcastableType>;
 
@@ -1282,11 +1318,16 @@ using LVB = LocalVariableBuilder<IsLegacy>;
 
 template<bool IsLegacy>
 LocalVariableBuilder<IsLegacy>
-makeVariableBuilder(Function &F, const model::Binary &Model) {
+makeVariableBuilder(Function &F,
+                    unsigned InputPointerByteSize,
+                    const model::Binary &Model) {
+
   if constexpr (IsLegacy) {
     return LVB<IsLegacy>::makeLegacy(Model, &F);
   } else {
-    VariableBuilderTypes Types{ Model, *F.getParent() };
+    VariableBuilderTypes Types = VariableBuilderTypes{ *F.getParent(),
+                                                       InputPointerByteSize };
+
     return LVB<IsLegacy>::make(Types, &F);
   }
 }
@@ -1298,12 +1339,16 @@ public:
 
 public:
   VariableInserter(Function &TheF,
+                   unsigned InputPointerByteSize,
+                   // TODO: drop the next 2 arguments when we drop legacy mode
                    const model::Binary &TheModel,
                    TypeMap &&TMap) :
     Model(TheModel),
     TheTypeMap(std::move(TMap)),
     F(TheF),
-    LocalVariableBuilder(makeVariableBuilder<IsLegacy>(TheF, TheModel)) {}
+    LocalVariableBuilder(makeVariableBuilder<IsLegacy>(TheF,
+                                                       InputPointerByteSize,
+                                                       TheModel)) {}
 
 public:
   bool run(const PickedInstructions &Picked) {
@@ -1473,6 +1518,123 @@ bool VariableInserter<IsLegacy>::serializeToLocalVariable(Instruction *I) {
 }
 
 template<bool IsLegacy>
+void registerCommonAnalyses(FunctionAnalysisManager &FAM) {
+
+  PassBuilder PB;
+  PB.registerFunctionAnalyses(FAM);
+
+  FAM.registerPass([] { return AvailableExpressionsAnalysis<IsLegacy>(); });
+  FAM.registerPass([] { return InstructionToSerializePicker<IsLegacy>(); });
+}
+
+template<bool IsLegacy>
+class SwitchToStatements
+  : public llvm::PassInfoMixin<SwitchToStatements<IsLegacy>> {
+
+private:
+  // This is only used in legacy mode for operating the LocalVariableBuilder
+  // inside the VariableInserter.
+  // TODO: drop when we drop legacy mode.
+  const model::Binary *Model;
+
+  /// The size in bytes of a pointer in the Binary we're decompiling.
+  /// Necessary for initializing a LocalVariableBuilder without the Model, in
+  /// non-legacy mode.
+  unsigned InputPointerByteSize;
+
+public:
+  // This is meant to be used only in non-legacy mode.
+  SwitchToStatements(unsigned InputPointerByteSize) :
+    Model(nullptr), InputPointerByteSize(InputPointerByteSize) {
+    revng_assert(not IsLegacy);
+  }
+
+private:
+  // This is meant to be used only in legacy mode.
+  // This is why it's private, so we it can only be invoked via the factory,
+  // which is only available when IsLegacy is true.
+  //
+  // TODO: drop this when we drop legacy mode.
+  SwitchToStatements(const model::Binary &TheModel) :
+    Model(&TheModel),
+    InputPointerByteSize(getPointerSize(Model->Architecture())) {
+    revng_assert(IsLegacy);
+  }
+
+public:
+  // Factory meant to be called only for legacy mode.
+  //
+  // TODO: drop this when we drop legacy mode.
+  static SwitchToStatements makeLegacy(const model::Binary &Model)
+    requires IsLegacy
+  {
+    return SwitchToStatements(Model);
+  }
+
+public:
+  llvm::PreservedAnalyses run(llvm::Function &F,
+                              llvm::FunctionAnalysisManager &FAM) {
+
+    TypeMap InstructionTypes = {};
+    if constexpr (IsLegacy) {
+      auto ModelFunction = llvmToModelFunction(*Model, F);
+      revng_assert(ModelFunction != nullptr);
+
+      InstructionTypes = initModelTypesConsideringUses(F,
+                                                       ModelFunction,
+                                                       *Model,
+                                                       /* PointersOnly */
+                                                       false);
+    }
+    VariableInserter<IsLegacy> VarInserter{
+      F, InputPointerByteSize, *Model, std::move(InstructionTypes)
+    };
+
+    const auto
+      &Picked = FAM.getResult<InstructionToSerializePicker<IsLegacy>>(F);
+    bool Changed = VarInserter.run(Picked);
+
+    return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
+  }
+};
+
+// The template is only for legacy mode.
+// TODO: drop when we drop legacy mode.
+template<bool IsLegacy>
+bool switchToStatements(const model::Binary *Model, llvm::Function &F);
+
+// This specialization is only for legacy mode.
+// TODO: drop when we drop legacy mode.
+template<>
+bool switchToStatements<true>(const model::Binary *Model, llvm::Function &F) {
+  revng_log(Log, "switchToStatements (legacy): " << F.getName());
+
+  FunctionAnalysisManager FAM;
+  registerCommonAnalyses<true>(FAM);
+
+  FunctionPassManager FPM;
+  FPM.addPass(SwitchToStatements<true>::makeLegacy(*Model));
+  llvm::PreservedAnalyses Preserved = FPM.run(F, FAM);
+
+  return Preserved.areAllPreserved() ? false : true;
+}
+
+template<>
+bool switchToStatements<false>(const model::Binary *Model, llvm::Function &F) {
+
+  revng_log(Log, "switchToStatements (non-legacy): " << F.getName());
+
+  FunctionAnalysisManager FAM;
+  registerCommonAnalyses<false>(FAM);
+
+  FunctionPassManager FPM;
+  FPM.addPass(SwitchToStatements<false>(getPointerSize(Model->Architecture())));
+  llvm::PreservedAnalyses Preserved = FPM.run(F, FAM);
+
+  return Preserved.areAllPreserved() ? false : true;
+}
+
+template<bool IsLegacy>
 class SwitchToStatementsPass : public FunctionPass {
 public:
   static char ID;
@@ -1486,34 +1648,6 @@ public:
 
   bool runOnFunction(Function &F) override;
 };
-
-template<bool IsLegacy>
-static bool switchToStatements(const model::Binary *Model, llvm::Function &F) {
-  revng_log(Log, "SwitchToStatements: " << F.getName());
-
-  auto Graph = getAvailableExpressions<IsLegacy>(F);
-
-  auto ModelFunction = llvmToModelFunction(*Model, F);
-  revng_assert(ModelFunction != nullptr);
-
-  InstructionToSerializePicker InstructionPicker{ F, Graph };
-
-  TypeMap InstructionTypes = {};
-  if constexpr (IsLegacy) {
-    InstructionTypes = initModelTypesConsideringUses(F,
-                                                     ModelFunction,
-                                                     *Model,
-                                                     /* PointersOnly */
-                                                     false);
-  }
-  VariableInserter<IsLegacy> VarInserter{ F,
-                                          *Model,
-                                          std::move(InstructionTypes) };
-
-  bool Changed = VarInserter.run(InstructionPicker.pick());
-
-  return Changed;
-}
 
 template<>
 char SwitchToStatementsPass<false>::ID = 0;
