@@ -1073,6 +1073,14 @@ inline std::string dumpToString(T TheT) {
   return dumpToString(*TheT);
 }
 
+template<typename T>
+  requires std::is_pointer_v<T>
+inline std::string dumpToString(T TheT, llvm::ModuleSlotTracker &Tracker) {
+  if (TheT == nullptr)
+    return "nullptr";
+  return dumpToString(*TheT, Tracker);
+}
+
 void dumpModule(const llvm::Module *M, const char *Path) debug_function;
 
 llvm::PointerType *getStringPtrType(llvm::LLVMContext &C);
