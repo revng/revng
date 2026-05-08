@@ -1479,8 +1479,11 @@ public:
 
     for (Instruction *I : Picked.ToSerialize) {
       // If ToSerialize contains something with 0 uses we don't add the
-      // local variable.
-      Changed |= serializeToLocalVariable(I);
+      // local variable. The Clifter will identify this a statement because it
+      // has zero uses, and it will turn it into an ExpressionStatement in
+      // place, preserving the ordering as if the local variable was emitted.
+      if (IsLegacy or I->getNumUses() > 0)
+        Changed |= serializeToLocalVariable(I);
     }
 
     return Changed;
