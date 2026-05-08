@@ -320,6 +320,8 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "undef_value",
   "break_to",
   "continue_to",
+  "typeof",
+  "__typeof__",
   "bit_cast",
   "static_assert_typedef",
 };
