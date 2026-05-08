@@ -1212,15 +1212,19 @@ private:
                           << " User: " << dumpToString(User));
       LoggerIndent MoreUserIndent{ Log };
 
-      // Skip over the Assign operand representing target variables for
-      // assignments, because we need to preserve them.
-      if (isStorePointerOperand<IsLegacy>(U, User)) {
-        revng_log(Log, "isStorePointerOperand(U, User)");
-        // In principle we should do:
-        // UsesToRecurOn.push_back(&U);
-        // But that would just do nothing because Store instructions can't have
-        // any Use. So we can just continue here.
-        continue;
+      if constexpr (IsLegacy) {
+        // Skip over the Assign operand representing target variables for
+        // assignments, because in legacy mode we need to preserve them.
+        // This is a workaround and is not semantic preserving.
+        // It will be dropped in non-legacy mode.
+        if (isStorePointerOperand<IsLegacy>(U, User)) {
+          revng_log(Log, "isStorePointerOperand(U, User)");
+          // In principle we should do:
+          // UsesToRecurOn.push_back(&U);
+          // But that would just do nothing because Store instructions can't
+          // have any Use. So we can just continue here.
+          continue;
+        }
       }
 
       // Case 1. and 2. of the description above.
