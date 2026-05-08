@@ -302,9 +302,11 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       // component, we still emit a `imm 0` to represent the access to `[0]`.
       if (Access.Index.Constant != 0 or not Access.Index.Variable) {
         auto Index = Access.Index.Constant;
-        auto IntegerType = clift::IntegerType::get(Builder.getContext(),
-                                                   IntegerKind::Generic,
-                                                   PointerSize);
+        auto IntegerType = Access.Index.Variable ?
+                             Access.Index.Variable.getType() :
+                             clift::IntegerType::get(Builder.getContext(),
+                                                     IntegerKind::Generic,
+                                                     PointerSize);
         FixedIndexValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,
                                                       IntegerType,
                                                       Index);
@@ -369,22 +371,19 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       or not LeftoverOffset.LinearCombination.empty()) {
 
     // Cast pointer to integer
-    auto IntegerType = clift::IntegerType::get(Builder.getContext(),
-                                               IntegerKind::Generic,
-                                               PointerSize);
+    auto IntPtrType = clift::IntegerType::get(Builder.getContext(),
+                                              IntegerKind::Generic,
+                                              PointerSize);
     CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
-                                             IntegerType,
+                                             IntPtrType,
                                              CurrentValue);
 
     // Add base offset
     if (!LeftoverOffset.BaseOffset.isZero()) {
-      auto IntegerType = clift::IntegerType::get(Builder.getContext(),
-                                                 IntegerKind::Generic,
-                                                 PointerSize);
 
       auto LeftoverOffsetValue = LeftoverOffset.BaseOffset.getSExtValue();
       auto AddOperandValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,
-                                                         IntegerType,
+                                                         IntPtrType,
                                                          LeftoverOffsetValue);
       CurrentValue = Builder.create<AddOp>(PointerToReplaceLoc,
                                            CurrentValue,
@@ -395,12 +394,12 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
     for (const auto &Term : LeftoverOffset.LinearCombination) {
       // Multiply stride by index
       auto IndexValue = Builder.create<ImmediateOp>(PointerToReplaceLoc,
-                                                    IntegerType,
+                                                    IntPtrType,
                                                     Term.Idx.Constant
                                                       .getSExtValue());
       auto StrideValue = Builder
                            .create<ImmediateOp>(PointerToReplaceLoc,
-                                                IntegerType,
+                                                IntPtrType,
                                                 Term.Stride.getSExtValue());
       auto StridedValue = Builder.create<clift::MulOp>(PointerToReplaceLoc,
                                                        IndexValue,
@@ -411,7 +410,7 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
     }
 
     // Cast back to pointer
-    auto PointerType = PointerType::get(CurrentValue.getType(), PointerSize);
+    auto PointerType = PointerType::get(IntPtrType, PointerSize);
     CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
                                              PointerType,
                                              CurrentValue);

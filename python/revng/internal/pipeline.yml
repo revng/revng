@@ -353,6 +353,9 @@ branches:
             - peephole-opt-for-decompilation
             - ternary-reduction
             - exit-ssa
+            - arithmetic-to-gep
+            - extractvalue-to-gep
+            - split-exponential-dataflow
       - pipe: switch-to-statements
         arguments: [llvm-functions]
       - pipe: pure-llvm-passes-pipe
@@ -368,6 +371,7 @@ branches:
             - inline-divergent-scopes
             - enforce-single-exit
             - materialize-trivial-goto
+            - strip-dead-prototypes
         artifacts:
           - name: clifter-input
             container: llvm-functions

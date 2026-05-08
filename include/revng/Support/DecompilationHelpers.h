@@ -16,45 +16,6 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/TypeDefinition.h"
 
-inline bool hasSideEffects(const llvm::Instruction &I) {
-  if (llvm::isa<llvm::StoreInst>(I))
-    return true;
-
-  auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
-  if (not Call)
-    return false;
-
-  auto CallMemoryEffects = Call->getMemoryEffects();
-  bool MayAccessMemory = not CallMemoryEffects.doesNotAccessMemory();
-  bool OnlyReadsMemory = CallMemoryEffects.onlyReadsMemory();
-  return MayAccessMemory and not OnlyReadsMemory;
-}
-
-inline bool mayReadMemory(const llvm::Instruction &I) {
-  if (llvm::isa<llvm::LoadInst>(I))
-    return true;
-
-  auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
-  if (not Call)
-    return false;
-
-  // We have to hardcode revng_call_stack_arguments and revng_stack_frame
-  // because SegregateStackAccesses has to mark them as functions that read
-  // inaccessible memory, in order to prevent some LLVM optimizations.
-  if (llvm::Function *Callee = getCalledFunction(Call)) {
-    llvm::StringRef Name = Callee->getName();
-    if (Name.startswith("revng_call_stack_arguments")
-        or Name.startswith("revng_stack_frame"))
-      return false;
-  }
-
-  // In all the other cases we can just use memory effects.
-  auto CallMemoryEffects = Call->getMemoryEffects();
-  bool MayAccessMemory = not CallMemoryEffects.doesNotAccessMemory();
-  bool OnlyReadsMemory = CallMemoryEffects.onlyReadsMemory();
-  return MayAccessMemory and OnlyReadsMemory;
-}
-
 /// Check if \a ModelType can be assigned to an llvm::Value of type \a LLVMType
 /// during a memory operations (load, store and the like).
 inline bool areMemOpCompatible(const model::Type &ModelType,

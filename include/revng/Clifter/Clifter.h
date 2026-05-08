@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/IR/Module.h"
+#include "llvm/IR/Function.h"
 
 #include "revng/Clift/Clift.h"
 #include "revng/Model/Binary.h"

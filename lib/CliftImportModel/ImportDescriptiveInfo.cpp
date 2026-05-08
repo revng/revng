@@ -217,6 +217,10 @@ public:
       return visitHelperStructType(mlir::cast<clift::StructAttr>(Attr), *L);
     }
 
+    if (auto L = pipeline::locationFromString(rr::OpaqueType, T.getHandle())) {
+      return visitOpaqueType(mlir::cast<clift::StructAttr>(Attr), *L);
+    }
+
     revng_abort("Unsupported type location");
   }
 
@@ -387,6 +391,13 @@ private:
       F.getMutableName().setValue(Name);
     }
 
+    return mlir::success();
+  }
+
+  mlir::LogicalResult
+  visitOpaqueType(clift::StructAttr ST,
+                  const pipeline::Location<decltype(rr::OpaqueType)> &L) {
+    ST.getMutableName().setValue(NameBuilder.opaqueTypeName(ST.getSize()));
     return mlir::success();
   }
 

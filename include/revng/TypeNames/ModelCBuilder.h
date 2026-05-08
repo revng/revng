@@ -244,6 +244,9 @@ private:
                                     Function.key(),
                                     Argument.key());
   }
+  std::string locationString(uint64_t ByteSize) const {
+    return pipeline::locationString(revng::ranks::OpaqueType, ByteSize);
+  }
 
 private:
   std::string variableLocationString(const model::Function &Function,
@@ -551,6 +554,33 @@ public:
                                         Actions);
   }
 
+  /// Special case handling for the opaque types.
+  template<bool IsDefinition>
+  std::string getOpaqueTypeDeclarationTag(uint64_t ByteSize) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    auto Location = pipeline::locationString(revng::ranks::OpaqueType,
+                                             ByteSize);
+
+    std::string Name = NameBuilder.opaqueTypeName(ByteSize);
+    return getNameTagImpl<IsDefinition>(tokenTag(Name, ptml::c::tokens::Type),
+                                        Location,
+                                        Actions);
+  }
+
+  /// Special case handling for fields of opaque types.
+  template<bool IsDefinition>
+  std::string getOpaqueTypeFieldTag(uint64_t ByteSize) const {
+    constexpr std::array<llvm::StringRef, 0> Actions = {};
+    std::string FieldName = NameBuilder.opaqueTypeFieldName();
+    auto Location = pipeline::locationString(revng::ranks::OpaqueTypeField,
+                                             ByteSize,
+                                             FieldName);
+    return getNameTagImpl<IsDefinition>(tokenTag(FieldName,
+                                                 ptml::c::tokens::Field),
+                                        Location,
+                                        Actions);
+  }
+
   /// Special case handling for helper functions.
   template<bool IsDefinition>
   std::string getHelperFunctionTag(llvm::StringRef Name) const {
@@ -843,6 +873,20 @@ public:
   /// on every type, as types can depend on each other.
   /// This method ensures they are printed in a valid order.
   void printTypeDefinitions();
+
+  /// Print all opaque type definitions required by the types in the model.
+  void printModelOpaqueTypeDefinitions();
+
+  /// Print all opaque type definitions required by the types in the headers,
+  /// that are not otherwise printed by printModelOpaqueTypeDefinitions.
+  void
+  printHelperOpaqueTypeDefinitions(const std::set<uint64_t> &HelperByteSizes);
+
+private:
+  std::set<uint64_t> getModelOpaqueByteSizes();
+
+  /// Print a single opaque type definitions with given ByteSize
+  void printOpaqueTypeDefinition(uint64_t ByteSize);
 };
 
 } // namespace ptml

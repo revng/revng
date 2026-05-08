@@ -1073,6 +1073,14 @@ inline std::string dumpToString(T TheT) {
   return dumpToString(*TheT);
 }
 
+template<typename T>
+  requires std::is_pointer_v<T>
+inline std::string dumpToString(T TheT, llvm::ModuleSlotTracker &Tracker) {
+  if (TheT == nullptr)
+    return "nullptr";
+  return dumpToString(*TheT, Tracker);
+}
+
 void dumpModule(const llvm::Module *M, const char *Path) debug_function;
 
 llvm::PointerType *getStringPtrType(llvm::LLVMContext &C);
@@ -1362,6 +1370,78 @@ getOption(llvm::StringMap<llvm::cl::Option *> &Options, const char *Name) {
 
 /// Extract MD text from MDString or GlobalVariable
 llvm::StringRef getText(const llvm::Instruction *I, unsigned Kind);
+
+constexpr const char *PointersMDName = "revng.pointers";
+
+namespace detail {
+
+template<bool Arguments, HasMetadata Value>
+inline std::optional<llvm::SmallVector<bool>>
+getPointersMetadata(const Value *V) {
+  const auto *TheMetadata = V->getMetadata(PointersMDName);
+  if (not TheMetadata)
+    return std::nullopt;
+
+  const auto *TheMDTuple = llvm::dyn_cast<llvm::MDTuple>(TheMetadata);
+  if (not TheMDTuple)
+    return std::nullopt;
+
+  unsigned Index = Arguments ? 1 : 0;
+  const auto *OperandsMetadata = TheMDTuple->getOperand(Index).get();
+  const auto *OperandsMDTuple = llvm::dyn_cast<llvm::MDTuple>(OperandsMetadata);
+  if (not OperandsMDTuple)
+    return std::nullopt;
+
+  llvm::SmallVector<bool> Result;
+  unsigned TupleSize = OperandsMDTuple->getNumOperands();
+  for (unsigned I = 0; I < TupleSize; ++I) {
+    const llvm::Metadata *MD = OperandsMDTuple->getOperand(I).get();
+    const auto *IsPointerConst = llvm::dyn_cast<llvm::ConstantAsMetadata>(MD);
+    if (not IsPointerConst)
+      return std::nullopt;
+    const auto *IsPointerValue = llvm::dyn_cast<
+      llvm::ConstantInt>(IsPointerConst->getValue());
+    if (not IsPointerValue)
+      return std::nullopt;
+
+    Result.push_back(not IsPointerValue->isZero());
+  }
+  return Result;
+}
+
+} // end namespace detail
+
+template<HasMetadata Value>
+inline std::optional<llvm::SmallVector<bool>>
+getPointerValuesMetadata(const Value *V) {
+  return ::detail::getPointersMetadata</*Arguments*/ false>(V);
+}
+
+template<HasMetadata Value>
+inline std::optional<llvm::SmallVector<bool>>
+getPointerOperandsMetadata(const Value *V) {
+  return ::detail::getPointersMetadata</*Arguments*/ true>(V);
+}
+
+template<HasMetadata Value>
+inline void setPointersMetadata(Value *V,
+                                llvm::ArrayRef<bool> PointerValues,
+                                llvm::ArrayRef<bool> PointerOperands) {
+
+  QuickMetadata QMD{ V->getContext() };
+
+  llvm::SmallVector<llvm::Metadata *> PointerValuesMD;
+  for (bool IsPointer : PointerValues)
+    PointerValuesMD.push_back(QMD.get(IsPointer));
+
+  llvm::SmallVector<llvm::Metadata *> PointerOperandsMD;
+  for (bool IsPointer : PointerOperands)
+    PointerOperandsMD.push_back(QMD.get(IsPointer));
+
+  V->setMetadata(PointersMDName,
+                 QMD.tuple({ QMD.tuple(PointerValuesMD),
+                             QMD.tuple(PointerOperandsMD) }));
+}
 
 inline void setInsertPointToFirstNonAlloca(revng::IRBuilder &Builder,
                                            llvm::Function &F) {

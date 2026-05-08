@@ -228,15 +228,32 @@ extern uintmax_t undef_value(void);
 #define continue_to goto
 
 //
-// bit_cast
+// __typeof__
 //
 
-#if defined(__GNUC__) && !defined(__clang__)
-// GCC implements __builtin_bit_cast, but it is only available in C++ mode.
-// Since we've just detected GCC, we can use a few GNU extensions to implement
-// behaviour equivalent to __builtin_bit_cast using memcpy (__builtin_memcpy).
+// __typeof__ is required for properly implementing a generic bitcast primitive
+// that only needs the destination type.
+#if defined(__GNUC__) // For Clang and GCC, they both have __typeof__
+// Don't do anything, __typeof__ is already available
+#elif __STDC_VERSION__ >= 202311L // C23 has typeof
+// The macro is variadic so we can pass in expressions that contain commas.
+#define __typeof__(...) typeof((__VA_ARGS__))
+#else
+#error "Neither (C23) typeof nor the __typeof__ compiler extension is available"
+#endif
+
 //
-// The macro is variadic in case the converted expression contains commas.
+// bit_cast
+// The macro is variadic so we can pass in expressions that contain commas.
+//
+#if defined(__GNUC__)
+
+#if defined(__clang__)
+
+#define bit_cast(T, ...) __builtin_bit_cast(T, ((__VA_ARGS__)))
+
+#else // !defined(__clang__), hence, it's GCC
+
 #define bit_cast(T, ...)                                   \
   (__extension__({                                         \
     T bit_cast_r;                                          \
@@ -244,6 +261,16 @@ extern uintmax_t undef_value(void);
     __builtin_memcpy(&bit_cast_r, &bit_cast_v, sizeof(T)); \
     bit_cast_r;                                            \
   }))
-#else
-#define bit_cast(T, ...) __builtin_bit_cast(T, (__VA_ARGS__))
-#endif
+
+#endif // defined(__clang__)
+
+#else // !defined(__GNU_C__)
+
+#define bit_cast(T, ...)            \
+  (((union {                        \
+     __typeof__((__VA_ARGS__)) src; \
+     T dst;                         \
+   }){ .src = ((__VA_ARGS__)) })    \
+     .dst)
+
+#endif // defined(__GNU_C_)

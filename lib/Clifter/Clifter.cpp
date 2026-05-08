@@ -5,15 +5,22 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/ScopeExit.h"
+#include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/InstIterator.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/GenericDomTree.h"
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/ADT/ScopedExchange.h"
+#include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftDialect.h"
+#include "revng/Clift/CliftTypes.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/Clifter/Clifter.h"
 #include "revng/LocalVariables/LocalVariableHelpers.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
@@ -21,6 +28,7 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRHelpers.h"
 #include "revng/Support/Identifier.h"
 
 using namespace clift;
@@ -91,13 +99,9 @@ class ClifterImpl final : public Clifter {
   const model::Binary &Model;
   mlir::OpBuilder Builder;
 
-  mlir::Type VoidTypeCache;
+  const llvm::DataLayout *DataLayout;
 
-  uint64_t PointerSize;
-  mlir::Type VoidPointerTypeCache;
-  mlir::Type IntptrTypeCache;
-
-  //===---- Per-module mappings - persisted between imported functions ----===//
+  /* Per-module mappings - persisted between imported functions */
 
   // Maps LLVM object to a Clift global op. Each used global object is only
   // emitted once and hence forth the operation stored in this table is used.
@@ -121,7 +125,7 @@ public:
     CurrentModule(Module),
     Model(Model),
     Builder(Context),
-    PointerSize(getPointerSize(Model.Architecture())) {
+    DataLayout(nullptr) {
     revng_assert(clift::hasModuleAttr(Module));
     Builder.setInsertionPointToEnd(Module.getBody());
   }
@@ -166,30 +170,55 @@ private:
   }
 
   IntegerType getIntegerType(uint64_t Size,
-                             IntegerKind Kind = IntegerKind::Generic) {
+                             IntegerKind Kind = IntegerKind::Generic) const {
     return IntegerType::get(Context, Kind, Size);
   }
 
-  mlir::Type makePointerType(mlir::Type ElementType) {
-    return PointerType::get(ElementType, PointerSize);
+  uint64_t getModelPointerSize() const {
+    return model::Architecture::getPointerSize(Model.Architecture());
   }
 
-  mlir::Type getVoidType() {
-    if (not VoidTypeCache)
-      VoidTypeCache = VoidType::get(Context);
-    return VoidTypeCache;
+  mlir::Type getModelPointerType(mlir::Type ElementType) const {
+    return PointerType::get(ElementType, getModelPointerSize());
   }
 
-  mlir::Type getVoidPointerType() {
-    if (not VoidPointerTypeCache)
-      VoidPointerTypeCache = makePointerType(getVoidType());
-    return VoidPointerTypeCache;
+  uint64_t getPointerSize() const {
+    revng_assert(DataLayout->getPointerSizeInBits() % 8 == 0);
+    return DataLayout->getPointerSize();
   }
 
-  mlir::Type getIntptrType() {
-    if (not IntptrTypeCache)
-      IntptrTypeCache = getIntegerType(PointerSize);
-    return IntptrTypeCache;
+  mlir::Type getPointerType(mlir::Type ElementType) const {
+    return PointerType::get(ElementType, getPointerSize());
+  }
+
+  mlir::Type getVoidType() const { return VoidType::get(Context); }
+
+  mlir::Type getVoidPointerType() const {
+    return getPointerType(getVoidType());
+  }
+
+  mlir::Type getIntptrType() { return getIntegerType(getPointerSize()); }
+
+  clift::ValueType getConstCharType() {
+    return clift::IntegerType::get(Context,
+                                   IntegerKind::Number,
+                                   1,
+                                   /*IsConst=*/true);
+  }
+
+  clift::ArrayType getConstCharArrayType(uint64_t NumElements) {
+    return clift::ArrayType::get(getConstCharType(), NumElements);
+  }
+
+  clift::ValueType getCharType() {
+    return clift::IntegerType::get(Context,
+                                   IntegerKind::Number,
+                                   1,
+                                   /*IsConst=*/false);
+  }
+
+  clift::ArrayType getCharArrayType(uint64_t NumElements) {
+    return clift::ArrayType::get(getCharType(), NumElements);
   }
 
   template<typename FunctionT>
@@ -234,9 +263,57 @@ private:
     return getVoidPointerType();
   }
 
-  mlir::Type importLLVMArrayType(const llvm::ArrayType *Type) {
-    auto ElementType = importLLVMType(Type->getElementType());
-    return ArrayType::get(ElementType, Type->getNumElements());
+  static std::string getOpaqueTypeFieldName() { return "array"; }
+
+  std::string getOpaqueTypeFieldHandle(uint64_t ByteSize) {
+    return pipeline::locationString(revng::ranks::OpaqueTypeField,
+                                    ByteSize,
+                                    getOpaqueTypeFieldName());
+  }
+
+  std::string getOpaqueTypeHandle(uint64_t ByteSize) {
+    return pipeline::locationString(revng::ranks::OpaqueType, ByteSize);
+  }
+
+  clift::StructType importOpaqueStruct(uint64_t NumBytes) {
+    std::string FieldHandle = getOpaqueTypeFieldHandle(NumBytes);
+    std::string FieldName = getOpaqueTypeFieldName();
+    mlir::Type FieldType = getCharArrayType(NumBytes);
+
+    llvm::SmallVector<clift::FieldAttr> Fields;
+    Fields.push_back(FieldAttr::get(Context,
+                                    FieldHandle,
+                                    makeNameAttr<FieldAttr>(Context,
+                                                            FieldHandle,
+                                                            FieldName),
+                                    makeCommentAttr<FieldAttr>(Context,
+                                                               FieldHandle),
+                                    (uint64_t) 0,
+                                    FieldType));
+
+    std::string Handle = getOpaqueTypeHandle(NumBytes);
+
+    auto NameAttr = makeNameAttr<StructAttr>(Context, Handle);
+    auto CommentAttr = makeCommentAttr<StructAttr>(Context, Handle);
+    auto Attrs = llvm::ArrayRef<clift::CAttributeAttr>{};
+    auto Def = clift::StructAttr::get(Context,
+                                      Handle,
+                                      NameAttr,
+                                      CommentAttr,
+                                      NumBytes,
+                                      llvm::ArrayRef(Fields),
+                                      Attrs);
+
+    return clift::StructType::get(Def);
+  }
+  clift::StructType importOpaqueStruct(const llvm::ArrayType *Array) {
+    const auto *ElementType = Array->getElementType();
+    revng_assert(ElementType->isIntegerTy());
+    revng_assert(ElementType->getIntegerBitWidth() == 8);
+    uint64_t NumBytes = Array->getNumElements()
+                        * (ElementType->getIntegerBitWidth() / 8);
+
+    return importOpaqueStruct(NumBytes);
   }
 
   mlir::Type importLLVMType(const llvm::Type *Type) {
@@ -250,7 +327,35 @@ private:
       return importLLVMPointerType(T);
 
     if (auto *T = llvm::dyn_cast<llvm::ArrayType>(Type))
-      return importLLVMArrayType(T);
+      return importOpaqueStruct(T);
+
+    if (auto *S = llvm::dyn_cast<llvm::StructType>(Type)) {
+      const auto *StructLayout = DataLayout->getStructLayout(S);
+      uint64_t StructByteSize = StructLayout->getSizeInBytes();
+
+      uint64_t PreviousOffsetInBits = 0ULL;
+
+      for (auto [Index, FieldType] : llvm::enumerate(S->elements())) {
+        revng_assert(PreviousOffsetInBits % 8 == 0);
+
+        uint64_t OffsetInBits = StructLayout->getElementOffsetInBits(Index);
+        revng_assert(OffsetInBits % 8 == 0);
+
+        uint64_t FieldSizeInBits = DataLayout->getTypeSizeInBits(FieldType);
+        revng_assert(FieldSizeInBits % 8 == 0,
+                     ("StructType with a field whose size is not a multiple of "
+                      " 8 bits. Field index: "
+                      + std::to_string(Index)
+                      + ". FieldSizeInBits: " + std::to_string(FieldSizeInBits))
+                       .c_str());
+
+        PreviousOffsetInBits = OffsetInBits + FieldSizeInBits;
+      }
+      revng_assert(PreviousOffsetInBits % 8 == 0);
+      revng_assert(PreviousOffsetInBits / 8 == StructByteSize);
+      revng_assert(StructByteSize);
+      return importOpaqueStruct(StructByteSize);
+    }
 
     revng_abort("Unsupported LLVM type");
   }
@@ -285,26 +390,43 @@ private:
   // Import an LLVM type used as a helper function return type. If the type is a
   // struct type, create a Clift struct type with a handle derived from the
   // helper function name.
-  mlir::Type importHelperReturnType(const llvm::Type *Type,
-                                    llvm::StringRef HelperName) {
-    auto Struct = llvm::dyn_cast<llvm::StructType>(Type);
+  mlir::Type importHelperReturnType(const llvm::Function *HelperFunction) {
+
+    const llvm::FunctionType *HelperType = HelperFunction->getFunctionType();
+    const llvm::Type *ReturnType = HelperType->getReturnType();
+    auto Struct = llvm::dyn_cast<llvm::StructType>(ReturnType);
 
     if (not Struct)
-      return importLLVMType(Type);
+      return importLLVMType(ReturnType);
 
     revng_assert(Struct->isLiteral());
 
+    llvm::StringRef HelperName = HelperFunction->getName();
     auto Location = pipeline::location(revng::ranks::HelperStructType,
                                        HelperName.str());
 
     llvm::SmallVector<FieldAttr> Fields;
     Fields.reserve(Struct->getNumElements());
 
-    uint64_t Offset = 0;
-    for (auto [I, T] : llvm::enumerate(Struct->elements())) {
-      mlir::Type FieldType = importLLVMType(T);
+    // For this artificial struct we have to use the byte size and the field
+    // offsets provided by the LLVM DataLayout, because that's how LLVM reasons
+    // about this struct anyway, and that's how all the GEPs that index into an
+    // alloca with this StructType will reason about. Using a size and offsets
+    // will break semantics, because the semantic used by all of LLVM's analysis
+    // and transformations is the semantic dictated by the DataLayout.
+    const auto &DataLayout = HelperFunction->getParent()->getDataLayout();
+    const auto *StructLayout = DataLayout.getStructLayout(Struct);
+    uint64_t StructByteSize = StructLayout->getSizeInBytes();
 
-      std::string FieldName = getHelperStructFieldName(I);
+    uint64_t PreviousOffsetInBits = 0ULL;
+    for (auto [Index, T] : llvm::enumerate(Struct->elements())) {
+      mlir::Type FieldType = importLLVMType(T);
+      revng_assert(PreviousOffsetInBits % 8 == 0);
+
+      uint64_t FieldOffsetInBits = StructLayout->getElementOffsetInBits(Index);
+      revng_assert(FieldOffsetInBits % 8 == 0);
+
+      std::string FieldName = getHelperStructFieldName(Index);
       std::string FieldHandle = Location
                                   .extend(revng::ranks::HelperStructField,
                                           FieldName)
@@ -317,10 +439,23 @@ private:
                                                               FieldName),
                                       makeCommentAttr<FieldAttr>(Context,
                                                                  FieldHandle),
-                                      Offset,
+                                      FieldOffsetInBits / 8,
                                       FieldType));
-      Offset += getObjectSize(FieldType);
+
+      uint64_t FieldSizeInBits = DataLayout.getTypeSizeInBits(T);
+      revng_assert(FieldSizeInBits % 8 == 0,
+                   (HelperFunction->getName().str()
+                    + " returns a StructType with a field whose size "
+                      "is not a multiple of 8 bits. Field index: "
+                    + std::to_string(Index)
+                    + ". FieldSizeInBits: " + std::to_string(FieldSizeInBits))
+                     .c_str());
+
+      PreviousOffsetInBits = FieldOffsetInBits + FieldSizeInBits;
     }
+    revng_assert(PreviousOffsetInBits % 8 == 0);
+    revng_assert(PreviousOffsetInBits / 8 == StructByteSize);
+    revng_assert(StructByteSize);
 
     auto Handle = pipeline::locationString(revng::ranks::HelperStructType,
                                            HelperName.str());
@@ -336,30 +471,29 @@ private:
                                                                Name),
                                       makeCommentAttr<StructAttr>(Context,
                                                                   Handle),
-                                      Offset,
+                                      StructByteSize,
                                       Fields,
                                       {});
 
     return StructType::get(Context, Definition);
   }
 
-  // Import a Clift function type from an LLVM function type and a helper name
-  // used for deriving the type handle.
-  clift::FunctionType importHelperType(const llvm::FunctionType *Type,
-                                       llvm::StringRef HelperName) {
-    revng_assert(not Type->isVarArg());
+  // Import a Clift function type from an LLVM function, using the name of the
+  // function for deriving the type handle.
+  clift::FunctionType importHelperType(const llvm::Function *HelperFunction) {
+    const llvm::FunctionType *HelperType = HelperFunction->getFunctionType();
+    revng_assert(not HelperType->isVarArg());
 
-    mlir::Type ReturnType = importHelperReturnType(Type->getReturnType(),
-                                                   HelperName);
+    mlir::Type ReturnType = importHelperReturnType(HelperFunction);
 
     llvm::SmallVector<mlir::Type> ParameterTypes;
-    ParameterTypes.reserve(Type->getNumParams());
+    ParameterTypes.reserve(HelperType->getNumParams());
 
-    for (const llvm::Type *T : Type->params())
+    for (const llvm::Type *T : HelperType->params())
       ParameterTypes.push_back(importLLVMType(T));
 
     auto Handle = pipeline::locationString(revng::ranks::HelperFunction,
-                                           HelperName.str());
+                                           HelperFunction->getName().str());
 
     return FunctionType::get(Context,
                              Handle,
@@ -368,12 +502,6 @@ private:
                              ReturnType,
                              ParameterTypes,
                              {});
-  }
-
-  // Import a Clift function type from an LLVM function, using the name of the
-  // function for deriving the type handle.
-  clift::FunctionType importHelperType(const llvm::Function *F) {
-    return importHelperType(F->getFunctionType(), F->getName());
   }
 
   clift::FunctionOp
@@ -536,12 +664,7 @@ private:
     if (GetChar(Length) != 0)
       return false;
 
-    auto CharType = clift::IntegerType::get(Context,
-                                            IntegerKind::Number,
-                                            1,
-                                            /*IsConst=*/true);
-
-    String.Type = clift::ArrayType::get(CharType, Type->getNumElements());
+    String.Type = getConstCharArrayType(Type->getNumElements());
 
     String.Data.reserve(Length);
     for (unsigned I = 0; I < Length; ++I)
@@ -613,21 +736,6 @@ class ClifterImpl::FunctionClifter {
     bool HasAssignLabel = false;
   };
 
-  struct ValueMappingInfo {
-    mlir::Value Value;
-
-    // See ArgumentMappingInfo::TakeAddressOnUse for more information. However,
-    // instead of arguments, this one applies to return values stored in local
-    // variables. For some function calls the importer creates local variables
-    // with the model typing, and when the LLVM IR function call returned by
-    // address, the address of the variable must be taken to resolve the
-    // discrepancy in representation.
-    bool TakeAddressOnUse;
-
-    ValueMappingInfo(mlir::Value Value) :
-      Value(Value), TakeAddressOnUse(false) {}
-  };
-
   ClifterImpl &C;
 
   mlir::MLIRContext *const Context;
@@ -656,10 +764,14 @@ class ClifterImpl::FunctionClifter {
   // variable.
   llvm::DenseMap<const llvm::AllocaInst *, mlir::Value> AllocaMapping;
 
-  // Maps an arbitrary LLVM IR value to a Clift value description. During
-  // expression import some values are only emitted once and any use of such a
-  // value is emitted using the description stored in this table.
-  llvm::DenseMap<const llvm::Value *, ValueMappingInfo> ValueMapping;
+  // Maps an LLVM CallInst that returns SPTAR to the Clift LocalVariableOp that
+  // holds the return value.
+  // All LLVM uses of the CallInst use it as a pointer, as if it was pointing to
+  // the storage holding the return value. This is a hack, and should be avoided
+  // in the future. Until then, for the generation of uses of the SPTAR call in
+  // Clift, the address of the LocalVariablOp must be taken, to preserve
+  // semantic.
+  llvm::DenseMap<const llvm::CallInst *, mlir::Value> SPTARCallVariableMapping;
 
 public:
   static clift::FunctionOp import(ClifterImpl &C, const llvm::Function *F) {
@@ -669,6 +781,8 @@ public:
     revng_log(BasicBlockLog, "Function: '" << F->getName() << "'");
     LoggerIndent Indent(BasicBlockLog);
 
+    auto NullReset = ScopedExchange(C.DataLayout,
+                                    &F->getParent()->getDataLayout());
     auto Function = C.emitIsolatedFunctionDeclaration(F, MF);
     return FunctionClifter(C, Function, *MF).import(F);
   }
@@ -712,8 +826,16 @@ private:
   template<typename OpT>
   mlir::Value
   emitCast(mlir::Location Loc, mlir::Value Value, mlir::Type TargetType) {
-    if (Value.getType() != TargetType)
-      Value = Builder.create<OpT>(Loc, TargetType, Value);
+    if (Value.getType() != TargetType) {
+      OpT X = Builder.create<OpT>(Loc, TargetType, Value);
+      if constexpr (std::is_same_v<OpT, BitCastOp>) {
+        auto ValueSize = unwrapped_cast<ValueType>(Value.getType())
+                           .getObjectSize();
+        auto TargetSize = unwrapped_cast<ValueType>(TargetType).getObjectSize();
+        revng_assert(ValueSize == TargetSize);
+      }
+      return X;
+    }
 
     return Value;
   }
@@ -731,9 +853,9 @@ private:
   // found to be more useful for debugging than simply aborting. It is generally
   // easier to find the problem when full context of the surrounding Clift code
   // is available.
-  mlir::Value emitImplicitCast(mlir::Location Loc,
-                               mlir::Value Value,
-                               mlir::Type TargetType) {
+  mlir::Value emitImplicitBitcast(mlir::Location Loc,
+                                  mlir::Value Value,
+                                  mlir::Type TargetType) {
     mlir::Type SourceType = Value.getType();
 
     if (SourceType == TargetType)
@@ -741,10 +863,6 @@ private:
 
     auto SourceT = clift::unwrapped_dyn_cast<ValueType>(SourceType);
     if (not SourceT)
-      return Value;
-
-    auto TargetT = clift::unwrapped_dyn_cast<ValueType>(TargetType);
-    if (not TargetT)
       return Value;
 
     return emitCast<BitCastOp>(Loc, Value, TargetType);
@@ -811,7 +929,7 @@ private:
     CastArgs.reserve(Arguments.size());
 
     for (auto [A, T] : llvm::zip(Arguments, FunctionType.getArgumentTypes()))
-      CastArgs.push_back(emitImplicitCast(Loc, A, T));
+      CastArgs.push_back(emitImplicitBitcast(Loc, A, T));
 
     return Builder.create<CallOp>(Loc,
                                   FunctionType.getReturnType(),
@@ -870,34 +988,11 @@ private:
     llvm::SmallVector<mlir::Value> Initializers;
     for (const auto &[A, F] : llvm::zip(Call->args(), T.getFields())) {
       mlir::Value Value = rc_recur emitExpression(A, Loc);
-      Value = emitImplicitCast(Loc, Value, F.getType());
+      Value = emitImplicitBitcast(Loc, Value, F.getType());
       Initializers.push_back(Value);
     }
 
     rc_return Builder.create<AggregateOp>(Loc, T, Initializers);
-  }
-
-  RecursiveCoroutine<mlir::Value>
-  emitOpaqueExtractValue(const llvm::CallInst *Call) {
-    mlir::Location Loc = C.getLocation(Call);
-
-    mlir::Value Aggregate = rc_recur emitExpression(Call->getArgOperand(0),
-                                                    Loc);
-
-    uint64_t Index = C.getConstantInt(Call->getArgOperand(1));
-    auto Struct = mlir::cast<StructType>(Aggregate.getType());
-    revng_assert(Index < Struct.getFields().size());
-
-    mlir::Type FieldType = Struct.getFields()[Index].getType();
-    mlir::Value FieldValue = Builder.create<AccessOp>(Loc,
-                                                      FieldType,
-                                                      Aggregate,
-                                                      /*indirect=*/false,
-                                                      Index);
-
-    rc_return emitImplicitCast(Loc,
-                               FieldValue,
-                               C.importLLVMType(Call->getType()));
   }
 
   RecursiveCoroutine<mlir::Value> emitHelperCall(const llvm::CallInst *Call) {
@@ -910,9 +1005,6 @@ private:
 
     if (Tags.contains(FunctionTags::StructInitializer))
       rc_return rc_recur emitStructInitializer(Call);
-
-    if (Tags.contains(FunctionTags::OpaqueExtractValue))
-      rc_return rc_recur emitOpaqueExtractValue(Call);
 
     mlir::Location Loc = C.getLocation(Call);
 
@@ -938,7 +1030,7 @@ private:
                                            String->Type,
                                            std::move(String->Data));
 
-        auto Type = C.makePointerType(String->Type.getElementType());
+        auto Type = C.getPointerType(String->Type.getElementType());
         rc_return emitCast<DecayOp>(SurroundingLocation, Op, Type);
       }
 
@@ -953,20 +1045,6 @@ private:
       revng_abort("Unsupported global object kind");
     }
 
-    if (auto It = ValueMapping.find(V); It != ValueMapping.end()) {
-      revng_log(ExpressionLog, "<existing value>");
-
-      mlir::Value Value = It->second.Value;
-
-      if (It->second.TakeAddressOnUse) {
-        Value = Builder.create<AddressofOp>(SurroundingLocation,
-                                            C.makePointerType(Value.getType()),
-                                            Value);
-      }
-
-      rc_return Value;
-    }
-
     if (auto A = llvm::dyn_cast<llvm::Argument>(V)) {
       revng_log(ExpressionLog, "llvm::Argument");
       LoggerIndent Indent(ExpressionLog);
@@ -975,16 +1053,22 @@ private:
       revng_assert(It != ArgumentMapping.end());
 
       mlir::Value Value = It->second.Argument;
+      bool TakeAddressOnUse = It->second.TakeAddressOnUse;
+      mlir::Type ArgumentUseType = It->second.CastType;
 
-      if (It->second.TakeAddressOnUse) {
-        Value = Builder.create<AddressofOp>(SurroundingLocation,
-                                            C.makePointerType(Value.getType()),
-                                            Value);
+      if (TakeAddressOnUse) {
+        uint64_t UseSize = unwrapped_cast<IntegerType>(ArgumentUseType)
+                             .getObjectSize();
+        revng_assert(C.getModelPointerSize() == UseSize);
+        Value = Builder
+                  .create<AddressofOp>(SurroundingLocation,
+                                       C.getModelPointerType(Value.getType()),
+                                       Value);
       }
 
-      rc_return emitImplicitCast(SurroundingLocation,
-                                 Value,
-                                 It->second.CastType);
+      rc_return emitImplicitBitcast(SurroundingLocation,
+                                    Value,
+                                    It->second.CastType);
     }
 
     if (auto U = llvm::dyn_cast<llvm::UndefValue>(V)) {
@@ -1029,17 +1113,15 @@ private:
     if (auto I = llvm::dyn_cast<llvm::AllocaInst>(V)) {
       mlir::Location Loc = SurroundingLocation;
 
-      if (auto It = AllocaMapping.find(I); It != AllocaMapping.end()) {
-        revng_log(ExpressionLog, "llvm::AllocaInst");
-        LoggerIndent Indent(ExpressionLog);
+      revng_log(ExpressionLog, "llvm::AllocaInst");
+      LoggerIndent Indent(ExpressionLog);
 
-        auto Type = C.makePointerType(It->second.getType());
-        auto Value = Builder.create<AddressofOp>(Loc, Type, It->second);
-        rc_return emitImplicitCast(Loc, Value, C.importLLVMType(I->getType()));
-      }
+      auto It = AllocaMapping.find(I);
+      revng_assert(It != AllocaMapping.end());
 
-      revng_assert(not llvm::isa<llvm::Constant>(I->getArraySize()));
-      revng_abort("Non-constant alloca is not supported.");
+      auto Type = C.getPointerType(It->second.getType());
+      auto Value = Builder.create<AddressofOp>(Loc, Type, It->second);
+      rc_return emitImplicitBitcast(Loc, Value, C.importLLVMType(I->getType()));
     }
 
     if (auto I = llvm::dyn_cast<llvm::LoadInst>(V)) {
@@ -1054,7 +1136,7 @@ private:
                                                      Loc));
 
       mlir::Type ValueType = C.importLLVMType(V->getType());
-      mlir::Type PointerType = C.makePointerType(ValueType);
+      mlir::Type PointerType = C.getPointerType(ValueType);
 
       Pointer = Builder.create<BitCastOp>(Loc, PointerType, Pointer);
 
@@ -1078,7 +1160,7 @@ private:
                            rc_recur emitExpression(I->getValueOperand(), Loc));
 
       Pointer = Builder.create<BitCastOp>(Loc,
-                                          C.makePointerType(Value.getType()),
+                                          C.getPointerType(Value.getType()),
                                           Pointer);
 
       revng_log(ExpressionLog, "IndirectionOp");
@@ -1279,12 +1361,13 @@ private:
         rc_return EmitIntegerCast(IntegerKind::Generic);
       case Operators::PtrToInt:
         Operand = emitCast<BitCastOp>(Loc, Operand, C.getIntptrType());
-        if (uint64_t S = GetIntegerSize(I->getDestTy()); S != C.PointerSize)
+        if (uint64_t S = GetIntegerSize(I->getDestTy());
+            S != C.getPointerSize())
           Operand = emitIntegerCast(Loc, Operand, S);
         rc_return Operand;
       case Operators::IntToPtr:
-        if (uint64_t S = GetIntegerSize(I->getSrcTy()); S != C.PointerSize)
-          Operand = emitIntegerCast(Loc, Operand, C.PointerSize);
+        if (uint64_t S = GetIntegerSize(I->getSrcTy()); S != C.getPointerSize())
+          Operand = emitIntegerCast(Loc, Operand, C.getPointerSize());
         rc_return emitCast<BitCastOp>(Loc, Operand, C.getVoidPointerType());
       default:
         revng_abort("Unsupported LLVM cast operation.");
@@ -1296,6 +1379,19 @@ private:
       LoggerIndent Indent(ExpressionLog);
 
       mlir::Location Loc = C.getLocation(I);
+
+      if (auto It = SPTARCallVariableMapping.find(I);
+          It != SPTARCallVariableMapping.end()) {
+        revng_log(ExpressionLog, "<existing value>");
+
+        mlir::Value Value = It->second;
+
+        Value = Builder.create<AddressofOp>(SurroundingLocation,
+                                            C.getPointerType(Value.getType()),
+                                            Value);
+
+        rc_return Value;
+      }
 
       // Any call without a prototype is considered a helper function and is
       // imported separately:
@@ -1325,12 +1421,12 @@ private:
         if (mlir::isa<clift::FunctionType>(Function.getType())) {
           Function = emitCast<DecayOp>(Loc,
                                        Function,
-                                       C.makePointerType(FunctionType));
+                                       C.getPointerType(FunctionType));
         }
 
         Function = emitCast<BitCastOp>(Loc,
                                        Function,
-                                       C.makePointerType(CallType));
+                                       C.getPointerType(CallType));
       }
 
       llvm::ArrayRef LayoutArguments = getLayoutArguments(Layout);
@@ -1352,10 +1448,12 @@ private:
         // to make the resulting Clift expression valid. In either case, an
         // implicit cast is first applied if necessary.
         if (isByAddressParameter(L)) {
-          Argument = emitImplicitCast(Loc, Argument, C.makePointerType(T));
+          Argument = emitImplicitBitcast(Loc,
+                                         Argument,
+                                         C.getModelPointerType(T));
           Argument = Builder.create<IndirectionOp>(Loc, T, Argument);
         } else {
-          Argument = emitImplicitCast(Loc, Argument, T);
+          Argument = emitImplicitBitcast(Loc, Argument, T);
         }
 
         Arguments.push_back(Argument);
@@ -1368,9 +1466,9 @@ private:
                                                   Arguments);
 
       if (Layout.returnMethod() == abi::FunctionType::ReturnMethod::Scalar) {
-        Result = emitImplicitCast(SurroundingLocation,
-                                  Result,
-                                  C.importLLVMType(I->getType()));
+        Result = emitImplicitBitcast(SurroundingLocation,
+                                     Result,
+                                     C.importLLVMType(I->getType()));
       }
 
       rc_return Result;
@@ -1397,8 +1495,8 @@ private:
       mlir::Type ResultType = removeConst(True.getType());
       if (ResultType != removeConst(False.getType())) {
         ResultType = C.importLLVMType(I->getType());
-        True = emitImplicitCast(Loc, True, ResultType);
-        False = emitImplicitCast(Loc, False, ResultType);
+        True = emitImplicitBitcast(Loc, True, ResultType);
+        False = emitImplicitBitcast(Loc, False, ResultType);
       }
 
       rc_return Builder.create<TernaryOp>(Loc,
@@ -1408,29 +1506,34 @@ private:
                                           False);
     }
 
-    if (auto I = llvm::dyn_cast<llvm::GetElementPtrInst>(V)) {
-      auto Alloca = llvm::cast<llvm::AllocaInst>(I->getPointerOperand());
+    if (auto *GEP = llvm::dyn_cast<llvm::GetElementPtrInst>(V)) {
+      const llvm::Value *GEPPointerOp = GEP->getPointerOperand();
+      mlir::Location Loc = C.getLocation(GEP);
 
-      auto It = AllocaMapping.find(Alloca);
-      revng_assert(It != AllocaMapping.end());
+      if (GEP->getNumIndices() == 1
+          and GEP->getSourceElementType()->isIntegerTy(8)) {
 
-      auto AT = mlir::cast<clift::ArrayType>(It->second.getType());
-      auto PT = C.makePointerType(AT.getElementType());
+        auto UnsignedCharType = C.getIntegerType(1, IntegerKind::Unsigned);
+        auto PointerType = C.getPointerType(UnsignedCharType);
 
-      revng_assert(I->getNumIndices() == 2);
-      auto IndexIterator = I->idx_begin();
+        llvm::Value *GEPIndex = GEP->idx_begin()->get();
+        mlir::Value Index = rc_recur emitExpression(GEPIndex, Loc);
 
-      revng_assert(C.getConstantInt(IndexIterator->get()) == 0);
-      uint64_t Index1 = C.getConstantInt((++IndexIterator)->get());
+        auto IndexType = cast<clift::ValueType>(Index.getType());
+        auto IntptrType = cast<clift::ValueType>(C.getIntptrType());
+        auto Cmp = IntptrType.getObjectSize() <=> IndexType.getObjectSize();
+        if (Cmp < 0)
+          Index = emitCast<TruncateOp>(Loc, Index, C.getIntptrType());
+        else if (Cmp > 0)
+          Index = emitCast<ExtendOp>(Loc, Index, C.getIntptrType());
 
-      mlir::Location Loc = C.getLocation(I);
-      auto Operand = emitCast<DecayOp>(Loc, It->second, PT);
-
-      mlir::Value Immediate = emitExpr<ImmediateOp>(Loc,
-                                                    C.getIntptrType(),
-                                                    Index1);
-
-      rc_return emitExpr<PtrAddOp>(Loc, PT, Operand, Immediate);
+        mlir::Value
+          Pointer = emitCast<BitCastOp>(Loc,
+                                        rc_recur emitExpression(GEPPointerOp,
+                                                                Loc),
+                                        PointerType);
+        rc_return emitExpr<PtrAddOp>(Loc, PointerType, Pointer, Index);
+      }
     }
 
     if (auto I = llvm::dyn_cast<llvm::FreezeInst>(V))
@@ -1536,20 +1639,15 @@ private:
     Builder.create<GotoOp>(Loc, Iterator->second.Label);
   }
 
-  // Returns: { RequiresFullExpression, RequiresIndirection }
-  std::pair<bool, bool> requiresFullExpression(const llvm::CallInst *Call) {
-    if (Call->hasMetadata(PrototypeMDName)) {
-      const auto *ModelCallType = getCallSitePrototype(C.Model, Call);
-      auto Layout = abi::FunctionType::Layout::make(*ModelCallType);
-      namespace ReturnMethod = abi::FunctionType::ReturnMethod;
+  bool isCallToSPTAR(const llvm::CallInst *Call) {
+    if (not Call->hasMetadata(PrototypeMDName))
+      return false;
 
-      if (Layout.hasSPTAR())
-        return { true, true };
+    const auto *ModelCallType = getCallSitePrototype(C.Model, Call);
+    auto Layout = abi::FunctionType::Layout::make(*ModelCallType);
+    namespace ReturnMethod = abi::FunctionType::ReturnMethod;
 
-      return { Layout.returnMethod() == ReturnMethod::RegisterSet, false };
-    }
-
-    return { llvm::isa<llvm::StructType>(Call->getType()), false };
+    return Layout.hasSPTAR();
   }
 
   // This function emits a single basic block as part of a larger C scope.
@@ -1591,30 +1689,44 @@ private:
 
       // Alloca instructions get special handling and are emitted as local
       // variables in Clift:
-      if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
-        const auto *Size = Alloca->getArraySize();
+      if (auto *A = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
+        const auto *NumElements = A->getArraySize();
 
         // Non-constant alloca is not supported:
-        revng_assert(not Size or llvm::isa<llvm::ConstantInt>(Size));
+        revng_assert(not NumElements
+                     or llvm::isa<llvm::ConstantInt>(NumElements));
 
         std::optional<std::string> Handle;
 
         mlir::Type Type;
-        if (hasStackTypeMetadata(Alloca)) {
-          Type = C.importType(*getStackTypeFromMetadata(Alloca, C.Model));
+        if (hasStackFrameMetadata(A)) {
+          auto StackType = ModelFunction.stackFrameType();
+          revng_assert(StackType);
+          Type = cast<clift::StructType>(C.importType(*StackType));
           Handle = pipeline::locationString(revng::ranks::StackFrameVariable,
                                             ModelFunction.Entry());
-        } else if (hasVariableTypeMetadata(Alloca)) {
-          Type = C.importType(*getVariableTypeFromMetadata(Alloca, C.Model));
         } else {
-          Type = C.importLLVMType(Alloca->getAllocatedType());
+          revng_assert(*A->getAllocationSizeInBits(*C.DataLayout) % 8 == 0);
+          llvm::Type *Allocated = A->getAllocatedType();
+          revng_assert(Allocated->isSized());
 
-          if (Alloca->isArrayAllocation())
-            Type = ArrayType::get(Context, Type, C.getConstantInt(Size));
+          if (not Allocated->isArrayTy() and not A->isArrayAllocation()) {
+            Type = C.importLLVMType(Allocated);
+
+          } else {
+            uint64_t FieldBitSize = C.DataLayout->getTypeSizeInBits(Allocated);
+            revng_assert(FieldBitSize % 8 == 0);
+            uint64_t ElementSizeInBytes = FieldBitSize / 8;
+            const auto
+              *NumElements = cast<llvm::ConstantInt>(A->getArraySize());
+            uint64_t NBytes = NumElements->getZExtValue() * ElementSizeInBytes;
+            auto *ByteType = llvm::IntegerType::get(A->getContext(), 8);
+            auto *ByteArrayType = llvm::ArrayType::get(ByteType, NBytes);
+            Type = C.importLLVMType(ByteArrayType);
+          }
         }
 
-        auto Op = emitLocalDeclaration<LocalVariableOp>(C.getLocation(Alloca),
-                                                        Type);
+        auto Op = emitLocalDeclaration<LocalVariableOp>(C.getLocation(A), Type);
 
         if (not Handle) {
           // For any local variables without a more specific handle (e.g. stack
@@ -1626,7 +1738,7 @@ private:
 
         Op.setHandle(*Handle);
 
-        auto [Iterator, Inserted] = AllocaMapping.try_emplace(Alloca, Op);
+        auto [Iterator, Inserted] = AllocaMapping.try_emplace(A, Op);
         revng_assert(Inserted);
 
         continue;
@@ -1651,7 +1763,7 @@ private:
           continue;
 
         // Some function calls are emitted in local variable initializers.
-        if (auto [FE, Indirection] = requiresFullExpression(Call); FE) {
+        if (isCallToSPTAR(Call)) {
           mlir::Location Loc = C.getLocation(Call);
 
           auto Op = Builder.create<ExpressionStatementOp>(Loc);
@@ -1666,10 +1778,9 @@ private:
             return Builder.create<AssignOp>(Loc, Type, Local, Initializer);
           });
 
-          auto [Iterator, Inserted] = ValueMapping.try_emplace(Call, Local);
+          auto [_, Inserted] = SPTARCallVariableMapping.try_emplace(Call,
+                                                                    Local);
           revng_assert(Inserted);
-
-          Iterator->second.TakeAddressOnUse = Indirection;
           continue;
         }
       }
@@ -1704,7 +1815,7 @@ private:
 
         // In SPTAR functions, values are returned by address. In this case
         if (FunctionLayout.hasSPTAR())
-          LLVMReturnType = C.makePointerType(LLVMReturnType);
+          LLVMReturnType = C.getPointerType(LLVMReturnType);
 
         // Emit the expression tree rooted at the return instruction directly
         // into the expression region of the newly created return operation:
@@ -1719,22 +1830,49 @@ private:
             ReturnValue = //
               emitCast<DecayOp>(TerminalLoc,
                                 ReturnValue,
-                                C.makePointerType(AT.getElementType()));
+                                C.getPointerType(AT.getElementType()));
 
             ReturnValue = //
               emitCast<BitCastOp>(TerminalLoc,
                                   ReturnValue,
-                                  C.makePointerType(LLVMReturnType));
+                                  C.getPointerType(LLVMReturnType));
 
             ReturnValue = Builder.create<IndirectionOp>(TerminalLoc,
                                                         LLVMReturnType,
                                                         ReturnValue);
           }
 
+          if (FunctionLayout.hasSPTAR()) {
+            // TODO: This may happen when the pointer size of the Model doesn't
+            // match the pointer size on LLVM IR, due to mismatching DataLayout.
+            // SPTAR functions return model-pointer-sized integers, with the
+            // semantic is to actually return the pointee by copy.
+            // Given that the return value is model-pointer-sized, it's size
+            // doesn't necessarily match the pointer size in LLVM's DataLayout.
+            // Until we don't solve the broader issue of LLVM's DataLayout
+            // mismatching the pointer size of the input binary and the Model,
+            // we'll have to deal with this corner case.
+            // Another option would be to change SPTAR function to return
+            // llvm-pointer-sized integers or even LLVM's pointers, instead of
+            // model-pointer-sized integers.
+            uint64_t
+              LLVMPointerSize = unwrapped_cast<PointerType>(LLVMReturnType)
+                                  .getObjectSize();
+            uint64_t ModelPointerSize = C.getModelPointerSize();
+            uint64_t OperandSize = unwrapped_cast<IntegerType>(ReturnValue
+                                                                 .getType())
+                                     .getObjectSize();
+            revng_assert(ModelPointerSize == OperandSize);
+            if (ModelPointerSize != LLVMPointerSize)
+              ReturnValue = emitIntegerCast(TerminalLoc,
+                                            ReturnValue,
+                                            LLVMPointerSize);
+          }
+
           // Emit an implicit cast to the required return type if necessary:
-          ReturnValue = emitImplicitCast(TerminalLoc,
-                                         ReturnValue,
-                                         LLVMReturnType);
+          ReturnValue = emitImplicitBitcast(TerminalLoc,
+                                            ReturnValue,
+                                            LLVMReturnType);
 
           // In the case of SPTAR, because in the LLVM IR the return is by
           // address, but in Clift the return is by value as usual, a final
@@ -1889,11 +2027,7 @@ private:
     return LayoutArguments;
   }
 
-  clift::FunctionOp import(const llvm::Function *F) {
-    revng_assert(Function.getBody().empty());
-    mlir::Block &BodyBlock = Function.getBody().emplaceBlock();
-    Builder.setInsertionPointToEnd(&BodyBlock);
-
+  void initializeArgumentMapping(const llvm::Function *F) {
     llvm::ArrayRef LayoutArguments = getLayoutArguments(FunctionLayout);
     revng_assert(F->arg_size() == Function.getArgumentTypes().size());
     revng_assert(F->arg_size() == LayoutArguments.size());
@@ -1906,11 +2040,26 @@ private:
     // type. That type is imported here and stored in the argument description.
     for (const auto [A, T, L] :
          llvm::zip(F->args(), Function.getArgumentTypes(), LayoutArguments)) {
-      ArgumentMapping.try_emplace(&A,
-                                  BodyBlock.addArgument(T, Function->getLoc()),
-                                  /*TakeAddressOnUse=*/isByAddressParameter(L),
-                                  /*CastType=*/C.importLLVMType(A.getType()));
+      ArgumentMapping
+        .try_emplace(&A,
+                     getBodyBlock().addArgument(T, Function->getLoc()),
+                     /*TakeAddressOnUse=*/isByAddressParameter(L),
+                     /*CastType=*/C.importLLVMType(A.getType()));
     }
+  }
+
+  mlir::Block &getBodyBlock() {
+    revng_assert(Function);
+    revng_assert(Function.getBody().hasOneBlock());
+    return Function.getBody().getBlocks().front();
+  }
+
+  clift::FunctionOp import(const llvm::Function *F) {
+    revng_assert(Function.getBody().empty());
+    mlir::Block &BodyBlock = Function.getBody().emplaceBlock();
+    Builder.setInsertionPointToEnd(&BodyBlock);
+
+    initializeArgumentMapping(F);
 
     // Compute the scope graph. While the computation should not modify the
     // function IR, it is not const-correct and so a const_cast must be used.

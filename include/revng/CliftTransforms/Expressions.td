@@ -92,6 +92,11 @@ def RedundantBitCastPattern
         (replaceWithValue $arg),
         [(TypesAreEquivalent $res, $arg)]>;
 
+// (T2)(T1)x -> (T2)x
+def BitCastOfBitCastPattern
+  : Pat<(Clift_BitCastOp:$type2 (Clift_BitCastOp: $type1 $arg)),
+        (Clift_BitCastOp $arg)>;
+
 // *(T*)p = x ->         *p = (T)x
 //            -> *(T*)&( *p = (T)x )
 // Note: The choice of replacement depends on whether the result is discarded.

@@ -4,9 +4,11 @@
 
 revng_add_analyses_library_internal(
   revngCanonicalize
+  ArithmeticToGEP.cpp
   DiscardBrokenDebugInformation.cpp
   EmbedStatementComments.cpp
   ExitSSAPass.cpp
+  ExtractValueToGEP.cpp
   FoldModelGEP.cpp
   HoistStructPhis.cpp
   ImplicitModelCastPass.cpp
@@ -22,6 +24,7 @@ revng_add_analyses_library_internal(
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp
   SimplifySwitchPass.cpp
+  SplitExponentialDataflow.cpp
   SplitOverflowIntrinsicsPass.cpp
   SwitchToStatements.cpp
   TernaryReductionPass.cpp

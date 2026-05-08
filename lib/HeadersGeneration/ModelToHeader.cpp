@@ -27,7 +27,7 @@
 
 static Logger Log{ "model-to-header" };
 
-bool ptml::HeaderBuilder::printModelHeader() {
+bool ptml::HeaderBuilder::printModelHeader(bool DefineOpaqueTypes) {
 
   auto Scope = B.getScopeTag(ptml::tags::Div);
 
@@ -128,10 +128,29 @@ bool ptml::HeaderBuilder::printModelHeader() {
     B.appendLineComment("\\defgroup Segments");
     B.appendLineComment("\\{");
 
-    for (const model::Segment &Segment : B.Binary.Segments())
+    for (const model::Segment &Segment : B.Binary.Segments()) {
+      if (Segment.Type().isEmpty())
+        continue;
+      auto &SegmentType = Segment.Type()->toStruct();
+      if (B.Configuration.TypesToOmit.contains(SegmentType.key()))
+        continue;
+
       B.printSegmentType(Segment);
+    }
 
     B.append("\n");
+    B.appendLineComment("\\}");
+    B.append("\n");
+  }
+
+  if (DefineOpaqueTypes) {
+    B.appendLineComment("\\defgroup Opaque Types");
+    B.appendLineComment("\\{");
+
+    auto Scope = B.getScopeTag(ptml::tags::Div);
+
+    B.printModelOpaqueTypeDefinitions();
+
     B.appendLineComment("\\}");
     B.append("\n");
   }

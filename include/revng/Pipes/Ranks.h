@@ -426,4 +426,25 @@ inline auto HelperStructField = defineRank<"helper-struct-field",
 /// ```
 inline auto Macro = defineRank<"macro", std::string>(Binary);
 
+/// This is the rank for representing opaque types wrapping model array types
+///
+/// The key is the byte size of the wrapped type.
+///
+/// Examples:
+/// ```
+/// /opaque-type/8
+/// ```
+inline auto OpaqueType = defineRank<"opaque-type", uint64_t>(Binary);
+
+/// This is the rank for representing opaque types wrapping model array types
+///
+/// The key is the byte size of the wrapped type.
+///
+/// Examples:
+/// ```
+/// /opaque-type-field/8/field-name
+/// ```
+inline auto
+  OpaqueTypeField = defineRank<"opaque-type-field", std::string>(OpaqueType);
+
 } // namespace revng::ranks

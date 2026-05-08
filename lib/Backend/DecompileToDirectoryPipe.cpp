@@ -80,7 +80,7 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
     B.setOutputStream(Out);
 
     ptml::HeaderBuilder HB = B;
-    HB.printModelHeader();
+    HB.printModelHeader(/*DefineOpaqueTypes*/ true);
 
     Out.flush();
 

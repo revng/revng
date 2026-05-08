@@ -273,16 +273,35 @@ using LVB = LocalVariableBuilder<IsLegacy>;
 
 template<bool IsLegacy>
 static LocalVariableBuilder<IsLegacy>
-makeVariableBuilder(const model::Binary &Binary,
-                    llvm::Module &Module,
-                    OpaqueFunctionsPool<FunctionTags::TypePair>
-                      &AddressOfPool) {
+makeVariableBuilder(const model::Binary &Binary, llvm::Module &Module) {
 
   if constexpr (IsLegacy) {
-    return LVB<IsLegacy>::makeLegacyStackBuilder(Binary, Module, AddressOfPool);
+    return LVB<IsLegacy>::makeLegacy(Binary, Module);
   } else {
-    return LocalVariableBuilder<IsLegacy>::make(Binary, Module);
+    return LVB<IsLegacy>::make(VariableBuilderTypes(Binary, Module));
   }
+}
+
+struct PointersMetadata {
+  llvm::SmallVector<bool> ReturnValues;
+  llvm::SmallVector<bool> Arguments;
+};
+
+static PointersMetadata getPointerMetadata(const abi::FunctionType::Layout &L) {
+  PointersMetadata Result;
+
+  if (L.hasSPTAR()) {
+    // SPTAR always returns a pointer on LLVM IR.
+    Result.ReturnValues.push_back(true);
+  } else {
+    for (const auto &R : L.ReturnValues)
+      Result.ReturnValues.push_back(R.Type->isPointer());
+  }
+
+  for (const auto &R : L.Arguments)
+    Result.Arguments.push_back(R.Type->isPointer());
+
+  return Result;
 }
 
 /// Rewrite all stack memory accesses
@@ -330,8 +349,8 @@ private:
 
   llvm::Type *TargetPointerSizedInteger = nullptr;
   llvm::Type *OpaquePointerType = nullptr;
-  OpaqueFunctionsPool<FunctionTags::TypePair> AddressOfPool;
   LocalVariableBuilder<LegacyLocalVariables> VariableBuilder;
+  OpaqueFunctionsPool<FunctionTags::TypePair> *AddressOfPool = nullptr;
 
 public:
   SegregateStackAccesses(llvm::ModulePass &Pass,
@@ -346,10 +365,8 @@ public:
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(),
                                                      Binary.Architecture())),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
-    AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary,
-                                                              M,
-                                                              AddressOfPool)) {}
+    VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary, M)),
+    AddressOfPool(VariableBuilder.getAddressOfPool()) {}
 
   SegregateStackAccesses(const model::Binary &Binary, llvm::Module &M) :
     pipeline::FunctionPassImpl(),
@@ -361,10 +378,8 @@ public:
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(),
                                                      Binary.Architecture())),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
-    AddressOfPool(FunctionTags::AddressOf.getPool(M)),
-    VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary,
-                                                              M,
-                                                              AddressOfPool)) {}
+    VariableBuilder(makeVariableBuilder<LegacyLocalVariables>(Binary, M)),
+    AddressOfPool(VariableBuilder.getAddressOfPool()) {}
 
 public:
   static void getAnalysisUsage(llvm::AnalysisUsage &AU);
@@ -413,10 +428,10 @@ private:
     Constant *ModelTypeString = toLLVMString(AllocatedType, M);
     auto *AddressOfFunctionType = getAddressOfType(TargetPointerSizedInteger,
                                                    ArgType);
-    auto *AddressOfFunction = AddressOfPool.get({ TargetPointerSizedInteger,
-                                                  ArgType },
-                                                AddressOfFunctionType,
-                                                "AddressOf");
+    auto *AddressOfFunction = AddressOfPool->get({ TargetPointerSizedInteger,
+                                                   ArgType },
+                                                 AddressOfFunctionType,
+                                                 "AddressOf");
     return B.CreateCall(AddressOfFunction, { ModelTypeString, V });
   }
 
@@ -1171,6 +1186,8 @@ private:
     CallInst *NewCall = B.CreateCall(CalleeType, CalledValue, Arguments);
     NewCall->copyMetadata(*OldCall);
     NewCall->setAttributes(OldCall->getAttributes());
+    const auto &[PointerReturns, PointerArguments] = getPointerMetadata(Layout);
+    setPointersMetadata(NewCall, PointerReturns, PointerArguments);
 
     switch (Layout.returnMethod()) {
     case ReturnMethod::ModelAggregate: {
@@ -1400,9 +1417,11 @@ private:
     // Create call and rebase SP0, if StackFrameSize is not zero
     //
     if (StackFrameSize != 0) {
+
+      model::UpcastableType FrameType = ModelFunction.StackFrame().Type();
       VariableBuilder.setTargetFunction(&F);
       Instruction *StackFrameAddress = VariableBuilder
-                                         .createStackFrameVariable();
+                                         .createStackFrameVariable(FrameType);
 
       revng::IRBuilder Builder(InitLocalSPCall);
       auto *SP0 = Builder.CreateAdd(StackFrameAddress,
@@ -1468,6 +1487,8 @@ private:
 
     // Create the new function, stealing the name
     Function &NewFunction = recreateWithoutBody(*OldFunction, NewType);
+    const auto &[PointerReturns, PointerArguments] = getPointerMetadata(Layout);
+    setPointersMetadata(&NewFunction, PointerReturns, PointerArguments);
 
     // Record the old-to-new mapping
     OldToNew[OldFunction] = &NewFunction;
