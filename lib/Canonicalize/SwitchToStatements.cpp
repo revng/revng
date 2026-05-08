@@ -254,6 +254,8 @@ static llvm::TypeSize getAccessedSize(const llvm::StoreInst *Store) {
 // Helpers for statements and side effects.
 //
 
+// TODO: drop this when we drop legacy mode, since in non-legacy mode this is a
+// separate pass already.
 static bool causesExponentialDataflowPaths(const Instruction *I) {
   // This forces all various kinds of instructions to get their value stored
   // into a local variable.
@@ -284,12 +286,12 @@ static bool causesExponentialDataflowPaths(const Instruction *I) {
   return false;
 }
 
-static bool doesNotAccessMemory(const Instruction &I) {
+static bool doesNotAccessMemory(const Instruction *I) {
   // We have to hardcode revng_call_stack_arguments and revng_stack_frame
   // because SegregateStackAccesses has to mark them as functions that read
   // inaccessible memory, in order to prevent some LLVM optimizations.
   // Same for OpaqueExtractValue.
-  if (auto *Call = dyn_cast<CallInst>(&I)) {
+  if (auto *Call = dyn_cast<CallInst>(I)) {
     if (llvm::Function *Callee = getCalledFunction(Call)) {
       StringRef Name = Callee->getName();
       if (Name.startswith("revng_call_stack_arguments")
@@ -297,38 +299,41 @@ static bool doesNotAccessMemory(const Instruction &I) {
         return true;
       }
     }
-    if (getCallToTagged(&I, FunctionTags::OpaqueExtractValue))
+    if (getCallToTagged(I, FunctionTags::OpaqueExtractValue))
       return true;
-    if (getCallToTagged(&I, FunctionTags::StructInitializer))
+    if (getCallToTagged(I, FunctionTags::StructInitializer))
       return true;
   }
   return false;
 }
 
+template<bool IsLegacy>
 static bool mayHaveSideEffects(const Instruction *I) {
-  // TODO: this is a workaround. This should be split up in a separate pass to
-  // run before SwitchToStatements.
-  if (causesExponentialDataflowPaths(I))
+  if (IsLegacy and causesExponentialDataflowPaths(I))
     return true;
 
-  if (doesNotAccessMemory(*I))
+  if (doesNotAccessMemory(I))
     return false;
 
   return I->mayHaveSideEffects();
 }
 
-static bool mayWriteToMemory(const Instruction &I) {
+template<bool IsLegacy>
+static bool mayWriteToMemory(const Instruction *I) {
+  if (IsLegacy and causesExponentialDataflowPaths(I))
+    return true;
+
   if (doesNotAccessMemory(I))
     return false;
 
-  return I.mayWriteToMemory();
+  return I->mayWriteToMemory();
 }
 
-static bool mayReadMemory(const Instruction &I) {
+static bool mayReadMemory(const Instruction *I) {
   if (doesNotAccessMemory(I))
     return false;
 
-  return I.mayReadFromMemory();
+  return I->mayReadFromMemory();
 }
 
 //
@@ -590,7 +595,7 @@ void AEMFP<IsLegacy>::applyTransferFunctionImpl(Instruction *I,
                  and not isCallToTagged(I, FunctionTags::Assign));
   }
 
-  if (mayHaveSideEffects(I)) {
+  if (mayHaveSideEffects<IsLegacy>(I)) {
     revng_log(Log, "mayHaveSideEffects");
     LoggerIndent XX{ Log };
     for (const AvailableExpression &A : llvm::make_early_inc_range(E)) {
@@ -623,7 +628,7 @@ void AEMFP<IsLegacy>::applyTransferFunctionImpl(Instruction *I,
     });
   }
 
-  if (mayReadMemory(*I)) {
+  if (mayReadMemory(I)) {
     revng_log(Log, "mayReadMemory -> insert Available: I");
     E.insert(AvailableExpression{
       .Expression = I,
@@ -723,8 +728,8 @@ static bool isProgramPoint(const Instruction *I) {
     revng_abort("Unexpected Instruction");
   }
 
-  return I == &I->getParent()->front() or mayHaveSideEffects(I)
-         or mayReadMemory(*I);
+  return I == &I->getParent()->front() or mayHaveSideEffects<IsLegacy>(I)
+         or mayReadMemory(I);
 }
 
 template<bool IsLegacy>
@@ -926,7 +931,7 @@ getAvailableExpressions(Function &F, AliasAnalysis *AA) {
   for (ProgramPointNode *N : llvm::nodes(&Result.ProgramPointsGraph)) {
     Instruction *I = N->TheInstruction;
 
-    if (mayReadMemory(*I)) {
+    if (mayReadMemory(I)) {
       Bottom.insert(AvailableExpression{
         .Expression = I,
         .Assignment = nullptr,
@@ -1065,7 +1070,7 @@ private:
       for (BasicBlock *BB : RPO) {
         for (Instruction &I : *BB) {
           // If it's not a statement, don't pick it.
-          if (not mayHaveSideEffects(&I))
+          if (not mayHaveSideEffects<IsLegacy>(&I))
             continue;
 
           // If it's a statement but it's not serializable, don't pick it.
@@ -1088,7 +1093,7 @@ private:
     // instructions that need to be serialized.
     for (BasicBlock *BB : RPO)
       for (Instruction &I : *BB)
-        if (mayReadMemory(I))
+        if (mayReadMemory(&I))
           pickInstructionForMemoryRead(&I, &I);
 
     return Picked;
@@ -1122,7 +1127,7 @@ private:
     if constexpr (IsLegacy) {
       // If it has side effects, we must have already picked it, unless it's not
       // serializable. Just return.
-      if (mayHaveSideEffects(I)) {
+      if (mayHaveSideEffects<IsLegacy>(I)) {
         revng_log(Log, "mayHaveSideEffects(I)");
         revng_assert(not isSerializable(*I));
         rc_return;
@@ -1136,7 +1141,7 @@ private:
       // duplicated in the full expression for I, which is not guaranteed to
       // break semantic. So, whenever MemoryRead may have side effects and I has
       // more than a single use, we have to pick I for preserving semantic.
-      if (mayHaveSideEffects(MemoryRead) and I->getNumUses() > 1) {
+      if (mayHaveSideEffects<IsLegacy>(MemoryRead) and I->getNumUses() > 1) {
         revng_log(Log, "I may have side effects, and has many uses");
         pick(I);
         rc_return;
@@ -1267,7 +1272,7 @@ private:
       // with the memory written to by SelectedAssign.
       // Just mark U to be replaced from a read from the location assigned by
       // SelectedAssign.
-      if (not mayWriteToMemory(*User)) {
+      if (not mayWriteToMemory<IsLegacy>(User)) {
         ToReplaceWithAvailable[&U] = SelectedAssign;
         revng_log(Log, "not mayWriteToMemory(User)");
         // We don't need to recur on uses of U, because all of them will

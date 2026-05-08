@@ -24,6 +24,7 @@ revng_add_analyses_library_internal(
   RemoveLoadStore.cpp
   RemovePointerCasts.cpp
   SimplifySwitchPass.cpp
+  SplitExponentialDataflow.cpp
   SplitOverflowIntrinsicsPass.cpp
   SwitchToStatements.cpp
   TernaryReductionPass.cpp

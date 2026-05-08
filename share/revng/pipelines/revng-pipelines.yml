@@ -685,6 +685,7 @@ Branches:
               - exit-ssa
               - arithmetic-to-gep
               - extractvalue-to-gep
+              - split-exponential-dataflow
               - switch-to-statements
               - remove-constant-array-returns
               - dagify

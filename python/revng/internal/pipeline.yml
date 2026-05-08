@@ -355,6 +355,7 @@ branches:
             - exit-ssa
             - arithmetic-to-gep
             - extractvalue-to-gep
+            - split-exponential-dataflow
       - pipe: switch-to-statements
         arguments: [llvm-functions]
       - pipe: pure-llvm-passes-pipe
