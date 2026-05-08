@@ -41,12 +41,3 @@ model::UpcastableType getStackTypeFromMetadata(const AllocaInst *A,
                                                const model::Binary &Model) {
   return getTypeFromMetadata(A, Model, StackTypeMDName);
 }
-
-void setVariableTypeMetadata(AllocaInst *A, const model::Type &VariableType) {
-  return setTypeMetadata(A, VariableType, VariableTypeMDName);
-}
-
-model::UpcastableType getVariableTypeFromMetadata(const AllocaInst *A,
-                                                  const model::Binary &Model) {
-  return getTypeFromMetadata(A, Model, VariableTypeMDName);
-}

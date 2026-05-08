@@ -9,7 +9,6 @@
 #include "llvm/IR/Instructions.h"
 
 inline constexpr const char *StackTypeMDName = "revng.stack_type";
-inline const char *VariableTypeMDName = "revng.variable_type";
 
 inline bool hasNamedMetadata(const llvm::AllocaInst *I,
                              llvm::StringRef MDName) {
@@ -28,21 +27,5 @@ void setStackTypeMetadata(llvm::AllocaInst *I, const model::Type &StackType);
 
 model::UpcastableType getStackTypeFromMetadata(const llvm::AllocaInst *I,
                                                const model::Binary &Model);
-
-///@}
-
-/// \name Helper functions for manipulating local variable model type metadata
-///
-///@{
-
-inline bool hasVariableTypeMetadata(const llvm::AllocaInst *I) {
-  return hasNamedMetadata(I, VariableTypeMDName);
-}
-
-void setVariableTypeMetadata(llvm::AllocaInst *I,
-                             const model::Type &VariableType);
-
-model::UpcastableType getVariableTypeFromMetadata(const llvm::AllocaInst *I,
-                                                  const model::Binary &Model);
 
 ///@}
