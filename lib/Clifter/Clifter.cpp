@@ -824,9 +824,9 @@ private:
   // found to be more useful for debugging than simply aborting. It is generally
   // easier to find the problem when full context of the surrounding Clift code
   // is available.
-  mlir::Value emitImplicitCast(mlir::Location Loc,
-                               mlir::Value Value,
-                               mlir::Type TargetType) {
+  mlir::Value emitImplicitBitcast(mlir::Location Loc,
+                                  mlir::Value Value,
+                                  mlir::Type TargetType) {
     mlir::Type SourceType = Value.getType();
 
     if (SourceType == TargetType)
@@ -900,7 +900,7 @@ private:
     CastArgs.reserve(Arguments.size());
 
     for (auto [A, T] : llvm::zip(Arguments, FunctionType.getArgumentTypes()))
-      CastArgs.push_back(emitImplicitCast(Loc, A, T));
+      CastArgs.push_back(emitImplicitBitcast(Loc, A, T));
 
     return Builder.create<CallOp>(Loc,
                                   FunctionType.getReturnType(),
@@ -959,7 +959,7 @@ private:
     llvm::SmallVector<mlir::Value> Initializers;
     for (const auto &[A, F] : llvm::zip(Call->args(), T.getFields())) {
       mlir::Value Value = rc_recur emitExpression(A, Loc);
-      Value = emitImplicitCast(Loc, Value, F.getType());
+      Value = emitImplicitBitcast(Loc, Value, F.getType());
       Initializers.push_back(Value);
     }
 
@@ -1031,9 +1031,9 @@ private:
                                             Value);
       }
 
-      rc_return emitImplicitCast(SurroundingLocation,
-                                 Value,
-                                 It->second.CastType);
+      rc_return emitImplicitBitcast(SurroundingLocation,
+                                    Value,
+                                    It->second.CastType);
     }
 
     if (auto U = llvm::dyn_cast<llvm::UndefValue>(V)) {
@@ -1086,7 +1086,7 @@ private:
 
       auto Type = C.getPointerType(It->second.getType());
       auto Value = Builder.create<AddressofOp>(Loc, Type, It->second);
-      rc_return emitImplicitCast(Loc, Value, C.importLLVMType(I->getType()));
+      rc_return emitImplicitBitcast(Loc, Value, C.importLLVMType(I->getType()));
     }
 
     if (auto I = llvm::dyn_cast<llvm::LoadInst>(V)) {
@@ -1413,10 +1413,10 @@ private:
         // to make the resulting Clift expression valid. In either case, an
         // implicit cast is first applied if necessary.
         if (isByAddressParameter(L)) {
-          Argument = emitImplicitCast(Loc, Argument, C.getPointerType(T));
+          Argument = emitImplicitBitcast(Loc, Argument, C.getPointerType(T));
           Argument = Builder.create<IndirectionOp>(Loc, T, Argument);
         } else {
-          Argument = emitImplicitCast(Loc, Argument, T);
+          Argument = emitImplicitBitcast(Loc, Argument, T);
         }
 
         Arguments.push_back(Argument);
@@ -1429,9 +1429,9 @@ private:
                                                   Arguments);
 
       if (Layout.returnMethod() == abi::FunctionType::ReturnMethod::Scalar) {
-        Result = emitImplicitCast(SurroundingLocation,
-                                  Result,
-                                  C.importLLVMType(I->getType()));
+        Result = emitImplicitBitcast(SurroundingLocation,
+                                     Result,
+                                     C.importLLVMType(I->getType()));
       }
 
       rc_return Result;
@@ -1458,8 +1458,8 @@ private:
       mlir::Type ResultType = removeConst(True.getType());
       if (ResultType != removeConst(False.getType())) {
         ResultType = C.importLLVMType(I->getType());
-        True = emitImplicitCast(Loc, True, ResultType);
-        False = emitImplicitCast(Loc, False, ResultType);
+        True = emitImplicitBitcast(Loc, True, ResultType);
+        False = emitImplicitBitcast(Loc, False, ResultType);
       }
 
       rc_return Builder.create<TernaryOp>(Loc,
@@ -1792,9 +1792,9 @@ private:
           }
 
           // Emit an implicit cast to the required return type if necessary:
-          ReturnValue = emitImplicitCast(TerminalLoc,
-                                         ReturnValue,
-                                         LLVMReturnType);
+          ReturnValue = emitImplicitBitcast(TerminalLoc,
+                                            ReturnValue,
+                                            LLVMReturnType);
 
           // In the case of SPTAR, because in the LLVM IR the return is by
           // address, but in Clift the return is by value as usual, a final
