@@ -292,3 +292,88 @@ then:
 else:
   ret i64 0
 }
+
+; ============================================================================
+; Same three call patterns as above, but with an extra i64 argument %val, a
+; pre-existing alloca in the entry block, a store of %val into the alloca
+; right after the call, and a load+ret from the alloca.
+;
+; The pre-existing alloca/store/load do not write to memory the call could
+; read (the alloca is local) and the call does not write to the alloca, so
+; they should not affect the picker's decision: each variant produces the
+; same NEW alloca count as its no-extra-pieces counterpart above.
+; ============================================================================
+
+; Variant of @call_rw_one_use: still a single use of the call, no NEW
+; alloca generated, only the pre-existing one survives.
+;
+; CHECK-LABEL: define i64 @call_rw_one_use_with_alloca(
+; CHECK: alloca i64
+; CHECK-NOT: alloca
+
+define i64 @call_rw_one_use_with_alloca(ptr %arg, i64 %val) {
+entry:
+  %loc = alloca i64
+  %call = call i64 @rw_func(ptr %arg)
+  store i64 %val, ptr %loc
+  %cmp = icmp ne i64 %call, 0
+  br i1 %cmp, label %then, label %else
+
+then:
+  %loaded_then = load i64, ptr %loc
+  ret i64 %loaded_then
+
+else:
+  %loaded_else = load i64, ptr %loc
+  ret i64 %loaded_else
+}
+
+; Variant of @call_rw_two_uses: the call still has two uses (the icmp and
+; the ret in `then`), so it is still picked. One NEW alloca is generated
+; (in addition to the pre-existing one), the call's result is stored into
+; the new alloca, and every user of the call uses a load from it.
+;
+; CHECK-LABEL: define i64 @call_rw_two_uses_with_alloca(
+; CHECK: alloca i64
+; CHECK: alloca i64
+; CHECK-NOT: alloca
+
+define i64 @call_rw_two_uses_with_alloca(ptr %arg, i64 %val) {
+entry:
+  %loc = alloca i64
+  %call = call i64 @rw_func(ptr %arg)
+  store i64 %val, ptr %loc
+  %cmp = icmp ne i64 %call, 0
+  br i1 %cmp, label %then, label %else
+
+then:
+  ret i64 %call
+
+else:
+  %loaded = load i64, ptr %loc
+  ret i64 %loaded
+}
+
+; Variant of @call_ro_two_uses: the call is read-only, so it is still not
+; picked for serialisation. No NEW alloca is generated; only the
+; pre-existing one survives.
+;
+; CHECK-LABEL: define i64 @call_ro_two_uses_with_alloca(
+; CHECK: alloca i64
+; CHECK-NOT: alloca
+
+define i64 @call_ro_two_uses_with_alloca(ptr %arg, i64 %val) {
+entry:
+  %loc = alloca i64
+  %call = call i64 @ro_func(ptr %arg)
+  store i64 %val, ptr %loc
+  %cmp = icmp ne i64 %call, 0
+  br i1 %cmp, label %then, label %else
+
+then:
+  ret i64 %call
+
+else:
+  %loaded = load i64, ptr %loc
+  ret i64 %loaded
+}
