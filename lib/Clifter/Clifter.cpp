@@ -98,9 +98,9 @@ class ClifterImpl final : public Clifter {
   const model::Binary &Model;
   mlir::OpBuilder Builder;
 
-  mlir::Type VoidTypeCache;
+  const llvm::DataLayout *DataLayout;
 
-  uint64_t PointerSize;
+  mlir::Type VoidTypeCache;
   mlir::Type VoidPointerTypeCache;
   mlir::Type IntptrTypeCache;
 
@@ -128,7 +128,7 @@ public:
     CurrentModule(Module),
     Model(Model),
     Builder(Context),
-    PointerSize(getPointerSize(Model.Architecture())) {
+    DataLayout(nullptr) {
     revng_assert(clift::hasModuleAttr(Module));
     Builder.setInsertionPointToEnd(Module.getBody());
   }
@@ -177,8 +177,13 @@ private:
     return IntegerType::get(Context, Kind, Size);
   }
 
+  uint64_t getPointerSize() const {
+    revng_assert(DataLayout->getPointerSizeInBits() % 8 == 0);
+    return DataLayout->getPointerSize();
+  }
+
   mlir::Type makePointerType(mlir::Type ElementType) {
-    return PointerType::get(ElementType, PointerSize);
+    return PointerType::get(ElementType, getPointerSize());
   }
 
   mlir::Type getVoidType() {
@@ -195,7 +200,7 @@ private:
 
   mlir::Type getIntptrType() {
     if (not IntptrTypeCache)
-      IntptrTypeCache = getIntegerType(PointerSize);
+      IntptrTypeCache = getIntegerType(getPointerSize());
     return IntptrTypeCache;
   }
 
@@ -769,6 +774,8 @@ public:
     revng_log(BasicBlockLog, "Function: '" << F->getName() << "'");
     LoggerIndent Indent(BasicBlockLog);
 
+    auto NullReset = ScopedExchange(C.DataLayout,
+                                    &F->getParent()->getDataLayout());
     auto Function = C.emitIsolatedFunctionDeclaration(F, MF);
     return FunctionClifter(C, Function, *MF).import(F);
   }
@@ -1333,12 +1340,13 @@ private:
         rc_return EmitIntegerCast(IntegerKind::Generic);
       case Operators::PtrToInt:
         Operand = emitCast<BitCastOp>(Loc, Operand, C.getIntptrType());
-        if (uint64_t S = GetIntegerSize(I->getDestTy()); S != C.PointerSize)
+        if (uint64_t S = GetIntegerSize(I->getDestTy());
+            S != C.getPointerSize())
           Operand = emitIntegerCast(Loc, Operand, S);
         rc_return Operand;
       case Operators::IntToPtr:
-        if (uint64_t S = GetIntegerSize(I->getSrcTy()); S != C.PointerSize)
-          Operand = emitIntegerCast(Loc, Operand, C.PointerSize);
+        if (uint64_t S = GetIntegerSize(I->getSrcTy()); S != C.getPointerSize())
+          Operand = emitIntegerCast(Loc, Operand, C.getPointerSize());
         rc_return emitCast<BitCastOp>(Loc, Operand, C.getVoidPointerType());
       default:
         revng_abort("Unsupported LLVM cast operation.");
