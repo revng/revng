@@ -353,6 +353,7 @@ branches:
             - peephole-opt-for-decompilation
             - ternary-reduction
             - exit-ssa
+            - arithmetic-to-gep
       - pipe: switch-to-statements
         arguments: [llvm-functions]
       - pipe: pure-llvm-passes-pipe

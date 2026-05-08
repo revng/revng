@@ -681,6 +681,7 @@ Branches:
               - peephole-opt-for-decompilation
               - ternary-reduction
               - exit-ssa
+              - arithmetic-to-gep
               - switch-to-statements
               - remove-constant-array-returns
               - dagify
