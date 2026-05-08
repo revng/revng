@@ -1270,7 +1270,9 @@ private:
       if (not mayWriteToMemory(*User)) {
         ToReplaceWithAvailable[&U] = SelectedAssign;
         revng_log(Log, "not mayWriteToMemory(User)");
-        UsesToRecurOn.push_back(&U);
+        // We don't need to recur on uses of U, because all of them will
+        // effectively be replaced by reads from SelectedAssign, so the
+        // MemoryRead will not be affecting them anymore.
         continue;
       }
       revng_log(Log, "mayWriteToMemory(User)");
