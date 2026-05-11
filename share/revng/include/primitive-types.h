@@ -264,7 +264,7 @@ extern uintmax_t undef_value(void);
 
 #endif // defined(__clang__)
 
-#else // !defined(__GNU_C__)
+#else // !defined(__GNUC__)
 
 #define bit_cast(T, ...)            \
   (((union {                        \
@@ -273,4 +273,4 @@ extern uintmax_t undef_value(void);
    }){ .src = ((__VA_ARGS__)) })    \
      .dst)
 
-#endif // defined(__GNU_C_)
+#endif // defined(__GNUC__)
