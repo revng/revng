@@ -372,6 +372,7 @@ branches:
             - enforce-single-exit
             - materialize-trivial-goto
             - strip-dead-prototypes
+            - defer-allocas
         artifacts:
           - name: clifter-input
             container: llvm-functions

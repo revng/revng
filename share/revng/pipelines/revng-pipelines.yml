@@ -697,6 +697,7 @@ Branches:
               - enforce-single-exit
               - materialize-trivial-goto
               - strip-dead-prototypes
+              - defer-allocas
           - Type: clifter
             UsedContainers: [functions.bc.zstd, functions.mlir]
           - Type: clift-generic-optimization
