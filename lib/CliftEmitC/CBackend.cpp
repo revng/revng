@@ -1174,6 +1174,9 @@ public:
     if (auto S = mlir::dyn_cast<JumpStatementOpInterface>(Op))
       return emitLabeledJumpStatement(S);
 
+    if (auto S = mlir::dyn_cast<RequireOp>(Op))
+      return noopCoroutine();
+
     if (auto S = mlir::dyn_cast<ReturnOp>(Op))
       return emitReturnStatement(S);
 
