@@ -6,6 +6,7 @@
 
 #include <compare>
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
 #include "revng/ADT/KeyedObjectContainer.h"
@@ -254,6 +255,42 @@ inline constexpr Values defaultCodeFromArch(model::Architecture::Values Arch) {
     return Code_aarch64;
   case model::Architecture::systemz:
     return Code_systemz;
+  default:
+    revng_abort("Unsupported architecture");
+  }
+}
+
+/// Get the types for code of the given architecture
+inline std::span<Values> archCodeTypes(model::Architecture::Values Arch) {
+  switch (Arch) {
+  case model::Architecture::x86: {
+    static std::array<Values, 1> Result{ Code_x86 };
+    return Result;
+  }
+  case model::Architecture::arm: {
+    static std::array<Values, 2> Result{ Code_arm, Code_arm_thumb };
+    return Result;
+  }
+  case model::Architecture::mips: {
+    static std::array<Values, 1> Result{ Code_mips };
+    return Result;
+  }
+  case model::Architecture::mipsel: {
+    static std::array<Values, 1> Result{ Code_mipsel };
+    return Result;
+  }
+  case model::Architecture::x86_64: {
+    static std::array<Values, 1> Result{ Code_x86_64 };
+    return Result;
+  }
+  case model::Architecture::aarch64: {
+    static std::array<Values, 1> Result{ Code_aarch64 };
+    return Result;
+  }
+  case model::Architecture::systemz: {
+    static std::array<Values, 1> Result{ Code_systemz };
+    return Result;
+  }
   default:
     revng_abort("Unsupported architecture");
   }
@@ -766,6 +803,16 @@ public:
 
     MetaAddress Result = *this;
     Result.setAddress(Address);
+    Result.validate();
+    return Result;
+  }
+
+  /// Build a new MetaAddress replacing the type with a new (valid) address
+  constexpr MetaAddress replaceType(MetaAddressType::Values NewType) const {
+    revng_check(isValid());
+
+    MetaAddress Result = *this;
+    Result.Type = NewType;
     Result.validate();
     return Result;
   }

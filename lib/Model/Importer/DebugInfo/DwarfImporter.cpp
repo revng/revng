@@ -127,6 +127,11 @@ computeEquivalentSymbols(const llvm::object::ObjectFile &ELF) {
     SymbolDescriptor NewSymbol;
 
     auto MaybeType = Symbol.getType();
+    // Note: on ARM, LLVM's SymbolRef::getAddress clears the LSB of st_value for
+    // STT_FUNC symbols (the Thumb indicator bit), so this address is the
+    // Thumb-aligned base with bit 0 cleared.
+    // This is a problem, but given that we use that value just to check if it's
+    // non-zero, this is not a problem.
     auto MaybeAddress = Symbol.getAddress();
     auto MaybeName = Symbol.getName();
     auto MaybeFlags = Symbol.getFlags();

@@ -94,6 +94,67 @@ public:
     return &Binary->Functions()[Address];
   }
 
+  /// Similar to registerFunctionEntry but if another function at the same
+  /// address already exists, return that one. This is necessary in certain
+  /// situations where the raw address is available but it's not known its type
+  /// (e.g., Thumb vs regular ARM).
+  model::Function *matchFunctionEntry(const MetaAddress &Address) {
+    revng_assert(Address.isValid());
+
+    if (not isExecutable(Address)) {
+      report("match Function", Address);
+      return nullptr;
+    }
+
+    llvm::SmallVector<MetaAddress> Candidates;
+    Candidates.push_back(Address);
+
+    using namespace MetaAddressType;
+    for (auto CodeType : archCodeTypes(arch(Address.type()))) {
+      if (CodeType == Address.type())
+        continue;
+
+      auto NewAddress = Address.replaceType(CodeType);
+      if (NewAddress.isValid())
+        Candidates.push_back(std::move(NewAddress));
+    }
+
+    unsigned Matches = 0;
+    auto EndIt = Binary->Functions().end();
+    auto ResultIt = EndIt;
+    for (const auto &Candidate : Candidates) {
+      auto MatchIt = Binary->Functions().find(Candidate);
+      if (MatchIt != EndIt) {
+        ++Matches;
+        if (ResultIt == EndIt) {
+          // Take the first match
+          ResultIt = MatchIt;
+        }
+      }
+    }
+
+    if (ResultIt == EndIt) {
+      revng_log(Logger,
+                "Warning: no match for function at "
+                  << Address.toString() << ". Creating it despite this.");
+      return &Binary->Functions()[Address];
+    } else if (Matches == 1 and ResultIt->Entry() != Address) {
+      revng_log(Logger,
+                "Matching " << ResultIt->Entry().toString() << " for "
+                            << Address.toString());
+      return &*ResultIt;
+    } else if (Matches > 1 and ResultIt->Entry() != Address) {
+      revng_log(Logger,
+                "Warning: multiple matches for "
+                  << Address.toString() << ". Returning "
+                  << ResultIt->Entry().toString() << ".");
+      return &*ResultIt;
+    } else {
+      // We have a single match of the given address
+      return &*ResultIt;
+    }
+  }
+
   void setEntryPoint(const MetaAddress &Address) {
     revng_assert(Address.isValid());
 

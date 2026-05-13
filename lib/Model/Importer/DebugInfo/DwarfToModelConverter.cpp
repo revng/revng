@@ -904,7 +904,15 @@ void DwarfToModelConverter::createFunctions() {
                     << "\"");
 
         // Get/create the local function
-        if (auto *Function = registerFunctionEntry(LowPC)) {
+        // Note: here we use matchFunctionEntry because, just being fed the
+        // DWARF, we don't have enough information to determine whether this
+        // function is regular ARM or is Thumb.
+        // matchFunctionEntry relies on previously available functions to
+        // determine this. DwarfToModelConverter should not use without
+        // processing ELF symbols first.
+        // Newer DWARF versions have DW_LNS_set_isa, but currently we can't rely
+        // on that.
+        if (auto *Function = matchFunctionEntry(LowPC)) {
 
           if (Prototype.isEmpty()) {
             revng_log(DILogger, "Can't get the prototype");
