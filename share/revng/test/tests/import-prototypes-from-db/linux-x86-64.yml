@@ -8,19 +8,19 @@
 Architecture: x86_64
 OperatingSystem: Linux
 ImportedDynamicFunctions:
-  - Name: malloc
-  # CHECK:       - Name:{{.*}}malloc
-  # CHECK-NEXT:    Prototype:
-  # CHECK-NEXT:      Kind:{{.*}}DefinedType
+  - Name: NonExistentFunction
+  # NonExistentFunction should have no prototype
+  # CHECK:       - Name:{{.*}}NonExistentFunction
+  # CHECK-NOT:     Prototype:
   - Name: calloc
   # CHECK:       - Name:{{.*}}calloc
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
+  - Name: malloc
+  # CHECK:       - Name:{{.*}}malloc
   # CHECK-NEXT:    Prototype:
   # CHECK-NEXT:      Kind:{{.*}}DefinedType
   - Name: realloc
   # CHECK:       - Name:{{.*}}realloc
   # CHECK-NEXT:    Prototype:
   # CHECK-NEXT:      Kind:{{.*}}DefinedType
-  - Name: NonExistentFunction
-  # NonExistentFunction should have no prototype
-  # CHECK:       - Name:{{.*}}NonExistentFunction
-  # CHECK-NOT:     Prototype:

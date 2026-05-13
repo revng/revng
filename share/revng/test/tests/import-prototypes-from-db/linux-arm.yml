@@ -1,0 +1,37 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# These symbols are often Thumb. Ensure we import them correctly.
+
+---
+Architecture: arm
+OperatingSystem: Linux
+ImportedDynamicFunctions:
+  - Name: NonExistentFunction
+  # CHECK:       - Name:{{.*}}NonExistentFunction
+  # CHECK-NOT:     Prototype:
+  - Name: dlsym
+  # CHECK:       - Name:{{.*}}dlsym
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
+  - Name: fopen
+  # CHECK:       - Name:{{.*}}fopen
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
+  - Name: open
+  # CHECK:       - Name:{{.*}}open
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
+  - Name: pthread_create
+  # CHECK:       - Name:{{.*}}pthread_create
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
+  - Name: pthread_mutex_init
+  # CHECK:       - Name:{{.*}}pthread_mutex_init
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
+  - Name: pthread_mutex_lock
+  # CHECK:       - Name:{{.*}}pthread_mutex_lock
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
