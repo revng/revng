@@ -11,6 +11,7 @@ sources:
     members:
       - windows-x86-64.yml
       - linux-x86-64.yml
+      - linux-arm.yml
       - arch-mismatch.yml
       - platform-name.yml
 
@@ -23,4 +24,4 @@ commands:
       revng analyze import-prototypes-from-db /dev/null
         --model "$INPUT"
         | revng model opt -verify
-        | FileCheck "${SOURCE}.filecheck"
+        | FileCheck "${SOURCE}"

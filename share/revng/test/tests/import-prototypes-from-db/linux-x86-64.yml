@@ -2,11 +2,25 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+# Verify that typed symbols get prototypes imported
+
 ---
 Architecture: x86_64
 OperatingSystem: Linux
 ImportedDynamicFunctions:
   - Name: malloc
+  # CHECK:       - Name:{{.*}}malloc
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
   - Name: calloc
+  # CHECK:       - Name:{{.*}}calloc
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
   - Name: realloc
+  # CHECK:       - Name:{{.*}}realloc
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
   - Name: NonExistentFunction
+  # NonExistentFunction should have no prototype
+  # CHECK:       - Name:{{.*}}NonExistentFunction
+  # CHECK-NOT:     Prototype:
