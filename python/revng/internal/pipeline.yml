@@ -178,7 +178,9 @@ branches:
         configuration:
           passes:
             - mem2reg
+            - link-helpers-to-inline
             - inline-helpers
+            - delete-helper-bodies
       - pipe: attach-debug-info
         arguments: [cfg-map, llvm-functions]
       - pipe: promote-csvs

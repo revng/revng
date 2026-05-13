@@ -5,10 +5,8 @@
 revng_add_analyses_library_internal(
   revngFunctionIsolation
   EnforceABI.cpp
-  InlineHelpers.cpp
   InvokeIsolatedFunctions.cpp
   IsolateFunctions.cpp
-  PostInlineHelpersVerifyPass.cpp
   PromoteCSVs.cpp
   RemoveExceptionalCalls.cpp
   StripDebugInfoFromHelpers.cpp
@@ -21,6 +19,7 @@ target_link_libraries(
   revngABI
   revngModel
   revngEarlyFunctionAnalysis
+  revngInlineHelpers
   revngSupport
   revngPipes
   ${LLVM_LIBRARIES})
