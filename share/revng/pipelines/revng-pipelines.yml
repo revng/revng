@@ -170,7 +170,9 @@ Branches:
               #       `cc_compute_c` and `cc_compute_all`.
               - promote-csvs
               - mem2reg
+              - link-helpers-to-inline
               - inline-helpers
+              - delete-helper-bodies
           - Type: attach-debug-info-to-abi-enforced
             UsedContainers: [cfg.yml.tar.gz, functions.bc.zstd]
           - Type: llvm-pipe
