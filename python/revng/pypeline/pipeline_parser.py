@@ -64,7 +64,7 @@ class PipelineParser:
 
         # Parse all the artifact categories
         self.artifact_categories = self._parse_artifact_categories(
-            self.values["artifact_categories"]
+            self.values["artifact-categories"]
         )
         # Check that there is at least one artifact category
         assert len(self.artifact_categories) > 0

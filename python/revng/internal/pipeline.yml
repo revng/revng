@@ -2,7 +2,7 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-artifact_categories:
+artifact-categories:
   # User-facing artifacts that the end-user is expected to see
   - name: user
     show-by-default: true

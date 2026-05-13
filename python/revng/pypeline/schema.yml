@@ -12,7 +12,7 @@ $defs:
       - branches
     additionalProperties: false
     properties:
-      artifact_categories:
+      artifact-categories:
         type: array
         items:
           type: object
@@ -192,7 +192,7 @@ $defs:
         type: string
         description: >
           The category of the artifact, must be one of the ones specified in
-          'artifact_categories'. Specifying categories makes this field compulsory.
+          'artifact-categories'. Specifying categories makes this field compulsory.
       description:
         type: string
         description: The description of the artifact that will appear in the CLI help.
