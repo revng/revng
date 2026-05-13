@@ -588,6 +588,20 @@ def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
   let hasVerifier = 1;
 }
 
+def Clift_RequireOp : Clift_StatementOp<"require"> {
+  let arguments = (ins AnyType:$local);
+
+  let assemblyFormat = [{
+    $local attr-dict `:` type($local)
+  }];
+
+  let hasVerifier = 1;
+
+  let extraClassDeclaration = [{
+    [[nodiscard]] LocalVariableOp getLocalOp();
+  }];
+}
+
 def Clift_SwitchOp : Clift_BasicStatementOp<"switch", Clift_BranchOpInterface> {
   let arguments = (ins DenseI64ArrayAttr:$case_values);
 

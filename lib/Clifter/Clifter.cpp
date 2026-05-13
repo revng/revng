@@ -1716,7 +1716,8 @@ private:
           }
         }
 
-        auto Op = emitLocalDeclaration<LocalVariableOp>(C.getLocation(A), Type);
+        mlir::Location Loc = C.getLocation(A);
+        auto Op = emitLocalDeclaration<LocalVariableOp>(Loc, Type);
 
         if (not Handle) {
           // For any local variables without a more specific handle (e.g. stack
@@ -1730,6 +1731,11 @@ private:
 
         auto [Iterator, Inserted] = AllocaMapping.try_emplace(A, Op);
         revng_assert(Inserted);
+
+        // Create a clift.require operation to indicate the position dominating
+        // all uses of this local variable. This prevents the local variable
+        // from being later moved past this point during scope tightening.
+        Builder.create<RequireOp>(Loc, Op);
 
         continue;
       }

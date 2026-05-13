@@ -966,6 +966,20 @@ mlir::LogicalResult MakeLabelOp::verify() {
   return mlir::success();
 }
 
+//===------------------------------ RequireOp -----------------------------===//
+
+LocalVariableOp RequireOp::getLocalOp() {
+  return getLocal().getDefiningOp<LocalVariableOp>();
+}
+
+mlir::LogicalResult RequireOp::verify() {
+  if (not getLocalOp())
+    return emitOpError() << getOperationName()
+                         << " operand must be defined by clift.local.";
+
+  return mlir::success();
+}
+
 //===------------------------------ ReturnOp ------------------------------===//
 
 mlir::LogicalResult ReturnOp::verify() {

@@ -372,6 +372,7 @@ branches:
             - enforce-single-exit
             - materialize-trivial-goto
             - strip-dead-prototypes
+            - defer-allocas
         artifacts:
           - name: clifter-input
             container: llvm-functions
@@ -379,6 +380,11 @@ branches:
             filename: clifter_input.bc
       - pipe: clifter
         arguments: [llvm-functions, clift-functions]
+        artifacts:
+          - name: clift-unoptimized
+            container: clift-functions
+            category: debug
+            filename: clifter_unoptimized.mlir.bc
       - pipe: pure-mlir-passes-pipe
         arguments: [clift-functions]
         configuration:
@@ -393,6 +399,12 @@ branches:
             - canonicalize
             - optimize-expressions
             - terminal-branch-complement-hoisting
+            - tighten-variable-scopes
+        artifacts:
+          - name: clift-optimized
+            container: clift-functions
+            category: debug
+            filename: clift_optimized.mlir.bc
       - pipe: import-function-data-model
         arguments: [clift-functions]
       - pipe: pure-mlir-passes-pipe

@@ -5,6 +5,7 @@
 revng_add_analyses_library_internal(
   revngCanonicalize
   ArithmeticToGEP.cpp
+  DeferAllocas.cpp
   DiscardBrokenDebugInformation.cpp
   EmbedStatementComments.cpp
   ExitSSAPass.cpp
