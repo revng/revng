@@ -40,7 +40,11 @@ public:
 
 namespace revng::pypeline {
 
-using CallGraphContainer = BytesContainer<"CallGraphContainer", "image/svg">;
+class CallGraphContainer : public BytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "CallGraphContainer";
+  static constexpr llvm::StringRef MimeType = "image/svg";
+};
 
 namespace piperuns {
 

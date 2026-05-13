@@ -58,8 +58,11 @@ public:
 
 namespace revng::pypeline {
 
-using ObjectFileContainer = BytesContainer<"ObjectFileContainer",
-                                           "application/x-object">;
+class ObjectFileContainer : public BytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "ObjectFileContainer";
+  static constexpr llvm::StringRef MimeType = "application/x-object";
+};
 
 namespace piperuns {
 

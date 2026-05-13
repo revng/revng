@@ -9,10 +9,9 @@
 
 namespace revng::pypeline {
 
-template<TupleTreeCompatible T, Kind TheKind, ConstexprString TheName>
+template<TupleTreeCompatible T, Kind TheKind>
 class TupleTreeContainer {
 public:
-  static constexpr llvm::StringRef Name = TheName;
   static constexpr Kind Kind = TheKind;
   static constexpr llvm::StringRef MimeType = "text/x.yaml";
 

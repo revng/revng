@@ -11,8 +11,11 @@
 
 namespace revng::pypeline {
 
-using HexDumpContainer = BytesContainer<"HexDumpContainer",
-                                        "text/x.hexdump+ptml">;
+class HexDumpContainer : public BytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "HexDumpContainer";
+  static constexpr llvm::StringRef MimeType = "text/x.hexdump+ptml";
+};
 
 namespace piperuns {
 

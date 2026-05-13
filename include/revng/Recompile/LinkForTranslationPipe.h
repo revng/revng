@@ -51,8 +51,11 @@ public:
 
 namespace revng::pypeline {
 
-using TranslatedContainer = BytesContainer<"TranslatedContainer",
-                                           "application/x-executable">;
+class TranslatedContainer : public BytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "TranslatedContainer";
+  static constexpr llvm::StringRef MimeType = "application/x-executable";
+};
 
 namespace piperuns {
 

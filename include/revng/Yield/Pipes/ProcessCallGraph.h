@@ -76,10 +76,12 @@ public:
 
 namespace revng::pypeline {
 
-using CrossRelationsContainer = TupleTreeContainer<
-  yield::crossrelations::CrossRelations,
-  Kinds::Binary,
-  "CrossRelationsContainer">;
+class CrossRelationsContainer
+  : public TupleTreeContainer<yield::crossrelations::CrossRelations,
+                              Kinds::Binary> {
+public:
+  static constexpr llvm::StringRef Name = "CrossRelationsContainer";
+};
 
 namespace piperuns {
 

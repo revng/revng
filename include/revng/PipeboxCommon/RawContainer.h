@@ -11,12 +11,10 @@ namespace revng::pypeline {
 
 namespace detail {
 
-template<Kind TheKind, ConstexprString TheName, ConstexprString TheMime>
+template<Kind TheKind>
 class RawContainer {
 public:
-  static constexpr llvm::StringRef Name = TheName;
   static constexpr Kind Kind = TheKind;
-  static constexpr llvm::StringRef MimeType = TheMime;
 
 private:
   bool Disposable = false;
@@ -75,20 +73,12 @@ public:
   }
 };
 
-template<Kind K, ConstexprString S, ConstexprString S2>
-using RC = RawContainer<K, S, S2>;
-
 constexpr auto TD = Kinds::TypeDefinition;
 
 } // namespace detail
 
-template<ConstexprString Name, ConstexprString Mime>
-using BytesContainer = detail::RC<Kinds::Binary, Name, Mime>;
-
-template<ConstexprString Name, ConstexprString Mime>
-using FunctionToBytesContainer = detail::RC<Kinds::Function, Name, Mime>;
-
-template<ConstexprString Name, ConstexprString Mime>
-using TypeDefinitionToBytesContainer = detail::RC<detail::TD, Name, Mime>;
+using BytesContainer = detail::RawContainer<Kinds::Binary>;
+using FunctionToBytesContainer = detail::RawContainer<Kinds::Function>;
+using TypeDefinitionToBytesContainer = detail::RawContainer<detail::TD>;
 
 } // namespace revng::pypeline

@@ -42,8 +42,11 @@ public:
 
 namespace revng::pypeline {
 
-using AssemblyContainer = FunctionToBytesContainer<"AssemblyContainer",
-                                                   "text/x.asm+ptml">;
+class AssemblyContainer : public FunctionToBytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "AssemblyContainer";
+  static constexpr llvm::StringRef MimeType = "text/x.asm+ptml";
+};
 
 namespace piperuns {
 

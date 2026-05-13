@@ -48,9 +48,11 @@ public:
 
 namespace revng::pypeline {
 
-using CallGraphSliceContainer = FunctionToBytesContainer<"CallGraphSliceContain"
-                                                         "er",
-                                                         "image/svg">;
+class CallGraphSliceContainer : public FunctionToBytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "CallGraphSliceContainer";
+  static constexpr llvm::StringRef MimeType = "image/svg";
+};
 
 namespace piperuns {
 
