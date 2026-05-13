@@ -2,11 +2,25 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+# Verify that typed symbols get prototypes imported
+
 ---
 Architecture: x86_64
 OperatingSystem: Windows
 ImportedDynamicFunctions:
   - Name: CloseHandle
+  # CHECK:       - Name:{{.*}}CloseHandle
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
   - Name: ExitProcess
+  # CHECK:       - Name:{{.*}}ExitProcess
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
   - Name: GetLastError
+  # CHECK:       - Name:{{.*}}GetLastError
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
   - Name: NonExistentFunction
+  # NonExistentFunction should have no prototype
+  # CHECK:       - Name:{{.*}}NonExistentFunction
+  # CHECK-NOT:     Prototype:
