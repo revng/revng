@@ -35,6 +35,7 @@ target_link_libraries(
   revngEarlyFunctionAnalysis
   revngBasicAnalyses
   revngABI
+  revngInlineHelpers
   revngSupport
   revngModel
   revngPipes
