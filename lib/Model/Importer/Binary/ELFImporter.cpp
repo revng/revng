@@ -45,6 +45,10 @@ static bool hasFlag(A Flag, B Value) {
   return (Flag & Value) != 0;
 }
 
+static bool isCode(unsigned SymbolType) {
+  return SymbolType == ELF::STT_FUNC or SymbolType == ELF::STT_GNU_IFUNC;
+}
+
 FilePortion::FilePortion(const RawBinaryView &File) :
   File(File),
   HasAddress(false),
@@ -642,7 +646,7 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
       continue;
 
     MetaAddress Address = MetaAddress::invalid();
-    bool IsCode = Symbol.getType() == ELF::STT_FUNC;
+    bool IsCode = isCode(Symbol.getType());
     bool IsDataObject = Symbol.getType() == ELF::STT_OBJECT;
     uint64_t Size = Symbol.st_size;
 
@@ -808,7 +812,7 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
     return;
   }
 
-  bool IsCode = Symbol.getType() == ELF::STT_FUNC;
+  bool IsCode = isCode(Symbol.getType());
   bool IsDataObject = Symbol.getType() == ELF::STT_OBJECT;
 
   if (shouldIgnoreSymbol(Name)) {
@@ -1252,7 +1256,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
       }
     } else if (HasName) {
       // Symbol-relative relocation
-      if (SymbolType == ELF::STT_FUNC) {
+      if (isCode(SymbolType)) {
         auto It = Model->ImportedDynamicFunctions().find(SymbolName.str());
         if (It != Model->ImportedDynamicFunctions().end()) {
           auto &Relocations = It->Relocations();
