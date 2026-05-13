@@ -101,6 +101,20 @@ def find_type_references(node: Any) -> set:
     return references
 
 
+def assert_every_symbol_has_a_prototype(
+    connection: sqlite3.Connection, stage: str
+) -> None:
+    cursor = connection.execute(
+        "SELECT COUNT(*) FROM Symbol WHERE TypeDefinitionID IS NULL"
+    )
+    (count,) = cursor.fetchone()
+    if count != 0:
+        raise RuntimeError(
+            f"sanity check failed {stage}: {count} Symbol row(s) have no "
+            f"prototype attached"
+        )
+
+
 def import_model(
     connection: sqlite3.Connection,
     yaml_path: Path,
@@ -186,17 +200,22 @@ def import_model(
     symbol_rows: list[tuple[int, str, str, int | None]] = []
 
     for function in model.get("ImportedDynamicFunctions", []):
+        type_definition_database_id = resolve_prototype_id(function)
+        if type_definition_database_id is None:
+            continue
         symbol_rows.append(
             (
                 library_id,
                 function["Name"],
                 "ImportedDynamicFunction",
-                resolve_prototype_id(function),
+                type_definition_database_id,
             )
         )
 
     for function in model.get("Functions", []):
         type_definition_database_id = resolve_prototype_id(function)
+        if type_definition_database_id is None:
+            continue
         for name in function.get("ExportedNames") or []:
             symbol_rows.append((library_id, name, "Function", type_definition_database_id))
 
@@ -257,6 +276,8 @@ class ModelExportSqliteCommand(Command):
         connection.execute("PRAGMA synchronous=NORMAL")
         create_schema(connection)
 
+        assert_every_symbol_has_a_prototype(connection, "before import")
+
         prefix = Path(args.prefix).resolve() if args.prefix is not None else None
 
         for model_path in args.models:
@@ -269,6 +290,7 @@ class ModelExportSqliteCommand(Command):
             import_model(connection, path, args.platform, args.operating_system, library_name)
 
         connection.commit()
+        assert_every_symbol_has_a_prototype(connection, "after import")
         connection.close()
         log("Import complete.")
         return 0
