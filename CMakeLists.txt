@@ -246,20 +246,33 @@ foreach(
   #   `analyze-helper-arguments` can understand.
   # * `analyze-helper-arguments` discovers, for every helper, which arguments
   #   alias CSVs at the call site.
-  # * `loop-unroll` unrolls loops so the subsequent `fix-helpers` pass can
-  #   rewrite the accesses contained in bounded loops bodies.
+  # * `loop-unroll` (x86 only, see below) unrolls loops so the subsequent
+  #   `fix-helpers` pass can rewrite the accesses contained in bounded loop
+  #   bodies.
   # * `fix-helpers` rewrites helper bodies to access CSVs via the env pointer,
   #   switching on env-relative offsets.
   # * `detect-uninlinable-helpers` excludes not viable helpers from inlining.
+
+  # Only the x86 softfloat helpers iterate over the vector-register lanes with
+  # bounded `for` loops (e.g. the packed `helper_*p[sd]` operate on
+  # `XMM/ZMM_D(i)`). `fix-helpers` can only rewrite the per-lane CSV accesses
+  # once those loops are unrolled. This step is not needed on other archs, so we
+  # avoid it to save space on the generated libtcg helpers and build time.
+  set(EXTRA_HELPER_PASSES "")
+  if(ARCH STREQUAL "x86_64" OR ARCH STREQUAL "i386")
+    set(EXTRA_HELPER_PASSES -loop-unroll)
+  endif()
+
   add_custom_command(
     OUTPUT "${LIBTCG_HELPERS_FULL}"
     DEPENDS "${LIBTCG_HELPERS}" revng-all-binaries revngHelperArgumentsAnalysis
             revngHelperInliningAnalyses
     COMMAND
       ./bin/revng opt -mark-inline-helpers-up-to -sroa -instsimplify
-      -cpu-loop-exit -analyze-helper-arguments -loop-unroll -fix-helpers
-      -fix-helpers-architecture="${ARCH}" -dce -detect-uninlinable-helpers
-      "${LIBTCG_HELPERS}" -o "${LIBTCG_HELPERS_FULL}")
+      -cpu-loop-exit -analyze-helper-arguments ${EXTRA_HELPER_PASSES}
+      -fix-helpers -fix-helpers-architecture="${ARCH}" -dce
+      -detect-uninlinable-helpers "${LIBTCG_HELPERS}" -o
+      "${LIBTCG_HELPERS_FULL}")
   add_custom_target("annotated-libtcg-helpers-${ARCH}" ALL
                     DEPENDS "${LIBTCG_HELPERS_FULL}")
 
