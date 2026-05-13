@@ -101,17 +101,12 @@ def find_type_references(node: Any) -> set:
     return references
 
 
-def assert_every_symbol_has_a_prototype(
-    connection: sqlite3.Connection, stage: str
-) -> None:
-    cursor = connection.execute(
-        "SELECT COUNT(*) FROM Symbol WHERE TypeDefinitionID IS NULL"
-    )
+def assert_every_symbol_has_a_prototype(connection: sqlite3.Connection, stage: str) -> None:
+    cursor = connection.execute("SELECT COUNT(*) FROM Symbol WHERE TypeDefinitionID IS NULL")
     (count,) = cursor.fetchone()
     if count != 0:
         raise RuntimeError(
-            f"sanity check failed {stage}: {count} Symbol row(s) have no "
-            f"prototype attached"
+            f"sanity check failed {stage}: {count} Symbol row(s) have no " f"prototype attached"
         )
 
 
