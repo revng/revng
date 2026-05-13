@@ -335,10 +335,12 @@ void ptml::ModelCBuilder::printOpaqueTypeDefinition(uint64_t ByteSize) {
   {
     Scope Scope(*Out, ptml::c::scopes::StructBody);
 
-    std::string UInt8T = getPrimitiveTag(model::PrimitiveKind::Unsigned, 1);
-    std::string
-      ArrayName = getOpaqueTypeFieldTag</*IsDefinition*/ true>(ByteSize);
-    *Out << UInt8T << " " << ArrayName << "[" << getNumber(ByteSize) << "];\n";
+    // We print padding even when Configuration.EnableExplicitPadding == false
+    // because otherwise the struct is empty and is not valid C99 (empty structs
+    // are a language extension).
+    *Out << tokenTag("uint8_t", ptml::c::tokens::Type) << " "
+         << tokenTag(NameBuilder.paddingFieldName(0), ptml::c::tokens::Field)
+         << "[" << getNumber(ByteSize) << "];\n";
   }
 
   *Out << " " << getOpaqueTypeDeclarationTag</*IsDefinition*/ true>(ByteSize)

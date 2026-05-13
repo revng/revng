@@ -263,34 +263,11 @@ private:
     return getVoidPointerType();
   }
 
-  static std::string getOpaqueTypeFieldName() { return "array"; }
-
-  std::string getOpaqueTypeFieldHandle(uint64_t ByteSize) {
-    return pipeline::locationString(revng::ranks::OpaqueTypeField,
-                                    ByteSize,
-                                    getOpaqueTypeFieldName());
-  }
-
   std::string getOpaqueTypeHandle(uint64_t ByteSize) {
     return pipeline::locationString(revng::ranks::OpaqueType, ByteSize);
   }
 
   clift::StructType importOpaqueStruct(uint64_t NumBytes) {
-    std::string FieldHandle = getOpaqueTypeFieldHandle(NumBytes);
-    std::string FieldName = getOpaqueTypeFieldName();
-    mlir::Type FieldType = getCharArrayType(NumBytes);
-
-    llvm::SmallVector<clift::FieldAttr> Fields;
-    Fields.push_back(FieldAttr::get(Context,
-                                    FieldHandle,
-                                    makeNameAttr<FieldAttr>(Context,
-                                                            FieldHandle,
-                                                            FieldName),
-                                    makeCommentAttr<FieldAttr>(Context,
-                                                               FieldHandle),
-                                    (uint64_t) 0,
-                                    FieldType));
-
     std::string Handle = getOpaqueTypeHandle(NumBytes);
 
     auto NameAttr = makeNameAttr<StructAttr>(Context, Handle);
@@ -301,11 +278,12 @@ private:
                                       NameAttr,
                                       CommentAttr,
                                       NumBytes,
-                                      llvm::ArrayRef(Fields),
+                                      {},
                                       Attrs);
 
     return clift::StructType::get(Def);
   }
+
   clift::StructType importOpaqueStruct(const llvm::ArrayType *Array) {
     const auto *ElementType = Array->getElementType();
     revng_assert(ElementType->isIntegerTy());

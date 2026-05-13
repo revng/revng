@@ -492,8 +492,6 @@ public:
     assertNameIsReserved(Result);
     return Result;
   }
-
-  [[nodiscard]] std::string opaqueTypeFieldName() const { return "array"; }
 };
 
 struct CNameBuilder : public NameBuilder<CNameBuilder> {

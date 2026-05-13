@@ -567,20 +567,6 @@ public:
                                         Actions);
   }
 
-  /// Special case handling for fields of opaque types.
-  template<bool IsDefinition>
-  std::string getOpaqueTypeFieldTag(uint64_t ByteSize) const {
-    constexpr std::array<llvm::StringRef, 0> Actions = {};
-    std::string FieldName = NameBuilder.opaqueTypeFieldName();
-    auto Location = pipeline::locationString(revng::ranks::OpaqueTypeField,
-                                             ByteSize,
-                                             FieldName);
-    return getNameTagImpl<IsDefinition>(tokenTag(FieldName,
-                                                 ptml::c::tokens::Field),
-                                        Location,
-                                        Actions);
-  }
-
   /// Special case handling for helper functions.
   template<bool IsDefinition>
   std::string getHelperFunctionTag(llvm::StringRef Name) const {
