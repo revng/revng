@@ -71,6 +71,7 @@ private:
 
   std::optional<MetaAddress> EHFrameHdrAddress;
   std::optional<MetaAddress> DynamicAddress;
+  std::optional<MetaAddress> GnuHashAddress;
 
   llvm::SmallVector<DataSymbol, 32> DataSymbols;
 
@@ -81,6 +82,7 @@ protected:
   std::unique_ptr<FilePortion> ReldynPortion;
   std::unique_ptr<FilePortion> RelpltPortion;
   std::unique_ptr<FilePortion> GotPortion;
+  std::unique_ptr<FilePortion> HashHeaderPortion;
 
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
@@ -144,6 +146,10 @@ private:
   ///        associated
   /// \param LSDAAddress the address of the target LSDA
   void parseLSDA(MetaAddress FDEStart, MetaAddress LSDAAddress);
+
+  uint64_t hashSymbolCount() const;
+
+  uint64_t gnuHashSymbolCount() const;
 
   void parseSymbols(llvm::object::ELFFile<T> &TheELF,
                     ConstElf_Shdr *SectionHeader);

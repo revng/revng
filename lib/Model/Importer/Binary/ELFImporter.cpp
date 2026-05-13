@@ -27,6 +27,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/Error.h"
 #include "revng/Support/LDDTree.h"
+#include "revng/Support/OverflowSafeInt.h"
 #include "revng/TupleTree/TupleTree.h"
 
 #include "DwarfReader.h"
@@ -425,6 +426,7 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
   ReldynPortion = std::make_unique<FilePortion>(File);
   RelpltPortion = std::make_unique<FilePortion>(File);
   GotPortion = std::make_unique<FilePortion>(File);
+  HashHeaderPortion = std::make_unique<FilePortion>(File);
   bool IsX86 = Model->Architecture() == model::Architecture::x86;
   bool IsMIPS = (Model->Architecture() == model::Architecture::mips
                  or Model->Architecture() == model::Architecture::mipsel);
@@ -455,8 +457,10 @@ void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
   // relocations
 
   if (not SymbolsCount) {
-    SymbolsCount = std::max(symbolsCount<T, HasAddend>(*ReldynPortion.get()),
-                            symbolsCount<T, HasAddend>(*RelpltPortion.get()));
+    SymbolsCount = std::max({ symbolsCount<T, HasAddend>(*ReldynPortion.get()),
+                              symbolsCount<T, HasAddend>(*RelpltPortion.get()),
+                              hashSymbolCount(),
+                              gnuHashSymbolCount() });
   }
 
   revng_log(ELFImporterLog, "SymbolsCount: " << SymbolsCount.value_or(0));
@@ -591,6 +595,16 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
     GotPortion->setAddress(GenericAddress);
     break;
 
+  case ELF::DT_HASH:
+    HashHeaderPortion->setAddress(GenericAddress);
+    using Elf_Hash = typename T::Hash;
+    HashHeaderPortion->setSize(sizeof(Elf_Hash));
+    break;
+
+  case ELF::DT_GNU_HASH:
+    GnuHashAddress = GenericAddress;
+    break;
+
   case ELF::DT_INIT:
   case ELF::DT_FINI:
     revng_assert(PCAddress.isValid());
@@ -601,6 +615,107 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
     parseTargetDynamicTags(Tag, GenericAddress, LibrariesOffsets, Val);
     break;
   }
+}
+
+template<typename T, bool HasAddend>
+uint64_t ELFImporter<T, HasAddend>::hashSymbolCount() const {
+  if (not HashHeaderPortion->isAvailable())
+    return 0;
+
+  using Elf_Hash = typename T::Hash;
+  auto Data = HashHeaderPortion->extractAs<Elf_Hash>();
+
+  if (Data.size() == 0) {
+    revng_log(ELFImporterLog, ".hash header empty");
+    return 0;
+  }
+
+  return Data[0].nchain;
+}
+
+template<typename T>
+using OSI = OverflowSafeInt<T>;
+
+template<typename T, bool HasAddend>
+uint64_t ELFImporter<T, HasAddend>::gnuHashSymbolCount() const {
+  if (not GnuHashAddress.has_value())
+    return 0;
+
+  auto MaybeData = File.getFromAddressOn(*GnuHashAddress);
+  if (not MaybeData)
+    return 0;
+
+  // DT_GNU_HASH layout:
+  //   uint32_t nbuckets;
+  //   uint32_t symndx;         // first hashed dynsym index
+  //   uint32_t maskwords;      // bloom filter size, in words
+  //   uint32_t shift2;
+  //   Elf_Off  bloom[maskwords];
+  //   uint32_t buckets[nbuckets];
+  //   uint32_t chain[...];     // until end of table
+  //
+  // The dynsym count isn't a header field. We find the maximum bucket value
+  // (highest hashed symbol index) and walk forward from there in the chain
+  // until we hit an entry with bit 0 set (end-of-chain marker). The dynsym
+  // count is that index + 1.
+  using Elf_GnuHash = typename T::GnuHash;
+  using Elf_Word = typename T::Word;
+  using Elf_Off = typename T::Off;
+
+  llvm::ArrayRef<uint8_t> Data = *MaybeData;
+  if (Data.size() < sizeof(Elf_GnuHash))
+    return 0;
+
+  const auto *Header = reinterpret_cast<const Elf_GnuHash *>(Data.data());
+  uint32_t BucketsCount = Header->nbuckets;
+  uint32_t FirstSymbolIndex = Header->symndx;
+  uint32_t MaskWords = Header->maskwords;
+
+  auto BucketsOffset = (OSI<size_t>(sizeof(Elf_GnuHash))
+                        + MaskWords * sizeof(Elf_Off));
+  auto ChainOffset = BucketsOffset + BucketsCount * sizeof(Elf_Word);
+  if (not BucketsOffset or not ChainOffset or Data.size() < *ChainOffset) {
+    revng_log(ELFImporterLog, ".gnu.hash buckets are out of bound");
+    return 0;
+  }
+
+  auto BucketPointers = reinterpret_cast<const Elf_Word *>(Data.data()
+                                                           + *BucketsOffset);
+  ArrayRef<const Elf_Word> Buckets(BucketPointers, BucketsCount);
+  uint32_t MaxBucket = 0;
+  for (uint32_t I = 0; I < BucketsCount; ++I) {
+    uint32_t Bucket = Buckets[I];
+    if (Bucket > MaxBucket)
+      MaxBucket = Bucket;
+  }
+
+  // If no bucket points to a hashed symbol, only the SymNdx prefix exists.
+  if (MaxBucket < FirstSymbolIndex)
+    return FirstSymbolIndex;
+
+  const auto *ChainPointer = reinterpret_cast<const Elf_Word *>(Data.data()
+                                                                + *ChainOffset);
+  auto MaxEntries = (OSI<size_t>(Data.size()) - ChainOffset) / sizeof(Elf_Word);
+  auto Index = OSI<uint32_t>(MaxBucket) - FirstSymbolIndex;
+  if (not MaxEntries or not Index) {
+    return 0;
+  }
+
+  ArrayRef<const Elf_Word> Chain(ChainPointer, *MaxEntries);
+  while (*Index < *MaxEntries) {
+
+    if (not Index or *Index >= Chain.size()) {
+      revng_log(ELFImporterLog, "Chain out of bound");
+      return 0;
+    }
+
+    if (Chain[*Index] & 1)
+      break;
+
+    Index = Index + 1;
+  }
+
+  return FirstSymbolIndex + *Index + 1;
 }
 
 // TODO: we might want to return an error from here so we can propagate it
