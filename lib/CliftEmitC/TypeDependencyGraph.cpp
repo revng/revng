@@ -100,8 +100,8 @@ static void addAndLogSuccessor(TypeDependencyNode *From,
   From->addSuccessor(To);
 }
 
-template<bool Mode>
-void Builder<Mode>::addNodes(clift::DefinedType Type) const {
+template<bool ModelMode>
+void Builder<ModelMode>::addNodes(clift::DefinedType Type) const {
   if (Graph->TypeToNodes.contains(Type)) {
     // There is already a node for this type.
     return;
@@ -178,9 +178,9 @@ static TypeSpecifierResult unwrapType(mlir::Type T) {
   revng_abort("Unreachable.");
 }
 
-template<bool Mode>
-void Builder<Mode>::addDependenciesFrom(const AssociatedNodes Dependent,
-                                        mlir::Type DOn) const {
+template<bool ModelMode>
+void Builder<ModelMode>::addDependenciesFrom(const AssociatedNodes Dependent,
+                                             mlir::Type DOn) const {
   const auto &[DefinitionDependedOn, FoundPointer, LastArray] = unwrapType(DOn);
 
   // If the definition this depends on is not a type definition, we're done,
@@ -256,9 +256,9 @@ void Builder<Mode>::addDependenciesFrom(const AssociatedNodes Dependent,
   }
 }
 
-template<bool Mode>
-void Builder<Mode>::addDependencies(clift::DefinedType Type,
-                                    AssociatedNodes Nodes) const {
+template<bool ModelMode>
+void Builder<ModelMode>::addDependencies(clift::DefinedType Type,
+                                         AssociatedNodes Nodes) const {
   if (auto StructOrUnion = mlir::dyn_cast<clift::ClassType>(Type)) {
     for (auto Field : StructOrUnion.getFields())
       addDependenciesFrom(Nodes, Field.getType());
