@@ -332,11 +332,7 @@ private:
       revng_assert(PreviousOffsetInBits % 8 == 0);
       uint64_t Alignment = StructLayout->getAlignment().value();
       uint64_t ByteSize = PreviousOffsetInBits / 8;
-      uint64_t NumUnalignedBytes = ByteSize % Alignment;
-      uint64_t AlignedByteSize = NumUnalignedBytes ?
-                                   (ByteSize - NumUnalignedBytes + Alignment) :
-                                   ByteSize;
-      revng_assert(AlignedByteSize == StructByteSize);
+      revng_assert(llvm::alignTo(ByteSize, Alignment) == StructByteSize);
       revng_assert(StructByteSize);
       return importOpaqueStruct(StructByteSize);
     }
@@ -440,11 +436,7 @@ private:
     revng_assert(PreviousOffsetInBits % 8 == 0);
     uint64_t Alignment = StructLayout->getAlignment().value();
     uint64_t ByteSize = PreviousOffsetInBits / 8;
-    uint64_t NumUnalignedBytes = ByteSize % Alignment;
-    uint64_t AlignedByteSize = NumUnalignedBytes ?
-                                 (ByteSize - NumUnalignedBytes + Alignment) :
-                                 ByteSize;
-    revng_assert(AlignedByteSize == StructByteSize);
+    revng_assert(llvm::alignTo(ByteSize, Alignment) == StructByteSize);
     revng_assert(StructByteSize);
 
     auto Handle = pipeline::locationString(revng::ranks::HelperStructType,
