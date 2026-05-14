@@ -131,8 +131,7 @@ Function *VarBuilder<IsLegacy>::getCallStackArgumentsAllocator() {
   return Allocators.value().CallStackArgumentsAllocator;
 }
 
-/// Specialization of methods for creating different kinds of local variables in
-/// legacy mode.
+/// Specialization of methods for legacy mode.
 ///
 ///@{
 
@@ -292,8 +291,8 @@ LegacyVB::createAssignmentBefore(Value *LocationToAssign,
 
 ///@}
 
-/// Specialization of methods for creating different kinds of local variables in
-/// non-legacy mode.
+/// Specialization of methods for non-legacy mode.
+///
 ///@{
 
 template<>
@@ -339,39 +338,28 @@ Instruction *VB::createStackFrameVariable(model::UpcastableType FrameType) {
 
 template<>
 VB::ReferenceType *VB::getAssignedLocation(AssignType *Assign) const {
-  return cast<ReferenceType>(Assign->getPointerOperand());
+  revng_abort("deprecated: should never be called in non-legacy mode");
+  return nullptr;
 }
 
 template<>
 VB::CopyType *VB::createCopyOnUse(ReferenceType *LocationToCopy, Use &U) {
-  auto *InsertBefore = llvm::cast<llvm::Instruction>(U.getUser());
-  llvm::DebugLoc DebugLocation = InsertBefore->getDebugLoc();
-  if (auto *Instruction = llvm::dyn_cast<llvm::Instruction>(LocationToCopy))
-    DebugLocation = Instruction->getDebugLoc();
-
-  // Create a copy from the assigned location at the proper insertion point.
-  revng::NonDebugInfoCheckingIRBuilder B(InsertBefore, DebugLocation);
-  return B.CreateLoad(U->getType(), LocationToCopy);
+  revng_abort("deprecated: should never be called in non-legacy mode");
+  return nullptr;
 }
 
 template<>
 VB::CopyType *VB::createCopyFromAssignedOnUse(AssignType *Assign, Use &U) {
-  auto *AssignedLocation = cast<ReferenceType>(getAssignedLocation(Assign));
-  return createCopyOnUse(AssignedLocation, U);
+  revng_abort("deprecated: should never be called in non-legacy mode");
+  return nullptr;
 }
 
 template<>
 VB::AssignType *VB::createAssignmentBefore(Value *LocationToAssign,
                                            Value *ValueToAssign,
                                            Instruction *InsertBefore) {
-  llvm::DebugLoc DebugLocation = InsertBefore->getDebugLoc();
-  if (auto *Instruction = llvm::dyn_cast<llvm::Instruction>(ValueToAssign))
-    if (Instruction->getDebugLoc())
-      DebugLocation = Instruction->getDebugLoc();
-
-  // Create a copy from the assigned location at the proper insertion point.
-  revng::NonDebugInfoCheckingIRBuilder B(InsertBefore, DebugLocation);
-  return B.CreateStore(ValueToAssign, LocationToAssign);
+  revng_abort("deprecated: should never be called in non-legacy mode");
+  return nullptr;
 }
 
 template<bool IsLegacy>

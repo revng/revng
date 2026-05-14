@@ -190,7 +190,7 @@ private:
     Allocators(std::nullopt) {}
 
   /// Constructor for non-legacy mode, that leaves the custom functions pools
-  /// and the allocators not initialized This is private so it can only be
+  /// and the allocators not initialized. This is private so it can only be
   /// called by the associated public factory, which is only available when
   /// IsLegacy is false.
   LocalVariableBuilder(VariableBuilderTypes TheTypes) :
@@ -198,8 +198,7 @@ private:
 
 public:
   /// Factory method for non-legacy mode, which also sets the target function to
-  /// \a F. This is private so it can only be called by the associated public
-  /// factory, which is only available when IsLegacy is false.
+  /// \a F.
   static LocalVariableBuilder
   make(VariableBuilderTypes TheTypes, llvm::Function *F)
     requires(not IsLegacy)
@@ -208,8 +207,6 @@ public:
   }
 
   /// Factory method for non-legacy mode.
-  /// This is private so it can only be called by the associated public factory,
-  /// which is only available when IsLegacy is false.
   static LocalVariableBuilder make(VariableBuilderTypes TheTypes)
     requires(not IsLegacy)
   {
@@ -219,6 +216,8 @@ public:
 private:
   /// Constructor for legacy mode, that initializes the custom functions pools
   /// and the allocators from the Model and an llvm::Module.
+  /// This is private so it can only be called by the associated public factory,
+  /// which is only available when IsLegacy is true.
   LocalVariableBuilder(const model::Binary &TheBinary,
                        llvm::Module &TheModule) :
     Types(VariableBuilderTypes(TheBinary, TheModule)),
@@ -229,6 +228,8 @@ private:
   /// Constructor for legacy mode, that initializes the custom functions pools
   /// and the allocators from the Model and an llvm::Function, while also
   /// setting to the target function \a F.
+  /// This is private so it can only be called by the associated public factory,
+  /// which is only available when IsLegacy is true.
   LocalVariableBuilder(const model::Binary &TheBinary, llvm::Function *TheF) :
     LocalVariableBuilder(TheBinary, *TheF->getParent()) {
     F = TheF;
@@ -236,8 +237,6 @@ private:
 
 public:
   /// Factory method for legacy mode.
-  /// This is private so it can only be called by the associated public factory,
-  /// which is only available when IsLegacy is true.
   //
   // TODO: we can drop this when we drop legacy mode.
   static LocalVariableBuilder
@@ -248,8 +247,7 @@ public:
   }
 
   /// Factory method for legacy mode, which also sets the target function to \a
-  /// F. This is private so it can only be called by the associated public
-  /// factory, which is only available when IsLegacy is true.
+  /// F.
   //
   // TODO: we can drop this when we drop legacy mode.
   static LocalVariableBuilder
@@ -304,6 +302,11 @@ public:
   // not be using OpaqueFunctionsPool anymore.
   LocalVarType *createLocalVariable(const model::Type &VariableType);
 
+  /// Methods meant to be used only by SwitchToStatements, in legacy mode.
+  /// TODO: drop all of them when we drop legacy mode.
+  ///
+  ///@{
+
   /// Takes an instruction representing a variable location and a Use, and
   /// replaces the Use with a copy instruction from the instruction representing
   /// the variable location
@@ -314,8 +317,10 @@ public:
   /// In non-legacy mode an instruction representing a variable location should
   /// be a ptr-typed instruction, and copy is a LoadInst.
   //
-  // TODO: this method can become const when we drop legacy mode because we'll
-  // not be using OpaqueFunctionsPool anymore.
+  // TODO: drop this method when we drop legacy mode. The non-legacy operation
+  // has already been baked into SwitchToStatements, which is the only user.
+  // After dropping legacy mode, the only user of LocalVariableBuilder is meant
+  // to be SegregateStackAccesses.
   CopyType *createCopyOnUse(ReferenceType *LocationToCopy, llvm::Use &U);
 
   /// Takes an assignment instruction and a Use and replaces the Use with a
@@ -326,8 +331,10 @@ public:
   /// In non-legacy mode an assignment instruction is just a StoreInst, and copy
   /// a LoadInst.
   //
-  // TODO: this method can become const when we drop legacy mode because we'll
-  // not be using OpaqueFunctionsPool anymore.
+  // TODO: drop this method when we drop legacy mode. The non-legacy operation
+  // has already been baked into SwitchToStatements, which is the only user.
+  // After dropping legacy mode, the only user of LocalVariableBuilder is meant
+  // to be SegregateStackAccesses.
   CopyType *createCopyFromAssignedOnUse(AssignType *Assign, llvm::Use &U);
 
   /// Creates an assignment instruction, at the location specified by
@@ -337,11 +344,21 @@ public:
   /// In legacy mode an assignment instruction is a call to Assign.
   /// In non-legacy mode an assignment instruction is just a StoreInst.
   //
-  // TODO: this method can become const when we drop legacy mode because we'll
-  // not be using OpaqueFunctionsPool anymore.
+  // TODO: drop this method when we drop legacy mode. The non-legacy operation
+  // has already been baked into SwitchToStatements, which is the only user.
+  // After dropping legacy mode, the only user of LocalVariableBuilder is meant
+  // to be SegregateStackAccesses.
   AssignType *createAssignmentBefore(llvm::Value *LocationToAssign,
                                      llvm::Value *ValueToAssign,
                                      llvm::Instruction *InsertBefore);
+
+  ///@}
+
+  /// Methods meant to be used only by SegregateStackAccesses.
+  /// TODO: eventually, when we drop legacy mode, the whole LocalVariableBuilder
+  /// will be only used by SegregateStackAccesses.
+  ///
+  ///@{
 
   /// Creates an llvm::Instruction that models the allocation of a local
   /// variable, and takes its address.
@@ -414,15 +431,24 @@ public:
   llvm::Instruction *
   createCallStackArgumentVariable(const model::Type &VariableType);
 
+  ///@}
+
 private:
   /// Takes an assignment instruction and returns its operand that represents
   /// the assigned location.
   /// In legacy mode an assignment instruction is a call to Assign.
   /// In non-legacy mode an assignment instruction is just a StoreInst.
+  ///
+  // TODO: drop this method when we drop legacy mode. The non-legacy operation
+  // has already been baked into SwitchToStatements, which is the only user.
+  // After dropping legacy mode, the only user of LocalVariableBuilder is meant
+  // to be SegregateStackAccesses.
   ReferenceType *getAssignedLocation(AssignType *Assign) const;
 
   /// Legacy methods for lazily initializing the StackFrameAllocator and
   /// CallStackArgumentsAllocator, in Legacy mode.
+  ///
+  /// These are meant to be used only be SegregateStackAccesses
   ///
   ///@{
 
@@ -431,4 +457,6 @@ private:
   llvm::Function *getStackFrameAllocator();
 
   llvm::Function *getCallStackArgumentsAllocator();
+
+  ///@}
 };

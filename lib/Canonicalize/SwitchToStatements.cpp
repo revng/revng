@@ -27,6 +27,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/DataLayout.h"
+#include "llvm/IR/DebugLoc.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
@@ -60,6 +61,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/DecompilationHelpers.h"
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/IRHelpers.h"
 
 static Logger Log{ "switch-to-statements" };
 
@@ -1467,6 +1469,7 @@ private:
 
   Function &F;
 
+  // TODO: remove when we drop legacy mode
   LocalVariableBuilder<IsLegacy> VariableBuilder;
 
 public:
@@ -1486,11 +1489,8 @@ public:
   bool run(const PickedInstructions &Picked) {
     bool Changed = false;
 
-    for (const auto &[TheUse, TheAssign] : Picked.ToReplaceWithAvailable) {
-      auto *Copy = VariableBuilder.createCopyFromAssignedOnUse(TheAssign,
-                                                               *TheUse);
-      TheUse->set(Copy);
-    }
+    for (const auto &[TheUse, TheAssign] : Picked.ToReplaceWithAvailable)
+      TheUse->set(createCopyFromAssignedOnUse(TheAssign, *TheUse));
 
     // TODO: This is workaround for some limitations of legacy mode. It
     // should be unused in non-legacy mode, and can be removed when we drop
@@ -1517,18 +1517,86 @@ public:
 private:
   bool serializeToLocalVariable(Instruction *I);
 
-  bool shouldReplaceUseWithCopies(const Instruction *I, const Use &U) const;
+  bool shouldReplaceUseWithCopies(const Use &U) const;
+
+  // TODO: make this const when we drop legacy mode
+  LocalVarType<IsLegacy> *createLocalVariableFor(Instruction *I) {
+    // TODO: remove when we drop legacy mode.
+    DebugLoc DL = I->getDebugLoc();
+    if constexpr (not IsLegacy) {
+      revng::NonDebugInfoCheckingIRBuilder B(F.getContext());
+      B.SetInsertPointPastAllocas(&F, DL);
+      return B.CreateAlloca(I->getType());
+    } else {
+      revng_assert(I->getType()->isIntOrPtrTy());
+      const model::UpcastableType &VariableType = TheTypeMap.at(I);
+      auto *LocalVariable = VariableBuilder.createLocalVariable(*VariableType);
+      LocalVariable->setDebugLoc(DL);
+      return LocalVariable;
+    }
+  }
+
+  // TODO: make this const when we drop legacy mode
+  CopyType<IsLegacy> *createCopyOnUse(Value *ToCopy, Use &U) {
+    if constexpr (not IsLegacy) {
+      // Create a copy from the assigned location at the proper insertion point.
+      auto *InsertBefore = cast<Instruction>(U.getUser());
+      DebugLoc DL = InsertBefore->getDebugLoc();
+      if (auto *I = dyn_cast<Instruction>(ToCopy))
+        DL = I->getDebugLoc();
+      revng::NonDebugInfoCheckingIRBuilder B(InsertBefore, DL);
+      return B.CreateLoad(U->getType(), ToCopy);
+    } else {
+      // TODO: remove when we drop legacy mode.
+      //
+      // We have to cast this to a CallInst, because in legacy mode we can only
+      // make copies from things that have reference semantics, that are
+      // represented in LLVM ir with special calls to custom opcodes.
+      CopyType<IsLegacy> *Call = cast<CallInst>(ToCopy);
+      // In some cases we don't need to copy it.
+      if (shouldReplaceUseWithCopies(U))
+        Call = VariableBuilder.createCopyOnUse(Call, U);
+      return Call;
+    }
+  }
+
+  // TODO: make this const when we drop legacy mode
+  CopyType<IsLegacy> *createCopyFromAssignedOnUse(AssignType<IsLegacy> *Store,
+                                                  Use &U) {
+    if constexpr (not IsLegacy) {
+      return createCopyOnUse(Store->getPointerOperand(), U);
+    } else {
+      // TODO: remove when we drop legacy mode.
+      return VariableBuilder.createCopyFromAssignedOnUse(Store, U);
+    }
+  }
+
+  // TODO: make this const when we drop legacy mode
+  AssignType<IsLegacy> *createAssignment(LocalVarType<IsLegacy> *LocalVariable,
+                                         Instruction *ValueToAssign) {
+    auto NextInstruction = ValueToAssign->getNextNonDebugInstruction();
+    if constexpr (not IsLegacy) {
+      revng::NonDebugInfoCheckingIRBuilder B(NextInstruction,
+                                             ValueToAssign->getDebugLoc());
+      return B.CreateStore(ValueToAssign, LocalVariable);
+    } else {
+      // TODO: drop when we drop legacy mode.
+      return VariableBuilder.createAssignmentBefore(LocalVariable,
+                                                    ValueToAssign,
+                                                    NextInstruction);
+    }
+  }
 };
 
 template<bool IsLegacy>
 using VI = VariableInserter<IsLegacy>;
 
 template<bool IsLegacy>
-bool VI<IsLegacy>::shouldReplaceUseWithCopies(const Instruction *I,
-                                              const Use &U) const {
+bool VI<IsLegacy>::shouldReplaceUseWithCopies(const Use &U) const {
   if constexpr (not IsLegacy) {
     return true;
   } else {
+    const auto *I = cast<Instruction>(U.get());
 
     auto *Call = getCallToIsolatedFunction(I);
     if (not Call)
@@ -1574,37 +1642,16 @@ bool VI<IsLegacy>::serializeToLocalVariable(Instruction *I) {
 
   // First, we have to declare the LocalVariable, always at the entry block.
   // Create instruction that allocates a LocalVariable
-  LocalVarType<IsLegacy> *LocalVariable = nullptr;
-
-  if constexpr (IsLegacy) {
-    revng_assert(I->getType()->isIntOrPtrTy());
-    const model::UpcastableType &VariableType = TheTypeMap.at(I);
-    LocalVariable = VariableBuilder.createLocalVariable(*VariableType);
-    LocalVariable->setDebugLoc(I->getDebugLoc());
-  } else {
-    revng::NonDebugInfoCheckingIRBuilder B(F.getContext());
-    B.SetInsertPointPastAllocas(&F, I->getDebugLoc());
-    LocalVariable = B.CreateAlloca(I->getType());
-  }
+  LocalVarType<IsLegacy> *LocalVariable = createLocalVariableFor(I);
 
   // Then, we have to replace all the uses of I so that they make a Copy
   // from the LocalVariable, unless it's a call to an IsolatedFunction that
   // already returns a local variable, in which case we don't have to do
   // anything with uses.
-  for (Use &U : llvm::make_early_inc_range(I->uses())) {
-    revng_assert(isa<Instruction>(U.getUser()));
+  for (Use &U : llvm::make_early_inc_range(I->uses()))
+    U.set(createCopyOnUse(LocalVariable, U));
 
-    llvm::Instruction *ValueToUse = LocalVariable;
-    if (not IsLegacy or shouldReplaceUseWithCopies(I, U)) {
-      ValueToUse = VariableBuilder.createCopyOnUse(LocalVariable, U);
-    }
-    U.set(ValueToUse);
-  }
-
-  VariableBuilder.createAssignmentBefore(LocalVariable,
-                                         I,
-                                         I->getNextNonDebugInstruction());
-
+  createAssignment(LocalVariable, I);
   return true;
 }
 
