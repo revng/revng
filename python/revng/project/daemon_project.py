@@ -3,6 +3,7 @@
 #
 
 import os
+import re
 from io import IOBase
 from pathlib import Path
 from tempfile import SpooledTemporaryFile
@@ -187,4 +188,5 @@ class DaemonProject(Project):
 
     def _join_url(self, path: str) -> str:
         new_path = os.path.normpath(self._base_url.path + path)
+        new_path = re.sub(r"^/+", "/", new_path)
         return self._base_url._replace(path=new_path).geturl()
