@@ -93,6 +93,7 @@ struct GenericOptimizationPipe {
 
     PM.addPass(clift::createTerminalBranchComplementHoistingPass());
     PM.addPass(clift::createVariableScopeTighteningPass());
+    PM.addPass(clift::createVariableInitializerHoistingPass());
   }
 };
 static pipeline::RegisterPipe<OptimizationPipe<GenericOptimizationPipe>> X;

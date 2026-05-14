@@ -63,6 +63,13 @@ def CliftTightenVariableScopes : Clift_Pass<"tighten-variable-scopes",
   let constructor = "clift::createVariableScopeTighteningPass()";
 }
 
+def CliftVariableInitializerHoisting : Clift_Pass<"hoist-variable-initializers",
+                                                  "clift::FunctionOp"> {
+
+  let summary = "Hoist variable initializers";
+  let constructor = "clift::createVariableInitializerHoistingPass()";
+}
+
 def CliftCLegalization : Clift_Pass<"c-legalization", "clift::FunctionOp"> {
   let summary = "Legalize the input for emitting C code.";
   let constructor = "clift::createCLegalizationPass()";
