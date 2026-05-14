@@ -21,37 +21,64 @@ public:
 
 char DeferAllocasPass::ID = 0;
 
+static llvm::BasicBlock *findUseDominator(const llvm::DominatorTree &DT,
+                                          llvm::Value *Value) {
+  llvm::BasicBlock *Dominator = nullptr;
+  for (llvm::User *User : Value->users()) {
+    llvm::BasicBlock *BB = llvm::cast<llvm::Instruction>(User)->getParent();
+    Dominator = Dominator == nullptr ?
+                  BB :
+                  DT.findNearestCommonDominator(Dominator, BB);
+  }
+  return Dominator;
+}
+
+static llvm::Instruction *findFirstUserInBlock(llvm::Value *Value,
+                                               llvm::BasicBlock *BB) {
+  llvm::Instruction *FirstUser = nullptr;
+  for (llvm::User *User : Value->users()) {
+    llvm::Instruction *I = llvm::cast<llvm::Instruction>(User);
+    if (I->getParent() == BB) {
+      if (FirstUser == nullptr or I->comesBefore(FirstUser))
+        FirstUser = I;
+    }
+  }
+  return FirstUser;
+}
+
 bool DeferAllocasPass::runOnFunction(llvm::Function &F) {
   llvm::DominatorTree DT;
   DT.recalculate(F);
 
-  bool Modified = false;
-  for (llvm::BasicBlock &BB : F) {
-    // Iterate manually to avoid invalidating the iterator if and when the
-    // alloca instruction is moved out of the basic block.
-    for (llvm::Instruction &I : llvm::make_early_inc_range(BB)) {
-      auto Alloca = llvm::dyn_cast<llvm::AllocaInst>(&I);
+  using DeferrableAlloca = std::tuple<llvm::AllocaInst *, //
+                                      llvm::BasicBlock *,
+                                      llvm::BasicBlock::iterator>;
 
+  llvm::SmallVector<DeferrableAlloca> DeferrableAllocas;
+  for (llvm::BasicBlock &BB : F) {
+    for (llvm::Instruction &I : BB) {
+      auto Alloca = llvm::dyn_cast<llvm::AllocaInst>(&I);
       if (not Alloca or hasStackFrameMetadata(Alloca))
         continue;
 
-      llvm::BasicBlock *NewBB = nullptr;
-      for (llvm::User *User : Alloca->users()) {
-        llvm::BasicBlock *UserBB = //
-          llvm::cast<llvm::Instruction>(User)->getParent();
+      llvm::BasicBlock *NewBB = findUseDominator(DT, Alloca);
+      if (NewBB != nullptr) {
+        llvm::Instruction *FirstUser = findFirstUserInBlock(Alloca, NewBB);
 
-        NewBB = NewBB == nullptr ? UserBB :
-                                   DT.findNearestCommonDominator(NewBB, UserBB);
-      }
+        if (FirstUser == nullptr)
+          FirstUser = NewBB->getTerminator();
 
-      if (NewBB != nullptr and NewBB != &BB) {
-        Alloca->moveBefore(*NewBB, NewBB->begin());
-        Modified = true;
+        llvm::BasicBlock::iterator NewPos = FirstUser->getIterator();
+        if (NewBB != &BB or NewPos != std::next(Alloca->getIterator()))
+          DeferrableAllocas.emplace_back(Alloca, NewBB, NewPos);
       }
     }
   }
 
-  return Modified;
+  for (auto [Alloca, NewBB, NewPos] : DeferrableAllocas)
+    Alloca->moveBefore(*NewBB, NewPos);
+
+  return not DeferrableAllocas.empty();
 }
 
 static llvm::RegisterPass<DeferAllocasPass> X("defer-allocas",
