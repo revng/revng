@@ -16,10 +16,11 @@ from typing import Annotated, Generator, Tuple, Type, final
 
 import yaml
 
+from .compression import Compression
 from .object import Kind, ObjectID, ObjectSet
 from .utils import bytes_to_string, is_mime_type_text, string_to_bytes
 from .utils.cabc import ABC, abstractmethod
-from .utils.registry import get_singleton
+from .utils.registry import get_registry, get_singleton
 
 
 class ContainerFormat(StrEnum):
@@ -126,6 +127,7 @@ class Container(ABC):
 
     name: str
     kind: Kind
+    compression: str
 
     def __init__(self):
         """
@@ -353,6 +355,16 @@ class Container(ABC):
             f.write(self.to_bytes(objects, container_format))
 
     @classmethod
+    def get_compression(cls) -> Compression | None:
+        if cls.compression == "none":
+            return None
+        elif ";" in cls.compression:
+            type_, options = cls.compression.split(";", 1)
+            return get_registry(Compression)[type_](options)  # type: ignore[type-abstract]
+        else:
+            return get_registry(Compression)[cls.compression]()  # type: ignore[type-abstract]
+
+    @classmethod
     def type_dict(cls) -> dict:
         """Convert the data into a dictionary representation."""
         return {
@@ -360,6 +372,7 @@ class Container(ABC):
             "mime_type": cls.mime_type(),
             "is_text": cls.is_text(),
             "kind": cls.kind.serialize(),
+            "compression": cls.compression,
         }
 
 

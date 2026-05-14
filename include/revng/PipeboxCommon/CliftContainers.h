@@ -100,12 +100,14 @@ class CliftFunctionContainer
   : public detail::CliftMultiObjectContainerBase<Kinds::Function> {
 public:
   static constexpr llvm::StringRef Name = "CliftFunctionContainer";
+  static constexpr llvm::StringRef Compression = "zstd;level=3";
 };
 
 class CliftSingleTypeContainer
   : public detail::CliftMultiObjectContainerBase<Kinds::TypeDefinition> {
 public:
   static constexpr llvm::StringRef Name = "CliftSingleTypeContainer";
+  static constexpr llvm::StringRef Compression = "zstd;level=3";
 };
 
 class CliftModuleContainer {
@@ -113,6 +115,7 @@ public:
   static constexpr llvm::StringRef Name = "CliftModuleContainer";
   static constexpr Kind Kind = Kinds::Binary;
   static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
+  static constexpr llvm::StringRef Compression = "zstd;level=3";
 
 private:
   bool Disposable = false;

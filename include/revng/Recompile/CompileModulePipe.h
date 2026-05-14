@@ -62,6 +62,7 @@ class ObjectFileContainer : public BytesContainer {
 public:
   static constexpr llvm::StringRef Name = "ObjectFileContainer";
   static constexpr llvm::StringRef MimeType = "application/x-object";
+  static constexpr llvm::StringRef Compression = "zstd;level=1";
 };
 
 namespace piperuns {

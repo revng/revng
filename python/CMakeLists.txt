@@ -496,6 +496,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/cli/utils.py
     revng/pypeline/cli/wrappers.py
     revng/pypeline/analysis.py
+    revng/pypeline/compression.py
     revng/pypeline/container.py
     revng/pypeline/graph.py
     revng/pypeline/main.py

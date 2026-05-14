@@ -55,6 +55,7 @@ class TranslatedContainer : public BytesContainer {
 public:
   static constexpr llvm::StringRef Name = "TranslatedContainer";
   static constexpr llvm::StringRef MimeType = "application/x-executable";
+  static constexpr llvm::StringRef Compression = "zstd;level=1";
 };
 
 namespace piperuns {

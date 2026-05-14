@@ -96,7 +96,14 @@ class SavePoint:
             )
             container_incoming = incoming.get(decl)
             if len(container_incoming) > 0:
-                objects[location] = containers[decl].serialize(container_incoming)
+                serialized_container = containers[decl].serialize(container_incoming)
+                compression = containers[decl].get_compression()
+                if compression is not None:
+                    objects[location] = {
+                        k: compression.compress(v) for k, v in serialized_container.items()
+                    }
+                else:
+                    objects[location] = serialized_container
 
         storage_provider.add_objects(pipes_dependencies, objects)
 
@@ -111,4 +118,11 @@ class SavePoint:
                     container_id=decl.name,
                     configuration_id=configuration_id,
                 )
-                containers[decl].deserialize(storage_provider.get(location, container_outgoing))
+                container_data = storage_provider.get(location, container_outgoing)
+                compression = containers[decl].get_compression()
+                if compression is not None:
+                    containers[decl].deserialize(
+                        {k: compression.decompress(v) for k, v in container_data.items()}
+                    )
+                else:
+                    containers[decl].deserialize(container_data)

@@ -16,6 +16,7 @@ class CFGMap
   : public TupleTreeContainer<efa::ControlFlowGraph, Kinds::Function> {
 public:
   static constexpr llvm::StringRef Name = "CFGMap";
+  static constexpr llvm::StringRef Compression = "zstd;level=1";
 };
 
 namespace piperuns {

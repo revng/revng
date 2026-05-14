@@ -81,6 +81,7 @@ class CrossRelationsContainer
                               Kinds::Binary> {
 public:
   static constexpr llvm::StringRef Name = "CrossRelationsContainer";
+  static constexpr llvm::StringRef Compression = "zstd;level=1";
 };
 
 namespace piperuns {

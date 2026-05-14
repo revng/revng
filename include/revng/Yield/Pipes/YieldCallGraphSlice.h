@@ -52,6 +52,7 @@ class CallGraphSliceContainer : public FunctionToBytesContainer {
 public:
   static constexpr llvm::StringRef Name = "CallGraphSliceContainer";
   static constexpr llvm::StringRef MimeType = "image/svg";
+  static constexpr llvm::StringRef Compression = "zstd;level=1";
 };
 
 namespace piperuns {

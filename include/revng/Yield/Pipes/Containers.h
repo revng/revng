@@ -13,6 +13,7 @@ class AssemblyInternalContainer
   : public TupleTreeContainer<yield::Function, Kinds::Function> {
 public:
   static constexpr llvm::StringRef Name = "AssemblyInternalContainer";
+  static constexpr llvm::StringRef Compression = "zstd;level=1";
 };
 
 } // namespace revng::pypeline

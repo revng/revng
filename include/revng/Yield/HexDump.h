@@ -15,6 +15,7 @@ class HexDumpContainer : public BytesContainer {
 public:
   static constexpr llvm::StringRef Name = "HexDumpContainer";
   static constexpr llvm::StringRef MimeType = "text/x.hexdump+ptml";
+  static constexpr llvm::StringRef Compression = "zstd;level=1";
 };
 
 namespace piperuns {

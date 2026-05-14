@@ -46,6 +46,7 @@ class AssemblyContainer : public FunctionToBytesContainer {
 public:
   static constexpr llvm::StringRef Name = "AssemblyContainer";
   static constexpr llvm::StringRef MimeType = "text/x.asm+ptml";
+  static constexpr llvm::StringRef Compression = "zstd;level=1";
 };
 
 namespace piperuns {
