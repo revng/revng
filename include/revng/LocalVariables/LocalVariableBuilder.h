@@ -117,15 +117,13 @@ private:
   /// is entirely decoupled from the model and from the custom functions. This
   /// is why it's private, so it's only accessible via the `makeLegacy` factory
   /// method.
-  LegacyStackAllocators(VariableBuilderTypes Types, llvm::Module &TheModule);
+  LegacyStackAllocators(llvm::IntegerType *InputPointerSizedInteger,
+                        llvm::Module &TheModule);
 
 public:
   /// Factory meant to be used only in legacy mode.
   static LegacyStackAllocators makeLegacy(const model::Binary &TheBinary,
-                                          llvm::Module &TheModule) {
-    return LegacyStackAllocators(VariableBuilderTypes(TheBinary, TheModule),
-                                 TheModule);
-  }
+                                          llvm::Module &TheModule);
 };
 
 /// Various LLVM Passes in the decompilation pipelines need to create local

@@ -74,12 +74,12 @@ LegacyCustomFunctions::LegacyCustomFunctions(llvm::Module &TheModule) :
   AddressOfPool(FunctionTags::AddressOf.getPool(M)) {
 }
 
-LegacyStackAllocators::LegacyStackAllocators(VariableBuilderTypes Types,
+LegacyStackAllocators::LegacyStackAllocators(llvm::IntegerType
+                                               *InputPointerSizedInteger,
                                              llvm::Module &TheModule) :
   M(TheModule) {
-  auto *StackAllocatorType = FunctionType::get(Types.InputPointerSizedInteger,
-                                               { Types
-                                                   .InputPointerSizedInteger },
+  auto *StackAllocatorType = FunctionType::get(InputPointerSizedInteger,
+                                               { InputPointerSizedInteger },
                                                false);
 
   StackFrameAllocator = createIRHelper("revng_stack_frame",
@@ -90,9 +90,9 @@ LegacyStackAllocators::LegacyStackAllocators(VariableBuilderTypes Types,
 
   llvm::Type *StringPtrType = getStringPtrType(TheModule.getContext());
 
-  auto *AllocatorType = FunctionType::get(Types.InputPointerSizedInteger,
+  auto *AllocatorType = FunctionType::get(InputPointerSizedInteger,
                                           { StringPtrType,
-                                            Types.InputPointerSizedInteger },
+                                            InputPointerSizedInteger },
                                           false);
 
   CallStackArgumentsAllocator = createIRHelper("revng_call_stack_arguments",
@@ -100,6 +100,14 @@ LegacyStackAllocators::LegacyStackAllocators(VariableBuilderTypes Types,
                                                AllocatorType,
                                                GlobalValue::ExternalLinkage);
   addCommonAttributesAndTags(CallStackArgumentsAllocator);
+}
+
+LegacyStackAllocators
+LegacyStackAllocators::makeLegacy(const model::Binary &TheBinary,
+                                  llvm::Module &TheModule) {
+  return LegacyStackAllocators(getPointerSizedInteger(TheModule.getContext(),
+                                                      TheBinary.Architecture()),
+                               TheModule);
 }
 
 /// Create and cache the function used to represent the allocation of the stack
