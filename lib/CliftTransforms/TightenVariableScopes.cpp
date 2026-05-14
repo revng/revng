@@ -156,6 +156,10 @@ struct TightenVariableScopePass
       if (TargetOp->getPrevNode() != Local)
         Local->moveBefore(TargetOp);
     }
+
+    // Erase all require operations from the function, as they are now
+    // unnecessary.
+    Function->walk([&](RequireOp Require) { Require->erase(); });
   }
 };
 
