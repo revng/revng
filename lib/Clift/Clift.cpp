@@ -616,6 +616,10 @@ mlir::LogicalResult DoWhileOp::verify() {
 
 //===-------------------------------- ForOp -------------------------------===//
 
+mlir::Value ForOp::getBlockArgumentVariable(mlir::BlockArgument Argument) {
+  return getOnlyOp<LocalVariableOp>(getInitializer());
+}
+
 bool ForOp::isDiscardedExpression(mlir::Region &R) {
   if (&R == &getInitializer())
     return not getOnlyOp<LocalVariableOp>(R);

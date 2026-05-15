@@ -195,9 +195,10 @@ public:
                             CTE::EntityKind::FunctionParameter,
                             CTE::IdentifierKind::Reference);
 
-    } else if (auto For = mlir::dyn_cast<ForOp>(Op)) {
-      auto Local = getOnlyOp<LocalVariableOp>(For.getInitializer());
-      rc_recur emitLocalVariableExpression(Local.getResult());
+    } else if (auto S = mlir::dyn_cast<StatementOpInterface>(Op)) {
+      rc_recur emitLocalVariableExpression(S.getBlockArgumentVariable(E));
+    } else {
+      revng_abort("Unsupported block argument.");
     }
   }
 
