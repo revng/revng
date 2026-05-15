@@ -1,0 +1,21 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+tags:
+  - name: db-invariants
+
+sources:
+  - tags: [db-invariants]
+    prefix: share/revng/test/tests/db-invariants
+    members:
+      - no-createfilea-leak.sql
+
+commands:
+  - type: revng-db.db-invariant-test
+    from:
+      - type: source
+        filter: db-invariants
+    command: |-
+      sqlite3 "$SOURCES_ROOT/share/revng/prototypes.sqlite" < "$INPUT"
+        | FileCheck "$INPUT"

@@ -6,21 +6,21 @@
 
 ---
 Architecture: x86_64
-OperatingSystem: Windows
+OperatingSystem: Linux
 ImportedDynamicFunctions:
-  - Name: CloseHandle
-  # CHECK:       - Name:{{.*}}CloseHandle
-  # CHECK-NEXT:    Prototype:
-  # CHECK-NEXT:      Kind:{{.*}}DefinedType
-  - Name: ExitProcess
-  # CHECK:       - Name:{{.*}}ExitProcess
-  # CHECK-NEXT:    Prototype:
-  # CHECK-NEXT:      Kind:{{.*}}DefinedType
-  - Name: GetLastError
-  # CHECK:       - Name:{{.*}}GetLastError
-  # CHECK-NEXT:    Prototype:
-  # CHECK-NEXT:      Kind:{{.*}}DefinedType
   - Name: NonExistentFunction
   # NonExistentFunction should have no prototype
   # CHECK:       - Name:{{.*}}NonExistentFunction
   # CHECK-NOT:     Prototype:
+  - Name: calloc
+  # CHECK:       - Name:{{.*}}calloc
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
+  - Name: malloc
+  # CHECK:       - Name:{{.*}}malloc
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType
+  - Name: realloc
+  # CHECK:       - Name:{{.*}}realloc
+  # CHECK-NEXT:    Prototype:
+  # CHECK-NEXT:      Kind:{{.*}}DefinedType

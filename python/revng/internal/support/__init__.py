@@ -64,7 +64,6 @@ def configuration():
         if path.exists():
             with open(path, "r") as file:
                 result = merge(result, yaml.safe_load(file))
-                result = yaml.safe_load(file)
 
     return result
 

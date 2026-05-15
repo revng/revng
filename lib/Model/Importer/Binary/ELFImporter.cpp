@@ -27,6 +27,7 @@
 #include "revng/Support/Debug.h"
 #include "revng/Support/Error.h"
 #include "revng/Support/LDDTree.h"
+#include "revng/Support/OverflowSafeInt.h"
 #include "revng/TupleTree/TupleTree.h"
 
 #include "DwarfReader.h"
@@ -43,6 +44,10 @@ Logger ELFImporterLog("elf-importer");
 template<typename A, typename B>
 static bool hasFlag(A Flag, B Value) {
   return (Flag & Value) != 0;
+}
+
+static bool isCode(unsigned SymbolType) {
+  return SymbolType == ELF::STT_FUNC or SymbolType == ELF::STT_GNU_IFUNC;
 }
 
 FilePortion::FilePortion(const RawBinaryView &File) :
@@ -326,103 +331,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
 
   // Parse the .dynamic table
   Task.advance("Parse .dynamic", true);
-  auto DynamicEntries = TheELF.dynamicEntries();
-  if (auto Error = DynamicEntries.takeError()) {
-    revng_log(ELFImporterLog, "Cannot access dynamic entries: " << Error);
-    consumeError(std::move(Error));
-  } else {
-    revng_log(ELFImporterLog, "Parsing .dynamic");
-    LoggerIndent Indent(ELFImporterLog);
-
-    SmallVector<uint64_t, 10> NeededLibraryNameOffsets;
-
-    // TODO: use std::optional
-    DynstrPortion = std::make_unique<FilePortion>(File);
-    DynsymPortion = std::make_unique<FilePortion>(File);
-    ReldynPortion = std::make_unique<FilePortion>(File);
-    RelpltPortion = std::make_unique<FilePortion>(File);
-    GotPortion = std::make_unique<FilePortion>(File);
-    bool IsX86 = Model->Architecture() == model::Architecture::x86;
-    bool IsMIPS = (Model->Architecture() == model::Architecture::mips
-                   or Model->Architecture() == model::Architecture::mipsel);
-
-    using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
-    for (Elf_Dyn &DynamicTag : *DynamicEntries) {
-      parseDynamicTag(DynamicTag.getTag(),
-                      DynamicTag.getVal(),
-                      DynamicTag.getPtr(),
-                      NeededLibraryNameOffsets);
-    }
-
-    StringRef Dynstr;
-
-    if (DynstrPortion->isAvailable()) {
-      Dynstr = DynstrPortion->extractString();
-      auto Inserter = Model->ImportedLibraries().batch_insert();
-      for (auto Offset : NeededLibraryNameOffsets) {
-        StringRef LibraryName = extractNullTerminatedStringAt(Dynstr, Offset);
-        revng_assert(not endsWith(LibraryName, '\0'));
-        Inserter.insert(LibraryName.data());
-      }
-    }
-
-    // Collect symbols count and code pointers in image base-relative
-    // relocations
-
-    if (not SymbolsCount) {
-      SymbolsCount = std::max(symbolsCount<T, HasAddend>(*ReldynPortion.get()),
-                              symbolsCount<T, HasAddend>(*RelpltPortion.get()));
-    }
-
-    revng_log(ELFImporterLog, "SymbolsCount: " << SymbolsCount.value_or(0));
-    revng_log(ELFImporterLog,
-              "DynsymPortion->isAvailable(): " << DynsymPortion->isAvailable());
-
-    // Collect function addresses contained in dynamic symbols
-    if (SymbolsCount and *SymbolsCount > 0 and DynsymPortion->isAvailable()) {
-      Task.advance("Parse dynamic symbols", true);
-
-      using Elf_Sym = llvm::object::Elf_Sym_Impl<T>;
-      DynsymPortion->setSize(*SymbolsCount * sizeof(Elf_Sym));
-
-      ArrayRef<Elf_Sym> Symbols = DynsymPortion->extractAs<Elf_Sym>();
-
-      for (Elf_Sym Symbol : Symbols)
-        parseDynamicSymbol(Symbol, Dynstr);
-
-      using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
-      if (ReldynPortion->isAvailable()) {
-        registerRelocations(".rela.dyn",
-                            ReldynPortion->extractAs<Elf_Rel>(),
-                            *DynsymPortion.get(),
-                            *DynstrPortion.get());
-      }
-
-      auto SetCanonicalValue = [this](model::Register::Values Register,
-                                      uint64_t Value) {
-        for (model::Segment &Segment : Model->Segments())
-          if (Segment.IsExecutable())
-            Segment.CanonicalRegisterValues()[Register].Value() = Value;
-      };
-
-      if (GotPortion->isAvailable()) {
-        if (IsX86) {
-          SetCanonicalValue(model::Register::ebx_x86,
-                            GotPortion->address().address());
-        } else if (IsMIPS) {
-          SetCanonicalValue(model::Register::gp_mips,
-                            GotPortion->address().address() + 0x7ff0);
-        }
-      }
-
-      if (RelpltPortion->isAvailable()) {
-        registerRelocations(".rela.plt",
-                            RelpltPortion->extractAs<Elf_Rel>(),
-                            *DynsymPortion.get(),
-                            *DynstrPortion.get());
-      }
-    }
-  }
+  parseDynamicAndSymbols(TheELF, /*ParseRelocations=*/true);
 
   // Dynamic symbols harvested too, segment type creation can be finalized.
   // Do not replace it, if `Type` is present (may have been added by the user).
@@ -495,6 +404,138 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   return Error::success();
 }
 
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::parseDynamicAndSymbols(object::ELFFile<T>
+                                                         &TheELF,
+                                                       bool ParseRelocations) {
+  auto DynamicEntries = TheELF.dynamicEntries();
+  if (auto Error = DynamicEntries.takeError()) {
+    revng_log(ELFImporterLog, "Cannot access dynamic entries: " << Error);
+    consumeError(std::move(Error));
+    return;
+  }
+
+  revng_log(ELFImporterLog, "Parsing .dynamic");
+  LoggerIndent Indent(ELFImporterLog);
+
+  SmallVector<uint64_t, 10> NeededLibraryNameOffsets;
+
+  // TODO: use std::optional
+  DynstrPortion = std::make_unique<FilePortion>(File);
+  DynsymPortion = std::make_unique<FilePortion>(File);
+  ReldynPortion = std::make_unique<FilePortion>(File);
+  RelpltPortion = std::make_unique<FilePortion>(File);
+  GotPortion = std::make_unique<FilePortion>(File);
+  HashHeaderPortion = std::make_unique<FilePortion>(File);
+  bool IsX86 = Model->Architecture() == model::Architecture::x86;
+  bool IsMIPS = (Model->Architecture() == model::Architecture::mips
+                 or Model->Architecture() == model::Architecture::mipsel);
+
+  using Elf_Dyn = const typename object::ELFFile<T>::Elf_Dyn;
+  for (Elf_Dyn &DynamicTag : *DynamicEntries) {
+    parseDynamicTag(DynamicTag.getTag(),
+                    DynamicTag.getVal(),
+                    DynamicTag.getPtr(),
+                    NeededLibraryNameOffsets);
+  }
+
+  StringRef Dynstr;
+
+  if (DynstrPortion->isAvailable()) {
+    Dynstr = DynstrPortion->extractString();
+    if (ParseRelocations) {
+      auto Inserter = Model->ImportedLibraries().batch_insert();
+      for (auto Offset : NeededLibraryNameOffsets) {
+        StringRef LibraryName = extractNullTerminatedStringAt(Dynstr, Offset);
+        revng_assert(not endsWith(LibraryName, '\0'));
+        Inserter.insert(LibraryName.data());
+      }
+    }
+  }
+
+  // Collect symbols count and code pointers in image base-relative
+  // relocations
+
+  if (not SymbolsCount) {
+    SymbolsCount = std::max({ symbolsCount<T, HasAddend>(*ReldynPortion.get()),
+                              symbolsCount<T, HasAddend>(*RelpltPortion.get()),
+                              hashSymbolCount(),
+                              gnuHashSymbolCount() });
+  }
+
+  revng_log(ELFImporterLog, "SymbolsCount: " << SymbolsCount.value_or(0));
+  revng_log(ELFImporterLog,
+            "DynsymPortion->isAvailable(): " << DynsymPortion->isAvailable());
+
+  // Collect function addresses contained in dynamic symbols
+  if (SymbolsCount and *SymbolsCount > 0 and DynsymPortion->isAvailable()) {
+    using Elf_Sym = llvm::object::Elf_Sym_Impl<T>;
+    DynsymPortion->setSize(*SymbolsCount * sizeof(Elf_Sym));
+
+    ArrayRef<Elf_Sym> Symbols = DynsymPortion->extractAs<Elf_Sym>();
+
+    for (Elf_Sym Symbol : Symbols)
+      parseDynamicSymbol(Symbol, Dynstr);
+
+    if (not ParseRelocations)
+      return;
+
+    using Elf_Rel = llvm::object::Elf_Rel_Impl<T, HasAddend>;
+    if (ReldynPortion->isAvailable()) {
+      registerRelocations(".rela.dyn",
+                          ReldynPortion->extractAs<Elf_Rel>(),
+                          *DynsymPortion.get(),
+                          *DynstrPortion.get());
+    }
+
+    auto SetCanonicalValue = [this](model::Register::Values Register,
+                                    uint64_t Value) {
+      for (model::Segment &Segment : Model->Segments())
+        if (Segment.IsExecutable())
+          Segment.CanonicalRegisterValues()[Register].Value() = Value;
+    };
+
+    if (GotPortion->isAvailable()) {
+      if (IsX86) {
+        SetCanonicalValue(model::Register::ebx_x86,
+                          GotPortion->address().address());
+      } else if (IsMIPS) {
+        SetCanonicalValue(model::Register::gp_mips,
+                          GotPortion->address().address() + 0x7ff0);
+      }
+    }
+
+    if (RelpltPortion->isAvailable()) {
+      registerRelocations(".rela.plt",
+                          RelpltPortion->extractAs<Elf_Rel>(),
+                          *DynsymPortion.get(),
+                          *DynstrPortion.get());
+    }
+  }
+}
+
+template<typename T, bool HasAddend>
+Error ELFImporter<T, HasAddend>::parseDynamicSymbolsOnly() {
+  auto TheELFOrErr = object::ELFFile<T>::create(TheBinary.ObjectFile.getData());
+  if (not TheELFOrErr)
+    return TheELFOrErr.takeError();
+  object::ELFFile<T> &TheELF = *TheELFOrErr;
+
+  auto Type = TheELF.getHeader().e_type;
+  if (not(Type == ELF::ET_DYN or Type == ELF::ET_EXEC))
+    return revng::createError("Only ELF executables and ELF dynamic libraries "
+                              "are supported");
+
+  // Populate Segments + DynamicAddress through the program headers, never
+  // through section headers — stripped binaries may not have any.
+  parseSegments(TheELF);
+  parseProgramHeaders(TheELF);
+
+  parseDynamicAndSymbols(TheELF, /*ParseRelocations=*/false);
+
+  return Error::success();
+}
+
 using Libs = SmallVectorImpl<uint64_t>;
 template<typename T, bool HasAddend>
 void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
@@ -554,6 +595,16 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
     GotPortion->setAddress(GenericAddress);
     break;
 
+  case ELF::DT_HASH:
+    HashHeaderPortion->setAddress(GenericAddress);
+    using Elf_Hash = typename T::Hash;
+    HashHeaderPortion->setSize(sizeof(Elf_Hash));
+    break;
+
+  case ELF::DT_GNU_HASH:
+    GnuHashAddress = GenericAddress;
+    break;
+
   case ELF::DT_INIT:
   case ELF::DT_FINI:
     revng_assert(PCAddress.isValid());
@@ -564,6 +615,107 @@ void ELFImporter<T, HasAddend>::parseDynamicTag(uint64_t Tag,
     parseTargetDynamicTags(Tag, GenericAddress, LibrariesOffsets, Val);
     break;
   }
+}
+
+template<typename T, bool HasAddend>
+uint64_t ELFImporter<T, HasAddend>::hashSymbolCount() const {
+  if (not HashHeaderPortion->isAvailable())
+    return 0;
+
+  using Elf_Hash = typename T::Hash;
+  auto Data = HashHeaderPortion->extractAs<Elf_Hash>();
+
+  if (Data.size() == 0) {
+    revng_log(ELFImporterLog, ".hash header empty");
+    return 0;
+  }
+
+  return Data[0].nchain;
+}
+
+template<typename T>
+using OSI = OverflowSafeInt<T>;
+
+template<typename T, bool HasAddend>
+uint64_t ELFImporter<T, HasAddend>::gnuHashSymbolCount() const {
+  if (not GnuHashAddress.has_value())
+    return 0;
+
+  auto MaybeData = File.getFromAddressOn(*GnuHashAddress);
+  if (not MaybeData)
+    return 0;
+
+  // DT_GNU_HASH layout:
+  //   uint32_t nbuckets;
+  //   uint32_t symndx;         // first hashed dynsym index
+  //   uint32_t maskwords;      // bloom filter size, in words
+  //   uint32_t shift2;
+  //   Elf_Off  bloom[maskwords];
+  //   uint32_t buckets[nbuckets];
+  //   uint32_t chain[...];     // until end of table
+  //
+  // The dynsym count isn't a header field. We find the maximum bucket value
+  // (highest hashed symbol index) and walk forward from there in the chain
+  // until we hit an entry with bit 0 set (end-of-chain marker). The dynsym
+  // count is that index + 1.
+  using Elf_GnuHash = typename T::GnuHash;
+  using Elf_Word = typename T::Word;
+  using Elf_Off = typename T::Off;
+
+  llvm::ArrayRef<uint8_t> Data = *MaybeData;
+  if (Data.size() < sizeof(Elf_GnuHash))
+    return 0;
+
+  const auto *Header = reinterpret_cast<const Elf_GnuHash *>(Data.data());
+  uint32_t BucketsCount = Header->nbuckets;
+  uint32_t FirstSymbolIndex = Header->symndx;
+  uint32_t MaskWords = Header->maskwords;
+
+  auto BucketsOffset = (OSI<size_t>(sizeof(Elf_GnuHash))
+                        + MaskWords * sizeof(Elf_Off));
+  auto ChainOffset = BucketsOffset + BucketsCount * sizeof(Elf_Word);
+  if (not BucketsOffset or not ChainOffset or Data.size() < *ChainOffset) {
+    revng_log(ELFImporterLog, ".gnu.hash buckets are out of bound");
+    return 0;
+  }
+
+  auto BucketPointers = reinterpret_cast<const Elf_Word *>(Data.data()
+                                                           + *BucketsOffset);
+  ArrayRef<const Elf_Word> Buckets(BucketPointers, BucketsCount);
+  uint32_t MaxBucket = 0;
+  for (uint32_t I = 0; I < BucketsCount; ++I) {
+    uint32_t Bucket = Buckets[I];
+    if (Bucket > MaxBucket)
+      MaxBucket = Bucket;
+  }
+
+  // If no bucket points to a hashed symbol, only the SymNdx prefix exists.
+  if (MaxBucket < FirstSymbolIndex)
+    return FirstSymbolIndex;
+
+  const auto *ChainPointer = reinterpret_cast<const Elf_Word *>(Data.data()
+                                                                + *ChainOffset);
+  auto MaxEntries = (OSI<size_t>(Data.size()) - ChainOffset) / sizeof(Elf_Word);
+  auto Index = OSI<uint32_t>(MaxBucket) - FirstSymbolIndex;
+  if (not MaxEntries or not Index) {
+    return 0;
+  }
+
+  ArrayRef<const Elf_Word> Chain(ChainPointer, *MaxEntries);
+  while (*Index < *MaxEntries) {
+
+    if (not Index or *Index >= Chain.size()) {
+      revng_log(ELFImporterLog, "Chain out of bound");
+      return 0;
+    }
+
+    if (Chain[*Index] & 1)
+      break;
+
+    Index = Index + 1;
+  }
+
+  return FirstSymbolIndex + *Index + 1;
 }
 
 // TODO: we might want to return an error from here so we can propagate it
@@ -609,7 +761,7 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
       continue;
 
     MetaAddress Address = MetaAddress::invalid();
-    bool IsCode = Symbol.getType() == ELF::STT_FUNC;
+    bool IsCode = isCode(Symbol.getType());
     bool IsDataObject = Symbol.getType() == ELF::STT_OBJECT;
     uint64_t Size = Symbol.st_size;
 
@@ -775,7 +927,7 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
     return;
   }
 
-  bool IsCode = Symbol.getType() == ELF::STT_FUNC;
+  bool IsCode = isCode(Symbol.getType());
   bool IsDataObject = Symbol.getType() == ELF::STT_OBJECT;
 
   if (shouldIgnoreSymbol(Name)) {
@@ -1219,7 +1371,7 @@ void ELFImporter<T, HasAddend>::registerRelocations(StringRef Name,
       }
     } else if (HasName) {
       // Symbol-relative relocation
-      if (SymbolType == ELF::STT_FUNC) {
+      if (isCode(SymbolType)) {
         auto It = Model->ImportedDynamicFunctions().find(SymbolName.str());
         if (It != Model->ImportedDynamicFunctions().end()) {
           auto &Relocations = It->Relocations();
@@ -1306,4 +1458,45 @@ Error importELF(TupleTree<model::Binary> &Model,
                                     HasRelocationAddend,
                                     Options.BaseAddress);
   return Importer->import(Options);
+}
+
+std::vector<std::pair<std::string, uint64_t>>
+elfExportedSymbols(const llvm::object::ELFObjectFileBase &ObjectFile) {
+  std::vector<std::pair<std::string, uint64_t>> Result;
+
+  TupleTree<model::Binary> Model;
+  auto Architecture = model::Architecture::fromLLVMArchitecture(ObjectFile
+                                                                  .makeTriple()
+                                                                  .getArch());
+  if (Architecture == model::Architecture::Invalid) {
+    revng_log(ELFImporterLog,
+              "Cannot derive architecture for the ELF, skipping its "
+              "exported symbols");
+    return Result;
+  }
+  Model->Architecture() = Architecture;
+
+  ELFBinary TheBinary{
+    const_cast<llvm::object::ELFObjectFileBase &>(ObjectFile), {}, {}
+  };
+
+  using namespace model::Architecture;
+  auto Importer = createELFImporter(Model,
+                                    TheBinary,
+                                    isLittleEndian(Architecture),
+                                    getPointerSize(Architecture),
+                                    hasELFRelocationAddend(Architecture),
+                                    /*BaseAddress=*/0);
+
+  if (auto Error = Importer->parseDynamicSymbolsOnly()) {
+    revng_log(ELFImporterLog, "parseDynamicSymbolsOnly failed: " << Error);
+    consumeError(std::move(Error));
+    return Result;
+  }
+
+  for (model::Function &Function : Model->Functions())
+    for (const auto &Name : Function.ExportedNames())
+      Result.push_back({ Name, Function.Entry().asPC() });
+
+  return Result;
 }

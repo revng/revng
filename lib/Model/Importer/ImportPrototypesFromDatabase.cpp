@@ -6,9 +6,12 @@
 #include <string>
 #include <vector>
 
+#include "llvm/ADT/StringRef.h"
+
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Importer/ImportPrototypesFromDatabase.h"
+#include "revng/Model/Importer/PrototypeMatching.h"
 #include "revng/Model/Importer/TypeCopier.h"
 #include "revng/Model/Pass/DeduplicateCollidingNames.h"
 #include "revng/Model/Pass/DeduplicateEquivalentTypes.h"
@@ -59,7 +62,25 @@ struct LibraryInfo {
   std::string Header;
 };
 
+// model::Function is queried by its ExportedNames (its dynamic-symbol names).
+// Name is a local identifier and is never used as a lookup key.
+inline llvm::SmallVector<llvm::StringRef, 4>
+lookupNames(const model::Function &Function) {
+  llvm::SmallVector<llvm::StringRef, 4> Names;
+  for (const auto &Name : Function.ExportedNames())
+    Names.emplace_back(Name);
+  return Names;
+}
+
+inline llvm::SmallVector<llvm::StringRef, 4>
+lookupNames(const model::DynamicFunction &Function) {
+  if (Function.Name().empty())
+    return {};
+  return { llvm::StringRef(Function.Name()) };
+}
+
 class PrototypeDatabase {
+private:
   sqlite::Database Database;
 
 public:
@@ -321,18 +342,19 @@ public:
     unsigned ImportedCount = 0;
 
     auto CopyPrototype = [&](auto &Function) {
-      if (Function.prototype() != nullptr or Function.Name().empty())
+      if (Function.prototype() != nullptr)
         return;
 
-      auto Iterator = ParsedModel->ImportedDynamicFunctions()
-                        .find(Function.Name());
-      if (Iterator == ParsedModel->ImportedDynamicFunctions().end())
-        return;
+      auto &Source = ParsedModel->ImportedDynamicFunctions();
+      for (llvm::StringRef Name : lookupNames(Function)) {
+        auto Match = findPrototypeInDynamicFunctions(Source, Name, {});
+        if (not Match.has_value())
+          continue;
 
-      if (const auto *Prototype = Iterator->prototype()) {
-        Function.Prototype() = Copier.copyTypeInto(*Prototype);
+        Function.Prototype() = Copier.copyTypeInto(Match->Prototype);
         ++ImportedCount;
-        revng_log(Log, "Imported prototype for " << Function.Name());
+        revng_log(Log, "Imported prototype for " << Name);
+        return;
       }
     };
 
@@ -365,17 +387,20 @@ public:
 
     PrototypeDatabase Database(*MaybeDbPath);
 
-    // Collect symbol names from functions without a prototype
     std::vector<std::string> SymbolNames;
+    // Collect symbol names from functions without a prototype
+    auto PushNames = [&](const auto &Function) {
+      if (Function.prototype() != nullptr)
+        return;
+      for (llvm::StringRef Name : lookupNames(Function))
+        SymbolNames.emplace_back(Name);
+    };
 
     for (const auto &Function : Binary->Functions())
-      if (Function.prototype() == nullptr and not Function.Name().empty())
-        SymbolNames.push_back(Function.Name());
+      PushNames(Function);
 
     for (const auto &DynamicFunction : Binary->ImportedDynamicFunctions())
-      if (DynamicFunction.prototype() == nullptr
-          and not DynamicFunction.Name().empty())
-        SymbolNames.push_back(DynamicFunction.Name());
+      PushNames(DynamicFunction);
 
     if (SymbolNames.empty()) {
       revng_log(Log, "No functions without prototypes, skipping");

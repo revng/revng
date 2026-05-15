@@ -54,7 +54,12 @@ public:
 class ELFImporterBase {
 public:
   virtual ~ELFImporterBase() = default;
+
   virtual llvm::Error import(const ImporterOptions &Options) = 0;
+
+  /// Parse only segments, dynamic tags and dynamic symbols, populating the
+  /// model's Functions and ImportedDynamicFunctions
+  virtual llvm::Error parseDynamicSymbolsOnly() = 0;
 };
 
 template<typename T, bool HasAddend>
@@ -66,6 +71,7 @@ private:
 
   std::optional<MetaAddress> EHFrameHdrAddress;
   std::optional<MetaAddress> DynamicAddress;
+  std::optional<MetaAddress> GnuHashAddress;
 
   llvm::SmallVector<DataSymbol, 32> DataSymbols;
 
@@ -76,6 +82,7 @@ protected:
   std::unique_ptr<FilePortion> ReldynPortion;
   std::unique_ptr<FilePortion> RelpltPortion;
   std::unique_ptr<FilePortion> GotPortion;
+  std::unique_ptr<FilePortion> HashHeaderPortion;
 
 public:
   ELFImporter(TupleTree<model::Binary> &Model,
@@ -93,8 +100,12 @@ private:
 
 public:
   llvm::Error import(const ImporterOptions &Options) override;
+  llvm::Error parseDynamicSymbolsOnly() override;
 
 private:
+  void parseDynamicAndSymbols(llvm::object::ELFFile<T> &TheELF,
+                              bool ParseRelocations);
+
   MetaAddress getGenericPointer(Pointer Ptr) const {
     if (not Ptr.isIndirect())
       return Ptr.value();
@@ -136,6 +147,10 @@ private:
   /// \param LSDAAddress the address of the target LSDA
   void parseLSDA(MetaAddress FDEStart, MetaAddress LSDAAddress);
 
+  uint64_t hashSymbolCount() const;
+
+  uint64_t gnuHashSymbolCount() const;
+
   void parseSymbols(llvm::object::ELFFile<T> &TheELF,
                     ConstElf_Shdr *SectionHeader);
 
@@ -168,3 +183,8 @@ protected:
                          SmallVectorImpl<uint64_t> &NeededLibraryNameOffsets,
                          uint64_t Val) {}
 };
+
+/// Enumerate the function symbols exported through the dynamic symbol table
+/// of an ELF binary
+std::vector<std::pair<std::string, uint64_t>>
+elfExportedSymbols(const llvm::object::ELFObjectFileBase &ObjectFile);

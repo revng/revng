@@ -76,7 +76,7 @@ concept LDDTreeObjectFileTraitsConcept = requires(T Trait,
 
   {
     T::getExportedSymbols(Object)
-  } -> std::same_as<std::vector<std::pair<llvm::StringRef, uint64_t>>>;
+  } -> std::same_as<std::vector<std::pair<std::string, uint64_t>>>;
 
   {
     T::getDependencies(Root, String, String, Object)
@@ -224,12 +224,11 @@ const LDDTree LDDTree::fromPath(const revng::RootEntry &Root,
 
     // Purge from MissingSymbols those exported
     if (SymbolsRequested) {
-      for (auto [SymbolName, SymbolAddress] :
+      for (auto &[SymbolName, SymbolAddress] :
            ObjectFileTraits::getExportedSymbols(*Binary)) {
-        auto SymbolNameString = SymbolName.str();
-        if (Result.MissingSymbols->contains(SymbolNameString)) {
-          Result.MissingSymbols->erase(SymbolNameString);
-          ProvidedSymbols[SymbolNameString] = SymbolAddress;
+        if (Result.MissingSymbols->contains(SymbolName)) {
+          Result.MissingSymbols->erase(SymbolName);
+          ProvidedSymbols[SymbolName] = SymbolAddress;
         }
       }
     }

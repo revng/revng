@@ -101,6 +101,15 @@ def find_type_references(node: Any) -> set:
     return references
 
 
+def assert_every_symbol_has_a_prototype(connection: sqlite3.Connection, stage: str) -> None:
+    cursor = connection.execute("SELECT COUNT(*) FROM Symbol WHERE TypeDefinitionID IS NULL")
+    (count,) = cursor.fetchone()
+    if count != 0:
+        raise RuntimeError(
+            f"sanity check failed {stage}: {count} Symbol row(s) have no " f"prototype attached"
+        )
+
+
 def import_model(
     connection: sqlite3.Connection,
     yaml_path: Path,
@@ -174,21 +183,41 @@ def import_model(
                     (original_id_to_database_id[reference_id], database_id),
                 )
 
-    for function in model.get("ImportedDynamicFunctions", []):
-        type_definition_database_id = None
+    def resolve_prototype_id(function: dict) -> int | None:
         prototype = function.get("Prototype")
-        if prototype and prototype.get("Kind") == "DefinedType":
-            match = TYPE_DEFINITION_REFERENCE_PATTERN.search(prototype.get("Definition", ""))
-            if match:
-                type_definition_database_id = original_id_to_database_id.get(int(match.group(1)))
-        connection.execute(
-            "INSERT INTO Symbol (LibraryID, Name, Kind, TypeDefinitionID) " "VALUES (?, ?, ?, ?)",
+        if not prototype or prototype.get("Kind") != "DefinedType":
+            return None
+        match = TYPE_DEFINITION_REFERENCE_PATTERN.search(prototype.get("Definition", ""))
+        if not match:
+            return None
+        return original_id_to_database_id.get(int(match.group(1)))
+
+    symbol_rows: list[tuple[int, str, str, int | None]] = []
+
+    for function in model.get("ImportedDynamicFunctions", []):
+        type_definition_database_id = resolve_prototype_id(function)
+        if type_definition_database_id is None:
+            continue
+        symbol_rows.append(
             (
                 library_id,
                 function["Name"],
                 "ImportedDynamicFunction",
                 type_definition_database_id,
-            ),
+            )
+        )
+
+    for function in model.get("Functions", []):
+        type_definition_database_id = resolve_prototype_id(function)
+        if type_definition_database_id is None:
+            continue
+        for name in function.get("ExportedNames") or []:
+            symbol_rows.append((library_id, name, "Function", type_definition_database_id))
+
+    if symbol_rows:
+        connection.executemany(
+            "INSERT INTO Symbol (LibraryID, Name, Kind, TypeDefinitionID) VALUES (?, ?, ?, ?)",
+            symbol_rows,
         )
 
 
@@ -218,7 +247,15 @@ class ModelExportSqliteCommand(Command):
         parser.add_argument(
             "--library",
             default=None,
-            help="Override library name (default: filename stem)",
+            help="Override library name (default: filename stem, "
+            "or path relative to --prefix with .yml stripped)",
+        )
+        parser.add_argument(
+            "--prefix",
+            default=None,
+            help="When set, library name defaults to the path of the YAML "
+            "relative to this prefix, with the .yml suffix stripped. "
+            "Ignored if --library is also set.",
         )
         parser.add_argument(
             "models",
@@ -234,12 +271,21 @@ class ModelExportSqliteCommand(Command):
         connection.execute("PRAGMA synchronous=NORMAL")
         create_schema(connection)
 
+        assert_every_symbol_has_a_prototype(connection, "before import")
+
+        prefix = Path(args.prefix).resolve() if args.prefix is not None else None
+
         for model_path in args.models:
             path = Path(model_path)
             log(f"Importing {path.name}...")
-            import_model(connection, path, args.platform, args.operating_system, args.library)
+            library_name = args.library
+            if library_name is None and prefix is not None:
+                relative = path.resolve().relative_to(prefix)
+                library_name = relative.with_suffix("").as_posix()
+            import_model(connection, path, args.platform, args.operating_system, library_name)
 
         connection.commit()
+        assert_every_symbol_has_a_prototype(connection, "after import")
         connection.close()
         log("Import complete.")
         return 0

@@ -4,4 +4,5 @@
 
 revng_add_executable(lddtree Main.cpp)
 
-target_link_libraries(lddtree revngSupport ${LLVM_LIBRARIES})
+target_link_libraries(lddtree revngModelImporterBinary revngSupport
+                      ${LLVM_LIBRARIES})

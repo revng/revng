@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Progress.h"
 
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
@@ -39,6 +40,16 @@ public:
     }
   }
 };
+
+// Iterate the children of `Die`, skipping (and logging) invalid ones.
+static auto validChildren(const DWARFDie &Die) {
+  return llvm::make_filter_range(Die.children(), [&Die](const DWARFDie &Child) {
+    if (Child.isValid())
+      return true;
+    revng_log(DILogger, "Skipping invalid child DIE of " << Die.getOffset());
+    return false;
+  });
+}
 
 static std::optional<uint64_t>
 getUnsignedOrSigned(const DWARFFormValue &Value) {
@@ -370,22 +381,27 @@ void DwarfToModelConverter::materializeTypesWithIdentity() {
   TypesWithIdentityCount = Placeholders.size();
 }
 
-std::string DwarfToModelConverter::getName(const DWARFDie &Die) const {
-  if (auto MaybeName = Die.find(DW_AT_name)) {
-    auto MaybeString = MaybeName->getAsCString();
-    if (auto Error = MaybeString.takeError()) {
-      revng_log(DILogger, "Can't get DIE name: " << Error);
-      consumeError(std::move(Error));
-      return {};
-    } else {
+std::string DwarfToModelConverter::getName(const DWARFDie &InitialDie) const {
+  DWARFDie Die = InitialDie;
+  std::set<uint64_t> Visited;
+  while (Die.isValid()) {
+    if (auto MaybeName = Die.find(DW_AT_name)) {
+      auto MaybeString = MaybeName->getAsCString();
+      if (auto Error = MaybeString.takeError()) {
+        revng_log(DILogger, "Can't get DIE name: " << Error);
+        consumeError(std::move(Error));
+        return {};
+      }
       return *MaybeString;
     }
-  } else if (auto MaybeOrigin = Die.find(DW_AT_abstract_origin)) {
-    DWARFDie Origin = Context.getDIEForOffset(*MaybeOrigin->getAsReference());
-    return getName(Origin);
-  } else {
-    return {};
+    auto MaybeOrigin = Die.find(DW_AT_abstract_origin);
+    if (not MaybeOrigin)
+      return {};
+    if (not Visited.insert(Die.getOffset()).second)
+      return {};
+    Die = Context.getDIEForOffset(*MaybeOrigin->getAsReference());
   }
+  return {};
 }
 
 static bool isNoReturn(DWARFUnit &CU, const DWARFDie &Die) {
@@ -469,7 +485,7 @@ DwarfToModelConverter::resolveTypeWithIdentity(const DWARFDie &Die,
     FunctionType.ReturnType() = rc_recur makeType(Die);
 
     uint64_t Index = 0;
-    for (const DWARFDie &ChildDie : Die.children()) {
+    for (const DWARFDie &ChildDie : validChildren(Die)) {
       if (ChildDie.getTag() == DW_TAG_formal_parameter) {
 
         model::UpcastableType ArgumentType = rc_recur makeType(ChildDie);
@@ -510,7 +526,7 @@ DwarfToModelConverter::resolveTypeWithIdentity(const DWARFDie &Die,
     Struct.Size() = *MaybeSize->getAsUnsignedConstant();
 
     uint64_t Index = 0;
-    for (const DWARFDie &ChildDie : Die.children()) {
+    for (const DWARFDie &ChildDie : validChildren(Die)) {
       if (ChildDie.getTag() == DW_TAG_member) {
 
         // Collect offset
@@ -556,7 +572,7 @@ DwarfToModelConverter::resolveTypeWithIdentity(const DWARFDie &Die,
     auto &Union = cast<model::UnionDefinition>(Definition);
     Union.Name() = Name;
 
-    for (const DWARFDie &ChildDie : Die.children()) {
+    for (const DWARFDie &ChildDie : validChildren(Die)) {
       if (ChildDie.getTag() == DW_TAG_member) {
         model::UpcastableType MemberType = rc_recur makeType(ChildDie);
         if (MemberType.isEmpty()) {
@@ -592,7 +608,7 @@ DwarfToModelConverter::resolveTypeWithIdentity(const DWARFDie &Die,
     Enum.UnderlyingType() = std::move(UnderlyingType);
 
     uint64_t Index = 0;
-    for (const DWARFDie &ChildDie : Die.children()) {
+    for (const DWARFDie &ChildDie : validChildren(Die)) {
       if (ChildDie.getTag() == DW_TAG_enumerator) {
         // Collect value
         auto MaybeValue = getUnsignedOrSigned(ChildDie, DW_AT_const_value);
@@ -675,7 +691,7 @@ DwarfToModelConverter::resolveType(const DWARFDie &Die,
         rc_return model::UpcastableType::empty();
       }
 
-      for (const DWARFDie &ChildDie : Die.children()) {
+      for (const DWARFDie &ChildDie : validChildren(Die)) {
         if (ChildDie.getTag() == llvm::dwarf::DW_TAG_subrange_type) {
           auto MaybeUpperBound = getUnsignedOrSigned(ChildDie,
                                                      DW_AT_upper_bound);
@@ -775,10 +791,17 @@ DwarfToModelConverter::getSubprogramPrototype(const DWARFDie &InitialDie) {
   Visited.insert(Die.getOffset());
   while (auto MaybeOrigin = Die.find(DW_AT_abstract_origin)) {
     DWARFDie Origin = Context.getDIEForOffset(*MaybeOrigin->getAsReference());
+
+    if (not Origin.isValid()) {
+      reportIgnoredDie(Die, "DW_AT_abstract_origin resolves to an invalid DIE");
+      return model::UpcastableType::empty();
+    }
+
     if (Visited.contains(Origin.getOffset())) {
       reportIgnoredDie(Die, "Found a loop in DW_AT_abstract_origin references");
       return model::UpcastableType::empty();
     }
+
     Die = Origin;
     Visited.insert(Die.getOffset());
   }
@@ -801,7 +824,7 @@ DwarfToModelConverter::getSubprogramPrototype(const DWARFDie &InitialDie) {
 
   // Arguments
   uint64_t Index = 0;
-  for (const DWARFDie &ChildDie : Die.children()) {
+  for (const DWARFDie &ChildDie : validChildren(Die)) {
     if (ChildDie.getTag() == DW_TAG_formal_parameter) {
       model::UpcastableType ArgumentType = makeType(ChildDie);
       if (ArgumentType.isEmpty()) {
@@ -881,7 +904,15 @@ void DwarfToModelConverter::createFunctions() {
                     << "\"");
 
         // Get/create the local function
-        if (auto *Function = registerFunctionEntry(LowPC)) {
+        // Note: here we use matchFunctionEntry because, just being fed the
+        // DWARF, we don't have enough information to determine whether this
+        // function is regular ARM or is Thumb.
+        // matchFunctionEntry relies on previously available functions to
+        // determine this. DwarfToModelConverter should not use without
+        // processing ELF symbols first.
+        // Newer DWARF versions have DW_LNS_set_isa, but currently we can't rely
+        // on that.
+        if (auto *Function = matchFunctionEntry(LowPC)) {
 
           if (Prototype.isEmpty()) {
             revng_log(DILogger, "Can't get the prototype");
