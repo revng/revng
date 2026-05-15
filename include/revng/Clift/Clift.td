@@ -540,7 +540,12 @@ def Clift_IfOp : Clift_BasicStatementOp<"if", Clift_BranchOpInterface> {
   }];
 }
 
-def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
+def Clift_LocalVariableOp
+  : Clift_BasicStatementOp<"local",
+                           Clift_StatementOpInterface,
+                           [DeclareOpInterfaceMethods<Clift_StatementOpInterface,
+                                                      ["getBlockArgumentVariable"]>]> {
+
   let arguments = (ins DefaultValuedStrAttr<StrAttr, "">:$name,
                        DefaultValuedStrAttr<StrAttr, "">:$handle);
 
@@ -548,9 +553,8 @@ def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
 
   let regions = (region Clift_OptionalExpressionRegion:$initializer);
 
-  let assemblyFormat = [{
-    `:` type($result) (`=` $initializer^)? attr-dict-with-keyword
-  }];
+  let hasCustomAssemblyFormat = 1;
+  let hasVerifier = 1;
 
   let extraClassDeclaration = [{
     mlir::Type getType() {
@@ -566,8 +570,6 @@ def Clift_LocalVariableOp : Clift_StatementOp<"local"> {
       return getInitializer();
     }
   }];
-
-  let hasVerifier = 1;
 }
 
 def Clift_ReturnOp : Clift_StatementOp<"return", [Clift_NoFallthrough]> {
