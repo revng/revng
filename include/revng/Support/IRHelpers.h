@@ -1679,3 +1679,30 @@ llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,
 /// modules being merged.
 void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
                          std::unique_ptr<llvm::Module> &Destination);
+
+/// Name of the `iN` integer metadata attached to every `revng_inline` helper
+/// after the `detect-uninlinable-helpers` pass has run. `N` is the helper's
+/// formal-parameter count *plus one*: the extra most-significant bit is always
+/// zero, so LLVM's IR printer (which formats `iN` constants as signed decimal)
+/// renders the value as a positive integer always.
+/// The lower bits are the bitmask: a set bit means that argument is critical
+/// and must be `isa<Constant>` at the call site for the helper to be inlinable.
+/// A zero value means the helper is always inlinable.
+inline constexpr llvm::StringLiteral InliningPolicyMetadataKey = "revng.inline."
+                                                                 "policy";
+
+/// In-memory form of `revng.inline.policy`. `CriticalArguments` is sized to
+/// the helper's formal-parameter count and lists the set of arguments which
+/// must be `isa<Constant>` at the call site for inlining; an empty bit vector
+/// means the helper is always inlinable.
+struct InliningPolicy {
+  llvm::BitVector CriticalArguments;
+};
+
+/// Attach `!revng.inline.policy` to `Helper` based on `CriticalArguments`.
+void serializeInliningPolicy(llvm::Function &Helper,
+                             const llvm::BitVector &CriticalArguments);
+
+/// Read `!revng.inline.policy` off `Helper`. Aborts if the metadata is absent
+/// or malformed.
+InliningPolicy deserializeInliningPolicy(const llvm::Function &Helper);
