@@ -1,0 +1,92 @@
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+// These directives are matched against the `enforce-abi` artifact of the
+// `floating-point.c` test in the `revng-qa` repository. Each isolated function
+// must contain the softfloat call that implements its floating-point operation.
+//
+
+// Arithmetic
+
+CHECK-LABEL: define {{.*}}@add_float64(
+CHECK:         call {{.*}}@float64_add(
+CHECK:       }
+
+CHECK-LABEL: define {{.*}}@add_float32(
+CHECK:         call {{.*}}@float32_add(
+CHECK:       }
+
+CHECK-LABEL: define {{.*}}@mul_float64(
+CHECK:         call {{.*}}@float64_mul(
+CHECK:       }
+
+CHECK-LABEL: define {{.*}}@mul_float32(
+CHECK:         call {{.*}}@float32_mul(
+CHECK:       }
+
+CHECK-LABEL: define {{.*}}@div_float64(
+CHECK:         call {{.*}}@float64_div(
+CHECK:       }
+
+CHECK-LABEL: define {{.*}}@div_float32(
+CHECK:         call {{.*}}@float32_div(
+CHECK:       }
+
+// Comparison. The alternation enumerates every cross-arch softfloat name our
+// corpus actually produces: each branch is one complete helper identifier.
+
+CHECK-LABEL: define {{.*}}@compare_float64(
+CHECK:         call {{.*}}@{{(float64_compare|float64_compare_quiet|float64_lt)}}(
+CHECK:       }
+
+CHECK-LABEL: define {{.*}}@compare_float32(
+CHECK:         call {{.*}}@{{(float32_compare|float32_compare_quiet|float32_lt)}}(
+CHECK:       }
+
+// Conversions between 32-bit integers and floating point. Each alternation
+// branch is a complete helper identifier plus, for the `_scalbn` variants, an
+// assertion that the scale argument is the literal `i32 noundef 0`, i.e., a
+// plain integer conversion, not a fixed-point one.
+//
+// Note: the `convert_int32_t_to_float` blocks below match both
+// `int32_to_float` and `int64_to_float` helper names even though the C
+// source is `int32_t`. This is because on s390x and on aarch64 the 32-bit
+// integer argument is sign-extended to 64 bits before the conversion.
+
+CHECK-LABEL: define {{.*}}@convert_int32_t_to_float64(
+CHECK:         call {{.*}}@{{(int32_to_float64\(|int64_to_float64\(|int64_to_float64_scalbn\([^,]+, i32 noundef 0)}}
+CHECK:       }
+
+CHECK-LABEL: define {{.*}}@convert_float64_to_int32_t(
+CHECK:         call {{.*}}@{{(float64_to_int32\(|float64_to_int32_round_to_zero\(|float64_to_int32_scalbn\([^,]+, [^,]+, i32 noundef 0)}}
+CHECK:       }
+
+CHECK-LABEL: define {{.*}}@convert_int32_t_to_float32(
+CHECK:         call {{.*}}@{{(int32_to_float32\(|int64_to_float32\(|int64_to_float32_scalbn\([^,]+, i32 noundef 0)}}
+CHECK:       }
+
+CHECK-LABEL: define {{.*}}@convert_float32_to_int32_t(
+CHECK:         call {{.*}}@{{(float32_to_int32\(|float32_to_int32_round_to_zero\(|float32_to_int32_scalbn\([^,]+, [^,]+, i32 noundef 0)}}
+CHECK:       }
+
+// Conversions between 64-bit integers and floating point: emitted only on
+// 64-bit targets (see the matching `#if` guard in `floating-point.c`), so
+// they are checked under the `CHECK-64` prefix. Same `i32 noundef 0` scale
+// check applies to the `_scalbn` variants.
+
+CHECK-64-LABEL: define {{.*}}@convert_int64_t_to_float64(
+CHECK-64:         call {{.*}}@{{(int64_to_float64\(|int64_to_float64_scalbn\([^,]+, i32 noundef 0)}}
+CHECK-64:       }
+
+CHECK-64-LABEL: define {{.*}}@convert_float64_to_int64_t(
+CHECK-64:         call {{.*}}@{{(float64_to_int64\(|float64_to_int64_round_to_zero\(|float64_to_int64_scalbn\([^,]+, [^,]+, i32 noundef 0)}}
+CHECK-64:       }
+
+CHECK-64-LABEL: define {{.*}}@convert_int64_t_to_float32(
+CHECK-64:         call {{.*}}@{{(int64_to_float32\(|int64_to_float32_scalbn\([^,]+, i32 noundef 0)}}
+CHECK-64:       }
+
+CHECK-64-LABEL: define {{.*}}@convert_float32_to_int64_t(
+CHECK-64:         call {{.*}}@{{(float32_to_int64\(|float32_to_int64_round_to_zero\(|float32_to_int64_scalbn\([^,]+, [^,]+, i32 noundef 0)}}
+CHECK-64:       }
