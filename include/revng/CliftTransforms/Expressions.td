@@ -39,6 +39,13 @@ def DeMorganDisjunctionPattern
                                                (Clift_LogicalNotOp $rhs))),
         (Clift_LogicalAndOp $lhs, $rhs)>;
 
+// !x ? y : z -> x ? z : y
+def TernaryInversionPattern
+  : Pat<(Clift_TernaryOp (Clift_LogicalNotOp $condition),
+                         $lhs,
+                         $rhs),
+        (Clift_TernaryOp $condition, $rhs, $lhs)>;
+
 //===--------------------------- Math identities --------------------------===//
 
 // x ^ 0xffffffff -> ~x
