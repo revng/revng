@@ -258,8 +258,8 @@ foreach(
     COMMAND
       ./bin/revng opt -mark-inline-helpers-up-to -sroa -instsimplify
       -cpu-loop-exit -analyze-helper-arguments -loop-unroll -fix-helpers
-      -fix-helpers-architecture="${ARCH}" "${LIBTCG_HELPERS}" -o
-      "${LIBTCG_HELPERS_FULL}")
+      -fix-helpers-architecture="${ARCH}" -dce -detect-uninlinable-helpers
+      "${LIBTCG_HELPERS}" -o "${LIBTCG_HELPERS_FULL}")
   add_custom_target("annotated-libtcg-helpers-${ARCH}" ALL
                     DEPENDS "${LIBTCG_HELPERS_FULL}")
 
