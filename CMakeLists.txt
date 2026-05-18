@@ -236,7 +236,7 @@ foreach(
       "${CMAKE_BINARY_DIR}/share/revng/libtcg-helpers-full-${ARCH}.bc")
   add_custom_command(
     OUTPUT "${LIBTCG_HELPERS_FULL}"
-    DEPENDS "${LIBTCG_HELPERS}" revng-all-binaries
+    DEPENDS "${LIBTCG_HELPERS}" revng-all-binaries revngHelperArgumentsAnalysis
     COMMAND
       ./bin/revng opt -sroa -instsimplify -cpu-loop-exit
       -analyze-helper-arguments -fix-helpers
@@ -258,6 +258,7 @@ foreach(
     add_custom_command(
       OUTPUT "${PROCESS_HELPER_MODULE_OUTPUT}"
       DEPENDS "${LIBTCG_HELPERS_FULL}" revng-all-binaries
+              revngHelperArgumentsAnalysis
       COMMAND ./bin/revng opt ${OPT_PASSES} "${LIBTCG_HELPERS_FULL}" -o
               "${PROCESS_HELPER_MODULE_OUTPUT}")
     add_custom_target("annotated-libtcg-helpers-${OPT_NAME}-${ARCH}" ALL
