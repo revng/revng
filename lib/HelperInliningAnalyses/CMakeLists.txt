@@ -1,0 +1,15 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+revng_add_analyses_library_internal(revngHelperInliningAnalyses
+                                    MarkInlineHelpersUpTo.cpp)
+
+target_link_libraries(
+  revngHelperInliningAnalyses
+  revngBasicAnalyses
+  revngModel
+  revngPipeline
+  revngPipes
+  revngSupport
+  ${LLVM_LIBRARIES})
