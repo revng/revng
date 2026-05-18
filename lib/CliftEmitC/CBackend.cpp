@@ -355,6 +355,7 @@ public:
 
   RecursiveCoroutine<void> emitHiddenCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<CastOpInterface>();
+    CurrentPrecedence = decrementPrecedence(CurrentPrecedence);
     return emitExpression(unwrapHiddenCasts(E));
   }
 
@@ -602,7 +603,7 @@ public:
         auto Info = getExpressionEmitInfo(unwrapHiddenCasts(Cast));
 
         return {
-          .Precedence = decrementPrecedence(Info.Precedence),
+          .Precedence = Info.Precedence,
           .Emit = &CliftToCEmitter::emitHiddenCastExpression,
         };
       }
