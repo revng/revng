@@ -8,6 +8,7 @@ revng_add_analyses_library_internal(
   InlineHelpers.cpp
   InvokeIsolatedFunctions.cpp
   IsolateFunctions.cpp
+  PostInlineHelpersVerifyPass.cpp
   PromoteCSVs.cpp
   RemoveExceptionalCalls.cpp
   StripDebugInfoFromHelpers.cpp
