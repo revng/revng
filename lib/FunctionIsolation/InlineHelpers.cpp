@@ -24,6 +24,8 @@
 #include "revng/Support/OpaqueFunctionsPool.h"
 #include "revng/Support/ResourceFinder.h"
 
+#include "PostInlineHelpersVerifyPass.h"
+
 using namespace llvm;
 
 static Logger Log("inline-helpers");
@@ -271,6 +273,12 @@ bool InlineHelpersPass::runOnModule(llvm::Module &M) {
     if (F.getSection() == InlineHelpersSection)
       deleteOnlyBody(F);
   }
+
+  // Verify that no `getelementptr` instruction was dragged into an Isolated
+  // function by the inlining above. The downstream pipeline relies on this
+  // invariant.
+  // TODO: convert this from a pass to a free-standing function
+  PostInlineHelpersVerifyPass{}.runOnModule(M);
 
   return true;
 }
