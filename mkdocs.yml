@@ -28,6 +28,8 @@ nav:
           - "A model from scratch": "user-manual/tutorial/model-from-scratch.md"
           - "Running analyses": "user-manual/tutorial/running-analyses.md"
       - "Python scripting": "user-manual/python-scripting.md"
+  - "Developer's manual":
+      - "QEMU helpers": "developer-manual/qemu-helpers.md"
   - "References":
       - "Model": references/model.md
       - Artifacts: references/artifacts.md
