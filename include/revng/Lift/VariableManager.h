@@ -144,6 +144,12 @@ public:
                                  llvm::Instruction *InsertBefore,
                                  unsigned Offset = 0);
 
+  /// Return the LLVM global that holds the runtime base address of `env`.
+  llvm::GlobalVariable *envGlobal() const { return Env; }
+
+  /// Return the offset of `env` within the CPU state struct.
+  unsigned envBaseOffset() const { return LibTcgEnvOffset; }
+
   void setDataLayout(const llvm::DataLayout *NewLayout) {
     ModuleLayout = NewLayout;
   }

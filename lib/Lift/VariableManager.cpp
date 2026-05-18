@@ -170,6 +170,13 @@ VariableManager::VariableManager(Module &M,
   IntegerType *IntPtrTy = AllocaBuilder.getIntPtrTy(*ModuleLayout);
   Env = cast<GlobalVariable>(TheModule.getOrInsertGlobal("env", IntPtrTy));
   Env->setInitializer(ConstantInt::get(IntPtrTy, LibTcgEnvOffset));
+
+  // We mark `@env` as `constant` in order to mimic the fact that the runtime
+  // address of the QEMU CPU state is written at initialization and only read
+  // afterwards.
+  // This is especially important to merge `load`s relative to `@env` across
+  // opaque calls.
+  Env->setConstant(true);
 }
 
 std::optional<StoreInst *>
