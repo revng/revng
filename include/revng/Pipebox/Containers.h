@@ -19,4 +19,8 @@ using PTMLCTypeBytesContainer = TypeDefinitionToBytesContainer<"PTMLCType"
                                                                "BytesContainer",
                                                                "text/x.c+ptml">;
 
+using RecompilableArchiveContainer = BytesContainer<"RecompilableArchive"
+                                                    "Container",
+                                                    "application/x-object">;
+
 } // namespace revng::pypeline

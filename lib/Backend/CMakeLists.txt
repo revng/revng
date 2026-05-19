@@ -2,9 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-revng_add_analyses_library_internal(
-  revngBackend ALAPVariableDeclaration.cpp DecompilePipe.cpp
-  DecompileFunction.cpp EmitCAsDirectoryPipe.cpp)
+revng_add_analyses_library_internal(revngBackend ALAPVariableDeclaration.cpp
+                                    DecompilePipe.cpp DecompileFunction.cpp)
 
 target_link_libraries(
   revngBackend

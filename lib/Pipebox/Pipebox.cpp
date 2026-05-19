@@ -8,6 +8,7 @@
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/Clifter.h"
 #include "revng/CliftPipes/EmitC.h"
+#include "revng/CliftPipes/EmitCAsDirectory.h"
 #include "revng/CliftPipes/EmitCAsSingleFile.h"
 #include "revng/CliftPipes/Headers.h"
 #include "revng/CliftPipes/ImportDataModel.h"
@@ -81,6 +82,7 @@ static RegisterContainer<FunctionControlFlowContainer> C18;
 static RegisterContainer<CliftModuleContainer> C19;
 static RegisterContainer<CliftSingleTypeContainer> C20;
 static RegisterContainer<PTMLCTypeBytesContainer> C21;
+static RegisterContainer<RecompilableArchiveContainer> C22;
 
 //
 // Pipes
@@ -137,6 +139,7 @@ static RegisterSingleOutputPipeRun<ImportSegmentDeclarations> P44;
 static RegisterSingleOutputPipeRun<EmitTypeAndGlobalHeader> P45;
 static RegisterSingleOutputPipeRun<EmitHelperHeader> P46;
 static RegisterTypeDefinitionPipeRun<EmitSingleTypeDefinition> P47;
+static RegisterSingleOutputPipeRun<EmitCAsDirectory> P48;
 
 //
 // Analyses
