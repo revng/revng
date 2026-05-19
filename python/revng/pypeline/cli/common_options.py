@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Generator, cast
 
 import click
-from click.core import ParameterSource
 from click_option_group import GroupedOption, OptionGroup
 
 from revng.pypeline.analysis import Analysis, AnalysisList
@@ -72,7 +71,7 @@ def handle_format_option(ctx, param, value):
     existing_format = ctx.params.get(_FORMAT_VARIABLE)
     if existing_format is not None:
         # If the user EXPLICITLY typed --format AND used a flag -> Error
-        if ctx.get_parameter_source(param.name) != ParameterSource.DEFAULT:
+        if value is not None:
             raise click.BadOptionUsage(
                 param.name,
                 "Mutually exclusive: Cannot specify "
@@ -81,8 +80,11 @@ def handle_format_option(ctx, param, value):
         # If --format is just running its default 'yaml', let the Flag win
         return existing_format
 
-    # If no flag was used, convert the string value to Enum and return
-    return ContainerFormat(value)
+    if value is not None:
+        # If no flag was used, convert the string value to Enum and return
+        return ContainerFormat(value)
+    else:
+        return ContainerFormat.YAML
 
 
 def container_format_options(func):
@@ -90,10 +92,11 @@ def container_format_options(func):
         "--format",
         _FORMAT_VARIABLE,
         type=click.Choice([x.value for x in ContainerFormat]),
-        default=ContainerFormat.YAML.value,
-        show_default=True,
         callback=handle_format_option,
-        help="Format to use for the output container, either on stdout or in the result path.",
+        help=(
+            "Format to use for the output container, either on stdout or in "
+            "the result path.  [default: yaml]"
+        ),
     )(func)
     for member in ContainerFormat:
         func = click.option(
