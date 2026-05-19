@@ -189,7 +189,10 @@ struct RegisterPipe {
     });
 
     // Native
-    revng_assert(native::Registry.Pipes.count(T::Name) == 0);
+    if (native::Registry.Pipes.count(T::Name) != 0) {
+      std::string Error = "Duplicate pipes: '" + T::Name.str() + "'";
+      revng_abort(Error.c_str());
+    }
     native::Registry.Pipes[T::Name] =
       [](llvm::StringRef Config) -> std::unique_ptr<native::Pipe> {
       return std::make_unique<native::PipeImpl<T>>(Config);
