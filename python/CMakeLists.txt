@@ -351,6 +351,7 @@ set(REVNG_CLI_COMMANDS_MODULE_FILES
     revng/internal/cli/_commands/test_docs/__init__.py
     revng/internal/cli/_commands/test_docs/doctest_runner.py
     revng/internal/cli/_commands/trace_run.py
+    revng/internal/cli/_commands/merge-irs.py
     revng/internal/cli/_commands/model_compare.py
     revng/internal/cli/_commands/model_migrate.py
     revng/internal/cli/_commands/model_export_sqlite.py
