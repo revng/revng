@@ -41,8 +41,6 @@ Containers:
     Type: decompiled-c-code
   - Name: decompiled.tar.gz
     Type: decompile
-  - Name: recompilable-archive.tar.gz
-    Type: recompilable-archive
   - Name: functions.mlir
     Type: clift-functions
   - Name: model-type-definitions.tar.gz
@@ -548,29 +546,6 @@ Branches:
             This artifact is a single PTML file representing the decompiled C
             code of the whole program, including the body of all of program's
             functions.
-  - From: embed-statement-comments
-    Steps:
-      - Name: emit-recompilable-archive
-        Pipes:
-          - Type: emit-c-as-directory
-            UsedContainers: [functions.bc.zstd, cfg.yml.tar.gz, recompilable-archive.tar.gz]
-        Artifacts:
-          Container: recompilable-archive.tar.gz
-          Kind: recompilable-archive
-          SingleTargetFilename: recompilable-archive.tar.gz
-          Docs: |-
-            This artifact is an archive containing all the files necessary to
-            recompile the decompiled C code of the input program.
-            These files are not in PTML, they are plain C.
-
-            It contains:
-
-            - `functions.c`: the `decompile-to-single-file` artifact;
-            - `legacy-types-and-globals.h`: see the `emit-model-header` artifact;
-            - `legacy-helpers.h`: see the `emit-helpers-header` artifact;
-            - `attributes.h`: an helper header file defining a set of
-              annotations used by the decompiled C source files;
-            - `primitive-types.h`: a header defining all the primitive types.
   - From: canonicalize
     Steps:
       - Name: emit-helpers-header

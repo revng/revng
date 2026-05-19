@@ -118,18 +118,4 @@ inline pipeline::SingleElementKind DecompiledToC("decompiled-to-c",
                                                  fat(ranks::Function),
                                                  { &LegacyModelHeader });
 
-inline pipeline::SingleElementKind
-  RecompilableArchive("recompilable-archive",
-                      Binary,
-                      ranks::Binary,
-                      fat(ranks::Function,
-                          ranks::TypeDefinition,
-                          ranks::StructField,
-                          ranks::UnionField,
-                          ranks::EnumEntry,
-                          ranks::DynamicFunction,
-                          ranks::Segment,
-                          ranks::ArtificialStruct),
-                      {});
-
 } // namespace revng::kinds
