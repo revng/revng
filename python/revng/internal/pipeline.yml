@@ -49,6 +49,12 @@ containers:
     type: PTMLCFunctionBytesContainer
   - name: decompiled-single-file
     type: PTMLCBytesContainer
+  - name: tagless-decompile-c
+    type: PTMLCFunctionBytesContainer
+  - name: tagless-decompiled-single-file
+    type: PTMLCBytesContainer
+  - name: recompilable-archive
+    type: RecompilableArchiveContainer
   - name: llvm-root-merged
     type: LLVMRootContainer
   - name: cross-relations
@@ -59,6 +65,18 @@ containers:
     type: CallGraphSliceContainer
   - name: function-cfg
     type: FunctionControlFlowContainer
+  - name: clift-types-and-globals
+    type: CliftModuleContainer
+  - name: type-and-global-header
+    type: PTMLCBytesContainer
+  - name: helper-header
+    type: PTMLCBytesContainer
+  - name: single-type
+    type: PTMLCTypeBytesContainer
+  - name: tagless-type-and-global-header
+    type: PTMLCBytesContainer
+  - name: tagless-helper-header
+    type: PTMLCBytesContainer
 
 analyses:
   - apply-diff
@@ -305,7 +323,7 @@ branches:
           - analysis: analyze-data-layout
             containers: [llvm-functions]
 
-  backend:
+  clift-functions:
     from: detect-stack-size
     tasks:
       - pipe: pure-llvm-passes-pipe
@@ -421,6 +439,12 @@ branches:
         containers: [clift-functions]
       - pipe: import-descriptive-function-info
         arguments: [clift-functions]
+      - savepoint: pre-backend-clift
+        containers: [clift-functions]
+
+  decompiled:
+    from: clift-functions
+    tasks:
       - pipe: emit-c
         arguments: [clift-functions, decompile-c]
       - savepoint: emit-c
@@ -433,11 +457,31 @@ branches:
             defined_locations:
               - function
             preferred_artifacts:
-              - legacy-emit-model-header
+              - emit-type-and-global-header
         analyses:
           - analysis: llm-rename
             containers: [decompile-c]
 
+  helpers:
+    from: clift-functions
+    tasks:
+      - pipe: emit-helper-header
+        arguments: [clift-functions, helper-header]
+      - savepoint: helper-header
+        containers: [helper-header]
+        artifacts:
+          - name: emit-helper-header
+            container: helper-header
+            category: user
+            filename: helpers.h
+            defined_locations:
+              - helper-function
+              - helper-struct-type
+              - helper-struct-field
+
+  single-file:
+    from: decompiled
+    tasks:
       - pipe: emit-c-as-single-file
         arguments: [decompile-c, decompiled-single-file]
       - savepoint: emit-c-as-single-file
@@ -450,7 +494,81 @@ branches:
             defined_locations:
               - function
             preferred_artifacts:
-              - legacy-emit-model-header
+              - emit-type-and-global-header
+
+  tagless-decompiled:
+    from: clift-functions
+    tasks:
+      - pipe: emit-c
+        configuration:
+          disable-markup: true
+          emission-mode: recompilable
+        arguments: [clift-functions, tagless-decompile-c]
+      - savepoint: emit-tagless-c
+        containers: [tagless-decompile-c]
+        artifacts:
+          - name: emit-tagless-c
+            container: tagless-decompile-c
+            category: metadata
+            filename: decompiled.c
+            defined_locations:
+              - function
+            preferred_artifacts:
+              - emit-type-and-global-header
+
+  tagless-single-file:
+    from: tagless-decompiled
+    tasks:
+      - pipe: emit-c-as-single-file
+        arguments: [tagless-decompile-c, tagless-decompiled-single-file]
+        configuration:
+          disable-markup: true
+          emission-mode: recompilable
+      - savepoint: emit-tagless-c-as-single-file
+        containers: [tagless-decompiled-single-file]
+        artifacts:
+          - name: emit-tagless-c-as-single-file
+            container: tagless-decompiled-single-file
+            category: metadata
+            filename: binary_decompiled.c
+            defined_locations:
+              - function
+            preferred_artifacts:
+              - emit-type-and-global-header
+
+      - pipe: emit-helper-header
+        arguments: [clift-functions, tagless-helper-header]
+        configuration:
+          disable-markup: true
+          emission-mode: recompilable
+
+      - pipe: import-types
+        arguments: [clift-types-and-globals]
+      - pipe: import-function-declarations
+        arguments: [clift-types-and-globals]
+      - pipe: import-segment-declarations
+        arguments: [clift-types-and-globals]
+      - pipe: import-descriptive-info
+        arguments: [clift-types-and-globals]
+      - pipe: emit-type-and-global-header
+        arguments: [clift-types-and-globals, tagless-type-and-global-header]
+        configuration:
+          disable-markup: true
+          emission-mode: recompilable
+
+      - pipe: emit-c-as-directory
+        arguments:
+          - tagless-decompiled-single-file
+          - tagless-type-and-global-header
+          - tagless-helper-header
+          - recompilable-archive
+      - savepoint: recompilable-archive
+        containers: [recompilable-archive]
+        artifacts:
+          - name: emit-recompilable-archive
+            container: recompilable-archive
+            category: metadata
+            filename: recompilable_archive.tar
 
   legacy-emit-model-header:
     tasks:
@@ -642,3 +760,63 @@ branches:
             container: function-cfg
             category: user
             filename: cfg.svg
+
+  import-types:
+    tasks:
+      - pipe: import-types
+        arguments: [clift-types-and-globals]
+        artifacts:
+          - name: import-types
+            container: clift-types-and-globals
+            category: debug
+            filename: types.mlir
+      - pipe: import-function-declarations
+        arguments: [clift-types-and-globals]
+
+  emit-type-and-global-header:
+    from: import-types
+    tasks:
+      - pipe: import-segment-declarations
+        arguments: [clift-types-and-globals]
+      - pipe: import-descriptive-info
+        arguments: [clift-types-and-globals]
+      - pipe: emit-type-and-global-header
+        arguments: [clift-types-and-globals, type-and-global-header]
+        configuration:
+          disable-markup: false
+          emission-mode: recompilable
+      - savepoint: type-and-global-header
+        containers: [type-and-global-header]
+        artifacts:
+          - name: emit-type-and-global-header
+            container: type-and-global-header
+            category: user
+            filename: types-and-globals.h
+            defined_locations:
+              - type-definition
+              - struct-field
+              - union-field
+              - enum-entry
+              - dynamic-function
+              - segment
+              - artificial-struct
+            preferred_artifacts:
+              - emit-c
+
+  emit-single-type-definition:
+    from: import-types
+    tasks:
+      - pipe: import-descriptive-info
+        arguments: [clift-types-and-globals]
+      - pipe: emit-single-type-definition
+        arguments: [clift-types-and-globals, single-type]
+        configuration:
+          disable-markup: true
+          emission-mode: editable
+      - savepoint: single-type-definition
+        containers: [single-type]
+        artifacts:
+          - name: emit-single-type-definition
+            container: single-type
+            category: user
+            filename: type.h
