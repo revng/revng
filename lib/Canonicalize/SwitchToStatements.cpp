@@ -271,9 +271,9 @@ static bool causesExponentialDataflowPaths(const Instruction *I) {
   if (isa<SelectInst>(I))
     return true;
 
-  llvm::Value *Op0 = nullptr;
-  llvm::Value *Op1 = nullptr;
-  llvm::Value *Op2 = nullptr;
+  Value *Op0 = nullptr;
+  Value *Op1 = nullptr;
+  Value *Op2 = nullptr;
 
   using namespace llvm::PatternMatch;
   if (match(I, m_FShl(m_Value(Op0), m_Value(Op1), m_Value(Op2))))
@@ -290,7 +290,7 @@ static bool doesNotAccessMemory(const Instruction *I) {
   // inaccessible memory, in order to prevent some LLVM optimizations.
   // Same for OpaqueExtractValue.
   if (auto *Call = dyn_cast<CallInst>(I)) {
-    if (llvm::Function *Callee = getCalledFunction(Call)) {
+    if (Function *Callee = getCalledFunction(Call)) {
       StringRef Name = Callee->getName();
       if (Name.startswith("revng_call_stack_arguments")
           or Name.startswith("revng_stack_frame")) {
@@ -475,11 +475,11 @@ public:
 
 private:
   AliasAnalysis *AA;
-  llvm::ModuleSlotTracker &MST;
+  ModuleSlotTracker &MST;
 
 public:
   AvailableExpressionsMonotoneFramework(AliasAnalysis *A,
-                                        llvm::ModuleSlotTracker &TheMST) :
+                                        ModuleSlotTracker &TheMST) :
     AA(A), MST(TheMST) {}
 
 public:
@@ -770,14 +770,14 @@ private:
   // ProgramPointsGraph.
   InstructionProgramPoint NextProgramPointInBlock;
 
-  llvm::ModuleSlotTracker &MST;
+  ModuleSlotTracker &MST;
 
 public:
-  AvailableExpressionsResult(llvm::ModuleSlotTracker &TheMST) : MST(TheMST) {}
+  AvailableExpressionsResult(ModuleSlotTracker &TheMST) : MST(TheMST) {}
 
   // Factory from llvm::Function
-  static AvailableExpressionsResult
-  makeFromFunction(Function &F, llvm::ModuleSlotTracker &MST) {
+  static AvailableExpressionsResult makeFromFunction(Function &F,
+                                                     ModuleSlotTracker &MST) {
 
     SmallMap<BasicBlock *, std::pair<ProgramPointNode *, ProgramPointNode *>, 8>
       BlockToBeginEndNode;
@@ -923,10 +923,9 @@ template<bool IsLegacy>
 using AEResult = AvailableExpressionsResult<IsLegacy>;
 
 template<bool IsLegacy>
-static AEResult<IsLegacy>
-getAvailableExpressions(Function &F,
-                        AliasAnalysis *AA,
-                        llvm::ModuleSlotTracker &MST) {
+static AEResult<IsLegacy> getAvailableExpressions(Function &F,
+                                                  AliasAnalysis *AA,
+                                                  ModuleSlotTracker &MST) {
   revng_log(Log, "getAvailableExpressions: " << F.getName());
 
   using AvailableExpression = AvailableExpression<IsLegacy>;
@@ -994,11 +993,10 @@ class ModuleSlotTrackerAnalysis
 
 public:
   struct Result {
-    std::unique_ptr<llvm::ModuleSlotTracker> MST;
+    std::unique_ptr<ModuleSlotTracker> MST;
   };
 
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
-    using llvm::ModuleSlotTracker;
     Result R{ std::make_unique<ModuleSlotTracker>(F.getParent(),
                                                   /* InitMetadata = */ false) };
     R.MST->incorporateFunction(F);
@@ -1050,7 +1048,7 @@ private:
   AliasAnalysis *AA;
   // A pointer (rather than a reference) so the picker can be default
   // constructed by the FAM factory; the MST is fetched and assigned in run().
-  llvm::ModuleSlotTracker *MST = nullptr;
+  ModuleSlotTracker *MST = nullptr;
 
 public:
   InstructionToSerializePicker() :
@@ -1072,7 +1070,7 @@ public:
 
 private:
   bool isSerializable(const Instruction &I) const {
-    const llvm::Type *T = I.getType();
+    const Type *T = I.getType();
     if constexpr (IsLegacy) {
       return not T->isVoidTy() and not T->isAggregateType()
              and not isCallToTagged(&I, FunctionTags::IsRef);
@@ -1081,15 +1079,13 @@ private:
     }
   }
 
-  void pick(llvm::Instruction *I) {
+  void pick(Instruction *I) {
     LoggerIndent Indent{ Log };
     revng_log(Log, "pick(I), I: " << dumpToString(I, *MST));
     Picked.ToSerialize.insert(I);
   };
 
-  bool isPicked(llvm::Instruction *I) const {
-    return Picked.ToSerialize.contains(I);
-  }
+  bool isPicked(Instruction *I) const { return Picked.ToSerialize.contains(I); }
 
   Result pick(Function &F) {
     revng_log(Log, "pick: " << F.getName().str());
