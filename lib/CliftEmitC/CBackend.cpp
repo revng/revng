@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
 
 #include "revng/ADT/RecursiveCoroutine.h"
@@ -14,8 +15,14 @@ using namespace clift;
 
 namespace {
 
-static RecursiveCoroutine<void> noopCoroutine() {
-  rc_return;
+inline bool isVisibleStatement(mlir::Operation *Op) {
+  return not mlir::isa<MakeLabelOp, RequireOp>(Op);
+}
+
+inline auto getVisibleStatementRange(mlir::Region &R) {
+  return llvm::make_filter_range(R.getOps(), [](mlir::Operation &Op) {
+    return isVisibleStatement(&Op);
+  });
 }
 
 static bool hasFallthrough(mlir::Region &R) {
@@ -811,12 +818,19 @@ public:
   }
 
   bool labelRequiresEmptyExpression(LabelAssignmentOpInterface Op) {
+    mlir::Block::iterator I = std::next(Op->getIterator());
+    mlir::Block::iterator E = Op->getBlock()->end();
+
+    // Skip over any invisible statement operations.
+    while (I != E and not isVisibleStatement(&*I))
+      ++I;
+
     // Prior to C23, labels cannot be placed at the end of a block:
-    if (Op.getOperation() == &Op->getBlock()->back())
+    if (I == E)
       return true;
 
     // Prior to C23, labels cannot be placed preceding a declaration:
-    if (mlir::isa<LocalVariableOp>(&*std::next(Op->getIterator())))
+    if (mlir::isa<LocalVariableOp>(&*I))
       return true;
 
     return false;
@@ -1164,9 +1178,6 @@ public:
     if (auto S = mlir::dyn_cast<LocalVariableOp>(Op))
       return emitLocalVariableDeclaration(S, /*Newline=*/true);
 
-    if (auto S = mlir::dyn_cast<MakeLabelOp>(Op))
-      return noopCoroutine();
-
     if (auto S = mlir::dyn_cast<AssignLabelOp>(Op))
       return emitLabelStatement(S);
 
@@ -1175,9 +1186,6 @@ public:
 
     if (auto S = mlir::dyn_cast<JumpStatementOpInterface>(Op))
       return emitLabeledJumpStatement(S);
-
-    if (auto S = mlir::dyn_cast<RequireOp>(Op))
-      return noopCoroutine();
 
     if (auto S = mlir::dyn_cast<ReturnOp>(Op))
       return emitReturnStatement(S);
@@ -1204,7 +1212,7 @@ public:
   }
 
   RecursiveCoroutine<void> emitStatementRegion(mlir::Region &R) {
-    for (mlir::Operation &Stmt : R.getOps())
+    for (mlir::Operation &Stmt : getVisibleStatementRange(R))
       rc_recur emitStatement(mlir::cast<StatementOpInterface>(&Stmt));
   }
 
