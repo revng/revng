@@ -432,6 +432,8 @@ convertToRaw(const model::CABIFunctionDefinition &FunctionType,
   return ToRaw.convert(FunctionType, Binary);
 }
 
+static Logger LayoutLog("function-type-layout");
+
 Layout::Layout(const model::CABIFunctionDefinition &Function) {
   const abi::Definition &ABI = abi::Definition::get(Function.ABI());
   ToRawConverter Converter(ABI);
@@ -538,6 +540,10 @@ Layout::Layout(const model::CABIFunctionDefinition &Function) {
   llvm::copy(ABI.CalleeSavedRegisters(), CalleeSavedRegisters.begin());
 
   FinalStackOffset = Converter.finalStackOffset(StackStructSize);
+
+  revng_log(LayoutLog,
+            "Layout of " + toString(Function.key()) + " is:\n"
+              << toString(*this));
 }
 
 Layout::Layout(const model::RawFunctionDefinition &Function) {
@@ -574,6 +580,10 @@ Layout::Layout(const model::RawFunctionDefinition &Function) {
 
   // Set the final offset.
   FinalStackOffset = Function.FinalStackOffset();
+
+  revng_log(LayoutLog,
+            "Layout of " + toString(Function.key()) + " is:\n"
+              << toString(*this));
 }
 
 bool Layout::verify() const {
