@@ -479,6 +479,7 @@ def construct_type(type_metadata: TypeMetadata, data):
             return type_metadata["type"].from_dict(**data)
         return type_metadata["type"](data)
     elif type_metadata["ctor"] == "class":
+        assert isinstance(data, dict)
         return type_metadata["type"].from_dict(**data)
     else:
         raise RuntimeError(f"Unknown ctor: {type_metadata['ctor']}")
