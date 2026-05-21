@@ -1,0 +1,67 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# When ALL fields of a union reference deleted types, the union itself must
+# also be dropped and deletion cascades to its dependents (here, the field
+# in `uses_u` referencing the union).
+#
+# RUN: %root/bin/revng model drop-types %s 1001-StructDefinition 1002-StructDefinition | FileCheck %s
+
+Architecture: x86_64
+
+TypeDefinitions:
+  # Dropped directly.
+  # CHECK-NOT: 1001-StructDefinition
+  - ID: 1001
+    Kind: StructDefinition
+    Name: "v1"
+    Size: 4
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+
+  # Dropped directly.
+  # CHECK-NOT: 1002-StructDefinition
+  - ID: 1002
+    Kind: StructDefinition
+    Name: "v2"
+    Size: 4
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+
+  # Both entries reference deleted types, so the union itself is cascaded.
+  # CHECK-NOT: 1003-UnionDefinition
+  # CHECK-NOT: UnionDefinition
+  - ID: 1003
+    Kind: UnionDefinition
+    Name: "u"
+    Fields:
+      - Index: 0
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1001-StructDefinition"
+      - Index: 1
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1002-StructDefinition"
+
+  # Survives but loses its only field (which referenced the cascaded union).
+  # CHECK:     ID:              1004
+  # CHECK:     Name:            uses_u
+  # CHECK-NOT: Fields:
+  - ID: 1004
+    Kind: StructDefinition
+    Name: "uses_u"
+    Size: 4
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1003-UnionDefinition"
