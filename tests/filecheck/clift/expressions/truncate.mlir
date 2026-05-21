@@ -1,0 +1,17 @@
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+// RUN: %root/bin/revng clift-opt %s
+
+!int16_t = !clift.int<signed 2>
+!int32_t = !clift.int<signed 4>
+
+!uint16_t = !clift.int<unsigned 2>
+!uint32_t = !clift.int<unsigned 4>
+
+%i32 = clift.undef : !int32_t
+%u32 = clift.undef : !uint32_t
+
+clift.truncate %i32 : !int32_t -> !int16_t
+clift.truncate %u32 : !uint32_t -> !uint16_t
