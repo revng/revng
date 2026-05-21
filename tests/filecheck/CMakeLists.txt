@@ -529,3 +529,15 @@ set(CLIFT_TYPES
 foreach(F IN LISTS CLIFT_TYPES)
   add_filecheck_test(${F})
 endforeach()
+
+set(MODEL_DROP_TYPES
+    model/drop-types/ArrayPropagation.yml
+    model/drop-types/DropStructField.yml
+    model/drop-types/DropViaPointer.yml
+    model/drop-types/UnionCascade.yml
+    model/drop-types/UnionPartialDrop.yml
+)
+
+foreach(F IN LISTS MODEL_DROP_TYPES)
+  add_filecheck_test(${F})
+endforeach()

@@ -1,0 +1,49 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# Dropping a struct that is used as a direct (non-pointer) field type should
+# remove that field from the containing struct, but the containing struct
+# itself must survive (its other fields are unaffected).
+#
+# RUN: %root/bin/revng model drop-types %s 1001-StructDefinition | FileCheck %s
+
+Architecture: x86_64
+
+TypeDefinitions:
+  - ID: 1001
+    Kind: StructDefinition
+    Name: "victim"
+    Size: 4
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+
+  - ID: 1002
+    Kind: StructDefinition
+    Name: "container"
+    Size: 8
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1001-StructDefinition"
+      - Offset: 4
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+
+# The victim type is gone.
+# CHECK-NOT: 1001-StructDefinition
+# CHECK-NOT: Name:            victim
+
+# The container survives, only its primitive field at offset 4 remains.
+# CHECK: ID:              1002
+# CHECK: Name:            container
+# CHECK: Fields:
+# CHECK-NEXT: Offset:          4
+# CHECK-NEXT: Type:
+# CHECK-NEXT:   Kind:            PrimitiveType

@@ -1,0 +1,52 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# Arrays do not break the dependency chain: a field of type `Array<victim>`
+# is treated as a direct reference to `victim`, so dropping `victim` removes
+# the field from the containing struct.
+#
+# RUN: %root/bin/revng model drop-types %s 1001-StructDefinition | FileCheck %s
+
+Architecture: x86_64
+
+TypeDefinitions:
+  - ID: 1001
+    Kind: StructDefinition
+    Name: "victim"
+    Size: 4
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+
+  - ID: 1002
+    Kind: StructDefinition
+    Name: "container_with_array"
+    Size: 20
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: ArrayType
+          ElementCount: 4
+          ElementType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1001-StructDefinition"
+      - Offset: 16
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+
+# Victim is gone.
+# CHECK-NOT: 1001-StructDefinition
+
+# The container survives without its array field; the primitive field stays.
+# CHECK:      ID:              1002
+# CHECK:      Name:            container_with_array
+# CHECK:      Fields:
+# CHECK-NEXT:   - Offset:          16
+# CHECK-NEXT:     Type:
+# CHECK-NEXT:       Kind:            PrimitiveType
+# CHECK-NOT:    - Offset:          0
