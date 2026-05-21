@@ -1,0 +1,78 @@
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+// 1. Parse this source file and print it as textual assembly.
+//    This makes sure that the hand-written textual assembly can be parsed
+//    correctly and that printing it again does not fail.
+// 2. Parse the textual assembly from step 1 and emit it as bytecode.
+//    This makes sure that the automatically printed textual assembly can be
+//    parsed correctly and that emitting bytecode does not fail.
+// 3. Parse the bytecode from step 2 and emit it as textual assembly.
+//    This makes sure that the bytecode can be deserialized correctly and that
+//    printing it again as textual assembly does not fail.
+// 4. Compare the results of steps 1 and 3.
+//    This makes sure that neither parsing and reprinting the previously printed
+//    textual assembly nor round tripping through bytecode lose any information.
+//
+// RUN: diff -q <(%root/bin/revng clift-opt %s | %root/bin/revng clift-opt --emit-bytecode | %root/bin/revng clift-opt) <(%root/bin/revng clift-opt %s)
+
+!int32_t = !clift.int<signed 4>
+!uint32_t = !clift.int<unsigned 8>
+
+!my_enum = !clift.enum<
+  "/type-definition/1001-EnumDefinition" as "my_enum" : !uint32_t {
+    "/enum-entry/1001-EnumDefinition/20" as "my_enum_20" : 20,
+    "/enum-entry/1001-EnumDefinition/21" as "my_enum_21" : 21
+  }
+>
+
+!my_typedef = !clift.typedef<
+  "/type-definition/1002-TypedefDefinition" as "my_typedef" : !clift.const<!int32_t>
+>
+
+!my_struct$const = !clift.const<!clift.struct<
+  "/type-definition/1003-StructDefinition" as "my_struct" : size(40) {
+    "/struct-field/1003-StructDefinition/10" as "my_struct_10" : offset(10) !clift.const<!clift.int<signed 4>>,
+    "/struct-field/1003-StructDefinition/20" as "my_struct_20" : offset(20) !clift.int<signed 4>
+  }
+>>
+
+!my_union$const = !clift.const<!clift.union<
+  "/type-definition/1004-UnionDefinition" as "my_union" : {
+    "/union-field/1004-UnionDefinition/0" as "my_union_10" : !clift.const<!clift.int<signed 4>>,
+    "/union-field/1004-UnionDefinition/1" as "my_union_20" : !clift.int<signed 4>
+  }
+>>
+
+!my_function = !clift.func<
+  "/type-definition/1005-CABIFunctionDefinition" as "my_function" : !my_struct$const(!clift.const<!int32_t>)
+>
+
+!my_recursive_union = !clift.const<!clift.union<
+  "/type-definition/1006-UnionDefinition" as "my_recursive_union" : {
+    "/union-field/1006-UnionDefinition/0" as "my_recursive_union_10" : !clift.const<!clift.int<signed 4>>,
+    "/union-field/1006-UnionDefinition/1" as "my_recursive_union_20" : !clift.ptr<8 to !clift.const<!clift.union<"/type-definition/1006-UnionDefinition">>>
+  }
+>>
+
+!my_recursive_struct_2 = !clift.struct<
+  "/type-definition/1007-UnionDefinition" : size(8) {
+    "/struct-field/1007-UnionDefinition/0" as "my_recursive_struct_2" : offset(0) !clift.struct<"/type-definition/1008-UnionDefinition">
+  }
+>
+
+!my_recursive_struct_1 = !clift.struct<
+  "/type-definition/1008-UnionDefinition" : size(8) {
+    "/struct-field/1008-UnionDefinition/0" as "my_recursive_struct_1" : offset(0) !clift.ptr<8 to !my_recursive_struct_2>
+  }
+>
+
+clift.undef : !clift.const<!int32_t>
+clift.undef : !clift.const<!uint32_t>
+clift.undef : !my_enum
+clift.undef : !my_typedef
+clift.undef : !my_struct$const
+clift.undef : !my_union$const
+clift.undef : !my_function
+clift.undef : !my_recursive_union
+clift.undef : !my_recursive_struct_1
