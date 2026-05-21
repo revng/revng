@@ -1,0 +1,27 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %root/bin/revng pipe import-types %s /dev/null /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+
+Architecture: x86_64
+TypeDefinitions:
+  # CHECK: !_type_definition_1000_RawFunctionDefinition = !clift.func<
+  # CHECK:   "/type-definition/1000-RawFunctionDefinition"
+  # CHECK:   : !void()
+  # CHECK:   [
+  # CHECK:     #clift.c_attribute<
+  # CHECK:       "_ABI" : "/macro/_ABI"
+  # CHECK:       [
+  # CHECK:         #clift.identifier<"raw_x86_64">
+  # CHECK:       ]
+  # CHECK:     >
+  # CHECK:   ]
+  # CHECK: >
+  - ID: 1000
+    Kind: RawFunctionDefinition
+    Name: "my_function1"
+    Architecture: x86_64
+    Arguments: []
+    ReturnValues: []
+    PreservedRegisters: []
+    FinalStackOffset: 0

@@ -4,6 +4,7 @@
 
 add_subdirectory(apply)
 add_subdirectory(diff)
+add_subdirectory(drop-types)
 add_subdirectory(export)
 add_subdirectory(import)
 add_subdirectory(merge)

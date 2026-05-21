@@ -1,0 +1,543 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Each add_filecheck_test call registers one ctest that invokes lit on a single
+# test file. REVNG_BUILD_DIR is exported so lit.cfg.py can resolve %root.
+function(add_filecheck_test PATH)
+  add_test(NAME "filecheck/${PATH}"
+           COMMAND lit -a "${CMAKE_SOURCE_DIR}/tests/filecheck/${PATH}"
+           WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+  set_tests_properties("filecheck/${PATH}" PROPERTIES
+    LABELS "unit;filecheck"
+    ENVIRONMENT "REVNG_BUILD_DIR=${CMAKE_BINARY_DIR}")
+endfunction()
+
+set(LLVM_PASSES
+    llvm-passes/arithmetic-to-gep.ll
+    llvm-passes/dagify.ll
+    llvm-passes/enforce-single-exit.ll
+    llvm-passes/example.ll
+    llvm-passes/generic-region-info.ll
+    llvm-passes/inline-divergent-scopes-and-materialize-trivial-goto.ll
+    llvm-passes/inline-divergent-scopes.ll
+    llvm-passes/materialize-trivial-goto.ll
+    llvm-passes/operatorprecedence-resolution.ll
+    llvm-passes/peephole-opt-for-decompilation.ll
+    llvm-passes/remove-extractvalues.ll
+    llvm-passes/scope-graph-dumper.ll
+    llvm-passes/select-scope.ll
+    llvm-passes/switch-to-statements.ll
+    llvm-passes/ternary-reduction.ll
+    llvm-passes/twoscomplement-normalization.ll
+)
+
+foreach(F IN LISTS LLVM_PASSES)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_ATTRIBUTES
+    clift/attributes/data-model.mlir
+)
+
+foreach(F IN LISTS CLIFT_ATTRIBUTES)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_BACKEND
+    clift/backend/access.mlir
+    clift/backend/aggregate.mlir
+    clift/backend/always_inline.mlir
+    clift/backend/arithmetic.mlir
+    clift/backend/array.mlir
+    clift/backend/attributes.mlir
+    clift/backend/block.mlir
+    clift/backend/break-to.mlir
+    clift/backend/call.mlir
+    clift/backend/cast.mlir
+    clift/backend/comments.mlir
+    clift/backend/continue-to.mlir
+    clift/backend/do-while.mlir
+    clift/backend/for.mlir
+    clift/backend/function.mlir
+    clift/backend/global.mlir
+    clift/backend/goto.mlir
+    clift/backend/if.mlir
+    clift/backend/immediate.mlir
+    clift/backend/local.mlir
+    clift/backend/neg-neg.mlir
+    clift/backend/noreturn.mlir
+    clift/backend/null.mlir
+    clift/backend/operators.mlir
+    clift/backend/pointer.mlir
+    clift/backend/raw-function.mlir
+    clift/backend/string.mlir
+    clift/backend/switch.mlir
+    clift/backend/ternary.mlir
+    clift/backend/types.mlir
+    clift/backend/while.mlir
+)
+
+foreach(F IN LISTS CLIFT_BACKEND)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_BACKEND_TRANSFORMS
+    clift/backend-transforms/immediate-radix-switch.mlir
+    clift/backend-transforms/immediate-radix.mlir
+)
+
+foreach(F IN LISTS CLIFT_BACKEND_TRANSFORMS)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_C_LEGALIZATION
+    clift/c-legalization/add-i16.mlir
+    clift/c-legalization/eq-to-i8.mlir
+    clift/c-legalization/imm-enum.mlir
+    clift/c-legalization/imm-i8.mlir
+    clift/c-legalization/imm-legal.mlir
+    clift/c-legalization/ptr32.mlir
+)
+
+foreach(F IN LISTS CLIFT_C_LEGALIZATION)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_C_SEMANTICS
+    clift/c-semantics/access-p32.mlir
+    clift/c-semantics/add-i16.mlir
+    clift/c-semantics/addressof-p32.mlir
+    clift/c-semantics/call-p32.mlir
+    clift/c-semantics/cast-decay-p32.mlir
+    clift/c-semantics/eq-i16.mlir
+    clift/c-semantics/imm-i16.mlir
+    clift/c-semantics/indirection-p32.mlir
+)
+
+foreach(F IN LISTS CLIFT_C_SEMANTICS)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_CANONICALIZATION
+    clift/canonicalization/label-with-goto.mlir
+    clift/canonicalization/label-without-goto.mlir
+)
+
+foreach(F IN LISTS CLIFT_CANONICALIZATION)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_COMMENTS
+    # TODO: these fails and need to be fixed
+    # clift/comments/0-import-types/CABIFunctionType.yml
+    # clift/comments/0-import-types/EnumType.yml
+    # clift/comments/0-import-types/Extra.yml
+    # clift/comments/0-import-types/RawFunctionType.yml
+    # clift/comments/0-import-types/Segment.yml
+    # clift/comments/0-import-types/StructType.yml
+    # clift/comments/0-import-types/TypedefType.yml
+    # clift/comments/0-import-types/UnionType.yml
+    clift/comments/1-import-comments/CABIFunctionType.mlir
+    clift/comments/1-import-comments/EnumType.mlir
+    clift/comments/1-import-comments/Extra.mlir
+    clift/comments/1-import-comments/RawFunctionType.mlir
+    clift/comments/1-import-comments/Segment.mlir
+    clift/comments/1-import-comments/StructType.mlir
+    clift/comments/1-import-comments/TypedefType.mlir
+    clift/comments/1-import-comments/UnionType.mlir
+    clift/comments/2-emit-headers/CABIFunctionType.mlir
+    clift/comments/2-emit-headers/EnumType.mlir
+    clift/comments/2-emit-headers/Extra.mlir
+    clift/comments/2-emit-headers/RawFunctionType.mlir
+    clift/comments/2-emit-headers/Segment.mlir
+    clift/comments/2-emit-headers/StructType.mlir
+    clift/comments/2-emit-headers/TypedefType.mlir
+    clift/comments/2-emit-headers/UnionType.mlir
+    clift/comments/3-bonus/Helpers.mlir
+    clift/comments/3-bonus/Newlines.mlir
+)
+
+foreach(F IN LISTS CLIFT_COMMENTS)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_EMIT_FIELD_ACCESSES
+    clift/emit-field-accesses/array-index-from-struct-field.mlir
+    clift/emit-field-accesses/array-index-with-constant-component.mlir
+    clift/emit-field-accesses/array-linearcombination-access-argument-plus-offset.mlir
+    clift/emit-field-accesses/array-linearcombination-access-argument.mlir
+    clift/emit-field-accesses/array-linearcombination-access-global.mlir
+    clift/emit-field-accesses/array-mul-access.mlir
+    clift/emit-field-accesses/array-nested-same-stride-scoring.mlir
+    clift/emit-field-accesses/array-nested-same-stride.mlir
+    clift/emit-field-accesses/array-nested-struct-field-access.mlir
+    clift/emit-field-accesses/array-pointer-as-array-typedef.mlir
+    clift/emit-field-accesses/array-pointer-as-array.mlir
+    clift/emit-field-accesses/array-ptradd-linear-combination.mlir
+    clift/emit-field-accesses/array-struct-stride-mul.mlir
+    clift/emit-field-accesses/array-struct-stride-shl.mlir
+    clift/emit-field-accesses/struct-array-field-no-traverse.mlir
+    clift/emit-field-accesses/struct-array-field-target.mlir
+    clift/emit-field-accesses/struct-base-access-leftover.mlir
+    clift/emit-field-accesses/struct-base-access.mlir
+    clift/emit-field-accesses/struct-const-field-access.mlir
+    clift/emit-field-accesses/struct-enum-field-access.mlir
+    clift/emit-field-accesses/struct-indirection-propagation.mlir
+    clift/emit-field-accesses/struct-mul-access.mlir
+    clift/emit-field-accesses/struct-nested-access-union.mlir
+    clift/emit-field-accesses/struct-nested-access.mlir
+    clift/emit-field-accesses/struct-pointer-field-target.mlir
+    clift/emit-field-accesses/struct-ptradd-access.mlir
+    clift/emit-field-accesses/struct-score-commonstrides.mlir
+    clift/emit-field-accesses/struct-score-depth.mlir
+    clift/emit-field-accesses/struct-score-sizerelation.mlir
+    clift/emit-field-accesses/struct-score-startdistance.mlir
+    clift/emit-field-accesses/struct-score-typedistance.mlir
+    clift/emit-field-accesses/struct-shl-access.mlir
+    clift/emit-field-accesses/struct-typedef-field-access.mlir
+    clift/emit-field-accesses/struct-typedef-field-target.mlir
+    clift/emit-field-accesses/struct-union-access.mlir
+)
+
+foreach(F IN LISTS CLIFT_EMIT_FIELD_ACCESSES)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_EXPRESSION_REWRITES
+    clift/expression-rewrites/addressof.mlir
+    clift/expression-rewrites/assign-type-punned-reused.mlir
+    clift/expression-rewrites/assign-type-punned.mlir
+    clift/expression-rewrites/cast-collapsible.mlir
+    clift/expression-rewrites/cast-immediate.mlir
+    clift/expression-rewrites/cast-redundant.mlir
+    clift/expression-rewrites/de-morgan-conjunction.mlir
+    clift/expression-rewrites/de-morgan-disjunction.mlir
+    clift/expression-rewrites/direct-access.mlir
+    clift/expression-rewrites/enum-immediate.mlir
+    clift/expression-rewrites/indirect-access.mlir
+    clift/expression-rewrites/indirection.mlir
+    clift/expression-rewrites/not-cmpeq.mlir
+    clift/expression-rewrites/not-cmpge.mlir
+    clift/expression-rewrites/not-cmpgt.mlir
+    clift/expression-rewrites/not-cmple.mlir
+    clift/expression-rewrites/not-cmplt.mlir
+    clift/expression-rewrites/not-cmpne.mlir
+    clift/expression-rewrites/pointer-arithmetic-add-imm.mlir
+    clift/expression-rewrites/pointer-arithmetic-add-mul-imm.mlir
+    clift/expression-rewrites/read-type-punned.mlir
+    clift/expression-rewrites/subscript-zero.mlir
+    clift/expression-rewrites/xor-all-ones.mlir
+)
+
+foreach(F IN LISTS CLIFT_EXPRESSION_REWRITES)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_EXPRESSIONS
+    clift/expressions/addressof-immediate.mlir
+    clift/expressions/addressof-indirection.mlir
+    clift/expressions/addressof-local-variable.mlir
+    clift/expressions/addressof-lvalue-object-access.mlir
+    clift/expressions/addressof-pointer-access.mlir
+    clift/expressions/addressof-rvalue-object-access.mlir
+    clift/expressions/addressof-subscript.mlir
+    clift/expressions/aggregate-struct.mlir
+    clift/expressions/arithmetic-add.mlir
+    clift/expressions/arithmetic-neg.mlir
+    clift/expressions/arithmetic-shl.mlir
+    clift/expressions/arithmetic.mlir
+    clift/expressions/assign-const-local-variable.mlir
+    clift/expressions/assign-function-parameter.mlir
+    clift/expressions/assign-immediate.mlir
+    clift/expressions/assign-local-variable.mlir
+    clift/expressions/bitcast-i16-to-132.mlir
+    clift/expressions/bitcast-p16-to-p32.mlir
+    clift/expressions/bitcast.mlir
+    clift/expressions/call-directly-recursive.mlir
+    clift/expressions/call-function-pointer.mlir
+    clift/expressions/call-global-function.mlir
+    clift/expressions/call-non-function-1.mlir
+    clift/expressions/call-non-function-2.mlir
+    clift/expressions/call-nonexistent-global-function.mlir
+    clift/expressions/call-with-wrong-argument-types.mlir
+    clift/expressions/call-with-wrong-return-type.mlir
+    clift/expressions/call.mlir
+    clift/expressions/decay-array.mlir
+    clift/expressions/decay-function.mlir
+    clift/expressions/decay-int.mlir
+    clift/expressions/extend-i32-to-i32.mlir
+    clift/expressions/extend.mlir
+    clift/expressions/increment-const-local-variable.mlir
+    clift/expressions/increment-immediate.mlir
+    clift/expressions/increment-local-variable.mlir
+    clift/expressions/object-access-of-wrong-type.mlir
+    clift/expressions/object-access-out-of-range.mlir
+    clift/expressions/pointer-add-of-two-pointers.mlir
+    clift/expressions/pointer-add-of-void-pointer.mlir
+    clift/expressions/pointer-add-with-bad-integer-size.mlir
+    clift/expressions/pointer-add-with-bad-result-type.mlir
+    clift/expressions/pointer-add-with-non-integer.mlir
+    clift/expressions/pointer-arithmetic.mlir
+    clift/expressions/pointer-resize-reinterpret.mlir
+    clift/expressions/pointer-resize.mlir
+    clift/expressions/pointer-sub-reversed.mlir
+    clift/expressions/string-with-bad-array-size.mlir
+    clift/expressions/string-with-non-array-type.mlir
+    clift/expressions/string-with-non-char-type.mlir
+    clift/expressions/string-with-non-const-type.mlir
+    clift/expressions/string.mlir
+    clift/expressions/ternary-is-rvalue.mlir
+    clift/expressions/ternary.mlir
+    clift/expressions/truncate-i32-to-i32.mlir
+    clift/expressions/truncate.mlir
+    clift/expressions/use-global-variable.mlir
+    clift/expressions/use-nonexistent-global-variable.mlir
+)
+
+foreach(F IN LISTS CLIFT_EXPRESSIONS)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_MODEL_IMPORT
+    clift/model-import/ArrayType.yml
+    clift/model-import/CABIFunctionType1.yml
+    clift/model-import/CABIFunctionType2.yml
+    clift/model-import/EnumType.yml
+    clift/model-import/RawFunctionType1.yml
+    clift/model-import/RawFunctionType2.yml
+    clift/model-import/RawFunctionType3.yml
+    clift/model-import/RecursiveStructType.yml
+    clift/model-import/StructType.yml
+    clift/model-import/StructTypeWithCode.yml
+    clift/model-import/TypedefType.yml
+    clift/model-import/UnionType.yml
+)
+
+foreach(F IN LISTS CLIFT_MODEL_IMPORT)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_MODEL_VERIFY
+    clift/model-verify/forbidden-attributes/function-argument.mlir
+    clift/model-verify/forbidden-attributes/function-type.mlir
+    clift/model-verify/forbidden-attributes/function.mlir
+    clift/model-verify/forbidden-attributes/struct.mlir
+    clift/model-verify/forbidden-attributes/valid.mlir
+    clift/model-verify/function-attributes/always_inline-helper.mlir
+    clift/model-verify/function-attributes/extra-always_inline.mlir
+    clift/model-verify/function-attributes/extra-noreturn.mlir
+    clift/model-verify/function-attributes/missing-always_inline.mlir
+    clift/model-verify/function-attributes/missing-noreturn.mlir
+    clift/model-verify/function-attributes/noreturn-helper.mlir
+    clift/model-verify/function-attributes/valid.mlir
+    clift/model-verify/handles/defined-helper-function.mlir
+    clift/model-verify/handles/defined-imported-function.mlir
+    clift/model-verify/handles/invalid-artificial-struct-type-handle.mlir
+    clift/model-verify/handles/invalid-defined-type-handle-1.mlir
+    clift/model-verify/handles/invalid-defined-type-handle-2.mlir
+    clift/model-verify/handles/invalid-enum-type-handle.mlir
+    clift/model-verify/handles/invalid-function-handle.mlir
+    clift/model-verify/handles/invalid-function-imported-handle.mlir
+    clift/model-verify/handles/invalid-function-isolated-handle.mlir
+    clift/model-verify/handles/invalid-function-type-handle.mlir
+    clift/model-verify/handles/invalid-global-variable-handle.mlir
+    clift/model-verify/handles/invalid-global-variable-segment-handle.mlir
+    clift/model-verify/handles/invalid-helper-function-type-handle.mlir
+    clift/model-verify/handles/invalid-helper-struct-type-handle.mlir
+    clift/model-verify/handles/invalid-struct-type-handle.mlir
+    clift/model-verify/handles/invalid-typedef-type-handle.mlir
+    clift/model-verify/handles/invalid-union-type-handle.mlir
+    clift/model-verify/handles/model-verify.mlir
+    clift/model-verify/raw-function-arguments/argumentless-register.mlir
+    clift/model-verify/raw-function-arguments/cabi-register.mlir
+    clift/model-verify/raw-function-arguments/cabi-stack.mlir
+    clift/model-verify/raw-function-arguments/different-register.mlir
+    clift/model-verify/raw-function-arguments/double-register.mlir
+    clift/model-verify/raw-function-arguments/double-stack.mlir
+    clift/model-verify/raw-function-arguments/multi-argument-register.mlir
+    clift/model-verify/raw-function-arguments/non-existent-register.mlir
+    clift/model-verify/raw-function-arguments/non-identifier-register.mlir
+    clift/model-verify/raw-function-arguments/non-last-stack.mlir
+    clift/model-verify/raw-function-arguments/stack-AND-register.mlir
+    clift/model-verify/raw-function-arguments/stack-with-arguments.mlir
+    clift/model-verify/raw-function-arguments/stackless-stack.mlir
+    clift/model-verify/raw-function-arguments/valid.mlir
+    clift/model-verify/type-attributes/argumentless-abi.mlir
+    clift/model-verify/type-attributes/cft-with-raw-abi.mlir
+    clift/model-verify/type-attributes/code-with-arguments.mlir
+    clift/model-verify/type-attributes/double-abi.mlir
+    clift/model-verify/type-attributes/double-code.mlir
+    clift/model-verify/type-attributes/extra-code.mlir
+    clift/model-verify/type-attributes/missing-abi.mlir
+    clift/model-verify/type-attributes/missing-code.mlir
+    clift/model-verify/type-attributes/multi-argument-abi.mlir
+    clift/model-verify/type-attributes/non-identifier-abi.mlir
+    clift/model-verify/type-attributes/rft-with-c-abi.mlir
+    clift/model-verify/type-attributes/valid.mlir
+    clift/model-verify/unknown-attributes/function-argument.mlir
+    clift/model-verify/unknown-attributes/function-type.mlir
+    clift/model-verify/unknown-attributes/function.mlir
+    clift/model-verify/unknown-attributes/non-c-argument.mlir
+    clift/model-verify/unknown-attributes/non-c-function.mlir
+    clift/model-verify/unknown-attributes/struct.mlir
+    clift/model-verify/unknown-attributes/valid.mlir
+)
+
+foreach(F IN LISTS CLIFT_MODEL_VERIFY)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_NAME_IMPORT
+    clift/name-import/comments.mlir
+    clift/name-import/enum.mlir
+    clift/name-import/function-cabi.mlir
+    clift/name-import/function-raw.mlir
+    clift/name-import/global.mlir
+    clift/name-import/local-label.mlir
+    clift/name-import/local-variable.mlir
+    clift/name-import/struct.mlir
+    clift/name-import/union.mlir
+)
+
+foreach(F IN LISTS CLIFT_NAME_IMPORT)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_OPERATIONS
+    clift/operations/break-to-targets-continue-label.mlir
+    clift/operations/break-to-targets-non-loop-label.mlir
+    clift/operations/break-to-targets-non-nesting-loop-label.mlir
+    clift/operations/continue-to-targets-break-label.mlir
+    clift/operations/continue-to-targets-non-loop-label.mlir
+    clift/operations/continue-to-targets-non-nesting-loop-label.mlir
+    clift/operations/do-while-with-scalar-condition.mlir
+    clift/operations/do-while-with-struct-condition.mlir
+    clift/operations/do-while-without-condition.mlir
+    clift/operations/for-with-initializer.mlir
+    clift/operations/for-with-scalar-condition.mlir
+    clift/operations/for-with-struct-condition.mlir
+    clift/operations/for-without-condition.mlir
+    clift/operations/function-with-attributes.mlir
+    clift/operations/function-with-mistyped-return.mlir
+    clift/operations/global-variable-with-mistyped-initializer.mlir
+    clift/operations/global-variable.mlir
+    clift/operations/goto-targets-nesting-loop-break-label.mlir
+    clift/operations/goto-targets-nesting-loop-continue-label.mlir
+    clift/operations/goto.mlir
+    clift/operations/if-with-scalar-condition.mlir
+    clift/operations/if-with-struct-condition.mlir
+    clift/operations/if-without-condition.mlir
+    clift/operations/label-without-assignment.mlir
+    clift/operations/local-variable-with-mistyped-initializer.mlir
+    clift/operations/local-variable.mlir
+    clift/operations/loop-assigns-labels.mlir
+    clift/operations/loop-with-bad-label-mask.mlir
+    clift/operations/module-with-duplicate-type-id.mlir
+    clift/operations/module-with-non-clift-type.mlir
+    clift/operations/module-with-non-global-op.mlir
+    clift/operations/return-with-array-type.mlir
+    clift/operations/return-with-function-type.mlir
+    clift/operations/return-with-mismatched-type.mlir
+    clift/operations/return-with-valid-type.mlir
+    clift/operations/return-with-void.mlir
+    clift/operations/return-without-value.mlir
+    clift/operations/switch-with-cases.mlir
+    clift/operations/switch-with-duplicate-cases.mlir
+    clift/operations/switch-with-float-condition.mlir
+    clift/operations/switch-with-integer-condition.mlir
+    clift/operations/switch-with-mismatched-cases.mlir
+    clift/operations/switch-with-pointer-condition.mlir
+    clift/operations/switch-without-condition.mlir
+    clift/operations/while-with-scalar-condition.mlir
+    clift/operations/while-with-struct-condition.mlir
+    clift/operations/while-without-condition.mlir
+)
+
+foreach(F IN LISTS CLIFT_OPERATIONS)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_PASSES
+    clift/passes/implicit-cast-elision-add.mlir
+    clift/passes/implicit-cast-elision-assign.mlir
+    clift/passes/implicit-cast-elision-call.mlir
+    clift/passes/implicit-cast-elision-neg.mlir
+    clift/passes/implicit-cast-elision-shl.mlir
+)
+
+foreach(F IN LISTS CLIFT_PASSES)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_STATEMENT_REWRITES
+    clift/statement-rewrites/branch-equalization.mlir
+    clift/statement-rewrites/do-while-conversion-iterative.mlir
+    clift/statement-rewrites/do-while-conversion-with-empty-else.mlir
+    clift/statement-rewrites/do-while-conversion-with-hoisted-else.mlir
+    clift/statement-rewrites/do-while-conversion-with-hoisted-then.mlir
+    clift/statement-rewrites/if-and-combining-with-else-1.mlir
+    clift/statement-rewrites/if-and-combining-with-else-2.mlir
+    clift/statement-rewrites/if-and-combining-with-else-3.mlir
+    clift/statement-rewrites/if-and-combining-without-else.mlir
+    clift/statement-rewrites/label-merging-assign-assign.mlir
+    clift/statement-rewrites/label-merging-break-assign.mlir
+    clift/statement-rewrites/label-merging-continue-assign.mlir
+    clift/statement-rewrites/local-scope-tightening-1.mlir
+    clift/statement-rewrites/local-scope-tightening-2.mlir
+    clift/statement-rewrites/local-scope-tightening-3.mlir
+    clift/statement-rewrites/local-scope-tightening-4.mlir
+    clift/statement-rewrites/local-scope-tightening-induced-loop.mlir
+    clift/statement-rewrites/local-scope-tightening-loop.mlir
+    clift/statement-rewrites/local-scope-tightening.mlir
+    clift/statement-rewrites/loop-detection-consecutive.mlir
+    clift/statement-rewrites/loop-detection-nested.mlir
+    clift/statement-rewrites/loop-detection-overlapping.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-both-fallthrough.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto-else-shorter.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-both-goto.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-else-goto.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-empty-else.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-empty-then.mlir
+    clift/statement-rewrites/terminal-branch-complement-hoisting-then-goto.mlir
+    clift/statement-rewrites/trivial-jump-elimination.mlir
+    clift/statement-rewrites/trivial-return-elimination-double.mlir
+    clift/statement-rewrites/trivial-return-elimination-early.mlir
+    clift/statement-rewrites/trivial-return-elimination-loop.mlir
+    clift/statement-rewrites/trivial-return-elimination.mlir
+)
+
+foreach(F IN LISTS CLIFT_STATEMENT_REWRITES)
+  add_filecheck_test(${F})
+endforeach()
+
+set(CLIFT_TYPES
+    clift/types/function-with-function-argument.mlir
+    clift/types/function-with-function-return.mlir
+    clift/types/function-with-object-types.mlir
+    clift/types/function-with-void-argument.mlir
+    clift/types/function-with-void-return.mlir
+    clift/types/round-tripping.mlir
+    clift/types/struct-with-function-field.mlir
+    clift/types/struct-with-indirect-recursion.mlir
+    clift/types/struct-with-pointer-recursion.mlir
+    clift/types/struct-with-recursion.mlir
+    clift/types/union-with-large-tree.mlir
+    clift/types/union-with-pointer-recursion.mlir
+)
+
+foreach(F IN LISTS CLIFT_TYPES)
+  add_filecheck_test(${F})
+endforeach()
+
+set(MODEL_DROP_TYPES
+    model/drop-types/ArrayPropagation.yml
+    model/drop-types/DropStructField.yml
+    model/drop-types/DropViaPointer.yml
+    model/drop-types/UnionCascade.yml
+    model/drop-types/UnionPartialDrop.yml
+)
+
+foreach(F IN LISTS MODEL_DROP_TYPES)
+  add_filecheck_test(${F})
+endforeach()
