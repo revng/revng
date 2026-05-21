@@ -33,14 +33,14 @@ bool clift::isLvalueExpression(mlir::Value Value) {
     if (Op == nullptr)
       return false;
 
-    return mlir::isa<FunctionOp, LoopOpInterface>(Op);
-  } else {
-    mlir::Operation *Op = Value.getDefiningOp();
-
-    if (auto ExprOp = mlir::dyn_cast<ExpressionOpInterface>(Value
-                                                              .getDefiningOp()))
-      return ExprOp.isLvalueExpression();
-
-    return mlir::isa<LocalVariableOp, GlobalVariableOp>(Op);
+    // Function block arguments represent parameters. All statement block
+    // arguments refer to local variables, and all local variables are l-values.
+    return mlir::isa<FunctionOp, StatementOpInterface>(Op);
   }
+
+  mlir::Operation *Op = Value.getDefiningOp();
+  if (auto E = mlir::dyn_cast<ExpressionOpInterface>(Op))
+    return E.isLvalueExpression();
+
+  return mlir::isa<LocalVariableOp>(Op);
 }
