@@ -12,8 +12,7 @@ from revng.pypeline.cli.common_options import add_pipeline_config_options
 from revng.pypeline.cli.common_options import container_format_options, debug_option, full_help
 from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
-from revng.pypeline.cli.utils import PypeGroup, build_help_text, detect_autocomplete
-from revng.pypeline.cli.utils import normalize_whitespace
+from revng.pypeline.cli.utils import build_help_text, detect_autocomplete, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import ReadOnlyModel
@@ -21,13 +20,13 @@ from revng.pypeline.object import ObjectID, ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.storage.storage_provider import StorageProvider
+from revng.pypeline.storage.storage_provider import LockType, StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_singleton
 
 
-class ArtifactGroup(PypeGroup):
+class ArtifactGroup(click.Group):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -198,6 +197,8 @@ def build_artifact_command(
         storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
         storage_provider_context = storage_provider_factory.get(
             base_directory=ctx.obj.base_directory,
+            pipeline=ctx.obj.pipeline,
+            lock_type=LockType.ARTIFACT,
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj.cache_dir,

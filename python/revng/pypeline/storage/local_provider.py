@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import enum
+import json
 import os
 import shutil
 import sqlite3
@@ -11,7 +13,7 @@ from collections import defaultdict
 from collections.abc import Buffer
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePath
 from tempfile import TemporaryDirectory
 from typing import AsyncGenerator, Collection, Mapping
 from uuid import uuid4
@@ -19,18 +21,20 @@ from uuid import uuid4
 import yaml
 
 from revng.pypeline import __version__ as version
-from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
-from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
+from revng.pypeline.pipeline import Pipeline
+from revng.pypeline.task.pipe import PipeCustomInvalidation
 from revng.pypeline.utils import Locked, crypto_hash
+from revng.pypeline.utils.db_migrator import DBMigrator
 from revng.pypeline.utils.logger import pypeline_logger
+from revng.pypeline.utils.pipeline import get_pipeline_description
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
-from .storage_provider import ObjectsToInvalidate, ProjectID, ProjectMetadata, SavePointsRange
-from .storage_provider import StorageProvider, StorageProviderFactory
+from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects, LockType
+from .storage_provider import ObjectsToInvalidate, PipeDependencies, ProjectID, ProjectMetadata
+from .storage_provider import SetModelResult, StorageProvider, StorageProviderFactory
 from .util import _OBJECTID_MAXSIZE, check_kind_structure, check_object_id_supported_by_sql
 from .util import compute_hash
 
@@ -39,57 +43,6 @@ from .util import compute_hash
 # prefixed, so, to check for all children the check will be
 # target_object_id <= checked_object_id <= CONCAT(target_object_id, _OBJECTID_MASK)  # noqa: E800
 _OBJECTID_MASK = f"x'{"ff" * _OBJECTID_MAXSIZE}'"
-
-CREATE_TABLES = """
-CREATE TABLE IF NOT EXISTS project(
-    id              TEXT PRIMARY KEY CHECK (id = 0),
-    last_change     REAL,
-    epoch           INT NOT NULL,
-    version         TEXT,
-    model_hash      TEXT,
-    model_mtime     REAL
-) STRICT;
-INSERT OR IGNORE INTO project (id, epoch) VALUES (0, 0);
-
-CREATE TABLE IF NOT EXISTS objects(
-    savepoint_id         INT NOT NULL,
-    container_id         TEXT NOT NULL,
-    configuration_hash   TEXT NOT NULL,
-    object_id            BLOB NOT NULL,
-    content              BLOB NOT NULL,
-    PRIMARY KEY (savepoint_id, container_id, configuration_hash, object_id)
-) STRICT;
-
-CREATE INDEX IF NOT EXISTS savepoint_id_on_object ON objects(savepoint_id);
-CREATE INDEX IF NOT EXISTS container_id_on_object ON objects(container_id);
-CREATE INDEX IF NOT EXISTS configuration_hash_on_object ON objects(configuration_hash);
-CREATE INDEX IF NOT EXISTS object_id_on_object ON objects(object_id);
-
-CREATE TABLE IF NOT EXISTS dependencies(
-    savepoint_id_start   INT NOT NULL,
-    savepoint_id_end     INT NOT NULL,
-    container_id         TEXT NOT NULL,
-    configuration_hash   TEXT NOT NULL,
-    object_id            BLOB NOT NULL,
-    model_path           TEXT NOT NULL,
-    PRIMARY KEY (savepoint_id_start, savepoint_id_end, container_id,
-                 configuration_hash, object_id, model_path)
-) STRICT;
-
-CREATE INDEX IF NOT EXISTS model_path_on_dependencies ON dependencies(model_path);
-
-CREATE TABLE IF NOT EXISTS custom_dependencies(
-    pipe_id              INT NOT NULL,
-    configuration_hash   TEXT NOT NULL,
-    argument_index       INT NOT NULL,
-    object_id            BLOB NOT NULL,
-    data                 BLOB NOT NULL,
-    PRIMARY KEY (pipe_id, configuration_hash)
-) STRICT;
-
-CREATE INDEX IF NOT EXISTS custom_dependencies_index
-    ON custom_dependencies(pipe_id, configuration_hash);
-"""
 
 CREATE_TABLE_INVALIDATE = """
 CREATE TEMPORARY TABLE model_paths_{uuid}(
@@ -128,8 +81,9 @@ WHERE
   AND object_id IN ({id_list})"""
 
 PUT_QUERY = """
-REPLACE INTO objects(savepoint_id, container_id, configuration_hash, object_id, content)
-VALUES (?, ?, ?, ?, ?)
+REPLACE INTO objects(savepoint_id, container_id, configuration_hash, object_id,
+ object_id_string, content)
+VALUES (?, ?, ?, ?, ?, ?)
 """
 
 PUT_DEPENDENCIES_QUERY = "REPLACE INTO dependencies VALUES (?, ?, ?, ?, ?, ?)"
@@ -234,7 +188,51 @@ class CursorWrapper:
         return False
 
 
-class LocalStorageProviderFactory(StorageProviderFactory):
+class Migrator(DBMigrator):
+    def __init__(self, cursor: sqlite3.Cursor):
+        super().__init__(
+            "pypeline",
+            PurePath(self.__module__.replace(".", "/")).parent / "local_provider_migrations",
+        )
+        self._cursor = cursor
+
+    def _create_tables_if_missing(self):
+        self._cursor.execute(
+            "CREATE TABLE IF NOT EXISTS "
+            "migrations(id INT PRIMARY KEY CHECK (id = 0), version INT NOT NULL) STRICT"
+        )
+
+    def _get_last_migration(self) -> int:
+        self._cursor.execute("SELECT version FROM migrations WHERE id = 0")
+        result = self._cursor.fetchone()
+        return 0 if result is None else result[0]
+
+    def _apply_migration(self, version: int, body: str):
+        self._cursor.executescript(body)
+        self._cursor.execute("REPLACE INTO migrations VALUES (0, ?)", (version,))
+
+
+def _compute_pipeline_hash(pipeline: Pipeline) -> str:
+    description = get_pipeline_description(pipeline)
+    return compute_hash(json.dumps(description, sort_keys=True).encode())
+
+
+class _LocalStorageProviderCommon:
+    def get_notification_websocket(self) -> str | None:
+        return None
+
+    def init(self, directory: Path):
+        model_type = get_singleton(Model)  # type: ignore [type-abstract]
+        model_name = model_type.model_name()
+        model_path = directory / model_name
+        if not model_path.exists():
+            model_path.touch()
+            return True
+        else:
+            return False
+
+
+class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFactory):
     def __init__(self, url: str):
         assert url == "local://" or "local://?inline"
         # TODO: use urlparse if more options are introduced
@@ -246,11 +244,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         return "local"
 
     def _create_provider(
-        self,
-        base_directory: Path,
-        project_id: ProjectID | None,
-        token: str | None,
-        cache_dir: str,
+        self, base_directory: Path, cache_dir: str, pipeline_hash: str
     ) -> LocalStorageProvider:
         # Figure out how the model should be name
         model_type = get_singleton(Model)  # type: ignore [type-abstract]
@@ -285,12 +279,14 @@ class LocalStorageProviderFactory(StorageProviderFactory):
             db_path = Path(cache_dir) / db_name
 
         pypeline_logger.debug_log(f'Using DB "{db_path}"')
-        return LocalStorageProvider(db_path, model_path, cache_path)
+        return LocalStorageProvider(db_path, model_path, cache_path, pipeline_hash)
 
     @asynccontextmanager
     async def get(
         self,
         base_directory: Path,
+        pipeline: Pipeline,
+        lock_type: LockType,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
@@ -302,13 +298,9 @@ class LocalStorageProviderFactory(StorageProviderFactory):
             project_provider: Locked[LocalStorageProvider] | None = providers.get(project_id)
             # If the provider is not found, create a new one and put it in a lock
             if project_provider is None:
+                pipeline_hash = _compute_pipeline_hash(pipeline)
                 project_provider = Locked(
-                    self._create_provider(
-                        base_directory=base_directory,
-                        project_id=project_id,
-                        token=token,
-                        cache_dir=cache_dir,
-                    )
+                    self._create_provider(base_directory, cache_dir, pipeline_hash)
                 )
                 providers[project_id] = project_provider
 
@@ -321,7 +313,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
 TemporaryProviderTuple = tuple["LocalStorageProvider", TemporaryDirectory]
 
 
-class TemporaryLocalStorageProviderFactory(StorageProviderFactory):
+class TemporaryLocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFactory):
     def __init__(self, url: str):
         assert url == "temporary://"
         self.providers: Locked[dict[ProjectID | None, Locked[TemporaryProviderTuple]]] = Locked({})
@@ -334,6 +326,8 @@ class TemporaryLocalStorageProviderFactory(StorageProviderFactory):
     async def get(
         self,
         base_directory: Path,
+        pipeline: Pipeline,
+        lock_type: LockType,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
@@ -355,6 +349,7 @@ class TemporaryLocalStorageProviderFactory(StorageProviderFactory):
                     db_path=temp_dir_path / "db.sqlite",
                     model_path=temp_dir_path / model_name,
                     cache_dir=temp_dir_path / "cache",
+                    pipeline_hash=_compute_pipeline_hash(pipeline),
                 )
                 project_provider = Locked((storage_provider, temporary_dir))
                 providers[project_id] = project_provider
@@ -365,10 +360,16 @@ class TemporaryLocalStorageProviderFactory(StorageProviderFactory):
             yield provider[0]
 
 
+class _MetadataUpdate(enum.Enum):
+    FETCH = enum.auto()
+    OBJECT_SAVE = enum.auto()
+    MODEL_SAVE = enum.auto()
+
+
 class LocalStorageProvider(StorageProvider):
     """StorageProvider implementation with backing sqlite3 db"""
 
-    def __init__(self, db_path: str | Path, model_path: Path, cache_dir: Path):
+    def __init__(self, db_path: str | Path, model_path: Path, cache_dir: Path, pipeline_hash: str):
         check_kind_structure()
         self._model_path = model_path
         self._model_directory = self._model_path.parent.resolve()
@@ -379,7 +380,7 @@ class LocalStorageProvider(StorageProvider):
         self._init_tables()
         self.epoch = self._get_epoch()
 
-        self._check_version()
+        self._check_version_and_pipeline_hash(pipeline_hash)
         self._check_model()
 
     def _cursor(self) -> CursorWrapper:
@@ -387,22 +388,28 @@ class LocalStorageProvider(StorageProvider):
 
     def _init_tables(self):
         with self._cursor() as cursor:
-            cursor.executescript(CREATE_TABLES)
+            migrator = Migrator(cursor)
+            migrator.migrate()
 
-    def _check_version(self):
+    def _check_version_and_pipeline_hash(self, pipeline_hash: str):
         with self._cursor() as cursor:
-            cursor.execute("SELECT version FROM project WHERE id is 0")
-            db_version = cursor.fetchone()[0]
+            cursor.execute("SELECT version, pipeline_hash FROM project WHERE id is 0")
+            db_version, db_pipeline_hash = cursor.fetchone()
 
-        if db_version is not None and db_version != version:
+        if (db_version is not None and db_version != version) or (
+            db_pipeline_hash is not None and db_pipeline_hash != pipeline_hash
+        ):
             self.prune_objects()
 
         # We either never wrote the version field or we just pruned all objects
         # because of a version mismatch. In both cases write the current
         # version string.
-        if db_version is None or db_version != version:
+        if db_version != version or db_pipeline_hash != pipeline_hash:
             with self._cursor() as cursor:
-                cursor.execute("UPDATE project SET version = ? WHERE id is 0", (version,))
+                cursor.execute(
+                    "UPDATE project SET version = ?, pipeline_hash = ? WHERE id is 0",
+                    (version, pipeline_hash),
+                )
 
     def _check_model(self):
         with self._cursor() as cursor:
@@ -439,7 +446,7 @@ class LocalStorageProvider(StorageProvider):
                     (model_hash, model_mtime),
                 )
                 self.epoch += 1
-                self._write_metadata(cursor)
+                self._write_metadata(cursor, _MetadataUpdate.MODEL_SAVE)
         else:
             # mtime has changed but the content hasn't, update the mtime to
             # the new one
@@ -449,10 +456,16 @@ class LocalStorageProvider(StorageProvider):
                     (model_mtime,),
                 )
 
-    def _write_metadata(self, cursor: sqlite3.Cursor):
+    def _write_metadata(self, cursor: sqlite3.Cursor, type_: _MetadataUpdate):
+        change_column = {
+            _MetadataUpdate.FETCH: "last_fetch",
+            _MetadataUpdate.OBJECT_SAVE: "last_object_save",
+            _MetadataUpdate.MODEL_SAVE: "last_model_save",
+        }[type_]
+
         cursor.execute(
-            "UPDATE project SET last_change = ?, epoch = ? WHERE id is 0",
-            (datetime.now().timestamp(), self.epoch),
+            f"UPDATE project SET {change_column} = ?, epoch = ? WHERE id is 0",
+            (datetime.now(timezone.utc).timestamp(), self.epoch),
         )
 
     def _get_epoch(self) -> int:
@@ -502,48 +515,62 @@ class LocalStorageProvider(StorageProvider):
         obj_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
         return {obj_id_type.from_bytes(x[0]): x[1] for x in result}
 
-    def add_dependencies(
+    def add_objects(
         self,
-        savepoint_range: SavePointsRange,
-        configuration_id: ConfigurationId,
-        deps: ObjectDependencies,
+        dependencies: list[PipeDependencies],
+        objects: Mapping[ContainerLocation, Mapping[ObjectID, Buffer]],
     ) -> None:
         with self._cursor() as cursor:
-            for container_id, object_id, model_path in deps:
-                check_object_id_supported_by_sql(object_id)
-                cursor.execute(
-                    PUT_DEPENDENCIES_QUERY,
-                    (
-                        savepoint_range.start,
-                        savepoint_range.end,
-                        container_id,
-                        configuration_id,
-                        object_id.to_bytes(),
-                        model_path,
-                    ),
-                )
-            self._write_metadata(cursor)
+            # Save dependencies
+            for dependency in dependencies:
+                # Save ordinary dependencies
+                for container_id, object_id, model_path in dependency.dependencies:
+                    check_object_id_supported_by_sql(object_id)
+                    cursor.execute(
+                        PUT_DEPENDENCIES_QUERY,
+                        (
+                            dependency.savepoints_range.start,
+                            dependency.savepoints_range.end,
+                            container_id,
+                            dependency.configuration,
+                            object_id.to_bytes(),
+                            model_path,
+                        ),
+                    )
 
-    def put(
-        self,
-        location: ContainerLocation,
-        values: Mapping[ObjectID, Buffer],
-    ) -> None:
-        with self._cursor() as cursor:
-            for object_id, content in values.items():
-                cursor.execute(
-                    PUT_QUERY,
-                    (
-                        location.savepoint_id,
-                        location.container_id,
-                        location.configuration_id,
-                        object_id.to_bytes(),
-                        bytes(content),
-                    ),
-                )
-            self._write_metadata(cursor)
+                # Save custom dependencies
+                for index, container_data in enumerate(dependency.custom_invalidation):
+                    for object_id, invalidation_blob in container_data:
+                        cursor.execute(
+                            "REPLACE INTO custom_dependencies VALUES (?, ?, ?, ?, ?)",
+                            (
+                                dependency.pipe_id,
+                                dependency.configuration,
+                                index,
+                                object_id.to_bytes(),
+                                bytes(invalidation_blob),
+                            ),
+                        )
 
-    def invalidate(
+            # Save objects
+            for location, objects_set in objects.items():
+                for object_id, content in objects_set.items():
+                    cursor.execute(
+                        PUT_QUERY,
+                        (
+                            location.savepoint_id,
+                            location.container_id,
+                            location.configuration_id,
+                            object_id.to_bytes(),
+                            object_id.serialize(),
+                            bytes(content),
+                        ),
+                    )
+
+            # Write metadata
+            self._write_metadata(cursor, _MetadataUpdate.OBJECT_SAVE)
+
+    def _invalidate(
         self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
     ) -> InvalidatedObjects:
         if len(invalidation_list) == 0 and len(additional_objects) == 0:
@@ -603,7 +630,7 @@ class LocalStorageProvider(StorageProvider):
             cursor.execute(f"DROP TABLE model_paths_{table_uuid};")
             cursor.execute(f"DROP TABLE invalidated_objects_{table_uuid};")
             # Write the last_change field
-            self._write_metadata(cursor)
+            self._write_metadata(cursor, _MetadataUpdate.OBJECT_SAVE)
         return dict(invalidated)
 
     def prune_objects(self):
@@ -611,7 +638,7 @@ class LocalStorageProvider(StorageProvider):
             cursor.execute("DELETE FROM objects")
             cursor.execute("DELETE FROM dependencies")
             cursor.execute("DELETE FROM custom_dependencies")
-            self._write_metadata(cursor)
+            self._write_metadata(cursor, _MetadataUpdate.OBJECT_SAVE)
 
     def get_epoch(self) -> int:
         return self.epoch
@@ -623,13 +650,20 @@ class LocalStorageProvider(StorageProvider):
             self._write_model(model)
         return (model, self.epoch)
 
-    def set_model(self, new_model: Model) -> int:
+    def set_model(
+        self,
+        new_model: Model,
+        changed_paths: ModelPathSet,
+        custom_invalidations: list[ObjectsToInvalidate],
+    ) -> SetModelResult:
+        invalidated = self._invalidate(changed_paths, custom_invalidations)
         # Check if the model was modified
         current_model, _ = self._model_type.deserialize(self._model_path.read_bytes())
-        if current_model == new_model:
-            return self.epoch
-        # if so, write the new model and update the epoch
-        return self._write_model(new_model)
+        if current_model != new_model:
+            # if so, write the new model and update the epoch
+            self._write_model(new_model)
+        self._send_local_invalidation(invalidated, self.epoch)
+        return SetModelResult(self.epoch, invalidated)
 
     def _write_model(self, new_model: Model) -> int:
         model_bytes = new_model.serialize()
@@ -640,17 +674,21 @@ class LocalStorageProvider(StorageProvider):
                 (compute_hash(model_bytes), self._model_path.stat().st_mtime),
             )
             self.epoch += 1
-            self._write_metadata(cursor)
+            self._write_metadata(cursor, _MetadataUpdate.MODEL_SAVE)
             return self.epoch
 
     def metadata(self) -> ProjectMetadata:
+        columns = ("version", "last_fetch", "last_object_save", "last_model_save")
         with self._cursor() as cursor:
-            cursor.execute("SELECT last_change, version FROM project WHERE id is 0")
+            cursor.execute(f"SELECT {", ".join(columns)} FROM project WHERE id is 0")
             result = cursor.fetchone()
 
         return ProjectMetadata(
-            last_change=datetime.fromtimestamp(result[0], timezone.utc),
-            version=result[1],
+            version=result[0],
+            pipeline_description_hash="",
+            last_fetch=datetime.fromtimestamp(result[1], timezone.utc),
+            last_object_save=datetime.fromtimestamp(result[2], timezone.utc),
+            last_model_save=datetime.fromtimestamp(result[3], timezone.utc),
         )
 
     def put_files_in_storage(self, files: list[FileStorageEntry]) -> list[str]:
@@ -762,24 +800,6 @@ class LocalStorageProvider(StorageProvider):
             and (request.size is None or path.stat().st_size == request.size)
             and compute_hash(path) == request.hash
         )
-
-    def add_custom_invalidation_data(
-        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
-    ):
-        with self._cursor() as cursor:
-            for index, container_data in enumerate(data):
-                for object_id, invalidation_blob in container_data:
-                    cursor.execute(
-                        "REPLACE INTO custom_dependencies VALUES (?, ?, ?, ?, ?)",
-                        (
-                            pipe_id,
-                            configuration_hash,
-                            index,
-                            object_id.to_bytes(),
-                            bytes(invalidation_blob),
-                        ),
-                    )
-            self._write_metadata(cursor)
 
     def get_custom_invalidation_data(
         self, pipe_id: int, configuration_hash: str

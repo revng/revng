@@ -21,7 +21,10 @@ pype = "revng.pypeline.main:run"
 [tool.setuptools.package-data]
 revng = [
     "pypeline/schema.yml",
-    "pypeline/pipeline-description-schema.yml"
+    "pypeline/pipeline-description-schema.yml",
+    "pypeline/storage/local_provider_migrations/v1.sql",
+    "pypeline/storage/local_provider_migrations/v2.sql",
+    "pypeline/rss_server/postgres_migrations/v1.sql",
 ]
 
 [build-system]

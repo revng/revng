@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Concatenate, ParamSpec, Protoco
 from typing import override
 
 import click
+from hypercorn.config import Config
 
 # Import these only when type-checking to avoid circular imports
 if TYPE_CHECKING:
@@ -51,6 +52,8 @@ class ContextObject:
     show_hidden: bool = False
     # The configuration for the current pipeline
     configuration: "dict[Pipe | Analysis, str]" = field(default_factory=dict)
+    # The configuration for hypercorn
+    hypercorn_configuration: Config = field(default_factory=Config.from_mapping)
 
     # If we had to be 100% dataclass compliant all of the fields in this
     # dataclass should be `| None = None` because when the dataclass is

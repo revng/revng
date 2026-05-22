@@ -9,21 +9,28 @@ import re
 from typing import Callable, Dict, List, Mapping
 
 from revng.project import CLIProject, LocalDaemonProject, Project
+from revng.project.daemon_project import DaemonProject
 from revng.support.artifacts import PTMLArtifact
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--project-dir", help="Path to the project directory", required=True)
     parser.add_argument("--binary", help="Path to the Binary", required=True)
+    parser.add_argument("--project-dir", help="Path to the project directory")
+    parser.add_argument(
+        "--project-id", help="Use the provided project ID (for external daemon only)"
+    )
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--cli", help="Run revng cli", action="store_true")
     group.add_argument("--daemon", help="Run revng daemon", action="store_true")
+    group.add_argument("--daemon-url", help="Run with the provided external daemon", metavar="URL")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    if args.cli or args.daemon:
+        assert args.project_dir is not None
 
     if args.cli:
 
@@ -35,8 +42,13 @@ def main():
         def project_getter():
             return LocalDaemonProject(args.project_dir, connection_retries=100)
 
+    elif args.daemon_url:
+
+        def project_getter():
+            return DaemonProject(args.daemon_url, args.project_id)
+
     else:
-        raise ValueError("The script expects either --cli or --daemon")
+        raise ValueError("The script expects either --cli or --daemon or --daemon-url")
 
     run_test(project_getter, args.binary)
 

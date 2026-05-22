@@ -10,7 +10,7 @@ from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
 from revng.pypeline.object import Kind
 from revng.pypeline.pipeline import Pipeline
-from revng.pypeline.storage.storage_provider import FileStorageEntry
+from revng.pypeline.storage.storage_provider import FileStorageEntry, LockType
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils import bytes_to_string
@@ -34,8 +34,6 @@ class Response:
     """The MIME of the response content."""
     headers: dict[str, str] = field(default_factory=dict)
     """The headers of the response."""
-    notifications: list[Any] = field(default_factory=list)
-    """List of notifications to send through the NotificationBroker."""
 
     def to_dict(self):
         result = {
@@ -44,8 +42,6 @@ class Response:
         }
         if len(self.headers) != 0:
             result["headers"] = self.headers
-        if len(self.notifications) != 0:
-            result["notifications"] = self.notifications
         return result
 
 
@@ -65,23 +61,25 @@ class Daemon:
         self.storage_provider_factory = storage_provider_factory_factory(storage_provider_url)
         self.pipeline_description = get_pipeline_description(pipeline)
 
-    def _get_storage_provider_context(self, request):
+    def _get_storage_provider_context(self, request, lock_type: LockType):
         project_id = request.get("project_id")
         token = request.get("token")
         return self.storage_provider_factory.get(
             base_directory=self.base_directory,
+            pipeline=self.pipeline,
+            lock_type=lock_type,
             project_id=project_id,
             token=token,
             cache_dir=self.cache_dir,
         )
 
     async def get_epoch(self, request) -> Response:
-        storage_provider_context = self._get_storage_provider_context(request)
+        storage_provider_context = self._get_storage_provider_context(request, LockType.ARTIFACT)
         async with storage_provider_context as storage_provider:
             return Response(code=200, body={"epoch": storage_provider.get_epoch()})
 
     async def get_model(self, request):
-        storage_provider_context = self._get_storage_provider_context(request)
+        storage_provider_context = self._get_storage_provider_context(request, LockType.ARTIFACT)
         async with storage_provider_context as storage_provider:
             model, epoch = storage_provider.get_model()
 
@@ -101,7 +99,7 @@ class Daemon:
 
     async def put_file(self, request) -> Response:
         entry = FileStorageEntry(request["name"], contents=request["contents"])
-        storage_provider_context = self._get_storage_provider_context(request)
+        storage_provider_context = self._get_storage_provider_context(request, LockType.ARTIFACT)
         async with storage_provider_context as storage_provider:
             hashes = storage_provider.put_files_in_storage([entry])
 
@@ -133,7 +131,7 @@ class Daemon:
         configuration_hash = artifact.node.configuration_id(configuration)
 
         # Compute the artifact
-        storage_provider_context = self._get_storage_provider_context(request)
+        storage_provider_context = self._get_storage_provider_context(request, LockType.ARTIFACT)
         async with storage_provider_context as storage_provider:
             # Load the model
             model, real_epoch = storage_provider.get_model()
@@ -195,7 +193,7 @@ class Daemon:
                 raise MalformedRequestError(f"Container {container_name} not found in the pipeline")
 
         configuration = deserialize_configuration(self.pipeline, raw_configuration)
-        storage_provider_context = self._get_storage_provider_context(request)
+        storage_provider_context = self._get_storage_provider_context(request, LockType.ANALYSIS)
         async with storage_provider_context as storage_provider:
             # Load the model
             model, real_epoch = storage_provider.get_model()
@@ -240,36 +238,7 @@ class Daemon:
             # TODO: this can be done much more efficiently
             new_epoch = storage_provider.get_epoch()
 
-        # Only return cacheable artifacts invalidations
-        invalidated_artifacts: list[dict[str, Any]] = []
-        for container_location, object_ids in invalidated.items():
-            artifact = self.pipeline.savepoint_id_to_artifact.get(container_location.savepoint_id)
-            if artifact is None:
-                continue
-            invalidated_artifacts.append(
-                {
-                    "name": artifact.name,
-                    "configuration": container_location.configuration_id,
-                    "object_ids": [object_id.serialize() for object_id in object_ids],
-                }
-            )
-
         model_type = get_singleton(Model)  # type: ignore[type-abstract]
         diff = bytes_to_string(diff_raw, model_type.is_text())
         # Return the updated model
-        return Response(
-            code=200,
-            body={
-                "epoch": new_epoch,
-                "diff": diff,
-            },
-            notifications=[
-                {
-                    "type": "analysis",
-                    "analysis": analysis,
-                    "epoch": new_epoch,
-                    "diff": diff,
-                    "invalidated": invalidated_artifacts,
-                }
-            ],
-        )
+        return Response(code=200, body={"epoch": new_epoch, "diff": diff})

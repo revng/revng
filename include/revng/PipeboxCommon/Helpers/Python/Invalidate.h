@@ -13,10 +13,11 @@
 
 namespace revng::pypeline::helpers::python {
 
-template<HasInvalidate T>
-inline nanobind::object invalidate(T &Handle,
-                                   nanobind::list PyInvalidationData,
-                                   nanobind::handle_t<ModelDiff> Diff) {
+template<HasCustomInvalidation T>
+inline nanobind::object
+processCustomInvalidation(T &Handle,
+                          nanobind::list PyInvalidationData,
+                          nanobind::handle_t<ModelDiff> Diff) {
   // Convert the invalidation data from python to C++
   InvalidationData Data;
   for (nanobind::handle List : PyInvalidationData) {
@@ -32,7 +33,8 @@ inline nanobind::object invalidate(T &Handle,
 
   // Run the actual invalidate method
   ModelDiff *CppDiff = nanobind::cast<ModelDiff *>(Diff);
-  std::vector<std::set<ObjectID>> CppResult = Handle.invalidate(Data, *CppDiff);
+  std::vector<std::set<ObjectID>>
+    CppResult = Handle.processCustomInvalidation(Data, *CppDiff);
 
   // Convert the result to a list[ObjectSet]
   using Traits = PipeRunTraits<T>;

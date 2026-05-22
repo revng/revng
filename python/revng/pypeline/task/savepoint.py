@@ -2,11 +2,13 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
-from typing import Sequence, final
+from collections.abc import Buffer
+from typing import Mapping, Sequence, final
 
 from revng.pypeline.container import ConfigurationId, ContainerDeclaration, ContainerSet
-from revng.pypeline.storage.storage_provider import ContainerLocation, SavePointsRange
-from revng.pypeline.storage.storage_provider import StorageProvider
+from revng.pypeline.object import ObjectID
+from revng.pypeline.storage.storage_provider import ContainerLocation, PipeDependencies
+from revng.pypeline.storage.storage_provider import SavePointsRange, StorageProvider
 
 from .requests import Requests
 from .task import TaskArgument, TaskArgumentAccess
@@ -74,6 +76,7 @@ class SavePoint:
         configuration_id: ConfigurationId,
         storage_provider: StorageProvider,
         savepoint_range: SavePointsRange,
+        pipes_dependencies: list[PipeDependencies],
     ):
         """
         The savepoint will cache the incoming containers, and then fill the outgoing
@@ -84,20 +87,28 @@ class SavePoint:
             set(incoming.keys()) | set(outgoing.keys())
         ), "SavePoint containers must be a subset of incoming and outgoing requests."
 
+        objects: dict[ContainerLocation, Mapping[ObjectID, Buffer]] = {}
         for decl in self.to_save:
             location = ContainerLocation(
                 savepoint_id=savepoint_range.start,
                 container_id=decl.name,
                 configuration_id=configuration_id,
             )
-
             container_incoming = incoming.get(decl)
             if len(container_incoming) > 0:
-                storage_provider.put(location, containers[decl].serialize(container_incoming))
+                objects[location] = containers[decl].serialize(container_incoming)
 
+        storage_provider.add_objects(pipes_dependencies, objects)
+
+        for decl in self.to_save:
             # Compute the actual set of objects to load, if an object has
             # already been saved from incoming do not re-load it from storage
-            container_outgoing = outgoing.get(decl) - container_incoming
+            container_outgoing = outgoing.get(decl) - incoming.get(decl)
 
             if len(container_outgoing) > 0:
+                location = ContainerLocation(
+                    savepoint_id=savepoint_range.start,
+                    container_id=decl.name,
+                    configuration_id=configuration_id,
+                )
                 containers[decl].deserialize(storage_provider.get(location, container_outgoing))

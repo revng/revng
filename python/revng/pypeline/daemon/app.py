@@ -3,32 +3,33 @@
 #
 
 import asyncio
-import json
-import os
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from functools import wraps
-from typing import Mapping
 
 from starlette.applications import Starlette
 from starlette.datastructures import UploadFile
-from starlette.middleware import Middleware
-from starlette.middleware.cors import CORSMiddleware
-from starlette.middleware.gzip import GZipMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.responses import Response as StarletteResponse
-from starlette.routing import Route, WebSocketRoute
-from starlette.websockets import WebSocket, WebSocketDisconnect
+from starlette.routing import BaseRoute, Route, WebSocketRoute
 
+from revng.pypeline.storage.notification_queue import LOCAL_QUEUE
+from revng.pypeline.storage.storage_provider import ProjectID
 from revng.pypeline.utils import PypelineException
-from revng.pypeline.utils.logger import pypeline_logger
+from revng.pypeline.utils.notification_broker import NotificationBroker
+from revng.pypeline.utils.starlette import NotificationWebsocket, get_middlewares, get_project_id
+from revng.pypeline.utils.starlette import get_token
 
 from .daemon import Daemon, Response
 from .exceptions import DaemonException, MalformedRequestError
-from .notification_broker import WebSocketStream
-from .notification_broker.local_broker import LocalNotificationBroker
 
 # Global instances
+
+
+class LocalNotificationBroker(NotificationBroker):
+    async def get_queue(self, project_id: ProjectID | None) -> asyncio.Queue[bytes]:
+        return LOCAL_QUEUE.get_queue()
+
 
 notification_broker = LocalNotificationBroker()
 # This is initialized by the `lifespan` function below, once the actual event
@@ -49,61 +50,19 @@ def pypeline_exception_handler(request: Request, exc: Exception) -> JSONResponse
     return JSONResponse(content={"message": str(exc)}, status_code=500)
 
 
-def get_project_id(headers: Mapping[str, str]) -> str | None:
-    """Extract project ID from headers, return none if missing"""
-    return headers.get("x-project-id")
-
-
-async def invalidation_websocket(websocket: WebSocket):
-    """Handle WebSocket connections for invalidations"""
-    assert shutdown_begun is not None
-    await websocket.accept()
-    subscriber = None
-    pending = None
-
-    try:
-        project_id = get_project_id(websocket.headers)
-        subscriber = await notification_broker.subscribe(project_id, WebSocketStream(websocket))
-        _, pending = await asyncio.wait(
-            (
-                asyncio.create_task(shutdown_begun.wait()),
-                asyncio.create_task(subscriber.listen_for_messages()),
-            ),
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-    except WebSocketDisconnect:
-        pass
-    except Exception as e:
-        pypeline_logger.log(f"Uncaught exception: {str(e)}")
-        with suppress(RuntimeError):
-            await websocket.close(code=500, reason=f"Internal server error: {str(e)}")
-    finally:
-        # Clean up unfinished tasks
-        if pending is not None:
-            for task in pending:
-                task.cancel()
-        # Clean up the subscription
-        if subscriber is not None:
-            await notification_broker.unsubscribe(subscriber)
-
-
 def prepare_endpoint(func):
     """A decorator that abstracts the boilerplate needed to adapt the http data
     the agnostic daemon implementation."""
 
     @wraps(func)
     async def wrapper(request: Request) -> StarletteResponse:
-        project_id = get_project_id(request.headers)
         # Prepare the data dictionary with the common attributes we extract
         # from the headers
         data = {
-            "project_id": project_id,
-            # TODO add auth token forwarding
+            "project_id": get_project_id(request.headers),
+            "token": get_token(request.headers),
         }
         response: Response = await func(request, data)
-        # Forward any websocket notification
-        for notification in response.notifications:
-            await notification_broker.notify(project_id, json.dumps(notification))
         # Convert the daemon response based on the body type:
         # * a JSON response if the body is a dict or list
         # * a binary response if the body is bytes
@@ -127,7 +86,7 @@ def prepare_endpoint(func):
     return wrapper
 
 
-def make_starlette(daemon: Daemon) -> Starlette:
+def make_starlette(production: bool, daemon: Daemon) -> Starlette:
     # This doesn't use `prepare_endpoint` as it doesn't need the project_id nor token
     async def pipeline_endpoint(request: Request) -> JSONResponse:
         """Get pipeline information"""
@@ -173,24 +132,31 @@ def make_starlette(daemon: Daemon) -> Starlette:
         return PlainTextResponse("OK")
 
     # Define routes
-    routes = [
+    routes: list[BaseRoute] = [
         Route("/api/epoch", epoch_endpoint, methods=["GET"]),
         Route("/api/pipeline", pipeline_endpoint, methods=["GET"]),
         Route("/api/model", model_endpoint, methods=["GET"]),
         Route("/api/put-file", put_file_endpoint, methods=["POST"]),
         Route("/api/artifact", artifact_endpoint, methods=["POST"]),
         Route("/api/analysis", analysis_endpoint, methods=["POST"]),
-        WebSocketRoute("/api/subscribe", invalidation_websocket),
         Route("/status", status, methods=["GET"]),
     ]
 
-    origins: list[str] = []
-    if "REVNG_ORIGINS" in os.environ:
-        origins = os.environ["REVNG_ORIGINS"].split(",")
+    websocket_url = daemon.storage_provider_factory.get_notification_websocket()
+    if websocket_url is not None:
 
-    expose_headers: list[str] = ["x-pypeline-configuration-hash"]
-    if "REVNG_EXPOSE_HEADERS" in os.environ:
-        expose_headers.extend(os.environ["REVNG_EXPOSE_HEADERS"].split(","))
+        async def websocket_url_handler(request: Request):
+            return JSONResponse({"url": websocket_url})
+
+        routes.append(Route("/api/websocket-url", websocket_url_handler, methods=["GET"]))
+    else:
+
+        async def websocket_url_handler(request: Request):
+            return JSONResponse({"url": "/api/notifications"})
+
+        routes.append(Route("/api/websocket-url", websocket_url_handler, methods=["GET"]))
+        ws_notifications = NotificationWebsocket(notification_broker, lambda: shutdown_begun)
+        routes.append(WebSocketRoute("/api/notifications", ws_notifications.endpoint))
 
     @asynccontextmanager
     async def lifespan(app):
@@ -200,21 +166,16 @@ def make_starlette(daemon: Daemon) -> Starlette:
 
     # Create the Starlette application
     return Starlette(
-        debug=False,
+        debug=not production,
         routes=routes,
         exception_handlers={
             DaemonException: daemon_exception_handler,
             PypelineException: pypeline_exception_handler,
         },
-        middleware=[
-            Middleware(  # type: ignore
-                CORSMiddleware,  # type: ignore
-                allow_origins=origins,
-                expose_headers=expose_headers,
-                allow_methods=["*"],
-                allow_headers=["*"],
-            ),
-            Middleware(GZipMiddleware, minimum_size=1024),  # type: ignore
-        ],
+        middleware=get_middlewares(
+            production,
+            extra_expose_headers={"x-pypeline-configuration-hash"},
+            unauthenticated_paths={"/api/websocket-url"},
+        ),
         lifespan=lifespan,
     )

@@ -6,20 +6,20 @@ from __future__ import annotations
 
 from collections.abc import Buffer
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncGenerator, Iterable, Mapping
 
 from revng.pypeline import __version__ as version
-from revng.pypeline.container import ConfigurationId
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID
-from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
+from revng.pypeline.pipeline import Pipeline
+from revng.pypeline.task.pipe import PipeCustomInvalidation
 from revng.pypeline.utils.registry import get_singleton
 
 from .file_provider import FileRequest
-from .storage_provider import ContainerLocation, FileStorageEntry, InvalidatedObjects
-from .storage_provider import ObjectsToInvalidate, ProjectID, ProjectMetadata, SavePointsRange
+from .storage_provider import ContainerLocation, FileStorageEntry, LockType, ObjectsToInvalidate
+from .storage_provider import PipeDependencies, ProjectID, ProjectMetadata, SetModelResult
 from .storage_provider import StorageProvider, StorageProviderFactory
 from .util import compute_hash
 
@@ -36,11 +36,16 @@ class NullStorageProviderFactory(StorageProviderFactory):
     async def get(
         self,
         base_directory: Path,
+        pipeline: Pipeline,
+        lock_type: LockType,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
     ) -> AsyncGenerator[StorageProvider]:
         yield NullStorageProvider()
+
+    def get_notification_websocket(self) -> str | None:
+        return None
 
 
 class NullStorageProvider(StorageProvider):
@@ -51,7 +56,9 @@ class NullStorageProvider(StorageProvider):
 
     def __init__(self):
         self.model = get_singleton(Model)()
-        self.last_change = datetime.now()
+        self.last_fetch = datetime.fromtimestamp(0, timezone.utc)
+        self.last_object_save = datetime.fromtimestamp(0, timezone.utc)
+        self.last_model_save = datetime.fromtimestamp(0, timezone.utc)
 
     def has(
         self,
@@ -68,26 +75,12 @@ class NullStorageProvider(StorageProvider):
         assert not keys, "NullStorageProvider does not support get operation."
         return {}
 
-    def add_dependencies(
+    def add_objects(
         self,
-        savepoint_range: SavePointsRange,
-        configuration_id: ConfigurationId,
-        deps: ObjectDependencies,
+        dependencies: list[PipeDependencies],
+        objects: Mapping[ContainerLocation, Mapping[ObjectID, Buffer]],
     ) -> None:
-        self.last_change = datetime.now()
-
-    def put(
-        self,
-        location: ContainerLocation,
-        values: Mapping[ObjectID, Buffer],
-    ) -> None:
-        self.last_change = datetime.now()
-
-    def invalidate(
-        self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
-    ) -> InvalidatedObjects:
-        self.last_change = datetime.now()
-        return {}
+        self.last_object_save = datetime.now(timezone.utc)
 
     def get_epoch(self) -> int:
         return 0
@@ -95,18 +88,26 @@ class NullStorageProvider(StorageProvider):
     def get_model(self) -> tuple[Model, int]:
         return (self.model.clone(), self.get_epoch())
 
-    def set_model(self, new_model: Model):
+    def set_model(
+        self,
+        new_model: Model,
+        changed_paths: ModelPathSet,
+        custom_invalidations: list[ObjectsToInvalidate],
+    ) -> SetModelResult:
         self.model = new_model.clone()
-        self.last_change = datetime.now()
-        return 0
+        self.last_model_save = datetime.now(timezone.utc)
+        return SetModelResult(0, {})
 
     def metadata(self) -> ProjectMetadata:
         """
         Fetch metadata about the current project
         """
         return ProjectMetadata(
-            last_change=self.last_change,
             version=version,
+            pipeline_description_hash="",
+            last_fetch=self.last_fetch,
+            last_object_save=self.last_object_save,
+            last_model_save=self.last_model_save,
         )
 
     def prune_objects(self):
@@ -125,11 +126,6 @@ class NullStorageProvider(StorageProvider):
 
     def get_files_from_storage(self, requests: list[FileRequest]) -> dict[str, bytes]:
         raise ValueError("Unsupported")
-
-    def add_custom_invalidation_data(
-        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
-    ) -> None:
-        pass
 
     def get_custom_invalidation_data(
         self, pipe_id: int, configuration_hash: str

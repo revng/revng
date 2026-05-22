@@ -8,8 +8,8 @@ import click
 
 from revng.pypeline.analysis import Analysis
 from revng.pypeline.cli.common_options import list_objects_option
-from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
-from revng.pypeline.cli.utils import compute_objects, normalize_whitespace
+from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
+from revng.pypeline.cli.utils import normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import Model, ReadOnlyModel
@@ -19,7 +19,7 @@ from revng.pypeline.utils.logger import pypeline_logger
 from revng.pypeline.utils.registry import get_registry, get_singleton
 
 
-class RunAnalysisGroup(PypeGroup):
+class RunAnalysisGroup(click.Group):
     """We need to create a custom command for each analysis we loaded from the registry.
     Since we already have to generate the code dynamically, we do it lazily so
     we generate only the commands that are requested."""

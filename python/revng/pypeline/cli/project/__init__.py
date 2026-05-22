@@ -7,7 +7,7 @@ import os
 import click
 
 from revng.pypeline.cli.context import ClickContext, pass_context
-from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, StorageProviderUrl
+from revng.pypeline.cli.utils import EagerParsedPath, StorageProviderUrl
 from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.utils import cache_directory
@@ -18,10 +18,7 @@ from .daemon import run_daemon
 from .dump_pipeline import dump_pipeline
 
 
-@click.group(
-    cls=PypeGroup,
-    help="Project commands (porcelain)",
-)
+@click.group(help="Project commands (porcelain)")
 @click.option(
     "--pipeline",
     "pipeline",

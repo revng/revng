@@ -133,8 +133,21 @@ function(python_wheel)
       "${WHEEL_FILES_${PYTHON_WHEEL_NAME}}"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/build-wheel/${PYTHON_WHEEL_NAME}")
 
-  add_custom_target("generate-${PYTHON_WHEEL_NAME}-wheel" ALL
-                    DEPENDS "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}")
+  set(DISTINFO_NAME "${PYTHON_WHEEL_NAME}-${PYTHON_WHL_VERSION}.dist-info")
+  add_custom_command(
+    OUTPUT "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${DISTINFO_NAME}/RECORD"
+    COMMAND
+      sh -c
+      'rm -r \"${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${PYTHON_WHEEL_NAME}\"-*.dist-info'
+    COMMAND unzip -q "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
+            "${DISTINFO_NAME}/*" -d "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}"
+    DEPENDS "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}")
+
+  add_custom_target(
+    "generate-${PYTHON_WHEEL_NAME}-wheel" ALL
+    DEPENDS "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
+            "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/${DISTINFO_NAME}/RECORD"
+  )
   install(FILES "${CMAKE_BINARY_DIR}/${WHEEL_OUTPUT_NAME}"
           DESTINATION "${CMAKE_INSTALL_PREFIX}/share/python")
   install(
@@ -442,8 +455,8 @@ python_module(TARGET_NAME revng-python-internal-support WHEEL revng_internal
 # Install revng.support
 #
 set(REVNG_SUPPORT_MODULE_FILES
-    revng/support/__init__.py revng/support/artifacts.py
-    revng/support/location.py)
+    revng/support/__init__.py revng/support/buffered_reader.py
+    revng/support/artifacts.py revng/support/location.py)
 python_module(TARGET_NAME revng-python-support WHEEL revng MODULE_FILES
               ${REVNG_SUPPORT_MODULE_FILES})
 
@@ -465,6 +478,9 @@ python_module(
 # Install pypeline
 #
 set(REVNG_PYPELINE_MODULE_FILES
+    revng/pypeline/cli/rss/__init__.py
+    revng/pypeline/cli/rss/relay.py
+    revng/pypeline/cli/rss/server.py
     revng/pypeline/cli/pipeline/__init__.py
     revng/pypeline/cli/pipeline/run_analysis.py
     revng/pypeline/cli/pipeline/run_pipe.py
@@ -476,6 +492,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/cli/__init__.py
     revng/pypeline/cli/common_options.py
     revng/pypeline/cli/context.py
+    revng/pypeline/cli/hypercorn.py
     revng/pypeline/cli/utils.py
     revng/pypeline/cli/wrappers.py
     revng/pypeline/analysis.py
@@ -494,30 +511,55 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/daemon/app.py
     revng/pypeline/daemon/daemon.py
     revng/pypeline/daemon/exceptions.py
-    revng/pypeline/daemon/notification_broker/__init__.py
-    revng/pypeline/daemon/notification_broker/local_broker.py
     revng/pypeline/daemon/utils.py
+    revng/pypeline/rss_server/__init__.py
+    revng/pypeline/rss_server/postgres.py
+    revng/pypeline/rss_server/relay.py
+    revng/pypeline/rss_server/server.py
+    revng/pypeline/rss_server/storage.py
+    revng/pypeline/rss_server/postgres_migrations/v1.sql
     revng/pypeline/schedule/__init__.py
     revng/pypeline/schedule/scheduled_task.py
     revng/pypeline/schedule/schedule.py
     revng/pypeline/storage/file_provider.py
+    revng/pypeline/storage/rss.py
     revng/pypeline/storage/memory.py
     revng/pypeline/storage/null.py
     revng/pypeline/storage/local_provider.py
+    revng/pypeline/storage/notification_queue.py
     revng/pypeline/storage/storage_provider.py
     revng/pypeline/storage/util.py
     revng/pypeline/storage/__init__.py
+    revng/pypeline/storage/local_provider_migrations/v1.sql
+    revng/pypeline/storage/local_provider_migrations/v2.sql
     revng/pypeline/task/__init__.py
     revng/pypeline/task/pipe.py
     revng/pypeline/task/requests.py
     revng/pypeline/task/savepoint.py
     revng/pypeline/task/task.py
+    revng/pypeline/utils/db_migrator.py
     revng/pypeline/utils/default_dict_from_key.py
+    revng/pypeline/utils/notification_broker.py
     revng/pypeline/utils/pipeline.py
     revng/pypeline/utils/registry.py
+    revng/pypeline/utils/starlette.py
     revng/pypeline/utils/logger.py
     revng/pypeline/utils/cabc.py
     revng/pypeline/utils/__init__.py)
+
+# Copy buffered_reader.py from revng.support to revng.pypeline.utils, since
+# pypeline cannot depend on revng and having revng depend on pypeline would be
+# morally wrong. TODO: split off all the generic functionality
+add_custom_command(
+  COMMAND
+    cp -a
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/support/buffered_reader.py"
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/pypeline/utils/buffered_reader.py"
+  OUTPUT
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/pypeline/utils/buffered_reader.py"
+  DEPENDS
+    "${CMAKE_BINARY_DIR}/${PYTHON_INSTALL_PATH}/revng/support/buffered_reader.py"
+)
 
 python_module(
   TARGET_NAME
@@ -527,7 +569,9 @@ python_module(
   MODULE_INIT
   revng/pypeline/__init__.py
   MODULE_FILES
-  ${REVNG_PYPELINE_MODULE_FILES})
+  ${REVNG_PYPELINE_MODULE_FILES}
+  MODULE_GENERATED_FILES
+  revng/pypeline/utils/buffered_reader.py)
 
 configure_file(
   revng/pypeline/pipeline-description-schema.yml

@@ -49,12 +49,6 @@ ObjectDependencies = Annotated[
 ]
 
 
-@dataclass
-class ScheduledTaskDependencies:
-    dependencies: ObjectDependencies
-    custom_invalidation: PipeCustomInvalidation = field(default_factory=list)
-
-
 class Pipe(ABC):
     """
     A Pipe is a task that, given some input objects, a configuration string and the model, produces
@@ -175,7 +169,15 @@ class Pipe(ABC):
         """
         return []
 
-    def invalidate(
+    def requires_custom_invalidation(self, diff: ModelDiff) -> bool:
+        """
+        Optional method that subclasses can override.
+        Given a diff, report if the `invalidate` method should be called with
+        the invalidation data to compute additional objects to invalidate.
+        """
+        return False
+
+    def process_custom_invalidation(
         self, invalidation_data: PipeCustomInvalidation, diff: ModelDiff
     ) -> list[ObjectSet]:
         """
@@ -187,4 +189,7 @@ class Pipe(ABC):
         return []
 
     def has_custom_invalidation(self):
-        return self.__class__.invalidate is not Pipe.invalidate
+        return (
+            self.__class__.requires_custom_invalidation is not Pipe.requires_custom_invalidation
+            and self.__class__.process_custom_invalidation is not Pipe.process_custom_invalidation
+        )

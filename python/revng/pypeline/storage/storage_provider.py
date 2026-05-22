@@ -4,21 +4,27 @@
 
 from __future__ import annotations
 
+import enum
+import json
 from abc import ABC, abstractmethod
 from collections.abc import Buffer
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, AsyncContextManager, Collection, Iterable, Mapping
+from typing import TYPE_CHECKING, Annotated, AsyncContextManager, Collection, Iterable, Mapping
 from urllib.parse import urlparse
 
 from revng.pypeline.container import ConfigurationId, ContainerID
 from revng.pypeline.model import Model, ModelPathSet
 from revng.pypeline.object import ObjectID, ObjectSet
+from revng.pypeline.storage.notification_queue import LOCAL_QUEUE
 from revng.pypeline.task.pipe import ObjectDependencies, PipeCustomInvalidation
 from revng.pypeline.utils.registry import get_registry
 
 from .file_provider import FileProvider, FileRequest
+
+if TYPE_CHECKING:
+    from revng.pypeline.pipeline import Pipeline
 
 SavepointID = Annotated[
     int,
@@ -50,8 +56,17 @@ InvalidatedObjects = dict[ContainerLocation, set[ObjectID]]
 
 @dataclass(frozen=True, slots=True)
 class ProjectMetadata:
-    last_change: datetime
+    # The version string of the last client that used the StorageProvider
     version: str
+    # The hash of the pipeline-description used last
+    pipeline_description_hash: str
+
+    # Last time data was fetched from the StorageProvider
+    last_fetch: datetime
+    # Last time objects were saved in the StorageProvider
+    last_object_save: datetime
+    # Last time the model was changed in the StorageProvider
+    last_model_save: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +123,35 @@ class ObjectsToInvalidate:
     objects: ObjectSet
 
 
+@dataclass
+class SetModelResult:
+    # The new epoch after changing the model
+    epoch: int
+    # The objects that have been pruned from storage, stored as a dictionary
+    # that maps the container location to a list of objects
+    invalidated_objects: InvalidatedObjects
+
+
+@dataclass
+class PipeDependencies:
+    pipe_id: int
+    savepoints_range: SavePointsRange
+    configuration: ConfigurationId
+    dependencies: ObjectDependencies
+    custom_invalidation: PipeCustomInvalidation
+
+    def empty(self) -> bool:
+        return len(self.dependencies) == 0 and not self.has_custom_invalidation()
+
+    def has_custom_invalidation(self):
+        return not all(len(x) == 0 for x in self.custom_invalidation)
+
+
+class LockType(enum.Enum):
+    ARTIFACT = enum.auto()
+    ANALYSIS = enum.auto()
+
+
 class StorageProviderFactory(ABC):
     """
     A possibly stateful factory for a specific storage provider.
@@ -136,6 +180,8 @@ class StorageProviderFactory(ABC):
     def get(
         self,
         base_directory: Path,
+        pipeline: Pipeline,
+        lock_type: LockType,
         project_id: ProjectID | None,
         token: str | None,
         cache_dir: str | None,
@@ -148,6 +194,21 @@ class StorageProviderFactory(ABC):
         storage provider. This is done because we need to lock the storage provider
         based on the project ID because only one user at time can modify a project.
         """
+
+    @abstractmethod
+    def get_notification_websocket(self) -> str | None:
+        """
+        Get the URL of the notification websocket. If the function returns None
+        then the internal websocket will be used.
+        """
+
+    def init(self, directory: Path) -> bool:
+        """
+        Initialize the specified directory to become a storage directory, can
+        be overridden by local storage providers. Returns true if the directory
+        was initted or false if it was previously initted.
+        """
+        return True
 
 
 # TODO: find a more suitable name
@@ -196,39 +257,16 @@ class StorageProvider(ABC):
         """
 
     @abstractmethod
-    def add_dependencies(
+    def add_objects(
         self,
-        savepoint_range: SavePointsRange,
-        configuration_id: ConfigurationId,
-        deps: ObjectDependencies,
+        dependencies: list[PipeDependencies],
+        objects: Mapping[ContainerLocation, Mapping[ObjectID, Buffer]],
     ) -> None:
         """
-        Store the dependencies between the objects and the model paths.
-        This is has to be called **BEFORE** `put`.
-        It can, and probably will, contain duplicated dependencies from previous
-        calls, but the storage should handle this gracefully.
-        """
-
-    @abstractmethod
-    def put(
-        self,
-        location: ContainerLocation,
-        values: Mapping[ObjectID, Buffer],
-    ) -> None:
-        """
-        Put a set of serialized objects into the storage.
-        This has always to be called **AFTER** `add_dependencies`
-        """
-
-    @abstractmethod
-    def invalidate(
-        self, invalidation_list: ModelPathSet, additional_objects: list[ObjectsToInvalidate]
-    ) -> InvalidatedObjects:
-        """
-        Inform the storage that certain model paths are no longer valid.
-        The storage should use the stored dependencies to determine which objects
-        need to be invalidated.
-        It returns the list of invalidated objects, in each savepoint.
+        Store dependencies and custom invalidation for an arbitrary number of
+        pipes while storing objects to storage. This guarantees that the
+        objects stored and their dependencies are stored atomically and avoids
+        dangling dependencies.
         """
 
     @abstractmethod
@@ -240,11 +278,23 @@ class StorageProvider(ABC):
         """Get the model and the epoch."""
 
     @abstractmethod
-    def set_model(self, new_model: Model) -> int:
+    def set_model(
+        self,
+        new_model: Model,
+        changed_paths: ModelPathSet,
+        custom_invalidations: list[ObjectsToInvalidate],
+    ) -> SetModelResult:
         """
-        Set the model and return the new epoch (which will be current epoch + 1
-        if the model changed, or current epoch if it didn't, and 0 if there was no
-        model before).
+        Inform the storage that the model has changed, with the list of changed
+        model paths and object to explicitly invalidate (from custom
+        invalidation). This function will compute the overall list of objects
+        to invalidate and set the model. It will return the new epoch (which
+        will be current epoch + 1 if the model changed, or current epoch if it
+        didn't) and the exhaustive list of objects that have been deleted due
+        to the changes in the model.
+        This requires the new model and the list of changed paths separately so
+        that the storage provider does not need to run operations (diff/apply)
+        on the model.
         """
 
     @abstractmethod
@@ -256,7 +306,10 @@ class StorageProvider(ABC):
     @abstractmethod
     def prune_objects(self):
         """
-        Prunes all the objects (except metadata) from storage
+        Prunes all the objects (except metadata) from storage. This is a debug
+        method and should not be relied upon in other parts of the codebase.
+        This method can throw an exception if the provider does not support
+        pruning.
         """
 
     @abstractmethod
@@ -275,15 +328,6 @@ class StorageProvider(ABC):
         """
 
     @abstractmethod
-    def add_custom_invalidation_data(
-        self, pipe_id: int, configuration_hash: str, data: PipeCustomInvalidation
-    ) -> None:
-        """
-        Add custom invalidation data to storage, will be used to produce
-        additional objects to invalidate later on.
-        """
-
-    @abstractmethod
     def get_custom_invalidation_data(
         self, pipe_id: int, configuration_hash: str
     ) -> PipeCustomInvalidation:
@@ -291,6 +335,28 @@ class StorageProvider(ABC):
         Retrieve custom invalidation data previously stored by
         `add_custom_invalidation_data`.
         """
+
+    @staticmethod
+    def _send_local_invalidation(invalidated: InvalidatedObjects, epoch: int):
+        """
+        Send invalidation data to the local queue. Only to be used on local
+        storage providers where notifications are not handled by the provider.
+        """
+
+        payload = {
+            "type": "invalidation",
+            "epoch": epoch,
+            "invalidated": [
+                {
+                    "savepoint_id": location.savepoint_id,
+                    "container_id": location.container_id,
+                    "configuration": location.configuration_id,
+                    "object_ids": [object_id.serialize() for object_id in object_ids],
+                }
+                for location, object_ids in invalidated.items()
+            ],
+        }
+        LOCAL_QUEUE.send(json.dumps(payload).encode())
 
 
 class StorageProviderFileProvider(FileProvider):

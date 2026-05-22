@@ -24,11 +24,11 @@ from revng.pypeline.pipeline import AnalysisBinding, Artifact, ArtifactCategory,
 from revng.pypeline.pipeline_node import PipelineConfiguration, PipelineNode
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.schedule.scheduled_task import ScheduledTask
+from revng.pypeline.schedule.scheduled_task import SavepointScheduledTask
 from revng.pypeline.storage.local_provider import LocalStorageProvider
 from revng.pypeline.storage.memory import InMemoryStorageProvider
-from revng.pypeline.storage.storage_provider import ContainerLocation, SavePointsRange
-from revng.pypeline.storage.storage_provider import StorageProvider
+from revng.pypeline.storage.storage_provider import ContainerLocation, PipeDependencies
+from revng.pypeline.storage.storage_provider import SavePointsRange, StorageProvider
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.task.savepoint import SavePoint
@@ -53,12 +53,17 @@ def model():
 
 
 @pytest.fixture(params=["memory", "local"])
-def storage_provider(request) -> Generator[StorageProvider, None, None]:
+def storage_provider(request, model) -> Generator[StorageProvider, None, None]:
+    provider: StorageProvider
     if request.param == "memory":
-        yield InMemoryStorageProvider()
+        provider = InMemoryStorageProvider()
+        provider.set_model(model, set(), [])
+        yield provider
     elif request.param == "local":
         with NamedTemporaryFile() as f, TemporaryDirectory() as d:
-            yield LocalStorageProvider(":memory:", Path(f.name), Path(d))
+            provider = LocalStorageProvider(":memory:", Path(f.name), Path(d), "")
+            provider.set_model(model, set(), [])
+            yield provider
     else:
         raise ValueError()
 
@@ -136,8 +141,7 @@ def test_pipe_prerequisites_for(model) -> None:
     assert result == [root, empty_child_set]
 
 
-def test_savepoint_prerequisites_for(storage_provider, model) -> None:
-    storage_provider.set_model(model)
+def test_savepoint_prerequisites_for(storage_provider) -> None:
     child: ContainerDeclaration = ContainerDeclaration("child", ChildDictContainer)
     save_point = SavePoint("save", [child])
 
@@ -164,6 +168,7 @@ def test_savepoint_prerequisites_for(storage_provider, model) -> None:
         configuration_id=configuration_id,
         storage_provider=storage_provider,
         savepoint_range=savepoint_range,
+        pipes_dependencies=[],
     )
 
     result = save_point.prerequisites_for(
@@ -194,7 +199,6 @@ def test_pipeline_inplace(model, storage_provider):
     child_cont: ContainerDeclaration = ContainerDeclaration("arg", ChildDictContainer)
     declarations = [child_cont]
     configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model)
 
     one = ObjectSet(MyKind.CHILD, {MyObjectID(MyKind.CHILD, "one")})
     one_two = ObjectSet(
@@ -217,7 +221,7 @@ def test_pipeline_inplace(model, storage_provider):
     container.add_object(MyObjectID(MyKind.CHILD, "one"))
     container.add_object(MyObjectID(MyKind.CHILD, "two"))
     begin_configuration_id = begin_node.configuration_id(configuration)
-    task = ScheduledTask(
+    task = SavepointScheduledTask(
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
@@ -268,7 +272,6 @@ def test_pipeline_up_down(model, storage_provider):
     declarations = [root1, root2, child1, child2]
 
     configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model)
 
     begin_node = PipelineNode(SavePoint("begin", declarations))
     up_node = PipelineNode(ToHigherKindPipe(), bindings=[root1, child1])
@@ -292,7 +295,7 @@ def test_pipeline_up_down(model, storage_provider):
     container = RootDictContainer()
     container.add_object(MyObjectID.root())
     requests = Requests({root1: root_obj})
-    task = ScheduledTask(
+    task = SavepointScheduledTask(
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
@@ -329,7 +332,6 @@ def test_artifact(model, storage_provider):
     declarations = [child1, child2]
     configuration: PipelineConfiguration = {}
     one = ObjectSet.from_list([MyObjectID(MyKind.CHILD, "one")])
-    storage_provider.set_model(model)
 
     begin_node = PipelineNode(SavePoint("begin", declarations))
     same_node = PipelineNode(SameKindPipe(), bindings=[child1, child2])
@@ -345,7 +347,7 @@ def test_artifact(model, storage_provider):
     container = ChildDictContainer()
     container.add_object(MyObjectID(MyKind.CHILD, "one"))
     requests = Requests({child1: one})
-    task = ScheduledTask(
+    task = SavepointScheduledTask(
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
@@ -370,7 +372,6 @@ def test_invalidation(model, storage_provider):
     child: ContainerDeclaration = ContainerDeclaration("arg", ChildDictContainer)
     declarations = [child]
     configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model)
 
     object_one = MyObjectID(MyKind.CHILD, "one")
     expected_output = ObjectSet(MyKind.CHILD, {object_one})
@@ -403,7 +404,7 @@ def test_invalidation(model, storage_provider):
         )
     ) == set(expected_output)
 
-    storage_provider.invalidate({"/two"}, [])
+    storage_provider.set_model(storage_provider.get_model()[0], {"/two"}, [])
 
     assert set(
         storage_provider.has(
@@ -417,7 +418,7 @@ def test_invalidation(model, storage_provider):
     ) == set(expected_output)
 
     # Change something we depend on
-    storage_provider.invalidate({"/one"}, [])
+    storage_provider.set_model(storage_provider.get_model()[0], {"/one"}, [])
 
     assert not list(
         storage_provider.has(
@@ -439,8 +440,7 @@ def test_analysis(model, storage_provider):
 
     model["/test/test"] = "test"
     model["/test/test2"] = "test2"
-
-    storage_provider.set_model(model)
+    storage_provider.set_model(model, set(), [])
 
     object_one = MyObjectID(MyKind.CHILD, "one")
     expected_output = ObjectSet(MyKind.CHILD, {object_one})
@@ -590,7 +590,6 @@ def test_schedule_serdes(model):
     declarations = [root1, root2, child1, child2]
 
     configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model)
 
     begin_node = PipelineNode(SavePoint("begin", declarations))
     up_node = PipelineNode(ToHigherKindPipe(), bindings=[root1, child1])
@@ -614,7 +613,7 @@ def test_schedule_serdes(model):
     container = RootDictContainer()
     container.add_object(MyObjectID.root())
     requests = Requests({root1: root_obj})
-    task = ScheduledTask(
+    task = SavepointScheduledTask(
         begin_node,
         ReadOnlyModel(model),
         storage_provider,
@@ -657,18 +656,23 @@ def test_storage_invalidation(storage_provider: StorageProvider):
     function2 = MyObjectID(MyKind.CHILD, "func2")
 
     def add_object(save_start: int, save_end: int, object_id, path: str):
-        storage_provider.put(
-            ContainerLocation(save_start, container_id, configuration_id), {object_id: b""}
-        )
-        storage_provider.add_dependencies(
-            SavePointsRange(save_start, save_end),
-            configuration_id,
-            [(container_id, object_id, path)],
+        storage_provider.add_objects(
+            [
+                PipeDependencies(
+                    0,
+                    SavePointsRange(save_start, save_end),
+                    configuration_id,
+                    [(container_id, object_id, path)],
+                    [],
+                )
+            ],
+            {ContainerLocation(save_start, container_id, configuration_id): {object_id: b""}},
         )
 
     # Check basic invalidation
     add_object(0, 4, root, "/root")
-    assert storage_provider.invalidate({"/root"}, []) == {
+    result = storage_provider.set_model(storage_provider.get_model()[0], {"/root"}, [])
+    assert result.invalidated_objects == {
         ContainerLocation(0, container_id, configuration_id): {root}
     }
 
@@ -676,8 +680,8 @@ def test_storage_invalidation(storage_provider: StorageProvider):
     storage_provider.prune_objects()
     add_object(0, 4, root, "/root")
     add_object(2, 4, function1, "/function1")
-    invalidation = storage_provider.invalidate({"/root"}, [])
-    assert invalidation == {
+    result = storage_provider.set_model(storage_provider.get_model()[0], {"/root"}, [])
+    assert result.invalidated_objects == {
         ContainerLocation(0, container_id, configuration_id): {root},
         ContainerLocation(2, container_id, configuration_id): {function1},
     }
@@ -688,8 +692,8 @@ def test_storage_invalidation(storage_provider: StorageProvider):
     add_object(2, 4, function1, "/function1")
     add_object(2, 4, function2, "/function2")
     add_object(3, 3, root, "/root")
-    invalidation = storage_provider.invalidate({"/function1"}, [])
-    assert invalidation == {
+    result = storage_provider.set_model(storage_provider.get_model()[0], {"/function1"}, [])
+    assert result.invalidated_objects == {
         ContainerLocation(2, container_id, configuration_id): {function1},
         ContainerLocation(3, container_id, configuration_id): {root},
     }
@@ -702,7 +706,6 @@ def test_custom_invalidation(model, storage_provider: StorageProvider):
     declarations = [root_decl]
 
     configuration: PipelineConfiguration = {}
-    storage_provider.set_model(model)
 
     begin_node = PipelineNode(GeneratorPipeWithInvalidation(), bindings=[root_decl])
     savepoint_node = PipelineNode(SavePoint("end", declarations))

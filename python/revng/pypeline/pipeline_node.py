@@ -4,9 +4,9 @@
 
 from __future__ import annotations
 
+import hashlib
 from hashlib import sha256
-from typing import TYPE_CHECKING, Annotated, List, Mapping, Optional, Sequence, Set, Union
-from typing import overload
+from typing import Annotated, List, Mapping, Optional, Sequence, Set, Union, cast, overload
 
 from revng.pypeline.analysis import Analysis
 
@@ -20,30 +20,11 @@ from .task.requests import Requests
 from .task.savepoint import SavePoint
 from .task.task import TaskArgument
 
-if TYPE_CHECKING:
-    from _typeshed import SupportsRichComparison
-
-
 PipelineConfiguration = Annotated[
     Mapping[Pipe | Analysis, str],
     "Configuration for an execution of a schedule or analysis, this describes "
     "the dynamic configuration of each component of the pipeline",
 ]
-
-
-def deterministic_sort_key(node: PipelineNode) -> SupportsRichComparison:
-    """
-    A deterministic sort key for a PipelineNode, used to ensure that the
-    savepoint ranges are assigned in a deterministic order.
-    """
-    return (
-        # Arguments of the task
-        tuple(node.argument_declarations),
-        # Sorted list of outdegree of successors to try to embed the shape
-        # of the pipeline in the sort key
-        tuple(sorted(len(succ.successors) for succ in node.successors)),
-        node.task.name,
-    )
 
 
 class PipelineNode:
@@ -62,6 +43,7 @@ class PipelineNode:
         "pipe_dependencies",
         "savepoint_range",
         "id",
+        "_hash",
     )
 
     @overload
@@ -87,6 +69,11 @@ class PipelineNode:
         self.bindings: list[ContainerDeclaration] = []
         self.savepoint_range: Optional[SavePointsRange] = None
         self.id = -1
+
+        # This is the hash of the node, it's used to guarantee that
+        # `sorted_successors` is stable. It will be computed at a later time
+        # once the successors of the node are determined.
+        self._hash: str | None = None
 
         if bindings is None:
             assert isinstance(
@@ -137,13 +124,41 @@ class PipelineNode:
         self.successors.append(node)
         return node
 
+    def _compute_node_hash(self):
+        # Compute the hash of this node, this requires that the successors of
+        # this node have had their hash pre-computed
+
+        assert self._hash is None
+        for node in self.successors:
+            assert node._hash is not None
+
+        hasher = hashlib.sha256()
+        if isinstance(self.task, SavePoint):
+            hasher.update(b"Savepoint\0")
+        elif isinstance(self.task, Pipe):
+            hasher.update(b"Pipe\0")
+            hasher.update(self.task.__class__.name.encode() + b"\0")
+            hasher.update(self.task.static_configuration.encode() + b"\0")
+
+        hasher.update(b"Arguments\0")
+        for argument in self.argument_declarations:
+            hasher.update(argument.name.encode())
+            hasher.update(b"\0")
+            hasher.update(argument.container_type.name.encode())
+            hasher.update(b"\0")
+
+        for node in self.sorted_successors():
+            hasher.update(cast(str, node._hash).encode() + b"\0")
+
+        self._hash = hasher.hexdigest()
+
     def sorted_successors(self) -> list[PipelineNode]:
         """
         Return the successors of this node sorted by their deterministic sort key.
         This is needed to ensure that the savepoint ranges are assigned in a
         deterministic order, otherwise the caches could cause problems.
         """
-        return sorted(self.successors, key=deterministic_sort_key)
+        return sorted(self.successors, key=lambda x: cast(str, x._hash))
 
     def prerequisites_for(
         self,
@@ -202,8 +217,8 @@ class PipelineNode:
             "type": "pipe" if isinstance(self.task, Pipe) else "savepoint",
             "class": self.task.__class__.__name__,
             "arguments": [binding.name for binding in self.bindings],
-            "successors": [succ.id for succ in self.successors],
-            "predecessors": [pred.id for pred in self.predecessors],
+            "successors": sorted([succ.id for succ in self.successors]),
+            "predecessors": sorted([pred.id for pred in self.predecessors]),
             "savepoint_range": (
                 {
                     "start": self.savepoint_range.start,

@@ -141,8 +141,7 @@ def test_daemon(daemon_server: TestServer):
     analysis_notification_text = notifications_websocket.recv()
     logger.info("Analysis notification: %s", analysis_notification_text)
     analysis_notification = json.loads(analysis_notification_text)
-    assert analysis_notification["type"] == "analysis"
-    assert analysis_notification["analysis"] == "AddStuffAnalysis"
+    assert analysis_notification["type"] == "invalidation"
     assert analysis_notification["epoch"] == new_epoch
 
     # Verify model was modified by getting it again

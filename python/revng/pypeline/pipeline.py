@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from graphlib import TopologicalSorter
 from itertools import chain
 from typing import Dict, Generator, Iterable, List, Mapping, Optional, Set
 
@@ -20,7 +21,7 @@ from .model import Model, ModelDiff, ReadOnlyModel
 from .object import ObjectID, ObjectSet
 from .pipeline_node import PipelineConfiguration, PipelineNode
 from .schedule.schedule import Schedule
-from .schedule.scheduled_task import ScheduledTask
+from .schedule.scheduled_task import PipeScheduledTask, SavepointScheduledTask, ScheduledTask
 from .storage.storage_provider import InvalidatedObjects, ObjectsToInvalidate, SavePointsRange
 from .storage.storage_provider import StorageProvider
 from .task.pipe import Pipe
@@ -62,19 +63,21 @@ class Artifact:
     defined_locations: list[str] = field(default_factory=list, hash=False)
     preferred_artifacts: list[str] = field(default_factory=list, hash=False)
 
-    def is_cacheable(self) -> bool:
-        """An artifact is cacheable if it's backed by a savepoint."""
-        return isinstance(self.node.task, SavePoint)
-
     def pipe_dependencies(self) -> list[str]:
         return sorted({p.name for p in self.node.pipe_dependencies})
 
     def to_dict(self) -> dict:
         """Convert the artifact to a dictionary representation."""
+        if isinstance(self.node.task, SavePoint):
+            assert self.node.savepoint_range is not None
+            savepoint_id = self.node.savepoint_range.start
+        else:
+            savepoint_id = -1
+
         result = {
             "name": self.name,
+            "savepoint_id": savepoint_id,
             "container": self.container.name,
-            "cacheable": self.is_cacheable(),
             "pipe_dependencies": self.pipe_dependencies(),
             "category": self.category.to_dict(),
             "defined_locations": self.defined_locations,
@@ -188,6 +191,12 @@ class Pipeline:
             # Add the analysis list
             self.analysis_lists[analysis_list.name] = analysis_list
 
+        # Compute the hash for each `PipelineNode`, this needs to be done
+        # before doing any other operation that relies on
+        # `walk_pipeline(stable=True)` or `node.sorted_successors`
+        self._compute_nodes_hash()
+        # Assign the savepoint ranges, this works deterministically by leveraging
+        # `node.sorted_successors`
         Pipeline.assign_savepoint_ranges(root)
 
         id_index = 0
@@ -218,6 +227,15 @@ class Pipeline:
             if isinstance(artifact.node.task, SavePoint):
                 assert artifact.node.savepoint_range is not None
                 self.savepoint_id_to_artifact[artifact.node.savepoint_range.start] = artifact
+
+    def _compute_nodes_hash(self):
+        # Call each node's `_compute_node_hash` in post-order
+        sorter: TopologicalSorter[PipelineNode] = TopologicalSorter()
+        for node in self.walk_pipeline():
+            sorter.add(node, *node.successors)
+
+        for node in sorter.static_order():
+            node._compute_node_hash()
 
     @staticmethod
     def assign_savepoint_ranges(node: PipelineNode, current_id: int = 0) -> int:
@@ -365,9 +383,13 @@ class Pipeline:
         configuration: PipelineConfiguration,
         storage_provider: StorageProvider,
     ) -> Schedule:
-        tasks: DefaultDictFromKey[PipelineNode, ScheduledTask] = DefaultDictFromKey(
-            lambda pn: ScheduledTask(pn, model, storage_provider, configuration)
-        )
+        def task_generator(pipeline_node: PipelineNode):
+            if isinstance(pipeline_node.task, Pipe):
+                return PipeScheduledTask(pipeline_node, model, storage_provider, configuration)
+            else:
+                return SavepointScheduledTask(pipeline_node, model, storage_provider, configuration)
+
+        tasks: DefaultDictFromKey[PipelineNode, ScheduledTask] = DefaultDictFromKey(task_generator)
         # The pipeline is a tree, so we can just unroll the predecessors,
         # When we parallelize, we will make a subclass that overrides this method,
         # and probably it will first call it to produce the initial schedule and
@@ -466,7 +488,6 @@ class Pipeline:
         return Schedule(
             {v for v in self.declarations if v.name in used_declatations},
             tasks[target_node],
-            configuration,
             model,
             storage_provider,
         )
@@ -597,9 +618,10 @@ class Pipeline:
         custom_invalidated_objects = self._compute_custom_invalidation(
             configuration, storage_provider, diff
         )
-        invalidated = storage_provider.invalidate(diff.paths(), custom_invalidated_objects)
-        storage_provider.set_model(new_model)
-        return new_model, invalidated
+        set_model_result = storage_provider.set_model(
+            new_model, diff.paths(), custom_invalidated_objects
+        )
+        return new_model, set_model_result.invalidated_objects
 
     def _compute_custom_invalidation(
         self,
@@ -620,6 +642,10 @@ class Pipeline:
             if not node.task.has_custom_invalidation():
                 continue
 
+            # Run the prelimiary check for the pipe
+            if not node.task.requires_custom_invalidation(diff):
+                continue
+
             # Fetch the custom invalidation data from storage
             configuration_id = node.configuration_id(configuration)
             invalidation_data = storage_provider.get_custom_invalidation_data(
@@ -633,7 +659,7 @@ class Pipeline:
                 continue
 
             # Run the pipe's invalidate
-            objects_to_invalidate = node.task.invalidate(invalidation_data, diff)
+            objects_to_invalidate = node.task.process_custom_invalidation(invalidation_data, diff)
             # Convert the invalidated objects in a pipeline-friendly format
             for index, objects in enumerate(objects_to_invalidate):
                 container_decl = node.argument_declarations[index]
@@ -666,6 +692,7 @@ class Pipeline:
         scheduled_tasks: list[ScheduledTask] = []
         for task in schedule_dict["tasks"]:
             pipeline_node: PipelineNode = pipeline_nodes[task["node_id"]]
+            dependencies = [scheduled_tasks[i] for i in task["dependencies"]]
             outgoing = Requests()
             incoming = Requests()
 
@@ -685,6 +712,17 @@ class Pipeline:
                     outgoing[container_declaration] = ObjectSet(
                         container_kind, {obj_id_type.deserialize(x) for x in arg["outgoing"]}
                     )
+
+                scheduled_tasks.append(
+                    PipeScheduledTask(
+                        pipeline_node,
+                        model,
+                        storage_provider,
+                        configuration,
+                        (incoming, outgoing),
+                        dependencies,
+                    )
+                )
             elif task["type"] == "SavePoint":
                 assert isinstance(pipeline_node.task, SavePoint)
                 assert task["name"] == pipeline_node.task.name
@@ -699,18 +737,18 @@ class Pipeline:
                     outgoing[container_declaration] = ObjectSet(
                         container_kind, {obj_id_type.deserialize(x) for x in container["outgoing"]}
                     )
+
+                scheduled_tasks.append(
+                    SavepointScheduledTask(
+                        pipeline_node,
+                        model,
+                        storage_provider,
+                        configuration,
+                        (incoming, outgoing),
+                        dependencies,
+                    )
+                )
             else:
                 raise ValueError(f"Unknown task type: \"{task['type']}\"")
 
-            dependencies = [scheduled_tasks[i] for i in task["dependencies"]]
-            scheduled_task = ScheduledTask(
-                pipeline_node,
-                model,
-                storage_provider,
-                configuration,
-                (incoming, outgoing),
-                dependencies,
-            )
-            scheduled_tasks.append(scheduled_task)
-
-        return Schedule(declarations, scheduled_tasks[-1], configuration, model, storage_provider)
+        return Schedule(declarations, scheduled_tasks[-1], model, storage_provider)

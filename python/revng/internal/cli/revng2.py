@@ -28,8 +28,8 @@ from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.pipeline import pipeline
 from revng.pypeline.cli.project import project
 from revng.pypeline.cli.project.artifact import ArtifactGroup as ProjectArtifactGroup
-from revng.pypeline.cli.utils import EagerParsedPath, PypeGroup, build_arg_objects
-from revng.pypeline.cli.utils import compute_objects, normalize_flag, sort_option_groups
+from revng.pypeline.cli.utils import EagerParsedPath, build_arg_objects, compute_objects
+from revng.pypeline.cli.utils import normalize_flag, sort_option_groups
 from revng.pypeline.cli.wrappers import WRAPPER_REGISTRY, WrappablePypeCommand, WrapperOption
 from revng.pypeline.cli.wrappers import exec_with_wrapper, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerDeclaration, ContainerFormat
@@ -41,7 +41,7 @@ from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.storage.local_provider import TemporaryLocalStorageProviderFactory
-from revng.pypeline.storage.storage_provider import FileStorageEntry, StorageProvider
+from revng.pypeline.storage.storage_provider import FileStorageEntry, LockType, StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.storage.util import compute_hash
 from revng.pypeline.task.pipe import Pipe
@@ -65,7 +65,7 @@ def generate_model_with_binaries(binaries: list[Path]):
     return {"Binaries": result}
 
 
-@click.group(cls=PypeGroup, help="Quick commands (japanese toilet)")
+@click.group(help="Quick commands (japanese toilet)")
 @click.option(
     "--pipeline",
     "pipeline",
@@ -228,7 +228,7 @@ def _build_artifact_command(pipeline: Pipeline, artifact_name: str):
 
         storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
         storage_provider_context = storage_provider_factory.get(
-            ctx.obj.base_directory, None, None, None
+            ctx.obj.base_directory, ctx.obj.pipeline, LockType.ARTIFACT, None, None, None
         )
         asyncio.run(async_part_of_command(storage_provider_context))
 
@@ -309,7 +309,7 @@ def analyze(
 
     storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
     storage_provider_context = storage_provider_factory.get(
-        ctx.obj.base_directory, None, None, None
+        ctx.obj.base_directory, ctx.obj.pipeline, LockType.ANALYSIS, None, None, None
     )
     asyncio.run(async_part_of_command(storage_provider_context))
 
@@ -338,31 +338,31 @@ def init(
 ):
     """Initialize a new project."""
     model_type = get_singleton(Model)  # type: ignore[type-abstract]
-    model_name = model_type.model_name()
-    model_file = ctx.obj.base_directory / model_name
-    if model_file.exists():
+
+    storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
+    if not storage_provider_factory.init(ctx.obj.base_directory):
+        model_name = model_type.model_name()
         raise click.UsageError(
             f"File {model_name} is already present in the current directory. "
             "Refusing to overwrite it."
         )
-    model_file.touch()
-
-    if binary is not None:
-        model_raw = yaml.safe_dump(generate_model_with_binaries([binary])).encode()
-        with open(model_file, "wb") as f:
-            f.write(model_raw)
-    else:
-        model_raw = b""
-
-    if no_initial_auto_analysis:
-        return
 
     async def async_part_of_command(
         storage_provider_context: AsyncContextManager[StorageProvider],
     ):
-        pipeline = ctx.obj.pipeline
         async with storage_provider_context as storage_provider:
-            model = model_type.deserialize(model_raw)[0]
+            if binary is not None:
+                model_raw = yaml.safe_dump(generate_model_with_binaries([binary])).encode()
+                model = model_type.deserialize(model_raw)[0]
+                storage_provider.set_model(model, set(), [])
+
+                file_entry = FileStorageEntry(binary.name, path=binary.resolve())
+                storage_provider.put_files_in_storage([file_entry])
+
+            if no_initial_auto_analysis:
+                return
+
+            pipeline = ctx.obj.pipeline
             analysis_list = pipeline.analysis_lists["initial-auto-analysis"]
             pipeline.run_analysis_list(
                 model=ReadOnlyModel(model),
@@ -371,9 +371,10 @@ def init(
                 storage_provider=storage_provider,
             )
 
-    storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
     storage_provider_context = storage_provider_factory.get(
         base_directory=ctx.obj.base_directory,
+        pipeline=ctx.obj.pipeline,
+        lock_type=LockType.ANALYSIS,
         project_id=project_id,
         token=token,
         cache_dir=ctx.obj.cache_dir,
@@ -420,7 +421,7 @@ def _generate_load_arguments(ctx):
     return [f"-load={p.resolve()!s}" for p in native_libraries]
 
 
-class RunPipeNativeGroup(PypeGroup):
+class RunPipeNativeGroup(click.Group):
     """
     This implements the "run-pipe-native" command group, subcommands of this
     group are exclusively native pipes that can be run without python.
@@ -485,7 +486,7 @@ def run_pipe_native() -> None:
     pass
 
 
-class RunAnalysisNativeGroup(PypeGroup):
+class RunAnalysisNativeGroup(click.Group):
     """
     This implements the "run-analysis-native" command group, subcommands of
     this group are exclusively native analyses that can be run without python.

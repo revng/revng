@@ -44,7 +44,7 @@ class StarletteTestServer(TestServer):
 
         # Configure a session that can directly talk to the daemon
         self.session = requests.Session()
-        self.session.headers["X-Projectid"] = self.project_id
+        self.session.headers["x-project-id"] = self.project_id
 
         # The server daemon has to be a daemon so when the tests finish it will
         # be killed. But this silences the exceptions, so if it fails, you need
@@ -84,8 +84,8 @@ class StarletteTestServer(TestServer):
                 "--cache-dir",
                 self.cache_dir.name,
                 "daemon",
-                "--port",
-                str(self.port),
+                "--bind",
+                f"127.0.0.1:{self.port!s}",
             )
         )
         logger.critical("Server exiting")
@@ -96,7 +96,7 @@ class StarletteTestServer(TestServer):
         while time.time() - start_time < timeout:
             logger.info("Waiting for the daemon to startup... ")
             try:
-                response = self.session.get(f"{self.base_url}/api/epoch", timeout=1)
+                response = self.session.get(f"{self.base_url}/status", timeout=1)
                 if response.status_code == 200:
                     return
             except requests.exceptions.RequestException:
@@ -145,6 +145,5 @@ class StarletteTestServer(TestServer):
 
     def subscribe(self):
         return websockets.sync.client.connect(
-            f"ws://127.0.0.1:{self.port}/api/subscribe",
-            additional_headers={"X-ProjectId": self.project_id},
+            f"ws://127.0.0.1:{self.port}/api/notifications?project_id={self.project_id}"
         )

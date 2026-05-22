@@ -11,15 +11,14 @@ import yaml
 from revng.pypeline.cli.common_options import add_pipeline_config_options, debug_option
 from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
-from revng.pypeline.cli.utils import PypeGroup, build_arg_objects, build_help_text
-from revng.pypeline.cli.utils import compute_objects, list_objects_for_container
-from revng.pypeline.cli.utils import normalize_whitespace
+from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
+from revng.pypeline.cli.utils import list_objects_for_container, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, AnalysisList, ContainerDeclaration, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.storage.storage_provider import StorageProvider
+from revng.pypeline.storage.storage_provider import LockType, StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils.logger import pypeline_logger
@@ -129,7 +128,7 @@ async def async_part_of_command(
             yaml.safe_dump(data, invalidations_file)
 
 
-class AnalyzeGroup(PypeGroup):
+class AnalyzeGroup(click.Group):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -262,6 +261,8 @@ def build_analysis_list_command(
         storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
         storage_provider_context = storage_provider_factory.get(
             base_directory=ctx.obj.base_directory,
+            pipeline=ctx.obj.pipeline,
+            lock_type=LockType.ANALYSIS,
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj.cache_dir,
@@ -326,6 +327,8 @@ def build_analysis_command(
         storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
         storage_provider_context = storage_provider_factory.get(
             base_directory=ctx.obj.base_directory,
+            pipeline=ctx.obj.pipeline,
+            lock_type=LockType.ANALYSIS,
             project_id=project_id,
             token=token,
             cache_dir=ctx.obj.cache_dir,
