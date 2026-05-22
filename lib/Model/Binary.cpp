@@ -455,6 +455,7 @@ Values formCOFFRelocation(model::Architecture::Values Architecture) {
 
 std::set<uint64_t> model::Binary::collectAllTypeSizes() const {
 
+  // TODO: don't hardcode this set here. Share it with the other users!
   std::set<uint64_t> ByteSizes = { 1, 2, 4, 8, 10, 12, 16 };
 
   for (const model::UpcastableTypeDefinition &Type : this->TypeDefinitions()) {
@@ -462,46 +463,49 @@ std::set<uint64_t> model::Binary::collectAllTypeSizes() const {
     if (ByteSize)
       ByteSizes.insert(ByteSize);
 
-    llvm::SmallVector<model::UpcastableType> Dependencies;
-
     const model::TypeDefinition *Definition = Type->tryGetAsDefinition();
     if (not Definition)
       continue;
 
     if (const auto *TD = llvm::dyn_cast<model::TypedefDefinition>(Definition))
-      Dependencies.push_back(TD->UnderlyingType());
+      if (uint64_t ByteSize = TD->UnderlyingType()->trySize().value_or(0))
+        ByteSizes.insert(ByteSize);
 
     if (const auto *S = Definition->getStruct())
       for (const auto &Field : S->Fields())
-        Dependencies.push_back(Field.Type());
+        if (uint64_t ByteSize = Field.Type()->trySize().value_or(0))
+          ByteSizes.insert(ByteSize);
 
     if (const auto *U = Definition->getUnion())
       for (const auto &Field : U->Fields())
-        Dependencies.push_back(Field.Type());
+        if (uint64_t ByteSize = Field.Type()->trySize().value_or(0))
+          ByteSizes.insert(ByteSize);
 
     if (const auto *R = Definition->getRawFunction()) {
       for (const auto &A : R->Arguments())
-        Dependencies.push_back(A.Type());
+        if (uint64_t ByteSize = A.Type()->trySize().value_or(0))
+          ByteSizes.insert(ByteSize);
 
       uint64_t ReturnTypeSize = 0;
       for (const auto &RV : R->ReturnValues()) {
-        Dependencies.push_back(RV.Type());
-        ReturnTypeSize += RV.Type()->size().value_or(0);
+        uint64_t ByteSize = RV.Type()->trySize().value_or(0);
+        revng_assert(ByteSize);
+        ByteSizes.insert(ByteSize);
+        ReturnTypeSize += ByteSize;
       }
+
       if (ReturnTypeSize)
         ByteSizes.insert(ReturnTypeSize);
     }
 
     if (const auto *C = Definition->getCABIFunction()) {
       for (const auto &A : C->Arguments())
-        Dependencies.push_back(A.Type());
+        if (uint64_t ByteSize = A.Type()->trySize().value_or(0))
+          ByteSizes.insert(ByteSize);
       if (not C->ReturnType().isEmpty())
-        Dependencies.push_back(C->ReturnType());
+        if (uint64_t ByteSize = C->ReturnType()->trySize().value_or(0))
+          ByteSizes.insert(ByteSize);
     }
-
-    for (const model::UpcastableType &D : Dependencies)
-      if (uint64_t ByeSize = D->trySize().value_or(0))
-        ByteSizes.insert(ByteSize);
   }
 
   return ByteSizes;
