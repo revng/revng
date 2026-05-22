@@ -5,6 +5,7 @@
 #include <queue>
 
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -12,6 +13,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/BinaryIdentifier.h"
+#include "revng/Model/PrimitiveType.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/CommandLine.h"
@@ -454,40 +456,45 @@ Values formCOFFRelocation(model::Architecture::Values Architecture) {
 } // namespace model
 
 std::set<uint64_t> model::Binary::collectAllTypeSizes() const {
-
   // TODO: don't hardcode this set here. Share it with the other users!
+  //       Important: this should already contain all the primitive sizes we
+  //       support (which includes all the pointers sizes).
   std::set<uint64_t> ByteSizes = { 1, 2, 4, 8, 10, 12, 16 };
 
   for (const model::UpcastableTypeDefinition &Type : this->TypeDefinitions()) {
-    uint64_t ByteSize = Type->size().value_or(0);
-    if (ByteSize)
+    // This takes care of all the type definitions, meaning we don't have to
+    // look at defined types anymore.
+    if (uint64_t ByteSize = Type->size().value_or(0))
       ByteSizes.insert(ByteSize);
 
-    const model::TypeDefinition *Definition = Type->tryGetAsDefinition();
-    if (not Definition)
-      continue;
+    for (const model::Type *Edge : Type->edges()) {
+      // Since primitives, pointers and defined types are already taken care of,
+      // we are only interested in arrays here.
 
-    if (const auto *TD = llvm::dyn_cast<model::TypedefDefinition>(Definition))
-      if (uint64_t ByteSize = TD->UnderlyingType()->trySize().value_or(0))
-        ByteSizes.insert(ByteSize);
+      // IMPORTANT: do not forget to update this after new type kinds are added!
 
-    if (const auto *S = Definition->getStruct())
-      for (const auto &Field : S->Fields())
-        if (uint64_t ByteSize = Field.Type()->trySize().value_or(0))
-          ByteSizes.insert(ByteSize);
+      while (!llvm::isa<model::PrimitiveType>(Edge)
+             && !llvm::isa<model::DefinedType>(Edge)) {
+        if (const auto *Pointer = llvm::dyn_cast<model::PointerType>(Edge)) {
+          // Keep going deeper on a pointer in case it's a pointer to an array.
+          Edge = Pointer->PointeeType().get();
 
-    if (const auto *U = Definition->getUnion())
-      for (const auto &Field : U->Fields())
-        if (uint64_t ByteSize = Field.Type()->trySize().value_or(0))
-          ByteSizes.insert(ByteSize);
+        } else if (const auto *Array = llvm::dyn_cast<model::ArrayType>(Edge)) {
+          if (uint64_t ByteSize = Edge->trySize().value_or(0))
+            ByteSizes.insert(ByteSize);
 
-    if (const auto *R = Definition->getRawFunction()) {
-      for (const auto &A : R->Arguments())
-        if (uint64_t ByteSize = A.Type()->trySize().value_or(0))
-          ByteSizes.insert(ByteSize);
+          // Keep going deeper on an array in case it's a nested one.
+          Edge = Array->ElementType().get();
 
+        } else {
+          revng_abort("Unsupported type kind!");
+        }
+      }
+    }
+
+    if (const auto *RFT = Type->getRawFunction()) {
       uint64_t ReturnTypeSize = 0;
-      for (const auto &RV : R->ReturnValues()) {
+      for (const auto &RV : RFT->ReturnValues()) {
         uint64_t ByteSize = RV.Type()->trySize().value_or(0);
         revng_assert(ByteSize);
         ByteSizes.insert(ByteSize);
@@ -496,15 +503,6 @@ std::set<uint64_t> model::Binary::collectAllTypeSizes() const {
 
       if (ReturnTypeSize)
         ByteSizes.insert(ReturnTypeSize);
-    }
-
-    if (const auto *C = Definition->getCABIFunction()) {
-      for (const auto &A : C->Arguments())
-        if (uint64_t ByteSize = A.Type()->trySize().value_or(0))
-          ByteSizes.insert(ByteSize);
-      if (not C->ReturnType().isEmpty())
-        if (uint64_t ByteSize = C->ReturnType()->trySize().value_or(0))
-          ByteSizes.insert(ByteSize);
     }
   }
 
