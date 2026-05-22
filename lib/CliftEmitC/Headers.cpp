@@ -6,6 +6,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/MLIRContext.h"
 
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftTypes.h"
@@ -29,8 +30,6 @@ private:
 
 public:
   OpaqueTypeSizeCollector(std::set<uint64_t> &Result) : Result(Result) {
-    revng_assert(Result.empty());
-
     // TODO: do not hard-code this list here. Instead, share it with the model
     //       verification logic (the only other current user of this).
     Result = { 1, 2, 4, 8, 10, 12, 16 };
@@ -164,11 +163,16 @@ public:
     });
   }
 
-  void emitOpaqueTypes(mlir::ModuleOp Module) {
-    emitCategoryComment("Opaque types");
+  template<RangeOf<uint64_t> ByteSizeList = std::initializer_list<uint64_t>>
+  void emitOpaqueTypes(mlir::MLIRContext &Context, const ByteSizeList &Sizes) {
+    bool CommentEmitted = false;
+    for (uint64_t Size : Sizes) {
+      if (not CommentEmitted) {
+        emitCategoryComment("Opaque types");
+        CommentEmitted = true;
+      }
 
-    for (uint64_t Size : collectModelOpaqueByteSizes(Module)) {
-      auto Struct = clift::makeOpaqueStruct(*Module.getContext(), Size);
+      auto Struct = clift::makeOpaqueStruct(Context, Size);
       emitClassDefinition(Struct);
       emitTypeDeclaration(Struct);
     }
@@ -176,12 +180,14 @@ public:
     Tokens.emitNewline();
   }
 
-private:
-  std::set<uint64_t> collectModelOpaqueByteSizes(mlir::ModuleOp Module) {
+  std::set<uint64_t>
+  collectOpaqueByteSizes(llvm::ArrayRef<mlir::ModuleOp> Modules) {
     std::set<uint64_t> Result;
 
-    auto R = OpaqueTypeSizeCollector::visit(Module, Result);
-    revng_assert(R.succeeded());
+    for (mlir::ModuleOp Module : Modules) {
+      auto R = OpaqueTypeSizeCollector::visit(Module, Result);
+      revng_assert(R.succeeded());
+    }
 
     return Result;
   }
@@ -247,7 +253,8 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
   Emitter.emitSegments(Module);
 
   if (DefineOpaqueTypes)
-    Emitter.emitOpaqueTypes(Module);
+    Emitter.emitOpaqueTypes(*Module.getContext(),
+                            Emitter.collectOpaqueByteSizes({ Module }));
 }
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
