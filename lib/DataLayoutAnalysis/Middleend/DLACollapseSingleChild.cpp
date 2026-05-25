@@ -2,7 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "llvm/ADT/PostOrderIterator.h"
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/STLExtras.h"
 
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
@@ -53,6 +53,11 @@ bool CollapseSingleChild::collapseSingle(LayoutTypeSystem &TS,
         revng_log(Log,
                   "Size mismatch! Node = " << Node->Size
                                            << " Child = " << ChildSize);
+        break;
+      }
+
+      if (llvm::is_contained(llvm::depth_first(PointerFilterT(Child)), Node)) {
+        revng_log(Log, "Child points to Node");
         break;
       }
 
