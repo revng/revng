@@ -16,3 +16,10 @@ commands:
         filter: example-executable-1 and with-debug-info
     command: |-
       "${SOURCES_ROOT}/share/revng/test/tests/prss/test-daemon.sh" "$INPUT"
+
+  - type: revng-prss.test-viewer
+    from:
+      - type: revng-qa.compiled
+        filter: example-executable-1 and with-debug-info
+    command: |-
+      "${SOURCES_ROOT}/share/revng/test/tests/prss/test-viewer.sh" "$INPUT"

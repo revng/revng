@@ -128,8 +128,19 @@ class RSSStorage(ABC):
 
     @staticmethod
     @abstractmethod
-    async def make(connection_string: str) -> RSSStorage:
-        """Constructor method for the class"""
+    async def make_locked(connection_string: str) -> RSSStorage:
+        """
+        Constructor method for the class, will return an instance which will
+        acquire a lock when creating a RSSLockedProjectStorage instance
+        """
+
+    @staticmethod
+    @abstractmethod
+    async def make_unlocked(connection_string: str) -> RSSStorage:
+        """
+        Constructor method for the class, will return an instance which **will
+        not** acquire a lock when creating a RSSLockedProjectStorage instance
+        """
 
     @abstractmethod
     async def close(self):
@@ -186,6 +197,10 @@ class RSSProjectStorage(ABC):
     @abstractmethod
     async def put_pipeline_description(self, hash_: str, content: bytes):
         """Store a pipeline description blob"""
+
+    @abstractmethod
+    async def get_pipeline_description(self):
+        """Get the current pipeline description"""
 
     # Locked instance accessor
 
@@ -255,6 +270,16 @@ class RSSLockedProjectStorage(ABC):
         """
         Delete all objects, dependencies, and custom dependencies for a project.
         """
+
+    @abstractmethod
+    async def list_objects(self, savepoint_id: int, container_id: str) -> list[str]:
+        """Return a list of available objects in storage"""
+
+    @abstractmethod
+    async def get_object(
+        self, savepoint_id: int, container_id: str, object_id: str
+    ) -> bytes | None:
+        """Return the contents of the specified object"""
 
     #  Model
 

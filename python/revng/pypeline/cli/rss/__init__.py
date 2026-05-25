@@ -6,6 +6,7 @@ import click
 
 from .relay import relay
 from .server import server
+from .viewer import viewer
 
 
 @click.group(help="RSS protocol group")
@@ -15,3 +16,4 @@ def rss():
 
 rss.add_command(server)
 rss.add_command(relay)
+rss.add_command(viewer)
