@@ -27,18 +27,28 @@ def CmpNeWithZeroPattern
         (forceBooleanResult $res, $arg),
         [(Constraint<CPred<"$0.getValue().isZero()">> $value)]>;
 
+// !x && !y -> x || y
 def DeMorganConjunctionPattern
   : Pat<(Clift_LogicalNotOp (Clift_LogicalAndOp (Clift_LogicalNotOp $lhs),
                                                 (Clift_LogicalNotOp $rhs))),
         (Clift_LogicalOrOp $lhs, $rhs)>;
 
+// !x || !y -> x && y
 def DeMorganDisjunctionPattern
   : Pat<(Clift_LogicalNotOp (Clift_LogicalOrOp (Clift_LogicalNotOp $lhs),
                                                (Clift_LogicalNotOp $rhs))),
         (Clift_LogicalAndOp $lhs, $rhs)>;
 
+// !x ? y : z -> x ? z : y
+def TernaryInversionPattern
+  : Pat<(Clift_TernaryOp (Clift_LogicalNotOp $condition),
+                         $lhs,
+                         $rhs),
+        (Clift_TernaryOp $condition, $rhs, $lhs)>;
+
 //===--------------------------- Math identities --------------------------===//
 
+// x ^ 0xffffffff -> ~x
 def XorAllOnesPattern
   : Pat<(Clift_BitwiseXorOp $arg, (Clift_ImmediateOp:$imm $value)),
         (Clift_BitwiseNotOp $arg),

@@ -616,6 +616,10 @@ mlir::LogicalResult DoWhileOp::verify() {
 
 //===-------------------------------- ForOp -------------------------------===//
 
+mlir::Value ForOp::getBlockArgumentVariable(mlir::BlockArgument Argument) {
+  return getOnlyOp<LocalVariableOp>(getInitializer());
+}
+
 bool ForOp::isDiscardedExpression(mlir::Region &R) {
   if (&R == &getInitializer())
     return not getOnlyOp<LocalVariableOp>(R);
@@ -894,8 +898,80 @@ mlir::LogicalResult IfOp::verify() {
 
 //===--------------------------- LocalVariableOp --------------------------===//
 
+mlir::Value
+LocalVariableOp::getBlockArgumentVariable(mlir::BlockArgument Argument) {
+  return *this;
+}
+
+mlir::ParseResult LocalVariableOp::parse(mlir::OpAsmParser &Parser,
+                                         mlir::OperationState &Result) {
+  if (Parser.parseColon())
+    return mlir::failure();
+
+  mlir::Type Type;
+  if (Parser.parseType(Type))
+    return mlir::failure();
+
+  auto Initializer = std::make_unique<::mlir::Region>();
+  if (Parser.parseOptionalEqual().succeeded()) {
+    llvm::SmallVector<mlir::OpAsmParser::Argument, 1> Arguments;
+
+    if (Parser.parseOptionalLParen().succeeded()) {
+      mlir::OpAsmParser::UnresolvedOperand Operand;
+      if (Parser.parseOperand(Operand).failed())
+        return mlir::failure();
+      if (Parser.parseRParen().failed())
+        return mlir::failure();
+      Arguments.emplace_back(Operand, Type);
+    }
+
+    if (Parser.parseRegion(*Initializer, Arguments).failed())
+      return mlir::failure();
+  }
+
+  if (Parser.parseOptionalAttrDictWithKeyword(Result.attributes))
+    return mlir::failure();
+
+  Result.addRegion(std::move(Initializer));
+  Result.addTypes({ Type });
+
+  return mlir::success();
+}
+
+void LocalVariableOp::print(mlir::OpAsmPrinter &Printer) {
+  Printer << " : ";
+  Printer << getType();
+
+  if (mlir::Region &R = getInitializer(); not R.empty()) {
+    Printer << " = ";
+    if (R.getNumArguments() != 0) {
+      Printer << '(';
+      Printer.printOperand(R.getArgument(0));
+      Printer << ')';
+      Printer << ' ';
+    }
+    Printer.printRegion(R, /*printEntryBlockArgs=*/false);
+  }
+
+  Printer.printOptionalAttrDictWithKeyword(getOperation()->getAttrs());
+}
+
 mlir::LogicalResult LocalVariableOp::verify() {
   if (mlir::Region &R = getInitializer(); not R.empty()) {
+    if (R.getNumArguments() != 0) {
+      if (R.getNumArguments() != 1) {
+        return emitOpError() << getOperationName()
+                             << " initializer region may have no more than one"
+                                " argument.";
+      }
+
+      if (R.getArgument(0).getType() != getType()) {
+        return emitOpError() << getOperationName()
+                             << " initializer region argument type must match "
+                                " the local variable type.";
+      }
+    }
+
     if (getExpressionType(R) != removeConst(getType()))
       return emitOpError() << getOperationName()
                            << " initializer type must match the variable type";

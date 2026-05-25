@@ -53,6 +53,16 @@ def Clift_StatementOpInterface : Clift_OpInterface<"StatementOpInterface"> {
       }]
     >,
     InterfaceMethod<
+      /*desc=*/"Returns a local variable operation referred to by the "
+               "specified block argument. The specified block argument must be "
+               "defined by a region of this statement operation.",
+      "mlir::Value", "getBlockArgumentVariable", (ins "mlir::BlockArgument":$Argument),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return nullptr;
+      }]
+    >,
+    InterfaceMethod<
       /*desc=*/"Returns true if the specified region represents a discarded "
                "expression.",
       "bool", "isDiscardedExpression", (ins "mlir::Region &":$region),

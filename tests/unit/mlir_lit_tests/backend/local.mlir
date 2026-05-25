@@ -84,6 +84,14 @@ module attributes {clift.module} {
       name = "var_4"
     }
 
+    // CHECK: int32_t var_5 = var_5;
+    clift.local : !int32_t = (%self) {
+      clift.yield %self : !int32_t
+    } attributes {
+      handle = "/local-variable/0x40001001:Code_x86_64/5",
+      name = "var_5"
+    }
+
     // CHECK: var_0;
     clift.expr {
         clift.yield %e : !my_enum

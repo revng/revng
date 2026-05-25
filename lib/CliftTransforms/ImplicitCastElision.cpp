@@ -23,8 +23,8 @@ public:
 
   void elide(mlir::Operation *Op) {
     if (auto Yield = mlir::dyn_cast<YieldOp>(Op)) {
-      if (mlir::isa<ReturnOp>(Yield->getParentOp()))
-        return elideReturnCasts(Yield);
+      if (mlir::isa<LocalVariableOp, ReturnOp>(Yield->getParentOp()))
+        return elideCoercingContextCasts(Yield->getOpOperand(0));
     }
 
     if (auto Assignment = mlir::dyn_cast<AssignOp>(Op))
@@ -179,10 +179,6 @@ private:
       if (isImplicitConversion(Cast))
         markAsImplicit(Cast);
     }
-  }
-
-  void elideReturnCasts(YieldOp Op) {
-    elideCoercingContextCasts(Op->getOpOperand(0));
   }
 
   void elideAssignmentCasts(AssignOp Op) {
