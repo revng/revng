@@ -135,8 +135,8 @@ ValueDistributor::distribute(uint64_t Size,
     }
 
     uint64_t AdjustedAlignment = std::max(CurrentStackAlignment, Alignment);
-    uint64_t PrePaddedOffset = ABI.alignedOffset(UsedStackOffset,
-                                                 AdjustedAlignment);
+    uint64_t PrePaddedOffset = llvm::alignToPowerOf2(UsedStackOffset,
+                                                     AdjustedAlignment);
     revng_assert(PrePaddedOffset >= UsedStackOffset);
     DA.PrePaddingSize = PrePaddedOffset - UsedStackOffset;
     DA.OffsetOnStack = UsedStackOffset = PrePaddedOffset;
