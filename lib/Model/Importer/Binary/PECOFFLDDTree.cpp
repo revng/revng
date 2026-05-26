@@ -34,9 +34,14 @@ public:
   using QueueEntry = typename Queue<ResolutionInfo>::Entry;
 
 public:
-  static std::vector<std::pair<std::string, uint64_t>>
+  static LDDTree::SymbolMap
   getExportedSymbols(const COFFObjectFile &COFFObjectFile) {
-    std::vector<std::pair<std::string, uint64_t>> Result;
+    LDDTree::SymbolMap Result;
+
+    auto FromLLVMArchitecture = model::Architecture::fromLLVMArchitecture;
+    auto Architecture = FromLLVMArchitecture(COFFObjectFile.getArch());
+    if (Architecture == model::Architecture::Invalid)
+      return Result;
 
     for (const ExportDirectoryEntryRef &Entry :
          COFFObjectFile.export_directories()) {
@@ -56,7 +61,11 @@ public:
         continue;
       }
 
-      Result.push_back({ SymbolName.str(), RVA });
+      MetaAddress Address = MetaAddress::fromPC(Architecture, RVA);
+      if (not Address.isValid())
+        continue;
+
+      Result[SymbolName.str()] = LDDTree::Symbol{ .Address = Address };
     }
 
     return Result;

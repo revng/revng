@@ -116,8 +116,7 @@ public:
   using QueueEntry = typename Queue<ResolutionInfo>::Entry;
 
 public:
-  static std::vector<std::pair<std::string, uint64_t>>
-  getExportedSymbols(const T &ELFObjectFile) {
+  static LDDTree::SymbolMap getExportedSymbols(const T &ELFObjectFile) {
     return elfExportedSymbols(ELFObjectFile);
   }
 

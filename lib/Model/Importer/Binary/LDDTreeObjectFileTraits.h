@@ -74,9 +74,7 @@ concept LDDTreeObjectFileTraitsConcept = requires(T Trait,
                                                     &Root) {
   typename T::ResolutionInfo;
 
-  {
-    T::getExportedSymbols(Object)
-  } -> std::same_as<std::vector<std::pair<std::string, uint64_t>>>;
+  { T::getExportedSymbols(Object) } -> std::same_as<LDDTree::SymbolMap>;
 
   {
     T::getDependencies(Root, String, String, Object)
@@ -220,15 +218,15 @@ const LDDTree LDDTree::fromPath(const revng::RootEntry &Root,
       continue;
     }
 
-    LDDTree::SymbolAddressMap ProvidedSymbols;
+    LDDTree::SymbolMap ProvidedSymbols;
 
     // Purge from MissingSymbols those exported
     if (SymbolsRequested) {
-      for (auto &[SymbolName, SymbolAddress] :
+      for (auto &[SymbolName, SymbolData] :
            ObjectFileTraits::getExportedSymbols(*Binary)) {
         if (Result.MissingSymbols->contains(SymbolName)) {
           Result.MissingSymbols->erase(SymbolName);
-          ProvidedSymbols[SymbolName] = SymbolAddress;
+          ProvidedSymbols[SymbolName] = SymbolData;
         }
       }
     }

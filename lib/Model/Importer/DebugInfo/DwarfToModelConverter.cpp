@@ -861,6 +861,33 @@ DwarfToModelConverter::getSubprogramPrototype(const DWARFDie &InitialDie) {
   return Model->recordNewType(std::move(NewType)).second;
 }
 
+/// Substitute a glibc IFUNC resolver prototype (no args, returns a pointer
+/// to a CABIFunctionDefinition) with the pointee prototype.
+static model::UpcastableType
+unwrapIfuncResolverPrototype(model::Binary &Binary,
+                             const MetaAddress &Address,
+                             model::UpcastableType Prototype) {
+  auto *Definition = Prototype->tryGetAsDefinition();
+  auto *Resolver = dyn_cast_or_null<model::CABIFunctionDefinition>(Definition);
+  if (Resolver == nullptr or not Resolver->Arguments().empty()
+      or Resolver->ReturnType().isEmpty()
+      or not Resolver->ReturnType()->isPointer())
+    return Prototype;
+
+  auto *PointeeDefinition = Resolver->ReturnType()
+                              ->getPointee()
+                              .tryGetAsDefinition();
+  if (not isa_and_nonnull<model::CABIFunctionDefinition>(PointeeDefinition))
+    return Prototype;
+
+  revng_log(DILogger,
+            "Ifunc resolver at " << Address.toString()
+                                 << ": substituting resolver prototype "
+                                 << Resolver->ID() << " with pointee CABI "
+                                 << PointeeDefinition->ID());
+  return Binary.makeType(PointeeDefinition->key());
+}
+
 void DwarfToModelConverter::createFunctions() {
   revng_log(DILogger, "createFunctions");
   LoggerIndent Indent(DILogger);
@@ -879,8 +906,13 @@ void DwarfToModelConverter::createFunctions() {
       if (auto MaybeLowPC = getAddress(Die)) {
         // TODO: do a proper check to see if it's in a valid segment
         if (*MaybeLowPC != 0) {
-          if (Importer.isFunctionAllowed(*MaybeLowPC)) {
-            LowPC = relocate(fromPC(*MaybeLowPC));
+          // Relocate the raw DWARF address first, then let matchFunctionEntry
+          // pick the code type that matches the model.
+          uint64_t Relocated = relocate(*MaybeLowPC).address();
+          MetaAddress Match = matchFunctionEntry(Relocated,
+                                                 Model->Architecture());
+          if (Match.isValid() and Importer.isFunctionAllowed(Match)) {
+            LowPC = Match;
           } else {
             revng_log(DILogger,
                       "Ignoring disallowed function at 0x"
@@ -903,46 +935,44 @@ void DwarfToModelConverter::createFunctions() {
                     << LowPC.toString() << " and name \"" << SymbolName
                     << "\"");
 
-        // Get/create the local function
-        // Note: here we use matchFunctionEntry because, just being fed the
-        // DWARF, we don't have enough information to determine whether this
-        // function is regular ARM or is Thumb.
-        // matchFunctionEntry relies on previously available functions to
-        // determine this. DwarfToModelConverter should not use without
-        // processing ELF symbols first.
-        // Newer DWARF versions have DW_LNS_set_isa, but currently we can't rely
-        // on that.
-        if (auto *Function = matchFunctionEntry(LowPC)) {
+        // Use the existing model::Function or create a new one at LowPC.
+        auto &Function = Model->Functions()[LowPC];
 
-          if (Prototype.isEmpty()) {
-            revng_log(DILogger, "Can't get the prototype");
-          } else if (not Function->prototype()) {
-            revng_log(DILogger,
-                      "Assigning prototype "
-                        << Prototype->tryGetAsDefinition()->ID());
-            Function->Prototype() = std::move(Prototype);
+        if (Prototype.isEmpty()) {
+          revng_log(DILogger, "Can't get the prototype");
+        } else if (not Function.prototype()) {
+          // For STT_GNU_IFUNC the DWARF describes the resolver, not the
+          // resolved function; unwrap it.
+          if (Importer.isIfunc(LowPC))
+            Prototype = unwrapIfuncResolverPrototype(*Model,
+                                                     LowPC,
+                                                     std::move(Prototype));
+
+          revng_log(DILogger,
+                    "Assigning prototype "
+                      << Prototype->tryGetAsDefinition()->ID());
+          Function.Prototype() = std::move(Prototype);
+        } else {
+          revng_log(DILogger,
+                    "Function already has a prototype, not setting it.");
+        }
+
+        if (SymbolName.size() != 0) {
+          // Note: DWARF support
+          if (Function.Name().empty()) {
+            Function.Name() = SymbolName;
           } else {
             revng_log(DILogger,
-                      "Function already has a prototype, not setting it.");
+                      "Function already has a name: " << Function.Name()
+                                                      << ". Not updating "
+                                                         "it.");
           }
 
-          if (SymbolName.size() != 0) {
-            // Note: DWARF support
-            if (Function->Name().empty()) {
-              Function->Name() = SymbolName;
-            } else {
-              revng_log(DILogger,
-                        "Function already has a name: " << Function->Name()
-                                                        << ". Not updating "
-                                                           "it.");
-            }
-
-            Function->ExportedNames().insert(SymbolName);
-          }
-
-          if (isNoReturn(*CU.get(), Die))
-            Function->Attributes().insert(model::FunctionAttribute::NoReturn);
+          Function.ExportedNames().insert(SymbolName);
         }
+
+        if (isNoReturn(*CU.get(), Die))
+          Function.Attributes().insert(model::FunctionAttribute::NoReturn);
       } else if (not SymbolName.empty()
                  and DynamicFunctions.contains(SymbolName)) {
         // It's a dynamic function

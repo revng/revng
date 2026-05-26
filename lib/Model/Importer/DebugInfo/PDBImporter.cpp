@@ -32,15 +32,13 @@ using namespace llvm::pdb;
 
 PDBImporter::PDBImporter(TupleTree<model::Binary> &Model,
                          const MetaAddress &ImageBase,
-                         const std::optional<AddressWhitelist>
-                           &FunctionWhitelist) :
+                         std::optional<std::map<MetaAddress, LDDTree::Symbol>>
+                           Whitelist) :
   BinaryImporterHelper(Model,
                        ImageBase.isValid() ? ImageBase.address() : 0,
                        Log),
   ImageBase(ImageBase),
-  FunctionWhitelist(FunctionWhitelist.has_value() ?
-                      &*FunctionWhitelist :
-                      static_cast<const AddressWhitelist *>(nullptr)) {
+  WhitelistByAddress(std::move(Whitelist)) {
 
   // When we import debug info, we assume we already have parsed Segments
   processSegments();

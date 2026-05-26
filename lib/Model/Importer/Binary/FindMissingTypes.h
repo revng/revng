@@ -82,13 +82,13 @@ void findMissingTypes(LDDTree &Dependencies,
                                Dependency.fullPathForExternalTools(),
                                BinaryReference);
 
-    std::optional<std::set<uint64_t>> RequestedFunctions;
-    RequestedFunctions.emplace();
-    for (const auto &[Name, Address] : Dependency.providedSymbols()) {
-      RequestedFunctions->insert(Address);
+    std::optional<std::map<MetaAddress, LDDTree::Symbol>> Whitelist;
+    Whitelist.emplace();
+    for (const auto &[Name, Symbol] : Dependency.providedSymbols()) {
       // TODO: usually this reponsability is demanded to BinaryImporterHelper
-      auto FunctionAddress = MetaAddress::fromPC(Binary->Architecture(),
-                                                 Options.BaseAddress + Address);
+      auto FunctionAddress = Symbol.Address + Options.BaseAddress;
+      (*Whitelist)[FunctionAddress] = Symbol;
+
       auto &Function = DependencyModel->Functions()[FunctionAddress];
       Function.Name() = Name;
       Function.ExportedNames().insert(Name);
@@ -97,7 +97,7 @@ void findMissingTypes(LDDTree &Dependencies,
     ImportLogger ImportLogger(DependencyModel,
                               Logger,
                               TheBinary.canonicalPath());
-    ImporterType Importer(DependencyModel, RequestedFunctions);
+    ImporterType Importer(DependencyModel, std::move(Whitelist));
     Importer.import(Dependencies.Root, TheBinary, AdjustedOptions);
 
     revng_log(Logger, DependencyName << " imported successfully");
