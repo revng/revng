@@ -18,15 +18,6 @@ cl::opt<uint64_t> BaseAddress("base",
                               cl::cat(MainCategory),
                               cl::init(0x400000));
 
-// TODO: This option could benefit from a better name,
-//       maybe `external-debug-info`, etc.
-constexpr SR DescImport = "Additional files to load debug information from.";
-cl::list<std::string> ImportDebugInfo("import-debug-info",
-                                      cl::desc(DescImport),
-                                      cl::value_desc("path"),
-                                      cl::ZeroOrMore,
-                                      cl::cat(MainCategory));
-
 constexpr SR DescLevel = "Controls the debug information processing when "
                          "importing a binary.";
 constexpr Enum No = clEnumValN(DebugInfoLevel::No,
@@ -58,6 +49,5 @@ cl::opt<bool> EnableRemoteDebugInfo("enable-remote-debug-info",
 const ImporterOptions importerOptions() {
   return ImporterOptions{ .BaseAddress = BaseAddress,
                           .DebugInfo = DebugInfo,
-                          .EnableRemoteDebugInfo = EnableRemoteDebugInfo,
-                          .AdditionalDebugInfoPaths = ImportDebugInfo };
+                          .EnableRemoteDebugInfo = EnableRemoteDebugInfo };
 }
