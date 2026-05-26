@@ -366,7 +366,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
       Task.advance("Parse debug info", true);
       {
         auto ImportLogger = importLogger(TheBinary.canonicalPath());
-        DwarfImporter Importer(Model, std::nullopt);
+        DwarfImporter Importer(Model, SymbolsByAddress);
         Importer.import(Root, TheBinary, AdjustedOptions);
       }
 
@@ -717,6 +717,21 @@ uint64_t ELFImporter<T, HasAddend>::gnuHashSymbolCount() const {
   return FirstSymbolIndex + *Index + 1;
 }
 
+template<typename T, bool HasAddend>
+void ELFImporter<T, HasAddend>::recordSymbol(const MetaAddress &Address,
+                                             bool IsIfunc) {
+  revng_assert(Address.isValid());
+  auto Inserted = SymbolsByAddress
+                    .try_emplace(Address,
+                                 LDDTree::Symbol{ .Address = Address,
+                                                  .IsIfunc = IsIfunc })
+                    .second;
+  if (not Inserted) {
+    revng_log(ELFImporterLog,
+              "Duplicate symbol entry at " << Address.toString() << " ignored");
+  }
+}
+
 // TODO: we might want to return an error from here so we can propagate it
 //       further up.
 template<typename T, bool HasAddend>
@@ -771,6 +786,8 @@ void ELFImporter<T, HasAddend>::parseSymbols(object::ELFFile<T> &TheELF,
 
     if (IsCode) {
       revng_assert(Address.isValid());
+      recordSymbol(Address, Symbol.getType() == ELF::STT_GNU_IFUNC);
+
       if (Model->Functions().tryGet(Address) == nullptr) {
         auto *Function = registerFunctionEntry(Address);
         if (Function != nullptr and MaybeName and MaybeName->size() > 0) {
@@ -950,9 +967,12 @@ void ELFImporter<T, HasAddend>::parseDynamicSymbol(Elf_Sym_Impl<T> &Symbol,
 
     if (IsCode) {
       Address = relocate(fromPC(Symbol.st_value));
+      revng_assert(Address.isValid());
+
+      recordSymbol(Address, Symbol.getType() == ELF::STT_GNU_IFUNC);
+
       // TODO: record model::Function::IsDynamic = true
       model::Function *Function = nullptr;
-      revng_assert(Address.isValid());
       auto It = Model->Functions().find(Address);
       if (It != Model->Functions().end()) {
         Function = &*It;
@@ -1459,10 +1479,8 @@ Error importELF(TupleTree<model::Binary> &Model,
   return Importer->import(Options);
 }
 
-std::vector<std::pair<std::string, uint64_t>>
+LDDTree::SymbolMap
 elfExportedSymbols(const llvm::object::ELFObjectFileBase &ObjectFile) {
-  std::vector<std::pair<std::string, uint64_t>> Result;
-
   TupleTree<model::Binary> Model;
   auto Architecture = model::Architecture::fromLLVMArchitecture(ObjectFile
                                                                   .makeTriple()
@@ -1471,7 +1489,7 @@ elfExportedSymbols(const llvm::object::ELFObjectFileBase &ObjectFile) {
     revng_log(ELFImporterLog,
               "Cannot derive architecture for the ELF, skipping its "
               "exported symbols");
-    return Result;
+    return {};
   }
   Model->Architecture() = Architecture;
 
@@ -1490,12 +1508,29 @@ elfExportedSymbols(const llvm::object::ELFObjectFileBase &ObjectFile) {
   if (auto Error = Importer->parseDynamicSymbolsOnly()) {
     revng_log(ELFImporterLog, "parseDynamicSymbolsOnly failed: " << Error);
     consumeError(std::move(Error));
-    return Result;
+    return {};
   }
 
-  for (model::Function &Function : Model->Functions())
-    for (const auto &Name : Function.ExportedNames())
-      Result.push_back({ Name, Function.Entry().asPC() });
+  // Project SymbolsByAddress through `ExportedNames()` to get the name-keyed
+  // dynamic-exports view. Function.Entry() already carries the typed
+  // MetaAddress, so the lookup against SymbolsByAddress is exact.
+  LDDTree::SymbolMap Result;
+  for (model::Function &Function : Model->Functions()) {
+    MetaAddress Address = Function.Entry();
+    auto It = Importer->SymbolsByAddress.find(Address);
+    auto End = Importer->SymbolsByAddress.end();
+    bool IsIfunc = It != End and It->second.IsIfunc;
+
+    for (const auto &Name : Function.ExportedNames()) {
+      LDDTree::Symbol Symbol{ .Address = Address, .IsIfunc = IsIfunc };
+      auto [Slot, Inserted] = Result.try_emplace(Name, Symbol);
+      if (not Inserted) {
+        // TODO: this should probably be invalid
+        revng_log(ELFImporterLog,
+                  "Duplicate exported symbol " << Name << " ignored");
+      }
+    }
+  }
 
   return Result;
 }
