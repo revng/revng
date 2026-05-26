@@ -208,8 +208,12 @@ using UseSet = llvm::SmallSet<Use *, 2>;
 
 static auto
 getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
-  llvm::MapVector<std::pair<BasicBlock *, Value *>, UseSet>
-    IncomingUsesOfValueFromBlock;
+  // Outer key: BasicBlock, in first-encountered (deterministic) insertion
+  // order; inner: per-block dedup by incoming Value, also in first-encountered
+  // insertion order. Using MapVector for both layers means iteration is
+  // insertion-ordered and never relies on a sort by raw BasicBlock*/Value*
+  // pointer (which would not be deterministic across runs).
+  llvm::MapVector<BasicBlock *, llvm::MapVector<Value *, UseSet>> Grouped;
 
   for (auto *PHI : PHIs) {
     for (Use &IncomingUse : PHI->incoming_values()) {
@@ -224,33 +228,25 @@ getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
         continue;
 
       BasicBlock *IncomingBlock = PHI->getIncomingBlock(IncomingUse);
-      IncomingUsesOfValueFromBlock[std::make_pair(IncomingBlock, Incoming)]
-        .insert(&IncomingUse);
+      Grouped[IncomingBlock][Incoming].insert(&IncomingUse);
     }
   }
 
-  // Then we sort everything so that entries with the same BasicBlock are
-  // contiguous, and the first Value in a given block is the one with the
-  // highest number of uses.
-  auto Result = IncomingUsesOfValueFromBlock.takeVector();
-
-  const auto Cmp =
-    [](const std::pair<std::pair<BasicBlock *, Value *>, UseSet> &LHS,
-       const std::pair<std::pair<BasicBlock *, Value *>, UseSet> &RHS) {
-      const auto &[LHSBlockAndValue, LHSUses] = LHS;
-      const auto &[LHSBlock, LHSValue] = LHSBlockAndValue;
-      const auto &[RHSBlockAndValue, RHSUses] = RHS;
-      const auto &[RHSBlock, RHSValue] = RHSBlockAndValue;
-
-      // Ordering of blocks is not important per se, but it's important that
-      // entries with the same block are sorted in a contiguous range.
-      if (auto CmpBlocks = LHSBlock <=> RHSBlock; CmpBlocks != 0)
-        return CmpBlocks < 0;
-
-      // Soft first the entry with the largest number of uses.
-      return LHSUses.size() > RHSUses.size();
-    };
-  llvm::stable_sort(Result, Cmp);
+  // Flatten the inner MapVectors and, within each block, sort the entries so
+  // that the value with the highest number of uses comes first (it will get
+  // the in-block store; the rest go to freshly split blocks). stable_sort
+  // keeps insertion order for ties, and the insertion order is itself
+  // deterministic.
+  llvm::MapVector<BasicBlock *, std::vector<std::pair<Value *, UseSet>>> Result;
+  for (auto &[Block, InnerMap] : Grouped) {
+    auto Entries = InnerMap.takeVector();
+    llvm::stable_sort(Entries,
+                      [](const std::pair<Value *, UseSet> &LHS,
+                         const std::pair<Value *, UseSet> &RHS) {
+                        return LHS.second.size() > RHS.second.size();
+                      });
+    Result[Block] = std::move(Entries);
+  }
   return Result;
 }
 
@@ -324,57 +320,32 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
     revng_log(Log, "Replacing Incomings");
     LoggerIndent IndentIncomings{ Log };
 
-    auto IncomingUsesOfValueFromBlock = getIncomingUsesOfValuesFromBlocks(PHIs);
+    auto IncomingUsesByBlock = getIncomingUsesOfValuesFromBlocks(PHIs);
 
-    auto BlockIt = IncomingUsesOfValueFromBlock.begin();
-    auto BlockNext = IncomingUsesOfValueFromBlock.begin();
-    auto BlockEnd = IncomingUsesOfValueFromBlock.end();
-
-    // Handy helper to advance the iterators, so that the range from BlockIt to
-    // BlockNext always contains entries that belong to the same Block.
-    const auto AdvanceBlockRange = [&BlockIt, &BlockNext, &BlockEnd]() {
-      BlockIt = BlockNext;
-      if (BlockIt != BlockEnd) {
-        BasicBlock *NewBlock = BlockIt->first.first;
-
-        const auto IsSameBlock = [NewBlock](const auto &BlockAndValueUses) {
-          auto *Block = BlockAndValueUses.first.first;
-          return Block == NewBlock;
-        };
-
-        BlockNext = std::find_if_not(BlockIt, BlockEnd, IsSameBlock);
-      }
-      return BlockIt;
-    };
-
-    while (AdvanceBlockRange() != BlockEnd) {
-      auto SameBlockValueUses = llvm::make_range(BlockIt, BlockNext);
-      revng_assert(not SameBlockValueUses.empty());
-      // We handle the first element in the range separately, since it's the one
-      // with the highest number of uses.
-      const BasicBlock *CurrentBlock = nullptr;
+    // Blocks are iterated in first-encountered (deterministic) insertion
+    // order; within each block, the entries are pre-sorted so that the value
+    // with the highest number of uses comes first.
+    for (auto &[IncomingBlock, EntriesInBlock] : IncomingUsesByBlock) {
+      revng_assert(not EntriesInBlock.empty());
+      // We handle the first element in the range separately, since it's the
+      // one with the highest number of uses.
       {
-        auto &[BlockAndValue, IncomingUses] = *SameBlockValueUses.begin();
-        auto &[IncomingBlock, Incoming] = BlockAndValue;
+        auto &[Incoming, IncomingUses] = EntriesInBlock.front();
         revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
         buildStore(IncomingBlock, Incoming, Alloca);
-        CurrentBlock = IncomingBlock;
       }
 
       SmallMap<std::pair<BasicBlock *, BasicBlock *>, Value *, 4> HandledCases;
 
-      for (auto &[BlockAndValue, IncomingUses] :
-           llvm::drop_begin(SameBlockValueUses)) {
-        auto &[IncomingBlock, Incoming] = BlockAndValue;
+      for (auto &[Incoming, IncomingUses] : llvm::drop_begin(EntriesInBlock)) {
         revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
         revng_log(Log, "Incoming: " << dumpToString(Incoming));
-        revng_assert(IncomingBlock == CurrentBlock);
         // For all the entries after the first, we cannot inject the Store in
-        // the same Block as CurrentBlock, because they would conflict with the
-        // other we've just inserted.
-        // Hence we have to create a new BasicBlock from Block to the proper
-        // PHI, where we will inject the Store.
+        // the same Block as IncomingBlock, because they would conflict with
+        // the other we've just inserted. Hence we have to create a new
+        // BasicBlock from IncomingBlock to the proper PHI, where we will
+        // inject the Store.
 
         LoggerIndent UsesIndent{ Log };
         for (Use *U : IncomingUses) {
