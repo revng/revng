@@ -220,8 +220,7 @@ Error ELFImporter<T, HasAddend>::import(const ImporterOptions &Options) {
   ImporterOptions AdjustedOptions = ImporterOptions{
     .BaseAddress = Options.BaseAddress,
     .DebugInfo = Options.DebugInfo,
-    .EnableRemoteDebugInfo = Options.EnableRemoteDebugInfo,
-    .AdditionalDebugInfoPaths = Options.AdditionalDebugInfoPaths
+    .EnableRemoteDebugInfo = Options.EnableRemoteDebugInfo
   };
 
   if (not(Type == ELF::ET_DYN or Type == ELF::ET_EXEC))

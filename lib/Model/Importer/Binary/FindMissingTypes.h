@@ -74,8 +74,7 @@ void findMissingTypes(LDDTree &Dependencies,
     ImporterOptions AdjustedOptions{
       .BaseAddress = Options.BaseAddress,
       .DebugInfo = DebugInfoLevel::IgnoreLibraries,
-      .EnableRemoteDebugInfo = Options.EnableRemoteDebugInfo,
-      .AdditionalDebugInfoPaths = Options.AdditionalDebugInfoPaths
+      .EnableRemoteDebugInfo = Options.EnableRemoteDebugInfo
     };
 
     using ObjectFileType = typename BinaryDescriptor::ObjectFileType;
