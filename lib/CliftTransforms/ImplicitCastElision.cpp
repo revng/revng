@@ -44,14 +44,13 @@ public:
                   BitwiseOrOp,
                   BitwiseXorOp,
                   ShiftLeftOp,
-                  ShiftRightOp,
-                  CmpEqOp,
-                  CmpNeOp,
-                  CmpLtOp,
-                  CmpGtOp,
-                  CmpLeOp,
-                  CmpGeOp>(Op))
+                  ShiftRightOp>(Op))
       return elideArithmeticCasts(Op);
+
+    if (mlir::isa<CmpEqOp, CmpNeOp, CmpLtOp, CmpGtOp, CmpLeOp, CmpGeOp>(Op)) {
+      if (clift::unwrapped_isa<IntegralType>(Op->getOperand(0).getType()))
+        elideArithmeticCasts(Op);
+    }
   }
 
 private:
