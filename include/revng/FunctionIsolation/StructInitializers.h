@@ -14,11 +14,16 @@ class StructInitializers {
 private:
   OpaqueFunctionsPool<llvm::StructType *> Pool;
   llvm::LLVMContext &Context;
+  bool EmitBody = true;
 
 public:
-  StructInitializers(llvm::Module *M);
+  StructInitializers(llvm::Module *M, bool EmitBody = true);
 
 public:
+  llvm::CallInst *createCall(revng::IRBuilder &Builder,
+                             llvm::StructType *ReturnType,
+                             llvm::ArrayRef<llvm::Value *> Values);
+
   llvm::Instruction *createReturn(revng::IRBuilder &Builder,
                                   llvm::ArrayRef<llvm::Value *> Values);
 };
