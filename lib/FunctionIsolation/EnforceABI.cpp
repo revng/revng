@@ -381,6 +381,7 @@ void EnforceABI::handleRegularFunctionCall(const MetaAddress &CallerAddress,
     const auto *Prototype = Binary.prototypeOrDefault(ModelFunc.prototype());
     revng_assert(Prototype != nullptr);
     auto UsedRegisters = abi::FunctionType::usedRegisters(*Prototype);
+
     Callee = getOrCreateNewFunction(*Callee, UsedRegisters);
   }
 

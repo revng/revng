@@ -1615,8 +1615,9 @@ struct GraphTraits<llvm::Inverse<T *>>
                                             typename T::nodes_iterator>;
 
   static NodeRef getEntryNode(llvm::Inverse<T *> Inv) {
-    // TODO: we might want to consider an option of having optional
-    // `ExitNode`s as well, for consistency.
+    // NOTE: this is clearly misguided, however it's coherent with what happens
+    //       for Inverse<llvm::Function *>.
+    //       Don't use this.
     return Inv.Graph->getEntryNode();
   }
 
