@@ -450,9 +450,11 @@ static bool needsWrapper(Function *F) {
 struct UsedRegistersMFI : public SetUnionLattice<FunctionNodeData::UsedCSVSet> {
   using Label = FunctionNode *;
   using GraphType = GenericCallGraph *;
+  using ExtraStateType = MFP::NoExtraState;
 
   static LatticeElement applyTransferFunction(Label L,
-                                              const LatticeElement &Value) {
+                                              const LatticeElement &Value,
+                                              MFP::NoExtraState &) {
     return combineValues(L->UsedCSVs, Value);
   }
 };
@@ -542,12 +544,8 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
     }
   }
 
-  auto AnalysisResult = getMaximalFixedPoint<UsedRegistersMFI>({},
-                                                               &CallGraph,
-                                                               {},
-                                                               {},
-                                                               {},
-                                                               {});
+  auto GetMaximalFixedPoint = getMaximalFixedPoint<UsedRegistersMFI>;
+  auto AnalysisResult = GetMaximalFixedPoint({ .Flow = &CallGraph });
 
   // Populate results set
   for (auto &[Label, Value] : AnalysisResult) {

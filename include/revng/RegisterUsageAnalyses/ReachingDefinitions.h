@@ -64,6 +64,7 @@ public:
   using LatticeElement = WritersSet;
   using GraphType = Function *;
   using Label = BlockNode *;
+  using ExtraStateType = MFP::NoExtraState;
 
 private:
   llvm::DenseMap<const Operation *, uint8_t> WriteToIndex;
@@ -131,7 +132,8 @@ public:
   }
 
   WritersSet applyTransferFunction(const Block *Block,
-                                   const WritersSet &InitialState) const {
+                                   const WritersSet &InitialState,
+                                   MFP::NoExtraState &) const {
     WritersSet Result = InitialState;
 
     for (const Operation &Operation : *Block) {

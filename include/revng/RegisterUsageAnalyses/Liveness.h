@@ -18,7 +18,12 @@ private:
 
 public:
   using LatticeElement = Set;
-  using GraphType = llvm::Inverse<const Function *>;
+  // Backward analysis. We store the forward graph here (by value, so no
+  // dangling-reference traps); callers must override the `GT` template
+  // parameter of `getMaximalFixedPoint` to
+  // `llvm::GraphTraits<llvm::Inverse<const Function *>>` to actually walk
+  // backwards.
+  using GraphType = const Function *;
   using Label = const BlockNode *;
 
 private:
@@ -54,7 +59,8 @@ public:
   }
 
   RegisterSet applyTransferFunction(const BlockNode *Block,
-                                    const RegisterSet &InitialState) const {
+                                    const RegisterSet &InitialState,
+                                    MFP::NoExtraState &) const {
     RegisterSet Result = InitialState;
 
     for (const Operation &Operation :

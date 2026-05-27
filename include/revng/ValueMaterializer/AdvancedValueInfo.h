@@ -27,6 +27,7 @@ public:
   using Label = const ControlFlowEdgesGraph::Node *;
   using ResultsMap = std::map<Label, MFP::MFPResult<LatticeElement>>;
   using InstructionsSet = llvm::SmallPtrSetImpl<llvm::Instruction *>;
+  using ExtraStateType = MFP::NoExtraState;
 
 private:
   llvm::LazyValueInfo &LVI;
@@ -57,7 +58,9 @@ public:
   bool isLessOrEqual(const LatticeElement &LHS,
                      const LatticeElement &RHS) const;
 
-  LatticeElement applyTransferFunction(Label L, const LatticeElement &E) const;
+  LatticeElement applyTransferFunction(Label L,
+                                       const LatticeElement &E,
+                                       MFP::NoExtraState &) const;
 
 public:
   static void dump(GraphType CFEG, const ResultsMap &AllResults);

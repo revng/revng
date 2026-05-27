@@ -201,9 +201,11 @@ using Lattice = std::set<StoredByte>;
 struct SegregateStackAccessesMFI : public SetUnionLattice<Lattice> {
   using Label = llvm::BasicBlock *;
   using GraphType = llvm::Function *;
+  using ExtraStateType = MFP::NoExtraState;
 
   static LatticeElement applyTransferFunction(llvm::BasicBlock *BB,
-                                              const LatticeElement &Value) {
+                                              const LatticeElement &Value,
+                                              MFP::NoExtraState &) {
     using namespace llvm;
     revng_log(Log, "Analyzing block " << getName(BB));
     LoggerIndent Indent(Log);
@@ -855,11 +857,13 @@ private:
       LoggerIndent Indent(Log);
       using SSAMFI = SegregateStackAccessesMFI;
       BasicBlock *Entry = &F.getEntryBlock();
-      AnalysisResult = MFP::getMaximalFixedPoint<SSAMFI>({},
-                                                         &F,
-                                                         {},
-                                                         {},
-                                                         { Entry });
+      SSAMFI MFI;
+      std::vector ExtremalLabels = { Entry };
+      MFP::MFPConfiguration<SSAMFI> Configuration{
+        .Instance = &MFI, .Flow = &F, .ExtremalLabels = &ExtremalLabels
+      };
+      auto GetMaximalFixedPoint = MFP::getMaximalFixedPoint<SSAMFI>;
+      AnalysisResult = GetMaximalFixedPoint(Configuration);
     }
 
     //
