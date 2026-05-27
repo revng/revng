@@ -134,14 +134,14 @@ BOOST_AUTO_TEST_CASE(LivenessTest) {
     // the forward entry), and a single exit doesn't reach no-return blocks.
     // Use `All` to seed RPOT from every node.
     using InverseGT = llvm::GraphTraits<llvm::Inverse<const rua::Function *>>;
-    auto GetMaximalFixedPoint = MFP::getMaximalFixedPoint<Liveness, InverseGT>;
-    return GetMaximalFixedPoint(MFP::MFPConfiguration<Liveness>{
+    auto GetMaximalFixedPoint = mfp::getMaximalFixedPoint<Liveness, InverseGT>;
+    return GetMaximalFixedPoint(mfp::MFPConfiguration<Liveness>{
       .Instance = &LA,
       .Flow = &Function,
       .Bottom = &DefaultValue,
       .ExtremalValue = &DefaultValue,
       .ExtremalLabels = &ExtremalLabels,
-      .EntryLabels = MFP::All{} });
+      .EntryLabels = mfp::All{} });
   };
 
   auto RunOnSingleNode =
@@ -286,7 +286,7 @@ BOOST_AUTO_TEST_CASE(ReachingDefinitionsTest) {
     auto DefaultValue = RD.defaultValue();
     std::vector ExtremalLabels{ F.Entry };
 
-    MFP::MFPConfiguration<ReachingDefinitions> Configuration{
+    mfp::MFPConfiguration<ReachingDefinitions> Configuration{
       .Instance = &RD,
       .Flow = &F.Function,
       .Bottom = &DefaultValue,
@@ -294,7 +294,7 @@ BOOST_AUTO_TEST_CASE(ReachingDefinitionsTest) {
       .ExtremalLabels = &ExtremalLabels
     };
 
-    using namespace MFP;
+    using namespace mfp;
     auto Results = getMaximalFixedPoint<ReachingDefinitions>(Configuration);
     return ReachingDefinitions::compute(Results[F.Exit].OutValue,
                                         Results[F.Sink].OutValue);

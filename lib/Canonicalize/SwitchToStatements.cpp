@@ -495,7 +495,7 @@ public:
 
   LatticeElement applyTransferFunction(ProgramPointNode *L,
                                        const LatticeElement &E,
-                                       MFP::NoExtraState &ExtraState) const;
+                                       mfp::NoExtraState &ExtraState) const;
 
 private:
   void applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const;
@@ -510,7 +510,7 @@ template<bool IsLegacy>
 using LatticeElement = AEMFP<IsLegacy>::LatticeElement;
 
 template<bool IsLegacy>
-using AvailableExpressionsMap = MFP::MFIResultMap<AEMFP<IsLegacy>>;
+using AvailableExpressionsMap = mfp::MFIResultMap<AEMFP<IsLegacy>>;
 
 static bool legacyLocalVariablesNoAlias(const Instruction *I,
                                         const Instruction *J) {
@@ -646,7 +646,7 @@ template<bool IsLegacy>
 AEMFP<IsLegacy>::LatticeElement
 AEMFP<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
                                        const AEMFP<IsLegacy>::LatticeElement &E,
-                                       MFP::NoExtraState &ExtraState) const {
+                                       mfp::NoExtraState &ExtraState) const {
 
   Instruction *I = ProgramPoint->TheInstruction;
 
@@ -962,7 +962,7 @@ static AEResult<IsLegacy> getAvailableExpressions(Function &F,
   using AEMFP = AEMFP<IsLegacy>;
   AEMFP AvailableExpressionsMF{ AA, MST };
   std::vector Entries = { Entry };
-  MFP::MFPConfiguration<AEMFP> Configuration{
+  mfp::MFPConfiguration<AEMFP> Configuration{
     .Instance = &AvailableExpressionsMF,
     .Flow = Graph,
     .Bottom = &Bottom,
@@ -972,7 +972,7 @@ static AEResult<IsLegacy> getAvailableExpressions(Function &F,
 
   // std::exchange here is only needed to make revng check-conventions happy.
   std::exchange(Result.AvailableExpressions,
-                MFP::getMaximalFixedPoint<AEMFP>(Configuration));
+                mfp::getMaximalFixedPoint<AEMFP>(Configuration));
   return Result;
 }
 

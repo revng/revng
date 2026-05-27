@@ -62,8 +62,8 @@ struct BitLivenessAnalysis {
   using GraphType = GenericGraph<DataFlowNode> *;
   using LatticeElement = uint32_t;
   using Label = DataFlowNode *;
-  using MFPResult = MFP::MFPResult<BitLivenessAnalysis::LatticeElement>;
-  using ExtraStateType = MFP::NoExtraState;
+  using MFPResult = mfp::MFPResult<BitLivenessAnalysis::LatticeElement>;
+  using ExtraStateType = mfp::NoExtraState;
 
   uint32_t combineValues(const uint32_t &LHS, const uint32_t &RHS) const {
     return std::max(LHS, RHS);
@@ -75,7 +75,7 @@ struct BitLivenessAnalysis {
 
   uint32_t applyTransferFunction(DataFlowNode *L,
                                  const uint32_t E,
-                                 MFP::NoExtraState &) const;
+                                 mfp::NoExtraState &) const;
 };
 
 using BitVector = llvm::BitVector;
@@ -244,7 +244,7 @@ static uint32_t transferZExt(Instruction *Ins, const uint32_t &Element) {
 
 uint32_t BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L,
                                                     const uint32_t E,
-                                                    MFP::NoExtraState &) const {
+                                                    mfp::NoExtraState &) const {
   auto *Ins = L->Instruction;
   switch (Ins->getOpcode()) {
   case Instruction::And:
@@ -284,18 +284,18 @@ BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
 
   // The data-flow graph has no designated entry node and the analysis is
   // backward-shaped (extremals are sinks). Seed RPOT from every node.
-  MFP::MFPConfiguration<BitLivenessAnalysis> Configuration{
+  mfp::MFPConfiguration<BitLivenessAnalysis> Configuration{
     .Flow = &DataFlowGraph,
     .ExtremalValue = &Top,
     .ExtremalLabels = &ExtremalLabels,
-    .EntryLabels = MFP::All{}
+    .EntryLabels = mfp::All{}
   };
 
-  auto Results = MFP::getMaximalFixedPoint<BitLivenessAnalysis>(Configuration);
+  auto Results = mfp::getMaximalFixedPoint<BitLivenessAnalysis>(Configuration);
 
   using GraphType = typename BitLivenessAnalysis::GraphType;
   using GraphTraits = llvm::GraphTraits<GraphType>;
-  static_assert(MFP::HasNodeRange<GraphTraits>);
+  static_assert(mfp::HasNodeRange<GraphTraits>);
 
   BitLivenessPass::Result Result;
   for (auto &[Label, MFPResult] : Results) {
@@ -307,7 +307,7 @@ BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
   if (llvm::Error Error = DataFlowGraph.verify())
     revng_abort(revng::unwrapError(std::move(Error)).c_str());
 
-  MFP::Graph<BitLivenessAnalysis> MFPGraph(&DataFlowGraph, Results);
+  mfp::Graph<BitLivenessAnalysis> MFPGraph(&DataFlowGraph, Results);
 
   return Result;
 }
@@ -321,7 +321,7 @@ bool BitLivenessWrapperPass::runOnFunction(llvm::Function &F) {
 } // namespace TypeShrinking
 
 template<>
-void MFP::dump(llvm::raw_ostream &Stream,
+void mfp::dump(llvm::raw_ostream &Stream,
                unsigned Indent,
                const unsigned &Value) {
   Stream << Value;

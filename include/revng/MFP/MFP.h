@@ -28,7 +28,7 @@
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/ReversePostOrderTraversal.h"
 
-namespace MFP {
+namespace mfp {
 
 inline Logger NullLogger("");
 
@@ -147,10 +147,10 @@ public:
     Stream << Map.size() << " elements:\n";
     for (const auto &[Key, Element] : Map) {
       Stream << "  " << (Key.second == Position::Before ? "Before " : "After ");
-      MFP::dumpLabel(Stream, Key.first);
+      mfp::dumpLabel(Stream, Key.first);
       Stream << "\n";
 
-      MFP::dump<LatticeElement>(Stream, 2, Element);
+      mfp::dump<LatticeElement>(Stream, 2, Element);
     }
   }
 };
@@ -313,26 +313,26 @@ getMaximalFixedPointImpl(MFPConfiguration<MFIType> &Configuration) {
     revng_log(Logger, "Initializing extremal labels");
     LoggerIndent Indent(Logger);
     Logger << "Extremal value:\n";
-    MFP::dump(*Logger.getAsLLVMStream(), 1, Configuration.ExtremalValue);
+    mfp::dump(*Logger.getAsLLVMStream(), 1, Configuration.ExtremalValue);
     Logger << DoLog;
 
     Logger << "Extremal labels:" << DoLog;
     LoggerIndent Indent2(Logger);
     for (Label ExtremalLabel : ExtremalLabels) {
-      MFP::dumpLabel(*Logger.getAsLLVMStream(), ExtremalLabel);
+      mfp::dumpLabel(*Logger.getAsLLVMStream(), ExtremalLabel);
       Logger << DoLog;
     }
 
     revng_log(Logger, "Initializing initial nodes");
     LoggerIndent Indent3(Logger);
     Logger << "Initial value:\n";
-    MFP::dump(*Logger.getAsLLVMStream(), 1, Bottom);
+    mfp::dump(*Logger.getAsLLVMStream(), 1, Bottom);
     Logger << DoLog;
 
     Logger << "Initial labels:" << DoLog;
     LoggerIndent Indent4(Logger);
     for (Label InitialNode : EntryLabels) {
-      MFP::dumpLabel(*Logger.getAsLLVMStream(), InitialNode);
+      mfp::dumpLabel(*Logger.getAsLLVMStream(), InitialNode);
       Logger << DoLog;
     }
   }
@@ -395,7 +395,7 @@ getMaximalFixedPointImpl(MFPConfiguration<MFIType> &Configuration) {
 
     if (Logger.isEnabled()) {
       Logger << "Iteration #" << IterationIndex << " on ";
-      MFP::dumpLabel(*Logger.getAsLLVMStream(), Start);
+      mfp::dumpLabel(*Logger.getAsLLVMStream(), Start);
       Logger << DoLog;
     }
 
@@ -403,11 +403,11 @@ getMaximalFixedPointImpl(MFPConfiguration<MFIType> &Configuration) {
 
     if (Logger.isEnabled()) {
       Logger << "Initial value:\n";
-      MFP::dump(*Logger.getAsLLVMStream(), 1, LabelAnalysis.InValue);
+      mfp::dump(*Logger.getAsLLVMStream(), 1, LabelAnalysis.InValue);
       Logger << DoLog;
 
       Logger << "Final value:\n";
-      MFP::dump(*Logger.getAsLLVMStream(), 1, LabelAnalysis.OutValue);
+      mfp::dump(*Logger.getAsLLVMStream(), 1, LabelAnalysis.OutValue);
       Logger << DoLog;
     }
 
@@ -422,7 +422,7 @@ getMaximalFixedPointImpl(MFPConfiguration<MFIType> &Configuration) {
     if (Logger.isEnabled()) {
       LoggerIndent Indent(Logger);
       Logger << "New final value:\n";
-      MFP::dump(*Logger.getAsLLVMStream(), 1, New);
+      mfp::dump(*Logger.getAsLLVMStream(), 1, New);
       Logger << DoLog;
     }
 
@@ -439,13 +439,13 @@ getMaximalFixedPointImpl(MFPConfiguration<MFIType> &Configuration) {
 
       if (Logger.isEnabled()) {
         Logger << "Considering successor ";
-        MFP::dumpLabel(*Logger.getAsLLVMStream(), Successor);
+        mfp::dumpLabel(*Logger.getAsLLVMStream(), Successor);
         Logger << DoLog;
 
         Logger << "Initial value:\n";
         LoggerIndent Indent(Logger);
         Logger << DoLog;
-        MFP::dump(*Logger.getAsLLVMStream(), 1, SuccessorResults.InValue);
+        mfp::dump(*Logger.getAsLLVMStream(), 1, SuccessorResults.InValue);
         Logger << DoLog;
       }
       LoggerIndent Indent(Logger);
@@ -461,7 +461,7 @@ getMaximalFixedPointImpl(MFPConfiguration<MFIType> &Configuration) {
 
         if (Logger.isEnabled()) {
           Logger << "Enqueuing. New initial value:\n";
-          MFP::dump(*Logger.getAsLLVMStream(), 1, SuccessorResults.InValue);
+          mfp::dump(*Logger.getAsLLVMStream(), 1, SuccessorResults.InValue);
           Logger << DoLog;
         }
 
@@ -520,4 +520,4 @@ getMaximalFixedPoint(MFPConfiguration<MFIType> Configuration) {
   return getMaximalFixedPointImpl<MFIType, GT>(Configuration);
 }
 
-} // namespace MFP
+} // namespace mfp

@@ -268,16 +268,16 @@ RUAResults analyzeRegisterUsage(Function *F,
     // the forward entry), and seeding only from the return node would skip
     // no-return blocks (e.g., calls to non-returning functions). Use `All` to
     // seed RPOT from every node.
-    MFP::MFPConfiguration<rua::Liveness> Configuration{
+    mfp::MFPConfiguration<rua::Liveness> Configuration{
       .Instance = &Liveness,
       .Flow = &Function.Function,
       .Bottom = &DefaultValue,
       .ExtremalValue = &DefaultValue,
       .ExtremalLabels = &ExtremalLabels,
-      .EntryLabels = MFP::All{}
+      .EntryLabels = mfp::All{}
     };
 
-    using namespace MFP;
+    using namespace mfp;
     using InverseGT = llvm::GraphTraits<llvm::Inverse<const rua::Function *>>;
     auto GetMaximalFixedPoint = getMaximalFixedPoint<rua::Liveness, InverseGT>;
     auto AnalysisResult = GetMaximalFixedPoint(Configuration);
@@ -324,16 +324,16 @@ RUAResults analyzeRegisterUsage(Function *F,
     // nodes (e.g. `ReturnNode`) that may not be forward-reachable from the
     // entry (functions with no return paths). With `Entry{}` those nodes
     // would be absent from the result map.
-    MFP::MFPConfiguration<rua::ReachingDefinitions> Configuration{
+    mfp::MFPConfiguration<rua::ReachingDefinitions> Configuration{
       .Instance = &ReachingDefinitions,
       .Flow = &Function.Function,
       .Bottom = &DefaultValue,
       .ExtremalValue = &DefaultValue,
       .ExtremalLabels = &ExtremalLabels,
-      .EntryLabels = MFP::All{}
+      .EntryLabels = mfp::All{}
     };
 
-    using namespace MFP;
+    using namespace mfp;
     auto GetMaximalFixedPoint = getMaximalFixedPoint<rua::ReachingDefinitions>;
     auto AnalysisResult = GetMaximalFixedPoint(Configuration);
 
