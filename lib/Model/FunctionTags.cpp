@@ -104,9 +104,7 @@ FunctionPoolTag<TypePair>
                        llvm::Attribute::NoMerge,
                        llvm::Attribute::NoUnwind,
                        llvm::Attribute::WillReturn },
-                     // The following is necessary to prevent the optimizer to
-                     // move these around.
-                     llvm::MemoryEffects::inaccessibleMemOnly(),
+                     llvm::MemoryEffects::none(),
                      { &FunctionTags::UniquedByPrototype },
                      [](OpaqueFunctionsPool<TypePair> &Pool,
                         llvm::Module &M,
