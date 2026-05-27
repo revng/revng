@@ -261,7 +261,7 @@ branches:
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
-          passes: [hoist-struct-phis]
+          passes: [split-struct-phis]
       - pipe: legacy-segregate-stack-accesses
         arguments: [llvm-functions]
       - pipe: pure-llvm-passes-pipe
@@ -312,7 +312,7 @@ branches:
         arguments: [llvm-functions]
         configuration:
           passes:
-            - hoist-struct-phis
+            - split-struct-phis
       - pipe: segregate-stack-accesses
         arguments: [llvm-functions]
       - pipe: pure-llvm-passes-pipe
