@@ -54,6 +54,7 @@ CHECK-DAG:   %[[IGN:.*]] = add i64 %[[IGN:.*]]%[[STACK_ARG1]]
 CHECK-DAG:   %[[IGN:.*]] = add i64 %[[IGN:.*]]%[[STACK_ARG2]]
 CHECK: }
 
+// WIP: we get undef here, wrong!
 CHECK: define i64 @local_call_cabi_primitives_on_stack() [[IGN:.*]] {
 CHECK-DAG:   = call i64 @local_cabi_primitives_on_stack(i64 1, i64 2, i64 3, i64 4, i64 5, i64 6, i64 [[SCALAR1:.*]], i64 [[SCALAR2:.*]])
 CHECK: }
