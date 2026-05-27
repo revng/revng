@@ -1573,7 +1573,10 @@ std::optional<T> getConstantArg(llvm::CallInst *Call, unsigned Index) {
   using namespace llvm;
 
   if (auto *CI = dyn_cast<ConstantInt>(Call->getArgOperand(Index))) {
-    return CI->getLimitedValue();
+    if constexpr (std::is_signed_v<T>)
+      return CI->getSExtValue();
+    else
+      return CI->getZExtValue();
   } else {
     return {};
   }
