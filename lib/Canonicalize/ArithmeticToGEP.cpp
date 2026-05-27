@@ -866,11 +866,12 @@ private:
       LocalValue<> &Pointer = Pointers[K];
       // Skip globals because they have no local operands.
       llvm::Value *V = Pointer.value();
+
       if (isGlobal(V))
         continue;
       revng_assert(isLocal(V));
-      auto *I = dyn_cast<llvm::Instruction>(V);
-      if (I) {
+
+      if (auto *I = dyn_cast<llvm::Instruction>(V)) {
         for (llvm::Use &U : I->operands()) {
           propagatePointersBackwards(U);
         }
@@ -893,8 +894,7 @@ private:
 };
 
 static bool foldPointerCasts(llvm::Function &F) {
-  using WTVH = llvm::WeakTrackingVH;
-  llvm::SmallVector<WTVH, 8> Dead;
+  llvm::SmallVector<llvm::WeakTrackingVH, 8> Dead;
 
   for (llvm::Instruction &I : llvm::instructions(F)) {
 
