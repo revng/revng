@@ -673,6 +673,11 @@ Branches:
               - strip-dead-prototypes
               - split-overflow-intrinsics
               - dce
+        Artifacts:
+          Container: functions.bc.zstd
+          Kind: stack-accesses-segregated
+          SingleTargetFilename: clean-ir.ll
+          Docs: ""
       - Name: emit-c
         Pipes:
           - Type: llvm-pipe

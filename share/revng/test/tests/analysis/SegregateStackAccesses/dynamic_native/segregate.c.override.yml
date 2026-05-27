@@ -37,10 +37,18 @@ Functions:
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100008-CABIFunctionDefinition"
-  - Name: cabi_return_big_aggregate
+  - Name: cabi_return_small_aggregate
     Prototype:
       Kind: DefinedType
       Definition: "/TypeDefinitions/100010-CABIFunctionDefinition"
+  - Name: cabi_return_big_aggregate
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100012-CABIFunctionDefinition"
+  - Name: raw_return_small_aggregate
+    Prototype:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100013-RawFunctionDefinition"
 TypeDefinitions:
   - Kind: StructDefinition
     ID: 100003
@@ -310,6 +318,28 @@ TypeDefinitions:
           Definition: "/TypeDefinitions/100003-StructDefinition"
   - Kind: StructDefinition
     ID: 100009
+    Size: 16
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Offset: 8
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+  - Kind: CABIFunctionDefinition
+    ID: 100010
+    ABI: SystemV_x86_64
+    ReturnType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/100009-StructDefinition"
+    Arguments: []
+  - Kind: StructDefinition
+    ID: 100011
+    Size: 64
     Fields:
       - Offset: 0
         Type:
@@ -351,11 +381,24 @@ TypeDefinitions:
           Kind: PrimitiveType
           PrimitiveKind: Generic
           Size: 8
-    Size: 64
   - Kind: CABIFunctionDefinition
-    ID: 100010
+    ID: 100012
     ABI: SystemV_x86_64
     ReturnType:
       Kind: DefinedType
-      Definition: "/TypeDefinitions/100009-StructDefinition"
+      Definition: "/TypeDefinitions/100011-StructDefinition"
     Arguments: []
+  - Kind: RawFunctionDefinition
+    ID: 100013
+    Architecture: x86_64
+    ReturnValues:
+      - Location: rax_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
+      - Location: rdx_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 8
