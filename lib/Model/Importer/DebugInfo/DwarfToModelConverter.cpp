@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/Progress.h"
 
 #include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
@@ -293,6 +294,12 @@ void DwarfToModelConverter::createType(const DWARFDie &Die) {
 
     if (Size == 0) {
       reportIgnoredDie(Die, "Invalid size for primitive type");
+      createInvalidPrimitivePlaceholder(Die);
+      return;
+    }
+
+    if (Kind == model::PrimitiveKind::Float and Size > 8) {
+      reportIgnoredDie(Die, "Ignoring floating-point primitives larger than 8");
       createInvalidPrimitivePlaceholder(Die);
       return;
     }
