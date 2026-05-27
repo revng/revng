@@ -216,9 +216,9 @@ static_assert(sizeof(float128_t) == 16, "");
 // Undefined values
 //
 
-extern uintmax_t undef_value(void);
+extern void const *undef_value(size_t size);
 
-#define undef(T) ((T) undef_value())
+#define undef(T) (*(__typeof__(T) *) undef_value(sizeof(T)))
 
 //
 // Break and continue
