@@ -14,6 +14,7 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/GraphTraits.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instruction.h"
@@ -62,6 +63,7 @@ struct BitLivenessAnalysis {
   using LatticeElement = uint32_t;
   using Label = DataFlowNode *;
   using MFPResult = MFP::MFPResult<BitLivenessAnalysis::LatticeElement>;
+  using ExtraStateType = MFP::NoExtraState;
 
   uint32_t combineValues(const uint32_t &LHS, const uint32_t &RHS) const {
     return std::max(LHS, RHS);
@@ -71,7 +73,9 @@ struct BitLivenessAnalysis {
     return LHS <= RHS;
   }
 
-  uint32_t applyTransferFunction(DataFlowNode *L, const uint32_t E) const;
+  uint32_t applyTransferFunction(DataFlowNode *L,
+                                 const uint32_t E,
+                                 MFP::NoExtraState &) const;
 };
 
 using BitVector = llvm::BitVector;
@@ -239,7 +243,8 @@ static uint32_t transferZExt(Instruction *Ins, const uint32_t &Element) {
 }
 
 uint32_t BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L,
-                                                    const uint32_t E) const {
+                                                    const uint32_t E,
+                                                    MFP::NoExtraState &) const {
   auto *Ins = L->Instruction;
   switch (Ins->getOpcode()) {
   case Instruction::And:
@@ -277,13 +282,23 @@ BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
     }
   }
 
-  auto MFPRes = MFP::getMaximalFixedPoint<BitLivenessAnalysis>({},
-                                                               &DataFlowGraph,
-                                                               0,
-                                                               Top,
-                                                               ExtremalLabels);
+  // The data-flow graph has no designated entry node and the analysis is
+  // backward-shaped (extremals are sinks). Seed RPOT from every node.
+  MFP::MFPConfiguration<BitLivenessAnalysis> Configuration{
+    .Flow = &DataFlowGraph,
+    .ExtremalValue = &Top,
+    .ExtremalLabels = &ExtremalLabels,
+    .EntryLabels = MFP::All{}
+  };
+
+  auto Results = MFP::getMaximalFixedPoint<BitLivenessAnalysis>(Configuration);
+
+  using GraphType = typename BitLivenessAnalysis::GraphType;
+  using GraphTraits = llvm::GraphTraits<GraphType>;
+  static_assert(MFP::HasNodeRange<GraphTraits>);
+
   BitLivenessPass::Result Result;
-  for (auto &[Label, MFPResult] : MFPRes) {
+  for (auto &[Label, MFPResult] : Results) {
     auto &Entry = Result[Label->Instruction];
     Entry.Result = MFPResult.InValue;
     Entry.Operands = MFPResult.OutValue;
@@ -292,7 +307,7 @@ BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
   if (llvm::Error Error = DataFlowGraph.verify())
     revng_abort(revng::unwrapError(std::move(Error)).c_str());
 
-  MFP::Graph<BitLivenessAnalysis> MFPGraph(&DataFlowGraph, MFPRes);
+  MFP::Graph<BitLivenessAnalysis> MFPGraph(&DataFlowGraph, Results);
 
   return Result;
 }

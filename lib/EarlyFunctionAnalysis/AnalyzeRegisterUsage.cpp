@@ -261,11 +261,26 @@ RUAResults analyzeRegisterUsage(Function *F,
     // Run the liveness analysis
     revng_log(Log, "Running Liveness");
     rua::Liveness Liveness(Function.Function);
-    auto AnalysisResult = MFP::getMaximalFixedPoint(Liveness,
-                                                    &Function.Function,
-                                                    Liveness.defaultValue(),
-                                                    Liveness.defaultValue(),
-                                                    { Function.ReturnNode });
+
+    auto DefaultValue = Liveness.defaultValue();
+    std::vector<const rua::BlockNode *> ExtremalLabels{ Function.ReturnNode };
+    // Backward analysis: `getEntryNode(Inverse<...>)` is unreliable (returns
+    // the forward entry), and seeding only from the return node would skip
+    // no-return blocks (e.g., calls to non-returning functions). Use `All` to
+    // seed RPOT from every node.
+    MFP::MFPConfiguration<rua::Liveness> Configuration{
+      .Instance = &Liveness,
+      .Flow = &Function.Function,
+      .Bottom = &DefaultValue,
+      .ExtremalValue = &DefaultValue,
+      .ExtremalLabels = &ExtremalLabels,
+      .EntryLabels = MFP::All{}
+    };
+
+    using namespace MFP;
+    using InverseGT = llvm::GraphTraits<llvm::Inverse<const rua::Function *>>;
+    auto GetMaximalFixedPoint = getMaximalFixedPoint<rua::Liveness, InverseGT>;
+    auto AnalysisResult = GetMaximalFixedPoint(Configuration);
 
     // Collect registers alive at the entry
     revng_log(Log, "Registers alive at the entry of the function:");
@@ -303,11 +318,24 @@ RUAResults analyzeRegisterUsage(Function *F,
     rua::ReachingDefinitions ReachingDefinitions(Function.Function);
     auto DefaultValue = ReachingDefinitions.defaultValue();
     auto *EntryNode = Function.Function.getEntryNode();
-    auto AnalysisResult = MFP::getMaximalFixedPoint(ReachingDefinitions,
-                                                    &Function.Function,
-                                                    DefaultValue,
-                                                    DefaultValue,
-                                                    { EntryNode });
+    std::vector ExtremalLabels{ EntryNode };
+
+    // Seed RPOT from every node: callers read `AnalysisResult.at(...)` for
+    // nodes (e.g. `ReturnNode`) that may not be forward-reachable from the
+    // entry (functions with no return paths). With `Entry{}` those nodes
+    // would be absent from the result map.
+    MFP::MFPConfiguration<rua::ReachingDefinitions> Configuration{
+      .Instance = &ReachingDefinitions,
+      .Flow = &Function.Function,
+      .Bottom = &DefaultValue,
+      .ExtremalValue = &DefaultValue,
+      .ExtremalLabels = &ExtremalLabels,
+      .EntryLabels = MFP::All{}
+    };
+
+    using namespace MFP;
+    auto GetMaximalFixedPoint = getMaximalFixedPoint<rua::ReachingDefinitions>;
+    auto AnalysisResult = GetMaximalFixedPoint(Configuration);
 
     auto Compute = [&AnalysisResult, &Function](rua::Function::Node *Node,
                                                 bool Before) {

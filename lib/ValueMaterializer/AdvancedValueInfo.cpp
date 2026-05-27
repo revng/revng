@@ -78,7 +78,8 @@ bool AdvancedValueInfoMFI::isLessOrEqual(const LatticeElement &LHS,
 
 AdvancedValueInfoMFI::LatticeElement
 AdvancedValueInfoMFI::applyTransferFunction(Label L,
-                                            const LatticeElement &E) const {
+                                            const LatticeElement &E,
+                                            MFP::NoExtraState &) const {
 
   revng_log(AVILogger, "   " << L->toString());
   LoggerIndent Indent(AVILogger);
@@ -315,13 +316,17 @@ runAVI(const DataFlowGraph &DFG,
     ExtremalValue[I] = ConstantRangeSet(I->getType()->getIntegerBitWidth(),
                                         true);
 
-  auto AllResults = MFP::getMaximalFixedPoint(AVIMFI,
-                                              &CFEG,
-                                              {},
-                                              ExtremalValue,
-                                              InitialNodes,
-                                              InitialNodes,
-                                              AVILogger);
+  MFP::MFPConfiguration<AdvancedValueInfoMFI> Configuration{
+    .Instance = &AVIMFI,
+    .Flow = &CFEG,
+    .ExtremalValue = &ExtremalValue,
+    .ExtremalLabels = &InitialNodes,
+    .EntryLabels = &InitialNodes,
+    .Logger = &AVILogger
+  };
+
+  auto GetMaximalFixedPoint = MFP::getMaximalFixedPoint<AdvancedValueInfoMFI>;
+  auto AllResults = GetMaximalFixedPoint(Configuration);
 
   if (AVILogger.isEnabled()) {
     AVILogger << "Dumping MFP results:" << DoLog;
