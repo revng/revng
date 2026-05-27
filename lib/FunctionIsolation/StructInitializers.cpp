@@ -9,8 +9,8 @@ using namespace llvm;
 
 const char *StructInitializerPrefix = "struct_initializer";
 
-StructInitializers::StructInitializers(llvm::Module *M) :
-  Pool(M, false), Context(M->getContext()) {
+StructInitializers::StructInitializers(llvm::Module *M, bool EmitBody) :
+  Pool(M, false), Context(M->getContext()), EmitBody(EmitBody) {
   Pool.setMemoryEffects(MemoryEffects::none());
   Pool.addFnAttribute(Attribute::NoUnwind);
   Pool.addFnAttribute(Attribute::WillReturn);
@@ -21,12 +21,9 @@ StructInitializers::StructInitializers(llvm::Module *M) :
   Pool.initializeFromReturnType(FunctionTags::StructInitializer);
 }
 
-Instruction *StructInitializers::createReturn(revng::IRBuilder &Builder,
-                                              ArrayRef<Value *> Values) {
-  // Obtain return StructType
-  auto *FT = Builder.GetInsertBlock()->getParent()->getFunctionType();
-  auto *ReturnType = cast<StructType>(FT->getReturnType());
-
+CallInst *StructInitializers::createCall(revng::IRBuilder &Builder,
+                                         StructType *ReturnType,
+                                         ArrayRef<Value *> Values) {
   SmallVector<Type *, 8> Types;
   llvm::copy(ReturnType->elements(), std::back_inserter(Types));
 
@@ -36,8 +33,10 @@ Instruction *StructInitializers::createReturn(revng::IRBuilder &Builder,
                                    Types,
                                    StructInitializerPrefix);
 
-  // Lazily populate its body
-  if (Initializer->isDeclaration()) {
+  // Lazily populate its body, unless the caller opted out (e.g., the body
+  // would otherwise persist past `remove-lifting-artifacts` and confuse later
+  // canonicalize passes that expect non-isolated functions to be declarations).
+  if (EmitBody and Initializer->isDeclaration()) {
     auto *Entry = BasicBlock::Create(Context, "", Initializer);
 
     // TODO: the checks should be enabled conditionally based on the user.
@@ -51,5 +50,14 @@ Instruction *StructInitializers::createReturn(revng::IRBuilder &Builder,
   }
 
   // Emit a call in the caller
-  return Builder.CreateRet(Builder.CreateCall(Initializer, Values));
+  return cast<CallInst>(Builder.CreateCall(Initializer, Values));
+}
+
+Instruction *StructInitializers::createReturn(revng::IRBuilder &Builder,
+                                              ArrayRef<Value *> Values) {
+  // Obtain return StructType
+  auto *FT = Builder.GetInsertBlock()->getParent()->getFunctionType();
+  auto *ReturnType = cast<StructType>(FT->getReturnType());
+
+  return Builder.CreateRet(createCall(Builder, ReturnType, Values));
 }
