@@ -1621,7 +1621,7 @@ private:
     Builder.create<GotoOp>(Loc, Iterator->second.Label);
   }
 
-  bool isCallToSPTAR(const llvm::CallInst *Call) {
+  bool returnsAggregate(const llvm::CallInst *Call) {
     if (not Call->hasMetadata(PrototypeMDName))
       return false;
 
@@ -1629,7 +1629,7 @@ private:
     auto Layout = abi::FunctionType::Layout::make(*ModelCallType);
     namespace ReturnMethod = abi::FunctionType::ReturnMethod;
 
-    return Layout.hasSPTAR();
+    return Layout.returnMethod() == ReturnMethod::ModelAggregate;
   }
 
   // This function emits a single basic block as part of a larger C scope.
@@ -1751,7 +1751,7 @@ private:
           continue;
 
         // Some function calls are emitted in local variable initializers.
-        if (isCallToSPTAR(Call)) {
+        if (returnsAggregate(Call)) {
           mlir::Location Loc = C.getLocation(Call);
 
           auto Op = Builder.create<ExpressionStatementOp>(Loc);
@@ -1801,10 +1801,6 @@ private:
         mlir::Type FuncReturnType = FunctionType.getReturnType();
         mlir::Type LLVMReturnType = FuncReturnType;
 
-        // In SPTAR functions, values are returned by address. In this case
-        if (FunctionLayout.hasSPTAR())
-          LLVMReturnType = C.getPointerType(LLVMReturnType);
-
         // Emit the expression tree rooted at the return instruction directly
         // into the expression region of the newly created return operation:
         emitExpressionTreeImpl(Op.getResult(), [&]() {
@@ -1830,46 +1826,10 @@ private:
                                                         ReturnValue);
           }
 
-          if (FunctionLayout.hasSPTAR()) {
-            // TODO: This may happen when the pointer size of the Model doesn't
-            // match the pointer size on LLVM IR, due to mismatching DataLayout.
-            // SPTAR functions return model-pointer-sized integers, with the
-            // semantic is to actually return the pointee by copy.
-            // Given that the return value is model-pointer-sized, it's size
-            // doesn't necessarily match the pointer size in LLVM's DataLayout.
-            // Until we don't solve the broader issue of LLVM's DataLayout
-            // mismatching the pointer size of the input binary and the Model,
-            // we'll have to deal with this corner case.
-            // Another option would be to change SPTAR function to return
-            // llvm-pointer-sized integers or even LLVM's pointers, instead of
-            // model-pointer-sized integers.
-            uint64_t
-              LLVMPointerSize = unwrapped_cast<PointerType>(LLVMReturnType)
-                                  .getObjectSize();
-            uint64_t ModelPointerSize = C.getModelPointerSize();
-            uint64_t OperandSize = unwrapped_cast<IntegerType>(ReturnValue
-                                                                 .getType())
-                                     .getObjectSize();
-            revng_assert(ModelPointerSize == OperandSize);
-            if (ModelPointerSize != LLVMPointerSize)
-              ReturnValue = emitIntegerCast(TerminalLoc,
-                                            ReturnValue,
-                                            LLVMPointerSize);
-          }
-
           // Emit an implicit cast to the required return type if necessary:
           ReturnValue = emitImplicitBitcast(TerminalLoc,
                                             ReturnValue,
                                             LLVMReturnType);
-
-          // In the case of SPTAR, because in the LLVM IR the return is by
-          // address, but in Clift the return is by value as usual, a final
-          // indirection is needed to convert the LLVM IR pointer to a value:
-          if (FunctionLayout.hasSPTAR()) {
-            ReturnValue = Builder.create<IndirectionOp>(TerminalLoc,
-                                                        FuncReturnType,
-                                                        ReturnValue);
-          }
 
           return ReturnValue;
         });
