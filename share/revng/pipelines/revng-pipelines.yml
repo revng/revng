@@ -420,7 +420,7 @@ Branches:
           - Type: llvm-pipe
             UsedContainers: [functions.bc.zstd]
             Passes:
-              - hoist-struct-phis
+              - split-struct-phis
               - legacy-segregate-stack-accesses
               - cleanup-stack-size-markers
               - dce
@@ -483,7 +483,7 @@ Branches:
           - Type: llvm-pipe
             UsedContainers: [functions.bc.zstd]
             Passes:
-              - hoist-struct-phis
+              - split-struct-phis
               - remove-llvmassume-calls
               - dce
               - remove-pointer-casts
@@ -648,7 +648,7 @@ Branches:
           - Type: llvm-pipe
             UsedContainers: [functions.bc.zstd]
             Passes:
-              - hoist-struct-phis
+              - split-struct-phis
               - segregate-stack-accesses
               - cleanup-stack-size-markers
               - dce
