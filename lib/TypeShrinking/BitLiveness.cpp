@@ -31,12 +31,12 @@
 
 namespace TypeShrinking {
 
-class BitLivenwssAnnotatedWriter : public llvm::AssemblyAnnotationWriter {
+class BitLivenessAnnotatedWriter : public llvm::AssemblyAnnotationWriter {
 private:
   const BitLivenessAnalysisResults &Results;
 
 public:
-  BitLivenwssAnnotatedWriter(const BitLivenessAnalysisResults &Results) :
+  BitLivenessAnnotatedWriter(const BitLivenessAnalysisResults &Results) :
     Results(Results) {}
 
   void emitInstructionAnnot(const llvm::Instruction *I,
@@ -50,7 +50,7 @@ public:
 };
 
 void BitLivenessWrapperPass::dump(llvm::Function &F) const {
-  BitLivenwssAnnotatedWriter Annotator(Result);
+  BitLivenessAnnotatedWriter Annotator(Result);
   llvm::raw_os_ostream Stream(dbg);
   F.print(Stream, &Annotator);
 }
