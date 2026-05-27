@@ -36,7 +36,7 @@ struct OperationsMFI : public SetUnionLattice<IntSet> {
   using GraphType = OperationGraph *;
   using LatticeElement = IntSet;
   using ExtraStateKey = OperationKey;
-  using ExtraStateType = MFP::ExtraState<OperationKey, LatticeElement>;
+  using ExtraStateType = mfp::ExtraState<OperationKey, LatticeElement>;
 
   LatticeElement applyTransferFunction(Label Node,
                                        const LatticeElement &In,
@@ -52,7 +52,7 @@ struct OperationsMFI : public SetUnionLattice<IntSet> {
   }
 };
 
-static_assert(MFP::MonotoneFrameworkInstance<OperationsMFI>);
+static_assert(mfp::MonotoneFrameworkInstance<OperationsMFI>);
 
 namespace {
 
@@ -98,7 +98,7 @@ BOOST_AUTO_TEST_CASE(DiamondMFP) {
   IntSet ExtremalValue;
   std::vector<OperationNode *> ExtremalLabels{ G.Entry };
 
-  MFP::MFPConfiguration<OperationsMFI> Configuration{
+  mfp::MFPConfiguration<OperationsMFI> Configuration{
     .Instance = &MFI,
     .Flow = &G.Graph,
     .Bottom = &Bottom,
@@ -106,7 +106,7 @@ BOOST_AUTO_TEST_CASE(DiamondMFP) {
     .ExtremalLabels = &ExtremalLabels,
   };
 
-  auto Result = MFP::getMaximalFixedPoint<OperationsMFI>(Configuration);
+  auto Result = mfp::getMaximalFixedPoint<OperationsMFI>(Configuration);
 
   BOOST_TEST(Result.at(G.Entry).InValue == IntSet{});
   BOOST_TEST(Result.at(G.Entry).OutValue == IntSet({ 1 }));
@@ -143,7 +143,7 @@ BOOST_AUTO_TEST_CASE(LoopMFP) {
   IntSet ExtremalValue;
   std::vector<OperationNode *> ExtremalLabels{ A };
 
-  MFP::MFPConfiguration<OperationsMFI> Configuration{
+  mfp::MFPConfiguration<OperationsMFI> Configuration{
     .Instance = &MFI,
     .Flow = &Graph,
     .Bottom = &Bottom,
@@ -151,7 +151,7 @@ BOOST_AUTO_TEST_CASE(LoopMFP) {
     .ExtremalLabels = &ExtremalLabels,
   };
 
-  auto Result = MFP::getMaximalFixedPoint<OperationsMFI>(Configuration);
+  auto Result = mfp::getMaximalFixedPoint<OperationsMFI>(Configuration);
 
   // The loop forces B and C's incoming values to include {1, 2, 3, 4} once
   // the analysis converges.
@@ -170,7 +170,7 @@ BOOST_AUTO_TEST_CASE(LoopMFP) {
 BOOST_AUTO_TEST_CASE(ExtraStateRecordingOnDiamond) {
   DiamondGraph G;
 
-  using State = MFP::ExtraState<OperationKey, IntSet>;
+  using State = mfp::ExtraState<OperationKey, IntSet>;
   State S;
 
   // Mark a single point per node.
@@ -186,7 +186,7 @@ BOOST_AUTO_TEST_CASE(ExtraStateRecordingOnDiamond) {
   IntSet ExtremalValue;
   std::vector<OperationNode *> ExtremalLabels{ G.Entry };
 
-  MFP::MFPConfiguration<OperationsMFI> Configuration{
+  mfp::MFPConfiguration<OperationsMFI> Configuration{
     .Instance = &MFI,
     .Flow = &G.Graph,
     .Bottom = &Bottom,
@@ -195,7 +195,7 @@ BOOST_AUTO_TEST_CASE(ExtraStateRecordingOnDiamond) {
     .ExtraState = &S
   };
 
-  auto Result = MFP::getMaximalFixedPoint<OperationsMFI>(Configuration);
+  auto Result = mfp::getMaximalFixedPoint<OperationsMFI>(Configuration);
 
   // Sanity: the fixed-point lattice values must match the diamond test above.
   BOOST_TEST(Result.at(G.Tail).OutValue == IntSet({ 1, 2, 3, 4 }));

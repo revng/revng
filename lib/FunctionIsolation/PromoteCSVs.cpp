@@ -20,7 +20,7 @@
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
-using namespace MFP;
+using namespace mfp;
 
 // TODO: switch from CallInst to CallBase
 
@@ -450,11 +450,11 @@ static bool needsWrapper(Function *F) {
 struct UsedRegistersMFI : public SetUnionLattice<FunctionNodeData::UsedCSVSet> {
   using Label = FunctionNode *;
   using GraphType = GenericCallGraph *;
-  using ExtraStateType = MFP::NoExtraState;
+  using ExtraStateType = mfp::NoExtraState;
 
   static LatticeElement applyTransferFunction(Label L,
                                               const LatticeElement &Value,
-                                              MFP::NoExtraState &) {
+                                              mfp::NoExtraState &) {
     return combineValues(L->UsedCSVs, Value);
   }
 };

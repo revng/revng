@@ -741,7 +741,7 @@ public:
   using Label = llvm::BasicBlock *;
   using GraphType = llvm::Function *;
   using ExtraStateKey = llvm::Instruction *;
-  using ExtraStateType = MFP::ExtraState<llvm::Instruction *, MemoryAreaState>;
+  using ExtraStateType = mfp::ExtraState<llvm::Instruction *, MemoryAreaState>;
 
 private:
   InstructionStackUsage &StackUsage;
@@ -797,9 +797,9 @@ public:
   }
 };
 
-static_assert(MFP::MonotoneFrameworkInstance<SegregateStackAccessesMFI>);
+static_assert(mfp::MonotoneFrameworkInstance<SegregateStackAccessesMFI>);
 
-namespace MFP {
+namespace mfp {
 
 template<>
 void dump<MemoryAreaState>(Logger &Stream,
@@ -818,7 +818,7 @@ void dumpLabel<Instruction *>(Logger &Stream, Instruction *const &Label) {
   Stream << getName(Label);
 }
 
-} // namespace MFP
+} // namespace mfp
 
 struct SortByFunction {
   bool operator()(const Instruction *LHS, const Instruction *RHS) const {
@@ -1637,7 +1637,7 @@ void SegregateFunctionStack<Legacy>::runDataFlowAnalysis() {
   std::vector ExtremalLabels = { Entry };
   using SSAMFI = SegregateStackAccessesMFI;
   SSAMFI MFI(StackUsage);
-  MFP::getMaximalFixedPoint<SSAMFI>({ .Instance = &MFI,
+  mfp::getMaximalFixedPoint<SSAMFI>({ .Instance = &MFI,
                                       .Flow = NewFunction,
                                       .ExtremalLabels = &ExtremalLabels,
                                       .ExtraState = &MFPExtraState,

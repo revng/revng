@@ -715,11 +715,11 @@ struct ReachableExitsAnalysis
   using LatticeElement = typename SetUnionLattice<
     std::set<BasicBlockNode<NodeT> *>>::LatticeElement;
 
-  using ExtraStateType = MFP::NoExtraState;
+  using ExtraStateType = mfp::NoExtraState;
 
   static LatticeElement applyTransferFunction(const Label &L,
                                               const LatticeElement E,
-                                              MFP::NoExtraState &) {
+                                              mfp::NoExtraState &) {
 
     const auto IsInlined = [](const auto &NodeLabelPair) {
       return NodeLabelPair.second.Inlined;
@@ -765,7 +765,7 @@ inline bool RegionCFG<NodeT>::inflate() {
   using REA = ReachableExitsAnalysis<NodeT>;
   using Inverse = llvm::Inverse<typename REA::GraphType>;
   using GraphTraits = llvm::GraphTraits<Inverse>;
-  auto GetMaximalFixedPoint = MFP::getMaximalFixedPoint<REA, GraphTraits>;
+  auto GetMaximalFixedPoint = mfp::getMaximalFixedPoint<REA, GraphTraits>;
   auto ReachableExits = GetMaximalFixedPoint({ .Flow = &Graph,
                                                .EntryLabels = &Exits });
 

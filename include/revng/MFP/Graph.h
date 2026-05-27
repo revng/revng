@@ -6,7 +6,7 @@
 
 #include "revng/MFP/MFP.h"
 
-namespace MFP {
+namespace mfp {
 
 template<MonotoneFrameworkInstance MFI>
 class Graph {
@@ -28,12 +28,12 @@ public:
   const auto &results() const { return Results; }
 };
 
-} // namespace MFP
+} // namespace mfp
 
 /// \note This implementation of GraphTraits forwards everything 1-to-1
-template<MFP::MonotoneFrameworkInstance MFI>
-struct llvm::GraphTraits<MFP::Graph<MFI> *> {
-  using GraphType = MFP::Graph<MFI> *;
+template<mfp::MonotoneFrameworkInstance MFI>
+struct llvm::GraphTraits<mfp::Graph<MFI> *> {
+  using GraphType = mfp::Graph<MFI> *;
   using UnderlyingGraphTraits = llvm::GraphTraits<typename MFI::GraphType>;
   using NodeRef = typename UnderlyingGraphTraits::NodeRef;
   using EdgeRef = typename UnderlyingGraphTraits::EdgeRef;
@@ -76,9 +76,9 @@ struct llvm::GraphTraits<MFP::Graph<MFI> *> {
 };
 
 /// \note This implementation of GraphTraits forwards everything 1-to-1
-template<MFP::MonotoneFrameworkInstance MFI>
-struct llvm::GraphTraits<const MFP::Graph<MFI> *> {
-  using GraphType = const MFP::Graph<MFI> *;
+template<mfp::MonotoneFrameworkInstance MFI>
+struct llvm::GraphTraits<const mfp::Graph<MFI> *> {
+  using GraphType = const mfp::Graph<MFI> *;
   using UnderlyingGraphTraits = llvm::GraphTraits<typename MFI::GraphType>;
   using NodeRef = const typename UnderlyingGraphTraits::NodeRef;
   using EdgeRef = typename UnderlyingGraphTraits::EdgeRef;

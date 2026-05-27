@@ -60,7 +60,7 @@ public:
 
   RegisterSet applyTransferFunction(const BlockNode *Block,
                                     const RegisterSet &InitialState,
-                                    MFP::NoExtraState &) const {
+                                    mfp::NoExtraState &) const {
     RegisterSet Result = InitialState;
 
     for (const Operation &Operation :
@@ -86,6 +86,6 @@ public:
   }
 };
 
-static_assert(MFP::MonotoneFrameworkInstance<Liveness>);
+static_assert(mfp::MonotoneFrameworkInstance<Liveness>);
 
 } // namespace rua

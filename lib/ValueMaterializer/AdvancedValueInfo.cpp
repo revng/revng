@@ -79,7 +79,7 @@ bool AdvancedValueInfoMFI::isLessOrEqual(const LatticeElement &LHS,
 AdvancedValueInfoMFI::LatticeElement
 AdvancedValueInfoMFI::applyTransferFunction(Label L,
                                             const LatticeElement &E,
-                                            MFP::NoExtraState &) const {
+                                            mfp::NoExtraState &) const {
 
   revng_log(AVILogger, "   " << L->toString());
   LoggerIndent Indent(AVILogger);
@@ -191,7 +191,7 @@ AdvancedValueInfoMFI::applyTransferFunction(Label L,
 }
 
 void AdvancedValueInfoMFI::dump(GraphType CFEG, const ResultsMap &AllResults) {
-  MFP::Graph<AdvancedValueInfoMFI> MFPGraph(CFEG, AllResults);
+  mfp::Graph<AdvancedValueInfoMFI> MFPGraph(CFEG, AllResults);
   llvm::WriteGraph(&MFPGraph, "cfeg");
 }
 
@@ -200,7 +200,7 @@ void AdvancedValueInfoMFI::dump(GraphType CFEG, const ResultsMap &AllResults) {
 std::tuple<std::map<llvm::Instruction *, ConstantRangeSet>,
            ControlFlowEdgesGraph,
            map<const ForwardNode<ControlFlowEdgesNode> *,
-               MFP::MFPResult<map<llvm::Instruction *, ConstantRangeSet>>>>
+               mfp::MFPResult<map<llvm::Instruction *, ConstantRangeSet>>>>
 runAVI(const DataFlowGraph &DFG,
        llvm::Instruction *Context,
        const llvm::DominatorTree &DT,
@@ -238,7 +238,7 @@ runAVI(const DataFlowGraph &DFG,
       std::map<llvm::Instruction *, ConstantRangeSet>{},
       ControlFlowEdgesGraph(),
       map<const ForwardNode<ControlFlowEdgesNode> *,
-          MFP::MFPResult<map<llvm::Instruction *, ConstantRangeSet>>>{}
+          mfp::MFPResult<map<llvm::Instruction *, ConstantRangeSet>>>{}
     };
   }
 
@@ -316,7 +316,7 @@ runAVI(const DataFlowGraph &DFG,
     ExtremalValue[I] = ConstantRangeSet(I->getType()->getIntegerBitWidth(),
                                         true);
 
-  MFP::MFPConfiguration<AdvancedValueInfoMFI> Configuration{
+  mfp::MFPConfiguration<AdvancedValueInfoMFI> Configuration{
     .Instance = &AVIMFI,
     .Flow = &CFEG,
     .ExtremalValue = &ExtremalValue,
@@ -325,7 +325,7 @@ runAVI(const DataFlowGraph &DFG,
     .Logger = &AVILogger
   };
 
-  auto GetMaximalFixedPoint = MFP::getMaximalFixedPoint<AdvancedValueInfoMFI>;
+  auto GetMaximalFixedPoint = mfp::getMaximalFixedPoint<AdvancedValueInfoMFI>;
   auto AllResults = GetMaximalFixedPoint(Configuration);
 
   if (AVILogger.isEnabled()) {
@@ -334,9 +334,9 @@ runAVI(const DataFlowGraph &DFG,
     for (const auto &[Node, AnalysisResults] : AllResults) {
       AVILogger << Node->toString() << ":\n";
       AVILogger << "  Initial value:\n";
-      MFP::dump(*AVILogger.getAsLLVMStream().get(), 2, AnalysisResults.InValue);
+      mfp::dump(*AVILogger.getAsLLVMStream().get(), 2, AnalysisResults.InValue);
       AVILogger << "  Final value:\n";
-      MFP::dump(*AVILogger.getAsLLVMStream().get(),
+      mfp::dump(*AVILogger.getAsLLVMStream().get(),
                 2,
                 AnalysisResults.OutValue);
     }
@@ -349,7 +349,7 @@ runAVI(const DataFlowGraph &DFG,
 }
 
 template<>
-void MFP::dump(llvm::raw_ostream &Stream,
+void mfp::dump(llvm::raw_ostream &Stream,
                unsigned Indent,
                const std::map<llvm::Instruction *, ConstantRangeSet> &Element) {
   for (const auto &[I, Range] : Element) {
@@ -362,7 +362,7 @@ void MFP::dump(llvm::raw_ostream &Stream,
 }
 
 template<>
-void MFP::dumpLabel(llvm::raw_ostream &Stream,
+void mfp::dumpLabel(llvm::raw_ostream &Stream,
                     const ControlFlowEdgesGraph::Node *const &Label) {
   Stream << Label->toString();
 }
