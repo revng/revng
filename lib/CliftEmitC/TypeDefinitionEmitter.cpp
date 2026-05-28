@@ -123,8 +123,9 @@ static std::string paddingFieldName(uint64_t CurrentOffset) {
   //       We should fix this after the configuration is separate from the
   //       model
 
-  model::CNameBuilder Builder(model::Binary{});
-  return Builder.paddingFieldName(CurrentOffset);
+  model::Binary EmptyBinary{};
+  model::CNameBuilder UnconfiguredNB(EmptyBinary);
+  return UnconfiguredNB.paddingFieldName(CurrentOffset);
 }
 
 void TypeDefinitionEmitter::emitPaddingField(clift::ClassType Class,
@@ -214,7 +215,8 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
         //
         // TODO: fix this once the configuration is obtained from the pipe
         //       (new pipeline only).
-        model::CNameBuilder UnconfiguredNB(model::Binary{});
+        model::Binary EmptyBinary{};
+        model::CNameBuilder UnconfiguredNB(EmptyBinary);
         model::StructDefinition FakeStruct; // No model fields are read here.
         model::StructField FakeField(Field.getOffset()); // Only `Offset` read.
         if (not UnconfiguredNB.isAutomaticName(FakeStruct,

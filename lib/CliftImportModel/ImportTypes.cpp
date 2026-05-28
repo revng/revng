@@ -845,8 +845,9 @@ clift::StructType clift::makeOpaqueStruct(mlir::MLIRContext &Context,
   // TODO: this discards the prefix configuration option.
   //       We should fix this after the configuration is separate from the
   //       model
-  model::CNameBuilder Builder(model::Binary{});
-  Def.getMutableName().setValue(Builder.opaqueTypeName(ByteSize));
+  model::Binary EmptyBinary{};
+  model::CNameBuilder UnconfiguredNB(EmptyBinary);
+  Def.getMutableName().setValue(UnconfiguredNB.opaqueTypeName(ByteSize));
 
   return clift::StructType::get(Def);
 }
