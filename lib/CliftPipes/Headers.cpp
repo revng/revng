@@ -108,6 +108,8 @@ static void emitTypeDefinitionImpl(llvm::raw_ostream &Out,
                                ptml::Tagging::Disabled :
                                ptml::Tagging::Enabled);
 
+  // TODO: Extend `importType` to be able to signal whether a type already
+  //       exists or if it was reimported.
   auto CliftType = clift::importType(Module.getContext(), Type);
   revng_check(CliftType != nullptr);
 
