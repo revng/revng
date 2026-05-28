@@ -66,7 +66,6 @@ Clifter::Clifter(const class Model &Model,
                  const LLVMFunctionContainer &Input,
                  CliftFunctionContainer &Output) :
   Binary(*Model.get().get()), Input(Input), Output(Output) {
-  Output.getContext()->loadDialect<clift::CliftDialect>();
 }
 
 void Clifter::runOnFunction(const model::Function &Function) {
