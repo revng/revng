@@ -100,7 +100,7 @@ using HHBase = clift::impl::CliftEmitHelperHeaderBase<T>;
 clift::PassPtr<mlir::ModuleOp> clift::createEmitHelperHeaderPass() {
   static constexpr auto Impl = [](mlir::ModuleOp Module,
                                   ptml::CTokenEmitter &Tokens) {
-    emitHelperHeader(Tokens, { Module });
+    emitHelperHeader(Tokens, { Module }, model::Binary{});
     return true;
   };
 
