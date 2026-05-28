@@ -8,6 +8,7 @@
 
 #include "mlir/IR/BuiltinOps.h"
 
+#include "revng/ABI/Definition.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftAttributes.h"
@@ -728,6 +729,8 @@ clift::importSegmentDeclaration(mlir::ModuleOp Module,
 
 void clift::importAllModelTypes(const model::Binary &Model,
                                 mlir::ModuleOp Module) {
+  clift::setDataModel(Module, abi::getDataModel(Model));
+
   mlir::MLIRContext *Context = Module.getContext();
   mlir::Location Loc = mlir::UnknownLoc::get(Context);
   auto EmitError = [&]() -> mlir::InFlightDiagnostic {
@@ -775,6 +778,8 @@ clift::FunctionOp importAnyFunctionDeclaration(const FunctionT &MF,
 
 void clift::importAllModelFunctionDeclarations(const model::Binary &Model,
                                                mlir::ModuleOp Module) {
+  clift::setDataModel(Module, abi::getDataModel(Model));
+
   for (const auto &ModelFunction : Model.Functions()) {
     importAnyFunctionDeclaration(ModelFunction,
                                  revng::ranks::Function,
@@ -813,6 +818,8 @@ static mlir::Type importSegmentType(const model::Segment &Segment,
 
 void clift::importAllModelSegmentDeclarations(const model::Binary &Model,
                                               mlir::ModuleOp Module) {
+  clift::setDataModel(Module, abi::getDataModel(Model));
+
   for (const auto &Segment : Model.Segments()) {
     std::string Handle = pipeline::locationString(revng::ranks::Segment,
                                                   Segment.key());
