@@ -68,9 +68,10 @@ static void emitTypeAndGlobalHeaderImpl(llvm::raw_ostream &Out,
 static void
 emitHelperHeaderImpl(llvm::raw_ostream &Out,
                      std::vector<mlir::ModuleOp> Modules,
+                     const model::Binary &Binary,
                      ptml::Tagging Tagging = ptml::Tagging::Enabled) {
   ptml::CTokenEmitter Tokens(Out, Tagging);
-  emitHelperHeader(Tokens, Modules);
+  emitHelperHeader(Tokens, Modules, Binary);
 
   Out.flush();
 }
@@ -169,7 +170,9 @@ public:
            const revng::pipes::CliftFunctionContainer &CliftContainer,
            HelperHeaderContainer &HeaderFile) {
     llvm::raw_string_ostream Stream = HeaderFile.asStream();
-    emitHelperHeaderImpl(Stream, { CliftContainer.getModule() });
+    emitHelperHeaderImpl(Stream,
+                         { CliftContainer.getModule() },
+                         *revng::getModelFromContext(EC));
     EC.commitUniqueTarget(HeaderFile);
   }
 };
@@ -230,6 +233,7 @@ void EmitHelperHeader::run() {
 
   emitHelperHeaderImpl(*Out,
                        FunctionModules,
+                       Binary,
                        Configuration.DisableMarkup ? ptml::Tagging::Disabled :
                                                      ptml::Tagging::Enabled);
 }

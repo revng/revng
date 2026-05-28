@@ -10,6 +10,10 @@
 #include "revng/CliftEmitC/Configuration.h"
 #include "revng/PTML/CTokenEmitter.h"
 
+namespace model {
+class Binary;
+}
+
 void emitCommonIncludes(ptml::CTokenEmitter &Tokens,
                         const CDataModel &DataModel);
 
@@ -23,7 +27,8 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
                              bool DefineOpaqueTypes = true);
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
-                      llvm::ArrayRef<mlir::ModuleOp> Modules);
+                      llvm::ArrayRef<mlir::ModuleOp> Modules,
+                      const model::Binary &Binary);
 
 void emitSingleTypeDefinition(ptml::CTokenEmitter &Tokens,
                               const CDataModel &DataModel,

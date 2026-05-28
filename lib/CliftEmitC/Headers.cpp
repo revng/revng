@@ -280,7 +280,8 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
 }
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
-                      llvm::ArrayRef<mlir::ModuleOp> Modules) {
+                      llvm::ArrayRef<mlir::ModuleOp> Modules,
+                      const model::Binary &Binary) {
   revng_check(not Modules.empty());
 
   const CDataModel &DataModel = clift::getDataModel(Modules.front());
@@ -301,7 +302,13 @@ void emitHelperHeader(ptml::CTokenEmitter &Tokens,
   // This trick is practically a `const_cast`.
   mlir::MLIRContext &Context = *mlir::ModuleOp(Modules.front()).getContext();
 
-  Emitter.emitOpaqueTypes(Context, Emitter.collectOpaqueByteSizes(Modules));
+  std::set<std::uint64_t> NonModelOpaqueTypes;
+  std::ranges::set_difference(Emitter.collectOpaqueByteSizes(Modules),
+                              Binary.collectAllTypeSizes(),
+                              std::inserter(NonModelOpaqueTypes,
+                                            NonModelOpaqueTypes.end()));
+
+  Emitter.emitOpaqueTypes(Context, NonModelOpaqueTypes);
 }
 
 void emitSingleTypeDefinition(ptml::CTokenEmitter &Tokens,
