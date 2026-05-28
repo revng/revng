@@ -84,6 +84,14 @@ static opt<ABIOpt> ABIEnforcement("abi-enforcement-level",
                                                     "found.")),
                                   init(ABIOpt::FullABIEnforcement));
 
+static opt<std::string> DumpPostInline("detect-abi-dump-post-helpers-inlining",
+                                       desc("Path of a file the whole "
+                                            "module is written to right "
+                                            "after helper inlining inside "
+                                            "`analyzeABI` (for debugging "
+                                            "and testing)"),
+                                       init(""));
+
 static Logger Log("detect-abi");
 
 struct Changes {
@@ -482,6 +490,12 @@ void DetectABI::analyzeABI() {
     PM.add(new InlineHelpersPass());
     PM.run(M);
   }
+
+  // Dump the whole module right after helper inlining, for debugging and
+  // testing. The outlined stubs live in the module at this point, so a single
+  // module dump captures them all.
+  if (not DumpPostInline.empty())
+    dumpModule(&M, DumpPostInline.c_str());
 
   // Push this into analyzeFunction
   OpaqueRegisterUser RegisterUser(&M);
