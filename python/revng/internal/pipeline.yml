@@ -441,6 +441,11 @@ branches:
         arguments: [clift-functions]
       - savepoint: pre-backend-clift
         containers: [clift-functions]
+        artifacts:
+          - name: pre-backend-clift
+            container: clift-functions
+            category: debug
+            filename: pre_backend_clift.mlir.bc
 
   decompiled:
     from: clift-functions
@@ -541,6 +546,11 @@ branches:
         configuration:
           disable-markup: true
           emission-mode: recompilable
+        artifacts:
+          - name: emit-tagless-helper-header
+            container: tagless-helper-header
+            category: metadata
+            filename: helpers.h
 
       - pipe: import-types
         arguments: [clift-types-and-globals]
@@ -555,6 +565,11 @@ branches:
         configuration:
           disable-markup: true
           emission-mode: recompilable
+        artifacts:
+          - name: emit-tagless-type-and-global-header
+            container: tagless-type-and-global-header
+            category: metadata
+            filename: types-and-globals.h
 
       - pipe: emit-c-as-directory
         arguments:
@@ -780,6 +795,11 @@ branches:
         arguments: [clift-types-and-globals]
       - pipe: import-descriptive-info
         arguments: [clift-types-and-globals]
+        artifacts:
+          - name: type-and-global-header-clift
+            container: clift-types-and-globals
+            category: debug
+            filename: type-and-global-header.mlir.bc
       - pipe: emit-type-and-global-header
         arguments: [clift-types-and-globals, type-and-global-header]
         configuration:
