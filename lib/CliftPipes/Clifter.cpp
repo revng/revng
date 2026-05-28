@@ -81,7 +81,7 @@ void Clifter::runOnFunction(const model::Function &Function) {
   auto Importer = clift::Clifter::make(ModuleOpObject.get(), Binary);
   Importer->import(&LLVMFunction);
 
-  Output.assign(Object, ModuleOpObject.get());
+  Output.assign(Object, std::move(ModuleOpObject));
 }
 
 } // namespace revng::pypeline::piperuns
