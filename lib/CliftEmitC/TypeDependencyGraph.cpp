@@ -293,6 +293,10 @@ mlir::LogicalResult Builder<ModelMode>::visitType(mlir::Type T) {
     if constexpr (not ModelMode)
       ShouldAdd = !ShouldAdd;
 
+    // Explicitly skip opaque types, as we print them separately.
+    if (pipeline::locationFromString(rr::OpaqueType, Type.getHandle()))
+      ShouldAdd = false;
+
     // Never add helper prototypes, as we don't want to print those.
     if (pipeline::locationFromString(rr::HelperFunction, Type.getHandle()))
       ShouldAdd = false;
