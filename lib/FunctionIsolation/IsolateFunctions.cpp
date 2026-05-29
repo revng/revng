@@ -39,9 +39,11 @@
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
+#include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/NameBuilder.h"
+#include "revng/Model/Register.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/Contract.h"
 #include "revng/Pipeline/ExecutionContext.h"
@@ -708,10 +710,15 @@ public:
     // Also exclude any GV where `ProgramCounterHandler::affectsPC` returns
     // true.
     auto Architecture = Binary.Architecture();
-    std::string SPName = getCSVName(getStackPointer(Architecture));
     auto PCH = ProgramCounterHandler::fromModule(Architecture, &Module);
-    auto IsSpecialCSV = [&SPName, &PCH](llvm::GlobalVariable &GV) {
-      return GV.getName() == SPName or PCH->affectsPC(&GV);
+
+    // Also preserve every register CSV, later passes might want to use them
+    std::set<std::string> RegisterNames;
+    for (auto Register : model::Architecture::registers(Architecture))
+      RegisterNames.insert(model::Register::getCSVName(Register));
+
+    auto IsRegister = [&PCH, &RegisterNames](llvm::GlobalVariable &GV) {
+      return PCH->affectsPC(&GV) or RegisterNames.contains(GV.getName().str());
     };
 
     // Construct the set of ignorable globals from string globals and CSVs
@@ -719,7 +726,7 @@ public:
     for (llvm::GlobalVariable &GV : Module.globals()) {
       StringRef Name = GV.getName();
       if (Name.starts_with(DefaultStringNamespace)
-          or (FunctionTags::CSV.isTagOf(&GV) and not IsSpecialCSV(GV)))
+          or (FunctionTags::CSV.isTagOf(&GV) and not IsRegister(GV)))
         IgnorableGVs.insert(&GV);
     }
   }
