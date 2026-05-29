@@ -226,6 +226,10 @@ public:
   bool verifyTypeDefinitions() const debug_function;
 
 public:
+  /// \returns a set of all the possible type byte sizes in this binary.
+  std::set<uint64_t> collectAllTypeSizes() const;
+
+public:
   void dumpTypeGraph(const char *Path) const debug_function;
 
 public:
