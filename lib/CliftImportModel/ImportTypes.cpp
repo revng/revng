@@ -16,6 +16,7 @@
 #include "revng/Clift/CliftTypes.h"
 #include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/CliftImportModel/ImportModel.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/Segment.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
@@ -830,4 +831,32 @@ void clift::importAllModelSegmentDeclarations(const model::Binary &Model,
                                     Handle,
                                     importSegmentType(Segment, Model, Module));
   }
+}
+
+static std::string getOpaqueTypeHandle(uint64_t ByteSize) {
+  return pipeline::locationString(revng::ranks::OpaqueType, ByteSize);
+}
+
+clift::StructType clift::makeOpaqueStruct(mlir::MLIRContext &Context,
+                                          uint64_t ByteSize) {
+  std::string Handle = getOpaqueTypeHandle(ByteSize);
+
+  auto NameAttr = makeNameAttr<StructAttr>(&Context, Handle);
+  auto CommentAttr = makeCommentAttr<StructAttr>(&Context, Handle);
+  auto Attrs = llvm::ArrayRef<clift::CAttributeAttr>{};
+  auto Def = clift::StructAttr::get(&Context,
+                                    Handle,
+                                    NameAttr,
+                                    CommentAttr,
+                                    ByteSize,
+                                    {},
+                                    Attrs);
+
+  // TODO: this discards the prefix configuration option.
+  //       We should fix this after the configuration is separate from the
+  //       model
+  model::CNameBuilder Builder(model::Binary{});
+  Def.getMutableName().setValue(Builder.opaqueTypeName(ByteSize));
+
+  return clift::StructType::get(Def);
 }

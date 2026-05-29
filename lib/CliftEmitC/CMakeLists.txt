@@ -14,4 +14,5 @@ revng_add_library_internal(
   TypeDefinitionEmitter.cpp
   TypeDependencyGraph.cpp)
 
-target_link_libraries(revngCliftEmitC MLIRPass revngClift revngPTML)
+target_link_libraries(revngCliftEmitC MLIRPass revngClift revngCliftImportModel
+                      revngPTML)

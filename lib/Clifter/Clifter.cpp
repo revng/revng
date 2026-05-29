@@ -24,6 +24,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
@@ -263,37 +264,6 @@ private:
     return getVoidPointerType();
   }
 
-  std::string getOpaqueTypeHandle(uint64_t ByteSize) {
-    return pipeline::locationString(revng::ranks::OpaqueType, ByteSize);
-  }
-
-  clift::StructType importOpaqueStruct(uint64_t NumBytes) {
-    std::string Handle = getOpaqueTypeHandle(NumBytes);
-
-    auto NameAttr = makeNameAttr<StructAttr>(Context, Handle);
-    auto CommentAttr = makeCommentAttr<StructAttr>(Context, Handle);
-    auto Attrs = llvm::ArrayRef<clift::CAttributeAttr>{};
-    auto Def = clift::StructAttr::get(Context,
-                                      Handle,
-                                      NameAttr,
-                                      CommentAttr,
-                                      NumBytes,
-                                      {},
-                                      Attrs);
-
-    return clift::StructType::get(Def);
-  }
-
-  clift::StructType importOpaqueStruct(const llvm::ArrayType *Array) {
-    const auto *ElementType = Array->getElementType();
-    revng_assert(ElementType->isIntegerTy());
-    revng_assert(ElementType->getIntegerBitWidth() == 8);
-    uint64_t NumBytes = Array->getNumElements()
-                        * (ElementType->getIntegerBitWidth() / 8);
-
-    return importOpaqueStruct(NumBytes);
-  }
-
   mlir::Type importLLVMType(const llvm::Type *Type) {
     if (Type->isVoidTy())
       return getVoidType();
@@ -304,8 +274,15 @@ private:
     if (auto *T = llvm::dyn_cast<llvm::PointerType>(Type))
       return importLLVMPointerType(T);
 
-    if (auto *T = llvm::dyn_cast<llvm::ArrayType>(Type))
-      return importOpaqueStruct(T);
+    if (auto *T = llvm::dyn_cast<llvm::ArrayType>(Type)) {
+      const auto *ElementType = T->getElementType();
+      revng_assert(ElementType->isIntegerTy());
+      revng_assert(ElementType->getIntegerBitWidth() == 8);
+      uint64_t NumBytes = T->getNumElements()
+                          * (ElementType->getIntegerBitWidth() / 8);
+
+      return clift::makeOpaqueStruct(*Context, NumBytes);
+    }
 
     if (auto *S = llvm::dyn_cast<llvm::StructType>(Type)) {
       const auto *StructLayout = DataLayout->getStructLayout(S);
@@ -334,7 +311,7 @@ private:
       uint64_t ByteSize = PreviousOffsetInBits / 8;
       revng_assert(llvm::alignTo(ByteSize, Alignment) == StructByteSize);
       revng_assert(StructByteSize);
-      return importOpaqueStruct(StructByteSize);
+      return clift::makeOpaqueStruct(*Context, StructByteSize);
     }
 
     revng_abort("Unsupported LLVM type");
