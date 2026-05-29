@@ -756,7 +756,6 @@ private:
     revng_log(Log, "Processing " << getName(&I));
     LoggerIndent Indent(Log);
 
-    // WIP FEZ: is this monotone?
     StackUsage.detectStackReturnValueRange(&I, StackBytes);
 
     auto Usage = StackUsage.getWrites(&I);
