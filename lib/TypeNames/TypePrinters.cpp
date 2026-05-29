@@ -347,62 +347,8 @@ void ptml::ModelCBuilder::printOpaqueTypeDefinition(uint64_t ByteSize) {
        << ";\n";
 }
 
-std::set<uint64_t> ptml::ModelCBuilder::getModelOpaqueByteSizes() {
-
-  std::set<uint64_t> ByteSizes = { 1, 2, 4, 8, 10, 12, 16 };
-
-  for (const model::UpcastableTypeDefinition &Type : Binary.TypeDefinitions()) {
-    uint64_t ByteSize = Type->size().value_or(0);
-    if (ByteSize)
-      ByteSizes.insert(ByteSize);
-
-    llvm::SmallVector<model::UpcastableType> Dependencies;
-
-    const model::TypeDefinition *Definition = Type->tryGetAsDefinition();
-    if (not Definition)
-      continue;
-
-    if (const auto *TD = llvm::dyn_cast<model::TypedefDefinition>(Definition))
-      Dependencies.push_back(TD->UnderlyingType());
-
-    if (const auto *S = Definition->getStruct())
-      for (const auto &Field : S->Fields())
-        Dependencies.push_back(Field.Type());
-
-    if (const auto *U = Definition->getUnion())
-      for (const auto &Field : U->Fields())
-        Dependencies.push_back(Field.Type());
-
-    if (const auto *R = Definition->getRawFunction()) {
-      for (const auto &A : R->Arguments())
-        Dependencies.push_back(A.Type());
-
-      uint64_t ReturnTypeSize = 0;
-      for (const auto &RV : R->ReturnValues()) {
-        Dependencies.push_back(RV.Type());
-        ReturnTypeSize += RV.Type()->size().value_or(0);
-      }
-      if (ReturnTypeSize)
-        ByteSizes.insert(ReturnTypeSize);
-    }
-
-    if (const auto *C = Definition->getCABIFunction()) {
-      for (const auto &A : C->Arguments())
-        Dependencies.push_back(A.Type());
-      if (not C->ReturnType().isEmpty())
-        Dependencies.push_back(C->ReturnType());
-    }
-
-    for (const model::UpcastableType &D : Dependencies)
-      if (uint64_t ByeSize = D->trySize().value_or(0))
-        ByteSizes.insert(ByteSize);
-  }
-
-  return ByteSizes;
-}
-
 void ptml::ModelCBuilder::printModelOpaqueTypeDefinitions() {
-  std::set<uint64_t> ByteSizes = getModelOpaqueByteSizes();
+  std::set<uint64_t> ByteSizes = Binary.collectAllTypeSizes();
   for (uint64_t ByteSize : ByteSizes) {
     *Out << "\n";
     printOpaqueTypeDefinition(ByteSize);
@@ -412,7 +358,7 @@ void ptml::ModelCBuilder::printModelOpaqueTypeDefinitions() {
 using MCB = ptml::ModelCBuilder;
 using SizeSet = std::set<uint64_t>;
 void MCB::printHelperOpaqueTypeDefinitions(const SizeSet &HelperByteSizes) {
-  std::set<uint64_t> ModelByteSizes = getModelOpaqueByteSizes();
+  std::set<uint64_t> ModelByteSizes = Binary.collectAllTypeSizes();
   for (uint64_t ByteSize : HelperByteSizes) {
     if (not ModelByteSizes.contains(ByteSize)) {
       *Out << "\n";
