@@ -67,4 +67,7 @@ void importDescriptiveInfo(const model::Function &Function,
                            const model::Binary &Model,
                            mlir::ModuleOp Module);
 
+clift::StructType makeOpaqueStruct(mlir::MLIRContext &Context,
+                                   uint64_t NumBytes);
+
 } // namespace clift
