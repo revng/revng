@@ -1399,6 +1399,12 @@ mlir::LogicalResult PtrDiffOp::verify() {
 
 //===------------------------------- DecayOp ------------------------------===//
 
+LvalueToRvalueConversion
+DecayOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
+  revng_assert(Operand.getOwner() == getOperation());
+  return LvalueToRvalueConversion::No;
+}
+
 mlir::LogicalResult DecayOp::verify() {
   auto ArgT = collapseTypedefs(getValueType());
 
@@ -1439,10 +1445,40 @@ mlir::LogicalResult PtrResizeOp::verify() {
   return mlir::success();
 }
 
+//===----------------------------- AddressofOp ----------------------------===//
+
+LvalueToRvalueConversion
+AddressofOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
+  revng_assert(Operand.getOwner() == getOperation());
+  return LvalueToRvalueConversion::No;
+}
+
+//===------------------------------ AssignOp ------------------------------===//
+
+LvalueToRvalueConversion
+AssignOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
+  revng_assert(Operand.getOwner() == getOperation());
+
+  // The left (assigned) operand does not apply l-value-to-r-value conversions.
+  return Operand.getOperandNumber() == 0 ? LvalueToRvalueConversion::No :
+                                           LvalueToRvalueConversion::Yes;
+}
+
 //===------------------------------ AccessOp ------------------------------===//
 
 bool AccessOp::isLvalueExpression() {
   return isIndirect() or clift::isLvalueExpression(getValue());
+}
+
+LvalueToRvalueConversion
+AccessOp::lvalueToRvalueConversion(mlir::OpOperand &Operand) {
+  revng_assert(Operand.getOwner() == getOperation());
+
+  // Direct member accesses are transparent to l-value-to-r-value conversion. In
+  // other words, an l-value-to-r-value is applied to this operand, if one is
+  // applied to the result of this operation.
+  return isIndirect() ? LvalueToRvalueConversion::Yes :
+                        LvalueToRvalueConversion::Transparent;
 }
 
 ClassType AccessOp::getClassType() {

@@ -63,6 +63,18 @@ LabelAssignmentOpInterface getLabelAssignmentOp(mlir::Value Label);
 
 } // namespace impl
 
+enum class LvalueToRvalueConversion : uint8_t {
+  // The operand is not subject to l-value-to-r-value conversion.
+  No,
+
+  // The operand is subject to l-value-to-r-value conversion.
+  Yes,
+
+  // The operand is subject to l-value-to-r-value conversion if the result of
+  // its owner is subject to l-value-to-r-value conversion.
+  Transparent,
+};
+
 /// Provides a range over the statement regions of an operation by utilizing the
 /// index-based interface of StatementRegionOpInterface.
 struct StatementRegionRange : llvm::indexed_accessor_range<StatementRegionRange,

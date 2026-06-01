@@ -121,6 +121,15 @@ def Clift_ExpressionOpInterface : Clift_OpInterface<"ExpressionOpInterface"> {
         return false;
       }]
     >,
+    InterfaceMethod<
+      /*desc=*/"",
+      "clift::LvalueToRvalueConversion",
+      "lvalueToRvalueConversion", (ins "mlir::OpOperand &":$operand),
+      /*methodBody=*/[{}],
+      /*defaultImplementation=*/ [{
+        return LvalueToRvalueConversion::Yes;
+      }]
+    >,
   ];
 
   let extraClassDeclaration = [{

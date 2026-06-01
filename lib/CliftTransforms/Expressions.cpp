@@ -119,6 +119,83 @@ static DivModPair ptrOffsetDivMod(mlir::IntegerAttr OffsetAttr,
 
 } // namespace expression_optimization
 
+struct TypePunnedReadPattern : mlir::RewritePattern {
+  TypePunnedReadPattern(mlir::MLIRContext *Context,
+                        mlir::PatternBenefit Benefit = 1) :
+    RewritePattern(MatchAnyOpTypeTag(), Benefit, Context) {}
+
+  static LvalueToRvalueConversion
+  lvalueToRvalueConversion(mlir::OpOperand &Operand) {
+    if (auto E = mlir::dyn_cast<ExpressionOpInterface>(Operand.getOwner()))
+      return E.lvalueToRvalueConversion(Operand);
+
+    revng_assert(mlir::isa<YieldOp>(Operand.getOwner()));
+
+    // All yields are considered subject to l-value-to-r-value conversion.
+    return LvalueToRvalueConversion::Yes;
+  }
+
+  mlir::LogicalResult
+  matchAndRewrite(mlir::Operation *Op,
+                  mlir::PatternRewriter &Rewriter) const override {
+    if (not mlir::isa<ExpressionOpInterface, YieldOp>(Op))
+      return mlir::failure();
+
+    mlir::LogicalResult Result = mlir::failure();
+    for (mlir::OpOperand &Operand : Op->getOpOperands()) {
+      if (lvalueToRvalueConversion(Operand) != LvalueToRvalueConversion::Yes)
+        continue;
+
+      mlir::OpOperand *InnerOperand = &Operand;
+      while (auto A = InnerOperand->get().getDefiningOp<AccessOp>()) {
+        if (A.isIndirect())
+          break;
+        InnerOperand = &A->getOpOperand(0);
+      }
+
+      auto I = InnerOperand->get().getDefiningOp<IndirectionOp>();
+      if (not I)
+        continue;
+
+      auto C = I.getPointer().getDefiningOp<BitCastOp>();
+      if (not C)
+        continue;
+
+      auto P1 = clift::unwrapped_dyn_cast<PointerType>(C.getValueType());
+      if (not P1)
+        continue;
+
+      auto P2 = clift::unwrapped_cast<PointerType>(I.getPointer().getType());
+
+      auto T1 = P1.getPointeeType();
+      auto T2 = P2.getPointeeType();
+
+      if (getObjectSizeOrZero(T1) != getObjectSizeOrZero(T2))
+        continue;
+
+      // For now arrays are not value types and so cannot be bit-cast. In the
+      // future, if array types are made regular, this rewrite can be applied.
+      if (clift::unwrapped_isa<ArrayType>(T1)
+          or clift::unwrapped_isa<ArrayType>(T2))
+        continue;
+
+      mlir::Operation *InnerOp = InnerOperand->getOwner();
+      mlir::Value Value = C.getValue();
+
+      Rewriter.setInsertionPoint(InnerOp);
+      Value = Rewriter.create<IndirectionOp>(I.getLoc(), T1, Value);
+      Value = Rewriter.create<BitCastOp>(InnerOp->getLoc(),
+                                         removeConst(T2),
+                                         Value);
+
+      Rewriter.updateRootInPlace(InnerOp, [&]() { InnerOperand->set(Value); });
+
+      Result = mlir::success();
+    }
+    return Result;
+  }
+};
+
 struct OptimizeExpressionsPass
   : impl::CliftOptimizeExpressionsBase<OptimizeExpressionsPass> {
 
@@ -161,6 +238,8 @@ void clift::populateWithExpressionOptimizationPatterns(mlir::RewritePatternSet
 
   populateWithBooleanNegationPatterns(Set);
   populateWithCastCanonicalizations(Set);
+
+  Set.add<TypePunnedReadPattern>(Set.getContext());
 
   mlir::Dialect *Clift = Set.getContext()->getLoadedDialect<CliftDialect>();
   Clift->getCanonicalizationPatterns(Set);

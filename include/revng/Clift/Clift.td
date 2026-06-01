@@ -911,6 +911,11 @@ class Clift_UnaryIntegerMutationOp<string mnemonic>
     bool isLvalueExpression() {
       return true;
     }
+
+    LvalueToRvalueConversion lvalueToRvalueConversion(mlir::OpOperand &Operand) {
+      revng_assert(Operand.getOwner() == getOperation());
+      return LvalueToRvalueConversion::No;
+    }
   }];
 }
 
@@ -990,7 +995,11 @@ def Clift_PostDecrementOp : Clift_UnaryIntegerMutationOp<"post_dec">;
 class Clift_CastExpressionOp<string mnemonic, list<Trait> traits = []>
   : Clift_BasicExpressionOp<mnemonic, Clift_CastOpInterface, traits>;
 
-def Clift_DecayOp : Clift_CastExpressionOp<"decay"> {
+def Clift_DecayOp
+  : Clift_CastExpressionOp<"decay",
+                           [DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                      ["lvalueToRvalueConversion"]>]> {
+
   let arguments = (ins AnyType:$value);
 
   let results = (outs Clift_AnyNonConstType<AnyType>:$result);
@@ -1070,7 +1079,9 @@ def Clift_PtrResizeOp
 def Clift_AddressofOp
   : Clift_ExpressionOp<"addressof",
                        [Clift_PointeeTypeMatches<"result", "object">,
-                        Clift_LValueOperand<"object">]> {
+                        Clift_LValueOperand<"object">,
+                        DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  ["lvalueToRvalueConversion"]>]> {
 
   let arguments = (ins AnyType:$object);
   let results = (outs Clift_AnyNonConstType<Clift_AnyPointerType>:$result);
@@ -1102,7 +1113,9 @@ def Clift_AssignOp
   : Clift_ExpressionOp<"assign",
                        [AllTypesMatch<["lhs", "result"]>,
                         Clift_AllTypesMatch<["lhs", "rhs"]>,
-                        Clift_LValueOperand<"lhs">]> {
+                        Clift_LValueOperand<"lhs">,
+                        DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  ["lvalueToRvalueConversion"]>]> {
 
   let arguments = (ins Clift_AnyModifiableType<Clift_AnyValueType>:$lhs,
                        AnyType:$rhs);
@@ -1121,7 +1134,11 @@ def Clift_AssignOp
   }];
 }
 
-def Clift_AccessOp : Clift_ExpressionOp<"access"> {
+def Clift_AccessOp
+  : Clift_ExpressionOp<"access",
+                       [DeclareOpInterfaceMethods<Clift_ExpressionOpInterface,
+                                                  ["lvalueToRvalueConversion"]>]> {
+
   let arguments = (ins AnyType:$value,
                        UnitAttr:$indirect,
                        I64Attr:$member_index);
