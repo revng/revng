@@ -1099,3 +1099,37 @@ llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,
 
   return *Result;
 }
+
+void serializeInliningPolicy(llvm::Function &Helper,
+                             const llvm::BitVector &CriticalArguments) {
+  QuickMetadata QMD(Helper.getContext());
+
+  // Use `arg_size() + 1` bits so the MSB is always zero. LLVM's IR printer
+  // formats `iN` (N >= 2) constants as signed decimal; the extra bit keeps
+  // the rendered value positive regardless of which arguments are critical. (No
+  // `-2` value appears for a function whose only first argument is critical).
+  unsigned Width = static_cast<unsigned>(Helper.arg_size()) + 1;
+  llvm::APInt Bits(Width, 0);
+  for (int Idx = CriticalArguments.find_first(); Idx >= 0;
+       Idx = CriticalArguments.find_next(Idx))
+    Bits.setBit(Idx);
+  Helper.setMetadata(InliningPolicyMetadataKey, QMD.tuple({ QMD.get(Bits) }));
+}
+
+InliningPolicy deserializeInliningPolicy(const llvm::Function &Helper) {
+  llvm::MDNode *MD = Helper.getMetadata(InliningPolicyMetadataKey);
+  revng_assert(MD != nullptr,
+               "revng_inline helper missing `revng.inline.policy` metadata");
+
+  QuickMetadata QMD(Helper.getContext());
+  auto *Bits = QMD.extract<llvm::ConstantInt *>(llvm::cast<llvm::MDTuple>(MD),
+                                                0);
+  const llvm::APInt &Value = Bits->getValue();
+
+  InliningPolicy Result;
+  Result.CriticalArguments = llvm::BitVector(Helper.arg_size(), false);
+  for (unsigned I = 0; I < Helper.arg_size(); ++I)
+    if (Value[I])
+      Result.CriticalArguments.set(I);
+  return Result;
+}

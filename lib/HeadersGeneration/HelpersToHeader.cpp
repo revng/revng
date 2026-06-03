@@ -38,9 +38,8 @@ static void printLLVMTypeDeclaration(const llvm::StructType *S,
                                      const llvm::Function &F,
                                      ptml::ModelCBuilder &B) {
   B.append(B.getKeyword(ptml::CBuilder::Keyword::Typedef) + " "
-           + B.getKeyword(ptml::CBuilder::Keyword::Struct) + " ");
-  if (S->isPacked())
-    B.append(ptml::AttributeRegistry::getAttributeString<"_PACKED">() + " ");
+           + B.getKeyword(ptml::CBuilder::Keyword::Struct) + " "
+           + ptml::AttributeRegistry::getAttributeString<"_PACKED">() + " ");
 
   {
     auto Scope = B.getCurvedBracketScope(ptml::c::scopes::StructBody.str());
@@ -76,11 +75,7 @@ static void printLLVMTypeDeclaration(const llvm::StructType *S,
     revng_assert(PreviousOffsetInBits % 8 == 0);
     uint64_t Alignment = StructLayout->getAlignment().value();
     uint64_t ByteSize = PreviousOffsetInBits / 8;
-    uint64_t NumUnalignedBytes = ByteSize % Alignment;
-    uint64_t AlignedByteSize = NumUnalignedBytes ?
-                                 (ByteSize - NumUnalignedBytes + Alignment) :
-                                 ByteSize;
-    revng_assert(AlignedByteSize == StructByteSize);
+    revng_assert(llvm::alignTo(ByteSize, Alignment) == StructByteSize);
     B.printPadding(ByteSize, StructByteSize);
   }
 

@@ -234,14 +234,32 @@ foreach(
       "${CMAKE_INSTALL_PREFIX}/share/libtcg/libtcg-helpers-${ARCH}.bc")
   set(LIBTCG_HELPERS_FULL
       "${CMAKE_BINARY_DIR}/share/revng/libtcg-helpers-full-${ARCH}.bc")
+
+  # Build-time helper-annotation pipeline. Order is significant:
+  #
+  # * `mark-inline-helpers-up-to` tags every helper that transitively reaches
+  #   the configured runtime-library directories with the `revng_inline`
+  #   section. Runs first so all subsequent passes see the tag set.
+  # * `sroa` + `instsimplify` simplify the body of every helper so the
+  #   downstream analyses see the smallest possible IR.
+  # * `cpu-loop-exit` rewrites the CPU loop-exit pattern into something
+  #   `analyze-helper-arguments` can understand.
+  # * `analyze-helper-arguments` discovers, for every helper, which arguments
+  #   alias CSVs at the call site.
+  # * `loop-unroll` unrolls loops so the subsequent `fix-helpers` pass can
+  #   rewrite the accesses contained in bounded loops bodies.
+  # * `fix-helpers` rewrites helper bodies to access CSVs via the env pointer,
+  #   switching on env-relative offsets.
+  # * `detect-uninlinable-helpers` excludes not viable helpers from inlining.
   add_custom_command(
     OUTPUT "${LIBTCG_HELPERS_FULL}"
-    DEPENDS "${LIBTCG_HELPERS}" revng-all-binaries
+    DEPENDS "${LIBTCG_HELPERS}" revng-all-binaries revngHelperArgumentsAnalysis
+            revngHelperInliningAnalyses
     COMMAND
-      ./bin/revng opt -sroa -instsimplify -cpu-loop-exit
-      -analyze-helper-arguments -fix-helpers
-      -fix-helpers-architecture="${ARCH}" "${LIBTCG_HELPERS}" -o
-      "${LIBTCG_HELPERS_FULL}")
+      ./bin/revng opt -mark-inline-helpers-up-to -sroa -instsimplify
+      -cpu-loop-exit -analyze-helper-arguments -loop-unroll -fix-helpers
+      -fix-helpers-architecture="${ARCH}" -dce -detect-uninlinable-helpers
+      "${LIBTCG_HELPERS}" -o "${LIBTCG_HELPERS_FULL}")
   add_custom_target("annotated-libtcg-helpers-${ARCH}" ALL
                     DEPENDS "${LIBTCG_HELPERS_FULL}")
 
@@ -258,6 +276,7 @@ foreach(
     add_custom_command(
       OUTPUT "${PROCESS_HELPER_MODULE_OUTPUT}"
       DEPENDS "${LIBTCG_HELPERS_FULL}" revng-all-binaries
+              revngHelperArgumentsAnalysis revngHelperInliningAnalyses
       COMMAND ./bin/revng opt ${OPT_PASSES} "${LIBTCG_HELPERS_FULL}" -o
               "${PROCESS_HELPER_MODULE_OUTPUT}")
     add_custom_target("annotated-libtcg-helpers-${OPT_NAME}-${ARCH}" ALL

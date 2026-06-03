@@ -325,7 +325,7 @@ static bool verifyAlignment(const abi::Definition &ABI,
     ExpectedOffset = *OverflowCheck;
   }
 
-  ExpectedOffset = ABI.alignedOffset(ExpectedOffset, Current.Alignment);
+  ExpectedOffset = llvm::alignToPowerOf2(ExpectedOffset, Current.Alignment);
 
   if (ExpectedOffset == Current.Offset) {
     revng_log(Log, "Argument slots in perfectly.");
@@ -392,8 +392,9 @@ bool canBeNext(ArgumentDistributor &Distributor,
     }
 
     // Compute the next stack offset
-    auto NextStackOffset = ABI.alignedOffset(LocalDistributor.UsedStackOffset,
-                                             CurrentType);
+    auto NextStackOffset = llvm::alignToPowerOf2(LocalDistributor
+                                                   .UsedStackOffset,
+                                                 *ABI.alignment(CurrentType));
     NextStackOffset += ABI.paddedSizeOnStack(Current.Size);
     auto SizeWithPadding = NextStackOffset - LocalDistributor.UsedStackOffset;
     if (Distributed.SizeOnStack != SizeWithPadding) {
@@ -532,7 +533,7 @@ TCC::tryConvertingStackArguments(const model::UpcastableType &StackStruct,
       uint64_t CurrentAlignment = ABI.MinimumStackArgumentSize();
       if (not RemainingRange.empty())
         CurrentAlignment = adjustedAlignment(*RemainingRange.begin()->Type());
-      StartingOffset = ABI.alignedOffset(StartingOffset, CurrentAlignment);
+      StartingOffset = llvm::alignToPowerOf2(StartingOffset, CurrentAlignment);
 
       if (StartingOffset < Stack.Size()) {
         // We still have unhandled data at the end of the stack,
@@ -726,7 +727,9 @@ TCC::tryConvertingReturnValue(RFTReturnValues Registers) {
         revng_assert(FieldSize.has_value() && FieldSize.value() != 0);
 
         // Round the next offset based on the natural alignment.
-        Definition.Size() = ABI.alignedOffset(Definition.Size(), *Field.Type());
+        Definition
+          .Size() = llvm::alignToPowerOf2(Definition.Size(),
+                                          *ABI.alignment(*Field.Type()));
 
         // Insert the field
         Definition.Fields().insert(std::move(Field));

@@ -273,9 +273,17 @@ void AccessFixer::handle(Instruction &I,
   Builder.SetInsertPoint(DefaultCase);
   emitAbort(*Builder.CreateUnreachable());
 
-  // Create the switch
+  // Create the switch. We dispatch on the env-relative offset (d - &env)
+  // rather than on the raw runtime address, so the case constants below
+  // read naturally as offsets within the env region.
   Builder.SetInsertPoint(Before);
-  auto *Switch = Builder.CreateSwitch(Address, DefaultCase, Targets.size());
+  auto *EnvGlobal = Variables.envGlobal();
+  Value *EnvInt = Builder.CreateLoad(EnvGlobal->getValueType(), EnvGlobal);
+  Value *EnvRelativeAddress = Builder.CreateSub(Address, EnvInt);
+  auto *Switch = Builder.CreateSwitch(EnvRelativeAddress,
+                                      DefaultCase,
+                                      Targets.size());
+  unsigned EnvBaseOffset = Variables.envBaseOffset();
   PHINode *Phi = nullptr;
 
   // If the instruction provides a result, we also need to emit a phi
@@ -292,7 +300,8 @@ void AccessFixer::handle(Instruction &I,
     Builder.CreateBr(After);
     revng_assert(not OffsetCase->empty());
 
-    Switch->addCase(ConstantInt::get(AddressType, Offset), OffsetCase);
+    Switch->addCase(ConstantInt::get(AddressType, Offset - EnvBaseOffset),
+                    OffsetCase);
 
     if (HasResult)
       Phi->addIncoming(Result, OffsetCase);

@@ -236,6 +236,14 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
     Builder.CreateRet(HelperResult);
   }
 
+  // The wrapper inherits the `revng_inline` section from the underlying
+  // helper, so a downstream `inline-helpers` invocation will treat it as an
+  // inline candidate and consult its `!revng.inline.policy` metadata. By
+  // construction a wrapper body always inlinable.
+  if (HelperWrapper->getSection() == InlineHelpersSection)
+    serializeInliningPolicy(*HelperWrapper,
+                            llvm::BitVector(HelperWrapper->arg_size(), false));
+
   return HelperWrapper;
 }
 

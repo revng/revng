@@ -98,22 +98,6 @@ public:
   hasNaturalAlignment(const model::TypeDefinition &Definition,
                       AlignmentCache &Cache) const;
 
-  uint64_t alignedOffset(uint64_t Offset, uint64_t Alignment) const {
-    if (Offset == 0)
-      return 0;
-
-    revng_assert(llvm::isPowerOf2_64(Alignment));
-    if (Offset % Alignment != 0)
-      return Offset + Alignment - Offset % Alignment;
-
-    return Offset;
-  }
-
-  template<model::AnyType AnyType>
-  uint64_t alignedOffset(uint64_t Offset, const AnyType &Type) const {
-    return alignedOffset(Offset, *alignment(Type));
-  }
-
   [[nodiscard]] CDataModel getDataModel() const;
 
 public:
