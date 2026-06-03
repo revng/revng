@@ -1,0 +1,90 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %root/bin/revng pipe import-types %s /dev/null /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+
+Architecture: x86_64
+
+TypeDefinitions:
+  # CHECK: !_type_definition_0_TypedefDefinition = !clift.typedef<
+  # CHECK:   "/type-definition/0-TypedefDefinition"
+  # CHECK:   : !float96_t
+  # CHECK: >
+  - ID: 0
+    Kind: TypedefDefinition
+    Name: "my_float"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Float
+      Size: 12
+
+  # CHECK: !_type_definition_1_TypedefDefinition = !clift.typedef<
+  # CHECK:   "/type-definition/1-TypedefDefinition"
+  # CHECK:   : !generic8_t
+  # CHECK: >
+  - ID: 1
+    Kind: TypedefDefinition
+    Name: "my_generic"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Generic
+      Size: 1
+
+  # CHECK: !_type_definition_2_TypedefDefinition = !clift.typedef<
+  # CHECK:   "/type-definition/2-TypedefDefinition"
+  # CHECK:   : !int64_t
+  # CHECK: >
+  - ID: 2
+    Kind: TypedefDefinition
+    Name: "my_int"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 8
+
+  # CHECK: !_type_definition_3_TypedefDefinition = !clift.typedef<
+  # CHECK:   "/type-definition/3-TypedefDefinition"
+  # CHECK:   : !number32_t
+  # CHECK: >
+  - ID: 3
+    Kind: TypedefDefinition
+    Name: "my_number"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Number
+      Size: 4
+
+  # CHECK: !_type_definition_4_TypedefDefinition = !clift.typedef<
+  # CHECK:   "/type-definition/4-TypedefDefinition"
+  # CHECK:   : !pointer_or_number16_t
+  # CHECK: >
+  - ID: 4
+    Kind: TypedefDefinition
+    Name: "my_pon"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: PointerOrNumber
+      Size: 2
+
+  # CHECK: !_type_definition_5_TypedefDefinition = !clift.typedef<
+  # CHECK:   "/type-definition/5-TypedefDefinition"
+  # CHECK:   : !uint64_t
+  # CHECK: >
+  - ID: 5
+    Kind: TypedefDefinition
+    Name: "my_uint"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
+
+  # CHECK: !_type_definition_6_TypedefDefinition = !clift.typedef<
+  # CHECK:   "/type-definition/6-TypedefDefinition"
+  # CHECK:   : !void
+  # CHECK: >
+  - ID: 6
+    Kind: TypedefDefinition
+    Name: "my_void"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Void

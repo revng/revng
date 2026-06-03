@@ -1,0 +1,28 @@
+//
+// This file is distributed under the MIT License. See LICENSE.md for details.
+//
+
+// RUN: %root/bin/revng clift-opt %s
+
+!void = !clift.void
+!int32_t = !clift.int<signed 4>
+
+!f = !clift.func<
+  "/type-definition/1-CABIFunctionDefinition" as "f" : !void()
+>
+
+!g = !clift.func<
+  "/type-definition/2-CABIFunctionDefinition" : !int32_t(!int32_t)
+>
+
+module attributes {clift.module} {
+  clift.func @f<!f>() {
+    clift.return {}
+  }
+
+  clift.func @g<!g>(%arg0 : !int32_t) {
+    clift.return {
+      clift.yield %arg0 : !int32_t
+    }
+  }
+}

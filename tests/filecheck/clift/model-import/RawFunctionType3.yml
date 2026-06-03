@@ -1,0 +1,88 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# RUN: %root/bin/revng pipe import-types %s /dev/null /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+
+Architecture: x86_64
+TypeDefinitions:
+  - ID: 201
+    Kind: StructDefinition
+    Name: my_struct
+    Size: 8
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+
+    # CHECK: !_artificial_struct_1002_RawFunctionDefinition = !clift.struct<
+    # CHECK:   "/artificial-struct/1002-RawFunctionDefinition"
+    # CHECK:   : size(16)
+    # CHECK:   {
+    # CHECK:     "/return-register/1002-RawFunctionDefinition/rcx_x86_64"
+    # CHECK:     : offset(0)
+    # CHECK:     !uint64_t
+    # CHECK:     "/return-register/1002-RawFunctionDefinition/rdx_x86_64"
+    # CHECK:     : offset(8)
+    # CHECK.     !clift.ptr<
+    # CHECK:       8 to !uint64_t
+    # CHECK.     >
+    # CHECK:   }
+    # CHECK: >
+
+    # CHECK: !_type_definition_1002_RawFunctionDefinition = !clift.func<
+    # CHECK:   "/type-definition/1002-RawFunctionDefinition"
+    # CHECK:   : !_artificial_struct_1002_RawFunctionDefinition(
+    # CHECK:     !uint64_t,
+    # CHECK:     !clift.ptr<8 to !uint64_t>,
+    # CHECK:     !_type_definition_201_StructDefinition
+    # CHECK:   )
+    # CHECK:   [
+    # CHECK:     #clift.c_attribute<
+    # CHECK:       "_ABI" : "/macro/_ABI"
+    # CHECK:       [
+    # CHECK:         #clift.identifier<"raw_x86_64">
+    # CHECK:       ]
+    # CHECK:     >
+    # CHECK:   ]
+    # CHECK: >
+  - ID: 1002
+    Kind: RawFunctionDefinition
+    Name: "my_function3"
+    Architecture: x86_64
+    Arguments:
+      - Location: rax_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+      - Location: rbx_x86_64
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 8
+    ReturnValues:
+      - Location: rcx_x86_64
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Unsigned
+          Size: 8
+      - Location: rdx_x86_64
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: PrimitiveType
+            PrimitiveKind: Unsigned
+            Size: 8
+    PreservedRegisters:
+      - rdi_x86_64
+      - rsi_x86_64
+    FinalStackOffset: 0
+    StackArgumentsType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/201-StructDefinition"

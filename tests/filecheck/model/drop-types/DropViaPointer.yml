@@ -1,0 +1,47 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# Dropping a struct that is only reached via a pointer should NOT remove the
+# containing struct's field. Instead, the pointer's pointee is replaced with
+# void.
+#
+# RUN: %root/bin/revng model drop-types %s 1001-StructDefinition | FileCheck %s
+
+Architecture: x86_64
+
+TypeDefinitions:
+  # This type is dropped — it must not appear in the output.
+  # CHECK-NOT: 1001-StructDefinition
+  - ID: 1001
+    Kind: StructDefinition
+    Name: "victim"
+    Size: 4
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+
+  # The container survives with its pointer field; the pointee is now void.
+  # CHECK:      ID:              1002
+  # CHECK:      Name:            container_with_ptr
+  # CHECK:      Fields:
+  # CHECK-NEXT: Offset:          0
+  # CHECK-NEXT: Type:
+  # CHECK-NEXT:   Kind:            PointerType
+  # CHECK:        PointeeType:
+  # CHECK-NEXT:     Kind:            PrimitiveType
+  # CHECK-NEXT:     PrimitiveKind:   Void
+  - ID: 1002
+    Kind: StructDefinition
+    Name: "container_with_ptr"
+    Size: 8
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/1001-StructDefinition"

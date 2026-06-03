@@ -94,65 +94,55 @@ public:
     return &Binary->Functions()[Address];
   }
 
-  /// Similar to registerFunctionEntry but if another function at the same
-  /// address already exists, return that one. This is necessary in certain
-  /// situations where the raw address is available but it's not known its type
-  /// (e.g., Thumb vs regular ARM).
-  model::Function *matchFunctionEntry(const MetaAddress &Address) {
-    revng_assert(Address.isValid());
-
-    if (not isExecutable(Address)) {
-      report("match Function", Address);
-      return nullptr;
-    }
-
-    llvm::SmallVector<MetaAddress> Candidates;
-    Candidates.push_back(Address);
-
+  /// Resolve an already-relocated raw code address to the MetaAddress the
+  /// model uses for that function.
+  ///
+  /// \p Address must be pre-relocated by the caller (use
+  /// `relocate(uint64_t).address()`). \p Architecture provides the code
+  /// types to probe.
+  ///
+  /// `fromPC` builds the canonical MetaAddress (honoring per-arch
+  /// conventions like ARM's Thumb LSB). The alternative code types are
+  /// then probed at the same numeric address with the explicit
+  /// MetaAddress constructor, which validates the per-type alignment.
+  ///
+  /// If `Binary->Functions()` already has an entry for one of the
+  /// candidates, that exact MetaAddress is returned so the caller's model
+  /// and whitelist lookups match. Otherwise the first valid candidate is
+  /// returned so the caller can still insert a fresh entry at it.
+  ///
+  /// This function does not touch the model.
+  MetaAddress
+  matchFunctionEntry(uint64_t Address,
+                     model::Architecture::Values Architecture) const {
     using namespace MetaAddressType;
-    for (auto CodeType : archCodeTypes(arch(Address.type()))) {
-      if (CodeType == Address.type())
+    llvm::SmallVector<MetaAddress, 2> Candidates;
+
+    MetaAddress Primary = MetaAddress::fromPC(Architecture, Address);
+    if (Primary.isValid())
+      Candidates.push_back(Primary);
+
+    uint64_t BareAddress = Primary.isValid() ? Primary.address() : Address;
+    for (auto CodeType : archCodeTypes(Architecture)) {
+      if (Primary.isValid() and CodeType == Primary.type())
         continue;
-
-      auto NewAddress = Address.replaceType(CodeType);
-      if (NewAddress.isValid())
-        Candidates.push_back(std::move(NewAddress));
+      MetaAddress Alt(BareAddress, CodeType);
+      if (Alt.isValid())
+        Candidates.push_back(Alt);
     }
 
-    unsigned Matches = 0;
-    auto EndIt = Binary->Functions().end();
-    auto ResultIt = EndIt;
-    for (const auto &Candidate : Candidates) {
-      auto MatchIt = Binary->Functions().find(Candidate);
-      if (MatchIt != EndIt) {
-        ++Matches;
-        if (ResultIt == EndIt) {
-          // Take the first match
-          ResultIt = MatchIt;
-        }
-      }
+    if (Candidates.empty())
+      return MetaAddress::invalid();
+
+    if (not isExecutable(Candidates.front())) {
+      report("match Function", Candidates.front());
+      return MetaAddress::invalid();
     }
 
-    if (ResultIt == EndIt) {
-      revng_log(Logger,
-                "Warning: no match for function at "
-                  << Address.toString() << ". Creating it despite this.");
-      return &Binary->Functions()[Address];
-    } else if (Matches == 1 and ResultIt->Entry() != Address) {
-      revng_log(Logger,
-                "Matching " << ResultIt->Entry().toString() << " for "
-                            << Address.toString());
-      return &*ResultIt;
-    } else if (Matches > 1 and ResultIt->Entry() != Address) {
-      revng_log(Logger,
-                "Warning: multiple matches for "
-                  << Address.toString() << ". Returning "
-                  << ResultIt->Entry().toString() << ".");
-      return &*ResultIt;
-    } else {
-      // We have a single match of the given address
-      return &*ResultIt;
-    }
+    for (const auto &Candidate : Candidates)
+      if (Binary->Functions().find(Candidate) != Binary->Functions().end())
+        return Candidate;
+    return Candidates.front();
   }
 
   void setEntryPoint(const MetaAddress &Address) {
@@ -170,7 +160,7 @@ public:
   static uint64_t u64(uint64_t Value) { return Value; }
 
 private:
-  void report(const char *Action, const MetaAddress &Address) {
+  void report(const char *Action, const MetaAddress &Address) const {
     revng_log(Logger,
               "Cannot " << Action << " " << Address.toString()
                         << " since it's not in an executable segment.");

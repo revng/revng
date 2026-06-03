@@ -693,14 +693,15 @@ void PDBImporterImpl::handleProcedureSymbol(ProcSym &Procedure) {
                                                              Procedure
                                                                .CodeOffset);
 
-  if (not Importer.isFunctionAllowed(FunctionVirtualAddress)) {
-    revng_log(Log, "Ignoring disallowed function");
-    return;
-  }
-
   // Relocate the symbol.
   MetaAddress FunctionAddress = Importer.toPC(Importer.getBaseAddress()
                                               + FunctionVirtualAddress);
+
+  if (not FunctionAddress.isValid()
+      or not Importer.isFunctionAllowed(FunctionAddress)) {
+    revng_log(Log, "Ignoring disallowed function");
+    return;
+  }
 
   if (not Model->Functions().contains(FunctionAddress)) {
     if (auto *Function = Importer.registerFunctionEntry(FunctionAddress)) {

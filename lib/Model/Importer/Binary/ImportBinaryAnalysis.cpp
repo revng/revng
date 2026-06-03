@@ -6,7 +6,6 @@
 #include "revng/Model/Importer/Binary/BinaryImporter.h"
 #include "revng/Model/Importer/Binary/ImportBinaryAnalysis.h"
 #include "revng/Model/Importer/Binary/Options.h"
-#include "revng/Model/Importer/DebugInfo/DwarfImporter.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/ResourceFinder.h"
@@ -23,7 +22,7 @@ llvm::Error ImportBinaryAnalysis::run(pipeline::ExecutionContext &Context,
 
   const ImporterOptions &Options = importerOptions();
 
-  llvm::Task T(2, "Import binary");
+  llvm::Task T(1, "Import binary");
   T.advance("Import main binary", true);
 
   model::BinaryIdentifierReference Reference;
@@ -37,17 +36,6 @@ llvm::Error ImportBinaryAnalysis::run(pipeline::ExecutionContext &Context,
                                        Options,
                                        Reference)) {
     return Error;
-  }
-
-  T.advance("Import additional debug info", true);
-  if (!Options.AdditionalDebugInfoPaths.empty()) {
-    DwarfImporter Importer(Model, std::nullopt);
-    llvm::Task T2(Options.AdditionalDebugInfoPaths.size(),
-                  "Import additional debug info");
-    for (const std::string &Path : Options.AdditionalDebugInfoPaths) {
-      T2.advance(Path, true);
-      Importer.import(Path, Options);
-    }
   }
 
   return llvm::Error::success();
@@ -64,7 +52,7 @@ llvm::Error ParseBinaryAnalysis::run(Model &Model,
                                      const BinariesContainer &Binaries) {
   const ImporterOptions &Options = importerOptions();
 
-  llvm::Task T(2, "Import binary");
+  llvm::Task T(1, "Import binary");
   T.advance("Import main binary", true);
 
   for (size_t I = 0; I < Binaries.size(); I++) {
@@ -75,17 +63,6 @@ llvm::Error ParseBinaryAnalysis::run(Model &Model,
                                          Options,
                                          Reference))
       return Error;
-  }
-
-  T.advance("Import additional debug info", true);
-  if (not Options.AdditionalDebugInfoPaths.empty()) {
-    DwarfImporter Importer(Model.get(), std::nullopt);
-    llvm::Task T2(Options.AdditionalDebugInfoPaths.size(),
-                  "Import additional debug info");
-    for (const std::string &Path : Options.AdditionalDebugInfoPaths) {
-      T2.advance(Path, true);
-      Importer.import(Path, Options);
-    }
   }
 
   return llvm::Error::success();

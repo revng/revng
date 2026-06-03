@@ -1,0 +1,46 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+# When only SOME of a union's fields reference deleted types, the union
+# itself survives. The deleted entries are removed and the remaining ones
+# are reindexed starting from zero.
+#
+# RUN: %root/bin/revng model drop-types %s 1001-StructDefinition | FileCheck %s
+
+Architecture: x86_64
+
+TypeDefinitions:
+  # This type is dropped.
+  # CHECK-NOT: 1001-StructDefinition
+  - ID: 1001
+    Kind: StructDefinition
+    Name: "victim"
+    Size: 4
+    Fields:
+      - Offset: 0
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
+
+  # The union survives with only the primitive entry, reindexed to 0.
+  # CHECK:      ID:              1002
+  # CHECK:      Kind:            UnionDefinition
+  # CHECK:      Fields:
+  # CHECK-NEXT:   - Index:           0
+  # CHECK-NEXT:     Type:
+  # CHECK-NEXT:       Kind:            PrimitiveType
+  # CHECK-NOT:    - Index:           1
+  - ID: 1002
+    Kind: UnionDefinition
+    Name: "u"
+    Fields:
+      - Index: 0
+        Type:
+          Kind: DefinedType
+          Definition: "/TypeDefinitions/1001-StructDefinition"
+      - Index: 1
+        Type:
+          Kind: PrimitiveType
+          PrimitiveKind: Generic
+          Size: 4
