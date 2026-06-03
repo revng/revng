@@ -400,6 +400,7 @@ branches:
             - optimize-expressions
             - terminal-branch-complement-hoisting
             - tighten-variable-scopes
+            - hoist-variable-initializers
         artifacts:
           - name: clift-optimized
             container: clift-functions
