@@ -87,6 +87,8 @@ class ModelOverrideByName(Command):
                     return 1
 
                 for base_function in base_model["Functions"]:
+                    if "Name" not in base_function:
+                        continue
                     if base_function["Name"] == function_name:
                         function_to_override["Entry"] = base_function["Entry"]
                         function_to_override["Name"] = base_function["Name"]
