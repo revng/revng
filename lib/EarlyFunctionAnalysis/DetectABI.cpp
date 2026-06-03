@@ -33,7 +33,7 @@
 #include "revng/InlineHelpers/InlineHelpers.h"
 #include "revng/InlineHelpers/LinkHelpersToInline.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/NameBuilder.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/Pass/DeduplicateCollidingNames.h"
 #include "revng/Model/Register.h"
 #include "revng/Pipeline/Pipe.h"
@@ -41,6 +41,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/BasicBlockID.h"
+#include "revng/Support/CommonOptions.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
@@ -491,6 +492,16 @@ void DetectABI::analyzeABI() {
     PM.run(M);
   }
 
+  // When `--debug-names` is set, rename each outlined stub from the
+  // metaaddress-based identifier to its source-symbol name, using the same
+  // `llvmName` scheme as the rest of the pipeline.
+  if (DebugNames) {
+    for (auto &[Entry, OutlinedFn] : Functions) {
+      llvm::Function *F = OutlinedFn->Function.get();
+      F->setName(llvmName(Binary->Functions().at(Entry)));
+    }
+  }
+
   // Dump the whole module right after helper inlining, for debugging and
   // testing. The outlined stubs live in the module at this point, so a single
   // module dump captures them all.
@@ -516,11 +527,10 @@ void DetectABI::analyzeABI() {
   }
 
   unsigned Runs = 0;
-  model::CNameBuilder NameBuilder = *Binary;
   while (not ToAnalyze.empty()) {
     model::Function &Function = *ToAnalyze.pop();
     revng_log(Log, "Analyzing " << Function.Entry().toString());
-    FixedPointTask.advance(NameBuilder.name(Function));
+    FixedPointTask.advance(llvmName(Function));
     OutlinedFunction &OutlinedFunction = *Functions.at(Function.Entry());
     Changes Changes = analyzeFunctionABI(Function,
                                          OutlinedFunction,
