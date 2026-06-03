@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: %root/bin/revng pipe import-types %s /dev/null /dev/null /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+# RUN: %root/bin/revng pipe import-types %s /dev/null /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
 
 # NOTE: comments are intentionally missing from clift at this point!
 #      This test is verifying that they will not get introduced too early.

@@ -67,15 +67,14 @@ set(FILECHECK_TESTS
     clift/c-semantics/indirection-p32.mlir
     clift/canonicalization/label-with-goto.mlir
     clift/canonicalization/label-without-goto.mlir
-    # TODO: these tests fail and need to be fixed
-    # clift/comments/0-import-types/CABIFunctionType.yml
-    # clift/comments/0-import-types/EnumType.yml
-    # clift/comments/0-import-types/Extra.yml
-    # clift/comments/0-import-types/RawFunctionType.yml
-    # clift/comments/0-import-types/Segment.yml
-    # clift/comments/0-import-types/StructType.yml
-    # clift/comments/0-import-types/TypedefType.yml
-    # clift/comments/0-import-types/UnionType.yml
+    clift/comments/0-import-types/CABIFunctionType.yml
+    clift/comments/0-import-types/EnumType.yml
+    clift/comments/0-import-types/Extra.yml
+    clift/comments/0-import-types/RawFunctionType.yml
+    clift/comments/0-import-types/Segment.yml
+    clift/comments/0-import-types/StructType.yml
+    clift/comments/0-import-types/TypedefType.yml
+    clift/comments/0-import-types/UnionType.yml
     clift/comments/1-import-comments/CABIFunctionType.mlir
     clift/comments/1-import-comments/EnumType.mlir
     clift/comments/1-import-comments/Extra.mlir
