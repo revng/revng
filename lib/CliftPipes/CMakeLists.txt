@@ -7,6 +7,7 @@ revng_add_analyses_library_internal(
   CliftContainer.cpp
   Clifter.cpp
   EmitC.cpp
+  EmitCAsSingleFile.cpp
   Headers.cpp
   ImportDataModel.cpp
   ImportDescriptiveInfo.cpp

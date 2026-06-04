@@ -7,7 +7,6 @@
 
 #include "revng/Backend/DecompileFunction.h"
 #include "revng/Backend/EmitCAsDirectoryPipe.h"
-#include "revng/Backend/EmitCAsSingleFile.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/HeadersGeneration/Options.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
@@ -15,6 +14,27 @@
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Support/GzipTarFile.h"
 #include "revng/Support/ResourceFinder.h"
+
+static void printSingleCFile(ptml::ModelCBuilder &B,
+                             const revng::pipes::DecompileStringMap &Functions,
+                             const std::set<MetaAddress> &Targets) {
+  auto Scope = B.getScopeTag(ptml::tags::Div);
+  // Print headers
+  B.append(B.getIncludeQuote("types-and-globals.h")
+           + B.getIncludeQuote("helpers.h") + "\n");
+
+  if (Targets.empty()) {
+    // If Targets is empty print all the Functions' bodies
+    for (const auto &[MetaAddress, CFunction] : Functions)
+      B.append(CFunction + '\n');
+  } else {
+    // Otherwise only print the bodies of the Targets
+    auto End = Functions.end();
+    for (const auto &MetaAddress : Targets)
+      if (auto It = Functions.find(MetaAddress); It != End)
+        B.append(It->second + '\n');
+  }
+}
 
 namespace revng::pipes {
 
