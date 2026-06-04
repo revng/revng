@@ -1,7 +1,7 @@
 #
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
-# RUN: %root/bin/revng pipe import-types %s /dev/null /dev/null /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+# RUN: %root/bin/revng pipe import-segment-declarations %s /dev/null /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
 
 # NOTE: comments are intentionally missing from clift at this point!
 #      This test is verifying that they will not get introduced too early.
@@ -9,8 +9,11 @@
 #      `import-comments` test reusing this model file (it has the same name).
 
 Segments:
-  # CHECK: module attributes {clift.module, clift.test = []} {
-  # CHECK-NOT:   clift.global
+  # CHECK: module attributes {clift.module} {
+  # CHECK:   clift.global @"0x4:Generic64-64" : !clift.array<64 x !uint8_t>
+  # CHECK:   attributes {
+  # CHECK:     handle = "/segment/0x4:Generic64-64"
+  # CHECK:   }
   # CHECK: }
   - StartAddress: "0x4:Generic64"
     VirtualSize: 0x40
