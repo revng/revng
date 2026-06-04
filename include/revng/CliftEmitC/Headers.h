@@ -23,8 +23,7 @@ void emitTypes(ptml::CTokenEmitter &Tokens,
 
 void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
                              mlir::ModuleOp Module,
-                             TypeEmitterConfiguration Configuration,
-                             bool DefineOpaqueTypes = true);
+                             TypeEmitterConfiguration Configuration);
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
                       llvm::ArrayRef<mlir::ModuleOp> Modules,
