@@ -57,10 +57,7 @@ static void emitTypeAndGlobalHeaderImpl(llvm::raw_ostream &Out,
                              PipeCfg && PipeCfg->DisableMarkup ?
                                ptml::Tagging::Disabled :
                                ptml::Tagging::Enabled);
-  emitTypeAndGlobalHeader(Tokens,
-                          Module,
-                          Configuration,
-                          /* DefineOpaqueTypes = */ true);
+  emitTypeAndGlobalHeader(Tokens, Module, Configuration);
 
   Out.flush();
 }

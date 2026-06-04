@@ -259,8 +259,7 @@ void emitTypes(ptml::CTokenEmitter &Tokens,
 
 void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
                              mlir::ModuleOp Module,
-                             TypeEmitterConfiguration Configuration,
-                             bool DefineOpaqueTypes) {
+                             TypeEmitterConfiguration Configuration) {
   CHeaderEmitterImpl Emitter(Tokens,
                              clift::getDataModel(Module),
                              Configuration);
@@ -273,10 +272,8 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
   Emitter.emitFunctions(Module);
   Emitter.emitDynamicFunctions(Module);
   Emitter.emitSegments(Module);
-
-  if (DefineOpaqueTypes)
-    Emitter.emitOpaqueTypes(*Module.getContext(),
-                            Emitter.collectOpaqueByteSizes({ Module }));
+  Emitter.emitOpaqueTypes(*Module.getContext(),
+                          Emitter.collectOpaqueByteSizes({ Module }));
 }
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
