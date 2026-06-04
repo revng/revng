@@ -9,7 +9,9 @@
 #      `import-comments` test reusing this model file (it has the same name).
 
 Segments:
-  # CHECK: module attributes {clift.module} {
+  # CHECK: module attributes {
+  # CHECK:   clift.module
+  # CHECK: } {
   # CHECK:   clift.global @"0x4:Generic64-64" : !clift.array<64 x !uint8_t>
   # CHECK:   attributes {
   # CHECK:     handle = "/segment/0x4:Generic64-64"

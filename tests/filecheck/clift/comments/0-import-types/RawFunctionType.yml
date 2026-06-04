@@ -35,10 +35,14 @@ TypeDefinitions:
   # CHECK:     >
   # CHECK:   ]
   # CHECK: >
-  # CHECK:     module attributes {clift.module, clift.test = [
-  # CHECK-DAG: !_type_definition_1_StructDefinition
-  # CHECK-DAG: !_type_definition_0_RawFunctionDefinition
-  # CHECK:     ]} {
+
+  # CHECK:     module attributes {
+  # CHECK:       clift.module
+  # CHECK:       clift.types = [
+  # CHECK-DAG:     !_type_definition_1_StructDefinition
+  # CHECK-DAG:     !_type_definition_0_RawFunctionDefinition
+  # CHECK:       ]
+  # CHECK:     } {
   # CHECK-NOT:   clift.function
   # CHECK:     }
   - ID: 0
