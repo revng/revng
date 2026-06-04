@@ -6,8 +6,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/Backend/DecompileFunction.h"
-#include "revng/Backend/DecompileToDirectoryPipe.h"
-#include "revng/Backend/DecompileToSingleFile.h"
+#include "revng/Backend/EmitCAsDirectoryPipe.h"
+#include "revng/Backend/EmitCAsSingleFile.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/HeadersGeneration/Options.h"
 #include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
@@ -22,10 +22,10 @@ using namespace pipeline;
 
 static RegisterDefaultConstructibleContainer<RecompilableArchiveContainer> Reg;
 
-void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
-                               pipeline::LLVMContainer &IRContainer,
-                               const revng::pipes::CFGMap &CFGMap,
-                               RecompilableArchiveContainer &OutTarFile) {
+void EmitCAsDirectory::run(pipeline::ExecutionContext &EC,
+                           pipeline::LLVMContainer &IRContainer,
+                           const revng::pipes::CFGMap &CFGMap,
+                           RecompilableArchiveContainer &OutTarFile) {
 
   std::error_code ErrorCode;
   llvm::raw_fd_ostream OutputStream{ OutTarFile.getOrCreatePath(), ErrorCode };
@@ -139,4 +139,4 @@ void DecompileToDirectory::run(pipeline::ExecutionContext &EC,
 
 } // end namespace revng::pipes
 
-static pipeline::RegisterPipe<revng::pipes::DecompileToDirectory> Y;
+static pipeline::RegisterPipe<revng::pipes::EmitCAsDirectory> Y;

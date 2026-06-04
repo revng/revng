@@ -2,8 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Backend/DecompileToSingleFile.h"
-#include "revng/Backend/DecompileToSingleFilePipe.h"
+#include "revng/Backend/EmitCAsSingleFile.h"
+#include "revng/Backend/EmitCAsSingleFilePipe.h"
 #include "revng/HeadersGeneration/Options.h"
 #include "revng/Pipeline/AllRegistries.h"
 #include "revng/Pipeline/RegisterContainerFactory.h"
@@ -19,9 +19,9 @@ static pipeline::RegisterDefaultConstructibleContainer<DecompiledFileContainer>
   Reg;
 
 using Container = DecompileStringMap;
-void DecompileToSingleFile::run(pipeline::ExecutionContext &EC,
-                                const Container &DecompiledFunctions,
-                                DecompiledFileContainer &OutCFile) {
+void EmitCAsSingleFile::run(pipeline::ExecutionContext &EC,
+                            const Container &DecompiledFunctions,
+                            DecompiledFileContainer &OutCFile) {
 
   llvm::raw_string_ostream Out = OutCFile.asStream();
 
@@ -47,4 +47,4 @@ void DecompileToSingleFile::run(pipeline::ExecutionContext &EC,
 
 } // end namespace revng::pipes
 
-static pipeline::RegisterPipe<revng::pipes::DecompileToSingleFile> Y;
+static pipeline::RegisterPipe<revng::pipes::EmitCAsSingleFile> Y;

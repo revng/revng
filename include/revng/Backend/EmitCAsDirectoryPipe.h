@@ -27,9 +27,9 @@ using RecompilableArchiveContainer = FileContainer<
   RecompilableArchiveMime,
   RecompilableArchiveExtension>;
 
-class DecompileToDirectory {
+class EmitCAsDirectory {
 public:
-  static constexpr auto Name = "decompile-to-directory";
+  static constexpr auto Name = "emit-c-as-directory";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;

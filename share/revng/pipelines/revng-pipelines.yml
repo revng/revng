@@ -538,7 +538,7 @@ Branches:
               Rename the specified function(s) bodies using an LLM
       - Name: decompile-to-single-file
         Pipes:
-          - Type: decompile-to-single-file
+          - Type: emit-c-as-single-file
             UsedContainers: [decompiled.tar.gz, decompiled.c]
         Artifacts:
           Container: decompiled.c
@@ -552,7 +552,7 @@ Branches:
     Steps:
       - Name: emit-recompilable-archive
         Pipes:
-          - Type: decompile-to-directory
+          - Type: emit-c-as-directory
             UsedContainers: [functions.bc.zstd, cfg.yml.tar.gz, recompilable-archive.tar.gz]
         Artifacts:
           Container: recompilable-archive.tar.gz
@@ -721,7 +721,7 @@ Branches:
             program.
       - Name: emit-c-as-single-file
         Pipes:
-          - Type: decompile-to-single-file
+          - Type: emit-c-as-single-file
             UsedContainers: [decompiled.tar.gz, decompiled.c]
         Artifacts:
           Container: decompiled.c

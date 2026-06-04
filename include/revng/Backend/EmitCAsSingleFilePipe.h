@@ -27,9 +27,9 @@ using DecompiledFileContainer = StringBufferContainer<&kinds::DecompiledToC,
                                                       DecompiledMIMEType,
                                                       DecompiledSuffix>;
 
-class DecompileToSingleFile {
+class EmitCAsSingleFile {
 public:
-  static constexpr auto Name = "decompile-to-single-file";
+  static constexpr auto Name = "emit-c-as-single-file";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
