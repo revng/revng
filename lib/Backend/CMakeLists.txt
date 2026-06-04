@@ -3,13 +3,8 @@
 #
 
 revng_add_analyses_library_internal(
-  revngBackend
-  ALAPVariableDeclaration.cpp
-  DecompilePipe.cpp
-  DecompileFunction.cpp
-  EmitCAsDirectoryPipe.cpp
-  EmitCAsSingleFile.cpp
-  EmitCAsSingleFilePipe.cpp)
+  revngBackend ALAPVariableDeclaration.cpp DecompilePipe.cpp
+  DecompileFunction.cpp EmitCAsDirectoryPipe.cpp)
 
 target_link_libraries(
   revngBackend

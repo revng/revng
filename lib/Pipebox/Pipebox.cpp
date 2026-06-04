@@ -4,11 +4,11 @@
 
 #include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
 #include "revng/ABI/Analyses/ConvertFunctionsToRaw.h"
-#include "revng/Backend/EmitCAsSingleFile.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/Clifter.h"
 #include "revng/CliftPipes/EmitC.h"
+#include "revng/CliftPipes/EmitCAsSingleFile.h"
 #include "revng/CliftPipes/Headers.h"
 #include "revng/CliftPipes/ImportDataModel.h"
 #include "revng/CliftPipes/ImportDescriptiveInfo.h"
