@@ -4,7 +4,7 @@
 
 #include "llvm/Support/raw_ostream.h"
 
-#include "revng/Backend/DecompileToSingleFile.h"
+#include "revng/Backend/EmitCAsSingleFile.h"
 #include "revng/TypeNames/ModelCBuilder.h"
 
 using namespace revng::pipes;
@@ -32,16 +32,15 @@ void printSingleCFile(ptml::ModelCBuilder &B,
 
 namespace revng::pypeline::piperuns {
 
-DecompileToSingleFile::DecompileToSingleFile(const class Model &Model,
-                                             llvm::StringRef Config,
-                                             llvm::StringRef DynamicConfig,
-                                             const PTMLCFunctionBytesContainer
-                                               &Input,
-                                             PTMLCBytesContainer &Output) :
+EmitCAsSingleFile::EmitCAsSingleFile(const class Model &Model,
+                                     llvm::StringRef Config,
+                                     llvm::StringRef DynamicConfig,
+                                     const PTMLCFunctionBytesContainer &Input,
+                                     PTMLCBytesContainer &Output) :
   Binary(*Model.get().get()), Input(Input), Output(Output) {
 }
 
-void DecompileToSingleFile::run() {
+void EmitCAsSingleFile::run() {
   auto Out = Output.getOStream(ObjectID());
   ptml::ModelCBuilder B(*Out,
                         Binary,

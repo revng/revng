@@ -4,7 +4,7 @@
 
 #include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
 #include "revng/ABI/Analyses/ConvertFunctionsToRaw.h"
-#include "revng/Backend/DecompileToSingleFile.h"
+#include "revng/Backend/EmitCAsSingleFile.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/Clifter.h"
@@ -121,7 +121,7 @@ static RegisterPipe<PureMLIRPassesPipe> P28;
 static RegisterSingleOutputPipeRun<VerifyAgainstModel> P29;
 static RegisterSingleOutputPipeRun<ImportDescriptiveInfo> P30;
 static RegisterFunctionPipeRun<EmitC> P31;
-static RegisterSingleOutputPipeRun<DecompileToSingleFile> P32;
+static RegisterSingleOutputPipeRun<EmitCAsSingleFile> P32;
 static RegisterSingleOutputPipeRun<MergeLLVMModules> P33;
 static RegisterSingleOutputPipeRun<CleanupIR> P34;
 static RegisterSingleOutputPipeRun<ProcessCallGraph> P35;

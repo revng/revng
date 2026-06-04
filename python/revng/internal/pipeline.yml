@@ -438,7 +438,7 @@ branches:
           - analysis: llm-rename
             containers: [decompile-c]
 
-      - pipe: decompile-to-single-file
+      - pipe: emit-c-as-single-file
         arguments: [decompile-c, decompiled-single-file]
       - savepoint: emit-c-as-single-file
         containers: [decompiled-single-file]

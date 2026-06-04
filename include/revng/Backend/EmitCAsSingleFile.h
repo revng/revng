@@ -26,14 +26,14 @@ namespace revng::pypeline {
 
 namespace piperuns {
 
-class DecompileToSingleFile {
+class EmitCAsSingleFile {
 private:
   const model::Binary &Binary;
   const PTMLCFunctionBytesContainer &Input;
   PTMLCBytesContainer &Output;
 
 public:
-  static constexpr llvm::StringRef Name = "decompile-to-single-file";
+  static constexpr llvm::StringRef Name = "emit-c-as-single-file";
   using Arguments = TypeList<PipeRunArgument<const PTMLCFunctionBytesContainer,
                                              "DecompiledFunctions",
                                              "Input decompiled function">,
@@ -42,11 +42,11 @@ public:
                                              "Output single C+PTML",
                                              Access::Write>>;
 
-  DecompileToSingleFile(const Model &Model,
-                        llvm::StringRef Config,
-                        llvm::StringRef DynamicConfig,
-                        const PTMLCFunctionBytesContainer &Input,
-                        PTMLCBytesContainer &Output);
+  EmitCAsSingleFile(const Model &Model,
+                    llvm::StringRef Config,
+                    llvm::StringRef DynamicConfig,
+                    const PTMLCFunctionBytesContainer &Input,
+                    PTMLCBytesContainer &Output);
 
   void run();
 };
