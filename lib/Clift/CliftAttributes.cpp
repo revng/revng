@@ -795,10 +795,15 @@ StructAttr StructAttr::get(mlir::MLIRContext *Context,
                            llvm::StringRef Handle,
                            const ClassDefinition &Definition) {
   auto Attr = Base::get(Context, Handle);
+
   auto R = Attr.Base::mutate(Definition);
-  revng_assert(R.succeeded(),
-               "Attempted to mutate the definition of an already defined "
-               "struct attribute.");
+  if (not R.succeeded()) {
+    std::string Error = "Attempted to mutate the definition of an already "
+                        "defined struct attribute: '"
+                        + Handle.str() + "'.";
+    revng_abort(Error.c_str());
+  }
+
   return Attr;
 }
 
@@ -908,9 +913,13 @@ UnionAttr UnionAttr::get(mlir::MLIRContext *Context,
   }
 
   auto R = Attr.Base::mutate(MutableDefinition);
-  revng_assert(R.succeeded(),
-               "Attempted to mutate the definition of an already defined "
-               "union attribute.");
+  if (not R.succeeded()) {
+    std::string Error = "Attempted to mutate the definition of an already "
+                        "defined union attribute: '"
+                        + Handle.str() + "'.";
+    revng_abort(Error.c_str());
+  }
+
   return Attr;
 }
 
