@@ -259,10 +259,12 @@ const std::set<llvm::StringRef> ReservedKeywords = {
   "alignof",
   "bool",
   "complex",
+  "false",
   "imaginary",
   "noreturn",
   "static_assert",
   "thread_local",
+  "true",
 
   // Common C stdlib names
   "assert",
