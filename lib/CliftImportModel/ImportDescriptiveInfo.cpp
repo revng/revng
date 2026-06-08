@@ -571,9 +571,12 @@ private:
   }
 
 public:
-  mlir::LogicalResult visitFunctionOp(clift::FunctionOp Op) {
-    CurrentFunction.reset();
-
+  // Record the descriptive info for the given function op, without touching
+  // the `CurrentFunction` state used by the body walk. This is the part of
+  // the work that can be performed for any function op the importer comes
+  // across (the current function, a sibling declaration, a callee reached
+  // through a `clift::UseOp`, ...).
+  mlir::LogicalResult recordFunctionOpName(clift::FunctionOp Op) {
     if (auto Pair = getModelFunction(Op.getHandle())) {
       auto &[L, MF] = *Pair;
       const auto *Prototype = Model.prototypeOrDefault(MF.prototype());
@@ -582,9 +585,6 @@ public:
                                  Prototype,
                                  NameBuilder.name(MF),
                                  MF.Comment());
-
-      if (not Op.getBody().empty())
-        CurrentFunction.emplace(*this, Op, std::move(L), MF);
 
       return mlir::success();
     }
@@ -608,6 +608,21 @@ public:
     }
 
     revng_abort("Invalid function handle");
+  }
+
+  mlir::LogicalResult visitFunctionOp(clift::FunctionOp Op) {
+    CurrentFunction.reset();
+
+    if (recordFunctionOpName(Op).failed())
+      return mlir::failure();
+
+    if (auto Pair = getModelFunction(Op.getHandle())) {
+      auto &[L, MF] = *Pair;
+      if (not Op.getBody().empty())
+        CurrentFunction.emplace(*this, Op, std::move(L), MF);
+    }
+
+    return mlir::success();
   }
 
   mlir::LogicalResult visitGlobalVariableOp(clift::GlobalVariableOp Op) {
