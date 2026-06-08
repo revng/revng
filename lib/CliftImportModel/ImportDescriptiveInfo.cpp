@@ -625,7 +625,11 @@ public:
     return mlir::success();
   }
 
-  mlir::LogicalResult visitGlobalVariableOp(clift::GlobalVariableOp Op) {
+  // Record the descriptive info for the given global variable op. Mirrors
+  // recordFunctionOpName: contains no per-function state and is therefore
+  // safe to call from any visit context (module level or while walking a
+  // function body following a clift::UseOp).
+  mlir::LogicalResult recordGlobalVariableOpName(clift::GlobalVariableOp Op) {
     if (const model::Segment *Segment = getModelSegment(Op)) {
       Symbols.record(Op, NameBuilder.name(Model, *Segment));
 
@@ -638,6 +642,10 @@ public:
     }
 
     revng_abort("Invalid global variable handle");
+  }
+
+  mlir::LogicalResult visitGlobalVariableOp(clift::GlobalVariableOp Op) {
+    return recordGlobalVariableOpName(Op);
   }
 
   //===-------------------------- Comment import --------------------------===//
