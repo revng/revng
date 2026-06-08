@@ -20,15 +20,13 @@ PrototypeImporter::prototype(const AttributesSet &Attributes,
     return Summary;
 
   // Drop known to be preserved registers from `Summary.ClobberedRegisters`.
-  auto TransformToCSV = std::views::transform([this](Register Register) {
-    return M.getGlobalVariable(model::Register::getCSVName(Register), true);
-  });
-  auto IgnoreNullptr = std::views::filter([](const auto *Pointer) -> bool {
-    return Pointer != nullptr;
-  });
-  for (auto *CSV : abi::FunctionType::calleeSavedRegisters(*Prototype)
-                     | TransformToCSV | IgnoreNullptr) {
-    Summary.ClobberedRegisters.erase(CSV);
+  for (Register CalleeSavedRegister :
+       abi::FunctionType::calleeSavedRegisters(*Prototype)) {
+    for (const model::Register::CSV &RegisterCSV :
+         model::Register::getCSVs(CalleeSavedRegister)) {
+      if (auto *CSV = M.getGlobalVariable(RegisterCSV.Name, true))
+        Summary.ClobberedRegisters.erase(CSV);
+    }
   }
 
   // Stop importing prototype here, if `ClobberedRegisters` is the only
@@ -50,15 +48,21 @@ PrototypeImporter::prototype(const AttributesSet &Attributes,
   auto &&[ArgumentRegisters,
           ReturnValueRegisters] = abi::FunctionType::usedRegisters(*Prototype);
   for (Register ArgumentRegister : ArgumentRegisters) {
-    auto Name = model::Register::getCSVName(ArgumentRegister);
-    if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-      Summary.ABIResults.ArgumentsRegisters.insert(CSV);
+    for (const model::Register::CSV &RegisterCSV :
+         model::Register::getCSVs(ArgumentRegister)) {
+      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(RegisterCSV.Name,
+                                                          true))
+        Summary.ABIResults.ArgumentsRegisters.insert(CSV);
+    }
   }
 
   for (Register ReturnValueRegister : ReturnValueRegisters) {
-    auto Name = model::Register::getCSVName(ReturnValueRegister);
-    if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true))
-      Summary.ABIResults.ReturnValuesRegisters.insert(CSV);
+    for (const model::Register::CSV &RegisterCSV :
+         model::Register::getCSVs(ReturnValueRegister)) {
+      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(RegisterCSV.Name,
+                                                          true))
+        Summary.ABIResults.ReturnValuesRegisters.insert(CSV);
+    }
   }
 
   // This point is only ever reached on the "full" import (like the one
