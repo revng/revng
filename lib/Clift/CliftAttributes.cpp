@@ -111,14 +111,6 @@ MutableStringAttr MutableStringAttr::get(mlir::MLIRContext *Context,
   return Base::get(Context, Key);
 }
 
-MutableStringAttr MutableStringAttr::get(mlir::MLIRContext *Context,
-                                         mlir::Attribute Key,
-                                         llvm::StringRef Value) {
-  auto Attr = get(Context, Key);
-  Attr.setValue(Value);
-  return Attr;
-}
-
 mlir::Attribute MutableStringAttr::getKey() const {
   return getImpl()->getKey();
 }
