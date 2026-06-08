@@ -45,9 +45,11 @@ GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
     RA = M.getGlobalVariable(singleCSVName(ReturnAddressRegister), true);
 
   for (model::Register::Values Register : registers(Architecture)) {
-    GlobalVariable *CSV = M.getGlobalVariable(getCSVName(Register), true);
-    ABIRegisters.push_back(CSV);
-    ABIRegistersSet.insert(CSV);
+    for (const model::Register::CSV &RegisterCSV : getCSVs(Register)) {
+      GlobalVariable *CSV = M.getGlobalVariable(RegisterCSV.Name, true);
+      ABIRegisters.push_back(CSV);
+      ABIRegistersSet.insert(CSV);
+    }
   }
 
   Type *PCType = PC->getValueType();
