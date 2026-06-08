@@ -666,3 +666,23 @@ std::pair<model::Segment *, uint64_t>
 model::Binary::getSegmentFor(const MetaAddress &Address) {
   return getSegmentForImpl(*this, Address);
 }
+
+std::vector<model::Register::CSV> model::Register::getCSVs(Values V) {
+  // Every register currently maps to exactly one CSV, covering the whole
+  // register. Registers spanning multiple CSVs (e.g. a 512-bit `zmm`) will
+  // return more than one entry.
+  return { { getCSVName(V), 0, model::Register::getSize(V) } };
+}
+
+model::Register::RegisterPortion
+model::Register::registerPortionFromCSVName(llvm::StringRef Name,
+                                            model::Architecture::Values
+                                              Architecture) {
+  // Each CSV currently covers a whole register, so the portion always starts
+  // at offset 0 and spans the full register.
+  model::Register::Values Register = fromCSVName(Name, Architecture);
+  uint64_t Size = Register == model::Register::Invalid ?
+                    0 :
+                    model::Register::getSize(Register);
+  return { Register, 0, Size };
+}

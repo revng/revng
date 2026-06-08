@@ -4,6 +4,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <string>
+#include <vector>
+
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Triple.h"
 
@@ -474,6 +477,46 @@ std::string getCSVName(Values V);
 
 Values fromCSVName(llvm::StringRef Name,
                    model::Architecture::Values Architecture);
+
+/// One of the CSVs (the LLVM globals representing slices of CPU state)
+/// composing a register, identified by its name plus its placement within
+/// the register.
+///
+/// `StartOffset` is the byte offset of this CSV within the register and
+/// `Size` its size in bytes. A register composed of a single CSV has
+/// `StartOffset == 0` and `Size == getSize(Register)`. Registers spanning
+/// multiple CSVs (e.g. a 512-bit `zmm`) are described by several `CSV`
+/// entries covering consecutive portions.
+struct CSV {
+  std::string Name;
+  uint64_t StartOffset;
+  uint64_t Size;
+};
+
+/// \return the ordered list of CSVs composing register \p V.
+///
+/// Every register currently maps to exactly one CSV, so the returned vector
+/// always holds a single element. This will change once registers spanning
+/// multiple CSVs are represented.
+std::vector<CSV> getCSVs(Values V);
+
+/// The portion of a register a given CSV covers: the register it belongs to,
+/// the byte offset of the CSV within it and the CSV size in bytes.
+struct RegisterPortion {
+  Values Register;
+  uint64_t StartOffset;
+  uint64_t Size;
+};
+
+/// \return the register a CSV belongs to and the portion of it the CSV
+///         covers.
+///
+/// The `Register` field is `Invalid` when \p Name is not a known register
+/// CSV. Each CSV currently covers a whole register, so `StartOffset` is
+/// always 0 and `Size` equals the register size.
+RegisterPortion
+registerPortionFromCSVName(llvm::StringRef Name,
+                           model::Architecture::Values Architecture);
 
 constexpr inline model::PrimitiveKind::Values primitiveKind(Values V) {
   switch (V) {
