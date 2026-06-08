@@ -674,6 +674,13 @@ std::vector<model::Register::CSV> model::Register::getCSVs(Values V) {
   return { { getCSVName(V), 0, model::Register::getSize(V) } };
 }
 
+std::string model::Register::singleCSVName(Values V) {
+  std::vector<CSV> CSVs = getCSVs(V);
+  revng_assert(CSVs.size() == 1,
+               "singleCSVName called on a register composed of multiple CSVs");
+  return CSVs.front().Name;
+}
+
 model::Register::RegisterPortion
 model::Register::registerPortionFromCSVName(llvm::StringRef Name,
                                             model::Architecture::Values

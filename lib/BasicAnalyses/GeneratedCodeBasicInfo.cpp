@@ -39,10 +39,10 @@ GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
   using namespace model::Architecture;
   auto Architecture = Binary.Architecture();
   PC = M.getGlobalVariable(getPCCSVName(Architecture), true);
-  SP = M.getGlobalVariable(getCSVName(getStackPointer(Architecture)), true);
+  SP = M.getGlobalVariable(singleCSVName(getStackPointer(Architecture)), true);
   auto ReturnAddressRegister = getReturnAddressRegister(Architecture);
   if (ReturnAddressRegister != model::Register::Invalid)
-    RA = M.getGlobalVariable(getCSVName(ReturnAddressRegister), true);
+    RA = M.getGlobalVariable(singleCSVName(ReturnAddressRegister), true);
 
   for (model::Register::Values Register : registers(Architecture)) {
     GlobalVariable *CSV = M.getGlobalVariable(getCSVName(Register), true);

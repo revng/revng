@@ -500,6 +500,13 @@ struct CSV {
 /// multiple CSVs are represented.
 std::vector<CSV> getCSVs(Values V);
 
+/// \return the name of the single CSV composing register \p V.
+///
+/// Aborts if \p V is composed of more than one CSV. Use only for registers
+/// known to map to exactly one CSV (e.g. the stack pointer or the program
+/// counter).
+std::string singleCSVName(Values V);
+
 /// The portion of a register a given CSV covers: the register it belongs to,
 /// the byte offset of the CSV within it and the CSV size in bytes.
 struct RegisterPortion {
