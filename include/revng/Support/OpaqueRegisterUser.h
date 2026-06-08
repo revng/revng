@@ -66,14 +66,6 @@ public:
     return writeImpl(Builder, CSV, "write_", Writers);
   }
 
-  llvm::StoreInst *write(revng::IRBuilder &Builder,
-                         model::Register::Values Value) {
-    if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
-      return write(Builder, CSV);
-    else
-      return nullptr;
-  }
-
   llvm::Instruction *read(revng::IRBuilder &Builder,
                           llvm::GlobalVariable *CSV) {
     auto *CSVTy = CSV->getValueType();
@@ -90,14 +82,6 @@ public:
     Created.push_back(Load);
 
     return OpaqueCall;
-  }
-
-  llvm::Instruction *read(revng::IRBuilder &Builder,
-                          model::Register::Values Value) {
-    if (auto *CSV = M->getGlobalVariable(model::Register::getCSVName(Value)))
-      return read(Builder, CSV);
-    else
-      return nullptr;
   }
 
   void purgeCreated() {
