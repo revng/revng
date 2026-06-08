@@ -5,6 +5,7 @@
 #include <ranges>
 #include <type_traits>
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
 
 #include "mlir/IR/RegionGraphTraits.h"
@@ -110,7 +111,24 @@ public:
 class SymbolRenamer {
   llvm::DenseMap<llvm::StringRef, std::string> Map;
 
+  // Set of module-level ops whose descriptive info has already been
+  // recorded. Lives here (and not on the Importer) because a single
+  // importDescriptiveInfo invocation may construct several Importer
+  // instances (e.g. the per-function overload visits the current
+  // function, then each helper/global, then any callee reached through a
+  // clift::UseOp); the dedup gate must be shared across all of them so
+  // that the same target is not recorded twice.
+  llvm::DenseSet<mlir::Operation *> RecordedTargets;
+
 public:
+  // Mark `Op` as recorded; return true if this is the first time it is
+  // seen during the current importDescriptiveInfo call, false otherwise.
+  // Callers that perform per-op work (prototype attributes, comments,
+  // ...) should use this to gate that work so it only happens once.
+  bool markRecorded(clift::GlobalOpInterface Op) {
+    return RecordedTargets.insert(Op.getOperation()).second;
+  }
+
   void record(clift::GlobalOpInterface Op, llvm::StringRef NewName) {
     auto [Iterator, Inserted] = Map.try_emplace(Op.getName(), NewName.str());
     revng_assert(Inserted);
@@ -576,7 +594,12 @@ public:
   // the work that can be performed for any function op the importer comes
   // across (the current function, a sibling declaration, a callee reached
   // through a `clift::UseOp`, ...).
+  //
+  // Idempotent: a second call on the same op is a no-op.
   mlir::LogicalResult recordFunctionOpName(clift::FunctionOp Op) {
+    if (not Symbols.markRecorded(Op))
+      return mlir::success();
+
     if (auto Pair = getModelFunction(Op.getHandle())) {
       auto &[L, MF] = *Pair;
       const auto *Prototype = Model.prototypeOrDefault(MF.prototype());
@@ -629,7 +652,12 @@ public:
   // recordFunctionOpName: contains no per-function state and is therefore
   // safe to call from any visit context (module level or while walking a
   // function body following a clift::UseOp).
+  //
+  // Idempotent: a second call on the same op is a no-op.
   mlir::LogicalResult recordGlobalVariableOpName(clift::GlobalVariableOp Op) {
+    if (not Symbols.markRecorded(Op))
+      return mlir::success();
+
     if (const model::Segment *Segment = getModelSegment(Op)) {
       Symbols.record(Op, NameBuilder.name(Model, *Segment));
 
