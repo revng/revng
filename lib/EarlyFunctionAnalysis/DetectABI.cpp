@@ -617,8 +617,13 @@ void DetectABI::applyABIDeductions() {
     abi::Definition::RegisterSet RValues;
     model::Architecture::Values Architecture = Binary->Architecture();
     for (const auto &Register : model::Architecture::registers(Architecture)) {
-      auto Name = model::Register::singleCSVName(Register);
-      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
+      for (const model::Register::CSV &RegisterCSV :
+           model::Register::getCSVs(Register)) {
+        llvm::GlobalVariable *CSV = M.getGlobalVariable(RegisterCSV.Name, true);
+        if (CSV == nullptr)
+          continue;
+
+        // A register is an argument or a return value if any of its CSVs is.
         if (Summary.ABIResults.ArgumentsRegisters.contains(CSV))
           Arguments.emplace(Register);
 
@@ -645,8 +650,12 @@ void DetectABI::applyABIDeductions() {
     efa::CSVSet ResultingArguments;
     efa::CSVSet ResultingReturnValues;
     for (const auto &Register : model::Architecture::registers(Architecture)) {
-      auto Name = model::Register::singleCSVName(Register);
-      if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
+      for (const model::Register::CSV &RegisterCSV :
+           model::Register::getCSVs(Register)) {
+        llvm::GlobalVariable *CSV = M.getGlobalVariable(RegisterCSV.Name, true);
+        if (CSV == nullptr)
+          continue;
+
         if (Arguments.contains(Register))
           ResultingArguments.insert(CSV);
         if (RValues.contains(Register))
