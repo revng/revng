@@ -93,14 +93,12 @@ private:
   }
 
   template<typename KeyT>
-  clift::MutableStringAttr
-  makeNameAttr(llvm::StringRef Handle, llvm::StringRef Name = {}) {
-    return clift::makeNameAttr<KeyT>(Context, Handle, Name);
+  clift::MutableStringAttr makeNameAttr(llvm::StringRef Handle) {
+    return clift::makeNameAttr<KeyT>(Context, Handle);
   }
   template<typename KeyT>
-  clift::MutableStringAttr
-  makeCommentAttr(llvm::StringRef Handle, llvm::StringRef Comment = {}) {
-    return clift::makeCommentAttr<KeyT>(Context, Handle, Comment);
+  clift::MutableStringAttr makeCommentAttr(llvm::StringRef Handle) {
+    return clift::makeCommentAttr<KeyT>(Context, Handle);
   }
 
   static clift::IntegerKind
