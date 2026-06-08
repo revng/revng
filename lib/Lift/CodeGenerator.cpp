@@ -222,8 +222,6 @@ void CodeGenerator::translate(LibTcg &LibTcg,
   //
   // Create well-known CSVs
   //
-  auto SP = model::Architecture::getStackPointer(Model->Architecture());
-  std::string SPName = model::Register::singleCSVName(SP);
   GlobalVariable *SPReg = Variables.getByEnvOffset(ArchInfo.sp).first;
 
   using PCHOwner = std::unique_ptr<ProgramCounterHandler>;

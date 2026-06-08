@@ -225,8 +225,6 @@ private:
   model::UpcastableType
   buildPrototypeForIndirectCall(const FunctionSummary &CallerSummary,
                                 const efa::BasicBlock &CallerBlock);
-
-  bool getRegisterState(model::Register::Values, const CSVSet &);
 };
 
 void DetectABI::computeApproximateCallGraph() {
@@ -936,17 +934,6 @@ static void combineCrossCallSites(auto &CallSite, auto &Callee) {
   for (auto *CSV : CallSite.ArgumentsRegisters) {
     Callee.ArgumentsRegisters.insert(CSV);
   }
-}
-
-bool DetectABI::getRegisterState(model::Register::Values RegisterValue,
-                                 const CSVSet &ABIRegisterMap) {
-
-  auto Name = model::Register::singleCSVName(RegisterValue);
-  if (llvm::GlobalVariable *CSV = M.getGlobalVariable(Name, true)) {
-    return ABIRegisterMap.contains(CSV);
-  }
-
-  return false;
 }
 
 CSVSet DetectABI::findWrittenRegisters(llvm::Function *F) {
