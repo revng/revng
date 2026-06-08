@@ -253,6 +253,33 @@ public:
     if (auto S = mlir::dyn_cast<clift::StatementOpInterface>(Op))
       return visitStatementOp(S);
 
+    if (auto U = mlir::dyn_cast<clift::UseOp>(Op))
+      return visitUseOp(U);
+
+    return mlir::success();
+  }
+
+  // Resolve the symbol referenced by `Use` to its definition in the
+  // enclosing module and record the descriptive info for that target.
+  //
+  // This is what guarantees that a function whose body contains
+  // references to other functions or to global variables also causes
+  // those callees to be renamed by the SymbolRenamer at the end of
+  // importDescriptiveInfo, without the per-function variant having to
+  // pre-walk every sibling module-level op.
+  mlir::LogicalResult visitUseOp(clift::UseOp Use) {
+    auto Module = Use->getParentOfType<mlir::ModuleOp>();
+    revng_assert(Module);
+
+    mlir::Operation *Target = //
+      mlir::SymbolTable::lookupSymbolIn(Module, Use.getSymbolNameAttr());
+
+    if (auto F = mlir::dyn_cast_or_null<clift::FunctionOp>(Target))
+      return recordFunctionOpName(F);
+
+    if (auto G = mlir::dyn_cast_or_null<clift::GlobalVariableOp>(Target))
+      return recordGlobalVariableOpName(G);
+
     return mlir::success();
   }
 
