@@ -54,8 +54,9 @@ public:
   }
 
   void clobber(revng::IRBuilder &Builder, model::Register::Values Value) {
-    if (auto *CSV = M->getGlobalVariable(model::Register::singleCSVName(Value)))
-      clobber(Builder, CSV);
+    for (const model::Register::CSV &CSV : model::Register::getCSVs(Value))
+      if (auto *Variable = M->getGlobalVariable(CSV.Name))
+        clobber(Builder, Variable);
   }
 
   llvm::StoreInst *write(revng::IRBuilder &Builder, llvm::GlobalVariable *CSV) {
