@@ -54,12 +54,17 @@ public:
     return writeImpl(Builder, CSV, "clobber_", Clobberers);
   }
 
-  llvm::StoreInst *clobber(revng::IRBuilder &Builder,
-                           model::Register::Values Value) {
-    if (auto *CSV = M->getGlobalVariable(model::Register::singleCSVName(Value)))
-      return clobber(Builder, CSV);
-    else
-      return nullptr;
+  /// Clobbering a register clobbers every CSV composing it. Returns
+  /// the clobbering stores, one per CSV, since a register can be composed of
+  /// more than one CSV.
+  llvm::SmallVector<llvm::StoreInst *> clobber(revng::IRBuilder &Builder,
+                                               model::Register::Values Value) {
+    llvm::SmallVector<llvm::StoreInst *> Stores;
+    for (const model::Register::CSV &RegisterCSV :
+         model::Register::getCSVs(Value))
+      if (auto *CSV = M->getGlobalVariable(RegisterCSV.Name))
+        Stores.push_back(clobber(Builder, CSV));
+    return Stores;
   }
 
   llvm::StoreInst *write(revng::IRBuilder &Builder, llvm::GlobalVariable *CSV) {
