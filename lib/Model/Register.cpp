@@ -70,3 +70,19 @@ model::Register::fromCSVName(llvm::StringRef Name,
 }
 
 #undef UnknownCSVPrefix
+
+cppcoro::generator<model::Register::CSV> model::Register::getCSVs(Values V) {
+  // Every register currently maps to exactly one CSV.
+  co_yield CSV{ singleCSVName(V), 0, model::Register::getSize(V) };
+}
+
+// Each CSV currently covers a whole register, so the portion always starts
+// at offset 0 and spans the full register.
+model::Register::Portion::Portion(llvm::StringRef Name,
+                                  model::Architecture::Values A) :
+  Register(fromCSVName(Name, A)),
+  StartOffset(0),
+  Size(Register != model::Register::Invalid ?
+         model::Register::getSize(Register) :
+         0) {
+}
