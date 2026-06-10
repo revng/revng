@@ -299,7 +299,7 @@ bool DynamicFunction::verify(VerifyHelper &VH) const {
 
 static constexpr bool isValidPrimitiveSize(PrimitiveKind::Values Kind,
                                            uint8_t Size) {
-  constexpr std::array ValidGenericPrimitives{ 1, 2, 4, 8, 16 };
+  constexpr std::array ValidGenericPrimitives{ 1, 2, 4, 8, 16, 32, 64 };
   constexpr std::array ValidFloatPrimitives{ 2, 4, 8, 10, 12, 16 };
   // NOTE: We are supporting floats that are 10 bytes long, since we found such
   //       cases in some PDB files by using VS on Windows platforms. The source

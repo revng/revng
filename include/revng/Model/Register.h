@@ -292,6 +292,15 @@ inline uint64_t getSize(Values V) {
   switch (V) {
   case st0_x86:
     return 10;
+  case zmm0_x86_64:
+  case zmm1_x86_64:
+  case zmm2_x86_64:
+  case zmm3_x86_64:
+  case zmm4_x86_64:
+  case zmm5_x86_64:
+  case zmm6_x86_64:
+  case zmm7_x86_64:
+    return 64;
   case f0_mips:
   case f1_mips:
   case f2_mips:
@@ -329,7 +338,8 @@ inline uint64_t getSize(Values V) {
     break;
   }
 
-  // TODO: this does not account for vector registers, but it should eventually.
+  // TODO: this does not account for non-x86-64 vector registers, but it should
+  //       eventually.
   switch (Architecture) {
   case model::Architecture::x86:
   case model::Architecture::arm:
@@ -475,6 +485,12 @@ inline std::optional<unsigned> getMContextIndex(Values V) {
 
 std::string getCSVName(Values V);
 
+/// \return the register a CSV belongs to, or `Invalid` if unknown; for a
+///         single lane of a multi-CSV register (an x86-64 `zmm`), the whole
+///         owning register.
+///
+/// Thin wrapper over `registerPortionFromCSVName`, kept for callers that only
+/// need the register and not the portion.
 Values fromCSVName(llvm::StringRef Name,
                    model::Architecture::Values Architecture);
 
@@ -495,9 +511,9 @@ struct CSV {
 
 /// \return the ordered list of CSVs composing register \p V.
 ///
-/// Every register currently maps to exactly one CSV, so the returned vector
-/// always holds a single element. This will change once registers spanning
-/// multiple CSVs are represented.
+/// Most registers map to a single CSV. A register spanning multiple CSVs (an
+/// x86-64 `zmm`, laid out as eight 64-bit lanes) returns one entry per lane,
+/// in ascending offset order.
 std::vector<CSV> getCSVs(Values V);
 
 /// \return the name of the single CSV composing register \p V.
@@ -519,8 +535,9 @@ struct RegisterPortion {
 ///         covers.
 ///
 /// The `Register` field is `Invalid` when \p Name is not a known register
-/// CSV. Each CSV currently covers a whole register, so `StartOffset` is
-/// always 0 and `Size` equals the register size.
+/// CSV. For a single-CSV register `StartOffset` is 0 and `Size` is the whole
+/// register; for a lane of a multi-CSV register (an x86-64 `zmm`) they locate
+/// the lane within the register.
 RegisterPortion
 registerPortionFromCSVName(llvm::StringRef Name,
                            model::Architecture::Values Architecture);

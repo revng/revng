@@ -57,6 +57,14 @@ typedef struct {
 typedef unsigned __int128 generic128_t;
 #endif
 
+typedef struct {
+  char data[32];
+} generic256_t;
+
+typedef struct {
+  char data[64];
+} generic512_t;
+
 static_assert(sizeof(generic8_t) == 1, "");
 static_assert(sizeof(generic16_t) == 2, "");
 static_assert(sizeof(generic32_t) == 4, "");
@@ -66,6 +74,8 @@ static_assert(sizeof(generic96_t) == 12, "");
 #ifdef __SIZEOF_INT128__
 static_assert(sizeof(generic128_t) == 16, "");
 #endif
+static_assert(sizeof(generic256_t) == 32, "");
+static_assert(sizeof(generic512_t) == 64, "");
 
 //
 // PointerOrNumber

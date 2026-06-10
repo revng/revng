@@ -2,9 +2,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <array>
+#include <optional>
 #include <queue>
 #include <type_traits>
 
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Regex.h"
@@ -574,67 +577,136 @@ llvm::StringRef model::Architecture::getPCCSVName(Values V) {
 
 #define UnknownCSVPrefix "state_"
 
-std::string model::Register::getCSVName(Values V) {
-  // TODO: handle xmm0_x86
+namespace {
 
-  switch (V) {
-  case st0_x86:
-    return "_" UnknownCSVPrefix "0x2960";
-  case zmm0_x86_64:
-    return "_" UnknownCSVPrefix "0x2b10";
-  case zmm1_x86_64:
-    return "_" UnknownCSVPrefix "0x2b50";
-  case zmm2_x86_64:
-    return "_" UnknownCSVPrefix "0x2b90";
-  case zmm3_x86_64:
-    return "_" UnknownCSVPrefix "0x2bd0";
-  case zmm4_x86_64:
-    return "_" UnknownCSVPrefix "0x2c10";
-  case zmm5_x86_64:
-    return "_" UnknownCSVPrefix "0x2c50";
-  case zmm6_x86_64:
-    return "_" UnknownCSVPrefix "0x2c90";
-  case zmm7_x86_64:
-    return "_" UnknownCSVPrefix "0x2cd0";
-  default:
-    return "_" + model::Register::getRegisterName(V).str();
+// An x86-64 zmm register occupies a contiguous 64-byte slot in the CPU state,
+// laid out as eight 8-byte lanes. The lifter materializes one i64 CSV per lane,
+// named `_state_0x<cpu-state-offset>`. This table is the single source of truth
+// for the base CPU-state offset of each register.
+constexpr uint64_t ZMMLaneSize = 8;
+constexpr uint64_t ZMMLaneCount = 8;
+
+struct ZMMRegisterCSV {
+  model::Register::Values Register;
+  uint64_t BaseOffset;
+};
+
+constexpr std::array<ZMMRegisterCSV, 8> ZMMRegisters{ {
+  { model::Register::zmm0_x86_64, 0x2b10 },
+  { model::Register::zmm1_x86_64, 0x2b50 },
+  { model::Register::zmm2_x86_64, 0x2b90 },
+  { model::Register::zmm3_x86_64, 0x2bd0 },
+  { model::Register::zmm4_x86_64, 0x2c10 },
+  { model::Register::zmm5_x86_64, 0x2c50 },
+  { model::Register::zmm6_x86_64, 0x2c90 },
+  { model::Register::zmm7_x86_64, 0x2cd0 },
+} };
+
+std::optional<uint64_t> zmmBaseOffset(model::Register::Values V) {
+  for (const ZMMRegisterCSV &Entry : ZMMRegisters)
+    if (Entry.Register == V)
+      return Entry.BaseOffset;
+  return std::nullopt;
+}
+
+std::string stateCSVName(uint64_t Offset) {
+  return "_" UnknownCSVPrefix "0x"
+         + llvm::utohexstr(Offset, /* LowerCase */ true);
+}
+
+// If `Name` is the CSV of an x86-64 zmm lane, return the register it belongs to
+// and the byte portion of it the CSV covers.
+std::optional<model::Register::RegisterPortion>
+zmmPortionFromCSVName(llvm::StringRef Name) {
+  if (not Name.consume_front("_" UnknownCSVPrefix "0x"))
+    return std::nullopt;
+
+  uint64_t Offset = 0;
+  if (Name.getAsInteger(/* Radix */ 16, Offset))
+    return std::nullopt;
+
+  for (const ZMMRegisterCSV &Entry : ZMMRegisters) {
+    if (Entry.BaseOffset <= Offset
+        and Offset < Entry.BaseOffset + ZMMLaneCount * ZMMLaneSize) {
+      return model::Register::RegisterPortion{ Entry.Register,
+                                               Offset - Entry.BaseOffset,
+                                               ZMMLaneSize };
+    }
   }
+
+  return std::nullopt;
+}
+
+// Resolve a CSV name that does not denote an x86-64 zmm lane.
+model::Register::Values
+nonVectorRegisterFromCSVName(llvm::StringRef Name,
+                             model::Architecture::Values Architecture) {
+  if (not Name.consume_front("_"))
+    return model::Register::Invalid;
+
+  if (Architecture == model::Architecture::x86
+      and Name == UnknownCSVPrefix "0x2960")
+    return model::Register::st0_x86;
+
+  return model::Register::fromRegisterName(Name, Architecture);
+}
+
+} // namespace
+
+std::string model::Register::getCSVName(Values V) {
+  if (std::optional<uint64_t> Base = zmmBaseOffset(V))
+    return stateCSVName(*Base);
+
+  if (V == st0_x86)
+    return stateCSVName(0x2960);
+
+  return "_" + model::Register::getRegisterName(V).str();
 }
 
 model::Register::Values
 model::Register::fromCSVName(llvm::StringRef Name,
                              model::Architecture::Values Architecture) {
-  if (not Name.starts_with("_"))
-    return model::Register::Invalid;
+  return registerPortionFromCSVName(Name, Architecture).Register;
+}
 
-  Name = Name.substr(1);
-
-  if (Architecture == model::Architecture::x86) {
-    if (Name == UnknownCSVPrefix "0x2960") {
-      return st0_x86;
-    }
-  } else if (Architecture == model::Architecture::x86_64) {
-    // TODO: handle xmm0_x86
-    if (Name == UnknownCSVPrefix "0x2b10") {
-      return zmm0_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2b50") {
-      return zmm1_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2b90") {
-      return zmm2_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2bd0") {
-      return zmm3_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2c10") {
-      return zmm4_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2c50") {
-      return zmm5_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2c90") {
-      return zmm6_x86_64;
-    } else if (Name == UnknownCSVPrefix "0x2cd0") {
-      return zmm7_x86_64;
-    }
+std::vector<model::Register::CSV> model::Register::getCSVs(Values V) {
+  // A zmm register spans several CSVs, one per 8-byte lane; every other
+  // register maps to a single CSV covering the whole register.
+  if (std::optional<uint64_t> Base = zmmBaseOffset(V)) {
+    std::vector<CSV> Result;
+    Result.reserve(ZMMLaneCount);
+    for (uint64_t Lane = 0; Lane < ZMMLaneCount; ++Lane)
+      Result.push_back({ stateCSVName(*Base + Lane * ZMMLaneSize),
+                         Lane * ZMMLaneSize,
+                         ZMMLaneSize });
+    return Result;
   }
 
-  return model::Register::fromRegisterName(Name, Architecture);
+  return { { getCSVName(V), 0, model::Register::getSize(V) } };
+}
+
+std::string model::Register::singleCSVName(Values V) {
+  std::vector<CSV> CSVs = getCSVs(V);
+  revng_assert(CSVs.size() == 1,
+               "singleCSVName called on a register composed of multiple CSVs");
+  return CSVs.front().Name;
+}
+
+model::Register::RegisterPortion
+model::Register::registerPortionFromCSVName(llvm::StringRef Name,
+                                            model::Architecture::Values
+                                              Architecture) {
+  if (Architecture == model::Architecture::x86_64)
+    if (std::optional<RegisterPortion> Portion = zmmPortionFromCSVName(Name))
+      return *Portion;
+
+  // Non-zmm CSVs map to a single register covering its whole size.
+  model::Register::Values Register = nonVectorRegisterFromCSVName(Name,
+                                                                  Architecture);
+  uint64_t Size = Register == model::Register::Invalid ?
+                    0 :
+                    model::Register::getSize(Register);
+  return { Register, 0, Size };
 }
 
 #undef UnknownCSVPrefix
@@ -665,31 +737,4 @@ model::Binary::getSegmentFor(const MetaAddress &Address) const {
 std::pair<model::Segment *, uint64_t>
 model::Binary::getSegmentFor(const MetaAddress &Address) {
   return getSegmentForImpl(*this, Address);
-}
-
-std::vector<model::Register::CSV> model::Register::getCSVs(Values V) {
-  // Every register currently maps to exactly one CSV, covering the whole
-  // register. Registers spanning multiple CSVs (e.g. a 512-bit `zmm`) will
-  // return more than one entry.
-  return { { getCSVName(V), 0, model::Register::getSize(V) } };
-}
-
-std::string model::Register::singleCSVName(Values V) {
-  std::vector<CSV> CSVs = getCSVs(V);
-  revng_assert(CSVs.size() == 1,
-               "singleCSVName called on a register composed of multiple CSVs");
-  return CSVs.front().Name;
-}
-
-model::Register::RegisterPortion
-model::Register::registerPortionFromCSVName(llvm::StringRef Name,
-                                            model::Architecture::Values
-                                              Architecture) {
-  // Each CSV currently covers a whole register, so the portion always starts
-  // at offset 0 and spans the full register.
-  model::Register::Values Register = fromCSVName(Name, Architecture);
-  uint64_t Size = Register == model::Register::Invalid ?
-                    0 :
-                    model::Register::getSize(Register);
-  return { Register, 0, Size };
 }
