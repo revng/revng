@@ -22,6 +22,8 @@
 using namespace llvm;
 using namespace MFP;
 
+static Logger Log("promote-csvs");
+
 // TODO: switch from CallInst to CallBase
 
 struct CSVsUsageMap {
@@ -460,6 +462,8 @@ struct UsedRegistersMFI : public SetUnionLattice<FunctionNodeData::UsedCSVSet> {
 CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
   CSVsUsageMap Result;
 
+  revng_log(Log, "getUsedCSVs");
+
   // Note: this graph goes from callee to callers
   GenericCallGraph CallGraph;
 
@@ -482,6 +486,20 @@ CSVsUsageMap PromoteCSVs::getUsedCSVs(ArrayRef<CallInst *> CallsRange) {
                and Callee->getName() != AbortFunctionName) {
       CSVsUsage &Usage = Result.Calls[Call];
       auto UsedCSVs = getCSVUsedByHelperCall(Call);
+
+      if (Log.isEnabled()) {
+        Log << "Call " << getName(Call) << " to " << Callee->getName() << ":\n";
+        Log << "  Reads:\n";
+        for (auto *CSV : UsedCSVs.Read)
+          Log << "    " << CSV->getName() << "\n";
+
+        Log << "  Written:\n";
+        for (auto *CSV : UsedCSVs.Written)
+          Log << "    " << CSV->getName() << "\n";
+        Log << DoLog;
+      }
+
+      revng_log(Log, "Call " << getName(Call));
       Usage.Read = UsedCSVs.Read;
       Usage.Written = UsedCSVs.Written;
     } else {
@@ -569,17 +587,25 @@ ArrayRef<T> oneElement(T &Element) {
 }
 
 void PromoteCSVs::wrapCallsToHelpers(Function *F) {
+  revng_log(Log, "wrapCallsToHelpers: " << F->getName().str());
   std::vector<CallInst *> ToWrap;
-  for (BasicBlock &BB : *F) {
-    for (Instruction &I : BB) {
-      if (auto *Call = dyn_cast<CallInst>(&I)) {
-        Function *Callee = getCallee(Call);
 
-        // Ignore calls to isolated functions
-        if (Callee == nullptr or not needsWrapper(Callee))
-          continue;
+  {
+    LoggerIndent Indent(Log);
+    for (BasicBlock &BB : *F) {
+      for (Instruction &I : BB) {
+        if (auto *Call = dyn_cast<CallInst>(&I)) {
+          Function *Callee = getCallee(Call);
 
-        ToWrap.emplace_back(Call);
+          // Ignore calls to isolated functions
+          if (Callee == nullptr or not needsWrapper(Callee))
+            continue;
+
+          revng_log(Log,
+                    "Call to " << Callee->getName().str()
+                               << " needs a wrapper");
+          ToWrap.emplace_back(Call);
+        }
       }
     }
   }
