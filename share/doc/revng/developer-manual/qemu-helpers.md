@@ -135,6 +135,8 @@ $ ROOT="$(dirname "$(dirname "$(which revng)")")"
 $ pretty() { sed "s/ #[0-9]*//; s/ ![^ ]*//g; s/;.*//"; }
 $ revng opt -strip-debug -sroa -instcombine -dce -S \
     "$ROOT/share/libtcg/libtcg-helpers-x86_64.bc" \
+    -o libtcg-helpers-x86_64-optimized.S
+$ cat libtcg-helpers-x86_64-optimized.S \
     | sed -n "/^define void @helper_clts/,/^}/p" \
     | pretty
 define void @helper_clts(ptr noundef %0) section "revng_inline" {
@@ -158,8 +160,7 @@ The function takes a `%struct.CPUArchState` pointer `%0` (the `env` argument) an
 Now let's look at `helper_divb_AL`:
 
 ```bash
-$ revng opt -strip-debug -sroa -instcombine -dce -S \
-    "$ROOT/share/libtcg/libtcg-helpers-x86_64.bc" \
+$ cat libtcg-helpers-x86_64-optimized.S \
     | sed -n "/^define void @helper_divb_AL/,/^}/p" \
     | pretty \
     | head -16
@@ -217,6 +218,8 @@ Let's look at `helper_clts` after the `fix-helpers` transformation:
 ```bash
 $ revng opt -strip-debug -instcombine -dce -S \
     "$ROOT/share/revng/libtcg-helpers-full-x86_64.bc" \
+    -o libtcg-helpers-full-x86_64-optimized.S
+$ cat libtcg-helpers-full-x86_64-optimized.S \
     | sed -n "/^define void @helper_clts/,/^}/p" \
     | pretty
 define void @helper_clts(ptr noundef %0) section "revng_inline" {
@@ -238,8 +241,7 @@ Well-known registers get human-readable names instead.
 For instance, `helper_divb_AL` after annotation:
 
 ```bash
-$ revng opt -strip-debug -instcombine -dce -S \
-    "$ROOT/share/revng/libtcg-helpers-full-x86_64.bc" \
+$ cat libtcg-helpers-full-x86_64-optimized.S \
     | sed -n "/^define void @helper_divb_AL/,/^}/p" \
     | pretty \
     | head -10
@@ -279,8 +281,7 @@ But in the full module, `fix-helpers` cannot replace them with a single CSV — 
 Instead, it emits a `switch` on the pointer value (which is the byte offset of the register within `CPUState`) to dispatch to the correct CSV:
 
 ```bash
-$ revng opt -strip-debug -instcombine -dce -S \
-    "$ROOT/share/revng/libtcg-helpers-full-x86_64.bc" \
+$ cat libtcg-helpers-full-x86_64-optimized.S \
     | sed -n "/^define void @helper_addsd/,/^}/p" \
     | pretty \
     | sed -n '1,12p'
@@ -311,6 +312,8 @@ For example, `helper_clts` (which is `REVNG_INLINE`) still has its full definiti
 ```bash
 $ revng opt -strip-debug -S \
     "$ROOT/share/revng/libtcg-helpers-to-inline-x86_64.bc" \
+    -o libtcg-helpers-to-inline-x86_64-optimized.S
+$ cat libtcg-helpers-to-inline-x86_64-optimized.S \
     | grep "^define.*@helper_clts" \
     | pretty
 define void @helper_clts(ptr noundef %0) section "revng_inline" {
@@ -320,8 +323,7 @@ We can see the counts: the *to-inline* module has a small number of definitions 
 
 ```bash
 $ echo "Definitions:"
-$ revng opt -strip-debug -S \
-    "$ROOT/share/revng/libtcg-helpers-to-inline-x86_64.bc" \
+$ cat libtcg-helpers-to-inline-x86_64-optimized.S \
     | grep -c "^define"
 Definitions:
 363
@@ -335,6 +337,8 @@ Every function, including `REVNG_INLINE` ones, is a bare declaration.
 ```bash
 $ revng opt -strip-debug -S \
     "$ROOT/share/revng/libtcg-helpers-declarations-only-x86_64.bc" \
+    -o libtcg-helpers-declarations-only-x86_64-optimized.S
+$ cat libtcg-helpers-declarations-only-x86_64-optimized.S \
     | grep "^declare.*@helper_clts" \
     | pretty
 declare void @helper_clts(ptr noundef) section "revng_inline"
@@ -344,14 +348,12 @@ The module has 0 definitions and 1089 declarations:
 
 ```bash
 $ echo "Definitions:"
-$ revng opt -strip-debug -S \
-    "$ROOT/share/revng/libtcg-helpers-declarations-only-x86_64.bc" \
+$ cat libtcg-helpers-declarations-only-x86_64-optimized.S \
     | { grep -c "^define" || true; }
 Definitions:
 0
 $ echo "Declarations:"
-$ revng opt -strip-debug -S \
-    "$ROOT/share/revng/libtcg-helpers-declarations-only-x86_64.bc" \
+$ cat libtcg-helpers-declarations-only-x86_64-optimized.S \
     | grep "^declare" | grep -c "helper_"
 Declarations:
 1089
@@ -365,23 +367,21 @@ This metadata records which CSVs a helper reads and which it writes, *even when 
 For instance, in the *declarations-only* module, `helper_write_eflags` has no body, yet its declaration carries the metadata:
 
 ```bash
-$ revng opt -strip-debug -S \
-    "$ROOT/share/revng/libtcg-helpers-declarations-only-x86_64.bc" \
+$ cat libtcg-helpers-declarations-only-x86_64-optimized.S \
     | grep "^declare.*@helper_write_eflags"
-declare !revng.csua !298 !revng.csvaccess.offsets.load !302 !revng.csvaccess.offsets.store !304 !revng.tags !12 void @helper_write_eflags(ptr noundef, i64 noundef, i32 noundef) #0
+declare !revng.csua !299 !revng.csvaccess.offsets.load !303 !revng.csvaccess.offsets.store !305 !revng.tags !13 void @helper_write_eflags(ptr noundef, i64 noundef, i32 noundef) #0
 ```
 
-The `!302` and `!304` are references to metadata nodes defined at the end of the module.
+The `!303` and `!305` are references to metadata nodes defined at the end of the module.
 Resolving them reveals the actual CSV lists:
 
 ```bash
-$ revng opt -strip-debug -S \
-    "$ROOT/share/revng/libtcg-helpers-declarations-only-x86_64.bc" \
-    | grep -E "^!(302|303|304|305) ="
-!302 = !{i32 0, !303}
-!303 = !{!"_state_0x2848"}
-!304 = !{i32 0, !305}
-!305 = !{!"_cc_src", !"_state_0x286c", !"_state_0x2848", !"_cc_op"}
+$ cat libtcg-helpers-declarations-only-x86_64-optimized.S \
+    | grep -E "^!(303|304|305|306) ="
+!303 = !{i32 0, !304}
+!304 = !{!"_state_0x2848"}
+!305 = !{i32 0, !306}
+!306 = !{!"_cc_src", !"_state_0x286c", !"_state_0x2848", !"_cc_op"}
 ```
 
 Each CSV access metadata node is a tuple `!{i32 0, !<csv-list>}` where the second element lists the CSV names.
@@ -510,42 +510,42 @@ $ revng opt -strip-debug -S enforced.bc \
     | pretty \
     | sed -n "1p; /and i64.*u0xffff$/,/helper_divb_AL.exit:/p"
 define i64 @local_0x400000_Code_x86_64(i64 %rdi_x86_64, i64 %rsi_x86_64) {
-  %7 = and i64 %6, u0xffff
-  %8 = trunc i64 %7 to i32
-  %9 = and i64 %5, 255
-  %10 = trunc i64 %9 to i32
-  %11 = icmp eq i32 %10, 0
-  br i1 %11, label %12, label %13
+  %27 = and i64 %26, u0xffff
+  %28 = trunc i64 %27 to i32
+  %29 = and i64 %25, 255
+  %30 = trunc i64 %29 to i32
+  %31 = icmp eq i32 %30, 0
+  br i1 %31, label %32, label %33
 
-12:
+32:
   unreachable
 
-13:
-  %14 = udiv i32 %8, %10
-  %15 = icmp ugt i32 %14, 255
-  br i1 %15, label %16, label %17
+33:
+  %34 = udiv i32 %28, %30
+  %35 = icmp ugt i32 %34, 255
+  br i1 %35, label %36, label %37
 
-16:
+36:
   unreachable
 
-17:
-  %18 = and i32 %14, 255
-  %19 = urem i32 %8, %10
-  %20 = and i32 %19, 255
-  %21 = load i64, ptr %_rax, align 8
-  %22 = and i64 %21, u0xffffffffffff0000
-  %23 = shl i32 %20, 8
-  %24 = zext i32 %23 to i64
-  %25 = or i64 %22, %24
-  %26 = zext i32 %18 to i64
-  %27 = or i64 %25, %26
-  store i64 %27, ptr %_rax, align 8
+37:
+  %38 = and i32 %34, 255
+  %39 = urem i32 %28, %30
+  %40 = and i32 %39, 255
+  %41 = load i64, ptr %_rax, align 8
+  %42 = and i64 %41, u0xffffffffffff0000
+  %43 = shl i32 %40, 8
+  %44 = zext i32 %43 to i64
+  %45 = or i64 %42, %44
+  %46 = zext i32 %38 to i64
+  %47 = or i64 %45, %46
+  store i64 %47, ptr %_rax, align 8
   br label %helper_divb_AL.exit
 
 helper_divb_AL.exit:
 ```
 
-The `call void @helper_divb_AL(...)` is gone — its body has been inlined.
+The `call void @helper_divb_AL(...)` is gone, its body has been inlined.
 Since `remove-exceptional-functions` is part of the `enforce-abi` pipeline, the `raise_exception_ra` calls (which are `REVNG_EXCEPTIONAL`) have already been replaced with `unreachable`.
 
 Compare this with the C source: the `udiv`/`urem` implement the division, `%_rax` is the accumulator, and the two `unreachable` blocks (labels 12 and 16) are where `raise_exception_ra` used to be (division-by-zero and quotient-overflow checks).
@@ -560,22 +560,22 @@ $ revng opt -strip-debug -simplifycfg -remove-llvmassume-calls -dce -S enforced.
     | pretty \
     | sed -n "1p; /and i64.*u0xffff$/,/store i64.*%_rax/p"
 define i64 @local_0x400000_Code_x86_64(i64 %rdi_x86_64, i64 %rsi_x86_64) {
-  %7 = and i64 %6, u0xffff
-  %8 = trunc i64 %7 to i32
-  %9 = and i64 %5, 255
-  %10 = trunc i64 %9 to i32
-  %11 = udiv i32 %8, %10
-  %12 = and i32 %11, 255
-  %13 = urem i32 %8, %10
-  %14 = and i32 %13, 255
-  %15 = load i64, ptr %_rax, align 8
-  %16 = and i64 %15, u0xffffffffffff0000
-  %17 = shl i32 %14, 8
-  %18 = zext i32 %17 to i64
-  %19 = or i64 %16, %18
-  %20 = zext i32 %12 to i64
-  %21 = or i64 %19, %20
-  store i64 %21, ptr %_rax, align 8
+  %27 = and i64 %26, u0xffff
+  %28 = trunc i64 %27 to i32
+  %29 = and i64 %25, 255
+  %30 = trunc i64 %29 to i32
+  %31 = udiv i32 %28, %30
+  %32 = and i32 %31, 255
+  %33 = urem i32 %28, %30
+  %34 = and i32 %33, 255
+  %35 = load i64, ptr %_rax, align 8
+  %36 = and i64 %35, u0xffffffffffff0000
+  %37 = shl i32 %34, 8
+  %38 = zext i32 %37 to i64
+  %39 = or i64 %36, %38
+  %40 = zext i32 %32 to i64
+  %41 = or i64 %39, %40
+  store i64 %41, ptr %_rax, align 8
 ```
 
 The exceptional calls and dead code are completely gone.
