@@ -258,7 +258,7 @@ class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFa
             if (directory / model_name).exists():
                 break
             if directory == directory.parent:
-                raise FileNotFoundError(f'Model "{model_name}" not found')
+                raise FileNotFoundError(f'Model "{str(directory / model_name)}" not found')
             directory = directory.parent
 
         model_path = directory / model_name
