@@ -59,14 +59,14 @@ getReferenceArchitecture(Values V) {
   case r13_x86_64:
   case r14_x86_64:
   case r15_x86_64:
-  case xmm0_x86_64:
-  case xmm1_x86_64:
-  case xmm2_x86_64:
-  case xmm3_x86_64:
-  case xmm4_x86_64:
-  case xmm5_x86_64:
-  case xmm6_x86_64:
-  case xmm7_x86_64:
+  case zmm0_x86_64:
+  case zmm1_x86_64:
+  case zmm2_x86_64:
+  case zmm3_x86_64:
+  case zmm4_x86_64:
+  case zmm5_x86_64:
+  case zmm6_x86_64:
+  case zmm7_x86_64:
   case fs_x86_64:
     return model::Architecture::x86_64;
   case r0_arm:
@@ -654,14 +654,14 @@ constexpr inline model::PrimitiveKind::Values primitiveKind(Values V) {
   case xmm5_x86:
   case xmm6_x86:
   case xmm7_x86:
-  case xmm0_x86_64:
-  case xmm1_x86_64:
-  case xmm2_x86_64:
-  case xmm3_x86_64:
-  case xmm4_x86_64:
-  case xmm5_x86_64:
-  case xmm6_x86_64:
-  case xmm7_x86_64:
+  case zmm0_x86_64:
+  case zmm1_x86_64:
+  case zmm2_x86_64:
+  case zmm3_x86_64:
+  case zmm4_x86_64:
+  case zmm5_x86_64:
+  case zmm6_x86_64:
+  case zmm7_x86_64:
   case q0_arm:
   case q1_arm:
   case q2_arm:

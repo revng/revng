@@ -580,21 +580,21 @@ std::string model::Register::getCSVName(Values V) {
   switch (V) {
   case st0_x86:
     return "_" UnknownCSVPrefix "0x2960";
-  case xmm0_x86_64:
+  case zmm0_x86_64:
     return "_" UnknownCSVPrefix "0x2b10";
-  case xmm1_x86_64:
+  case zmm1_x86_64:
     return "_" UnknownCSVPrefix "0x2b50";
-  case xmm2_x86_64:
+  case zmm2_x86_64:
     return "_" UnknownCSVPrefix "0x2b90";
-  case xmm3_x86_64:
+  case zmm3_x86_64:
     return "_" UnknownCSVPrefix "0x2bd0";
-  case xmm4_x86_64:
+  case zmm4_x86_64:
     return "_" UnknownCSVPrefix "0x2c10";
-  case xmm5_x86_64:
+  case zmm5_x86_64:
     return "_" UnknownCSVPrefix "0x2c50";
-  case xmm6_x86_64:
+  case zmm6_x86_64:
     return "_" UnknownCSVPrefix "0x2c90";
-  case xmm7_x86_64:
+  case zmm7_x86_64:
     return "_" UnknownCSVPrefix "0x2cd0";
   default:
     return "_" + model::Register::getRegisterName(V).str();
@@ -616,21 +616,21 @@ model::Register::fromCSVName(llvm::StringRef Name,
   } else if (Architecture == model::Architecture::x86_64) {
     // TODO: handle xmm0_x86
     if (Name == UnknownCSVPrefix "0x2b10") {
-      return xmm0_x86_64;
+      return zmm0_x86_64;
     } else if (Name == UnknownCSVPrefix "0x2b50") {
-      return xmm1_x86_64;
+      return zmm1_x86_64;
     } else if (Name == UnknownCSVPrefix "0x2b90") {
-      return xmm2_x86_64;
+      return zmm2_x86_64;
     } else if (Name == UnknownCSVPrefix "0x2bd0") {
-      return xmm3_x86_64;
+      return zmm3_x86_64;
     } else if (Name == UnknownCSVPrefix "0x2c10") {
-      return xmm4_x86_64;
+      return zmm4_x86_64;
     } else if (Name == UnknownCSVPrefix "0x2c50") {
-      return xmm5_x86_64;
+      return zmm5_x86_64;
     } else if (Name == UnknownCSVPrefix "0x2c90") {
-      return xmm6_x86_64;
+      return zmm6_x86_64;
     } else if (Name == UnknownCSVPrefix "0x2cd0") {
-      return xmm7_x86_64;
+      return zmm7_x86_64;
     }
   }
 
