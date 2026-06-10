@@ -34,14 +34,14 @@ getReferenceArchitecture(Values V) {
   case ebp_x86:
   case esp_x86:
   case st0_x86:
-  case xmm0_x86:
-  case xmm1_x86:
-  case xmm2_x86:
-  case xmm3_x86:
-  case xmm4_x86:
-  case xmm5_x86:
-  case xmm6_x86:
-  case xmm7_x86:
+  case zmm0_x86:
+  case zmm1_x86:
+  case zmm2_x86:
+  case zmm3_x86:
+  case zmm4_x86:
+  case zmm5_x86:
+  case zmm6_x86:
+  case zmm7_x86:
     return model::Architecture::x86;
   case rax_x86_64:
   case rbx_x86_64:
@@ -59,14 +59,14 @@ getReferenceArchitecture(Values V) {
   case r13_x86_64:
   case r14_x86_64:
   case r15_x86_64:
-  case xmm0_x86_64:
-  case xmm1_x86_64:
-  case xmm2_x86_64:
-  case xmm3_x86_64:
-  case xmm4_x86_64:
-  case xmm5_x86_64:
-  case xmm6_x86_64:
-  case xmm7_x86_64:
+  case zmm0_x86_64:
+  case zmm1_x86_64:
+  case zmm2_x86_64:
+  case zmm3_x86_64:
+  case zmm4_x86_64:
+  case zmm5_x86_64:
+  case zmm6_x86_64:
+  case zmm7_x86_64:
   case fs_x86_64:
     return model::Architecture::x86_64;
   case r0_arm:
@@ -368,7 +368,7 @@ constexpr model::Register::Values getFirst() {
 template<model::Architecture::Values Architecture>
 constexpr model::Register::Values getLast() {
   if constexpr (Architecture == model::Architecture::x86)
-    return model::Register::xmm7_x86;
+    return model::Register::zmm7_x86;
   else if constexpr (Architecture == model::Architecture::arm)
     return model::Register::q7_arm;
   else if constexpr (Architecture == model::Architecture::mips)
@@ -652,22 +652,22 @@ constexpr inline model::PrimitiveKind::Values primitiveKind(Values V) {
     return model::PrimitiveKind::PointerOrNumber;
 
   case st0_x86:
-  case xmm0_x86:
-  case xmm1_x86:
-  case xmm2_x86:
-  case xmm3_x86:
-  case xmm4_x86:
-  case xmm5_x86:
-  case xmm6_x86:
-  case xmm7_x86:
-  case xmm0_x86_64:
-  case xmm1_x86_64:
-  case xmm2_x86_64:
-  case xmm3_x86_64:
-  case xmm4_x86_64:
-  case xmm5_x86_64:
-  case xmm6_x86_64:
-  case xmm7_x86_64:
+  case zmm0_x86:
+  case zmm1_x86:
+  case zmm2_x86:
+  case zmm3_x86:
+  case zmm4_x86:
+  case zmm5_x86:
+  case zmm6_x86:
+  case zmm7_x86:
+  case zmm0_x86_64:
+  case zmm1_x86_64:
+  case zmm2_x86_64:
+  case zmm3_x86_64:
+  case zmm4_x86_64:
+  case zmm5_x86_64:
+  case zmm6_x86_64:
+  case zmm7_x86_64:
   case q0_arm:
   case q1_arm:
   case q2_arm:

@@ -29,9 +29,9 @@ GeneralPurposeReturnValueRegisters:
   - eax_x86
   - edx_x86
 VectorArgumentRegisters:
-  - xmm0_x86
-  - xmm1_x86
-  - xmm2_x86
+  - zmm0_x86
+  - zmm1_x86
+  - zmm2_x86
 CalleeSavedRegisters:
   - ebx_x86
   - ebp_x86

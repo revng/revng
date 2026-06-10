@@ -36,21 +36,21 @@ struct RegisterCSVComposition {
 //       in the constructor, but IMO, those are worth it.
 static const std::array<RegisterCSVComposition, 9> SpecialRegisters = {
   // x86-64
-  RegisterCSVComposition(model::Register::xmm0_x86_64,
+  RegisterCSVComposition(model::Register::zmm0_x86_64,
                          /* BaseOffset = */ 0x2b10),
-  RegisterCSVComposition(model::Register::xmm1_x86_64,
+  RegisterCSVComposition(model::Register::zmm1_x86_64,
                          /* BaseOffset = */ 0x2b50),
-  RegisterCSVComposition(model::Register::xmm2_x86_64,
+  RegisterCSVComposition(model::Register::zmm2_x86_64,
                          /* BaseOffset = */ 0x2b90),
-  RegisterCSVComposition(model::Register::xmm3_x86_64,
+  RegisterCSVComposition(model::Register::zmm3_x86_64,
                          /* BaseOffset = */ 0x2bd0),
-  RegisterCSVComposition(model::Register::xmm4_x86_64,
+  RegisterCSVComposition(model::Register::zmm4_x86_64,
                          /* BaseOffset = */ 0x2c10),
-  RegisterCSVComposition(model::Register::xmm5_x86_64,
+  RegisterCSVComposition(model::Register::zmm5_x86_64,
                          /* BaseOffset = */ 0x2c50),
-  RegisterCSVComposition(model::Register::xmm6_x86_64,
+  RegisterCSVComposition(model::Register::zmm6_x86_64,
                          /* BaseOffset = */ 0x2c90),
-  RegisterCSVComposition(model::Register::xmm7_x86_64,
+  RegisterCSVComposition(model::Register::zmm7_x86_64,
                          /* BaseOffset = */ 0x2cd0),
 
   // x86
