@@ -33,26 +33,26 @@ EXAMPLES
 A single command to produce the decompiled code saving the result to `decompiled.c`:
 
 ```
-revng artifact --analyze decompile-to-single-file /usr/bin/hostname -o decompiled.c
+revng artifact --analyze emit-c-as-single-file /usr/bin/hostname -o decompiled.c
 ```
 
 An equivalent command using `--analyses`:
 
 ```
-revng artifact --analyses=revng-initial-auto-analysis decompile-to-single-file /usr/bin/hostname
+revng artifact --analyses=revng-initial-auto-analysis emit-c-as-single-file /usr/bin/hostname
 ```
 
 An equivalent set of commands using [`revng-analyze`](revng-analyze.md) and `--resume`:
 
 ```{bash notest}
 revng analyze --resume project-dir/ revng-initial-auto-analysis /usr/bin/hostname
-revng artifact --resume project-dir/ decompile-to-single-file /usr/bin/hostname
+revng artifact --resume project-dir/ emit-c-as-single-file /usr/bin/hostname
 ```
 
 Decompile a program using `mymodel.yml` as the model:
 
 ```{bash notest}
-revng artifact --model mymodel.yml decompile-to-single-file /usr/bin/hostname
+revng artifact --model mymodel.yml emit-c-as-single-file /usr/bin/hostname
 ```
 
 SEE ALSO
