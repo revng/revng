@@ -994,15 +994,22 @@ DetectABI::computePreservedRegisters(const CSVSet &ClobberedRegisters) const {
   TrackingSortedVector<model::Register::Values> Result;
   CSVSet PreservedRegisters = computePreservedCSVs(ClobberedRegisters);
 
-  auto PreservedRegistersInserter = Result.batch_insert();
+  // A register is preserved only if all the CSVs composing it are preserved,
+  // so count how many of each register's CSVs survive.
+  std::map<model::Register::Values, uint64_t> PreservedLaneCount;
   for (auto *CSV : PreservedRegisters) {
     auto RegisterID = model::Register::fromCSVName(CSV->getName(),
                                                    Binary->Architecture());
     if (RegisterID == Register::Invalid)
       continue;
 
-    PreservedRegistersInserter.insert(RegisterID);
+    PreservedLaneCount[RegisterID] += 1;
   }
+
+  auto PreservedRegistersInserter = Result.batch_insert();
+  for (auto [RegisterID, Count] : PreservedLaneCount)
+    if (Count == model::Register::getCSVCount(RegisterID))
+      PreservedRegistersInserter.insert(RegisterID);
 
   return Result;
 }
