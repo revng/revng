@@ -29,11 +29,14 @@ public:
     }
 
     // The global variables are not needed in this module. Drop their debug info
-    // and their initializer. GlobalDCE will be run later to remove them. This
-    // is except a couple of special ones that are always needed.
+    // and their initializer. GlobalDCE will be run later to remove them.
+    // Note that we preserve CSVs and some other special variables. In
+    // particular, we need CSVs to avoid having new CSVs popping up
+    // post-inlining, which is problematic since sometimes we handle
+    // non-existing CSVs in a special way.
     for (GlobalVariable &GV : M.globals()) {
       GV.eraseMetadata(LLVMContext::MD_dbg);
-      if (not isSpecialGV(GV))
+      if (not isSpecialGV(GV) and not FunctionTags::CSV.isTagOf(&GV))
         GV.setInitializer(nullptr);
     }
 
