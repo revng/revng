@@ -709,10 +709,25 @@ void DetectABI::applyABIDeductions() {
 }
 
 void DetectABI::recordRegisters(const efa::CSVSet &CSVs, auto Inserter) {
+  // Group the live CSVs by the register they compose and type each
+  // argument/return value by its live lanes rather than the full register
+  // width: a register live only in its low 64 bits is typed `generic64_t`
+  // even when the register itself is wider.
+  auto Architecture = Binary->Architecture();
+  std::map<model::Register::Values, uint64_t> LiveSizeByRegister;
   for (auto *CSV : CSVs) {
-    auto Reg = model::Register::fromCSVName(CSV->getName(),
-                                            Binary->Architecture());
-    Inserter.emplace(Reg).Type() = model::PrimitiveType::makeGeneric(Reg);
+    auto Portion = model::Register::registerPortionFromCSVName(CSV->getName(),
+                                                               Architecture);
+    if (Portion.Register == model::Register::Invalid)
+      continue;
+
+    uint64_t &LiveSize = LiveSizeByRegister[Portion.Register];
+    LiveSize = std::max(LiveSize, Portion.StartOffset + Portion.Size);
+  }
+
+  for (auto [RegisterID, LiveSize] : LiveSizeByRegister) {
+    auto Type = model::PrimitiveType::makeGeneric(LiveSize);
+    Inserter.emplace(RegisterID).Type() = std::move(Type);
   }
 }
 
