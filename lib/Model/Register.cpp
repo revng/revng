@@ -36,14 +36,14 @@ struct InternalRegister {
 //       in the constructor, but IMO, those are worth it.
 static std::array<InternalRegister, 9> SpecialRegisters = {
   // x86-64
-  InternalRegister(model::Register::xmm0_x86_64, /* BaseOffset = */ 0x2b10),
-  InternalRegister(model::Register::xmm1_x86_64, /* BaseOffset = */ 0x2b50),
-  InternalRegister(model::Register::xmm2_x86_64, /* BaseOffset = */ 0x2b90),
-  InternalRegister(model::Register::xmm3_x86_64, /* BaseOffset = */ 0x2bd0),
-  InternalRegister(model::Register::xmm4_x86_64, /* BaseOffset = */ 0x2c10),
-  InternalRegister(model::Register::xmm5_x86_64, /* BaseOffset = */ 0x2c50),
-  InternalRegister(model::Register::xmm6_x86_64, /* BaseOffset = */ 0x2c90),
-  InternalRegister(model::Register::xmm7_x86_64, /* BaseOffset = */ 0x2cd0),
+  InternalRegister(model::Register::zmm0_x86_64, /* BaseOffset = */ 0x2b10),
+  InternalRegister(model::Register::zmm1_x86_64, /* BaseOffset = */ 0x2b50),
+  InternalRegister(model::Register::zmm2_x86_64, /* BaseOffset = */ 0x2b90),
+  InternalRegister(model::Register::zmm3_x86_64, /* BaseOffset = */ 0x2bd0),
+  InternalRegister(model::Register::zmm4_x86_64, /* BaseOffset = */ 0x2c10),
+  InternalRegister(model::Register::zmm5_x86_64, /* BaseOffset = */ 0x2c50),
+  InternalRegister(model::Register::zmm6_x86_64, /* BaseOffset = */ 0x2c90),
+  InternalRegister(model::Register::zmm7_x86_64, /* BaseOffset = */ 0x2cd0),
 
   // x86
   InternalRegister(model::Register::st0_x86, /* BaseOffset = */ 0x2960),
