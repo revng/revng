@@ -79,12 +79,8 @@ public:
   }
 
 public:
-  mlir::MLIRContext *getContext() { return &*Context; }
-
-  const mlir::ModuleOp getModule(const ObjectID &ID) const {
-    return *Modules.at(ID);
-  }
-
+  mlir::MLIRContext *getContext() const { return Context.get(); }
+  mlir::ModuleOp getModule(const ObjectID &ID) const { return *Modules.at(ID); }
   mlir::ModuleOp getModule(const ObjectID &ID) { return *Modules.at(ID); }
 
   void assign(const ObjectID &ID, mlir::ModuleOp NewModule) {
@@ -155,12 +151,8 @@ public:
   }
 
 public:
-  mlir::MLIRContext *getContext() { return &*Context; }
-
-  const mlir::ModuleOp getModule(const ObjectID &ID) const {
-    return *Modules.at(ID);
-  }
-
+  mlir::MLIRContext *getContext() const { return Context.get(); }
+  mlir::ModuleOp getModule(const ObjectID &ID) const { return *Modules.at(ID); }
   mlir::ModuleOp getModule(const ObjectID &ID) { return *Modules.at(ID); }
 
   void assign(const ObjectID &ID, mlir::ModuleOp NewModule) {
@@ -235,9 +227,8 @@ public:
   }
 
 public:
-  mlir::MLIRContext *getContext() { return &*Context; }
-
-  const mlir::ModuleOp getModule() const { return Module.get(); }
+  mlir::MLIRContext *getContext() const { return Context.get(); }
+  mlir::ModuleOp getModule() const { return Module.get(); }
   mlir::ModuleOp getModule() { return Module.get(); }
 
   void assign(mlir::ModuleOp NewModule) {
