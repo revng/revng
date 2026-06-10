@@ -703,10 +703,31 @@ static bool isDynamicFunctionStub(const SortedVector<efa::BasicBlock> &CFG) {
 }
 
 void DetectABI::recordRegisters(const efa::CSVSet &CSVs, auto Inserter) {
+  // For each register, find its highest used CSV and limit the potential size
+  // of the register based on it.
+  //
+  // For example, if only one CSV of a `zmm0` register is used, we can actually
+  // type it as `generic64_t` instead of `generic512_t`, which is a lot nicer
+  // to work with!
+  std::map<model::Register::Values, uint64_t> ConfirmedByteCounts;
   for (auto *CSV : CSVs) {
-    auto R = model::Register::fromCSVName(CSV->getName(),
-                                          Binary->Architecture());
-    Inserter.emplace(R).Type() = model::PrimitiveType::makeGeneric(R);
+    model::Register::Portion Portion(CSV->getName(), Binary->Architecture());
+    if (Portion.Register == model::Register::Invalid)
+      continue;
+
+    uint64_t &Bytes = ConfirmedByteCounts[Portion.Register];
+    Bytes = std::max(Bytes, Portion.StartOffset + Portion.Size);
+  }
+
+  for (auto [Register, ByteCount] : ConfirmedByteCounts) {
+    revng_assert(model::Register::getSize(Register) >= ByteCount);
+
+    namespace PK = model::PrimitiveKind;
+    auto Type = model::PrimitiveType::makeNextPowerOfTwo(PK::Generic,
+                                                         ByteCount);
+    revng_assert(model::Register::getSize(Register) >= *Type->size());
+
+    Inserter.emplace(Register).Type() = std::move(Type);
   }
 }
 
