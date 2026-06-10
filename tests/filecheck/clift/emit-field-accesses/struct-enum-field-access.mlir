@@ -11,23 +11,23 @@
 
 // Generic void function prototype with no argument
 !f = !clift.func<
-  "1000" as "f" : !void()
+  "/type-definition/1000-CABIFunctionDefinition" as "f" : !void()
 >
 
 // Enum type with underlying `int32_t`
 !my_enum = !clift.enum<
-  "1001" as "my_enum" : !int32_t {
-    "" as "A" : 0,
-    "" as "B" : 1
+  "/type-definition/1001-EnumDefinition" as "my_enum" : !int32_t {
+    "/enum-entry/1001-EnumDefinition/0" as "A" : 0,
+    "/enum-entry/1001-EnumDefinition/1" as "B" : 1
   }
 >
 
 // Struct with an `enum` field: the enum should be traversed correctly and
 // the underlying type should be reachable through the enum
 !s = !clift.struct<
-  "1" : size(8) {
-    "" : offset(0) !int32_t,
-    "" : offset(4) !my_enum
+  "/type-definition/1-StructDefinition" : size(8) {
+    "/struct-field/1-StructDefinition/0" : offset(0) !int32_t,
+    "/struct-field/1-StructDefinition/4" : offset(4) !my_enum
   }
 >
 
@@ -47,8 +47,8 @@ module attributes {clift.module} {
   }
 
   // CHECK-LABEL: clift.func @test_enum_field<!f>
-  // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_1_
-  // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_1_>
+  // CHECK: [[STRUCT:%[0-9]+]] = clift.local : !_type_definition_1_StructDefinition
+  // CHECK: [[ADDRESSOF1:%[0-9]+]] = clift.addressof [[STRUCT]] : !clift.ptr<8 to !_type_definition_1_StructDefinition>
   // CHECK: [[ACCESS:%[0-9]+]] = clift.access<indirect 1> [[ADDRESSOF1]]
   // CHECK: [[ADDRESSOF2:%[0-9]+]] = clift.addressof [[ACCESS]]
   // CHECK: [[CAST:%[0-9]+]] = clift.bitcast [[ADDRESSOF2]]
