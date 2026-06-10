@@ -6,11 +6,40 @@
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
+#include "llvm/IR/GlobalVariable.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
+
 #include "revng/RegisterUsageAnalyses/Liveness.h"
 #include "revng/RegisterUsageAnalyses/ReachingDefinitions.h"
 
 using namespace rua;
 using namespace llvm;
+
+// Two distinct dummy CSVs, used purely as opaque tokens to populate the rua
+// index space (indices 0 and 1); the tests below address them by raw index.
+// They are owned by the static module and never dereferenced by the analyses.
+static llvm::GlobalVariable *testCSV(unsigned Index) {
+  static llvm::LLVMContext Context;
+  static llvm::Module Module("rua-unit-test", Context);
+  static llvm::GlobalVariable *CSVs[2] = {
+    new llvm::GlobalVariable(Module,
+                             llvm::Type::getInt64Ty(Context),
+                             false,
+                             llvm::GlobalValue::ExternalLinkage,
+                             nullptr,
+                             "csv0"),
+    new llvm::GlobalVariable(Module,
+                             llvm::Type::getInt64Ty(Context),
+                             false,
+                             llvm::GlobalValue::ExternalLinkage,
+                             nullptr,
+                             "csv1"),
+  };
+  revng_assert(Index < 2);
+  return CSVs[Index];
+}
 
 struct TestAnalysisResult {
   TestAnalysisResult() = delete;
@@ -28,8 +57,8 @@ struct TestAnalysisResult {
 static TestAnalysisResult
 createSingleNode(rua::Block::OperationsVector &&Operations) {
   rua::Function F;
-  F.registerIndex(model::Register::rax_x86_64);
-  F.registerIndex(model::Register::rdi_x86_64);
+  F.csvIndex(testCSV(0));
+  F.csvIndex(testCSV(1));
   auto *Entry = F.addNode();
   F.setEntryNode(Entry);
   Entry->Operations = Operations;
@@ -41,8 +70,8 @@ static TestAnalysisResult createDiamond(rua::Block::OperationsVector &&Header,
                                         rua::Block::OperationsVector &&Right,
                                         rua::Block::OperationsVector &&Footer) {
   rua::Function F;
-  F.registerIndex(model::Register::rax_x86_64);
-  F.registerIndex(model::Register::rdi_x86_64);
+  F.csvIndex(testCSV(0));
+  F.csvIndex(testCSV(1));
 
   auto *HeaderBlock = F.addNode();
   F.setEntryNode(HeaderBlock);
@@ -70,8 +99,8 @@ static TestAnalysisResult createLoop(rua::Block::OperationsVector &&Header,
                                      rua::Block::OperationsVector &&LoopBody,
                                      rua::Block::OperationsVector &&Footer) {
   rua::Function F;
-  F.registerIndex(model::Register::rax_x86_64);
-  F.registerIndex(model::Register::rdi_x86_64);
+  F.csvIndex(testCSV(0));
+  F.csvIndex(testCSV(1));
 
   auto *HeaderBlock = F.addNode();
   F.setEntryNode(HeaderBlock);
@@ -102,8 +131,8 @@ createNoReturn(rua::Block::OperationsVector &&Header,
                rua::Block::OperationsVector &&NoReturn,
                rua::Block::OperationsVector &&Exit) {
   rua::Function F;
-  F.registerIndex(model::Register::rax_x86_64);
-  F.registerIndex(model::Register::rdi_x86_64);
+  F.csvIndex(testCSV(0));
+  F.csvIndex(testCSV(1));
 
   auto *HeaderBlock = F.addNode();
   F.setEntryNode(HeaderBlock);

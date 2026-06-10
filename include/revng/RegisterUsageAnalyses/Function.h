@@ -4,33 +4,18 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <limits>
 #include <string>
 
+#include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/GlobalVariable.h"
 
 #include "revng/ADT/GenericGraph.h"
-#include "revng/Model/Register.h"
-
-template<>
-struct llvm::DenseMapInfo<model::Register::Values> {
-  static model::Register::Values getEmptyKey() {
-    return model::Register::Count;
-  }
-
-  static model::Register::Values getTombstoneKey() {
-    return static_cast<model::Register::Values>(model::Register::Count + 1);
-  }
-
-  static unsigned getHashValue(const model::Register::Values &S) { return S; }
-
-  static bool isEqual(const model::Register::Values &LHS,
-                      const model::Register::Values &RHS) {
-    return LHS == RHS;
-  }
-};
+#include "revng/Support/Generator.h"
 
 namespace rua {
 
@@ -64,7 +49,9 @@ inline llvm::StringRef getName(Values V) {
 class Operation {
 public:
   OperationType::Values Type = OperationType::Invalid;
-  uint8_t Target = model::Register::Invalid;
+  // Index of the CSV this operation targets, assigned by Function::csvIndex.
+  // Default-constructed operations are never analyzed (Type == Invalid).
+  uint8_t Target = 0;
 };
 
 static_assert(sizeof(Operation) == 2);
@@ -109,47 +96,52 @@ using BlockNode = BidirectionalNode<Block>;
 
 class Function : public GenericGraph<BlockNode> {
 private:
-  llvm::DenseMap<uint8_t, model::Register::Values> IndexToRegister;
-  llvm::DenseMap<model::Register::Values, uint8_t> RegisterToIndex;
+  llvm::DenseMap<uint8_t, llvm::GlobalVariable *> IndexToCSV;
+  llvm::DenseMap<llvm::GlobalVariable *, uint8_t> CSVToIndex;
 
 public:
   Function() = default;
 
 public:
-  uint8_t registerIndex(model::Register::Values Register) {
-    auto It = RegisterToIndex.find(Register);
-    if (It != RegisterToIndex.end())
+  uint8_t csvIndex(llvm::GlobalVariable *CSV) {
+    auto It = CSVToIndex.find(CSV);
+    if (It != CSVToIndex.end())
       return It->second;
 
-    auto RegistersCount = RegisterToIndex.size();
-    RegisterToIndex[Register] = RegistersCount;
-    IndexToRegister[RegistersCount] = Register;
+    auto CSVCount = CSVToIndex.size();
 
-    revng_assert(RegisterToIndex.size() == IndexToRegister.size());
-    revng_assert(RegisterToIndex.size() == 1 + RegistersCount);
+    // The index is stored in Operation::Target (a uint8_t), so a function
+    // cannot index more CSVs than that type can hold.
+    revng_assert(CSVCount <= std::numeric_limits<uint8_t>::max());
 
-    return RegistersCount;
+    CSVToIndex[CSV] = CSVCount;
+    IndexToCSV[CSVCount] = CSV;
+
+    revng_assert(CSVToIndex.size() == IndexToCSV.size());
+    revng_assert(CSVToIndex.size() == 1 + CSVCount);
+
+    return CSVCount;
   }
 
-  model::Register::Values registerByIndex(uint8_t Index) const {
-    auto It = IndexToRegister.find(Index);
-    revng_assert(It != IndexToRegister.end());
+  llvm::GlobalVariable *csvByIndex(uint8_t Index) const {
+    auto It = IndexToCSV.find(Index);
+    revng_assert(It != IndexToCSV.end());
     return It->second;
   }
 
-  uint8_t registersCount() const { return IndexToRegister.size(); }
+  uint8_t csvCount() const { return IndexToCSV.size(); }
 
-  cppcoro::generator<model::Register::Values>
-  registersInSet(const llvm::BitVector &Set) {
+  cppcoro::generator<llvm::GlobalVariable *>
+  csvsInSet(const llvm::BitVector &Set) {
     for (unsigned Index : Set.set_bits()) {
-      co_yield registerByIndex(Index);
+      co_yield csvByIndex(Index);
     }
   }
 
   std::string toString(const Operation &Operation) const {
-    auto Register = registerByIndex(Operation.Target);
+    auto *CSV = csvByIndex(Operation.Target);
     return (OperationType::getName(Operation.Type).str() + "("
-            + model::Register::getName(Register).str() + ")");
+            + CSV->getName().str() + ")");
   }
 
 public:
