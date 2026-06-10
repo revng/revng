@@ -60,6 +60,10 @@ commands:
   #
   # otherwise, the error is checked against `${INPUT}/expected-error.txt` with
   # its license header stripped.
+  #
+  # Any other outcome fails the test: a crash (exit code other than 0 or 1),
+  # a failure in a test that has no `expected-error.txt`, or a failure whose
+  # stderr carries no `RuntimeError:` payload.
   - type: revng.import-from-c
     from:
       - type: source
@@ -70,22 +74,43 @@ commands:
       C_CODE=$$(sed 's;^;  ;' "${INPUT}/edit.c");
       CONFIGURATION="LocationToEdit: $${LOCATION_TO_EDIT}\nCCode: |\n$${C_CODE}";
 
-      if revng2 pipeline run-analysis import-from-c
-           -c "$$(echo -e "$$CONFIGURATION")"
-           "${INPUT}/input-model.yml"
-           -o "${OUTPUT}/model.yml"
-           2> "${OUTPUT}/error.txt"; then
+      EXIT_CODE=0;
+      revng2 pipeline run-analysis import-from-c
+        -c "$$(echo -e "$$CONFIGURATION")"
+        "${INPUT}/input-model.yml"
+        -o "${OUTPUT}/model.yml"
+        2> "${OUTPUT}/error.txt" || EXIT_CODE=$$?;
+
+      if [[ "$$EXIT_CODE" -eq 0 ]]; then
 
         revng model compare "${INPUT}/check-against.yml" "${OUTPUT}/model.yml";
 
       else
 
-        if ! [[ "$$(tail -n +5 "${INPUT}/expected-error.txt")" ==
-           "$$(grep -Pzo '(?<=RuntimeError: )[^\x00]*' "${OUTPUT}/error.txt" | tr -d '\0')" ]]; then
-          echo "Expected:"
-          cat "${INPUT}/expected-error.txt"
-          echo "Got:"
-          echo "${OUTPUT}/error.txt"
+        if [[ "$$EXIT_CODE" -ne 1 ]]; then
+          echo "import-from-c terminated unexpectedly (exit code $${EXIT_CODE}), stderr:";
+          cat "${OUTPUT}/error.txt";
+          exit 1;
+        fi;
+
+        if ! [[ -e "${INPUT}/expected-error.txt" ]]; then
+          echo "import-from-c failed but no error was expected, stderr:";
+          cat "${OUTPUT}/error.txt";
+          exit 1;
+        fi;
+
+        ACTUAL_ERROR=$$(grep -Pzo '(?<=RuntimeError: )[^\x00]*' "${OUTPUT}/error.txt" | tr -d '\0' || true);
+        if [[ -z "$$ACTUAL_ERROR" ]]; then
+          echo "import-from-c failed without reporting a RuntimeError, stderr:";
+          cat "${OUTPUT}/error.txt";
+          exit 1;
+        fi;
+
+        if ! [[ "$$(tail -n +5 "${INPUT}/expected-error.txt")" == "$$ACTUAL_ERROR" ]]; then
+          echo "Expected:";
+          cat "${INPUT}/expected-error.txt";
+          echo "Got:";
+          cat "${OUTPUT}/error.txt";
           exit 1;
         fi;
       fi
