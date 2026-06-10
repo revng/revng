@@ -431,7 +431,8 @@ void CliftContainer::mergeBackImpl(CliftContainer &&SourceContainer) {
   for (mlir::NamedAttribute Attribute : (*SourceContainer.Module)->getAttrs()) {
     // TODO: something better to do then just override existing with incoming
     //       when there's a name clash?
-    (*Module)->setAttr(Attribute.getName(), Attribute.getValue());
+    (*Module)->setAttr(llvm::StringRef(Attribute.getName()),
+                       Attribute.getValue());
   }
 
   // Assume that at least some symbols were copied over and always prune.
