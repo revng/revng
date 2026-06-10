@@ -40,12 +40,11 @@ $ revng analyze \
         -o /dev/null
 $ revng artifact \
         --resume=working-directory \
-        decompile-to-single-file \
+        emit-c-as-single-file \
         example \
         | revng ptml | grep -A2 -B1 -F ' main('
-_ABI(SystemV_x86_64)
-generic64_t main(generic64_t argument_0) {
-  return (argument_0 * 3) & 0xFFFFFFFF;
+_ABI(SystemV_x86_64) generic64_t main(generic64_t argument_0) {
+  return argument_0 * 3UL & 0xFFFFFFFFUL;
 }
 ```
 
@@ -57,12 +56,11 @@ Alternatively, you can run `revng-initial-auto-analysis` *and* produce the artif
 ```bash
 $ revng artifact \
         --analyze \
-        decompile-to-single-file \
+        emit-c-as-single-file \
         example \
         | revng ptml \
         | grep -A2 -B1 -F ' main('
-_ABI(SystemV_x86_64)
-generic64_t main(generic64_t argument_0) {
-  return (argument_0 * 3) & 0xFFFFFFFF;
+_ABI(SystemV_x86_64) generic64_t main(generic64_t argument_0) {
+  return argument_0 * 3UL & 0xFFFFFFFFUL;
 }
 ```
