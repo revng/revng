@@ -781,6 +781,19 @@ private:
             CalledFunctions.insert(CalledFunction);
         }
 
+        // Preserve all the CSVs used by helpers as well, this saves us from
+        // having "surprises" later, which can be a problem since sometimes we
+        // ignore non-existing CSVs.
+        if (auto *Call = getCallToHelper(&Instruction)) {
+          auto MaybeUsedCSVs = tryGetCSVUsedByHelperCall(Call);
+          if (MaybeUsedCSVs) {
+            for (auto *CSV : MaybeUsedCSVs->Read)
+              UsedGVs.insert(CSV);
+            for (auto *CSV : MaybeUsedCSVs->Written)
+              UsedGVs.insert(CSV);
+          }
+        }
+
         std::queue<llvm::User *> Users;
         Users.push(&Instruction);
 
