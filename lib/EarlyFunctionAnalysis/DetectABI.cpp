@@ -703,10 +703,23 @@ static bool isDynamicFunctionStub(const SortedVector<efa::BasicBlock> &CFG) {
 }
 
 void DetectABI::recordRegisters(const efa::CSVSet &CSVs, auto Inserter) {
+  // Group the live CSVs by the register they compose and type each
+  // argument/return value by its live lanes rather than the full register
+  // width: a register live only in its low 64 bits is typed `generic64_t`
+  // even when the register itself is wider.
+  std::map<model::Register::Values, uint64_t> ConfirmedByteCounts;
   for (auto *CSV : CSVs) {
-    auto Reg = model::Register::fromCSVName(CSV->getName(),
-                                            Binary->Architecture());
-    Inserter.emplace(Reg).Type() = model::PrimitiveType::makeGeneric(Reg);
+    model::Register::Portion Portion(CSV->getName(), Binary->Architecture());
+    if (Portion.Register == model::Register::Invalid)
+      continue;
+
+    uint64_t &Bytes = ConfirmedByteCounts[Portion.Register];
+    Bytes = std::max(Bytes, Portion.StartOffset + Portion.Size);
+  }
+
+  for (auto [Register, ByteCount] : ConfirmedByteCounts) {
+    auto Type = model::PrimitiveType::makeGenericBigEnoughFor(ByteCount);
+    Inserter.emplace(Register).Type() = std::move(Type);
   }
 }
 
