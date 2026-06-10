@@ -63,14 +63,6 @@ struct FunctionToAnalyze {
   Node *SinkNode = nullptr;
 };
 
-static model::Register::Values
-getRegister(Value *Pointer, model::Architecture::Values Architecture) {
-  if (auto *CSV = dyn_cast<GlobalVariable>(Pointer)) {
-    return model::Register::fromCSVName(CSV->getName(), Architecture);
-  }
-  return model::Register::Invalid;
-}
-
 static rua::Function::Node *findUnrechableNode(rua::Function::Node *Start) {
   df_iterator_default_set<rua::Function::Node *> Visited;
   for (auto &_ : llvm::inverse_depth_first_ext(Start, Visited))
@@ -137,10 +129,17 @@ fromLLVMFunction(llvm::Function &F,
                             &Architecture,
                             StackPointer](rua::OperationType::Values Type,
                                           Value *Pointer) {
-      auto Register = getRegister(Pointer, Architecture);
-      if (Register != model::Register::Invalid and Register != StackPointer) {
-        Operations.emplace_back(Type, Function.registerIndex(Register));
-      }
+      auto *CSV = dyn_cast<GlobalVariable>(Pointer);
+      if (CSV == nullptr)
+        return;
+
+      // Only track CSVs that compose a register, excluding the stack pointer.
+      // We key the analysis on the CSV itself rather than on the register, so
+      // that each CSV composing a register is tracked independently.
+      auto Register = model::Register::fromCSVName(CSV->getName(),
+                                                   Architecture);
+      if (Register != model::Register::Invalid and Register != StackPointer)
+        Operations.emplace_back(Type, Function.csvIndex(CSV));
     };
 
     // Translate the basic block
@@ -246,15 +245,6 @@ RUAResults analyzeRegisterUsage(Function *F,
     Log << DoLog;
   }
 
-  auto GetRegisterName = model::Register::getRegisterName;
-
-  auto *M = F->getParent();
-  auto GetCSV = [&M](model::Register::Values Reg) {
-    auto *R = M->getGlobalVariable(model::Register::singleCSVName(Reg), true);
-    revng_assert(R != nullptr);
-    return R;
-  };
-
   {
     // Run the liveness analysis
     revng_log(Log, "Running Liveness");
@@ -284,11 +274,11 @@ RUAResults analyzeRegisterUsage(Function *F,
     revng_log(Log, "Registers alive at the entry of the function:");
     rua::BlockNode *EntryNode = Function.Function.getEntryNode();
     const BitVector &EntryResult = AnalysisResult[EntryNode].OutValue;
-    for (auto Register : Function.Function.registersInSet(EntryResult)) {
-      // This register is alive at the entry of the function
+    for (auto *CSV : Function.Function.csvsInSet(EntryResult)) {
+      // This CSV is alive at the entry of the function
 
-      revng_log(Log, "  " << GetRegisterName(Register));
-      FinalResults.ArgumentsRegisters.insert(GetCSV(Register));
+      revng_log(Log, "  " << CSV->getName());
+      FinalResults.ArgumentsRegisters.insert(CSV);
     }
 
     for (const auto &[PC, CallSite] : Function.CallSites) {
@@ -301,11 +291,11 @@ RUAResults analyzeRegisterUsage(Function *F,
                   << CallSite.Callee.toString() << " at " << PC.toString()
                   << " (block " << PostNode->label() << ")");
       const BitVector &CallSiteResult = AnalysisResult.at(PostNode).InValue;
-      for (auto Register : Function.Function.registersInSet(CallSiteResult)) {
-        // This register is alive after the call site
+      for (auto *CSV : Function.Function.csvsInSet(CallSiteResult)) {
+        // This CSV is alive after the call site
 
-        revng_log(Log, "  " << GetRegisterName(Register));
-        ResultsCallSite.ReturnValuesRegisters.insert(GetCSV(Register));
+        revng_log(Log, "  " << CSV->getName());
+        ResultsCallSite.ReturnValuesRegisters.insert(CSV);
       }
     }
   }
@@ -351,12 +341,12 @@ RUAResults analyzeRegisterUsage(Function *F,
               "the function without ever being read:");
     rua::BlockNode *ExitNode = Function.ReturnNode;
     const BitVector &ExitResult = Compute(ExitNode, false);
-    for (auto Register : Function.Function.registersInSet(ExitResult)) {
-      // This register has at least one write that reaches the exit node of the
+    for (auto *CSV : Function.Function.csvsInSet(ExitResult)) {
+      // This CSV has at least one write that reaches the exit node of the
       // function without ever being read
-      revng_log(Log, "  " << GetRegisterName(Register));
+      revng_log(Log, "  " << CSV->getName());
 
-      FinalResults.ReturnValuesRegisters.insert(GetCSV(Register));
+      FinalResults.ReturnValuesRegisters.insert(CSV);
     }
 
     for (const auto &[PC, CallSite] : Function.CallSites) {
@@ -369,13 +359,13 @@ RUAResults analyzeRegisterUsage(Function *F,
 
       auto *PreNode = CallSite.Block;
       const BitVector &CallSiteResult = Compute(PreNode, true);
-      for (auto Register : Function.Function.registersInSet(CallSiteResult)) {
-        // This register has at least one write that reaches the call site
+      for (auto *CSV : Function.Function.csvsInSet(CallSiteResult)) {
+        // This CSV has at least one write that reaches the call site
         // without ever being read
 
-        revng_log(Log, "  " << GetRegisterName(Register));
+        revng_log(Log, "  " << CSV->getName());
 
-        ResultsCallSite.ArgumentsRegisters.insert(GetCSV(Register));
+        ResultsCallSite.ArgumentsRegisters.insert(CSV);
       }
     }
   }
