@@ -60,7 +60,13 @@ MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
                                llvm::StringRef Handle,
                                llvm::StringRef Name) {
   auto Attr = makeNameAttr<T>(Context, Handle);
-  revng_assert(Attr.getValue().empty());
+  if (not Attr.getValue().empty()) {
+    std::string Error = "Name attribute already has a value that differs "
+                        "from the new one: '"
+                        + Attr.getValue().str() + "' vs '" + Name.str() + "'";
+    revng_abort(Error.c_str());
+  }
+
   Attr.setValue(Name);
   return Attr;
 }
