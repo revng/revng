@@ -6,13 +6,14 @@ commands:
   #
   # Run detect-stack-size and test against ground truth
   #
-  # TODO: this crashes in the new pipeline, investigate
   - type: revng.test-detect-stack-size
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-detect-stack-size
     suffix: /
     command: |-
-      revng analyze --resume "$OUTPUT" import-binary "$INPUT" -o /dev/null;
-      revng analyze --resume "$OUTPUT" detect-abi "$INPUT" -o /dev/null;
-      revng analyze --resume "$OUTPUT" detect-stack-size "$INPUT" | revng model compare "${SOURCE}.model.yml" -;
+      cd "$OUTPUT";
+      revng2 project init --no-initial-auto-analysis "$INPUT";
+      revng2 project analyze parse-binary -o /dev/null;
+      revng2 project analyze detect-abi -o /dev/null;
+      revng2 project analyze detect-stack-size | revng model compare "${SOURCE}.model.yml" -;
