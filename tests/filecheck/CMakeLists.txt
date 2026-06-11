@@ -7,7 +7,10 @@
 function(add_filecheck_test PATH)
   add_test(
     NAME "filecheck/${PATH}"
-    COMMAND lit -a "${CMAKE_SOURCE_DIR}/tests/filecheck/${PATH}"
+    COMMAND
+      "${CMAKE_CURRENT_SOURCE_DIR}/simplit"
+      "${CMAKE_CURRENT_SOURCE_DIR}/lit.cfg.py"
+      "${CMAKE_SOURCE_DIR}/tests/filecheck/${PATH}"
     WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
   set_tests_properties(
     "filecheck/${PATH}" PROPERTIES LABELS "unit;filecheck" ENVIRONMENT
