@@ -54,9 +54,14 @@ class AppMaker:
     default="postgresql://localhost/rss",
     help="The connection string that will be used by the storage class",
     show_default=True,
+    envvar="PRSS_CONNECTION_STRING",
 )
 @click.option("--notification-url", help="URL to send notifications to")
-@click.option("--notification-psk", help="PSK to use when sending notifications")
+@click.option(
+    "--notification-psk",
+    help="PSK to use when sending notifications",
+    envvar="PRSS_NOTIFICATION_PSK",
+)
 @click.option(
     "--public-notification-url",
     help="public-facing URL in case the notification url is private",
