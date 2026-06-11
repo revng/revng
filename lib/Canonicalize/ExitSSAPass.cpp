@@ -27,7 +27,6 @@
 
 #include "revng/ADT/SmallMap.h"
 #include "revng/ADT/ZipMapIterator.h"
-#include "revng/Model/FunctionTags.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
 
