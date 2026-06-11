@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# This script is an optimized version of the `lit` command-line tool from LLVM,
+# for the execution of a single test. It executes faster than the stock lit for
+# two reasons:
+# * It does not auto-discover the `lit.cfg.py` file. Normally lit does this by
+#   traversing the parent directories of the test file, and this causes a lot of
+#   FS activity. This script instead requires the config path to be specified on
+#   the command-line.
+# * It runs a single test in-process. Normally lit sets up a
+#   `multiprocessing.Pool` to run multiple tests, which causes `fork` to be
+#   called; this is an expensive operation in the single-test case. This script
+#   instead runs the test directly.
+# This brings the execution of each individual test down by ~20%. Profiling data
+# shows that the only time not used in running the test is used to import the
+# lit module.
+# One drawback that this script has is that it does not support any of the
+# command-line options in `lit`, e.g. `--vg` to run tests under valgrind. Since
+# both use the same code infrastructure, if the need arises the original `lit`
+# tool can be used.
+
+import argparse
+import os
+import platform
+import sys
+
+from lit.display import create_display
+from lit.LitConfig import LitConfig
+from lit.Test import Test, TestSuite
+from lit.TestingConfig import TestingConfig
+from lit.worker import _execute as worker_execute
+
+
+def build_test(lit_config, test_path, config_path):
+    cfg = TestingConfig.fromdefaults(lit_config)
+    cfg.load_from_path(config_path, lit_config)
+
+    # {source,exec}_root: use the cfg-defined one or fall back to the directory
+    #                     where the config is
+    config_dir = os.path.dirname(os.path.realpath(config_path))
+    source_root = os.path.realpath(cfg.test_source_root or config_dir)
+    exec_root = os.path.realpath(cfg.test_exec_root or config_dir)
+
+    suite = TestSuite(cfg.name, source_root, exec_root, cfg)
+
+    # The test's identity within the suite is its path relative to source_root
+    test_path_relative = os.path.relpath(os.path.realpath(test_path), source_root)
+    return Test(suite, tuple(test_path_relative.split(os.sep)), cfg)
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Run a single lit test and show its full output.")
+    parser.add_argument("config", help="Path to the lit.cfg.py to load.")
+    parser.add_argument("test", help="Path to the single test file to run.")
+    args = parser.parse_args()
+
+    lit_config = LitConfig(
+        progname=os.path.basename(sys.argv[0]),
+        path=[],
+        quiet=False,
+        useValgrind=False,
+        valgrindLeakCheck=False,
+        valgrindArgs=[],
+        noExecute=False,
+        debug=False,
+        isWindows=(platform.system() == "Windows"),
+        order="smart",
+        params={},
+    )
+
+    test = build_test(lit_config, args.test, args.config)
+    display = create_display(
+        argparse.Namespace(quiet=False, succinct=False, showOutput=True, showAllOutput=True),
+        tests=[test],
+        total_tests=1,
+        workers=1,
+    )
+    display.print_header()
+
+    # Run the test and display its result
+    test.setResult(worker_execute(test, lit_config))
+    display.update(test)
+    display.clear(interrupted=False)
+
+    sys.exit(1 if test.isFailure() else 0)
+
+
+if __name__ == "__main__":
+    main()
