@@ -3,28 +3,31 @@
 #
 
 commands:
-  # TODO: this crashes with the new pipeline, investigate
   - type: revng.test-segregate-stack-accesses
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-segregate-stack-accesses
     suffix: /
     command: |-
+      cd "$OUTPUT";
       export REVNG_OPTIONS="$${REVNG_OPTIONS:-} --debug-names";
 
-      revng analyze --resume "$OUTPUT" import-binary "$INPUT" -o /dev/null;
+      revng2 project init --no-initial-auto-analysis "$INPUT";
+      revng2 project analyze parse-binary -o /dev/null;
 
-      revng model override-by-name
-        "$OUTPUT/context/model.yml"
-        ${SOURCE}.override.yml
-        > "$OUTPUT/context/model-tmp.yml";
-      mv "$OUTPUT/context/model-tmp.yml" "$OUTPUT/context/model.yml";
+      revng model override-by-name model.yml "${SOURCE}.override.yml" > model-tmp.yml;
+      mv model-tmp.yml model.yml;
+      rm -r .cache;
 
-      revng analyze --resume "$OUTPUT" detect-abi "$INPUT" -o /dev/null;
+      revng2 project analyze detect-abi -o /dev/null;
+      revng2 project analyze detect-stack-size -o /dev/null;
 
-      revng analyze --resume "$OUTPUT" detect-stack-size "$INPUT" -o /dev/null;
+      revng2 project artifact make-segment-ref --tar -o make-segment-ref.tar;
+      tar -tf make-segment-ref.tar 2>/dev/null |
+      while IFS= read -r ENTRY; do
+        tar -xf make-segment-ref.tar --to-stdout "$$ENTRY" 2>/dev/null |
+        revng opt -S >> make-segment-ref.ll;
+      done;
+      FileCheck "${SOURCE}.filecheck.ll" < make-segment-ref.ll;
 
-      revng artifact --resume "$OUTPUT" make-segment-ref "$INPUT" |
-        revng opt -S | FileCheck ${SOURCE}.filecheck.ll;
-
-      revng artifact --resume "$OUTPUT" emit-c "$INPUT" -o /dev/null;
+      revng2 project artifact emit-c -o /dev/null;
