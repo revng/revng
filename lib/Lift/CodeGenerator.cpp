@@ -143,8 +143,7 @@ public:
   }
 
   Instruction *wrap(Instruction *I) {
-    revng::NonDebugInfoCheckingIRBuilder Builder(I->getParent(),
-                                                 ++I->getIterator());
+    revng::IRBuilder Builder(I->getParent(), ++I->getIterator());
     return wrap(Builder, I);
   }
 };
@@ -251,7 +250,7 @@ void CodeGenerator::translate(LibTcg &LibTcg,
                                                TheModule,
                                                Factory);
 
-  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
+  revng::IRBuilder Builder(Context);
 
   // Create main function
   auto *MainType = FT::get(Builder.getVoidTy(),

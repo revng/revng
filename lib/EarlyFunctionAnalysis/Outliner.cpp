@@ -194,7 +194,7 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
     Instruction *Term = BB->getTerminator();
 
     // TODO: the checks should be enabled conditionally based on the user.
-    revng::NonDebugInfoCheckingIRBuilder Builder(Term);
+    revng::IRBuilder Builder(Term);
 
     if (FunctionCall != nullptr) {
       // This is a proper call, storing the return address somewhere: inject a
@@ -363,7 +363,7 @@ Outliner::outlineFunctionInternal(CallHandler *TheCallHandler,
         Term->eraseFromParent();
 
         // TODO: the checks should be enabled conditionally based on the user.
-        revng::NonDebugInfoCheckingIRBuilder Builder(BB);
+        revng::IRBuilder Builder(BB);
         Builder.CreateUnreachable();
 
         // Ensure markers are still close to the terminator
@@ -470,7 +470,7 @@ void Outliner::createAnyPCHooks(CallHandler *TheCallHandler,
     revng_assert(isa<BranchInst>(JumpToAnyPC));
 
     // TODO: the checks should be enabled conditionally based on the user.
-    revng::NonDebugInfoCheckingIRBuilder Builder(JumpToAnyPC);
+    revng::IRBuilder Builder(JumpToAnyPC);
 
     using CPN = ConstantPointerNull;
     Value *SymbolName = CPN::get(Type::getInt8PtrTy(Context));

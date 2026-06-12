@@ -199,7 +199,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
 
   // TODO: is there any useful debug information we could attach to the helper
   //       wrapper?
-  revng::NonDebugInfoCheckingIRBuilder Builder(Entry);
+  revng::IRBuilder Builder(Entry);
 
   // Serialize read CSV
   auto It = HelperWrapper->arg_begin();

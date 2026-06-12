@@ -277,7 +277,7 @@ inline llvm::CallInst &emitAbort(llvm::Instruction *InsertionPoint,
                                  const llvm::Twine &Message,
                                  const llvm::DebugLoc &DbgLocation = {},
                                  const ProgramCounterHandler *PCH = nullptr) {
-  revng::NonDebugInfoCheckingIRBuilder Builder(InsertionPoint);
+  revng::IRBuilder Builder(InsertionPoint);
   return emitAbort(Builder, Message, DbgLocation, PCH);
 }
 
@@ -285,7 +285,7 @@ inline llvm::CallInst &emitAbort(llvm::BasicBlock *InsertionPoint,
                                  const llvm::Twine &Message,
                                  const llvm::DebugLoc &DbgLocation = {},
                                  const ProgramCounterHandler *PCH = nullptr) {
-  revng::NonDebugInfoCheckingIRBuilder Builder(InsertionPoint, DbgLocation);
+  revng::IRBuilder Builder(InsertionPoint, DbgLocation);
   return emitAbort(Builder, Message, DbgLocation, PCH);
 }
 
@@ -302,8 +302,7 @@ llvm::CallInst &emitMessage(IPType &&InsertionPoint,
                             const llvm::Twine &Message,
                             const llvm::DebugLoc &DbgLocation = {},
                             const ProgramCounterHandler *PCH = nullptr) {
-  revng::NonDebugInfoCheckingIRBuilder
-    Builder(std::forward<IPType>(InsertionPoint));
+  revng::IRBuilder Builder(std::forward<IPType>(InsertionPoint));
   return emitMessage(Builder, Message, DbgLocation, PCH);
 }
 

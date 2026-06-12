@@ -22,7 +22,7 @@ class EmitSegmentReferences {
 private:
   const model::Binary &Binary;
   MetaAddress CurrentAddress = MetaAddress::invalid();
-  revng::NonDebugInfoCheckingIRBuilder B;
+  revng::IRBuilder B;
   IntegerType *IntPtrType = nullptr;
   llvm::DenseMap<const model::Segment *, Function *> SegmentGlobals;
 

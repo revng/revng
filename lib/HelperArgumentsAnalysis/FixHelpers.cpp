@@ -110,7 +110,7 @@ public:
 private:
   VariableManager &Variables;
   Type &IntPtrType;
-  revng::NonDebugInfoCheckingIRBuilder Builder;
+  revng::IRBuilder Builder;
   Function &Abort;
 
 public:

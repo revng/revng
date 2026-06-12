@@ -85,8 +85,7 @@ void SDSAPI::segregateAccesses(Function &F) {
   while (It->getOpcode() == Instruction::Alloca)
     It++;
 
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder Builder(&(*It));
+  revng::IRBuilder Builder(&(*It));
 
   // Context: inttoptr instructions basically inhibits all optimizations. In
   // particular, when an integer is inttoptr'd twice with different destination

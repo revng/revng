@@ -50,8 +50,7 @@ public:
       // initialiser found in the array constant.
 
       // TODO: the checks should be enabled conditionally based on the user.
-      revng::NonDebugInfoCheckingIRBuilder
-        Builder(&BB, BasicBlock::iterator(Return));
+      revng::IRBuilder Builder(&BB, BasicBlock::iterator(Return));
 
       auto *Alloca = Builder.CreateAlloca(ArrayT);
       auto *AllocaInt = Builder.CreatePtrToInt(Alloca, IntPtrT);

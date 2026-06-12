@@ -35,8 +35,7 @@ PromoteGlobalToLocalPass::run(llvm::Function &F,
     }
   }
 
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder Builder(&F.getEntryBlock().front());
+  revng::IRBuilder Builder(&F.getEntryBlock().front());
 
   // Create an equivalent local variable, replace all the uses of the CSV.
   for (GlobalVariable *CSV : toSortedByName(llvm::make_first_range(CSVMap))) {

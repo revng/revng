@@ -126,7 +126,7 @@ public:
       BasicBlock *SinkBlock = BasicBlock::Create(Context, "sink_block", &F);
 
       // TODO: checks are only omitted here because of unit tests.
-      revng::NonDebugInfoCheckingIRBuilder Builder(SinkBlock);
+      revng::IRBuilder Builder(SinkBlock);
 
       // Add an `UnreachableInst` to the end of the `SinkBlock`
       Builder.CreateUnreachable();

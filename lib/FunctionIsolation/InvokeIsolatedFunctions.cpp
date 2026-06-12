@@ -96,7 +96,7 @@ public:
 
     // Create a builder object (this pipeline branch never leads to decompiled
     // code, so who cares about the debug information).
-    revng::NonDebugInfoCheckingIRBuilder Builder(Context);
+    revng::IRBuilder Builder(Context);
     Builder.SetInsertPoint(CatchBB);
 
     // Create the StructType necessary for the landingpad
@@ -159,7 +159,7 @@ public:
 
       // This pipeline branch never leads to decompiled code, so who cares about
       // the debug information.
-      revng::NonDebugInfoCheckingIRBuilder Builder(NewBB);
+      revng::IRBuilder Builder(NewBB);
 
       // In case the isolated functions has arguments, provide them
       SmallVector<Value *, 4> Arguments;
@@ -218,12 +218,11 @@ static void populateFunctionDispatcher(const model::Binary &Binary,
                                               "unexpectedpc",
                                               FunctionDispatcher,
                                               nullptr);
-  revng::NonDebugInfoCheckingIRBuilder UnreachableBuilder(Unexpected);
+  revng::IRBuilder UnreachableBuilder(Unexpected);
   UnreachableBuilder.CreateUnreachable();
   setBlockType(Unexpected->getTerminator(), BlockType::UnexpectedPCBlock);
 
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
+  revng::IRBuilder Builder(Context);
 
   // Create all the entries of the dispatcher
   ProgramCounterHandler::DispatcherTargets Targets;

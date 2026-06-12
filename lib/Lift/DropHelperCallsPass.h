@@ -130,7 +130,7 @@ DropHelperCallsPass::run(llvm::Function &F, llvm::FunctionAnalysisManager &) {
 
   LLVMContext &Context = getContext(&F);
   QuickMetadata QMD(Context);
-  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
+  revng::IRBuilder Builder(Context);
   std::vector<CallInst *> ToDelete;
 
   // TODO: iterating over users of helper functions would probably be faster

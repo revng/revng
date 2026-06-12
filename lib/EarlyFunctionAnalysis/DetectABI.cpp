@@ -580,8 +580,7 @@ Changes DetectABI::analyzeFunctionABI(const model::Function &Function,
     }
   }
 
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder Builder(M.getContext());
+  revng::IRBuilder Builder(M.getContext());
   for (auto &[Call, IsPreHook] : Hooks) {
     auto CallerBlock = BasicBlockID::fromValue(Call->getArgOperand(0));
     auto CalleeAddress = MetaAddress::fromValue(Call->getArgOperand(1));

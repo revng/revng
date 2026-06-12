@@ -48,7 +48,7 @@ public:
 
 private:
   llvm::Module &TheModule;
-  revng::NonDebugInfoCheckingIRBuilder AllocaBuilder;
+  revng::IRBuilder AllocaBuilder;
   GlobalsMap CPUStateGlobals;
 
   // QEMU terminology

@@ -62,7 +62,7 @@ bool ExtractValueToGEPPass::runOnFunction(llvm::Function &F) {
   LLVMContext &Context = F.getContext();
   const DataLayout &DL = F.getParent()->getDataLayout();
   IntegerType *Int8Ty = llvm::IntegerType::getInt8Ty(Context);
-  revng::NonDebugInfoCheckingIRBuilder B(Context);
+  revng::IRBuilder B(Context);
 
   SmallVector<WeakTrackingVH, 8> IsDead;
 

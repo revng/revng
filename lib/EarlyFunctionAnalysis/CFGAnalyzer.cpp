@@ -429,9 +429,7 @@ void CFGAnalyzer::createIBIMarker(OutlinedFunction *Outlined) {
   using namespace llvm;
   using llvm::BasicBlock;
 
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder
-    Builder(&Outlined->Function->getEntryBlock().front());
+  revng::IRBuilder Builder(&Outlined->Function->getEntryBlock().front());
 
   State Initial = loadState(Builder);
 
@@ -1043,8 +1041,7 @@ FunctionSummary CFGAnalyzer::analyze(const MetaAddress &Entry) {
   using namespace llvm;
   using llvm::BasicBlock;
 
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder Builder(M.getContext());
+  revng::IRBuilder Builder(M.getContext());
 
   // Detect function boundaries
   OutlinedFunction OutlinedFunction = outline(Entry);

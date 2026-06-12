@@ -366,7 +366,7 @@ bool TDBP::forceFallthroughAfterHelper(CallInst *Call) {
 
   exitTBCleanup(Call);
 
-  revng::NonDebugInfoCheckingIRBuilder Builder(Call->getParent());
+  revng::IRBuilder Builder(Call->getParent());
   Call->setArgOperand(0, Builder.getInt32(1));
 
   // Get the fallthrough basic block and emit a conditional branch, if not
@@ -805,8 +805,7 @@ void JumpTargetManager::fixPostHelperPC() {
         };
         auto End = Written.end();
         if (std::find_if(Written.begin(), End, WritesPC) != End) {
-          revng::NonDebugInfoCheckingIRBuilder Builder(Call->getParent(),
-                                                       ++Call->getIterator());
+          revng::IRBuilder Builder(Call->getParent(), ++Call->getIterator());
           PCH->deserializePC(Builder);
         }
       }
@@ -1021,7 +1020,7 @@ void JumpTargetManager::registerReadRange(MetaAddress StartAddress,
 }
 
 void JumpTargetManager::prepareDispatcher() {
-  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
+  revng::IRBuilder Builder(Context);
   QuickMetadata QMD(Context);
 
   // Create the first block of the dispatcher
@@ -1275,7 +1274,7 @@ void JumpTargetManager::harvest() {
 
     // Update the third argument of newpc calls (isJT, i.e., is this instruction
     // a jump target?)
-    revng::NonDebugInfoCheckingIRBuilder Builder(Context);
+    revng::IRBuilder Builder(Context);
     Function *NewPCFunction = getIRHelper("newpc", TheModule);
     if (NewPCFunction != nullptr) {
       for (User *U : NewPCFunction->users()) {

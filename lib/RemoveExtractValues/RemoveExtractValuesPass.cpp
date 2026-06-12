@@ -44,7 +44,7 @@ bool RemoveExtractValues::runOnFunction(llvm::Function &F) {
   llvm::LLVMContext &LLVMCtx = F.getContext();
 
   // TODO: checks are only omitted here because of unit tests.
-  revng::NonDebugInfoCheckingIRBuilder Builder(LLVMCtx);
+  revng::IRBuilder Builder(LLVMCtx);
 
   llvm::SmallVector<llvm::WeakTrackingVH, 8> Dead;
 
