@@ -13,9 +13,9 @@ namespace llvm {
 class Instruction;
 }
 
-template<MFP::MonotoneFrameworkInstance MFI>
-struct llvm::DOTGraphTraits<const MFP::Graph<MFI> *> {
-  using GraphType = const MFP::Graph<MFI> *;
+template<mfp::MonotoneFrameworkInstance MFI>
+struct llvm::DOTGraphTraits<const mfp::Graph<MFI> *> {
+  using GraphType = const mfp::Graph<MFI> *;
   using UnderlyingGraphType = MFI::GraphType;
   using UnderlyingDOTGraphTraits = llvm::DOTGraphTraits<UnderlyingGraphType>;
   using NodeRef = llvm::GraphTraits<GraphType>::NodeRef;
@@ -63,7 +63,7 @@ struct llvm::DOTGraphTraits<const MFP::Graph<MFI> *> {
           llvm::raw_string_ostream Stream(Result);
           Stream << Name.str() << " value:"
                  << "\n";
-          MFP::dump(Stream, 1, ToDump);
+          mfp::dump(Stream, 1, ToDump);
         }
 
         replaceAll(Result, "\n", Newline);
@@ -141,6 +141,6 @@ struct llvm::DOTGraphTraits<const MFP::Graph<MFI> *> {
   }
 };
 
-template<MFP::MonotoneFrameworkInstance MFI>
-struct llvm::DOTGraphTraits<MFP::Graph<MFI> *>
-  : llvm::DOTGraphTraits<const MFP::Graph<MFI> *> {};
+template<mfp::MonotoneFrameworkInstance MFI>
+struct llvm::DOTGraphTraits<mfp::Graph<MFI> *>
+  : llvm::DOTGraphTraits<const mfp::Graph<MFI> *> {};

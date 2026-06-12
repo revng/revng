@@ -536,7 +536,6 @@ void CodeGenerator::translate(LibTcg &LibTcg,
 
     } // End loop over instructions
 
-    TranslateTask.complete();
     TranslateTask.advance("Finalization", true);
 
     Variables.closeTranslationBlock();

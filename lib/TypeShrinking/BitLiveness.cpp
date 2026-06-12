@@ -14,6 +14,7 @@
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/BitVector.h"
+#include "llvm/ADT/GraphTraits.h"
 #include "llvm/IR/AssemblyAnnotationWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Instruction.h"
@@ -30,12 +31,12 @@
 
 namespace TypeShrinking {
 
-class BitLivenwssAnnotatedWriter : public llvm::AssemblyAnnotationWriter {
+class BitLivenessAnnotatedWriter : public llvm::AssemblyAnnotationWriter {
 private:
   const BitLivenessAnalysisResults &Results;
 
 public:
-  BitLivenwssAnnotatedWriter(const BitLivenessAnalysisResults &Results) :
+  BitLivenessAnnotatedWriter(const BitLivenessAnalysisResults &Results) :
     Results(Results) {}
 
   void emitInstructionAnnot(const llvm::Instruction *I,
@@ -49,7 +50,7 @@ public:
 };
 
 void BitLivenessWrapperPass::dump(llvm::Function &F) const {
-  BitLivenwssAnnotatedWriter Annotator(Result);
+  BitLivenessAnnotatedWriter Annotator(Result);
   llvm::raw_os_ostream Stream(dbg);
   F.print(Stream, &Annotator);
 }
@@ -61,7 +62,8 @@ struct BitLivenessAnalysis {
   using GraphType = GenericGraph<DataFlowNode> *;
   using LatticeElement = uint32_t;
   using Label = DataFlowNode *;
-  using MFPResult = MFP::MFPResult<BitLivenessAnalysis::LatticeElement>;
+  using MFPResult = mfp::MFPResult<BitLivenessAnalysis::LatticeElement>;
+  using ExtraStateType = mfp::NoExtraState;
 
   uint32_t combineValues(const uint32_t &LHS, const uint32_t &RHS) const {
     return std::max(LHS, RHS);
@@ -71,7 +73,9 @@ struct BitLivenessAnalysis {
     return LHS <= RHS;
   }
 
-  uint32_t applyTransferFunction(DataFlowNode *L, const uint32_t E) const;
+  uint32_t applyTransferFunction(DataFlowNode *L,
+                                 const uint32_t E,
+                                 mfp::NoExtraState &) const;
 };
 
 using BitVector = llvm::BitVector;
@@ -239,7 +243,8 @@ static uint32_t transferZExt(Instruction *Ins, const uint32_t &Element) {
 }
 
 uint32_t BitLivenessAnalysis::applyTransferFunction(DataFlowNode *L,
-                                                    const uint32_t E) const {
+                                                    const uint32_t E,
+                                                    mfp::NoExtraState &) const {
   auto *Ins = L->Instruction;
   switch (Ins->getOpcode()) {
   case Instruction::And:
@@ -277,13 +282,23 @@ BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
     }
   }
 
-  auto MFPRes = MFP::getMaximalFixedPoint<BitLivenessAnalysis>({},
-                                                               &DataFlowGraph,
-                                                               0,
-                                                               Top,
-                                                               ExtremalLabels);
+  // The data-flow graph has no designated entry node and the analysis is
+  // backward-shaped (extremals are sinks). Seed RPOT from every node.
+  mfp::MFPConfiguration<BitLivenessAnalysis> Configuration{
+    .Flow = &DataFlowGraph,
+    .ExtremalValue = &Top,
+    .ExtremalLabels = &ExtremalLabels,
+    .EntryLabels = mfp::All{}
+  };
+
+  auto Results = mfp::getMaximalFixedPoint<BitLivenessAnalysis>(Configuration);
+
+  using GraphType = typename BitLivenessAnalysis::GraphType;
+  using GraphTraits = llvm::GraphTraits<GraphType>;
+  static_assert(mfp::HasNodeRange<GraphTraits>);
+
   BitLivenessPass::Result Result;
-  for (auto &[Label, MFPResult] : MFPRes) {
+  for (auto &[Label, MFPResult] : Results) {
     auto &Entry = Result[Label->Instruction];
     Entry.Result = MFPResult.InValue;
     Entry.Operands = MFPResult.OutValue;
@@ -292,7 +307,7 @@ BitLivenessPass::Result BitLivenessPass::run(llvm::Function &F,
   if (llvm::Error Error = DataFlowGraph.verify())
     revng_abort(revng::unwrapError(std::move(Error)).c_str());
 
-  MFP::Graph<BitLivenessAnalysis> MFPGraph(&DataFlowGraph, MFPRes);
+  mfp::Graph<BitLivenessAnalysis> MFPGraph(&DataFlowGraph, Results);
 
   return Result;
 }
@@ -306,7 +321,7 @@ bool BitLivenessWrapperPass::runOnFunction(llvm::Function &F) {
 } // namespace TypeShrinking
 
 template<>
-void MFP::dump(llvm::raw_ostream &Stream,
+void mfp::dump(llvm::raw_ostream &Stream,
                unsigned Indent,
                const unsigned &Value) {
   Stream << Value;

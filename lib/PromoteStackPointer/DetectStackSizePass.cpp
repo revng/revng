@@ -301,7 +301,7 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
   // If we have call site, the stack size is the highest value of the
   // following expression:
   //
-  //    StackSizeAtCallSite - CallSiteStackArgumentsSize
+  //     StackSizeAtCallSite - CallSiteStackArgumentsSize
   //
   for (const CallSite &CallSite : FSI.CallSites) {
     auto MaybeNewCandidate = handleCallSite(CallSite);
@@ -322,6 +322,15 @@ void DetectStackSize::electFunctionStackFrameSize(FunctionStackInfo &FSI) {
 
     auto EmptyStruct = Binary->makeStructDefinition(*StackSize).second;
     ModelFunction.StackFrame().Type() = std::move(EmptyStruct);
+  } else {
+    if (Log.isEnabled()) {
+      Log << "No valid stack size: ";
+      if (StackSize.has_value())
+        Log << "(none)";
+      else
+        Log << *StackSize;
+      Log << DoLog;
+    }
   }
 }
 

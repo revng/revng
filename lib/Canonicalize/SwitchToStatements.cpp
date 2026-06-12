@@ -494,7 +494,8 @@ public:
   }
 
   LatticeElement applyTransferFunction(ProgramPointNode *L,
-                                       const LatticeElement &E) const;
+                                       const LatticeElement &E,
+                                       mfp::NoExtraState &ExtraState) const;
 
 private:
   void applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const;
@@ -509,7 +510,7 @@ template<bool IsLegacy>
 using LatticeElement = AEMFP<IsLegacy>::LatticeElement;
 
 template<bool IsLegacy>
-using AvailableExpressionsMap = MFP::MFIResultMap<AEMFP<IsLegacy>>;
+using AvailableExpressionsMap = mfp::MFIResultMap<AEMFP<IsLegacy>>;
 
 static bool legacyLocalVariablesNoAlias(const Instruction *I,
                                         const Instruction *J) {
@@ -644,8 +645,8 @@ void AEMFP<IsLegacy>::applyTransferFunctionImpl(Instruction *I,
 template<bool IsLegacy>
 AEMFP<IsLegacy>::LatticeElement
 AEMFP<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
-                                       const AEMFP<IsLegacy>::LatticeElement &E)
-  const {
+                                       const AEMFP<IsLegacy>::LatticeElement &E,
+                                       mfp::NoExtraState &ExtraState) const {
 
   Instruction *I = ProgramPoint->TheInstruction;
 
@@ -955,18 +956,23 @@ static AEResult<IsLegacy> getAvailableExpressions(Function &F,
     }
   }
 
-  AvailableSet Empty{};
   ProgramPointsCFG *Graph = &Result.ProgramPointsGraph;
   ProgramPointNode *Entry = Graph->getEntryNode();
 
-  AEMFP<IsLegacy> AvailableExpressionsMF{ AA, MST };
+  using AEMFP = AEMFP<IsLegacy>;
+  AEMFP AvailableExpressionsMF{ AA, MST };
+  std::vector Entries = { Entry };
+  mfp::MFPConfiguration<AEMFP> Configuration{
+    .Instance = &AvailableExpressionsMF,
+    .Flow = Graph,
+    .Bottom = &Bottom,
+    .ExtremalLabels = &Entries,
+    .EntryLabels = &Entries
+  };
+
   // std::exchange here is only needed to make revng check-conventions happy.
   std::exchange(Result.AvailableExpressions,
-                MFP::getMaximalFixedPoint<>(AvailableExpressionsMF,
-                                            Graph,
-                                            Bottom,
-                                            Empty,
-                                            { Entry }));
+                mfp::getMaximalFixedPoint<AEMFP>(Configuration));
   return Result;
 }
 

@@ -64,6 +64,7 @@ public:
   using LatticeElement = WritersSet;
   using GraphType = Function *;
   using Label = BlockNode *;
+  using ExtraStateType = mfp::NoExtraState;
 
 private:
   llvm::DenseMap<const Operation *, uint8_t> WriteToIndex;
@@ -131,7 +132,8 @@ public:
   }
 
   WritersSet applyTransferFunction(const Block *Block,
-                                   const WritersSet &InitialState) const {
+                                   const WritersSet &InitialState,
+                                   mfp::NoExtraState &) const {
     WritersSet Result = InitialState;
 
     for (const Operation &Operation : *Block) {
@@ -158,6 +160,6 @@ public:
   }
 };
 
-static_assert(MFP::MonotoneFrameworkInstance<ReachingDefinitions>);
+static_assert(mfp::MonotoneFrameworkInstance<ReachingDefinitions>);
 
 } // namespace rua

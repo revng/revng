@@ -98,8 +98,6 @@ public:
   //===---------------------------- Expressions ---------------------------===//
 
   RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
-    revng_assert(isScalarType(V.getType()));
-
     Tokens.emitLiteralIdentifier("undef");
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
     emitType(V.getType());

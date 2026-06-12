@@ -11,7 +11,7 @@ revng_add_analyses_library_internal(
   ExitSSAPass.cpp
   ExtractValueToGEP.cpp
   FoldModelGEP.cpp
-  HoistStructPhis.cpp
+  SplitStructPhis.cpp
   ImplicitModelCastPass.cpp
   LoopRewriteWithCanonicalIV.cpp
   MakeLocalVariables.cpp
@@ -33,6 +33,7 @@ revng_add_analyses_library_internal(
 
 target_link_libraries(
   revngCanonicalize
+  revngFunctionIsolation
   revngInitModelTypes
   revngTypeNames
   revngSupport
