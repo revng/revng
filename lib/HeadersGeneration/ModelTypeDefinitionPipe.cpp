@@ -14,7 +14,8 @@
 namespace revng::pipes {
 
 inline constexpr char ModelTypeDefinitionMime[] = "text/x.c+tar+gz";
-inline constexpr char ModelTypeDefinitionName[] = "model-type-definitions";
+inline constexpr char ModelTypeDefinitionName[] = "legacy-model-type-"
+                                                  "definitions";
 inline constexpr char ModelTypeDefinitionExtension[] = ".h";
 using TypeDefinitionStringMap = TypeStringMap<&kinds::LegacyModelTypeDefinition,
                                               ModelTypeDefinitionName,
@@ -23,7 +24,7 @@ using TypeDefinitionStringMap = TypeStringMap<&kinds::LegacyModelTypeDefinition,
 
 class GenerateModelTypeDefinition {
 public:
-  static constexpr auto Name = "generate-model-type-definition";
+  static constexpr auto Name = "legacy-generate-model-type-definition";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;

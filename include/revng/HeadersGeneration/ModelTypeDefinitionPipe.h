@@ -22,7 +22,8 @@ private:
   PTMLCTypeContainer &Output;
 
 public:
-  static constexpr llvm::StringRef Name = "generate-model-type-definition";
+  static constexpr llvm::StringRef Name = "legacy-generate-model-type-"
+                                          "definition";
   using Arguments = TypeList<PipeRunArgument<PTMLCTypeContainer,
                                              "Output",
                                              "The output C headers of each "

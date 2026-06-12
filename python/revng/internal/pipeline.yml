@@ -23,9 +23,9 @@ containers:
     type: BinariesContainer
   - name: llvm-root
     type: LLVMRootContainer
-  - name: model-header
+  - name: legacy-model-header
     type: PTMLCBytesContainer
-  - name: model-types
+  - name: legacy-model-types
     type: PTMLCTypeContainer
   - name: cfg-map
     type: CFGMap
@@ -587,13 +587,13 @@ branches:
 
   legacy-emit-model-header:
     tasks:
-      - pipe: model-to-header
-        arguments: [model-header]
-      - savepoint: model-header
-        containers: [model-header]
+      - pipe: legacy-model-to-header
+        arguments: [legacy-model-header]
+      - savepoint: legacy-model-header
+        containers: [legacy-model-header]
         artifacts:
           - name: legacy-emit-model-header
-            container: model-header
+            container: legacy-model-header
             category: user
             filename: types-and-globals.h
             defined_locations:
@@ -609,13 +609,13 @@ branches:
 
   legacy-emit-type-definition:
     tasks:
-      - pipe: generate-model-type-definition
-        arguments: [model-types]
-      - savepoint: model-types
-        containers: [model-types]
+      - pipe: legacy-generate-model-type-definition
+        arguments: [legacy-model-types]
+      - savepoint: legacy-model-types
+        containers: [legacy-model-types]
         artifacts:
           - name: legacy-emit-type-definitions
-            container: model-types
+            container: legacy-model-types
             category: user
             filename: type.h
 

@@ -49,7 +49,7 @@ struct yield::StatementTraits<llvm::BasicBlock *> {
 
 struct EmbedStatementComments {
 public:
-  static constexpr auto Name = "embed-statement-comments";
+  static constexpr auto Name = "legacy-embed-statement-comments";
 
 private:
   llvm::FunctionCallee makeIRComment(llvm::Module &M) {

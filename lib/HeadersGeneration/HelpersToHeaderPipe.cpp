@@ -21,7 +21,7 @@ using HelpersHeaderFileContainer = FileContainer<&kinds::LegacyHelpersHeader,
 
 class HelpersToHeader {
 public:
-  static constexpr auto Name = "helpers-to-header";
+  static constexpr auto Name = "legacy-helpers-to-header";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;

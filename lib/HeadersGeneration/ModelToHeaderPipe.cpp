@@ -24,7 +24,7 @@ using ModelHeaderFileContainer = FileContainer<&kinds::LegacyModelHeader,
 
 class ModelToHeader {
 public:
-  static constexpr auto Name = "model-to-header";
+  static constexpr auto Name = "legacy-model-to-header";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;

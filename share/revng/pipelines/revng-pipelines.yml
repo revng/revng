@@ -45,8 +45,8 @@ Containers:
     Type: clift-functions
   - Name: types-and-globals.mlir
     Type: clift-module
-  - Name: model-type-definitions.tar.gz
-    Type: model-type-definitions
+  - Name: legacy-model-type-definitions.tar.gz
+    Type: legacy-model-type-definitions
   - Name: types-and-globals.h
     Type: type-and-global-header
   - Name: helpers.h
@@ -484,7 +484,7 @@ Branches:
               program and detects the layout of data structures.
               The produced data structures are the result of merging the
               information obtained from each function interprocedurally.
-      - Name: canonicalize
+      - Name: legacy-canonicalize
         Pipes:
           - Type: llvm-pipe
             UsedContainers: [functions.bc.zstd]
@@ -510,15 +510,15 @@ Branches:
               - pretty-int-formatting
               - discard-broken-debug-information
               - strip-dead-prototypes
-      - Name: embed-statement-comments
+      - Name: legacy-embed-statement-comments
         Pipes:
-          - Type: embed-statement-comments
+          - Type: legacy-embed-statement-comments
             UsedContainers: [functions.bc.zstd]
-      - Name: decompile
+      - Name: legacy-decompile
         Pipes:
-          - Type: helpers-to-header
+          - Type: legacy-helpers-to-header
             UsedContainers: [functions.bc.zstd, legacy-helpers.h]
-          - Type: model-to-header
+          - Type: legacy-model-to-header
             UsedContainers: [input, legacy-types-and-globals.h]
           - Type: decompile
             UsedContainers: [functions.bc.zstd, cfg.yml.tar.gz, decompiled.tar.gz]
@@ -542,7 +542,7 @@ Branches:
             UsedContainers: [decompiled.tar.gz]
             Docs: |-
               Rename the specified function(s) bodies using an LLM
-      - Name: decompile-to-single-file
+      - Name: legacy-decompile-to-single-file
         Pipes:
           - Type: emit-c-as-single-file
             UsedContainers: [decompiled.tar.gz, decompiled.c]
@@ -554,11 +554,11 @@ Branches:
             This artifact is a single PTML file representing the decompiled C
             code of the whole program, including the body of all of program's
             functions.
-  - From: canonicalize
+  - From: legacy-canonicalize
     Steps:
-      - Name: emit-helpers-header
+      - Name: legacy-emit-helpers-header
         Pipes:
-          - Type: helpers-to-header
+          - Type: legacy-helpers-to-header
             UsedContainers: [functions.bc.zstd, legacy-helpers.h]
         Artifacts:
           SingleTargetFilename: helpers.h
@@ -571,7 +571,7 @@ Branches:
     Steps:
       - Name: legacy-emit-model-header
         Pipes:
-          - Type: model-to-header
+          - Type: legacy-model-to-header
             UsedContainers: [input, legacy-types-and-globals.h]
         Artifacts:
           SingleTargetFilename: types-and-globals.h
@@ -580,14 +580,14 @@ Branches:
           Docs: |-
             This artifact contains all the declaration of types, functions and
             segments defined in the binary.
-  - From: canonicalize
+  - From: legacy-canonicalize
     Steps:
       - Name: legacy-emit-type-definitions
         Pipes:
-          - Type: generate-model-type-definition
-            UsedContainers: [input, model-type-definitions.tar.gz]
+          - Type: legacy-generate-model-type-definition
+            UsedContainers: [input, legacy-model-type-definitions.tar.gz]
         Artifacts:
-          Container: model-type-definitions.tar.gz
+          Container: legacy-model-type-definitions.tar.gz
           Kind: legacy-model-type-definition
           SingleTargetFilename: type.h
           Docs: |-
