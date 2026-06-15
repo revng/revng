@@ -18,12 +18,9 @@ commands:
       - type: revng-qa.compiled-with-debug-info
         filter: for-floating-point and !i386
     command: |-
-      PROJECT="$$(temp -d)" ;
-      revng2 -C "$$PROJECT" project init "$INPUT" -- --debug-names ;
-      revng2 -C "$$PROJECT" project artifact enforce-abi --format yaml -o "$$PROJECT/out.yml" -- --debug-names ;
-      PREFIXES=CHECK ;
-      file "$INPUT" | grep -q "ELF 64-bit" && PREFIXES=$$PREFIXES,CHECK-64 ;
-      yq -r 'to_entries[].value' "$$PROJECT/out.yml"
-        | while IFS= read -r b64 ; do printf '%s' "$$b64" | base64 -d | revng opt -S /dev/stdin -o - ; done
-        | sed 's,@local_,@,g'
-        | FileCheck --check-prefixes=$$PREFIXES "${SOURCE}".filecheck
+      PREFIXES=CHECK;
+      file "$INPUT" | grep -q "ELF 64-bit" && PREFIXES="$$PREFIXES,CHECK-64";
+      revng2 quick artifact enforce-abi "$INPUT" --tar -- --debug-names |
+        revng merge llvm |
+        sed 's,@local_,@,g' |
+        FileCheck --check-prefixes=$$PREFIXES "${SOURCE}".filecheck;
