@@ -2,6 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+from __future__ import annotations
+
 import os
 import shlex
 import signal
@@ -10,14 +12,17 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from subprocess import Popen
 from tempfile import NamedTemporaryFile
-from typing import Any, Callable, Dict, Iterable, List, Literal, Mapping, NoReturn, Optional
-from typing import Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Literal, Mapping, NoReturn
+from typing import Optional, Tuple, Union
 
 import yaml
 
 from revng.internal.support.collect import collect_libraries
 from revng.internal.support.elf import is_executable
 from revng.support import TarDictionary, get_command
+
+if TYPE_CHECKING:
+    from _typeshed import FileDescriptorLike
 
 OptionalEnv = Optional[Mapping[str, str]]
 
@@ -74,7 +79,7 @@ def _run_common(
     return command, environment
 
 
-def popen(command, options: Options, environment: OptionalEnv = None, **kwargs) -> int | Popen:
+def _popen(command, options: Options, environment: OptionalEnv = None, **kwargs) -> int | Popen:
     command, environment = _run_common(command, options, environment)
 
     if options.dry_run:
@@ -83,15 +88,36 @@ def popen(command, options: Options, environment: OptionalEnv = None, **kwargs) 
     return Popen(command, env=environment, **kwargs)
 
 
-def try_run(command, options: Options, environment: OptionalEnv = None) -> int:
+def popen(
+    command,
+    options: Options,
+    environment: OptionalEnv = None,
+    stdin: FileDescriptorLike | None = None,
+    stdout: FileDescriptorLike | None = None,
+    stderr: FileDescriptorLike | None = None,
+) -> int | Popen:
+    return _popen(command, options, environment, stdin=stdin, stdout=stdout, stderr=stderr)
+
+
+def try_run(
+    command,
+    options: Options,
+    environment: OptionalEnv = None,
+    stdin: FileDescriptorLike | None = None,
+    stdout: FileDescriptorLike | None = None,
+    stderr: FileDescriptorLike | None = None,
+) -> int:
     try:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-        process = popen(
+        process = _popen(
             command,
             options,
             environment,
             preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL),
             close_fds=False,
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
         )
         if isinstance(process, int):
             return process
@@ -100,8 +126,15 @@ def try_run(command, options: Options, environment: OptionalEnv = None) -> int:
         signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 
-def run(command, options: Options, environment: OptionalEnv = None):
-    result = try_run(command, options, environment)
+def run(
+    command,
+    options: Options,
+    environment: OptionalEnv = None,
+    stdin: FileDescriptorLike | None = None,
+    stdout: FileDescriptorLike | None = None,
+    stderr: FileDescriptorLike | None = None,
+):
+    result = try_run(command, options, environment, stdin, stdout, stderr)
     if result != 0:
         sys.exit(result)
 
