@@ -11,15 +11,6 @@ commands:
       - type: revng-qa.compiled-with-debug-info
         filter: for-simplify-switch
     command: |-
-      WORKDIR=$$(temp -d);
-      revng2 quick artifact simplify-switch "$INPUT"
-        --tar -o "$$WORKDIR/simplify-switch.tar"
-        -- --abi-enforcement-level=no;
-
-      tar -tf "$$WORKDIR/simplify-switch.tar" 2>/dev/null |
-      while IFS= read -r ENTRY; do
-        tar -xf "$$WORKDIR/simplify-switch.tar" "$$ENTRY" --to-stdout 2>/dev/null |
-          revng opt -S >> "$$WORKDIR/simplify-switch.ll";
-      done;
-
-      FileCheck "${SOURCE}.filecheck" < "$$WORKDIR/simplify-switch.ll";
+      revng2 quick artifact simplify-switch "$INPUT" --tar -- --abi-enforcement-level=no |
+        revng merge llvm |
+        FileCheck "${SOURCE}.filecheck";
