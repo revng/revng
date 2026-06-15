@@ -98,8 +98,6 @@ makeHeaderModule(const model::Binary &Model) {
   return std::make_pair(std::move(Context), std::move(Module));
 }
 
-static Logger Log("header-to-model-errors");
-
 struct ImportFromCAnalysis {
   static constexpr auto Name = "import-from-c";
 
@@ -288,8 +286,6 @@ struct ImportFromCAnalysis {
       std::string Result;
       for (auto &Error : Errors)
         Result += std::move(Error);
-
-      revng_log(Log, Result.c_str());
       return revng::createError(Result);
     }
 
