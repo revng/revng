@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 
 #include "revng/Clift/CliftAttributes.h"
@@ -351,34 +352,38 @@ void TypeDefinitionEmitter::emitTypeTree(const TypeDependencyNode &Root,
   revng_log(TypePrinterLog,
             "Starting a post order visit from:" << Root.label());
 
-  bool SkipTheRest = false;
+  // Check that all the nodes have valid handles and, optionally, dedicate
+  // at most one node to be skipped.
+  const TypeDependencyNode *NodeToSkip = nullptr;
+  for (const auto *Node : llvm::depth_first(&Root)) {
+    revng_assert(not Node->T.getHandle().empty());
+    if (Node->IsDefinition && Node->T.getHandle() == Configuration.TypeToOmit) {
+      revng_assert(NodeToSkip == nullptr,
+                   "Multiple nodes with the same handle.");
+      NodeToSkip = Node;
+    }
+  }
+
+  if (NodeToSkip) {
+    // Skip everything that depends on the edited node.
+    for (const auto *DependsOnSkipped : llvm::inverse_depth_first(NodeToSkip))
+      Emitted.emplace(DependsOnSkipped);
+  }
 
   size_t NodesEmittedAlready = Emitted.size();
   for (const auto *Node : llvm::post_order_ext(&Root, Emitted)) {
     LoggerIndent PostOrderIndent{ TypePrinterLog };
 
-    clift::DefinedType Type = Node->T;
-    revng_assert(not Type.getHandle().empty());
-    if (Type.getHandle() == Configuration.TypeToOmit)
-      SkipTheRest = true;
-
-    if (SkipTheRest) {
-      revng_log(TypePrinterLog, "skipping (TypeToOmit): " << Node->label());
-      continue;
-    } else {
-      revng_log(TypePrinterLog, "visiting: " << Node->label());
-    }
-
     if (Node->IsDefinition) {
       revng_assert(Node->IsDefinition);
-      revng_assert(isSeparateDeclarationAllowed(Type));
+      revng_assert(isSeparateDeclarationAllowed(Node->T));
 
       revng_log(TypePrinterLog, "Definition");
-      emitTypeDefinition(Type);
+      emitTypeDefinition(Node->T);
 
     } else {
       revng_log(TypePrinterLog, "Declaration");
-      emitTypeDeclaration(Type);
+      emitTypeDeclaration(Node->T);
     }
   }
 
