@@ -98,6 +98,8 @@ makeHeaderModule(const model::Binary &Model) {
   return std::make_pair(std::move(Context), std::move(Module));
 }
 
+static Logger Log("import-from-c-clang-input");
+
 struct ImportFromCAnalysis {
   static constexpr auto Name = "import-from-c";
 
@@ -212,6 +214,11 @@ struct ImportFromCAnalysis {
 
     Out.close();
 
+    if (Log.isEnabled()) {
+      std::ifstream FilteredHeader(FilterModelPath.path().str());
+      Log << "Filtered header:\n" << FilteredHeader.rdbuf() << "\n" << DoLog;
+    }
+
     std::string FilteredHeader = std::string("#include \"")
                                  + FilterModelPath.path().str()
                                  + std::string("\"");
@@ -272,6 +279,8 @@ struct ImportFromCAnalysis {
 
     FilteredHeader += "\n";
     FilteredHeader += CCode;
+
+    revng_log(Log, "Real input:\n" << FilteredHeader << "\n");
 
     if (not clang::tooling::runToolOnCodeWithArgs(std::move(Action),
                                                   FilteredHeader,
