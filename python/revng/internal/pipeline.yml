@@ -344,6 +344,11 @@ branches:
             - dce
       - savepoint: segregate-stack-accesses
         containers: [llvm-functions]
+        artifacts:
+          - name: segregate-stack-accesses
+            container: llvm-functions
+            category: debug
+            filename: stack_accesses_segregated.bc
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
