@@ -433,11 +433,11 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
       for (Use &U : llvm::make_early_inc_range(PHI->uses())) {
         revng_log(Log, "in User: " << dumpToString(U.getUser()));
 
-        Value *NewOperand = nullptr;
-        if (isa<PHINode>(U.getUser()))
+        Value *NewOperand = NewLoad;
+        if (auto *PHIUser = dyn_cast<PHINode>(U.getUser());
+            PHIUser and PHIs.contains(PHIUser)) {
           NewOperand = UndefValue::get(PHI->getType());
-        else
-          NewOperand = NewLoad;
+        }
         revng_log(Log, "replaced with: " << dumpToString(NewOperand));
         U.set(NewOperand);
       }
