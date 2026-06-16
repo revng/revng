@@ -23,6 +23,8 @@ model::TypeDefinition::trySize(VerifyHelper &VH) const {
     Result = rc_recur E->UnderlyingType()->trySize(VH);
 
   } else if (auto *T = llvm::dyn_cast<model::TypedefDefinition>(this)) {
+    // TODO: in case of a recursive type (not via a pointer), we'll get an
+    //       assertion, instead of a clean failure
     Result = rc_recur T->UnderlyingType()->trySize(VH);
 
   } else if (auto *S = llvm::dyn_cast<model::StructDefinition>(this)) {
