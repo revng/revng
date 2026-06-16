@@ -104,14 +104,14 @@ commands:
         fi;
 
         if ! [[ -e "${INPUT}/expected-error.txt" ]]; then
-          echo "import-from-c failed but no error was expected, stderr:";
+          echo "import-from-c returned 1 but no error was expected, stderr:";
           cat "${OUTPUT}/error.txt";
           exit 1;
         fi;
 
         ACTUAL_ERROR=$$(grep -Pzo '(?<=RuntimeError: )[^\x00]*' "${OUTPUT}/error.txt" | tr -d '\0' || true);
         if [[ -z "$$ACTUAL_ERROR" ]]; then
-          echo "import-from-c failed without reporting a RuntimeError, stderr:";
+          echo "import-from-c returned 1 without reporting a RuntimeError, stderr:";
           cat "${OUTPUT}/error.txt";
           exit 1;
         fi;
