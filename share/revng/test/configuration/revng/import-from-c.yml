@@ -13,10 +13,12 @@ sources:
       - cft-with-complex-arguments
       - cft-with-no-abi
       - enum
+      - enum-type-change
       - enum-with-a-broken-annotation
       - enum-with-a-non-primitive-underlying-type
       - enum-with-a-void-underlying-type
       - enum-without-an-annotation
+      - oversized-field
       - primitives
       - rft
       - rft-with-a-misplaced-stack-argument
@@ -45,6 +47,8 @@ sources:
       - struct-without-the-packed-attribute
       - struct-with-overlapping-fields
       - typedef
+      - typedef-to-pointer
+      - typedef-to-value
       - union
 
 commands:

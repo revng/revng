@@ -1,0 +1,29 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+TypeDefinitions:
+  - Kind: TypedefDefinition
+    ID: 0
+    Name: typedef_a
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 2
+
+  - Kind: EnumDefinition
+    ID: 1
+    Name: "my_enum"
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
+    Entries:
+      - Value: 0
+        Name: "none"
+      - Value: 1
+        Name: "positive"
+      - Value: 2
+        Name: "negative"
+      - Value: 3
+        Name: "neutral"

@@ -1,0 +1,21 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+TypeDefinitions:
+  - Kind: StructDefinition
+    ID: 0
+    Fields: []
+    Size: 24
+
+  - Kind: TypedefDefinition
+    ID: 1
+    Name: typedef_a
+    UnderlyingType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/0-StructDefinition"
+
+  - Kind: StructDefinition
+    ID: 2
+    Fields: []
+    Size: 24
