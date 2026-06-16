@@ -1528,7 +1528,7 @@ private:
     if constexpr (not IsLegacy) {
       revng::NonDebugInfoCheckingIRBuilder B(F.getContext());
       B.SetInsertPointPastAllocas(&F, DL);
-      return B.CreateAlloca(I->getType());
+      return B.createSimpleAlloca(I->getType());
     } else {
       revng_assert(I->getType()->isIntOrPtrTy());
       const model::UpcastableType &VariableType = TheTypeMap.at(I);
@@ -1547,6 +1547,8 @@ private:
       if (auto *I = dyn_cast<Instruction>(ToCopy))
         DL = I->getDebugLoc();
       revng::NonDebugInfoCheckingIRBuilder B(InsertBefore, DL);
+      if (auto *Alloca = dyn_cast<AllocaInst>(ToCopy))
+        return B.createLoadFromVariable(Alloca, U->getType());
       return B.CreateLoad(U->getType(), ToCopy);
     } else {
       // TODO: remove when we drop legacy mode.
@@ -1580,7 +1582,7 @@ private:
     if constexpr (not IsLegacy) {
       revng::NonDebugInfoCheckingIRBuilder B(NextInstruction,
                                              ValueToAssign->getDebugLoc());
-      return B.CreateStore(ValueToAssign, LocalVariable);
+      return B.createStoreToVariable(ValueToAssign, LocalVariable);
     } else {
       // TODO: drop when we drop legacy mode.
       return VariableBuilder.createAssignmentBefore(LocalVariable,
