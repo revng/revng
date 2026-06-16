@@ -122,12 +122,6 @@ static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
         if (PHISameVariableClasses.isEquivalent(&PHI, PHIUser))
           continue;
 
-        // If the PHI has a user that is not another PHI, it cannot be put in
-        // the same equivalence class as the PHIUser, so we bail out.
-        if (llvm::any_of(PHI.users(),
-                         [](const User *U) { return not isa<PHINode>(U); }))
-          continue;
-
         PHINode *PHILeader = PHISameVariableClasses.getLeaderValue(&PHI);
         PHINode *UserLeader = PHISameVariableClasses.getLeaderValue(PHIUser);
 
