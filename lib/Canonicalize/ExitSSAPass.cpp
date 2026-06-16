@@ -273,7 +273,7 @@ buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
     Builder.SetInsertPoint(StoreBlock->getTerminator(), Alloca->getDebugLoc());
   }
 
-  auto *S = Builder.CreateStore(Incoming, Alloca);
+  auto *S = Builder.createStoreToVariable(Incoming, Alloca);
   revng_log(Log,
             "Created StoreInst " << dumpToString(S)
                                  << " in Block: " << StoreBlock->getName());
@@ -285,7 +285,9 @@ buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
       for (Use &Operand : NextInBlock.operands()) {
         if (Operand.get() == IncomingInst) {
           if (not LoadFromStore) {
-            LoadFromStore = Builder.CreateLoad(IncomingInst->getType(), Alloca);
+            LoadFromStore = Builder
+                              .createLoadFromVariable(Alloca,
+                                                      IncomingInst->getType());
             if (auto *IncomingInst = dyn_cast<Instruction>(Incoming))
               LoadFromStore->setDebugLoc(IncomingInst->getDebugLoc());
           }
@@ -308,7 +310,7 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
   const DebugLoc &PHIDebugLoc = (*PHIs.begin())->getDebugLoc();
   Builder.SetInsertPointPastAllocas(&F, PHIDebugLoc);
 
-  AllocaInst *Alloca = Builder.CreateAlloca((*PHIs.begin())->getType());
+  AllocaInst *Alloca = Builder.createSimpleAlloca((*PHIs.begin())->getType());
   revng_log(Log, "Created Alloca: " << dumpToString(Alloca));
 
   {
@@ -423,7 +425,7 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
       LoggerIndent IndentPHI{ Log };
 
       Builder.SetInsertPoint(PHI->getParent()->getFirstNonPHI());
-      auto *NewLoad = createLoad(Builder, Alloca);
+      auto *NewLoad = Builder.createLoadFromVariable(Alloca, PHI->getType());
       NewLoad->setDebugLoc(PHIDebugLoc);
       revng_log(Log, "Create new load: " << dumpToString(NewLoad));
 

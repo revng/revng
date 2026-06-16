@@ -175,7 +175,7 @@ define i32 @d_argument(ptr %arg) {
 ; The the ret instruction should load from there again.
 ;
 ; CHECK-LABEL: define %s @s
-; CHECK: [[ALLOCA:%[a-zA-Z0-9_]+]] = alloca %s
+; CHECK: [[ALLOCA:%[a-zA-Z0-9_]+]] = alloca [8 x i8]
 ; CHECK-NEXT: [[LOADED_VALUE:%[a-zA-Z0-9_]+]] = load %s, ptr %arg
 ; CHECK-NEXT: store %s [[LOADED_VALUE]], ptr [[ALLOCA]]
 ; CHECK-NEXT: store i64 7, ptr @segment
@@ -196,7 +196,7 @@ define %s @s(ptr %arg) {
 ; This is the same as the previous test, but with segment and argument swapped.
 ;
 ; CHECK-LABEL: define %s @s_swapped
-; CHECK: [[ALLOCA:%[a-zA-Z0-9_]+]] = alloca %s
+; CHECK: [[ALLOCA:%[a-zA-Z0-9_]+]] = alloca [8 x i8]
 ; CHECK-NEXT: [[LOADED_VALUE:%[a-zA-Z0-9_]+]] = load %s, ptr @segment
 ; CHECK-NEXT: store %s [[LOADED_VALUE]], ptr [[ALLOCA]]
 ; CHECK-NEXT: store i64 7, ptr %arg

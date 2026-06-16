@@ -9,6 +9,7 @@
 #include "llvm/Pass.h"
 
 #include "revng/Support/IRBuilder.h"
+#include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
 
@@ -67,12 +68,12 @@ bool SplitExponentialDataflow::runOnFunction(llvm::Function &F) {
       Changed = true;
       auto Location = I.getDebugLoc();
       B.SetInsertPointPastAllocas(&F, Location);
-      auto *Alloca = B.CreateAlloca(I.getType());
+      auto *Alloca = B.createSimpleAlloca(I.getType());
       B.SetInsertPoint(&*std::next(I.getIterator()), Location);
-      auto *Load = B.CreateLoad(I.getType(), Alloca);
+      auto *Load = B.createLoadFromVariable(Alloca, I.getType());
       I.replaceAllUsesWith(Load);
       B.SetInsertPoint(Load, Location);
-      B.CreateStore(&I, Alloca);
+      B.createStoreToVariable(&I, Alloca);
     }
   }
   return Changed;

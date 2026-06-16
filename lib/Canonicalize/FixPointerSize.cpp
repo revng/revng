@@ -67,8 +67,10 @@ static std::string rewriteDefaultPointerSize(StringRef Original,
 
 static void checkAndFixModule(llvm::Module &M, unsigned TargetPointerBits) {
   for (llvm::GlobalVariable &GV : M.globals()) {
+    // Ignore unused globals
     if (GV.use_empty())
       continue;
+
     revng_assert(not containsPointer(GV.getValueType()),
                  ("used global variable's value type transitively contains a "
                   "pointer: "
