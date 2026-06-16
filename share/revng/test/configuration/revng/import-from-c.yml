@@ -83,6 +83,12 @@ commands:
 
       if [[ "$$EXIT_CODE" -eq 0 ]]; then
 
+        if ! [[ -e "${INPUT}/check-against.yml" ]]; then
+          echo "import-from-c succeeded, but an error was expected, stderr:";
+          cat "${OUTPUT}/model.yml";
+          exit 1;
+        fi;
+
         revng model compare "${INPUT}/check-against.yml" "${OUTPUT}/model.yml";
 
       else
