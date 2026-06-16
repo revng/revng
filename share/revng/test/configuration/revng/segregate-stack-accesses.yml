@@ -16,7 +16,7 @@ commands:
 
       revng model override-by-name
         "$OUTPUT/context/model.yml"
-        ${SOURCE}.override.yml
+        ${SOURCE}.override.$QEMU_NAME.yml
         > "$OUTPUT/context/model-tmp.yml";
       mv "$OUTPUT/context/model-tmp.yml" "$OUTPUT/context/model.yml";
 
@@ -25,6 +25,7 @@ commands:
       revng analyze --resume "$OUTPUT" detect-stack-size "$INPUT" -o /dev/null;
 
       revng artifact --resume "$OUTPUT" segregate-stack-accesses "$INPUT" |
-        revng opt -S | FileCheck ${SOURCE}.filecheck.ll;
+        revng opt -remove-llvmassume-calls -instcombine-noarrays -sroa-noarrays -drop-redundant-ptrint-casts -dce -type-shrinking -dce -drop-redundant-ptrint-casts -early-cse -instsimplify -dce -S |
+        FileCheck --check-prefix=CHECK-$QEMU_NAME ${SOURCE}.filecheck.ll;
 
       revng artifact --resume "$OUTPUT" emit-c "$INPUT" -o /dev/null;
