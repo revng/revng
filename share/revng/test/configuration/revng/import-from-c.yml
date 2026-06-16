@@ -114,9 +114,9 @@ commands:
 
         if ! [[ "$$(tail -n +5 "${INPUT}/expected-error.txt")" == "$$ACTUAL_ERROR" ]]; then
           echo "Expected:";
-          cat "${INPUT}/expected-error.txt";
+          echo "$$(tail -n +5 "${INPUT}/expected-error.txt")";
           echo "Got:";
-          cat "${OUTPUT}/error.txt";
+          echo "$$ACTUAL_ERROR";
           exit 1;
         fi;
       fi
