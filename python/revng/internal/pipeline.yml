@@ -396,6 +396,8 @@ branches:
             container: llvm-functions
             category: debug
             filename: clifter_input.bc
+      - pipe: fix-pointer-size
+        arguments: [llvm-functions]
       - pipe: clifter
         arguments: [llvm-functions, clift-functions]
         artifacts:

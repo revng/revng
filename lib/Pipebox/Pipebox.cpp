@@ -4,6 +4,7 @@
 
 #include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
 #include "revng/ABI/Analyses/ConvertFunctionsToRaw.h"
+#include "revng/Canonicalize/FixPointerSize.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/Clifter.h"
@@ -93,6 +94,7 @@ REGISTER(Container, TranslatedContainer);
 
 using namespace revng::pypeline::pipes;
 
+REGISTER(Pipe, FixPointerSize);
 REGISTER(Pipe, PureLLVMPassesPipe);
 REGISTER(Pipe, PureLLVMPassesRootPipe);
 REGISTER(Pipe, PureMLIRPassesPipe);
