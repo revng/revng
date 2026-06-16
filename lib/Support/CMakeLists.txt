@@ -14,6 +14,7 @@ revng_add_library_internal(
   CommonOptions.cpp
   CustomizedLLVMPasses.cpp
   Debug.cpp
+  DropRedundantPtrIntCasts.cpp
   ExplicitSpecializations.cpp
   FileSystem.cpp
   InitRevng.cpp
