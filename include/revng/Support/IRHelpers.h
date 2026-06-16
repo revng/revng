@@ -1531,15 +1531,6 @@ inline llvm::Instruction *createLoadVariable(revng::IRBuilder &Builder,
     revng_abort("Either GlobalVariable or AllocaInst expected");
 }
 
-inline llvm::Type *getVariableType(const llvm::Value *Variable) {
-  if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
-    return Alloca->getAllocatedType();
-  else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))
-    return GV->getValueType();
-  else
-    revng_abort("Either GlobalVariable or AllocaInst expected");
-}
-
 void pruneDICompileUnits(llvm::Module &M);
 
 llvm::SmallSet<llvm::Value *, 2> findPhiTreeLeaves(llvm::Value *Root);
