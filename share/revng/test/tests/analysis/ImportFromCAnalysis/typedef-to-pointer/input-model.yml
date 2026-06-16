@@ -1,0 +1,34 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+TypeDefinitions:
+  - Kind: StructDefinition
+    ID: 0
+    Size: 8
+    Fields:
+      - Offset: 0
+        Name: pointer
+        Type:
+          Kind: PointerType
+          PointerSize: 8
+          PointeeType:
+            Kind: DefinedType
+            Definition: "/TypeDefinitions/2-StructDefinition"
+
+  - Kind: TypedefDefinition
+    ID: 1
+    Name: typedef_a
+    UnderlyingType:
+      Kind: PointerType
+      PointerSize: 8
+      PointeeType:
+        Kind: DefinedType
+        Definition: "/TypeDefinitions/0-StructDefinition"
+
+  - Kind: StructDefinition
+    ID: 2
+    Fields: []
+    Size: 24

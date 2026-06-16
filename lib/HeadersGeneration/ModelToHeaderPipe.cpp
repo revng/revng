@@ -16,21 +16,21 @@ namespace revng::pipes {
 
 inline constexpr char ModelHeaderFileContainerMIMEType[] = "text/x.c+ptml";
 inline constexpr char ModelHeaderFileContainerSuffix[] = ".h";
-inline constexpr char ModelHeaderFileContainerName[] = "model-header";
-using ModelHeaderFileContainer = FileContainer<&kinds::ModelHeader,
+inline constexpr char ModelHeaderFileContainerName[] = "legacy-model-header";
+using ModelHeaderFileContainer = FileContainer<&kinds::LegacyModelHeader,
                                                ModelHeaderFileContainerName,
                                                ModelHeaderFileContainerMIMEType,
                                                ModelHeaderFileContainerSuffix>;
 
 class ModelToHeader {
 public:
-  static constexpr auto Name = "model-to-header";
+  static constexpr auto Name = "legacy-model-to-header";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
     using namespace revng::kinds;
 
-    Contract C1(Binary, 0, ModelHeader, 1, InputPreservation::Preserve);
+    Contract C1(Binary, 0, LegacyModelHeader, 1, InputPreservation::Preserve);
     return { ContractGroup({ C1 }) };
   }
 

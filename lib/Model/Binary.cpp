@@ -5,6 +5,7 @@
 #include <queue>
 
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Regex.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_os_ostream.h"
@@ -12,6 +13,7 @@
 
 #include "revng/Model/Binary.h"
 #include "revng/Model/BinaryIdentifier.h"
+#include "revng/Model/PrimitiveType.h"
 #include "revng/Model/TypeSystemPrinter.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/CommandLine.h"
@@ -452,6 +454,60 @@ Values formCOFFRelocation(model::Architecture::Values Architecture) {
 
 } // namespace RelocationType
 } // namespace model
+
+std::set<uint64_t> model::Binary::collectAllTypeSizes() const {
+  // TODO: don't hardcode this set here. Share it with the other users!
+  //       Important: this should already contain all the primitive sizes we
+  //       support (which includes all the pointers sizes).
+  std::set<uint64_t> ByteSizes = { 1, 2, 4, 8, 10, 12, 16 };
+
+  VerifyHelper SizeCache;
+  for (const model::UpcastableTypeDefinition &Type : this->TypeDefinitions()) {
+    // This takes care of all the type definitions, meaning we don't have to
+    // look at defined types anymore.
+    if (std::optional<uint64_t> MaybeSize = Type->size(SizeCache))
+      ByteSizes.insert(MaybeSize.value());
+
+    for (const model::Type *Edge : Type->edges()) {
+      // Since primitives, pointers and defined types are already taken care of,
+      // we are only interested in arrays here.
+
+      // IMPORTANT: do not forget to update this after new type kinds are added!
+
+      while (!llvm::isa<model::PrimitiveType>(Edge)
+             && !llvm::isa<model::DefinedType>(Edge)) {
+        if (const auto *Pointer = llvm::dyn_cast<model::PointerType>(Edge)) {
+          // Keep going deeper on a pointer in case it's a pointer to an array.
+          Edge = Pointer->PointeeType().get();
+
+        } else if (const auto *Array = llvm::dyn_cast<model::ArrayType>(Edge)) {
+          if (std::optional<uint64_t> MaybeSize = Edge->trySize(SizeCache))
+            ByteSizes.insert(MaybeSize.value());
+
+          // Keep going deeper on an array in case it's a nested one.
+          Edge = Array->ElementType().get();
+
+        } else {
+          revng_abort("Unsupported type kind!");
+        }
+      }
+    }
+
+    if (const auto *RFT = Type->getRawFunction()) {
+      uint64_t ReturnTypeSize = 0;
+      for (const auto &RV : RFT->ReturnValues()) {
+        std::optional<uint64_t> MaybeSize = RV.Type()->trySize(SizeCache);
+        revng_assert(MaybeSize.has_value());
+        ReturnTypeSize += MaybeSize.value();
+      }
+
+      if (ReturnTypeSize)
+        ByteSizes.insert(ReturnTypeSize);
+    }
+  }
+
+  return ByteSizes;
+}
 
 void model::Binary::dumpTypeGraph(const char *Path) const {
   DisableTracking Guard(*this);

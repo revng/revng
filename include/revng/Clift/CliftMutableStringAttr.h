@@ -34,12 +34,6 @@ public:
 
   static MutableStringAttr get(mlir::MLIRContext *Context, mlir::Attribute Key);
 
-  static MutableStringAttr
-  get(mlir::MLIRContext *Context, mlir::Attribute Key, llvm::StringRef Value);
-
-  static MutableStringAttr getUnique(mlir::MLIRContext *Context,
-                                     llvm::StringRef Value = {});
-
   mlir::Attribute getKey() const;
   llvm::StringRef getValue() const;
   void setValue(llvm::StringRef Value);

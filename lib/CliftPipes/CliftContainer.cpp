@@ -14,6 +14,7 @@
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Parser/Parser.h"
 
+#include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftDialect.h"
 #include "revng/Clift/Helpers.h"
 #include "revng/CliftPipes/CliftContainer.h"
@@ -76,20 +77,6 @@ static void visit(ModuleOp Module, Visitor visitor) {
       visitor(RequestedOp);
     }
   }
-}
-
-static const mlir::DialectRegistry &getDialectRegistry() {
-  static const mlir::DialectRegistry Registry = []() -> mlir::DialectRegistry {
-    mlir::DialectRegistry Registry;
-    Registry.insert<clift::CliftDialect>();
-    return Registry;
-  }();
-  return Registry;
-}
-
-static ContextPtr makeContext() {
-  const auto Threading = MLIRContext::Threading::DISABLED;
-  return std::make_unique<MLIRContext>(getDialectRegistry(), Threading);
 }
 
 // Cloning MLIR from one module into another requires first serialising the
@@ -183,7 +170,7 @@ const char CliftFunctionContainer::ID = 0;
 
 void CliftFunctionContainer::setModule(OwningModuleRef &&NewModule) {
   revng_assert(NewModule);
-  revng_assert(clift::hasModuleAttr(NewModule.get()));
+  revng_assert(clift::isCliftModule(NewModule.get()));
 
   // Make any non-target functions external.
   visit(*NewModule, [&](clift::FunctionOp F) {
@@ -230,6 +217,7 @@ CliftFunctionContainer::cloneFiltered(const pipeline::TargetsList &Filter)
 
   MLIRContext &DestinationContext = *DestinationContainer->Context;
   DestinationContext.appendDialectRegistry(Context->getDialectRegistry());
+  DestinationContext.loadDialect<clift::CliftDialect>();
 
   OwningModuleRef &DestinationModule = DestinationContainer->Module;
   DestinationModule = cloneModuleInto(*TemporaryModule,
@@ -251,6 +239,7 @@ void CliftFunctionContainer::mergeBackImpl(CliftFunctionContainer
 
   // Register the dialects of the other container in this container.
   Context->appendDialectRegistry(SourceContainer.Context->getDialectRegistry());
+  Context->loadDialect<clift::CliftDialect>();
 
   // Clone the other container's module into this container's context.
   // This module is automatically erased at the end of scope.
@@ -317,7 +306,7 @@ bool CliftFunctionContainer::removeImpl(const pipeline::TargetsList &List) {
 
     pruneUnusedSymbols(*Module);
 
-    auto NewContext = makeContext();
+    auto NewContext = clift::makeContext();
     auto NewModule = cloneModuleInto(*Module, *NewContext);
 
     Module = std::move(NewModule);
@@ -328,12 +317,10 @@ bool CliftFunctionContainer::removeImpl(const pipeline::TargetsList &List) {
 }
 
 void CliftFunctionContainer::clearImpl() {
-  auto NewContext = makeContext();
+  auto NewContext = clift::makeContext();
+  Module = clift::makeModule(*NewContext);
 
-  Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
   Context = std::move(NewContext);
-
-  clift::setModuleAttr(Module.get());
 }
 
 llvm::Error CliftFunctionContainer::serialize(llvm::raw_ostream &OS) const {
@@ -343,12 +330,12 @@ llvm::Error CliftFunctionContainer::serialize(llvm::raw_ostream &OS) const {
 
 llvm::Error
 CliftFunctionContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
-  auto NewContext = makeContext();
-  OwningModuleRef NewModule;
+  auto NewContext = clift::makeContext();
 
+  OwningModuleRef NewModule;
   if (Buffer.getBufferSize() == 0) {
-    NewModule = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
-    clift::setModuleAttr(NewModule.get());
+    NewModule = clift::makeModule(*NewContext);
+
   } else {
     const mlir::ParserConfig Config(NewContext.get());
     NewModule = mlir::parseSourceString<ModuleOp>(Buffer.getBuffer(), Config);
@@ -356,7 +343,7 @@ CliftFunctionContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
     if (not NewModule)
       return revng::createError("Cannot load MLIR module.");
 
-    if (not clift::hasModuleAttr(NewModule.get()))
+    if (not clift::isCliftModule(NewModule.get()))
       return revng::createError("MLIR module is not a Clift module.");
   }
 
@@ -381,6 +368,7 @@ CliftContainer::cloneFiltered(const pipeline::TargetsList &Targets) const {
 
   MLIRContext &DestinationContext = *DestinationContainer->Context;
   DestinationContext.appendDialectRegistry(Context->getDialectRegistry());
+  DestinationContext.loadDialect<clift::CliftDialect>();
 
   OwningModuleRef &DestinationModule = DestinationContainer->Module;
   DestinationModule = cloneModuleInto(*Module, *DestinationContainer->Context);
@@ -417,6 +405,7 @@ void CliftContainer::mergeBackImpl(CliftContainer &&SourceContainer) {
 
   // Register the dialects of the other container in this container.
   Context->appendDialectRegistry(SourceContainer.Context->getDialectRegistry());
+  Context->loadDialect<clift::CliftDialect>();
 
   // Clone the other container's module into this container's context.
   // This module is automatically erased at the end of scope.
@@ -442,7 +431,8 @@ void CliftContainer::mergeBackImpl(CliftContainer &&SourceContainer) {
   for (mlir::NamedAttribute Attribute : (*SourceContainer.Module)->getAttrs()) {
     // TODO: something better to do then just override existing with incoming
     //       when there's a name clash?
-    (*Module)->setAttr(Attribute.getName(), Attribute.getValue());
+    (*Module)->setAttr(llvm::StringRef(Attribute.getName()),
+                       Attribute.getValue());
   }
 
   // Assume that at least some symbols were copied over and always prune.
@@ -461,12 +451,10 @@ pipeline::TargetsList CliftContainer::enumerate() const {
 }
 
 void CliftContainer::clearImpl() {
-  auto NewContext = makeContext();
+  auto NewContext = clift::makeContext();
+  Module = clift::makeModule(*NewContext);
 
-  Module = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
   Context = std::move(NewContext);
-
-  clift::setModuleAttr(Module.get());
 }
 
 llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
@@ -475,12 +463,12 @@ llvm::Error CliftContainer::serialize(llvm::raw_ostream &OS) const {
 }
 
 llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
-  auto NewContext = makeContext();
-  OwningModuleRef NewModule;
+  auto NewContext = clift::makeContext();
 
+  OwningModuleRef NewModule;
   if (Buffer.getBufferSize() == 0) {
-    NewModule = ModuleOp::create(mlir::UnknownLoc::get(NewContext.get()));
-    clift::setModuleAttr(NewModule.get());
+    NewModule = clift::makeModule(*NewContext);
+
   } else {
     const mlir::ParserConfig Config(NewContext.get());
     NewModule = mlir::parseSourceString<ModuleOp>(Buffer.getBuffer(), Config);
@@ -488,7 +476,7 @@ llvm::Error CliftContainer::deserializeImpl(const llvm::MemoryBuffer &Buffer) {
     if (not NewModule)
       return revng::createError("Cannot load MLIR module.");
 
-    if (not clift::hasModuleAttr(NewModule.get()))
+    if (not clift::isCliftModule(NewModule.get()))
       return revng::createError("MLIR module is not a Clift module.");
   }
 

@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/PostOrderIterator.h"
 
 #include "revng/Clift/CliftAttributes.h"
@@ -30,6 +31,9 @@ void TypeDefinitionEmitter::emitTypeKeyword(clift::DefinedType Type) {
 }
 
 void TypeDefinitionEmitter::emitDeclarationTypedef(clift::DefinedType Type) {
+  auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                  Type.getHandle());
+
   Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Typedef);
   Tokens.emitSpace();
 
@@ -103,9 +107,6 @@ void TypeDefinitionEmitter::emitTypeDeclaration(clift::DefinedType Type) {
   } else if (auto Typedef = mlir::dyn_cast<clift::TypedefType>(Type)) {
     emitTypedefDefinition(Typedef);
 
-  } else if (auto Enum = mlir::dyn_cast<clift::EnumType>(Type)) {
-    emitEnumDefinition(Enum);
-
   } else if (auto Function = mlir::dyn_cast<clift::FunctionType>(Type)) {
     emitFunctionTypedef(Function);
 
@@ -120,8 +121,9 @@ static std::string paddingFieldName(uint64_t CurrentOffset) {
   //       We should fix this after the configuration is separate from the
   //       model
 
-  model::CNameBuilder Builder(model::Binary{});
-  return Builder.paddingFieldName(CurrentOffset);
+  model::Binary EmptyBinary{};
+  model::CNameBuilder UnconfiguredNB(EmptyBinary);
+  return UnconfiguredNB.paddingFieldName(CurrentOffset);
 }
 
 void TypeDefinitionEmitter::emitPaddingField(clift::ClassType Class,
@@ -204,7 +206,8 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
         //
         // TODO: fix this once the configuration is obtained from the pipe
         //       (new pipeline only).
-        model::CNameBuilder UnconfiguredNB(model::Binary{});
+        model::Binary EmptyBinary{};
+        model::CNameBuilder UnconfiguredNB(EmptyBinary);
         model::StructDefinition FakeStruct; // No model fields are read here.
         model::StructField FakeField(Field.getOffset()); // Only `Offset` read.
         if (not UnconfiguredNB.isAutomaticName(FakeStruct,
@@ -224,6 +227,15 @@ void TypeDefinitionEmitter::emitClassDefinition(clift::ClassType Class) {
       PreviousOffset = Field.getOffset()
                        + clift::getObjectSize(Field.getType());
     }
+
+    // Since the all types are packed, without the trailing padding any struct
+    // whose size extends past the end of its last field would end up with
+    // a wrong `sizeof`.
+    // Print the trailing padding unless `ExplicitPadding` is set to off, in
+    // which case users are explicitly opting out of semantic equivalence
+    // anyway, so breaking `sizeof` is expected.
+    if (IsStruct and Configuration.ExplicitPadding)
+      emitPaddingField(Class, PreviousOffset, Class.getObjectSize());
   }
 
   Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
@@ -238,7 +250,7 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
     emitDoxygenComment(Enum);
     Tokens.emitKeyword(ptml::CTokenEmitter::Keyword::Enum);
 
-    clift::ValueType Type = Enum.getUnderlyingType();
+    mlir::Type Type = Enum.getUnderlyingType();
     emitCAttributes(clift::CAttributeListBuilder(Enum.getContext())
                       .setOrUpdate<"_ENUM_UNDERLYING">(Type)
                       .setOrUpdate<"_PACKED">()
@@ -312,14 +324,15 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
 
   Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
   Tokens.emitNewline();
-
-  // Allow using `MyEnum` instead of `enum MyEnum`.
-  emitDeclarationTypedef(Enum);
 }
 
 void TypeDefinitionEmitter::emitTypeDefinition(clift::DefinedType Type) {
   if (auto Class = mlir::dyn_cast<clift::ClassType>(Type)) {
     emitClassDefinition(Class);
+    return;
+
+  } else if (auto Enum = mlir::dyn_cast<clift::EnumType>(Type)) {
+    emitEnumDefinition(Enum);
     return;
 
   } else if (not isSeparateDeclarationAllowed(Type)) {
@@ -337,34 +350,38 @@ void TypeDefinitionEmitter::emitTypeTree(const TypeDependencyNode &Root,
   revng_log(TypePrinterLog,
             "Starting a post order visit from:" << Root.label());
 
-  bool SkipTheRest = false;
+  // Check that all the nodes have valid handles and, optionally, dedicate
+  // at most one node to be skipped.
+  const TypeDependencyNode *NodeToSkip = nullptr;
+  for (const auto *Node : llvm::depth_first(&Root)) {
+    revng_assert(not Node->T.getHandle().empty());
+    if (Node->IsDefinition && Node->T.getHandle() == Configuration.TypeToOmit) {
+      revng_assert(NodeToSkip == nullptr,
+                   "Multiple nodes with the same handle.");
+      NodeToSkip = Node;
+    }
+  }
+
+  if (NodeToSkip) {
+    // Skip everything that depends on the edited node.
+    for (const auto *DependsOnSkipped : llvm::inverse_depth_first(NodeToSkip))
+      Emitted.emplace(DependsOnSkipped);
+  }
 
   size_t NodesEmittedAlready = Emitted.size();
   for (const auto *Node : llvm::post_order_ext(&Root, Emitted)) {
     LoggerIndent PostOrderIndent{ TypePrinterLog };
 
-    clift::DefinedType Type = Node->T;
-    revng_assert(not Type.getHandle().empty());
-    if (Type.getHandle() == Configuration.TypeToOmit)
-      SkipTheRest = true;
-
-    if (SkipTheRest) {
-      revng_log(TypePrinterLog, "skipping (TypeToOmit): " << Node->label());
-      continue;
-    } else {
-      revng_log(TypePrinterLog, "visiting: " << Node->label());
-    }
-
     if (Node->IsDefinition) {
       revng_assert(Node->IsDefinition);
-      revng_assert(isSeparateDeclarationAllowed(Type));
+      revng_assert(isSeparateDeclarationAllowed(Node->T));
 
       revng_log(TypePrinterLog, "Definition");
-      emitTypeDefinition(Type);
+      emitTypeDefinition(Node->T);
 
     } else {
       revng_log(TypePrinterLog, "Declaration");
-      emitTypeDeclaration(Type);
+      emitTypeDeclaration(Node->T);
     }
   }
 

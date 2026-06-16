@@ -539,8 +539,7 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
 
   revng_check(!Identifier.empty());
   if (not validateIdentifier(Identifier)) {
-    revng_abort(("The specified identifier is not a valid C identifier: `"
-                 + Identifier + "`")
+    revng_abort(("`" + Identifier + "` is not a valid C identifier.")
                   .str()
                   .c_str());
   }

@@ -347,6 +347,7 @@ set(FILECHECK_TESTS
     clift/passes/implicit-cast-elision-call.mlir
     clift/passes/implicit-cast-elision-neg.mlir
     clift/passes/implicit-cast-elision-shl.mlir
+    clift/serialization/const.mlir
     clift/statement-rewrites/branch-equalization.mlir
     clift/statement-rewrites/do-while-conversion-iterative.mlir
     clift/statement-rewrites/do-while-conversion-with-empty-else.mlir
@@ -406,7 +407,6 @@ set(FILECHECK_TESTS
     llvm-passes/inline-helpers.ll
     llvm-passes/mark-inline-helpers-up-to.ll
     llvm-passes/materialize-trivial-goto.ll
-    llvm-passes/operatorprecedence-resolution.ll
     llvm-passes/peephole-opt-for-decompilation.ll
     llvm-passes/remove-extractvalues.ll
     llvm-passes/scope-graph-dumper.ll

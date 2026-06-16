@@ -2,16 +2,46 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <set>
+
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/MLIRContext.h"
 
+#include "revng/Clift/CliftAttributes.h"
+#include "revng/Clift/CliftTypes.h"
+#include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftEmitC/Headers.h"
 #include "revng/CliftEmitC/TypeDefinitionEmitter.h"
 #include "revng/CliftEmitC/TypeDependencyGraph.h"
+#include "revng/CliftImportModel/ImportModel.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
+
+class OpaqueTypeSizeCollector
+  : public clift::ModuleVisitor<OpaqueTypeSizeCollector> {
+private:
+  using Base = clift::ModuleVisitor<OpaqueTypeSizeCollector>;
+
+private:
+  std::set<uint64_t> &Result;
+
+public:
+  OpaqueTypeSizeCollector(std::set<uint64_t> &Result) : Result(Result) {
+    // TODO: do not hard-code this list here. Instead, share it with the model
+    //       verification logic (the only other current user of this).
+    Result = { 1, 2, 4, 8, 10, 12, 16 };
+  }
+
+  mlir::LogicalResult visitType(mlir::Type Type) {
+    if (uint64_t Size = clift::getObjectSizeOrZero(Type))
+      Result.emplace(Size);
+
+    return mlir::success();
+  }
+};
 
 class CHeaderEmitterImpl : TypeDefinitionEmitter {
 
@@ -116,21 +146,57 @@ public:
         CommentEmitted = true;
       }
 
-      emitGlobalDoxygenComment(Segment);
+      {
+        using RegionKind = ptml::CTokenEmitter::RegionKind;
+        auto Guard = Tokens.enterRegion(RegionKind::Commentable,
+                                        Segment.getHandle());
 
-      using EntityKind = ptml::CTokenEmitter::EntityKind;
-      emitDeclaration(Segment.getType(),
-                      CEmitter::DeclaratorInfo{
-                        .Identifier = Segment.getName(),
-                        .Location = Segment.getHandle(),
-                        .CAttributes = {},
-                        .Kind = EntityKind::GlobalVariable,
-                        .Parameters = {} });
+        emitGlobalDoxygenComment(Segment);
 
-      Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
-      Tokens.emitNewline();
+        using EntityKind = ptml::CTokenEmitter::EntityKind;
+        emitDeclaration(Segment.getType(),
+                        CEmitter::DeclaratorInfo{
+                          .Identifier = Segment.getName(),
+                          .Location = Segment.getHandle(),
+                          .CAttributes = {},
+                          .Kind = EntityKind::GlobalVariable,
+                          .Parameters = {} });
+
+        Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
+        Tokens.emitNewline();
+      }
+
       Tokens.emitNewline();
     });
+  }
+
+  template<RangeOf<uint64_t> ByteSizeList = std::initializer_list<uint64_t>>
+  void emitOpaqueTypes(mlir::MLIRContext &Context, const ByteSizeList &Sizes) {
+    bool CommentEmitted = false;
+    for (uint64_t Size : Sizes) {
+      if (not CommentEmitted) {
+        emitCategoryComment("Opaque types");
+        CommentEmitted = true;
+      }
+
+      auto Struct = clift::makeOpaqueStruct(Context, Size);
+      emitClassDefinition(Struct);
+      emitTypeDeclaration(Struct);
+    }
+
+    Tokens.emitNewline();
+  }
+
+  std::set<uint64_t>
+  collectOpaqueByteSizes(llvm::ArrayRef<mlir::ModuleOp> Modules) {
+    std::set<uint64_t> Result;
+
+    for (mlir::ModuleOp Module : Modules) {
+      auto R = OpaqueTypeSizeCollector::visit(Module, Result);
+      revng_assert(R.succeeded());
+    }
+
+    return Result;
   }
 
 public:
@@ -176,6 +242,21 @@ public:
   }
 };
 
+void emitCommonIncludes(ptml::CTokenEmitter &Tokens,
+                        const CDataModel &DataModel) {
+  CHeaderEmitterImpl Emitter(Tokens, DataModel, TypeEmitterConfiguration{});
+  Emitter.emitCommonIncludes();
+}
+
+void emitTypes(ptml::CTokenEmitter &Tokens,
+               mlir::ModuleOp Module,
+               TypeEmitterConfiguration Configuration) {
+  CHeaderEmitterImpl Emitter(Tokens,
+                             clift::getDataModel(Module),
+                             Configuration);
+  Emitter.emitTypes(Module);
+}
+
 void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
                              mlir::ModuleOp Module,
                              TypeEmitterConfiguration Configuration) {
@@ -191,10 +272,13 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
   Emitter.emitFunctions(Module);
   Emitter.emitDynamicFunctions(Module);
   Emitter.emitSegments(Module);
+  Emitter.emitOpaqueTypes(*Module.getContext(),
+                          Emitter.collectOpaqueByteSizes({ Module }));
 }
 
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
-                      llvm::ArrayRef<mlir::ModuleOp> Modules) {
+                      llvm::ArrayRef<mlir::ModuleOp> Modules,
+                      const model::Binary &Binary) {
   revng_check(not Modules.empty());
 
   const CDataModel &DataModel = clift::getDataModel(Modules.front());
@@ -211,4 +295,25 @@ void emitHelperHeader(ptml::CTokenEmitter &Tokens,
 
   Emitter.emitHeaderPrologue();
   Emitter.emitHelpers(Modules);
+
+  // This trick is practically a `const_cast`.
+  mlir::MLIRContext &Context = *mlir::ModuleOp(Modules.front()).getContext();
+
+  std::set<std::uint64_t> NonModelOpaqueTypes;
+  std::ranges::set_difference(Emitter.collectOpaqueByteSizes(Modules),
+                              Binary.collectAllTypeSizes(),
+                              std::inserter(NonModelOpaqueTypes,
+                                            NonModelOpaqueTypes.end()));
+
+  Emitter.emitOpaqueTypes(Context, NonModelOpaqueTypes);
+}
+
+void emitSingleTypeDefinition(ptml::CTokenEmitter &Tokens,
+                              const CDataModel &DataModel,
+                              clift::DefinedType Type,
+                              TypeEmitterConfiguration Config) {
+  TypeDefinitionEmitter Emitter(Tokens, DataModel, Config);
+
+  Emitter.emitTypeDefinition(Type);
+  Tokens.emitNewline();
 }

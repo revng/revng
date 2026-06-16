@@ -158,10 +158,15 @@ AddressableType VoidType::removeConst() const {
 
 template<std::same_as<VoidType>>
 static VoidType readType(mlir::DialectBytecodeReader &Reader) {
-  return VoidType::get(Reader.getContext());
+  bool Const;
+  if (readBool(Const, Reader).failed())
+    return {};
+
+  return VoidType::get(Reader.getContext(), Const);
 }
 
 static void writeType(VoidType Type, mlir::DialectBytecodeWriter &Writer) {
+  writeBool(Type.getIsConst(), Writer);
 }
 
 //===----------------------------- IntegerType ----------------------------===//

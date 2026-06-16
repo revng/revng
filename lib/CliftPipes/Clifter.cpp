@@ -66,7 +66,6 @@ Clifter::Clifter(const class Model &Model,
                  const LLVMFunctionContainer &Input,
                  CliftFunctionContainer &Output) :
   Binary(*Model.get().get()), Input(Input), Output(Output) {
-  Output.getContext()->loadDialect<clift::CliftDialect>();
 }
 
 void Clifter::runOnFunction(const model::Function &Function) {
@@ -76,13 +75,12 @@ void Clifter::runOnFunction(const model::Function &Function) {
     &LLVMFunction = getUniqueIsolatedFunction(Module, Function.Entry());
 
   mlir::MLIRContext *Context = Output.getContext();
-  auto ModuleOpObject = mlir::ModuleOp::create(mlir::UnknownLoc::get(Context));
-  clift::setModuleAttr(ModuleOpObject);
+  auto ModuleOpObject = clift::makeModule(*Context);
 
-  auto Importer = clift::Clifter::make(ModuleOpObject, Binary);
+  auto Importer = clift::Clifter::make(ModuleOpObject.get(), Binary);
   Importer->import(&LLVMFunction);
 
-  Output.assign(Object, ModuleOpObject);
+  Output.assign(Object, std::move(ModuleOpObject));
 }
 
 } // namespace revng::pypeline::piperuns

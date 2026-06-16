@@ -82,8 +82,16 @@ private:
     return Name;
   }
 
-  std::optional<ptml::CTokenEmitter::Region> commentableReturnValueGuard() {
+  std::optional<ptml::CTokenEmitter::Region>
+  commentableReturnValueGuard(DeclaratorInfo const *Declarator) {
     if (OutermostFunctionType == nullptr)
+      return std::nullopt;
+
+    // Only emitting the return value guard when parameters are available might
+    // look weird at the first sight, but when we are emitting a prototype
+    // without parameter information (the typedef), it's weird to allow adding
+    // comments to a return type that will show up elsewhere.
+    if (not Declarator->Parameters)
       return std::nullopt;
 
     auto FTHandle = OutermostFunctionType.getHandle();
@@ -141,7 +149,7 @@ private:
     }
 
     {
-      auto Guard = commentableReturnValueGuard();
+      auto Guard = commentableReturnValueGuard(Declarator);
 
       // Recurse through the declaration, pushing each level onto the stack
       // until a terminal type is encountered. Primitive types as well as
@@ -504,6 +512,12 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
     Parameters = ParameterDeclarators;
   }
 
+  std::optional<ptml::CTokenEmitter::Region> MaybeRegion;
+  if (not IsHelper) {
+    using RegionKind = ptml::CTokenEmitter::RegionKind;
+    MaybeRegion.emplace(Tokens, RegionKind::Commentable, Op.getHandle());
+  }
+
   emitDeclaration(Op.getFunctionType(),
                   CEmitter::DeclaratorInfo{
                     .Identifier = Op.getName(),
@@ -518,9 +532,6 @@ void CEmitter::emitFunctionPrototype(FunctionOp Op) {
 static constexpr uint64_t ExtraKeywordIndentation = 2;
 
 void CEmitter::emitFunctionDoxygenComment(FunctionOp Function) {
-  auto Guard = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
-                                  Function.getHandle());
-
   std::optional<ptml::CDoxygenEmitter> Emitter = std::nullopt;
 
   // Function comment
@@ -529,6 +540,10 @@ void CEmitter::emitFunctionDoxygenComment(FunctionOp Function) {
     auto CommentBody = mlir::cast<mlir::StringAttr>(RawAttribute).getValue();
     if (not CommentBody.empty()) {
       ptml::CDoxygenEmitter::emitLineComment(Emitter, Tokens);
+
+      auto G = Tokens.enterRegion(ptml::CTokenEmitter::RegionKind::Commentable,
+                                  Function.getHandle());
+
       Emitter->emit(CommentBody);
       Emitter->emit("\n");
     }

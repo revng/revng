@@ -44,6 +44,10 @@ concept TraitedTupleLike = requires {
 
   typename TupleLikeTraits<T>::tuple;
   typename TupleLikeTraits<T>::Fields;
+
+  // TODO: this should also check for `get<I>(std::declval<T>())`, but there's
+  //        an empty struct in `SerializableGraph.h` for which it's impossible
+  //        to instantiate.
 } && detail::HasTuple<T> && std::is_enum_v<typename TupleLikeTraits<T>::Fields>;
 
 //

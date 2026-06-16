@@ -33,20 +33,26 @@ Containers:
     Type: function-control-flow-graph-svg
   - Name: cfg.yml.tar.gz
     Type: cfg
-  - Name: types-and-globals.h
-    Type: model-header
-  - Name: helpers.h
-    Type: helpers-header
+  - Name: legacy-types-and-globals.h
+    Type: legacy-model-header
+  - Name: legacy-helpers.h
+    Type: legacy-helpers-header
   - Name: decompiled.c
     Type: decompiled-c-code
   - Name: decompiled.tar.gz
     Type: decompile
-  - Name: recompilable-archive.tar.gz
-    Type: recompilable-archive
   - Name: functions.mlir
     Type: clift-functions
-  - Name: model-type-definitions.tar.gz
-    Type: model-type-definitions
+  - Name: types-and-globals.mlir
+    Type: clift-module
+  - Name: legacy-model-type-definitions.tar.gz
+    Type: legacy-model-type-definitions
+  - Name: types-and-globals.h
+    Type: type-and-global-header
+  - Name: helpers.h
+    Type: helper-header
+  - Name: single-type-definition.tar.gz
+    Type: single-type-definition
 Branches:
   - Steps:
       - Name: initial
@@ -478,7 +484,7 @@ Branches:
               program and detects the layout of data structures.
               The produced data structures are the result of merging the
               information obtained from each function interprocedurally.
-      - Name: canonicalize
+      - Name: legacy-canonicalize
         Pipes:
           - Type: llvm-pipe
             UsedContainers: [functions.bc.zstd]
@@ -504,16 +510,16 @@ Branches:
               - pretty-int-formatting
               - discard-broken-debug-information
               - strip-dead-prototypes
-      - Name: embed-statement-comments
+      - Name: legacy-embed-statement-comments
         Pipes:
-          - Type: embed-statement-comments
+          - Type: legacy-embed-statement-comments
             UsedContainers: [functions.bc.zstd]
-      - Name: decompile
+      - Name: legacy-decompile
         Pipes:
-          - Type: helpers-to-header
-            UsedContainers: [functions.bc.zstd, helpers.h]
-          - Type: model-to-header
-            UsedContainers: [input, types-and-globals.h]
+          - Type: legacy-helpers-to-header
+            UsedContainers: [functions.bc.zstd, legacy-helpers.h]
+          - Type: legacy-model-to-header
+            UsedContainers: [input, legacy-types-and-globals.h]
           - Type: decompile
             UsedContainers: [functions.bc.zstd, cfg.yml.tar.gz, decompiled.tar.gz]
         Artifacts:
@@ -536,9 +542,9 @@ Branches:
             UsedContainers: [decompiled.tar.gz]
             Docs: |-
               Rename the specified function(s) bodies using an LLM
-      - Name: decompile-to-single-file
+      - Name: legacy-decompile-to-single-file
         Pipes:
-          - Type: decompile-to-single-file
+          - Type: emit-c-as-single-file
             UsedContainers: [decompiled.tar.gz, decompiled.c]
         Artifacts:
           Container: decompiled.c
@@ -548,64 +554,41 @@ Branches:
             This artifact is a single PTML file representing the decompiled C
             code of the whole program, including the body of all of program's
             functions.
-  - From: embed-statement-comments
+  - From: legacy-canonicalize
     Steps:
-      - Name: emit-recompilable-archive
+      - Name: legacy-emit-helpers-header
         Pipes:
-          - Type: decompile-to-directory
-            UsedContainers: [functions.bc.zstd, cfg.yml.tar.gz, recompilable-archive.tar.gz]
+          - Type: legacy-helpers-to-header
+            UsedContainers: [functions.bc.zstd, legacy-helpers.h]
         Artifacts:
-          Container: recompilable-archive.tar.gz
-          Kind: recompilable-archive
-          SingleTargetFilename: recompilable-archive.tar.gz
-          Docs: |-
-            This artifact is an archive containing all the files necessary to
-            recompile the decompiled C code of the input program.
-            These files are not in PTML, they are plain C.
-
-            It contains:
-
-            - `functions.c`: the `decompile-to-single-file` artifact;
-            - `types-and-globals.h`: see the `emit-model-header` artifact;
-            - `helpers.h`: see the `emit-helpers-header` artifact;
-            - `attributes.h`: an helper header file defining a set of
-              annotations used by the decompiled C source files;
-            - `primitive-types.h`: a header defining all the primitive types.
-  - From: canonicalize
-    Steps:
-      - Name: emit-helpers-header
-        Pipes:
-          - Type: helpers-to-header
-            UsedContainers: [functions.bc.zstd, helpers.h]
-        Artifacts:
-          Container: helpers.h
-          Kind: helpers-header
           SingleTargetFilename: helpers.h
+          Container: legacy-helpers.h
+          Kind: legacy-helpers-header
           Docs: |-
             This artifact contains the declarations of all the helpers used
             the decompiled code.
   - From: initial
     Steps:
-      - Name: emit-model-header
+      - Name: legacy-emit-model-header
         Pipes:
-          - Type: model-to-header
-            UsedContainers: [input, types-and-globals.h]
+          - Type: legacy-model-to-header
+            UsedContainers: [input, legacy-types-and-globals.h]
         Artifacts:
-          Container: types-and-globals.h
-          Kind: model-header
           SingleTargetFilename: types-and-globals.h
+          Container: legacy-types-and-globals.h
+          Kind: legacy-model-header
           Docs: |-
             This artifact contains all the declaration of types, functions and
             segments defined in the binary.
-  - From: canonicalize
+  - From: legacy-canonicalize
     Steps:
-      - Name: emit-type-definitions
+      - Name: legacy-emit-type-definitions
         Pipes:
-          - Type: generate-model-type-definition
-            UsedContainers: [input, model-type-definitions.tar.gz]
+          - Type: legacy-generate-model-type-definition
+            UsedContainers: [input, legacy-model-type-definitions.tar.gz]
         Artifacts:
-          Container: model-type-definitions.tar.gz
-          Kind: model-type-definition
+          Container: legacy-model-type-definitions.tar.gz
+          Kind: legacy-model-type-definition
           SingleTargetFilename: type.h
           Docs: |-
             This artifact is an archive of plain C headers.
@@ -614,7 +597,7 @@ Branches:
             This artifact is designed to be used as the initial input of the
             `import-from-c` analysis. In fact, this artifact is designed to be
             easily editable by the end-user; it's not designed to represent
-            valid C code, unlike the `emit-model-header` artifact.
+            valid C code, unlike the `legacy-emit-model-header` artifact.
   - From: make-segment-ref
     Steps:
       - Name: cleanup-ir
@@ -726,7 +709,7 @@ Branches:
             program.
       - Name: emit-c-as-single-file
         Pipes:
-          - Type: decompile-to-single-file
+          - Type: emit-c-as-single-file
             UsedContainers: [decompiled.tar.gz, decompiled.c]
         Artifacts:
           Container: decompiled.c
@@ -736,6 +719,69 @@ Branches:
             This artifact is a single PTML file representing the decompiled C
             code of the whole program, including the body of all of program's
             functions. (Clift backend)
+  - From: initial
+    Steps:
+      - Name: import-types
+        Pipes:
+          - Type: import-types
+            UsedContainers: [input, types-and-globals.mlir]
+        Artifacts:
+          Container: types-and-globals.mlir
+          Kind: clift-module
+          SingleTargetFilename: types-and-globals.mlir
+          Docs: |-
+            This artifact contains all the declarations of non-primitive types
+            without any name or comment information.
+      - Name: emit-type-and-global-header
+        Pipes:
+          - Type: import-function-declarations
+            UsedContainers: [types-and-globals.mlir]
+          - Type: import-segment-declarations
+            UsedContainers: [types-and-globals.mlir]
+          - Type: import-descriptive-info
+            UsedContainers: [types-and-globals.mlir]
+          - Type: emit-type-and-global-header
+            UsedContainers: [types-and-globals.mlir, types-and-globals.h]
+        Artifacts:
+          Container: types-and-globals.h
+          Kind: type-and-global-header
+          SingleTargetFilename: types-and-globals.h
+          Docs: |-
+            This artifact is a header containing all the declarations of
+            non-primitive types, functions and segments.
+  - From: emit-c
+    Steps:
+      - Name: emit-helper-header
+        Pipes:
+          - Type: emit-helper-header
+            UsedContainers: [functions.mlir, helpers.h]
+        Artifacts:
+          Container: helpers.h
+          Kind: helper-header
+          SingleTargetFilename: helpers.h
+          Docs: |-
+            This artifact contains all the declarations of llvm and qemu helpers
+            that survived until the decompiled code.
+  - From: import-types
+    Steps:
+      - Name: emit-single-type-definition
+        Pipes:
+          - Type: import-descriptive-info
+            UsedContainers: [types-and-globals.mlir]
+          - Type: emit-single-type-definition
+            UsedContainers: [types-and-globals.mlir, single-type-definition.tar.gz]
+        Artifacts:
+          Container: single-type-definition.tar.gz
+          Kind: single-type-definition
+          SingleTargetFilename: type.h
+          Docs: |-
+            This artifact is an archive of plain C headers.
+            Each file contains the declaration of a type defined for this
+            binary.
+            This artifact is designed to be used as the initial input of the
+            `import-from-c` analysis. In fact, this artifact is designed to be
+            easily editable by the end-user; it's not designed to represent
+            valid C code, unlike the `emit-type-and-global-header` artifact.
 AnalysesLists:
   - Name: revng-initial-auto-analysis
     Analyses:

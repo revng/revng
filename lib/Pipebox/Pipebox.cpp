@@ -4,13 +4,16 @@
 
 #include "revng/ABI/Analyses/ConvertFunctionsToCABI.h"
 #include "revng/ABI/Analyses/ConvertFunctionsToRaw.h"
-#include "revng/Backend/DecompileToSingleFile.h"
 #include "revng/Canonicalize/SimplifySwitch.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/CliftPipes/Clifter.h"
 #include "revng/CliftPipes/EmitC.h"
+#include "revng/CliftPipes/EmitCAsDirectory.h"
+#include "revng/CliftPipes/EmitCAsSingleFile.h"
+#include "revng/CliftPipes/Headers.h"
 #include "revng/CliftPipes/ImportDataModel.h"
 #include "revng/CliftPipes/ImportDescriptiveInfo.h"
+#include "revng/CliftPipes/ImportTypes.h"
 #include "revng/CliftPipes/VerifyAgainstModel.h"
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
@@ -53,81 +56,96 @@
 #include "revng/Yield/Pipes/YieldCallGraph.h"
 #include "revng/Yield/Pipes/YieldCallGraphSlice.h"
 
-using namespace revng::pypeline;
+#define REGISTER(TYPE, NAME) \
+  static Register##TYPE<NAME> CONCAT3(TYPE, _, __COUNTER__)
 
 //
 // Containers
 //
 
-static RegisterContainer<LLVMRootContainer> C1;
-static RegisterContainer<LLVMFunctionContainer> C3;
-static RegisterContainer<PTMLCBytesContainer> C4;
-static RegisterContainer<BinariesContainer> C5;
-static RegisterContainer<PTMLCTypeContainer> C6;
-static RegisterContainer<CFGMap> C7;
-static RegisterContainer<HexDumpContainer> C8;
-static RegisterContainer<AssemblyInternalContainer> C9;
-static RegisterContainer<AssemblyContainer> C10;
-static RegisterContainer<ObjectFileContainer> C11;
-static RegisterContainer<TranslatedContainer> C12;
-static RegisterContainer<CliftFunctionContainer> C13;
-static RegisterContainer<PTMLCFunctionBytesContainer> C14;
-static RegisterContainer<CrossRelationsContainer> C15;
-static RegisterContainer<CallGraphContainer> C16;
-static RegisterContainer<CallGraphSliceContainer> C17;
-static RegisterContainer<FunctionControlFlowContainer> C18;
-static RegisterContainer<CliftModuleContainer> C19;
-static RegisterContainer<CliftSingleTypeContainer> C20;
+using namespace revng::pypeline;
+
+REGISTER(Container, AssemblyContainer);
+REGISTER(Container, AssemblyInternalContainer);
+REGISTER(Container, BinariesContainer);
+REGISTER(Container, CallGraphContainer);
+REGISTER(Container, CallGraphSliceContainer);
+REGISTER(Container, CFGMap);
+REGISTER(Container, CliftFunctionContainer);
+REGISTER(Container, CliftModuleContainer);
+REGISTER(Container, CliftSingleTypeContainer);
+REGISTER(Container, CrossRelationsContainer);
+REGISTER(Container, FunctionControlFlowContainer);
+REGISTER(Container, HexDumpContainer);
+REGISTER(Container, LLVMFunctionContainer);
+REGISTER(Container, LLVMRootContainer);
+REGISTER(Container, ObjectFileContainer);
+REGISTER(Container, PTMLCBytesContainer);
+REGISTER(Container, PTMLCFunctionBytesContainer);
+REGISTER(Container, PTMLCTypeBytesContainer);
+REGISTER(Container, PTMLCTypeContainer);
+REGISTER(Container, RecompilableArchiveContainer);
+REGISTER(Container, TranslatedContainer);
 
 //
 // Pipes
 //
 
 using namespace revng::pypeline::pipes;
-using namespace revng::pypeline::piperuns;
-namespace piperuns = revng::pypeline::piperuns;
 
-static RegisterSingleOutputPipeRun<Lift> P1;
-static RegisterPipe<PureLLVMPassesRootPipe> P2;
-static RegisterPipe<PureLLVMPassesPipe> P3;
-static RegisterSingleOutputPipeRun<ModelToHeader> P4;
-static RegisterTypeDefinitionPipeRun<GenerateModelTypeDefinition> P5;
-static RegisterFunctionPipeRun<CollectCFG> P6;
-static RegisterFunctionPipeRun<Isolate> P7;
-static RegisterFunctionPipeRun<AttachDebugInfo> P8;
-static RegisterFunctionPipeRun<piperuns::EnforceABI> P9;
-static RegisterFunctionPipeRun<PromoteCSVs> P10;
-static RegisterSingleOutputPipeRun<HexDump> P11;
-static RegisterFunctionPipeRun<ProcessAssembly> P12;
-static RegisterFunctionPipeRun<YieldAssembly> P13;
-static RegisterSingleOutputPipeRun<LinkSupport> P14;
-static RegisterSingleOutputPipeRun<CompileRootModule> P15;
-static RegisterSingleOutputPipeRun<LinkForTranslation> P16;
-static RegisterSingleOutputPipeRun<InvokeIsolatedFunctions> P17;
-static RegisterFunctionPipeRun<RemoveLiftingArtifacts> P18;
-static RegisterFunctionPipeRun<PromoteInitCSVToUndef> P19;
-static RegisterFunctionPipeRun<InjectStackSizeProbesAtCallSites> P20;
-static RegisterFunctionPipeRun<PromoteStackPointer> P21;
-static RegisterFunctionPipeRun<SimplifySwitch> P22;
-static RegisterFunctionPipeRun<LegacySegregateStackAccesses> P23;
-static RegisterFunctionPipeRun<MakeSegmentRef> P24;
-static RegisterFunctionPipeRun<SegregateStackAccesses> P25;
-static RegisterFunctionPipeRun<SwitchToStatements> P26;
-static RegisterFunctionPipeRun<Clifter> P27;
-static RegisterPipe<PureMLIRPassesPipe> P28;
-static RegisterSingleOutputPipeRun<VerifyAgainstModel> P29;
-static RegisterSingleOutputPipeRun<ImportDescriptiveInfo> P30;
-static RegisterFunctionPipeRun<EmitC> P31;
-static RegisterSingleOutputPipeRun<DecompileToSingleFile> P32;
-static RegisterSingleOutputPipeRun<MergeLLVMModules> P33;
-static RegisterSingleOutputPipeRun<CleanupIR> P34;
-static RegisterSingleOutputPipeRun<ProcessCallGraph> P35;
-static RegisterSingleOutputPipeRun<YieldCallGraph> P36;
-static RegisterFunctionPipeRun<YieldCallGraphSlice> P37;
-static RegisterFunctionPipeRun<YieldCFG> P38;
-static RegisterFunctionPipeRun<ImportDescriptiveFunctionInfo> P39;
-static RegisterFunctionPipeRun<VerifyFunctionAgainstModel> P40;
-static RegisterFunctionPipeRun<ImportFunctionDataModel> P41;
+REGISTER(Pipe, PureLLVMPassesPipe);
+REGISTER(Pipe, PureLLVMPassesRootPipe);
+REGISTER(Pipe, PureMLIRPassesPipe);
+
+using namespace revng::pypeline::piperuns;
+
+REGISTER(FunctionPipeRun, AttachDebugInfo);
+REGISTER(FunctionPipeRun, Clifter);
+REGISTER(FunctionPipeRun, CollectCFG);
+REGISTER(FunctionPipeRun, EmitC);
+REGISTER(FunctionPipeRun, EnforceABI);
+REGISTER(FunctionPipeRun, ImportDescriptiveFunctionInfo);
+REGISTER(FunctionPipeRun, ImportFunctionDataModel);
+REGISTER(FunctionPipeRun, InjectStackSizeProbesAtCallSites);
+REGISTER(FunctionPipeRun, Isolate);
+REGISTER(FunctionPipeRun, LegacySegregateStackAccesses);
+REGISTER(FunctionPipeRun, MakeSegmentRef);
+REGISTER(FunctionPipeRun, ProcessAssembly);
+REGISTER(FunctionPipeRun, PromoteCSVs);
+REGISTER(FunctionPipeRun, PromoteInitCSVToUndef);
+REGISTER(FunctionPipeRun, PromoteStackPointer);
+REGISTER(FunctionPipeRun, RemoveLiftingArtifacts);
+REGISTER(FunctionPipeRun, SegregateStackAccesses);
+REGISTER(FunctionPipeRun, SimplifySwitch);
+REGISTER(FunctionPipeRun, SwitchToStatements);
+REGISTER(FunctionPipeRun, VerifyFunctionAgainstModel);
+REGISTER(FunctionPipeRun, YieldAssembly);
+REGISTER(FunctionPipeRun, YieldCallGraphSlice);
+REGISTER(FunctionPipeRun, YieldCFG);
+
+REGISTER(SingleOutputPipeRun, CleanupIR);
+REGISTER(SingleOutputPipeRun, CompileRootModule);
+REGISTER(SingleOutputPipeRun, EmitCAsDirectory);
+REGISTER(SingleOutputPipeRun, EmitCAsSingleFile);
+REGISTER(SingleOutputPipeRun, EmitHelperHeader);
+REGISTER(SingleOutputPipeRun, EmitTypeAndGlobalHeader);
+REGISTER(SingleOutputPipeRun, HexDump);
+REGISTER(SingleOutputPipeRun, ImportDescriptiveInfo);
+REGISTER(SingleOutputPipeRun, ImportFunctionDeclarations);
+REGISTER(SingleOutputPipeRun, ImportSegmentDeclarations);
+REGISTER(SingleOutputPipeRun, ImportTypes);
+REGISTER(SingleOutputPipeRun, InvokeIsolatedFunctions);
+REGISTER(SingleOutputPipeRun, Lift);
+REGISTER(SingleOutputPipeRun, LinkForTranslation);
+REGISTER(SingleOutputPipeRun, LinkSupport);
+REGISTER(SingleOutputPipeRun, MergeLLVMModules);
+REGISTER(SingleOutputPipeRun, ModelToHeader);
+REGISTER(SingleOutputPipeRun, ProcessCallGraph);
+REGISTER(SingleOutputPipeRun, VerifyAgainstModel);
+REGISTER(SingleOutputPipeRun, YieldCallGraph);
+
+REGISTER(TypeDefinitionPipeRun, EmitSingleTypeDefinition);
+REGISTER(TypeDefinitionPipeRun, GenerateModelTypeDefinition);
 
 //
 // Analyses
@@ -135,16 +153,16 @@ static RegisterFunctionPipeRun<ImportFunctionDataModel> P41;
 
 using namespace revng::pypeline::analyses;
 
-static RegisterAnalysis<ApplyDiff> A1;
-static RegisterAnalysis<VerifyDiff> A2;
-static RegisterAnalysis<SetModel> A3;
-static RegisterAnalysis<VerifyModel> A4;
-static RegisterAnalysis<ParseBinaryAnalysis> A5;
-static RegisterAnalysis<ImportPrototypesFromDatabase> A6;
-static RegisterAnalysis<DetectABI> A7;
-static RegisterAnalysis<DetectStackSize> A8;
-static RegisterAnalysis<AnalyzeDataLayout> A9;
-static RegisterAnalysis<ConvertFunctionsToCABI> A10;
-static RegisterAnalysis<ConvertFunctionsToRaw> A11;
-static RegisterAnalysis<ImportFromC> A12;
-static RegisterAnalysis<LLMRename> A13;
+REGISTER(Analysis, AnalyzeDataLayout);
+REGISTER(Analysis, ApplyDiff);
+REGISTER(Analysis, ConvertFunctionsToCABI);
+REGISTER(Analysis, ConvertFunctionsToRaw);
+REGISTER(Analysis, DetectABI);
+REGISTER(Analysis, DetectStackSize);
+REGISTER(Analysis, ImportFromC);
+REGISTER(Analysis, ImportPrototypesFromDatabase);
+REGISTER(Analysis, LLMRename);
+REGISTER(Analysis, ParseBinaryAnalysis);
+REGISTER(Analysis, SetModel);
+REGISTER(Analysis, VerifyDiff);
+REGISTER(Analysis, VerifyModel);

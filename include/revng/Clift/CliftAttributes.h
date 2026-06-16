@@ -21,13 +21,22 @@
 namespace clift {
 
 template<typename T>
+MutableStringAttr
+makeNameAttr(mlir::MLIRContext *Context, llvm::StringRef Handle);
+
+template<typename T>
 MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
                                llvm::StringRef Handle,
-                               llvm::StringRef Name = "");
+                               llvm::StringRef Name);
+
+template<typename T>
+MutableStringAttr
+makeCommentAttr(mlir::MLIRContext *Context, llvm::StringRef Handle);
+
 template<typename T>
 MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
                                   llvm::StringRef Handle,
-                                  llvm::StringRef Name = "");
+                                  llvm::StringRef Name);
 
 } // namespace clift
 
@@ -38,24 +47,47 @@ MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
 namespace clift {
 
 template<typename T>
-MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
-                               llvm::StringRef Handle,
-                               llvm::StringRef Name) {
+MutableStringAttr
+makeNameAttr(mlir::MLIRContext *Context, llvm::StringRef Handle) {
   return MutableStringAttr::get(Context,
                                 StringPairAttr::get(Context,
                                                     T::NameAttrKey,
-                                                    Handle),
-                                Name);
+                                                    Handle));
 }
+
+template<typename T>
+MutableStringAttr makeNameAttr(mlir::MLIRContext *Context,
+                               llvm::StringRef Handle,
+                               llvm::StringRef Name) {
+  auto Attr = makeNameAttr<T>(Context, Handle);
+  if (not Attr.getValue().empty() and Attr.getValue() != Name) {
+    std::string Error = "Name attribute already has a value that differs "
+                        "from the new one: '"
+                        + Attr.getValue().str() + "' vs '" + Name.str() + "'";
+    revng_abort(Error.c_str());
+  }
+
+  Attr.setValue(Name);
+  return Attr;
+}
+
+template<typename T>
+MutableStringAttr
+makeCommentAttr(mlir::MLIRContext *Context, llvm::StringRef Handle) {
+  return MutableStringAttr::get(Context,
+                                StringPairAttr::get(Context,
+                                                    T::CommentAttrKey,
+                                                    Handle));
+}
+
 template<typename T>
 MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
                                   llvm::StringRef Handle,
                                   llvm::StringRef Name) {
-  return MutableStringAttr::get(Context,
-                                StringPairAttr::get(Context,
-                                                    T::CommentAttrKey,
-                                                    Handle),
-                                Name);
+  auto Attr = makeCommentAttr<T>(Context, Handle);
+  revng_assert(Attr.getValue().empty());
+  Attr.setValue(Name);
+  return Attr;
 }
 
 // VERY IMPORTANT!!!

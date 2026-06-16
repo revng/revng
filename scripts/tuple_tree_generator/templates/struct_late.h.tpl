@@ -42,8 +42,8 @@ using namespace std::string_view_literals;
 
 /*# --- TupleLikeTraits --- -#*/
 template <> struct TupleLikeTraits</*=- struct | user_fullname =*/> {
-  static constexpr const llvm::StringRef Name = "/*=- struct.name =*/";
-  static constexpr const llvm::StringRef FullName = "/*=- struct | user_fullname =*/";
+  static constexpr llvm::StringRef Name = "/*=- struct.name =*/";
+  static constexpr llvm::StringRef FullName = "/*=- struct | user_fullname =*/";
   using tuple = std::tuple<
     /**- for field in struct.all_fields -**/
     /*=- struct | user_fullname =*/::TypeOf/*=- field.name =*/

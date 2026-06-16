@@ -88,7 +88,7 @@ namespace ranks = revng::ranks;
 namespace attributes = ptml::attributes;
 namespace tokens = ptml::c::tokens;
 
-using tokenDefinition::types::StringToken;
+using StringToken = llvm::SmallString<128>;
 
 using TokenMapT = std::map<const llvm::Value *, std::string>;
 using ModelTypesMap = std::map<const llvm::Value *,

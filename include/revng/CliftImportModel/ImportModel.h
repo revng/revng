@@ -21,8 +21,9 @@ namespace clift {
 /// \return The corresponding Clift type, or null on failure.
 mlir::Type importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                       mlir::MLIRContext *Context,
-                      const model::TypeDefinition &ModelType,
-                      const model::Binary &Binary);
+                      const model::TypeDefinition &ModelType);
+mlir::Type importType(mlir::MLIRContext *Context,
+                      const model::TypeDefinition &ModelType);
 
 /// Convert the specified qualified model type to a Clift type in the specified
 /// context.
@@ -30,8 +31,8 @@ mlir::Type importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
 /// \return The corresponding Clift type, or null on failure.
 mlir::Type importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                       mlir::MLIRContext *Context,
-                      const model::Type &ModelType,
-                      const model::Binary &Binary);
+                      const model::Type &ModelType);
+mlir::Type importType(mlir::MLIRContext *Context, const model::Type &ModelType);
 
 /// Convert the specified model function into a clift function declaration.
 ///
@@ -55,6 +56,10 @@ GlobalVariableOp importSegmentDeclaration(mlir::ModuleOp Module,
                                           mlir::Type Type);
 
 void importAllModelTypes(const model::Binary &Model, mlir::ModuleOp Module);
+void importAllModelFunctionDeclarations(const model::Binary &Model,
+                                        mlir::ModuleOp Module);
+void importAllModelSegmentDeclarations(const model::Binary &Model,
+                                       mlir::ModuleOp Module);
 
 void importDescriptiveInfo(const model::Binary &Model, mlir::ModuleOp Module);
 
@@ -62,5 +67,8 @@ void importDescriptiveInfo(const model::Binary &Model, mlir::ModuleOp Module);
 void importDescriptiveInfo(const model::Function &Function,
                            const model::Binary &Model,
                            mlir::ModuleOp Module);
+
+clift::StructType makeOpaqueStruct(mlir::MLIRContext &Context,
+                                   uint64_t NumBytes);
 
 } // namespace clift

@@ -13,15 +13,15 @@ namespace revng::pipes {
 
 inline constexpr char HelpersHeaderFactoryMIMEType[] = "text/x.c+ptml";
 inline constexpr char HelpersHeaderFactorySuffix[] = ".h";
-inline constexpr char HelpersHeaderFactoryName[] = "helpers-header";
-using HelpersHeaderFileContainer = FileContainer<&kinds::HelpersHeader,
+inline constexpr char HelpersHeaderFactoryName[] = "legacy-helpers-header";
+using HelpersHeaderFileContainer = FileContainer<&kinds::LegacyHelpersHeader,
                                                  HelpersHeaderFactoryName,
                                                  HelpersHeaderFactoryMIMEType,
                                                  HelpersHeaderFactorySuffix>;
 
 class HelpersToHeader {
 public:
-  static constexpr auto Name = "helpers-to-header";
+  static constexpr auto Name = "legacy-helpers-to-header";
 
   std::array<pipeline::ContractGroup, 1> getContract() const {
     using namespace pipeline;
@@ -29,7 +29,7 @@ public:
 
     return { ContractGroup{ Contract(StackAccessesSegregated,
                                      0,
-                                     HelpersHeader,
+                                     LegacyHelpersHeader,
                                      1,
                                      InputPreservation::Preserve) } };
   }

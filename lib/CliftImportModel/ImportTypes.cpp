@@ -8,6 +8,7 @@
 
 #include "mlir/IR/BuiltinOps.h"
 
+#include "revng/ABI/Definition.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftAttributes.h"
@@ -15,6 +16,8 @@
 #include "revng/Clift/CliftTypes.h"
 #include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/CliftImportModel/ImportModel.h"
+#include "revng/Model/NameBuilder.h"
+#include "revng/Model/Segment.h"
 #include "revng/Pipeline/Location.h"
 #include "revng/Pipes/Ranks.h"
 
@@ -60,7 +63,6 @@ class CliftConverter {
 
 public:
   explicit CliftConverter(mlir::MLIRContext *Context,
-                          const model::Binary &Binary,
                           llvm::function_ref<mlir::InFlightDiagnostic()>
                             EmitError) :
     Context(Context), EmitError(EmitError) {}
@@ -91,14 +93,12 @@ private:
   }
 
   template<typename KeyT>
-  clift::MutableStringAttr
-  makeNameAttr(llvm::StringRef Handle, llvm::StringRef Name = {}) {
-    return clift::makeNameAttr<KeyT>(Context, Handle, Name);
+  clift::MutableStringAttr makeNameAttr(llvm::StringRef Handle) {
+    return clift::makeNameAttr<KeyT>(Context, Handle);
   }
   template<typename KeyT>
-  clift::MutableStringAttr
-  makeCommentAttr(llvm::StringRef Handle, llvm::StringRef Comment = {}) {
-    return clift::makeCommentAttr<KeyT>(Context, Handle, Comment);
+  clift::MutableStringAttr makeCommentAttr(llvm::StringRef Handle) {
+    return clift::makeCommentAttr<KeyT>(Context, Handle);
   }
 
   static clift::IntegerKind
@@ -655,18 +655,31 @@ private:
 mlir::Type
 clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                   mlir::MLIRContext *Context,
-                  const model::TypeDefinition &ModelType,
-                  const model::Binary &Binary) {
-  return CliftConverter(Context, Binary, EmitError)
-    .convertTypeDefinition(ModelType);
+                  const model::TypeDefinition &ModelType) {
+  return CliftConverter(Context, EmitError).convertTypeDefinition(ModelType);
+}
+mlir::Type clift::importType(mlir::MLIRContext *Context,
+                             const model::TypeDefinition &ModelType) {
+  auto EmitError = [Context]() -> mlir::InFlightDiagnostic {
+    return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
+                                         mlir::DiagnosticSeverity::Error);
+  };
+  return CliftConverter(Context, EmitError).convertTypeDefinition(ModelType);
 }
 
 mlir::Type
 clift::importType(llvm::function_ref<mlir::InFlightDiagnostic()> EmitError,
                   mlir::MLIRContext *Context,
-                  const model::Type &ModelType,
-                  const model::Binary &Binary) {
-  return CliftConverter(Context, Binary, EmitError).convertType(ModelType);
+                  const model::Type &ModelType) {
+  return CliftConverter(Context, EmitError).convertType(ModelType);
+}
+mlir::Type clift::importType(mlir::MLIRContext *Context,
+                             const model::Type &ModelType) {
+  auto EmitError = [Context]() -> mlir::InFlightDiagnostic {
+    return Context->getDiagEngine().emit(mlir::UnknownLoc::get(Context),
+                                         mlir::DiagnosticSeverity::Error);
+  };
+  return CliftConverter(Context, EmitError).convertType(ModelType);
 }
 
 using AttributeSet = MutableSet<model::FunctionAttribute::Values>;
@@ -727,17 +740,112 @@ clift::importSegmentDeclaration(mlir::ModuleOp Module,
 
 void clift::importAllModelTypes(const model::Binary &Model,
                                 mlir::ModuleOp Module) {
-  mlir::MLIRContext *Context = Module.getContext();
-  mlir::Location Loc = mlir::UnknownLoc::get(Context);
-  auto EmitError = [&]() -> mlir::InFlightDiagnostic {
-    return Context->getDiagEngine().emit(Loc, mlir::DiagnosticSeverity::Error);
-  };
+  clift::setDataModel(Module, abi::getDataModel(Model));
 
   llvm::SmallVector<mlir::Attribute> TypeAttrs;
   for (const auto &ModelType : Model.TypeDefinitions()) {
-    auto CliftType = clift::importType(EmitError, Context, *ModelType, Model);
+    auto CliftType = clift::importType(Module.getContext(), *ModelType);
     TypeAttrs.push_back(mlir::TypeAttr::get(CliftType));
   }
 
-  Module->setAttr("clift.test", mlir::ArrayAttr::get(Context, TypeAttrs));
+  Module->setAttr("clift.types",
+                  mlir::ArrayAttr::get(Module.getContext(), TypeAttrs));
+}
+
+template<typename FunctionT, typename RankT>
+clift::FunctionOp importAnyFunctionDeclaration(const FunctionT &MF,
+                                               const RankT &Rank,
+                                               mlir::ModuleOp Module,
+                                               const model::Binary &Binary) {
+  auto ModelPrototype = Binary.prototypeOrDefault(MF.prototype());
+  revng_check(ModelPrototype);
+
+  auto CliftType = clift::importType(Module.getContext(), *ModelPrototype);
+  auto CliftPrototype = mlir::cast<clift::FunctionType>(CliftType);
+
+  std::string Handle = pipeline::locationString(Rank, MF.key());
+  auto UnknownLocation = mlir::UnknownLoc::get(Module.getContext());
+  return clift::importFunctionDeclaration(Module,
+                                          UnknownLocation,
+                                          toString(MF.key()),
+                                          Handle,
+                                          CliftPrototype,
+                                          MF.Attributes().unwrap());
+}
+
+void clift::importAllModelFunctionDeclarations(const model::Binary &Model,
+                                               mlir::ModuleOp Module) {
+  clift::setDataModel(Module, abi::getDataModel(Model));
+
+  for (const auto &ModelFunction : Model.Functions()) {
+    importAnyFunctionDeclaration(ModelFunction,
+                                 revng::ranks::Function,
+                                 Module,
+                                 Model);
+  }
+
+  for (const auto &ModelFunction : Model.ImportedDynamicFunctions()) {
+    importAnyFunctionDeclaration(ModelFunction,
+                                 revng::ranks::DynamicFunction,
+                                 Module,
+                                 Model);
+  }
+}
+
+static mlir::Type importSegmentType(const model::Segment &Segment,
+                                    mlir::ModuleOp Module) {
+  if (const model::StructDefinition *SegmentStruct = Segment.type()) {
+    return clift::importType(Module.getContext(), *SegmentStruct);
+
+  } else {
+    auto Char = clift::IntegerType::get(Module.getContext(),
+                                        clift::IntegerKind::Unsigned,
+                                        1);
+    return clift::ArrayType::get(Char, Segment.VirtualSize());
+  }
+}
+
+void clift::importAllModelSegmentDeclarations(const model::Binary &Model,
+                                              mlir::ModuleOp Module) {
+  clift::setDataModel(Module, abi::getDataModel(Model));
+
+  for (const auto &Segment : Model.Segments()) {
+    std::string Handle = pipeline::locationString(revng::ranks::Segment,
+                                                  Segment.key());
+    auto UnknownLocation = mlir::UnknownLoc::get(Module.getContext());
+    clift::importSegmentDeclaration(Module,
+                                    UnknownLocation,
+                                    toString(Segment.key()),
+                                    Handle,
+                                    importSegmentType(Segment, Module));
+  }
+}
+
+static std::string getOpaqueTypeHandle(uint64_t ByteSize) {
+  return pipeline::locationString(revng::ranks::OpaqueType, ByteSize);
+}
+
+clift::StructType clift::makeOpaqueStruct(mlir::MLIRContext &Context,
+                                          uint64_t ByteSize) {
+  std::string Handle = getOpaqueTypeHandle(ByteSize);
+
+  auto NameAttr = makeNameAttr<StructAttr>(&Context, Handle);
+  auto CommentAttr = makeCommentAttr<StructAttr>(&Context, Handle);
+  auto Attrs = llvm::ArrayRef<clift::CAttributeAttr>{};
+  auto Def = clift::StructAttr::get(&Context,
+                                    Handle,
+                                    NameAttr,
+                                    CommentAttr,
+                                    ByteSize,
+                                    {},
+                                    Attrs);
+
+  // TODO: this discards the prefix configuration option.
+  //       We should fix this after the configuration is separate from the
+  //       model
+  model::Binary EmptyBinary{};
+  model::CNameBuilder UnconfiguredNB(EmptyBinary);
+  Def.getMutableName().setValue(UnconfiguredNB.opaqueTypeName(ByteSize));
+
+  return clift::StructType::get(Def);
 }

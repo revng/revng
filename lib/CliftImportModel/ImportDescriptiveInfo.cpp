@@ -5,6 +5,7 @@
 #include <ranges>
 #include <type_traits>
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringRef.h"
 
 #include "mlir/IR/RegionGraphTraits.h"
@@ -110,7 +111,24 @@ public:
 class SymbolRenamer {
   llvm::DenseMap<llvm::StringRef, std::string> Map;
 
+  // Set of module-level ops whose descriptive info has already been
+  // recorded. Lives here (and not on the Importer) because a single
+  // importDescriptiveInfo invocation may construct several Importer
+  // instances (e.g. the per-function overload visits the current
+  // function, then each helper/global, then any callee reached through a
+  // clift::UseOp); the dedup gate must be shared across all of them so
+  // that the same target is not recorded twice.
+  llvm::DenseSet<mlir::Operation *> RecordedTargets;
+
 public:
+  // Mark `Op` as recorded; return true if this is the first time it is
+  // seen during the current importDescriptiveInfo call, false otherwise.
+  // Callers that perform per-op work (prototype attributes, comments,
+  // ...) should use this to gate that work so it only happens once.
+  bool markRecorded(clift::GlobalOpInterface Op) {
+    return RecordedTargets.insert(Op.getOperation()).second;
+  }
+
   void record(clift::GlobalOpInterface Op, llvm::StringRef NewName) {
     auto [Iterator, Inserted] = Map.try_emplace(Op.getName(), NewName.str());
     revng_assert(Inserted);
@@ -235,6 +253,33 @@ public:
     if (auto S = mlir::dyn_cast<clift::StatementOpInterface>(Op))
       return visitStatementOp(S);
 
+    if (auto U = mlir::dyn_cast<clift::UseOp>(Op))
+      return visitUseOp(U);
+
+    return mlir::success();
+  }
+
+  // Resolve the symbol referenced by `Use` to its definition in the
+  // enclosing module and record the descriptive info for that target.
+  //
+  // This is what guarantees that a function whose body contains
+  // references to other functions or to global variables also causes
+  // those callees to be renamed by the SymbolRenamer at the end of
+  // importDescriptiveInfo, without the per-function variant having to
+  // pre-walk every sibling module-level op.
+  mlir::LogicalResult visitUseOp(clift::UseOp Use) {
+    auto Module = Use->getParentOfType<mlir::ModuleOp>();
+    revng_assert(Module);
+
+    mlir::Operation *Target = //
+      mlir::SymbolTable::lookupSymbolIn(Module, Use.getSymbolNameAttr());
+
+    if (auto F = mlir::dyn_cast_or_null<clift::FunctionOp>(Target))
+      return recordFunctionOpName(F);
+
+    if (auto G = mlir::dyn_cast_or_null<clift::GlobalVariableOp>(Target))
+      return recordGlobalVariableOpName(G);
+
     return mlir::success();
   }
 
@@ -347,14 +392,14 @@ private:
                         const model::RawFunctionDefinition &FMT) {
     revng_assert(ST.getFields().size() == FMT.ReturnValues().size());
 
-    std::string
-      Name = (Model.Configuration().Naming().ArtificialReturnValuePrefix()
-              + NameBuilder.name(FMT));
+    std::string Name = NameBuilder.artificialReturnValueWrapperName(FMT);
 
     ST.getMutableName().setValue(Name);
 
-    for (auto [F, R] : llvm::zip(ST.getFields(), FMT.ReturnValues()))
+    for (auto [F, R] : llvm::zip(ST.getFields(), FMT.ReturnValues())) {
       F.getMutableName().setValue(NameBuilder.name(FMT, R));
+      F.getMutableComment().setValue(R.Comment());
+    }
 
     return mlir::success();
   }
@@ -571,8 +616,16 @@ private:
   }
 
 public:
-  mlir::LogicalResult visitFunctionOp(clift::FunctionOp Op) {
-    CurrentFunction.reset();
+  // Record the descriptive info for the given function op, without touching
+  // the `CurrentFunction` state used by the body walk. This is the part of
+  // the work that can be performed for any function op the importer comes
+  // across (the current function, a sibling declaration, a callee reached
+  // through a `clift::UseOp`, ...).
+  //
+  // Idempotent: a second call on the same op is a no-op.
+  mlir::LogicalResult recordFunctionOpName(clift::FunctionOp Op) {
+    if (not Symbols.markRecorded(Op))
+      return mlir::success();
 
     if (auto Pair = getModelFunction(Op.getHandle())) {
       auto &[L, MF] = *Pair;
@@ -582,9 +635,6 @@ public:
                                  Prototype,
                                  NameBuilder.name(MF),
                                  MF.Comment());
-
-      if (not Op.getBody().empty())
-        CurrentFunction.emplace(*this, Op, std::move(L), MF);
 
       return mlir::success();
     }
@@ -610,7 +660,31 @@ public:
     revng_abort("Invalid function handle");
   }
 
-  mlir::LogicalResult visitGlobalVariableOp(clift::GlobalVariableOp Op) {
+  mlir::LogicalResult visitFunctionOp(clift::FunctionOp Op) {
+    CurrentFunction.reset();
+
+    if (recordFunctionOpName(Op).failed())
+      return mlir::failure();
+
+    if (auto Pair = getModelFunction(Op.getHandle())) {
+      auto &[L, MF] = *Pair;
+      if (not Op.getBody().empty())
+        CurrentFunction.emplace(*this, Op, std::move(L), MF);
+    }
+
+    return mlir::success();
+  }
+
+  // Record the descriptive info for the given global variable op. Mirrors
+  // recordFunctionOpName: contains no per-function state and is therefore
+  // safe to call from any visit context (module level or while walking a
+  // function body following a clift::UseOp).
+  //
+  // Idempotent: a second call on the same op is a no-op.
+  mlir::LogicalResult recordGlobalVariableOpName(clift::GlobalVariableOp Op) {
+    if (not Symbols.markRecorded(Op))
+      return mlir::success();
+
     if (const model::Segment *Segment = getModelSegment(Op)) {
       Symbols.record(Op, NameBuilder.name(Model, *Segment));
 
@@ -623,6 +697,10 @@ public:
     }
 
     revng_abort("Invalid global variable handle");
+  }
+
+  mlir::LogicalResult visitGlobalVariableOp(clift::GlobalVariableOp Op) {
+    return recordGlobalVariableOpName(Op);
   }
 
   //===-------------------------- Comment import --------------------------===//

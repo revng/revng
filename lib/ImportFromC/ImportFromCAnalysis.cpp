@@ -20,10 +20,18 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 
-#include "revng/HeadersGeneration/PTMLHeaderBuilder.h"
+#include "revng/ABI/Definition.h"
+#include "revng/Clift/Clift.h"
+#include "revng/CliftEmitC/CEmitter.h"
+#include "revng/CliftEmitC/Configuration.h"
+#include "revng/CliftEmitC/Headers.h"
+#include "revng/CliftEmitC/TypeDefinitionEmitter.h"
+#include "revng/CliftImportModel/ImportModel.h"
 #include "revng/ImportFromC/ImportFromCAnalysis.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/EnumDefinition.h"
 #include "revng/Model/VerifyHelper.h"
+#include "revng/PTML/CTokenEmitter.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/Option.h"
@@ -36,7 +44,6 @@
 
 #include "HeaderToModel.h"
 #include "ImportFromCAnalysis.h"
-#include "ImportFromCHelpers.h"
 
 using namespace llvm;
 using namespace clang;
@@ -72,7 +79,28 @@ static std::optional<std::string> findHeaderFile(const std::string &File) {
   return (*MaybeHeaderPath).substr(0, Index);
 }
 
-static Logger Log("header-to-model-errors");
+static bool isSeparateDeclarationAllowed(const model::TypeDefinition &T) {
+  return llvm::isa<model::StructDefinition>(&T)
+         or llvm::isa<model::UnionDefinition>(&T)
+         or llvm::isa<model::EnumDefinition>(&T);
+}
+
+static std::pair<std::unique_ptr<mlir::MLIRContext>,
+                 mlir::OwningOpRef<mlir::ModuleOp>>
+makeHeaderModule(const model::Binary &Model) {
+  std::unique_ptr<mlir::MLIRContext> Context = clift::makeContext();
+  mlir::OwningOpRef<mlir::ModuleOp> Module = clift::makeModule(*Context);
+
+  clift::importAllModelTypes(Model, Module.get());
+  clift::importAllModelFunctionDeclarations(Model, Module.get());
+  clift::importAllModelSegmentDeclarations(Model, Module.get());
+
+  clift::importDescriptiveInfo(Model, Module.get());
+
+  return std::make_pair(std::move(Context), std::move(Module));
+}
+
+static Logger Log("import-from-c-clang-input");
 
 struct ImportFromCAnalysis {
   static constexpr auto Name = "import-from-c";
@@ -148,43 +176,50 @@ struct ImportFromCAnalysis {
                                        + ErrorCode.message());
     }
 
-    ptml::ModelCBuilder::ConfigurationOptions Configuration = {
-      .EnableStackFrameInlining = false
+    auto [Context, HeaderModule] = makeHeaderModule(*Model);
+
+    TypeEmitterConfiguration Configuration = {
+      .TypeToOmit = {},
+      .EmitMaximumEnumValue = true,
+      .ExplicitPadding = false,
     };
-    ptml::HeaderBuilder::ConfigurationOptions HeaderConfiguration = {};
+
+    // Extra variable is here to extend the lifetime of the string.
+    std::string EditedTypeHandle;
+
     if (TheOption == ImportFromCOption::EditType) {
-      // For all the types other than functions and typedefs, generate forward
-      // declarations.
-      if (!ptml::ModelCBuilder::isDeclarationTheSameAsDefinition(*TypeToEdit)) {
-        llvm::raw_string_ostream Stream(HeaderConfiguration.PostIncludeSnippet);
-        ptml::ModelCBuilder PI(Stream,
-                               *Model,
-                               /* GenerateTaglessPTML = */ true);
-        PI.appendLineComment("The type we are editing");
-        // The declaration of this type will be near the top of the file.
-        PI.printForwardDeclaration(*TypeToEdit);
-        PI.append("\n");
-      }
-
-      // Find all types whose definition depends on the type we are editing.
-      Configuration.TypesToOmit = collectDependentTypes(*TypeToEdit, Model);
-
-    } else if (TheOption == ImportFromCOption::EditFunctionPrototype) {
-      HeaderConfiguration.FunctionsToOmit.insert(FunctionToEdit->Entry());
-
-    } else if (TheOption == ImportFromCOption::AddType) {
-      // Nothing special to do when adding types
-
-    } else {
-      revng_abort("Unknown action requested.");
+      EditedTypeHandle = pipeline::locationString(revng::ranks::TypeDefinition,
+                                                  TypeToEdit->key());
+      Configuration.TypeToOmit = EditedTypeHandle;
     }
 
-    ptml::ModelCBuilder B(Out,
-                          *Model,
-                          /* EnableTaglessMode = */ true,
-                          std::move(Configuration));
-    ptml::HeaderBuilder(B, std::move(HeaderConfiguration)).printModelHeader();
+    {
+      ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Disabled);
+      emitCommonIncludes(Tokens, abi::getDataModel(*Model));
+
+      if (TheOption == ImportFromCOption::EditType
+          and isSeparateDeclarationAllowed(*TypeToEdit)) {
+        auto Current = clift::importType(Context.get(), *TypeToEdit);
+
+        // TODO: we only need information about one type, don't import them all!
+        clift::importDescriptiveInfo(*Model, *HeaderModule);
+
+        TypeDefinitionEmitter TDE(Tokens,
+                                  abi::getDataModel(*Model),
+                                  Configuration);
+        TDE.emitForwardDeclaration(Current);
+        Tokens.emitNewline();
+      }
+
+      emitTypes(Tokens, *HeaderModule, Configuration);
+    }
+
     Out.close();
+
+    if (Log.isEnabled()) {
+      std::ifstream FilteredHeader(FilterModelPath.path().str());
+      Log << "Filtered header:\n" << FilteredHeader.rdbuf() << "\n" << DoLog;
+    }
 
     std::string FilteredHeader = std::string("#include \"")
                                  + FilterModelPath.path().str()
@@ -247,6 +282,8 @@ struct ImportFromCAnalysis {
     FilteredHeader += "\n";
     FilteredHeader += CCode;
 
+    revng_log(Log, "Real input:\n" << FilteredHeader << "\n");
+
     if (not clang::tooling::runToolOnCodeWithArgs(std::move(Action),
                                                   FilteredHeader,
                                                   Compilation,
@@ -260,8 +297,6 @@ struct ImportFromCAnalysis {
       std::string Result;
       for (auto &Error : Errors)
         Result += std::move(Error);
-
-      revng_log(Log, Result.c_str());
       return revng::createError(Result);
     }
 

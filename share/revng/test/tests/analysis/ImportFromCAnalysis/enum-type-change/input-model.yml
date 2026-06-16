@@ -1,0 +1,28 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+---
+Architecture: x86_64
+DefaultABI: SystemV_x86_64
+TypeDefinitions:
+  - Kind: TypedefDefinition
+    ID: 0
+    Name: typedef_a
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Signed
+      Size: 2
+
+  - Kind: EnumDefinition
+    ID: 1
+    UnderlyingType:
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/0-TypedefDefinition"
+    Entries:
+      - Value: 0
+        Name: none
+      - Value: 1
+        Name: positive
+      - Value: 2
+        Name: negative

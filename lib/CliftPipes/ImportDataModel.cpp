@@ -8,8 +8,7 @@
 #include "revng/Pipeline/RegisterPipe.h"
 
 static void importDataModel(mlir::ModuleOp Module, const model::Binary &Model) {
-  const auto &Definition = abi::Definition::get(Model.targetABI());
-  clift::setDataModel(Module, Definition.getDataModel());
+  clift::setDataModel(Module, abi::getDataModel(Model));
 }
 
 //

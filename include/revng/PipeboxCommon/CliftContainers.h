@@ -7,6 +7,7 @@
 #include "mlir/Bytecode/BytecodeWriter.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/OwningOpRef.h"
 #include "mlir/Interfaces/DataLayoutInterfaces.h"
 #include "mlir/Parser/Parser.h"
 
@@ -24,21 +25,12 @@ public:
   static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
 
 private:
-  static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
-  static inline const mlir::DialectRegistry MLIRDialectRegistry = ([]() {
-    mlir::DialectRegistry Registry;
-    Registry.insert<clift::CliftDialect>();
-    return Registry;
-  })();
-
-private:
   bool Disposable = false;
-  std::optional<mlir::MLIRContext> Context;
+  std::unique_ptr<mlir::MLIRContext> Context;
   std::map<ObjectID, mlir::OwningOpRef<mlir::ModuleOp>> Modules;
 
 public:
-  CliftFunctionContainer() :
-    Context(std::in_place_t{}, MLIRDialectRegistry, Threading) {}
+  CliftFunctionContainer() : Context(clift::makeContext()) {}
 
 public:
   std::set<ObjectID> objects() const {
@@ -47,12 +39,12 @@ public:
 
   void
   deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
-    const mlir::ParserConfig Config(&*Context);
+    const mlir::ParserConfig Config(Context.get());
     for (auto const &[Object, Buffer] : Data) {
       llvm::StringRef String(Buffer.data(), Buffer.size());
       auto NewModule = mlir::parseSourceString<mlir::ModuleOp>(String, Config);
       revng_assert(NewModule);
-      revng_assert(clift::hasModuleAttr(NewModule.get()));
+      revng_assert(clift::isCliftModule(NewModule.get()));
       Modules[*Object] = std::move(NewModule);
     }
   }
@@ -83,22 +75,19 @@ public:
       return;
 
     Modules.clear();
-    Context.emplace(MLIRDialectRegistry, Threading);
+    Context = clift::makeContext();
     Disposable = false;
   }
 
 public:
-  mlir::MLIRContext *getContext() { return &*Context; }
-
-  const mlir::ModuleOp getModule(const ObjectID &ID) const {
-    return *Modules.at(ID);
-  }
-
+  mlir::MLIRContext *getContext() const { return Context.get(); }
+  mlir::ModuleOp getModule(const ObjectID &ID) const { return *Modules.at(ID); }
   mlir::ModuleOp getModule(const ObjectID &ID) { return *Modules.at(ID); }
 
-  void assign(const ObjectID &ID, mlir::ModuleOp NewModule) {
+  void assign(const ObjectID &ID,
+              mlir::OwningOpRef<mlir::ModuleOp> &&NewModule) {
     revng_assert(&*Context == NewModule->getContext());
-    Modules[ID] = NewModule;
+    Modules[ID] = std::move(NewModule);
   }
 };
 
@@ -109,21 +98,12 @@ public:
   static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
 
 private:
-  static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
-  static inline const mlir::DialectRegistry MLIRDialectRegistry = ([]() {
-    mlir::DialectRegistry Registry;
-    Registry.insert<clift::CliftDialect>();
-    return Registry;
-  })();
-
-private:
   bool Disposable = false;
-  std::optional<mlir::MLIRContext> Context;
+  std::unique_ptr<mlir::MLIRContext> Context;
   std::map<ObjectID, mlir::OwningOpRef<mlir::ModuleOp>> Modules;
 
 public:
-  CliftSingleTypeContainer() :
-    Context(std::in_place_t{}, MLIRDialectRegistry, Threading) {}
+  CliftSingleTypeContainer() : Context(clift::makeContext()) {}
 
 public:
   std::set<ObjectID> objects() const {
@@ -137,7 +117,7 @@ public:
       llvm::StringRef String(Buffer.data(), Buffer.size());
       auto NewModule = mlir::parseSourceString<mlir::ModuleOp>(String, Config);
       revng_assert(NewModule);
-      revng_assert(clift::hasModuleAttr(NewModule.get()));
+      revng_assert(clift::isCliftModule(NewModule.get()));
       Modules[*Object] = std::move(NewModule);
     }
   }
@@ -168,22 +148,19 @@ public:
       return;
 
     Modules.clear();
-    Context.emplace(MLIRDialectRegistry, Threading);
+    Context = clift::makeContext();
     Disposable = false;
   }
 
 public:
-  mlir::MLIRContext *getContext() { return &*Context; }
-
-  const mlir::ModuleOp getModule(const ObjectID &ID) const {
-    return *Modules.at(ID);
-  }
-
+  mlir::MLIRContext *getContext() const { return Context.get(); }
+  mlir::ModuleOp getModule(const ObjectID &ID) const { return *Modules.at(ID); }
   mlir::ModuleOp getModule(const ObjectID &ID) { return *Modules.at(ID); }
 
-  void assign(const ObjectID &ID, mlir::ModuleOp NewModule) {
+  void assign(const ObjectID &ID,
+              mlir::OwningOpRef<mlir::ModuleOp> &&NewModule) {
     revng_assert(&*Context == NewModule->getContext());
-    Modules[ID] = NewModule;
+    Modules[ID] = std::move(NewModule);
   }
 };
 
@@ -194,25 +171,13 @@ public:
   static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
 
 private:
-  static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
-  static inline const mlir::DialectRegistry MLIRDialectRegistry = ([]() {
-    mlir::DialectRegistry Registry;
-    Registry.insert<clift::CliftDialect>();
-    return Registry;
-  })();
-
-private:
   bool Disposable = false;
-  std::optional<mlir::MLIRContext> Context;
+  std::unique_ptr<mlir::MLIRContext> Context;
   mlir::OwningOpRef<mlir::ModuleOp> Module;
 
 public:
   CliftModuleContainer() :
-    Context(std::in_place_t{}, MLIRDialectRegistry, Threading),
-    Module(mlir::ModuleOp::create(mlir::UnknownLoc::get(&Context.value()))) {
-
-    clift::setModuleAttr(Module.get());
-  }
+    Context(clift::makeContext()), Module(clift::makeModule(*Context)) {}
 
 public:
   std::set<ObjectID> objects() const {
@@ -233,7 +198,7 @@ public:
       llvm::StringRef String(Buffer.data(), Buffer.size());
       Module = mlir::parseSourceString<mlir::ModuleOp>(String, Config);
       revng_assert(Module);
-      revng_assert(clift::hasModuleAttr(Module.get()));
+      revng_assert(clift::isCliftModule(Module.get()));
     }
   }
 
@@ -260,19 +225,19 @@ public:
       return;
 
     Module = {};
-    Context.emplace(MLIRDialectRegistry, Threading);
+    Context = clift::makeContext();
     Disposable = false;
   }
 
 public:
-  mlir::MLIRContext *getContext() { return &*Context; }
-
-  const mlir::ModuleOp getModule() const { return Module.get(); }
+  mlir::MLIRContext *getContext() const { return Context.get(); }
+  mlir::ModuleOp getModule() const { return Module.get(); }
   mlir::ModuleOp getModule() { return Module.get(); }
 
-  void assign(mlir::ModuleOp NewModule) {
+  void assign(const ObjectID &ID,
+              mlir::OwningOpRef<mlir::ModuleOp> &&NewModule) {
     revng_assert(&*Context == NewModule->getContext());
-    Module = NewModule;
+    Module = std::move(NewModule);
   }
 };
 

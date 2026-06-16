@@ -10,8 +10,6 @@
 #include "revng/PipeboxCommon/Helpers/PipeRuns/LLVMFunctionMixin.h"
 #include "revng/PipeboxCommon/LLVMContainer.h"
 
-class EnforceABI;
-
 namespace revng::pypeline::piperuns {
 
 class EnforceABI : public LLVMFunctionMixin<EnforceABI> {

@@ -20,7 +20,7 @@ private:
   PTMLCBytesContainer &Buffer;
 
 public:
-  static constexpr llvm::StringRef Name = "model-to-header";
+  static constexpr llvm::StringRef Name = "legacy-model-to-header";
   using Arguments = TypeList<PipeRunArgument<PTMLCBytesContainer,
                                              "Buffer",
                                              "The output C header of the model",

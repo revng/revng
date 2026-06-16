@@ -96,90 +96,32 @@ commands:
   # both should contain the same members (except the extension).
   #
   # TODO: remove this when the old pipeline is removed
-  - type: revng.legacy.decompiled-c-tar
+  - type: revng.decompiled-c-tar
     from:
-      - type: revng-qa.compiled
-        filter: one-per-architecture
+      - type: revng.lifted
     suffix: /
     command: |-
-      revng artifact
-        --resume "$OUTPUT"
-        --analyze
-        decompile "$INPUT" > "$OUTPUT/decompiled.tar.gz";
+      cp -Tar "$INPUT" "$OUTPUT";
+      revng2 -C "$OUTPUT" project artifact emit-c > "$OUTPUT/decompiled.tar.gz";
 
-      diff -u <(yq -r '.Functions[].Entry' "$OUTPUT/context/model.yml" | sort)
-              <(tar -tf "$OUTPUT/decompiled.tar.gz" | sed 's|\.c\.ptml$$||' | sort);
-
-  #
-  # Produce legacy single decompiled file and headers from revng.analyzed-model
-  #
-  # TODO: drop this when the old backend is dropped
-  - type: revng.legacy.decompiled-c
-    from:
-      - type: revng-qa.compiled
-        filter: one-per-architecture
-      - type: revng.analyzed-model
-    suffix: /
-    command: |-
-      ./emit-and-check-c decompile-to-single-file "$INPUT1" "$INPUT2/model.yml" "$OUTPUT" "$POINTER_SIZE" -Wno-shift-count-overflow
+      diff -u <(yq -r '.Functions[].Entry | "/function/" + .' "$OUTPUT/model.yml" | sort)
+              <(yq -r '. | keys | .[]' "$OUTPUT/decompiled.tar.gz" | sort);
 
   #
   # Produce the emit-c artifact and check the resulting C code
   #
-  # TODO: port this to the new pipeline once it has the `emit-helpers-header` artifact
   - type: revng.emit-and-check-c
     from:
-      - type: revng-qa.compiled
-        filter: one-per-architecture
-      - type: revng.analyzed-model
+      - type: revng.lifted
     suffix: /
     command: |-
-      ./emit-and-check-c emit-c-as-single-file "$INPUT1" "$INPUT2/model.yml" "$OUTPUT" "$POINTER_SIZE"
-    scripts:
-      emit-and-check-c: |-
-        #!/usr/bin/env bash
+      cp -Tar "$INPUT" "$OUTPUT";
+      revng2 -C "$OUTPUT" project artifact emit-recompilable-archive |
+        yq -r '.["/binary"]' | base64 -d > "$OUTPUT/recompilable-archive.tar.gz";
 
-        set -euo pipefail
+      mkdir -p "$OUTPUT";
+      tar -xzf "$OUTPUT/recompilable-archive.tar.gz" -C "$OUTPUT";
 
-        ARTIFACT="$1"
-        shift
-        BINARY="$1"
-        shift
-        MODEL="$1"
-        shift
-        RESUME="$1"
-        shift
-        POINTER_SIZE="$1"
-        shift
-
-        OUTDIR="$RESUME/e2e-test-$ARTIFACT"
-        mkdir -p "$OUTDIR"
-
-        revng artifact \
-          --model "$MODEL" \
-          --resume "$RESUME" \
-          emit-helpers-header \
-          "$BINARY" \
-        | revng ptml > "$OUTDIR/helpers.h"
-
-        revng artifact \
-          --model "$MODEL" \
-          --resume "$RESUME" \
-          emit-model-header \
-          "$BINARY" \
-        | revng ptml > "$OUTDIR/types-and-globals.h"
-
-        revng artifact \
-          --model "$MODEL" \
-          --resume "$RESUME" \
-          "$ARTIFACT" \
-          "$BINARY" \
-        | revng ptml > "$OUTDIR/decompiled.c"
-
-        DEFINES=""
-        if [ "$ARTIFACT" == "decompile-to-single-file" ]; then
-          DEFINES="-DLEGACY_BACKEND"
-        fi
-
-        revng check-decompiled-c "$OUTDIR/decompiled.c" -I"$OUTDIR" "$@" -m"$POINTER_SIZE" $DEFINES \
-          |& tee "$OUTDIR/check-decompiled-c.log"
+      revng check-decompiled-c "$OUTPUT/decompiled/functions.c"
+        -I"$OUTPUT/decompiled/" "$$@" -m"$POINTER_SIZE"
+        |& tee "$OUTPUT/check-decompiled-c.log";

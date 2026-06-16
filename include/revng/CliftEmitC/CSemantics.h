@@ -5,7 +5,6 @@
 //
 
 #include "revng/Clift/Clift.h"
-#include "revng/Support/CDataModel.h"
 
 // TODO: does this really belong with the emitters?
 

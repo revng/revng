@@ -13,6 +13,31 @@
 #include "revng/Clift/CliftAttributes.h"
 #include "revng/Clift/CliftOpHelpers.h"
 
+std::unique_ptr<mlir::MLIRContext> clift::makeContext() {
+  static constexpr auto Threading = mlir::MLIRContext::Threading::DISABLED;
+  static const mlir::DialectRegistry Registry = []() -> mlir::DialectRegistry {
+    mlir::DialectRegistry Registry;
+    Registry.insert<clift::CliftDialect>();
+    return Registry;
+  }();
+
+  auto Result = std::make_unique<mlir::MLIRContext>(Registry, Threading);
+  Result->loadDialect<CliftDialect>();
+  return Result;
+}
+
+mlir::OwningOpRef<mlir::ModuleOp>
+clift::makeModule(mlir::MLIRContext &Context) {
+  auto DebugLocation = mlir::UnknownLoc::get(&Context);
+  mlir::OwningOpRef<mlir::ModuleOp>
+    Result = mlir::ModuleOp::create(DebugLocation);
+
+  Result.get()->setAttr(CliftDialect::getModuleAttrName(),
+                        mlir::UnitAttr::get(&Context));
+
+  return Result;
+}
+
 using UnresolvedOperandsVector = //
   llvm::SmallVectorImpl<mlir::OpAsmParser::UnresolvedOperand>;
 
@@ -103,14 +128,9 @@ void CliftDialect::registerOperations() {
                 /* End of operations list */>();
 }
 
-bool clift::hasModuleAttr(mlir::ModuleOp Module) {
+bool clift::isCliftModule(mlir::ModuleOp Module) {
   llvm::StringRef AttrName = CliftDialect::getModuleAttrName();
   return Module->hasAttrOfType<mlir::UnitAttr>(AttrName);
-}
-
-void clift::setModuleAttr(mlir::ModuleOp Module) {
-  Module->setAttr(CliftDialect::getModuleAttrName(),
-                  mlir::UnitAttr::get(Module.getContext()));
 }
 
 const CDataModel &clift::getDataModel(mlir::ModuleOp Module) {

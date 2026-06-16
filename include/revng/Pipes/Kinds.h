@@ -80,32 +80,33 @@ inline TaggedFunctionKind
                           FunctionTags::StackAccessesSegregated);
 
 extern FunctionKind Decompiled;
-inline pipeline::SingleElementKind ModelHeader("model-header",
-                                               Binary,
-                                               ranks::Binary,
-                                               fat(ranks::TypeDefinition,
-                                                   ranks::StructField,
-                                                   ranks::UnionField,
-                                                   ranks::EnumEntry,
-                                                   ranks::DynamicFunction,
-                                                   ranks::Segment,
-                                                   ranks::ArtificialStruct),
-                                               { &Decompiled });
+inline pipeline::SingleElementKind
+  LegacyModelHeader("legacy-model-header",
+                    Binary,
+                    ranks::Binary,
+                    fat(ranks::TypeDefinition,
+                        ranks::StructField,
+                        ranks::UnionField,
+                        ranks::EnumEntry,
+                        ranks::DynamicFunction,
+                        ranks::Segment,
+                        ranks::ArtificialStruct),
+                    { &Decompiled });
 
 inline FunctionKind Decompiled("decompiled",
-                               ModelHeader,
+                               LegacyModelHeader,
                                ranks::Function,
                                fat(ranks::Function),
-                               { &ModelHeader });
+                               { &LegacyModelHeader });
 
-inline TypeKind ModelTypeDefinition("model-type-definition",
-                                    ModelHeader,
-                                    ranks::TypeDefinition,
-                                    {},
-                                    {});
+inline TypeKind LegacyModelTypeDefinition("legacy-model-type-definition",
+                                          LegacyModelHeader,
+                                          ranks::TypeDefinition,
+                                          {},
+                                          {});
 
 inline pipeline::SingleElementKind
-  HelpersHeader("helpers-header", Binary, ranks::Binary, {}, {});
+  LegacyHelpersHeader("legacy-helpers-header", Binary, ranks::Binary, {}, {});
 
 inline pipeline::SingleElementKind
   CliftModule("clift-module", ranks::Binary, {}, {});
@@ -115,20 +116,6 @@ inline pipeline::SingleElementKind DecompiledToC("decompiled-to-c",
                                                  Binary,
                                                  ranks::Binary,
                                                  fat(ranks::Function),
-                                                 { &ModelHeader });
-
-inline pipeline::SingleElementKind
-  RecompilableArchive("recompilable-archive",
-                      Binary,
-                      ranks::Binary,
-                      fat(ranks::Function,
-                          ranks::TypeDefinition,
-                          ranks::StructField,
-                          ranks::UnionField,
-                          ranks::EnumEntry,
-                          ranks::DynamicFunction,
-                          ranks::Segment,
-                          ranks::ArtificialStruct),
-                      {});
+                                                 { &LegacyModelHeader });
 
 } // namespace revng::kinds

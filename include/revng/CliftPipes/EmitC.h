@@ -6,6 +6,7 @@
 
 #include "mlir/Pass/PassManager.h"
 
+#include "revng/CliftPipes/Configuration.h"
 #include "revng/Pipebox/Containers.h"
 #include "revng/PipeboxCommon/CliftContainers.h"
 #include "revng/PipeboxCommon/Model.h"
@@ -16,6 +17,8 @@ class EmitC {
 private:
   CliftFunctionContainer &Input;
   PTMLCFunctionBytesContainer &Output;
+
+  CEmissionPipeConfiguration Configuration;
 
 public:
   static constexpr llvm::StringRef Name = "emit-c";
