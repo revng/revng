@@ -97,7 +97,7 @@ public:
 
       TarWriter Writer(OS, TarFormat::Plain);
       auto Objects = StorePair.first->objects();
-      std::vector<const ObjectID> ToSave(Objects.begin(), Objects.end());
+      std::vector<ObjectID> ToSave(Objects.begin(), Objects.end());
       auto Serialized = StorePair.first->serialize(ToSave);
 
       for (auto &[ObjectID, Data] : Serialized) {
