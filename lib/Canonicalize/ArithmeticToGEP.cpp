@@ -1138,7 +1138,7 @@ bool ArithmeticToGEPPass::runOnFunction(llvm::Function &F) {
   {
     GEPRewriter Rewriter(F);
 
-    std::set<const LocalValue<>> Replaced;
+    std::set<LocalValue<>> Replaced;
     for (const LocalValue<> &PointerValue : Pointers) {
 
       // This can happen because a likely pointer may also be an obvious
