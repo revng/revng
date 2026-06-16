@@ -107,9 +107,6 @@ void TypeDefinitionEmitter::emitTypeDeclaration(clift::DefinedType Type) {
   } else if (auto Typedef = mlir::dyn_cast<clift::TypedefType>(Type)) {
     emitTypedefDefinition(Typedef);
 
-  } else if (auto Enum = mlir::dyn_cast<clift::EnumType>(Type)) {
-    emitEnumDefinition(Enum);
-
   } else if (auto Function = mlir::dyn_cast<clift::FunctionType>(Type)) {
     emitFunctionTypedef(Function);
 
@@ -327,14 +324,15 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
 
   Tokens.emitPunctuator(ptml::CTokenEmitter::Punctuator::Semicolon);
   Tokens.emitNewline();
-
-  // Allow using `MyEnum` instead of `enum MyEnum`.
-  emitDeclarationTypedef(Enum);
 }
 
 void TypeDefinitionEmitter::emitTypeDefinition(clift::DefinedType Type) {
   if (auto Class = mlir::dyn_cast<clift::ClassType>(Type)) {
     emitClassDefinition(Class);
+    return;
+
+  } else if (auto Enum = mlir::dyn_cast<clift::EnumType>(Type)) {
+    emitEnumDefinition(Enum);
     return;
 
   } else if (not isSeparateDeclarationAllowed(Type)) {

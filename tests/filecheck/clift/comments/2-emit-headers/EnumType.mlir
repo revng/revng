@@ -7,6 +7,8 @@
 
 !uint64_t = !clift.int<unsigned 8>
 
+// CHECK: typedef enum _PACKED my_commented_enum my_commented_enum;
+
 // CHECK: /// Take a look at struct and function comment tests for more "meat".
 // CHECK: ///
 // CHECK: /// This one is just to ensure enum-attached comments don't
@@ -22,7 +24,6 @@
 // CHECK:   /// And this one is too big for its own good!
 // CHECK:   enum_entry_my_commented_enum_18446744073709551615 = 0xFFFFFFFFFFFFFFFFU,
 // CHECK: };
-// CHECK: typedef enum _PACKED my_commented_enum my_commented_enum;
 
 !my_commented_enum = !clift.enum<
   "/type-definition/0-EnumDefinition" as "my_commented_enum" : !uint64_t {

@@ -5,6 +5,7 @@
 //
 
 #include "revng/Clift/Clift.h"
+#include "revng/Clift/CliftTypes.h"
 #include "revng/PTML/CDoxygenEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Support/CDataModel.h"
@@ -119,5 +120,5 @@ public:
 ///
 /// This is true for `struct`s and `union`s. False for everything else.
 inline bool isSeparateDeclarationAllowed(clift::DefinedType Type) {
-  return mlir::isa<clift::ClassType>(Type);
+  return mlir::isa<clift::ClassType>(Type) or mlir::isa<clift::EnumType>(Type);
 }

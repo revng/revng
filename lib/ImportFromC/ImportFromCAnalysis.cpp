@@ -29,6 +29,7 @@
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/ImportFromC/ImportFromCAnalysis.h"
 #include "revng/Model/Binary.h"
+#include "revng/Model/EnumDefinition.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Pipeline/Context.h"
@@ -80,7 +81,8 @@ static std::optional<std::string> findHeaderFile(const std::string &File) {
 
 static bool isSeparateDeclarationAllowed(const model::TypeDefinition &T) {
   return llvm::isa<model::StructDefinition>(&T)
-         or llvm::isa<model::UnionDefinition>(&T);
+         or llvm::isa<model::UnionDefinition>(&T)
+         or llvm::isa<model::EnumDefinition>(&T);
 }
 
 static std::pair<std::unique_ptr<mlir::MLIRContext>,
