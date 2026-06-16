@@ -151,20 +151,32 @@ private:
   CUniquePtr<sqlite3_close_v2, SQLITE_OK> Connection;
 
 public:
-  Database(llvm::StringRef Path) {
+  enum class OpenMode {
+    ReadWrite,
+    ReadOnly
+  };
+
+  Database(llvm::StringRef Path, OpenMode Mode) {
     sqlite3 *Ptr = nullptr;
     int Result;
 
-    if (Path == ":memory:")
+    if (Path == ":memory:") {
       Result = sqlite3_open_v2("",
                                &Ptr,
                                SQLITE_OPEN_MEMORY | SQLITE_OPEN_PRIVATECACHE,
                                NULL);
-    else
+    } else if (Mode == OpenMode::ReadOnly) {
+      std::string URI = ("file:" + Path.str() + "?immutable=1");
+      Result = sqlite3_open_v2(URI.c_str(),
+                               &Ptr,
+                               SQLITE_OPEN_READONLY | SQLITE_OPEN_URI,
+                               NULL);
+    } else {
       Result = sqlite3_open_v2(Path.str().c_str(),
                                &Ptr,
                                SQLITE_OPEN_READWRITE,
                                NULL);
+    }
     revng_assert(Result == SQLITE_OK);
 
     Connection.reset(Ptr);
