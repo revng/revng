@@ -95,7 +95,7 @@ public:
       Builder.CreateStore(Undef, V);
     }
 
-    return createLoadVariable(Builder, V);
+    return Builder.createLoadVariable(V);
   }
 
   /// Get or create the LLVM value associated to a PTC temporary

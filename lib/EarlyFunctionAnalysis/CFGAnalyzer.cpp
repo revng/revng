@@ -37,6 +37,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/Generator.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/TemporaryLLVMOption.h"
 
@@ -382,12 +383,12 @@ CFGAnalyzer::State CFGAnalyzer::loadState(revng::IRBuilder &Builder) const {
   LLVMContext &Context = M.getContext();
 
   // Load the stack pointer
-  auto *SP0 = createLoad(Builder, GCBI.spReg());
+  auto *SP0 = Builder.createLoad(GCBI.spReg());
 
   // Load the return address
   Value *ReturnAddress = nullptr;
   if (GlobalVariable *Register = GCBI.raReg()) {
-    ReturnAddress = createLoad(Builder, Register);
+    ReturnAddress = Builder.createLoad(Register);
   } else {
     auto *OpaquePointer = PointerType::get(Context, 0);
     auto *StackPointerPointer = Builder.CreateIntToPtr(SP0, OpaquePointer);
@@ -409,7 +410,7 @@ CFGAnalyzer::State CFGAnalyzer::loadState(revng::IRBuilder &Builder) const {
   SmallVector<Value *, 16> CSVs;
   Type *IsRetTy = Type::getInt128Ty(Context);
   for (auto *CSR : ABICSVs) {
-    auto *V = createLoad(Builder, CSR);
+    auto *V = Builder.createLoad(CSR);
     CSVs.emplace_back(V);
   }
 
@@ -1150,7 +1151,7 @@ void CallSummarizer::handleCall(MetaAddress CallerBlock,
   // Adjust back the stack pointer
   if (not IsTailCall) {
     if (MaybeFSO.has_value()) {
-      auto *StackPointer = createLoad(Builder, SPCSV);
+      auto *StackPointer = Builder.createLoad(SPCSV);
       Value *Offset = ConstantInt::get(StackPointer->getType(), *MaybeFSO);
       auto *AdjustedStackPointer = Builder.CreateAdd(StackPointer, Offset);
       Builder.CreateStore(AdjustedStackPointer, SPCSV);

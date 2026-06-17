@@ -14,6 +14,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/RemoveLiftingArtifacts/CleanupIR.h"
+#include "revng/Support/IRBuilder.h"
 
 using namespace llvm;
 

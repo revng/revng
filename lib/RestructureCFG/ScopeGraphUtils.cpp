@@ -10,6 +10,7 @@
 
 #include "revng/Model/FunctionTags.h"
 #include "revng/RestructureCFG/ScopeGraphUtils.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

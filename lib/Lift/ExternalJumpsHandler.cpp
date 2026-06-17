@@ -20,6 +20,7 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRBuilder.h"
 
 #include "ExternalJumpsHandler.h"
 
@@ -47,7 +48,7 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
   // Identify the global variables to be serialized
   GlobalVariable *SavedRegistersPtr = TheModule.getGlobalVariable("saved_"
                                                                   "registers");
-  Instruction *SavedRegisters = createLoad(Builder, SavedRegistersPtr);
+  Instruction *SavedRegisters = Builder.createLoad(SavedRegistersPtr);
 
   // TODO: if we do not support this architecture, here things will be
   // completely broken

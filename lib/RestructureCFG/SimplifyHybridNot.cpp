@@ -15,6 +15,7 @@
 #include "revng/RestructureCFG/ASTTree.h"
 #include "revng/RestructureCFG/ExprNode.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/IRBuilder.h"
 
 #include "SimplifyHybridNot.h"
 

@@ -9,14 +9,14 @@
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 
+
 #include "revng/ADT/KeyedObjectContainer.h"
 #include "revng/Model/Architecture.h"
+#include "revng/Runtime/PlainMetaAddress.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IntegerSerialization.h"
 #include "revng/Support/OverflowSafeInt.h"
-
 extern "C" {
-#include "revng/Runtime/PlainMetaAddress.h"
 }
 
 namespace llvm {

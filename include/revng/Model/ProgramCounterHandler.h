@@ -9,11 +9,8 @@
 
 #include "revng/Model/Architecture.h"
 #include "revng/Support/BlockType.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
-
-namespace revng {
-class IRBuilder;
-} // namespace revng
 
 inline llvm::IntegerType *getCSVType(llvm::GlobalVariable *CSV) {
   using namespace llvm;
@@ -156,7 +153,7 @@ public:
     // Load and re-store each CSV affecting the PC and then feed them to
     // handleStore
     for (GlobalVariable *CSVAffectingPC : CSVsAffectingPC) {
-      auto *FakeLoad = createLoad(Builder, CSVAffectingPC);
+      auto *FakeLoad = Builder.createLoad(CSVAffectingPC);
       auto *FakeStore = Builder.CreateStore(FakeLoad, CSVAffectingPC);
       bool HasInjectedCode = handleStore(Builder, FakeStore);
       eraseFromParent(FakeStore);
@@ -183,10 +180,10 @@ public:
 
   llvm::Instruction *composeIntegerPC(revng::IRBuilder &B) const {
     return MetaAddress::composeIntegerPC(B,
-                                         align(B, createLoad(B, AddressCSV)),
-                                         createLoad(B, EpochCSV),
-                                         createLoad(B, AddressSpaceCSV),
-                                         createLoad(B, TypeCSV));
+                                         align(B, B.createLoad(AddressCSV)),
+                                         B.createLoad(EpochCSV),
+                                         B.createLoad(AddressSpaceCSV),
+                                         B.createLoad(TypeCSV));
   }
 
   bool isPCSizedType(llvm::Type *T) const {

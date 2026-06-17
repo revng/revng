@@ -12,6 +12,7 @@
 #include "llvm/Transforms/Utils/Local.h"
 
 #include "revng/Model/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 
 using namespace llvm;
 

@@ -4,6 +4,7 @@
 
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/ProgramCounterHandler.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 namespace FunctionTags {

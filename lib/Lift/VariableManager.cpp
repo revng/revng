@@ -32,6 +32,7 @@
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 // This name corresponds to a function in `early-linked`.
@@ -243,7 +244,7 @@ VariableManager::storeToCPUStateOffset(revng::IRBuilder &Builder,
 
   if (BitMask != 0 and StoreSize != FieldSize) {
     // Load the value
-    auto *LoadEnvField = createLoad(Builder, Target);
+    auto *LoadEnvField = Builder.createLoad(Target);
 
     auto *Blanked = Builder.CreateAnd(LoadEnvField, BitMask);
 
@@ -268,7 +269,7 @@ Value *VariableManager::loadFromCPUStateOffset(revng::IRBuilder &Builder,
     return nullptr;
 
   // Load the whole field
-  auto *LoadEnvField = createLoad(Builder, Target);
+  auto *LoadEnvField = Builder.createLoad(Target);
 
   // Extract the desired part
   // Shift right of the desired amount
@@ -351,7 +352,7 @@ void VariableManager::memOpAtEnvOffset(revng::IRBuilder &Builder,
     StoreInst *New = nullptr;
     if (EnvIsSrc) {
       revng_assert(not IsMemset);
-      New = Builder.CreateStore(createLoad(Builder, EnvVar), OtherPtr);
+      New = Builder.CreateStore(Builder.createLoad(EnvVar), OtherPtr);
     } else {
       Type *CSVType = EnvVar->getValueType();
       Value *ToStore = nullptr;

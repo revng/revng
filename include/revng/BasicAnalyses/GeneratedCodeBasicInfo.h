@@ -24,6 +24,7 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/BlockType.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 // Forward declarations
