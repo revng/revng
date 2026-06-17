@@ -4,7 +4,7 @@
 
 revng_add_analyses_library_internal(
   revngRemoveLiftingArtifacts CleanupIRPass.cpp PromoteInitCSVToUndef.cpp
-  RemoveLiftingArtifacts.cpp MakeSegmentRefPass.cpp)
+  RemoveLiftingArtifacts.cpp)
 
 target_link_libraries(revngRemoveLiftingArtifacts revngSupport revngModel
                       revngPipes revngLift ${LLVM_LIBRARIES})
