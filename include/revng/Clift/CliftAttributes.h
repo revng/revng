@@ -119,17 +119,21 @@ struct ClassDefinition {
   MutableStringAttr Comment;
 
   uint64_t Size;
+  bool IsOpaque;
+
   llvm::ArrayRef<FieldAttr> Fields;
   llvm::ArrayRef<CAttributeAttr> CAttributes;
 
   ClassDefinition(MutableStringAttr Name,
                   MutableStringAttr Comment,
                   uint64_t Size,
+                  bool IsOpaque,
                   llvm::ArrayRef<FieldAttr> Fields,
                   llvm::ArrayRef<CAttributeAttr> CAttributes) :
     Name(Name),
     Comment(Comment),
     Size(Size),
+    IsOpaque(IsOpaque),
     Fields(Fields),
     CAttributes(CAttributes) {}
 
@@ -141,6 +145,8 @@ struct ClassDefinition {
   llvm::ArrayRef<FieldAttr> getFields() const { return Fields; }
 
   llvm::ArrayRef<CAttributeAttr> getCAttributes() const { return CAttributes; }
+
+  bool isOpaque() const { return IsOpaque; }
 
   friend bool operator==(const ClassDefinition &,
                          const ClassDefinition &) = default;
@@ -172,6 +178,8 @@ public:
   llvm::ArrayRef<FieldAttr> getFields() const {
     return getDefinition().getFields();
   }
+
+  bool isOpaque() const { return getDefinition().isOpaque(); }
 
   bool hasDefinition() const;
   const ClassDefinition *getDefinitionOrNull() const;
@@ -236,6 +244,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
                         MutableStringAttr Name,
                         MutableStringAttr Comment,
                         uint64_t Size,
+                        bool IsOpaque,
                         llvm::ArrayRef<FieldAttr> Fields,
                         llvm::ArrayRef<CAttributeAttr> Attributes);
 
@@ -246,6 +255,7 @@ struct StructAttr : ClassAttrImpl<StructAttr> {
              MutableStringAttr Name,
              MutableStringAttr Comment,
              uint64_t Size,
+             bool IsOpaque,
              llvm::ArrayRef<FieldAttr> Fields,
              llvm::ArrayRef<CAttributeAttr> Attributes);
 

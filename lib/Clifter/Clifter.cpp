@@ -187,6 +187,10 @@ private:
 
   //===-------------------------- Type utilities --------------------------===//
 
+  mlir::Type getOpaqueType(uint64_t Size) const {
+    return makeOpaqueStruct(Context, Size);
+  }
+
   static uint64_t getIntegerSize(unsigned IntegerWidth) {
     if (IntegerWidth == 1)
       IntegerWidth = 8;
@@ -292,7 +296,7 @@ private:
       uint64_t NumBytes = T->getNumElements()
                           * (ElementType->getIntegerBitWidth() / 8);
 
-      return clift::makeOpaqueStruct(Context, NumBytes);
+      return getOpaqueType(NumBytes);
     }
 
     if (auto *S = llvm::dyn_cast<llvm::StructType>(Type)) {
@@ -322,7 +326,7 @@ private:
       uint64_t ByteSize = PreviousOffsetInBits / 8;
       revng_assert(llvm::alignTo(ByteSize, Alignment) == StructByteSize);
       revng_assert(StructByteSize);
-      return clift::makeOpaqueStruct(Context, StructByteSize);
+      return getOpaqueType(StructByteSize);
     }
 
     revng_abort("Unsupported LLVM type");
@@ -442,6 +446,7 @@ private:
                                       makeCommentAttr<StructAttr>(Context,
                                                                   Handle),
                                       StructByteSize,
+                                      /*IsOpaque=*/false,
                                       Fields,
                                       {});
 
