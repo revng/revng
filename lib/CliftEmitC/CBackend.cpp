@@ -406,9 +406,9 @@ public:
       return CTE::Operator::Plus;
     if (mlir::isa<MulOp, IndirectionOp>(Op))
       return CTE::Operator::Star;
-    if (mlir::isa<DivOp>(Op))
+    if (mlir::isa<SDivOp, UDivOp>(Op))
       return CTE::Operator::Slash;
-    if (mlir::isa<RemOp>(Op))
+    if (mlir::isa<SRemOp, URemOp>(Op))
       return CTE::Operator::Percent;
     if (mlir::isa<LogicalNotOp>(Op))
       return CTE::Operator::Exclaim;
@@ -424,21 +424,21 @@ public:
       return CTE::Operator::Pipe;
     if (mlir::isa<BitwiseXorOp>(Op))
       return CTE::Operator::Caret;
-    if (mlir::isa<ShiftLeftOp>(Op))
+    if (mlir::isa<ShlOp>(Op))
       return CTE::Operator::LessLess;
-    if (mlir::isa<ShiftRightOp>(Op))
+    if (mlir::isa<ShrOp, SarOp>(Op))
       return CTE::Operator::GreaterGreater;
     if (mlir::isa<CmpEqOp>(Op))
       return CTE::Operator::EqualsEquals;
     if (mlir::isa<CmpNeOp>(Op))
       return CTE::Operator::ExclaimEquals;
-    if (mlir::isa<CmpLtOp>(Op))
+    if (mlir::isa<SCmpLtOp, UCmpLtOp>(Op))
       return CTE::Operator::Less;
-    if (mlir::isa<CmpGtOp>(Op))
+    if (mlir::isa<SCmpGtOp, UCmpGtOp>(Op))
       return CTE::Operator::Greater;
-    if (mlir::isa<CmpLeOp>(Op))
+    if (mlir::isa<SCmpLeOp, UCmpLeOp>(Op))
       return CTE::Operator::LessEquals;
-    if (mlir::isa<CmpGeOp>(Op))
+    if (mlir::isa<SCmpGeOp, UCmpGeOp>(Op))
       return CTE::Operator::GreaterEquals;
     if (mlir::isa<IncrementOp, PostIncrementOp>(Op))
       return CTE::Operator::PlusPlus;
@@ -655,7 +655,7 @@ public:
       };
     }
 
-    if (mlir::isa<MulOp, DivOp, RemOp>(E)) {
+    if (mlir::isa<MulOp, SDivOp, UDivOp, SRemOp, URemOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Multiplicative,
         .Emit = &CliftToCEmitter::emitInfixExpression,
@@ -669,14 +669,21 @@ public:
       };
     }
 
-    if (mlir::isa<ShiftLeftOp, ShiftRightOp>(E)) {
+    if (mlir::isa<ShlOp, ShrOp, SarOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Shift,
         .Emit = &CliftToCEmitter::emitInfixExpression,
       };
     }
 
-    if (mlir::isa<CmpLtOp, CmpGtOp, CmpLeOp, CmpGeOp>(E)) {
+    if (mlir::isa<SCmpLtOp,
+                  UCmpLtOp,
+                  SCmpGtOp,
+                  UCmpGtOp,
+                  SCmpLeOp,
+                  UCmpLeOp,
+                  SCmpGeOp,
+                  UCmpGeOp>(E)) {
       return {
         .Precedence = OperatorPrecedence::Relational,
         .Emit = &CliftToCEmitter::emitInfixExpression,

@@ -21,24 +21,44 @@ def NotCmpNePattern
         (Clift_CmpEqOp $lhs, $rhs)>;
 
 // !(x < y) -> x >= y
-def NotCmpLtPattern
-  : Pat<(Clift_LogicalNotOp (Clift_CmpLtOp $lhs, $rhs)),
-        (Clift_CmpGeOp $lhs, $rhs)>;
+def NotSCmpLtPattern
+  : Pat<(Clift_LogicalNotOp (Clift_SCmpLtOp $lhs, $rhs)),
+        (Clift_SCmpGeOp $lhs, $rhs)>;
+
+// !(x < y) -> x >= y
+def NotUCmpLtPattern
+  : Pat<(Clift_LogicalNotOp (Clift_UCmpLtOp $lhs, $rhs)),
+        (Clift_UCmpGeOp $lhs, $rhs)>;
 
 // !(x > y) -> x <= y
-def NotCmpGtPattern
-  : Pat<(Clift_LogicalNotOp (Clift_CmpGtOp $lhs, $rhs)),
-        (Clift_CmpLeOp $lhs, $rhs)>;
+def NotSCmpGtPattern
+  : Pat<(Clift_LogicalNotOp (Clift_SCmpGtOp $lhs, $rhs)),
+        (Clift_SCmpLeOp $lhs, $rhs)>;
+
+// !(x > y) -> x <= y
+def NotUCmpGtPattern
+  : Pat<(Clift_LogicalNotOp (Clift_UCmpGtOp $lhs, $rhs)),
+        (Clift_UCmpLeOp $lhs, $rhs)>;
 
 // !(x <= y) -> x > y
-def NotCmpLePattern
-  : Pat<(Clift_LogicalNotOp (Clift_CmpLeOp $lhs, $rhs)),
-        (Clift_CmpGtOp $lhs, $rhs)>;
+def NotSCmpLePattern
+  : Pat<(Clift_LogicalNotOp (Clift_SCmpLeOp $lhs, $rhs)),
+        (Clift_SCmpGtOp $lhs, $rhs)>;
+
+// !(x <= y) -> x > y
+def NotUCmpLePattern
+  : Pat<(Clift_LogicalNotOp (Clift_UCmpLeOp $lhs, $rhs)),
+        (Clift_UCmpGtOp $lhs, $rhs)>;
 
 // !(x >= y) -> x < y
-def NotCmpGePattern
-  : Pat<(Clift_LogicalNotOp (Clift_CmpGeOp $lhs, $rhs)),
-        (Clift_CmpLtOp $lhs, $rhs)>;
+def NotSCmpGePattern
+  : Pat<(Clift_LogicalNotOp (Clift_SCmpGeOp $lhs, $rhs)),
+        (Clift_SCmpLtOp $lhs, $rhs)>;
+
+// !(x >= y) -> x < y
+def NotUCmpGePattern
+  : Pat<(Clift_LogicalNotOp (Clift_UCmpGeOp $lhs, $rhs)),
+        (Clift_UCmpLtOp $lhs, $rhs)>;
 
 // !!x -> x
 //        x ? 1 : 0

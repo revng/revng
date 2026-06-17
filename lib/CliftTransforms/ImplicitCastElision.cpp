@@ -37,17 +37,29 @@ public:
                   AddOp,
                   SubOp,
                   MulOp,
-                  DivOp,
-                  RemOp,
+                  SDivOp,
+                  UDivOp,
+                  SRemOp,
+                  URemOp,
                   BitwiseNotOp,
                   BitwiseAndOp,
                   BitwiseOrOp,
                   BitwiseXorOp,
-                  ShiftLeftOp,
-                  ShiftRightOp>(Op))
+                  ShlOp,
+                  ShrOp,
+                  SarOp>(Op))
       return elideArithmeticCasts(Op);
 
-    if (mlir::isa<CmpEqOp, CmpNeOp, CmpLtOp, CmpGtOp, CmpLeOp, CmpGeOp>(Op)) {
+    if (mlir::isa<CmpEqOp,
+                  CmpNeOp,
+                  SCmpLtOp,
+                  UCmpLtOp,
+                  SCmpGtOp,
+                  UCmpGtOp,
+                  SCmpLeOp,
+                  UCmpLeOp,
+                  SCmpGeOp,
+                  UCmpGeOp>(Op)) {
       if (clift::unwrapped_isa<IntegralType>(Op->getOperand(0).getType()))
         elideArithmeticCasts(Op);
     }
@@ -116,23 +128,29 @@ private:
     if (mlir::isa<NegOp, BitwiseNotOp>(Op))
       return promote(Types.front());
 
-    if (mlir::isa<ShiftLeftOp, ShiftRightOp>(Op))
+    if (mlir::isa<ShlOp, ShrOp, SarOp>(Op))
       return { promote(Types.front()), promote(Types.back()) };
 
     if (mlir::isa<AddOp,
                   SubOp,
                   MulOp,
-                  DivOp,
-                  RemOp,
+                  SDivOp,
+                  UDivOp,
+                  SRemOp,
+                  URemOp,
                   BitwiseAndOp,
                   BitwiseOrOp,
                   BitwiseXorOp,
                   CmpEqOp,
                   CmpNeOp,
-                  CmpLtOp,
-                  CmpGtOp,
-                  CmpLeOp,
-                  CmpGeOp>(Op))
+                  SCmpLtOp,
+                  UCmpLtOp,
+                  SCmpGtOp,
+                  UCmpGtOp,
+                  SCmpLeOp,
+                  UCmpLeOp,
+                  SCmpGeOp,
+                  UCmpGeOp>(Op))
       return getCommonIntegerType(Op->getContext(), Types);
 
     revng_abort();

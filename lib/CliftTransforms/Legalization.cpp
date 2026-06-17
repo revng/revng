@@ -291,7 +291,7 @@ struct ArithmeticPromotionPattern : mlir::OpRewritePattern<OpT> {
 
     for (unsigned Index : Indices) {
       mlir::OpOperand &Operand = Op->getOpOperand(Index);
-      revng_assert(Operand.get().getType() == OldType);
+      revng_assert(equivalent(Operand.get().getType(), OldType));
       modifyOperandType(Rewriter, Operand, IntType);
     }
 
@@ -320,6 +320,37 @@ struct ShiftPromotionPattern : ArithmeticPromotionPattern<OpT> {
   mlir::LogicalResult
   matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
     return this->tryPromoteTypes(Rewriter, Op, { 0 });
+  }
+};
+
+template<typename OpT, bool IsSigned, unsigned... OperandIndices>
+struct ArithmeticSignPattern : mlir::OpRewritePattern<OpT> {
+  explicit ArithmeticSignPattern(mlir::MLIRContext *Context) :
+    mlir::OpRewritePattern<OpT>(Context, /*benefit=*/0) {}
+
+  static constexpr unsigned Indices[] = { OperandIndices... };
+
+  mlir::LogicalResult
+  matchAndRewrite(OpT Op, mlir::PatternRewriter &Rewriter) const override {
+    mlir::Type OldType = Op->getOperand(Indices[0]).getType();
+
+    if (isSigned(OldType) == IsSigned)
+      return mlir::failure();
+
+    mlir::Type NewType = IntegerType::get(Op.getContext(),
+                                          IsSigned ? IntegerKind::Signed :
+                                                     IntegerKind::Unsigned,
+                                          getObjectSize(OldType));
+
+    modifyResultType(Rewriter, Op, NewType);
+
+    for (unsigned Index : Indices) {
+      mlir::OpOperand &Operand = Op->getOpOperand(Index);
+      revng_assert(equivalent(Operand.get().getType(), OldType));
+      modifyOperandType(Rewriter, Operand, NewType);
+    }
+
+    return mlir::success();
   }
 };
 
@@ -440,17 +471,36 @@ mlir::LogicalResult clift::legalizeForC(clift::FunctionOp Function) {
   Set.add<ArithmeticPromotionPattern<AddOp>>(Context, DataModel);
   Set.add<ArithmeticPromotionPattern<SubOp>>(Context, DataModel);
   Set.add<ArithmeticPromotionPattern<MulOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<DivOp>>(Context, DataModel);
-  Set.add<ArithmeticPromotionPattern<RemOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<SDivOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<UDivOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<SRemOp>>(Context, DataModel);
+  Set.add<ArithmeticPromotionPattern<URemOp>>(Context, DataModel);
   Set.add<ArithmeticPromotionPattern<BitwiseNotOp>>(Context, DataModel);
   Set.add<ArithmeticPromotionPattern<BitwiseAndOp>>(Context, DataModel);
   Set.add<ArithmeticPromotionPattern<BitwiseOrOp>>(Context, DataModel);
   Set.add<ArithmeticPromotionPattern<BitwiseXorOp>>(Context, DataModel);
-  Set.add<ShiftPromotionPattern<ShiftLeftOp>>(Context, DataModel);
-  Set.add<ShiftPromotionPattern<ShiftRightOp>>(Context, DataModel);
+  Set.add<ShiftPromotionPattern<ShlOp>>(Context, DataModel);
+  Set.add<ShiftPromotionPattern<SarOp>>(Context, DataModel);
+  Set.add<ShiftPromotionPattern<ShrOp>>(Context, DataModel);
 
   // Literal typing
   Set.add<ImmediateCastPattern>(Context, DataModel);
+
+  // Operation signedness
+  Set.add<ArithmeticSignPattern<SDivOp, true, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<UDivOp, false, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<SRemOp, true, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<URemOp, false, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<SarOp, true, 0>>(Context);
+  Set.add<ArithmeticSignPattern<ShrOp, false, 0>>(Context);
+  Set.add<ArithmeticSignPattern<SCmpLtOp, true, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<UCmpLtOp, false, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<SCmpGtOp, true, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<UCmpGtOp, false, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<SCmpLeOp, true, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<UCmpLeOp, false, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<SCmpGeOp, true, 0, 1>>(Context);
+  Set.add<ArithmeticSignPattern<UCmpGeOp, false, 0, 1>>(Context);
 
   populateWithCastCanonicalizations(Set);
 

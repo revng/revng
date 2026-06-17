@@ -104,13 +104,13 @@ module attributes {clift.module} {
 
     // CHECK: var_0 / var_0;
     clift.expr {
-      %r = clift.div %x, %x : !int32_t
+      %r = clift.sdiv %x, %x : !int32_t
       clift.yield %r : !int32_t
     }
 
     // CHECK: var_0 % var_0;
     clift.expr {
-      %r = clift.rem %x, %x : !int32_t
+      %r = clift.srem %x, %x : !int32_t
       clift.yield %r : !int32_t
     }
 
@@ -152,7 +152,7 @@ module attributes {clift.module} {
 
     // CHECK: var_0 >> var_0;
     clift.expr {
-      %r = clift.shr %x, %x : !int32_t
+      %r = clift.sar %x, %x : !int32_t
       clift.yield %r : !int32_t
     }
 
@@ -170,25 +170,25 @@ module attributes {clift.module} {
 
     // CHECK: var_0 < var_0;
     clift.expr {
-      %r = clift.lt %x, %x : !int32_t -> !int32_t
+      %r = clift.slt %x, %x : !int32_t -> !int32_t
       clift.yield %r : !int32_t
     }
 
     // CHECK: var_0 > var_0;
     clift.expr {
-      %r = clift.gt %x, %x : !int32_t -> !int32_t
+      %r = clift.sgt %x, %x : !int32_t -> !int32_t
       clift.yield %r : !int32_t
     }
 
     // CHECK: var_0 <= var_0;
     clift.expr {
-      %r = clift.le %x, %x : !int32_t -> !int32_t
+      %r = clift.sle %x, %x : !int32_t -> !int32_t
       clift.yield %r : !int32_t
     }
 
     // CHECK: var_0 >= var_0;
     clift.expr {
-      %r = clift.ge %x, %x : !int32_t -> !int32_t
+      %r = clift.sge %x, %x : !int32_t -> !int32_t
       clift.yield %r : !int32_t
     }
 

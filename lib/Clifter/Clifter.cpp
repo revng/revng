@@ -1244,20 +1244,26 @@ private:
           revng_log(ExpressionLog, "MulOp");
           return emitExpr<MulOp>(Loc, Type, Lhs, Rhs);
         case Operators::SDiv:
+          revng_log(ExpressionLog, "SDivOp");
+          return emitExpr<SDivOp>(Loc, Type, Lhs, Rhs);
         case Operators::UDiv:
-          revng_log(ExpressionLog, "DivOp");
-          return emitExpr<DivOp>(Loc, Type, Lhs, Rhs);
+          revng_log(ExpressionLog, "UDivOp");
+          return emitExpr<UDivOp>(Loc, Type, Lhs, Rhs);
         case Operators::SRem:
+          revng_log(ExpressionLog, "SRemOp");
+          return emitExpr<SRemOp>(Loc, Type, Lhs, Rhs);
         case Operators::URem:
-          revng_log(ExpressionLog, "RemOp");
-          return emitExpr<RemOp>(Loc, Type, Lhs, Rhs);
+          revng_log(ExpressionLog, "URemOp");
+          return emitExpr<URemOp>(Loc, Type, Lhs, Rhs);
         case Operators::Shl:
-          revng_log(ExpressionLog, "ShiftLeftOp");
-          return emitExpr<ShiftLeftOp>(Loc, Type, Lhs, Rhs);
+          revng_log(ExpressionLog, "ShlOp");
+          return emitExpr<ShlOp>(Loc, Type, Lhs, Rhs);
         case Operators::LShr:
+          revng_log(ExpressionLog, "ShrOp");
+          return emitExpr<ShrOp>(Loc, Type, Lhs, Rhs);
         case Operators::AShr:
-          revng_log(ExpressionLog, "ShiftRightOp");
-          return emitExpr<ShiftRightOp>(Loc, Type, Lhs, Rhs);
+          revng_log(ExpressionLog, "SarOp");
+          return emitExpr<SarOp>(Loc, Type, Lhs, Rhs);
         case Operators::And:
           revng_log(ExpressionLog, "BitwiseAndOp");
           return emitExpr<BitwiseAndOp>(Loc, Type, Lhs, Rhs);
@@ -1321,21 +1327,29 @@ private:
           revng_log(ExpressionLog, "CmpNeOp");
           return emitExpr<CmpNeOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SGT:
+          revng_log(ExpressionLog, "SCmpGtOp");
+          return emitExpr<SCmpGtOp>(Loc, Type, Lhs, Rhs);
         case ICMP_UGT:
-          revng_log(ExpressionLog, "CmpGtOp");
-          return emitExpr<CmpGtOp>(Loc, Type, Lhs, Rhs);
+          revng_log(ExpressionLog, "UCmpGtOp");
+          return emitExpr<UCmpGtOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SGE:
+          revng_log(ExpressionLog, "SCmpGeOp");
+          return emitExpr<SCmpGeOp>(Loc, Type, Lhs, Rhs);
         case ICMP_UGE:
-          revng_log(ExpressionLog, "CmpGeOp");
-          return emitExpr<CmpGeOp>(Loc, Type, Lhs, Rhs);
+          revng_log(ExpressionLog, "UCmpGeOp");
+          return emitExpr<UCmpGeOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SLT:
+          revng_log(ExpressionLog, "SCmpLtOp");
+          return emitExpr<SCmpLtOp>(Loc, Type, Lhs, Rhs);
         case ICMP_ULT:
-          revng_log(ExpressionLog, "CmpLtOp");
-          return emitExpr<CmpLtOp>(Loc, Type, Lhs, Rhs);
+          revng_log(ExpressionLog, "UCmpLtOp");
+          return emitExpr<UCmpLtOp>(Loc, Type, Lhs, Rhs);
         case ICMP_SLE:
+          revng_log(ExpressionLog, "SCmpLeOp");
+          return emitExpr<SCmpLeOp>(Loc, Type, Lhs, Rhs);
         case ICMP_ULE:
-          revng_log(ExpressionLog, "CmpLeOp");
-          return emitExpr<CmpLeOp>(Loc, Type, Lhs, Rhs);
+          revng_log(ExpressionLog, "UCmpLeOp");
+          return emitExpr<UCmpLeOp>(Loc, Type, Lhs, Rhs);
         default:
           revng_abort("Unsupported LLVM comparison predicate.");
         }

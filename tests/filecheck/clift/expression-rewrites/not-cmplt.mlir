@@ -13,8 +13,8 @@ module attributes {clift.module} {
   clift.func @f<!f>(%arg0 : !int32_t) -> !void {
     // CHECK: clift.expr {
     clift.expr {
-      // CHECK: %0 = clift.ge %arg0, %arg0
-      %0 = clift.lt %arg0, %arg0 : !int32_t -> !int32_t
+      // CHECK: %0 = clift.sge %arg0, %arg0
+      %0 = clift.slt %arg0, %arg0 : !int32_t -> !int32_t
       // CHECK-NOT: clift.not
       %1 = clift.not %0 : !int32_t -> !int32_t
       // CHECK: clift.yield %0

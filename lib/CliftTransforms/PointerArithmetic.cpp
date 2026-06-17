@@ -158,9 +158,7 @@ private:
   composePtrAdd(PtrAddOp PtrAdd);
 
   RecursiveCoroutine<std::optional<PointerArithmetic>> composeMul(MulOp Mul);
-
-  RecursiveCoroutine<std::optional<PointerArithmetic>>
-  composeShl(ShiftLeftOp ShiftLeft);
+  RecursiveCoroutine<std::optional<PointerArithmetic>> composeShl(ShlOp Shl);
 
   // Helper function used to multiply all the `PointerArithmetic` strides and
   // offset by a constant. Clears the BasePointer since the result of a
@@ -292,7 +290,7 @@ PointerArithmeticBuilder::traverse(mlir::Value V) {
       rc_return rc_recur composePtrAdd(PtrAdd);
     } else if (auto Mul = mlir::dyn_cast<MulOp>(Expr.getOperation())) {
       rc_return rc_recur composeMul(Mul);
-    } else if (auto Shl = mlir::dyn_cast<ShiftLeftOp>(Expr.getOperation())) {
+    } else if (auto Shl = mlir::dyn_cast<ShlOp>(Expr.getOperation())) {
       rc_return rc_recur composeShl(Shl);
     }
   }
@@ -498,7 +496,7 @@ PointerArithmeticBuilder::composeMul(MulOp Mul) {
 }
 
 RecursiveCoroutine<std::optional<PointerArithmetic>>
-PointerArithmeticBuilder::composeShl(ShiftLeftOp Shl) {
+PointerArithmeticBuilder::composeShl(ShlOp Shl) {
 
   // Handling is similar to `MulOp`, shift by N is multiplication by 2^N
   auto LHS = Shl.getLhs();
