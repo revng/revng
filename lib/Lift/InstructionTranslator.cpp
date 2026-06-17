@@ -26,6 +26,7 @@
 #include "revng/Lift/VariableManager.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/RandomAccessIterator.h"
 #include "revng/Support/Range.h"

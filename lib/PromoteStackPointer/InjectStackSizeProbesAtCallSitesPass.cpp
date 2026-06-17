@@ -6,6 +6,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSites.h"
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSitesPass.h"
+#include "revng/Support/IRBuilder.h"
 
 // This name is not present after `CleanupStackSizeMarkers`.
 RegisterIRHelper StackSizeAtCallSite("stack_size_at_call_site");
@@ -33,9 +34,9 @@ static bool injectStackSizeProbesAtCallSites(llvm::Module &M,
   for (Function &F : FunctionTags::Isolated.functions(&M)) {
     if (F.isDeclaration())
       continue;
-    setInsertPointToFirstNonAlloca(B, F);
+    B.setInsertPointToFirstNonAlloca(F);
 
-    auto *SP0 = createLoad(B, SP);
+    auto *SP0 = B.createLoad(SP);
 
     for (BasicBlock &BB : F) {
       for (Instruction &I : BB) {
@@ -45,7 +46,7 @@ static bool injectStackSizeProbesAtCallSites(llvm::Module &M,
           B.SetInsertPoint(&I);
 
           // Inject a call to the marker. First argument is sp - sp0
-          auto *Call = B.CreateCall(SSACS, B.CreateSub(SP0, createLoad(B, SP)));
+          auto *Call = B.CreateCall(SSACS, B.CreateSub(SP0, B.createLoad(SP)));
           Call->copyMetadata(I);
         }
       }

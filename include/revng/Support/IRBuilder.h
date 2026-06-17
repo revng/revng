@@ -4,9 +4,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/DebugInfoMetadata.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Function.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
@@ -14,15 +17,7 @@
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
-
-inline llvm::Type *getVariableType(const llvm::Value *Variable) {
-  if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
-    return Alloca->getAllocatedType();
-  else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))
-    return GV->getValueType();
-  else
-    revng_abort("Either GlobalVariable or AllocaInst expected");
-}
+#include "revng/Support/IRHelpers.h"
 
 namespace revng {
 
@@ -181,6 +176,47 @@ public:
     const DataLayout &DL = GetInsertBlock()->getModule()->getDataLayout();
     revng_assert(sameSize(V->getType(), AllocatedType, DL));
     return CreateStore(V, Variable);
+  }
+
+  llvm::LoadInst *createLoad(llvm::GlobalVariable *GV) {
+    return this->CreateLoad(GV->getValueType(), GV);
+  }
+
+  llvm::LoadInst *createLoad(llvm::AllocaInst *Alloca) {
+    return this->CreateLoad(Alloca->getAllocatedType(), Alloca);
+  }
+
+  llvm::LoadInst *createLoadVariable(llvm::Value *Variable) {
+    if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
+      return createLoad(Alloca);
+    if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))
+      return createLoad(GV);
+    revng_abort("Either GlobalVariable or AllocaInst expected");
+  }
+
+  void setInsertPointToFirstNonAlloca(llvm::Function &F) {
+    using namespace llvm;
+    for (Instruction &I : F.getEntryBlock()) {
+      if (not isa<AllocaInst>(&I)) {
+        SetInsertPoint(&I);
+        return;
+      }
+    }
+    revng_abort();
+  }
+
+  llvm::SmallVector<llvm::Value *, 4> unpack(llvm::Value *V) {
+    using namespace llvm;
+    Type *T = V->getType();
+    if (isa<IntegerType>(T))
+      return { V };
+    if (auto *ST = dyn_cast<StructType>(T)) {
+      SmallVector<Value *, 4> Result;
+      for (unsigned I = 0; I < ST->getNumElements(); ++I)
+        Result.push_back(this->CreateExtractValue(V, { I }));
+      return Result;
+    }
+    revng_abort("Cannot unpack the given type");
   }
 
 protected:

@@ -9,6 +9,7 @@
 
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/Register.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 namespace revng {

@@ -11,6 +11,7 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 
 #include "revng/Model/Binary.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"
 
 #include "DropHelperCallsPass.h"

@@ -60,6 +60,7 @@
 #include "revng/RestructureCFG/RestructureCFG.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/DecompilationHelpers.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TypeNames/LLVMTypeNames.h"

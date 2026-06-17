@@ -11,6 +11,7 @@
 #include "llvm/IR/PassManager.h"
 
 #include "revng/Model/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using CSVToAllocaMap = llvm::DenseMap<llvm::GlobalVariable *,
@@ -42,7 +43,7 @@ public:
               std::back_inserter(Arguments));
 
     for (GlobalVariable *CSV : ReadCSVs)
-      Arguments.push_back(createLoadVariable(Builder, csvToAlloca(CSV)));
+      Arguments.push_back(Builder.createLoadVariable(csvToAlloca(CSV)));
 
     CallInst *Result = Builder.CreateCall(getRandom(M, ReturnType), Arguments);
 

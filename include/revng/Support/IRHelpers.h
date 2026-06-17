@@ -31,7 +31,6 @@
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/Generator.h"
-#include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"
 
 class ProgramCounterHandler;
@@ -1443,18 +1442,13 @@ inline void setPointersMetadata(Value *V,
                              QMD.tuple(PointerOperandsMD) }));
 }
 
-inline void setInsertPointToFirstNonAlloca(revng::IRBuilder &Builder,
-                                           llvm::Function &F) {
-  using namespace llvm;
-
-  BasicBlock &Entry = F.getEntryBlock();
-  for (Instruction &I : Entry) {
-    if (not isa<AllocaInst>(&I)) {
-      Builder.SetInsertPoint(&I);
-      return;
-    }
-  }
-  revng_abort();
+inline llvm::Type *getVariableType(const llvm::Value *Variable) {
+  if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
+    return Alloca->getAllocatedType();
+  else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))
+    return GV->getValueType();
+  else
+    revng_abort("Either GlobalVariable or AllocaInst expected");
 }
 
 inline llvm::Value *getPointer(llvm::User *U) {
@@ -1494,42 +1488,6 @@ llvm::Function &moveToNewFunctionType(llvm::Function &OldFunction,
 llvm::Function *changeFunctionType(llvm::Function &OldFunction,
                                    llvm::Type *NewReturnType,
                                    llvm::ArrayRef<llvm::Type *> NewArguments);
-
-inline llvm::SmallVector<llvm::Value *, 4> unpack(revng::IRBuilder &Builder,
-                                                  llvm::Value *V) {
-  using namespace llvm;
-  Type *Type = V->getType();
-  if (isa<IntegerType>(Type)) {
-    return { V };
-  } else if (auto *StructType = dyn_cast<llvm::StructType>(Type)) {
-    llvm::SmallVector<llvm::Value *, 4> Result;
-    for (unsigned I = 0; I < StructType->getNumElements(); ++I)
-      Result.push_back(Builder.CreateExtractValue(V, { I }));
-    return Result;
-  } else {
-    revng_abort("Cannot unpack the given type");
-  }
-}
-
-inline llvm::Instruction *createLoad(revng::IRBuilder &Builder,
-                                     llvm::GlobalVariable *GV) {
-  return Builder.CreateLoad(GV->getValueType(), GV);
-}
-
-inline llvm::Instruction *createLoad(revng::IRBuilder &Builder,
-                                     llvm::AllocaInst *Alloca) {
-  return Builder.CreateLoad(Alloca->getAllocatedType(), Alloca);
-}
-
-inline llvm::Instruction *createLoadVariable(revng::IRBuilder &Builder,
-                                             llvm::Value *Variable) {
-  if (auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(Variable))
-    return createLoad(Builder, Alloca);
-  else if (auto *GV = llvm::dyn_cast<llvm::GlobalVariable>(Variable))
-    return createLoad(Builder, GV);
-  else
-    revng_abort("Either GlobalVariable or AllocaInst expected");
-}
 
 void pruneDICompileUnits(llvm::Module &M);
 

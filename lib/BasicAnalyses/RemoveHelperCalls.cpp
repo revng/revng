@@ -8,6 +8,7 @@
 #include "llvm/ADT/SmallVector.h"
 
 #include "revng/BasicAnalyses/RemoveHelperCalls.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 
@@ -49,7 +50,7 @@ RemoveHelperCallsPass::run(llvm::Function &F,
 
     // Assumption: helpers do not leave the stack altered, thus we can save the
     // stack pointer and restore it back later.
-    auto *SP = createLoad(Builder, GCBI->spReg());
+    auto *SP = Builder.createLoad(GCBI->spReg());
 
     auto *RetTy = cast<CallInst>(I)->getFunctionType()->getReturnType();
     auto *OriginalHelperMarker = OFPOriginalHelper.get(RetTy,

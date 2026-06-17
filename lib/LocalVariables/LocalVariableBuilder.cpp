@@ -150,7 +150,7 @@ LegacyVB::createLocalVariable(const model::Type &VariableType) {
   // Here we should definitely use the builder that checks the debug info,
   // but since this going to go away soon, let it stay as is.
   revng::NonDebugInfoCheckingIRBuilder B(F->getContext());
-  setInsertPointToFirstNonAlloca(B, *F);
+  B.setInsertPointToFirstNonAlloca(*F);
   Constant *ReferenceString = toLLVMString(VariableType, *F->getParent());
   return B.CreateCall(LocalVarFunction, { ReferenceString });
 }
@@ -189,7 +189,7 @@ LegacyVB::createCallStackArgumentVariable(const model::Type &VariableType) {
   llvm::Constant *VarTypeString = toLLVMString(VariableType, *F->getParent());
 
   revng::NonDebugInfoCheckingIRBuilder B(F->getContext());
-  setInsertPointToFirstNonAlloca(B, *F);
+  B.setInsertPointToFirstNonAlloca(*F);
 
   Value *Size = ConstantInt::get(Types.InputPointerSizedInteger, VariableSize);
   Instruction *Reference = B.CreateCall(getCallStackArgumentsAllocator(),
@@ -214,7 +214,7 @@ LegacyVB::createStackFrameVariable(model::UpcastableType FrameType) {
   revng_assert(StackSize);
 
   revng::NonDebugInfoCheckingIRBuilder B(F->getContext());
-  setInsertPointToFirstNonAlloca(B, *F);
+  B.setInsertPointToFirstNonAlloca(*F);
 
   Instruction
     *Reference = B.CreateCall(getStackFrameAllocator(),
@@ -301,7 +301,7 @@ VB::LocalVarType *VB::createLocalVariable(const model::Type &VariableType) {
   revng_assert(VariableSize);
 
   revng::NonDebugInfoCheckingIRBuilder B(F->getContext());
-  setInsertPointToFirstNonAlloca(B, *F);
+  B.setInsertPointToFirstNonAlloca(*F);
 
   return B.CreateAlloca(llvm::ArrayType::get(Types.Int8Ty, VariableSize));
 }
@@ -310,7 +310,7 @@ template<>
 std::pair<VB::LocalVarType *, llvm::Instruction *>
 VB::createLocalVariableAndTakeIntAddress(const model::Type &VariableType) {
   revng::NonDebugInfoCheckingIRBuilder B(F->getContext());
-  setInsertPointToFirstNonAlloca(B, *F);
+  B.setInsertPointToFirstNonAlloca(*F);
   auto *Variable = createLocalVariable(VariableType);
   return {
     Variable,

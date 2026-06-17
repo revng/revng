@@ -13,6 +13,7 @@
 
 #include "revng/Lift/LibTcg.h"
 #include "revng/Model/ProgramCounterHandler.h"
+#include "revng/Support/IRBuilder.h"
 
 #include "JumpTargetManager.h"
 

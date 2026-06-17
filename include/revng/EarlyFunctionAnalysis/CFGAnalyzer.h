@@ -10,6 +10,7 @@
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/EarlyFunctionAnalysis/TemporaryOpaqueFunction.h"
 #include "revng/Model/Binary.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 

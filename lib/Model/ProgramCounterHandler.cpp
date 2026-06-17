@@ -10,6 +10,7 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/IRBuilder.h"
 
 // This name corresponds to a function in `early-linked`.
 RegisterIRHelper SetMetaAddressHelper("set_PlainMetaAddress");
@@ -62,7 +63,7 @@ public:
   }
 
   Value *loadJumpablePC(revng::IRBuilder &Builder) const final {
-    return createLoad(Builder, AddressCSV);
+    return Builder.createLoad(AddressCSV);
   }
 
   std::array<Value *, 4>
@@ -156,10 +157,10 @@ private:
   }
 
   Value *loadJumpablePC(revng::IRBuilder &Builder) const final {
-    auto *Address = createLoad(Builder, AddressCSV);
+    auto *Address = Builder.createLoad(AddressCSV);
     auto *AddressType = Address->getType();
     return Builder.CreateOr(Address,
-                            Builder.CreateZExt(createLoad(Builder, IsThumb),
+                            Builder.CreateZExt(Builder.createLoad(IsThumb),
                                                AddressType));
   }
 
@@ -411,10 +412,10 @@ static void setPlainMetaAddressImpl(revng::IRBuilder &Builder,
 void PCH::setCurrentPCPlainMetaAddress(revng::IRBuilder &Builder) const {
   setPlainMetaAddressImpl(Builder,
                           "current_pc",
-                          createLoad(Builder, EpochCSV),
-                          createLoad(Builder, AddressSpaceCSV),
-                          createLoad(Builder, TypeCSV),
-                          createLoad(Builder, AddressCSV));
+                          Builder.createLoad(EpochCSV),
+                          Builder.createLoad(AddressSpaceCSV),
+                          Builder.createLoad(TypeCSV),
+                          Builder.createLoad(AddressCSV));
 }
 
 void PCH::setLastPCPlainMetaAddress(revng::IRBuilder &Builder,
@@ -618,10 +619,10 @@ public:
     bool Empty = Root->case_begin() == Root->case_end();
     if (Empty) {
       revng::NonDebugInfoCheckingIRBuilder Builder(Root);
-      CurrentEpoch = createLoad(Builder, EpochCSV);
-      CurrentAddressSpace = createLoad(Builder, AddressSpaceCSV);
-      CurrentType = createLoad(Builder, TypeCSV);
-      CurrentAddress = createLoad(Builder, AddressCSV);
+      CurrentEpoch = Builder.createLoad(EpochCSV);
+      CurrentAddressSpace = Builder.createLoad(AddressSpaceCSV);
+      CurrentType = Builder.createLoad(TypeCSV);
+      CurrentAddress = Builder.createLoad(AddressCSV);
     } else {
       // Get the switches of the the first MA. This is just in order to get a
       // reference to their conditions
@@ -819,10 +820,10 @@ PCH::buildDispatcher(DispatcherTargets &Targets,
             });
 
   // First of all, create code to load the components of the MetaAddress
-  Value *CurrentEpoch = createLoad(Builder, EpochCSV);
-  Value *CurrentAddressSpace = createLoad(Builder, AddressSpaceCSV);
-  Value *CurrentType = createLoad(Builder, TypeCSV);
-  Value *CurrentAddress = createLoad(Builder, AddressCSV);
+  Value *CurrentEpoch = Builder.createLoad(EpochCSV);
+  Value *CurrentAddressSpace = Builder.createLoad(AddressSpaceCSV);
+  Value *CurrentType = Builder.createLoad(TypeCSV);
+  Value *CurrentAddress = Builder.createLoad(AddressCSV);
 
   SwitchManager SM(Default,
                    CurrentEpoch,
@@ -952,7 +953,7 @@ void PCH::buildHotPath(revng::IRBuilder &B,
   auto &[Address, BB] = CandidateTarget;
 
   auto CreateCmp = [&B](GlobalVariable *CSV, uint64_t Value) {
-    Instruction *Load = createLoad(B, CSV);
+    Instruction *Load = B.createLoad(CSV);
     Type *LoadType = Load->getType();
     return B.CreateICmpEQ(Load, ConstantInt::get(LoadType, Value));
   };

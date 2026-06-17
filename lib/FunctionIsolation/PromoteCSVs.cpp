@@ -17,6 +17,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;
@@ -227,7 +228,7 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   // Update values of the out arguments
   unsigned OutArgument = FirstOutArgument;
   for (GlobalVariable *CSV : Written) {
-    Builder.CreateStore(createLoad(Builder, CSV),
+    Builder.CreateStore(Builder.createLoad(CSV),
                         HelperWrapper->getArg(OutArgument));
     ++OutArgument;
   }
@@ -283,7 +284,7 @@ void PromoteCSVs::wrap(CallInst *Call,
 
   // Add arguments read
   for (GlobalVariable *CSV : Read)
-    NewArguments.push_back(createLoad(Builder, CSV));
+    NewArguments.push_back(Builder.createLoad(CSV));
 
   SmallVector<AllocaInst *, 16> WrittenCSVAllocas;
   for (GlobalVariable *CSV : Written) {
@@ -300,7 +301,7 @@ void PromoteCSVs::wrap(CallInst *Call,
 
   // Restore into CSV the written registers
   for (const auto &[CSV, Alloca] : zip(Written, WrittenCSVAllocas))
-    Builder.CreateStore(createLoad(Builder, Alloca), CSV);
+    Builder.CreateStore(Builder.createLoad(Alloca), CSV);
 
   // Erase the old call
   eraseFromParent(Call);
