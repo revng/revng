@@ -46,6 +46,7 @@
 #include "revng/Model/VerifyHelper.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/YAMLTraits.h"
 

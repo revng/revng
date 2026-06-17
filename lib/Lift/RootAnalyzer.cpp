@@ -28,6 +28,7 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 #include "revng/Support/Statistics.h"
@@ -546,7 +547,7 @@ RootAnalyzer::promoteCSVsToAlloca(Function *OptimizedFunction) {
     replaceAllUsesInFunctionWith(OptimizedFunction, CSV, Alloca);
 
     // Initialize the alloca
-    InitBuilder.CreateStore(createLoad(InitBuilder, CSV), Alloca);
+    InitBuilder.CreateStore(InitBuilder.createLoad(CSV), Alloca);
   }
 
   return CSVMap;

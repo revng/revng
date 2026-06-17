@@ -15,6 +15,7 @@
 
 #include "revng/Model/FunctionTags.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 

@@ -32,6 +32,7 @@
 #include "revng/PromoteStackPointer/PromoteStackPointerPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRBuilder.h"
 
 // This name is not present after `promote-stack-pointer`.
 RegisterIRHelper UndefinedLocalSPMarker("revng_undefined_local_sp");
@@ -77,7 +78,7 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
         Changed = true;
 
         B.SetInsertPoint(I.getNextNode());
-        B.CreateStore(B.CreateAdd(createLoad(B, GlobalSP), FSO), GlobalSP);
+        B.CreateStore(B.CreateAdd(B.createLoad(GlobalSP), FSO), GlobalSP);
       }
     }
   }
@@ -169,7 +170,7 @@ static bool promoteStackPointer(const model::Binary &Binary,
   AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
 
   // Call InitLocalSP, to initialize the value of the local stack pointer.
-  setInsertPointToFirstNonAlloca(Builder, F);
+  Builder.setInsertPointToFirstNonAlloca(F);
   auto *SPVal = Builder.CreateCall(InitLocalSP);
 
   // Store the initial SP value in the new alloca.

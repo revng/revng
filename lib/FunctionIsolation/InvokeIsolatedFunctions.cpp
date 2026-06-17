@@ -22,6 +22,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
+#include "revng/Support/IRBuilder.h"
 
 using namespace llvm;
 using std::tuple;
@@ -167,7 +168,7 @@ public:
             auto Name = model::Register::getCSVName(Register);
             GlobalVariable *CSV = RootModule.getGlobalVariable(Name, true);
             revng_assert(CSV != nullptr);
-            Arguments.push_back(createLoad(Builder, CSV));
+            Arguments.push_back(Builder.createLoad(CSV));
           }
         }
       }

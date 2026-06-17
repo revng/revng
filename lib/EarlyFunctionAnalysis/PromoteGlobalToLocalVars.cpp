@@ -8,6 +8,7 @@
 
 #include "revng/EarlyFunctionAnalysis/PromoteGlobalToLocalVars.h"
 #include "revng/Model/FunctionTags.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueRegisterUser.h"
 
@@ -48,7 +49,7 @@ PromoteGlobalToLocalPass::run(llvm::Function &F,
 
   // Load all the CSVs and store their value onto the local variables.
   for (const auto &[CSV, Alloca] : CSVMap)
-    Builder.CreateStore(createLoad(Builder, CSV), Alloca);
+    Builder.CreateStore(Builder.createLoad(CSV), Alloca);
 
   return PreservedAnalyses::none();
 }

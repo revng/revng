@@ -34,6 +34,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/RemoveLiftingArtifacts/MakeSegmentRef.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
