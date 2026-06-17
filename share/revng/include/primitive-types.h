@@ -144,6 +144,38 @@ static_assert(sizeof(uint128_t) == 16, "");
 #endif
 
 //
+// Wide integer types (256- and 512-bit)
+//
+// C has no native integer type wider than 128 bits (__int128). These wide
+// integer types are therefore defined using C23's _BitInt, mirroring the way
+// the wide float types below fall back to a native type when one is available.
+// They back the decompilation of values held in wide vector registers (an
+// x86-64 zmm modelled as a full register is a 512-bit integer), where
+// extracting or assembling its lanes requires wide-integer shifts. A toolchain
+// without _BitInt cannot express such operations, so these types are only
+// defined when it provides one.
+//
+#if defined(__BITINT_MAXWIDTH__) && __BITINT_MAXWIDTH__ >= 512
+typedef unsigned _BitInt(256) pointer_or_number256_t;
+typedef unsigned _BitInt(512) pointer_or_number512_t;
+typedef unsigned _BitInt(256) number256_t;
+typedef unsigned _BitInt(512) number512_t;
+typedef _BitInt(256) int256_t;
+typedef _BitInt(512) int512_t;
+typedef unsigned _BitInt(256) uint256_t;
+typedef unsigned _BitInt(512) uint512_t;
+
+static_assert(sizeof(pointer_or_number256_t) == 32, "");
+static_assert(sizeof(pointer_or_number512_t) == 64, "");
+static_assert(sizeof(number256_t) == 32, "");
+static_assert(sizeof(number512_t) == 64, "");
+static_assert(sizeof(int256_t) == 32, "");
+static_assert(sizeof(int512_t) == 64, "");
+static_assert(sizeof(uint256_t) == 32, "");
+static_assert(sizeof(uint512_t) == 64, "");
+#endif
+
+//
 // Float
 //
 
