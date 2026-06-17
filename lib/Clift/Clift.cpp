@@ -27,13 +27,13 @@ std::unique_ptr<mlir::MLIRContext> clift::makeContext() {
 }
 
 mlir::OwningOpRef<mlir::ModuleOp>
-clift::makeModule(mlir::MLIRContext &Context) {
-  auto DebugLocation = mlir::UnknownLoc::get(&Context);
+clift::makeModule(mlir::MLIRContext *Context) {
+  auto DebugLocation = mlir::UnknownLoc::get(Context);
   mlir::OwningOpRef<mlir::ModuleOp>
     Result = mlir::ModuleOp::create(DebugLocation);
 
   Result.get()->setAttr(CliftDialect::getModuleAttrName(),
-                        mlir::UnitAttr::get(&Context));
+                        mlir::UnitAttr::get(Context));
 
   return Result;
 }

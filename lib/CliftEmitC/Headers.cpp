@@ -171,7 +171,7 @@ public:
   }
 
   template<RangeOf<uint64_t> ByteSizeList = std::initializer_list<uint64_t>>
-  void emitOpaqueTypes(mlir::MLIRContext &Context, const ByteSizeList &Sizes) {
+  void emitOpaqueTypes(mlir::MLIRContext *Context, const ByteSizeList &Sizes) {
     bool CommentEmitted = false;
     for (uint64_t Size : Sizes) {
       if (not CommentEmitted) {
@@ -272,7 +272,7 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
   Emitter.emitFunctions(Module);
   Emitter.emitDynamicFunctions(Module);
   Emitter.emitSegments(Module);
-  Emitter.emitOpaqueTypes(*Module.getContext(),
+  Emitter.emitOpaqueTypes(Module.getContext(),
                           Emitter.collectOpaqueByteSizes({ Module }));
 }
 
@@ -300,7 +300,7 @@ void emitHelperHeader(ptml::CTokenEmitter &Tokens,
   Emitter.emitHelpers(Modules);
 
   // This trick is practically a `const_cast`.
-  mlir::MLIRContext &Context = *mlir::ModuleOp(Modules.front()).getContext();
+  mlir::MLIRContext *Context = mlir::ModuleOp(Modules.front()).getContext();
 
   std::set<std::uint64_t> NonModelOpaqueTypes;
   std::ranges::set_difference(Emitter.collectOpaqueByteSizes(Modules),

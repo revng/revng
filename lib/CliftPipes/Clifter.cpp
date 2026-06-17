@@ -23,8 +23,7 @@ void Clifter::runOnFunction(const model::Function &Function) {
   const llvm::Function
     &LLVMFunction = getUniqueIsolatedFunction(Module, Function.Entry());
 
-  mlir::MLIRContext *Context = Output.getContext();
-  auto ModuleOpObject = clift::makeModule(*Context);
+  auto ModuleOpObject = clift::makeModule(Output.getContext());
 
   auto Importer = clift::Clifter::make(ModuleOpObject.get(), Binary);
   Importer->import(&LLVMFunction);

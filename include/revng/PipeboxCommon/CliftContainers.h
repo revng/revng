@@ -124,7 +124,7 @@ private:
 
 public:
   CliftModuleContainer() :
-    Context(clift::makeContext()), Module(clift::makeModule(*Context)) {}
+    Context(clift::makeContext()), Module(clift::makeModule(Context.get())) {}
 
 public:
   std::set<ObjectID> objects() const {

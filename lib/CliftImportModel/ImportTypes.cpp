@@ -828,7 +828,7 @@ void clift::importAllModelSegmentDeclarations(const model::Binary &Model,
 std::pair<std::unique_ptr<mlir::MLIRContext>, mlir::OwningOpRef<mlir::ModuleOp>>
 clift::makeHeaderModule(const model::Binary &Model, bool IncludeGlobals) {
   std::unique_ptr<mlir::MLIRContext> Context = clift::makeContext();
-  mlir::OwningOpRef<mlir::ModuleOp> Module = clift::makeModule(*Context);
+  mlir::OwningOpRef<mlir::ModuleOp> Module = clift::makeModule(Context.get());
 
   clift::importAllModelTypes(Model, Module.get());
   if (IncludeGlobals) {
@@ -844,14 +844,14 @@ static std::string getOpaqueTypeHandle(uint64_t ByteSize) {
   return pipeline::locationString(revng::ranks::OpaqueType, ByteSize);
 }
 
-clift::StructType clift::makeOpaqueStruct(mlir::MLIRContext &Context,
+clift::StructType clift::makeOpaqueStruct(mlir::MLIRContext *Context,
                                           uint64_t ByteSize) {
   std::string Handle = getOpaqueTypeHandle(ByteSize);
 
-  auto NameAttr = makeNameAttr<StructAttr>(&Context, Handle);
-  auto CommentAttr = makeCommentAttr<StructAttr>(&Context, Handle);
+  auto NameAttr = makeNameAttr<StructAttr>(Context, Handle);
+  auto CommentAttr = makeCommentAttr<StructAttr>(Context, Handle);
   auto Attrs = llvm::ArrayRef<clift::CAttributeAttr>{};
-  auto Def = clift::StructAttr::get(&Context,
+  auto Def = clift::StructAttr::get(Context,
                                     Handle,
                                     NameAttr,
                                     CommentAttr,

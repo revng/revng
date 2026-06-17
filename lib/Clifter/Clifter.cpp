@@ -291,7 +291,7 @@ private:
       uint64_t NumBytes = T->getNumElements()
                           * (ElementType->getIntegerBitWidth() / 8);
 
-      return clift::makeOpaqueStruct(*Context, NumBytes);
+      return clift::makeOpaqueStruct(Context, NumBytes);
     }
 
     if (auto *S = llvm::dyn_cast<llvm::StructType>(Type)) {
@@ -321,7 +321,7 @@ private:
       uint64_t ByteSize = PreviousOffsetInBits / 8;
       revng_assert(llvm::alignTo(ByteSize, Alignment) == StructByteSize);
       revng_assert(StructByteSize);
-      return clift::makeOpaqueStruct(*Context, StructByteSize);
+      return clift::makeOpaqueStruct(Context, StructByteSize);
     }
 
     revng_abort("Unsupported LLVM type");
