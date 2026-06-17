@@ -450,9 +450,7 @@ Branches:
               - dce
               - remove-llvmassume-calls
       - Name: make-segment-ref
-        Pipes:
-          - Type: make-segment-ref
-            UsedContainers: [input, functions.bc.zstd]
+        Pipes: []
         Artifacts:
           Container: functions.bc.zstd
           Kind: stack-accesses-segregated

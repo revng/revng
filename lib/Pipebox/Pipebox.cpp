@@ -45,7 +45,6 @@
 #include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Recompile/LinkForTranslationPipe.h"
 #include "revng/RemoveLiftingArtifacts/CleanupIR.h"
-#include "revng/RemoveLiftingArtifacts/MakeSegmentRef.h"
 #include "revng/RemoveLiftingArtifacts/PromoteInitCSVToUndef.h"
 #include "revng/RemoveLiftingArtifacts/RemoveLiftingArtifacts.h"
 #include "revng/Yield/HexDump.h"
@@ -108,7 +107,6 @@ REGISTER(FunctionPipeRun, ImportFunctionDataModel);
 REGISTER(FunctionPipeRun, InjectStackSizeProbesAtCallSites);
 REGISTER(FunctionPipeRun, Isolate);
 REGISTER(FunctionPipeRun, LegacySegregateStackAccesses);
-REGISTER(FunctionPipeRun, MakeSegmentRef);
 REGISTER(FunctionPipeRun, ProcessAssembly);
 REGISTER(FunctionPipeRun, PromoteCSVs);
 REGISTER(FunctionPipeRun, PromoteInitCSVToUndef);
