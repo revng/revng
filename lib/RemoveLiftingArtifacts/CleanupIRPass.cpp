@@ -3,6 +3,7 @@
 //
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instruction.h"
@@ -84,20 +85,19 @@ bool CleanupIRPass::Impl::replaceInstructions(Function &F) {
                                      FunctionTags::AllocatesLocalVariable)) {
       revng::IRBuilder Builder(Context);
       Builder.SetInsertPointPastAllocas(Call->getFunction());
-      Value *AllocatedSize = nullptr;
+      uint64_t AllocatedBytes = 0;
       if (auto *Callee = getCalledFunction(Call);
           Callee and Callee->getName().startswith("revng_stack_frame")) {
-        AllocatedSize = Call->getArgOperand(0);
+        auto *Size = cast<ConstantInt>(Call->getArgOperand(0));
+        AllocatedBytes = Size->getZExtValue();
       } else {
         model::UpcastableType
           AllocatedType = fromLLVMString(Call->getArgOperand(0), Model);
-        AllocatedSize = ConstantInt::get(Context,
-                                         APInt(/*NumBits*/ 64,
-                                               AllocatedType->size().value()));
+        AllocatedBytes = AllocatedType->size().value();
       }
       auto *Int8Type = IntegerType::getInt8Ty(Context);
-      auto *Alloca = Builder.CreateAlloca(Int8Type,
-                                          /* ArraySize */ AllocatedSize);
+      auto *Alloca = Builder.CreateAlloca(ArrayType::get(Int8Type,
+                                                         AllocatedBytes));
 
       // Some uses of the Call can be replaced directly with GEPs in the Alloca.
       for (Use &U : Call->uses()) {

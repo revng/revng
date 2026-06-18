@@ -333,7 +333,8 @@ AccessFixer::decomposeMemcpy(llvm::Instruction &I) {
   BasicBlock &Entry = I.getFunction()->getEntryBlock();
   Builder.SetInsertPoint(&Entry, Entry.begin());
   auto *UInt8Type = IntegerType::getInt8Ty(Abort.getContext());
-  auto *Storage = Builder.CreateAlloca(UInt8Type, 0, Size);
+  auto *StorageType = ArrayType::get(UInt8Type, Size->getZExtValue());
+  auto *Storage = Builder.CreateAlloca(StorageType);
   uint64_t Alignment = Storage->getAlign().value();
   auto &Read = Call;
   auto &Write = *cast<CallInst>(Call.clone());
