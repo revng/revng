@@ -1633,11 +1633,9 @@ private:
       // Alloca instructions get special handling and are emitted as local
       // variables in Clift:
       if (auto *A = llvm::dyn_cast<llvm::AllocaInst>(&I)) {
-        const auto *NumElements = A->getArraySize();
-
-        // Non-constant alloca is not supported:
-        revng_assert(not NumElements
-                     or llvm::isa<llvm::ConstantInt>(NumElements));
+        // Dynamic-size allocas are not supported: callers must encode the
+        // size in an `ArrayType` instead of using `alloca`'s ArraySize.
+        revng_assert(not A->isArrayAllocation());
 
         std::optional<std::string> Handle;
 
@@ -1652,21 +1650,7 @@ private:
           revng_assert(*A->getAllocationSizeInBits(*C.DataLayout) % 8 == 0);
           llvm::Type *Allocated = A->getAllocatedType();
           revng_assert(Allocated->isSized());
-
-          if (not Allocated->isArrayTy() and not A->isArrayAllocation()) {
-            Type = C.importLLVMType(Allocated);
-
-          } else {
-            uint64_t FieldBitSize = C.DataLayout->getTypeSizeInBits(Allocated);
-            revng_assert(FieldBitSize % 8 == 0);
-            uint64_t ElementSizeInBytes = FieldBitSize / 8;
-            const auto
-              *NumElements = cast<llvm::ConstantInt>(A->getArraySize());
-            uint64_t NBytes = NumElements->getZExtValue() * ElementSizeInBytes;
-            auto *ByteType = llvm::IntegerType::get(A->getContext(), 8);
-            auto *ByteArrayType = llvm::ArrayType::get(ByteType, NBytes);
-            Type = C.importLLVMType(ByteArrayType);
-          }
+          Type = C.importLLVMType(Allocated);
         }
 
         mlir::Location Loc = C.getLocation(A);
