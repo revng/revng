@@ -261,9 +261,33 @@ inline uint64_t finalStackOffset(const model::UpcastableType &Prototype) {
   return finalStackOffset(Prototype->toPrototype());
 }
 
+/// A register holding (part of) an argument or return value, together with the
+/// number of bytes the model says it actually carries.
+struct UsedRegister {
+  /// The register itself.
+  model::Register::Values Location;
+
+  /// The number of bytes the model assigns to this register. For a
+  /// `RawFunctionDefinition` this is the size of the `Type` of the
+  /// corresponding `NamedTypedRegister`, which can be smaller than the register
+  /// width when only its low part carries data (e.g. a scalar living in a
+  /// vector register). It dictates the width of the value `enforce-abi`
+  /// materializes, so the C backend is never handed an oversized integer.
+  uint64_t Size;
+
+  UsedRegister(model::Register::Values Location, uint64_t Size) :
+    Location(Location), Size(Size) {}
+
+  /// Convenience conversion sizing a register by its full width. Used by the
+  /// CABI path, which describes argument/return values by their position
+  /// rather than by a per-register model `Type`.
+  UsedRegister(model::Register::Values Location) :
+    Location(Location), Size(model::Register::getSize(Location)) {}
+};
+
 struct UsedRegisters {
-  llvm::SmallVector<model::Register::Values> Arguments;
-  llvm::SmallVector<model::Register::Values> ReturnValues;
+  llvm::SmallVector<UsedRegister> Arguments;
+  llvm::SmallVector<UsedRegister> ReturnValues;
 };
 UsedRegisters usedRegisters(const model::CABIFunctionDefinition &Prototype);
 
@@ -271,9 +295,11 @@ inline UsedRegisters
 usedRegisters(const model::RawFunctionDefinition &Prototype) {
   UsedRegisters Result;
   for (const model::NamedTypedRegister &Register : Prototype.Arguments())
-    Result.Arguments.emplace_back(Register.Location());
+    Result.Arguments.emplace_back(Register.Location(),
+                                  *Register.Type()->size());
   for (const model::NamedTypedRegister &Register : Prototype.ReturnValues())
-    Result.ReturnValues.emplace_back(Register.Location());
+    Result.ReturnValues.emplace_back(Register.Location(),
+                                     *Register.Type()->size());
   return Result;
 }
 

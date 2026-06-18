@@ -215,8 +215,19 @@ using UsedRegisters = abi::FunctionType::UsedRegisters;
 static std::pair<Type *, SmallVector<Type *>>
 getLLVMReturnTypeAndArguments(llvm::Module *M, const UsedRegisters &Registers) {
   LLVMContext &Context = M->getContext();
-  auto ArgumentsTypes = toLLVMTypes(Context, Registers.Arguments);
-  auto ReturnTypes = toLLVMTypes(Context, Registers.ReturnValues);
+  auto IntoLLVMType = [&Context](const auto &UsedReg) -> llvm::Type * {
+    // Size the argument/return value by the model `Type` carried in the
+    // register, not by the (possibly much wider) register itself.
+    return IntegerType::getIntNTy(Context, 8 * UsedReg.Size);
+  };
+
+  SmallVector<Type *> ArgumentsTypes;
+  SmallVector<Type *> ReturnTypes;
+  std::ranges::copy(Registers.Arguments | std::views::transform(IntoLLVMType),
+                    std::back_inserter(ArgumentsTypes));
+  std::ranges::copy(Registers.ReturnValues
+                      | std::views::transform(IntoLLVMType),
+                    std::back_inserter(ReturnTypes));
 
   // Create the return type
   Type *ReturnType = Type::getVoidTy(Context);
@@ -263,8 +274,10 @@ Function *EnforceABI::recreateFunction(Function &OldFunction,
   auto *Result = changeFunctionType(OldFunction, NewReturnType, NewArguments);
   revng_assert(Result->arg_size() == Registers.Arguments.size());
 
-  for (size_t Index = 0; model::Register::Values Register : Registers.Arguments)
-    Result->getArg(Index++)->setName(model::Register::getName(Register));
+  for (size_t Index = 0; const auto &Argument : Registers.Arguments) {
+    auto Name = model::Register::getName(Argument.Location);
+    Result->getArg(Index++)->setName(Name);
+  }
 
   return Result;
 }
@@ -299,23 +312,28 @@ getCSVOrUndef(Module *M, model::Register::Values Register) {
   }
 }
 
-// Assemble the value of `Register` from the CSV(s) composing it into a single
-// integer of `8 * getSize(Register)` bits. A register backed by a single CSV
-// is just loaded; a register spanning multiple CSVs (e.g. a 512-bit vector
-// register represented as eight 64-bit CSVs) has each CSV loaded,
-// zero-extended and shifted to its position within the register, then OR-ed
-// together.
+// Assemble the low `SizeInBytes` bytes of `Register` from the CSV(s) composing
+// it into a single integer of `8 * SizeInBytes` bits. `SizeInBytes` comes from
+// the model `Type` of the register and may be smaller than the register width,
+// in which case only the CSV(s) covering that prefix are read. A register
+// backed by a single CSV that spans exactly that size is just loaded; otherwise
+// each relevant CSV is loaded, zero-extended and shifted to its position within
+// the register, then OR-ed together.
 static Value *assembleRegister(revng::IRBuilder &Builder,
                                Module *M,
-                               model::Register::Values Register) {
+                               model::Register::Values Register,
+                               uint64_t SizeInBytes) {
   auto CSVs = model::Register::getCSVs(Register);
-  if (CSVs.size() == 1)
+  if (CSVs.size() == 1 and SizeInBytes == model::Register::getSize(Register))
     return loadCSVOrUndef(Builder, M, Register);
 
-  auto *WideType = IntegerType::get(M->getContext(),
-                                    8 * model::Register::getSize(Register));
+  auto *WideType = IntegerType::get(M->getContext(), 8 * SizeInBytes);
   Value *Result = ConstantInt::get(WideType, 0);
   for (const model::Register::CSV &Lane : CSVs) {
+    // Skip the lanes that lie entirely above the model-described prefix.
+    if (Lane.StartOffset >= SizeInBytes)
+      continue;
+
     Value *LaneValue = nullptr;
     if (GlobalVariable *CSV = M->getGlobalVariable(Lane.Name, true))
       LaneValue = Builder.createLoad(CSV);
@@ -323,7 +341,7 @@ static Value *assembleRegister(revng::IRBuilder &Builder,
       LaneValue = UndefValue::get(IntegerType::get(M->getContext(),
                                                    Lane.Size * 8));
 
-    Value *Extended = Builder.CreateZExt(LaneValue, WideType);
+    Value *Extended = Builder.CreateZExtOrTrunc(LaneValue, WideType);
     if (Lane.StartOffset != 0)
       Extended = Builder.CreateShl(Extended, Lane.StartOffset * 8);
     Result = Builder.CreateOr(Result, Extended);
@@ -332,21 +350,28 @@ static Value *assembleRegister(revng::IRBuilder &Builder,
   return Result;
 }
 
-// Disassemble `WideValue` (an integer of `8 * getSize(Register)` bits) into the
-// CSV(s) composing `Register`; the inverse of `assembleRegister`. A single-CSV
-// register is stored directly; for a multi-CSV register each lane is extracted
+// Disassemble `WideValue` (an integer of `8 * SizeInBytes` bits, where
+// `SizeInBytes` is the model size of the register) into the CSV(s) composing
+// `Register`; the inverse of `assembleRegister`. Only the CSV(s) covering the
+// low `SizeInBytes` bytes are written. A single-CSV register that spans exactly
+// that size is stored directly; otherwise each relevant lane is extracted
 // (shift + truncate) and stored into its CSV.
 static void disassembleRegister(revng::IRBuilder &Builder,
                                 Module *M,
                                 model::Register::Values Register,
                                 Value *WideValue) {
+  uint64_t SizeInBytes = WideValue->getType()->getIntegerBitWidth() / 8;
   auto CSVs = model::Register::getCSVs(Register);
-  if (CSVs.size() == 1) {
+  if (CSVs.size() == 1 and SizeInBytes == model::Register::getSize(Register)) {
     Builder.CreateStore(WideValue, getCSVOrUndef(M, Register).second);
     return;
   }
 
   for (const model::Register::CSV &Lane : CSVs) {
+    // Skip the lanes that lie entirely above the model-described prefix.
+    if (Lane.StartOffset >= SizeInBytes)
+      continue;
+
     GlobalVariable *CSV = M->getGlobalVariable(Lane.Name, true);
     if (CSV == nullptr)
       continue;
@@ -354,7 +379,8 @@ static void disassembleRegister(revng::IRBuilder &Builder,
     Value *Slice = WideValue;
     if (Lane.StartOffset != 0)
       Slice = Builder.CreateLShr(Slice, Lane.StartOffset * 8);
-    Builder.CreateStore(Builder.CreateTrunc(Slice, CSV->getValueType()), CSV);
+    Builder.CreateStore(Builder.CreateZExtOrTrunc(Slice, CSV->getValueType()),
+                        CSV);
   }
 }
 
@@ -367,9 +393,9 @@ void EnforceABI::createPrologue(Function *NewFunction,
   // across lanes for registers backed by more than one CSV.
   BasicBlock &Entry = NewFunction->getEntryBlock();
   revng::IRBuilder StoreBuilder(Entry.getTerminator());
-  for (const auto &[TheArgument, Register] :
+  for (const auto &[TheArgument, Argument] :
        zip(NewFunction->args(), ArgumentRegisters))
-    disassembleRegister(StoreBuilder, &M, Register, &TheArgument);
+    disassembleRegister(StoreBuilder, &M, Argument.Location, &TheArgument);
 
   // Build the return value by assembling each return register from its CSV(s).
   if (not ReturnValueRegisters.empty()) {
@@ -377,8 +403,11 @@ void EnforceABI::createPrologue(Function *NewFunction,
       if (auto *Return = dyn_cast<ReturnInst>(BB.getTerminator())) {
         revng::IRBuilder Builder(Return);
         std::vector<Value *> ReturnValues;
-        for (model::Register::Values Register : ReturnValueRegisters)
-          ReturnValues.push_back(assembleRegister(Builder, &M, Register));
+        for (const auto &ReturnValue : ReturnValueRegisters)
+          ReturnValues.push_back(assembleRegister(Builder,
+                                                  &M,
+                                                  ReturnValue.Location,
+                                                  ReturnValue.Size));
 
         if (ReturnValues.size() == 1)
           Builder.CreateRet(ReturnValues[0]);
@@ -510,8 +539,11 @@ CallInst *EnforceABI::generateCall(revng::IRBuilder &Builder,
   //
   // Collect arguments
   //
-  for (model::Register::Values Register : Registers.Arguments)
-    Arguments.push_back(assembleRegister(Builder, &M, Register));
+  for (const auto &Argument : Registers.Arguments)
+    Arguments.push_back(assembleRegister(Builder,
+                                         &M,
+                                         Argument.Location,
+                                         Argument.Size));
 
   //
   // Produce the call
@@ -529,11 +561,11 @@ CallInst *EnforceABI::generateCall(revng::IRBuilder &Builder,
   // returns a struct, one field per register.
   bool MultipleReturnValues = Registers.ReturnValues.size() != 1;
   unsigned Index = 0;
-  for (model::Register::Values Register : Registers.ReturnValues) {
+  for (const auto &ReturnValue : Registers.ReturnValues) {
     Value *Component = MultipleReturnValues ?
                          Builder.CreateExtractValue(Result, { Index }) :
                          Result;
-    disassembleRegister(Builder, &M, Register, Component);
+    disassembleRegister(Builder, &M, ReturnValue.Location, Component);
     ++Index;
   }
 
