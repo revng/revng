@@ -84,7 +84,17 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
 
       } else {
 
-        auto AsmString = getReadRegisterAssembly(Model.Architecture()).str();
+        uint64_t RegisterSize = model::Register::getSize(Register);
+        auto AsmString = getReadRegisterAssembly(Model.Architecture(),
+                                                 RegisterSize)
+                           .str();
+
+        // No assembly to emit for this register (e.g. the wide `zmm`
+        // registers, which have no `movq` form), as for the architectures
+        // handled in `createExternalJumpsHandler`.
+        if (AsmString.size() == 0)
+          continue;
+
         replace(AsmString, "REGISTER", getRegisterName(Register).str());
         std::stringstream ConstraintStringStream;
         ConstraintStringStream << "*m,~{},~{dirflag},~{fpsr},~{flags}";
@@ -149,8 +159,17 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
     if (CSV == nullptr)
       continue;
 
-    std::string AsmString = getWriteRegisterAssembly(Model.Architecture())
+    uint64_t RegisterSize = model::Register::getSize(Register);
+    std::string AsmString = getWriteRegisterAssembly(Model.Architecture(),
+                                                     RegisterSize)
                               .str();
+
+    // No assembly to emit for this register (e.g. the wide `zmm` registers,
+    // which have no `movq` form), as for the architectures handled in
+    // `createExternalJumpsHandler`.
+    if (AsmString.size() == 0)
+      continue;
+
     StringRef RegisterName = getRegisterName(Register);
     replace(AsmString, "REGISTER", RegisterName);
     std::stringstream ConstraintStringStream;
