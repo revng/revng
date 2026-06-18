@@ -510,36 +510,36 @@ $ revng opt -strip-debug -S enforced.bc \
     | pretty \
     | sed -n "1p; /and i64.*u0xffff$/,/helper_divb_AL.exit:/p"
 define i64 @local_0x400000_Code_x86_64(i64 %rdi_x86_64, i64 %rsi_x86_64) {
-  %27 = and i64 %26, u0xffff
-  %28 = trunc i64 %27 to i32
-  %29 = and i64 %25, 255
-  %30 = trunc i64 %29 to i32
-  %31 = icmp eq i32 %30, 0
-  br i1 %31, label %32, label %33
+  %83 = and i64 %82, u0xffff
+  %84 = trunc i64 %83 to i32
+  %85 = and i64 %81, 255
+  %86 = trunc i64 %85 to i32
+  %87 = icmp eq i32 %86, 0
+  br i1 %87, label %88, label %89
 
-32:
+88:
   unreachable
 
-33:
-  %34 = udiv i32 %28, %30
-  %35 = icmp ugt i32 %34, 255
-  br i1 %35, label %36, label %37
+89:
+  %90 = udiv i32 %84, %86
+  %91 = icmp ugt i32 %90, 255
+  br i1 %91, label %92, label %93
 
-36:
+92:
   unreachable
 
-37:
-  %38 = and i32 %34, 255
-  %39 = urem i32 %28, %30
-  %40 = and i32 %39, 255
-  %41 = load i64, ptr %_rax, align 8
-  %42 = and i64 %41, u0xffffffffffff0000
-  %43 = shl i32 %40, 8
-  %44 = zext i32 %43 to i64
-  %45 = or i64 %42, %44
-  %46 = zext i32 %38 to i64
-  %47 = or i64 %45, %46
-  store i64 %47, ptr %_rax, align 8
+93:
+  %94 = and i32 %90, 255
+  %95 = urem i32 %84, %86
+  %96 = and i32 %95, 255
+  %97 = load i64, ptr %_rax, align 8
+  %98 = and i64 %97, u0xffffffffffff0000
+  %99 = shl i32 %96, 8
+  %100 = zext i32 %99 to i64
+  %101 = or i64 %98, %100
+  %102 = zext i32 %94 to i64
+  %103 = or i64 %101, %102
+  store i64 %103, ptr %_rax, align 8
   br label %helper_divb_AL.exit
 
 helper_divb_AL.exit:
@@ -560,22 +560,22 @@ $ revng opt -strip-debug -simplifycfg -remove-llvmassume-calls -dce -S enforced.
     | pretty \
     | sed -n "1p; /and i64.*u0xffff$/,/store i64.*%_rax/p"
 define i64 @local_0x400000_Code_x86_64(i64 %rdi_x86_64, i64 %rsi_x86_64) {
-  %27 = and i64 %26, u0xffff
-  %28 = trunc i64 %27 to i32
-  %29 = and i64 %25, 255
-  %30 = trunc i64 %29 to i32
-  %31 = udiv i32 %28, %30
-  %32 = and i32 %31, 255
-  %33 = urem i32 %28, %30
-  %34 = and i32 %33, 255
-  %35 = load i64, ptr %_rax, align 8
-  %36 = and i64 %35, u0xffffffffffff0000
-  %37 = shl i32 %34, 8
-  %38 = zext i32 %37 to i64
-  %39 = or i64 %36, %38
-  %40 = zext i32 %32 to i64
-  %41 = or i64 %39, %40
-  store i64 %41, ptr %_rax, align 8
+  %83 = and i64 %82, u0xffff
+  %84 = trunc i64 %83 to i32
+  %85 = and i64 %81, 255
+  %86 = trunc i64 %85 to i32
+  %87 = udiv i32 %84, %86
+  %88 = and i32 %87, 255
+  %89 = urem i32 %84, %86
+  %90 = and i32 %89, 255
+  %91 = load i64, ptr %_rax, align 8
+  %92 = and i64 %91, u0xffffffffffff0000
+  %93 = shl i32 %90, 8
+  %94 = zext i32 %93 to i64
+  %95 = or i64 %92, %94
+  %96 = zext i32 %88 to i64
+  %97 = or i64 %95, %96
+  store i64 %97, ptr %_rax, align 8
 ```
 
 The exceptional calls and dead code are completely gone.
