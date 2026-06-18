@@ -8,19 +8,32 @@
 
 namespace revng::pypeline {
 
-using PTMLCBytesContainer = BytesContainer<"PTMLCBytesContainer",
-                                           "text/x.c+ptml">;
+class PTMLCBytesContainer : public BytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "PTMLCBytesContainer";
+  static constexpr llvm::StringRef MimeType = "text/x.c+ptml";
+  static constexpr llvm::StringRef Compression = "zstd;level=2";
+};
 
-using PTMLCFunctionBytesContainer = FunctionToBytesContainer<"PTMLCFunction"
-                                                             "BytesContainer",
-                                                             "text/x.c+ptml">;
+class PTMLCFunctionBytesContainer : public FunctionToBytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "PTMLCFunctionBytesContainer";
+  static constexpr llvm::StringRef MimeType = "text/x.c+ptml";
+  static constexpr llvm::StringRef Compression = "zstd;level=1";
+};
 
-using PTMLCTypeBytesContainer = TypeDefinitionToBytesContainer<"PTMLCType"
-                                                               "BytesContainer",
-                                                               "text/x.c+ptml">;
+class PTMLCTypeBytesContainer : public TypeDefinitionToBytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "PTMLCTypeBytesContainer";
+  static constexpr llvm::StringRef MimeType = "text/x.c+ptml";
+  static constexpr llvm::StringRef Compression = "zstd;level=-1";
+};
 
-using RecompilableArchiveContainer = BytesContainer<"RecompilableArchive"
-                                                    "Container",
-                                                    "application/x-object">;
+class RecompilableArchiveContainer : public BytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "RecompilableArchiveContainer";
+  static constexpr llvm::StringRef MimeType = "application/x-object";
+  static constexpr llvm::StringRef Compression = "none";
+};
 
 } // namespace revng::pypeline

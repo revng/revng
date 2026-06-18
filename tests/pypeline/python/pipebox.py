@@ -169,6 +169,8 @@ class MyObjectID(ObjectID):
 
 
 class DictContainer(Container, ABC):
+    compression = "none"
+
     def __init__(self):
         self._object_list: ObjectSet = ObjectSet(self.kind)
 

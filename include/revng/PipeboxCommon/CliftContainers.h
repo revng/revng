@@ -18,10 +18,12 @@
 
 namespace revng::pypeline {
 
-class CliftFunctionContainer {
+namespace detail {
+
+template<Kind TheKind>
+class CliftMultiObjectContainerBase {
 public:
-  static constexpr llvm::StringRef Name = "CliftFunctionContainer";
-  static constexpr Kind Kind = Kinds::Function;
+  static constexpr Kind Kind = TheKind;
   static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
 
 private:
@@ -30,7 +32,7 @@ private:
   std::map<ObjectID, mlir::OwningOpRef<mlir::ModuleOp>> Modules;
 
 public:
-  CliftFunctionContainer() : Context(clift::makeContext()) {}
+  CliftMultiObjectContainerBase() : Context(clift::makeContext()) {}
 
 public:
   std::set<ObjectID> objects() const {
@@ -41,6 +43,7 @@ public:
   deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
     const mlir::ParserConfig Config(Context.get());
     for (auto const &[Object, Buffer] : Data) {
+      revng_assert(Object->kind() == Kind);
       llvm::StringRef String(Buffer.data(), Buffer.size());
       auto NewModule = mlir::parseSourceString<mlir::ModuleOp>(String, Config);
       revng_assert(NewModule);
@@ -91,77 +94,20 @@ public:
   }
 };
 
-class CliftSingleTypeContainer {
+} // namespace detail
+
+class CliftFunctionContainer
+  : public detail::CliftMultiObjectContainerBase<Kinds::Function> {
+public:
+  static constexpr llvm::StringRef Name = "CliftFunctionContainer";
+  static constexpr llvm::StringRef Compression = "zstd;level=3";
+};
+
+class CliftSingleTypeContainer
+  : public detail::CliftMultiObjectContainerBase<Kinds::TypeDefinition> {
 public:
   static constexpr llvm::StringRef Name = "CliftSingleTypeContainer";
-  static constexpr Kind Kind = Kinds::TypeDefinition;
-  static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
-
-private:
-  bool Disposable = false;
-  std::unique_ptr<mlir::MLIRContext> Context;
-  std::map<ObjectID, mlir::OwningOpRef<mlir::ModuleOp>> Modules;
-
-public:
-  CliftSingleTypeContainer() : Context(clift::makeContext()) {}
-
-public:
-  std::set<ObjectID> objects() const {
-    return std::views::keys(Modules) | revng::to<std::set<ObjectID>>();
-  }
-
-  void
-  deserialize(const std::map<const ObjectID *, llvm::ArrayRef<char>> Data) {
-    const mlir::ParserConfig Config(&*Context);
-    for (auto const &[Object, Buffer] : Data) {
-      llvm::StringRef String(Buffer.data(), Buffer.size());
-      auto NewModule = mlir::parseSourceString<mlir::ModuleOp>(String, Config);
-      revng_assert(NewModule);
-      revng_assert(clift::isCliftModule(NewModule.get()));
-      Modules[*Object] = std::move(NewModule);
-    }
-  }
-
-  std::map<ObjectID, Buffer>
-  serialize(const std::vector<const ObjectID *> Objects) const {
-    std::map<ObjectID, Buffer> Result;
-    for (const ObjectID *Object : Objects) {
-      llvm::raw_svector_ostream OS(Result[*Object].data());
-      mlir::writeBytecodeToFile(*Modules.at(*Object), OS);
-    }
-    return Result;
-  }
-
-  bool verify() const {
-    bool Result = true;
-    for (auto const &[_, Module] : Modules) {
-      mlir::LogicalResult ModuleResult = Module.get().verify();
-      Result &= ModuleResult.succeeded();
-    }
-    return Result;
-  }
-
-  void setIsDisposable() { Disposable = true; }
-
-  void disposeIfPossible() {
-    if (not Disposable)
-      return;
-
-    Modules.clear();
-    Context = clift::makeContext();
-    Disposable = false;
-  }
-
-public:
-  mlir::MLIRContext *getContext() const { return Context.get(); }
-  mlir::ModuleOp getModule(const ObjectID &ID) const { return *Modules.at(ID); }
-  mlir::ModuleOp getModule(const ObjectID &ID) { return *Modules.at(ID); }
-
-  void assign(const ObjectID &ID,
-              mlir::OwningOpRef<mlir::ModuleOp> &&NewModule) {
-    revng_assert(&*Context == NewModule->getContext());
-    Modules[ID] = std::move(NewModule);
-  }
+  static constexpr llvm::StringRef Compression = "zstd;level=3";
 };
 
 class CliftModuleContainer {
@@ -169,6 +115,7 @@ public:
   static constexpr llvm::StringRef Name = "CliftModuleContainer";
   static constexpr Kind Kind = Kinds::Binary;
   static constexpr llvm::StringRef MimeType = "application/x.mlir.bc";
+  static constexpr llvm::StringRef Compression = "zstd;level=3";
 
 private:
   bool Disposable = false;

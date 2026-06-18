@@ -85,3 +85,15 @@ function start_rss_server() {
     PIDS_TO_KILL+=($!)
     wait_for_status "$RSS_SERVER_PORT"
 }
+
+function start_rss_viewer() {
+    RSS_VIEWER_PORT=$(available_port)
+
+    revng2 rss viewer \
+        --bind "127.0.0.1:$RSS_VIEWER_PORT" \
+        --storage-driver postgres \
+        --connection-string "postgresql://127.0.0.1:$POSTGRES_PORT/rss" \
+        &> "$WORKDIR/rss_viewer.log" &
+    PIDS_TO_KILL+=($!)
+    wait_for_status "$RSS_VIEWER_PORT"
+}

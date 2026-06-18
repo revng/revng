@@ -200,6 +200,8 @@ def get_middlewares(
     expose_headers: list[str] = [*extra_expose_headers]
     if "PYPELINE_EXPOSE_HEADERS" in os.environ:
         expose_headers.extend(os.environ["PYPELINE_EXPOSE_HEADERS"].split(","))
+    if auth:
+        expose_headers.append("x-project-id")
 
     middlewares = [
         Middleware(  # type: ignore

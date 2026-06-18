@@ -70,6 +70,7 @@ properties:
         - mime_type
         - is_text
         - kind
+        - compression
       properties:
         class:
           type: string
@@ -83,6 +84,9 @@ properties:
         kind:
           type: string
           description: The kind of objects this container holds
+        compression:
+          type: string
+          description: The compression used by this container
   containers:
     type: object
     description: Mapping of container names to their type

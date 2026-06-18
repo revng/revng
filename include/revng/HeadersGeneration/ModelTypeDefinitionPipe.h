@@ -11,8 +11,12 @@
 
 namespace revng::pypeline {
 
-using PTMLCTypeContainer = TypeDefinitionToBytesContainer<"PTMLCTypeContainer",
-                                                          "text/x.c+ptml">;
+class PTMLCTypeContainer : public TypeDefinitionToBytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "PTMLCTypeContainer";
+  static constexpr llvm::StringRef MimeType = "text/x.c+ptml";
+  static constexpr llvm::StringRef Compression = "zstd;level=-1";
+};
 
 namespace piperuns {
 

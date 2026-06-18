@@ -91,7 +91,7 @@ class CLIHelper:
                 cmdline, *args, stdout=stdout, stderr=PIPE, check=True
             )
         except CalledProcessError as e:
-            error_message = f"Command {" ".join(cmdline)} exited with code {e.returncode}\n"
+            error_message = f"Command {' '.join(cmdline)} exited with code {e.returncode}\n"
             error_message += "Stderr output:\n"
             error_message += e.stderr
             raise CLIError(error_message) from e

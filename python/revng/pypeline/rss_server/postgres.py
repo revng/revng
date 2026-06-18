@@ -229,14 +229,21 @@ class Migrator(DBMigrator):
 class PostgresRSSStorage(RSSStorage):
     """RSSStorage backed by PostgreSQL via psycopg 3"""
 
-    def __init__(self, pool: AsyncConnectionPool):
+    def __init__(self, pool: AsyncConnectionPool, locked: bool):
         self.pool = pool
+        self.locked = locked
 
     @classmethod
-    async def make(cls, connection_string: str) -> PostgresRSSStorage:
+    async def make_locked(cls, connection_string: str) -> PostgresRSSStorage:
         pool = AsyncConnectionPool(connection_string, min_size=0, max_size=1000, open=False)
         await pool.open()
-        return cls(pool)
+        return cls(pool, True)
+
+    @classmethod
+    async def make_unlocked(cls, connection_string: str) -> PostgresRSSStorage:
+        pool = AsyncConnectionPool(connection_string, min_size=0, max_size=1000, open=False)
+        await pool.open()
+        return cls(pool, False)
 
     async def close(self):
         await self.pool.close()
@@ -250,7 +257,7 @@ class PostgresRSSStorage(RSSStorage):
     @classmethod
     def background_tasks(cls, connection_string: str):
         async def cleanup():
-            instance = await cls.make(connection_string)
+            instance = await cls.make_locked(connection_string)
             return await instance._cleanup_locks()
 
         return [asyncio.create_task(cleanup())]
@@ -561,6 +568,14 @@ class PostgresRSSProjectStorage(RSSProjectStorage):
     async def get_locked(
         self, lock_id: str, initial_type: LockCheckType
     ) -> AsyncGenerator[PostgresRSSLockedProjectStorage]:
+        # If the PostgresRSSStorage instance was created via `make_unlocked`
+        # then no lock has to be acquired (it is assumed that the user will
+        # only read the DB), just return the instance
+        if not self._parent.locked:
+            async with self._cursor() as cursor:
+                yield PostgresRSSLockedProjectStorage(self, cursor, self._project_id, lock_id)
+                return
+
         # A raw connection (as opposed to a cursor with a transaction) needs to
         # be acquired because this function manages commits manually
         async with self._connection() as connection:
@@ -625,6 +640,16 @@ class PostgresRSSProjectStorage(RSSProjectStorage):
                 "ON CONFLICT (hash) DO NOTHING",
                 (hash_, content),
             )
+
+    async def get_pipeline_description(self):
+        async with self._cursor() as cursor:
+            await cursor.execute(
+                "SELECT content FROM pipeline_descriptions pd "
+                "JOIN project p ON p.pipeline_description_hash = pd.hash "
+                "WHERE p.project_id = %s",
+                (self._project_id,),
+            )
+            return (await _fetch_one(cursor))[0]
 
     #
     # Project lifecycle
@@ -824,17 +849,23 @@ class PostgresRSSLockedProjectStorage(RSSLockedProjectStorage):
             "SELECT epoch FROM project WHERE project_id = %s", (self._project_id,)
         )
         row = await self._cursor.fetchone()
-        assert row is not None
-        return row[0]
+        if row is None or row[0] is None:
+            return 0
+        else:
+            return row[0]
 
     async def get_model(self) -> tuple[bytes | None, int]:
         await self._cursor.execute(
             "SELECT model, epoch FROM project WHERE project_id = %s", (self._project_id,)
         )
         row = await self._cursor.fetchone()
-        assert row is not None
-        model = bytes(row[0]) if row[0] is not None else None
-        return (model, row[1])
+        if row is None or row[0] is None:
+            model = None
+            epoch = 0
+        else:
+            model = bytes(row[0])
+            epoch = row[1]
+        return (model, epoch)
 
     async def add_objects(
         self,
@@ -907,6 +938,25 @@ class PostgresRSSLockedProjectStorage(RSSLockedProjectStorage):
             "UPDATE project SET last_object_save = NOW() WHERE project_id = %s",
             (self._project_id,),
         )
+
+    async def list_objects(self, savepoint_id: int, container_id: str) -> list[str]:
+        await self._cursor.execute(
+            "SELECT DISTINCT object_id_string FROM objects WHERE "
+            "project_id = %s AND savepoint_id = %s AND container_id = %s",
+            (self._project_id, savepoint_id, container_id),
+        )
+        return await _row_generator(self._cursor, lambda r: r[0])
+
+    async def get_object(
+        self, savepoint_id: int, container_id: str, object_id: str
+    ) -> bytes | None:
+        await self._cursor.execute(
+            "SELECT content FROM objects WHERE "
+            "project_id = %s AND savepoint_id = %s AND container_id = %s AND object_id_string = %s",
+            (self._project_id, savepoint_id, container_id, object_id),
+        )
+        row = await self._cursor.fetchone()
+        return None if row is None else row[0]
 
     async def invalidate_and_set_model(
         self,

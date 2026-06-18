@@ -26,6 +26,7 @@ public:
   static constexpr llvm::StringRef Name = "BinariesContainer";
   static constexpr Kind Kind = Kinds::Binary;
   static constexpr llvm::StringRef MimeType = "application/x-tar";
+  static constexpr llvm::StringRef Compression = "none";
 
 private:
   static constexpr llvm::StringRef Prefix = "binaries-container-file";

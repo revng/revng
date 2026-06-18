@@ -20,6 +20,7 @@ public:
   static constexpr llvm::StringRef Name = "LLVMRootContainer";
   static constexpr Kind Kind = Kinds::Binary;
   static constexpr llvm::StringRef MimeType = "application/x.llvm.bc";
+  static constexpr llvm::StringRef Compression = "zstd;level=3";
 
 private:
   bool Disposable = false;
@@ -100,6 +101,7 @@ public:
   static constexpr llvm::StringRef Name = "LLVMFunctionContainer";
   static constexpr Kind Kind = Kinds::Function;
   static constexpr llvm::StringRef MimeType = "application/x.llvm.bc";
+  static constexpr llvm::StringRef Compression = "zstd;level=2";
 
 private:
   bool Disposable = false;

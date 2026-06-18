@@ -18,6 +18,7 @@ public:
   static constexpr llvm::StringRef Name = "StringContainer";
   static constexpr Kind Kind = Kinds::Function;
   static constexpr llvm::StringRef MimeType = "application/x-unknown";
+  static constexpr llvm::StringRef Compression = "none";
 
   std::set<ObjectID> objects() const;
 
@@ -41,6 +42,7 @@ public:
   static constexpr llvm::StringRef Name = "RootStringContainer";
   static constexpr Kind Kind = Kinds::Binary;
   static constexpr llvm::StringRef MimeType = "application/x-unknown";
+  static constexpr llvm::StringRef Compression = "none";
 
   std::set<ObjectID> objects() const;
 

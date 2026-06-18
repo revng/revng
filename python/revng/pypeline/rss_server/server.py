@@ -252,7 +252,7 @@ class RSSHTTPServer:
 
     async def initialize(self):
         assert self.storage is None
-        self.storage = await self.storage_class.make(self.connection_string)
+        self.storage = await self.storage_class.make_locked(self.connection_string)
 
     async def close(self):
         await self.storage.close()

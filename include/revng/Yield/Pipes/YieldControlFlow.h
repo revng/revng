@@ -73,9 +73,12 @@ public:
 
 namespace revng::pypeline {
 
-using FunctionControlFlowContainer = FunctionToBytesContainer<"FunctionControlF"
-                                                              "lowContainer",
-                                                              "image/svg">;
+class FunctionControlFlowContainer : public FunctionToBytesContainer {
+public:
+  static constexpr llvm::StringRef Name = "FunctionControlFlowContainer";
+  static constexpr llvm::StringRef MimeType = "image/svg";
+  static constexpr llvm::StringRef Compression = "zstd;level=1";
+};
 
 namespace piperuns {
 
