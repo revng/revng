@@ -178,7 +178,9 @@ branches:
         configuration:
           passes:
             - mem2reg
+            - link-helpers-to-inline
             - inline-helpers
+            - delete-helper-bodies
       - pipe: attach-debug-info
         arguments: [cfg-map, llvm-functions]
       - pipe: promote-csvs
@@ -362,6 +364,11 @@ branches:
             - dce
       - savepoint: segregate-stack-accesses
         containers: [llvm-functions]
+        artifacts:
+          - name: segregate-stack-accesses
+            container: llvm-functions
+            category: debug
+            filename: stack_accesses_segregated.bc
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:

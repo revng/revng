@@ -30,8 +30,10 @@
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
 #include "revng/EarlyFunctionAnalysis/FunctionEdgeBase.h"
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
+#include "revng/InlineHelpers/InlineHelpers.h"
+#include "revng/InlineHelpers/LinkHelpersToInline.h"
 #include "revng/Model/Binary.h"
-#include "revng/Model/NameBuilder.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/Pass/DeduplicateCollidingNames.h"
 #include "revng/Model/Register.h"
 #include "revng/Pipeline/Pipe.h"
@@ -39,6 +41,7 @@
 #include "revng/Pipes/Kinds.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/BasicBlockID.h"
+#include "revng/Support/CommonOptions.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
@@ -82,6 +85,14 @@ static opt<ABIOpt> ABIEnforcement("abi-enforcement-level",
                                                     "found.")),
                                   init(ABIOpt::FullABIEnforcement));
 
+static opt<std::string> DumpPostInline("detect-abi-dump-post-helpers-inlining",
+                                       desc("Path of a file the whole "
+                                            "module is written to right "
+                                            "after helper inlining inside "
+                                            "`analyzeABI` (for debugging "
+                                            "and testing)"),
+                                       init(""));
+
 static Logger Log("detect-abi");
 
 struct Changes {
@@ -107,6 +118,7 @@ public:
     Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
     Manager.add(new CollectFunctionsFromCalleesWrapperPass());
     Manager.add(new ControlFlowGraphCachePass(CFGs));
+    Manager.add(new LinkHelpersToInlinePass());
     Manager.add(new efa::DetectABIPass());
     Manager.add(new CollectFunctionsFromUnusedAddressesWrapperPass());
     Manager.add(new efa::DetectABIPass());
@@ -451,7 +463,7 @@ void DetectABI::analyzeABI() {
   revng_log(Log, "Running ABI analyses");
   LoggerIndent Indent(Log);
 
-  llvm::Task Task(2, "analyzeABI");
+  llvm::Task Task(3, "analyzeABI");
   std::map<MetaAddress, std::unique_ptr<OutlinedFunction>> Functions;
 
   // Create all temporary functions
@@ -462,6 +474,39 @@ void DetectABI::analyzeABI() {
                                                             .outline(Entry));
     Functions[Function.Entry()] = std::move(NewFunction);
   }
+
+  // Inline `revng_inline`-tagged helper calls so the subsequent ABI dataflow
+  // analysis can observe the helpers' register reads and writes directly.
+  // `InlineHelpersPass` only inlines into `Isolated` functions, so we tag the
+  // outlined stubs as such. These stubs are temporary and are discarded with
+  // the cloned module once the analysis ends, so the tag never escapes.
+  // Helpers whose per-call critical arguments are not LLVM constants here
+  // survive un-inlined and are consumed as opaque calls by the analysis.
+  for (auto &[Entry, OutlinedFn] : Functions)
+    FunctionTags::Isolated.addTo(OutlinedFn->Function.get());
+
+  Task.advance("Inline helpers");
+  {
+    llvm::legacy::PassManager PM;
+    PM.add(new InlineHelpersPass());
+    PM.run(M);
+  }
+
+  // When `--debug-names` is set, rename each outlined stub from the
+  // metaaddress-based identifier to its source-symbol name, using the same
+  // `llvmName` scheme as the rest of the pipeline.
+  if (DebugNames) {
+    for (auto &[Entry, OutlinedFn] : Functions) {
+      llvm::Function *F = OutlinedFn->Function.get();
+      F->setName(llvmName(Binary->Functions().at(Entry)));
+    }
+  }
+
+  // Dump the whole module right after helper inlining, for debugging and
+  // testing. The outlined stubs live in the module at this point, so a single
+  // module dump captures them all.
+  if (not DumpPostInline.empty())
+    dumpModule(&M, DumpPostInline.c_str());
 
   // Push this into analyzeFunction
   OpaqueRegisterUser RegisterUser(&M);
@@ -482,11 +527,10 @@ void DetectABI::analyzeABI() {
   }
 
   unsigned Runs = 0;
-  model::CNameBuilder NameBuilder = *Binary;
   while (not ToAnalyze.empty()) {
     model::Function &Function = *ToAnalyze.pop();
     revng_log(Log, "Analyzing " << Function.Entry().toString());
-    FixedPointTask.advance(NameBuilder.name(Function));
+    FixedPointTask.advance(llvmName(Function));
     OutlinedFunction &OutlinedFunction = *Functions.at(Function.Entry());
     Changes Changes = analyzeFunctionABI(Function,
                                          OutlinedFunction,
@@ -1116,6 +1160,14 @@ llvm::Error DetectABI::run(Model &Model,
 
   revng::pipes::CFGMap CFGs("");
   ControlFlowGraphCache FMC(CFGs);
+
+  // Link helper bodies once at the start of the analysis, to avoid relinking
+  // for every `inline-helpers` call
+  {
+    llvm::legacy::PassManager PM;
+    PM.add(new LinkHelpersToInlinePass());
+    PM.run(Module);
+  }
 
   collectFunctionsFromCallees(Module, GCBI, Binary);
   efa::runDetectABI(Module, GCBI, FMC, TupleModel);

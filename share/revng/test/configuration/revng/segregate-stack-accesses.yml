@@ -3,29 +3,31 @@
 #
 
 commands:
-  # TODO: this crashes with the new pipeline, investigate
   - type: revng.test-segregate-stack-accesses
     from:
       - type: revng-qa.compiled-with-debug-info
         filter: for-segregate-stack-accesses
     suffix: /
     command: |-
+      cd "$OUTPUT";
       export REVNG_OPTIONS="$${REVNG_OPTIONS:-} --debug-names";
 
-      revng analyze --resume "$OUTPUT" import-binary "$INPUT" -o /dev/null;
+      revng2 project init --no-initial-auto-analysis "$INPUT";
+      revng2 project analyze parse-binary -o /dev/null;
 
       revng model override-by-name
-        "$OUTPUT/context/model.yml"
+        model.yml
         ${SOURCE}.override.$QEMU_NAME.yml
-        > "$OUTPUT/context/model-tmp.yml";
-      mv "$OUTPUT/context/model-tmp.yml" "$OUTPUT/context/model.yml";
+        > model-tmp.yml;
+      mv model-tmp.yml model.yml;
+      rm -r .cache;
 
-      revng analyze --resume "$OUTPUT" detect-abi "$INPUT" -o /dev/null;
+      revng2 project analyze detect-abi -o /dev/null;
+      revng2 project analyze detect-stack-size -o /dev/null;
 
-      revng analyze --resume "$OUTPUT" detect-stack-size "$INPUT" -o /dev/null;
-
-      revng artifact --resume "$OUTPUT" segregate-stack-accesses "$INPUT" |
+      revng2 project artifact segregate-stack-accesses --tar |
+        revng merge llvm |
         revng opt -remove-llvmassume-calls -instcombine-noarrays -sroa-noarrays -drop-redundant-ptrint-casts -dce -type-shrinking -dce -drop-redundant-ptrint-casts -early-cse -instsimplify -dce -S |
         FileCheck --check-prefix=CHECK-$QEMU_NAME ${SOURCE}.filecheck.ll;
 
-      revng artifact --resume "$OUTPUT" emit-c "$INPUT" -o /dev/null;
+      revng2 project artifact emit-c -o /dev/null;

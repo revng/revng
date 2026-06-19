@@ -8,7 +8,7 @@
 ; where every listed argument is a compile-time constant. A helper
 ; with a zero policy must always be inlined.
 ;
-; RUN: %root/bin/revng opt -inline-helpers %s -S -o - | FileCheck %s
+; RUN: %root/bin/revng opt -link-helpers-to-inline -inline-helpers -delete-helper-bodies %s -S -o - | FileCheck %s
 
 !revng.qemu_architecture = !{!0}
 !0 = !{!"x86_64"}
