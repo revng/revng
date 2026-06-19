@@ -22,6 +22,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/ModuleSlotTracker.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
 
@@ -53,22 +54,94 @@ struct IncomingInfo {
 };
 
 static bool haveIncompatibleIncomings(const std::set<IncomingInfo> &LHS,
-                                      const std::set<IncomingInfo> &RHS) {
+                                      const std::set<IncomingInfo> &RHS,
+                                      llvm::ModuleSlotTracker &MST) {
+  if (Log.isEnabled()) {
+    {
+      revng_log(Log, "LHS: {");
+      for (const auto &[PHIBlock, IncomingBlock, IncomingValue] : LHS) {
+        LoggerIndent LHSIndent{ Log };
+        revng_log(Log, "{");
+        {
+          LoggerIndent MoreIndent{ Log };
+          revng_log(Log, "PHIBlock: " << PHIBlock->getName());
+          revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
+          revng_log(Log, "IncomingValue: " << dumpToString(IncomingValue, MST));
+        }
+        revng_log(Log, "}");
+      }
+      revng_log(Log, "}");
+    }
+    {
+      revng_log(Log, "RHS: {");
+      for (const auto &[PHIBlock, IncomingBlock, IncomingValue] : RHS) {
+        LoggerIndent LHSIndent{ Log };
+        revng_log(Log, "{");
+        {
+          LoggerIndent MoreIndent{ Log };
+          revng_log(Log, "PHIBlock: " << PHIBlock->getName());
+          revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
+          revng_log(Log, "IncomingValue: " << dumpToString(IncomingValue, MST));
+        }
+        revng_log(Log, "}");
+      }
+      revng_log(Log, "}");
+    }
+  }
+  revng_log(Log, "Evaluating incompatibility");
   for (const auto &[PHIBlock, IncomingBlock, IncomingValue] : LHS) {
+    LoggerIndent IndentIncompatibilityCheck{ Log };
+    {
+      revng_log(Log, "LHS: {");
+      {
+        LoggerIndent MoreIndent{ Log };
+        revng_log(Log, "PHIBlock: " << PHIBlock->getName());
+        revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
+        revng_log(Log, "IncomingValue: " << dumpToString(IncomingValue, MST));
+      }
+      revng_log(Log, "}");
+    }
     auto It = RHS.lower_bound(IncomingInfo{ PHIBlock, IncomingBlock, nullptr });
     auto End = RHS.upper_bound(IncomingInfo{
-      PHIBlock, IncomingBlock, std::numeric_limits<Value *>::max() });
+      PHIBlock,
+      IncomingBlock,
+      (Value *) std::numeric_limits<intptr_t>::max() });
     // If RHS contains a PHI that is in the same block as PHIBlock, and has a
     // different incoming value on the same incoming block, the two are
     // incompatible, because they would assign two different values to the same
     // local variable along the same edge.
-    if (It != End and IncomingValue != It->IncomingValue)
-      return false;
+    while (It != End) {
+      revng_log(Log, "RHS: {");
+      {
+        LoggerIndent MoreIndent{ Log };
+        revng_log(Log, "It->PHIBlock: " << It->PHIBlock->getName());
+        revng_log(Log, "It->IncomingBlock: " << It->IncomingBlock->getName());
+        revng_log(Log,
+                  "It->IncomingValue: " << dumpToString(It->IncomingValue,
+                                                        MST));
+      }
+      revng_log(Log, "}");
+      if (IncomingValue != It->IncomingValue) {
+        revng_log(Log, "conflicting!");
+        return true;
+      }
+      ++It;
+    }
   }
-  return true;
+  return false;
 }
 
 static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
+
+  llvm::ModuleSlotTracker MST(F.getParent(),
+                              /* ShouldInitializeAllMetadata = */ false);
+  if (Log.isEnabled()) {
+    MST.incorporateFunction(F);
+    F.viewCFG();
+  }
+
+  revng_log(Log, "getPHIEquivalenceClasses for Function: " << F.getName());
+  LoggerIndent Indent{ Log };
 
   // PHINodes in the same class are mapped onto the same local variable.
   llvm::EquivalenceClasses<PHINode *> PHISameVariableClasses;
@@ -76,15 +149,24 @@ static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
   std::unordered_map<PHINode *, std::set<IncomingInfo>> PerClassIncomings;
 
   const auto InitVariableClass = [&PHISameVariableClasses,
-                                  &PerClassIncomings](PHINode *PHI) {
-    if (PHISameVariableClasses.findValue(PHI) != PHISameVariableClasses.end())
+                                  &PerClassIncomings,
+                                  &MST](PHINode *PHI) {
+    revng_log(Log, "InitVariableClass for PHI: " << dumpToString(PHI, MST));
+    LoggerIndent InitIndent{ Log };
+    if (PHISameVariableClasses.findValue(PHI) != PHISameVariableClasses.end()) {
+      revng_log(Log, "found");
       return;
+    }
 
     PHISameVariableClasses.insert(PHI);
+    revng_log(Log, "new");
 
     auto &CurrentIncomingInfo = PerClassIncomings[PHI];
     unsigned NumIncomings = PHI->getNumIncomingValues();
     BasicBlock *PHIBlock = PHI->getParent();
+    revng_log(Log, "NumIncomings: " << NumIncomings);
+
+    LoggerIndent IncomingIndent{ Log };
     for (unsigned I = 0U; I < NumIncomings; ++I) {
       Value *IncomingValue = PHI->getIncomingValue(I);
       BasicBlock *IncomingBlock = PHI->getIncomingBlock(I);
@@ -92,22 +174,30 @@ static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
                                            IncomingBlock,
                                            IncomingValue };
       CurrentIncomingInfo.insert(std::move(NewIncomingInfo));
+      revng_log(Log, "I = " << I << ": " << dumpToString(IncomingValue, MST));
     }
     return;
   };
 
   for (BasicBlock *BB : llvm::ReversePostOrderTraversal(&F)) {
+    LoggerIndent PHIIndent{ Log };
     for (auto &PHI : BB->phis()) {
+      revng_log(Log, "From PHI: " << dumpToString(PHI, MST));
 
       // Set up an equivalence class for PHI, if necessary
       InitVariableClass(&PHI);
 
       // Then, for each user, if it's a PHINode, try to see if we can insert it
       // in the same equivalence class as PHI.
+      LoggerIndent UserIndent{ Log };
       for (User *U : PHI.users()) {
+        revng_log(Log, "PHIUser: " << dumpToString(U, MST));
+        LoggerIndent MoreUserIndent{ Log };
         auto *PHIUser = dyn_cast<PHINode>(U);
-        if (not PHIUser or PHIUser == &PHI)
+        if (not PHIUser or PHIUser == &PHI) {
+          revng_log(Log, "not a PHINode");
           continue;
+        }
 
         // Set up an equivalence class for PHIUser, if necessary.
         // Sometimes this might not be necessary, because we might have already
@@ -119,14 +209,11 @@ static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
 
         // If PHI and PHIUser are already in the same equivalence class, there's
         // nothing to do.
-        if (PHISameVariableClasses.isEquivalent(&PHI, PHIUser))
+        if (PHISameVariableClasses.isEquivalent(&PHI, PHIUser)) {
+          revng_log(Log, "PHI and PHIUser are equivalent");
           continue;
-
-        // If the PHI has a user that is not another PHI, it cannot be put in
-        // the same equivalence class as the PHIUser, so we bail out.
-        if (llvm::any_of(PHI.users(),
-                         [](const User *U) { return not isa<PHINode>(U); }))
-          continue;
+        }
+        revng_log(Log, "PHI and PHIUser are NOT equivalent");
 
         PHINode *PHILeader = PHISameVariableClasses.getLeaderValue(&PHI);
         PHINode *UserLeader = PHISameVariableClasses.getLeaderValue(PHIUser);
@@ -141,8 +228,12 @@ static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
         // hold different values that must be kept alive at the same time,
         // otherwise we'll lose one of them. In this case we have to bail out.
         if (haveIncompatibleIncomings(PHIIncomingInfo->second,
-                                      UserIncomingInfo->second))
+                                      UserIncomingInfo->second,
+                                      MST)) {
+          revng_log(Log, "PHI and PHIUser haveIncompatibleIncomings");
           continue;
+        }
+        revng_log(Log, "PHI and PHIUser DON'T haveIncompatibleIncomings");
 
         // Here the two are compatible so we join the equivalence classes.
         PHISameVariableClasses.unionSets(&PHI, PHIUser);
@@ -184,6 +275,21 @@ static std::vector<SetVector<PHINode *>> getPHIEquivalenceClasses(Function &F) {
       for (PHINode *PHI : PHIRange)
         PHIs.insert(PHI);
     }
+  }
+
+  if (Log.isEnabled()) {
+    revng_log(Log, "Result (size " << Result.size() << ") = {");
+    size_t I = 0;
+    for (const auto &Class : Result) {
+      LoggerIndent IndentResult{ Log };
+      revng_log(Log, "Class (size " << Class.size() << "): {" << I++);
+      for (const PHINode *PHI : Class) {
+        LoggerIndent IndentClass{ Log };
+        revng_log(Log, dumpToString(PHI, MST));
+      }
+      revng_log(Log, "};");
+    }
+    revng_log(Log, "};");
   }
 
   return Result;
@@ -433,11 +539,11 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
       for (Use &U : llvm::make_early_inc_range(PHI->uses())) {
         revng_log(Log, "in User: " << dumpToString(U.getUser()));
 
-        Value *NewOperand = nullptr;
-        if (isa<PHINode>(U.getUser()))
+        Value *NewOperand = NewLoad;
+        if (auto *PHIUser = dyn_cast<PHINode>(U.getUser());
+            PHIUser and PHIs.contains(PHIUser)) {
           NewOperand = UndefValue::get(PHI->getType());
-        else
-          NewOperand = NewLoad;
+        }
         revng_log(Log, "replaced with: " << dumpToString(NewOperand));
         U.set(NewOperand);
       }
