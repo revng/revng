@@ -585,8 +585,7 @@ public:
             SCEVToLayoutType.insert(std::make_pair(LoadSCEV, LoadedTy));
           }
         } else if (auto *A = dyn_cast<AllocaInst>(&I)) {
-          revng_assert(isa<IntegerType>(A->getAllocatedType())
-                       or isa<PointerType>(A->getAllocatedType()));
+          revng_assert(not A->isArrayAllocation());
           const auto &[LoadedTy, Created] = Builder.getOrCreateLayoutType(A);
           Changed |= Created;
           const SCEV *LoadSCEV = SE->getSCEV(A);
