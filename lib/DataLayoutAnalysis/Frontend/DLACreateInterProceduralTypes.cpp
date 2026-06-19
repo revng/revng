@@ -284,43 +284,6 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
     }
   }
 
-  for (Function &F : FunctionTags::StringLiteral.functions(&M)) {
-    const auto &[StartAddress,
-                 VirtualSize,
-                 Offset,
-                 StrLen,
-                 _] = extractStringLiteralFromMetadata(F);
-
-    const model::Segment *Segment = &Segments.at({ StartAddress, VirtualSize });
-    LayoutTypeSystemNode *SegmentNode = SegmentNodeMap.at(Segment);
-
-    LayoutTypeSystemNode *LiteralNode = getOrCreateLayoutType(&F).first;
-
-    // We have an instance of the literal at Offset inside the type of the
-    // segment itself.
-    TS.addInstanceLink(SegmentNode, LiteralNode, dla::OffsetExpression(Offset));
-
-    LayoutTypeSystemNode *ByteType = TS.createArtificialLayoutType();
-    ByteType->Size = 1;
-    dla::OffsetExpression OE{};
-    OE.Offset = 0;
-    OE.Strides.push_back(ByteType->Size);
-    OE.TripCounts.push_back(1 + StrLen);
-    // The type of the literal contains, as offset zero a stride of Strlen+1
-    // instances of ByteType.
-    TS.addInstanceLink(LiteralNode, ByteType, std::move(OE));
-
-    for (const llvm::CallBase *Call : callers(&F)) {
-      LayoutTypeSystemNode *StringLiteralCall = getOrCreateLayoutType(Call)
-                                                  .first;
-      // The type of each call to the StringLiteral function has an instance of
-      // a ByteType at the beginning.
-      // This roughly translates the idea that the call to StringLiteral returns
-      // a char * in C.
-      TS.addInstanceLink(StringLiteralCall, ByteType, OffsetExpression{ 0 });
-    }
-  }
-
   if (VerifyLog.isEnabled())
     revng_assert(TS.verifyConsistency());
   return TS.getNumLayouts() != 0;
