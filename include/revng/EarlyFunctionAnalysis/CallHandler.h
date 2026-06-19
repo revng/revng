@@ -7,6 +7,7 @@
 #include <set>
 
 #include "revng/EarlyFunctionAnalysis/AnalyzeRegisterUsage.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/MetaAddress.h"
 
 namespace revng {

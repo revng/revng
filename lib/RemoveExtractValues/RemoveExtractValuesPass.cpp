@@ -7,6 +7,7 @@
 
 #include "revng/Model/FunctionTags.h"
 #include "revng/RemoveExtractValues/RemoveExtractValuesPass.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 using namespace llvm;

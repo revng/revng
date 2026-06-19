@@ -10,6 +10,7 @@ revng_add_analyses_library_internal(
   EmbedStatementComments.cpp
   ExitSSAPass.cpp
   ExtractValueToGEP.cpp
+  FixPointerSize.cpp
   FoldModelGEP.cpp
   SplitStructPhis.cpp
   ImplicitModelCastPass.cpp

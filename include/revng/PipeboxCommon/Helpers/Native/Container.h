@@ -20,7 +20,7 @@ public:
                                           llvm::ArrayRef<char>> &Input) = 0;
 
   virtual std::map<ObjectID, pypeline::Buffer>
-  serialize(llvm::ArrayRef<const ObjectID> ToSave) const = 0;
+  serialize(llvm::ArrayRef<ObjectID> ToSave) const = 0;
 
   virtual void *get() = 0;
 };
@@ -44,7 +44,7 @@ public:
   }
 
   virtual std::map<ObjectID, pypeline::Buffer>
-  serialize(llvm::ArrayRef<const ObjectID> ToSave) const override {
+  serialize(llvm::ArrayRef<ObjectID> ToSave) const override {
     std::vector<const ObjectID *> Input;
     for (const ObjectID &Element : ToSave)
       Input.push_back(&Element);

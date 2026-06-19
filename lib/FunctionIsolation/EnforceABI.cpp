@@ -39,6 +39,7 @@
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/BlockType.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
@@ -292,7 +293,7 @@ static Value *loadCSVOrUndef(revng::IRBuilder &Builder,
     auto *Type = IntegerType::get(M->getContext(), Size * 8);
     return UndefValue::get(Type);
   } else {
-    return createLoad(Builder, CSV);
+    return Builder.createLoad(CSV);
   }
 }
 

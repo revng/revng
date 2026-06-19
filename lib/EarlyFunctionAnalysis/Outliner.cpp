@@ -16,6 +16,7 @@
 #include "revng/EarlyFunctionAnalysis/CallHandler.h"
 #include "revng/EarlyFunctionAnalysis/Outliner.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/OpaqueRegisterUser.h"
@@ -212,7 +213,7 @@ void Outliner::integrateFunctionCallee(CallHandler *TheCallHandler,
         PointeeType = CSV->getValueType();
       } else {
         PointeeType = GCBI.spReg()->getValueType();
-        Pointer = Builder.CreateIntToPtr(createLoad(Builder, GCBI.spReg()),
+        Pointer = Builder.CreateIntToPtr(Builder.createLoad(GCBI.spReg()),
                                          PointeeType->getPointerTo());
       }
 

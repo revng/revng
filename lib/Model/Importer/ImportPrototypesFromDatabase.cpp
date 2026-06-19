@@ -84,7 +84,8 @@ private:
   sqlite::Database Database;
 
 public:
-  PrototypeDatabase(llvm::StringRef Path) : Database(Path) {}
+  PrototypeDatabase(llvm::StringRef Path) :
+    Database(Path, sqlite::Database::OpenMode::ReadOnly) {}
 
   /// Find a platform by its exact name.
   /// Returns -1 if no platform with that name exists.
