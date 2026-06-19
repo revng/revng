@@ -57,6 +57,16 @@ typedef struct {
 typedef unsigned __int128 generic128_t;
 #endif
 
+// `generic256_t`/`generic512_t` back values held in wide vector registers (an
+// x86-64 `zmm` modelled as a full register is 512 bits). Assembling a register
+// from its lanes, or extracting one, requires wide-integer shifts, so — like
+// the `uint256_t`/`uint512_t` wide integers below, and consistently with
+// `generic128_t` (`unsigned __int128`) — these are arithmetic `_BitInt`s when
+// the toolchain provides one, falling back to a byte struct otherwise.
+#if defined(__BITINT_MAXWIDTH__) && __BITINT_MAXWIDTH__ >= 512
+typedef unsigned _BitInt(256) generic256_t;
+typedef unsigned _BitInt(512) generic512_t;
+#else
 typedef struct {
   char data[32];
 } generic256_t;
@@ -64,6 +74,7 @@ typedef struct {
 typedef struct {
   char data[64];
 } generic512_t;
+#endif
 
 static_assert(sizeof(generic8_t) == 1, "");
 static_assert(sizeof(generic16_t) == 2, "");
