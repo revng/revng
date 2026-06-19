@@ -318,9 +318,6 @@ branches:
             container: llvm-functions
             category: debug
             filename: legacy_stack_accesses_segregated.bc
-        analyses:
-          - analysis: analyze-data-layout
-            containers: [llvm-functions]
 
   segregate-stack-accesses:
     from: detect-stack-size
@@ -373,6 +370,8 @@ branches:
         analyses:
           - analysis: detect-c-strings
             containers: [binaries-container, llvm-functions]
+          - analysis: analyze-data-layout
+            containers: [llvm-functions]
   clift-functions:
     from: segregate-stack-accesses
     tasks:

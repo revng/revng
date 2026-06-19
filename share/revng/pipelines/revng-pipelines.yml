@@ -469,15 +469,6 @@ Branches:
 
             Additionally, this artifact correctly represent each stack argument
             in the function prototype.
-        Analyses:
-          - Name: analyze-data-layout
-            Type: analyze-data-layout
-            UsedContainers: [functions.bc.zstd]
-            Docs: |-
-              This analysis inspects the memory accesses performed by the input
-              program and detects the layout of data structures.
-              The produced data structures are the result of merging the
-              information obtained from each function interprocedurally.
   - From: make-segment-ref
     Steps:
       - Name: cleanup-ir
@@ -542,6 +533,15 @@ Branches:
           Kind: stack-accesses-segregated
           SingleTargetFilename: clean-ir.ll
           Docs: ""
+        Analyses:
+          - Name: analyze-data-layout
+            Type: analyze-data-layout
+            UsedContainers: [functions.bc.zstd]
+            Docs: |-
+              This analysis inspects the memory accesses performed by the input
+              program and detects the layout of data structures.
+              The produced data structures are the result of merging the
+              information obtained from each function interprocedurally.
       - Name: emit-c
         Pipes:
           - Type: llvm-pipe
