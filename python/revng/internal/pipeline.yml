@@ -355,10 +355,11 @@ branches:
             - instcombine-noarrays
             - remove-extractvalues
             - early-cse
+            - split-overflow-intrinsics
+            - remove-llvmassume-calls
+            - peephole-opt-for-decompilation
             - dce
             - strip-dead-prototypes
-            - split-overflow-intrinsics
-            - dce
             - inline-segment-global-getters
       - pipe: emit-function-pointers
         arguments: [llvm-functions]
@@ -379,9 +380,6 @@ branches:
         arguments: [llvm-functions]
         configuration:
           passes:
-            - remove-llvmassume-calls
-            - dce
-            - peephole-opt-for-decompilation
             - exit-ssa
             - arithmetic-to-gep
             - extractvalue-to-gep
