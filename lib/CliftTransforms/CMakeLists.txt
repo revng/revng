@@ -24,6 +24,7 @@ revng_add_library_internal(
   TerminalBranchComplementHoisting.cpp
   TightenVariableScopes.cpp
   TrivialReturnElimination.cpp
+  TypeRefinement.cpp
   VariableInitializerHoisting.cpp)
 
 target_link_libraries(revngCliftTransforms MLIRTransformUtils revngClift)

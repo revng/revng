@@ -50,6 +50,11 @@ def CliftEmitFieldAccesses : Clift_Pass<"emit-field-accesses",
   let constructor = "clift::createEmitFieldAccessesPass()";
 }
 
+def CliftTypeRefinement : Clift_Pass<"refine-types", "clift::FunctionOp"> {
+  let summary = "Apply type refinement to expressions and variables.";
+  let constructor = "clift::createTypeRefinementPass()";
+}
+
 def CliftExpressionPostProcessing : Clift_Pass<"post-process-expressions",
                                                "clift::FunctionOp"> {
   let summary = "Post process Clift expressions";

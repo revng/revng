@@ -25,6 +25,7 @@ PassPtr<clift::FunctionOp> createOptimizeStatementsPass();
 PassPtr<clift::FunctionOp> createOptimizeExpressionsPass();
 
 PassPtr<clift::FunctionOp> createEmitFieldAccessesPass();
+PassPtr<clift::FunctionOp> createTypeRefinementPass();
 
 PassPtr<clift::FunctionOp> createExpressionPostProcessingPass();
 PassPtr<clift::FunctionOp> createTerminalBranchComplementHoistingPass();

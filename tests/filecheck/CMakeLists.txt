@@ -415,6 +415,14 @@ set(FILECHECK_TESTS
     clift/statement-rewrites/trivial-return-elimination.mlir
     clift/statement-rewrites/variable-initializer-hoisting-with-self-assignment.mlir
     clift/statement-rewrites/variable-initializer-hoisting.mlir
+    clift/type-refinement/backward-add-refinement.mlir
+    clift/type-refinement/backward-neg-refinement.mlir
+    clift/type-refinement/backward-ternary-refinement.mlir
+    clift/type-refinement/backward-variable-refinement.mlir
+    clift/type-refinement/forward-add-refinement.mlir
+    clift/type-refinement/forward-neg-refinement.mlir
+    clift/type-refinement/forward-ternary-refinement.mlir
+    clift/type-refinement/forward-variable-refinement.mlir
     clift/types/function-with-function-argument.mlir
     clift/types/function-with-function-return.mlir
     clift/types/function-with-object-types.mlir

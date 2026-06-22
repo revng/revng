@@ -526,3 +526,16 @@ target_include_directories(test_doxygen_emitter PRIVATE "${CMAKE_SOURCE_DIR}"
 target_link_libraries(test_doxygen_emitter revngPTML revngUnitTestHelpers
                       Boost::unit_test_framework ${LLVM_LIBRARIES})
 add_test(NAME test_doxygen_emitter COMMAND test_doxygen_emitter)
+
+#
+# test_type_refinement
+#
+
+revng_add_test_executable(test_type_refinement "${SRC}/TypeRefinement.cpp")
+target_compile_definitions(test_type_refinement PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_type_refinement PRIVATE "${CMAKE_SOURCE_DIR}"
+                                                        "${Boost_INCLUDE_DIRS}")
+target_link_libraries(
+  test_type_refinement revngCliftTransforms revngUnitTestHelpers
+  Boost::unit_test_framework ${LLVM_LIBRARIES})
+add_test(NAME test_type_refinement COMMAND test_type_refinement)
