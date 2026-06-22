@@ -385,6 +385,20 @@ buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
             "Created StoreInst " << dumpToString(S)
                                  << " in Block: " << StoreBlock->getName());
 
+  // The following workaround is important.
+  // It's not strictly necessary for correctness, but for quality in terms of
+  // number of emitted local variables in C.
+  // If the injected store is in the same block of the IncomingInst whose value
+  // is being stored, and there are other instructions after IncomingInst, in
+  // StoreBlock, that use IncomingInst, they should be converted to use a load
+  // from the alloca that is performed immediately after the store. If we don't
+  // do this, the users of IncomingInst will keep using IncomingInst directly,
+  // and there are many common cases where IncomingInst transitively uses the
+  // PHI itself. This in turn will cause a line of dataflow going from the load
+  // injected to replace the PHI down to the users of IncomingInst, that crosses
+  // the newly inserted StoreInst. As a consequence, STS injects a new local
+  // variable to handle that. In practice, this workaround reduces the number of
+  // local variables inserted by STS to cope with this.
   if (IncomingInst and IncomingInst->getParent() == StoreBlock) {
     Instruction *LoadFromStore = nullptr;
     for (Instruction &NextInBlock :

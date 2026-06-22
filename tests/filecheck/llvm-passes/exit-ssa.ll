@@ -355,3 +355,34 @@ B2:
   %r = add i32 %b, %c
   ret i32 %r
 }
+
+;
+; CHECK-LABEL: define i64 @load_from_store()
+;
+; Check load from store rewrite to improve decompilation output.
+define i64 @load_from_store() {
+
+; CHECK: Entry:
+Entry:
+  ; CHECK: [[ALLOCA:%[a-zA-Z0-9_]+]] = alloca
+  ; CHECK: store i64 0, ptr [[ALLOCA]]
+  br label %Loop
+
+; CHECK: Loop:
+Loop:                 ; preds = %Loop, %Entry
+  ; CHECK: [[LOAD:%[a-zA-Z0-9_]+]] = load i64, ptr [[ALLOCA]]
+  %the_phi = phi i64 [ 0, %Entry ], [ %0, %Loop ]
+  ; CHECK: [[ADD:%[a-zA-Z0-9_]+]] = add i64 [[LOAD]], 1
+  %0 = add i64 %the_phi, 1
+  ; CHECK: store i64 [[ADD]], ptr [[ALLOCA]]
+  ; CHECK: [[LOAD2:%[a-zA-Z0-9_]+]] = load i64, ptr [[ALLOCA]]
+  ; CHECK: add i64 [[LOAD2]], 13
+  %1 = add i64 %0, 13
+  %2 = icmp eq i64 %the_phi, 1000
+  br i1 %2, label %Exit, label %Loop
+
+; CHECK: Exit:
+Exit:                 ; preds = %Loop
+  ; CHECK: ret i64 [[LOAD]]
+  ret i64 %0
+}
