@@ -86,6 +86,9 @@ extern FunctionPoolTag<llvm::Type *> LocalVariable;
 extern FunctionPoolTag<llvm::Type *> Assign;
 extern FunctionPoolTag<llvm::Type *> Copy;
 extern Tag SegmentGlobal;
+/// Functions that must survive function isolation: MinimalModuleCloner
+/// preserves them (and the ones they call) instead of purging them.
+extern Tag KeepPostIsolation;
 extern FunctionPoolTag<SegmentRefPoolKey> SegmentGlobalGetter;
 extern FunctionPoolTag<llvm::Type *> UnaryMinus;
 extern FunctionPoolTag<llvm::Type *> BinaryNot;
@@ -129,7 +132,8 @@ inline bool isCallToHelper(const llvm::Instruction *I) {
   return getCallToHelper(I) != nullptr;
 }
 
-std::optional<CSVsUsage> tryGetCSVUsedByHelperCall(llvm::Instruction *Call);
+std::optional<CSVsUsage>
+tryGetCSVUsedByHelperCall(const llvm::Instruction *Call);
 
 inline CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
   return tryGetCSVUsedByHelperCall(Call).value();
