@@ -37,12 +37,27 @@ using namespace llvm;
 static Logger Log{ "exit-ssa" };
 
 struct ExitSSAPass : public FunctionPass {
+
+public:
+  using EdgeToNewBlockMap = std::map<std::pair<BasicBlock *, BasicBlock *>,
+                                     BasicBlock *>;
+
 public:
   static char ID;
 
-  ExitSSAPass() : FunctionPass(ID) {}
+private:
+  Function *CurrentFunction = nullptr;
+  EdgeToNewBlockMap NewBlocks;
+
+public:
+  ExitSSAPass() : FunctionPass(ID), CurrentFunction(nullptr) {}
 
   bool runOnFunction(Function &F) override;
+
+private:
+  void buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca);
+
+  void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs);
 };
 
 struct IncomingInfo {
@@ -356,11 +371,9 @@ getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
   return Result;
 }
 
-using EdgeToNewBlockMap = std::map<std::pair<BasicBlock *, BasicBlock *>,
-                                   BasicBlock *>;
-
-static void
-buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
+void ExitSSAPass::buildStore(BasicBlock *StoreBlock,
+                             Value *Incoming,
+                             AllocaInst *Alloca) {
   // TODO: the checks should be enabled conditionally based on the user.
   revng::NonDebugInfoCheckingIRBuilder Builder(StoreBlock->getContext());
 
@@ -419,17 +432,15 @@ buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
   }
 }
 
-static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
-                                       Function &F,
-                                       EdgeToNewBlockMap &NewBlocks) {
+void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
 
   revng_log(Log, "New PHIGroup ================");
   LoggerIndent FirstIndent{ Log };
 
   // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder Builder(F.getContext());
+  revng::NonDebugInfoCheckingIRBuilder Builder(CurrentFunction->getContext());
   const DebugLoc &PHIDebugLoc = (*PHIs.begin())->getDebugLoc();
-  Builder.SetInsertPointPastAllocas(&F, PHIDebugLoc);
+  Builder.SetInsertPointPastAllocas(CurrentFunction, PHIDebugLoc);
 
   AllocaInst *Alloca = Builder.createSimpleAlloca((*PHIs.begin())->getType());
   revng_log(Log, "Created Alloca: " << dumpToString(Alloca));
@@ -581,8 +592,10 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
 }
 
 bool ExitSSAPass::runOnFunction(Function &F) {
+  CurrentFunction = &F;
+  NewBlocks.clear();
 
-  revng_log(Log, "ExitSSA on: " << F.getName());
+  revng_log(Log, "ExitSSA on: " << CurrentFunction->getName());
   LoggerIndent Indent{ Log };
 
   // A vector containing sets of equivalence classes of PHINodes.
@@ -590,10 +603,9 @@ bool ExitSSAPass::runOnFunction(Function &F) {
   // trees, a DAGs, or even loops.
   // Informally, all the PHINodes in a group hold the same value, and we want to
   // create a single local variable for each DAG.
-  const auto PHIClasses = getPHIEquivalenceClasses(F);
-  EdgeToNewBlockMap NewBlocks;
+  const auto PHIClasses = getPHIEquivalenceClasses(*CurrentFunction);
   for (const auto &PHIGroup : PHIClasses)
-    replacePHIEquivalenceClass(PHIGroup, F, NewBlocks);
+    replacePHIEquivalenceClass(PHIGroup);
 
   return not PHIClasses.empty();
 }
