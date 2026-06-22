@@ -22,7 +22,9 @@ while.cond:
   ; CHECK: [[LOAD1:%[a-zA-Z0-9_]+]] = load i32, ptr [[ALLOCA1]]
   ; CHECK: [[LOAD0:%[a-zA-Z0-9_]+]] = load i32, ptr [[ALLOCA0]]
   ; CHECK: store i32 [[LOAD0]], ptr [[ALLOCA1]]
+  ; CHECK-NEXT: [[LOAD2:%[a-zA-Z0-9_]+]] = load i32, ptr [[ALLOCA1]]
   ; CHECK: store i32 [[LOAD1]], ptr [[ALLOCA0]]
+  ; CHECK-NEXT: [[LOAD3:%[a-zA-Z0-9_]+]] = load i32, ptr [[ALLOCA0]]
   %b.addr.0 = phi i32 [ %b, %entry ], [ %a.addr.0, %while.cond ]
   %a.addr.0 = phi i32 [ %a, %entry ], [ %b.addr.0, %while.cond ]
   br i1 undef, label %while.end, label %while.cond
@@ -30,9 +32,9 @@ while.cond:
 
 ; CHECK: while.end:
 while.end:
-  ; CHECK: sub i32 [[LOAD1]], [[LOAD0]]
-  %sub = sub i32 %a.addr.0, %b.addr.0
-  ret i32 %sub
+  ; CHECK: sub i32 [[LOAD3]], [[LOAD2]]
+  %result = sub i32 %a.addr.0, %b.addr.0
+  ret i32 %result
 }
 
 ;
@@ -376,13 +378,44 @@ Loop:                 ; preds = %Loop, %Entry
   %0 = add i64 %the_phi, 1
   ; CHECK: store i64 [[ADD]], ptr [[ALLOCA]]
   ; CHECK: [[LOAD2:%[a-zA-Z0-9_]+]] = load i64, ptr [[ALLOCA]]
-  ; CHECK: add i64 [[LOAD2]], 13
+  ; CHECK: [[ADD:%[a-zA-Z0-9_]+]] = add i64 [[LOAD2]], 13
   %1 = add i64 %0, 13
   %2 = icmp eq i64 %the_phi, 1000
   br i1 %2, label %Exit, label %Loop
 
 ; CHECK: Exit:
 Exit:                 ; preds = %Loop
-  ; CHECK: ret i64 [[LOAD]]
+  ; CHECK: ret i64 [[ADD]]
+  ret i64 %1
+}
+
+;
+; CHECK-LABEL: define i64 @load_from_store_more_aggressive()
+;
+; Check load from store rewrite to improve decompilation output.
+define i64 @load_from_store_more_aggressive() {
+
+; CHECK: Entry:
+Entry:
+  ; CHECK: [[ALLOCA:%[a-zA-Z0-9_]+]] = alloca
+  ; CHECK: store i64 0, ptr [[ALLOCA]]
+  br label %Loop
+
+; CHECK: Loop:
+Loop:                 ; preds = %Loop, %Entry
+  ; CHECK: [[LOAD:%[a-zA-Z0-9_]+]] = load i64, ptr [[ALLOCA]]
+  %the_phi = phi i64 [ 0, %Entry ], [ %0, %Loop ]
+  ; CHECK: [[ADD:%[a-zA-Z0-9_]+]] = add i64 [[LOAD]], 1
+  %0 = add i64 %the_phi, 1
+  ; CHECK: store i64 [[ADD]], ptr [[ALLOCA]]
+  ; CHECK-NEXT: [[LOAD2:%[a-zA-Z0-9_]+]] = load i64, ptr [[ALLOCA]]
+  ; CHECK: [[ADD2:%[a-zA-Z0-9_]+]] = add i64 [[LOAD2]], 13
+  %1 = add i64 %0, 13
+  %2 = icmp eq i64 %the_phi, 1000
+  br i1 %2, label %Exit, label %Loop
+
+; CHECK: Exit:
+Exit:                 ; preds = %Loop
+  ; CHECK: ret i64 [[LOAD2]]
   ret i64 %0
 }
