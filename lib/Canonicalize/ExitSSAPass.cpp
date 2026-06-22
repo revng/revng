@@ -358,6 +358,15 @@ getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
   // the in-block store; the rest go to freshly split blocks). stable_sort
   // keeps insertion order for ties, and the insertion order is itself
   // deterministic.
+  // TODO: this heuristic is designed to minimize the number of stores that go
+  // to freshly split blocks. This is not necessarily the best we can do.
+  // Indeed, stores in freshly split blocks are particularly bad when they end
+  // up in backedges, because they sometimes prevent a while(true) loop to be
+  // promoted to a better looking loop.
+  // At the point in the decompilation pipeline where ExitSSA runs, it's hard to
+  // predict exactly what edges will turn out to be detected as backedges in
+  // Clift. But we could try sorting first values whose incoming edge are
+  // backedges at the best accuracy we can detect them now (e.g. using a visit).
   llvm::MapVector<BasicBlock *, std::vector<std::pair<Value *, UseSet>>> Result;
   for (auto &[Block, InnerMap] : Grouped) {
     auto Entries = InnerMap.takeVector();
@@ -462,6 +471,7 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
       revng_assert(not EntriesInBlock.empty());
       // We handle the first element in the range separately, since it's the
       // one with the highest number of uses.
+      // TODO: do we really sort the EntriesInBlock in the best way?
       {
         auto &[Incoming, IncomingUses] = EntriesInBlock.front();
         revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
