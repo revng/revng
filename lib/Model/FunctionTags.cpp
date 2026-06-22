@@ -190,6 +190,9 @@ FunctionPoolTag<llvm::Type *>
 /// Tag for global variables representing segments
 Tag SegmentGlobal("segment-global");
 
+/// Tag for functions that must survive function isolation.
+Tag KeepPostIsolation("keep-post-isolation");
+
 inline void
 segmentGlobalGetterInitializer(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
                                llvm::Module &M,
@@ -234,7 +237,8 @@ FunctionPoolTag<SegmentRefPoolKey>
                         llvm::Attribute::NoInline },
                       llvm::MemoryEffects::none(),
                       { &FunctionTags::IsRef,
-                        &FunctionTags::UniquedByMetadata },
+                        &FunctionTags::UniquedByMetadata,
+                        &FunctionTags::KeepPostIsolation },
                       segmentGlobalGetterInitializer,
                       segmentGlobalGetterFactory);
 
@@ -776,7 +780,8 @@ static std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Function *F,
   return Result;
 }
 
-std::optional<CSVsUsage> tryGetCSVUsedByHelperCall(llvm::Instruction *Call) {
+std::optional<CSVsUsage>
+tryGetCSVUsedByHelperCall(const llvm::Instruction *Call) {
   revng_assert(isCallToHelper(Call));
 
   auto *Callee = getCalledFunction(cast<llvm::CallBase>(Call));
