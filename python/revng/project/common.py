@@ -93,7 +93,7 @@ class CLIHelper:
         except CalledProcessError as e:
             error_message = f"Command {' '.join(cmdline)} exited with code {e.returncode}\n"
             error_message += "Stderr output:\n"
-            error_message += e.stderr
+            error_message += e.stderr.decode("utf8")
             raise CLIError(error_message) from e
 
     def popen(self, cmd_args: Iterable[str], *args, stdout, stderr) -> Popen:
