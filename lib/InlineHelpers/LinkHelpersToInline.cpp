@@ -65,18 +65,22 @@ bool LinkHelpersToInlinePass::runOnModule(llvm::Module &M) {
   // Given the architecture MD, retrieve the correct libtcg module and link
   // it into the main module.
   StringRef ArchName = Strings.begin()->first();
-  const std::string LibHelpersName = ("/share/revng/"
-                                      "libtcg-helpers-to-inline-"
-                                      + ArchName + ".bc")
-                                       .str();
-  auto OptionalHelpers = revng::ResourceFinder.findFile(LibHelpersName);
-  revng_assert(OptionalHelpers.has_value(), "Cannot find libtcg helpers");
-  std::unique_ptr<llvm::Module>
-    HelpersModule = parseIR(M.getContext(), OptionalHelpers.value());
+  if (HelpersModules.count(ArchName) == 0) {
+    const std::string LibHelpersName = ("/share/revng/"
+                                        "libtcg-helpers-to-inline-"
+                                        + ArchName + ".bc")
+                                         .str();
+    auto OptionalHelpers = revng::ResourceFinder.findFile(LibHelpersName);
+    revng_assert(OptionalHelpers.has_value(), "Cannot find libtcg helpers");
+    std::unique_ptr<Module> HelpersModule = parseIR(M.getContext(),
+                                                    OptionalHelpers.value());
+    HelpersModules[ArchName] = std::move(HelpersModule);
+  }
+  Module &HelpersModule = *HelpersModules[ArchName];
 
   std::set<const llvm::Function *> ToClone;
   for (StringRef Name : MissingBodies) {
-    llvm::Function *HelperFunction = HelpersModule->getFunction(Name);
+    llvm::Function *HelperFunction = HelpersModule.getFunction(Name);
     revng_assert(HelperFunction != nullptr
                    and not HelperFunction->isDeclaration(),
                  "revng_inline helper missing body in to-inline.bc; the "
@@ -85,7 +89,7 @@ bool LinkHelpersToInlinePass::runOnModule(llvm::Module &M) {
     ToClone.insert(HelperFunction);
   }
 
-  auto ClonedHelpersModule = ::cloneFiltered(*HelpersModule, ToClone);
+  auto ClonedHelpersModule = ::cloneFiltered(HelpersModule, ToClone);
   linkModules(std::move(ClonedHelpersModule), M);
 
   return true;
