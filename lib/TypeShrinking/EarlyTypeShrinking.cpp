@@ -73,7 +73,7 @@ bool EarlyTypeShrinking::runOnFunction(Function &F) {
                                  OuterType);
     }
 
-    I.replaceAllUsesWith(cast<Instruction>(Replacement));
+    I.replaceAllUsesWith(Replacement);
     Changed = true;
   }
 
