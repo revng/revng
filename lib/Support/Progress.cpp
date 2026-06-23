@@ -30,6 +30,33 @@ static opt<bool> HighResolutionMemory("high-resolution-memory-tracing",
                                            "for memory traces"),
                                       init(false));
 
+template<StrictSpecializationOf<std::chrono::duration> T>
+class DurationParser : public llvm::cl::parser<T> {
+public:
+  using llvm::cl::parser<T>::parser;
+
+  bool parse(llvm::cl::Option &Option,
+             llvm::StringRef ArgName,
+             const llvm::StringRef ArgValue,
+             T &Val) {
+    uint64_t IntegerValue = 0;
+    bool Error = ArgValue.getAsInteger(10, IntegerValue);
+    if (Error)
+      return Option.error(ArgValue + " is not a valid number");
+
+    Val = T{ IntegerValue };
+    return false;
+  }
+};
+
+static opt<std::chrono::milliseconds,
+           false,
+           DurationParser<std::chrono::milliseconds>>
+  MemoryProfilerInterval("memory-profiler-interval",
+                         desc("Debouncing time (in ms) for emitting a memory "
+                              "usage tracepoint"),
+                         init(std::chrono::milliseconds{ 100 }));
+
 static void destroyTraceProgressListener(void *OpaqueListener);
 
 class TraceProgressListener : public llvm::ProgressListener {
@@ -41,7 +68,6 @@ private:
   llvm::raw_fd_ostream Output;
   bool Closed = false;
 
-  static auto inline MemoryProfilerInterval = std::chrono::milliseconds{ 50 };
   std::chrono::time_point<std::chrono::high_resolution_clock> LastMemoryPoll;
 
 public:
