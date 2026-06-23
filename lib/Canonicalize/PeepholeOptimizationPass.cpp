@@ -4,6 +4,7 @@
 
 #include "llvm/ADT/DepthFirstIterator.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/Constants.h"
@@ -36,65 +37,38 @@ public:
   bool runOnFunction(Function &F) override;
 };
 
-static bool isICMPWithConstRHS(const Instruction &I) {
-  if (auto *ICMP = dyn_cast<ICmpInst>(&I))
-    return ICMP->isEquality() and isa<ConstantInt>(I.getOperand(1));
-  return false;
-}
-
-static bool replaceNonConstantOperandWithAddSub(Instruction &I,
-                                                BinaryOperator *AddSub,
-                                                revng::IRBuilder &Builder) {
-  if (not isICMPWithConstRHS(I))
-    return false;
-
-  auto *ICmp = cast<ICmpInst>(&I);
-
-  auto *ICmpNonConstOp = ICmp->getOperand(0);
-  auto *ICmpConstOp = cast<ConstantInt>(ICmp->getOperand(1));
-
-  auto *AddSubNonConstantOp = AddSub->getOperand(0);
-  auto *AddSubConstantOp = cast<ConstantInt>(AddSub->getOperand(1));
-
-  if (ICmpNonConstOp != AddSubNonConstantOp)
-    return false;
-
-  revng_log(Log, "Found I: " << dumpToString(I));
-
-  // Now we have to figure out the opcodes of the rewritten expression for I,
-  // depending on the opcodes of AddSub and I.
-  // In the table below, x is the Incominv value of the PHI, and we want to
-  // rewrite I as explained in the table, so that it doesn't use x anymore, and
-  // it uses AddSub instead.
-  //   AddSub-> ||       x + c1        |       x - c1        |
-  // I          ||                     |                     |
-  // |          ||                     |                     |
-  // v          ||                     |                     |
-  // ===========++=====================+=====================+
-  //  x == c2   || AddSub == (c2 + c1) | AddSub == (c2 - c1) |
-  //  x != c2   || AddSub != (c2 + c1) | AddSub != (c2 - c1) |
-
-  Instruction::BinaryOps AddSubOpCode = AddSub->getOpcode();
-  revng_assert(AddSubOpCode == Instruction::Add
-               or AddSubOpCode == Instruction::Sub);
-
-  // Build the new arithmetic among constants
-  Builder.SetInsertPoint(&I);
-
-  // Build the new operation among constants
-  auto *ConstRHS = AddSubConstantOp;
-  auto *ConstLHS = ICmpConstOp;
-  auto *NewConstOp = Builder.CreateBinOp(AddSubOpCode, ConstLHS, ConstRHS);
-
-  // If it's an ICmp we can replace the operands in place.
-  ICmp->setOperand(0, AddSub);
-  ICmp->setOperand(1, NewConstOp);
-
-  return true;
-}
-
+// This function looks at the incoming values for PHI, trying to rewrite them
+// in a way that they have more uses.
+//  * in general I don't know
+//  * in practice, the current implementation rewrites incomings that are addsub
+//    with constants and that are used in icmp with constants, so that the icmp
+//    itself is changed to use the AddSub non-const operand, and the constants
+//    are folded. So you go from e.g. x + C1 == c2 to x == C1 - c2 (and then
+//    C1-c2) is folded I guess. So the PHINode still uses x + C1, but there are
+//    more instructions using x directly.
+//    This is beneficial in particular for comparisons used to break out of
+//    loops, which in decompilation would look awkward having comparison like
+//    x + C1 == c2.
+//  * actually, if the PHINode is the "induction variable", what we really want
+//    is that we increase the number of uses of the PHINode, in practice
+//    changing things in a way that more instructions use the PHINode directly
+//    instead of one of its incomings, when inside a loop.
+//    in order for this to be possible we need:
+//    * a) that the PHINode dominates the incoming I
+//    * b) that the incoming I uses the PHINode as one of its operands
+//    * c) that some of the users of I can be rewritten to use PHINode directly,
+//         instead of the intermediate value I
+//    There are mainly 2 scenarios when this can happen:
+//    1) I is an AddSub with a constant PHI + C1.
+//      1.a) One of I's users is also an AddSub with another constants I + c2.
+//           They can be folded into PHI + (C1 + c2), as long as PHI dominates I
+//           + c2.
+//      1.b) One of I's users is a Eq/Neq wht constant I != c2.
+//           They can be folded into PHI != (C1 + c2), as long as PHI dominates
+//           I != c2.
 static bool reusePHIIncomings(PHINode &PHI, const DominatorTree &DT) {
-  // Ignore non-integers
+  // Ignore non-integer PHINodes, since all the patterns we're capable of
+  // handling are on integers.
   if (not PHI.getType()->isIntegerTy())
     return false;
 
@@ -102,105 +76,118 @@ static bool reusePHIIncomings(PHINode &PHI, const DominatorTree &DT) {
   // but since this going to go away soon, let it stay as is.
   revng::NonDebugInfoCheckingIRBuilder Builder(PHI.getContext());
 
-  revng_log(Log, "Decompilation: " << dumpToString(PHI));
-  revng_log(Log, "uses: ");
+  revng_log(Log, "PHI: " << dumpToString(PHI));
+  revng_log(Log, "incomings: ");
   LoggerIndent Indent{ Log };
 
   bool Changed = false;
   for (Use &IncomingUse : PHI.incoming_values()) {
-    Value *Incoming = IncomingUse.get();
-    // Only look at binary operators
-    auto *AddSub = dyn_cast<BinaryOperator>(Incoming);
+    // TODO: we only look at Add and Sub for now, since they are the only ones
+    // whose rewrite seemed beneficial in the real world examples we looked at.
+    // There might be other opportunities that we're missing, possibly all
+    // invertible binary operators whose RHS is a constant.
+    auto *AddSub = dyn_cast<BinaryOperator>(IncomingUse.get());
     if (not AddSub)
       continue;
 
-    // TODO: we only look at Add and Sub, since they are the only obviously
-    // invertible ones.
-    // There might be other opportunities that we're missing.
-    unsigned OpCode = AddSub->getOpcode();
-    if (OpCode != Instruction::Add and OpCode != Instruction::Sub)
+    if (unsigned OpCode = AddSub->getOpcode();
+        OpCode != Instruction::Add and OpCode != Instruction::Sub)
       continue;
 
-    // Assume we're in instcombine form. Check if the RHS is constant.
-    auto *AddSubConstantOp = dyn_cast<ConstantInt>(AddSub->getOperand(1));
-    if (not AddSubConstantOp or isa<Constant>(AddSub->getOperand(0)))
+    // Only consider AddSub if the LHS not constant and RHS is constant.
+    if (not isa<Constant>(AddSub->getOperand(1))
+        or isa<Constant>(AddSub->getOperand(0)))
       continue;
 
-    revng_log(Log, "Found AddSub with const operand: " << dumpToString(AddSub));
+    revng_log(Log,
+              "Found AddSub with non-constant LHS and constant RHS: "
+                << dumpToString(AddSub));
 
-    // At this point we've found an incoming value for PHI that is an Add or Sub
-    // and whose RHS is a constant.
-    // We want to try and reduce the uses of Incoming.
-    // To do that, we want to see if there is any other instruction dominated by
-    // Incoming that can be rewritten to reuse Incoming instead of some other
-    // operands.
+    // At this point we've found AddSub to be an incoming value for PHI that is
+    // an Add or Sub whose LHS is non constant and whose RHS is a constant. We
+    // want to try and rewrite as many instructions as possible to reuse AddSub
+    // instead of the incoming of the PHI, when possible.
 
-    BasicBlock *BlockToCompare = AddSub->getParent();
-    BasicBlock::iterator CompareStart = AddSub->getIterator();
+    // AddSub is in the form X +- C1 (where X is not a constant, and C1 is)
+    // Let's look at other ICmp instructions in the form `X == C2` or `X != C2`,
+    // so we can rewrite them as `AddSub == C2 +- C1` or `AddSub != C2 +- C1`
+    // The rewrite is valid if either of the following conditions applies:
+    // * AddSub dominates ICmp
+    // * ICmp dominates AddSub, in which case we also have to anticipate AddSub
+    //   right before ICmp, so ICmp can be rewritten to use AddSub.
+    // We can do this in steps.
+    // 1. we look at all uses of X that are ICmp with constants that respect the
+    //   dominance properties above.
+    // 2. we pick the best place where AddSub can be anticipated.
+    // 3. we anticipate AddSub. this is always valid because the RHS of both
+    //    AddSub and ICmp is a constant, and the LHS is the same
+    // 4. now AddSub dominates all candidate ICmp that match.
+    // 5. we rewrite all of them.
+    // NOTE: we can also rewrite ICmp that don't dominate or are dominated by
+    // AddSub, by moving AddSub to their common dominator, but that's not
+    // beneficial for recompilation. If anything it's harmful.
 
-    // If the AddSub is dominated by the PHI we have the opportunity to move it
-    // as early as possible.
-    // Given that AddSub has PHI as one operand and the other operand is a
-    // constant, we can always anticipate it in the same block as the PHI, right
-    // after all the PHINodes in that block.
-    // Anticipating it means that it will come before more instructions, which
-    // means that there are more opportunities for other instructions to be
-    // rewritten using it, without affecting semantics.
-    // However, we only really want to move it if we find at least one
-    // instruction that can be rewritten thanks to this. Otherwise we want to
-    // leave it alon. For this reason we set up some auxiliary variables to
-    // detect that situation and in case move the AddSub later.
-    if (DT.findNearestCommonDominator(&PHI, AddSub) == &PHI) {
-      BlockToCompare = PHI.getParent();
-      CompareStart = BlockToCompare->getFirstNonPHI()->getIterator();
-    }
+    Value *X = AddSub->getOperand(0);
+    auto *C1 = cast<Constant>(AddSub->getOperand(1));
 
-    revng_log(Log, "Look for instruction that can be rewritten using AddSub");
-    LoggerIndent MoreIndent{ Log };
+    const auto IsRewritableICmp = [X](User *I) -> ICmpInst * {
+      if (auto *ICMP = dyn_cast<ICmpInst>(I);
+          ICMP and ICMP->isEquality() and isa<Constant>(I->getOperand(1))
+          and I->getOperand(0) == X)
+        return ICMP;
+      return nullptr;
+    };
 
-    Instruction *FirstRewritten = nullptr;
-    bool CanAnticipateAddSub = true;
-
-    // Start looking in remainder of the BlockToCompare
-    {
-      revng_log(Log, "In Block: " << BlockToCompare->getName());
-      LoggerIndent MoreIndent{ Log };
-      auto BinaryOpBlockEnd = BlockToCompare->getTerminator()->getIterator();
-      for (Instruction &I : llvm::make_range(CompareStart, BinaryOpBlockEnd)) {
-
-        if (&I == AddSub)
-          CanAnticipateAddSub = false;
-
-        bool Worked = replaceNonConstantOperandWithAddSub(I, AddSub, Builder);
-        Changed |= Worked;
-        if (Worked and CanAnticipateAddSub and not FirstRewritten)
-          FirstRewritten = &I;
+    // 1. + 2.
+    SmallVector<ICmpInst *> RewritableICmp;
+    Instruction *CommonDominator = AddSub;
+    for (User *TheUser : X->users()) {
+      if (ICmpInst *ICmp = IsRewritableICmp(TheUser)) {
+        revng_log(Log, "Found rewritable ICmp: " << dumpToString(ICmp));
+        if (DT.dominates(AddSub, ICmp)) {
+          revng_log(Log, "AddSub dominates ICmp");
+          RewritableICmp.push_back(ICmp);
+        } else if (DT.dominates(ICmp, AddSub)) {
+          revng_log(Log, "AddSub dominates ICmp");
+          RewritableICmp.push_back(ICmp);
+          CommonDominator = ICmp;
+        }
       }
     }
 
-    // Then look at all the other blocks dominated by BlockToCompare.
-    for (auto *DominatorNode :
-         llvm::drop_begin(llvm::depth_first(DT.getNode(BlockToCompare)))) {
-      BasicBlock *BB = DominatorNode->getBlock();
-
-      revng_log(Log, "In Block: " << BB->getName());
-      LoggerIndent MoreIndent{ Log };
-
-      for (Instruction &I : *BB) {
-
-        if (&I == AddSub)
-          CanAnticipateAddSub = false;
-
-        bool Worked = replaceNonConstantOperandWithAddSub(I, AddSub, Builder);
-        Changed |= Worked;
-        if (CanAnticipateAddSub and Worked and not FirstRewritten)
-          FirstRewritten = &I;
-      }
-    }
-
-    if (FirstRewritten) {
+    // 3.
+    if (CommonDominator != AddSub) {
       AddSub->removeFromParent();
-      AddSub->insertBefore(FirstRewritten);
+      AddSub->insertBefore(CommonDominator);
+      revng_log(Log, "Move AddSub before CommonDominator");
+    }
+    // 4.
+    // 5.
+    for (ICmpInst *ToRewrite : RewritableICmp) {
+
+      // Now we have to figure out the opcodes of the rewritten expression for
+      // ICmp, depending on the opcodes of AddSub and ICmp.
+      //   AddSub -> ||       X + C1        |       X - C1        |
+      //             ||                     |                     |
+      // | ICmp      ||                     |                     |
+      // v           ||                     |                     |
+      // ======== ===++=====================+=====================+
+      //  X == C2    || AddSub == (C2 + C1) | AddSub == (C2 - C1) |
+      //  X != C2    || AddSub != (C2 + C1) | AddSub != (C2 - C1) |
+      //
+      // So the opcode of the addsub to the RHS of the comparison is always the
+      // same as the AddSub.
+
+      // Build the new operation among constants
+      Builder.SetInsertPoint(ToRewrite);
+      auto *C2 = cast<Constant>(ToRewrite->getOperand(1));
+      auto *NewRHS = Builder.CreateBinOp(AddSub->getOpcode(), C2, C1);
+
+      // If it's an ICmp we can replace the operands in place.
+      ToRewrite->setOperand(0, AddSub);
+      ToRewrite->setOperand(1, NewRHS);
+      revng_log(Log, "Rewritten ICmp: " << dumpToString(ToRewrite));
+      Changed = true;
     }
   }
 
