@@ -1159,10 +1159,10 @@ public:
     return mlir::cast_or_null<mlir::ArrayAttr>(S->getAttr("clift.comments"));
   }
 
-  RecursiveCoroutine<void> emitStatement(StatementOpInterface Stmt) {
-    mlir::Operation *Op = Stmt.getOperation();
+  RecursiveCoroutine<void> emitStatement(StatementOpInterface Statement) {
+    mlir::Operation *Op = Statement.getOperation();
 
-    if (auto Comments = getComments(Stmt)) {
+    if (auto Comments = getComments(Statement)) {
       // TODO: Add a comment formatting layer on top of CE.
       //       At least spaces at the start of each line would be nice.
       auto CE = Tokens.emitComment(CTE::CommentKind::Line);
