@@ -279,7 +279,8 @@ void emitTypeAndGlobalHeader(ptml::CTokenEmitter &Tokens,
 void emitHelperHeader(ptml::CTokenEmitter &Tokens,
                       llvm::ArrayRef<mlir::ModuleOp> Modules,
                       const model::Binary &Binary) {
-  revng_check(not Modules.empty());
+  if (Modules.empty())
+    return;
 
   const CDataModel &DataModel = clift::getDataModel(Modules.front());
   revng_assert(llvm::all_of(Modules.drop_front(),
