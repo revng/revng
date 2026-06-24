@@ -24,6 +24,37 @@ static constexpr llvm::StringRef InputCFile = "revng-input.c";
 static constexpr llvm::StringRef PrimitiveTypeHeader = "primitive-types.h";
 static constexpr llvm::StringRef RawABIPrefix = "raw_";
 
+namespace {
+
+// TODO: listing all the field here is pretty nasty, but it will have to do
+//       for now.
+
+void preserveMetadata(const model::Function &Old, model::Function &New) {
+  New.Comments() = Old.Comments();
+  New.LocalVariables() = Old.LocalVariables();
+  New.GotoLabels() = Old.GotoLabels();
+  New.CallSitePrototypes() = Old.CallSitePrototypes();
+  New.ExportedNames() = Old.ExportedNames();
+  New.StackFrame() = Old.StackFrame();
+
+  // TODO: don't forget to extend when new fields are added.
+}
+
+void preserveMetadata(const model::TypeDefinition &Old,
+                      model::TypeDefinition &New) {
+  New.Comment() = Old.Comment();
+
+  // TODO: don't forget to extend when new fields are added.
+}
+
+void preserveMetadata(const model::EnumEntry &Old, model::EnumEntry &New) {
+  New.Comment() = Old.Comment();
+
+  // TODO: don't forget to extend when new fields are added.
+}
+
+} // namespace
+
 namespace clang {
 namespace tooling {
 
@@ -722,10 +753,8 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   // TODO: we shouldn't write generated names into the model.
   ModelFunction.Name() = FD->getName();
 
-  // TODO: This discard whatever comments might have been attached to
-  //       the original function.
-
-  // TODO: remember/clone StackFrameType as well.
+  if (auto *OriginalFunction = Model->Functions().tryGet(FunctionEntry))
+    preserveMetadata(*OriginalFunction, ModelFunction);
 
   auto &&[_, Prototype] = Model->recordNewType(std::move(NewType));
   ModelFunction.Prototype() = Prototype;
@@ -784,8 +813,9 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
   // TODO: we shouldn't write generated names into the model.
   TheTypeTypeDef->Name() = D->getName();
 
-  // TODO: This discard whatever comments might have been attached to
-  //       the original type.
+  if (AnalysisOption == ImportFromCOption::EditType)
+    if (auto *OldType = Model->TypeDefinitions().tryGet(*Type))
+      preserveMetadata(**OldType, *NewTypedef);
 
   if (AnalysisOption == ImportFromCOption::EditType) {
     revng_assert(*Type == NewTypedef->key());
@@ -894,11 +924,16 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   // TODO: we shouldn't write generated names into the model.
   NewType->Name() = RD->getName();
 
-  // TODO: This discard whatever comments might have been attached to
-  //       the original type.
-
   auto *Struct = cast<model::StructDefinition>(NewType.get());
   uint64_t CurrentOffset = 0;
+
+  const model::StructDefinition *OldStruct = nullptr;
+  if (AnalysisOption == ImportFromCOption::EditType)
+    if (auto *OldType = Model->TypeDefinitions().tryGet(*Type))
+      OldStruct = dyn_cast<model::StructDefinition>(&**OldType);
+
+  if (OldStruct != nullptr)
+    preserveMetadata(*OldStruct, *Struct);
 
   //
   // Iterate over the struct fields
@@ -1027,11 +1062,9 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     Struct->Size() = CurrentOffset;
 
     // Unless we're editing a type and have access to the previous size.
-    if (Type.has_value())
-      if (auto *MaybeType = Model->TypeDefinitions().tryGet(*Type))
-        if ((*MaybeType)->isObject())
-          if (auto OldSize = *(*MaybeType)->size(); Struct->Size() < OldSize)
-            Struct->Size() = OldSize;
+    if (OldStruct != nullptr)
+      if (auto OldSize = *OldStruct->size(); Struct->Size() < OldSize)
+        Struct->Size() = OldSize;
   }
 
   if (parseStringAnnotation<"_CAN_CONTAIN_CODE">(*RD, Errors))
@@ -1073,10 +1106,11 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
   // TODO: we shouldn't write generated names into the model.
   NewType->Name() = RD->getName();
 
-  // TODO: This discard whatever comments might have been attached to
-  //       the original type.
-
   auto Union = cast<model::UnionDefinition>(NewType.get());
+
+  if (AnalysisOption == ImportFromCOption::EditType)
+    if (auto *OldType = Model->TypeDefinitions().tryGet(*Type))
+      preserveMetadata(**OldType, *Union);
 
   uint64_t CurrentIndex = 0;
   for (const FieldDecl *Field : Definition->fields()) {
@@ -1213,16 +1247,22 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   // TODO: we shouldn't write generated names into the model.
   NewType->Name() = Definition->getName();
 
-  // TODO: This discard whatever comments might have been attached to
-  //       the original type.
+  const model::EnumDefinition *OldEnum = nullptr;
+  if (AnalysisOption == ImportFromCOption::EditType) {
+    if (auto *OldType = Model->TypeDefinitions().tryGet(*Type)) {
+      OldEnum = dyn_cast<model::EnumDefinition>(&**OldType);
+      preserveMetadata(*OldEnum, *NewType);
+    }
+  }
 
   for (const auto *Enum : Definition->enumerators()) {
     auto Value = Enum->getInitVal().getExtValue();
     auto NewIterator = NewType->Entries().insert(Value).first;
     NewIterator->Name() = Enum->getName().str();
 
-    // TODO: This discard whatever comments might have been attached to
-    //       the original entry.
+    if (OldEnum != nullptr)
+      if (auto *OldEntry = OldEnum->Entries().tryGet(Value))
+        preserveMetadata(*OldEntry, *NewIterator);
   }
 
   return true;
