@@ -1625,6 +1625,15 @@ llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,
                                         llvm::GlobalValue::LinkageTypes Linkage,
                                         llvm::Constant *Initializer = nullptr);
 
+/// Same as getOrCreateGlobal but silently ignores \p Initializer mismatch.
+llvm::GlobalVariable &
+getOrCreateUnstableGlobal(llvm::Module &M,
+                          llvm::StringRef Name,
+                          llvm::Type *Type,
+                          bool IsConstant,
+                          llvm::GlobalValue::LinkageTypes Linkage,
+                          llvm::Constant *Initializer);
+
 /// Links the \p Source LLVM module into the \p Destination . This function is
 /// meant to be used to link two modules with revng isolated functions, as, in
 /// addition to linking, will try and de-duplicate data resulting in the two
