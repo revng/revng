@@ -236,14 +236,10 @@ public:
   /// of these, if appropriate.
   ///
   /// \param PC the new program counter.
-  /// \param ShouldContinue an out parameter indicating whether the returned
-  ///        basic block was just a placeholder or actually contains a
-  ///        translation.
   ///
   /// \return the basic block to use from now on, or `nullptr` if the program
   ///         counter is not associated to a basic block.
-  // TODO: return pair
-  llvm::BasicBlock *newPC(MetaAddress PC, bool &ShouldContinue);
+  llvm::BasicBlock *newPC(MetaAddress PC);
 
   /// Save the PC-Instruction association for future use
   void registerInstruction(MetaAddress PC, llvm::Instruction *Instruction);

@@ -618,37 +618,24 @@ void JumpTargetManager::findCodePointers(MetaAddress StartVirtualAddress,
 /// these, if appropriate.
 ///
 /// \param PC the new program counter.
-/// \param ShouldContinue an out parameter indicating whether the returned
-///        basic block was just a placeholder or actually contains a
-///        translation.
 ///
 /// \return the basic block to use from now on, or null if the program counter
 ///         is not associated to a basic block.
-// TODO: make this return a pair
-BasicBlock *JumpTargetManager::newPC(MetaAddress PC, bool &ShouldContinue) {
+BasicBlock *JumpTargetManager::newPC(MetaAddress PC) {
   revng_assert(PC.isValid());
 
   // Did we already meet this PC?
   auto JTIt = JumpTargets.find(PC);
   if (JTIt != JumpTargets.end()) {
-    // If it was planned to explore it in the future, just to do it now
+    // If it's still scheduled for exploration, return its block: it gets
+    // translated as its own TB root
     for (auto UnexploredIt = Unexplored.begin();
          UnexploredIt != Unexplored.end();
          UnexploredIt++) {
 
       if (UnexploredIt->first == PC) {
         BasicBlock *Result = UnexploredIt->second;
-
-        // Check if we already have a translation for that
-        ShouldContinue = Result->empty();
-        if (ShouldContinue) {
-          // We don't, OK let's explore it next
-          Unexplored.erase(UnexploredIt);
-        } else {
-          // We do, it will be purged at the next `peek`
-          revng_assert(ToPurge.contains(Result));
-        }
-
+        revng_assert(Result->empty() or ToPurge.contains(Result));
         return Result;
       }
     }
@@ -657,7 +644,6 @@ BasicBlock *JumpTargetManager::newPC(MetaAddress PC, bool &ShouldContinue) {
     // there
     BasicBlock *BB = JTIt->second.head();
     revng_assert(!BB->empty());
-    ShouldContinue = false;
     return BB;
   }
 
@@ -665,7 +651,6 @@ BasicBlock *JumpTargetManager::newPC(MetaAddress PC, bool &ShouldContinue) {
   // basic block (i.e., we have to split its basic block). This typically
   // happens with variable-length instruction encodings.
   if (OriginalInstructionAddresses.contains(PC)) {
-    ShouldContinue = false;
     return registerJT(PC, JTReason::AmbiguousInstruction);
   }
 
