@@ -9,6 +9,7 @@
 
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/Model/FunctionAttribute.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/Processing.h"
 #include "revng/PTML/CAttributes.h"
 #include "revng/PTML/CBuilder.h"
@@ -51,6 +52,27 @@ void preserveMetadata(const model::EnumEntry &Old, model::EnumEntry &New) {
   New.Comment() = Old.Comment();
 
   // TODO: don't forget to extend when new fields are added.
+}
+
+template<typename EntityType>
+void setNameIfNotAutomatic(model::CNameBuilder &NameBuilder,
+                           EntityType &Entity,
+                           llvm::StringRef Name) {
+  if (not NameBuilder.isAutomaticName(Entity, Name))
+    Entity.Name() = Name;
+  else
+    Entity.Name() = "";
+}
+
+template<typename ParentType, typename EntityType>
+void setNameIfNotAutomatic(model::CNameBuilder &NameBuilder,
+                           const ParentType &Parent,
+                           EntityType &Entity,
+                           llvm::StringRef Name) {
+  if (not NameBuilder.isAutomaticName(Parent, Entity, Name))
+    Entity.Name() = Name;
+  else
+    Entity.Name() = "";
 }
 
 } // namespace
@@ -102,6 +124,8 @@ private:
   // the multi-reg return value. Represents register ID and model::Type.
   using RawLocation = std::pair<model::Register::Values, model::UpcastableType>;
   std::optional<llvm::SmallVector<RawLocation, 4>> MultiRegisterReturnValue;
+
+  model::CNameBuilder NameBuilder;
 
 public:
   DeclVisitor(TupleTree<model::Binary> &Model,
@@ -175,7 +199,8 @@ DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
   Type(Type),
   FunctionEntry(FunctionEntry),
   Errors(Errors),
-  AnalysisOption(AnalysisOption) {
+  AnalysisOption(AnalysisOption),
+  NameBuilder(*Model) {
 }
 
 template<ConstexprString Macro, typename Type>
@@ -580,8 +605,10 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
       model::Argument &NewArgument = FunctionType.Arguments()[Index];
 
-      // TODO: we shouldn't write generated names into the model.
-      NewArgument.Name() = FD->getParamDecl(I)->getName();
+      setNameIfNotAutomatic(NameBuilder,
+                            FunctionType,
+                            NewArgument,
+                            FD->getParamDecl(I)->getName());
 
       // TODO: This discard whatever comments might have been attached to
       //       the original argument.
@@ -731,7 +758,10 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         NamedTypedRegister &ParamReg = ArgumentsInserter.emplace(Location);
         ParamReg.Type() = std::move(ParamType);
         if (not ParamDecl->getName().empty())
-          ParamReg.Name() = ParamDecl->getName();
+          setNameIfNotAutomatic(NameBuilder,
+                                TheRawFunctionType,
+                                ParamReg,
+                                ParamDecl->getName());
 
         // TODO: This discard whatever comments might have been attached to
         //       the original register.
@@ -750,8 +780,7 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   if (FD->hasAttr<clang::AlwaysInlineAttr>())
     ModelFunction.Attributes().emplace(model::FunctionAttribute::AlwaysInline);
 
-  // TODO: we shouldn't write generated names into the model.
-  ModelFunction.Name() = FD->getName();
+  setNameIfNotAutomatic(NameBuilder, ModelFunction, FD->getName());
 
   if (auto *OriginalFunction = Model->Functions().tryGet(FunctionEntry))
     preserveMetadata(*OriginalFunction, ModelFunction);
@@ -810,8 +839,7 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
   auto TheTypeTypeDef = cast<model::TypedefDefinition>(NewTypedef.get());
   TheTypeTypeDef->UnderlyingType() = std::move(ModelTypedefType);
 
-  // TODO: we shouldn't write generated names into the model.
-  TheTypeTypeDef->Name() = D->getName();
+  setNameIfNotAutomatic(NameBuilder, *TheTypeTypeDef, D->getName());
 
   if (AnalysisOption == ImportFromCOption::EditType)
     if (auto *OldType = Model->TypeDefinitions().tryGet(*Type))
@@ -921,8 +949,7 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = ID;
 
-  // TODO: we shouldn't write generated names into the model.
-  NewType->Name() = RD->getName();
+  setNameIfNotAutomatic(NameBuilder, *NewType, RD->getName());
 
   auto *Struct = cast<model::StructDefinition>(NewType.get());
   uint64_t CurrentOffset = 0;
@@ -1037,8 +1064,10 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     if (not IsPadding) {
       auto &FieldModelType = Struct->Fields()[CurrentOffset];
 
-      // TODO: we shouldn't write generated names into the model.
-      FieldModelType.Name() = Field->getName();
+      setNameIfNotAutomatic(NameBuilder,
+                            *Struct,
+                            FieldModelType,
+                            Field->getName());
 
       // TODO: This discard whatever comments might have been attached to
       //       the original field.
@@ -1103,8 +1132,7 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = ID;
 
-  // TODO: we shouldn't write generated names into the model.
-  NewType->Name() = RD->getName();
+  setNameIfNotAutomatic(NameBuilder, *NewType, RD->getName());
 
   auto Union = cast<model::UnionDefinition>(NewType.get());
 
@@ -1134,8 +1162,10 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
 
     auto &FieldModelType = Union->Fields()[CurrentIndex];
 
-    // TODO: we shouldn't write generated names into the model.
-    FieldModelType.Name() = Field->getName();
+    setNameIfNotAutomatic(NameBuilder,
+                          *Union,
+                          FieldModelType,
+                          Field->getName());
 
     // TODO: This discard whatever comments might have been attached to
     //       the original field.
@@ -1243,9 +1273,7 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   NewType->UnderlyingType() = std::move(UnderlyingType);
 
   auto *Definition = D->getDefinition();
-
-  // TODO: we shouldn't write generated names into the model.
-  NewType->Name() = Definition->getName();
+  setNameIfNotAutomatic(NameBuilder, *NewType, Definition->getName());
 
   const model::EnumDefinition *OldEnum = nullptr;
   if (AnalysisOption == ImportFromCOption::EditType) {
@@ -1258,7 +1286,10 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   for (const auto *Enum : Definition->enumerators()) {
     auto Value = Enum->getInitVal().getExtValue();
     auto NewIterator = NewType->Entries().insert(Value).first;
-    NewIterator->Name() = Enum->getName().str();
+    setNameIfNotAutomatic(NameBuilder,
+                          *NewType,
+                          *NewIterator,
+                          Enum->getName().str());
 
     if (OldEnum != nullptr)
       if (auto *OldEntry = OldEnum->Entries().tryGet(Value))
