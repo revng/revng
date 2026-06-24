@@ -529,20 +529,11 @@ IT::newInstruction(LibTcgInstruction *Instr,
     NextPC = EndPC;
 
   if (!IsFirst) {
-    // Check if this PC already has a block and use it
-    bool ShouldContinue;
-    BasicBlock *DivergeTo = JumpTargets.newPC(PC, ShouldContinue);
-    if (DivergeTo != nullptr) {
+    // If this PC already has a block, it's a jump target: branch to it and
+    // stop, so that it is translated as its own TB root.
+    if (BasicBlock *DivergeTo = JumpTargets.newPC(PC)) {
       Builder.CreateBr(DivergeTo);
-
-      if (ShouldContinue) {
-        // The block is empty, let's fill it
-        Blocks.push_back(DivergeTo);
-        Builder.SetInsertPoint(DivergeTo);
-      } else {
-        // The block contains already translated code, early exit
-        return R{ Stop, PC, NextPC };
-      }
+      return R{ Stop, PC, NextPC };
     }
   }
 
