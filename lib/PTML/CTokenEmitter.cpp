@@ -166,6 +166,9 @@ getAllowedActions(llvm::StringRef Location) {
   if (auto L = pipeline::locationFromString(rr::StackFrameVariable, Location))
     return { pa::Rename, pa::EditType };
 
+  if (auto L = pipeline::locationFromString(rr::OpaqueType, Location))
+    return {};
+
   // TODO: we should definitely error out here. But asserting is awkward.
   //
   // Once we have a proper error handling mechanism, we should use it.
