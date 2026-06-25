@@ -100,7 +100,7 @@ public:
   //===---------------------------- Expressions ---------------------------===//
 
   RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
-    Tokens.emitLiteralIdentifier("undef");
+    Tokens.emitMacro("undef");
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
     emitType(V.getType());
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
@@ -149,7 +149,7 @@ public:
   }
 
   RecursiveCoroutine<void> emitNullPointerConstant(mlir::Value V) {
-    Tokens.emitLiteralIdentifier("NULL");
+    Tokens.emitMacro("NULL");
     rc_return;
   }
 
@@ -336,7 +336,7 @@ public:
   RecursiveCoroutine<void> emitBitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<BitCastOp>();
 
-    Tokens.emitLiteralIdentifier("bit_cast");
+    Tokens.emitMacro("bit_cast");
     Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
     emitType(E.getResult().getType());
@@ -878,9 +878,9 @@ public:
     if (mlir::isa<GotoOp>(S))
       Tokens.emitKeyword(CTE::Keyword::Goto);
     else if (mlir::isa<BreakToOp>(S))
-      Tokens.emitLiteralIdentifier("break_to");
+      Tokens.emitMacro("break_to");
     else if (mlir::isa<ContinueToOp>(S))
-      Tokens.emitLiteralIdentifier("continue_to");
+      Tokens.emitMacro("continue_to");
     else
       revng_abort("Unsupported jump statement");
 

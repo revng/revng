@@ -173,7 +173,7 @@ private:
             auto Macro = getForeignPointerMacroName(T.getPointerSize());
 
             emitConstIfNeeded(T);
-            Parent.Tokens.emitLiteralIdentifier(Macro);
+            Parent.Tokens.emitMacro(Macro);
             Parent.Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
             rc_recur DeclarationEmitter(Parent)

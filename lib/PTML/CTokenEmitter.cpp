@@ -582,14 +582,13 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
   PTML.emit(Identifier);
 }
 
-void CTokenEmitter::emitLiteralIdentifier(llvm::StringRef Identifier) {
-  revng_assert(not IsEmittingComment,
-               "Cannot emit tokens while an open CommentEmitter exists.");
-
-  revng_assert(validateIdentifier(Identifier),
-               "The specified identifier is not a valid C identifier.");
-
-  PTML.emit(Identifier);
+void CTokenEmitter::emitMacro(llvm::StringRef Identifier) {
+  auto Location = pipeline::locationString(revng::ranks::Macro,
+                                           Identifier.str());
+  emitIdentifier(Identifier,
+                 Location,
+                 EntityKind::Macro,
+                 IdentifierKind::Reference);
 }
 
 static bool isRadixSupported(uint64_t Radix) {

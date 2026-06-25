@@ -202,7 +202,7 @@ public:
                       IdentifierKind IsDefinition);
 
   /// \pre \param Identifier matches `[_a-zA-Z][_a-zA-Z0-9]*`.
-  void emitLiteralIdentifier(llvm::StringRef Identifier);
+  void emitMacro(llvm::StringRef Identifier);
 
   // TODO: There is currently no API for emitting character literals, because
   //       there are no Clift users of such an API. Whenever support for
