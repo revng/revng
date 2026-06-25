@@ -467,55 +467,6 @@ public:
           const Function *Callee = getCallee(C);
           revng_assert(not Callee or not Callee->isVarArg());
 
-          // Add entry in SCEVToLayoutType map for return values of CallInst
-          if (not C->getType()->isVoidTy()) {
-            // Return values
-            revng_assert(isa<StructType>(C->getType())
-                         or isa<IntegerType>(C->getType())
-                         or isa<PointerType>(C->getType()));
-
-            if (isa<StructType>(C->getType())) {
-              // Types representing the return type
-              auto ExtractedVals = getExtractedValuesFromInstruction(C);
-              auto Size = ExtractedVals.size();
-              auto FormalRetTys = Callee ? Builder.getLayoutTypes(*Callee) :
-                                           TS.createArtificialLayoutTypes(Size);
-              revng_assert(Size == FormalRetTys.size());
-              for (const auto &[Ext, RetTy] :
-                   llvm::zip(ExtractedVals, FormalRetTys)) {
-
-                if (Ext.empty())
-                  continue;
-
-                for (llvm::CallInst *E : Ext) {
-                  using FunctionTags::OpaqueExtractValue;
-                  revng_assert(isCallToTagged(E, OpaqueExtractValue));
-                  llvm::Type *ExtTy = E->getType();
-                  revng_assert(isa<IntegerType>(ExtTy)
-                               or isa<PointerType>(ExtTy));
-
-                  const auto &[ExtLayout,
-                               New] = Builder.getOrCreateLayoutType(E);
-                  Changed |= New;
-                  Changed |= TS.addEqualityLink(RetTy, ExtLayout).second;
-                  const SCEV *S = SE->getSCEV(E);
-                  SCEVToLayoutType.insert(std::make_pair(S, ExtLayout));
-                }
-              }
-            } else {
-              // Type representing the return type
-              revng_assert(not C->getType()->isIntegerTy(1));
-              LayoutTypeSystemNode *RetTy = Callee ?
-                                              Builder.getLayoutType(Callee) :
-                                              TS.createArtificialLayoutType();
-              const auto &[CType, NewC] = Builder.getOrCreateLayoutType(C);
-              Changed |= NewC;
-              Changed |= Builder.TS.addEqualityLink(RetTy, CType).second;
-              const SCEV *RetS = SE->getSCEV(C);
-              SCEVToLayoutType.insert(std::make_pair(RetS, CType));
-            }
-          }
-
           // Add entry in SCEVToLayoutType map for actual arguments of CallInst.
           for (Use &ArgU : C->args()) {
             revng_assert(isa<IntegerType>(ArgU->getType())
@@ -530,6 +481,55 @@ public:
             const SCEV *ArgS = SE->getSCEV(ArgU);
             SCEVToLayoutType.insert(std::make_pair(ArgS, ArgTy));
           }
+
+          if (C->getType()->isVoidTy())
+            continue;
+
+          // Add entry in SCEVToLayoutType map for return values of CallInst
+          revng_assert(isa<StructType>(C->getType())
+                       or isa<IntegerType>(C->getType())
+                       or isa<PointerType>(C->getType()));
+
+          if (isa<StructType>(C->getType())) {
+            // Types representing the return type
+            auto ExtractedVals = getExtractedValuesFromInstruction(C);
+            auto Size = ExtractedVals.size();
+            auto FormalRetTys = Callee ? Builder.getLayoutTypes(*Callee) :
+                                         TS.createArtificialLayoutTypes(Size);
+            revng_assert(Size == FormalRetTys.size());
+            for (const auto &[Ext, RetTy] :
+                 llvm::zip(ExtractedVals, FormalRetTys)) {
+
+              if (Ext.empty())
+                continue;
+
+              for (llvm::CallInst *E : Ext) {
+                using FunctionTags::OpaqueExtractValue;
+                revng_assert(isCallToTagged(E, OpaqueExtractValue));
+                llvm::Type *ExtTy = E->getType();
+                revng_assert(isa<IntegerType>(ExtTy)
+                             or isa<PointerType>(ExtTy));
+
+                const auto &[ExtLayout, New] = Builder.getOrCreateLayoutType(E);
+                Changed |= New;
+                Changed |= TS.addEqualityLink(RetTy, ExtLayout).second;
+                const SCEV *S = SE->getSCEV(E);
+                SCEVToLayoutType.insert(std::make_pair(S, ExtLayout));
+              }
+            }
+          } else {
+            // Type representing the return type
+            revng_assert(not C->getType()->isIntegerTy(1));
+            LayoutTypeSystemNode *RetTy = Callee ?
+                                            Builder.getLayoutType(Callee) :
+                                            TS.createArtificialLayoutType();
+            const auto &[CType, NewC] = Builder.getOrCreateLayoutType(C);
+            Changed |= NewC;
+            Changed |= Builder.TS.addEqualityLink(RetTy, CType).second;
+            const SCEV *RetS = SE->getSCEV(C);
+            SCEVToLayoutType.insert(std::make_pair(RetS, CType));
+          }
+
         } else if (isa<LoadInst>(I) or isa<StoreInst>(I)) {
           Value *PointerOp(nullptr);
           if (auto *Load = dyn_cast<LoadInst>(&I))
