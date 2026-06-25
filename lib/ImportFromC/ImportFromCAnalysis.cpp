@@ -42,7 +42,7 @@
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
-#include "HeaderToModel.h"
+#include "ImportFromC.h"
 #include "ImportFromCAnalysis.h"
 
 using namespace llvm;
@@ -227,21 +227,21 @@ struct ImportFromCAnalysis {
     TupleTree<model::Binary> OutModel(Model);
 
     ImportingErrorList Errors;
-    std::unique_ptr<HeaderToModelAction> Action;
+    std::unique_ptr<ImportFromCAction> Action;
 
     if (TheOption == ImportFromCOption::EditType) {
       revng_assert(TypeToEdit != nullptr);
-      Action = std::make_unique<HeaderToModelEditTypeAction>(OutModel,
-                                                             Errors,
-                                                             TypeToEdit->key());
+      Action = std::make_unique<ImportFromCEditTypeAction>(OutModel,
+                                                           Errors,
+                                                           TypeToEdit->key());
     } else if (TheOption == ImportFromCOption::EditFunctionPrototype) {
       revng_assert(FunctionToEdit != nullptr);
-      using EditFunctionPrototype = HeaderToModelEditFunctionAction;
+      using EditFunctionPrototype = ImportFromCEditFunctionAction;
       Action = std::make_unique<EditFunctionPrototype>(OutModel,
                                                        Errors,
                                                        FunctionToEdit->Entry());
     } else {
-      Action = std::make_unique<HeaderToModelAddTypeAction>(OutModel, Errors);
+      Action = std::make_unique<ImportFromCAddTypeAction>(OutModel, Errors);
     }
 
     // Find compile flags to be applied to clang.

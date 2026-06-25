@@ -4,7 +4,7 @@
 
 # ImportFromC
 
-revng_add_analyses_library_internal(revngImportFromCAnalysis HeaderToModel.cpp
+revng_add_analyses_library_internal(revngImportFromCAnalysis ImportFromC.cpp
                                     ImportFromCAnalysis.cpp)
 
 target_link_libraries(

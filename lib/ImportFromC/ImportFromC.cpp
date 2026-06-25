@@ -15,7 +15,7 @@
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/Debug.h"
 
-#include "HeaderToModel.h"
+#include "ImportFromC.h"
 
 using namespace model;
 using namespace revng;
@@ -27,13 +27,13 @@ static constexpr llvm::StringRef RawABIPrefix = "raw_";
 namespace clang {
 namespace tooling {
 
-class HeaderToModel : public ASTConsumer {
+class ImportFromC : public ASTConsumer {
 public:
-  HeaderToModel(TupleTree<model::Binary> &Model,
-                std::optional<model::TypeDefinition::Key> Type,
-                MetaAddress FunctionEntry,
-                ImportingErrorList &Errors,
-                enum ImportFromCOption AnalysisOption) :
+  ImportFromC(TupleTree<model::Binary> &Model,
+              std::optional<model::TypeDefinition::Key> Type,
+              MetaAddress FunctionEntry,
+              ImportingErrorList &Errors,
+              enum ImportFromCOption AnalysisOption) :
     Model(Model),
     Type(Type),
     FunctionEntry(FunctionEntry),
@@ -1243,60 +1243,61 @@ bool DeclVisitor::TraverseDecl(clang::Decl *D) {
   return true;
 }
 
-void HeaderToModel::HandleTranslationUnit(ASTContext &Context) {
+void ImportFromC::HandleTranslationUnit(ASTContext &Context) {
   clang::TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   DeclVisitor(Model, Context, Type, FunctionEntry, Errors, AnalysisOption)
     .run(TUD);
 }
 
-std::unique_ptr<ASTConsumer> HeaderToModelEditTypeAction::newASTConsumer() {
-  return std::make_unique<HeaderToModel>(Model,
-                                         Type,
-                                         MetaAddress::invalid(),
-                                         Errors,
-                                         AnalysisOption);
+std::unique_ptr<ASTConsumer> ImportFromCEditTypeAction::newASTConsumer() {
+  return std::make_unique<ImportFromC>(Model,
+                                       Type,
+                                       MetaAddress::invalid(),
+                                       Errors,
+                                       AnalysisOption);
 }
 
-std::unique_ptr<ASTConsumer> HeaderToModelEditFunctionAction::newASTConsumer() {
-  return std::make_unique<HeaderToModel>(Model,
-                                         /* Type = */ std::nullopt,
-                                         FunctionEntry,
-                                         Errors,
-                                         AnalysisOption);
+std::unique_ptr<ASTConsumer> ImportFromCEditFunctionAction::newASTConsumer() {
+  return std::make_unique<ImportFromC>(Model,
+                                       std::nullopt,
+                                       FunctionEntry,
+                                       Errors,
+                                       AnalysisOption);
 }
 
-std::unique_ptr<ASTConsumer> HeaderToModelAddTypeAction::newASTConsumer() {
-  return std::make_unique<HeaderToModel>(Model,
-                                         /* Type = */ std::nullopt,
-                                         MetaAddress::invalid(),
-                                         Errors,
-                                         AnalysisOption);
+std::unique_ptr<ASTConsumer> ImportFromCAddTypeAction::newASTConsumer() {
+  return std::make_unique<ImportFromC>(Model,
+                                       std::nullopt,
+                                       MetaAddress::invalid(),
+                                       Errors,
+                                       AnalysisOption);
 }
 
 std::unique_ptr<ASTConsumer>
-HeaderToModelAction::CreateASTConsumer(CompilerInstance &, llvm::StringRef) {
+ImportFromCAction::CreateASTConsumer(CompilerInstance &, llvm::StringRef) {
   return newASTConsumer();
 }
 
-bool HeaderToModelAction::BeginInvocation(clang::CompilerInstance &CI) {
-  DiagConsumer = new HeaderToModelDiagnosticConsumer(CI.getDiagnostics());
-  CI.getDiagnostics().setClient(DiagConsumer, /*ShouldOwnClient=*/true);
+bool ImportFromCAction::BeginInvocation(clang::CompilerInstance &CI) {
+  DiagConsumer = new ImportFromCDiagnosticConsumer(CI.getDiagnostics());
+  CI.getDiagnostics().setClient(DiagConsumer, false);
   return true;
 }
 
-void HeaderToModelAction::EndSourceFile() {
-  std::vector MoreErrors = DiagConsumer->extractErrors();
-  if (not MoreErrors.empty())
-    llvm::move(MoreErrors, std::back_inserter(Errors));
+void ImportFromCAction::EndSourceFile() {
+  if (DiagConsumer) {
+    for (auto &Error : DiagConsumer->extractErrors())
+      Errors.emplace_back(std::move(Error));
+  }
 }
 
-void HeaderToModelDiagnosticConsumer::EndSourceFile() {
+void ImportFromCDiagnosticConsumer::EndSourceFile() {
   Client->EndSourceFile();
 }
 
 using Level = DiagnosticsEngine::Level;
-void HeaderToModelDiagnosticConsumer::HandleDiagnostic(Level DiagLevel,
-                                                       const Diagnostic &Info) {
+void ImportFromCDiagnosticConsumer::HandleDiagnostic(Level DiagLevel,
+                                                     const Diagnostic &Info) {
   SmallString<100> OutStr;
   Info.FormatDiagnostic(OutStr);
 
