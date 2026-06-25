@@ -14,12 +14,48 @@ extern "C" {
 #include <fstream>
 
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Mutex.h"
 #include "llvm/Support/Progress.h"
 #include "llvm/Support/Signals.h"
 
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
+#include "revng/Support/Error.h"
+
+using namespace llvm::cl;
+
+static opt<bool> HighResolutionMemory("high-resolution-memory-tracing",
+                                      desc("Use a slower, more precise, source "
+                                           "for memory traces"),
+                                      init(false));
+
+template<StrictSpecializationOf<std::chrono::duration> T>
+class DurationParser : public llvm::cl::parser<T> {
+public:
+  using llvm::cl::parser<T>::parser;
+
+  bool parse(llvm::cl::Option &Option,
+             llvm::StringRef ArgName,
+             const llvm::StringRef ArgValue,
+             T &Val) {
+    uint64_t IntegerValue = 0;
+    bool Error = ArgValue.getAsInteger(10, IntegerValue);
+    if (Error)
+      return Option.error(ArgValue + " is not a valid number");
+
+    Val = T{ IntegerValue };
+    return false;
+  }
+};
+
+static opt<std::chrono::milliseconds,
+           false,
+           DurationParser<std::chrono::milliseconds>>
+  MemoryProfilerInterval("memory-profiler-interval",
+                         desc("Debouncing time (in ms) for emitting a memory "
+                              "usage tracepoint"),
+                         init(std::chrono::milliseconds{ 100 }));
 
 static void destroyTraceProgressListener(void *OpaqueListener);
 
@@ -32,7 +68,6 @@ private:
   llvm::raw_fd_ostream Output;
   bool Closed = false;
 
-  static auto inline MemoryProfilerInterval = std::chrono::milliseconds{ 50 };
   std::chrono::time_point<std::chrono::high_resolution_clock> LastMemoryPoll;
 
 public:
@@ -111,11 +146,23 @@ private:
     if (Now - LastMemoryPoll < MemoryProfilerInterval)
       return;
 
+    unsigned long long RSS;
+    if (HighResolutionMemory) {
+      RSS = readMemorySmaps();
+    } else {
+      RSS = readMemoryStatm();
+    }
+
+    Output << "{\"ph\": \"C\", ";
+    Output << "\"ts\": " << getTimestamp() << ", ";
+    Output << "\"pid\": " << getpid() << ", ";
+    Output << "\"args\": {\"memory (RSS)\": " << RSS << "}},\n";
+
+    LastMemoryPoll = Now;
+  }
+
+  static unsigned long long readMemorySmaps() {
     // TODO: linux-specific and requires `smaps_rollup` which is linux 4.14+.
-    //       This is more accurate than `/proc/self/statm` per
-    //       `man proc_pid_statm` (statm reports the same data, but it's
-    //       updated every N page faults). Perf tests show that both take
-    //       roughly the same time and statm produces noticeable worse results.
     // Use `std::ifstream` instead of `llvm::MemoryBuffer` as it avoids reading
     // the entire file.
     std::ifstream IS("/proc/self/smaps_rollup");
@@ -134,13 +181,22 @@ private:
       }
     }
     revng_assert(RSSKbytes != 0);
+    return RSSKbytes * 1024;
+  }
 
-    Output << "{\"ph\": \"C\", ";
-    Output << "\"ts\": " << getTimestamp() << ", ";
-    Output << "\"pid\": " << getpid() << ", ";
-    Output << "\"args\": {\"memory (RSS)\": " << RSSKbytes * 1024 << "}},\n";
+  static unsigned long long readMemoryStatm() {
+    static long PageSize = sysconf(_SC_PAGE_SIZE);
+    static constexpr llvm::StringRef Path = "/proc/self/statm";
 
-    LastMemoryPoll = Now;
+    auto Buffer = revng::cantFail(llvm::MemoryBuffer::getFileAsStream(Path));
+    llvm::SmallVector<llvm::StringRef> Parts;
+    Buffer->getBuffer().split(Parts, " ");
+    revng_assert(Parts.size() > 2);
+    unsigned long long RSSPages;
+    bool Error = Parts[1].getAsInteger(10, RSSPages);
+    revng_assert(not Error);
+
+    return RSSPages * PageSize;
   }
 };
 
@@ -390,8 +446,6 @@ static void destroyTraceProgressListener(void *OpaqueListener) {
   auto *Listener = static_cast<TraceProgressListener *>(OpaqueListener);
   Listener->close("Exit due to signal");
 }
-
-using namespace llvm::cl;
 
 static auto RegisterTraceProgressListener = [](const std::string &Value) {
   if (Value.size() > 0) {
