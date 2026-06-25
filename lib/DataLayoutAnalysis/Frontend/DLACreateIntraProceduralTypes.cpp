@@ -641,8 +641,7 @@ public:
 
 using Builder = DLATypeSystemLLVMBuilder;
 
-bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
-                                              const model::Binary &Model) {
+bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call) {
   revng_assert(Call);
   // This procedure for regular functions (i.e. those that are used in direct
   // calls) is done separately by `CreateInterProceduralTypes`
@@ -699,8 +698,7 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
 }
 
 bool Builder::createIntraproceduralTypes(llvm::Module &M,
-                                         llvm::ModulePass *MP,
-                                         const model::Binary &Model) {
+                                         llvm::ModulePass *MP) {
   bool Changed = false;
   InstanceLinkAdder ILA(Model);
 
@@ -922,7 +920,7 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
         // adding equality links between these nodes.
         if (auto *Call = dyn_cast<CallInst>(&I))
           if (Call->isIndirectCall())
-            Changed |= connectToFuncsWithSamePrototype(Call, Model);
+            Changed |= connectToFuncsWithSamePrototype(Call);
       }
     }
   }

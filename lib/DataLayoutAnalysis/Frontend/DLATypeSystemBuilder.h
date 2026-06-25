@@ -90,6 +90,9 @@ private:
   /// The TypeSystem to build
   LayoutTypeSystem &TS;
 
+  /// The Model used by this builder to get type information.
+  const model::Binary &Model;
+
   /// Ordered vector, each element is indexed with the ID of the
   /// corresponding Node
   LayoutTypePtrVect Values;
@@ -122,10 +125,8 @@ private:
   getOrCreateLayoutTypes(const llvm::Value &V);
 
 private:
-  bool createInterproceduralTypes(llvm::Module &M, const model::Binary &Model);
-  bool createIntraproceduralTypes(llvm::Module &M,
-                                  llvm::ModulePass *MP,
-                                  const model::Binary &Model);
+  bool createInterproceduralTypes(llvm::Module &M);
+  bool createIntraproceduralTypes(llvm::Module &M, llvm::ModulePass *MP);
 
   /// Collect LayoutTypePtrs and place them in the right position
   void createValuesList();
@@ -140,7 +141,8 @@ public:
   void debug_function dumpValuesMapping(const llvm::StringRef Name) const;
 
 public:
-  DLATypeSystemLLVMBuilder(LayoutTypeSystem &TS) : TS(TS){};
+  DLATypeSystemLLVMBuilder(LayoutTypeSystem &TS, const model::Binary &M) :
+    TS(TS), Model(M){};
 
   /// Create a DLATypeSystem graph for a given LLVM module
   ///
@@ -150,17 +152,14 @@ public:
   /// 2. Create a Node for each of them in the DLATypeSystem graph (TS)
   /// 3. Keep an ordered vector of LayoutTypePtrs, where each element's index
   /// corresponds to the ID of the corresponding LayoutTypeSystemNode generated
-  void buildFromLLVMModule(llvm::Module &M,
-                           llvm::ModulePass *MP,
-                           const model::Binary &Model);
+  void buildFromLLVMModule(llvm::Module &M, llvm::ModulePass *MP);
 
   /// Given an indirect Call instruction, check if it shares the model
   /// prototype with another function. If it does, connect the nodes
   /// corresponding to the types of the return values and arguments of this Call
   /// with the types of the return values and arguments of the function sharing
   /// the same prototype, using equality links.
-  bool connectToFuncsWithSamePrototype(const llvm::CallInst *Call,
-                                       const model::Binary &Model);
+  bool connectToFuncsWithSamePrototype(const llvm::CallInst *Call);
 };
 
 } // namespace dla

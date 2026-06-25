@@ -26,8 +26,7 @@ using namespace llvm;
 
 using TSBuilder = DLATypeSystemLLVMBuilder;
 
-bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
-                                           const model::Binary &Model) {
+bool TSBuilder::createInterproceduralTypes(llvm::Module &M) {
   for (const Function &F : M.functions()) {
 
     auto FTags = FunctionTags::TagsSet::from(&F);
