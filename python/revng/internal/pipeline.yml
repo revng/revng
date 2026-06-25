@@ -376,7 +376,6 @@ branches:
             - remove-llvmassume-calls
             - dce
             - peephole-opt-for-decompilation
-            - ternary-reduction
             - exit-ssa
             - arithmetic-to-gep
             - extractvalue-to-gep

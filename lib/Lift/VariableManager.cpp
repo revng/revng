@@ -543,12 +543,12 @@ VariableManager::getByCPUStateOffsetWithRemainder(intptr_t Offset) {
                                  InitializerPointer);
 
   // TODO: if this is CSV, check it's of the correct size we expect
-  auto &Result = getOrCreateGlobal(TheModule,
-                                   Name,
-                                   VariableType,
-                                   false,
-                                   llvm::GlobalValue::ExternalLinkage,
-                                   InitialValue);
+  auto &Result = getOrCreateUnstableGlobal(TheModule,
+                                           Name,
+                                           VariableType,
+                                           false,
+                                           llvm::GlobalValue::ExternalLinkage,
+                                           InitialValue);
   FunctionTags::CSV.addTo(&Result);
 
   // Register the variable

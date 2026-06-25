@@ -1066,12 +1066,16 @@ void linkFunctionModules(std::unique_ptr<llvm::Module> &&Source,
   revng::verify(&*Destination);
 }
 
-llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,
-                                        llvm::StringRef Name,
-                                        llvm::Type *Type,
-                                        bool IsConstant,
-                                        llvm::GlobalValue::LinkageTypes Linkage,
-                                        llvm::Constant *Initializer) {
+template<bool IgnoreInitializrMismatch>
+llvm::GlobalVariable &
+getOrCreateGlobalInternal(llvm::Module &M,
+                          llvm::StringRef Name,
+                          llvm::Type *Type,
+                          bool IsConstant,
+                          llvm::GlobalValue::LinkageTypes Linkage,
+                          llvm::Constant *Initializer) {
+  revng_assert(not Name.empty());
+  revng_assert(Name.data() != nullptr);
   bool IsInternal = Linkage == llvm::GlobalValue::InternalLinkage;
   llvm::GlobalVariable *Result = M.getGlobalVariable(Name, IsInternal);
 
@@ -1082,7 +1086,7 @@ llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,
     revng_assert(Result->getValueType() == Type);
     revng_assert(Result->isConstant() == IsConstant);
     revng_assert(Result->isDeclaration() == (Initializer == nullptr));
-    if (not Result->isDeclaration())
+    if (not Result->isDeclaration() and not IgnoreInitializrMismatch)
       revng_assert(Result->getInitializer() == Initializer);
     return *Result;
   }
@@ -1098,6 +1102,35 @@ llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,
     revng_assert(Result->getName() == Name);
 
   return *Result;
+}
+
+llvm::GlobalVariable &getOrCreateGlobal(llvm::Module &M,
+                                        llvm::StringRef Name,
+                                        llvm::Type *Type,
+                                        bool IsConstant,
+                                        llvm::GlobalValue::LinkageTypes Linkage,
+                                        llvm::Constant *Initializer) {
+  return getOrCreateGlobalInternal<false>(M,
+                                          Name,
+                                          Type,
+                                          IsConstant,
+                                          Linkage,
+                                          Initializer);
+}
+
+llvm::GlobalVariable &
+getOrCreateUnstableGlobal(llvm::Module &M,
+                          llvm::StringRef Name,
+                          llvm::Type *Type,
+                          bool IsConstant,
+                          llvm::GlobalValue::LinkageTypes Linkage,
+                          llvm::Constant *Initializer) {
+  return getOrCreateGlobalInternal<true>(M,
+                                         Name,
+                                         Type,
+                                         IsConstant,
+                                         Linkage,
+                                         Initializer);
 }
 
 void serializeInliningPolicy(llvm::Function &Helper,

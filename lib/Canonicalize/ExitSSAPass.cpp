@@ -19,6 +19,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DebugLoc.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
@@ -37,12 +38,28 @@ using namespace llvm;
 static Logger Log{ "exit-ssa" };
 
 struct ExitSSAPass : public FunctionPass {
+
+public:
+  using EdgeToNewBlockMap = std::map<std::pair<BasicBlock *, BasicBlock *>,
+                                     BasicBlock *>;
+
 public:
   static char ID;
 
-  ExitSSAPass() : FunctionPass(ID) {}
+private:
+  Function *CurrentFunction = nullptr;
+  DominatorTree DT;
+  EdgeToNewBlockMap NewBlocks;
+
+public:
+  ExitSSAPass() : FunctionPass(ID), CurrentFunction(nullptr) {}
 
   bool runOnFunction(Function &F) override;
+
+private:
+  void buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca);
+
+  void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs);
 };
 
 struct IncomingInfo {
@@ -343,6 +360,15 @@ getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
   // the in-block store; the rest go to freshly split blocks). stable_sort
   // keeps insertion order for ties, and the insertion order is itself
   // deterministic.
+  // TODO: this heuristic is designed to minimize the number of stores that go
+  // to freshly split blocks. This is not necessarily the best we can do.
+  // Indeed, stores in freshly split blocks are particularly bad when they end
+  // up in backedges, because they sometimes prevent a while(true) loop to be
+  // promoted to a better looking loop.
+  // At the point in the decompilation pipeline where ExitSSA runs, it's hard to
+  // predict exactly what edges will turn out to be detected as backedges in
+  // Clift. But we could try sorting first values whose incoming edge are
+  // backedges at the best accuracy we can detect them now (e.g. using a visit).
   llvm::MapVector<BasicBlock *, std::vector<std::pair<Value *, UseSet>>> Result;
   for (auto &[Block, InnerMap] : Grouped) {
     auto Entries = InnerMap.takeVector();
@@ -356,66 +382,95 @@ getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
   return Result;
 }
 
-using EdgeToNewBlockMap = std::map<std::pair<BasicBlock *, BasicBlock *>,
-                                   BasicBlock *>;
-
-static void
-buildStore(BasicBlock *StoreBlock, Value *Incoming, AllocaInst *Alloca) {
+void ExitSSAPass::buildStore(BasicBlock *StoreBlock,
+                             Value *Incoming,
+                             AllocaInst *Alloca) {
   // TODO: the checks should be enabled conditionally based on the user.
   revng::NonDebugInfoCheckingIRBuilder Builder(StoreBlock->getContext());
 
-  auto *IncomingInst = dyn_cast<Instruction>(Incoming);
-  if (IncomingInst and IncomingInst->getParent() == StoreBlock) {
-    BasicBlock *IncomingParentBlock = IncomingInst->getParent();
-    if (isa<AllocaInst>(IncomingInst)) {
-      Function *ParentFunction = StoreBlock->getParent();
-      revng_assert(IncomingParentBlock == &ParentFunction->getEntryBlock());
-      Builder.SetInsertPointPastAllocas(ParentFunction, Alloca->getDebugLoc());
-    } else {
-      Builder.SetInsertPoint(StoreBlock,
-                             std::next(IncomingInst->getIterator()),
-                             Alloca->getDebugLoc());
-    }
+  auto *IncomingInstruction = dyn_cast<Instruction>(Incoming);
+  Instruction *InsertStoreBefore = nullptr;
+  if (not IncomingInstruction) {
+
+    // If Incoming is not an instruction we always emit the store instruction at
+    // the end of the StoreBlock.
+    InsertStoreBefore = StoreBlock->getTerminator();
+
   } else {
-    Builder.SetInsertPoint(StoreBlock->getTerminator(), Alloca->getDebugLoc());
+
+    // If Incoming (a.k.a. IncomingInstruction) is an instruction, there are 2
+    // separate cases:
+    auto *DefinitionBlock = IncomingInstruction->getParent();
+    if (DefinitionBlock == StoreBlock) {
+      // a) the block where IncomingInstruction is defined is the same block
+      // where we want to inject the StoreInst (a.k.a. StoreBlock); in that case
+      // the StoreInst must be inserted right after the IncomingInstruction.
+      // The only exception is if IncomingInstruction is an Alloca itself, in
+      // which case we insert the store past all allocas.
+      if (not isa<AllocaInst>(IncomingInstruction)) {
+        InsertStoreBefore = &*std::next(IncomingInstruction->getIterator());
+      } else {
+        InsertStoreBefore = &*CurrentFunction->getEntryBlock()
+                                .getFirstNonPHIOrDbgOrAlloca();
+      }
+
+    } else {
+      // b) the block where IncomingInstruction is defined (a.k.a.
+      // DefinitionBlock) is not the same as StoreBlock; by construction
+      // DefinitionBlock must dominate StoreBlock; hence we can insert the
+      // StoreInst at the beginning of StoreBlock, right after all the PHINodes
+      InsertStoreBefore = StoreBlock->getFirstNonPHI();
+    }
   }
+  // The store always gets the alloca's debug location.
+  Builder.SetInsertPoint(InsertStoreBefore, Alloca->getDebugLoc());
 
-  auto *S = Builder.createStoreToVariable(Incoming, Alloca);
+  auto *Store = Builder.createStoreToVariable(Incoming, Alloca);
   revng_log(Log,
-            "Created StoreInst " << dumpToString(S)
-                                 << " in Block: " << StoreBlock->getName());
+            "Created StoreInst "
+              << dumpToString(Store) << " in Block: " << StoreBlock->getName()
+              << " before: " << dumpToString(InsertStoreBefore));
 
-  if (IncomingInst and IncomingInst->getParent() == StoreBlock) {
-    Instruction *LoadFromStore = nullptr;
-    for (Instruction &NextInBlock :
-         llvm::make_range(std::next(S->getIterator()), StoreBlock->end())) {
-      for (Use &Operand : NextInBlock.operands()) {
-        if (Operand.get() == IncomingInst) {
-          if (not LoadFromStore) {
-            LoadFromStore = Builder
-                              .createLoadFromVariable(Alloca,
-                                                      IncomingInst->getType());
-            if (auto *IncomingInst = dyn_cast<Instruction>(Incoming))
-              LoadFromStore->setDebugLoc(IncomingInst->getDebugLoc());
-          }
-          Operand.set(LoadFromStore);
+  // The following workaround is important. It's not strictly necessary for
+  // correctness, but for quality in terms of number of emitted local variables
+  // in C. For all the uses of IncomingInstruction that are dominated by the
+  // Store, we replace them with a use of a newly created Load, loading from the
+  // stame alloca where the store stores the result. If we don't do this, the
+  // users of IncomingInstruction will keep using IncomingInstruction directly,
+  // and there are many common cases where IncomingInstruction transitively uses
+  // the PHI itself. This in turn will cause a line of dataflow going from the
+  // load injected to replace the PHI down to the users of IncomingInstruction,
+  // that crosses the newly inserted StoreInst. As a consequence, STS injects a
+  // new local variable to handle that. In practice, this workaround reduces the
+  // number of local variables inserted by STS to cope with this.
+  Instruction *LoadFromStore = nullptr;
+  if (IncomingInstruction) {
+    for (auto &Use : llvm::make_early_inc_range(IncomingInstruction->uses())) {
+      if (DT.dominates(Store, Use)) {
+        revng_log(Log,
+                  "Replace Use of Incoming in: "
+                    << dumpToString(Use.getUser()));
+        if (not LoadFromStore) {
+          auto *Type = IncomingInstruction->getType();
+          LoadFromStore = Builder.createLoadFromVariable(Alloca, Type);
+          revng_log(Log,
+                    "Created LoadFromStore " << dumpToString(LoadFromStore));
         }
+        Use.set(LoadFromStore);
       }
     }
   }
 }
 
-static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
-                                       Function &F,
-                                       EdgeToNewBlockMap &NewBlocks) {
+void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
 
   revng_log(Log, "New PHIGroup ================");
   LoggerIndent FirstIndent{ Log };
 
   // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder Builder(F.getContext());
+  revng::NonDebugInfoCheckingIRBuilder Builder(CurrentFunction->getContext());
   const DebugLoc &PHIDebugLoc = (*PHIs.begin())->getDebugLoc();
-  Builder.SetInsertPointPastAllocas(&F, PHIDebugLoc);
+  Builder.SetInsertPointPastAllocas(CurrentFunction, PHIDebugLoc);
 
   AllocaInst *Alloca = Builder.createSimpleAlloca((*PHIs.begin())->getType());
   revng_log(Log, "Created Alloca: " << dumpToString(Alloca));
@@ -437,6 +492,7 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
       revng_assert(not EntriesInBlock.empty());
       // We handle the first element in the range separately, since it's the
       // one with the highest number of uses.
+      // TODO: do we really sort the EntriesInBlock in the best way?
       {
         auto &[Incoming, IncomingUses] = EntriesInBlock.front();
         revng_log(Log, "IncomingBlock: " << IncomingBlock->getName());
@@ -484,6 +540,7 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
           // a single incoming from that block, which means we should have
           // already handled it.
           revng_assert(nullptr == IncomingBlock->getSingleSuccessor());
+
           BasicBlock *StoreBlock = nullptr;
           if (auto It = NewBlocks.find(BlockToPHIBlock);
               It != NewBlocks.end()) {
@@ -511,6 +568,8 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
             // Also, all the incoming blocks that came from IncomingBlock so
             // they come from StoreBlock.
             PHIUser->replaceIncomingBlockWith(IncomingBlock, StoreBlock);
+
+            DT.addNewBlock(StoreBlock, IncomingBlock);
           }
           buildStore(StoreBlock, Incoming, Alloca);
         }
@@ -531,9 +590,8 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
       revng_log(Log, "Use of PHI: " << dumpToString(PHI));
       LoggerIndent IndentPHI{ Log };
 
-      Builder.SetInsertPoint(PHI->getParent()->getFirstNonPHI());
+      Builder.SetInsertPoint(PHI->getParent()->getFirstNonPHI(), PHIDebugLoc);
       auto *NewLoad = Builder.createLoadFromVariable(Alloca, PHI->getType());
-      NewLoad->setDebugLoc(PHIDebugLoc);
       revng_log(Log, "Create new load: " << dumpToString(NewLoad));
 
       for (Use &U : llvm::make_early_inc_range(PHI->uses())) {
@@ -567,19 +625,22 @@ static void replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs,
 }
 
 bool ExitSSAPass::runOnFunction(Function &F) {
+  CurrentFunction = &F;
 
-  revng_log(Log, "ExitSSA on: " << F.getName());
+  revng_log(Log, "ExitSSA on: " << CurrentFunction->getName());
   LoggerIndent Indent{ Log };
+
+  NewBlocks.clear();
+  DT.recalculate(*CurrentFunction);
 
   // A vector containing sets of equivalence classes of PHINodes.
   // Each equivalence class is composed of connected PHINodes that can form
   // trees, a DAGs, or even loops.
   // Informally, all the PHINodes in a group hold the same value, and we want to
   // create a single local variable for each DAG.
-  const auto PHIClasses = getPHIEquivalenceClasses(F);
-  EdgeToNewBlockMap NewBlocks;
+  const auto PHIClasses = getPHIEquivalenceClasses(*CurrentFunction);
   for (const auto &PHIGroup : PHIClasses)
-    replacePHIEquivalenceClass(PHIGroup, F, NewBlocks);
+    replacePHIEquivalenceClass(PHIGroup);
 
   return not PHIClasses.empty();
 }
