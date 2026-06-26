@@ -37,6 +37,7 @@
 #include "revng/Pipeline/Option.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/ModelGlobal.h"
+#include "revng/Pipes/Ranks.h"
 #include "revng/Support/PathList.h"
 #include "revng/Support/TemporaryFile.h"
 #include "revng/Support/YAMLTraits.h"
@@ -48,8 +49,6 @@
 using namespace llvm;
 using namespace clang;
 using namespace clang::tooling;
-
-static constexpr std::string_view InputCFile = "revng-input.c";
 
 static std::vector<std::string>
 getOptionsFromCFGFile(llvm::StringRef FilePath) {
@@ -102,6 +101,8 @@ makeHeaderModule(const model::Binary &Model) {
 
 static Logger Log("import-from-c-clang-input");
 
+namespace rr = revng::ranks;
+
 struct ImportFromCAnalysis {
   static constexpr auto Name = "import-from-c";
 
@@ -118,65 +119,91 @@ struct ImportFromCAnalysis {
     return run(Model, LocationToEdit, CCode);
   }
 
-  static llvm::Error run(TupleTree<model::Binary> &Model,
-                         llvm::StringRef LocationToEdit,
-                         llvm::StringRef CCode) {
-    enum ImportFromCOption TheOption;
+private:
+  struct ImportFromCState {
+    // Reference to the original Model.
+    TupleTree<model::Binary> &Model;
 
-    // This will be used iff {Edit|Add}TypeFeature is used.
+    // A copy of the original Model.
+    TupleTree<model::Binary> Result;
+
+    // The list of errors reported either by clang or us.
+    ImportingErrorList Errors = {};
+
+    // Context behind the action being performed.
+    std::unique_ptr<ImportFromCAction> Action = nullptr;
+
+    // This pointer is only set when a *type* is being *edited*.
+    // It will remain as `nullptr` in all other cases.
     model::TypeDefinition *TypeToEdit = nullptr;
 
-    // This will be used iff EditFunctionPrototypeFeature is used.
-    model::Function *FunctionToEdit = nullptr;
+  public:
+    ImportFromCState(TupleTree<model::Binary> &Model) :
+      Model(Model), Result(Model) {}
 
-    namespace RRanks = revng::ranks;
+    ImportFromCState(ImportFromCState &&) = delete;
+    ImportFromCState &operator=(ImportFromCState &&) = delete;
+    ImportFromCState(const ImportFromCState &) = delete;
+    ImportFromCState &operator=(const ImportFromCState &) = delete;
+  };
+
+  static llvm::Error prepareActionHelper(ImportFromCState &Out,
+                                         llvm::StringRef LocationToEdit) {
     if (LocationToEdit.empty()) {
-      // This is the default option of the analysis.
-      TheOption = ImportFromCOption::AddType;
+      Out.Action = std::make_unique<ImportFromCAddTypeAction>(Out.Result,
+                                                              Out.Errors);
+
+    } else if (auto L = pipeline::locationFromString(rr::Function,
+                                                     LocationToEdit)) {
+      auto &&[Key] = L->at(rr::Function);
+      auto Iterator = Out.Model->Functions().find(Key);
+      if (Iterator == Out.Model->Functions().end())
+        return revng::createError("Couldn't find the function "
+                                  + LocationToEdit.str());
+
+      using EditFunction = ImportFromCEditFunctionAction;
+      Out.Action = std::make_unique<EditFunction>(Out.Result,
+                                                  Out.Errors,
+                                                  Iterator->Entry());
+
+    } else if (auto L = pipeline::locationFromString(rr::TypeDefinition,
+                                                     LocationToEdit)) {
+      auto &&[Key, Kind] = L->at(rr::TypeDefinition);
+      auto Iterator = Out.Model->TypeDefinitions().find({ Key, Kind });
+      if (Iterator == Out.Model->TypeDefinitions().end())
+        return revng::createError("Couldn't find the type "
+                                  + LocationToEdit.str());
+
+      Out.TypeToEdit = Iterator->get();
+
+      using EditType = ImportFromCEditTypeAction;
+      Out.Action = std::make_unique<EditType>(Out.Result,
+                                              Out.Errors,
+                                              Out.TypeToEdit->key());
+
     } else {
-      if (auto L = pipeline::locationFromString(revng::ranks::Function,
-                                                LocationToEdit)) {
-        auto &&[Key] = L->at(revng::ranks::Function);
-        auto Iterator = Model->Functions().find(Key);
-        if (Iterator == Model->Functions().end()) {
-          return revng::createError("Couldn't find the function "
-                                    + LocationToEdit);
-        }
-
-        FunctionToEdit = &*Iterator;
-        TheOption = ImportFromCOption::EditFunctionPrototype;
-      } else if (auto L = pipeline::locationFromString(RRanks::TypeDefinition,
-                                                       LocationToEdit)) {
-        auto &&[Key, Kind] = L->at(revng::ranks::TypeDefinition);
-        auto Iterator = Model->TypeDefinitions().find({ Key, Kind });
-        if (Iterator == Model->TypeDefinitions().end()) {
-          return revng::createError("Couldn't find the type " + LocationToEdit);
-        }
-
-        TypeToEdit = Iterator->get();
-        TheOption = ImportFromCOption::EditType;
-      } else {
-        return revng::createError("Invalid location");
-      }
+      return revng::createError("Invalid location");
     }
 
-    auto MaybeFilterModelPath = TemporaryFile::make("filtered-model-header-"
-                                                    "ptml",
-                                                    "h");
-    if (not MaybeFilterModelPath)
-      return MaybeFilterModelPath.takeError();
+    return llvm::Error::success();
+  }
 
-    TemporaryFile &FilterModelPath = MaybeFilterModelPath.get();
+  static std::pair<TemporaryFile, std::unique_ptr<llvm::raw_fd_ostream>>
+  setupTemporaryFile() {
+    auto File = TemporaryFile::make("filtered-model-header-ptml", "h");
+    revng_check(File);
+
     std::error_code ErrorCode;
-    llvm::raw_fd_ostream Out(FilterModelPath.path(), ErrorCode);
-    if (ErrorCode) {
-      return llvm::createStringError(ErrorCode,
-                                     "Couldn't open file for "
-                                     "filtered-model-header-ptml.h: "
-                                       + ErrorCode.message());
-    }
+    auto Out = std::make_unique<llvm::raw_fd_ostream>(File->path(), ErrorCode);
+    revng_assert(not ErrorCode);
 
-    auto [Context, HeaderModule] = makeHeaderModule(*Model);
+    return { std::move(*File), std::move(Out) };
+  }
+
+  static void emitFilteredHeader(llvm::raw_fd_ostream &Out,
+                                 const model::Binary &Model,
+                                 model::TypeDefinition *TypeToEdit) {
+    auto [Context, HeaderModule] = makeHeaderModule(Model);
 
     TypeEmitterConfiguration Configuration = {
       .TypeToOmit = {},
@@ -184,28 +211,26 @@ struct ImportFromCAnalysis {
       .ExplicitPadding = false,
     };
 
-    // Extra variable is here to extend the lifetime of the string.
-    std::string EditedTypeHandle;
-
-    if (TheOption == ImportFromCOption::EditType) {
-      EditedTypeHandle = pipeline::locationString(revng::ranks::TypeDefinition,
+    // This variable is necessary to ensure the string (when it's used) survives
+    // until the end of the function.
+    std::string EditedTypeHandle = {};
+    if (TypeToEdit != nullptr)
+      EditedTypeHandle = pipeline::locationString(rr::TypeDefinition,
                                                   TypeToEdit->key());
-      Configuration.TypeToOmit = EditedTypeHandle;
-    }
+    Configuration.TypeToOmit = EditedTypeHandle;
 
     {
       ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Disabled);
-      emitCommonIncludes(Tokens, abi::getDataModel(*Model));
+      emitCommonIncludes(Tokens, abi::getDataModel(Model));
 
-      if (TheOption == ImportFromCOption::EditType
-          and isSeparateDeclarationAllowed(*TypeToEdit)) {
+      if (TypeToEdit != nullptr and isSeparateDeclarationAllowed(*TypeToEdit)) {
         auto Current = clift::importType(Context.get(), *TypeToEdit);
 
         // TODO: we only need information about one type, don't import them all!
-        clift::importDescriptiveInfo(*Model, *HeaderModule);
+        clift::importDescriptiveInfo(Model, *HeaderModule);
 
         TypeDefinitionEmitter TDE(Tokens,
-                                  abi::getDataModel(*Model),
+                                  abi::getDataModel(Model),
                                   Configuration);
         TDE.emitForwardDeclaration(Current);
         Tokens.emitNewline();
@@ -213,49 +238,19 @@ struct ImportFromCAnalysis {
 
       emitTypes(Tokens, *HeaderModule, Configuration);
     }
+  }
 
-    Out.close();
-
-    if (Log.isEnabled()) {
-      std::ifstream FilteredHeader(FilterModelPath.path().str());
-      Log << "Filtered header:\n" << FilteredHeader.rdbuf() << "\n" << DoLog;
-    }
-
-    std::string FilteredHeader = std::string("#include \"")
-                                 + FilterModelPath.path().str()
-                                 + std::string("\"");
-    TupleTree<model::Binary> OutModel(Model);
-
-    ImportingErrorList Errors;
-    std::unique_ptr<ImportFromCAction> Action;
-
-    if (TheOption == ImportFromCOption::EditType) {
-      revng_assert(TypeToEdit != nullptr);
-      Action = std::make_unique<ImportFromCEditTypeAction>(OutModel,
-                                                           Errors,
-                                                           TypeToEdit->key());
-    } else if (TheOption == ImportFromCOption::EditFunctionPrototype) {
-      revng_assert(FunctionToEdit != nullptr);
-      using EditFunctionPrototype = ImportFromCEditFunctionAction;
-      Action = std::make_unique<EditFunctionPrototype>(OutModel,
-                                                       Errors,
-                                                       FunctionToEdit->Entry());
-    } else {
-      Action = std::make_unique<ImportFromCAddTypeAction>(OutModel, Errors);
-    }
-
+  static std::vector<std::string> getCompilationFlags() {
     // Find compile flags to be applied to clang.
     StringRef CompileFlagsPath = "share/revng/compile-flags.cfg";
     auto MaybeCompileCFGPath = revng::ResourceFinder.findFile(CompileFlagsPath);
-    if (not MaybeCompileCFGPath) {
-      return revng::createError("Couldn't find compile-flags.cfg");
-    }
+    revng_assert(MaybeCompileCFGPath);
 
     // Since the `--config` is just a clang Driver option, we need to parse it
     // manually.
     auto FromCFGFile = getOptionsFromCFGFile(*MaybeCompileCFGPath);
-    std::vector<std::string> Compilation(FromCFGFile);
-    Compilation.push_back("-xc");
+    std::vector<std::string> Result(FromCFGFile);
+    Result.push_back("-xc");
 
     SmallString<16> CompilerHeadersPath;
     {
@@ -268,26 +263,29 @@ struct ImportFromCAnalysis {
       CompilerHeadersPath = clang::driver::Driver::GetResourcesPath(ClangPath);
       append(CompilerHeadersPath, Twine("include"));
     }
-    Compilation.push_back("-I" + CompilerHeadersPath.str().str());
+    Result.push_back("-I" + CompilerHeadersPath.str().str());
 
     // Find primitive-types.h and attributes.h.
-    const char *PrimitivesHeader = "share/revng/include/"
-                                   "primitive-types.h";
+    const char *PrimitivesHeader = "share/revng/include/primitive-types.h";
     auto MaybePrimitiveHeaderPath = findHeaderFile(PrimitivesHeader);
-    if (not MaybePrimitiveHeaderPath) {
-      return revng::createError("Couldn't find primitive-types.h");
-    }
-    Compilation.push_back("-I" + *MaybePrimitiveHeaderPath);
+    revng_assert(MaybePrimitiveHeaderPath);
+    Result.push_back("-I" + *MaybePrimitiveHeaderPath);
 
-    FilteredHeader += "\n";
-    FilteredHeader += CCode;
+    return Result;
+  }
 
-    revng_log(Log, "Real input:\n" << FilteredHeader << "\n");
+  static llvm::Error parseCompiledC(ImportFromCState &State,
+                                    llvm::StringRef HeaderPath,
+                                    llvm::StringRef CCode) {
+    std::string InputC = std::string("#include \"") + HeaderPath.str()
+                         + std::string("\"\n") + CCode.str();
+    revng_log(Log, "Real input:\n" << InputC << "\n");
 
-    if (not clang::tooling::runToolOnCodeWithArgs(std::move(Action),
-                                                  FilteredHeader,
-                                                  Compilation,
-                                                  InputCFile)) {
+    static constexpr std::string_view InputFileName = "revng-input.c";
+    if (not clang::tooling::runToolOnCodeWithArgs(std::move(State.Action),
+                                                  InputC,
+                                                  getCompilationFlags(),
+                                                  InputFileName)) {
       return revng::createError("Unable to run clang");
     }
 
@@ -296,22 +294,42 @@ struct ImportFromCAnalysis {
     //
     // TODO: adjusting line numbers to account for the lines we append would
     //       make UX considerably better.
-    if (not Errors.empty()) {
-      std::string Result;
-      for (auto &Error : Errors)
-        Result += std::move(Error);
-      return revng::createError(Result);
+    if (not State.Errors.empty()) {
+      std::string ConcatenatedErrorMessage;
+      for (auto &Error : State.Errors)
+        ConcatenatedErrorMessage += std::move(Error);
+      return revng::createError(ConcatenatedErrorMessage);
     }
 
     model::VerifyHelper VH;
-    if (not OutModel->verify(VH)) {
+    if (not State.Result->verify(VH)) {
       return revng::createError("New model does not verify: " + VH.getReason());
     }
 
-    // Replace the original Model with the OutModel that contains the changes.
-    Model = OutModel;
+    // Replace the original Model with the Result that contains the changes.
+    std::swap(State.Model, State.Result);
 
     return llvm::Error::success();
+  }
+
+public:
+  static llvm::Error run(TupleTree<model::Binary> &Model,
+                         llvm::StringRef LocationToEdit,
+                         llvm::StringRef CCode) {
+    ImportFromCState State(Model);
+    if (auto Error = prepareActionHelper(State, LocationToEdit))
+      return Error;
+
+    auto [FilteredTypeHeader, Out] = setupTemporaryFile();
+    emitFilteredHeader(*Out, *Model, State.TypeToEdit);
+    Out->close();
+
+    if (Log.isEnabled()) {
+      std::ifstream Stream(FilteredTypeHeader.path().str());
+      Log << "Filtered header:\n" << Stream.rdbuf() << "\n" << DoLog;
+    }
+
+    return parseCompiledC(State, FilteredTypeHeader.path().str(), CCode);
   }
 };
 
