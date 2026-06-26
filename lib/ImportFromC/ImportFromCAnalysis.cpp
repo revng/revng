@@ -293,6 +293,9 @@ struct ImportFromCAnalysis {
 
     // Check if an error was reported by clang or revng during parsing of C
     // code.
+    //
+    // TODO: adjusting line numbers to account for the lines we append would
+    //       make UX considerably better.
     if (not Errors.empty()) {
       std::string Result;
       for (auto &Error : Errors)
