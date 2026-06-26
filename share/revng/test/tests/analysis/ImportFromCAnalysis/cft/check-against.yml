@@ -27,5 +27,5 @@ TypeDefinitions:
             PointerSize: 8
             PointeeType:
               Kind: PrimitiveType
-              PrimitiveKind: Unsigned
+              PrimitiveKind: Signed
               Size: 1

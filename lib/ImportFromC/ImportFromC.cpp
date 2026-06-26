@@ -274,14 +274,14 @@ DeclVisitor::makePrimitive(const BuiltinType *UnderlyingBuiltin,
   case BuiltinType::Short:
     return model::PrimitiveType::makeSigned(2);
 
-  case BuiltinType::Char_S:
-  case BuiltinType::SChar:
+  case BuiltinType::Char_U:
+  case BuiltinType::UChar:
   case BuiltinType::Char8:
   case BuiltinType::Bool:
     return model::PrimitiveType::makeUnsigned(1);
 
-  case BuiltinType::Char_U:
-  case BuiltinType::UChar:
+  case BuiltinType::Char_S:
+  case BuiltinType::SChar:
     return model::PrimitiveType::makeSigned(1);
 
   case BuiltinType::Void:
