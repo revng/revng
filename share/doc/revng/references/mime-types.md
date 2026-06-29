@@ -6,32 +6,27 @@ USAGE: revng-artifact [options] <artifact> <binary>
 
 <artifact> can be one of:
 
-  lift                            - application/x.llvm.bc+zstd
-  isolate                         - application/x.llvm.bc+zstd
-  enforce-abi                     - application/x.llvm.bc+zstd
-  emit-cfg                        - text/yaml+tar+gz
-  hexdump                         - text/x.hexdump+ptml
-  render-svg-call-graph           - image/svg
-  render-svg-call-graph-slice     - image/svg
-  disassemble                     - text/x.asm+ptml+tar+gz
-  render-svg-cfg                  - image/svg
-  recompile                       - application/x-executable
-  recompile-isolated              - application/x-executable
-  simplify-switch                 - application/x.llvm.bc+zstd
-  make-segment-ref                - application/x.llvm.bc+zstd
-  legacy-decompile                - text/x.c+ptml+tar+gz
-  legacy-decompile-to-single-file - text/x.c+ptml
-  legacy-emit-helpers-header      - text/x.c+ptml
-  legacy-emit-model-header        - text/x.c+ptml
-  legacy-emit-type-definitions    - text/x.c+tar+gz
-  cleanup-ir                      - application/x.llvm.bc+zstd
-  segregate-stack-accesses        - application/x.llvm.bc+zstd
-  emit-c                          - text/x.c+ptml+tar+gz
-  emit-c-as-single-file           - text/x.c+ptml
-  import-types                    - application/x.mlir.bc
-  emit-type-and-global-header     - text/x.h+ptml
-  emit-helper-header              - text/x.h+ptml
-  emit-single-type-definition     - text/x.c+tar+gz
+  lift                        - application/x.llvm.bc+zstd
+  isolate                     - application/x.llvm.bc+zstd
+  enforce-abi                 - application/x.llvm.bc+zstd
+  emit-cfg                    - text/yaml+tar+gz
+  hexdump                     - text/x.hexdump+ptml
+  render-svg-call-graph       - image/svg
+  render-svg-call-graph-slice - image/svg
+  disassemble                 - text/x.asm+ptml+tar+gz
+  render-svg-cfg              - image/svg
+  recompile                   - application/x-executable
+  recompile-isolated          - application/x-executable
+  simplify-switch             - application/x.llvm.bc+zstd
+  make-segment-ref            - application/x.llvm.bc+zstd
+  cleanup-ir                  - application/x.llvm.bc+zstd
+  segregate-stack-accesses    - application/x.llvm.bc+zstd
+  emit-c                      - text/x.c+ptml+tar+gz
+  emit-c-as-single-file       - text/x.c+ptml
+  import-types                - application/x.mlir.bc
+  emit-type-and-global-header - text/x.h+ptml
+  emit-helper-header          - text/x.h+ptml
+  emit-single-type-definition - text/x.c+tar+gz
 ```
 
 ## MIME types

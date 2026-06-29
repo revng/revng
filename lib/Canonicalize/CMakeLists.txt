@@ -6,37 +6,24 @@ revng_add_analyses_library_internal(
   revngCanonicalize
   ArithmeticToGEP.cpp
   DeferAllocas.cpp
-  DiscardBrokenDebugInformation.cpp
-  EmbedStatementComments.cpp
   ExitSSAPass.cpp
   ExtractValueToGEP.cpp
   FixPointerSize.cpp
-  FoldModelGEP.cpp
   SplitStructPhis.cpp
-  ImplicitModelCastPass.cpp
   LoopRewriteWithCanonicalIV.cpp
-  MakeLocalVariables.cpp
-  MakeModelCastPass.cpp
-  MakeModelGEPPass.cpp
-  OperatorPrecedenceResolutionPass.cpp
   PeepholeOptimizationPass.cpp
-  PrettyIntFormattingPass.cpp
   RemoveConstantArrayReturnsPass.cpp
   RemoveLLVMAssumeCallsPass.cpp
-  RemoveLoadStore.cpp
-  RemovePointerCasts.cpp
   SimplifySwitchPass.cpp
   SplitExponentialDataflow.cpp
   SplitOverflowIntrinsicsPass.cpp
   SwitchToStatements.cpp
-  TernaryReductionPass.cpp
-  TwosComplementArithmeticNormalizationPass.cpp)
+  TernaryReductionPass.cpp)
 
 target_link_libraries(
   revngCanonicalize
   revngFunctionIsolation
   revngInitModelTypes
-  revngTypeNames
   revngSupport
   revngABI
   revngLocalVariables

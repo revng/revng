@@ -10,7 +10,6 @@ target_link_libraries(
   revngPipebox
   ${Python3_LIBRARIES}
   ${LLVM_LIBRARIES}
-  revngBackend
   revngCanonicalize
   revngClift
   revngCliftPipes
@@ -20,7 +19,6 @@ target_link_libraries(
   revngLLMRenameAnalysis
   revngLift
   revngModelImporter
-  revngModelToHeader
   revngPromoteStackPointer
   revngRecompile
   revngRemoveExtractValues

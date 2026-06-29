@@ -7,7 +7,6 @@ revng_add_analyses_library_internal(revngLLMRenameAnalysis
 
 target_link_libraries(
   revngLLMRenameAnalysis
-  revngTypeNames
   revngModel
   revngSupport
   revngPipeline

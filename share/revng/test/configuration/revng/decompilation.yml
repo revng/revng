@@ -3,15 +3,6 @@
 #
 
 commands:
-  - # Run decompilation pipeline up to emit-c-as-single-file
-    type: revng.emit-c-as-single-file
-    from:
-      - type: revng-qa.compiled-with-debug-info
-        filter: for-decompilation
-    suffix: /
-    command: |-
-      revng2 -C "$OUTPUT" project init "$INPUT";
-      revng2 -C "$OUTPUT" project artifact emit-c-as-single-file -o /dev/null
   - # Run the Clift decompilation pipeline
     type: revng.emit-c
     from:
@@ -27,25 +18,3 @@ commands:
       - type: revng.emit-c
     command: |-
       revng model compare "${SOURCE}".model.yml "$INPUT/model.yml"
-  - # Check well-formedness of decompiled C
-    type: revng.emit-c-as-single-file.check-decompiled-c
-    from:
-      - type: revng.emit-c-as-single-file
-    suffix: /
-    command: |-
-      revng2 -C "$INPUT" project artifact emit-c-as-single-file |
-        yq -r '.["/binary"]' |
-        revng ptml > "$OUTPUT/decompiled.c";
-      revng2 -C "$INPUT" project artifact emit-type-and-global-header |
-        yq -r '.["/binary"]' |
-        revng ptml > "$OUTPUT/types-and-globals.h";
-      revng2 -C "$INPUT" project artifact emit-helper-header |
-        yq -r '.["/binary"]' |
-        revng ptml > "$OUTPUT/helpers.h";
-      revng check-decompiled-c "$OUTPUT/decompiled.c" -I "$OUTPUT"
-  - # Perform checks on the decompiled C code
-    type: revng.emit-c-as-single-file.filecheck
-    from:
-      - type: revng.emit-c-as-single-file
-    command: |-
-      revng2 -C "$INPUT" project artifact emit-c-as-single-file | revng ptml | FileCheck "${SOURCE}".filecheck

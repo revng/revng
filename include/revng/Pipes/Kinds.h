@@ -79,34 +79,11 @@ inline TaggedFunctionKind
                           ranks::Function,
                           FunctionTags::StackAccessesSegregated);
 
-extern FunctionKind Decompiled;
-inline pipeline::SingleElementKind
-  LegacyModelHeader("legacy-model-header",
-                    Binary,
-                    ranks::Binary,
-                    fat(ranks::TypeDefinition,
-                        ranks::StructField,
-                        ranks::UnionField,
-                        ranks::EnumEntry,
-                        ranks::DynamicFunction,
-                        ranks::Segment,
-                        ranks::ArtificialStruct),
-                    { &Decompiled });
-
 inline FunctionKind Decompiled("decompiled",
-                               LegacyModelHeader,
+                               StackAccessesSegregated,
                                ranks::Function,
                                fat(ranks::Function),
-                               { &LegacyModelHeader });
-
-inline TypeKind LegacyModelTypeDefinition("legacy-model-type-definition",
-                                          LegacyModelHeader,
-                                          ranks::TypeDefinition,
-                                          {},
-                                          {});
-
-inline pipeline::SingleElementKind
-  LegacyHelpersHeader("legacy-helpers-header", Binary, ranks::Binary, {}, {});
+                               { &StackAccessesSegregated });
 
 inline pipeline::SingleElementKind
   CliftModule("clift-module", ranks::Binary, {}, {});
@@ -116,6 +93,6 @@ inline pipeline::SingleElementKind DecompiledToC("decompiled-to-c",
                                                  Binary,
                                                  ranks::Binary,
                                                  fat(ranks::Function),
-                                                 { &LegacyModelHeader });
+                                                 { &Decompiled });
 
 } // namespace revng::kinds
