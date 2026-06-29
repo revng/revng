@@ -104,7 +104,7 @@ def _normalize_nonelf_output(data: list):
             results.append(result)
         if "Sections" in elem:
             result["Sections"] = []
-            for section in data[4]["Sections"]:
+            for section in elem["Sections"]:
                 result["Sections"].append(section["Section"])
         elif "Segment" in elem:
             if "Segments" not in result:
