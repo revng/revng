@@ -66,7 +66,8 @@ struct PointerArithmetic {
   /// Check if this is an address (has base pointer) arithmetic
   bool isAddress() const;
 
-  /// Verify the invariants for the strides contained in the PointerArithmetic
+  /// Verify the `PointerArithmetic` is valid: a non-negative `BaseOffset` and
+  /// strictly-positive, unique, descending strides
   bool verify() const;
 
   /// Dump method

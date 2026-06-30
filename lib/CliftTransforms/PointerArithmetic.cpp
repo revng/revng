@@ -36,10 +36,18 @@ bool PointerArithmetic::isAddress() const {
 
 bool PointerArithmetic::verify() const {
 
+  // A negative `BaseOffset` would point before the pointed-to object, so it
+  // cannot correspond to a field or array element access
+  if (Offset.BaseOffset.isNegative()) {
+    return false;
+  }
+
   const auto &LinearCombination = Offset.LinearCombination;
 
   // Check that strides are strictly positive. Negative or null strides do not
-  // make sense
+  // make sense.
+  // TODO: currently negative `Stride`s fail the verify, we may need to support
+  //       them in the future.
   for (const auto &Term : LinearCombination) {
     if (Term.Stride.isNegative() or Term.Stride.isZero()) {
       return false;
@@ -231,6 +239,15 @@ PointerArithmeticBuilder::computePointerArithmetic(ExpressionOpInterface
     return std::nullopt;
   }
 
+  // If the traversal failed, or produced a `PointerArithmetic` that is not
+  // valid, we cannot rewrite the expression, so we leave it as raw pointer
+  // arithmetic instead of asserting.
+  // TODO: currently negative `Stride`s fail the verify, we may need to support
+  //       them in the future.
+  if (not Result or not Result->verify()) {
+    return std::nullopt;
+  }
+
   // We skip every replacement where the `PointerToReplace` is equal to the
   // `BasePointer`. Replacing such expression would create a circular reference:
   // the new `clift.subscript` uses the `BasePointer` as operand, and
@@ -245,9 +262,6 @@ PointerArithmeticBuilder::computePointerArithmetic(ExpressionOpInterface
                  and Offset.LinearCombination.empty());
     return std::nullopt;
   }
-
-  // Verify invariants for the obtained `PointerArithmetic`
-  revng_assert(not Result or Result->verify());
 
   // Log the resulting `PointerArithmetic`, together with the initial
   // `PointerToReplace` it was produced from
