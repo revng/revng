@@ -10,5 +10,6 @@ namespace clift {
 
 void populateWithCastCanonicalizations(mlir::RewritePatternSet &Set);
 void populateWithBooleanNegationPatterns(mlir::RewritePatternSet &Set);
+void populateWithExpressionOptimizationPatterns(mlir::RewritePatternSet &Set);
 
 } // namespace clift
