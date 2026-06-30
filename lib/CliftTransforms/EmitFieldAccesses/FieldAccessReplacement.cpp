@@ -123,7 +123,7 @@ Replacement Replacement::make(unsigned PointerBitWidth,
 
     // Inspect the `TypedefType` and cast to a known `clift` `Type`
     if (auto TypedefType = mlir::dyn_cast<clift::TypedefType>(BaseType)) {
-      BaseType = mlir::cast<mlir::Type>(TypedefType.getUnderlyingType());
+      BaseType = TypedefType.getUnderlyingType();
       continue;
     }
 
@@ -146,7 +146,7 @@ Replacement Replacement::make(unsigned PointerBitWidth,
       // Look up the field by positional index. Subtract the field's byte
       // offset from LeftoverOffset (for unions, getOffset() returns 0)
       const FieldAttr &Field = ClassType.getFields()[FieldIndex];
-      BaseType = mlir::cast<mlir::Type>(Field.getType());
+      BaseType = Field.getType();
       LeftoverOffset.BaseOffset -= Field.getOffset();
 
       continue;
