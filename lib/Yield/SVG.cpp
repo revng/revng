@@ -321,7 +321,7 @@ static std::string exportGraph(const ptml::MarkupBuilder &B,
   Tag ArrowHeads = B.getTag("defs", defaultArrowHeads(B, Configuration));
   return B.getTag("svg", ArrowHeads.toString() + std::move(Result))
     .addAttribute("xmlns", R"(http://www.w3.org/2000/svg)")
-    .addAttribute("viewbox", std::move(SerializedBox))
+    .addAttribute("viewBox", std::move(SerializedBox))
     .addAttribute("width", std::to_string(Box.BottomRight.X - Box.TopLeft.X))
     .addAttribute("height", std::to_string(Box.BottomRight.Y - Box.TopLeft.Y))
     .toString();

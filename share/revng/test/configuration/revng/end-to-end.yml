@@ -122,6 +122,8 @@ commands:
       mkdir -p "$OUTPUT";
       tar -xzf "$OUTPUT/recompilable-archive.tar.gz" -C "$OUTPUT";
 
+      if [[ "$POINTER_SIZE" -ne 64 ]] && grep -wq pointer64_t "$OUTPUT/decompiled/functions.c"; then echo "pointer64_t found in $POINTER_SIZE bit decompiled functions.c"; exit 1; fi;
+
       revng check-decompiled-c "$OUTPUT/decompiled/functions.c"
         -I"$OUTPUT/decompiled/" "$$@" -m"$POINTER_SIZE"
         |& tee "$OUTPUT/check-decompiled-c.log";

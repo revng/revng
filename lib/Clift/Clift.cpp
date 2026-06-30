@@ -1309,17 +1309,17 @@ static void printCliftPointerArithmeticOpTypes(mlir::OpAsmPrinter &Printer,
 }
 
 static mlir::LogicalResult verifyPointerArithmeticOp(mlir::Operation *Op) {
-  mlir::Type LhsT = unwrapTypedefs(Op->getOperand(0).getType());
-  mlir::Type RhsT = unwrapTypedefs(Op->getOperand(1).getType());
+  mlir::Type LhsT = Op->getOperand(0).getType();
+  mlir::Type RhsT = Op->getOperand(1).getType();
 
-  auto LhsPT = mlir::dyn_cast<PointerType>(LhsT);
-  auto RhsPT = mlir::dyn_cast<PointerType>(RhsT);
+  auto LhsPT = clift::unwrapped_dyn_cast<PointerType>(LhsT);
+  auto RhsPT = clift::unwrapped_dyn_cast<PointerType>(RhsT);
 
   if (static_cast<bool>(LhsPT) == static_cast<bool>(RhsPT))
     return Op->emitOpError() << "requires exactly one pointer operand.";
 
   auto PtrType = LhsPT ? LhsPT : RhsPT;
-  auto IntType = mlir::dyn_cast<IntegerType>(LhsPT ? RhsT : LhsT);
+  auto IntType = clift::unwrapped_dyn_cast<IntegerType>(LhsPT ? RhsT : LhsT);
 
   if (not IntType)
     return Op->emitOpError() << "requires an integer operand.";
@@ -1336,7 +1336,7 @@ static mlir::LogicalResult verifyPointerArithmeticOp(mlir::Operation *Op) {
   if (not clift::unwrapped_isa<ObjectType>(PtrType.getPointeeType()))
     return Op->emitOpError() << "operand pointee must have object type.";
 
-  if (Op->getResult(0).getType() != removeConst(PtrType))
+  if (Op->getResult(0).getType() != removeConst(LhsPT ? LhsT : RhsT))
     return Op->emitOpError() << "result and pointer operand types must match.";
 
   return mlir::success();

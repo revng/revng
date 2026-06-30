@@ -233,6 +233,15 @@ public:
   void dumpTypeGraph(const char *Path) const debug_function;
 
 public:
+  /// \p Address a valid, Generic address.
+  /// \return a pair of a pointer to a segment and an offset within it or
+  ///         <nullptr, 0> in case of no match.
+  std::pair<const model::Segment *, uint64_t>
+  getSegmentFor(const MetaAddress &Address) const;
+
+  std::pair<model::Segment *, uint64_t>
+  getSegmentFor(const MetaAddress &Address);
+
   MetaAddressRangeSet executableRanges() const;
 };
 

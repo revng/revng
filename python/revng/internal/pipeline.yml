@@ -90,6 +90,7 @@ analysis-lists:
       - import-prototypes-from-db
       - detect-abi
       - detect-stack-size
+      - detect-c-strings
       - analyze-data-layout
       - convert-functions-to-cabi
     description: |
@@ -109,6 +110,8 @@ branches:
     tasks:
       - pipe: lift
         arguments: [binaries-container, llvm-root]
+      - pipe: emit-segment-references
+        arguments: [llvm-root]
       - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root]
         configuration:
@@ -308,8 +311,6 @@ branches:
             - split-overflow-intrinsics
             - dce
             - remove-llvmassume-calls
-      - pipe: make-segment-ref
-        arguments: [binaries-container, llvm-functions]
       - savepoint: make-segment-ref
         containers: [llvm-functions]
         artifacts:
@@ -321,7 +322,7 @@ branches:
           - analysis: analyze-data-layout
             containers: [llvm-functions]
 
-  clift-functions:
+  segregate-stack-accesses:
     from: detect-stack-size
     tasks:
       - pipe: pure-llvm-passes-pipe
@@ -358,6 +359,9 @@ branches:
             - strip-dead-prototypes
             - split-overflow-intrinsics
             - dce
+            - inline-segment-global-getters
+      - pipe: emit-function-pointers
+        arguments: [llvm-functions]
       - savepoint: segregate-stack-accesses
         containers: [llvm-functions]
         artifacts:
@@ -365,6 +369,12 @@ branches:
             container: llvm-functions
             category: debug
             filename: stack_accesses_segregated.bc
+        analyses:
+          - analysis: detect-c-strings
+            containers: [binaries-container, llvm-functions]
+  clift-functions:
+    from: segregate-stack-accesses
+    tasks:
       - pipe: pure-llvm-passes-pipe
         arguments: [llvm-functions]
         configuration:
@@ -637,7 +647,9 @@ branches:
       - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root]
         configuration:
-          passes: [drop-opaque-return-address]
+          passes:
+            - drop-opaque-return-address
+            - inline-segment-global-getters
       - pipe: compile-root-module
         arguments: [llvm-root, object-file]
       - pipe: link-for-translation
@@ -660,7 +672,9 @@ branches:
       - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root-with-functions]
         configuration:
-          passes: [drop-opaque-return-address]
+          passes:
+            - drop-opaque-return-address
+            - inline-segment-global-getters
       - pipe: compile-root-module
         arguments: [llvm-root-with-functions, object-file]
       - pipe: link-for-translation
@@ -674,20 +688,20 @@ branches:
             filename: isolated-translated-binary
 
   cleanup-ir:
-    from: make-segment-ref
+    from: segregate-stack-accesses
     tasks:
+      - pipe: emit-string-constants
+        arguments: [binaries-container, llvm-functions]
       - pipe: merge-llvm-modules
         arguments: [llvm-functions, llvm-root-merged]
       - pipe: pure-llvm-passes-root-pipe
         arguments: [llvm-root-merged]
         configuration:
-          passes: [instcombine]
-      - pipe: cleanup-ir
-        arguments: [llvm-root-merged]
-      - pipe: pure-llvm-passes-root-pipe
-        arguments: [llvm-root-merged]
-        configuration:
-          passes: [dce]
+          passes:
+            - instcombine
+            - dce
+            - inline-segment-global-getters
+
       - savepoint: cleanup-ir
         containers: [llvm-root-merged]
         artifacts:

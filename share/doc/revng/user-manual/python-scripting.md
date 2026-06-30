@@ -100,12 +100,12 @@ After you make a change, you need to invoke the `commit` method in order for the
 
 If you want to run a set of predefined analyses, you can run them with:
 
-```python
+```{python notest}
 >>> project.model.analyze("initial-auto-analysis")
 ```
 
 If you want to run a specific [analysis](../analyses/) instead, you can do that too.
 
-```python
+```{python notest}
 >>> project.model.analyze("detect-stack-size")
 ```

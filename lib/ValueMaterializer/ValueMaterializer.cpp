@@ -100,12 +100,14 @@ void ValueMaterializer::applyOracleResultsToDataFlowGraph() {
         Node->OracleRange = It->second;
     } else if (CE != nullptr
                and (CE->getOpcode() == Instruction::IntToPtr
-                    or CE->getOpcode() == Instruction::PtrToInt)) {
+                    or CE->getOpcode() == Instruction::PtrToInt
+                    or CE->getOpcode() == Instruction::Add)) {
       // Ignore
     } else if (isa<GlobalVariable>(V) or isa<Argument>(V)) {
       // Ignore
     } else {
-      revng_abort();
+      V->dump();
+      revng_abort("Unexpected value type");
     }
   }
 }

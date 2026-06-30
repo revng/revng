@@ -13,24 +13,24 @@
 
 namespace revng::pypeline::piperuns {
 
-class MakeSegmentRef : public LLVMFunctionMixin<MakeSegmentRef> {
+class EmitStringConstants : public LLVMFunctionMixin<EmitStringConstants> {
 private:
   const model::Binary &Binary;
   RawBinaryView BinaryView;
 
 public:
-  static constexpr llvm::StringRef Name = "make-segment-ref";
+  static constexpr llvm::StringRef Name = "emit-string-constants";
   using Arguments = TypeList<
     PipeRunArgument<const BinariesContainer, "Binaries", "The input binaries">,
     PipeRunArgument<LLVMFunctionContainer,
                     "Module",
                     "function LLVM module(s)">>;
 
-  MakeSegmentRef(const class Model &Model,
-                 llvm::StringRef Config,
-                 llvm::StringRef DynamicConfig,
-                 const BinariesContainer &BinariesContainer,
-                 LLVMFunctionContainer &ModuleContainer) :
+  EmitStringConstants(const class Model &Model,
+                      llvm::StringRef Config,
+                      llvm::StringRef DynamicConfig,
+                      const BinariesContainer &BinariesContainer,
+                      LLVMFunctionContainer &ModuleContainer) :
     LLVMFunctionMixin(ModuleContainer),
     Binary(*Model.get().get()),
     BinaryView(makeBinaryView(Model, BinariesContainer)) {}

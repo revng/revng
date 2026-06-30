@@ -733,13 +733,40 @@ public:
   }
 
   std::unique_ptr<llvm::Module> cloneModule(llvm::Function &Function) {
-    FunctionUses AnalysisResult = analyzeFunction(Function);
+    // Preserve Function and, transitively, all the KeepPostIsolation functions
+    // reachable from it: those must survive isolation with their body. We
+    // analyze each of them, accumulating the called functions and the used
+    // global variables so the cloned module stays self-contained.
+    std::set<const llvm::Function *> CalledFunctions;
+    std::set<const llvm::GlobalVariable *> UsedGVs;
+
+    OnceQueue<const llvm::Function *> Worklist;
+    Worklist.insert(&Function);
+
+    while (not Worklist.empty()) {
+      const llvm::Function *Current = Worklist.pop();
+
+      FunctionUses Uses = analyzeFunction(*Current);
+      UsedGVs.insert(Uses.UsedGVs.begin(), Uses.UsedGVs.end());
+
+      for (const llvm::Function *Callee : Uses.CalledFunctions) {
+        CalledFunctions.insert(Callee);
+
+        // Follow calls into KeepPostIsolation functions so that they, and the
+        // KeepPostIsolation functions they in turn call, are preserved too.
+        if (FunctionTags::KeepPostIsolation.isTagOf(Callee)
+            and not Callee->isDeclaration())
+          Worklist.insert(const_cast<llvm::Function *>(Callee));
+      }
+    }
+
+    auto Visited = Worklist.visited();
 
     auto ActionFunction =
-      [this, &Function, &AnalysisResult](const GlobalValue *V) {
+      [this, &Visited, &CalledFunctions, &UsedGVs](const GlobalValue *V) {
         auto *GV = dyn_cast<llvm::GlobalVariable>(V);
         if (GV != nullptr) {
-          if (AnalysisResult.UsedGVs.contains(GV))
+          if (UsedGVs.contains(GV))
             return CloneAction::Clone;
           else if (IgnorableGVs.contains(GV) or GV->isDeclaration())
             return CloneAction::Omit;
@@ -749,9 +776,9 @@ public:
 
         auto *F = dyn_cast<llvm::Function>(V);
         if (F != nullptr) {
-          if (F == &Function)
+          if (Visited.contains(F))
             return CloneAction::Clone;
-          else if (AnalysisResult.CalledFunctions.contains(F))
+          else if (CalledFunctions.contains(F))
             return CloneAction::MakeDeclaration;
           else
             return CloneAction::Omit;
@@ -766,16 +793,16 @@ public:
   }
 
 private:
-  FunctionUses analyzeFunction(llvm::Function &F) {
+  FunctionUses analyzeFunction(const llvm::Function &F) {
     revng_assert(not F.isDeclaration());
 
     std::set<const llvm::Function *> CalledFunctions;
     std::set<const llvm::GlobalVariable *> UsedGVs;
 
-    for (BasicBlock &BB : F) {
-      for (llvm::Instruction &Instruction : BB) {
+    for (const BasicBlock &BB : F) {
+      for (const llvm::Instruction &Instruction : BB) {
         // Check for call, if so recursively visit the called function
-        CallBase *CB = dyn_cast<llvm::CallBase>(&Instruction);
+        const CallBase *CB = dyn_cast<llvm::CallBase>(&Instruction);
         if (CB != nullptr) {
           llvm::Function *CalledFunction = CB->getCalledFunction();
           if (CalledFunction != nullptr)
@@ -795,12 +822,12 @@ private:
           }
         }
 
-        std::queue<llvm::User *> Users;
+        std::queue<const llvm::User *> Users;
         Users.push(&Instruction);
 
         // Iterate the operands to find uses of global variables
         while (Users.size() > 0) {
-          llvm::User *User = Users.front();
+          const llvm::User *User = Users.front();
           for (unsigned int I = 0; I < User->getNumOperands(); I++) {
             Value *Operand = User->getOperand(I);
 

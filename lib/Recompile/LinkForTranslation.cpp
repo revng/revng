@@ -17,6 +17,7 @@
 #include "llvm/Support/StringSaver.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Binary/Options.h"
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawBinaryView.h"
@@ -178,12 +179,7 @@ static CommandList linkingArgs(const model::Binary &Model,
 
   for (auto &[Segment, Data] : BinaryView.segments()) {
     // Compute section name
-    std::string SectionName;
-    {
-      llvm::raw_string_ostream NameStream(SectionName);
-      NameStream << "segment-" << Segment.StartAddress().toString() << "-"
-                 << Segment.endAddress().toString();
-    }
+    std::string SectionName = SegmentGlobal::getNameFor(Segment);
 
     TemporaryFile &RawSegment = Result.createTemporary("revng-link-for-"
                                                        "translation",
@@ -235,6 +231,12 @@ static CommandList linkingArgs(const model::Binary &Model,
     const auto &StartAddr = Segment.StartAddress().address();
     Linker.Arguments.push_back((Twine("--section-start=.") + SectionName
                                 + Twine("=0x") + UToHexStr(StartAddr))
+                                 .str());
+
+    // The name will contain `:`, we need to wrap it into double quotes
+    revng_assert(not StringRef(SectionName).contains("\""));
+    Linker.Arguments.push_back(("--defsym=\"" + SectionName + Twine("\"=0x")
+                                + UToHexStr(StartAddr))
                                  .str());
   }
 

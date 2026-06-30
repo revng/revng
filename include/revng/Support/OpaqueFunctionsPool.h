@@ -10,6 +10,7 @@
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/ModRef.h"
 
@@ -27,6 +28,9 @@ concept PointerToLLVMTypeOrDerived = std::derived_from<std::remove_pointer_t<T>,
 
 template<typename KeyT>
 class OpaqueFunctionsPool {
+public:
+  using Factory = llvm::Function &(*) (llvm::Module &M, KeyT Key);
+
 private:
   llvm::Module *M = nullptr;
   const bool PurgeOnDestruction = false;
@@ -34,10 +38,13 @@ private:
   llvm::AttributeList AttributeSets;
   llvm::MemoryEffects MemoryEffects = llvm::MemoryEffects::none();
   FunctionTags::TagsSet Tags;
+  Factory TheFactory = nullptr;
 
 public:
-  OpaqueFunctionsPool(llvm::Module *M, bool PurgeOnDestruction) :
-    M(M), PurgeOnDestruction(PurgeOnDestruction) {}
+  OpaqueFunctionsPool(llvm::Module *M,
+                      bool PurgeOnDestruction,
+                      Factory TheFactory = nullptr) :
+    M(M), PurgeOnDestruction(PurgeOnDestruction), TheFactory(TheFactory) {}
 
   ~OpaqueFunctionsPool() {
     if (PurgeOnDestruction) {
@@ -81,9 +88,34 @@ public:
   }
 
 public:
+  llvm::Function *get(llvm::Module &M, KeyT Key) {
+    using namespace llvm;
+
+    revng_assert(TheFactory != nullptr);
+
+    Function *F = nullptr;
+    auto It = Pool.find(Key);
+    if (It != Pool.end()) {
+      F = It->second;
+    } else {
+      F = &TheFactory(M, Key);
+
+      // At this stage we only want external linkage
+      revng_assert(F->getLinkage() == llvm::GlobalValue::ExternalLinkage);
+
+      F->setAttributes(AttributeSets);
+      F->setMemoryEffects(MemoryEffects);
+      Tags.set(F);
+      Pool.insert(It, { Key, F });
+    }
+
+    return F;
+  }
+
   llvm::Function *
   get(KeyT Key, llvm::FunctionType *FT, const llvm::Twine &Name = {}) {
     using namespace llvm;
+    revng_assert(TheFactory == nullptr);
 
     Function *F = nullptr;
     auto It = Pool.find(Key);
@@ -171,12 +203,15 @@ public:
                                      llvm::Module &,
                                      const FunctionPoolTag &);
 
+  using FunctionFactory = OpaqueFunctionsPool<KeyT>::Factory;
+
 private:
   AttributeVector Attributes;
   llvm::MemoryEffects MemoryEffects;
   std::set<const Tag *> Tags;
   InitializationMode Initialization;
   CustomInitializer Initializer = nullptr;
+  FunctionFactory TheFunctionFactory = nullptr;
 
 private:
   FunctionPoolTag(llvm::StringRef Name,
@@ -184,13 +219,15 @@ private:
                   llvm::MemoryEffects MemoryEffects,
                   std::set<const Tag *> OtherTags,
                   InitializationMode Initialization,
-                  CustomInitializer Initializer) :
+                  CustomInitializer Initializer,
+                  FunctionFactory TheFunctionFactory) :
     Tag(Name),
     Attributes(Attributes),
     MemoryEffects(MemoryEffects),
     Tags(OtherTags),
     Initialization(Initialization),
-    Initializer(Initializer) {
+    Initializer(Initializer),
+    TheFunctionFactory(TheFunctionFactory) {
     Tags.insert(this);
   }
 
@@ -199,13 +236,15 @@ public:
                   AttributeVector Attributes,
                   llvm::MemoryEffects MemoryEffects,
                   std::set<const Tag *> OtherTags,
-                  InitializationMode Initialization) :
+                  InitializationMode Initialization,
+                  FunctionFactory TheFunctionFactory = nullptr) :
     FunctionPoolTag(Name,
                     Attributes,
                     MemoryEffects,
                     OtherTags,
                     Initialization,
-                    nullptr) {
+                    nullptr,
+                    TheFunctionFactory) {
 
     revng_assert(Initialization != InitializationMode::CustomInitialization);
   }
@@ -214,17 +253,19 @@ public:
                   AttributeVector Attributes,
                   llvm::MemoryEffects MemoryEffects,
                   std::set<const Tag *> OtherTags,
-                  CustomInitializer Initializer) :
+                  CustomInitializer Initializer,
+                  FunctionFactory TheFunctionFactory = nullptr) :
     FunctionPoolTag(Name,
                     Attributes,
                     MemoryEffects,
                     OtherTags,
                     InitializationMode::CustomInitialization,
-                    Initializer) {}
+                    Initializer,
+                    TheFunctionFactory) {}
 
 public:
   OpaqueFunctionsPool<KeyT> getPool(llvm::Module &M) const {
-    OpaqueFunctionsPool<KeyT> Result(&M, false);
+    OpaqueFunctionsPool<KeyT> Result(&M, false, TheFunctionFactory);
 
     // Set attributes
     for (auto Attribute : Attributes)

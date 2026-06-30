@@ -3,9 +3,12 @@
 //
 
 #include "revng/Model/FunctionTags.h"
+#include "revng/Model/IRHelpers.h"
+#include "revng/Model/NamedTypedRegister.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/Tag.h"
 
 namespace FunctionTags {
 
@@ -184,24 +187,60 @@ FunctionPoolTag<llvm::Type *>
        { &FunctionTags::UniquedByPrototype },
        InitializationMode::InitializeFromReturnType);
 
-using SegmentRefPoolKey = std::tuple<MetaAddress, uint64_t, llvm::Type *>;
-FunctionPoolTag<SegmentRefPoolKey>
-  SegmentRef("segment-ref",
-             { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-             llvm::MemoryEffects::none(),
-             { &FunctionTags::IsRef, &FunctionTags::UniquedByMetadata },
-             [](OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
-                llvm::Module &M,
-                const FunctionPoolTag<SegmentRefPoolKey> &Tag) {
-               for (llvm::Function &F : Tag.functions(&M)) {
-                 const auto &[StartAddress,
-                              VirtualSize] = extractSegmentKeyFromMetadata(F);
-                 auto *RetType = F.getFunctionType()->getReturnType();
+/// Tag for global variables representing segments
+Tag SegmentGlobal("segment-global");
 
-                 SegmentRefPoolKey Key = { StartAddress, VirtualSize, RetType };
-                 Pool.record(Key, &F);
-               }
-             });
+/// Tag for functions that must survive function isolation.
+Tag KeepPostIsolation("keep-post-isolation");
+
+inline void
+segmentGlobalGetterInitializer(OpaqueFunctionsPool<SegmentRefPoolKey> &Pool,
+                               llvm::Module &M,
+                               const FunctionPoolTag<SegmentRefPoolKey> &Tag) {
+  for (llvm::Function &F : Tag.functions(&M))
+    Pool.record(extractSegmentKeyFromMetadata(F), &F);
+}
+
+inline llvm::Function &segmentGlobalGetterFactory(llvm::Module &M,
+                                                  SegmentRefPoolKey Key) {
+  using namespace llvm;
+  auto *ReturnType = M.getDataLayout().getIntPtrType(M.getContext());
+  auto *FT = FunctionType::get(ReturnType, {}, false);
+  auto [StartAddress, VirtualSize] = Key;
+  std::string Name = "get_" + SegmentGlobal::getNameFor(StartAddress);
+  Function &Result = *Function::Create(FT,
+                                       GlobalValue::ExternalLinkage,
+                                       Name,
+                                       M);
+  setSegmentKeyMetadata(Result, Key);
+
+  // Fill in body
+  auto *Entry = llvm::BasicBlock::Create(Result.getContext(), "", &Result);
+  revng::NonDebugInfoCheckingIRBuilder B(Entry);
+  auto &Global = SegmentGlobal::get(*Result.getParent(),
+                                    StartAddress,
+                                    VirtualSize);
+  B.CreateRet(B.CreatePtrToInt(&Global, Result.getReturnType()));
+
+  return Result;
+}
+
+/// Tag for functions returning an intptr_t of a specific segment.
+///
+/// This is important since LLVM does not optimize arithmetic done with
+/// ConstantExpr. Once optimizations are done these can go away using
+/// inline-segment-global-getter.
+FunctionPoolTag<SegmentRefPoolKey>
+  SegmentGlobalGetter("segment-global-getter",
+                      { llvm::Attribute::NoUnwind,
+                        llvm::Attribute::WillReturn,
+                        llvm::Attribute::NoInline },
+                      llvm::MemoryEffects::none(),
+                      { &FunctionTags::IsRef,
+                        &FunctionTags::UniquedByMetadata,
+                        &FunctionTags::KeepPostIsolation },
+                      segmentGlobalGetterInitializer,
+                      segmentGlobalGetterFactory);
 
 FunctionPoolTag<llvm::Type *>
   UnaryMinus("unary-minus",
@@ -332,18 +371,17 @@ getExtractedValuesFromInstruction(const llvm::Instruction *I) {
 }
 
 void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
-                           MetaAddress StartAddress,
-                           uint64_t VirtualSize) {
+                           FunctionTags::SegmentRefPoolKey Key) {
   using namespace llvm;
 
   auto &Context = SegmentRefFunction.getContext();
 
   QuickMetadata QMD(Context);
 
-  auto *SAMD = QMD.get(StartAddress.toString());
+  auto *SAMD = QMD.get(Key.first.toString());
   revng_assert(SAMD != nullptr);
 
-  auto *VSConstant = ConstantInt::get(Type::getInt64Ty(Context), VirtualSize);
+  auto *VSConstant = ConstantInt::get(Type::getInt64Ty(Context), Key.second);
   auto *VSMD = ConstantAsMetadata::get(VSConstant);
 
   SegmentRefFunction.setMetadata(FunctionTags::UniqueIDMDName,
@@ -356,7 +394,7 @@ bool hasSegmentKeyMetadata(const llvm::Function &F) {
   return nullptr != F.getMetadata(SegmentRefMDKind);
 }
 
-std::pair<MetaAddress, uint64_t>
+FunctionTags::SegmentRefPoolKey
 extractSegmentKeyFromMetadata(const llvm::Function &F) {
   using namespace llvm;
   revng_assert(hasSegmentKeyMetadata(F));
@@ -742,7 +780,8 @@ static std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Function *F,
   return Result;
 }
 
-std::optional<CSVsUsage> tryGetCSVUsedByHelperCall(llvm::Instruction *Call) {
+std::optional<CSVsUsage>
+tryGetCSVUsedByHelperCall(const llvm::Instruction *Call) {
   revng_assert(isCallToHelper(Call));
 
   auto *Callee = getCalledFunction(cast<llvm::CallBase>(Call));

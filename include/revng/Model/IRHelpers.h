@@ -5,6 +5,8 @@
 //
 
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/GlobalValue.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instructions.h"
 
 #include "revng/Model/Binary.h"
@@ -114,3 +116,46 @@ toLLVMTypes(llvm::LLVMContext &Context,
                     std::back_inserter(Result));
   return Result;
 }
+
+namespace SegmentGlobal {
+
+constexpr const char *StartAddressMDName = "revng.segment.start";
+
+inline std::string getNameFor(const MetaAddress &StartAddress) {
+  return "segment_" + StartAddress.toIdentifier();
+}
+
+inline std::string getNameFor(const model::Segment &Segment) {
+  return getNameFor(Segment.StartAddress());
+}
+
+inline MetaAddress getAddress(const llvm::GlobalVariable &Variable) {
+  return getMetaAddressMetadata(&Variable, StartAddressMDName);
+}
+
+inline llvm::GlobalVariable &
+get(llvm::Module &M, const MetaAddress &StartAddress, uint64_t VirtualSize) {
+  using namespace llvm;
+
+  auto *T = llvm::ArrayType::get(IntegerType::getInt8Ty(M.getContext()),
+                                 VirtualSize);
+
+  // TODO: should global variables for read-only segments be constant?
+  auto &Result = getOrCreateGlobal(M,
+                                   getNameFor(StartAddress),
+                                   T,
+                                   false,
+                                   GlobalValue::ExternalLinkage);
+
+  FunctionTags::SegmentGlobal.addTo(&Result);
+  setMetaAddressMetadata(&Result, StartAddressMDName, StartAddress);
+
+  return Result;
+}
+
+inline llvm::GlobalVariable &get(llvm::Module &M,
+                                 const model::Segment &Segment) {
+  return get(M, Segment.StartAddress(), Segment.VirtualSize());
+}
+
+} // namespace SegmentGlobal

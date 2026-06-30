@@ -3,6 +3,7 @@
 //
 
 #include "revng/Model/Binary.h"
+#include "revng/Model/PointerType.h"
 #include "revng/Model/VerifyHelper.h"
 
 // NOTE: there's a really similar function for computing alignment in
@@ -168,4 +169,52 @@ getNonConstImpl(const model::Type &T) {
 
 model::UpcastableType model::getNonConst(const model::Type &Type) {
   return getNonConstImpl(Type);
+}
+
+std::string model::Type::toDebugString() const {
+  using llvm::cast;
+  const model::Type *Current = this;
+  std::string Result = "";
+  while (Current != nullptr) {
+    if (Current->IsConst())
+      Result = " const" + Result;
+
+    switch (Current->Kind()) {
+
+    case model::TypeKind::PrimitiveType: {
+      Result = Current->getPrimitive()->getCName() + Result;
+      Current = nullptr;
+    } break;
+
+    case model::TypeKind::PointerType:
+      // TODO: we're leaving out the pointer size
+      Result = " *" + Result;
+      Current = &Current->getPointee();
+      break;
+
+    case model::TypeKind::DefinedType: {
+      auto *DefinedType = Current->tryGetAsDefinition();
+      revng_assert(DefinedType != nullptr);
+      auto Name = DefinedType->Name();
+      if (Name.empty()) {
+        Name = model::TypeDefinitionKind::getName(DefinedType->Kind());
+        Name += "_" + std::to_string(DefinedType->ID());
+      }
+      Current = nullptr;
+    } break;
+
+    case model::TypeKind::ArrayType: {
+      auto *Array = cast<model::ArrayType>(Current);
+      Result = "[" + std::to_string(Array->ElementCount()) + "]" + Result;
+      Current = &Array->getArrayElement();
+    } break;
+
+    case model::TypeKind::Invalid:
+    case model::TypeKind::Count:
+      revng_abort();
+      break;
+    }
+  }
+
+  return Result;
 }

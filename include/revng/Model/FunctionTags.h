@@ -12,7 +12,11 @@ std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t, llvm::Type *>
 extractStringLiteralFromMetadata(const llvm::Function &StringLiteralFunction);
 
 /// Extract the key of a model::Segment stored as a metadata.
-std::pair<MetaAddress, uint64_t>
+namespace FunctionTags {
+using SegmentRefPoolKey = std::pair<MetaAddress, uint64_t>;
+}
+
+FunctionTags::SegmentRefPoolKey
 extractSegmentKeyFromMetadata(const llvm::Function &F);
 
 namespace FunctionTags {
@@ -81,8 +85,11 @@ extern FunctionPoolTag<llvm::Type *> NullPtr;
 extern FunctionPoolTag<llvm::Type *> LocalVariable;
 extern FunctionPoolTag<llvm::Type *> Assign;
 extern FunctionPoolTag<llvm::Type *> Copy;
-using SegmentRefPoolKey = std::tuple<MetaAddress, uint64_t, llvm::Type *>;
-extern FunctionPoolTag<SegmentRefPoolKey> SegmentRef;
+extern Tag SegmentGlobal;
+/// Functions that must survive function isolation: MinimalModuleCloner
+/// preserves them (and the ones they call) instead of purging them.
+extern Tag KeepPostIsolation;
+extern FunctionPoolTag<SegmentRefPoolKey> SegmentGlobalGetter;
 extern FunctionPoolTag<llvm::Type *> UnaryMinus;
 extern FunctionPoolTag<llvm::Type *> BinaryNot;
 extern FunctionPoolTag<llvm::Type *> BooleanNot;
@@ -125,7 +132,8 @@ inline bool isCallToHelper(const llvm::Instruction *I) {
   return getCallToHelper(I) != nullptr;
 }
 
-std::optional<CSVsUsage> tryGetCSVUsedByHelperCall(llvm::Instruction *Call);
+std::optional<CSVsUsage>
+tryGetCSVUsedByHelperCall(const llvm::Instruction *Call);
 
 inline CSVsUsage getCSVUsedByHelperCall(llvm::Instruction *Call) {
   return tryGetCSVUsedByHelperCall(Call).value();
@@ -242,8 +250,7 @@ getExtractedValuesFromInstruction(const llvm::Instruction *);
 
 /// Set the key of a model::Segment stored as a metadata.
 void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
-                           MetaAddress StartAddress,
-                           uint64_t VirtualSize);
+                           FunctionTags::SegmentRefPoolKey Key);
 
 /// Returns true if \F has an attached metadata representing a segment key.
 bool hasSegmentKeyMetadata(const llvm::Function &F);
