@@ -227,13 +227,13 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
                           const PointerArithmetic &Arithmetic) const {
   bool PropagatedThroughIndirection = false;
 
+  mlir::Type PointerToReplaceType = PointerToReplace->getResult(0).getType();
+
   // We need the `PointerSize` in order to generate the `ImmediateOp`s used to
   // access the `struct` fields and `array` members, and to generate the
   // `AddressOp` at the end of the field access substitution. We extract it
   // from the `PointerToReplace` we are processing.
-  auto PointerSize = clift::unwrapped_cast<PointerType>(PointerToReplace
-                                                          ->getResult(0)
-                                                          .getType())
+  auto PointerSize = clift::unwrapped_cast<PointerType>(PointerToReplaceType)
                        .getPointerSize();
 
   // Set insertion point right before the `PointerToReplace`
@@ -340,11 +340,11 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
                                              CurrentValuePointerType,
                                              CurrentValue);
 
-  // After we emit the `addressof`, we save the resulting `RichValue`, which may
+  // After we emit the `addressof`, we save the resulting `RichType`, which may
   // contain a _rich_ type information of the emitted access. We collect this
   // here before the subsequent `cast` strips it of the type information`. We
   // then propagate the type information into `indirection` uses.
-  mlir::Value RichValue = CurrentValue;
+  mlir::Type RichType = CurrentValue.getType();
 
   // If there is a non-null `LeftoverOffset`, we add it as integer arithmetic
   if (not LeftoverOffset.BaseOffset.isZero()
@@ -396,20 +396,19 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
     }
 
     // Cast back to pointer
-    auto PointerType = PointerType::get(IntPtrType, PointerSize);
     CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
-                                             PointerType,
+                                             RichType,
                                              CurrentValue);
   }
 
-  // If the result type differs from PointerToReplace's type, prepare a cast
-  // to make the replacement fit the replaced `PointerToReplace` type.
-  if (CurrentValue.getType() != PointerToReplace->getResult(0).getType()) {
-    CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
-                                             PointerToReplace->getResult(0)
-                                               .getType(),
-                                             CurrentValue);
-  }
+  auto AsType = [&Builder,
+                 &PointerToReplaceLoc](mlir::Value Value,
+                                       mlir::Type Type) -> mlir::Value {
+    if (Value.getType() != Type) {
+      Value = Builder.create<BitCastOp>(PointerToReplaceLoc, Type, Value);
+    }
+    return Value;
+  };
 
   // Replace all the `Use`s of `PointerToReplace`, handling `IndirectionOp`s
   // specially: instead of giving them the "type-erased" `CurrentValue` (through
@@ -433,13 +432,12 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       // not applicable, we just redirect the `Use` to the type-matched
       // `CurrentValue`
       auto Indirection = mlir::dyn_cast<IndirectionOp>(Use->getOwner());
-      auto RichPointerType = unwrapped_dyn_cast<PointerType>(RichValue
-                                                               .getType());
+      auto RichPointerType = unwrapped_dyn_cast<PointerType>(RichType);
       bool CanPropagate = RichPointerType
                           and unwrapped_isa<PointerType>(RichPointerType
                                                            .getPointeeType());
       if (not Indirection or not CanPropagate) {
-        Use->set(CurrentValue);
+        Use->set(AsType(CurrentValue, PointerToReplaceType));
         continue;
       }
 
@@ -451,13 +449,13 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       auto RichPointeeSize = getObjectSizeOrZero(RichPointeeType);
       auto IndirectionResultSize = getObjectSizeOrZero(IndirectionResultType);
       if (RichPointeeSize != IndirectionResultSize) {
-        Use->set(CurrentValue);
+        Use->set(AsType(CurrentValue, PointerToReplaceType));
         continue;
       }
 
       // Types already match — no propagation needed
       if (RichPointeeType == IndirectionResultType) {
-        Use->set(CurrentValue);
+        Use->set(AsType(CurrentValue, PointerToReplaceType));
         continue;
       }
 
@@ -465,7 +463,8 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       // so its result type is inferred from the `RichPointeeType`
       Builder.setInsertionPoint(Indirection);
       auto NewIndirection = Builder.create<IndirectionOp>(PointerToReplaceLoc,
-                                                          RichValue);
+                                                          AsType(CurrentValue,
+                                                                 RichType));
 
       // Insert a `FixupCast` from the typed result to the old untyped result,
       // so existing users that expect the original type still verify
@@ -495,7 +494,7 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
       }
 
       // The old indirection's operand stays as-is (for assign LHS uses)
-      Use->set(CurrentValue);
+      Use->set(AsType(CurrentValue, PointerToReplaceType));
     }
   }
 
