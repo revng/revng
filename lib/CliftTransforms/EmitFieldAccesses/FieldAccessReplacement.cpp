@@ -267,18 +267,11 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
     }
 
     case FieldAccessInfo::Kind::Array: {
-
-      // We may need to unwrap the `ArrayType` from a `PointerType`, and emit
-      // the needed `IndirectionOp` and `Decay` cast accordingly.
-      mlir::Type ArrayElementType;
-
       // We need to explicitly handle the `pointer as array` case, where
       // `CurrentValue` is not a `ptr<T>` of `ArrayType` (we virtually wrap it
       // ourselves), so the `indirection` and `cast<decay>` is not needed.
-      if (auto P = unwrapped_dyn_cast<PointerType>(CurrentValue.getType());
-          P and not unwrapped_isa<ArrayType>(P.getPointeeType())) {
-        ArrayElementType = P.getPointeeType();
-      } else {
+      auto P = unwrapped_dyn_cast<PointerType>(CurrentValue.getType());
+      if (not P or unwrapped_isa<ArrayType>(P.getPointeeType())) {
         // Standard path emitting `indirection` and `cast<decay>` as needed
         auto [ArrayType,
               IsIndirect] = getAccessedTypeInfo<clift::ArrayType>(CurrentValue);
@@ -286,8 +279,8 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
           CurrentValue = Builder.create<IndirectionOp>(PointerToReplaceLoc,
                                                        CurrentValue);
         }
-        ArrayElementType = ArrayType.getElementType();
-        auto DecayType = PointerType::get(ArrayElementType, PointerSize);
+        auto DecayType = PointerType::get(ArrayType.getElementType(),
+                                          PointerSize);
         CurrentValue = Builder.create<DecayOp>(PointerToReplaceLoc,
                                                DecayType,
                                                CurrentValue);
