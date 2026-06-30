@@ -55,6 +55,14 @@ def CliftTypeRefinement : Clift_Pass<"refine-types", "clift::FunctionOp"> {
   let constructor = "clift::createTypeRefinementPass()";
 }
 
+def CliftTypeRefinementWithEFA : Clift_Pass<"refine-types-and-accesses",
+                                            "clift::FunctionOp"> {
+
+  let summary = "Apply type refinement and field access emission together.";
+  let constructor = "clift::createTypeRefinementWithEFAPass()";
+  let options = RewritePassUtils.options;
+}
+
 def CliftExpressionPostProcessing : Clift_Pass<"post-process-expressions",
                                                "clift::FunctionOp"> {
   let summary = "Post process Clift expressions";

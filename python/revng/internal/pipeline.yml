@@ -458,10 +458,7 @@ branches:
             - loop-detection
             - optimize-statements
             - label-merging
-            - optimize-expressions
-            - emit-field-accesses
-            - canonicalize
-            - optimize-expressions
+            - refine-types-and-accesses
             - post-process-expressions
             - terminal-branch-complement-hoisting
             - tighten-variable-scopes

@@ -25,6 +25,7 @@ revng_add_library_internal(
   TightenVariableScopes.cpp
   TrivialReturnElimination.cpp
   TypeRefinement.cpp
+  TypeRefinementWithEFA.cpp
   VariableInitializerHoisting.cpp)
 
 target_link_libraries(revngCliftTransforms MLIRTransformUtils revngClift)
