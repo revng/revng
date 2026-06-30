@@ -40,8 +40,7 @@ struct Replacement {
   /// relative `Index`
   struct FieldAccessInfo {
     enum Kind {
-      Union,
-      Struct,
+      Class,
       Array
     } TheKind;
 
@@ -134,13 +133,8 @@ Replacement Replacement::make(unsigned PointerBitWidth,
 
     // Inspect `struct` or `union` (both implement ClassType)
     if (auto ClassType = mlir::dyn_cast<clift::ClassType>(BaseType)) {
-
-      auto Kind = mlir::isa<clift::StructType>(BaseType) ?
-                    FieldAccessInfo::Struct :
-                    FieldAccessInfo::Union;
       unsigned FieldIndex = *FieldIt++;
-
-      Result.FieldAccesses.push_back({ .TheKind = Kind,
+      Result.FieldAccesses.push_back({ .TheKind = FieldAccessInfo::Class,
                                        .Index = { {}, FieldIndex } });
 
       // Look up the field by positional index. Subtract the field's byte
@@ -260,23 +254,9 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
   // `clift` `Operation`s needed to perform such access
   for (const FieldAccessInfo &Access : FieldAccesses) {
     switch (Access.TheKind) {
-    case FieldAccessInfo::Kind::Struct: {
+    case FieldAccessInfo::Kind::Class: {
       auto Index = Access.Index.Constant;
-      auto [Type,
-            IsIndirect] = getAccessedTypeInfo<clift::StructType>(CurrentValue);
-      mlir::Type FieldType = Type.getFields()[Index].getType();
-      CurrentValue = Builder.create<AccessOp>(PointerToReplaceLoc,
-                                              FieldType,
-                                              CurrentValue,
-                                              IsIndirect,
-                                              Index);
-      break;
-    }
-
-    case FieldAccessInfo::Kind::Union: {
-      auto Index = Access.Index.Constant;
-      auto [Type,
-            IsIndirect] = getAccessedTypeInfo<clift::UnionType>(CurrentValue);
+      auto [Type, IsIndirect] = getAccessedTypeInfo<ClassType>(CurrentValue);
       mlir::Type FieldType = Type.getFields()[Index].getType();
       CurrentValue = Builder.create<AccessOp>(PointerToReplaceLoc,
                                               FieldType,
