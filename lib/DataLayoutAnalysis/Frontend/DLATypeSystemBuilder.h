@@ -115,7 +115,7 @@ private:
 
   std::pair<LayoutTypeSystemNode *, bool>
   getOrCreateLayoutType(const llvm::Value *V) {
-    return getOrCreateLayoutType(V, std::numeric_limits<unsigned>::max());
+    return getOrCreateLayoutType(V, dla::LayoutTypePtr::FieldNumNone);
   }
 
   llvm::SmallVector<LayoutTypeSystemNode *, 2>

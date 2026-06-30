@@ -97,7 +97,7 @@ static bool updateArgumentTypes(model::Binary &Model,
 
       revng_log(Log,
                 "Updating stack arg " << LLVMStackArg->getNameOrAsOperand());
-      LayoutTypePtr Key{ LLVMStackArg, LayoutTypePtr::fieldNumNone };
+      LayoutTypePtr Key{ LLVMStackArg, LayoutTypePtr::FieldNumNone };
 
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
         using namespace model;
@@ -152,7 +152,7 @@ static bool updateArgumentTypes(model::Binary &Model,
     // middle-end, therefore there is no Type associated to them at this
     // stage.
     if (canBeUpgraded(*ModelArg.Type())) {
-      LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::fieldNumNone };
+      LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::FieldNumNone };
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
         auto OldSize = *ModelArg.Type()->size();
         // The type is associated to a `LayoutTypeSystemPtr`, hence we have to
@@ -197,7 +197,7 @@ static bool updateReturnType(model::Binary &Model,
   const bool IsScalar = ModelRetVals.size() == 1;
   for (auto &ModelRet : llvm::enumerate(ModelRetVals)) {
 
-    unsigned int Index = IsScalar ? LayoutTypePtr::fieldNumNone :
+    unsigned int Index = IsScalar ? LayoutTypePtr::FieldNumNone :
                                     ModelRet.index();
     revng_log(Log,
               "Updating elem " << Index << " of "
@@ -260,7 +260,7 @@ static bool updateArgumentTypes(model::Binary &Model,
     // middle-end, therefore there is no Type associated to them at this
     // stage.
     if (canBeUpgraded(*ModelArg.Type())) {
-      LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::fieldNumNone };
+      LayoutTypePtr Key{ LLVMVal, LayoutTypePtr::FieldNumNone };
       if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
         auto OldSize = *ModelArg.Type()->size();
         // The type is associated to a `LayoutTypeSystemPtr`, hence we have to
@@ -320,7 +320,7 @@ static bool updateReturnType(model::Binary &Model,
     // middle-end, therefore there is no Type associated to them at this
     // stage.
     if (canBeUpgraded(*ModelReturnType)) {
-      LayoutTypePtr Key{ LLVMRetVal, LayoutTypePtr::fieldNumNone };
+      LayoutTypePtr Key{ LLVMRetVal, LayoutTypePtr::FieldNumNone };
       if (auto NewTypeIt = TypeMap.find(Key); NewTypeIt != TypeMap.end()) {
         auto OldSize = *ModelReturnType->size();
         // The type is associated to a `LayoutTypeSystemPtr`, hence we have to
@@ -667,7 +667,7 @@ static bool updateStackFrameType(model::Function &ModelFunc,
     LoggerIndent Indent{ Log };
     revng_log(Log, "Was " << OldStackFrame.ID());
 
-    LayoutTypePtr Key{ Call, LayoutTypePtr::fieldNumNone };
+    LayoutTypePtr Key{ Call, LayoutTypePtr::FieldNumNone };
 
     if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
       const auto &NewStack = *NewTypeIt->second->skipConstAndTypedefs();
@@ -751,7 +751,7 @@ bool dla::updateSegmentsTypes(const llvm::Module &M,
     // It's empty, we'll fill it up.
     model::StructDefinition &SegmentStruct = *Segment.type();
 
-    LayoutTypePtr Key{ &F, LayoutTypePtr::fieldNumNone };
+    LayoutTypePtr Key{ &F, LayoutTypePtr::FieldNumNone };
     if (auto TypeIt = TypeMap.find(Key); TypeIt != TypeMap.end()) {
       // Let's examine the recovered type by DLA.
       fillStructWithRecoveredDLATypeAtOffset(*Model,
