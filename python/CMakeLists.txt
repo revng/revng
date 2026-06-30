@@ -375,8 +375,6 @@ python_module(
   ${REVNG_CLI_COMMANDS_GENERATE_MIGRATION_MODULE_FILES})
 
 set(REVNG_CLI_COMMANDS_FETCHDEBUGINFO_MODULE_FILES
-    revng/internal/cli/_commands/fetch_debuginfo/pe.py
-    revng/internal/cli/_commands/fetch_debuginfo/elf.py
     revng/internal/cli/_commands/fetch_debuginfo/common.py
     revng/internal/cli/_commands/fetch_debuginfo/__init__.py)
 python_module(
