@@ -5,18 +5,18 @@
 revng_add_library_internal(
   revngCliftTransforms
   SHARED
-  BestTraversal.cpp
   BooleanNegations.cpp
-  EmitFieldAccesses.cpp
+  EmitFieldAccesses/BestTraversal.cpp
+  EmitFieldAccesses/EmitFieldAccesses.cpp
+  EmitFieldAccesses/FieldAccessReplacement.cpp
+  EmitFieldAccesses/PointerArithmetic.cpp
   Expressions.cpp
-  FieldAccessReplacement.cpp
   ImmediateRadixDeduction.cpp
   ImplicitCastElision.cpp
   LabelMerging.cpp
   Legalization.cpp
   LoopDetection.cpp
   PatternRewriter.cpp
-  PointerArithmetic.cpp
   PromoteBreakContinue.cpp
   RewriteHelpers.cpp
   Statements.cpp
