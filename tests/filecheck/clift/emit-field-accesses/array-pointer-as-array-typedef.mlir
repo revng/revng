@@ -35,8 +35,7 @@ module attributes {clift.module} {
   }
 
   // CHECK: clift.func @test_typedef_pointer_as_array<!f1_>([[POINTER:%[a-z0-9]+]]: {{.*}}, [[INDEX:%[a-z0-9]+]]: {{.*}})
-  // CHECK: [[CAST:%[0-9]+]] = clift.bitcast [[POINTER]] : !_type_definition_100_TypedefDefinition -> !clift.ptr<8 to !int32_t>
-  // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[CAST]], [[INDEX]]
+  // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[POINTER]], [[INDEX]]
   // CHECK: [[ADDRESSOF:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]
   // CHECK: clift.yield [[ADDRESSOF]] : !clift.ptr<8 to !int32_t>
 
@@ -55,8 +54,7 @@ module attributes {clift.module} {
 
   // CHECK: clift.func @test_typedef_constant_index<!f2_>([[POINTER:%[a-z0-9]+]]: {{.*}})
   // CHECK: [[IMM:%[0-9]+]] = clift.imm 3
-  // CHECK: [[CAST:%[0-9]+]] = clift.bitcast [[POINTER]] : !_type_definition_100_TypedefDefinition -> !clift.ptr<8 to !int32_t>
-  // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[CAST]], [[IMM]]
+  // CHECK: [[SUBSCRIPT:%[0-9]+]] = clift.subscript [[POINTER]], [[IMM]]
   // CHECK: [[ADDRESSOF:%[0-9]+]] = clift.addressof [[SUBSCRIPT]]
   // CHECK: clift.yield [[ADDRESSOF]] : !clift.ptr<8 to !int32_t>
 }

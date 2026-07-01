@@ -348,17 +348,6 @@ bool Replacement::replace(ExpressionOpInterface PointerToReplace,
           IndexValue = Contribution;
       }
 
-      // The `SubscriptOp` requires its `Pointer` operand to be a `PointerType`.
-      // In case `CurrentValue` is a `PointerType`, wrapped into a
-      // `TypeDefType`, we need to cast it to the underlying `PointerType`
-      // first.
-      if (not mlir::isa<clift::PointerType>(CurrentValue.getType())) {
-        auto PtrType = unwrapped_cast<PointerType>(CurrentValue.getType());
-        CurrentValue = Builder.create<BitCastOp>(PointerToReplaceLoc,
-                                                 PtrType,
-                                                 CurrentValue);
-      }
-
       // Finally, we emit the `SubscriptOp` using as `Index` the `mlir::Value`
       // constructed above
       CurrentValue = Builder.create<SubscriptOp>(PointerToReplaceLoc,
