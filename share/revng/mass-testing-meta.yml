@@ -19,6 +19,16 @@ ordering:
   - name: text_size
     dir: asc
 
+crash_components_filters:
+  - category: OOM
+    type: percentile
+    variable: text_size
+    values: [10, 50]
+  - category: TIMED_OUT
+    type: percentile
+    variable: text_size
+    values: [10, 50]
+
 hooks:
   pre: |
     REVNG_TEST_PATH=$(command -v revng-test)
