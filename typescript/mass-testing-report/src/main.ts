@@ -332,59 +332,106 @@ function populateGeneralStats(element: HTMLElement, db: Database, meta: Metadata
 // per-component statistics and display them, both in textual form and as a pie
 // chart
 function populateCrashStats(element: Element, db: Database, category: string) {
-    element.classList.add("stats");
-    const pre = createAndAppend(element, "pre");
+    const filterDiv = createAndAppend(element, "div");
+    const statsDiv = createAndAppend(element, "div");
+    const pre = createAndAppend(statsDiv, "pre");
     pre.style.marginRight = "auto";
-    const pieDiv = createAndAppend(element, "div");
+    const pieDiv = createAndAppend(statsDiv, "div");
+    let categoryChart: ApexCharts | undefined = undefined;
 
-    const raw_counts = db.exec({
-        sql: "SELECT name, count FROM crash_components WHERE category = ?",
+    function populate(filter: string) {
+        const raw_counts = db.exec({
+            sql: "SELECT name, count FROM crash_components WHERE category = ? AND filter = ?",
+            bind: [category, filter],
+            ...sqlOptions,
+        });
+
+        let total = 0;
+        // Counts is an array of <component name, count>
+        const counts: [string, number][] = [];
+        for (const entry of raw_counts) {
+            counts.push([entry.name as string, entry.count as number]);
+            total += entry.count as number;
+        }
+        // Sort the results, so that the biggest offenders appear first
+        counts.sort((a, b) => (a[1] === b[1] ? 0 : a[1] < b[1] ? 1 : -1));
+
+        pre.innerHTML = "";
+        if (total === 0) {
+            pre.innerHTML = "No crashes present in this category\n";
+            return;
+        }
+
+        for (const [name, count] of counts) {
+            const count_percent = percent(count, total);
+            pre.innerHTML += `${name}: ${count} (${count_percent})\n`;
+        }
+
+        pieDiv.innerHTML = "";
+        pieDiv.className = "pieChart";
+        if (categoryChart !== undefined) {
+            categoryChart.destroy();
+        }
+        categoryChart = new ApexCharts(pieDiv, {
+            chart: {
+                type: "pie",
+                width: `${pieDiv.getClientRects()[0].width}px`,
+                animations: {
+                    enabled: false,
+                },
+            },
+            plotOptions: {
+                pie: {
+                    expandOnClick: false,
+                },
+            },
+            legend: {
+                show: false,
+            },
+            series: counts.map((e) => e[1]),
+            labels: counts.map((e) => e[0]),
+        });
+        categoryChart.render();
+
+        const fgContainer = document.getElementById("flamegraphs_container");
+        if (fgContainer !== null) {
+            fgContainer.innerHTML = "";
+            const prefix = fgContainer.getAttribute("data-fg-prefix")!;
+
+            for (const type of ["bottomup", "topdown"]) {
+                const imageName =
+                    filter === "all" ? `${prefix}_${type}` : `${prefix}_${filter}_${type}`;
+                const anchor = createAndAppend<HTMLAnchorElement>(fgContainer, "a");
+                anchor.target = "_blank";
+                anchor.href = `${imageName}.svg`;
+                const img = createAndAppend<HTMLImageElement>(anchor, "img");
+                img.src = `${imageName}.png`;
+            }
+        }
+    }
+
+    const filters = db.exec({
+        sql: "SELECT DISTINCT filter from crash_components WHERE category = ?",
         bind: [category],
         ...sqlOptions,
     });
-
-    let total = 0;
-    // Counts is an array of <component name, count>
-    const counts: [string, number][] = [];
-    for (const entry of raw_counts) {
-        counts.push([entry.name as string, entry.count as number]);
-        total += entry.count as number;
-    }
-    // Sort the results, so that the biggest offenders appear first
-    counts.sort((a, b) => (a[1] === b[1] ? 0 : a[1] < b[1] ? 1 : -1));
-
-    pre.innerHTML = "";
-    if (total === 0) {
-        pre.innerHTML = "No crashes present in this category\n";
-        return;
-    }
-
-    for (const [name, count] of counts) {
-        const count_percent = percent(count, total);
-        pre.innerHTML += `${name}: ${count} (${count_percent})\n`;
+    if (filters.length > 1) {
+        filterDiv.style.marginBottom = "1%";
+        const dropDown = createAndAppend<HTMLSelectElement>(filterDiv, "select");
+        dropDown.addEventListener("input", (ev) => {
+            populate((ev.target as HTMLOptionElement).value);
+        });
+        for (const entry of filters) {
+            const option = createAndAppend<HTMLOptionElement>(dropDown, "option");
+            option.value = entry.filter as unknown as string;
+            option.innerHTML = entry.filter as unknown as string;
+            if (entry.filter == "all") {
+                option.selected = true;
+            }
+        }
     }
 
-    pieDiv.className = "pieChart";
-    const categoryChart = new ApexCharts(pieDiv, {
-        chart: {
-            type: "pie",
-            width: `${pieDiv.getClientRects()[0].width}px`,
-            animations: {
-                enabled: false,
-            },
-        },
-        plotOptions: {
-            pie: {
-                expandOnClick: false,
-            },
-        },
-        legend: {
-            show: false,
-        },
-        series: counts.map((e) => e[1]),
-        labels: counts.map((e) => e[0]),
-    });
-    categoryChart.render();
+    populate("all");
 }
 
 // This defines the renderers, which are function that allow datatables to

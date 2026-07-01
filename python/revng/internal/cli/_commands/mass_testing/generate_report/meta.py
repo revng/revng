@@ -4,7 +4,7 @@
 
 import re
 from dataclasses import dataclass
-from typing import List, Literal
+from typing import Any, List, Literal
 
 
 @dataclass
@@ -42,8 +42,23 @@ class StacktraceAggregation:
 
 
 @dataclass
+class CrashComponentFilter:
+    category: str
+    type: str  # noqa: A003
+    variable: str
+    values: list[Any]
+
+    @staticmethod
+    def from_dict(input_: dict) -> "CrashComponentFilter":
+        return CrashComponentFilter(
+            input_["category"], input_["type"], input_["variable"], input_["values"]
+        )
+
+
+@dataclass
 class GlobalMeta:
     extra_columns: List[ExtraColumn]
+    crash_components_filters: list[CrashComponentFilter]
     downloads: List[Download]
     stacktrace_aggregation: StacktraceAggregation
     flamegraph_exclude_paths: list[re.Pattern]
@@ -52,6 +67,9 @@ class GlobalMeta:
     @staticmethod
     def from_dict(input_: dict) -> "GlobalMeta":
         extra_columns = [ExtraColumn.from_dict(e) for e in input_.get("extra_columns", [])]
+        crash_components_filters = [
+            CrashComponentFilter.from_dict(e) for e in input_.get("crash_components_filters", [])
+        ]
         downloads = [Download.from_dict(e) for e in input_.get("downloads", [])]
         stacktrace_aggregation = StacktraceAggregation.from_dict(
             input_.get("stacktrace_aggregation", {})
@@ -62,6 +80,7 @@ class GlobalMeta:
 
         return GlobalMeta(
             extra_columns,
+            crash_components_filters,
             downloads,
             stacktrace_aggregation,
             flamegraph_exclude_paths,

@@ -2,6 +2,8 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+from __future__ import annotations
+
 import json
 import math
 import os
@@ -13,9 +15,12 @@ from functools import cached_property
 from hashlib import shake_256
 from pathlib import Path
 from subprocess import run
-from typing import Collection, Dict, Iterable, List
+from typing import TYPE_CHECKING, Any, Collection, Dict, Iterable, List, Protocol
 
 from .meta import StacktraceAggregation
+
+if TYPE_CHECKING:
+    from .test_directory import TestDirectory
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 COMPONENTS_RES = (
@@ -231,7 +236,7 @@ def find_component(stacktrace: Stacktrace, aggregation_rules: StacktraceAggregat
 
 def generate_crash_components(
     stacktraces: Collection[Stacktrace | None], aggregation_rules: StacktraceAggregation
-) -> Dict[str, int]:
+) -> list[tuple[str, int]]:
     counts: Dict[str, int] = defaultdict(lambda: 0)
     for stacktrace in stacktraces:
         if stacktrace is None:
@@ -244,4 +249,36 @@ def generate_crash_components(
         else:
             counts[component] += 1
 
-    return dict(counts)
+    return list(counts.items())
+
+
+class StacktraceFilter(Protocol):
+    def __init__(self, variable: str, value: Any): ...
+
+    def filter_(self, tests: list[TestDirectory]) -> list[Stacktrace | None]: ...
+
+    def suffix(self) -> str: ...
+
+
+class _PercentileFilter:
+    def __init__(self, variable: str, value: int):
+        self.variable = variable
+        self.value = value
+
+    def filter_(self, tests: list[TestDirectory]) -> list[Stacktrace | None]:
+        if len(tests) == 0:
+            return []
+
+        values = [float(t.get_meta(self.variable)) for t in tests]
+        limit = _percentile(values, self.value)
+        return [t.stacktrace for index, t in enumerate(tests) if values[index] < limit]
+
+    def suffix(self) -> str:
+        return f"{self.value}th_percentile_on_{self.variable}"
+
+
+STACKTRACE_FILTERS: dict[str, type[StacktraceFilter]] = {"percentile": _PercentileFilter}
+
+
+def get_filter(type_: str, variable: str, value: Any) -> StacktraceFilter:
+    return STACKTRACE_FILTERS[type_](variable, value)
