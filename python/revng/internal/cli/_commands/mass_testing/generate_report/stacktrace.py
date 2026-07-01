@@ -3,6 +3,7 @@
 #
 
 import json
+import math
 import os
 import re
 from collections import defaultdict
@@ -21,6 +22,30 @@ COMPONENTS_RES = (
     re.compile(r"include/[^/]+/(?P<component>.+)/[^/]+$"),
     re.compile(r"lib/(?P<component>.+)/[^/]+$"),
 )
+
+
+def _percentile(data: Iterable[float], p: float):
+    """
+    This calculates the n-th percentile (even fractional) given a set of data
+    points. This uses the linear interpolation between closest ranks method to
+    compute the percentile, which works better than `statistics.quantiles`.
+    """
+
+    sorted_data = sorted(data)
+    n = len(sorted_data)
+
+    assert len(sorted_data) > 0
+    assert 0.0 <= p <= 100.0
+
+    pos = p * n / 100.0 - 0.5
+    if pos <= 0:
+        return float(sorted_data[0])
+    if pos >= n - 1:
+        return float(sorted_data[-1])
+
+    low = math.floor(pos)
+    fraction = pos - low
+    return sorted_data[low] + fraction * (sorted_data[low + 1] - sorted_data[low])
 
 
 @dataclass
@@ -70,10 +95,14 @@ class Stacktrace(Sequence):
             hash_.update(b"\0")
         return hash_.hexdigest(4)
 
-    def perf_line(self, inverted: bool, exclude_paths: list[re.Pattern]) -> str:
-        out = []
+    def _perf_lines(self, exclude_paths: list[re.Pattern], max_length: int | None) -> list[str]:
+        out: list[str] = []
         excluded_paths = 0
-        for element in self.lines:
+        for index, element in enumerate(self.lines):
+            if max_length is not None and len(out) >= max_length:
+                out.append(f"... ({len(self.lines) - index} frame(s) skipped)")
+                break
+
             if any(p.search(element.module) for p in exclude_paths):
                 excluded_paths += 1
                 continue
@@ -84,6 +113,13 @@ class Stacktrace(Sequence):
 
             out.append(element.to_string())
 
+        return out
+
+    def effective_length(self, exclude_paths: list[re.Pattern]) -> int:
+        return len(self._perf_lines(exclude_paths, None))
+
+    def perf_line(self, inverted: bool, max_length: int, exclude_paths: list[re.Pattern]) -> str:
+        out = self._perf_lines(exclude_paths, max_length)
         if not inverted:
             out.append(self.id_)
         else:
@@ -151,10 +187,13 @@ def generate_flamegraph(
         Path(output).write_text(EMPTY_FLAMEGRAPH_SVG)
         return
 
+    lengths = [st.effective_length(exclude_paths) if st is not None else 1 for st in stacktraces]
+    max_length = int(_percentile(lengths, 95))
+
     lines = ""
     for stacktrace in stacktraces:
         if stacktrace is not None:
-            lines += stacktrace.perf_line(inverted, exclude_paths)
+            lines += stacktrace.perf_line(inverted, max_length, exclude_paths)
         else:
             lines += "no stack trace 1\n"
 
