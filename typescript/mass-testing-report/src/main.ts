@@ -288,7 +288,7 @@ function populateGeneralStats(element: HTMLElement, db: Database, meta: Metadata
         const objects = db.exec({ sql: sqlQuery, ...sqlOptions });
         if (objects.length > 0) {
             const name = objects[0].name;
-            pre.innerHTML += `${entry.description}: <a href="/binary.html#${name}">${name}</a>\n`;
+            pre.innerHTML += `${entry.description}: <a href="binary.html#${name}">${name}</a>\n`;
         } else {
             pre.innerHTML += `${entry.description}: N/A\n`;
         }
