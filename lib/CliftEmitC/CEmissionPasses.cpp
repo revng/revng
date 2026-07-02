@@ -91,6 +91,7 @@ clift::PassPtr<mlir::ModuleOp> clift::createEmitTypeAndGlobalHeaderPass() {
       .TypeToOmit = {},
       .EmitMaximumEnumValue = false,
       .ExplicitPadding = true,
+      .InlineStackFrameType = false,
     };
 
     emitTypeAndGlobalHeader(Tokens, Module, Configuration);

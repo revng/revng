@@ -41,17 +41,20 @@ void EmitC::runOnFunction(const model::Function &Function) {
     .TypeToOmit = {},
     .EmitMaximumEnumValue = false,
     .ExplicitPadding = true,
+    .InlineStackFrameType = false,
   };
 
   switch (Configuration.Mode) {
   case EmissionMode::Editable:
     TEConfiguration.EmitMaximumEnumValue = true;
     TEConfiguration.ExplicitPadding = false;
+    TEConfiguration.InlineStackFrameType = true;
     break;
 
   case EmissionMode::Recompilable:
     TEConfiguration.EmitMaximumEnumValue = false;
     TEConfiguration.ExplicitPadding = true;
+    TEConfiguration.InlineStackFrameType = false;
     break;
 
   default:

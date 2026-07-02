@@ -147,6 +147,7 @@ static void emitFilteredHeader(llvm::raw_fd_ostream &Out,
     .TypeToOmit = {},
     .EmitMaximumEnumValue = true,
     .ExplicitPadding = false,
+    .InlineStackFrameType = false,
   };
 
   // This variable is necessary to ensure the string (when it's used) survives
