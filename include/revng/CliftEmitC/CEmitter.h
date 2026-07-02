@@ -40,10 +40,12 @@ public:
   void emitCAttribute(clift::CAttributeAttr Attribute);
   void emitCAttributes(llvm::ArrayRef<clift::CAttributeAttr> Attributes,
                        bool SpaceBefore,
-                       bool SpaceAfter);
+                       bool SpaceAfter,
+                       bool NewlineAfter = false);
   void emitCAttributes(mlir::ArrayAttr Attributes,
                        bool SpaceBefore,
-                       bool SpaceAfter);
+                       bool SpaceAfter,
+                       bool NewlineAfter = false);
 
   //===---------------------------- Prototype -----------------------------===//
 

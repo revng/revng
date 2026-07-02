@@ -13,7 +13,8 @@
 >
 
 module attributes {clift.module} {
-  // CHECK: A2 void fun_0x40001001(int32_t x A1) {
+  // CHECK: A2
+  // CHECK: void fun_0x40001001(int32_t x A1) {
   clift.func @fun_0x40001001<!f>(%arg0 : !int32_t { clift.handle = "/cabi-argument/1001-CABIFunctionDefinition/0",
                                                     clift.name = "x",
                                                     clift.c_attributes = [#clift.c_attribute<"A1">] }) attributes {

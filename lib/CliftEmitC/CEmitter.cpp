@@ -141,7 +141,8 @@ private:
         if (Declarator) {
           Parent.emitCAttributes(Declarator->CAttributes,
                                  /* SpaceBefore = */ false,
-                                 /* SpaceAfter = */ true);
+                                 /* SpaceAfter = */ true,
+                                 /* NewlineAfter = */ true);
         }
 
         OutermostFunctionType = Function;
@@ -447,7 +448,8 @@ void CEmitter::emitCAttribute(CAttributeAttr CAttribute) {
 void // formatting
 CEmitter::emitCAttributes(llvm::ArrayRef<CAttributeAttr> CAttributes,
                           bool SpaceBefore,
-                          bool SpaceAfter) {
+                          bool SpaceAfter,
+                          bool NewlineAfter) {
   if (CAttributes.empty())
     return;
 
@@ -458,24 +460,30 @@ CEmitter::emitCAttributes(llvm::ArrayRef<CAttributeAttr> CAttributes,
   for (CAttributeAttr Attribute : CAttributes) {
     if (First)
       First = false;
+    else if (NewlineAfter)
+      Tokens.emitNewline();
     else
       Tokens.emitSpace();
 
     emitCAttribute(Attribute);
+
+    if (NewlineAfter)
+      Tokens.emitNewline();
   }
 
-  if (SpaceAfter)
+  if (SpaceAfter and not NewlineAfter)
     Tokens.emitSpace();
 }
 
 void CEmitter::emitCAttributes(mlir::ArrayAttr CAttributes,
                                bool SpaceBefore,
-                               bool SpaceAfter) {
+                               bool SpaceAfter,
+                               bool NewlineAfter) {
   if (not CAttributes)
     return;
 
   auto Range = llvm::to_vector(CAttributes.getAsRange<CAttributeAttr>());
-  emitCAttributes(Range, SpaceBefore, SpaceAfter);
+  emitCAttributes(Range, SpaceBefore, SpaceAfter, NewlineAfter);
 }
 
 //===---------------------------- Declarations ----------------------------===//
