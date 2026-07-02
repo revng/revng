@@ -91,9 +91,6 @@ makeHeaderModule(const model::Binary &Model) {
   mlir::OwningOpRef<mlir::ModuleOp> Module = clift::makeModule(*Context);
 
   clift::importAllModelTypes(Model, Module.get());
-  clift::importAllModelFunctionDeclarations(Model, Module.get());
-  clift::importAllModelSegmentDeclarations(Model, Module.get());
-
   clift::importDescriptiveInfo(Model, Module.get());
 
   return std::make_pair(std::move(Context), std::move(Module));
