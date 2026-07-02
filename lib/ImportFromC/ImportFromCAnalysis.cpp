@@ -290,6 +290,10 @@ private:
       std::string ConcatenatedErrorMessage;
       for (auto &Error : State.Errors)
         ConcatenatedErrorMessage += std::move(Error);
+
+      // TODO: the best thing for the UI would be having clang emit SARIF,
+      //       we should add an option to emit it instead (it's still worth
+      //       keeping the basic output for CLI users).
       return revng::createError(ConcatenatedErrorMessage);
     }
 
