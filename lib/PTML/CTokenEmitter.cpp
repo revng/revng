@@ -399,6 +399,10 @@ void CTokenEmitter::emitKeyword(Keyword K) {
     return Emit("volatile");
   case Keyword::While:
     return Emit("while");
+  case Keyword::BreakTo:
+    return Emit("break_to");
+  case Keyword::ContinueTo:
+    return Emit("continue_to");
   }
   revng_abort("Invalid CTokenEmitter::Keyword");
 }

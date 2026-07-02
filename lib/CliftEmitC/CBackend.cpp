@@ -878,9 +878,9 @@ public:
     if (mlir::isa<GotoOp>(S))
       Tokens.emitKeyword(CTE::Keyword::Goto);
     else if (mlir::isa<BreakToOp>(S))
-      Tokens.emitMacro("break_to");
+      Tokens.emitKeyword(CTE::Keyword::BreakTo);
     else if (mlir::isa<ContinueToOp>(S))
-      Tokens.emitMacro("continue_to");
+      Tokens.emitKeyword(CTE::Keyword::ContinueTo);
     else
       revng_abort("Unsupported jump statement");
 

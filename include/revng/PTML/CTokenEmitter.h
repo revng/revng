@@ -62,6 +62,7 @@ public:
   void emitNewline() { PTML.emit("\n"); }
 
   enum class Keyword {
+    // Standard keywords
     Auto,
     Bool,
     Break,
@@ -97,6 +98,10 @@ public:
     Void,
     Volatile,
     While,
+
+    // Our custom keywords
+    BreakTo,
+    ContinueTo,
   };
 
   void emitKeyword(Keyword K);
