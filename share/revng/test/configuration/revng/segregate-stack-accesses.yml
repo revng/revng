@@ -12,7 +12,7 @@ commands:
       cd "$OUTPUT";
       export REVNG_OPTIONS="$${REVNG_OPTIONS:-} --debug-names";
 
-      revng2 project init --no-initial-auto-analysis "$INPUT";
+      revng2 project init --overwrite --no-initial-auto-analysis "$INPUT";
       revng2 project analyze parse-binary -o /dev/null;
 
       revng model override-by-name

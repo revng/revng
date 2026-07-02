@@ -27,7 +27,7 @@ if test -e "${BINARY}.pdb"; then
 fi
 
 # Import DWARF information
-revng2 -C "$OUTPUT_DIRECTORY" project init --no-initial-auto-analysis "$BINARY"
+revng2 -C "$OUTPUT_DIRECTORY" project init --overwrite --no-initial-auto-analysis "$BINARY"
 revng2 -C "$OUTPUT_DIRECTORY" project analyze parse-binary -o /dev/null -- "${EXTRA_ARGUMENTS[@]}"
 
 # Remove all the functions we don't find relevant, then force-override the ABI

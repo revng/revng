@@ -24,7 +24,7 @@ commands:
         trap 'rm -rf "$WORKDIR"' EXIT
         cd "$WORKDIR"
 
-        revng2 project init --no-initial-auto-analysis "$BINARY";
+        revng2 project init --overwrite --no-initial-auto-analysis "$BINARY";
         revng2 project analyze parse-binary -o /dev/null;
 
         PRE_ARTIFACT_PATCH="${FILECHECK/.filecheck/.pre-patch.yml}"

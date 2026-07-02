@@ -11,7 +11,7 @@ commands:
     command: |-
       INPUT=$$(realpath "$INPUT");
       cd "$$(temp -d)";
-      revng2 project init --no-initial-auto-analysis "$$INPUT/functions";
+      revng2 project init --overwrite --no-initial-auto-analysis "$$INPUT/functions";
       revng2 project analyze parse-binary -o /dev/null -- --use-pdb="$$INPUT/functions.pdb";
       python3 "${SOURCES_ROOT}/share/revng/test/tests/abi/prepare-tested-model.py"
         "${ABI_NAME}" model.yml model.yml;

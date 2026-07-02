@@ -202,11 +202,12 @@ class StorageProviderFactory(ABC):
         then the internal websocket will be used.
         """
 
-    def init(self, directory: Path) -> bool:
+    def init(self, directory: Path, overwrite: bool) -> bool:
         """
         Initialize the specified directory to become a storage directory, can
         be overridden by local storage providers. Returns true if the directory
-        was initted or false if it was previously initted.
+        was initted or false if it was previously initted. When overwrite is
+        set, an already-initialized directory is clobbered and re-initialized.
         """
         return True
 

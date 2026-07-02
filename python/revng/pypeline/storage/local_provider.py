@@ -221,15 +221,15 @@ class _LocalStorageProviderCommon:
     def get_notification_websocket(self) -> str | None:
         return None
 
-    def init(self, directory: Path):
+    def init(self, directory: Path, overwrite: bool):
         model_type = get_singleton(Model)  # type: ignore [type-abstract]
         model_name = model_type.model_name()
         model_path = directory / model_name
-        if not model_path.exists():
-            model_path.touch()
-            return True
-        else:
+        if model_path.exists() and not overwrite:
             return False
+        # Create the model file, clobbering any existing one when overwrite is set
+        model_path.write_text("")
+        return True
 
 
 class LocalStorageProviderFactory(_LocalStorageProviderCommon, StorageProviderFactory):

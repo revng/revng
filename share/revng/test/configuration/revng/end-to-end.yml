@@ -11,7 +11,7 @@ commands:
       - type: revng-qa.compiled
         filter: one-per-architecture
     suffix: /
-    command: revng2 -C "$OUTPUT" project init "$INPUT"
+    command: revng2 -C "$OUTPUT" project init --overwrite "$INPUT"
 
   #
   # Perform lifting

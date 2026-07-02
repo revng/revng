@@ -10,7 +10,7 @@ commands:
         filter: for-decompilation
     suffix: /
     command: |-
-      revng2 -C "$OUTPUT" project init "$INPUT";
+      revng2 -C "$OUTPUT" project init --overwrite "$INPUT";
       revng2 -C "$OUTPUT" project artifact emit-c -o /dev/null;
   - # Perform checks on the model
     type: revng.emit-c.model-check

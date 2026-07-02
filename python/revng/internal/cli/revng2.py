@@ -325,6 +325,11 @@ def analyze(
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
 )
 @click.option("--no-initial-auto-analysis", is_flag=True)
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Overwrite an existing project model instead of failing.",
+)
 @project_id_option
 @token_option
 @exec_wrapper_if_needed
@@ -333,6 +338,7 @@ def init(
     ctx: ClickContext,
     binary: Path | None,
     no_initial_auto_analysis: bool,
+    overwrite: bool,
     project_id: str,
     token: str,
 ):
@@ -340,11 +346,11 @@ def init(
     model_type = get_singleton(Model)  # type: ignore[type-abstract]
 
     storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
-    if not storage_provider_factory.init(ctx.obj.base_directory):
+    if not storage_provider_factory.init(ctx.obj.base_directory, overwrite):
         model_name = model_type.model_name()
         raise click.UsageError(
             f"File {model_name} is already present in the current directory. "
-            "Refusing to overwrite it."
+            "Refusing to overwrite it (pass --overwrite to replace it)."
         )
 
     async def async_part_of_command(
