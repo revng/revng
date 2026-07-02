@@ -8,6 +8,9 @@
 #include <string>
 
 #include "revng/Clift/Clift.h"
+#include "revng/CliftEmitC/Configuration.h"
 #include "revng/PTML/CTokenEmitter.h"
 
-void decompile(clift::FunctionOp Function, ptml::CTokenEmitter &Emitter);
+void decompile(clift::FunctionOp Function,
+               ptml::CTokenEmitter &Emitter,
+               TypeEmitterConfiguration Configuration = {});

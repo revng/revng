@@ -61,9 +61,15 @@ struct CEmissionPass : BaseT<CEmissionPass<BaseT, Impl>> {
 clift::PassPtr<mlir::ModuleOp> clift::createEmitCPass() {
   static constexpr auto Impl = [](mlir::ModuleOp Module,
                                   ptml::CTokenEmitter &Emitter) {
-    Module->walk([&Emitter](clift::FunctionOp Function) {
+    TypeEmitterConfiguration Configuration = {
+      .TypeToOmit = {},
+      .EmitMaximumEnumValue = false,
+      .ExplicitPadding = true,
+    };
+
+    Module->walk([&Emitter, &Configuration](clift::FunctionOp Function) {
       if (not Function.isExternal())
-        decompile(Function, Emitter);
+        decompile(Function, Emitter, Configuration);
     });
 
     return true;

@@ -9,6 +9,8 @@
 #include "revng/Clift/CliftOpHelpers.h"
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CEmitter.h"
+#include "revng/CliftEmitC/Configuration.h"
+#include "revng/CliftEmitC/TypeDefinitionEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/Ranks/Location.h"
 #include "revng/Ranks/Ranks.h"
@@ -56,7 +58,17 @@ class CliftToCEmitter : CEmitter {
   // Ambient precedence of the current expression.
   OperatorPrecedence CurrentPrecedence = {};
 
+  // Configuration controlling optional emission behaviour for this function,
+  // most notably whether the stack-frame struct definition should be inlined
+  // at the top of the function body.
+  TypeEmitterConfiguration Configuration;
+
 public:
+  CliftToCEmitter(ptml::CTokenEmitter &Emitter,
+                  const CDataModel &DataModel,
+                  TypeEmitterConfiguration Configuration) :
+    CEmitter(Emitter, DataModel), Configuration(Configuration) {}
+
   using CEmitter::CEmitter;
 
   static OperatorPrecedence decrementPrecedence(OperatorPrecedence Precedence) {
@@ -1322,6 +1334,9 @@ public:
 
 } // namespace
 
-void decompile(FunctionOp Function, ptml::CTokenEmitter &Emitter) {
-  CliftToCEmitter(Emitter, getDataModel(Function)).emitFunction(Function);
+void decompile(FunctionOp Function,
+               ptml::CTokenEmitter &Emitter,
+               TypeEmitterConfiguration Configuration) {
+  CliftToCEmitter(Emitter, getDataModel(Function), Configuration)
+    .emitFunction(Function);
 }

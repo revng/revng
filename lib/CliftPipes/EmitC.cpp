@@ -63,7 +63,7 @@ void EmitC::runOnFunction(const model::Function &Function) {
                               Configuration.DisableMarkup ?
                                 ptml::Tagging::Disabled :
                                 ptml::Tagging::Enabled);
-  decompile(MLIRFunction, Emitter);
+  decompile(MLIRFunction, Emitter, TEConfiguration);
 }
 
 } // namespace revng::pypeline::piperuns
