@@ -219,25 +219,20 @@ private:
                                                   TypeToEdit->key());
     Configuration.TypeToOmit = EditedTypeHandle;
 
-    {
-      ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Disabled);
-      emitCommonIncludes(Tokens, abi::getDataModel(Model));
+    ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Disabled);
+    emitCommonIncludes(Tokens, abi::getDataModel(Model));
 
-      if (TypeToEdit != nullptr and isSeparateDeclarationAllowed(*TypeToEdit)) {
-        auto Current = clift::importType(Context.get(), *TypeToEdit);
+    if (TypeToEdit != nullptr and isSeparateDeclarationAllowed(*TypeToEdit)) {
+      TypeDefinitionEmitter TDE(Tokens,
+                                abi::getDataModel(Model),
+                                Configuration);
 
-        // TODO: we only need information about one type, don't import them all!
-        clift::importDescriptiveInfo(Model, *HeaderModule);
-
-        TypeDefinitionEmitter TDE(Tokens,
-                                  abi::getDataModel(Model),
-                                  Configuration);
-        TDE.emitForwardDeclaration(Current);
-        Tokens.emitNewline();
-      }
-
-      emitTypes(Tokens, *HeaderModule, Configuration);
+      auto Current = clift::importType(Context.get(), *TypeToEdit);
+      TDE.emitForwardDeclaration(Current);
+      Tokens.emitNewline();
     }
+
+    emitTypes(Tokens, *HeaderModule, Configuration);
   }
 
   static std::vector<std::string> getCompilationFlags() {
