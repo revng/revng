@@ -25,7 +25,7 @@ public:
 class PTMLCTypeBytesContainer : public TypeDefinitionToBytesContainer {
 public:
   static constexpr llvm::StringRef Name = "PTMLCTypeBytesContainer";
-  static constexpr llvm::StringRef MimeType = "text/x.c+ptml";
+  static constexpr llvm::StringRef MimeType = "text/x.c";
   static constexpr llvm::StringRef Compression = "zstd;level=-1";
 };
 
