@@ -15,6 +15,9 @@
 struct CBackendConfiguration {
   /// Configuration for the type emitter.
   TypeEmitterConfiguration TypeEmitter = {};
+
+  /// Should stack frame types be inlined?
+  bool InlineStackFrameType = false;
 };
 
 void decompile(clift::FunctionOp Function,
