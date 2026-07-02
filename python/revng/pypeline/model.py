@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Self, Set
+from typing import Annotated, Optional, Self, Set
 
 from .object import Kind, ObjectID, ObjectSet
 from .utils import is_mime_type_text
@@ -78,6 +78,53 @@ class Model(ABC):
         if kind == root.kind():
             return ObjectSet(kind, {root})
         return ObjectSet(kind, self.children(root, kind))
+
+    def has_object(self, kind: Kind, object_id: ObjectID) -> bool:
+        """
+        Returns whether the object `object_id` of the given kind exists in the
+        model. The default implementation materializes `all_objects`;
+        implementations that can answer more cheaply should override it.
+        """
+        return object_id in self.all_objects(kind)
+
+    def aliases(self, object_id: ObjectID) -> list[str]:
+        """
+        Returns a list of human-friendly aliases for the given object.
+        By default no aliases are provided.
+        """
+        return []
+
+    def resolve_alias(self, kind: Kind, alias: str) -> Optional[ObjectID]:
+        """
+        Resolve a string to an ObjectID of the given kind, or None if it does
+        not resolve. The string can be:
+        * a full object location, e.g. `/function/0x40:Code_x86_64` (a location
+          naming a different kind than `kind` does not resolve);
+        * a bare object key, e.g. `0x40:Code_x86_64`, interpreted within `kind`;
+        * a human-friendly alias (see `aliases`), the inverse of `aliases`.
+        Locations and bare keys (the non-aliases) take priority over aliases.
+        By default only locations and bare keys are handled; subclasses add
+        alias resolution.
+        """
+        object_id_type: type[ObjectID] = get_singleton(ObjectID)  # type: ignore[type-abstract]
+
+        if alias.startswith("/"):
+            # A leading slash always denotes a full location, never a name.
+            try:
+                object_id = object_id_type.deserialize(alias)
+            except RuntimeError:
+                return None
+        else:
+            # Otherwise, try to interpret it as a bare key within `kind`.
+            try:
+                object_id = object_id_type.deserialize(f"/{kind.serialize()}/{alias}")
+            except RuntimeError:
+                return None
+
+        # Keep it only if it is of the requested kind and exists in the model.
+        if object_id.kind() != kind:
+            return None
+        return object_id if self.has_object(kind, object_id) else None
 
     def move_to_kind(self, objects: ObjectSet, destination_kind: Kind) -> ObjectSet:
         if not objects:
@@ -198,6 +245,12 @@ class ReadOnlyModel[M: Model]:
 
     def all_objects(self, kind: Kind) -> ObjectSet:
         return self._context.all_objects(kind)
+
+    def aliases(self, obj: ObjectID) -> list[str]:
+        return self._context.aliases(obj)
+
+    def resolve_alias(self, kind: Kind, alias: str) -> Optional[ObjectID]:
+        return self._context.resolve_alias(kind, alias)
 
     def move_to_kind(self, objects: ObjectSet, destination_kind: Kind) -> ObjectSet:
         return self._context.move_to_kind(objects, destination_kind)

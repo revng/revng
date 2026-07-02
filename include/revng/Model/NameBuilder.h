@@ -62,7 +62,7 @@ public:
     }
   }
 
-private:
+public:
   [[nodiscard]] std::string automaticName(const model::Binary &Binary,
                                           const model::Segment &Segment) const {
     auto Iterator = Binary.Segments().find(Segment.StartAddress());

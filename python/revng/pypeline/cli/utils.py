@@ -8,7 +8,7 @@ import sys
 from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, Optional, TypeVar, cast
 from urllib.parse import urlparse
 
 import click
@@ -19,10 +19,12 @@ from click_option_group._helpers import get_fake_option_name, resolve_wrappers
 from revng.pypeline.cli.context import ClickContext
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import ReadOnlyModel
-from revng.pypeline.object import Kind, ObjectID, ObjectSet
+from revng.pypeline.object import Kind, ObjectSet
 from revng.pypeline.storage.storage_provider import StorageProviderFactory
 from revng.pypeline.task.task import TaskArgument
-from revng.pypeline.utils.registry import get_registry, get_singleton
+from revng.pypeline.utils.registry import get_registry
+
+T = TypeVar("T")
 
 
 class PypeCommand(click.Command):
@@ -264,7 +266,18 @@ def list_objects_for_container(
     """
     print(f'Available objects for "{arg_name}" kind: "{kind.serialize()}"')
     for obj in model.all_objects(kind):
-        print(f" - {obj}")
+        aliases = model.aliases(obj)
+        if aliases:
+            print(f" - {obj} ({', '.join(aliases)})")
+        else:
+            print(f" - {obj}")
+
+
+def not_none(value: Optional[T], exception: Exception) -> T:
+    """Return `value` unchanged, or raise `exception` if it is None."""
+    if value is None:
+        raise exception
+    return value
 
 
 def compute_objects(
@@ -276,17 +289,26 @@ def compute_objects(
     """
     Check if the user provided a list of objects for the given
     argument name, and if so, return an ObjectSet with those objects
-    deserialized.
+    resolved.
     Otherwise, return all objects of the given kind from the model.
     """
     arg_name = normalize_flag(arg_name)
-    obj_id_type = get_singleton(ObjectID)  # type: ignore[type-abstract]
     if f"{arg_name}_objects" in kwargs:
         objects = kwargs.get(f"{arg_name}_objects", "")
         if objects:
             return ObjectSet(
                 kind=kind,
-                objects={obj_id_type.deserialize(obj) for obj in objects.split(",") if obj.strip()},
+                objects={
+                    not_none(
+                        model.resolve_alias(kind, specification),
+                        ValueError(
+                            f'Unknown object or alias "{specification}" '
+                            f'for kind "{kind.serialize()}"'
+                        ),
+                    )
+                    for specification in objects.split(",")
+                    if specification.strip()
+                },
             )
     return model.all_objects(kind)
 

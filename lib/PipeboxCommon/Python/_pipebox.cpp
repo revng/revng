@@ -237,6 +237,8 @@ NB_MODULE(_pipebox, m) {
            return Handle.diff(*nanobind::cast<Model *>(Other));
          })
     .def("children", &Model::children)
+    .def("aliases", &Model::aliases)
+    .def("resolve_alias", &Model::resolveAlias)
     .def("clone", &Model::clone)
     .def("serialize",
          [](Model &Handle) {
