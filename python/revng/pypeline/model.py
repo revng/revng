@@ -28,6 +28,14 @@ class ModelDiff(ABC):
     def serialize(self) -> bytes:
         raise NotImplementedError()
 
+    def __len__(self) -> int:
+        """Number of changes in the diff (zero means no change).
+
+        Implementations for which `paths()` marshals a data structure are
+        encouraged to override this with a cheaper size computation.
+        """
+        return len(self.paths())
+
 
 class Model(ABC):
     """

@@ -534,6 +534,7 @@ set(REVNG_PYPELINE_MODULE_FILES
     revng/pypeline/storage/__init__.py
     revng/pypeline/storage/local_provider_migrations/v1.sql
     revng/pypeline/storage/local_provider_migrations/v2.sql
+    revng/pypeline/storage/local_provider_migrations/v3.sql
     revng/pypeline/task/__init__.py
     revng/pypeline/task/pipe.py
     revng/pypeline/task/requests.py

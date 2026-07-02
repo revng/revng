@@ -216,6 +216,8 @@ NB_MODULE(_pipebox, m) {
   nanobind::object ModelDiffBaseClass = importObject("revng.pypeline.model."
                                                      "ModelDiff");
   nanobind::class_<ModelDiff>(m, "ModelDiff", ModelDiffBaseClass)
+    .def(nanobind::init<>())
+    .def("__len__", &ModelDiff::size)
     .def("paths", &ModelDiff::paths)
     .def("serialize", [](ModelDiff &Handle) {
       llvm::SmallVector<char, 0> Buffer = Handle.serialize();

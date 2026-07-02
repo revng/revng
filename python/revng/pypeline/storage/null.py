@@ -93,6 +93,7 @@ class NullStorageProvider(StorageProvider):
         new_model: Model,
         changed_paths: ModelPathSet,
         custom_invalidations: list[ObjectsToInvalidate],
+        model_bytes: bytes | None = None,
     ) -> SetModelResult:
         self.model = new_model.clone()
         self.last_model_save = datetime.now(timezone.utc)

@@ -57,7 +57,7 @@ async def async_part_of_command(
     we need the code that uses the storage_provider to be an async function.
     """
     async with storage_provider_context as storage_provider:
-        loaded_model = storage_provider.get_model()[0]
+        loaded_model = pipeline.get_model(configuration, storage_provider)[0]
         pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
         if kwargs["list"]:

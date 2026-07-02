@@ -13,6 +13,7 @@ private:
   TupleTreeDiff<model::Binary> Diff;
 
 public:
+  ModelDiff() = default;
   ModelDiff(TupleTreeDiff<model::Binary> Diff) : Diff(Diff) {}
 
   std::set<revng::pypeline::ModelPath> paths() const {
@@ -23,6 +24,8 @@ public:
     }
     return Result;
   }
+
+  size_t size() const { return Diff.Changes.size(); }
 
   llvm::SmallVector<char, 0> serialize() const {
     llvm::SmallVector<char, 0> Out;

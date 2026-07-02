@@ -456,6 +456,7 @@ class RSSStorageProvider(StorageProvider):
         new_model: Model,
         changed_paths: ModelPathSet,
         custom_invalidations: list[ObjectsToInvalidate],
+        model_bytes: bytes | None = None,
     ) -> SetModelResult:
         invalidation_json = {
             "invalidation_list": list(changed_paths),
@@ -473,7 +474,8 @@ class RSSStorageProvider(StorageProvider):
             ],
         }
 
-        model_bytes = new_model.serialize()
+        if model_bytes is None:
+            model_bytes = new_model.serialize()
         files: _FilesType = {
             "invalidation": ("invalidation", json.dumps(invalidation_json)),
             "model": ("model", model_bytes),
