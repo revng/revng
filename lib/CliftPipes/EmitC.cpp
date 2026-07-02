@@ -34,24 +34,24 @@ void EmitC::runOnFunction(const model::Function &Function) {
   revng_assert(verifyCSemantics(Module).succeeded());
   FunctionOp MLIRFunction = getUniqueIsolatedFunction(Module, Function.Entry());
 
-  // TODO: once we emit any type definitions, in the decompiled code, we should
-  //       carry a `TypeEmitterConfiguration` set from `Options` from here
-  //       all the way to wherever the TypeDefinitionEmitter is constructed.
-  TypeEmitterConfiguration TEConfiguration = {
-    .TypeToOmit = {},
-    .EmitMaximumEnumValue = false,
-    .ExplicitPadding = true,
+  CBackendConfiguration BackendConfiguration = {
+    .TypeEmitter = TypeEmitterConfiguration{ .TypeToOmit = {},
+                                             .EmitMaximumEnumValue = false,
+                                             .ExplicitPadding = true },
+    .InlineStackFrameType = false,
   };
 
   switch (Configuration.Mode) {
   case EmissionMode::Editable:
-    TEConfiguration.EmitMaximumEnumValue = true;
-    TEConfiguration.ExplicitPadding = false;
+    BackendConfiguration.TypeEmitter.EmitMaximumEnumValue = true;
+    BackendConfiguration.TypeEmitter.ExplicitPadding = false;
+    BackendConfiguration.InlineStackFrameType = true;
     break;
 
   case EmissionMode::Recompilable:
-    TEConfiguration.EmitMaximumEnumValue = false;
-    TEConfiguration.ExplicitPadding = true;
+    BackendConfiguration.TypeEmitter.EmitMaximumEnumValue = false;
+    BackendConfiguration.TypeEmitter.ExplicitPadding = true;
+    BackendConfiguration.InlineStackFrameType = false;
     break;
 
   default:
@@ -63,7 +63,7 @@ void EmitC::runOnFunction(const model::Function &Function) {
                               Configuration.DisableMarkup ?
                                 ptml::Tagging::Disabled :
                                 ptml::Tagging::Enabled);
-  decompile(MLIRFunction, Emitter);
+  decompile(MLIRFunction, Emitter, std::move(BackendConfiguration));
 }
 
 } // namespace revng::pypeline::piperuns
