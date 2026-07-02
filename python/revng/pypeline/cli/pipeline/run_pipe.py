@@ -161,7 +161,7 @@ def build_pipe_command(
             " advanced invalidation entry."
         ),
     )
-    @container_format_options
+    @container_format_options(ContainerFormat.AUTO)
     @list_objects_option
     @exec_wrapper_if_needed
     @pass_context

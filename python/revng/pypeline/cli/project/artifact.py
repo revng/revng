@@ -171,11 +171,11 @@ def build_artifact_command(
         help=(
             "Path to write the computed artifacts to, if not specified, the "
             "result will be printed to stdout. "
-            "The default container_format when printing to stdout is json."
+            "The default output format is 'auto' (see --format)."
         ),
     )
     @debug_option
-    @container_format_options
+    @container_format_options(ContainerFormat.AUTO)
     @add_pipeline_config_options(pipeline, artifact.node)
     @exec_wrapper_if_needed
     @pass_context

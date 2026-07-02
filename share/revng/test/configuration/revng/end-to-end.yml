@@ -116,8 +116,7 @@ commands:
     suffix: /
     command: |-
       cp -Tar "$INPUT" "$OUTPUT";
-      revng2 -C "$OUTPUT" project artifact emit-recompilable-archive |
-        yq -r '.["/binary"]' | base64 -d > "$OUTPUT/recompilable-archive.tar.gz";
+      revng2 -C "$OUTPUT" project artifact emit-recompilable-archive > "$OUTPUT/recompilable-archive.tar.gz";
 
       mkdir -p "$OUTPUT";
       tar -xzf "$OUTPUT/recompilable-archive.tar.gz" -C "$OUTPUT";

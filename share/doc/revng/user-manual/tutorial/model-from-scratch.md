@@ -97,15 +97,14 @@ Let's produce the [`disassemble` artifact](../../references/artifacts.md#disasse
 
 ```bash
 $ revng2 project artifact disassemble | revng ptml
-/function/0x400000:Code_x86_64: |-
-  function_0x400000_Code_x86_64:
-    400000:    48 01 f7    add rdi, rsi
-    400003:    48 89 f8    mov rax, rdi
-    400006:    c3          ret
+function_0x400000_Code_x86_64:
+  400000:    48 01 f7    add rdi, rsi
+  400003:    48 89 f8    mov rax, rdi
+  400006:    c3          ret
 ```
 
-The output of the `revng2 project artifact disassemble` command is a `yaml` composed by one entry for each input function. Each file is an assembly listing decorated using [PTML](../../references/ptml.md).
-<br />`revng ptml` strips away all this details and outputs a YAML dictionary with one entry for each disassembled function.
+The `revng2 project artifact disassemble` command emits, for each function, an assembly listing decorated using [PTML](../../references/ptml.md).
+<br />`revng ptml` renders the PTML as text.
 
 ### Step 4: Defining a function prototype
 
@@ -183,11 +182,10 @@ To do so, we can ask rev.ng to produce the [`emit-c` artifact](../../references/
 
 ```bash
 $ revng2 project artifact emit-c | revng ptml
-/function/0x400000:Code_x86_64: |-
-  _ABI(SystemV_x86_64)
-  uint64_t function_0x400000_Code_x86_64(uint64_t argument_0, uint64_t argument_1) {
-    return argument_0 + argument_1;
-  }
+_ABI(SystemV_x86_64)
+uint64_t function_0x400000_Code_x86_64(uint64_t argument_0, uint64_t argument_1) {
+  return argument_0 + argument_1;
+}
 
 ```
 
@@ -243,10 +241,9 @@ Here's what we get now if we try to decompile again:
 
 ```bash
 $ revng2 project artifact emit-c | revng ptml
-/function/0x400000:Code_x86_64: |-
-  _ABI(SystemV_x86_64)
-  uint64_t Sum(uint64_t FirstAddend, uint64_t SecondAddend) {
-    return FirstAddend + SecondAddend;
-  }
+_ABI(SystemV_x86_64)
+uint64_t Sum(uint64_t FirstAddend, uint64_t SecondAddend) {
+  return FirstAddend + SecondAddend;
+}
 
 ```

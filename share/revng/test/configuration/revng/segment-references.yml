@@ -10,7 +10,5 @@ commands:
     suffix: /
     command: |-
       revng2 quick artifact cleanup-ir "$INPUT" -- --debug-names |
-        yq -r '.["/binary"]' |
-        base64 -d |
         revng opt -S |
         FileCheck ${SOURCE}.filecheck.ll
