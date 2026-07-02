@@ -8,23 +8,23 @@
 
 namespace revng::pypeline {
 
-class PTMLCBytesContainer : public BytesContainer {
+class PTMLCContainer : public BytesContainer {
 public:
-  static constexpr llvm::StringRef Name = "PTMLCBytesContainer";
+  static constexpr llvm::StringRef Name = "PTMLCContainer";
   static constexpr llvm::StringRef MimeType = "text/x.c+ptml";
   static constexpr llvm::StringRef Compression = "zstd;level=2";
 };
 
-class PTMLCFunctionBytesContainer : public FunctionToBytesContainer {
+class PTMLCFunctionContainer : public FunctionToBytesContainer {
 public:
-  static constexpr llvm::StringRef Name = "PTMLCFunctionBytesContainer";
+  static constexpr llvm::StringRef Name = "PTMLCFunctionContainer";
   static constexpr llvm::StringRef MimeType = "text/x.c+ptml";
   static constexpr llvm::StringRef Compression = "zstd;level=1";
 };
 
-class PTMLCTypeBytesContainer : public TypeDefinitionToBytesContainer {
+class CTypeContainer : public TypeDefinitionToBytesContainer {
 public:
-  static constexpr llvm::StringRef Name = "PTMLCTypeBytesContainer";
+  static constexpr llvm::StringRef Name = "CTypeContainer";
   static constexpr llvm::StringRef MimeType = "text/x.c";
   static constexpr llvm::StringRef Compression = "zstd;level=-1";
 };

@@ -14,35 +14,34 @@ namespace piperuns {
 class EmitCAsDirectory {
 private:
   const model::Binary &Binary;
-  const PTMLCBytesContainer &InputC;
-  const PTMLCBytesContainer &InputTypesAndGlobals;
-  const PTMLCBytesContainer &InputHelpers;
+  const PTMLCContainer &InputC;
+  const PTMLCContainer &InputTypesAndGlobals;
+  const PTMLCContainer &InputHelpers;
   RecompilableArchiveContainer &Output;
 
 public:
   static constexpr llvm::StringRef Name = "emit-c-as-directory";
-  using Arguments = TypeList<PipeRunArgument<const PTMLCBytesContainer,
-                                             "DecompiledFunctions",
-                                             "Input decompiled functions">,
-                             PipeRunArgument<const PTMLCBytesContainer,
-                                             "TypesAndGlobals",
-                                             "Input type and global header">,
-                             PipeRunArgument<const PTMLCBytesContainer,
-                                             "Helpers",
-                                             "Input helper header">,
-                             PipeRunArgument<RecompilableArchiveContainer,
-                                             "Output",
-                                             "Output single archive containing "
-                                             "everything needed for "
-                                             "recompilation",
-                                             Access::Write>>;
+  using Arguments = TypeList<
+    PipeRunArgument<const PTMLCContainer,
+                    "DecompiledFunctions",
+                    "Input decompiled functions">,
+    PipeRunArgument<const PTMLCContainer,
+                    "TypesAndGlobals",
+                    "Input type and global header">,
+    PipeRunArgument<const PTMLCContainer, "Helpers", "Input helper header">,
+    PipeRunArgument<RecompilableArchiveContainer,
+                    "Output",
+                    "Output single archive containing "
+                    "everything needed for "
+                    "recompilation",
+                    Access::Write>>;
 
   EmitCAsDirectory(const Model &Model,
                    llvm::StringRef Config,
                    llvm::StringRef DynamicConfig,
-                   const PTMLCBytesContainer &InputC,
-                   const PTMLCBytesContainer &InputTypesAndGlobals,
-                   const PTMLCBytesContainer &InputHelpers,
+                   const PTMLCContainer &InputC,
+                   const PTMLCContainer &InputTypesAndGlobals,
+                   const PTMLCContainer &InputHelpers,
                    RecompilableArchiveContainer &Output) :
     Binary(*Model.get().get()),
     InputC(InputC),

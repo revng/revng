@@ -81,9 +81,9 @@ REGISTER(Container, HexDumpContainer);
 REGISTER(Container, LLVMFunctionContainer);
 REGISTER(Container, LLVMRootContainer);
 REGISTER(Container, ObjectFileContainer);
-REGISTER(Container, PTMLCBytesContainer);
-REGISTER(Container, PTMLCFunctionBytesContainer);
-REGISTER(Container, PTMLCTypeBytesContainer);
+REGISTER(Container, PTMLCContainer);
+REGISTER(Container, PTMLCFunctionContainer);
+REGISTER(Container, CTypeContainer);
 REGISTER(Container, RecompilableArchiveContainer);
 REGISTER(Container, TranslatedContainer);
 

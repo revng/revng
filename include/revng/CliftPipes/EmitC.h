@@ -16,7 +16,7 @@ namespace revng::pypeline::piperuns {
 class EmitC {
 private:
   CliftFunctionContainer &Input;
-  PTMLCFunctionBytesContainer &Output;
+  PTMLCFunctionContainer &Output;
 
   CEmissionPipeConfiguration Configuration;
 
@@ -26,7 +26,7 @@ public:
                                              "Modules",
                                              "function MLIR module(s)",
                                              Access::Read>,
-                             PipeRunArgument<PTMLCFunctionBytesContainer,
+                             PipeRunArgument<PTMLCFunctionContainer,
                                              "Output",
                                              "Decompiled per-function PTML-C",
                                              Access::Write>>;
@@ -35,7 +35,7 @@ public:
         llvm::StringRef Config,
         llvm::StringRef DynamicConfig,
         CliftFunctionContainer &Input,
-        PTMLCFunctionBytesContainer &Output);
+        PTMLCFunctionContainer &Output);
 
   void runOnFunction(const model::Function &Function);
 };

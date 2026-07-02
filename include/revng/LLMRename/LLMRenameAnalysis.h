@@ -16,7 +16,7 @@ public:
   llvm::Error run(Model &Model,
                   const Request &Incoming,
                   llvm::StringRef Configuration,
-                  const PTMLCFunctionBytesContainer &Input);
+                  const PTMLCFunctionContainer &Input);
 
   bool isAvailable() const;
 };

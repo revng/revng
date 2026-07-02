@@ -42,13 +42,13 @@ containers:
   - name: clift-functions
     type: CliftFunctionContainer
   - name: decompile-c
-    type: PTMLCFunctionBytesContainer
+    type: PTMLCFunctionContainer
   - name: decompiled-single-file
-    type: PTMLCBytesContainer
+    type: PTMLCContainer
   - name: tagless-decompile-c
-    type: PTMLCFunctionBytesContainer
+    type: PTMLCFunctionContainer
   - name: tagless-decompiled-single-file
-    type: PTMLCBytesContainer
+    type: PTMLCContainer
   - name: recompilable-archive
     type: RecompilableArchiveContainer
   - name: llvm-root-merged
@@ -64,15 +64,15 @@ containers:
   - name: clift-types-and-globals
     type: CliftModuleContainer
   - name: type-and-global-header
-    type: PTMLCBytesContainer
+    type: PTMLCContainer
   - name: helper-header
-    type: PTMLCBytesContainer
+    type: PTMLCContainer
   - name: single-type
-    type: PTMLCTypeBytesContainer
+    type: CTypeContainer
   - name: tagless-type-and-global-header
-    type: PTMLCBytesContainer
+    type: PTMLCContainer
   - name: tagless-helper-header
-    type: PTMLCBytesContainer
+    type: PTMLCContainer
 
 analyses:
   - apply-diff

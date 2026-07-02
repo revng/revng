@@ -79,8 +79,8 @@ namespace revng::pypeline::piperuns {
 EmitCAsSingleFile::EmitCAsSingleFile(const class Model &Model,
                                      llvm::StringRef Configuration,
                                      llvm::StringRef DynamicConfig,
-                                     const PTMLCFunctionBytesContainer &Input,
-                                     PTMLCBytesContainer &Output) :
+                                     const PTMLCFunctionContainer &Input,
+                                     PTMLCContainer &Output) :
   Binary(*Model.get().get()),
   Input(Input),
   Output(Output),

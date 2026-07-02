@@ -15,17 +15,17 @@ namespace piperuns {
 class EmitCAsSingleFile {
 private:
   const model::Binary &Binary;
-  const PTMLCFunctionBytesContainer &Input;
-  PTMLCBytesContainer &Output;
+  const PTMLCFunctionContainer &Input;
+  PTMLCContainer &Output;
 
   CEmissionPipeConfiguration Configuration;
 
 public:
   static constexpr llvm::StringRef Name = "emit-c-as-single-file";
-  using Arguments = TypeList<PipeRunArgument<const PTMLCFunctionBytesContainer,
+  using Arguments = TypeList<PipeRunArgument<const PTMLCFunctionContainer,
                                              "DecompiledFunctions",
                                              "Input decompiled function">,
-                             PipeRunArgument<PTMLCBytesContainer,
+                             PipeRunArgument<PTMLCContainer,
                                              "Output",
                                              "Output single C+PTML",
                                              Access::Write>>;
@@ -33,8 +33,8 @@ public:
   EmitCAsSingleFile(const Model &Model,
                     llvm::StringRef Config,
                     llvm::StringRef DynamicConfig,
-                    const PTMLCFunctionBytesContainer &Input,
-                    PTMLCBytesContainer &Output);
+                    const PTMLCFunctionContainer &Input,
+                    PTMLCContainer &Output);
 
   void run();
 };

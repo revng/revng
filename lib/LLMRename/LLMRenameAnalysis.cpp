@@ -48,7 +48,7 @@ namespace revng::pypeline::analyses {
 llvm::Error LLMRename::run(Model &Model,
                            const Request &Incoming,
                            llvm::StringRef Configuration,
-                           const PTMLCFunctionBytesContainer &Input) {
+                           const PTMLCFunctionContainer &Input) {
   model::Binary &Binary = *Model.get().get();
   for (const ObjectID *Object : Incoming[0]) {
     auto Buffer = Input.getMemoryBuffer(*Object);
