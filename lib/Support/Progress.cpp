@@ -138,7 +138,8 @@ private:
       Output << ",";
     Output << "\n";
 
-    emitMemoryUsage();
+    if (EmitTrailingComma)
+      emitMemoryUsage();
   }
 
   void emitMemoryUsage() {
