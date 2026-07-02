@@ -31,4 +31,12 @@ struct TypeEmitterConfiguration {
   /// recompiled with a normal compiler (*our* wrapper used when editing types
   /// is not affected because it explicitly handles `_STARTS_AT` attribute).
   bool ExplicitPadding = true;
+
+  /// When emit the stack variable, emit the *definition* of its struct instead
+  /// of a declaration.
+  ///
+  /// Note that the inlined definition is emitted regardless of the presence of
+  /// the global definition for the same type, which means the produced C is
+  /// intentionally not syntactically valid as a single translation unit.
+  bool InlineStackFrameType = false;
 };
