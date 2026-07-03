@@ -8,7 +8,7 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable, Sequence
 
 import click
 import psutil
@@ -39,7 +39,7 @@ class WideHelpFormatter(click.HelpFormatter):
 
     def write_dl(
         self,
-        rows: Sequence[tuple[str, str]],
+        rows: Iterable[tuple[str, str]],
         col_max: int | None = None,
         col_spacing: int = 2,
     ) -> None:
