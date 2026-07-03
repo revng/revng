@@ -5,7 +5,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 from sqlite3 import Cursor, connect
-from typing import Callable, Dict, Iterable, List, Tuple, Union
+from typing import Callable, Iterable, List, Tuple, Union
 
 from .meta import GlobalMeta
 from .test_directory import TestDirectory
@@ -77,23 +77,20 @@ def create_main_table(cursor: Cursor, schema: Schema, items: Iterable[TestDirect
     cursor.executemany(query, ([r[1](item) for r in schema.columns] for item in items))
 
 
-def create_components_table(cursor: Cursor, items: Dict[str, Dict[str, int]]):
+def create_components_table(cursor: Cursor, items: list[tuple[str, str, str, int]]):
     query = (
         "CREATE TABLE IF NOT EXISTS crash_components"
-        + "(name TEXT NOT NULL, category TEXT NOT NULL, count INTEGER NOT NULL);"
+        + "(category TEXT NOT NULL, filter TEXT NOT NULL, "
+        + " name TEXT NOT NULL, count INTEGER NOT NULL);"
     )
     cursor.execute(query)
-    res: List[Tuple[str, str, int]] = []
-    for category, data in items.items():
-        for name, value in data.items():
-            res.append((name, category, value))
-    cursor.executemany("INSERT INTO crash_components VALUES(?, ?, ?)", res)
+    cursor.executemany("INSERT INTO crash_components VALUES(?, ?, ?, ?)", items)
 
 
 def create_and_populate(
     path: str | Path,
     items: Iterable[TestDirectory],
-    crash_counts: Dict[str, Dict[str, int]],
+    crash_counts: list[tuple[str, str, str, int]],
     meta: GlobalMeta | None,
 ):
     schema = create_schema(meta)

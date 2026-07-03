@@ -27,6 +27,19 @@ div.stats .pre {
     margin-right: auto;
 }
 
+div.crash-stats > div {
+    display: flex;
+}
+
+div.crash-stats div.pieChart {
+    display: block;
+    width: 25%;
+}
+
+div.crash-stats .pre {
+    margin-right: auto;
+}
+
 div#flamegraphs img {
     width: 95%;
 }

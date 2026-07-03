@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy2, copytree, which
 from subprocess import DEVNULL, PIPE, run
-from typing import Dict, List
+from typing import Dict
 
 import yaml
 
@@ -20,7 +20,7 @@ from revng.support import get_root
 
 from .db import create_and_populate
 from .meta import GlobalMeta
-from .stacktrace import Stacktrace, generate_crash_components, generate_flamegraph
+from .stacktrace import generate_crash_components, generate_flamegraph, get_filter
 from .test_directory import TestDirectory
 
 
@@ -110,10 +110,10 @@ class MassTestingGenerateReportCommand(Command):
             global_meta = GlobalMeta.from_dict({})
 
         stacktrace_categories = ("CRASHED", "TIMED_OUT", "OOM")
-        stacktraces: Dict[str, List[Stacktrace | None]] = {k: [] for k in stacktrace_categories}
+        tests_by_category: Dict[str, list[TestDirectory]] = {k: [] for k in stacktrace_categories}
         for test in tests:
             if test.status in stacktrace_categories:
-                stacktraces[test.status].append(test.stacktrace)
+                tests_by_category[test.status].append(test)
 
         stack_aggregation = global_meta.stacktrace_aggregation
         gf_options = {
@@ -122,11 +122,37 @@ class MassTestingGenerateReportCommand(Command):
             "OOM": GFOptions("ooms", "OOMs", "OOM"),
         }
 
+        total_counts: list[tuple[str, str, str, int]] = []
         flamegraph_exclude_paths = global_meta.flamegraph_exclude_paths
-        total_counts = {}
-        for cat, cat_stacktraces in stacktraces.items():
-            total_counts[cat] = generate_crash_components(cat_stacktraces, stack_aggregation)
-            generate_flamegraphs(cat_stacktraces, output, gf_options[cat], flamegraph_exclude_paths)
+        for component_filter in global_meta.crash_components_filters:
+            for value in component_filter.values:
+                filter_ = get_filter(component_filter.type, component_filter.variable, value)
+                stacktraces = filter_.filter_(tests_by_category[component_filter.category])
+                suffix = filter_.suffix()
+                total_counts.extend(
+                    [
+                        (component_filter.category, suffix, *v)
+                        for v in generate_crash_components(stacktraces, stack_aggregation)
+                    ]
+                )
+
+                parent_options = gf_options[component_filter.category]
+                new_options = GFOptions(
+                    f"{parent_options.file_prefix}_{suffix}",
+                    parent_options.legend_prefix,
+                    parent_options.end_location_name,
+                )
+                generate_flamegraphs(stacktraces, output, new_options, flamegraph_exclude_paths)
+
+        for cat, cat_tests in tests_by_category.items():
+            stacktraces = [t.stacktrace for t in cat_tests]
+            total_counts.extend(
+                [
+                    (cat, "all", *v)
+                    for v in generate_crash_components(stacktraces, stack_aggregation)
+                ]
+            )
+            generate_flamegraphs(stacktraces, output, gf_options[cat], flamegraph_exclude_paths)
 
         db = output / "main.db"
         db.unlink(missing_ok=True)
