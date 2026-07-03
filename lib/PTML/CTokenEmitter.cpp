@@ -98,6 +98,18 @@ static std::optional<llvm::StringRef> getScopeKindAttribute(ScopeKind Kind) {
   return std::nullopt;
 }
 
+// Strictly speaking, this is a violation of the design (it's intended for
+// the backend to not be aware of locations), but we have to do that because
+// the alternative would have been to put all the allowed actions in clift
+// directly from the clifter, which would make clift huge and ugly to debug.
+//
+// IMPORTANT: this is an explicit one-off violation of the design for specific
+//            trade offs. Do not apply similar patterns elsewhere without
+//            thinking it through.
+//
+// This function *intentionally* emits "no allowed actions" for the locations
+// we don't know. Which in practice means that the backend can work perfectly
+// fine in PTML mode even with garbage locations.
 static llvm::SmallVector<llvm::StringRef, 2>
 getAllowedActions(llvm::StringRef Location) {
   namespace rr = revng::ranks;
