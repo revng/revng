@@ -854,13 +854,15 @@ JumpTargetManager::BlockWithAddress JumpTargetManager::peek() {
     harvest();
   } while (Unexplored.empty() and NewBranches != 0);
 
-  // Purge all the partial translations we know might be wrong
-  for (BasicBlock *BB : ToPurge)
-    purgeTranslation(BB);
-  ToPurge.clear();
+  if (not ToPurge.empty()) {
+    // Purge all the partial translations we know might be wrong
+    for (BasicBlock *BB : ToPurge)
+      purgeTranslation(BB);
+    ToPurge.clear();
 
-  // Puring leaves some unreachable blocks behind: collect them
-  EliminateUnreachableBlocks(*TheFunction);
+    // Puring leaves some unreachable blocks behind: collect them
+    EliminateUnreachableBlocks(*TheFunction);
+  }
 
   if (Unexplored.empty()) {
     revng_log(JTCountLog, "We're done looking for jump targets");
