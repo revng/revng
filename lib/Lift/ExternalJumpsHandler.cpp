@@ -43,7 +43,7 @@ BasicBlock *ExternalJumpsHandler::createReturnFromExternal() {
   auto *ReturnFromExternal = BasicBlock::Create(Context,
                                                 "return_from_external",
                                                 &TheFunction);
-  revng::NonDebugInfoCheckingIRBuilder Builder(ReturnFromExternal);
+  revng::IRBuilder Builder(ReturnFromExternal);
 
   // Identify the global variables to be serialized
   GlobalVariable *SavedRegistersPtr = TheModule.getGlobalVariable("saved_"
@@ -129,7 +129,7 @@ BasicBlock *ExternalJumpsHandler::createSerializeAndJumpOut() {
   BasicBlock *Result = BasicBlock::Create(Context,
                                           "serialize_and_jump_out",
                                           &TheFunction);
-  revng::NonDebugInfoCheckingIRBuilder Builder(Result);
+  revng::IRBuilder Builder(Result);
   auto *PC = PCH->loadJumpablePC(Builder);
   auto *JumpablePC = new GlobalVariable(TheModule,
                                         PC->getType(),
@@ -199,7 +199,7 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
   using CI = ConstantInt;
 
   BasicBlock *SetjmpBB = BasicBlock::Create(Context, "setjmp", &TheFunction);
-  revng::NonDebugInfoCheckingIRBuilder Builder(SetjmpBB);
+  revng::IRBuilder Builder(SetjmpBB);
 
   // Call setjmp
   llvm::Function *SetjmpFunction = TheModule.getFunction("setjmp");
@@ -219,7 +219,7 @@ llvm::BasicBlock *ExternalJumpsHandler::createSetjmp(BasicBlock *FirstReturn,
 }
 
 void ExternalJumpsHandler::buildExecutableSegmentsList() {
-  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
+  revng::IRBuilder Builder(Context);
   IntegerType *Int64 = Builder.getInt64Ty();
   SmallVector<Constant *, 10> ExecutableSegments;
   auto Int = [Int64](uint64_t V) { return ConstantInt::get(Int64, V); };
@@ -291,7 +291,7 @@ void ExternalJumpsHandler::createExternalJumpsHandler() {
     buildExecutableSegmentsList();
 
     Function *IsExecutableFunction = getIRHelper("is_executable", TheModule);
-    revng::NonDebugInfoCheckingIRBuilder Builder(ExternalJumpHandler);
+    revng::IRBuilder Builder(ExternalJumpHandler);
     Value *PC = PCH->loadJumpablePC(Builder);
     Value *IsExecutableResult = Builder.CreateCall(IsExecutableFunction,
                                                    { PC });

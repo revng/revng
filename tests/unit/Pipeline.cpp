@@ -665,7 +665,7 @@ static void makeF(llvm::Module &M, llvm::StringRef FName) {
   auto F = M.getOrInsertFunction(FName, FType);
   auto *Fun = llvm::dyn_cast<llvm::Function>(F.getCallee());
   auto *BB = llvm::BasicBlock::Create(M.getContext(), "bb", Fun);
-  revng::NonDebugInfoCheckingIRBuilder Builder(BB);
+  revng::IRBuilder Builder(BB);
   Builder.CreateRet(nullptr);
 }
 

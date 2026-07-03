@@ -13,7 +13,8 @@
 // CHECK: // Types
 // CHECK: //
 //
-// CHECK: typedef _ABI(SystemV_x86_64) uint8_t cabifunction_0(uint16_t, uint32_t);
+// CHECK: typedef _ABI(SystemV_x86_64)
+// CHECK: uint8_t cabifunction_0(uint16_t, uint32_t);
 //
 // CHECK: //
 // CHECK: // Functions
@@ -28,7 +29,8 @@
 // CHECK: ///
 // CHECK: /// \returns This comment is attached to the prototype (do not mistake it for
 // CHECK: /// the comment attached to the function itself!)
-// CHECK: _ABI(SystemV_x86_64) uint8_t my_commented_function(uint16_t argument_0, uint32_t argument_1);
+// CHECK: _ABI(SystemV_x86_64)
+// CHECK: uint8_t my_commented_function(uint16_t argument_0, uint32_t argument_1);
 
 !cabifunction_0_ = !clift.func<
   "/type-definition/0-CABIFunctionDefinition" as "cabifunction_0" : !uint8_t(!uint16_t, !uint32_t)

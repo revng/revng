@@ -24,9 +24,9 @@ class CompilerInstance;
 
 namespace tooling {
 
-class HeaderToModelDiagnosticConsumer : public clang::DiagnosticConsumer {
+class ImportFromCDiagnosticConsumer : public clang::DiagnosticConsumer {
 public:
-  HeaderToModelDiagnosticConsumer(clang::DiagnosticsEngine &D) :
+  ImportFromCDiagnosticConsumer(clang::DiagnosticsEngine &D) :
     Client(D.getClient()), ClientOwner(D.takeClient()) {}
 
   void EndSourceFile() override;
@@ -42,11 +42,11 @@ private:
   ImportingErrorList Errors;
 };
 
-class HeaderToModelAction : public ASTFrontendAction {
+class ImportFromCAction : public ASTFrontendAction {
 protected:
-  HeaderToModelAction(TupleTree<model::Binary> &Model,
-                      enum ImportFromCOption AnalysisOption,
-                      ImportingErrorList &Errors) :
+  ImportFromCAction(TupleTree<model::Binary> &Model,
+                    enum ImportFromCOption AnalysisOption,
+                    ImportingErrorList &Errors) :
     Model(Model), AnalysisOption(AnalysisOption), Errors(Errors) {}
 
 public:
@@ -70,17 +70,16 @@ protected:
   ImportingErrorList &Errors;
 
 private:
-  HeaderToModelDiagnosticConsumer *DiagConsumer = nullptr;
+  ImportFromCDiagnosticConsumer *DiagConsumer = nullptr;
 };
 
 // Handle Edit Type option.
-class HeaderToModelEditTypeAction : public HeaderToModelAction {
+class ImportFromCEditTypeAction : public ImportFromCAction {
 public:
-  HeaderToModelEditTypeAction(TupleTree<model::Binary> &Model,
-                              ImportingErrorList &Errors,
-                              std::optional<model::TypeDefinition::Key> Type) :
-    HeaderToModelAction(Model, ImportFromCOption::EditType, Errors),
-    Type(Type) {}
+  ImportFromCEditTypeAction(TupleTree<model::Binary> &Model,
+                            ImportingErrorList &Errors,
+                            std::optional<model::TypeDefinition::Key> Type) :
+    ImportFromCAction(Model, ImportFromCOption::EditType, Errors), Type(Type) {}
 
 private:
   // Type to be edited.
@@ -91,14 +90,12 @@ public:
 };
 
 // Handle Edit Function Prototype option.
-class HeaderToModelEditFunctionAction : public HeaderToModelAction {
+class ImportFromCEditFunctionAction : public ImportFromCAction {
 public:
-  HeaderToModelEditFunctionAction(TupleTree<model::Binary> &Model,
-                                  ImportingErrorList &Errors,
-                                  MetaAddress FunctionEntry) :
-    HeaderToModelAction(Model,
-                        ImportFromCOption::EditFunctionPrototype,
-                        Errors),
+  ImportFromCEditFunctionAction(TupleTree<model::Binary> &Model,
+                                ImportingErrorList &Errors,
+                                MetaAddress FunctionEntry) :
+    ImportFromCAction(Model, ImportFromCOption::EditFunctionPrototype, Errors),
     FunctionEntry(FunctionEntry) {}
 
 private:
@@ -110,11 +107,11 @@ public:
 };
 
 // Handle Add Type option.
-class HeaderToModelAddTypeAction : public HeaderToModelAction {
+class ImportFromCAddTypeAction : public ImportFromCAction {
 public:
-  HeaderToModelAddTypeAction(TupleTree<model::Binary> &Model,
-                             ImportingErrorList &Errors) :
-    HeaderToModelAction(Model, ImportFromCOption::AddType, Errors) {}
+  ImportFromCAddTypeAction(TupleTree<model::Binary> &Model,
+                           ImportingErrorList &Errors) :
+    ImportFromCAction(Model, ImportFromCOption::AddType, Errors) {}
 
 public:
   virtual std::unique_ptr<ASTConsumer> newASTConsumer() override;

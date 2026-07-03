@@ -41,7 +41,7 @@ CallInst *StructInitializers::createCall(revng::IRBuilder &Builder,
     auto *Entry = BasicBlock::Create(Context, "", Initializer);
 
     // TODO: the checks should be enabled conditionally based on the user.
-    revng::NonDebugInfoCheckingIRBuilder InitializerBuilder(Entry);
+    revng::IRBuilder InitializerBuilder(Entry);
 
     SmallVector<Value *, 8> Arguments;
     for (Argument &Arg : Initializer->args())

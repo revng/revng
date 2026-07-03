@@ -9,13 +9,14 @@
 
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/Model/FunctionAttribute.h"
+#include "revng/Model/NameBuilder.h"
 #include "revng/Model/Processing.h"
 #include "revng/PTML/CAttributes.h"
 #include "revng/PTML/CBuilder.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/Support/Debug.h"
 
-#include "HeaderToModel.h"
+#include "ImportFromC.h"
 
 using namespace model;
 using namespace revng;
@@ -24,16 +25,68 @@ static constexpr llvm::StringRef InputCFile = "revng-input.c";
 static constexpr llvm::StringRef PrimitiveTypeHeader = "primitive-types.h";
 static constexpr llvm::StringRef RawABIPrefix = "raw_";
 
+namespace {
+
+// TODO: listing all the field here is pretty nasty, but it will have to do
+//       for now.
+
+void preserveMetadata(const model::Function &Old, model::Function &New) {
+  New.Comments() = Old.Comments();
+  New.LocalVariables() = Old.LocalVariables();
+  New.GotoLabels() = Old.GotoLabels();
+  New.CallSitePrototypes() = Old.CallSitePrototypes();
+  New.ExportedNames() = Old.ExportedNames();
+  New.StackFrame() = Old.StackFrame();
+
+  // TODO: don't forget to extend when new fields are added.
+}
+
+void preserveMetadata(const model::TypeDefinition &Old,
+                      model::TypeDefinition &New) {
+  New.Comment() = Old.Comment();
+
+  // TODO: don't forget to extend when new fields are added.
+}
+
+void preserveMetadata(const model::EnumEntry &Old, model::EnumEntry &New) {
+  New.Comment() = Old.Comment();
+
+  // TODO: don't forget to extend when new fields are added.
+}
+
+template<typename EntityType>
+void setNameIfNotAutomatic(model::CNameBuilder &NameBuilder,
+                           EntityType &Entity,
+                           llvm::StringRef Name) {
+  if (not NameBuilder.isAutomaticName(Entity, Name))
+    Entity.Name() = Name;
+  else
+    Entity.Name() = "";
+}
+
+template<typename ParentType, typename EntityType>
+void setNameIfNotAutomatic(model::CNameBuilder &NameBuilder,
+                           const ParentType &Parent,
+                           EntityType &Entity,
+                           llvm::StringRef Name) {
+  if (not NameBuilder.isAutomaticName(Parent, Entity, Name))
+    Entity.Name() = Name;
+  else
+    Entity.Name() = "";
+}
+
+} // namespace
+
 namespace clang {
 namespace tooling {
 
-class HeaderToModel : public ASTConsumer {
+class ImportFromC : public ASTConsumer {
 public:
-  HeaderToModel(TupleTree<model::Binary> &Model,
-                std::optional<model::TypeDefinition::Key> Type,
-                MetaAddress FunctionEntry,
-                ImportingErrorList &Errors,
-                enum ImportFromCOption AnalysisOption) :
+  ImportFromC(TupleTree<model::Binary> &Model,
+              std::optional<model::TypeDefinition::Key> Type,
+              MetaAddress FunctionEntry,
+              ImportingErrorList &Errors,
+              enum ImportFromCOption AnalysisOption) :
     Model(Model),
     Type(Type),
     FunctionEntry(FunctionEntry),
@@ -71,6 +124,8 @@ private:
   // the multi-reg return value. Represents register ID and model::Type.
   using RawLocation = std::pair<model::Register::Values, model::UpcastableType>;
   std::optional<llvm::SmallVector<RawLocation, 4>> MultiRegisterReturnValue;
+
+  model::CNameBuilder NameBuilder;
 
 public:
   DeclVisitor(TupleTree<model::Binary> &Model,
@@ -144,7 +199,8 @@ DeclVisitor::DeclVisitor(TupleTree<model::Binary> &Model,
   Type(Type),
   FunctionEntry(FunctionEntry),
   Errors(Errors),
-  AnalysisOption(AnalysisOption) {
+  AnalysisOption(AnalysisOption),
+  NameBuilder(*Model) {
 }
 
 template<ConstexprString Macro, typename Type>
@@ -274,14 +330,14 @@ DeclVisitor::makePrimitive(const BuiltinType *UnderlyingBuiltin,
   case BuiltinType::Short:
     return model::PrimitiveType::makeSigned(2);
 
-  case BuiltinType::Char_S:
-  case BuiltinType::SChar:
+  case BuiltinType::Char_U:
+  case BuiltinType::UChar:
   case BuiltinType::Char8:
   case BuiltinType::Bool:
     return model::PrimitiveType::makeUnsigned(1);
 
-  case BuiltinType::Char_U:
-  case BuiltinType::UChar:
+  case BuiltinType::Char_S:
+  case BuiltinType::SChar:
     return model::PrimitiveType::makeSigned(1);
 
   case BuiltinType::Void:
@@ -549,8 +605,10 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
       model::Argument &NewArgument = FunctionType.Arguments()[Index];
 
-      // TODO: we shouldn't write generated names into the model.
-      NewArgument.Name() = FD->getParamDecl(I)->getName();
+      setNameIfNotAutomatic(NameBuilder,
+                            FunctionType,
+                            NewArgument,
+                            FD->getParamDecl(I)->getName());
 
       // TODO: This discard whatever comments might have been attached to
       //       the original argument.
@@ -700,7 +758,10 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         NamedTypedRegister &ParamReg = ArgumentsInserter.emplace(Location);
         ParamReg.Type() = std::move(ParamType);
         if (not ParamDecl->getName().empty())
-          ParamReg.Name() = ParamDecl->getName();
+          setNameIfNotAutomatic(NameBuilder,
+                                TheRawFunctionType,
+                                ParamReg,
+                                ParamDecl->getName());
 
         // TODO: This discard whatever comments might have been attached to
         //       the original register.
@@ -719,13 +780,10 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
   if (FD->hasAttr<clang::AlwaysInlineAttr>())
     ModelFunction.Attributes().emplace(model::FunctionAttribute::AlwaysInline);
 
-  // TODO: we shouldn't write generated names into the model.
-  ModelFunction.Name() = FD->getName();
+  setNameIfNotAutomatic(NameBuilder, ModelFunction, FD->getName());
 
-  // TODO: This discard whatever comments might have been attached to
-  //       the original function.
-
-  // TODO: remember/clone StackFrameType as well.
+  if (auto *OriginalFunction = Model->Functions().tryGet(FunctionEntry))
+    preserveMetadata(*OriginalFunction, ModelFunction);
 
   auto &&[_, Prototype] = Model->recordNewType(std::move(NewType));
   ModelFunction.Prototype() = Prototype;
@@ -781,11 +839,11 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
   auto TheTypeTypeDef = cast<model::TypedefDefinition>(NewTypedef.get());
   TheTypeTypeDef->UnderlyingType() = std::move(ModelTypedefType);
 
-  // TODO: we shouldn't write generated names into the model.
-  TheTypeTypeDef->Name() = D->getName();
+  setNameIfNotAutomatic(NameBuilder, *TheTypeTypeDef, D->getName());
 
-  // TODO: This discard whatever comments might have been attached to
-  //       the original type.
+  if (AnalysisOption == ImportFromCOption::EditType)
+    if (auto *OldType = Model->TypeDefinitions().tryGet(*Type))
+      preserveMetadata(**OldType, *NewTypedef);
 
   if (AnalysisOption == ImportFromCOption::EditType) {
     revng_assert(*Type == NewTypedef->key());
@@ -891,14 +949,18 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = ID;
 
-  // TODO: we shouldn't write generated names into the model.
-  NewType->Name() = RD->getName();
-
-  // TODO: This discard whatever comments might have been attached to
-  //       the original type.
+  setNameIfNotAutomatic(NameBuilder, *NewType, RD->getName());
 
   auto *Struct = cast<model::StructDefinition>(NewType.get());
   uint64_t CurrentOffset = 0;
+
+  const model::StructDefinition *OldStruct = nullptr;
+  if (AnalysisOption == ImportFromCOption::EditType)
+    if (auto *OldType = Model->TypeDefinitions().tryGet(*Type))
+      OldStruct = dyn_cast<model::StructDefinition>(&**OldType);
+
+  if (OldStruct != nullptr)
+    preserveMetadata(*OldStruct, *Struct);
 
   //
   // Iterate over the struct fields
@@ -1002,8 +1064,10 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     if (not IsPadding) {
       auto &FieldModelType = Struct->Fields()[CurrentOffset];
 
-      // TODO: we shouldn't write generated names into the model.
-      FieldModelType.Name() = Field->getName();
+      setNameIfNotAutomatic(NameBuilder,
+                            *Struct,
+                            FieldModelType,
+                            Field->getName());
 
       // TODO: This discard whatever comments might have been attached to
       //       the original field.
@@ -1027,11 +1091,9 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
     Struct->Size() = CurrentOffset;
 
     // Unless we're editing a type and have access to the previous size.
-    if (Type.has_value())
-      if (auto *MaybeType = Model->TypeDefinitions().tryGet(*Type))
-        if ((*MaybeType)->isObject())
-          if (auto OldSize = *(*MaybeType)->size(); Struct->Size() < OldSize)
-            Struct->Size() = OldSize;
+    if (OldStruct != nullptr)
+      if (auto OldSize = *OldStruct->size(); Struct->Size() < OldSize)
+        Struct->Size() = OldSize;
   }
 
   if (parseStringAnnotation<"_CAN_CONTAIN_CODE">(*RD, Errors))
@@ -1070,13 +1132,13 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
   if (AnalysisOption == ImportFromCOption::EditType)
     NewType->ID() = ID;
 
-  // TODO: we shouldn't write generated names into the model.
-  NewType->Name() = RD->getName();
-
-  // TODO: This discard whatever comments might have been attached to
-  //       the original type.
+  setNameIfNotAutomatic(NameBuilder, *NewType, RD->getName());
 
   auto Union = cast<model::UnionDefinition>(NewType.get());
+
+  if (AnalysisOption == ImportFromCOption::EditType)
+    if (auto *OldType = Model->TypeDefinitions().tryGet(*Type))
+      preserveMetadata(**OldType, *Union);
 
   uint64_t CurrentIndex = 0;
   for (const FieldDecl *Field : Definition->fields()) {
@@ -1100,8 +1162,10 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
 
     auto &FieldModelType = Union->Fields()[CurrentIndex];
 
-    // TODO: we shouldn't write generated names into the model.
-    FieldModelType.Name() = Field->getName();
+    setNameIfNotAutomatic(NameBuilder,
+                          *Union,
+                          FieldModelType,
+                          Field->getName());
 
     // TODO: This discard whatever comments might have been attached to
     //       the original field.
@@ -1209,20 +1273,27 @@ bool DeclVisitor::VisitEnumDecl(const EnumDecl *D) {
   NewType->UnderlyingType() = std::move(UnderlyingType);
 
   auto *Definition = D->getDefinition();
+  setNameIfNotAutomatic(NameBuilder, *NewType, Definition->getName());
 
-  // TODO: we shouldn't write generated names into the model.
-  NewType->Name() = Definition->getName();
-
-  // TODO: This discard whatever comments might have been attached to
-  //       the original type.
+  const model::EnumDefinition *OldEnum = nullptr;
+  if (AnalysisOption == ImportFromCOption::EditType) {
+    if (auto *OldType = Model->TypeDefinitions().tryGet(*Type)) {
+      OldEnum = dyn_cast<model::EnumDefinition>(&**OldType);
+      preserveMetadata(*OldEnum, *NewType);
+    }
+  }
 
   for (const auto *Enum : Definition->enumerators()) {
     auto Value = Enum->getInitVal().getExtValue();
     auto NewIterator = NewType->Entries().insert(Value).first;
-    NewIterator->Name() = Enum->getName().str();
+    setNameIfNotAutomatic(NameBuilder,
+                          *NewType,
+                          *NewIterator,
+                          Enum->getName().str());
 
-    // TODO: This discard whatever comments might have been attached to
-    //       the original entry.
+    if (OldEnum != nullptr)
+      if (auto *OldEntry = OldEnum->Entries().tryGet(Value))
+        preserveMetadata(*OldEntry, *NewIterator);
   }
 
   return true;
@@ -1243,60 +1314,61 @@ bool DeclVisitor::TraverseDecl(clang::Decl *D) {
   return true;
 }
 
-void HeaderToModel::HandleTranslationUnit(ASTContext &Context) {
+void ImportFromC::HandleTranslationUnit(ASTContext &Context) {
   clang::TranslationUnitDecl *TUD = Context.getTranslationUnitDecl();
   DeclVisitor(Model, Context, Type, FunctionEntry, Errors, AnalysisOption)
     .run(TUD);
 }
 
-std::unique_ptr<ASTConsumer> HeaderToModelEditTypeAction::newASTConsumer() {
-  return std::make_unique<HeaderToModel>(Model,
-                                         Type,
-                                         MetaAddress::invalid(),
-                                         Errors,
-                                         AnalysisOption);
+std::unique_ptr<ASTConsumer> ImportFromCEditTypeAction::newASTConsumer() {
+  return std::make_unique<ImportFromC>(Model,
+                                       Type,
+                                       MetaAddress::invalid(),
+                                       Errors,
+                                       AnalysisOption);
 }
 
-std::unique_ptr<ASTConsumer> HeaderToModelEditFunctionAction::newASTConsumer() {
-  return std::make_unique<HeaderToModel>(Model,
-                                         /* Type = */ std::nullopt,
-                                         FunctionEntry,
-                                         Errors,
-                                         AnalysisOption);
+std::unique_ptr<ASTConsumer> ImportFromCEditFunctionAction::newASTConsumer() {
+  return std::make_unique<ImportFromC>(Model,
+                                       std::nullopt,
+                                       FunctionEntry,
+                                       Errors,
+                                       AnalysisOption);
 }
 
-std::unique_ptr<ASTConsumer> HeaderToModelAddTypeAction::newASTConsumer() {
-  return std::make_unique<HeaderToModel>(Model,
-                                         /* Type = */ std::nullopt,
-                                         MetaAddress::invalid(),
-                                         Errors,
-                                         AnalysisOption);
+std::unique_ptr<ASTConsumer> ImportFromCAddTypeAction::newASTConsumer() {
+  return std::make_unique<ImportFromC>(Model,
+                                       std::nullopt,
+                                       MetaAddress::invalid(),
+                                       Errors,
+                                       AnalysisOption);
 }
 
 std::unique_ptr<ASTConsumer>
-HeaderToModelAction::CreateASTConsumer(CompilerInstance &, llvm::StringRef) {
+ImportFromCAction::CreateASTConsumer(CompilerInstance &, llvm::StringRef) {
   return newASTConsumer();
 }
 
-bool HeaderToModelAction::BeginInvocation(clang::CompilerInstance &CI) {
-  DiagConsumer = new HeaderToModelDiagnosticConsumer(CI.getDiagnostics());
-  CI.getDiagnostics().setClient(DiagConsumer, /*ShouldOwnClient=*/true);
+bool ImportFromCAction::BeginInvocation(clang::CompilerInstance &CI) {
+  DiagConsumer = new ImportFromCDiagnosticConsumer(CI.getDiagnostics());
+  CI.getDiagnostics().setClient(DiagConsumer, false);
   return true;
 }
 
-void HeaderToModelAction::EndSourceFile() {
-  std::vector MoreErrors = DiagConsumer->extractErrors();
-  if (not MoreErrors.empty())
-    llvm::move(MoreErrors, std::back_inserter(Errors));
+void ImportFromCAction::EndSourceFile() {
+  if (DiagConsumer) {
+    for (auto &Error : DiagConsumer->extractErrors())
+      Errors.emplace_back(std::move(Error));
+  }
 }
 
-void HeaderToModelDiagnosticConsumer::EndSourceFile() {
+void ImportFromCDiagnosticConsumer::EndSourceFile() {
   Client->EndSourceFile();
 }
 
 using Level = DiagnosticsEngine::Level;
-void HeaderToModelDiagnosticConsumer::HandleDiagnostic(Level DiagLevel,
-                                                       const Diagnostic &Info) {
+void ImportFromCDiagnosticConsumer::HandleDiagnostic(Level DiagLevel,
+                                                     const Diagnostic &Info) {
   SmallString<100> OutStr;
   Info.FormatDiagnostic(OutStr);
 

@@ -238,7 +238,7 @@ public:
 
   void
   emitAbort(BasicBlock *BB, const Twine &Reason, const DebugLoc &DbgLocation) {
-    revng::NonDebugInfoCheckingIRBuilder Builder(BB);
+    revng::IRBuilder Builder(BB);
     emitAbort(Builder, Reason, DbgLocation);
   }
 
@@ -253,7 +253,7 @@ public:
   void emitUnreachable(BasicBlock *BB,
                        const Twine &Reason,
                        const DebugLoc &DbgLocation) {
-    revng::NonDebugInfoCheckingIRBuilder Builder(BB);
+    revng::IRBuilder Builder(BB);
     emitUnreachable(Builder, Reason, DbgLocation);
   }
 
@@ -569,7 +569,7 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
       T->eraseFromParent();
 
       // TODO: the checks should be enabled conditionally based on the user.
-      revng::NonDebugInfoCheckingIRBuilder Builder(AnyPCPredecessor);
+      revng::IRBuilder Builder(AnyPCPredecessor);
 
       // Get the only outgoing edge jumping to anypc
       if (JumpBlock == nullptr) {

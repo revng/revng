@@ -107,7 +107,7 @@ public:
   void expandNewPC(llvm::CallBase *Call) const {
     revng_assert(isCallTo(Call, "newpc"));
     MetaAddress Address = addressFromNewPC(Call);
-    revng::NonDebugInfoCheckingIRBuilder Builder(Call);
+    revng::IRBuilder Builder(Call);
     setPC(Builder, Address);
   }
 
@@ -209,7 +209,7 @@ public:
                   llvm::BasicBlock *CreateIn,
                   llvm::BasicBlock *Default,
                   std::optional<BlockType::Values> SetBlockType) const {
-    revng::NonDebugInfoCheckingIRBuilder Builder(CreateIn);
+    revng::IRBuilder Builder(CreateIn);
     return buildDispatcher(Targets, Builder, Default, SetBlockType);
   }
 

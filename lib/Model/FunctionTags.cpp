@@ -216,7 +216,7 @@ inline llvm::Function &segmentGlobalGetterFactory(llvm::Module &M,
 
   // Fill in body
   auto *Entry = llvm::BasicBlock::Create(Result.getContext(), "", &Result);
-  revng::NonDebugInfoCheckingIRBuilder B(Entry);
+  revng::IRBuilder B(Entry);
   auto &Global = SegmentGlobal::get(*Result.getParent(),
                                     StartAddress,
                                     VirtualSize);

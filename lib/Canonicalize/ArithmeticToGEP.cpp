@@ -934,7 +934,7 @@ static bool foldPointerCasts(llvm::Function &F) {
 class GEPRewriter {
 private:
   llvm::Function &F;
-  revng::NonDebugInfoCheckingIRBuilder B;
+  revng::IRBuilder B;
 
   // Collect all the llvm::Values that had at least one of their uses changed
   // across all calls to replace().

@@ -10,6 +10,8 @@
 #include "revng/CliftEmitC/CBackend.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/PTML/CTokenEmitter.h"
+#include "revng/Pipeline/Location.h"
+#include "revng/Pipes/Ranks.h"
 
 using namespace clift;
 
@@ -98,7 +100,7 @@ public:
   //===---------------------------- Expressions ---------------------------===//
 
   RecursiveCoroutine<void> emitUndefExpression(mlir::Value V) {
-    Tokens.emitLiteralIdentifier("undef");
+    Tokens.emitMacro("undef");
     Tokens.emitOperator(CTE::Operator::LeftParenthesis);
     emitType(V.getType());
     Tokens.emitOperator(CTE::Operator::RightParenthesis);
@@ -147,7 +149,7 @@ public:
   }
 
   RecursiveCoroutine<void> emitNullPointerConstant(mlir::Value V) {
-    Tokens.emitLiteralIdentifier("NULL");
+    Tokens.emitMacro("NULL");
     rc_return;
   }
 
@@ -334,7 +336,7 @@ public:
   RecursiveCoroutine<void> emitBitCastExpression(mlir::Value V) {
     auto E = V.getDefiningOp<BitCastOp>();
 
-    Tokens.emitLiteralIdentifier("bit_cast");
+    Tokens.emitMacro("bit_cast");
     Tokens.emitPunctuator(CTE::Punctuator::LeftParenthesis);
 
     emitType(E.getResult().getType());
@@ -876,9 +878,9 @@ public:
     if (mlir::isa<GotoOp>(S))
       Tokens.emitKeyword(CTE::Keyword::Goto);
     else if (mlir::isa<BreakToOp>(S))
-      Tokens.emitLiteralIdentifier("break_to");
+      Tokens.emitKeyword(CTE::Keyword::BreakTo);
     else if (mlir::isa<ContinueToOp>(S))
-      Tokens.emitLiteralIdentifier("continue_to");
+      Tokens.emitKeyword(CTE::Keyword::ContinueTo);
     else
       revng_abort("Unsupported jump statement");
 
@@ -1159,15 +1161,26 @@ public:
     return mlir::cast_or_null<mlir::ArrayAttr>(S->getAttr("clift.comments"));
   }
 
-  RecursiveCoroutine<void> emitStatement(StatementOpInterface Stmt) {
-    mlir::Operation *Op = Stmt.getOperation();
+  RecursiveCoroutine<void> emitStatement(StatementOpInterface Statement) {
+    mlir::Operation *Op = Statement.getOperation();
 
-    if (auto Comments = getComments(Stmt)) {
-      // TODO: Add a comment formatting layer on top of CE.
-      //       At least spaces at the start of each line would be nice.
-      auto CE = Tokens.emitComment(CTE::CommentKind::Line);
+    if (auto Comments = getComments(Statement)) {
+      FunctionOp ParentFunction = Op->getParentOfType<FunctionOp>();
+      auto FLoc = pipeline::locationFromString(revng::ranks::Function,
+                                               ParentFunction.getHandle());
+      revng_assert(FLoc.has_value());
 
-      for (mlir::Attribute CommentAttr : Comments) {
+      for (auto [CommentIndex, CommentAttr] : llvm::enumerate(Comments)) {
+        auto Location = pipeline::location(revng::ranks::StatementComment,
+                                           FLoc->at(revng::ranks::Function),
+                                           CommentIndex);
+
+        auto Guard = Tokens.enterRegion(CTE::RegionKind::Commentable,
+                                        Location.toString());
+
+        // TODO: Add a comment formatting layer on top of CE.
+        //       At least spaces at the start of each line would be nice.
+        auto CE = Tokens.emitComment(CTE::CommentKind::Line);
         CE.emit(mlir::cast<mlir::StringAttr>(CommentAttr).getValue());
         CE.emit("\n");
       }

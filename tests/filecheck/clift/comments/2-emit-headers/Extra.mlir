@@ -11,13 +11,16 @@
 
 // CHECK: /// This function only has the function comment, with nothing attached
 // CHECK: /// to the prototype!
-// CHECK: _ABI(SystemV_x86_64) uint8_t single_comment_function(uint16_t argument_0, uint32_t argument_1);
+// CHECK: _ABI(SystemV_x86_64)
+// CHECK: uint8_t single_comment_function(uint16_t argument_0, uint32_t argument_1);
 //
 // CHECK: /// \param argument_1 This function only has an argument comment!
-// CHECK: _ABI(SystemV_x86_64) uint8_t argument_comment_function(uint16_t argument_0, uint32_t argument_1);
+// CHECK: _ABI(SystemV_x86_64)
+// CHECK: uint8_t argument_comment_function(uint16_t argument_0, uint32_t argument_1);
 //
 // CHECK: /// \returns This function only has a return value comment!
-// CHECK: _ABI(SystemV_x86_64) uint8_t return_value_comment_function(uint16_t argument_0, uint32_t argument_1);
+// CHECK: _ABI(SystemV_x86_64)
+// CHECK: uint8_t return_value_comment_function(uint16_t argument_0, uint32_t argument_1);
 
 !cabifunction_0_ = !clift.func<
   "/type-definition/0-CABIFunctionDefinition" as "cabifunction_0" : !uint8_t(!uint16_t, !uint32_t)

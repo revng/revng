@@ -9,7 +9,8 @@
 
 // CHECK: /// This comment is attached to the prototype (do not mistake it for
 // CHECK: /// the comment attached to the function itself!)
-// CHECK: typedef _ABI(raw_x86_64) uint64_t rawfunction_0(uint64_t, my_struct);
+// CHECK: typedef _ABI(raw_x86_64)
+// CHECK: uint64_t rawfunction_0(uint64_t, my_struct);
 //
 // CHECK: /// Not all arguments are passed in registers! Sometimes there's also a struct!
 // CHECK: ///
@@ -47,7 +48,8 @@
 // CHECK: ///          ```
 // CHECK: ///
 // CHECK: ///          Let's see how well this will be handled!!
-// CHECK: _ABI(raw_x86_64) uint64_t my_commented_function(uint64_t register_rax _REG(rax_x86_64), my_struct stack_arguments _STACK);
+// CHECK: _ABI(raw_x86_64)
+// CHECK: uint64_t my_commented_function(uint64_t register_rax _REG(rax_x86_64), my_struct stack_arguments _STACK);
 
 !my_struct = !clift.struct<
   "/type-definition/1-StructDefinition" as "my_struct" : size(8) {

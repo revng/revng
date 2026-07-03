@@ -18,6 +18,23 @@ namespace ptml {
 /// Provides a stream-like interface for emitting C tokens and simple
 /// preprocessor directives. It is ensured that through this interface, only
 /// lexically valid C code can be emitted.
+//
+// IMPORTANT: If you are about to add a new method in here, please make sure
+//            what it emits is wrapped into a ptml `<span>` tag with:
+//            - `data-token` set (determines syntax highlighting),
+//            - either `data-location-definition` or `data-location-references`
+//              set (ensures correct ctrl+click behavior),
+//            - `data-allowed-actions` and `data-action-context-location` set
+//              iff it is actionable (allows for user interactivity).
+//
+//            Practically, you should use:
+//            - `PTML.initializeOpenTag(ptml::tags::Span)` for the tag,
+//            - `CTokenEmitter::getEntityKindAttribute` to select
+//              the `data-token` attribute,
+//            - `CTokenEmitter::getAllowedActions` to select
+//              the `data-allowed-actions`.
+//            - `data-location-definition` or `data-location-references` should
+//              be set based on the handle you already likely have.
 class CTokenEmitter {
   // It is very important to hide the PTML emitter and not to expose any direct
   // access to it in the public interface of this class. This design prevents
@@ -45,6 +62,7 @@ public:
   void emitNewline() { PTML.emit("\n"); }
 
   enum class Keyword {
+    // Standard keywords
     Auto,
     Bool,
     Break,
@@ -80,6 +98,10 @@ public:
     Void,
     Volatile,
     While,
+
+    // Our custom keywords
+    BreakTo,
+    ContinueTo,
   };
 
   void emitKeyword(Keyword K);
@@ -185,7 +207,7 @@ public:
                       IdentifierKind IsDefinition);
 
   /// \pre \param Identifier matches `[_a-zA-Z][_a-zA-Z0-9]*`.
-  void emitLiteralIdentifier(llvm::StringRef Identifier);
+  void emitMacro(llvm::StringRef Identifier);
 
   // TODO: There is currently no API for emitting character literals, because
   //       there are no Clift users of such an API. Whenever support for

@@ -60,7 +60,7 @@ public:
 
 bool SplitExponentialDataflow::runOnFunction(llvm::Function &F) {
   LLVMContext &Context = F.getContext();
-  revng::NonDebugInfoCheckingIRBuilder B(Context);
+  revng::IRBuilder B(Context);
 
   bool Changed = false;
   for (Instruction &I : llvm::make_early_inc_range(llvm::instructions(&F))) {

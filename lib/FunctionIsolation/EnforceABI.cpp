@@ -314,7 +314,7 @@ void EnforceABI::createPrologue(Function *NewFunction,
 
   // Store arguments to CSVs
   BasicBlock &Entry = NewFunction->getEntryBlock();
-  revng::NonDebugInfoCheckingIRBuilder StoreBuilder(Entry.getTerminator());
+  revng::IRBuilder StoreBuilder(Entry.getTerminator());
   for (const auto &[TheArgument, CSV] : zip(NewFunction->args(), ArgumentCSVs))
     StoreBuilder.CreateStore(&TheArgument, CSV);
 
@@ -322,7 +322,7 @@ void EnforceABI::createPrologue(Function *NewFunction,
   if (ReturnCSVs.size() != 0) {
     for (BasicBlock &BB : *NewFunction) {
       if (auto *Return = dyn_cast<ReturnInst>(BB.getTerminator())) {
-        revng::NonDebugInfoCheckingIRBuilder Builder(Return);
+        revng::IRBuilder Builder(Return);
         std::vector<Value *> ReturnValues;
         for (auto &&[Type, ReturnCSV] : ReturnCSVs)
           ReturnValues.push_back(Builder.CreateLoad(Type, ReturnCSV));

@@ -239,7 +239,7 @@ static void simplifyTerminator(llvm::BasicBlock *BB,
       // with an unconditional branch
       if (SingleDestination) {
         // TODO: checks are only omitted here because of unit tests.
-        revng::NonDebugInfoCheckingIRBuilder Builder(Terminator);
+        revng::IRBuilder Builder(Terminator);
 
         // We set the debug metadata of the promoted `Branch` instruction to the
         // same value it has before the promotion is performed
@@ -294,8 +294,7 @@ static void createHead(BasicBlock *Conditional,
                                         F);
   Instruction *HeadTerminator = ConditionalTerminator->clone();
 
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder HeadBuilder(Head);
+  revng::IRBuilder HeadBuilder(Head);
   HeadBuilder.Insert(HeadTerminator);
 
   // Collect the `Successor`s composing the local `Divergence`
@@ -348,7 +347,7 @@ performMultipleIDS(const ScopeGraphBuilder &SGBuilder,
   Instruction *TailTerminator = ConditionalTerminator->clone();
 
   // TODO: we shouldn't be losing debug information here!
-  revng::NonDebugInfoCheckingIRBuilder TailBuilder(Tail);
+  revng::IRBuilder TailBuilder(Tail);
   TailBuilder.Insert(TailTerminator);
 
   // Populate the `DivergentSuccessors` summing all ones present in each

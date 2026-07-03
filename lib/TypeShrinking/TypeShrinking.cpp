@@ -81,8 +81,7 @@ static bool runTypeShrinking(Function &F,
                              const BitLivenessAnalysisResults &FixedPoints) {
   bool HasChanges = false;
 
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder B(F.getParent()->getContext());
+  revng::IRBuilder B(F.getParent()->getContext());
   const std::array<uint32_t, 4> Ranks = { 8, 16, 32, 64 };
   for (auto &[I, Result] : FixedPoints) {
     // Find the closest rank that contains all the alive bits.
@@ -198,7 +197,7 @@ static bool runTypeShrinking(Function &F,
     HasChanges = true;
 
     // TODO: the checks should be enabled conditionally based on the user.
-    revng::NonDebugInfoCheckingIRBuilder B(ICmp);
+    revng::IRBuilder B(ICmp);
     auto *NewICmp = B.CreateICmp(ICmp->getPredicate(),
                                  PreExtension,
                                  ConstantInt::get(PreExtensionType,

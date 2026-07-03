@@ -385,7 +385,7 @@ void VariableManager::memOpAtEnvOffset(revng::IRBuilder &Builder,
 void VariableManager::finalize() {
   LLVMContext &Context = getContext(&TheModule);
 
-  revng::NonDebugInfoCheckingIRBuilder Builder(Context);
+  revng::IRBuilder Builder(Context);
 
   // Create the setRegister function
   auto *SetRegisterTy = FunctionType::get(Builder.getVoidTy(),
@@ -640,7 +640,7 @@ Value *VariableManager::cpuStateToEnv(Value *CPUState,
                                       Instruction *InsertBefore) const {
   using CI = ConstantInt;
 
-  revng::NonDebugInfoCheckingIRBuilder Builder(InsertBefore);
+  revng::IRBuilder Builder(InsertBefore);
   auto *OpaquePointer = PointerType::get(TheModule.getContext(), 0);
   auto *IntPtrTy = Builder.getIntPtrTy(TheModule.getDataLayout());
   Value *CPUIntPtr = Builder.CreatePtrToInt(CPUState, IntPtrTy);
@@ -658,7 +658,7 @@ void VariableManager::closeTranslationBlock() {
   //       the Alloca is read uninitialized on at least one path
   revng_assert(isCallTo(TranslationBlockStart, "newpc"));
   Instruction *InsertionPoint = TranslationBlockStart->getNextNode();
-  revng::NonDebugInfoCheckingIRBuilder Builder(InsertionPoint);
+  revng::IRBuilder Builder(InsertionPoint);
   for (auto &&[_, Alloca] : TBTemporaries) {
     auto *Type = cast<IntegerType>(Alloca->getAllocatedType());
     Builder.CreateStore(ConstantInt::get(Type, 0), Alloca);

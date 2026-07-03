@@ -385,8 +385,7 @@ getIncomingUsesOfValuesFromBlocks(const SetVector<PHINode *> &PHIs) {
 void ExitSSAPass::buildStore(BasicBlock *StoreBlock,
                              Value *Incoming,
                              AllocaInst *Alloca) {
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder Builder(StoreBlock->getContext());
+  revng::IRBuilder Builder(StoreBlock->getContext());
 
   auto *IncomingInstruction = dyn_cast<Instruction>(Incoming);
   Instruction *InsertStoreBefore = nullptr;
@@ -467,8 +466,7 @@ void ExitSSAPass::replacePHIEquivalenceClass(const SetVector<PHINode *> &PHIs) {
   revng_log(Log, "New PHIGroup ================");
   LoggerIndent FirstIndent{ Log };
 
-  // TODO: the checks should be enabled conditionally based on the user.
-  revng::NonDebugInfoCheckingIRBuilder Builder(CurrentFunction->getContext());
+  revng::IRBuilder Builder(CurrentFunction->getContext());
   const DebugLoc &PHIDebugLoc = (*PHIs.begin())->getDebugLoc();
   Builder.SetInsertPointPastAllocas(CurrentFunction, PHIDebugLoc);
 

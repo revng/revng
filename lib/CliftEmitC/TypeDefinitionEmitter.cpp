@@ -307,18 +307,27 @@ void TypeDefinitionEmitter::emitEnumDefinition(clift::EnumType Enum) {
       revng_assert(ByteSize <= 8);
       size_t MaxValue = llvm::APInt::getAllOnes(8 * ByteSize).getZExtValue();
 
-      // TODO: pull the prefix from the configuration when it's available
-      //       without pulling in the model dependency.
-      static constexpr llvm::StringRef Prefix = "enum_max_value_";
+      // Only emit the max value entry if it's not already present.
+      // Enum entries are sorted by value, so we only need to check the last
+      // one.
+      auto Fields = Enum.getFields();
+      bool HasMaxValueEntry = not Fields.empty()
+                              and Fields.back().getRawValue() == MaxValue;
 
-      namespace ranks = revng::ranks;
-      auto EnumLocation = *pipeline::locationFromString(ranks::TypeDefinition,
-                                                        Enum.getHandle());
-      auto EntryLocation = EnumLocation.extend(ranks::EnumEntry, MaxValue);
+      if (not HasMaxValueEntry) {
+        // TODO: pull the prefix from the configuration when it's available
+        //       without pulling in the model dependency.
+        static constexpr llvm::StringRef Prefix = "enum_max_value_";
 
-      PrintEnumEntry(Prefix.str() + Enum.getName().str(),
-                     EntryLocation.toString(),
-                     MaxValue);
+        namespace ranks = revng::ranks;
+        auto EnumLocation = *pipeline::locationFromString(ranks::TypeDefinition,
+                                                          Enum.getHandle());
+        auto EntryLocation = EnumLocation.extend(ranks::EnumEntry, MaxValue);
+
+        PrintEnumEntry(Prefix.str() + Enum.getName().str(),
+                       EntryLocation.toString(),
+                       MaxValue);
+      }
     }
   }
 

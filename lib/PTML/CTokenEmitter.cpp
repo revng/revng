@@ -98,6 +98,18 @@ static std::optional<llvm::StringRef> getScopeKindAttribute(ScopeKind Kind) {
   return std::nullopt;
 }
 
+// Strictly speaking, this is a violation of the design (it's intended for
+// the backend to not be aware of locations), but we have to do that because
+// the alternative would have been to put all the allowed actions in clift
+// directly from the clifter, which would make clift huge and ugly to debug.
+//
+// IMPORTANT: this is an explicit one-off violation of the design for specific
+//            trade offs. Do not apply similar patterns elsewhere without
+//            thinking it through.
+//
+// This function *intentionally* emits "no allowed actions" for the locations
+// we don't know. Which in practice means that the backend can work perfectly
+// fine in PTML mode even with garbage locations.
 static llvm::SmallVector<llvm::StringRef, 2>
 getAllowedActions(llvm::StringRef Location) {
   namespace rr = revng::ranks;
@@ -154,6 +166,13 @@ getAllowedActions(llvm::StringRef Location) {
   if (auto L = pipeline::locationFromString(rr::StackFrameVariable, Location))
     return { pa::Rename, pa::EditType };
 
+  if (auto L = pipeline::locationFromString(rr::OpaqueType, Location))
+    return {};
+
+  // TODO: we should definitely error out here. But asserting is awkward.
+  //
+  // Once we have a proper error handling mechanism, we should use it.
+  // revng_abort(("Unknown Location: " + Location.str()).c_str());
   return {};
 }
 
@@ -380,6 +399,10 @@ void CTokenEmitter::emitKeyword(Keyword K) {
     return Emit("volatile");
   case Keyword::While:
     return Emit("while");
+  case Keyword::BreakTo:
+    return Emit("break_to");
+  case Keyword::ContinueTo:
+    return Emit("continue_to");
   }
   revng_abort("Invalid CTokenEmitter::Keyword");
 }
@@ -566,14 +589,13 @@ void CTokenEmitter::emitIdentifier(llvm::StringRef Identifier,
   PTML.emit(Identifier);
 }
 
-void CTokenEmitter::emitLiteralIdentifier(llvm::StringRef Identifier) {
-  revng_assert(not IsEmittingComment,
-               "Cannot emit tokens while an open CommentEmitter exists.");
-
-  revng_assert(validateIdentifier(Identifier),
-               "The specified identifier is not a valid C identifier.");
-
-  PTML.emit(Identifier);
+void CTokenEmitter::emitMacro(llvm::StringRef Identifier) {
+  auto Location = pipeline::locationString(revng::ranks::Macro,
+                                           Identifier.str());
+  emitIdentifier(Identifier,
+                 Location,
+                 EntityKind::Macro,
+                 IdentifierKind::Reference);
 }
 
 static bool isRadixSupported(uint64_t Radix) {
