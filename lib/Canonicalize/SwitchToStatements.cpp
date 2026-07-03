@@ -21,6 +21,7 @@
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/CodeGen/CodeGenPassBuilder.h"
@@ -190,11 +191,14 @@ public:
 private:
   AliasAnalysis *AA;
   ModuleSlotTracker &MST;
+  // The PostDominatorTree, threaded from AvailableExpressionsAnalysis.
+  [[maybe_unused]] PostDominatorTree *PDT;
 
 public:
   AvailableExpressionsMonotoneFramework(AliasAnalysis *A,
-                                        ModuleSlotTracker &TheMST) :
-    AA(A), MST(TheMST) {}
+                                        ModuleSlotTracker &TheMST,
+                                        PostDominatorTree *ThePDT) :
+    AA(A), MST(TheMST), PDT(ThePDT) {}
 
 public:
   LatticeElement combineValues(const LatticeElement &LHS,
@@ -651,7 +655,8 @@ using AEResult = AvailableExpressionsResult;
 
 static AEResult getAvailableExpressions(Function &F,
                                         AliasAnalysis *AA,
-                                        ModuleSlotTracker &MST) {
+                                        ModuleSlotTracker &MST,
+                                        PostDominatorTree *PDT) {
   revng_log(Log, "getAvailableExpressions: " << F.getName());
 
   auto Result = AEResult::makeFromFunction(F, MST);
@@ -684,7 +689,7 @@ static AEResult getAvailableExpressions(Function &F,
   ProgramPointsCFG *Graph = &Result.ProgramPointsGraph;
   ProgramPointNode *Entry = Graph->getEntryNode();
 
-  AEMFP AvailableExpressionsMF{ AA, MST };
+  AEMFP AvailableExpressionsMF{ AA, MST, PDT };
   std::vector Entries = { Entry };
   mfp::MFPConfiguration<AEMFP> Configuration{
     .Instance = &AvailableExpressionsMF,
@@ -742,8 +747,9 @@ public:
   using Result = AvailableExpressionsResult;
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
     AliasAnalysis *AA = &FAM.getResult<AAManager>(F);
+    PostDominatorTree *PDT = &FAM.getResult<PostDominatorTreeAnalysis>(F);
     auto &MST = *FAM.getResult<ModuleSlotTrackerAnalysis>(F).MST;
-    return getAvailableExpressions(F, AA, MST);
+    return getAvailableExpressions(F, AA, MST, PDT);
   }
 };
 
