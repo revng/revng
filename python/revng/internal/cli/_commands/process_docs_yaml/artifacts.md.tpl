@@ -8,20 +8,20 @@ The notice below applies to the generated files.
 {% import 'common.md.tpl' as common -%}
 
 This page reports the list of all the artifacts that can be produced by rev.ng.
-
-{%- for branch in data.Branches -%}
-{% for step in branch.Steps -%}
-{%- if step.Artifacts %}
-## <a id="/artifacts/{{step.Name}}"></a>`{{step.Name}}` artifact
+{% for branch_name, branch in data.branches.items() -%}
+{%- for task in branch.tasks -%}
+{%- for artifact in task.artifacts or [] %}
+## <a id="/artifacts/{{artifact.name}}"></a>`{{artifact.name}}` artifact
 
 ```{bash notest}
-revng artifact {{step.Name}}
+revng2 project artifact {{artifact.name}}
 ```
 
-{{- common.maybe('Step', "/pipeline/steps/" + step.Name) -}}
-**File name**: `{{ step.Artifacts.Container }}`
-
-{{step.Artifacts.Docs}}
-{% endif -%}
+{{ common.maybe('Branch', "/pipeline/branches/" + branch_name) -}}
+{%- if artifact.filename %}
+**File name**: `{{ artifact.filename }}`
+{% endif %}
+{% if artifact.description %}{{ artifact.description }}{% endif %}
+{% endfor -%}
 {%- endfor -%}
 {%- endfor -%}

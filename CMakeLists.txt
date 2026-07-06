@@ -381,47 +381,46 @@ find_program(MKDOCS NAMES mkdocs)
 
 add_custom_command(
   OUTPUT share/doc/revng/html/404.html
-  DEPENDS mkdocs.yml
-          copy_share
-          "share/doc/revng/references/abi-definition.md"
-          "share/doc/revng/references/mime-types.md"
-          "share/doc/revng/references/ptml.md"
-          "share/doc/revng/references/cli/revng-common.md"
-          "share/doc/revng/references/cli/revng-artifact.md"
-          "share/doc/revng/references/cli/revng-analyze.md"
-          "share/doc/revng/references/cli/revng2-project-analyze.md"
-          "share/doc/revng/references/cli/revng2-project-artifact.md"
-          "share/doc/revng/user-manual/index.md"
-          "share/doc/revng/user-manual/initial-setup.md"
-          "share/doc/revng/user-manual/key-concepts/metaaddress.md"
-          "share/doc/revng/user-manual/key-concepts/model.md"
-          "share/doc/revng/user-manual/key-concepts/artifacts-and-analyses.md"
-          "share/doc/revng/user-manual/tutorial/model-from-scratch.md"
-          "share/doc/revng/user-manual/tutorial/running-analyses.md"
-          "share/doc/revng/what-is-revng.md"
-          "share/doc/revng/index.md"
-          generate-revngModel-tuple-tree-code
-          generate-revngPipeline-tuple-tree-code
-          python/revng/internal/cli/_commands/process_docs_yaml/pipeline.md.tpl
-          python/revng/internal/cli/_commands/process_docs_yaml/artifacts.md.tpl
-          python/revng/internal/cli/_commands/process_docs_yaml/analyses.md.tpl
-          python/revng/internal/cli/_commands/process_docs_yaml/common.md.tpl
-          share/revng/pipelines/revng-pipelines.yml
+  DEPENDS
+    mkdocs.yml
+    copy_share
+    "share/doc/revng/references/abi-definition.md"
+    "share/doc/revng/references/mime-types.md"
+    "share/doc/revng/references/ptml.md"
+    "share/doc/revng/references/cli/revng2-project-analyze.md"
+    "share/doc/revng/references/cli/revng2-project-artifact.md"
+    "share/doc/revng/user-manual/index.md"
+    "share/doc/revng/user-manual/initial-setup.md"
+    "share/doc/revng/user-manual/key-concepts/metaaddress.md"
+    "share/doc/revng/user-manual/key-concepts/model.md"
+    "share/doc/revng/user-manual/key-concepts/artifacts-and-analyses.md"
+    "share/doc/revng/user-manual/tutorial/model-from-scratch.md"
+    "share/doc/revng/user-manual/tutorial/running-initial-auto-analysis.md"
+    "share/doc/revng/user-manual/tutorial/comments-and-local-variables.md"
+    "share/doc/revng/what-is-revng.md"
+    "share/doc/revng/index.md"
+    generate-revngModel-tuple-tree-code
+    generate-revngPipeline-tuple-tree-code
+    python/revng/internal/cli/_commands/process_docs_yaml/pipeline.md.tpl
+    python/revng/internal/cli/_commands/process_docs_yaml/artifacts.md.tpl
+    python/revng/internal/cli/_commands/process_docs_yaml/analyses.md.tpl
+    python/revng/internal/cli/_commands/process_docs_yaml/common.md.tpl
+    python/revng/internal/pipeline.yml
   WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
   COMMAND
     "./bin/revng" process-docs-yaml
     "${CMAKE_SOURCE_DIR}/python/revng/internal/cli/_commands/process_docs_yaml/pipeline.md.tpl"
-    < "${CMAKE_SOURCE_DIR}/share/revng/pipelines/revng-pipelines.yml" >
+    < "${CMAKE_SOURCE_DIR}/python/revng/internal/pipeline.yml" >
     share/doc/revng/references/pipeline.md
   COMMAND
     "./bin/revng" process-docs-yaml
     "${CMAKE_SOURCE_DIR}/python/revng/internal/cli/_commands/process_docs_yaml/analyses.md.tpl"
-    < "${CMAKE_SOURCE_DIR}/share/revng/pipelines/revng-pipelines.yml" >
+    < "${CMAKE_SOURCE_DIR}/python/revng/internal/pipeline.yml" >
     share/doc/revng/references/analyses.md
   COMMAND
     "./bin/revng" process-docs-yaml
     "${CMAKE_SOURCE_DIR}/python/revng/internal/cli/_commands/process_docs_yaml/artifacts.md.tpl"
-    < "${CMAKE_SOURCE_DIR}/share/revng/pipelines/revng-pipelines.yml" >
+    < "${CMAKE_SOURCE_DIR}/python/revng/internal/pipeline.yml" >
     share/doc/revng/references/artifacts.md
   COMMAND env NO_MKDOCS_2_WARNING=1 ${MKDOCS} build --quiet --strict --site-dir
           mkdocs-output

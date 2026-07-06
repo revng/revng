@@ -36,7 +36,7 @@ $defs:
       analyses:
         type: array
         items:
-          type: string
+          $ref: "#/$defs/root_analysis"
       branches:
         type: object
         patternProperties:
@@ -173,6 +173,22 @@ $defs:
       containers:
         $ref: "#/$defs/args"
         description: The names of the containers the analysis will need.
+      description:
+        type: string
+        description: A description of the analysis that will appear in the docs.
+  root_analysis:
+    type: object
+    required:
+      - analysis
+      - description
+    additionalProperties: false
+    properties:
+      analysis:
+        type: string
+        description: The name of the analysis to run.
+      description:
+        type: string
+        description: A description of the analysis that will appear in the docs.
   artifact:
     type: object
     required:
