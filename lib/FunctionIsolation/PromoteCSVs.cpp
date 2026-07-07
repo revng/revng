@@ -2,11 +2,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SetVector.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/IR/InstIterator.h"
 
 #include "revng/ADT/GenericGraph.h"
+#include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
 #include "revng/MFP/MFP.h"
@@ -88,6 +91,7 @@ public:
 
 private:
   void wrap(CallInst *Call,
+            const DenseSet<GlobalVariable *> &Alive,
             const std::vector<GlobalVariable *> &Read,
             const std::vector<GlobalVariable *> &Written);
 
@@ -98,6 +102,18 @@ private:
   CSVsUsageMap getUsedCSVs(ArrayRef<CallInst *> CallsRange);
 
   void wrapCallsToHelpers(Function *F);
+
+  /// CSVs accessed by an instruction of \p F or of a function whose body is
+  /// reachable (and thus inlinable) from \p F, ignoring other isolated
+  /// functions.
+  DenseSet<GlobalVariable *> computeAliveCSVs(Function *F);
+
+  /// A CSV that is neither an ABI register nor alive within \p F can only ever
+  /// hold its opaque default value, so it needs no alloca/load/store.
+  bool isDeadCSV(GlobalVariable *CSV, const DenseSet<GlobalVariable *> &Alive) {
+    return CSVs.contains(CSV) and not GCBI.isABIRegister(CSV)
+           and not Alive.contains(CSV);
+  }
 };
 
 PromoteCSVs::PromoteCSVs(ModulePass &Pass,
@@ -186,6 +202,10 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
                                          Helper->getParent());
   HelperWrapper->setSection(Helper->getSection());
 
+  // Dead CSVs are written through a null out-argument: mark null as valid so
+  // the optimizer does not treat that store as undefined behavior.
+  HelperWrapper->addFnAttr(Attribute::NullPointerIsValid);
+
   // Copy and extend tags
   auto Tags = FunctionTags::TagsSet::from(Helper);
   Tags.insert(FunctionTags::CSVsAsArgumentsWrapper);
@@ -250,7 +270,11 @@ Function *PromoteCSVs::createWrapper(const WrapperKey &Key) {
   return HelperWrapper;
 }
 
+// The wrapper keeps the full CSAA-reported signature (one wrapper per helper),
+// but dead CSVs get no per-call alloca/load/store: we pass `undef` for reads
+// and a null out-argument for writes, and skip the restore store.
 void PromoteCSVs::wrap(CallInst *Call,
+                       const DenseSet<GlobalVariable *> &Alive,
                        const std::vector<GlobalVariable *> &Read,
                        const std::vector<GlobalVariable *> &Written) {
 
@@ -283,15 +307,23 @@ void PromoteCSVs::wrap(CallInst *Call,
     NewArguments.push_back(Builder.CreateBitOrPointerCast(Argument, Type));
 
   // Add arguments read
-  for (GlobalVariable *CSV : Read)
-    NewArguments.push_back(Builder.createLoad(CSV));
+  for (GlobalVariable *CSV : Read) {
+    if (isDeadCSV(CSV, Alive))
+      NewArguments.push_back(UndefValue::get(CSV->getValueType()));
+    else
+      NewArguments.push_back(Builder.createLoad(CSV));
+  }
 
-  SmallVector<AllocaInst *, 16> WrittenCSVAllocas;
+  SmallVector<std::pair<GlobalVariable *, AllocaInst *>, 16> WrittenCSVAllocas;
   for (GlobalVariable *CSV : Written) {
-    Type *AllocaType = CSV->getValueType();
-    auto *OutArgument = AllocaBuilder.CreateAlloca(AllocaType);
-    WrittenCSVAllocas.push_back(OutArgument);
-    NewArguments.push_back(OutArgument);
+    if (isDeadCSV(CSV, Alive)) {
+      auto *Null = ConstantPointerNull::get(cast<PointerType>(CSV->getType()));
+      NewArguments.push_back(Null);
+    } else {
+      auto *OutArgument = AllocaBuilder.CreateAlloca(CSV->getValueType());
+      WrittenCSVAllocas.push_back({ CSV, OutArgument });
+      NewArguments.push_back(OutArgument);
+    }
   }
 
   // Emit the actual call
@@ -299,8 +331,8 @@ void PromoteCSVs::wrap(CallInst *Call,
   Result->setDebugLoc(Call->getDebugLoc());
   Call->replaceAllUsesWith(Result);
 
-  // Restore into CSV the written registers
-  for (const auto &[CSV, Alloca] : zip(Written, WrittenCSVAllocas))
+  // Restore into CSV the live written registers
+  for (const auto &[CSV, Alloca] : WrittenCSVAllocas)
     Builder.CreateStore(Builder.createLoad(Alloca), CSV);
 
   // Erase the old call
@@ -585,6 +617,46 @@ ArrayRef<T> oneElement(T &Element) {
   return ArrayRef(&Element, 1);
 }
 
+DenseSet<GlobalVariable *> PromoteCSVs::computeAliveCSVs(Function *F) {
+  // Functions whose body is reachable from F, stopping at declarations and at
+  // other isolated functions (which are not inlined into F).
+  OnceQueue<Function *> Queue;
+  Queue.insert(F);
+  while (not Queue.empty()) {
+    for (Instruction &I : instructions(Queue.pop())) {
+      Function *Callee = getCallee(&I);
+      if (Callee != nullptr and not Callee->isDeclaration()
+          and not FunctionTags::Isolated.isTagOf(Callee))
+        Queue.insert(Callee);
+    }
+  }
+  std::set<Function *> Reachable = Queue.visited();
+
+  // A CSV is alive if one of its users, followed through constant expressions,
+  // is an instruction living in a reachable function.
+  DenseSet<GlobalVariable *> Alive;
+  for (GlobalVariable *CSV : CSVs) {
+    OnceQueue<User *> Users;
+    for (User *U : CSV->users())
+      Users.insert(U);
+
+    while (not Users.empty()) {
+      User *U = Users.pop();
+      if (auto *I = dyn_cast<Instruction>(U)) {
+        if (Reachable.contains(I->getFunction())) {
+          Alive.insert(CSV);
+          break;
+        }
+      } else if (isa<Constant>(U)) {
+        for (User *TransitiveUser : U->users())
+          Users.insert(TransitiveUser);
+      }
+    }
+  }
+
+  return Alive;
+}
+
 void PromoteCSVs::wrapCallsToHelpers(Function *F) {
   revng_log(Log, "wrapCallsToHelpers: " << F->getName().str());
   std::vector<CallInst *> ToWrap;
@@ -611,13 +683,17 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
 
   auto UsedCSVs = getUsedCSVs(ToWrap);
 
+  // Compute this before wrapping: wrap() introduces new CSV loads/stores that
+  // would otherwise pollute the set of CSVs alive within F.
+  DenseSet<GlobalVariable *> Alive = computeAliveCSVs(F);
+
   for (CallInst *Call : ToWrap) {
-    CSVsUsage &CSVsUsage = UsedCSVs.get(Call);
+    CSVsUsage &Usage = UsedCSVs.get(Call);
 
     // Sort to ensure compatibility between caller and callee
-    CSVsUsage.sortByName();
+    Usage.sortByName();
 
-    wrap(Call, CSVsUsage.Read, CSVsUsage.Written);
+    wrap(Call, Alive, Usage.Read, Usage.Written);
   }
 }
 
