@@ -22,7 +22,7 @@ cd "$DEBUG_DIR"
 [[ -f "0003-AppendFooPipe2/run" ]]
 
 # Check analysis result
-[[ $(yq -r '.ImportedLibraries[0]' 0001-AppendFooLibAnalysis2/output_model.yml) == "foo.so" ]]
+[[ $(yq -r '.ImportedLibraries[0]' 0001-AppendFooLibAnalysis2/output_revng.yml) == "foo.so" ]]
 
 # Check pipe result
 function tar_output() {

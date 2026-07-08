@@ -229,7 +229,7 @@ NB_MODULE(_pipebox, m) {
   nanobind::class_<Model>(m, "Model", ModelBaseClass)
     .def(nanobind::init<>())
     .def_ro_static("identifier", &"revng")
-    .def_static("model_name", []() { return nanobind::str("model.yml"); })
+    .def_static("model_name", []() { return nanobind::str("revng.yml"); })
     .def_static("mime_type",
                 []() { return nanobind::str("application/x-yaml"); })
     .def("diff",

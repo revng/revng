@@ -17,4 +17,4 @@ commands:
     from:
       - type: revng.emit-c
     command: |-
-      revng model compare "${SOURCE}".model.yml "$INPUT/model.yml"
+      revng model compare "${SOURCE}".model.yml "$INPUT/revng.yml"

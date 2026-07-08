@@ -104,7 +104,7 @@ commands:
       cp -Tar "$INPUT" "$OUTPUT";
       revng2 -C "$OUTPUT" project artifact emit-c > "$OUTPUT/decompiled.tar.gz";
 
-      diff -u <(yq -r '.Functions[].Entry | "/function/" + .' "$OUTPUT/model.yml" | sort)
+      diff -u <(yq -r '.Functions[].Entry | "/function/" + .' "$OUTPUT/revng.yml" | sort)
               <(yq -r '. | keys | .[]' "$OUTPUT/decompiled.tar.gz" | sort);
 
   #

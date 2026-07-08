@@ -36,7 +36,7 @@ revng2 -C "$OUTPUT_DIRECTORY" project analyze parse-binary -o /dev/null -- "${EX
 python3 \
     "${SCRIPT_DIRECTORY}/prepare-tested-model.py" \
     "$ABI_NAME" \
-    "${OUTPUT_DIRECTORY}/model.yml" \
+    "${OUTPUT_DIRECTORY}/revng.yml" \
     "${OUTPUT_DIRECTORY}/reference_binary.yml"
 
 # Convert CABIFunctionDefinition to RawFunctionDefinition

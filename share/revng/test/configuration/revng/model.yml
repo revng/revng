@@ -10,10 +10,10 @@ commands:
     from:
       - type: revng.analyzed-model
     command: |-
-      revng model opt -verify "$INPUT/model.yml"
+      revng model opt -verify "$INPUT/revng.yml"
         | ./serialize-deserialize.py
         | revng model opt -verify
-        | revng model diff /dev/stdin "$INPUT/model.yml" -o /dev/null
+        | revng model diff /dev/stdin "$INPUT/revng.yml" -o /dev/null
     scripts:
       serialize-deserialize.py: |-
         #!/usr/bin/env python3
@@ -26,10 +26,10 @@ commands:
     from:
       - type: revng.analyzed-model
     command: |-
-      revng model opt -verify "$INPUT/model.yml"
+      revng model opt -verify "$INPUT/revng.yml"
         | ./serialize-deserialize.js
         | revng model opt -verify
-        | revng model diff /dev/stdin "$INPUT/model.yml" -o /dev/null
+        | revng model diff /dev/stdin "$INPUT/revng.yml" -o /dev/null
     scripts:
       serialize-deserialize.js: |-
         #!/usr/bin/env node
@@ -67,6 +67,6 @@ commands:
       revng2 -C "$$TEMPORARY/project2" project init --overwrite --no-initial-auto-analysis "$INPUT2";
       revng2 -C "$$TEMPORARY/project2" project analyze parse-binary -o /dev/null;
 
-      ( revng model diff "$$TEMPORARY/project1/model.yml" "$$TEMPORARY/project2/model.yml" || true )
-        | revng model apply "$$TEMPORARY/project1/model.yml"
-        | diff -u - "$$TEMPORARY/project2/model.yml"
+      ( revng model diff "$$TEMPORARY/project1/revng.yml" "$$TEMPORARY/project2/revng.yml" || true )
+        | revng model apply "$$TEMPORARY/project1/revng.yml"
+        | diff -u - "$$TEMPORARY/project2/revng.yml"
