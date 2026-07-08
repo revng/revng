@@ -587,6 +587,8 @@ def patch_pype():
             param.default = Path(__file__).parent.parent / "pipeline.yml"
         elif param.name == "cache_dir":
             param.default = str(cache_directory())
+        elif param.name == "storage_provider":
+            param.envvar = ["REVNG_STORAGE_PROVIDER", param.envvar]
 
     # Add native counterparts to the pipeline subcommand
     pipeline.add_command(run_pipe_native)
