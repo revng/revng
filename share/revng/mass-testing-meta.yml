@@ -23,11 +23,27 @@ crash_components_filters:
   - category: OOM
     type: percentile
     variable: text_size
-    values: [10, 50]
+    value: 10
+    suffix: 10th_percentile_on_text_size
+    label: 10th percentile on .text
+  - category: OOM
+    type: percentile
+    variable: text_size
+    value: 50
+    suffix: 50th_percentile_on_text_size
+    label: 50th percentile on .text
   - category: TIMED_OUT
     type: percentile
     variable: text_size
-    values: [10, 50]
+    value: 10
+    suffix: 10th_percentile_on_text_size
+    label: 10th percentile on .text
+  - category: TIMED_OUT
+    type: percentile
+    variable: text_size
+    value: 50
+    suffix: 50th_percentile_on_text_size
+    label: 50th percentile on .text
 
 hooks:
   pre: |

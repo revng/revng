@@ -46,12 +46,19 @@ class CrashComponentFilter:
     category: str
     type: str  # noqa: A003
     variable: str
-    values: list[Any]
+    value: Any
+    suffix: str
+    label: str
 
     @staticmethod
     def from_dict(input_: dict) -> "CrashComponentFilter":
         return CrashComponentFilter(
-            input_["category"], input_["type"], input_["variable"], input_["values"]
+            input_["category"],
+            input_["type"],
+            input_["variable"],
+            input_["value"],
+            input_["suffix"],
+            input_["label"],
         )
 
 

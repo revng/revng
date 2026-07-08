@@ -20,7 +20,7 @@ from revng.support import get_root
 
 from .db import create_and_populate
 from .meta import GlobalMeta
-from .stacktrace import generate_crash_components, generate_flamegraph, get_filter
+from .stacktrace import filter_data, generate_crash_components, generate_flamegraph
 from .test_directory import TestDirectory
 
 
@@ -125,24 +125,23 @@ class MassTestingGenerateReportCommand(Command):
         total_counts: list[tuple[str, str, str, int]] = []
         flamegraph_exclude_paths = global_meta.flamegraph_exclude_paths
         for component_filter in global_meta.crash_components_filters:
-            for value in component_filter.values:
-                filter_ = get_filter(component_filter.type, component_filter.variable, value)
-                stacktraces = filter_.filter_(tests_by_category[component_filter.category])
-                suffix = filter_.suffix()
-                total_counts.extend(
-                    [
-                        (component_filter.category, suffix, *v)
-                        for v in generate_crash_components(stacktraces, stack_aggregation)
-                    ]
-                )
+            stacktraces = filter_data(
+                component_filter, tests_by_category[component_filter.category]
+            )
+            total_counts.extend(
+                [
+                    (component_filter.category, component_filter.suffix, *v)
+                    for v in generate_crash_components(stacktraces, stack_aggregation)
+                ]
+            )
 
-                parent_options = gf_options[component_filter.category]
-                new_options = GFOptions(
-                    f"{parent_options.file_prefix}_{suffix}",
-                    parent_options.legend_prefix,
-                    parent_options.end_location_name,
-                )
-                generate_flamegraphs(stacktraces, output, new_options, flamegraph_exclude_paths)
+            parent_options = gf_options[component_filter.category]
+            new_options = GFOptions(
+                f"{parent_options.file_prefix}_{component_filter.suffix}",
+                parent_options.legend_prefix,
+                parent_options.end_location_name,
+            )
+            generate_flamegraphs(stacktraces, output, new_options, flamegraph_exclude_paths)
 
         for cat, cat_tests in tests_by_category.items():
             stacktraces = [t.stacktrace for t in cat_tests]
