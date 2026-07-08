@@ -6,11 +6,11 @@
 
 #include "revng/Support/MetaAddress.h"
 
-#include "revng/Model/Generated/Early/LocalIdentifier.h"
+#include "revng/Model/Generated/Early/GotoLabel.h"
 
-class model::LocalIdentifier : public model::generated::LocalIdentifier {
+class model::GotoLabel : public model::generated::GotoLabel {
 public:
-  using generated::LocalIdentifier::LocalIdentifier;
+  using generated::GotoLabel::GotoLabel;
 
 public:
   bool verify() const debug_function;
@@ -18,4 +18,4 @@ public:
   bool verify(VerifyHelper &VH) const;
 };
 
-#include "revng/Model/Generated/Late/LocalIdentifier.h"
+#include "revng/Model/Generated/Late/GotoLabel.h"

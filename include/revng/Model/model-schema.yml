@@ -822,25 +822,35 @@ definitions:
 
       - name: Comments
         doc: |-
-          The list of comments attached to statements (e.g., disassembled
+          The comments the user attached to statements (disassembled
           instructions or C statements) within the body of this function.
+
+          To add a comment, append a `StatementComment` that locates the target
+          statement by the addresses of the instructions implementing it.
         sequence:
           type: SortedVector
           elementType: StatementComment
 
       - name: LocalVariables
         doc: |-
-          The list of *named* local variables within this function's body.
+          The local variables within this function's body the user gave an
+          explicit name and, optionally, an explicit type.
+
+          To rename or retype a variable, append a `LocalVariable` that locates
+          it by the addresses of the instructions using it.
         sequence:
           type: SortedVector
-          elementType: LocalIdentifier
+          elementType: LocalVariable
 
       - name: GotoLabels
         doc: |-
-          The list of *named* goto labels within this function's body.
+          The goto labels within this function's body the user gave a name.
+
+          To rename a label, append a `GotoLabel` that locates it by the
+          addresses of the statements it labels.
         sequence:
           type: SortedVector
-          elementType: LocalIdentifier
+          elementType: GotoLabel
 
   - name: DynamicFunction
     type: struct
@@ -900,12 +910,16 @@ definitions:
         doc: The user-provided comment attached to the stack frame variable.
         type: string
 
-  - name: LocalIdentifier
+  - name: LocalVariable
     type: struct
 
     doc: |-
-      The common type for attaching metadata (like names) to function-local
-      identifiers (like variables and labels).
+      Attaches a user-provided name and, optionally, a type to a local variable
+      within a function's body.
+
+      The variable is identified by `Location`: the set of addresses of the
+      instructions that use it. `Name` renames the variable; `Type`, when set,
+      overrides the type rev.ng computed automatically.
 
     key:
       # Using the name as the key might not be the best from the invalidation
@@ -917,12 +931,48 @@ definitions:
 
     fields:
       - name: Name
-        doc: The user-provided name for this variable or label.
+        doc: The user-provided name for this variable.
+        type: string
+
+      - name: Type
+        doc: |-
+          The user-provided type for this variable.
+
+          If not specified, an automatically computed type is used instead.
+        type: Type
+
+      - name: Location
+        doc: |-
+          The set of `MetaAddress`es of the instructions using this variable.
+
+          It must match exactly the set rev.ng reports for the variable in the
+          emitted artifacts; otherwise this entry is ignored and an automatic
+          name and type are used.
+        sequence:
+          type: SortedVector
+          elementType: MetaAddress
+
+  - name: GotoLabel
+    type: struct
+
+    doc: |-
+      Attaches a user-provided name to a goto label within a function's body.
+
+      The label is identified by `Location`, the set of addresses of the
+      statements it labels; `Name` renames it.
+
+    key:
+      # See the note on the `LocalVariable` key.
+      - Name
+
+    fields:
+      - name: Name
+        doc: The user-provided name for this label.
         type: string
 
       - name: Location
         doc: |-
-          The set of `MetaAddress`es of the instructions using this variable (or label).
+          The set of `MetaAddress`es of the instructions using this label.
         sequence:
           type: SortedVector
           elementType: MetaAddress

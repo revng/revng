@@ -99,13 +99,13 @@ collectNamespaces(BinaryType &Binary) {
   std::unordered_set<const model::TypeDefinition *> ProcessedPrototypes;
   for (ConstOrNot<Function> auto &Function : Binary.Functions()) {
     auto &Variables = Result.Local.emplace_back();
-    for (ConstOrNot<LocalIdentifier> auto &Var : Function.LocalVariables()) {
+    for (ConstOrNot<LocalVariable> auto &Var : Function.LocalVariables()) {
       revng_assert(not Var.Name().empty());
       Variables[Var.Name()].emplace_back(Var.Name(),
                                          detail::variablePath(Function, Var));
     }
 
-    for (ConstOrNot<LocalIdentifier> auto &Label : Function.GotoLabels()) {
+    for (ConstOrNot<GotoLabel> auto &Label : Function.GotoLabels()) {
       revng_assert(not Label.Name().empty());
       Variables[Label.Name()].emplace_back(Label.Name(),
                                            detail::gotoLabelPath(Function,

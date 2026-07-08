@@ -24,8 +24,10 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
+#include "revng/Model/LocalVariable.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Pipeline/Location.h"
+#include "revng/Pipes/DebugInfoHelpers.h"
 #include "revng/Pipes/Ranks.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
@@ -85,6 +87,30 @@ restoreInsertionPointAfter(mlir::OpBuilder &Builder,
 }
 
 using ScopeGraphPostDomTree = llvm::PostDomTreeOnView<llvm::BasicBlock, Scope>;
+
+// Gather the addresses of the instructions using \p I. If any user cannot be
+// attributed to an address, an empty set is returned.
+//
+// This mirrors the gathering performed on the emitted Clift when assigning
+// names (see `importDescriptiveInfo`), so that, given a `Location` in the
+// model, both identify the same local variable.
+static SortedVector<MetaAddress> getUserAddressSet(const llvm::Instruction *I) {
+  SortedVector<MetaAddress> AddressSet;
+
+  for (const llvm::User *User : I->users()) {
+    const auto *UserInstruction = llvm::dyn_cast<llvm::Instruction>(User);
+    if (UserInstruction == nullptr)
+      return {};
+
+    auto Address = revng::tryExtractAddress(*UserInstruction);
+    if (not Address.has_value())
+      return {};
+
+    AddressSet.emplace(*Address);
+  }
+
+  return AddressSet;
+}
 
 class ClifterImpl final : public Clifter {
   class FunctionClifter;
@@ -1711,9 +1737,21 @@ private:
                                             ModelFunction.Entry());
         } else {
           revng_assert(*A->getAllocationSizeInBits(*C.DataLayout) % 8 == 0);
-          llvm::Type *Allocated = A->getAllocatedType();
-          revng_assert(Allocated->isSized());
-          Type = C.importLLVMType(Allocated);
+
+          // Identify this variable in the model the same way names are
+          // assigned later down the pipeline (see `importDescriptiveInfo`):
+          // through the set of addresses of the instructions using it.
+          // If the user specified a type for it, it takes precedence over
+          // the one the LLVM IR suggests.
+          const model::LocalVariable *Variable = //
+            ModelFunction.findLocalVariable(getUserAddressSet(A));
+          if (Variable != nullptr and not Variable->Type().isEmpty()) {
+            Type = C.importType<clift::ValueType>(*Variable->Type());
+          } else {
+            llvm::Type *Allocated = A->getAllocatedType();
+            revng_assert(Allocated->isSized());
+            Type = C.importLLVMType(Allocated);
+          }
         }
 
         mlir::Location Loc = C.getLocation(A);

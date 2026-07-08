@@ -60,12 +60,12 @@ inline std::string path(const model::Segment &Segment) {
 }
 
 inline std::string variablePath(const model::Function &Function,
-                                const model::LocalIdentifier &Variable) {
+                                const model::LocalVariable &Variable) {
   return path(Function) + "/LocalVariables/" + key(Variable);
 }
 
 inline std::string gotoLabelPath(const model::Function &Function,
-                                 const model::LocalIdentifier &Label) {
+                                 const model::GotoLabel &Label) {
   return path(Function) + "/GotoLabels/" + key(Label);
 }
 
