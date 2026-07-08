@@ -112,7 +112,7 @@ def build_artifact_command(
             if kwargs["list"]:
                 # If the user requested to list the available objects, we print them
                 # and exit
-                print(f'Available objects for kind: "{artifact_kind.__name__}"')
+                print(f'Available objects for kind: "{artifact_kind.serialize()}"')
                 for object_id in loaded_model.all_objects(artifact_kind):
                     aliases = loaded_model.aliases(object_id)
                     if aliases:
