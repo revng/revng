@@ -4,10 +4,10 @@
 import asyncio
 import sys
 from pathlib import Path
-from typing import AsyncContextManager
 
 import click
 
+from revng.pypeline.cli.backend import BackendFactory, BackendFeature, backend_factory_for
 from revng.pypeline.cli.common_options import add_pipeline_config_options
 from revng.pypeline.cli.common_options import container_format_options, debug_option, full_help
 from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
@@ -21,8 +21,7 @@ from revng.pypeline.object import ObjectSet
 from revng.pypeline.pipeline import Artifact, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.storage.storage_provider import LockType, StorageProvider
-from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
+from revng.pypeline.storage.storage_provider import LockType
 from revng.pypeline.utils.logger import pypeline_logger
 
 
@@ -93,7 +92,9 @@ def build_artifact_command(
     artifact_name: str = artifact.name
 
     async def async_part_of_command(
-        storage_provider_context: AsyncContextManager[StorageProvider],
+        backend_factory: BackendFactory,
+        project_id: str,
+        token: str,
         objects: str | None,
         configuration: PipelineConfiguration,
         result_path: Path | None,
@@ -101,11 +102,16 @@ def build_artifact_command(
         runner_context: RunnerContext,
         kwargs,
     ):
-        """Since the storage provider factory returns an async context manager,
-        we need the code that uses the storage_provider to be an async function.
+        """Since the backend session is an async context manager, the code that
+        uses it has to be an async function.
         """
-        async with storage_provider_context as storage_provider:
-            loaded_model = ReadOnlyModel(pipeline.get_model(configuration, storage_provider)[0])
+        async with backend_factory.session(
+            lock_type=LockType.ARTIFACT,
+            project_id=project_id,
+            token=token,
+            runner_context=runner_context,
+        ) as session:
+            loaded_model = ReadOnlyModel(session.get_model(configuration)[0])
             pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
             artifact_kind = artifact.container.container_type.kind
@@ -143,15 +149,8 @@ def build_artifact_command(
                     },
                 )
 
-            # Finally, run the analysis
-            res_container = pipeline.get_artifact(
-                model=loaded_model,
-                artifact=artifact,
-                requests=incoming,
-                configuration=configuration,
-                storage_provider=storage_provider,
-                runner_context=runner_context,
-            )
+            # Finally, produce the artifact
+            res_container = session.get_artifact(loaded_model, artifact, incoming, configuration)
             pypeline_logger.debug_log("Artifact computed")
 
             if result_path is not None:
@@ -202,20 +201,25 @@ def build_artifact_command(
         pypeline_logger.debug_log(f'container_format: "{container_format}"')
         pypeline_logger.debug_log(f'kwargs: "{kwargs}"')
 
-        # Setup the storage provider
-        storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
-        storage_provider_context = storage_provider_factory.get(
-            base_directory=ctx.obj.base_directory,
+        # Setup the backend factory (local compute or a remote daemon, per the
+        # backend URL)
+        backend_factory = backend_factory_for(
+            ctx.obj.storage_provider_url,
             pipeline=ctx.obj.pipeline,
-            lock_type=LockType.ARTIFACT,
-            project_id=project_id,
-            token=token,
+            base_directory=ctx.obj.base_directory,
             cache_dir=ctx.obj.cache_dir,
         )
+        if runner_context.use_system and BackendFeature.DEBUG not in backend_factory.features:
+            raise click.UsageError(
+                "--debug is not supported by the selected backend: pipes and "
+                "analyses do not run locally, so there is nothing to inspect."
+            )
         # Switch to the async portion
         asyncio.run(
             async_part_of_command(
-                storage_provider_context=storage_provider_context,
+                backend_factory=backend_factory,
+                project_id=project_id,
+                token=token,
                 objects=objects,
                 configuration=ctx.obj.configuration,
                 result_path=result_path,

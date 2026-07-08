@@ -12,7 +12,6 @@ from typing import Callable
 import yaml
 
 from revng.pypeline.analysis import Analysis
-from revng.pypeline.cli.utils import normalize_flag
 from revng.pypeline.container import Configuration, Container, ContainerFormat
 from revng.pypeline.model import Model, ModelPath, ReadOnlyModel
 from revng.pypeline.object import ObjectID, ObjectSet
@@ -21,6 +20,7 @@ from revng.pypeline.task.pipe import Pipe, PipeDependencies
 from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils import PypelineException
 from revng.pypeline.utils.logger import pypeline_logger
+from revng.pypeline.utils.naming import normalize_flag
 from revng.pypeline.utils.registry import get_singleton
 
 # Function defined by the pipebox that transforms the command-line before

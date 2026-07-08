@@ -21,6 +21,7 @@ import yaml
 
 from revng.internal.support import cache_directory
 from revng.pypeline.analysis import Analysis
+from revng.pypeline.cli.backend import BackendFeature, backend_factory_for
 from revng.pypeline.cli.common_options import AllAnalysesOption, add_pipeline_config_options
 from revng.pypeline.cli.common_options import container_format_options, debug_option, full_help
 from revng.pypeline.cli.common_options import project_id_option, token_option
@@ -343,6 +344,18 @@ def init(
     token: str,
 ):
     """Initialize a new project."""
+    backend_factory = backend_factory_for(
+        ctx.obj.storage_provider_url,
+        pipeline=ctx.obj.pipeline,
+        base_directory=ctx.obj.base_directory,
+        cache_dir=ctx.obj.cache_dir,
+    )
+    if BackendFeature.INIT not in backend_factory.features:
+        raise click.UsageError(
+            "`init` cannot be used against a `daemon://` URL: a daemon manages "
+            "its own project. Import the binary with an analysis instead."
+        )
+
     model_type = get_singleton(Model)  # type: ignore[type-abstract]
 
     storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)

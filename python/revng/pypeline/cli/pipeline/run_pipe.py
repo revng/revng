@@ -13,7 +13,6 @@ import yaml
 from revng.pypeline.cli.common_options import container_format_options, list_objects_option
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
-from revng.pypeline.cli.utils import normalize_kwarg_name, normalize_whitespace
 from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.container import ContainerFormat
 from revng.pypeline.model import Model, ReadOnlyModel
@@ -22,6 +21,7 @@ from revng.pypeline.storage.file_provider import FileProvider, FileRequest
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.task.task import TaskArgumentAccess
 from revng.pypeline.utils.logger import pypeline_logger
+from revng.pypeline.utils.naming import normalize_kwarg_name, normalize_whitespace
 from revng.pypeline.utils.registry import get_registry, get_singleton
 
 

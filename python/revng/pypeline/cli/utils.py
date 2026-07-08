@@ -3,7 +3,6 @@
 #
 
 import os
-import re
 import sys
 from collections import defaultdict
 from collections.abc import Sequence
@@ -16,12 +15,14 @@ from click_option_group import GroupedOption, OptionGroup
 from click_option_group._core import _GroupTitleFakeOption
 from click_option_group._helpers import get_fake_option_name, resolve_wrappers
 
+from revng.pypeline.cli.backend import BackendFactory
 from revng.pypeline.cli.context import ClickContext
 from revng.pypeline.container import ContainerDeclaration
 from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.object import Kind, ObjectSet
-from revng.pypeline.storage.storage_provider import StorageProviderFactory
 from revng.pypeline.task.task import TaskArgument
+from revng.pypeline.utils.naming import normalize_flag, normalize_pos_arg_name
+from revng.pypeline.utils.naming import normalize_whitespace
 from revng.pypeline.utils.registry import get_registry
 
 T = TypeVar("T")
@@ -149,9 +150,12 @@ class StorageProviderUrl(click.ParamType):
             # urlparse can raise ValueError on rare malformed inputs
             self.fail(f'"{value}" could not be parsed as a URL.', param, ctx)
 
-        # Get all the registered providers
+        # Every backend handles a set of URL schemes (the local backend covers
+        # all the storage providers, the daemon backend covers `daemon://`); the
+        # union of them is what this option accepts.
+        registry = get_registry(BackendFactory)  # type: ignore[type-abstract]
         allowed_schemes = {
-            factory.scheme() for factory in get_registry(StorageProviderFactory).values()
+            scheme for backend_factory in registry.values() for scheme in backend_factory.schemes()
         }
         # Check that the scheme is supported
         if parsed_url.scheme not in allowed_schemes:
@@ -164,40 +168,6 @@ class StorageProviderUrl(click.ParamType):
             )
         # If all checks pass, return the original, validated string
         return value
-
-
-def normalize_whitespace(text: str) -> str:
-    """
-    Normalize whitespace in a string by removing leading and trailing
-    whitespace and replacing multiple spaces with a single space.
-    """
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-
-def normalize_flag(name: str) -> str:
-    """
-    Normalize a flag name by replacing spaces and underscores with
-    hyphens and converting it to lowercase.
-    """
-    return normalize_whitespace(name).replace(" ", "-").replace("_", "-").lower()
-
-
-def normalize_pos_arg_name(name: str) -> str:
-    """
-    Normalize a positional argument name by replacing spaces and underscores
-    with hyphens and converting it to lowercase.
-    This is used for positional arguments that are not flags.
-    """
-    return normalize_whitespace(name).replace(" ", "_").replace("-", "_").upper()
-
-
-def normalize_kwarg_name(name: str) -> str:
-    """
-    Normalize the provided name to the convention used by click on naming
-    command handler variable arguments.
-    """
-    return name.replace("-", "_").lower()
 
 
 def build_arg_objects(

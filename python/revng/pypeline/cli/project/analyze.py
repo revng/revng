@@ -3,11 +3,12 @@
 #
 
 import asyncio
-from typing import IO, AsyncContextManager
+from typing import IO
 
 import click
 import yaml
 
+from revng.pypeline.cli.backend import BackendFactory, BackendFeature, backend_factory_for
 from revng.pypeline.cli.common_options import add_pipeline_config_options, debug_option
 from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
@@ -18,8 +19,7 @@ from revng.pypeline.model import ReadOnlyModel
 from revng.pypeline.pipeline import AnalysisBinding, AnalysisList, ContainerDeclaration, Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.storage.storage_provider import LockType, StorageProvider
-from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
+from revng.pypeline.storage.storage_provider import LockType
 from revng.pypeline.task.requests import Requests
 from revng.pypeline.utils.logger import pypeline_logger
 
@@ -43,7 +43,9 @@ invalidation_option = click.option(
 
 
 async def async_part_of_command(
-    storage_provider_context: AsyncContextManager[StorageProvider],
+    backend_factory: BackendFactory,
+    project_id: str,
+    token: str,
     pipeline: Pipeline,
     runner_context: RunnerContext,
     analysis: str | AnalysisList,
@@ -53,11 +55,16 @@ async def async_part_of_command(
     invalidations_file: IO[bytes] | None,
     kwargs,
 ):
-    """Since the storage provider factory returns an async context manager,
-    we need the code that uses the storage_provider to be an async function.
+    """Since the backend session is an async context manager, the code that uses
+    it has to be an async function.
     """
-    async with storage_provider_context as storage_provider:
-        loaded_model = pipeline.get_model(configuration, storage_provider)[0]
+    async with backend_factory.session(
+        lock_type=LockType.ANALYSIS,
+        project_id=project_id,
+        token=token,
+        runner_context=runner_context,
+    ) as session:
+        loaded_model = session.get_model(configuration)[0]
         pypeline_logger.debug_log(f'Model loaded: "{loaded_model}"')
 
         if kwargs["list"]:
@@ -85,21 +92,12 @@ async def async_part_of_command(
                     kwargs=kwargs,
                 )
 
-            new_model, invalidated = pipeline.run_analysis(
-                model=ReadOnlyModel(loaded_model),
-                analysis_name=analysis,
-                requests=incoming,
-                configuration=configuration,
-                storage_provider=storage_provider,
-                runner_context=runner_context,
+            new_model, invalidated = session.run_analysis(
+                ReadOnlyModel(loaded_model), analysis, incoming, configuration
             )
         else:
-            new_model, invalidated = pipeline.run_analysis_list(
-                model=ReadOnlyModel(loaded_model),
-                analysis_list=analysis,
-                configuration=configuration,
-                storage_provider=storage_provider,
-                runner_context=runner_context,
+            new_model, invalidated = session.run_analysis_list(
+                ReadOnlyModel(loaded_model), analysis, configuration
             )
 
         pypeline_logger.debug_log("Analysis run completed")
@@ -257,20 +255,33 @@ def build_analysis_list_command(
         pypeline_logger.debug_log(f'Running analysis: "{analysis_name}"')
         pypeline_logger.debug_log(f'and kwargs: "{kwargs}"')
 
-        # Load the model
-        storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
-        storage_provider_context = storage_provider_factory.get(
-            base_directory=ctx.obj.base_directory,
+        # Setup the backend factory (local compute or a remote daemon, per the
+        # backend URL)
+        backend_factory = backend_factory_for(
+            ctx.obj.storage_provider_url,
             pipeline=ctx.obj.pipeline,
-            lock_type=LockType.ANALYSIS,
-            project_id=project_id,
-            token=token,
+            base_directory=ctx.obj.base_directory,
             cache_dir=ctx.obj.cache_dir,
         )
+        if runner_context.use_system and BackendFeature.DEBUG not in backend_factory.features:
+            raise click.UsageError(
+                "--debug is not supported by the selected backend: pipes and "
+                "analyses do not run locally, so there is nothing to inspect."
+            )
+        if (
+            invalidations_file is not None
+            and BackendFeature.INVALIDATIONS not in backend_factory.features
+        ):
+            raise click.UsageError(
+                "--invalidations is not supported by the selected backend: the "
+                "daemon does not report which objects an analysis invalidated."
+            )
 
         asyncio.run(
             async_part_of_command(
-                storage_provider_context=storage_provider_context,
+                backend_factory=backend_factory,
+                project_id=project_id,
+                token=token,
                 runner_context=runner_context,
                 pipeline=pipeline,
                 analysis=analysis_list,
@@ -323,19 +334,32 @@ def build_analysis_command(
         # Patch configuration
         ctx.obj.configuration[analysis_binding.analysis] = configuration
 
-        # Load the model
-        storage_provider_factory = storage_provider_factory_factory(ctx.obj.storage_provider_url)
-        storage_provider_context = storage_provider_factory.get(
-            base_directory=ctx.obj.base_directory,
+        # Setup the backend factory (local compute or a remote daemon, per the
+        # backend URL)
+        backend_factory = backend_factory_for(
+            ctx.obj.storage_provider_url,
             pipeline=ctx.obj.pipeline,
-            lock_type=LockType.ANALYSIS,
-            project_id=project_id,
-            token=token,
+            base_directory=ctx.obj.base_directory,
             cache_dir=ctx.obj.cache_dir,
         )
+        if runner_context.use_system and BackendFeature.DEBUG not in backend_factory.features:
+            raise click.UsageError(
+                "--debug is not supported by the selected backend: pipes and "
+                "analyses do not run locally, so there is nothing to inspect."
+            )
+        if (
+            invalidations_file is not None
+            and BackendFeature.INVALIDATIONS not in backend_factory.features
+        ):
+            raise click.UsageError(
+                "--invalidations is not supported by the selected backend: the "
+                "daemon does not report which objects an analysis invalidated."
+            )
         asyncio.run(
             async_part_of_command(
-                storage_provider_context=storage_provider_context,
+                backend_factory=backend_factory,
+                project_id=project_id,
+                token=token,
                 runner_context=runner_context,
                 pipeline=pipeline,
                 analysis=analysis_binding.analysis.name,
