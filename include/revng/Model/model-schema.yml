@@ -101,7 +101,7 @@ definitions:
         doc: |-
           The list of imported libraries identified by their file name.
           For instance, if the input binary is linked to OpenSSL, this list would
-          should `libcrypto.so.1.1`.
+          contain `libcrypto.so.1.1`.
         sequence:
           type: SortedVector
           elementType: string
@@ -183,9 +183,9 @@ definitions:
       information about the register is embedded. That information is implicit in
       the ABI this type is associated to.
 
-      In contrast, a `RawFunctionType` is not associated to any ABI and explicitly
-      describes, among other things, what registers are used to pass arguments and
-      return values.
+      In contrast, a `RawFunctionDefinition` is not associated to any ABI and
+      explicitly describes, among other things, what registers are used to pass
+      arguments and return values.
 
     fields:
       - name: ABI
@@ -198,7 +198,7 @@ definitions:
 
       - name: ReturnValueComment
         doc: |-
-          A comment that will be emitted as part of this function's definiktion
+          A comment that will be emitted as part of this function's definition
           in the `\returns ${COMMENT_TEXT}` shape.
         type: string
 
@@ -212,7 +212,7 @@ definitions:
     type: struct
 
     doc: |-
-      The argument of a `CABIFunctionType`.
+      The argument of a `CABIFunctionDefinition`.
 
     key:
       - Index
@@ -298,13 +298,13 @@ definitions:
       values are passed.
 
       This is a "low level" representation of the prototype of a function. Where
-      the list of registers used to pass arguments and return values is explicitl.
+      the list of registers used to pass arguments and return values is explicit.
       For stack arguments, they are collected in a single `struct`
       (`StackArgumentsType`).
 
       In contrast, a `CABIFunctionDefinition` expresses the function type from a
       high-level perspective (e.g., a single argument might span multiple registers)
-      and his associated to a well-known ABI. Given an ABI, it is always possible
+      and is associated to a well-known ABI. Given an ABI, it is always possible
       to convert a `CABIFunctionDefinition` into a `RawFunctionDefinition`.
 
     fields:
@@ -419,7 +419,7 @@ definitions:
         doc: |-
           When this field is set to `true` *and* this `struct` is reachable for
           a segment's root type without traversing pointers, arrays or other
-          qualifiers, the padding of the struct is treated at if it contains code.
+          qualifiers, the padding of the struct is treated as if it contains code.
         type: bool
 
       - name: Fields
@@ -502,7 +502,7 @@ definitions:
         type: string
 
       - name: Type
-        doc: The name of this "field" (union alternative).
+        doc: The type of this "field" (union alternative).
         type: Type
 
   #
@@ -711,7 +711,7 @@ definitions:
           The size of this segment in memory.
 
           If this value is greater than `FileSize`, the discrepancy is considered to
-          full of `0`s.
+          be full of `0`s.
         type: uint64_t
 
       - name: StartOffset
@@ -1045,7 +1045,7 @@ definitions:
 
       - name: AddRelativeAddress64
         doc: |-
-          Add to the 32-bit integer present at the target location the address of
+          Add to the 64-bit integer present at the target location the address of
           the object, expressed as a relative from the target of the relocation.
 
   - name: CallSitePrototype
@@ -1219,7 +1219,7 @@ definitions:
         doc: |-
           The default 32-bit Microsoft ABI for x86 processor architecture
           ([reference](https://docs.microsoft.com/en-us/cpp/cpp/cdecl)).
-          It was indented to be compatible with `SystemV_x86` but there are slight
+          It was intended to be compatible with `SystemV_x86` but there are slight
           differences.
 
       - name: Microsoft_x86_cdecl_gcc
@@ -1288,7 +1288,7 @@ definitions:
         doc: "Stands for \"Arm Architecture Procedure Call Standard (64-bit)\".\n
           This represents the version of the ABI used by the apple products.\n
           For differences from the original ABI see the [reference](\
-          https://developer.apple.com/documentation/xcode/writing-arm64-
+          https://developer.apple.com/documentation/xcode/writing-arm64-\
           code-for-apple-platforms)."
 
       - name: AAPCS
@@ -1691,17 +1691,17 @@ definitions:
         default: enum_max_value_
 
       - name: UnnamedStackFrameVariableName
-        doc: The name of the variable representing stack.
+        doc: The name of the variable representing the stack frame.
         type: string
         default: stack
 
       - name: RawStackArgumentName
-        doc: The name of the variable representing stack.
+        doc: The name of the variable representing the raw stack arguments.
         type: string
         default: stack_arguments
 
       - name: LoopStateVariableName
-        doc: The name of the variable representing stack.
+        doc: The name of the variable representing the loop state.
         type: string
         default: loop_state_var
 
