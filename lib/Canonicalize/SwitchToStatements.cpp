@@ -456,7 +456,6 @@ static bool isProgramPoint(const Instruction *I) {
       or isCallToTagged(I, FunctionTags::AddressOf)
       or isCallToTagged(I, FunctionTags::Marker)
       or isCallToTagged(I, FunctionTags::IsRef)
-      or isCallToTagged(I, FunctionTags::StringLiteral)
       or isCallToTagged(I, FunctionTags::ModelCast)
       or isCallToTagged(I, FunctionTags::ModelGEP)
       or isCallToTagged(I, FunctionTags::ModelGEPRef)

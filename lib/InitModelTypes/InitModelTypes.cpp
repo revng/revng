@@ -237,10 +237,6 @@ static TypeVector getReturnTypes(const llvm::CallInst *Call,
       revng_abort("Unknown value returned by non-isolated function");
     }
 
-  } else if (FunctionTags::StringLiteral.isTagOf(CalledFunc)) {
-    return { model::PointerType::make(model::PrimitiveType::makeUnsigned(1),
-                                      Model.Architecture()) };
-
   } else if (FunctionTags::LiteralPrintDecorator.isTagOf(CalledFunc)) {
     const llvm::Value *Arg = Call->getArgOperand(0);
     return { llvmIntToModelType(Arg->getType(), Model) };

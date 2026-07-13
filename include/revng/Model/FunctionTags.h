@@ -61,17 +61,6 @@ struct TypePair {
 
 extern FunctionPoolTag<TypePair> AddressOf;
 
-struct StringLiteralPoolKey {
-  MetaAddress Address;
-  uint64_t VirtualSize;
-  uint64_t OffsetInSegment;
-  llvm::Type *Type;
-
-  std::strong_ordering
-  operator<=>(const StringLiteralPoolKey &) const = default;
-};
-
-extern FunctionPoolTag<StringLiteralPoolKey> StringLiteral;
 extern FunctionPoolTag<TypePair> ModelCast;
 extern Tag ModelGEP;
 extern Tag ModelGEPRef;

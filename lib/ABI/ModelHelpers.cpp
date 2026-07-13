@@ -401,11 +401,6 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
             return { ArgType.value().Type };
         revng_abort();
       }
-    } else if (isCallToTagged(Call, FunctionTags::StringLiteral)) {
-      return {
-        model::PointerType::make(model::PrimitiveType::makeConstSigned(8),
-                                 Model.Architecture())
-      };
     } else {
       // Non-isolated functions do not have a Prototype in the model, but they
       // can carry type information on their operands

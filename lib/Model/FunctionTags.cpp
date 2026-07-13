@@ -60,27 +60,6 @@ FunctionPoolTag<TypePair>
               }
             });
 
-FunctionPoolTag<StringLiteralPoolKey>
-  StringLiteral("string-literal",
-                { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-                llvm::MemoryEffects::none(),
-                { &FunctionTags::UniquedByMetadata },
-                [](OpaqueFunctionsPool<StringLiteralPoolKey> &Pool,
-                   llvm::Module &M,
-                   const FunctionPoolTag<StringLiteralPoolKey> &Tag) {
-                  for (llvm::Function &F : Tag.functions(&M)) {
-                    const auto &[StartAddress,
-                                 VirtualSize,
-                                 Offset,
-                                 StrLen,
-                                 Type] = extractStringLiteralFromMetadata(F);
-                    StringLiteralPoolKey Key = {
-                      StartAddress, VirtualSize, Offset, Type
-                    };
-                    Pool.record(Key, &F);
-                  }
-                });
-
 FunctionPoolTag<TypePair>
   ModelCast("model-cast",
             { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },

@@ -57,24 +57,8 @@ bool CleanupIRPass::Impl::replaceInstructions(Function &F) {
   bool Changed = false;
 
   for (Instruction &I : llvm::make_early_inc_range(llvm::instructions(F))) {
-
     if (auto *Call = getCallToTagged(&I, FunctionTags::AddressOf)) {
       Call->replaceAllUsesWith(Call->getArgOperand(1));
-      Call->eraseFromParent();
-      Changed = true;
-    } else if (auto *Call = getCallToTagged(&I, FunctionTags::StringLiteral)) {
-      auto *PtrToString = cast<Constant>(Call->getArgOperand(0));
-      if (Call->getType()->isIntegerTy()) {
-        Call->replaceAllUsesWith(ConstantExpr::getPtrToInt(PtrToString,
-                                                           Call->getType()));
-      } else if (Call->getType()->isPointerTy()) {
-        Call->replaceAllUsesWith(PtrToString);
-      } else {
-        Call->dump();
-        Call->getFunction()->dump();
-        revng_abort();
-      }
-
       Call->eraseFromParent();
       Changed = true;
     }
