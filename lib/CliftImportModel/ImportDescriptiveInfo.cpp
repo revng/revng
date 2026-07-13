@@ -13,6 +13,7 @@
 #include "revng/Clift/Clift.h"
 #include "revng/Clift/CliftTypes.h"
 #include "revng/Clift/Helpers.h"
+#include "revng/Clift/LocationAddresses.h"
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftImportModel/CAttributeListBuilder.h"
 #include "revng/CliftImportModel/ImportModel.h"
@@ -36,26 +37,9 @@ struct CliftStatementTraits {
   }
 
   static auto getAddresses(mlir::Operation *Op) {
-    std::set<MetaAddress> AddressSet;
-
-    auto GatherRegionAddresses = [&AddressSet](mlir::Region &Region) {
-      Region.walk([&AddressSet](mlir::Operation *Op) {
-        revng_assert(mlir::isa<clift::ExpressionOpInterface>(Op));
-        if (auto Loc = mlir::dyn_cast_or_null<mlir::NameLoc>(Op->getLoc())) {
-          if (auto L = pipeline::locationFromString(rr::Instruction,
-                                                    Loc.getName().str())) {
-            revng_assert(L->back().isValid());
-            AddressSet.insert(L->back());
-          }
-        }
-      });
-    };
-
-    if (auto ERI = mlir::dyn_cast<clift::ExpressionRegionOpInterface>(Op)) {
-      for (mlir::Region &Region : ERI.getExpressionRegions())
-        GatherRegionAddresses(Region);
-    }
-    return AddressSet;
+    SortedVector<MetaAddress>
+      Addresses = clift::getStatementExpressionAddresses(Op);
+    return std::set<MetaAddress>(Addresses.begin(), Addresses.end());
   }
 };
 
