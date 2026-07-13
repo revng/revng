@@ -696,7 +696,6 @@ definitions:
 
     key:
       - StartAddress
-      - VirtualSize
 
     fields:
       - name: Binary

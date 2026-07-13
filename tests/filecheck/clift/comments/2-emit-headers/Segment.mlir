@@ -17,6 +17,6 @@ module attributes {clift.module} {
   clift.global @my_named_segment : !clift.array<64 x !uint8_t>
   attributes {
     clift.comment = "Unlike functions, segments only support simple comments.\0A\0ATo attach extra information to internals, use the corresponding struct\0Atype!",
-    handle = "/segment/0x4:Generic64-64"
+    handle = "/segment/0x4:Generic64"
   }
 }

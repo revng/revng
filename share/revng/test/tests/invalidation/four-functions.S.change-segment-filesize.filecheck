@@ -4,7 +4,7 @@
 
 ---
 Changes:
-  - Path: "/Segments/0x500000:Generic64-9/FileSize"
+  - Path: "/Segments/0x500000:Generic64/FileSize"
     Remove: 9
     Add: 8
 ...

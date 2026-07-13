@@ -9,12 +9,7 @@
 #include "revng/Support/OpaqueFunctionsPool.h"
 
 /// Extract the key of a model::Segment stored as a metadata.
-namespace FunctionTags {
-using SegmentRefPoolKey = std::pair<MetaAddress, uint64_t>;
-}
-
-FunctionTags::SegmentRefPoolKey
-extractSegmentKeyFromMetadata(const llvm::Function &F);
+MetaAddress extractSegmentKeyFromMetadata(const llvm::Function &F);
 
 namespace FunctionTags {
 
@@ -75,6 +70,15 @@ extern Tag SegmentGlobal;
 /// Functions that must survive function isolation: MinimalModuleCloner
 /// preserves them (and the ones they call) instead of purging them.
 extern Tag KeepPostIsolation;
+
+/// Key of the segment-global-getter pool: a segment's start address plus its
+/// virtual size. The virtual size is *not* part of the segment's model key, but
+/// it is part of the *pool* key so that the factory can size the segment's
+/// global variable (`[VirtualSize x i8]`) when a new getter is instantiated. A
+/// request for an already-instantiated start address but a different virtual
+/// size therefore misses and aborts in `getOrCreateGlobal` on the type
+/// mismatch, rather than silently reusing a differently-sized getter.
+using SegmentRefPoolKey = std::pair<MetaAddress, uint64_t>;
 extern FunctionPoolTag<SegmentRefPoolKey> SegmentGlobalGetter;
 extern FunctionPoolTag<llvm::Type *> UnaryMinus;
 extern FunctionPoolTag<llvm::Type *> BinaryNot;
@@ -235,8 +239,7 @@ llvm::SmallVector<llvm::SmallPtrSet<const llvm::CallInst *, 2>, 2>
 getExtractedValuesFromInstruction(const llvm::Instruction *);
 
 /// Set the key of a model::Segment stored as a metadata.
-void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
-                           FunctionTags::SegmentRefPoolKey Key);
+void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction, MetaAddress Key);
 
 /// Returns true if \F has an attached metadata representing a segment key.
 bool hasSegmentKeyMetadata(const llvm::Function &F);

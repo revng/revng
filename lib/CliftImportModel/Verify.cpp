@@ -477,8 +477,10 @@ private:
   }
 
   mlir::LogicalResult visitGlobalVariableOp(clift::GlobalVariableOp Op) {
+
     if (auto L = pipeline::locationFromString(ranks::Segment, Op.getHandle())) {
-      auto It = Model.Segments().find(L->at(ranks::Segment));
+      const auto &[Key] = L->at(ranks::Segment);
+      auto It = Model.Segments().find(Key);
       if (It == Model.Segments().end())
         return error() << "Clift ModuleOp contains a segment with "
                           "an invalid handle: '"

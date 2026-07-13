@@ -88,9 +88,9 @@ BOOST_AUTO_TEST_CASE(TestPathAccess) {
 BOOST_AUTO_TEST_CASE(TestCompositeScalar) {
   // MetaAddress pair
   {
-    model::Segment::Key BlockKey = { ARM2000, 1000 };
+    model::Segment::Key BlockKey = ARM2000;
     auto BlockKeyName = getNameFromYAMLScalar(BlockKey);
-    revng_check(BlockKeyName == "0x2000:Code_arm-1000");
+    revng_check(BlockKeyName == "0x2000:Code_arm");
   }
 }
 
@@ -347,7 +347,7 @@ BOOST_AUTO_TEST_CASE(TrackingPushAndPopperShouldCompile) {
 BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldBeEmptyAtFirst) {
   model::Binary Model;
   auto MetaAddress = MetaAddress::fromPC(model::Architecture::x86_64, 0);
-  Model.Segments().insert(Segment(MetaAddress, 1000));
+  Model.Segments().insert(Segment(MetaAddress));
   revng::Tracking::clearAndResume(Model);
 
   auto Collected = revng::Tracking::collect(Model);
@@ -367,15 +367,15 @@ using TupleTreePathSet = decltype(ReadFields::Read);
 BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectSegments) {
   model::Binary Model;
   const auto MetaAddress = MetaAddress::fromPC(model::Architecture::x86_64, 0);
-  Model.Segments().insert(Segment(MetaAddress, 1000));
+  Model.Segments().insert(Segment(MetaAddress));
   revng::Tracking::clearAndResume(Model);
   const auto &ConstModel = Model;
-  ConstModel.Segments().at(Segment::Key(MetaAddress, 1000)).StartAddress();
+  ConstModel.Segments().at(MetaAddress).StartAddress();
 
   auto Collected = revng::Tracking::collect(Model);
   BOOST_TEST(Collected.Read.size() == 1U);
 
-  auto Expected = toTupleTreePaths({ "/Segments/0x0:Code_x86_64-1000" });
+  auto Expected = toTupleTreePaths({ "/Segments/0x0:Code_x86_64" });
 
   BOOST_TEST(Collected.Read == Expected);
 }
@@ -385,19 +385,19 @@ BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectNotFoundSegments) {
   const auto MetaAddress = MetaAddress::fromPC(model::Architecture::x86_64, 0);
   revng::Tracking::clearAndResume(Model);
   const auto &ConstModel = Model;
-  ConstModel.Segments().tryGet(Segment::Key(MetaAddress, 1000));
+  ConstModel.Segments().tryGet(MetaAddress);
 
   auto Collected = revng::Tracking::collect(Model);
   BOOST_TEST(Collected.Read.size() == 1U);
 
-  auto Expected = toTupleTreePaths({ "/Segments/0x0:Code_x86_64-1000" });
+  auto Expected = toTupleTreePaths({ "/Segments/0x0:Code_x86_64" });
   BOOST_TEST(Collected.Read == Expected);
 }
 
 BOOST_AUTO_TEST_CASE(CollectReadFieldsShouldCollectAllSegments) {
   model::Binary Model;
   const auto MetaAddress = MetaAddress::fromPC(model::Architecture::x86_64, 0);
-  Model.Segments().insert(Segment(MetaAddress, 1000));
+  Model.Segments().insert(Segment(MetaAddress));
   revng::Tracking::clearAndResume(Model);
   const auto &ConstModel = Model;
   ConstModel.Segments().begin();

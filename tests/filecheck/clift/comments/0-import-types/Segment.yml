@@ -12,9 +12,9 @@ Segments:
   # CHECK: module attributes {
   # CHECK:   clift.module
   # CHECK: } {
-  # CHECK:   clift.global @"0x4:Generic64-64" : !clift.array<64 x !uint8_t>
+  # CHECK:   clift.global @"0x4:Generic64" : !clift.array<64 x !uint8_t>
   # CHECK:   attributes {
-  # CHECK:     handle = "/segment/0x4:Generic64-64"
+  # CHECK:     handle = "/segment/0x4:Generic64"
   # CHECK:   }
   # CHECK: }
   - StartAddress: "0x4:Generic64"

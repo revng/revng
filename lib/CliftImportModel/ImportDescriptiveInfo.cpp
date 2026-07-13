@@ -463,7 +463,7 @@ private:
     if (not L)
       return nullptr;
 
-    auto Key = L->at(rr::Segment);
+    const auto &[Key] = L->at(revng::ranks::Segment);
     auto It = Model.Segments().find(Key);
     if (It == Model.Segments().end())
       return nullptr;

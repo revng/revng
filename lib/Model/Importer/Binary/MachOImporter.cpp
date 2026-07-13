@@ -308,7 +308,9 @@ template<typename T>
 void MachOImporter::parseMachOSegment(ArrayRef<uint8_t> RawDataRef,
                                       const T &SegmentCommand) {
   MetaAddress Start = fromGeneric(SegmentCommand.vmaddr);
-  Segment Segment({ Start, SegmentCommand.vmsize });
+  Segment Segment(Start);
+
+  Segment.VirtualSize() = SegmentCommand.vmsize;
 
   Segment.StartOffset() = SegmentCommand.fileoff;
   auto MaybeEndOffset = OverflowSafeInt<uint64_t>(SegmentCommand.fileoff)
