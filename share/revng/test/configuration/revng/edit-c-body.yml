@@ -1,0 +1,20 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+# Round-trip test for the edit-c-body analysis. For each binary tagged
+# `for-edit-c-body`, it decompiles the function, applies one directive of each
+# supported kind (a statement comment, a local variable rename, a local variable
+# retype and a goto label rename) through edit-c-body and checks each one reaches
+# the model and, where applicable, the re-emitted code. The decompiled code is
+# derived live and never pinned in the test, so a change in the decompiler output
+# does not break it.
+
+commands:
+  - type: revng.edit-c-body
+    from:
+      - type: revng-qa.compiled-with-debug-info
+        filter: for-edit-c-body
+    suffix: /
+    command: |-
+      "${SOURCES_ROOT}/share/revng/test/tests/analysis/EditCBody/run-edit-c-body" "${INPUT}" "${OUTPUT}"

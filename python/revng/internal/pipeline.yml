@@ -513,11 +513,6 @@ branches:
         configuration:
           disable-markup: true
           emission-mode: recompilable
-        artifacts:
-          - name: emit-tagless-helper-header
-            container: tagless-helper-header
-            category: metadata
-            filename: helpers.h
 
       - pipe: import-types
         arguments: [clift-types-and-globals]
@@ -532,11 +527,23 @@ branches:
         configuration:
           disable-markup: true
           emission-mode: recompilable
+      - savepoint: tagless-headers
+        containers: [tagless-helper-header, tagless-type-and-global-header]
         artifacts:
+          - name: emit-tagless-helper-header
+            container: tagless-helper-header
+            category: metadata
+            filename: helpers.h
           - name: emit-tagless-type-and-global-header
             container: tagless-type-and-global-header
             category: metadata
             filename: types-and-globals.h
+        analyses:
+          - analysis: edit-c-body
+            containers:
+              - clift-functions
+              - tagless-type-and-global-header
+              - tagless-helper-header
 
       - pipe: emit-c-as-directory
         arguments:
