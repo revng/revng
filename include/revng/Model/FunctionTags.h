@@ -8,9 +8,6 @@
 #include "revng/Support/IRHelperRegistry.h"
 #include "revng/Support/OpaqueFunctionsPool.h"
 
-std::tuple<MetaAddress, uint64_t, uint64_t, uint64_t, llvm::Type *>
-extractStringLiteralFromMetadata(const llvm::Function &StringLiteralFunction);
-
 /// Extract the key of a model::Segment stored as a metadata.
 namespace FunctionTags {
 using SegmentRefPoolKey = std::pair<MetaAddress, uint64_t>;
@@ -243,15 +240,6 @@ void setSegmentKeyMetadata(llvm::Function &SegmentRefFunction,
 
 /// Returns true if \F has an attached metadata representing a segment key.
 bool hasSegmentKeyMetadata(const llvm::Function &F);
-
-void setStringLiteralMetadata(llvm::Function &StringLiteralFunction,
-                              MetaAddress StartAddress,
-                              uint64_t VirtualSize,
-                              uint64_t Offset,
-                              uint64_t StringLength,
-                              llvm::Type *ReturnType);
-
-bool hasStringLiteralMetadata(const llvm::Function &StringLiteralFunction);
 
 inline constexpr llvm::StringRef AbortFunctionName = "revng_abort";
 
