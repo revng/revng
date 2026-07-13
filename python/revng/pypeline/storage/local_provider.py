@@ -228,10 +228,11 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         # Check that netlock (`user:pass@host`), path and fragment (`#frag`) are all empty
         assert (parsed_url.netloc, parsed_url.path, parsed_url.fragment) == ("", "", "")
         query = dict(parse_qsl(parsed_url.query, keep_blank_values=True))
-        assert set(query) - {"inline", "temporary"} == set()
+        assert set(query) - {"inline", "temporary", "multiproject"} == set()
         self.inline = "inline" in query
         self.temporary = "temporary" in query
-        assert (self.inline + self.temporary) <= 1
+        self.multiproject = "multiproject" in query
+        assert ((self.inline or self.multiproject) + self.temporary) <= 1
         self.providers: Locked[dict[ProjectID | None, Locked[_FactoryStorage]]] = Locked({})
 
     @classmethod
@@ -242,6 +243,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         return None
 
     def init(self, directory: Path, overwrite: bool):
+        assert not self.multiproject
         model_type = get_singleton(Model)  # type: ignore [type-abstract]
         model_name = model_type.model_name()
         model_path = directory / model_name
@@ -251,10 +253,19 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         model_path.write_text("")
         return True
 
-    def _create_provider(self, base_directory: Path, cache_dir: str, pipeline_hash: str):
+    def _create_provider(
+        self, project_id: str | None, base_directory: Path, cache_dir: str, pipeline_hash: str
+    ):
         # Figure out how the model should be name
         model_type = get_singleton(Model)  # type: ignore [type-abstract]
         model_name = model_type.model_name()
+        if self.multiproject and project_id is not None:
+            assert model_name.count(".") in (0, 1)
+            if model_name.count(".") == 1:
+                model_filename, model_extension = model_name.rsplit(".", 1)
+                model_name = f"{model_filename}-{project_id}.{model_extension}"
+            else:
+                model_name = f"{model_name}-{project_id}"
 
         # Find the model in the current directory or any of its parents
 
@@ -278,7 +289,12 @@ class LocalStorageProviderFactory(StorageProviderFactory):
         if self.inline:
             cache_path = (directory / ".cache").resolve()
             cache_path.mkdir(parents=True, exist_ok=True)
-            db_path = cache_path / "data.sqlite"
+            if self.multiproject and project_id is not None:
+                # TODO: we could make the database projectID-aware, at that
+                #       point we don't need a different file for each projectID
+                db_path = cache_path / f"{project_id}-data.sqlite"
+            else:
+                db_path = cache_path / "data.sqlite"
         else:
             cache_path = Path(cache_dir)
             db_name = crypto_hash(str(model_path)) + ".sqlite"
@@ -318,7 +334,7 @@ class LocalStorageProviderFactory(StorageProviderFactory):
     ) -> AsyncGenerator[StorageProvider]:
         if not self.temporary:
             assert cache_dir is not None, "Cache directory must be provided"
-        if project_id is not None and not self.temporary:
+        if project_id is not None and not (self.temporary or self.multiproject):
             raise ValueError("By default LocalStorageProvider supports only one project")
 
         # Get or create the provider for the given project ID
@@ -331,7 +347,9 @@ class LocalStorageProviderFactory(StorageProviderFactory):
                     project_provider = Locked(self._create_temporary_provider(pipeline_hash))
                 else:
                     project_provider = Locked(
-                        self._create_provider(base_directory, cast(str, cache_dir), pipeline_hash)
+                        self._create_provider(
+                            project_id, base_directory, cast(str, cache_dir), pipeline_hash
+                        )
                     )
                 providers[project_id] = project_provider
 
