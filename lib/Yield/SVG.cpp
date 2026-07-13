@@ -276,6 +276,71 @@ concept NodeExporter = requires(CallableType &&Callable, const NodeType &Node) {
   { Callable(Node) } -> std::convertible_to<std::string>;
 };
 
+constexpr llvm::StringRef getDefaultStyle() {
+  return "\n@import url('https://fonts.googleapis.com/css2?family="
+         "Source+Code+Pro&amp;display=swap');\n"
+         R"(
+body {
+  background-color: #ffffff;
+  font-family: 'Source Code Pro', monospace;
+  font-size: 18px;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  margin: 0;
+}
+
+.node-body {
+  stroke-width: 2px;
+  stroke: #000000;
+  fill: transparent;
+  pointer-events: none;
+}
+
+.node-contents {
+  border-radius: 5px;
+  background: transparent;
+}
+
+.unconditional-edge {
+  stroke: #000000;
+  stroke-width: 2px;
+}
+.taken-edge {
+  stroke: #008000;
+  stroke-width: 2px;
+}
+.refused-edge {
+  stroke: #800000;
+  stroke-width: 2px;
+}
+
+#unconditional-arrow-head {
+  fill: #000000;
+}
+#taken-arrow-head {
+  fill: #008000;
+}
+#refused-arrow-head {
+  fill: #800000;
+}
+
+div[data-token="call-graph.node-label"],
+div[data-token="call-graph.shallow-node-label"] {
+  padding: 12px;
+}
+
+div[data-scope="asm.basic-block"] {
+  padding: 12px;
+
+  div[data-scope="asm.instruction"] {
+    padding: 2px;
+    padding-left: 2ch;
+  }
+}
+)";
+}
+
 template<bool ShouldEmitEmptyNodes,
          SpecializationOf<yield::layout::OutputGraph> PostLayoutGraph,
          NodeExporter<typename PostLayoutGraph::Node> ContentsLambda>
@@ -318,8 +383,10 @@ static std::string exportGraph(const ptml::MarkupBuilder &B,
                                             Box.BottomRight.X - Box.TopLeft.X,
                                             Box.BottomRight.Y - Box.TopLeft.Y);
 
+  Tag Style = B.getTag("style", getDefaultStyle());
   Tag ArrowHeads = B.getTag("defs", defaultArrowHeads(B, Configuration));
-  return B.getTag("svg", ArrowHeads.toString() + std::move(Result))
+  return B
+    .getTag("svg", Style.toString() + ArrowHeads.toString() + std::move(Result))
     .addAttribute("xmlns", R"(http://www.w3.org/2000/svg)")
     .addAttribute("viewBox", std::move(SerializedBox))
     .addAttribute("width", std::to_string(Box.BottomRight.X - Box.TopLeft.X))
