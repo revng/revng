@@ -10,6 +10,7 @@
 #include "revng/Storage/StorageClient.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/PathList.h"
+#include "revng/Support/YAMLTraits.h"
 
 /// Utility function that checks the "cleanliness" of a path, returning false if
 /// the path is "dirty".
@@ -208,8 +209,7 @@ llvm::Error revng::StorageClient::commit() {
   if (EC)
     return llvm::createStringError(EC, "Could not write file list");
 
-  llvm::yaml::Output Out(OS);
-  Out << Metadata;
+  ::serialize(OS, Metadata);
   OS.flush();
 
   // Increase the transaction index

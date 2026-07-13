@@ -9,6 +9,7 @@ bool init_unit_test();
 
 #include "llvm/Support/YAMLTraits.h"
 
+#include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/VisitsImpl.h"
 #include "revng/UnitTestHelpers/UnitTestHelpers.h"
 
@@ -32,9 +33,7 @@ BOOST_AUTO_TEST_CASE(YAMLSerializationRoundTripTest) {
 
   std::string Buffer;
   llvm::raw_string_ostream OutputStream(Buffer);
-  llvm::yaml::Output YAMLOutput(OutputStream);
-
-  YAMLOutput << ReferenceInstance;
+  ::serialize(OutputStream, ReferenceInstance);
   std::cout << Buffer;
 
   TestClass DeserializedInstance;

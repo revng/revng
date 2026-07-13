@@ -4,15 +4,14 @@
 
 New model does not verify: Last field ends outside the struct
 ---
-ID:              2
-Kind:            StructDefinition
-Name:            my_struct
-Size:            24
+ID: 2
+Kind: StructDefinition
+Name: my_struct
+Size: 24
 Fields:
-  - Offset:          8
-    Name:            field
+  - Offset: 8
+    Name: field
     Type:
-      Kind:            DefinedType
-      Definition:      "/TypeDefinitions/0-StructDefinition"
+      Kind: DefinedType
+      Definition: "/TypeDefinitions/0-StructDefinition"
 ...
-

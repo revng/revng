@@ -31,6 +31,7 @@
 #include "revng/Support/ProgramRunner.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/Support/TemporaryFile.h"
+#include "revng/Support/YAMLTraits.h"
 
 using namespace pipeline;
 using namespace llvm;
@@ -737,8 +738,7 @@ llvm::Error PipelineManager::computeDescription() {
 
   {
     llvm::raw_string_ostream OS(this->Description);
-    yaml::Output YAMLOutput(OS);
-    YAMLOutput << Description;
+    ::serialize(OS, Description);
   }
 
   if (StorageClient == nullptr)

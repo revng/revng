@@ -16,6 +16,18 @@
 #include "revng/Support/Error.h"
 #include "revng/TupleTree/TupleTreeCompatible.h"
 
+namespace revng::yaml {
+
+/// A `llvm::yaml::Output` that, for easier predictability of how the YAML is
+/// going to be formatted, disables both word wrapping and padding of the key.
+class Output : public llvm::yaml::Output {
+public:
+  explicit Output(llvm::raw_ostream &OS, void *Context = nullptr) :
+    llvm::yaml::Output(OS, Context, /*WrapColumn=*/0, /*PadKeyColumn=*/0) {}
+};
+
+} // namespace revng::yaml
+
 template<typename T>
 concept HasScalarTraits = llvm::yaml::has_ScalarTraits<T>::value;
 
@@ -193,7 +205,7 @@ void serialize(S &Stream, T &Element) {
     if constexpr (HasScalarOrEnumTraits<T>) {
       Stream << llvm::StringRef(getNameFromYAMLScalar(Element));
     } else {
-      llvm::yaml::Output YAMLOutput(Stream);
+      revng::yaml::Output YAMLOutput(Stream);
       YAMLOutput << Element;
     }
   } else {
@@ -202,7 +214,7 @@ void serialize(S &Stream, T &Element) {
       Buffer = getNameFromYAMLScalar(Element);
     } else {
       llvm::raw_string_ostream StringStream(Buffer);
-      llvm::yaml::Output YAMLOutput(StringStream);
+      revng::yaml::Output YAMLOutput(StringStream);
       YAMLOutput << Element;
     }
     Stream << Buffer;
