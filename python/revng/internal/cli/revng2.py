@@ -41,7 +41,7 @@ from revng.pypeline.pipeline import Pipeline
 from revng.pypeline.pipeline_node import PipelineConfiguration
 from revng.pypeline.pipeline_parser import load_pipeline_yaml_file
 from revng.pypeline.runner_context import RunnerContext
-from revng.pypeline.storage.local_provider import TemporaryLocalStorageProviderFactory
+from revng.pypeline.storage.local_provider import LocalStorageProviderFactory
 from revng.pypeline.storage.storage_provider import FileStorageEntry, LockType, StorageProvider
 from revng.pypeline.storage.storage_provider import storage_provider_factory_factory
 from revng.pypeline.storage.util import compute_hash
@@ -227,7 +227,7 @@ def _build_artifact_command(pipeline: Pipeline, artifact_name: str):
                     )
                     sys.stdout.buffer.flush()
 
-        storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
+        storage_provider_factory = LocalStorageProviderFactory("local://?temporary")
         storage_provider_context = storage_provider_factory.get(
             ctx.obj.base_directory, ctx.obj.pipeline, LockType.ARTIFACT, None, None, None
         )
@@ -308,7 +308,7 @@ def analyze(
             )
             output_file.write(model.serialize())
 
-    storage_provider_factory = TemporaryLocalStorageProviderFactory("temporary://")
+    storage_provider_factory = LocalStorageProviderFactory("local://?temporary")
     storage_provider_context = storage_provider_factory.get(
         ctx.obj.base_directory, ctx.obj.pipeline, LockType.ANALYSIS, None, None, None
     )
