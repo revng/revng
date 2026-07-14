@@ -110,13 +110,16 @@ bool ExtractValueToGEPPass::runOnFunction(llvm::Function &F) {
       auto *ExtractValue = cast<Instruction>(User);
       B.SetInsertPoint(ExtractValue, ExtractValue->getDebugLoc());
 
+      auto *LoadAddress = BasePointer;
+
       unsigned FieldId = Index->getZExtValue();
       uint64_t FieldOffset = Layout->getElementOffset(FieldId);
-      auto *Offset = llvm::ConstantInt::get(Index->getType(),
-                                            APInt(64, FieldOffset));
-
-      auto *GEP = B.CreateGEP(Int8Ty, BasePointer, Offset);
-      auto *Load = B.CreateLoad(ExtractValue->getType(), GEP);
+      if (FieldOffset) {
+        auto *Offset = llvm::ConstantInt::get(Index->getType(),
+                                              APInt(64, FieldOffset));
+        LoadAddress = B.CreateGEP(Int8Ty, BasePointer, Offset);
+      }
+      auto *Load = B.CreateLoad(ExtractValue->getType(), LoadAddress);
       ExtractValue->replaceAllUsesWith(Load);
       IsDead.push_back(ExtractValue);
     }
