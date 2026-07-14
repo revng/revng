@@ -84,18 +84,6 @@ static bool isSeparateDeclarationAllowed(const model::TypeDefinition &T) {
          or llvm::isa<model::EnumDefinition>(&T);
 }
 
-static std::pair<std::unique_ptr<mlir::MLIRContext>,
-                 mlir::OwningOpRef<mlir::ModuleOp>>
-makeHeaderModule(const model::Binary &Model) {
-  std::unique_ptr<mlir::MLIRContext> Context = clift::makeContext();
-  mlir::OwningOpRef<mlir::ModuleOp> Module = clift::makeModule(*Context);
-
-  clift::importAllModelTypes(Model, Module.get());
-  clift::importDescriptiveInfo(Model, Module.get());
-
-  return std::make_pair(std::move(Context), std::move(Module));
-}
-
 static Logger Log("edit-c-type-clang-input");
 
 namespace rr = revng::ranks;
@@ -200,7 +188,9 @@ private:
   static void emitFilteredHeader(llvm::raw_fd_ostream &Out,
                                  const model::Binary &Model,
                                  model::TypeDefinition *TypeToEdit) {
-    auto [Context, HeaderModule] = makeHeaderModule(Model);
+    auto [Context, HeaderModule] = clift::makeHeaderModule(Model,
+                                                           /*IncludeGlobals=*/
+                                                           false);
 
     TypeEmitterConfiguration Configuration = {
       .TypeToOmit = {},

@@ -821,6 +821,21 @@ void clift::importAllModelSegmentDeclarations(const model::Binary &Model,
   }
 }
 
+std::pair<std::unique_ptr<mlir::MLIRContext>, mlir::OwningOpRef<mlir::ModuleOp>>
+clift::makeHeaderModule(const model::Binary &Model, bool IncludeGlobals) {
+  std::unique_ptr<mlir::MLIRContext> Context = clift::makeContext();
+  mlir::OwningOpRef<mlir::ModuleOp> Module = clift::makeModule(*Context);
+
+  clift::importAllModelTypes(Model, Module.get());
+  if (IncludeGlobals) {
+    clift::importAllModelFunctionDeclarations(Model, Module.get());
+    clift::importAllModelSegmentDeclarations(Model, Module.get());
+  }
+  clift::importDescriptiveInfo(Model, Module.get());
+
+  return std::make_pair(std::move(Context), std::move(Module));
+}
+
 static std::string getOpaqueTypeHandle(uint64_t ByteSize) {
   return pipeline::locationString(revng::ranks::OpaqueType, ByteSize);
 }

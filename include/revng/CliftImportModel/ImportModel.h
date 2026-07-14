@@ -68,6 +68,15 @@ void importDescriptiveInfo(const model::Function &Function,
                            const model::Binary &Model,
                            mlir::ModuleOp Module);
 
+/// Build a fresh Clift module holding the declarations needed to parse a piece
+/// of decompiled C against the model: all model types plus descriptive info
+/// (names and comments) and, when `IncludeGlobals` is set, the function and
+/// segment declarations that a function body refers to.
+///
+/// The returned context owns the module and must outlive it.
+std::pair<std::unique_ptr<mlir::MLIRContext>, mlir::OwningOpRef<mlir::ModuleOp>>
+makeHeaderModule(const model::Binary &Model, bool IncludeGlobals);
+
 clift::StructType makeOpaqueStruct(mlir::MLIRContext &Context,
                                    uint64_t NumBytes);
 
