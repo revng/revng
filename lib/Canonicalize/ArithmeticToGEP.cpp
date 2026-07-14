@@ -1005,11 +1005,15 @@ private:
 
     auto *Add = cast<llvm::Instruction>(PointerOperandInAdd->getUser());
     revng_assert(Add->getOpcode() == llvm::Instruction::Add);
-    B.SetInsertPoint(Add);
 
     unsigned PointerOpIndex = PointerOperandInAdd->getOperandNo();
     unsigned OffsetOpIndex = PointerOpIndex == 0 ? 1 : 0;
     auto *Offset = Add->getOperand(OffsetOpIndex);
+    if (auto *CI = dyn_cast<llvm::ConstantInt>(Offset); CI and CI->isZero()) {
+      return nullptr;
+    }
+
+    B.SetInsertPoint(Add);
 
     auto *Pointer = PointerOperandInAdd->get();
     if (Pointer != BasePointer) {
@@ -1058,11 +1062,15 @@ private:
       // TODO: should we bail out in case of add with negative constant?
 
       auto *GEPCastedToInt = replaceAddWithGEP(U, BasePointer);
-      Changed = true;
-
-      for (llvm::Use *IntUse : snapshotUses(GEPCastedToInt))
-        Changed |= rc_recur replaceImpl(IntUse, GEPCastedToInt);
-
+      bool Replaced = GEPCastedToInt != nullptr;
+      if (Replaced) {
+        Changed = true;
+        for (llvm::Use *IntUse : snapshotUses(GEPCastedToInt))
+          Changed |= rc_recur replaceImpl(IntUse, GEPCastedToInt);
+      } else {
+        for (llvm::Use *IntUse : snapshotUses(UserInstruction))
+          Changed |= rc_recur replaceImpl(IntUse, BasePointer);
+      }
     } break;
 
     case llvm::Instruction::BitCast:
