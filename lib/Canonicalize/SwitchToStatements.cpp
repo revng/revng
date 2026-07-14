@@ -340,6 +340,36 @@ AEMFP::applyTransferFunction(ProgramPointNode *ProgramPoint,
 // expressions.
 //
 
+// Consecutive memory accesses of the same kind can share a single program
+// point - and therefore a single stored set of available expressions -
+// instead of getting one each. This is purely a runtime-memory
+// optimisation: it does not affect correctness and the emitted code is
+// unchanged.
+//
+// Only these two kinds can be merged, because for both of them the set of
+// available expressions computed after the whole run is a valid answer for
+// any instruction inside the run (see getAvailableAt):
+//   - a load only ever adds an available expression, never removes one, so
+//     the set only grows along the run;
+//   - a store whose stored value is a constant, a global, or an argument
+//     adds no available expression at all (only a store of a value computed
+//     by an instruction would; see applyTransferFunctionImpl), so it can
+//     only remove expressions and the set only shrinks along the run.
+enum class CoalescibleKind {
+  None,
+  Load,
+  ConstStore
+};
+
+static CoalescibleKind coalescibleKind(const Instruction *I) {
+  if (isa<LoadInst>(I))
+    return CoalescibleKind::Load;
+  if (const auto *Store = dyn_cast<StoreInst>(I))
+    if (not isa<Instruction>(Store->getValueOperand()))
+      return CoalescibleKind::ConstStore;
+  return CoalescibleKind::None;
+}
+
 static bool isProgramPoint(const Instruction *I) {
 
   const Instruction *UnexpectedInstruction = nullptr;
@@ -375,6 +405,15 @@ static bool isProgramPoint(const Instruction *I) {
   if (nullptr != UnexpectedInstruction) {
     I->dump();
     revng_abort("Unexpected Instruction");
+  }
+
+  // Coalesce a run of consecutive same-kind loads or const/global/argument
+  // stores: only the last instruction of the run is a program point, the
+  // earlier ones are absorbed into it.
+  if (CoalescibleKind Kind = coalescibleKind(I);
+      Kind != CoalescibleKind::None) {
+    const Instruction *Next = I->getNextNode();
+    return Next == nullptr or coalescibleKind(Next) != Kind;
   }
 
   return I == &I->getParent()->front() or mayHaveSideEffects(I)
@@ -442,6 +481,7 @@ public:
       &PreviousProgramPointInBlock = Result.PreviousProgramPointInBlock;
     InstructionProgramPoint
       &NextProgramPointInBlock = Result.NextProgramPointInBlock;
+    InstructionProgramPoint &RunMember = Result.RunMember;
 
     const auto MakeCFGNode = [&TheCFG, &ProgramPoint](Instruction *I) {
       ProgramPointNode *NewNode = TheCFG.addNode(I);
@@ -490,6 +530,32 @@ public:
            llvm::make_range(std::next(ProgramPoints.back()->getIterator()),
                             BB.end()))
         PreviousProgramPointInBlock[&I] = LastNode;
+
+      // Record the coalesced run each program point represents: walk back over
+      // the absorbed same-kind instructions to find the run's first
+      // instruction, store it on the node, and map every run member to the node
+      // so getAvailableAt answers them from the node's OutValue.
+      for (Instruction *Last : ProgramPoints) {
+        if (coalescibleKind(Last) == CoalescibleKind::None)
+          continue;
+
+        Instruction *First = Last;
+        while (Instruction *Previous = First->getPrevNode()) {
+          if (coalescibleKind(Previous) != coalescibleKind(Last)
+              or ProgramPoints.contains(Previous))
+            break;
+          First = Previous;
+        }
+
+        if (First == Last)
+          continue;
+
+        ProgramPointNode *Node = ProgramPoint.at(Last);
+        Node->FirstInstruction = First;
+        for (Instruction *I = First; I != Last; I = I->getNextNode())
+          RunMember[I] = Node;
+        RunMember[Last] = Node;
+      }
 
       BlockToBeginEndNode[&BB] = { FirstNode, LastNode };
     }
