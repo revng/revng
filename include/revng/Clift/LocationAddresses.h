@@ -55,4 +55,32 @@ getStatementExpressionAddresses(mlir::Operation *Op) {
   return Addresses;
 }
 
+/// Gather the set of instruction addresses identifying a value, i.e. a local
+/// variable or a label: the addresses attached to the operations that use it.
+///
+/// This matches the address set rev.ng reports for that value, so a
+/// model::LocalVariable or model::GotoLabel located by it is picked up when
+/// names and types are assigned. Returns an empty set if any user lacks a valid
+/// address.
+inline SortedVector<MetaAddress> getUserAddressSet(mlir::Value Value) {
+  auto GetAddress = [](mlir::Operation *User) {
+    if (auto Loc = mlir::dyn_cast_or_null<mlir::NameLoc>(User->getLoc()))
+      if (auto L = pipeline::locationFromString(revng::ranks::Instruction,
+                                                Loc.getName().str()))
+        return L->back();
+    return MetaAddress::invalid();
+  };
+
+  SortedVector<MetaAddress> Addresses;
+  for (mlir::Operation *User : Value.getUsers()) {
+    MetaAddress Address = GetAddress(User);
+    if (not Address.isValid()) {
+      Addresses.clear();
+      break;
+    }
+    Addresses.insert(Address);
+  }
+  return Addresses;
+}
+
 } // namespace clift

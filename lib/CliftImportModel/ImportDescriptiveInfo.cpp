@@ -461,35 +461,10 @@ private:
     Op->setAttr(Name, mlir::StringAttr::get(Op->getContext(), Value));
   }
 
-  SortedVector<MetaAddress> getUserAddressSet(mlir::Value Value) {
-    auto GetMetaAddress = [](mlir::Operation *Op) {
-      if (auto Loc = mlir::dyn_cast_or_null<mlir::NameLoc>(Op->getLoc())) {
-        if (auto L = pipeline::locationFromString(rr::Instruction,
-                                                  Loc.getName().str())) {
-          revng_assert(L->back().isValid());
-          return L->back();
-        }
-      }
-      return MetaAddress::invalid();
-    };
-
-    SortedVector<MetaAddress> AddressSet;
-    for (const auto &User : Value.getUsers()) {
-      MetaAddress Address = GetMetaAddress(User);
-
-      if (not Address.isValid()) {
-        AddressSet.clear();
-        break;
-      }
-
-      AddressSet.emplace(Address);
-    }
-    return AddressSet;
-  }
-
   mlir::LogicalResult visitMakeLabelOp(clift::MakeLabelOp Op) {
     if (auto L = pipeline::locationFromString(rr::GotoLabel, Op.getHandle())) {
-      Op.setName(CurrentFunction->GotoLabels.name(getUserAddressSet(Op)).Name);
+      auto Addresses = clift::getUserAddressSet(Op);
+      Op.setName(CurrentFunction->GotoLabels.name(Addresses).Name);
     } else {
       Op.setName(CurrentFunction->GotoLabels.automaticName().Name);
     }
@@ -505,7 +480,8 @@ private:
       Op.setName(NameBuilder.name(CurrentFunction->Model.StackFrame()));
     } else if (auto L = pipeline::locationFromString(rr::LocalVariable,
                                                      Op.getHandle())) {
-      Op.setName(CurrentFunction->Variables.name(getUserAddressSet(Op)).Name);
+      auto Addresses = clift::getUserAddressSet(Op);
+      Op.setName(CurrentFunction->Variables.name(Addresses).Name);
     } else {
       Op.setName(CurrentFunction->Variables.automaticName().Name);
     }
