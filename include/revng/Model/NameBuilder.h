@@ -447,7 +447,7 @@ private:
     if (Name == OriginalName) {
       // Suppress warnings on appropriately placed automatic names in the model.
       //
-      // TODO: get rid of this once `import-from-c` is fixed and we no longer
+      // TODO: get rid of this once `edit-c-type` is fixed and we no longer
       //       put such names in.
       llvm::consumeError(std::move(Reason));
       return std::nullopt;

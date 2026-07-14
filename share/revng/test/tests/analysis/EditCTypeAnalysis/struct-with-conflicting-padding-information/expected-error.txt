@@ -1,0 +1,7 @@
+#
+# This file is distributed under the MIT License. See LICENSE.md for details.
+#
+
+edit-c-type: While parsing field #0:
+edit-c-type failed: Padding fields (`uint8_t padding_at_$offset[$size]`) must not have `_STARTS_AT` annotation attached.
+

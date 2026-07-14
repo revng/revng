@@ -20,11 +20,11 @@
 #include "revng/EarlyFunctionAnalysis/AttachDebugInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
+#include "revng/EditCType/EditCTypeAnalysis.h"
 #include "revng/FunctionIsolation/EnforceABI.h"
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/FunctionIsolation/IsolateFunctions.h"
 #include "revng/FunctionIsolation/PromoteCSVs.h"
-#include "revng/ImportFromC/ImportFromCAnalysis.h"
 #include "revng/LLMRename/LLMRenameAnalysis.h"
 #include "revng/Lift/Lift.h"
 #include "revng/Lift/LinkSupportPipe.h"
@@ -159,7 +159,7 @@ REGISTER(Analysis, ConvertFunctionsToRaw);
 REGISTER(Analysis, DetectABI);
 REGISTER(Analysis, revng::pypeline::analyses::DetectCStrings);
 REGISTER(Analysis, DetectStackSize);
-REGISTER(Analysis, ImportFromC);
+REGISTER(Analysis, EditCType);
 REGISTER(Analysis, ImportPrototypesFromDatabase);
 REGISTER(Analysis, LLMRename);
 REGISTER(Analysis, ParseBinaryAnalysis);

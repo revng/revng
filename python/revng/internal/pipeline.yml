@@ -81,7 +81,7 @@ analyses:
   - verify-model
   - import-prototypes-from-db
   - convert-functions-to-cabi
-  - import-from-c
+  - edit-c-type
 
 analysis-lists:
   - name: initial-auto-analysis
