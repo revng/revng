@@ -15,9 +15,9 @@ from functools import cached_property
 from hashlib import shake_256
 from pathlib import Path
 from subprocess import run
-from typing import TYPE_CHECKING, Any, Collection, Dict, Iterable, List, Protocol
+from typing import TYPE_CHECKING, Collection, Dict, Iterable, List
 
-from .meta import StacktraceAggregation
+from .meta import CrashComponentFilter, StacktraceAggregation
 
 if TYPE_CHECKING:
     from .test_directory import TestDirectory
@@ -252,33 +252,20 @@ def generate_crash_components(
     return list(counts.items())
 
 
-class StacktraceFilter(Protocol):
-    def __init__(self, variable: str, value: Any): ...
+def _percentile_filter(
+    variable: str, value: int, tests: list[TestDirectory]
+) -> list[Stacktrace | None]:
+    if len(tests) == 0:
+        return []
 
-    def filter_(self, tests: list[TestDirectory]) -> list[Stacktrace | None]: ...
-
-    def suffix(self) -> str: ...
-
-
-class _PercentileFilter:
-    def __init__(self, variable: str, value: int):
-        self.variable = variable
-        self.value = value
-
-    def filter_(self, tests: list[TestDirectory]) -> list[Stacktrace | None]:
-        if len(tests) == 0:
-            return []
-
-        values = [float(t.get_meta(self.variable)) for t in tests]
-        limit = _percentile(values, self.value)
-        return [t.stacktrace for index, t in enumerate(tests) if values[index] < limit]
-
-    def suffix(self) -> str:
-        return f"{self.value}th_percentile_on_{self.variable}"
+    values = [float(t.get_meta(variable)) for t in tests]
+    limit = _percentile(values, value)
+    return [t.stacktrace for index, t in enumerate(tests) if values[index] < limit]
 
 
-STACKTRACE_FILTERS: dict[str, type[StacktraceFilter]] = {"percentile": _PercentileFilter}
-
-
-def get_filter(type_: str, variable: str, value: Any) -> StacktraceFilter:
-    return STACKTRACE_FILTERS[type_](variable, value)
+def filter_data(
+    filter_: CrashComponentFilter, tests: list[TestDirectory]
+) -> list[Stacktrace | None]:
+    if filter_.type == "percentile":
+        return _percentile_filter(filter_.variable, filter_.value, tests)
+    raise ValueError

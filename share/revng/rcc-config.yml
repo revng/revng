@@ -20,7 +20,7 @@ matchers:
   cmake: { type: cmake_filter }
   prettier:
     type: suffix_or_shebang
-    suffixes: ["html", "js", "json", "ts", "yaml", "yml"]
+    suffixes: ["html", "js", "json", "ts", "tsx", "yaml", "yml"]
   codespell:
     type: all_except
     suffixes: ["css", "cfg"]

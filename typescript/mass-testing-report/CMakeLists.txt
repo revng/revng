@@ -4,12 +4,27 @@
 
 set(MASS_TESTING_REPORT_FILES
     package.json
+    src/components/ActionMenu.tsx
+    src/components/BinaryDetail.tsx
+    src/components/Chrome.tsx
+    src/components/ComponentBars.tsx
+    src/components/DataTableView.tsx
+    src/components/Detail.tsx
+    src/components/Flamegraphs.tsx
+    src/components/Icons.tsx
+    src/components/ListPage.tsx
+    src/components/Overview.tsx
+    src/components/SummaryCard.tsx
+    src/utils/db.ts
+    src/utils/format.ts
+    src/utils/pages.ts
+    src/utils/types.ts
+    src/main.scss
+    src/main.tsx
     src/binary.html
     src/crashes.html
     src/failures.html
     src/index.html
-    src/main.css
-    src/main.ts
     src/ooms.html
     src/raw_data.html
     src/successes.html
