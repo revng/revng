@@ -165,8 +165,15 @@ using InstructionVector = SmallVector<Instruction *, SmallSize>;
 using InstructionSetVector = SmallSetVector<Instruction *, SmallSize>;
 
 struct ProgramPointData {
+  // The program point: the last instruction of the (possibly coalesced) run of
+  // instructions it represents.
   Instruction *TheInstruction = nullptr;
-  ProgramPointData(Instruction *I) : TheInstruction(I){};
+  // The first instruction of the run. Equal to TheInstruction for ordinary,
+  // non-coalesced program points.
+  Instruction *FirstInstruction = nullptr;
+  ProgramPointData(Instruction *I) : TheInstruction(I), FirstInstruction(I){};
+  ProgramPointData(Instruction *First, Instruction *Last) :
+    TheInstruction(Last), FirstInstruction(First){};
 };
 
 using ProgramPointNode = BidirectionalNode<ProgramPointData>;
@@ -289,10 +296,12 @@ AEMFP::applyTransferFunction(ProgramPointNode *ProgramPoint,
                              const AEMFP::LatticeElement &E,
                              mfp::NoExtraState &ExtraState) const {
 
-  Instruction *I = ProgramPoint->TheInstruction;
+  Instruction *First = ProgramPoint->FirstInstruction;
+  Instruction *Last = ProgramPoint->TheInstruction;
 
   revng_log(Log,
-            "applyTransferFunction on ProgramPoint: " << dumpToString(I, MST));
+            "applyTransferFunction on ProgramPoint: " << dumpToString(Last,
+                                                                      MST));
   LoggerIndent Indent{ Log };
 
   LatticeElement Result = E;
@@ -306,7 +315,13 @@ AEMFP::applyTransferFunction(ProgramPointNode *ProgramPoint,
     }
   }
 
-  applyTransferFunctionImpl(I, Result);
+  // Replay every instruction in the (possibly coalesced) run, from the first to
+  // the program point itself, updating Result in place; the set is stored just
+  // once per run, which is what the memory optimisation buys. Last is never a
+  // terminator, so the instruction past it always exists.
+  Instruction *End = Last->getNextNode();
+  for (Instruction *I = First; I != End; I = I->getNextNode())
+    applyTransferFunctionImpl(I, Result);
 
   revng_log(Log, "final set");
   if (Log.isEnabled()) {
@@ -401,6 +416,12 @@ private:
   // ProgramPointsGraph.
   InstructionProgramPoint NextProgramPointInBlock;
 
+  // Maps each instruction absorbed into a coalesced run to the program point
+  // node representing that run, so getAvailableAt can answer it from the node's
+  // OutValue. This backs the runtime-memory optimisation of giving a whole run
+  // a single program point, and thus a single stored set of expressions.
+  InstructionProgramPoint RunMember;
+
   ModuleSlotTracker &MST;
 
 public:
@@ -494,6 +515,16 @@ public:
     revng_log(Log, "Available?: " << dumpToString(I, MST));
     revng_log(Log, "Where: " << dumpToString(Where, MST));
 
+    auto RunMemberIt = RunMember.find(Where);
+    if (RunMemberIt != RunMember.end()) {
+      revng_log(Log, "is coalesced run member");
+
+      ProgramPointNode *UserProgramPoint = RunMemberIt->second;
+      const AvailableSet &Available = AvailableExpressions.at(UserProgramPoint)
+                                        .OutValue;
+      return findAvailableRange(Available, I);
+    }
+
     auto ProgramPointIt = ProgramPoint.find(Where);
     if (ProgramPointIt != ProgramPoint.end()) {
       revng_log(Log, "is ProgramPoint");
@@ -559,9 +590,13 @@ static AEResult getAvailableExpressions(Function &F,
 
   auto Result = AEResult::makeFromFunction(F, MST);
 
+  // Seed Bottom from every instruction, not from the program point nodes: once
+  // runs are coalesced (the memory optimisation) a node no longer maps 1:1 to
+  // an instruction, but the lattice domain still needs an entry for every
+  // memory read and every instruction-valued store.
   AvailableSet Bottom;
-  for (ProgramPointNode *N : llvm::nodes(&Result.ProgramPointsGraph)) {
-    Instruction *I = N->TheInstruction;
+  for (Instruction &Inst : llvm::instructions(F)) {
+    Instruction *I = &Inst;
 
     if (mayReadMemory(I)) {
       Bottom.insert(AvailableExpression{
