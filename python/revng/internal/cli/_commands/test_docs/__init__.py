@@ -137,8 +137,18 @@ class BashDoctest(Doctest):
         self.script = ""
         self.expected_output = ""
 
+    @staticmethod
+    def _heredoc_terminator(command: str) -> str | None:
+        """If `command` ends with a here-document redirection (`<< WORD`,
+        `<<'WORD'`, `<<-WORD`), return its terminator word, so the here-document
+        body can be treated as part of the command rather than expected output.
+        """
+        match = re.search(r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1\s*$", command)
+        return match.group(2) if match else None
+
     def process(self, code, extra=""):
         next_line_is_command = False
+        heredoc_terminator = None
         silent = "silent" in extra
         match = re.match('.*ignore="([^"]*)".*', extra)
         ignore_regexp = None
@@ -150,13 +160,20 @@ class BashDoctest(Doctest):
             self.script += "( "
 
         for line in code.split("\n"):
-            if line.startswith("$ "):
+            if heredoc_terminator is not None:
+                self.script += line + "\n"
+                if line.strip() == heredoc_terminator:
+                    heredoc_terminator = None
+            elif line.startswith("$ "):
                 self.script += line[2:] + "\n"
-                if line.endswith("\\"):
+                heredoc_terminator = self._heredoc_terminator(line[2:])
+                if heredoc_terminator is None and line.endswith("\\"):
                     next_line_is_command = True
             elif next_line_is_command:
                 self.script += line + "\n"
-                next_line_is_command = line.endswith("\\")
+                heredoc_terminator = self._heredoc_terminator(line)
+                if heredoc_terminator is None:
+                    next_line_is_command = line.endswith("\\")
             else:
                 if not ignore_regexp or not re.match(".*(" + ignore_regexp + ").*", line):
                     self.expected_output += line + "\n"
