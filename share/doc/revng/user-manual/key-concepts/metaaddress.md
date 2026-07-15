@@ -1,4 +1,4 @@
-Before we dig any deeper into the model, it is important to understand a concept that's ubiquous in rev.ng: the `MetaAddress`.
+Before we dig any deeper into the model, it is important to understand a concept that's ubiquitous in rev.ng: the `MetaAddress`.
 
 You can see the `MetaAddress` as a virtual address on steroids.
 It is basically a 64-bit integer plus some additional meta-information useful to capture the fact that the same 64-bit address might represent different things in rev.ng.

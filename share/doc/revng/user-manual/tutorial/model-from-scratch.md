@@ -3,7 +3,7 @@ An empty model is a valid model:
 ```bash
 $ revng model opt /dev/null -verify
 ---
-Version:         9
+Version: 9
 ...
 ```
 
@@ -38,7 +38,7 @@ Let's now create a simple model that enables us to decompile this simple functio
 
 The first thing rev.ng needs to know is which binary to load, this is done by specifying a [`BinaryIdentifier`](../../references/model.md#binaryidentifier) entry in `Binaries`:
 
-```yaml title="model.yml"
+```yaml title="revng.yml"
 Binaries:
   - Index: 0
     CanonicalPath: sum
@@ -48,22 +48,22 @@ Binaries:
     Size: 8
 ```
 
-Then rev.ng needs to know is the architecture and the ABI of the program:
+Then rev.ng needs to know the architecture and the ABI of the program:
 
-```yaml title="model.yml"
+```yaml title="revng.yml"
 Architecture: x86_64
 DefaultABI: SystemV_x86_64
 ```
 
 !!! tip
 
-    You can check out the [model reference](../../../references/model.md) to see what each field is for.
+    You can check out the [model reference](../../references/model.md) to see what each field is for.
 
 Then, we need to describe how to load the program.
 Let's pretend we want to load this code at address `0x400000`.
 We can do this by introducing a new [`Segment`](../../references/model.md#segment):
 
-```yaml title="model.yml"
+```yaml title="revng.yml"
 Segments:
   - StartAddress: "0x400000:Generic64"
     VirtualSize: 7
@@ -82,7 +82,7 @@ The piece of model above tells rev.ng to take 7 bytes from the file and load the
 Most parts of rev.ng work on a function basis (e.g., we decompile one function at a time).
 Let's create an entry in the [functions list](../../references/model.md#Binary.Functions):
 
-```yaml title="model.yml"
+```yaml title="revng.yml"
 Functions:
   - Entry: "0x400000:Code_x86_64"
 ```
@@ -121,7 +121,7 @@ uint64_t sum(uint64_t rdi, uint64_t rsi);
 ```
 In the model type system, it looks like this:
 
-```yaml title="model.yml"
+```yaml title="revng.yml"
 TypeDefinitions:
   - Kind: CABIFunctionDefinition
     ABI: SystemV_x86_64
@@ -154,15 +154,15 @@ OK, there's a lot here. Let's go through it line by line:
     * `Kind: PrimitiveType`: the "kind" of a type. Supported values include primitives, pointers, arrays and defined types;
     * `PrimitiveKind: Unsigned`: the "kind" of a primitive type (like signed, unsigned, float, and so on);
     * `Size: 8`: the size of a primitive type;
-* `ReturnType`: similar to an argument's size;
+* `ReturnType`: the function's return type, specified just like an argument's `Type`;
 
 At this point, we can associate the function prototype with the previously defined function:
 
 ```diff
---- a/model.yml
-+++ b/model.yml
-@@ -10,6 +10,9 @@
-     IsExecutable: true
+--- a/revng.yml
++++ b/revng.yml
+@@ -18,6 +18,9 @@
+     Binary: /Binaries/0
  Functions:
    - Entry: "0x400000:Code_x86_64"
 +    Prototype:
@@ -192,14 +192,12 @@ uint64_t function_0x400000_Code_x86_64(uint64_t argument_0, uint64_t argument_1)
 ### Step 6: Renaming
 
 One of the main activities of a reverse engineer is giving things a name, just like Adam in the Genesis.
-<br />Let's try to give a name to our function:
+<br />Let's try to give a name to our function.
 
 ```diff
---- a/model.yml
-+++ b/model.yml
-@@ -11,8 +11,9 @@ Segments:
- Functions:
-   - Entry: "0x400000:Code_x86_64"
+--- a/revng.yml
++++ b/revng.yml
+@@ -21,6 +21,7 @@
      Prototype:
        Kind: DefinedType
        Definition: "/TypeDefinitions/0-CABIFunctionDefinition"
@@ -212,15 +210,9 @@ One of the main activities of a reverse engineer is giving things a name, just l
 Almost everything in the model can have a name. Let's add a name to the function arguments:
 
 ```diff
---- a/model.yml
-+++ b/model.yml
-@@ -119,18 +120,20 @@ TypeDefinitions:
-   - Kind: CABIFunctionDefinition
-     ABI: SystemV_x86_64
-     ID: 0
-     Arguments:
-       - Index: 0
-         Type:
+--- a/revng.yml
++++ b/revng.yml
+@@ -32,11 +32,13 @@
            Kind: PrimitiveType
            PrimitiveKind: Unsigned
            Size: 8
@@ -234,13 +226,13 @@ Almost everything in the model can have a name. Let's add a name to the function
      ReturnType:
        Kind: PrimitiveType
        PrimitiveKind: Unsigned
-       Size: 8
 ```
 
-Here's what we get now if we try to decompile again:
+Here's what we get now if we try to decompile again, this time asking for the
+`Sum` function by name:
 
 ```bash
-$ revng2 project artifact emit-c | revng ptml
+$ revng2 project artifact emit-c Sum | revng ptml
 _ABI(SystemV_x86_64)
 uint64_t Sum(uint64_t FirstAddend, uint64_t SecondAddend) {
   return FirstAddend + SecondAddend;

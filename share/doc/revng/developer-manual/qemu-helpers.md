@@ -14,7 +14,7 @@ This document walks through how helpers evolve, using x86-64 as the driving exam
 In QEMU, the entire CPU state lives in a C `struct` called `CPUArchState`.
 For x86-64, the relevant fields look like this (from `target/i386/cpu.h`):
 
-```c notest
+```{c notest}
 typedef struct CPUArchState {
     // regs[0] = RAX, regs[1] = RCX....
     target_ulong regs[CPU_NB_REGS];
@@ -55,12 +55,12 @@ Every helper takes a `CPUArchState *env` pointer as its first argument and reads
 In the QEMU source, helpers are tagged with section attributes that control how rev.ng handles them.
 When compiling helpers to LLVM IR, these expand to section attributes:
 
-```c notest
+```{c notest}
 #define REVNG_INLINE __attribute__((section("revng_inline")))
 #define REVNG_EXCEPTIONAL __attribute__((section("revng_exceptional")))
 ```
 
-`REVNG_INLINE` marks helpers whose body rev.ng will inline at a certain point in the [pipeline](../references/pipeline/).
+`REVNG_INLINE` marks helpers whose body rev.ng will inline at a certain point in the [pipeline](../references/pipeline.md).
 Helpers *not* tagged with `REVNG_INLINE` are kept as opaque calls.
 
 `REVNG_EXCEPTIONAL` marks helpers that are considered to be "exceptional cases", like division by 0 or an invalid memory access. At a certain point in the pipeline, we assume these situations don't happen. This enables us to remove these calls (and all the code they postdominate) and emit better looking code.
@@ -74,7 +74,7 @@ The TS (Task-Switch) flag is bit 3 of CR0.
 The CPU sets it on every hardware task switch; when set, any FP or SSE instruction traps with a `#NM` (Device Not Available) exception, allowing the OS to lazily save and restore floating-point state.
 The `clts` instruction clears this flag, and the helper mirrors it into the internal `hflags` register:
 
-```c notest
+```{c notest}
 void helper_clts(CPUX86State *env) REVNG_INLINE
 {
     env->cr[0] &= ~CR0_TS_MASK;
@@ -87,7 +87,7 @@ This instruction divides `AX` (the low 16 bits of `RAX`, the *implicit* dividend
 The quotient is stored in `AL` and the remainder in `AH` (both packed back into `RAX`).
 A `#DE` (divide error) exception is raised if the divisor is zero or if the quotient exceeds 0xFF:
 
-```c notest
+```{c notest}
 void helper_divb_AL(CPUX86State *env, target_ulong t0) REVNG_INLINE
 {
     unsigned int num, den, q, r;
@@ -111,7 +111,7 @@ On the exceptional paths, `raise_exception_ra` is a `REVNG_EXCEPTIONAL` function
 
 Finally, `helper_write_eflags` is a helper *without* `REVNG_INLINE`.
 
-```c notest
+```{c notest}
 void helper_write_eflags(CPUX86State *env, target_ulong t0,
                          uint32_t update_mask)
 {
@@ -266,7 +266,7 @@ In `helper_clts` and `helper_divb_AL`, each memory access through `env` targets 
 Not all helpers are that simple. Consider `helper_addsd`, which implements the x86 `addsd` instruction (add scalar double-precision floating-point).
 It takes three `ZMMReg *` pointer arguments (`d`, `v`, `s`) that can each point to *any* XMM register in `xmm_regs[0..31]` or the temporary `xmm_t0`:
 
-```c notest
+```{c notest}
 void helper_addsd(CPUX86State *env, ZMMReg *d, ZMMReg *v, ZMMReg *s)
         REVNG_INLINE
 {
@@ -391,7 +391,7 @@ This is critical for the *declarations-only* module: analyses can determine the 
 
 ### Usage in the pipeline
 
-Each variant is used by a different stage of the rev.ng [pipeline](../references/pipeline/).
+Each variant is used by a different stage of the rev.ng [pipeline](../references/pipeline.md).
 
 #### Helpers in the `lift` artifact
 
@@ -403,13 +403,20 @@ In the following, we create a minimal binary that divides the first argument (`r
 The model tells rev.ng the binary's architecture, memory layout, and function prototypes.
 We declare a single function at `0x400000` with a two-argument prototype:
 
-```yaml title="model.yml"
+```yaml title="revng.yml"
 ---
 # C prototype: uint64_t func(uint64_t arg0, uint64_t arg1)
 Architecture: x86_64
 DefaultABI: SystemV_x86_64
+Binaries:
+  # Links the model to div-binary; Hash is the SHA-256 of its bytes.
+  - Index: 0
+    Hash: 1a9620e1b5dde909af80d9e1ab705e64971b184ad0749a54cccbd1deda2238ac
+    Size: 7
+    CanonicalPath: div-binary
 Segments:
-  - StartAddress: "0x400000:Generic64"
+  - Binary: "/Binaries/0"
+    StartAddress: "0x400000:Generic64"
     VirtualSize: 6
     StartOffset: 0
     FileSize: 6
@@ -459,8 +466,8 @@ Disassembly of section .data:
    6: 90                    nop
 ```
 
-```bash silent
-$ revng artifact lift div-binary --model model.yml -o module.bc
+```{bash silent}
+$ revng2 project artifact lift -o module.bc
 ```
 
 Let's inspect the basic block.
@@ -498,48 +505,48 @@ The `ret` pops the return address from `@_rsp` into `@_rip`.
 At the `enforce-abi` stage, the *to-inline* module is linked.
 The `inline-helpers` pass walks each isolated function, finds calls to functions in `section "revng_inline"`, and inlines them in a fixed-point loop.
 
-```bash silent
-$ revng artifact enforce-abi div-binary --model model.yml -o enforced.bc
+```{bash silent}
+$ revng2 project artifact enforce-abi -o enforced.bc
 ```
 
 Let's look at the isolated function.
 
-```bash
+```bash ignore="%[0-9]|[0-9]:"
 $ revng opt -strip-debug -S enforced.bc \
     | sed -n "/^define.*@local_0x400000_Code_x86_64/,/^}/p" \
     | pretty \
     | sed -n "1p; /and i64.*u0xffff$/,/helper_divb_AL.exit:/p"
 define i64 @local_0x400000_Code_x86_64(i64 %rdi_x86_64, i64 %rsi_x86_64) {
-  %27 = and i64 %26, u0xffff
-  %28 = trunc i64 %27 to i32
-  %29 = and i64 %25, 255
-  %30 = trunc i64 %29 to i32
-  %31 = icmp eq i32 %30, 0
-  br i1 %31, label %32, label %33
+  %280 = and i64 %279, u0xffff
+  %281 = trunc i64 %280 to i32
+  %282 = and i64 %rsi_x86_64, 255
+  %283 = trunc i64 %282 to i32
+  %284 = icmp eq i32 %283, 0
+  br i1 %284, label %285, label %286
 
-32:
+285:
   unreachable
 
-33:
-  %34 = udiv i32 %28, %30
-  %35 = icmp ugt i32 %34, 255
-  br i1 %35, label %36, label %37
+286:
+  %287 = udiv i32 %281, %283
+  %288 = icmp ugt i32 %287, 255
+  br i1 %288, label %289, label %290
 
-36:
+289:
   unreachable
 
-37:
-  %38 = and i32 %34, 255
-  %39 = urem i32 %28, %30
-  %40 = and i32 %39, 255
-  %41 = load i64, ptr %_rax, align 8
-  %42 = and i64 %41, u0xffffffffffff0000
-  %43 = shl i32 %40, 8
-  %44 = zext i32 %43 to i64
-  %45 = or i64 %42, %44
-  %46 = zext i32 %38 to i64
-  %47 = or i64 %45, %46
-  store i64 %47, ptr %_rax, align 8
+290:
+  %291 = and i32 %287, 255
+  %292 = urem i32 %281, %283
+  %293 = and i32 %292, 255
+  %294 = load i64, ptr %_rax, align 8
+  %295 = and i64 %294, u0xffffffffffff0000
+  %296 = shl i32 %293, 8
+  %297 = zext i32 %296 to i64
+  %298 = or i64 %295, %297
+  %299 = zext i32 %291 to i64
+  %300 = or i64 %298, %299
+  store i64 %300, ptr %_rax, align 8
   br label %helper_divb_AL.exit
 
 helper_divb_AL.exit:
@@ -548,34 +555,34 @@ helper_divb_AL.exit:
 The `call void @helper_divb_AL(...)` is gone, its body has been inlined.
 Since `remove-exceptional-functions` is part of the `enforce-abi` pipeline, the `raise_exception_ra` calls (which are `REVNG_EXCEPTIONAL`) have already been replaced with `unreachable`.
 
-Compare this with the C source: the `udiv`/`urem` implement the division, `%_rax` is the accumulator, and the two `unreachable` blocks (labels 12 and 16) are where `raise_exception_ra` used to be (division-by-zero and quotient-overflow checks).
+Compare this with the C source: the `udiv`/`urem` implement the division, `%_rax` is the accumulator, and the two `unreachable` blocks are where `raise_exception_ra` used to be (division-by-zero and quotient-overflow checks).
 
 Running `-simplifycfg` eliminates the `unreachable` blocks, turning the error conditions into `llvm.assume` intrinsics.
 These `llvm.assume` calls are later removed by the `remove-llvmassume-calls` pass (which runs as part of the `segregate-stack-accesses` step).
 Adding `-dce` cleans up the remaining dead instructions:
 
-```bash
+```bash ignore="%[0-9]|[0-9]:"
 $ revng opt -strip-debug -simplifycfg -remove-llvmassume-calls -dce -S enforced.bc \
     | sed -n "/^define.*@local_0x400000_Code_x86_64/,/^}/p" \
     | pretty \
     | sed -n "1p; /and i64.*u0xffff$/,/store i64.*%_rax/p"
 define i64 @local_0x400000_Code_x86_64(i64 %rdi_x86_64, i64 %rsi_x86_64) {
-  %27 = and i64 %26, u0xffff
-  %28 = trunc i64 %27 to i32
-  %29 = and i64 %25, 255
-  %30 = trunc i64 %29 to i32
-  %31 = udiv i32 %28, %30
-  %32 = and i32 %31, 255
-  %33 = urem i32 %28, %30
-  %34 = and i32 %33, 255
-  %35 = load i64, ptr %_rax, align 8
-  %36 = and i64 %35, u0xffffffffffff0000
-  %37 = shl i32 %34, 8
-  %38 = zext i32 %37 to i64
-  %39 = or i64 %36, %38
-  %40 = zext i32 %32 to i64
-  %41 = or i64 %39, %40
-  store i64 %41, ptr %_rax, align 8
+  %264 = and i64 %263, u0xffff
+  %265 = trunc i64 %264 to i32
+  %266 = and i64 %rsi_x86_64, 255
+  %267 = trunc i64 %266 to i32
+  %268 = udiv i32 %265, %267
+  %269 = and i32 %268, 255
+  %270 = urem i32 %265, %267
+  %271 = and i32 %270, 255
+  %272 = load i64, ptr %_rax, align 8
+  %273 = and i64 %272, u0xffffffffffff0000
+  %274 = shl i32 %271, 8
+  %275 = zext i32 %274 to i64
+  %276 = or i64 %273, %275
+  %277 = zext i32 %269 to i64
+  %278 = or i64 %276, %277
+  store i64 %278, ptr %_rax, align 8
 ```
 
 The exceptional calls and dead code are completely gone.

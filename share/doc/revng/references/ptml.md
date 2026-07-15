@@ -291,7 +291,7 @@ The following PTML attributes are used to provide navigation via location string
                                   /basic-block/0x1000/0x1008">
     jmp rax
   </span>
-  struct <span data-location-references="/types/0x1123412)">mtype</span> {
+  struct <span data-location-references="/types/0x1123412">mtype</span> {
     // ...
   }
   ```
@@ -328,7 +328,7 @@ The *supported actions* for various locations are the following:
 * `raw-byte-range`: doesn't support any actions as of now.
 * `basic-block`: doesn't support any actions as of now.
 * `instruction`: supports `comment` and `codeSwitch`.
-* `local-variable`: only supports `rename`.
+* `local-variable`: supports `rename`, and `editType`.
 * `reserved-local-variable`: doesn't support any actions as of now.
 * `goto-label`: only supports `rename`.
 * `artificial-struct`: doesn't support any actions as of now.
