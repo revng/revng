@@ -2,6 +2,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 
 #include "revng/Support/Debug.h"
@@ -68,6 +69,72 @@ void ValueMaterializer::computeOracleConstraints() {
   }
 }
 
+constexpr unsigned MaxBitmaskPopulationForEnumeration = 16;
+
+/// Check if \p V is an `and` with a bit mask and, if less than 16
+/// bits are set, enumerates all the possible values it can
+/// assume. This can lead up to 2^MaxBitmaskPopulationForEnumeration
+/// values.
+static std::optional<ConstantRangeSet> subMaskRange(llvm::Value *V) {
+  using namespace llvm;
+  using namespace llvm::PatternMatch;
+
+  const APInt *Mask = nullptr;
+  if (not match(V, m_And(m_Value(), m_APInt(Mask))))
+    return std::nullopt;
+
+  // A low-bits mask has no gaps in its sub-masks, so LazyValueInfo's single
+  // interval is already exact: nothing to refine.
+  if (Mask->isMask())
+    return std::nullopt;
+
+  // Bail out if enumerating the sub-masks would be too expensive; the coarser
+  // range is kept in that case.
+  unsigned BitWidth = Mask->getBitWidth();
+  if (BitWidth > 64
+      or Mask->countPopulation() > MaxBitmaskPopulationForEnumeration) {
+    return std::nullopt;
+  }
+
+  // Enumerate the sub-masks of Mask, from Mask itself down to zero, each as a
+  // singleton set. The step `SubMask = (SubMask - 1) & MaskValue` walks to the
+  // next-smaller sub-mask: the `- 1` borrows through the low zero bits, and the
+  // `& MaskValue` drops the bits that are not part of Mask. For Mask == 0x1c
+  // (0b11100) this visits, in order:
+  //   0b11100 (28), 0b11000 (24), 0b10100 (20), 0b10000 (16),
+  //   0b01100 (12), 0b01000  (8), 0b00100  (4), 0b00000  (0)
+  // i.e. the 2^3 = 8 sub-masks {0, 4, 8, 12, 16, 20, 24, 28}.
+  SmallVector<ConstantRangeSet> Sets;
+  uint64_t MaskValue = Mask->getZExtValue();
+  uint64_t SubMask = MaskValue;
+  while (true) {
+    Sets.push_back(ConstantRangeSet(ConstantRange(APInt(BitWidth, SubMask))));
+
+    if (SubMask == 0)
+      break;
+
+    SubMask = (SubMask - 1) & MaskValue;
+  }
+
+  // Union all the singletons into one set with a tournament: union adjacent
+  // pairs, then pairs of those, and so on. This keeps the cost at O(n log n)
+  // (log n rounds, each unioning n elements in total), whereas folding them one
+  // by one into a single accumulator would be O(n^2), since each union scans
+  // the whole set accumulated so far.
+  while (Sets.size() > 1) {
+    SmallVector<ConstantRangeSet> Merged;
+    for (size_t I = 0; I + 1 < Sets.size(); I += 2)
+      Merged.push_back(Sets[I] | Sets[I + 1]);
+
+    if (Sets.size() % 2 == 1)
+      Merged.push_back(Sets.back());
+
+    Sets = std::move(Merged);
+  }
+
+  return Sets.front();
+}
+
 void ValueMaterializer::applyOracleResultsToDataFlowGraph() {
   using namespace llvm;
   const DataLayout &DL = getModule(Context)->getDataLayout();
@@ -108,6 +175,15 @@ void ValueMaterializer::applyOracleResultsToDataFlowGraph() {
     } else {
       V->dump();
       revng_abort("Unexpected value type");
+    }
+
+    // Refine the range of `and X, Mask` nodes with the exact set of values they
+    // can produce (the sub-masks of Mask).
+    if (auto MaskRange = subMaskRange(V)) {
+      if (Node->OracleRange.has_value())
+        Node->OracleRange = Node->OracleRange->intersectWith(*MaskRange);
+      else
+        Node->OracleRange = std::move(MaskRange);
     }
   }
 }
