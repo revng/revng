@@ -4,7 +4,7 @@ This page describes the rev.ng Python scripting capabilities.
 
 ## Creating a project
 
-There two project classes to use rev.ng from Python: `CLIProject`, which spawns `revng` as a subprocess for each command, and `DaemonProject`, which interacts with `revng daemon` over the network using the GraphQL API.
+There are two project classes to use rev.ng from Python: `CLIProject`, which spawns `revng` as a subprocess for each command, and `DaemonProject`, which interacts with [`revng2 project daemon`](../references/cli/revng2-project-daemon.md) over the network using the GraphQL API.
 Apart from this difference, they offer the same programming interface.
 
 First, import the project of choice:
@@ -17,14 +17,14 @@ First, import the project of choice:
 ```
 
 You can provide a path to the resume directory (similar to `revng [command] --resume`).
-This useful if you want to persist changes for loading the project again in the future:
+This is useful if you want to persist changes so you can load the project again in the future:
 
 ```python
 >>> resume = "path/to/resume/dir"
 >>> project = CLIProject(resume)
 ```
 
-After that, you can to import a binary and run the [*initial auto analyses*](references/pipeline.md#analysis-lists), we have a method that does just that:
+After that, you can import a binary and run the [*initial auto analyses*](../references/pipeline.md#analysis-lists); we have a method that does just that:
 
 ```python
 >>> from revng.support import get_example_binary_path
@@ -77,7 +77,7 @@ LLVM modules can be parsed and explored via the `llvmcpy` python module:
 
 ## Interacting with the model
 
-In order to access [the model](../model/), use `project.model`:
+In order to access [the model](key-concepts/model.md), use `project.model`:
 
 ```{python ignoreoutput=1,2}
 >>> project.model            # Binary
@@ -104,7 +104,7 @@ If you want to run a set of predefined analyses, you can run them with:
 >>> project.model.analyze("initial-auto-analysis")
 ```
 
-If you want to run a specific [analysis](../analyses/) instead, you can do that too.
+If you want to run a specific [analysis](../references/analyses.md) instead, you can do that too.
 
 ```{python notest}
 >>> project.model.analyze("detect-stack-size")

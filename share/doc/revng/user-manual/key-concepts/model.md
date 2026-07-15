@@ -14,7 +14,7 @@ However, the user might be sometimes interested in providing extra information a
 The full structure of the model is documented in the [model reference page](../../references/model.md).
 
 The model must be a valid YAML document, but that's not enough.
-In order to be consumed by rev.ng, a model needs to be valid.
+In order to be consumed by rev.ng, a model also needs to be *valid* in a stricter sense: it must satisfy a number of internal consistency rules (for instance, every referenced type must actually exist).
 You can check if a model is valid as follows:
 
 ```{bash notest}
@@ -39,7 +39,7 @@ The model has a couple of different users:
   <br />For example, we provide out of the box importers for the most common binary formats (ELF, PE/COFF, MachO), debug info formats (DWARF and PDB) and other binary analysis tools such as IDA Pro's `.idb`s.
   <br />Users can easily implement new importers by simply manipulating the model (which is a plain YAML file) in their favorite scripting language.
   <br />In the future, we also plan to implement *exporters*, e.g., produce DWARF debug info that enable advanced debugging using information available in the model (e.g., arguments, data structures...) using off-the-shelf debuggers on the target binary.
-* **Pipes**: rev.ng provides a set of *pipelines*, composed by *pipes*, that produce *artifacts*. Most pipes, read the model for various reasons.
+* **Pipes**: rev.ng provides a set of [*pipelines*](../../references/pipeline.md), composed by *pipes*, that produce *artifacts*. Most pipes read the model for various reasons.
   For example, there's a pipeline responsible for generating a C header file declaring all the functions in the binary.
   In order to produce this artifact, the pipeline inspects the model and nothing else.
   Other pipelines might inspect the model, other previously generated artifacts and the input binary itself.

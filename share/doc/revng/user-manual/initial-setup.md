@@ -15,15 +15,15 @@ You can now use `revng` as follows:
 
 ```{bash notest}
 $ export PATH="$PATH:$PWD/revng"
-$ revng artifact
+$ revng2 project artifact --help
 ```
 
-Alternatively, you can set the environment so you don't need to do `./revng` bug just `revng`:
+Alternatively, you can set the environment so you don't need to run `./revng` but just `revng`:
 
 ```{bash notest}
 $ cd revng
 $ source ./environment
-$ revng artifact
+$ revng2 project artifact --help
 ```
 
 Note that this second option will pollute a bit your environment. If that's not desirable for you, use the solution above.
@@ -38,7 +38,7 @@ $ which revng
 /revng/revng
 ```
 
-The above command will work on macOS too, just sure you install [colima](https://github.com/abiosoft/colima).
+The above command will work on macOS too, just make sure you install [colima](https://github.com/abiosoft/colima).
 
 If you're running on Apple Silicon, remember to specify the platform:
 
@@ -89,7 +89,7 @@ Now you can enter the environment where you can use `revng`:
 
 ```{bash notest}
 $ orc shell
-$ revng artifact
+$ revng2 project artifact --help
 ```
 
 The rest of the documentation assumes you're in an `orc shell`.
