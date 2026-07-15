@@ -19,6 +19,15 @@ from revng.pypeline.runner_context import RunnerContext
 from revng.pypeline.task.pipe import Pipe
 from revng.pypeline.utils.registry import get_registry
 
+
+def read_configuration_file(ctx, param, value):
+    """click callback for the `-c`/`--configuration` option: the option takes
+    the path to a file, and its value is the content of that file."""
+    if not value:
+        return ""
+    return Path(value).read_text()
+
+
 # Options that are common to multiple commands
 project_id_option = click.option(
     "--project-id",

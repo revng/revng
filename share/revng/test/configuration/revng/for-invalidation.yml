@@ -30,13 +30,13 @@ commands:
         PRE_ARTIFACT_PATCH="${FILECHECK/.filecheck/.pre-patch.yml}"
         if [[ -e "$PRE_ARTIFACT_PATCH" ]]; then
             revng2 project analyze apply-diff \
-              -c "$(cat "$PRE_ARTIFACT_PATCH")" -o /dev/null
+              -c "$PRE_ARTIFACT_PATCH" -o /dev/null
         fi
 
         revng2 project artifact enforce-abi -o /dev/null
 
         revng2 project analyze apply-diff \
-          -c "$(cat "$FILECHECK")" -o /dev/null \
+          -c "$FILECHECK" -o /dev/null \
           --invalidations invalidations.yml
 
         FileCheck "$FILECHECK" < invalidations.yml

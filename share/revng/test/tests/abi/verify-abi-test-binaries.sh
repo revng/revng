@@ -45,8 +45,9 @@ revng2 pipeline run-analysis convert-functions-to-raw \
     -o "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml"
 
 # Convert RawFunctionDefinition back to CABIFunctionDefinition
+echo "ABI: ${ABI_NAME}" > "${OUTPUT_DIRECTORY}/convert-to-cabi-configuration.yml"
 revng2 pipeline run-analysis convert-functions-to-cabi \
-    --configuration "ABI: ${ABI_NAME}" \
+    --configuration "${OUTPUT_DIRECTORY}/convert-to-cabi-configuration.yml" \
     "${OUTPUT_DIRECTORY}/downgraded_reference_binary.yml" \
     -o "${OUTPUT_DIRECTORY}/upgraded_downgraded_reference_binary.yml"
 

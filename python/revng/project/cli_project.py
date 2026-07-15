@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import shutil
+from contextlib import ExitStack
 from pathlib import Path
 from subprocess import PIPE
 from tempfile import NamedTemporaryFile, TemporaryFile
@@ -66,23 +67,33 @@ class CLIProject(Project):
     ) -> int:
         args = ["analyze", analysis_name]
 
-        for name, value in configuration.items():
-            if name == analysis_name and analysis_name in self._analysis_names:
-                # Single-analysis specialization
-                args.extend(("-c", value))
-            else:
-                args.extend((f"--{self._normalize_argument(value)}-configuration", value))
+        # `-c` takes the path to a file with the configuration, so write it to a
+        # temporary file and pass its path. The files are kept open until the
+        # command has run.
+        with ExitStack() as config_scope:
+            for name, value in configuration.items():
+                if name == analysis_name and analysis_name in self._analysis_names:
+                    # Single-analysis specialization
+                    config_file = config_scope.enter_context(NamedTemporaryFile("w", suffix=".yml"))
+                    config_file.write(value)
+                    config_file.flush()
+                    args.extend(("-c", config_file.name))
+                else:
+                    args.extend((f"--{self._normalize_argument(value)}-configuration", value))
 
-        for container_name, obj_list in containers.items():
-            if len(obj_list) > 0:
-                args.extend(
-                    (f"--{self._normalize_argument(container_name)}-objects", ",".join(obj_list))
-                )
+            for container_name, obj_list in containers.items():
+                if len(obj_list) > 0:
+                    args.extend(
+                        (
+                            f"--{self._normalize_argument(container_name)}-objects",
+                            ",".join(obj_list),
+                        )
+                    )
 
-        with TemporaryFile("w+") as temp_file:
-            self._cli_helper.run(args, stdout=temp_file)
-            temp_file.seek(0)
-            model = Binary.deserialize(temp_file, self)
+            with TemporaryFile("w+") as temp_file:
+                self._cli_helper.run(args, stdout=temp_file)
+                temp_file.seek(0)
+                model = Binary.deserialize(temp_file, self)
 
         self._set_model(model)
         return self._epoch + 1

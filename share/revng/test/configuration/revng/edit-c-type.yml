@@ -77,10 +77,11 @@ commands:
       LOCATION_TO_EDIT=$$(grep -vE '^(#|$$)' "${INPUT}/type-to-edit.location");
       C_CODE=$$(sed 's;^;  ;' "${INPUT}/edit.c");
       CONFIGURATION="LocationToEdit: $${LOCATION_TO_EDIT}\nCCode: |\n$${C_CODE}";
+      echo -e "$$CONFIGURATION" > "${OUTPUT}/configuration.yml";
 
       EXIT_CODE=0;
       revng2 pipeline run-analysis edit-c-type
-        -c "$$(echo -e "$$CONFIGURATION")"
+        -c "${OUTPUT}/configuration.yml"
         "${INPUT}/input-model.yml"
         -o "${OUTPUT}/model.yml"
         2> "${OUTPUT}/error.txt" || EXIT_CODE=$$?;

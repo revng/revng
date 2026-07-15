@@ -10,7 +10,8 @@ import yaml
 
 from revng.pypeline.cli.backend import BackendFactory, BackendFeature, backend_factory_for
 from revng.pypeline.cli.common_options import add_pipeline_config_options, debug_option
-from revng.pypeline.cli.common_options import list_objects_option, project_id_option, token_option
+from revng.pypeline.cli.common_options import list_objects_option, project_id_option
+from revng.pypeline.cli.common_options import read_configuration_file, token_option
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.utils import build_arg_objects, build_help_text, compute_objects
 from revng.pypeline.cli.utils import list_objects_for_container, normalize_whitespace
@@ -175,13 +176,14 @@ class AnalyzeGroup(click.Group):
         config = getattr(
             analysis_binding.analysis,
             "configuration_help",
-            f'Configuration for the analysis "{analysis_name}".',
+            f'Path to a file with the configuration for the analysis "{analysis_name}".',
         )
         run_analysis_command = click.option(
             "-c",
             "--configuration",
-            type=str,
-            default="",
+            type=click.Path(exists=True, dir_okay=False, readable=True),
+            default=None,
+            callback=read_configuration_file,
             help=normalize_whitespace(config),
         )(run_analysis_command)
 

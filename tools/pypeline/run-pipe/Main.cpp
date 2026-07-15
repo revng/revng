@@ -28,11 +28,12 @@ static OptString Dependencies("dependencies",
                               cat(RunPipeCategory));
 
 static OptString StaticConfiguration("static-configuration",
-                                     desc("static configuration"),
+                                     desc("path to the static configuration "
+                                          "file"),
                                      cat(RunPipeCategory));
 
 static OptString Configuration("configuration",
-                               desc("dynamic configuration"),
+                               desc("path to the dynamic configuration file"),
                                cat(RunPipeCategory));
 
 static list<std::string> Objects("objects",
@@ -75,13 +76,16 @@ serializeDependencies(const revng::pypeline::ObjectDependencies &Dependencies,
 int main(int Argc, char *Argv[]) {
   using namespace revng::pypeline;
   using namespace revng::pypeline::helpers::native;
+  using cli::configurationFromPath;
 
   revng::InitRevng X(Argc, Argv, "", { &Options::RunPipeCategory });
 
   // Create the pipe instance
   revng_assert(Registry.Pipes.count(Options::Pipe));
-  std::unique_ptr<Pipe>
-    ThePipe = Registry.Pipes[Options::Pipe](Options::StaticConfiguration);
+  std::string
+    StaticConfiguration = configurationFromPath(Options::StaticConfiguration);
+  std::unique_ptr<Pipe> ThePipe = Registry
+                                    .Pipes[Options::Pipe](StaticConfiguration);
   auto Signature = ThePipe->signature();
 
   // Deserialize model
@@ -110,11 +114,12 @@ int main(int Argc, char *Argv[]) {
   TheModel.enableCaching();
 
   // Run the actual pipe
+  auto Configuration = configurationFromPath(Options::Configuration);
   PipeOutput Output = ThePipe->run(TheModel,
                                    ContainersPointers,
                                    Incoming,
                                    Outgoing,
-                                   Options::Configuration);
+                                   Configuration);
 
   AbortOnError(ContainerHandler.storeContainers());
 
