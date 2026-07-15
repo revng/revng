@@ -9,6 +9,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/PipeboxCommon/Common.h"
+#include "revng/Support/Error.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/YAMLTraits.h"
 
@@ -182,6 +183,9 @@ public:
     auto MaybeModel = TupleTree<model::Binary>::fromString(String);
     if (not MaybeModel)
       return MaybeModel.takeError();
+
+    if (not MaybeModel->verify())
+      return revng::createError("model failed to verify");
 
     Model Result;
     Result.TheModel = std::move(*MaybeModel);
