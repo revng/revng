@@ -11,6 +11,7 @@
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/Processing.h"
+#include "revng/Model/TypeDefinitionByName.h"
 #include "revng/PTML/CAttributes.h"
 #include "revng/PTML/CBuilder.h"
 #include "revng/Pipes/Ranks.h"
@@ -363,37 +364,9 @@ DeclVisitor::makePrimitive(const BuiltinType *UnderlyingBuiltin,
   return model::UpcastableType::empty();
 }
 
-static bool onlyContainsNumbers(llvm::StringRef Name) {
-  for (char Character : Name)
-    if (not std::isdigit(Character))
-      return false;
-  return true;
-}
-
 template<NonBaseDerived<model::TypeDefinition> T>
 model::UpcastableType DeclVisitor::makeTypeByNameOrID(llvm::StringRef Name) {
-  // Try to find by name first.
-  for (auto &Type : Model->TypeDefinitions())
-    if (llvm::isa<T>(Type.get()))
-      if (Type->Name() == Name)
-        return Model->makeType(Type->key());
-
-  // Getting here means we didn't manage to find it,
-  // let's try parsing the name.
-  size_t Tail = Name.rfind("_");
-
-  if (Tail != std::string::npos && onlyContainsNumbers(Name.substr(Tail + 1))) {
-    std::string ID = std::string(Name.substr(Tail + 1));
-    llvm::Expected<uint64_t> MaybeID = fromString<uint64_t>(ID);
-    if (MaybeID) {
-      return Model->makeType(model::TypeDefinition::Key{ *MaybeID,
-                                                         T::AssociatedKind });
-    } else {
-      Errors.emplace_back(consumeToString(MaybeID));
-    }
-  }
-
-  return model::UpcastableType::empty();
+  return model::getTypeDefinitionByNameOrID(*Model, Name, T::AssociatedKind);
 }
 
 model::UpcastableType
