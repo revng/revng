@@ -107,10 +107,14 @@ NB_MODULE(_pipebox, m) {
                         std::vector<std::string> ArgVector) {
     revng_assert(not nanobind::hasattr(m, "__init_revng__"));
 
+    // This map stores the SIG_DFL and SIG_IGN for later
+    std::map<int, sighandler_t> IgnoredOrDefaultSignals;
     // Save the signal pointers for later
     for (int SigNumber : Signals) {
       sighandler_t Handler = signal(SigNumber, SIG_DFL);
-      if (Handler != SIG_ERR && Handler != NULL)
+      if (Handler == SIG_DFL or Handler == SIG_IGN)
+        IgnoredOrDefaultSignals[SigNumber] = Handler;
+      else if (Handler != SIG_ERR)
         SavedSignals[SigNumber] = Handler;
     }
 
@@ -149,6 +153,8 @@ NB_MODULE(_pipebox, m) {
 
     for (int SigNumber : std::ranges::views::keys(SavedSignals))
       signal(SigNumber, &handleSignal);
+    for (auto &[SigNumber, Handler] : IgnoredOrDefaultSignals)
+      signal(SigNumber, Handler);
   };
   m.def("initialize", Initialize);
 
