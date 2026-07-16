@@ -9,12 +9,13 @@ from revng.pypeline.cli.backend import backend_factory_for
 from revng.pypeline.cli.backend.daemon_backend import DaemonBackendFactory
 from revng.pypeline.cli.context import ClickContext, pass_context
 from revng.pypeline.cli.hypercorn import hypercorn_command, run_hypercorn
-from revng.pypeline.cli.utils import PypeCommand
+from revng.pypeline.cli.wrappers import WrappablePypeCommand, exec_wrapper_if_needed
 from revng.pypeline.daemon.daemon import Daemon
 
 
-@click.command(cls=PypeCommand)
+@click.command(cls=WrappablePypeCommand)
 @hypercorn_command()
+@exec_wrapper_if_needed
 @pass_context
 def run_daemon(ctx: ClickContext, production: bool):
     """Start the HTTP daemon."""
