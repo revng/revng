@@ -433,7 +433,8 @@ static bool isPrefixAndRegister(llvm::StringRef Name, llvm::StringRef Prefix) {
   return false;
 }
 
-llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
+llvm::Error
+model::CNameBuilder::isNameStaticallyReserved(llvm::StringRef Name) const {
   revng_assert(!Name.empty());
 
   // Only alphanumeric characters and '_' are allowed
@@ -596,8 +597,8 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   return llvm::Error::success();
 }
 
-llvm::Error
-model::AssemblyNameBuilder::isNameReserved(llvm::StringRef Name) const {
+using AssemblyNB = model::AssemblyNameBuilder;
+llvm::Error AssemblyNB::isNameStaticallyReserved(llvm::StringRef Name) const {
   revng_assert(!Name.empty());
 
   // Only alphanumeric characters and '_' are allowed
