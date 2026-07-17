@@ -11,6 +11,7 @@
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/TypeBucket.h"
+#include "revng/Support/AlignmentHelpers.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 #include "ValueDistributor.h"

@@ -12,6 +12,7 @@
 #include "revng/ADT/STLExtras.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/DefinedType.h"
+#include "revng/Support/AlignmentHelpers.h"
 
 namespace abi::FunctionType {
 
@@ -40,29 +41,6 @@ inline void replaceTypeDefinition(const model::TypeDefinition::Key &O,
                                   const model::Type &N,
                                   TupleTree<model::Binary> &B) {
   return replaceTypeDefinition(O, llvm::cast<model::DefinedType>(N), B);
-}
-
-/// Takes care of extending (padding) the size of a stack argument.
-///
-/// \note This only accounts for the post-padding (extension).
-///       Pre-padding (offset) needs to be taken care of separately.
-///
-/// \param RealSize The size of the argument without the padding.
-/// \param RegisterSize The size of a register under the given architecture.
-///
-/// \return The size of the argument with the padding.
-inline constexpr uint64_t paddedSizeOnStack(uint64_t RealSize,
-                                            uint64_t RegisterSize) {
-  revng_assert(llvm::isPowerOf2_64(RegisterSize));
-  revng_assert(RealSize != 0, "0-sized stack entries are not supported.");
-
-  if (RealSize <= RegisterSize)
-    return RegisterSize;
-
-  RealSize += RegisterSize - 1;
-  RealSize &= ~(RegisterSize - 1);
-
-  return RealSize;
 }
 
 /// Filters a list of upcastable types.
