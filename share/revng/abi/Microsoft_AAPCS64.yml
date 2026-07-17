@@ -107,3 +107,11 @@ ScalarTypes:
     Size: 8 # IEEE Binary64
   - Kind: FloatingPoint
     Size: 16 # IEEE Binary128
+
+PrimitiveAliases:
+  - Name: size_t
+    Kind: Unsigned
+    Size: 8
+  - Name: ptrdiff_t
+    Kind: Signed
+    Size: 8
