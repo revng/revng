@@ -41,12 +41,15 @@ public:
     Configuration(Binary.Configuration().Naming()) {}
 
 public:
-  [[nodiscard]] llvm::Error isNameReserved(llvm::StringRef Name) const {
-    return static_cast<const Inheritor &>(*this).isNameReserved(Name);
+  template<typename Entity>
+  [[nodiscard]] llvm::Error
+  isNameReserved(const Entity &E, llvm::StringRef Name) const {
+    return static_cast<const Inheritor &>(*this).isNameReserved(E, Name);
   }
 
-  void assertNameIsReserved(llvm::StringRef Name) const {
-    if (llvm::Error Error = isNameReserved(Name)) {
+  template<typename Entity>
+  void assertNameIsReserved(const Entity &E, llvm::StringRef Name) const {
+    if (llvm::Error Error = isNameReserved(E, Name)) {
       // All good, we want an error here.
       llvm::consumeError(std::move(Error));
 
@@ -65,7 +68,7 @@ private:
     auto Result = std::string(Configuration.UnnamedSegmentPrefix())
                   + std::to_string(std::distance(Binary.Segments().begin(),
                                                  Iterator));
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Segment, Result);
     return Result;
   }
   [[nodiscard]] std::string
@@ -73,14 +76,14 @@ private:
     // TODO: use something nicer to look at than hash, maybe punycode.
     std::string Result = Configuration.UnnamedDynamicFunctionPrefix()
                          + revng::nameHash(Function.Name());
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Function, Result);
     return Result;
   }
   [[nodiscard]] std::string
   automaticName(const model::Function &Function) const {
     std::string Result = Configuration.UnnamedFunctionPrefix()
                          + Function.Entry().toIdentifier();
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Function, Result);
     return Result;
   }
   [[nodiscard]] std::string
@@ -88,7 +91,7 @@ private:
     auto K = model::TypeDefinitionKind::automaticNamePrefix(Definition.Kind());
     std::string Result = Configuration.UnnamedTypeDefinitionPrefix() + K.str()
                          + std::to_string(Definition.ID());
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Definition, Result);
     return Result;
   }
 
@@ -98,7 +101,7 @@ private:
     std::string Result = Configuration.UnnamedEnumEntryPrefix()
                          + name(Definition) + "_"
                          + std::to_string(Entry.Value());
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Entry, Result);
     return Result;
   }
   [[nodiscard]] std::string
@@ -106,7 +109,7 @@ private:
                 const model::StructField &Field) const {
     std::string Result = Configuration.UnnamedStructFieldPrefix()
                          + std::to_string(Field.Offset());
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Field, Result);
     return Result;
   }
   [[nodiscard]] std::string
@@ -114,7 +117,7 @@ private:
                 const model::UnionField &Field) const {
     std::string Result = Configuration.UnnamedUnionFieldPrefix()
                          + std::to_string(Field.Index());
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Field, Result);
     return Result;
   }
 
@@ -123,7 +126,7 @@ private:
                 const model::Argument &Argument) const {
     std::string Result = Configuration.UnnamedFunctionArgumentPrefix()
                          + std::to_string(Argument.Index());
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Argument, Result);
     return Result;
   }
   [[nodiscard]] std::string
@@ -131,14 +134,14 @@ private:
                 const model::NamedTypedRegister &Argument) const {
     std::string Result = Configuration.UnnamedFunctionRegisterPrefix()
                          + std::string(getRegisterName(Argument.Location()));
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Argument, Result);
     return Result;
   }
 
   [[nodiscard]] std::string
   automaticName(const model::StackFrame &StackFrame) const {
     std::string Result = Configuration.UnnamedStackFrameVariableName();
-    assertNameIsReserved(Result);
+    assertNameIsReserved(StackFrame, Result);
     return Result;
   }
 
@@ -203,7 +206,7 @@ public:
     if (E.Name().empty()) {
       return true;
 
-    } else if (llvm::Error Error = isNameReserved(E.Name())) {
+    } else if (llvm::Error Error = isNameReserved(E, E.Name())) {
       // We don't care what the specific error is - if there is one,
       // just fall back on the automatic name.
       llvm::consumeError(std::move(Error));
@@ -219,7 +222,7 @@ public:
   // into the name builder and get the name back.
   std::string name(const model::PrimitiveType &Primitive) const {
     std::string Result = Primitive.getCName();
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Primitive, Result);
     return Result;
   }
 
@@ -275,7 +278,7 @@ public:
                                              bool HasAddressAssociated) {
       uint64_t CurrentIndex = NextIndex++;
       std::string Result = Prefix.str() + std::to_string(CurrentIndex);
-      parent().assertNameIsReserved(Result);
+      parent().assertNameIsReserved(Result, Result);
       return { Result, CurrentIndex, HasAddressAssociated };
     }
 
@@ -317,7 +320,8 @@ public:
         return Result;
       }
 
-      if (llvm::Error Reason = parent().isNameReserved(Iterator->Name())) {
+      if (llvm::Error Reason = parent().isNameReserved(*Iterator,
+                                                       Iterator->Name())) {
         // Current name cannot be used as its reserved for something else.
         auto Result = automaticName(AutomaticPrefix, true);
         Result.Warning = "Name `" + Iterator->Name()
@@ -454,7 +458,7 @@ public:
     if (E.Name().empty())
       return std::nullopt;
 
-    if (auto Reason = isNameReserved(E.Name()))
+    if (auto Reason = isNameReserved(E, E.Name()))
       return warningImpl(automaticName(E), E.Name(), std::move(Reason));
 
     return std::nullopt;
@@ -465,7 +469,7 @@ public:
     if (E.Name().empty())
       return std::nullopt;
 
-    if (auto Reason = isNameReserved(E.Name()))
+    if (auto Reason = isNameReserved(E, E.Name()))
       return warningImpl(automaticName(Parent, E), E.Name(), std::move(Reason));
 
     return std::nullopt;
@@ -475,7 +479,7 @@ public:
   [[nodiscard]] std::string paddingFieldName(uint64_t Offset) const {
     std::string Result = Configuration.StructPaddingPrefix()
                          + std::to_string(Offset);
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Result, Result);
     return Result;
   }
 
@@ -483,13 +487,13 @@ public:
   [[nodiscard]] std::string
   artificialReturnValueWrapperName(const RFT &Function) const {
     auto Result = Configuration.ArtificialReturnValuePrefix() + name(Function);
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Result, Result);
     return Result;
   }
 
   [[nodiscard]] std::string opaqueTypeName(uint64_t ByteSize) const {
     auto Result = Configuration.OpaqueTypePrefix() + std::to_string(ByteSize);
-    assertNameIsReserved(Result);
+    assertNameIsReserved(Result, Result);
     return Result;
   }
 };
@@ -498,7 +502,15 @@ struct CNameBuilder : public NameBuilder<CNameBuilder> {
 public:
   using NameBuilder<CNameBuilder>::NameBuilder;
 
-  [[nodiscard]] llvm::Error isNameReserved(llvm::StringRef Name) const;
+  template<typename Entity>
+  [[nodiscard]] llvm::Error
+  isNameReserved(const Entity &E, llvm::StringRef Name) const {
+    return isNameStaticallyReserved(Name);
+  }
+
+private:
+  [[nodiscard]] llvm::Error
+  isNameStaticallyReserved(llvm::StringRef Name) const;
 };
 
 struct AssemblyNameBuilder : public NameBuilder<AssemblyNameBuilder> {
@@ -510,7 +522,15 @@ public:
     NameBuilder<AssemblyNameBuilder>(Binary),
     Architecture(Binary.Architecture()) {}
 
-  [[nodiscard]] llvm::Error isNameReserved(llvm::StringRef Name) const;
+  template<typename Entity>
+  [[nodiscard]] llvm::Error
+  isNameReserved(const Entity &, llvm::StringRef Name) const {
+    return isNameStaticallyReserved(Name);
+  }
+
+private:
+  [[nodiscard]] llvm::Error
+  isNameStaticallyReserved(llvm::StringRef Name) const;
 };
 
 } // namespace model
