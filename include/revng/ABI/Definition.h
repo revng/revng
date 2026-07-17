@@ -12,6 +12,7 @@
 #include "revng/Model/ABI.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/Register.h"
+#include "revng/Support/AlignmentHelpers.h"
 #include "revng/Support/CDataModel.h"
 #include "revng/Support/Debug.h"
 #include "revng/TupleTree/TupleTree.h"
@@ -245,7 +246,7 @@ public:
   ///
   /// \return The size of the argument with the padding.
   uint64_t paddedSizeOnStack(uint64_t Size) const {
-    return FunctionType::paddedSizeOnStack(Size, MinimumStackArgumentSize());
+    return ::paddedSizeOnStack(Size, MinimumStackArgumentSize());
   }
 };
 
