@@ -177,8 +177,36 @@ definitions:
           type: SortedVector
           elementType: ScalarType
 
+      - name: PrimitiveAliases
+        doc: |
+          The list of ABI-specific primitive aliases (e.g., `size_t`,
+          `intptr_t`).
+        sequence:
+          type: SortedVector
+          elementType: PrimitiveAlias
+
     key:
       - ABI
+
+  - name: PrimitiveAlias
+    type: struct
+    doc: |
+      Attaches a specific primitive type to an arbitrary name (e.g. `size_t`).
+    fields:
+      - name: Name
+        doc: The alias name (e.g. `size_t`).
+        type: string
+
+      - name: Kind
+        doc: The primitive kind of the aliased type.
+        type: model::PrimitiveKind::Values
+
+      - name: Size
+        doc: The size of the aliased type, in bytes.
+        type: uint64_t
+
+    key:
+      - Name
 
   - name: ScalarType
     type: struct
