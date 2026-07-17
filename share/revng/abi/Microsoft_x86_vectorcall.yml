@@ -65,3 +65,11 @@ ScalarTypes:
     Size: 4 # IEEE Binary32
   - Kind: FloatingPoint
     Size: 8 # IEEE Binary64
+
+PrimitiveAliases:
+  - Name: size_t
+    Kind: Unsigned
+    Size: 4
+  - Name: ptrdiff_t
+    Kind: Signed
+    Size: 4

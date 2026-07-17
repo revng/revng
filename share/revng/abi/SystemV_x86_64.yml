@@ -78,3 +78,11 @@ ScalarTypes:
     Size: 16 # x87 Extended
     CTypes:
       - LongDouble
+
+PrimitiveAliases:
+  - Name: size_t
+    Kind: Unsigned
+    Size: 8
+  - Name: ptrdiff_t
+    Kind: Signed
+    Size: 8

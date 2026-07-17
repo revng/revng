@@ -58,3 +58,11 @@ ScalarTypes:
     AlignedAt: 4
     CTypes:
       - LongDouble
+
+PrimitiveAliases:
+  - Name: size_t
+    Kind: Unsigned
+    Size: 4
+  - Name: ptrdiff_t
+    Kind: Signed
+    Size: 4
