@@ -21,6 +21,7 @@
 #include "revng/Model/PrimitiveType.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/StructDefinition.h"
+#include "revng/Model/TypedefDefinition.h"
 #include "revng/Model/UnionDefinition.h"
 #include "revng/Support/CommonOptions.h"
 #include "revng/Support/MetaAddress.h"
@@ -499,18 +500,31 @@ public:
 };
 
 struct CNameBuilder : public NameBuilder<CNameBuilder> {
+private:
+  const model::Binary &Binary;
+
 public:
-  using NameBuilder<CNameBuilder>::NameBuilder;
+  CNameBuilder(const model::Binary &Binary) :
+    NameBuilder<CNameBuilder>(Binary), Binary(Binary) {}
 
   template<typename Entity>
   [[nodiscard]] llvm::Error
   isNameReserved(const Entity &E, llvm::StringRef Name) const {
+    if constexpr (std::is_same_v<std::decay_t<Entity>, model::TypeDefinition>) {
+      if (auto *Typedef = llvm::dyn_cast<model::TypedefDefinition>(&E))
+        if (isKnownPrimitiveAlias(*Typedef, Name))
+          return llvm::Error::success();
+    }
+
     return isNameStaticallyReserved(Name);
   }
 
 private:
   [[nodiscard]] llvm::Error
   isNameStaticallyReserved(llvm::StringRef Name) const;
+
+  [[nodiscard]] bool isKnownPrimitiveAlias(const model::TypedefDefinition &Def,
+                                           llvm::StringRef Name) const;
 };
 
 struct AssemblyNameBuilder : public NameBuilder<AssemblyNameBuilder> {
