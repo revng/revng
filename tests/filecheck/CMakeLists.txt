@@ -293,6 +293,7 @@ set(FILECHECK_TESTS
     clift/name-import/header/function-cabi.mlir
     clift/name-import/header/function-raw.mlir
     clift/name-import/header/global.mlir
+    clift/name-import/header/known-primitive-aliases.mlir
     clift/name-import/header/struct.mlir
     clift/name-import/header/union.mlir
     clift/operations/break-to-targets-continue-label.mlir
