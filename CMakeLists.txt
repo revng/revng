@@ -35,9 +35,9 @@ add_definitions("-DINSTALL_PATH=\"${CMAKE_INSTALL_PREFIX}\"")
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS)
 
 # Basic compiler options
-# cmake-format: off
+# ~~~
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
-# cmake-format: on
+# ~~~
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++20")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wextra")
@@ -359,12 +359,12 @@ set(PYTHON_GENERATED_MODEL_PATH revng/model/_generated.py)
 #
 enable_testing()
 
-#
-# Find Python using the FindPython module. We request two components: *
-# Interpreter: needed for some variables, such as $Python_SITELIB * Development:
-# needed to compile nanobind module and friends, provides the
-# $Python_INCLUDE_DIRS and $Python_LIBRARIES variables
-#
+# ~~~
+# Find Python using the FindPython module. We request two components:
+# * Interpreter: needed for some variables, such as $Python_SITELIB
+# * Development: needed to compile nanobind module and friends, provides the
+#                $Python_INCLUDE_DIRS and $Python_LIBRARIES variables
+# ~~~
 find_package(
   Python3
   COMPONENTS Interpreter Development
