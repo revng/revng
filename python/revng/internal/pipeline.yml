@@ -386,6 +386,7 @@ branches:
             - arithmetic-to-gep
             - extractvalue-to-gep
             - split-exponential-dataflow
+            - dce
       - pipe: switch-to-statements
         arguments: [llvm-functions]
       - pipe: pure-llvm-passes-pipe
