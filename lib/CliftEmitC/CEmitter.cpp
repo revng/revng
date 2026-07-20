@@ -466,12 +466,11 @@ CEmitter::emitCAttributes(llvm::ArrayRef<CAttributeAttr> CAttributes,
       Tokens.emitSpace();
 
     emitCAttribute(Attribute);
-
-    if (NewlineAfter)
-      Tokens.emitNewline();
   }
 
-  if (SpaceAfter and not NewlineAfter)
+  if (NewlineAfter)
+    Tokens.emitNewline();
+  else if (SpaceAfter)
     Tokens.emitSpace();
 }
 
