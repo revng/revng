@@ -95,7 +95,6 @@ commands:
   # Also compare the members of the produced tar file and the input model,
   # both should contain the same members (except the extension).
   #
-  # TODO: remove this when the old pipeline is removed
   - type: revng.decompiled-c-tar
     from:
       - type: revng.lifted
