@@ -602,6 +602,55 @@ define i64 @backward_through_deep_inner_add_subtree(i64 %arg,
   ret i64 %result
 }
 
+; =============================================================================
+; =============================================================================
+; Tests that an add with a zero constant offset never produces a GEP with index
+; 0: the base pointer must be used directly instead.
+; =============================================================================
+; =============================================================================
+
+; Pointer argument, cast to integer, offset by a zero constant, returned as
+; integer. No GEP must be created; the base pointer flows to the return.
+;
+; CHECK-LABEL: define i64 @zero_constant_offset
+; CHECK-NOT: getelementptr
+define i64 @zero_constant_offset (ptr %arg) {
+  %intptr = ptrtoint ptr %arg to i64
+  %with_offset = add i64 %intptr, 0
+  ret i64 %with_offset
+}
+
+; Two chained adds: a zero-offset one followed by a non-zero-offset one. Only
+; the non-zero add becomes a GEP; the zero add must not introduce a GEP with
+; index 0.
+;
+; CHECK-LABEL: define ptr @zero_then_nonzero_offset
+; CHECK-NOT: getelementptr i8, ptr {{.*}}, i64 0
+; CHECK: getelementptr i8, ptr {{.*}}, i64 8
+; CHECK-NOT: getelementptr i8, ptr {{.*}}, i64 0
+define ptr @zero_then_nonzero_offset (ptr %arg) {
+  %intptr = ptrtoint ptr %arg to i64
+  %plus0 = add i64 %intptr, 0
+  %plus8 = add i64 %plus0, 8
+  %result = inttoptr i64 %plus8 to ptr
+  ret ptr %result
+}
+
+; Same chain in the opposite order: a non-zero-offset add followed by a
+; zero-offset one. Again only the non-zero add becomes a GEP.
+;
+; CHECK-LABEL: define ptr @nonzero_then_zero_offset
+; CHECK-NOT: getelementptr i8, ptr {{.*}}, i64 0
+; CHECK: getelementptr i8, ptr {{.*}}, i64 4
+; CHECK-NOT: getelementptr i8, ptr {{.*}}, i64 0
+define ptr @nonzero_then_zero_offset (ptr %arg) {
+  %intptr = ptrtoint ptr %arg to i64
+  %plus4 = add i64 %intptr, 4
+  %plus0 = add i64 %plus4, 0
+  %result = inttoptr i64 %plus0 to ptr
+  ret ptr %result
+}
+
 !0 = !{ i1 false }
 !1 = !{ i1 true }
 ; non-pointer return return type, non-pointer operand type

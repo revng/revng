@@ -403,6 +403,7 @@ set(FILECHECK_TESTS
     llvm-passes/enforce-single-exit.ll
     llvm-passes/example.ll
     llvm-passes/exit-ssa.ll
+    llvm-passes/extractvalue-to-gep.ll
     llvm-passes/generic-region-info.ll
     llvm-passes/inline-divergent-scopes-and-materialize-trivial-goto.ll
     llvm-passes/inline-divergent-scopes.ll
