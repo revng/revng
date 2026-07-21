@@ -83,10 +83,17 @@ makeCommentAttr(mlir::MLIRContext *Context, llvm::StringRef Handle) {
 template<typename T>
 MutableStringAttr makeCommentAttr(mlir::MLIRContext *Context,
                                   llvm::StringRef Handle,
-                                  llvm::StringRef Name) {
+                                  llvm::StringRef Comment) {
   auto Attr = makeCommentAttr<T>(Context, Handle);
-  revng_assert(Attr.getValue().empty());
-  Attr.setValue(Name);
+  if (not Attr.getValue().empty() and Attr.getValue() != Comment) {
+    std::string Error = "Comment attribute already has a value that differs "
+                        "from the new one: '"
+                        + Attr.getValue().str() + "' vs '" + Comment.str()
+                        + "'";
+    revng_abort(Error.c_str());
+  }
+
+  Attr.setValue(Comment);
   return Attr;
 }
 
