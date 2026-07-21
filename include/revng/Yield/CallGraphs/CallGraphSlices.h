@@ -4,7 +4,7 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Pipeline/Location.h"
+#include "revng/Ranks/Location.h"
 #include "revng/Yield/CallGraphs/Graph.h"
 
 namespace yield::calls {

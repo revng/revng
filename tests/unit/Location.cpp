@@ -7,8 +7,8 @@ bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
 #include "revng/Model/Binary.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 #include "revng/Support/BasicBlockID.h"
 
 BOOST_AUTO_TEST_SUITE(RevngLocationInfrastructure);

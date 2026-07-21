@@ -17,8 +17,8 @@
 #include "revng/CliftEmitC/TypeDependencyGraph.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/PTML/CTokenEmitter.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 
 class OpaqueTypeSizeCollector
   : public clift::ModuleVisitor<OpaqueTypeSizeCollector> {

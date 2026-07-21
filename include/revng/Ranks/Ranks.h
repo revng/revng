@@ -5,7 +5,7 @@
 //
 
 #include "revng/Model/Binary.h"
-#include "revng/Pipeline/Rank.h"
+#include "revng/Ranks/Rank.h"
 #include "revng/Support/BasicBlockID/YAMLTraits.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/YAMLTraits.h"

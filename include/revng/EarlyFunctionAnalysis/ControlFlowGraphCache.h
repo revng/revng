@@ -14,6 +14,7 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Pipes/IRHelpers.h"
 #include "revng/Pipes/Kinds.h"
+#include "revng/Ranks/IRHelpers.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/MetaAddress.h"

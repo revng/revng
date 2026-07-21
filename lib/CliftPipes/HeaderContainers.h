@@ -7,9 +7,9 @@
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipeline/RegisterContainerFactory.h"
 #include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/Ranks.h"
 #include "revng/Pipes/StringBufferContainer.h"
 #include "revng/Pipes/StringMap.h"
+#include "revng/Ranks/Ranks.h"
 
 namespace revng::kinds {
 

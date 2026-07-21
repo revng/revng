@@ -6,10 +6,10 @@
 
 #include "revng/Pipeline/Kind.h"
 #include "revng/Pipes/FunctionKind.h"
-#include "revng/Pipes/Ranks.h"
 #include "revng/Pipes/RootKind.h"
 #include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Pipes/TypeKind.h"
+#include "revng/Ranks/Ranks.h"
 
 namespace revng::kinds {
 

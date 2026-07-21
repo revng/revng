@@ -15,7 +15,7 @@
 #include "revng/Model/TypeDefinitionByName.h"
 #include "revng/PTML/CAttributes.h"
 #include "revng/PTML/CBuilder.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Ranks.h"
 #include "revng/Support/Debug.h"
 
 #include "EditCType.h"

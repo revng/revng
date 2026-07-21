@@ -9,8 +9,8 @@
 #include "llvm/ADT/StringRef.h"
 
 #include "revng/Model/TypeDefinition.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 #include "revng/Support/MetaAddress.h"
 
 struct Kinds;

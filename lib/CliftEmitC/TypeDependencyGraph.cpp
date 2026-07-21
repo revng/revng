@@ -15,8 +15,8 @@
 #include "revng/Clift/ModuleVisitor.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftEmitC/TypeDependencyGraph.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 

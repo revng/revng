@@ -8,8 +8,8 @@
 
 #include "revng/ADT/SortedVector.h"
 #include "revng/Clift/Clift.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 #include "revng/Support/MetaAddress.h"
 
 namespace clift {

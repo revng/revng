@@ -26,9 +26,9 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/LocalVariable.h"
 #include "revng/Model/NameBuilder.h"
-#include "revng/Pipeline/Location.h"
-#include "revng/Pipes/DebugInfoHelpers.h"
-#include "revng/Pipes/Ranks.h"
+#include "revng/Ranks/IRHelpers.h"
+#include "revng/Ranks/Location.h"
+#include "revng/Ranks/Ranks.h"
 #include "revng/RestructureCFG/ScopeGraphGraphTraits.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRHelpers.h"
@@ -102,7 +102,7 @@ static SortedVector<MetaAddress> getUserAddressSet(const llvm::Instruction *I) {
     if (UserInstruction == nullptr)
       return {};
 
-    auto Address = revng::tryExtractAddress(*UserInstruction);
+    auto Address = tryExtractAddress(*UserInstruction);
     if (not Address.has_value())
       return {};
 
