@@ -30,10 +30,11 @@ struct CliftStatementTraits {
   using StatementType = mlir::Operation *;
 
   static auto getStatements(mlir::Block *Block) {
-    using Iterator = mlir::Block::OpListType::iterator;
-    using IteratorRange = llvm::iterator_range<Iterator>;
-    return llvm::map_range(IteratorRange(Block->getOperations()),
-                           [](mlir::Operation &Op) { return &Op; });
+    llvm::SmallVector<mlir::Operation *> Statements;
+    Block->walk([&Statements](clift::StatementOpInterface Op) {
+      Statements.push_back(Op);
+    });
+    return Statements;
   }
 
   static auto getAddresses(mlir::Operation *Op) {
@@ -231,8 +232,14 @@ public:
     if (auto S = mlir::dyn_cast<clift::MakeLabelOp>(Op))
       return visitMakeLabelOp(S);
 
-    if (auto S = mlir::dyn_cast<clift::LocalVariableOp>(Op))
-      return visitLocalVariableOp(S);
+    if (auto S = mlir::dyn_cast<clift::LocalVariableOp>(Op)) {
+      if (visitLocalVariableOp(S).failed())
+        return mlir::failure();
+
+      // A declaration is a statement too, and the C backend emits comments
+      // before it, so let it collect the ones placed on it.
+      return visitStatementOp(S);
+    }
 
     if (auto S = mlir::dyn_cast<clift::StatementOpInterface>(Op))
       return visitStatementOp(S);
