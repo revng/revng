@@ -32,22 +32,22 @@
 // CHECK: /// return values!
 // CHECK: ///
 // CHECK: /// \param register_rax Let's be brief here,
-// CHECK: ///                     to make space for that ugly return value comment!
+// CHECK: /// to make space for that ugly return value comment!
 // CHECK: ///
 // CHECK: /// \returns Even though this function only returns one register, who's to say that
-// CHECK: ///          register is not interesting enough to write a really long essay about it?!
+// CHECK: /// register is not interesting enough to write a really long essay about it?!
 // CHECK: ///
-// CHECK: ///          With multiple line breaks,
+// CHECK: /// With multiple line breaks,
 // CHECK: ///
-// CHECK: ///          and non-trivial formatting too!
-// CHECK: ///          ```cpp
-// CHECK: ///            // Meta comment: comment within a comment
-// CHECK: ///            // ```cpp
-// CHECK: ///            //   // Could be within another comment too!!!
-// CHECK: ///            // ```
-// CHECK: ///          ```
+// CHECK: /// and non-trivial formatting too!
+// CHECK: /// ```cpp
+// CHECK: ///   // Meta comment: comment within a comment
+// CHECK: ///   // ```cpp
+// CHECK: ///   //   // Could be within another comment too!!!
+// CHECK: ///   // ```
+// CHECK: /// ```
 // CHECK: ///
-// CHECK: ///          Let's see how well this will be handled!!
+// CHECK: /// Let's see how well this will be handled!!
 // CHECK: _ABI(raw_x86_64)
 // CHECK: uint64_t my_commented_function(uint64_t register_rax _REG(rax_x86_64), my_struct stack_arguments _STACK);
 

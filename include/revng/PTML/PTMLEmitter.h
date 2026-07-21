@@ -7,7 +7,6 @@
 #include "llvm/ADT/ArrayRef.h"
 
 #include "revng/PTML/Emitter.h"
-#include "revng/PTML/IndentingEmitter.h"
 
 namespace ptml {
 
@@ -16,44 +15,7 @@ enum class Tagging : bool {
   Enabled,
 };
 
-class PTMLTagEmitter;
-
-namespace detail {
-
-class PTMLEmitterBase : public StreamEmitter {
-  friend PTMLTagEmitter;
-
-protected:
-  bool EmitTags = false;
-  const PTMLTagEmitter *CurrentOpenTagEmitter = nullptr;
-
-public:
-  explicit PTMLEmitterBase(llvm::raw_ostream &OS, Tagging Tags) :
-    StreamEmitter(OS), EmitTags(Tags == Tagging::Enabled) {}
-};
-
-} // namespace detail
-
-/// Provides a streaming interface for emitting PTML tags and content.
-///
-/// PTML tag emission is performed using a PTMLTagEmitter, which is an RAII type
-/// guaranteeing emission of well-formed PTML tags. Tag content is emitted using
-// the Emitter interface. See the documentation of Emitter for more information.
-///
-/// PTML tag emission can be toggled using the ptml::Tagging parameter. Note
-/// that valid usage of the PTML tag emission interface is checked regardless
-/// of whether PTML tag emission is enabled.
-template<typename EmitterT>
-concept PTMLEmitter = //
-  Emitter<EmitterT> and requires(EmitterT &Emitter, llvm::StringRef String) {
-    // auto makeTagInitializer(llvm::String String);
-    {
-      Emitter.makeTagInitializer(String)
-    } -> std::convertible_to<PTMLTagEmitter>;
-
-    // PTMLTagEmitter initializeOpenTag(llvm::StringRef String);
-    { Emitter.initializeOpenTag(String) } -> std::same_as<PTMLTagEmitter>;
-  };
+class PTMLStreamEmitter;
 
 /// RAII type used for emitting PTML tags.
 ///
@@ -76,12 +38,12 @@ concept PTMLEmitter = //
 /// At any given time, a PTMLEmitter may be associated with multiple tag
 /// emitters but only the innermost can have an unfinalized open tag.
 class PTMLTagEmitter {
-  detail::PTMLEmitterBase &ParentEmitter;
+  PTMLStreamEmitter &ParentEmitter;
   llvm::StringRef Tag;
   bool IsEmittingOpenTag = true;
 
 public:
-  explicit PTMLTagEmitter(detail::PTMLEmitterBase &ParentEmitter,
+  explicit PTMLTagEmitter(PTMLStreamEmitter &ParentEmitter,
                           llvm::StringRef Tag);
 
   PTMLTagEmitter(const PTMLTagEmitter &) = delete;
@@ -101,8 +63,31 @@ private:
   void emitAttributeValue(llvm::StringRef Value);
 };
 
+/// Provides a streaming interface for emitting PTML tags and content.
+///
+/// PTML tag emission is performed using a PTMLTagEmitter, which is an RAII type
+/// guaranteeing emission of well-formed PTML tags. Tag content is emitted using
+/// the Emitter interface. See the documentation of Emitter for more
+/// information.
+///
+/// PTML tag emission can be toggled using the ptml::Tagging parameter. Note
+/// that valid usage of the PTML tag emission interface is checked regardless
+/// of whether PTML tag emission is enabled.
+template<typename EmitterT>
+concept PTMLEmitter = //
+  Emitter<EmitterT> and requires(EmitterT &Emitter, llvm::StringRef String) {
+    {
+      Emitter.makeTagInitializer(String)
+    } -> std::convertible_to<PTMLTagEmitter>;
+
+    { Emitter.initializeOpenTag(String) } -> std::same_as<PTMLTagEmitter>;
+  };
+
 /// Concrete PTMLEmitter using an underlying llvm::raw_ostream.
-class PTMLStreamEmitter : IndentingEmitter<detail::PTMLEmitterBase> {
+class PTMLStreamEmitter : StreamEmitter {
+  friend PTMLTagEmitter;
+
+  /// Lets a PTMLTagEmitter be constructed in place, so it need not be movable.
   class TagInitializer {
     PTMLStreamEmitter &Emitter;
     llvm::StringRef Tag;
@@ -112,20 +97,19 @@ class PTMLStreamEmitter : IndentingEmitter<detail::PTMLEmitterBase> {
       Emitter(Emitter), Tag(Tag) {}
 
     [[nodiscard]] operator PTMLTagEmitter() const {
-      Emitter.emitIndentationIfNeeded();
       return PTMLTagEmitter(Emitter, Tag);
     }
   };
 
+  bool EmitTags = false;
+  const PTMLTagEmitter *CurrentOpenTagEmitter = nullptr;
+
 public:
   explicit PTMLStreamEmitter(llvm::raw_ostream &OS, Tagging Tags) :
-    IndentingEmitter(OS, Tags) {}
+    StreamEmitter(OS), EmitTags(Tags == Tagging::Enabled) {}
 
   PTMLStreamEmitter(const PTMLStreamEmitter &) = delete;
   PTMLStreamEmitter &operator=(const PTMLStreamEmitter &) = delete;
-
-  using IndentingEmitter::indent;
-  using IndentingEmitter::indentation;
 
   /// Returns an initializer object which can be used for delayed initialization
   /// of a PTMLTagEmitter.

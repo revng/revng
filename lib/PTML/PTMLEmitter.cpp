@@ -4,6 +4,7 @@
 
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/PTMLEmitter.h"
+#include "revng/Support/Assert.h"
 
 using namespace ptml;
 
@@ -18,8 +19,7 @@ namespace {
 // situations are either not encountered in practice or introduce asymmetries.
 // For this reason they are escaped unconditionally.
 
-template<bool EscapeQuotes>
-static bool requiresEscaping(char Character) {
+static bool requiresEscaping(char Character, bool EscapeQuotes) {
   switch (Character) {
   case '<':
   case '>':
@@ -47,15 +47,14 @@ static llvm::StringRef getEscape(char Character) {
   }
 }
 
-template<Emitter EmitterT, bool EscapeQuotes>
 static void
-emitEscaped(std::type_identity_t<EmitterT> &Emitter, llvm::StringRef String) {
+emitEscaped(StreamEmitter &Emitter, llvm::StringRef String, bool EscapeQuotes) {
   auto Begin = String.data();
   auto End = Begin + String.size();
 
   while (Begin != End) {
-    auto Pos = std::find_if(Begin, End, [](char Character) {
-      return requiresEscaping<EscapeQuotes>(Character);
+    auto Pos = std::find_if(Begin, End, [EscapeQuotes](char Character) {
+      return requiresEscaping(Character, EscapeQuotes);
     });
 
     Emitter.emit(llvm::StringRef(std::string_view(Begin, Pos)));
@@ -71,9 +70,8 @@ emitEscaped(std::type_identity_t<EmitterT> &Emitter, llvm::StringRef String) {
 
 //===--------------------------- PTMLTagEmitter ---------------------------===//
 
-PTMLTagEmitter::PTMLTagEmitter(detail::PTMLEmitterBase &ParentEmitter,
-                               llvm::StringRef Tag) :
-  ParentEmitter(ParentEmitter), Tag(Tag) {
+PTMLTagEmitter::PTMLTagEmitter(PTMLStreamEmitter &Parent, llvm::StringRef Tag) :
+  ParentEmitter(Parent), Tag(Tag) {
   revng_assert(ParentEmitter.CurrentOpenTagEmitter == nullptr,
                "The parent emitter is already associated with an unfinalized "
                "open tag.");
@@ -102,7 +100,7 @@ void PTMLTagEmitter::finalizeOpenTag() {
 }
 
 void PTMLTagEmitter::emitAttributeValue(llvm::StringRef Value) {
-  emitEscaped<StreamEmitter, /*EscapeQuotes=*/true>(ParentEmitter, Value);
+  emitEscaped(ParentEmitter, Value, /*EscapeQuotes=*/true);
 }
 
 PTMLTagEmitter &PTMLTagEmitter::emitAttribute(llvm::StringRef Name,
@@ -136,7 +134,6 @@ PTMLTagEmitter::emitListAttribute(llvm::StringRef Name,
   if (ParentEmitter.EmitTags) {
     ParentEmitter.OS << ' ' << Name << '=' << '"';
 
-    bool InsertComma = false;
     for (auto [I, Value] : llvm::enumerate(Values)) {
       revng_assert(not Value.contains(','),
                    "List attribute values shall not contain commas.");
@@ -161,7 +158,7 @@ void PTMLStreamEmitter::emit(llvm::StringRef Content) {
                "associated with this emitter.");
 
   if (EmitTags)
-    emitEscaped<IndentingEmitter, /*EscapeQuotes=*/false>(*this, Content);
+    emitEscaped(*this, Content, /*EscapeQuotes=*/false);
   else
-    IndentingEmitter::emit(Content);
+    StreamEmitter::emit(Content);
 }

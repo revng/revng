@@ -313,13 +313,11 @@ public:
     std::optional<PTMLTagEmitter> Tag;
 
     CTokenEmitter::Delimiter Delimiter;
-    int Indent;
 
   public:
     explicit Scope(CTokenEmitter &Emitter,
                    ScopeKind Kind,
-                   CTokenEmitter::Delimiter Delimiter,
-                   int Indent);
+                   CTokenEmitter::Delimiter Delimiter);
 
     Scope(const Scope &) = delete;
     Scope &operator=(const Scope &) = delete;
@@ -327,9 +325,8 @@ public:
     ~Scope();
   };
 
-  [[nodiscard]] Scope
-  enterScope(ScopeKind Kind, Delimiter Delimiter, int Indent = 1) {
-    return Scope(*this, Kind, Delimiter, Indent);
+  [[nodiscard]] Scope enterScope(ScopeKind Kind, Delimiter Delimiter) {
+    return Scope(*this, Kind, Delimiter);
   }
 
   enum class RegionKind : uint8_t {

@@ -6,7 +6,7 @@
 
 #include "revng/ADT/LineRange.h"
 #include "revng/PTML/Constants.h"
-#include "revng/PTML/IndentingEmitter.h"
+#include "revng/PTML/PTMLEmitter.h"
 
 namespace ptml {
 
@@ -21,10 +21,7 @@ struct DoxygenCommentConfiguration {
 /// creation only C comments are emitted (using CDoxygenEmitter via
 /// CTokenEmitter::CommentEmitter), future use for assembly comments is planned.
 template<PTMLEmitter EmitterT>
-class DoxygenEmitter : IndentingEmitter<EmitterT> {
-private:
-  using BaseEmitter = IndentingEmitter<EmitterT>;
-
+class DoxygenEmitter : protected EmitterT {
 private:
   DoxygenCommentConfiguration Configuration;
   bool IsAtBeginningOfLine = true;
@@ -34,8 +31,7 @@ public:
     requires std::constructible_from<EmitterT, ArgsT...>
   explicit DoxygenEmitter(const DoxygenCommentConfiguration &Configuration,
                           ArgsT &&...Args) :
-    BaseEmitter(IndentString(" "), std::forward<ArgsT>(Args)...),
-    Configuration(Configuration) {
+    EmitterT(std::forward<ArgsT>(Args)...), Configuration(Configuration) {
 
     if (Configuration.CommentHeader) {
       EmitterT::emit(*Configuration.CommentHeader);
@@ -69,7 +65,7 @@ public:
     // Hence the TODO.
     DoxygenEmitter::emit(llvm::StringRef(&Configuration.KeywordSignifier, 1));
 
-    auto Tag = BaseEmitter::initializeOpenTag(ptml::tags::Span);
+    auto Tag = EmitterT::initializeOpenTag(ptml::tags::Span);
     Tag.emitAttribute(ptml::attributes::Token, ptml::doxygen::tokens::Keyword);
     Tag.finalizeOpenTag();
 
@@ -95,14 +91,12 @@ public:
         if (std::exchange(EmitLinePrefix, true))
           emitLinePrefix(Line == "\n");
 
-        BaseEmitter::emit(Line);
+        EmitterT::emit(Line);
       }
 
       IsAtBeginningOfLine = Content.back() == '\n';
     }
   }
-
-  using BaseEmitter::indent;
 
 private:
   void emitLinePrefix(bool IsEmptyLine) {

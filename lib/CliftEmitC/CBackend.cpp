@@ -873,10 +873,6 @@ public:
   }
 
   void emitLabelStatementImpl(MakeLabelOp Label, bool RequiresEmptyExpression) {
-    auto Scope = Tokens.enterScope(CTE::ScopeKind::None,
-                                   CTE::Delimiter::None,
-                                   /*Indent=*/-1);
-
     Tokens.emitIdentifier(Label.getName(),
                           Label.getHandle(),
                           CTE::EntityKind::Label,
@@ -1086,8 +1082,7 @@ public:
     // Scope tags are applied within this scope:
     {
       auto Scope = Tokens.enterScope(CTE::ScopeKind::BlockStatement,
-                                     CTE::Delimiter::Braces,
-                                     /*Indented=*/false);
+                                     CTE::Delimiter::Braces);
 
       Tokens.emitNewline();
 
@@ -1332,8 +1327,7 @@ public:
     // Scope tags are applied within this scope:
     {
       auto OuterScope = Tokens.enterScope(CTE::ScopeKind::FunctionDeclaration,
-                                          CTE::Delimiter::None,
-                                          /*Indented=*/false);
+                                          CTE::Delimiter::None);
 
       emitFunctionPrototype(Op);
 

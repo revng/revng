@@ -729,9 +729,8 @@ void ptml::CTokenEmitter::emitPragmaOnceDirective() {
 
 CTokenEmitter::Scope::Scope(CTokenEmitter &Emitter,
                             ScopeKind Kind,
-                            CTokenEmitter::Delimiter Delimiter,
-                            int Indent) :
-  Emitter(Emitter), Delimiter(Delimiter), Indent(Indent) {
+                            CTokenEmitter::Delimiter Delimiter) :
+  Emitter(Emitter), Delimiter(Delimiter) {
   revng_assert(not Emitter.IsEmittingComment,
                "Cannot emit tokens while an open CommentEmitter exists.");
 
@@ -743,13 +742,9 @@ CTokenEmitter::Scope::Scope(CTokenEmitter &Emitter,
     Tag->emitAttribute(ptml::attributes::Scope, *Attribute);
     Tag->finalizeOpenTag();
   }
-
-  Emitter.PTML.indent(Indent);
 }
 
 CTokenEmitter::Scope::~Scope() {
-  Emitter.PTML.indent(-Indent);
-
   Tag.reset();
 
   if (auto Symbols = getDelimiterPunctuators(Delimiter))
