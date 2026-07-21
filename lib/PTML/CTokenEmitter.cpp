@@ -11,7 +11,9 @@
 #include "revng/ADT/LineRange.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/PTML/Constants.h"
+#include "revng/PTMLCFormat/Format.h"
 #include "revng/Support/Assert.h"
+#include "revng/Support/CommandLine.h"
 #include "revng/Support/Identifier.h"
 
 // TODO: Ideally the CTokenEmitter would not have this dependency. To remove it
@@ -315,6 +317,44 @@ static StringEscape getStringEscape(char Character, char NextCharacter) {
 } // namespace
 
 //===---------------------------- CTokenEmitter ---------------------------===//
+
+CTokenEmitter::CTokenEmitter(Tagging Tags) :
+  Tags(Tags),
+  BufferStream(Buffer),
+  PTML(BufferStream, getEmissionMode(Tags)),
+  MainTag(PTML.makeTagInitializer(ptml::tags::Div)) {
+  MainTag.finalizeOpenTag();
+}
+
+static llvm::cl::opt<bool> DisableCReformatting("disable-c-reformatting",
+                                                llvm::cl::desc("Do not "
+                                                               "reformat the "
+                                                               "emitted C with "
+                                                               "clang-format"),
+                                                llvm::cl::cat(MainCategory),
+                                                llvm::cl::init(false));
+
+std::string CTokenEmitter::extract() {
+  revng_assert(not MainTag.isClosed(), "extract() has already been called.");
+
+  // Close the wrapping `<div>` so the buffer holds the complete document.
+  MainTag.closeTag();
+
+  BufferStream.flush();
+
+  // When reformatting is disabled, return the document as emitted, with
+  // clang-format neither run on it nor mapped back onto the tags.
+  if (DisableCReformatting)
+    return Buffer;
+
+  if (Tags == Tagging::Enabled) {
+    // The document is PTML: reformat it using the metadata built while
+    // emitting, so its tags are preserved without re-lexing it.
+    return PTML.metadata().reformat(Buffer);
+  }
+
+  return ptml::reformatC(Buffer);
+}
 
 void CTokenEmitter::emitKeyword(Keyword K) {
   revng_assert(not IsEmittingComment,

@@ -44,12 +44,11 @@ void EmitTypeAndGlobalHeader::run() {
   };
 
   std::unique_ptr<llvm::raw_ostream> Out = Output.getOStream(ObjectID());
-  ptml::CTokenEmitter Tokens(*Out,
-                             Configuration.DisableMarkup ?
+  ptml::CTokenEmitter Tokens(Configuration.DisableMarkup ?
                                ptml::Tagging::Disabled :
                                ptml::Tagging::Enabled);
   emitTypeAndGlobalHeader(Tokens, Input.getModule(), EmitterConfiguration);
-  Out->flush();
+  *Out << Tokens.extract();
 }
 
 void EmitHelperHeader::run() {
@@ -59,12 +58,11 @@ void EmitHelperHeader::run() {
   for (const auto &Object : Input.objects())
     FunctionModules.emplace_back(Input.getModule(Object));
 
-  ptml::CTokenEmitter Tokens(*Out,
-                             Configuration.DisableMarkup ?
+  ptml::CTokenEmitter Tokens(Configuration.DisableMarkup ?
                                ptml::Tagging::Disabled :
                                ptml::Tagging::Enabled);
   emitHelperHeader(Tokens, FunctionModules, Binary);
-  Out->flush();
+  *Out << Tokens.extract();
 }
 
 using ESTD = EmitSingleTypeDefinition;
@@ -94,8 +92,7 @@ void ESTD::runOnTypeDefinition(const model::UpcastableTypeDefinition &Type) {
   };
 
   auto Out = Output.getOStream(ObjectID(Type->key()));
-  ptml::CTokenEmitter Tokens(*Out,
-                             Configuration.DisableMarkup ?
+  ptml::CTokenEmitter Tokens(Configuration.DisableMarkup ?
                                ptml::Tagging::Disabled :
                                ptml::Tagging::Enabled);
 
@@ -105,7 +102,7 @@ void ESTD::runOnTypeDefinition(const model::UpcastableTypeDefinition &Type) {
   revng_check(CliftType != nullptr);
 
   emitSingleTypeDefinition(Tokens, DataModel, CliftType, EmitterConfiguration);
-  Out->flush();
+  *Out << Tokens.extract();
 }
 
 } // namespace revng::pypeline::piperuns

@@ -15,8 +15,8 @@ module attributes { clift.module } {
   clift.func @fun_0x40001004<!f>() attributes {
     handle = "/function/0x40001004:Code_x86_64"
   } {
-    // CHECK: //hello
-    // CHECK: //world
+    // CHECK: // hello
+    // CHECK: // world
     // CHECK: 0;
     clift.expr {
       %0 = clift.imm 0 : !int32_t

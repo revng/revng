@@ -42,7 +42,7 @@ module attributes {clift.module} {
       name = "label_1"
     }
 
-    // CHECK: label_1: ;
+    // CHECK: label_1:;
     clift.assign_label %label_1
 
     // Emits nothing.
@@ -60,7 +60,7 @@ module attributes {clift.module} {
       name = "var_1"
     }
 
-    // CHECK: label_2: ;
+    // CHECK: label_2:;
     clift.assign_label %label_2
 
     // Emits nothing.

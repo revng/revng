@@ -15,15 +15,17 @@ bool init_unit_test();
 BOOST_AUTO_TEST_CASE(LineComment) {
   std::string Emitted;
   {
-    llvm::raw_string_ostream Out(Emitted);
-    ptml::CTokenEmitter C(Out, ptml::Tagging::Disabled);
-    auto Doxygen = ptml::CDoxygenEmitter::emitLineComment(C);
+    ptml::CTokenEmitter C(ptml::Tagging::Disabled);
+    {
+      auto Doxygen = ptml::CDoxygenEmitter::emitLineComment(C);
 
-    Doxygen.emitKeyword("brief");
-    Doxygen.emit(" This does something.");
-    Doxygen.emit("\n");
-    Doxygen.emit("\n\n");
-    Doxygen.emit("And also note this other thing.");
+      Doxygen.emitKeyword("brief");
+      Doxygen.emit(" This does something.");
+      Doxygen.emit("\n");
+      Doxygen.emit("\n\n");
+      Doxygen.emit("And also note this other thing.");
+    }
+    Emitted = C.extract();
   }
   constexpr llvm::StringRef Expected = "/// \\brief This does something.\n"
                                        "///\n"
@@ -41,15 +43,17 @@ BOOST_AUTO_TEST_CASE(LineComment) {
 BOOST_AUTO_TEST_CASE(BlockComment) {
   std::string Emitted;
   {
-    llvm::raw_string_ostream Out(Emitted);
-    ptml::CTokenEmitter C(Out, ptml::Tagging::Disabled);
-    auto Doxygen = ptml::CDoxygenEmitter::emitBlockComment(C);
+    ptml::CTokenEmitter C(ptml::Tagging::Disabled);
+    {
+      auto Doxygen = ptml::CDoxygenEmitter::emitBlockComment(C);
 
-    Doxygen.emitKeyword("brief");
-    Doxygen.emit(" This does something.");
-    Doxygen.emit("\n");
-    Doxygen.emit("\n\n");
-    Doxygen.emit("And also note this other thing.");
+      Doxygen.emitKeyword("brief");
+      Doxygen.emit(" This does something.");
+      Doxygen.emit("\n");
+      Doxygen.emit("\n\n");
+      Doxygen.emit("And also note this other thing.");
+    }
+    Emitted = C.extract();
   }
   constexpr llvm::StringRef Expected = "/**\n"
                                        " * \\brief This does something.\n"

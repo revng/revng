@@ -49,10 +49,12 @@ struct CEmissionPass : BaseT<CEmissionPass<BaseT, Impl>> {
     mlir::ModuleOp Module = Base::getOperation();
 
     auto Tagging = static_cast<ptml::Tagging>(Base::EmitTags.getValue());
-    ptml::CTokenEmitter Emitter(File->os(), Tagging);
+    ptml::CTokenEmitter Emitter(Tagging);
 
     if (not Impl(Module, Emitter, Base::InlineStackFrameType))
       return Base::signalPassFailure();
+
+    File->os() << Emitter.extract();
   }
 };
 

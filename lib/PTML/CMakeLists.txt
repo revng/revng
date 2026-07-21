@@ -8,4 +8,4 @@ revng_add_library_internal(revngPTML SHARED Doxygen.cpp Tag.cpp PTMLEmitter.cpp
 llvm_map_components_to_libnames(LLVM_LIBRARIES Support Core)
 
 target_link_libraries(revngPTML revngABI revngSupport revngModel
-                      ${LLVM_LIBRARIES})
+                      revngPTMLCFormat ${LLVM_LIBRARIES})
