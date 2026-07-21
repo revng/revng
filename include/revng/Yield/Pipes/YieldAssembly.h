@@ -12,33 +12,8 @@
 
 #include "revng/PTML/Tag.h"
 #include "revng/PipeboxCommon/RawContainer.h"
-#include "revng/Pipeline/Contract.h"
-#include "revng/Pipes/StringMap.h"
 #include "revng/Yield/Pipes/ProcessAssembly.h"
 #include "revng/Yield/Pipes/YieldControlFlow.h"
-
-namespace revng::pipes {
-
-class YieldAssembly {
-public:
-  static constexpr const auto Name = "yield-assembly";
-
-public:
-  inline std::array<pipeline::ContractGroup, 1> getContract() const {
-    return { pipeline::ContractGroup(kinds::FunctionAssemblyInternal,
-                                     0,
-                                     kinds::FunctionAssemblyPTML,
-                                     1,
-                                     pipeline::InputPreservation::Preserve) };
-  }
-
-public:
-  void run(pipeline::ExecutionContext &Context,
-           const FunctionAssemblyStringMap &Input,
-           FunctionAssemblyPTMLStringMap &Output);
-};
-
-} // namespace revng::pipes
 
 namespace revng::pypeline {
 

@@ -85,7 +85,6 @@ static SuccessorsList getSuccessors(GeneratedCodeBasicInfo &GCBI,
 }
 
 bool PruneRetSuccessors::runOnModule(llvm::Module &M) {
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
   auto &FCI = getAnalysis<FunctionCallIdentification>();
 
   for (BasicBlock &BB : *GCBI.root()) {

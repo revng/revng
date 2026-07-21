@@ -18,12 +18,13 @@
 class PruneRetSuccessors : public llvm::ModulePass {
 public:
   static char ID;
+  GeneratedCodeBasicInfo &GCBI;
 
 public:
-  PruneRetSuccessors() : llvm::ModulePass(ID) {}
+  PruneRetSuccessors(GeneratedCodeBasicInfo &GCBI) :
+    llvm::ModulePass(ID), GCBI(GCBI) {}
 
   void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
     AU.addRequired<FunctionCallIdentification>();
   }
 

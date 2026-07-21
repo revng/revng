@@ -7,11 +7,6 @@
 
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/DataLayoutAnalysis/DLALayouts.h"
-#include "revng/Pipeline/Context.h"
-#include "revng/Pipeline/LLVMContainer.h"
-#include "revng/Pipeline/RegisterAnalysis.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/ModelGlobal.h"
 
 #include "Backend/DLAMakeModelTypes.h"
 #include "Frontend/DLATypeSystemBuilder.h"
@@ -115,24 +110,6 @@ static bool runDataLayoutAnalysis(ModuleRange &&Modules,
 
   return Changed;
 }
-
-class DLAAnalysis {
-public:
-  static constexpr auto Name = "analyze-data-layout";
-
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::kinds::StackAccessesSegregated }
-  };
-
-  void run(pipeline::ExecutionContext &EC, pipeline::LLVMContainer &Module) {
-    TupleTree<model::Binary>
-      &WritableModel = revng::getWritableModelFromContext(EC);
-    runDataLayoutAnalysis(std::views::single(&Module.getModule()),
-                          WritableModel);
-  }
-};
-
-pipeline::RegisterAnalysis<DLAAnalysis> DLCPipelineReg;
 
 namespace revng::pypeline::analyses {
 

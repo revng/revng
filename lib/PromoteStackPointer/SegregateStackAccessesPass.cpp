@@ -20,12 +20,8 @@
 #include "revng/MFP/SetLattices.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/VerifyHelper.h"
-#include "revng/Pipeline/RegisterLLVMPass.h"
-#include "revng/Pipes/FunctionPass.h"
-#include "revng/Pipes/Kinds.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng/PromoteStackPointer/SegregateStackAccesses.h"
 #include "revng/Support/Generator.h"
@@ -827,8 +823,6 @@ struct SortByFunction {
   }
 };
 
-using GCBIWP = GeneratedCodeBasicInfoWrapperPass;
-
 using LVB = LocalVariableBuilder;
 
 static LocalVariableBuilder makeVariableBuilder(const model::Binary &Binary,
@@ -871,7 +865,7 @@ class SegregateFunctionStack;
 ///
 /// This pass represents local variables as regular LLVM allocas, while
 /// accesses are modeled as regular load/store instructions.
-class SegregateStackAccesses : public pipeline::FunctionPassImpl {
+class SegregateStackAccesses {
   friend class SegregateFunctionStack;
 
 private:
@@ -890,22 +884,7 @@ private:
   LocalVariableBuilder VariableBuilder;
 
 public:
-  SegregateStackAccesses(llvm::ModulePass &Pass,
-                         const model::Binary &Binary,
-                         llvm::Module &M) :
-    pipeline::FunctionPassImpl(Pass),
-    Binary(Binary),
-    M(M),
-    SSACS(getIRHelper("stack_size_at_call_site", M)),
-    InitLocalSP(getIRHelper("revng_undefined_local_sp", M)),
-    CallInstructionPushSize(getCallPushSize(Binary)),
-    TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(),
-                                                     Binary.Architecture())),
-    OpaquePointerType(PointerType::get(M.getContext(), 0)),
-    VariableBuilder(makeVariableBuilder(Binary, M)) {}
-
   SegregateStackAccesses(const model::Binary &Binary, llvm::Module &M) :
-    pipeline::FunctionPassImpl(),
     Binary(Binary),
     M(M),
     SSACS(getIRHelper("stack_size_at_call_site", M)),
@@ -917,18 +896,15 @@ public:
     VariableBuilder(makeVariableBuilder(Binary, M)) {}
 
 public:
-  static void getAnalysisUsage(llvm::AnalysisUsage &AU);
-
-public:
-  bool prologue() final {
+  bool prologue() {
     upgradeDynamicFunctions();
     return true;
   }
 
   bool runOnFunction(const model::Function &ModelFunction,
-                     llvm::Function &Function) final;
+                     llvm::Function &Function);
 
-  bool epilogue() final {
+  bool epilogue() {
     pushALAP();
 
     // Purge stores that have been used at least once
@@ -2094,40 +2070,6 @@ bool SegregateStackAccesses::runOnFunction(const model::Function &ModelFunction,
   Worker.segregate();
   return true;
 }
-
-static void getAnalysisUsage(llvm::AnalysisUsage &AU) {
-  AU.setPreservesCFG();
-  AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-}
-
-void SegregateStackAccesses::getAnalysisUsage(AnalysisUsage &AU) {
-  return ::getAnalysisUsage(AU);
-}
-
-template<>
-char pipeline::FunctionPass<SegregateStackAccesses>::ID = 0;
-
-static constexpr const char *Flag = "segregate-stack-accesses";
-
-struct SegregateStackAccessesPipe {
-  static constexpr auto Name = Flag;
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace pipeline;
-    using namespace revng::kinds;
-    return { ContractGroup::transformOnlyArgument(StackPointerPromoted,
-                                                  StackAccessesSegregated,
-                                                  InputPreservation::Erase) };
-  }
-
-  void registerPasses(legacy::PassManager &Manager) {
-    using Pass = SegregateStackAccesses;
-    Manager.add(new pipeline::FunctionPass<Pass>);
-  }
-};
-
-static pipeline::RegisterLLVMPass<SegregateStackAccessesPipe> Y;
 
 namespace revng::pypeline::piperuns {
 

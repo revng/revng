@@ -15,15 +15,6 @@
 
 using namespace llvm;
 
-using CFFUAWrapperPass = CollectFunctionsFromUnusedAddressesWrapperPass;
-char CFFUAWrapperPass::ID = 0;
-
-using Register = llvm::RegisterPass<CFFUAWrapperPass>;
-static Register Y("collect-functions-from-unused-addresses",
-                  "Functions from unused addresses collection pass",
-                  true,
-                  true);
-
 static Logger Log("functions-from-unused-addresses-collection");
 
 class CFFUAImpl {
@@ -138,33 +129,4 @@ void collectFunctionsFromUnusedAddresses(llvm::Module &M,
                                          ControlFlowGraphCache &FMC) {
   CFFUAImpl Impl(M, GCBI, Binary);
   Impl.run(FMC);
-}
-
-bool CFFUAWrapperPass::runOnModule(llvm::Module &M) {
-  auto &LMWP = getAnalysis<LoadModelWrapperPass>().get();
-  auto &FMC = getAnalysis<ControlFlowGraphCachePass>().get();
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  collectFunctionsFromUnusedAddresses(M, GCBI, *LMWP.getWriteableModel(), FMC);
-  return false;
-}
-
-llvm::PreservedAnalyses
-CollectFunctionsFromUnusedAddressesPass::run(llvm::Module &M,
-                                             llvm::ModuleAnalysisManager &MAM) {
-  auto *LM = MAM.getCachedResult<LoadModelAnalysis>(M);
-  if (!LM)
-    return llvm::PreservedAnalyses::all();
-
-  auto &GCBI = MAM.getResult<GeneratedCodeBasicInfoAnalysis>(M);
-
-  CFFUAImpl Impl(M, GCBI, *LM->getWriteableModel());
-  Impl.run(*MAM.getCachedResult<ControlFlowGraphCacheAnalysis>(M));
-  return llvm::PreservedAnalyses::all();
-}
-
-void CFFUAWrapperPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-  AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<ControlFlowGraphCachePass>();
-  AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
 }

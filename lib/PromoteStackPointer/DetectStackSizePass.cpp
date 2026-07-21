@@ -9,16 +9,9 @@
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/VerifyHelper.h"
-#include "revng/Pipeline/Context.h"
-#include "revng/Pipeline/LLVMContainer.h"
-#include "revng/Pipeline/RegisterAnalysis.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/ModelGlobal.h"
 #include "revng/PromoteStackPointer/DetectStackSize.h"
-#include "revng/PromoteStackPointer/DetectStackSizePass.h"
 #include "revng/PromoteStackPointer/InstrumentStackAccessesPass.h"
 #include "revng/Support/Debug.h"
 
@@ -367,7 +360,12 @@ DetectStackSize::handleCallSite(const CallSite &CallSite) {
     return std::nullopt;
 }
 
-bool DetectStackSizePass::runOnModule(Module &M) {
+namespace revng::pypeline::analyses {
+
+llvm::Error DetectStackSize::run(Model &Model,
+                                 const Request &Incoming,
+                                 llvm::StringRef Configuration,
+                                 LLVMFunctionContainer &ModuleContainer) {
   //
   // Overview:
   //
@@ -380,61 +378,6 @@ bool DetectStackSizePass::runOnModule(Module &M) {
   //   considering stack sizes at each call site *minus* the size of stack
   //   arguments for that call site
   //
-  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  TupleTree<model::Binary> &Binary = ModelWrapper.getWriteableModel();
-
-  DetectStackSize StackSizeDetector(Binary);
-  StackSizeDetector.run(M);
-
-  return false;
-}
-
-void DetectStackSizePass::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<LoadModelWrapperPass>();
-  AU.setPreservesCFG();
-}
-
-char DetectStackSizePass::ID = 0;
-
-using RegisterDSS = RegisterPass<DetectStackSizePass>;
-static RegisterDSS R("detect-stack-size", "Detect Stack Size Pass");
-
-class DetectStackSizeAnalysis {
-public:
-  static constexpr auto Name = "detect-stack-size";
-
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::kinds::StackPointerPromoted }
-  };
-
-  llvm::Error run(pipeline::ExecutionContext &EC,
-                  pipeline::LLVMContainer &Module) {
-    using namespace revng;
-
-    llvm::legacy::PassManager Manager;
-    auto &Global = getWritableModelFromContext(EC);
-
-    if (Global->Architecture() == model::Architecture::Invalid) {
-      return revng::createError("DetectStackSize analysis require a valid "
-                                "Architecture");
-    }
-
-    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global)));
-    Manager.add(new DetectStackSizePass());
-    Manager.run(Module.getModule());
-
-    return Error::success();
-  }
-};
-
-static pipeline::RegisterAnalysis<DetectStackSizeAnalysis> RegisterAnalysis;
-
-namespace revng::pypeline::analyses {
-
-llvm::Error DetectStackSize::run(Model &Model,
-                                 const Request &Incoming,
-                                 llvm::StringRef Configuration,
-                                 LLVMFunctionContainer &ModuleContainer) {
   ::DetectStackSize StackSizeDetector(Model.get());
   StackSizeDetector.run(Incoming[0], ModuleContainer);
   return llvm::Error::success();

@@ -32,13 +32,9 @@
 #include "revng/Model/EnumDefinition.h"
 #include "revng/Model/VerifyHelper.h"
 #include "revng/PTML/CTokenEmitter.h"
-#include "revng/Pipeline/Context.h"
-#include "revng/Pipeline/Kind.h"
-#include "revng/Pipeline/Option.h"
-#include "revng/Pipeline/RegisterAnalysis.h"
-#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Ranks/Ranks.h"
 #include "revng/Support/PathList.h"
+#include "revng/Support/ResourceFinder.h"
 #include "revng/Support/TemporaryFile.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
@@ -61,21 +57,6 @@ static Logger Log("edit-c-type-clang-input");
 namespace rr = revng::ranks;
 
 struct EditCTypeAnalysis {
-  static constexpr auto Name = "edit-c-type";
-
-  constexpr static std::tuple Options = { pipeline::Option("location-to-edit",
-                                                           ""),
-                                          pipeline::Option("ccode", "") };
-
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {};
-
-  llvm::Error run(pipeline::ExecutionContext &EC,
-                  std::string LocationToEdit,
-                  std::string CCode) {
-    auto &Model = revng::getWritableModelFromContext(EC);
-    return run(Model, LocationToEdit, CCode);
-  }
-
 private:
   struct EditCTypeState {
     // Reference to the original Model.
@@ -254,8 +235,6 @@ public:
     return parseCompiledC(State, FilteredTypeHeader.path().str(), CCode);
   }
 };
-
-pipeline::RegisterAnalysis<EditCTypeAnalysis> EditCTypeReg;
 
 struct EditCTypeConfiguration {
   std::string LocationToEdit;

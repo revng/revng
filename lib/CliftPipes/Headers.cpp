@@ -11,18 +11,10 @@
 #include "revng/CliftEmitC/CSemantics.h"
 #include "revng/CliftEmitC/Headers.h"
 #include "revng/CliftImportModel/ImportModel.h"
-#include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/Headers.h"
 #include "revng/Model/ABI/Definition.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/PTML/PTMLEmitter.h"
-#include "revng/Pipeline/RegisterPipe.h"
-
-#include "HeaderContainers.h"
-
-//
-// Shared logic
-//
 
 using EmissionMode = revng::pypeline::piperuns::EmissionMode;
 using PipeConfiguration = revng::pypeline::piperuns::CEmissionPipeConfiguration;
@@ -115,104 +107,6 @@ static void emitTypeDefinitionImpl(llvm::raw_ostream &Out,
 
   Out.flush();
 }
-
-//
-// Old style pipes
-//
-
-namespace {
-
-class TypeAndGlobalHeaderPipe {
-public:
-  static constexpr auto Name = "emit-type-and-global-header";
-
-  std::array<pipeline::ContractGroup, 1> getContract() const {
-    using namespace pipeline;
-    using namespace revng::kinds;
-
-    return { ContractGroup({ Contract(CliftModule,
-                                      0,
-                                      TypeAndGlobalHeader,
-                                      1,
-                                      InputPreservation::Preserve) }) };
-  }
-
-  void run(pipeline::ExecutionContext &EC,
-           const revng::pipes::CliftContainer &CliftContainer,
-           TypeAndGlobalHeaderContainer &HeaderFile) {
-    llvm::raw_string_ostream Stream = HeaderFile.asStream();
-    emitTypeAndGlobalHeaderImpl(Stream, CliftContainer.getModule());
-    EC.commitUniqueTarget(HeaderFile);
-  }
-};
-
-static pipeline::RegisterPipe<TypeAndGlobalHeaderPipe> TypeAndGlobalHeader;
-
-class HelperHeaderPipe {
-public:
-  static constexpr auto Name = "emit-helper-header";
-
-  std::array<pipeline::ContractGroup, 1> getContract() const {
-    using namespace pipeline;
-    using namespace revng::kinds;
-
-    return { ContractGroup({ Contract(CliftFunction,
-                                      0,
-                                      HelperHeader,
-                                      1,
-                                      InputPreservation::Preserve) }) };
-  }
-
-  void run(pipeline::ExecutionContext &EC,
-           const revng::pipes::CliftFunctionContainer &CliftContainer,
-           HelperHeaderContainer &HeaderFile) {
-    llvm::raw_string_ostream Stream = HeaderFile.asStream();
-    emitHelperHeaderImpl(Stream,
-                         { CliftContainer.getModule() },
-                         *revng::getModelFromContext(EC));
-    EC.commitUniqueTarget(HeaderFile);
-  }
-};
-
-static pipeline::RegisterPipe<HelperHeaderPipe> HelperHeader;
-
-class SingleTypeDefinitionPipe {
-public:
-  static constexpr auto Name = "emit-single-type-definition";
-
-  std::array<pipeline::ContractGroup, 1> getContract() const {
-    using namespace pipeline;
-    using namespace revng::kinds;
-
-    return { ContractGroup({ Contract(CliftModule,
-                                      0,
-                                      SingleTypeDefinition,
-                                      1,
-                                      InputPreservation::Preserve) }) };
-  }
-
-  void run(pipeline::ExecutionContext &EC,
-           const revng::pipes::CliftContainer &CliftContainer,
-           TypeDefinitionContainer &ModelTypesContainer) {
-    mlir::ModuleOp Module = CliftContainer.getModule();
-    auto DataModel = revng::getModelFromContext(EC)->targetDataModel();
-
-    for (const model::TypeDefinition &Type :
-         revng::getTypeDefinitionsAndCommit(EC, ModelTypesContainer.name())) {
-      std::string &Result = ModelTypesContainer[Type.key()];
-      llvm::raw_string_ostream Out(Result);
-      emitTypeDefinitionImpl(Out, Module, DataModel, Type);
-    }
-  }
-};
-
-static pipeline::RegisterPipe<SingleTypeDefinitionPipe> TypeDefinition;
-
-} // namespace
-
-//
-// New style pipes
-//
 
 namespace revng::pypeline::piperuns {
 

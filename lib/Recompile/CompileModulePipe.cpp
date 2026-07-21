@@ -28,22 +28,16 @@
 #include "revng/Lift/IRAnnotators.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/Register.h"
-#include "revng/Pipeline/AllRegistries.h"
-#include "revng/Pipeline/LLVMContainer.h"
-#include "revng/Pipeline/Target.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Recompile/OriginalAssemblyAnnotationWriter.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
+#include "revng/Support/ResourceFinder.h"
 #include "revng/Support/SimplePassManager.h"
 
 using namespace llvm;
 using namespace llvm::codegen;
 using namespace std;
-using namespace pipeline;
-using namespace ::revng::pipes;
 using namespace sys;
 using namespace cl;
 
@@ -83,7 +77,6 @@ public:
   }
 };
 
-// This function is used by both the old and the new pipeline
 static void compileModuleRunImpl(const model::Binary &Binary,
                                  llvm::Module *M,
                                  llvm::raw_pwrite_stream &Output) {
@@ -187,55 +180,6 @@ static void compileModuleRunImpl(const model::Binary &Binary,
   PM.run(*M);
   revng::verify(M);
 }
-
-// This function is a wrapper of the previous `compileModuleRunImpl` and it's
-// used only by the old pipeline in both `CompileModule::run` and
-// `CompileIsolatedModule::run`
-static void compileModuleRunImpl(const Context &Context,
-                                 LLVMContainer &Module,
-                                 ObjectFileContainer &TargetBinary) {
-  using namespace revng;
-
-  auto Enumeration = Module.enumerate();
-  if (not Enumeration.contains(pipeline::Target(kinds::Root))
-      and not Enumeration.contains(pipeline::Target(kinds::IsolatedRoot)))
-    return;
-
-  if (Enumeration.contains(pipeline::Target(kinds::IsolatedRoot))
-      and not Enumeration.contains(kinds::Isolated.allTargets(Context)))
-    return;
-
-  std::error_code EC;
-  raw_fd_ostream OutputStream(TargetBinary.getOrCreatePath(), EC);
-  revng_assert(!EC);
-
-  compileModuleRunImpl(*getModelFromContext(Context),
-                       &Module.getModule(),
-                       OutputStream);
-
-  auto Path = TargetBinary.path();
-
-  auto Permissions = cantFail(errorOrToExpected(fs::getPermissions(*Path)));
-  Permissions = Permissions | fs::owner_exe;
-  fs::setPermissions(*TargetBinary.path(), Permissions);
-}
-
-void CompileModule::run(ExecutionContext &EC,
-                        LLVMContainer &Module,
-                        ObjectFileContainer &TargetBinary) {
-  compileModuleRunImpl(EC.getContext(), Module, TargetBinary);
-  EC.commitUniqueTarget(TargetBinary);
-}
-
-void CompileIsolatedModule::run(ExecutionContext &EC,
-                                LLVMContainer &Module,
-                                ObjectFileContainer &TargetBinary) {
-  compileModuleRunImpl(EC.getContext(), Module, TargetBinary);
-  EC.commitUniqueTarget(TargetBinary);
-}
-
-static RegisterPipe<CompileModule> E2;
-static RegisterPipe<CompileIsolatedModule> E3;
 
 namespace revng::pypeline::piperuns {
 

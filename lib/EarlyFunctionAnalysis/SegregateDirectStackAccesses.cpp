@@ -25,11 +25,13 @@ using SDSAPI = SegregateDirectStackAccessesPassImpl;
 
 class SegregateDirectStackAccessesPassImpl {
   LLVMContext *Context = nullptr;
-  GeneratedCodeBasicInfo *GCBI = nullptr;
+  GeneratedCodeBasicInfo &GCBI;
   std::vector<Instruction *> DirectStackAccesses;
   std::vector<Instruction *> NotDirectStackAccesses;
 
 public:
+  SegregateDirectStackAccessesPassImpl(GeneratedCodeBasicInfo &GCBI) :
+    GCBI(GCBI) {}
   void run(Function &, FunctionAnalysisManager &);
 
 private:
@@ -38,17 +40,13 @@ private:
 };
 
 PreservedAnalyses SDSAP::run(Function &F, FunctionAnalysisManager &FAM) {
-  SegregateDirectStackAccessesPassImpl SDASP;
+  SegregateDirectStackAccessesPassImpl SDASP(GCBI);
   SDASP.run(F, FAM);
   return PreservedAnalyses::none();
 }
 
 void SDSAPI::run(Function &F, FunctionAnalysisManager &FAM) {
   Context = &(F.getContext());
-
-  // Get the result of the GCBI analysis
-  GCBI = &(FAM.getResult<GeneratedCodeBasicInfoAnalysis>(F));
-  revng_assert(GCBI != nullptr);
 
   // Populate the two buckets with all load and store instruction of the
   // function, properly segregated.
@@ -67,7 +65,7 @@ void SDSAPI::segregateAccesses(Function &F) {
   for (BasicBlock &BB : F) {
     for (Instruction &I : BB) {
       if (auto *LI = dyn_cast<LoadInst>(&I)) {
-        if (GCBI->isSPReg(skipCasts(LI->getPointerOperand()))) {
+        if (GCBI.isSPReg(skipCasts(LI->getPointerOperand()))) {
           revng_assert(!Found);
           LoadSP = LI;
           Found = true;
@@ -93,7 +91,7 @@ void SDSAPI::segregateAccesses(Function &F) {
   // exists when operating on a instruction that directly accesses the stack.
   // Note that this problem will be addressed by opaque pointers in the future.
   auto *I8PtrTy = Builder.getInt8PtrTy();
-  auto *CE = ConstantExpr::getBitCast(GCBI->spReg(), I8PtrTy->getPointerTo());
+  auto *CE = ConstantExpr::getBitCast(GCBI.spReg(), I8PtrTy->getPointerTo());
   Value *SPI8Ptr = Builder.CreateLoad(I8PtrTy, CE);
 
   for (BasicBlock &BB : F) {

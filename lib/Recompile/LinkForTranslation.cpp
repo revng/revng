@@ -19,7 +19,6 @@
 
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Importer/Binary/Options.h"
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/Recompile/LinkForTranslation.h"
 #include "revng/Support/Assert.h"

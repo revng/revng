@@ -24,10 +24,6 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
-#include "revng/Model/LoadModelPass.h"
-#include "revng/Pipeline/RegisterLLVMPass.h"
-#include "revng/Pipes/FunctionPass.h"
-#include "revng/Pipes/Kinds.h"
 #include "revng/PromoteStackPointer/PromoteStackPointer.h"
 #include "revng/PromoteStackPointer/PromoteStackPointerPass.h"
 #include "revng/Support/Assert.h"
@@ -40,23 +36,6 @@ RegisterIRHelper UndefinedLocalSPMarker("revng_undefined_local_sp");
 using namespace llvm;
 
 static Logger Log("promote-stack-pointer");
-
-struct PromoteStackPointerPassImpl : public pipeline::FunctionPassImpl {
-private:
-  const model::Binary &Binary;
-
-public:
-  PromoteStackPointerPassImpl(llvm::ModulePass &Pass,
-                              const model::Binary &Binary,
-                              llvm::Module &M) :
-    pipeline::FunctionPassImpl(Pass), Binary(Binary) {}
-
-  bool runOnFunction(const model::Function &ModelFunction,
-                     llvm::Function &Function) override;
-
-public:
-  static void getAnalysisUsage(llvm::AnalysisUsage &AU);
-};
 
 static bool adjustStackAfterCalls(const model::Binary &Binary,
                                   Function &F,
@@ -186,42 +165,6 @@ static bool promoteStackPointer(const model::Binary &Binary,
 
   return true;
 }
-
-bool PromoteStackPointerPassImpl::runOnFunction(const model::Function
-                                                  &ModelFunction,
-                                                llvm::Function &F) {
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  return promoteStackPointer(Binary, ModelFunction, F, GCBI);
-}
-
-void PromoteStackPointerPassImpl::getAnalysisUsage(AnalysisUsage &AU) {
-  AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-  AU.setPreservesCFG();
-}
-
-template<>
-char pipeline::FunctionPass<PromoteStackPointerPassImpl>::ID = 0;
-
-static constexpr const char *Flag = "promote-stack-pointer";
-
-struct PromoteStackPointerPipe {
-  static constexpr auto Name = Flag;
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace pipeline;
-    using namespace revng::kinds;
-    return { ContractGroup::transformOnlyArgument(LiftingArtifactsRemoved,
-                                                  StackPointerPromoted,
-                                                  InputPreservation::Erase) };
-  }
-
-  void registerPasses(legacy::PassManager &Manager) {
-    Manager.add(new pipeline::FunctionPass<PromoteStackPointerPassImpl>);
-  }
-};
-
-static pipeline::RegisterLLVMPass<PromoteStackPointerPipe> Y;
 
 namespace revng::pypeline::piperuns {
 

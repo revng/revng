@@ -11,18 +11,6 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 
-class IsolateFunctions : public llvm::ModulePass {
-public:
-  static char ID;
-
-public:
-  IsolateFunctions() : llvm::ModulePass(ID) {}
-
-  bool runOnModule(llvm::Module &M) override;
-
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override;
-};
-
 class IsolateFunctionsImpl;
 
 namespace revng::pypeline::piperuns {

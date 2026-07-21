@@ -6,11 +6,6 @@
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/PTMLEmitter.h"
-#include "revng/Pipeline/AllRegistries.h"
-#include "revng/Pipes/Containers.h"
-#include "revng/Pipes/FileContainer.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/StringBufferContainer.h"
 
 static void printIncludes(ptml::CTokenEmitter &Tokens) {
 
@@ -22,57 +17,6 @@ static void printIncludes(ptml::CTokenEmitter &Tokens) {
                               ptml::CTokenEmitter::IncludeMode::Quote);
   Tokens.emitNewline();
 }
-
-namespace revng::pipes {
-
-inline constexpr char DecompiledMIMEType[] = "text/x.c+ptml";
-inline constexpr char DecompiledSuffix[] = ".c";
-inline constexpr char DecompiledName[] = "decompiled-c-code";
-using DecompiledFileContainer = StringBufferContainer<&kinds::DecompiledToC,
-                                                      DecompiledName,
-                                                      DecompiledMIMEType,
-                                                      DecompiledSuffix>;
-
-static pipeline::RegisterDefaultConstructibleContainer<DecompiledFileContainer>
-  Reg;
-
-} // namespace revng::pipes
-
-class EmitCAsSingleFile {
-public:
-  static constexpr auto Name = "emit-c-as-single-file";
-
-  std::array<pipeline::ContractGroup, 1> getContract() const {
-    using namespace pipeline;
-    using namespace revng::kinds;
-
-    return { ContractGroup({ Contract(Decompiled,
-                                      0,
-                                      DecompiledToC,
-                                      1,
-                                      InputPreservation::Preserve) }) };
-  }
-
-  void run(pipeline::ExecutionContext &EC,
-           const revng::pipes::DecompileStringMap &DecompiledFunctions,
-           revng::pipes::DecompiledFileContainer &OutCFile) {
-    {
-      llvm::raw_string_ostream Out = OutCFile.asStream();
-      static constexpr ptml::Tagging Tags = ptml::Tagging::Enabled;
-
-      ptml::CTokenEmitter Tokens(Out, Tags);
-      printIncludes(Tokens);
-
-      ptml::StreamEmitter RawEmitter(Out);
-      for (const auto &[MetaAddress, CFunction] : DecompiledFunctions)
-        RawEmitter.emit(CFunction + "\n");
-    }
-
-    EC.commitUniqueTarget(OutCFile);
-  }
-};
-
-static pipeline::RegisterPipe<EmitCAsSingleFile> Y;
 
 namespace revng::pypeline::piperuns {
 

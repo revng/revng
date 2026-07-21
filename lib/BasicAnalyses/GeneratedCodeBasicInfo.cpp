@@ -16,16 +16,9 @@
 
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/Debug.h"
 
 using namespace llvm;
-
-AnalysisKey GeneratedCodeBasicInfoAnalysis::Key;
-
-char GeneratedCodeBasicInfoWrapperPass::ID = 0;
-using RegisterGCBI = RegisterPass<GeneratedCodeBasicInfoWrapperPass>;
-static RegisterGCBI X("gcbi", "Generated Code Basic Info", true, true);
 
 GeneratedCodeBasicInfo::GeneratedCodeBasicInfo(const model::Binary &Binary,
                                                llvm::Module &M) :
@@ -156,28 +149,4 @@ GeneratedCodeBasicInfo::blocksByPCRange(MetaAddress Start, MetaAddress End) {
   }
 
   return Result;
-}
-
-GeneratedCodeBasicInfo
-GeneratedCodeBasicInfoAnalysis::run(Module &M, ModuleAnalysisManager &MAM) {
-  auto &LMA = MAM.getResult<LoadModelAnalysis>(M);
-  GeneratedCodeBasicInfo GCBI(*LMA.getReadOnlyModel(), M);
-  return GCBI;
-}
-
-GeneratedCodeBasicInfo
-GeneratedCodeBasicInfoAnalysis::run(Function &F, FunctionAnalysisManager &FAM) {
-  auto &LMA = FAM.getResult<LoadModelAnalysis>(F);
-  GeneratedCodeBasicInfo GCBI(*LMA.getReadOnlyModel(), *F.getParent());
-  return GCBI;
-}
-
-bool GeneratedCodeBasicInfoWrapperPass::runOnModule(Module &M) {
-  auto &LMA = getAnalysis<LoadModelWrapperPass>().get();
-  GCBI.reset(new GeneratedCodeBasicInfo(*LMA.getReadOnlyModel(), M));
-  return false;
-}
-
-void GeneratedCodeBasicInfoWrapperPass::releaseMemory() {
-  GCBI.reset();
 }

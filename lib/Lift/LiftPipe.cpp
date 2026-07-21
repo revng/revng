@@ -9,45 +9,12 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Lift/IRAnnotators.h"
 #include "revng/Lift/Lift.h"
-#include "revng/Lift/LiftPipe.h"
-#include "revng/Model/LoadModelPass.h"
-#include "revng/Pipeline/AllRegistries.h"
-#include "revng/Pipes/FileContainer.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/ModelGlobal.h"
-#include "revng/Pipes/RootKind.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/ResourceFinder.h"
 
 #include "PostLiftVerifyPass.h"
 
 using namespace llvm;
-using namespace pipeline;
-using namespace ::revng::pipes;
-
-void Lift::run(ExecutionContext &EC,
-               const BinaryFileContainer &SourceBinary,
-               LLVMContainer &Output) {
-  if (not SourceBinary.exists())
-    return;
-
-  const TupleTree<model::Binary> &Model = getModelFromContext(EC);
-
-  auto BufferOrError = MemoryBuffer::getFileOrSTDIN(*SourceBinary.path());
-  auto Buffer = cantFail(errorOrToExpected(std::move(BufferOrError)));
-  RawBinaryView RawBinary(*Model, Buffer->getBuffer());
-
-  // Perform lifting
-  llvm::legacy::PassManager PM;
-  PM.add(new LoadModelWrapperPass(Model));
-  PM.add(new LoadExecutionContextPass(&EC, Output.name()));
-  PM.add(new LoadBinaryWrapperPass(Buffer->getBuffer()));
-  PM.add(new LiftPass);
-  PM.add(new PostLiftVerifyPass);
-  PM.run(Output.getModule());
-
-  EC.commitUniqueTarget(Output);
-}
 
 namespace revng::lift::internal {
 
@@ -128,35 +95,6 @@ bool shouldInvalidateRoot(const std::map<MetaAddress, bool> &JumpTargets,
   return false;
 }
 
-} // namespace revng::lift::internal
-
-std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
-Lift::invalidate(const BinaryFileContainer &SourceBinary,
-                 const pipeline::LLVMContainer &ModuleContainer,
-                 const GlobalTupleTreeDiff &Diff) const {
-  // Prepare result in case of invalidation
-  std::map<const pipeline::ContainerBase *, pipeline::TargetsList>
-    InvalidateResult;
-  InvalidateResult[&ModuleContainer].push_back(pipeline::Target({},
-                                                                kinds::Root));
-
-  auto [HasRoot,
-        JumpTargets] = lift::internal::collectJumpTargets(ModuleContainer
-                                                            .getModule());
-  if (not HasRoot)
-    return InvalidateResult;
-
-  auto *ModelDiff = Diff.getAs<model::Binary>();
-  revng_assert(ModelDiff != nullptr);
-
-  if (lift::internal::shouldInvalidateRoot(JumpTargets, *ModelDiff))
-    return InvalidateResult;
-  else
-    return {};
-}
-
-namespace revng::lift::internal {
-
 llvm::Error checkPrecondition(const model::Binary &Model) {
   if (Model.Architecture() == model::Architecture::Invalid) {
     return revng::createError("Cannot lift binary with architecture invalid.");
@@ -172,12 +110,3 @@ llvm::Error checkPrecondition(const model::Binary &Model) {
 }
 
 } // namespace revng::lift::internal
-
-llvm::Error Lift::checkPrecondition(const pipeline::Context &Context) const {
-  const auto &Model = *getModelFromContext(Context);
-  return lift::internal::checkPrecondition(Model);
-}
-
-static_assert(pipeline::HasInvalidate<Lift>);
-
-static RegisterPipe<Lift> E1;

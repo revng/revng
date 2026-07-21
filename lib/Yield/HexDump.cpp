@@ -9,13 +9,9 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FormatVariadic.h"
 
-#include "revng/EarlyFunctionAnalysis/CFGStringMap.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Model/RawBinaryView.h"
 #include "revng/PTML/Tag.h"
-#include "revng/Pipeline/AllRegistries.h"
-#include "revng/Pipes/FileContainer.h"
-#include "revng/Pipes/Kinds.h"
 #include "revng/Ranks/Location.h"
 #include "revng/Ranks/Ranks.h"
 #include "revng/Support/IRHelpers.h"
@@ -232,80 +228,7 @@ static void outputHexDump(const model::Binary &Binary,
   Output << DivTag.close();
 }
 
-class HexDumpPipe {
-public:
-  static constexpr auto Name = "hex-dump";
-
-  std::array<pipeline::ContractGroup, 1> getContract() const {
-    using namespace pipeline;
-    return { ContractGroup({ Contract(kinds::Binary,
-                                      0,
-                                      kinds::HexDump,
-                                      3,
-                                      InputPreservation::Preserve),
-                             Contract(kinds::Isolated,
-                                      1,
-                                      kinds::HexDump,
-                                      3,
-                                      InputPreservation::Preserve),
-                             Contract(kinds::CFG,
-                                      2,
-                                      kinds::HexDump,
-                                      3,
-                                      InputPreservation::Preserve) }) };
-  }
-
-  void run(pipeline::ExecutionContext &EC,
-           const BinaryFileContainer &SourceBinary,
-           const pipeline::LLVMContainer &ModuleContainer,
-           const CFGMap &CFGMap,
-           HexDumpFileContainer &Output) {
-
-    // This pipe works only if we have all the targets
-    pipeline::TargetsList FunctionList = ModuleContainer.enumerate();
-    if (not FunctionList.contains(kinds::Isolated.allTargets(EC.getContext())))
-      return;
-
-    if (not SourceBinary.exists())
-      return;
-
-    pipeline::TargetsList CFGList = CFGMap.enumerate();
-    if (not CFGList.contains(kinds::CFG.allTargets(EC.getContext())))
-      return;
-
-    const model::Binary &Binary = *getModelFromContext(EC);
-
-    std::vector<const llvm::Function *> Functions;
-    for (const llvm::Function &F :
-         FunctionTags::Isolated.functions(&ModuleContainer.getModule())) {
-      Functions.push_back(&F);
-    }
-
-    ControlFlowGraphCache CFGCache(CFGMap);
-    auto CFGGetter =
-      [&CFGCache](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
-      return CFGCache.getControlFlowGraph(Address);
-    };
-
-    auto Buffer = revng::cantFail(MemoryBuffer::getFile(*SourceBinary.path()));
-
-    std::error_code ErrorCode;
-    raw_fd_ostream OutputOS(Output.getOrCreatePath(),
-                            ErrorCode,
-                            sys::fs::CD_CreateAlways);
-
-    revng_assert(not ErrorCode, "Could not open file!");
-
-    // Proceed with emission
-    outputHexDump(Binary, Functions, CFGGetter, Buffer->getBuffer(), OutputOS);
-
-    EC.commitUniqueTarget(Output);
-  }
-};
-
 } // namespace revng::pipes
-  //
-static pipeline::RegisterPipe<revng::pipes::HexDumpPipe> X;
 
 namespace revng::pypeline::piperuns {
 

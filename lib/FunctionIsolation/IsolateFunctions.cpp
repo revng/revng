@@ -44,14 +44,6 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/Register.h"
-#include "revng/Pipeline/AllRegistries.h"
-#include "revng/Pipeline/Contract.h"
-#include "revng/Pipeline/ExecutionContext.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/ModelGlobal.h"
-#include "revng/Pipes/RootKind.h"
-#include "revng/Pipes/StringMap.h"
-#include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
@@ -71,57 +63,7 @@ static Logger TheLogger("isolation");
 using FunctionsMap = std::map<MDString *, Function *>;
 using ValueToValueMap = DenseMap<const Value *, Value *>;
 
-using IF = IsolateFunctions;
 using IFI = IsolateFunctionsImpl;
-
-char IF::ID = 0;
-static RegisterPass<IF> X("isolate", "Isolate Functions Pass", true, true);
-
-struct IsolatePipe {
-  static constexpr auto Name = "isolate";
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace revng;
-    using namespace pipeline;
-    return { ContractGroup({ Contract(kinds::Root,
-                                      1,
-                                      kinds::Isolated,
-                                      2,
-                                      InputPreservation::Preserve),
-                             Contract(kinds::CFG,
-                                      0,
-                                      kinds::Isolated,
-                                      2,
-                                      InputPreservation::Preserve) }) };
-  }
-
-public:
-  void run(pipeline::ExecutionContext &EC,
-           const revng::pipes::CFGMap &CFGMap,
-           pipeline::LLVMContainer &RootContainer,
-           pipeline::LLVMContainer &OutputContainer) {
-    // Clone the container
-    OutputContainer.cloneFrom(RootContainer);
-
-    // Do the isolation
-    using namespace revng;
-    llvm::legacy::PassManager Manager;
-    Manager.add(new pipeline::LoadExecutionContextPass(&EC,
-                                                       OutputContainer.name()));
-    Manager
-      .add(new LoadModelWrapperPass(ModelWrapper(getModelFromContext(EC))));
-    Manager.add(new ControlFlowGraphCachePass(CFGMap));
-    Manager.add(new IsolateFunctions());
-    Manager.run(OutputContainer.getModule());
-
-    // Remove "root" from the output container.
-    namespace FT = FunctionTags;
-    for (Function &F : FT::Root.functions(&OutputContainer.getModule()))
-      F.deleteBody();
-  }
-};
-
-static pipeline::RegisterPipe<IsolatePipe> Y;
 
 struct Boundary {
   BasicBlock *Block = nullptr;
@@ -633,54 +575,6 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
   }
 }
 
-bool IF::runOnModule(Module &TheModule) {
-  if (not TheModule.getFunction("root")
-      or TheModule.getFunction("root")->isDeclaration())
-    return false;
-
-  //  Retrieve analyses
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  const auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Binary = *ModelWrapper.getReadOnlyModel();
-
-  auto &LECP = getAnalysis<pipeline::LoadExecutionContextPass>();
-  pipeline::ExecutionContext &Context = *LECP.get();
-  const pipeline::TargetsList &RequestedTargets = LECP.getRequestedTargets();
-
-  auto &CFGC = getAnalysis<ControlFlowGraphCachePass>().get();
-  auto CFGGetter =
-    [&CFGC](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
-    return CFGC.getControlFlowGraph(Address);
-  };
-
-  llvm::Task MainTask(3, "Isolate functions");
-  MainTask.advance("Isolate: prologue");
-
-  // Create an object of type IsolateFunctionsImpl and run the pass
-  IFI Impl(TheModule.getFunction("root"), GCBI, Binary, CFGGetter);
-
-  Impl.prologue();
-
-  MainTask.advance("Isolate: run on functions");
-  Task IsolateTask(RequestedTargets.size(), "Isolating functions");
-  for (const pipeline::Target &Target : RequestedTargets) {
-    Context.getContext().pushReadFields();
-
-    auto Entry = MetaAddress::fromString(Target.getPathComponents()[0]);
-    IsolateTask.advance(Entry.toString(), true);
-    Impl.runOnFunction(Entry);
-
-    // Commit the produced target
-    Context.commit(Target, LECP.getContainerName());
-    Context.getContext().popReadFields();
-  }
-
-  MainTask.advance("Isolate: epilogue");
-  Impl.epilogue();
-
-  return false;
-}
-
 /// Helper class that wraps `llvm::cloneModule` and specializes in the case
 /// where a single function needs to be cloned. It will analyze the function to
 /// be cloned and only copy across declarations of the needed functions/globals
@@ -942,11 +836,3 @@ Isolate::~Isolate() {
 }
 
 } // namespace revng::pypeline::piperuns
-
-void IsolateFunctions::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  AU.setPreservesAll();
-  AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-  AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<ControlFlowGraphCachePass>();
-  AU.addRequired<pipeline::LoadExecutionContextPass>();
-}

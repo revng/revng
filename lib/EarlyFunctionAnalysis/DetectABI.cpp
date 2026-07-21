@@ -13,6 +13,7 @@
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Support/GraphWriter.h"
 
@@ -36,10 +37,6 @@
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Pass/DeduplicateCollidingNames.h"
 #include "revng/Model/Register.h"
-#include "revng/Pipeline/Pipe.h"
-#include "revng/Pipeline/RegisterAnalysis.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/BasicBlockID.h"
 #include "revng/Support/CommonOptions.h"
 #include "revng/Support/Debug.h"
@@ -99,34 +96,6 @@ struct Changes {
   bool Function = false;
   std::set<MetaAddress> Callees;
 };
-
-class DetectABIAnalysis {
-public:
-  static constexpr auto Name = "detect-abi";
-
-  std::vector<std::vector<pipeline::Kind *>> AcceptedKinds = {
-    { &revng::kinds::Root }
-  };
-
-  void run(const pipeline::ExecutionContext &EC,
-           pipeline::LLVMContainer &ModuleContainer) {
-    revng::pipes::CFGMap CFGs("");
-    llvm::legacy::PassManager Manager;
-    using namespace revng;
-    auto Global = cantFail(EC.getContext()
-                             .getGlobal<ModelGlobal>(ModelGlobalName));
-    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global->get())));
-    Manager.add(new CollectFunctionsFromCalleesWrapperPass());
-    Manager.add(new ControlFlowGraphCachePass(CFGs));
-    Manager.add(new LinkHelpersToInlinePass());
-    Manager.add(new efa::DetectABIPass());
-    Manager.add(new CollectFunctionsFromUnusedAddressesWrapperPass());
-    Manager.add(new efa::DetectABIPass());
-    Manager.run(ModuleContainer.getModule());
-  }
-};
-
-static pipeline::RegisterAnalysis<DetectABIAnalysis> A1;
 
 namespace efa {
 
@@ -1123,26 +1092,6 @@ static void runDetectABI(Module &M,
   ABIDetector.run();
 }
 
-bool DetectABIPass::runOnModule(Module &M) {
-  revng_log(PassesLog, "Starting EarlyFunctionAnalysis");
-
-  if (not M.getFunction("root") or M.getFunction("root")->isDeclaration())
-    return false;
-
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  auto &FMC = getAnalysis<ControlFlowGraphCachePass>().get();
-  auto &LMP = getAnalysis<LoadModelWrapperPass>().get();
-
-  TupleTree<model::Binary> &Binary = LMP.getWriteableModel();
-  runDetectABI(M, GCBI, FMC, Binary);
-  return false;
-}
-
-char DetectABIPass::ID = 0;
-
-using ABIDetectionPass = RegisterPass<DetectABIPass>;
-static ABIDetectionPass X("detect-abi", "ABI Detection Pass", true, false);
-
 } // namespace efa
 
 namespace revng::pypeline::analyses {
@@ -1156,9 +1105,7 @@ llvm::Error DetectABI::run(Model &Model,
   model::Binary &Binary = *TupleModel;
 
   GeneratedCodeBasicInfo GCBI(Binary, Module);
-
-  revng::pipes::CFGMap CFGs("");
-  ControlFlowGraphCache FMC(CFGs);
+  ControlFlowGraphCache FMC;
 
   // Link helper bodies once at the start of the analysis, to avoid relinking
   // for every `inline-helpers` call

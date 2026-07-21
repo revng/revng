@@ -5,7 +5,6 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSites.h"
-#include "revng/PromoteStackPointer/InjectStackSizeProbesAtCallSitesPass.h"
 #include "revng/Support/IRBuilder.h"
 
 // This name is not present after `CleanupStackSizeMarkers`.
@@ -55,23 +54,6 @@ static bool injectStackSizeProbesAtCallSites(llvm::Module &M,
 
   return Changed;
 }
-
-bool InjectStackSizeProbesAtCallSitesPass::runOnModule(llvm::Module &M) {
-  auto &GCBI = getAnalysis<GeneratedCodeBasicInfoWrapperPass>().getGCBI();
-  return injectStackSizeProbesAtCallSites(M, GCBI);
-}
-
-using MSSACSP = InjectStackSizeProbesAtCallSitesPass;
-void MSSACSP::getAnalysisUsage(AnalysisUsage &AU) const {
-  AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
-  AU.setPreservesCFG();
-}
-
-char InjectStackSizeProbesAtCallSitesPass::ID = 0;
-
-using RegisterMSSACS = RegisterPass<InjectStackSizeProbesAtCallSitesPass>;
-static RegisterMSSACS R("measure-stack-size-at-call-sites",
-                        "Measure Stack Size At Call Sites Pass");
 
 namespace revng::pypeline::piperuns {
 

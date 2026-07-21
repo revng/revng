@@ -9,10 +9,6 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/Model/FunctionTags.h"
-#include "revng/Model/LoadModelPass.h"
-#include "revng/Pipeline/RegisterLLVMPass.h"
-#include "revng/Pipes/FunctionPass.h"
-#include "revng/Pipes/Kinds.h"
 #include "revng/RemoveLiftingArtifacts/RemoveLiftingArtifacts.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -145,21 +141,17 @@ static bool removeLiftingArtifacts(Function &F) {
   return Changed;
 }
 
-struct RemoveLiftingArtifacts : public pipeline::FunctionPassImpl {
+struct RemoveLiftingArtifacts {
 private:
   llvm::Module &M;
 
 public:
-  RemoveLiftingArtifacts(llvm::ModulePass &Pass,
-                         const model::Binary &Binary,
-                         llvm::Module &M) :
-    pipeline::FunctionPassImpl(Pass), M(M) {}
   RemoveLiftingArtifacts(llvm::Module &M) : M(M) {}
 
   bool runOnFunction(const model::Function &ModelFunction,
-                     llvm::Function &Function) override;
+                     llvm::Function &Function);
 
-  bool prologue() override;
+  bool prologue();
 
 public:
   static void getAnalysisUsage(llvm::AnalysisUsage &AU) {}
@@ -205,30 +197,6 @@ bool RemoveLiftingArtifacts::runOnFunction(const model::Function &ModelFunction,
 
   return Changed;
 }
-
-template<>
-char pipeline::FunctionPass<RemoveLiftingArtifacts>::ID = 0;
-
-static constexpr const char *Flag = "remove-lifting-artifacts";
-
-struct RemoveLiftingArtifactsPipe {
-  static constexpr auto Name = Flag;
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace pipeline;
-    using namespace revng::kinds;
-    const auto &Removed = LiftingArtifactsRemoved;
-    return { ContractGroup::transformOnlyArgument(CSVsPromoted,
-                                                  Removed,
-                                                  InputPreservation::Erase) };
-  }
-
-  void registerPasses(legacy::PassManager &Manager) {
-    Manager.add(new pipeline::FunctionPass<RemoveLiftingArtifacts>());
-  }
-};
-
-static pipeline::RegisterLLVMPass<RemoveLiftingArtifactsPipe> Y;
 
 namespace revng::pypeline::piperuns {
 

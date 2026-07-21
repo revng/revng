@@ -15,13 +15,6 @@
 #include "revng/FunctionIsolation/InvokeIsolatedFunctions.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/NameBuilder.h"
-#include "revng/Pipeline/AllRegistries.h"
-#include "revng/Pipeline/Contract.h"
-#include "revng/Pipeline/Kind.h"
-#include "revng/Pipeline/LLVMContainer.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/RootKind.h"
-#include "revng/Pipes/TaggedFunctionKind.h"
 #include "revng/Support/IRBuilder.h"
 
 using namespace llvm;
@@ -283,51 +276,6 @@ static void createDynamicFunctionsBody(const model::Binary &Binary,
     // }
   }
 }
-
-struct InvokeIsolatedPipe {
-  static constexpr auto Name = "invoke-isolated-functions";
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace revng;
-    using namespace pipeline;
-    return { ContractGroup({ Contract(kinds::Root,
-                                      0,
-                                      kinds::IsolatedRoot,
-                                      2,
-                                      InputPreservation::Preserve),
-                             Contract(kinds::Isolated,
-                                      1,
-                                      kinds::IsolatedRoot,
-                                      2,
-                                      InputPreservation::Preserve) }) };
-  }
-
-public:
-  void run(pipeline::ExecutionContext &EC,
-           pipeline::LLVMContainer &InputRootContainer,
-           pipeline::LLVMContainer &FunctionContainer,
-           pipeline::LLVMContainer &OutputRootContainer) {
-    // Clone the container
-    OutputRootContainer.cloneFrom(InputRootContainer);
-
-    const model::Binary &Binary = *revng::getModelFromContext(EC);
-    populateFunctionDispatcher(Binary, FunctionContainer.getModule());
-    InvokeIsolatedFunctionsImpl Impl(Binary,
-                                     OutputRootContainer.getModule(),
-                                     &FunctionContainer.getModule());
-    Impl.run();
-
-    const llvm::Module &FunctionModule = FunctionContainer.getModule();
-    linkModules(llvm::CloneModule(FunctionModule),
-                OutputRootContainer.getModule());
-    createDynamicFunctionsBody(Binary, OutputRootContainer.getModule());
-
-    EC.commit(pipeline::Target(revng::kinds::IsolatedRoot),
-              OutputRootContainer.name());
-  }
-};
-
-static pipeline::RegisterPipe<InvokeIsolatedPipe> Y;
 
 namespace revng::pypeline::piperuns {
 

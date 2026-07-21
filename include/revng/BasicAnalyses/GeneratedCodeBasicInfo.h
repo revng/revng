@@ -21,7 +21,6 @@
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Model/ProgramCounterHandler.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/IRBuilder.h"
@@ -330,39 +329,5 @@ struct BlackListTrait<const GeneratedCodeBasicInfo &, llvm::BasicBlock *>
   using BlackListTraitBase<const GeneratedCodeBasicInfo &>::BlackListTraitBase;
   bool isBlacklisted(llvm::BasicBlock *Value) const {
     return !this->Obj.isTranslated(Value);
-  }
-};
-
-/// An analysis pass that computes a \c GCBI result. The result of
-/// this analysis is invalidated each time the analysis is called.
-class GeneratedCodeBasicInfoAnalysis
-  : public llvm::AnalysisInfoMixin<GeneratedCodeBasicInfoAnalysis> {
-  friend llvm::AnalysisInfoMixin<GeneratedCodeBasicInfoAnalysis>;
-  static llvm::AnalysisKey Key;
-
-public:
-  using Result = GeneratedCodeBasicInfo;
-  /// \note If a MPM is used, then make sure to register the
-  /// analysis manually and use a proxy.
-  Result run(llvm::Module &M, llvm::ModuleAnalysisManager &);
-  Result run(llvm::Function &F, llvm::FunctionAnalysisManager &);
-};
-
-/// Legacy pass manager pass to access GCBI.
-class GeneratedCodeBasicInfoWrapperPass : public llvm::ModulePass {
-  std::unique_ptr<GeneratedCodeBasicInfo> GCBI;
-
-public:
-  static char ID;
-
-  GeneratedCodeBasicInfoWrapperPass() : llvm::ModulePass(ID) {}
-
-  GeneratedCodeBasicInfo &getGCBI() { return *GCBI; }
-
-  bool runOnModule(llvm::Module &M) override;
-  void releaseMemory() override;
-  void getAnalysisUsage(llvm::AnalysisUsage &AU) const override {
-    AU.setPreservesAll();
-    AU.addRequired<LoadModelWrapperPass>();
   }
 };

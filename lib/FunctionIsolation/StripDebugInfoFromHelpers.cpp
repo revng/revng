@@ -6,7 +6,6 @@
 #include "llvm/Pass.h"
 
 #include "revng/Model/FunctionTags.h"
-#include "revng/Pipeline/RegisterLLVMPass.h"
 
 using namespace llvm;
 

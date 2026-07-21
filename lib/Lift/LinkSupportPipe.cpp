@@ -14,17 +14,11 @@
 #include "revng/Lift/LinkSupportPipe.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
-#include "revng/Pipeline/AllRegistries.h"
-#include "revng/Pipes/Kinds.h"
-#include "revng/Pipes/ModelGlobal.h"
-#include "revng/Pipes/RootKind.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/CommandLine.h"
 #include "revng/Support/ResourceFinder.h"
 
 using namespace llvm::cl;
-using namespace pipeline;
-using namespace revng::pipes;
 using namespace revng;
 
 static opt<bool> Tracing("link-trace",
@@ -72,29 +66,6 @@ static std::string getSupportPath(const model::Binary &Model) {
 
   return SupportPath;
 }
-
-void revng::pipes::LinkSupport::run(ExecutionContext &EC,
-                                    LLVMContainer &ModuleContainer) {
-  if (ModuleContainer.enumerate().empty())
-    return;
-
-  std::string SupportPath = getSupportPath(*getModelFromContext(EC));
-
-  llvm::SMDiagnostic Err;
-  auto Module = llvm::parseIRFile(SupportPath,
-                                  Err,
-                                  ModuleContainer.getModule().getContext());
-  revng_assert(Module != nullptr);
-
-  auto Failed = llvm::Linker::linkModules(ModuleContainer.getModule(),
-                                          std::move(Module));
-
-  EC.commitAllFor(ModuleContainer);
-
-  revng_assert(not Failed);
-}
-
-static pipeline::RegisterPipe<LinkSupport> E4;
 
 namespace revng::pypeline::piperuns {
 

@@ -5,34 +5,12 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/Pipeline/AllRegistries.h"
-#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Recompile/LinkForTranslation.h"
 #include "revng/Recompile/LinkForTranslationPipe.h"
 #include "revng/Support/ResourceFinder.h"
 
 using namespace llvm;
 using namespace llvm::sys;
-using namespace pipeline;
-using namespace ::revng::pipes;
-
-void LinkForTranslation::run(ExecutionContext &EC,
-                             BinaryFileContainer &InputBinary,
-                             ObjectFileContainer &ObjectFile,
-                             TranslatedFileContainer &OutputBinary) {
-  if (not InputBinary.exists() or not ObjectFile.exists())
-    return;
-
-  const model::Binary &Model = *getModelFromContext(EC);
-  linkForTranslation(Model,
-                     *InputBinary.path(),
-                     *ObjectFile.path(),
-                     OutputBinary.getOrCreatePath());
-
-  EC.commitUniqueTarget(OutputBinary);
-}
-
-static RegisterPipe<LinkForTranslation> E5;
 
 namespace revng::pypeline::piperuns {
 

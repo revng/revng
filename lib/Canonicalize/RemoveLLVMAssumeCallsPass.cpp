@@ -7,7 +7,6 @@
 #include "llvm/IR/Module.h"
 
 #include "revng/Model/FunctionTags.h"
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Support/IRHelpers.h"
 
 using namespace llvm;

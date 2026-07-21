@@ -2,46 +2,14 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/Support/Progress.h"
+
 #include "revng/Model/Binary.h"
 #include "revng/Model/Importer/Binary/BinaryImporter.h"
 #include "revng/Model/Importer/Binary/ImportBinaryAnalysis.h"
 #include "revng/Model/Importer/Binary/Options.h"
-#include "revng/Pipeline/RegisterAnalysis.h"
-#include "revng/Pipes/ModelGlobal.h"
 #include "revng/Support/ResourceFinder.h"
 #include "revng/TupleTree/TupleTree.h"
-
-using namespace revng::pipes;
-
-llvm::Error ImportBinaryAnalysis::run(pipeline::ExecutionContext &Context,
-                                      const BinaryFileContainer &SourceBinary) {
-  if (not SourceBinary.exists())
-    return llvm::Error::success();
-
-  TupleTree<model::Binary> &Model = getWritableModelFromContext(Context);
-
-  const ImporterOptions &Options = importerOptions();
-
-  llvm::Task T(1, "Import binary");
-  T.advance("Import main binary", true);
-
-  model::BinaryIdentifierReference Reference;
-  if (Model->Binaries().size() > 0) {
-    // TODO: do this unconditionally once we drop the old pipeline
-    Reference = Model->getBinaryIdentifierReference(0);
-  }
-
-  if (llvm::Error Error = importBinary(Model,
-                                       *SourceBinary.path(),
-                                       Options,
-                                       Reference)) {
-    return Error;
-  }
-
-  return llvm::Error::success();
-}
-
-static pipeline::RegisterAnalysis<ImportBinaryAnalysis> E;
 
 namespace revng::pypeline::analyses {
 
