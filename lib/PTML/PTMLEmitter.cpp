@@ -76,24 +76,41 @@ PTMLTagEmitter::PTMLTagEmitter(PTMLStreamEmitter &Parent, llvm::StringRef Tag) :
                "The parent emitter is already associated with an unfinalized "
                "open tag.");
 
-  if (ParentEmitter.EmitTags)
+  StartOffset = ParentEmitter.OS.tell();
+
+  if (ParentEmitter.emitsTags())
     ParentEmitter.OS << '<' << Tag;
   ParentEmitter.CurrentOpenTagEmitter = this;
 }
 
 PTMLTagEmitter::~PTMLTagEmitter() {
+  if (not IsClosed)
+    closeTag();
+}
+
+void PTMLTagEmitter::closeTag() {
+  revng_assert(not IsClosed, "The tag has already been closed.");
+
   if (IsEmittingOpenTag)
     finalizeOpenTag();
 
-  if (ParentEmitter.EmitTags)
+  size_t EndTagBegin = ParentEmitter.OS.tell();
+
+  if (ParentEmitter.emitsTags())
     ParentEmitter.OS << '<' << '/' << Tag << '>';
+
+  ParentEmitter.recordCloseTag(EndTagBegin);
+
+  IsClosed = true;
 }
 
 void PTMLTagEmitter::finalizeOpenTag() {
   revng_assert(IsEmittingOpenTag, "The open tag has already been finalized.");
 
-  if (ParentEmitter.EmitTags)
+  if (ParentEmitter.emitsTags())
     ParentEmitter.OS << '>';
+
+  ParentEmitter.recordOpenTag(StartOffset);
 
   IsEmittingOpenTag = false;
   ParentEmitter.CurrentOpenTagEmitter = nullptr;
@@ -111,7 +128,7 @@ PTMLTagEmitter &PTMLTagEmitter::emitAttribute(llvm::StringRef Name,
   revng_assert(not Name.contains('\n'));
   revng_assert(not Value.contains('\n'));
 
-  if (ParentEmitter.EmitTags) {
+  if (ParentEmitter.emitsTags()) {
     ParentEmitter.OS << ' ' << Name << '=' << '"';
     emitAttributeValue(Value);
     ParentEmitter.OS << '"';
@@ -131,7 +148,7 @@ PTMLTagEmitter::emitListAttribute(llvm::StringRef Name,
     return String.contains('\n');
   }));
 
-  if (ParentEmitter.EmitTags) {
+  if (ParentEmitter.emitsTags()) {
     ParentEmitter.OS << ' ' << Name << '=' << '"';
 
     for (auto [I, Value] : llvm::enumerate(Values)) {
@@ -157,8 +174,52 @@ void PTMLStreamEmitter::emit(llvm::StringRef Content) {
                "Cannot emit content while an unfinalized tag emitter is "
                "associated with this emitter.");
 
-  if (EmitTags)
-    emitEscaped(*this, Content, /*EscapeQuotes=*/false);
-  else
+  if (not emitsTags()) {
     StreamEmitter::emit(Content);
+    return;
+  }
+
+  if (not buildsMetadata()) {
+    emitEscaped(*this, Content, /*EscapeQuotes=*/false);
+    return;
+  }
+
+  // Emit the content escaped and record how the recovered source maps onto the
+  // PTML, so the reformatter can replay clang-format's edits without re-lexing.
+  //
+  // Within a run of unescaped characters the source and the PTML advance in
+  // lockstep, so a single sync point at the start of the run describes all of
+  // them.
+  // An escape expands one source character to several PTML bytes and breaks
+  // that correspondence, so a fresh sync point after it resumes the one-to-one
+  // run.
+  recordSyncPoint();
+
+  for (char Character : Content) {
+    DocumentMetadata.Source.push_back(Character);
+
+    if (requiresEscaping(Character, /*EscapeQuotes=*/false)) {
+      OS << getEscape(Character);
+      recordSyncPoint();
+    } else {
+      OS << Character;
+    }
+  }
+}
+
+void PTMLStreamEmitter::recordSyncPoint() {
+  size_t SourceOffset = DocumentMetadata.Source.size();
+  size_t PTMLOffset = OS.tell();
+
+  // Skip the sync point if it merely continues the previous run one-to-one, as
+  // happens at the start of a content run that directly follows another with no
+  // tag or escape in between.
+  std::vector<OffsetSyncPoint> &SourceMap = DocumentMetadata.SourceMap;
+  if (not SourceMap.empty()) {
+    const OffsetSyncPoint &Last = SourceMap.back();
+    if (Last.PTMLOffset + (SourceOffset - Last.SourceOffset) == PTMLOffset)
+      return;
+  }
+
+  SourceMap.push_back({ SourceOffset, PTMLOffset });
 }

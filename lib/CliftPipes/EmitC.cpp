@@ -61,12 +61,13 @@ void EmitC::runOnFunction(const model::Function &Function) {
     revng_abort("Unsupported emission style.");
   };
 
-  auto OS = Output.getOStream(Object);
-  ptml::CTokenEmitter Emitter(*OS,
-                              Configuration.DisableMarkup ?
+  ptml::CTokenEmitter Emitter(Configuration.DisableMarkup ?
                                 ptml::Tagging::Disabled :
                                 ptml::Tagging::Enabled);
   decompile(MLIRFunction, Emitter, TEConfiguration);
+
+  auto OS = Output.getOStream(Object);
+  *OS << Emitter.extract();
 }
 
 } // namespace revng::pypeline::piperuns

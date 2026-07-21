@@ -96,7 +96,7 @@ module attributes {clift.module} {
       clift.yield %r : !int32_t
     }
 
-    // CHECK: var_0 * var_0;
+    // CHECK: var_0 *var_0;
     clift.expr {
       %r = clift.mul %x, %x : !int32_t
       clift.yield %r : !int32_t
@@ -114,7 +114,7 @@ module attributes {clift.module} {
       clift.yield %r : !int32_t
     }
 
-    // CHECK: var_0 && var_0;
+    // CHECK: var_0 &&var_0;
     clift.expr {
       %r = clift.and %x, %x : !int32_t -> !int32_t
       clift.yield %r : !int32_t
@@ -126,7 +126,7 @@ module attributes {clift.module} {
       clift.yield %r : !int32_t
     }
 
-    // CHECK: var_0 & var_0;
+    // CHECK: var_0 &var_0;
     clift.expr {
       %r = clift.bitand %x, %x : !int32_t
       clift.yield %r : !int32_t
