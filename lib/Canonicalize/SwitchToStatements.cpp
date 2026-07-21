@@ -14,6 +14,7 @@
 #include <utility>
 #include <variant>
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
@@ -49,6 +50,7 @@
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/SmallMap.h"
+#include "revng/Canonicalize/AllocaKillPoint.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/InitModelTypes/InitModelTypes.h"
 #include "revng/LocalVariables/LocalVariableBuilder.h"
@@ -191,14 +193,24 @@ public:
 private:
   AliasAnalysis *AA;
   ModuleSlotTracker &MST;
-  // The PostDominatorTree, threaded from AvailableExpressionsAnalysis.
-  [[maybe_unused]] PostDominatorTree *PDT;
+  PostDominatorTree *PDT;
+  // Per-AllocaInst kill block: the nearest common post-dominator of all the
+  // alloca's transitive uses, past which the value it holds is dead. A null
+  // entry is a legitimate result: it means those uses have no common
+  // post-dominator (e.g. multiple function exits), so the value is never
+  // treated as dead. Computed once, up front, in getAvailableExpressions - not
+  // from the transfer function, which runs many times during the fixpoint - and
+  // owned by the caller.
+  const DenseMap<const AllocaInst *, const BasicBlock *> *AllocaKillBlocks;
 
 public:
   AvailableExpressionsMonotoneFramework(AliasAnalysis *A,
                                         ModuleSlotTracker &TheMST,
-                                        PostDominatorTree *ThePDT) :
-    AA(A), MST(TheMST), PDT(ThePDT) {}
+                                        PostDominatorTree *ThePDT,
+                                        const DenseMap<const AllocaInst *,
+                                                       const BasicBlock *>
+                                          *KillBlocks) :
+    AA(A), MST(TheMST), PDT(ThePDT), AllocaKillBlocks(KillBlocks) {}
 
 public:
   LatticeElement combineValues(const LatticeElement &LHS,
@@ -219,6 +231,8 @@ private:
   void applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const;
 
   bool mayClobber(Instruction *Access, Instruction *Affected) const;
+
+  const BasicBlock *postDomOfUses(const AllocaInst *Alloca) const;
 };
 
 using AEMFP = AvailableExpressionsMonotoneFramework;
@@ -240,6 +254,10 @@ bool AEMFP::mayClobber(Instruction *Access, Instruction *Affected) const {
             "Access may " << (Result ? std::string() : std::string("not "))
                           << "clobber Affected");
   return Result;
+}
+
+const BasicBlock *AEMFP::postDomOfUses(const AllocaInst *Alloca) const {
+  return AllocaKillBlocks->lookup(Alloca);
 }
 
 void AEMFP::applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const {
@@ -269,6 +287,32 @@ void AEMFP::applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const {
         revng_log(Log, "erase Available");
         E.erase(A);
       }
+    }
+  }
+
+  // Drop the available expressions that could only be produced by reloading a
+  // local variable, once we are past the point where that variable's value can
+  // still be needed. That point is the common post-dominator of the alloca's
+  // transitive uses: the fact is kept alive until every value derived from the
+  // local (its loads, and whatever consumes them) is dead. This is purely a
+  // runtime-memory optimisation - it keeps the analysis's stored sets smaller -
+  // and is not needed for correctness: dropping an available expression only
+  // forgoes a possible reuse, so the emitted code is unchanged. It also
+  // prevents ever reloading a value from a local outside the range where that
+  // local holds a live value.
+  for (const AvailableExpression &A : llvm::make_early_inc_range(E)) {
+    const auto &[Available, Assign] = A;
+    if (Assign == nullptr)
+      continue;
+    auto *Alloca = dyn_cast<AllocaInst>(Assign->getPointerOperand());
+    if (Alloca == nullptr)
+      continue;
+
+    if (isPastCommonPostDominator(*PDT, postDomOfUses(Alloca), I)) {
+      revng_log(Log,
+                "prune dead-variable Available: " << dumpToString(Available,
+                                                                  MST));
+      E.erase(A);
     }
   }
 
@@ -689,7 +733,18 @@ static AEResult getAvailableExpressions(Function &F,
   ProgramPointsCFG *Graph = &Result.ProgramPointsGraph;
   ProgramPointNode *Entry = Graph->getEntryNode();
 
-  AEMFP AvailableExpressionsMF{ AA, MST, PDT };
+  // Precompute, once, the kill block of every alloca (the common post-dominator
+  // of its transitive uses, past which the value it holds is dead). This
+  // closure walk is more expensive than a single hop, so doing it here keeps
+  // the transfer function - which runs many times during the fixpoint - free of
+  // this work.
+  DenseMap<const AllocaInst *, const BasicBlock *> AllocaKillBlocks;
+  for (Instruction &I : llvm::instructions(F))
+    if (auto *Alloca = dyn_cast<AllocaInst>(&I))
+      AllocaKillBlocks[Alloca] = commonPostDominatorOfTransitiveUses(*PDT,
+                                                                     Alloca);
+
+  AEMFP AvailableExpressionsMF{ AA, MST, PDT, &AllocaKillBlocks };
   std::vector Entries = { Entry };
   mfp::MFPConfiguration<AEMFP> Configuration{
     .Instance = &AvailableExpressionsMF,
