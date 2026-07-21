@@ -24,6 +24,19 @@ revng_add_test(NAME test_lazysmallbitvector COMMAND test_lazysmallbitvector)
 set_tests_properties(test_lazysmallbitvector PROPERTIES LABELS "unit")
 
 #
+# test_alloca_kill_point
+#
+
+revng_add_test_executable(test_alloca_kill_point "${SRC}/AllocaKillPoint.cpp")
+target_compile_definitions(test_alloca_kill_point
+                           PRIVATE "BOOST_TEST_DYN_LINK=1")
+target_include_directories(test_alloca_kill_point PRIVATE "${CMAKE_SOURCE_DIR}")
+target_link_libraries(test_alloca_kill_point revngSupport revngUnitTestHelpers
+                      Boost::unit_test_framework ${LLVM_LIBRARIES})
+revng_add_test(NAME test_alloca_kill_point COMMAND test_alloca_kill_point)
+set_tests_properties(test_alloca_kill_point PROPERTIES LABELS "unit")
+
+#
 # test_classsentinel
 #
 

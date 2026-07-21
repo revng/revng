@@ -14,6 +14,7 @@
 #include <utility>
 #include <variant>
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/ScopeExit.h"
@@ -21,6 +22,7 @@
 #include "llvm/ADT/iterator_range.h"
 #include "llvm/Analysis/BasicAliasAnalysis.h"
 #include "llvm/Analysis/GlobalsModRef.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "llvm/Analysis/ScopedNoAliasAA.h"
 #include "llvm/Analysis/TypeBasedAliasAnalysis.h"
 #include "llvm/CodeGen/CodeGenPassBuilder.h"
@@ -48,6 +50,7 @@
 #include "revng/ABI/ModelHelpers.h"
 #include "revng/ADT/GenericGraph.h"
 #include "revng/ADT/SmallMap.h"
+#include "revng/Canonicalize/AllocaKillPoint.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
 #include "revng/InitModelTypes/InitModelTypes.h"
 #include "revng/LocalVariables/LocalVariableBuilder.h"
@@ -68,222 +71,33 @@ static Logger Log{ "switch-to-statements" };
 
 using namespace llvm;
 
-//
-// Templated using for types of local variables, copy and assign instructions.
-// These are only necessary because we still have the legacy version.
-// We can drop the template when we drop legacy mode, and just use StoreInst for
-// AssignType, LoadInst for CopyType, and AllocaInst for LocalVarType.
-//
+using AssignType = StoreInst;
 
-template<bool IsLegacy>
-using AssignType = std::conditional_t<IsLegacy, CallInst, StoreInst>;
+using CopyType = LoadInst;
 
-template<bool IsLegacy>
-using CopyType = std::conditional_t<IsLegacy, CallInst, LoadInst>;
-
-template<bool IsLegacy>
-using LocalVarType = std::conditional_t<IsLegacy, CallInst, AllocaInst>;
+using LocalVarType = AllocaInst;
 
 //
-// Templated helpers for getting pointer and value operands for copy and assign
-// instructions.
-// These are only necessary because we still have the legacy version where a
-// copy is not just a LoadInst but a call to an opaque function, and an
-// assignment is not just a StoreInst but it's also a call to another opaque
-// function.
-// We can drop the template when we drop legacy mode, and just remove these
-// helpers or at lease greatly simplify them.
+// Helper for getting the value operand of an assign (store) instruction.
 //
 
-template<bool IsLegacy>
-static Use *getStorePointerOperandUse(Instruction *I) {
-  if (not I)
-    return nullptr;
-
-  if constexpr (IsLegacy) {
-    if (CallInst *Assign = getCallToTagged(I, FunctionTags::Assign))
-      return &Assign->getArgOperandUse(1);
-  } else {
-    if (auto *Assign = dyn_cast<StoreInst>(I))
-      return &Assign->getOperandUse(1);
-  }
-  return nullptr;
-}
-
-template<bool IsLegacy>
-static const Use *getStorePointerOperandUse(const Instruction *I) {
-  if (not I)
-    return nullptr;
-
-  if constexpr (IsLegacy) {
-    if (const CallInst *Assign = getCallToTagged(I, FunctionTags::Assign))
-      return &Assign->getArgOperandUse(1);
-  } else {
-    if (const auto *Assign = dyn_cast<StoreInst>(I))
-      return &Assign->getOperandUse(1);
-  }
-  return nullptr;
-}
-
-template<bool IsLegacy>
-static Value *getStorePointerOperand(Instruction *I) {
-  Use *U = getStorePointerOperandUse<IsLegacy>(I);
-  return U ? U->get() : nullptr;
-}
-
-template<bool IsLegacy>
-static const Value *getStorePointerOperand(const Instruction *I) {
-  const Use *U = getStorePointerOperandUse<IsLegacy>(I);
-  return U ? U->get() : nullptr;
-}
-
-template<bool IsLegacy>
-static bool isStorePointerOperand(const Use &U, const Instruction *I) {
-  return getStorePointerOperandUse<IsLegacy>(I) == &U;
-}
-
-template<bool IsLegacy>
 static Use *getStoreValueOperandUse(Instruction *I) {
   if (not I)
     return nullptr;
 
-  if constexpr (IsLegacy) {
-    if (CallInst *Assign = getCallToTagged(I, FunctionTags::Assign))
-      return &Assign->getArgOperandUse(0);
-  } else {
-    if (auto *Assign = dyn_cast<StoreInst>(I))
-      return &Assign->getOperandUse(0);
-  }
+  if (auto *Assign = dyn_cast<StoreInst>(I))
+    return &Assign->getOperandUse(0);
   return nullptr;
 }
 
-template<bool IsLegacy>
-static const Use *getStoreValueOperandUse(const Instruction *I) {
-  if (not I)
-    return nullptr;
-
-  if constexpr (IsLegacy) {
-    if (const CallInst *Assign = getCallToTagged(I, FunctionTags::Assign))
-      return &Assign->getArgOperandUse(0);
-  } else {
-    if (const auto *Assign = dyn_cast<StoreInst>(I))
-      return &Assign->getOperandUse(0);
-  }
-  return nullptr;
-}
-
-template<bool IsLegacy>
 static Value *getStoreValueOperand(Instruction *I) {
-  Use *U = getStoreValueOperandUse<IsLegacy>(I);
+  Use *U = getStoreValueOperandUse(I);
   return U ? U->get() : nullptr;
-}
-
-template<bool IsLegacy>
-static const Value *getStoreValueOperand(const Instruction *I) {
-  const Use *U = getStoreValueOperandUse<IsLegacy>(I);
-  return U ? U->get() : nullptr;
-}
-
-template<bool IsLegacy>
-static bool isStoreValueOperand(const Use &U, const Instruction *I) {
-  return getStoreValueOperandUse<IsLegacy>(I) == &U;
-}
-
-template<bool IsLegacy>
-static Use *getLoadPointerOperandUse(Instruction *I) {
-  if (not I)
-    return nullptr;
-
-  if constexpr (IsLegacy) {
-    if (CallInst *Assign = getCallToTagged(I, FunctionTags::Copy))
-      return &Assign->getArgOperandUse(0);
-  } else {
-    if (auto *Assign = dyn_cast<LoadInst>(I))
-      return &Assign->getOperandUse(0);
-  }
-  return nullptr;
-}
-
-template<bool IsLegacy>
-static const Use *getLoadPointerOperandUse(const Instruction *I) {
-  if (not I)
-    return nullptr;
-
-  if constexpr (IsLegacy) {
-    if (const CallInst *Assign = getCallToTagged(I, FunctionTags::Copy))
-      return &Assign->getArgOperandUse(0);
-  } else {
-    if (const auto *Assign = dyn_cast<LoadInst>(I))
-      return &Assign->getOperandUse(0);
-  }
-  return nullptr;
-}
-
-template<bool IsLegacy>
-static Value *getLoadPointerOperand(Instruction *I) {
-  Use *U = getLoadPointerOperandUse<IsLegacy>(I);
-  return U ? U->get() : nullptr;
-}
-
-template<bool IsLegacy>
-static const Value *getLoadPointerOperand(const Instruction *I) {
-  const Use *U = getLoadPointerOperandUse<IsLegacy>(I);
-  return U ? U->get() : nullptr;
-}
-
-template<bool IsLegacy>
-static Value *getPointerOperand(Instruction *I) {
-  if (auto *V = getLoadPointerOperand<IsLegacy>(I))
-    return V;
-  if (auto *V = getStorePointerOperand<IsLegacy>(I))
-    return V;
-  return nullptr;
-}
-
-template<bool IsLegacy>
-static const Value *getPointerOperand(const Instruction *I) {
-  if (const auto *V = getLoadPointerOperand<IsLegacy>(I))
-    return V;
-  if (const auto *V = getStorePointerOperand<IsLegacy>(I))
-    return V;
-  return nullptr;
 }
 
 //
 // Helpers for statements and side effects.
 //
-
-// TODO: drop this when we drop legacy mode, since in non-legacy mode this is a
-// separate pass already.
-static bool causesExponentialDataflowPaths(const Instruction *I) {
-  // This forces all various kinds of instructions to get their value stored
-  // into a local variable.
-  // The reason for doing this is that these instructions often contribute to
-  // the formation of pathological dataflows, causing exponential path explosion
-  // when expanded into C expressions during decompilation.
-  // Serializing their value into a dedicated local variable breaks such an
-  // exponential path explosion.
-  //
-  // This is a temporary workaround, that we've already put in place for
-  // SelectInst too, and that will be replaced in the future by a more
-  // principled approach for splitting pathological dataflows that lead to
-  // exponential path esplosion.
-
-  if (isa<SelectInst>(I))
-    return true;
-
-  Value *Op0 = nullptr;
-  Value *Op1 = nullptr;
-  Value *Op2 = nullptr;
-
-  using namespace llvm::PatternMatch;
-  if (match(I, m_FShl(m_Value(Op0), m_Value(Op1), m_Value(Op2))))
-    return true;
-  if (match(I, m_FShr(m_Value(Op0), m_Value(Op1), m_Value(Op2))))
-    return true;
-
-  return false;
-}
 
 static bool doesNotAccessMemory(const Instruction *I) {
   // We have to hardcode revng_call_stack_arguments and revng_stack_frame
@@ -306,26 +120,11 @@ static bool doesNotAccessMemory(const Instruction *I) {
   return false;
 }
 
-template<bool IsLegacy>
 static bool mayHaveSideEffects(const Instruction *I) {
-  if (IsLegacy and causesExponentialDataflowPaths(I))
-    return true;
-
   if (doesNotAccessMemory(I))
     return false;
 
   return I->mayHaveSideEffects();
-}
-
-template<bool IsLegacy>
-static bool mayWriteToMemory(const Instruction *I) {
-  if (IsLegacy and causesExponentialDataflowPaths(I))
-    return true;
-
-  if (doesNotAccessMemory(I))
-    return false;
-
-  return I->mayWriteToMemory();
 }
 
 static bool mayReadMemory(const Instruction *I) {
@@ -335,94 +134,10 @@ static bool mayReadMemory(const Instruction *I) {
   return I->mayReadFromMemory();
 }
 
-//
-// Legacy mode helpers for traversing ModelGEPs and discovering the local
-// variable accessed by an Instruction.
-// They can be dropped when legacy mode goes away.
-//
-
-static RecursiveCoroutine<std::optional<const Value *>>
-getAccessedLocalVariableFromModelGEP(const CallInst *ModelGEPRefCall) {
-  revng_assert(isCallToTagged(ModelGEPRefCall, FunctionTags::ModelGEPRef));
-
-  revng_assert(ModelGEPRefCall->arg_size() >= 2);
-
-  // If the ModelGEPRefCall has more than 2 arguments, and some of them are not
-  // constants, we cannot figure out all the list of potentially accessed local
-  // variables, so we just return nullptr.
-  for (const Use &GEPArg : llvm::drop_begin(ModelGEPRefCall->args(), 2)) {
-    if (not isa<Constant>(GEPArg.get()))
-      rc_return nullptr;
-  }
-
-  // If the Base argument of the ModelGEPRefCall isn't a LocalVariable, nor an
-  // Argument, nor another ModelGEPRef, we just return nullopt, meaning that
-  // this thing doesn't really access any local variable.
-  auto *GEPBase = ModelGEPRefCall->getArgOperand(1);
-  // If the GEPBase is directly an argument, we're done
-  if (isa<Argument>(GEPBase))
-    rc_return GEPBase;
-
-  // If the GEPBase is directly a LocalVariable, we're done
-  if (isCallToTagged(GEPBase, FunctionTags::AllocatesLocalVariable))
-    rc_return GEPBase;
-
-  // If the GEPBase is another ModelGEPRef we recur.
-  // Notice that we don't recur on ModelGEP, only on ModelGEPRef, because simple
-  // ModelGEP can have arbitrary base pointers, but they never access
-  // LocalVariables.
-  if (auto *NestedModelGEPRef = getCallToTagged(GEPBase,
-                                                FunctionTags::ModelGEPRef))
-    rc_return rc_recur getAccessedLocalVariableFromModelGEP(NestedModelGEPRef);
-
-  // Everything else cannot access local variables, so we return nullopt.
-  rc_return std::nullopt;
-}
-
-// Get the local variable accessed by I.
-// If the returned optional is nullopt, it means that I doesn't accessy memory.
-// If the returned optional is engaged:
-// - if it holds a null pointer, it means that I accesses memory but we weren't
-//   able to figure out where
-// - if it holds a valid pointer, it must be either an Argument or the accessed
-//   local variable
-static std::optional<const Value *>
-getAccessedLegacyLocal(const Instruction *I) {
-  const CopyType<true> *Copy = getCallToTagged(I, FunctionTags::Copy);
-  const AssignType<true> *Assign = getCallToTagged(I, FunctionTags::Assign);
-
-  // If it's not a Copy not an Assign then it's not an access to a local
-  // variable.
-  // TODO: this doesn't take into consideration stuff like memcpy.
-  if (not Copy and not Assign)
-    return std::nullopt;
-
-  const CallInst *AccessCall = Copy ? Copy : Assign;
-
-  unsigned AccessArgumentNumber = Assign ? 1 : 0;
-  const auto *Accessed = AccessCall->getArgOperand(AccessArgumentNumber);
-
-  // If the accessed thing is directly an Argument or a LocalVariable we're
-  // done.
-  if (isa<Argument>(Accessed)
-      or isCallToTagged(Accessed, FunctionTags::AllocatesLocalVariable)) {
-    return Accessed;
-  }
-
-  // If the accessed thing is not a ModelGEPRef, then it's not an access to a
-  // local variable.
-  auto *ModelGEPRef = getCallToTagged(Accessed, FunctionTags::ModelGEPRef);
-  if (not ModelGEPRef)
-    return std::nullopt;
-
-  return getAccessedLocalVariableFromModelGEP(ModelGEPRef);
-}
-
 /// A class that represents an available expression, along with the assignment
 /// that writes its value somewhere, making it available.
-template<bool IsLegacy>
 struct AvailableExpression {
-  using AssignType = AssignType<IsLegacy>;
+  using AssignType = ::AssignType;
 
   // The expression that is available
   Instruction *Expression = nullptr;
@@ -438,13 +153,9 @@ struct AvailableExpression {
   std::strong_ordering operator<=>(const AvailableExpression &) const = default;
 };
 
-template<bool IsLegacy>
-using AvailableSet = std::set<AvailableExpression<IsLegacy>>;
+using AvailableSet = std::set<AvailableExpression>;
 
-template<bool IsLegacy>
-static auto
-findAvailableRange(const AvailableSet<IsLegacy> &Availables, Instruction *I) {
-  using AvailableExpression = AvailableExpression<IsLegacy>;
+static auto findAvailableRange(const AvailableSet &Availables, Instruction *I) {
   auto Begin = Availables.lower_bound(AvailableExpression{
     .Expression = I, .Assignment = nullptr });
   auto End = Availables.upper_bound(AvailableExpression{
@@ -457,31 +168,49 @@ using InstructionVector = SmallVector<Instruction *, SmallSize>;
 using InstructionSetVector = SmallSetVector<Instruction *, SmallSize>;
 
 struct ProgramPointData {
+  // The program point: the last instruction of the (possibly coalesced) run of
+  // instructions it represents.
   Instruction *TheInstruction = nullptr;
-  ProgramPointData(Instruction *I) : TheInstruction(I){};
+  // The first instruction of the run. Equal to TheInstruction for ordinary,
+  // non-coalesced program points.
+  Instruction *FirstInstruction = nullptr;
+  ProgramPointData(Instruction *I) : TheInstruction(I), FirstInstruction(I){};
+  ProgramPointData(Instruction *First, Instruction *Last) :
+    TheInstruction(Last), FirstInstruction(First){};
 };
 
 using ProgramPointNode = BidirectionalNode<ProgramPointData>;
 using ProgramPointsCFG = GenericGraph<ProgramPointNode>;
 
-template<bool IsLegacy>
 struct AvailableExpressionsMonotoneFramework;
 
-template<bool IsLegacy>
 struct AvailableExpressionsMonotoneFramework {
 public:
   using GraphType = ProgramPointsCFG *;
-  using LatticeElement = AvailableSet<IsLegacy>;
+  using LatticeElement = AvailableSet;
   using Label = ProgramPointNode *;
 
 private:
   AliasAnalysis *AA;
   ModuleSlotTracker &MST;
+  PostDominatorTree *PDT;
+  // Per-AllocaInst kill block: the nearest common post-dominator of all the
+  // alloca's transitive uses, past which the value it holds is dead. A null
+  // entry is a legitimate result: it means those uses have no common
+  // post-dominator (e.g. multiple function exits), so the value is never
+  // treated as dead. Computed once, up front, in getAvailableExpressions - not
+  // from the transfer function, which runs many times during the fixpoint - and
+  // owned by the caller.
+  const DenseMap<const AllocaInst *, const BasicBlock *> *AllocaKillBlocks;
 
 public:
   AvailableExpressionsMonotoneFramework(AliasAnalysis *A,
-                                        ModuleSlotTracker &TheMST) :
-    AA(A), MST(TheMST) {}
+                                        ModuleSlotTracker &TheMST,
+                                        PostDominatorTree *ThePDT,
+                                        const DenseMap<const AllocaInst *,
+                                                       const BasicBlock *>
+                                          *KillBlocks) :
+    AA(A), MST(TheMST), PDT(ThePDT), AllocaKillBlocks(KillBlocks) {}
 
 public:
   LatticeElement combineValues(const LatticeElement &LHS,
@@ -502,51 +231,17 @@ private:
   void applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const;
 
   bool mayClobber(Instruction *Access, Instruction *Affected) const;
+
+  const BasicBlock *postDomOfUses(const AllocaInst *Alloca) const;
 };
 
-template<bool IsLegacy>
-using AEMFP = AvailableExpressionsMonotoneFramework<IsLegacy>;
+using AEMFP = AvailableExpressionsMonotoneFramework;
 
-template<bool IsLegacy>
-using LatticeElement = AEMFP<IsLegacy>::LatticeElement;
+using LatticeElement = AEMFP::LatticeElement;
 
-template<bool IsLegacy>
-using AvailableExpressionsMap = mfp::MFIResultMap<AEMFP<IsLegacy>>;
+using AvailableExpressionsMap = mfp::MFIResultMap<AEMFP>;
 
-static bool legacyLocalVariablesNoAlias(const Instruction *I,
-                                        const Instruction *J) {
-
-  // Copies from local variables never alias anyone else, except other
-  // instructions that copy or assign the same local variable
-  std::optional<const Value *> MayBeAccessedByI = getAccessedLegacyLocal(I);
-  std::optional<const Value *> MayBeAccessedByJ = getAccessedLegacyLocal(J);
-
-  // If either doesn't access a local variable, they are noAlias.
-  if (not MayBeAccessedByI.has_value() or not MayBeAccessedByJ.has_value())
-    return true;
-
-  const Value *AccessedByI = *MayBeAccessedByI;
-  const Value *AccessedByJ = *MayBeAccessedByJ;
-
-  // If either is nullptr, there is at least one among I and J that access many
-  // variables, and we just can't say with certainty that they are noAlias
-  if (nullptr == AccessedByI or nullptr == AccessedByJ)
-    return false;
-
-  // If both are arguments, they may point overlapping memory, and we have no
-  // way of knowing. So we return false, because we're not sure they don't
-  // alias.
-  if (isa<Argument>(AccessedByI) and isa<Argument>(AccessedByJ))
-    return false;
-
-  // For all the other cases they are noAlias only if the accessed
-  // local variable is different.
-  return AccessedByI != AccessedByJ;
-}
-
-template<bool IsLegacy>
-bool AEMFP<IsLegacy>::mayClobber(Instruction *Access,
-                                 Instruction *Affected) const {
+bool AEMFP::mayClobber(Instruction *Access, Instruction *Affected) const {
 
   revng_log(Log, "mayClobber");
   LoggerIndent Indent{ Log };
@@ -554,52 +249,27 @@ bool AEMFP<IsLegacy>::mayClobber(Instruction *Access,
   revng_log(Log, "Affected: " << dumpToString(Affected, MST));
   LoggerIndent MoreIndent{ Log };
 
-  bool Result = true;
-  if constexpr (IsLegacy) {
-
-    // If either instruction doesn't access memory, they are noAlias for sure.
-    if (not Access->mayReadOrWriteMemory()) {
-      revng_log(Log, "Access->mayReadOrWriteMemory() == false");
-      Result = false;
-    } else if (not Affected->mayReadOrWriteMemory()) {
-      revng_log(Log, "Affected->mayReadOrWriteMemory() == false");
-      return false;
-    } else {
-      // Here both instructions access memory.
-
-      // Just handle LocalVariables specifically.
-      // TODO: this is a poor's man alias analysis, which only explicitly
-      // handles stuff that is frequent and that we care about. In the future we
-      // have plans to replace it with a full fledged AliasAnalysis from LLVM
-      Result = not legacyLocalVariablesNoAlias(Access, Affected);
-    }
-  } else {
-    Result = isModSet(AA->getModRefInfo(Access, Affected));
-  }
+  bool Result = isModSet(AA->getModRefInfo(Access, Affected));
   revng_log(Log,
             "Access may " << (Result ? std::string() : std::string("not "))
                           << "clobber Affected");
   return Result;
 }
 
-template<bool IsLegacy>
-void AEMFP<IsLegacy>::applyTransferFunctionImpl(Instruction *I,
-                                                LatticeElement &E) const {
-  using AvailableExpression = AvailableExpression<IsLegacy>;
-  using AssignType = AssignType<IsLegacy>;
+const BasicBlock *AEMFP::postDomOfUses(const AllocaInst *Alloca) const {
+  return AllocaKillBlocks->lookup(Alloca);
+}
+
+void AEMFP::applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const {
 
   revng_log(Log,
             "applyTransferFunction on Instruction I: " << dumpToString(I, MST));
   LoggerIndent Indent{ Log };
 
-  if constexpr (IsLegacy) {
-    revng_assert(not isa<LoadInst>(I) and not isa<StoreInst>(I));
-  } else {
-    revng_assert(not isCallToTagged(I, FunctionTags::Copy)
-                 and not isCallToTagged(I, FunctionTags::Assign));
-  }
+  revng_assert(not isCallToTagged(I, FunctionTags::Copy)
+               and not isCallToTagged(I, FunctionTags::Assign));
 
-  if (mayHaveSideEffects<IsLegacy>(I)) {
+  if (mayHaveSideEffects(I)) {
     revng_log(Log, "mayHaveSideEffects");
     LoggerIndent XX{ Log };
     for (const AvailableExpression &A : llvm::make_early_inc_range(E)) {
@@ -620,7 +290,33 @@ void AEMFP<IsLegacy>::applyTransferFunctionImpl(Instruction *I,
     }
   }
 
-  auto *StoredOperand = getStoreValueOperand<IsLegacy>(I);
+  // Drop the available expressions that could only be produced by reloading a
+  // local variable, once we are past the point where that variable's value can
+  // still be needed. That point is the common post-dominator of the alloca's
+  // transitive uses: the fact is kept alive until every value derived from the
+  // local (its loads, and whatever consumes them) is dead. This is purely a
+  // runtime-memory optimisation - it keeps the analysis's stored sets smaller -
+  // and is not needed for correctness: dropping an available expression only
+  // forgoes a possible reuse, so the emitted code is unchanged. It also
+  // prevents ever reloading a value from a local outside the range where that
+  // local holds a live value.
+  for (const AvailableExpression &A : llvm::make_early_inc_range(E)) {
+    const auto &[Available, Assign] = A;
+    if (Assign == nullptr)
+      continue;
+    auto *Alloca = dyn_cast<AllocaInst>(Assign->getPointerOperand());
+    if (Alloca == nullptr)
+      continue;
+
+    if (isPastCommonPostDominator(*PDT, postDomOfUses(Alloca), I)) {
+      revng_log(Log,
+                "prune dead-variable Available: " << dumpToString(Available,
+                                                                  MST));
+      E.erase(A);
+    }
+  }
+
+  auto *StoredOperand = getStoreValueOperand(I);
   auto *AssignedInstruction = dyn_cast_or_null<Instruction>(StoredOperand);
   if (AssignedInstruction) {
     revng_log(Log, "I is Assign");
@@ -643,16 +339,17 @@ void AEMFP<IsLegacy>::applyTransferFunctionImpl(Instruction *I,
   }
 }
 
-template<bool IsLegacy>
-AEMFP<IsLegacy>::LatticeElement
-AEMFP<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
-                                       const AEMFP<IsLegacy>::LatticeElement &E,
-                                       mfp::NoExtraState &ExtraState) const {
+AEMFP::LatticeElement
+AEMFP::applyTransferFunction(ProgramPointNode *ProgramPoint,
+                             const AEMFP::LatticeElement &E,
+                             mfp::NoExtraState &ExtraState) const {
 
-  Instruction *I = ProgramPoint->TheInstruction;
+  Instruction *First = ProgramPoint->FirstInstruction;
+  Instruction *Last = ProgramPoint->TheInstruction;
 
   revng_log(Log,
-            "applyTransferFunction on ProgramPoint: " << dumpToString(I, MST));
+            "applyTransferFunction on ProgramPoint: " << dumpToString(Last,
+                                                                      MST));
   LoggerIndent Indent{ Log };
 
   LatticeElement Result = E;
@@ -666,7 +363,13 @@ AEMFP<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
     }
   }
 
-  applyTransferFunctionImpl(I, Result);
+  // Replay every instruction in the (possibly coalesced) run, from the first to
+  // the program point itself, updating Result in place; the set is stored just
+  // once per run, which is what the memory optimisation buys. Last is never a
+  // terminator, so the instruction past it always exists.
+  Instruction *End = Last->getNextNode();
+  for (Instruction *I = First; I != End; I = I->getNextNode())
+    applyTransferFunctionImpl(I, Result);
 
   revng_log(Log, "final set");
   if (Log.isEnabled()) {
@@ -685,45 +388,66 @@ AEMFP<IsLegacy>::applyTransferFunction(ProgramPointNode *ProgramPoint,
 // expressions.
 //
 
-template<bool IsLegacy>
+// Consecutive memory accesses of the same kind can share a single program
+// point - and therefore a single stored set of available expressions -
+// instead of getting one each. This is purely a runtime-memory
+// optimisation: it does not affect correctness and the emitted code is
+// unchanged.
+//
+// Only these two kinds can be merged, because for both of them the set of
+// available expressions computed after the whole run is a valid answer for
+// any instruction inside the run (see getAvailableAt):
+//   - a load only ever adds an available expression, never removes one, so
+//     the set only grows along the run;
+//   - a store whose stored value is a constant, a global, or an argument
+//     adds no available expression at all (only a store of a value computed
+//     by an instruction would; see applyTransferFunctionImpl), so it can
+//     only remove expressions and the set only shrinks along the run.
+enum class CoalescibleKind {
+  None,
+  Load,
+  ConstStore
+};
+
+static CoalescibleKind coalescibleKind(const Instruction *I) {
+  if (isa<LoadInst>(I))
+    return CoalescibleKind::Load;
+  if (const auto *Store = dyn_cast<StoreInst>(I))
+    if (not isa<Instruction>(Store->getValueOperand()))
+      return CoalescibleKind::ConstStore;
+  return CoalescibleKind::None;
+}
+
 static bool isProgramPoint(const Instruction *I) {
 
   const Instruction *UnexpectedInstruction = nullptr;
-  if constexpr (IsLegacy) {
-    // Legacy mode just assumes that we don't have Load/Store/Alloca at all.
-    if (isa<LoadInst>(I) or isa<StoreInst>(I) or isa<AllocaInst>(I)
-        or isa<PHINode>(I))
-      UnexpectedInstruction = I;
-  } else {
-    // Non-legacy mode assumes that most custom opcode don't exist. Some of them
-    // have been replaced by Load/Store/Alloca, and others have been dropped
-    // because in the clift-based pipeline they will be only materialized in
-    // Clift as regular operators, so we don't need them in LLVM anymore and we
-    // want to make sure they disappear over time until we can actually drop
-    // them.
-    if (isCallToTagged(I, FunctionTags::AllocatesLocalVariable)
-        or isCallToTagged(I, FunctionTags::LocalVariable)
-        or isCallToTagged(I, FunctionTags::Copy)
-        or isCallToTagged(I, FunctionTags::Assign)
-        or isCallToTagged(I, FunctionTags::AddressOf)
-        or isCallToTagged(I, FunctionTags::Marker)
-        or isCallToTagged(I, FunctionTags::IsRef)
-        or isCallToTagged(I, FunctionTags::StringLiteral)
-        or isCallToTagged(I, FunctionTags::ModelCast)
-        or isCallToTagged(I, FunctionTags::ModelGEP)
-        or isCallToTagged(I, FunctionTags::ModelGEPRef)
-        or isCallToTagged(I, FunctionTags::Parentheses)
-        or isCallToTagged(I, FunctionTags::LiteralPrintDecorator)
-        or isCallToTagged(I, FunctionTags::HexInteger)
-        or isCallToTagged(I, FunctionTags::CharInteger)
-        or isCallToTagged(I, FunctionTags::BoolInteger)
-        or isCallToTagged(I, FunctionTags::NullPtr)
-        or isCallToTagged(I, FunctionTags::SegmentGlobalGetter)
-        or isCallToTagged(I, FunctionTags::UnaryMinus)
-        or isCallToTagged(I, FunctionTags::BinaryNot)
-        or isCallToTagged(I, FunctionTags::BooleanNot)) {
-      UnexpectedInstruction = I;
-    }
+  // This pass assumes that most custom opcode don't exist. Some of them have
+  // been replaced by Load/Store/Alloca, and others have been dropped because in
+  // the clift-based pipeline they will be only materialized in Clift as regular
+  // operators, so we don't need them in LLVM anymore and we want to make sure
+  // they disappear over time until we can actually drop them.
+  if (isCallToTagged(I, FunctionTags::AllocatesLocalVariable)
+      or isCallToTagged(I, FunctionTags::LocalVariable)
+      or isCallToTagged(I, FunctionTags::Copy)
+      or isCallToTagged(I, FunctionTags::Assign)
+      or isCallToTagged(I, FunctionTags::AddressOf)
+      or isCallToTagged(I, FunctionTags::Marker)
+      or isCallToTagged(I, FunctionTags::IsRef)
+      or isCallToTagged(I, FunctionTags::StringLiteral)
+      or isCallToTagged(I, FunctionTags::ModelCast)
+      or isCallToTagged(I, FunctionTags::ModelGEP)
+      or isCallToTagged(I, FunctionTags::ModelGEPRef)
+      or isCallToTagged(I, FunctionTags::Parentheses)
+      or isCallToTagged(I, FunctionTags::LiteralPrintDecorator)
+      or isCallToTagged(I, FunctionTags::HexInteger)
+      or isCallToTagged(I, FunctionTags::CharInteger)
+      or isCallToTagged(I, FunctionTags::BoolInteger)
+      or isCallToTagged(I, FunctionTags::NullPtr)
+      or isCallToTagged(I, FunctionTags::SegmentGlobalGetter)
+      or isCallToTagged(I, FunctionTags::UnaryMinus)
+      or isCallToTagged(I, FunctionTags::BinaryNot)
+      or isCallToTagged(I, FunctionTags::BooleanNot)) {
+    UnexpectedInstruction = I;
   }
 
   if (nullptr != UnexpectedInstruction) {
@@ -731,15 +455,23 @@ static bool isProgramPoint(const Instruction *I) {
     revng_abort("Unexpected Instruction");
   }
 
-  return I == &I->getParent()->front() or mayHaveSideEffects<IsLegacy>(I)
+  // Coalesce a run of consecutive same-kind loads or const/global/argument
+  // stores: only the last instruction of the run is a program point, the
+  // earlier ones are absorbed into it.
+  if (CoalescibleKind Kind = coalescibleKind(I);
+      Kind != CoalescibleKind::None) {
+    const Instruction *Next = I->getNextNode();
+    return Next == nullptr or coalescibleKind(Next) != Kind;
+  }
+
+  return I == &I->getParent()->front() or mayHaveSideEffects(I)
          or mayReadMemory(I);
 }
 
-template<bool IsLegacy>
 static InstructionSetVector getProgramPoints(BasicBlock &B) {
   InstructionSetVector Results;
   for (Instruction &I : B)
-    if (isProgramPoint<IsLegacy>(&I))
+    if (isProgramPoint(&I))
       Results.insert(&I);
   return Results;
 }
@@ -749,12 +481,11 @@ using InstructionProgramPoint = std::unordered_map<const Instruction *,
 
 // An extended version of ProgramPointsCFG, that holds a graph of statements
 // points, along with a map from each Instruction to its previous statement.
-template<bool IsLegacy>
 class AvailableExpressionsResult {
 public:
-  using AvailableExpression = AvailableExpression<IsLegacy>;
-  using AvailableSet = AvailableSet<IsLegacy>;
-  using AvailableExpressionsMap = AvailableExpressionsMap<IsLegacy>;
+  using AvailableExpression = ::AvailableExpression;
+  using AvailableSet = ::AvailableSet;
+  using AvailableExpressionsMap = ::AvailableExpressionsMap;
 
 public:
   ProgramPointsCFG ProgramPointsGraph;
@@ -771,6 +502,12 @@ private:
   // Map an Instruction to its associated next program point in
   // ProgramPointsGraph.
   InstructionProgramPoint NextProgramPointInBlock;
+
+  // Maps each instruction absorbed into a coalesced run to the program point
+  // node representing that run, so getAvailableAt can answer it from the node's
+  // OutValue. This backs the runtime-memory optimisation of giving a whole run
+  // a single program point, and thus a single stored set of expressions.
+  InstructionProgramPoint RunMember;
 
   ModuleSlotTracker &MST;
 
@@ -792,6 +529,7 @@ public:
       &PreviousProgramPointInBlock = Result.PreviousProgramPointInBlock;
     InstructionProgramPoint
       &NextProgramPointInBlock = Result.NextProgramPointInBlock;
+    InstructionProgramPoint &RunMember = Result.RunMember;
 
     const auto MakeCFGNode = [&TheCFG, &ProgramPoint](Instruction *I) {
       ProgramPointNode *NewNode = TheCFG.addNode(I);
@@ -800,7 +538,7 @@ public:
     };
 
     for (BasicBlock &BB : F) {
-      InstructionSetVector ProgramPoints = getProgramPoints<IsLegacy>(BB);
+      InstructionSetVector ProgramPoints = getProgramPoints(BB);
 
       // Reserve space for the new ProgramPoints. This is for performance but
       // also for stability of pointers while adding new nodes, which allows to
@@ -841,6 +579,32 @@ public:
                             BB.end()))
         PreviousProgramPointInBlock[&I] = LastNode;
 
+      // Record the coalesced run each program point represents: walk back over
+      // the absorbed same-kind instructions to find the run's first
+      // instruction, store it on the node, and map every run member to the node
+      // so getAvailableAt answers them from the node's OutValue.
+      for (Instruction *Last : ProgramPoints) {
+        if (coalescibleKind(Last) == CoalescibleKind::None)
+          continue;
+
+        Instruction *First = Last;
+        while (Instruction *Previous = First->getPrevNode()) {
+          if (coalescibleKind(Previous) != coalescibleKind(Last)
+              or ProgramPoints.contains(Previous))
+            break;
+          First = Previous;
+        }
+
+        if (First == Last)
+          continue;
+
+        ProgramPointNode *Node = ProgramPoint.at(Last);
+        Node->FirstInstruction = First;
+        for (Instruction *I = First; I != Last; I = I->getNextNode())
+          RunMember[I] = Node;
+        RunMember[Last] = Node;
+      }
+
       BlockToBeginEndNode[&BB] = { FirstNode, LastNode };
     }
 
@@ -864,6 +628,16 @@ public:
     revng_log(Log, "IsAvailableAt");
     revng_log(Log, "Available?: " << dumpToString(I, MST));
     revng_log(Log, "Where: " << dumpToString(Where, MST));
+
+    auto RunMemberIt = RunMember.find(Where);
+    if (RunMemberIt != RunMember.end()) {
+      revng_log(Log, "is coalesced run member");
+
+      ProgramPointNode *UserProgramPoint = RunMemberIt->second;
+      const AvailableSet &Available = AvailableExpressions.at(UserProgramPoint)
+                                        .OutValue;
+      return findAvailableRange(Available, I);
+    }
 
     auto ProgramPointIt = ProgramPoint.find(Where);
     if (ProgramPointIt != ProgramPoint.end()) {
@@ -921,24 +695,23 @@ public:
   }
 };
 
-template<bool IsLegacy>
-using AEResult = AvailableExpressionsResult<IsLegacy>;
+using AEResult = AvailableExpressionsResult;
 
-template<bool IsLegacy>
-static AEResult<IsLegacy> getAvailableExpressions(Function &F,
-                                                  AliasAnalysis *AA,
-                                                  ModuleSlotTracker &MST) {
+static AEResult getAvailableExpressions(Function &F,
+                                        AliasAnalysis *AA,
+                                        ModuleSlotTracker &MST,
+                                        PostDominatorTree *PDT) {
   revng_log(Log, "getAvailableExpressions: " << F.getName());
 
-  using AvailableExpression = AvailableExpression<IsLegacy>;
-  using AvailableSet = AvailableSet<IsLegacy>;
-  using AssignType = AssignType<IsLegacy>;
+  auto Result = AEResult::makeFromFunction(F, MST);
 
-  auto Result = AEResult<IsLegacy>::makeFromFunction(F, MST);
-
+  // Seed Bottom from every instruction, not from the program point nodes: once
+  // runs are coalesced (the memory optimisation) a node no longer maps 1:1 to
+  // an instruction, but the lattice domain still needs an entry for every
+  // memory read and every instruction-valued store.
   AvailableSet Bottom;
-  for (ProgramPointNode *N : llvm::nodes(&Result.ProgramPointsGraph)) {
-    Instruction *I = N->TheInstruction;
+  for (Instruction &Inst : llvm::instructions(F)) {
+    Instruction *I = &Inst;
 
     if (mayReadMemory(I)) {
       Bottom.insert(AvailableExpression{
@@ -947,7 +720,7 @@ static AEResult<IsLegacy> getAvailableExpressions(Function &F,
       });
     }
 
-    auto *StoredOperand = getStoreValueOperand<IsLegacy>(I);
+    auto *StoredOperand = getStoreValueOperand(I);
     auto *AssignedInstruction = dyn_cast_or_null<Instruction>(StoredOperand);
     if (AssignedInstruction) {
       Bottom.insert(AvailableExpression{
@@ -960,8 +733,18 @@ static AEResult<IsLegacy> getAvailableExpressions(Function &F,
   ProgramPointsCFG *Graph = &Result.ProgramPointsGraph;
   ProgramPointNode *Entry = Graph->getEntryNode();
 
-  using AEMFP = AEMFP<IsLegacy>;
-  AEMFP AvailableExpressionsMF{ AA, MST };
+  // Precompute, once, the kill block of every alloca (the common post-dominator
+  // of its transitive uses, past which the value it holds is dead). This
+  // closure walk is more expensive than a single hop, so doing it here keeps
+  // the transfer function - which runs many times during the fixpoint - free of
+  // this work.
+  DenseMap<const AllocaInst *, const BasicBlock *> AllocaKillBlocks;
+  for (Instruction &I : llvm::instructions(F))
+    if (auto *Alloca = dyn_cast<AllocaInst>(&I))
+      AllocaKillBlocks[Alloca] = commonPostDominatorOfTransitiveUses(*PDT,
+                                                                     Alloca);
+
+  AEMFP AvailableExpressionsMF{ AA, MST, PDT, &AllocaKillBlocks };
   std::vector Entries = { Entry };
   mfp::MFPConfiguration<AEMFP> Configuration{
     .Instance = &AvailableExpressionsMF,
@@ -977,13 +760,9 @@ static AEResult<IsLegacy> getAvailableExpressions(Function &F,
   return Result;
 }
 
-template<bool IsLegacy>
 struct PickedInstructions {
   SetVector<Instruction *> ToSerialize = {};
-  MapVector<Use *, AssignType<IsLegacy> *> ToReplaceWithAvailable = {};
-  // TODO: This is workaround for some limitations of legacy mode. It should be
-  // unused in non-legacy mode, and can be removed when we drop legacy mode.
-  SmallPtrSet<AssignType<IsLegacy> *, 8> AssignToRemove = {};
+  MapVector<Use *, AssignType *> ToReplaceWithAvailable = {};
 };
 
 // LLVM doesn't ship a function-level analysis that produces a
@@ -1013,43 +792,38 @@ public:
 
 llvm::AnalysisKey ModuleSlotTrackerAnalysis::Key = {};
 
-template<bool IsLegacy>
 class AvailableExpressionsAnalysis
-  : public llvm::AnalysisInfoMixin<AvailableExpressionsAnalysis<IsLegacy>> {
+  : public llvm::AnalysisInfoMixin<AvailableExpressionsAnalysis> {
 
-  friend llvm::AnalysisInfoMixin<AvailableExpressionsAnalysis<IsLegacy>>;
+  friend llvm::AnalysisInfoMixin<AvailableExpressionsAnalysis>;
   static llvm::AnalysisKey Key;
 
 public:
-  using Result = AvailableExpressionsResult<IsLegacy>;
+  using Result = AvailableExpressionsResult;
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
-    AliasAnalysis *AA = IsLegacy ? nullptr : &FAM.getResult<AAManager>(F);
+    AliasAnalysis *AA = &FAM.getResult<AAManager>(F);
+    PostDominatorTree *PDT = &FAM.getResult<PostDominatorTreeAnalysis>(F);
     auto &MST = *FAM.getResult<ModuleSlotTrackerAnalysis>(F).MST;
-    return getAvailableExpressions<IsLegacy>(F, AA, MST);
+    return getAvailableExpressions(F, AA, MST, PDT);
   }
 };
 
-template<>
-AnalysisKey AvailableExpressionsAnalysis<true>::Key = {};
-template<>
-AnalysisKey AvailableExpressionsAnalysis<false>::Key = {};
+AnalysisKey AvailableExpressionsAnalysis::Key = {};
 
-template<bool IsLegacy>
-using AEA = AvailableExpressionsAnalysis<IsLegacy>;
+using AEA = AvailableExpressionsAnalysis;
 
-template<bool IsLegacy>
 class InstructionToSerializePicker
-  : public AnalysisInfoMixin<InstructionToSerializePicker<IsLegacy>> {
-  friend llvm::AnalysisInfoMixin<InstructionToSerializePicker<IsLegacy>>;
+  : public AnalysisInfoMixin<InstructionToSerializePicker> {
+  friend llvm::AnalysisInfoMixin<InstructionToSerializePicker>;
   static llvm::AnalysisKey Key;
 
 public:
-  using Result = PickedInstructions<IsLegacy>;
-  using AvailableExpression = AvailableExpression<IsLegacy>;
-  using AssignType = AssignType<IsLegacy>;
+  using Result = PickedInstructions;
+  using AvailableExpression = ::AvailableExpression;
+  using AssignType = ::AssignType;
 
 private:
-  const AEResult<IsLegacy> *AvailableExpressions = nullptr;
+  const AEResult *AvailableExpressions = nullptr;
   std::unordered_map<const Instruction *, size_t> ProgramOrdering = {};
   Result Picked;
   AliasAnalysis *AA;
@@ -1063,11 +837,9 @@ public:
 
 public:
   Result run(llvm::Function &F, llvm::FunctionAnalysisManager &FAM) {
-    if constexpr (not IsLegacy) {
-      AA = &FAM.getResult<AAManager>(F);
-    }
+    AA = &FAM.getResult<AAManager>(F);
     MST = FAM.getResult<ModuleSlotTrackerAnalysis>(F).MST.get();
-    AvailableExpressions = &FAM.getResult<AEA<IsLegacy>>(F);
+    AvailableExpressions = &FAM.getResult<AEA>(F);
 
     Picked = {};
     ProgramOrdering = {};
@@ -1078,12 +850,7 @@ public:
 private:
   bool isSerializable(const Instruction &I) const {
     const Type *T = I.getType();
-    if constexpr (IsLegacy) {
-      return not T->isVoidTy() and not T->isAggregateType()
-             and not isCallToTagged(&I, FunctionTags::IsRef);
-    } else {
-      return not T->isVoidTy();
-    }
+    return not T->isVoidTy();
   }
 
   void pick(Instruction *I) {
@@ -1105,37 +872,7 @@ private:
       for (Instruction &I : *BB)
         ProgramOrdering[&I] = NextOrder++;
 
-    // First, pick all the statements amenable for serialization
-    // Also compute the program order of instructions.
-    if constexpr (IsLegacy) {
-      revng_log(Log,
-                "pick for serialization instructions with mayHaveSideEffects: "
-                  << F.getName().str());
-      LoggerIndent MoreIndent{ Log };
-
-      for (BasicBlock *BB : RPO) {
-        for (Instruction &I : *BB) {
-          // If it's not a statement, don't pick it.
-          if (not mayHaveSideEffects<IsLegacy>(&I))
-            continue;
-
-          // If it's a statement but it's not serializable, don't pick it.
-          if (not isSerializable(I))
-            continue;
-
-          // If I is a call that reads and writes memory, but has only one use,
-          // we may want to not serialize it and inline it in the use. This will
-          // probably happen often. Any such call can be modeled as a write
-          // followed by a read, such that the write aliases everything except
-          // local variables that don't escape. Inlining it would have the
-          // effect of postponing a write, which is something that we haven't
-          // ever considered to do.
-          pick(&I);
-        }
-      }
-    }
-
-    // Then, start from memory reads, and traverse the dataflow to pick other
+    // Start from memory reads, and traverse the dataflow to pick other
     // instructions that need to be serialized.
     for (BasicBlock *BB : RPO)
       for (Instruction &I : *BB)
@@ -1158,28 +895,17 @@ private:
       rc_return;
     }
 
-    if constexpr (IsLegacy) {
-      // If it has side effects, we must have already picked it, unless it's not
-      // serializable. Just return.
-      if (mayHaveSideEffects<IsLegacy>(I)) {
-        revng_log(Log, "mayHaveSideEffects(I)");
-        revng_assert(not isSerializable(*I));
-        rc_return;
-      }
-      revng_log(Log, "not mayHaveSideEffects(I)");
-    } else {
-      // If MemoryRead may have side effects, it means that it's a call that
-      // accesses memory in read+write fashion. If that happens, in principle we
-      // don't have a strong case for picking I. However, if I has more than one
-      // use, and we don't pick I, the MemoryRead (which is a call) will end up
-      // duplicated in the full expression for I, which is not guaranteed to
-      // break semantic. So, whenever MemoryRead may have side effects and I has
-      // more than a single use, we have to pick I for preserving semantic.
-      if (mayHaveSideEffects<IsLegacy>(MemoryRead) and I->getNumUses() > 1) {
-        revng_log(Log, "I may have side effects, and has many uses");
-        pick(I);
-        rc_return;
-      }
+    // If MemoryRead may have side effects, it means that it's a call that
+    // accesses memory in read+write fashion. If that happens, in principle we
+    // don't have a strong case for picking I. However, if I has more than one
+    // use, and we don't pick I, the MemoryRead (which is a call) will end up
+    // duplicated in the full expression for I, which is not guaranteed to
+    // break semantic. So, whenever MemoryRead may have side effects and I has
+    // more than a single use, we have to pick I for preserving semantic.
+    if (mayHaveSideEffects(MemoryRead) and I->getNumUses() > 1) {
+      revng_log(Log, "I may have side effects, and has many uses");
+      pick(I);
+      rc_return;
     }
 
     revng_log(Log, "Check users");
@@ -1187,9 +913,6 @@ private:
 
     MapVector<Use *, AssignType *> ToReplaceWithAvailable;
     SmallVector<Use *> UsesToRecurOn;
-    // TODO: This is workaround for some limitations of legacy mode. It should
-    // be unused in non-legacy mode, and can be removed when we drop legacy mode
-    SmallPtrSet<AssignType *, 8> AssignToRemove;
 
     // If we're here, I hasn't been picked for serialization yet.
     // If possible we want to avoid picking it, because our broader goal is to
@@ -1267,21 +990,6 @@ private:
         continue;
       }
 
-      if constexpr (IsLegacy) {
-        // Skip over the Assign operand representing target variables for
-        // assignments, because in legacy mode we need to preserve them.
-        // This is a workaround and is not semantic preserving.
-        // It will be dropped in non-legacy mode.
-        if (isStorePointerOperand<IsLegacy>(U, User)) {
-          revng_log(Log, "isStorePointerOperand(U, User)");
-          // In principle we should do:
-          // UsesToRecurOn.push_back(&U);
-          // But that would just do nothing because Store instructions can't
-          // have any Use. So we can just continue here.
-          continue;
-        }
-      }
-
       revng_log(Log, "Find where I is available");
 
       // Case 1. and 2. of the description above.
@@ -1309,39 +1017,11 @@ private:
       // with the memory written to by SelectedAssign.
       // Just mark U to be replaced from a read from the location assigned by
       // SelectedAssign.
-      if (not mayWriteToMemory<IsLegacy>(User) or not IsLegacy) {
-        ToReplaceWithAvailable[&U] = SelectedAssign;
-        revng_log(Log, "not mayWriteToMemory(User)");
-        // We don't need to recur on uses of U, because all of them will
-        // effectively be replaced by reads from SelectedAssign, so the
-        // MemoryRead will not be affecting them anymore.
-        continue;
-      } else if constexpr (IsLegacy) {
-        // TODO: This is workaround for some limitations of legacy mode. It
-        // should be unused in non-legacy mode, and can be removed when we drop
-        // legacy mode.
-        //
-        // The following is a workaround to avoid emitting self-assigments in C,
-        // which are perfectly fine semantically but ugly to see.
-        revng_log(Log, "IsLegacy and mayWriteToMemory(User)");
-
-        // If User is an Assign, and it assigns the same local variable as the
-        // SelectedAssign, replacing U with a Copy from the LocalVar assigned by
-        // SelectedAssign from Load from the variable that assigns the same
-        // local variable as the SelectedAssign, would turn User into a self
-        // assignment.
-        if (auto *UserAssign = getCallToTagged(User, FunctionTags::Assign);
-            UserAssign
-            and legacyLocalVariablesNoAlias(UserAssign, SelectedAssign)) {
-          AssignToRemove.insert(UserAssign);
-          // In principle we should recur on this but Assign is always
-          // guaranteed to have zero uses.
-        } else {
-          // In all the other cases it's fine to replace U with a Copy from the
-          // LocalVar assigned by SelectedAssign
-          ToReplaceWithAvailable[&U] = SelectedAssign;
-        }
-      }
+      ToReplaceWithAvailable[&U] = SelectedAssign;
+      revng_log(Log, "not mayWriteToMemory(User)");
+      // We don't need to recur on uses of U, because all of them will
+      // effectively be replaced by reads from SelectedAssign, so the
+      // MemoryRead will not be affecting them anymore.
     }
 
     // If we reach this point, it means that no user forced us to serialize I.
@@ -1349,14 +1029,6 @@ private:
     // Picked.ToReplaceWithAvailable.
     for (const auto &Element : ToReplaceWithAvailable)
       Picked.ToReplaceWithAvailable.insert(Element);
-
-    // And we can also commit the fact that we want to remove the Assign.
-    // TODO: This is workaround for some limitations of legacy mode. It
-    // should be unused in non-legacy mode, and can be removed when we drop
-    // legacy mode.
-    if constexpr (IsLegacy)
-      for (const auto &Assign : AssignToRemove)
-        Picked.AssignToRemove.insert(Assign);
 
     // If we reach this point I is has not been picked for serialization, and
     // MemoryRead is available to all users of I, either directly of via some
@@ -1432,61 +1104,30 @@ private:
   }
 };
 
-template<>
-AnalysisKey InstructionToSerializePicker<true>::Key = {};
-template<>
-AnalysisKey InstructionToSerializePicker<false>::Key = {};
+AnalysisKey InstructionToSerializePicker::Key = {};
 
-using TypeMap = std::map<const Value *, const model::UpcastableType>;
+using LVB = LocalVariableBuilder<false>;
 
-template<bool IsLegacy>
-using LVB = LocalVariableBuilder<IsLegacy>;
+static LocalVariableBuilder<false>
+makeVariableBuilder(Function &F, unsigned InputPointerByteSize) {
+  VariableBuilderTypes Types = VariableBuilderTypes{ *F.getParent(),
+                                                     InputPointerByteSize };
 
-template<bool IsLegacy>
-LocalVariableBuilder<IsLegacy>
-makeVariableBuilder(Function &F,
-                    unsigned InputPointerByteSize,
-                    const model::Binary &Model) {
-
-  if constexpr (IsLegacy) {
-    return LVB<IsLegacy>::makeLegacy(Model, &F);
-  } else {
-    VariableBuilderTypes Types = VariableBuilderTypes{ *F.getParent(),
-                                                       InputPointerByteSize };
-
-    return LVB<IsLegacy>::make(Types, &F);
-  }
+  return LVB::make(Types, &F);
 }
 
-template<bool IsLegacy>
 class VariableInserter {
 public:
-  using PickedInstructions = PickedInstructions<IsLegacy>;
+  using PickedInstructions = ::PickedInstructions;
 
 private:
-  // The Model is only used in legacy mode. Drop this when we drop legacy mode.
-  const model::Binary &Model;
-  // The TypeMap is only used in legacy mode. Drop this when we drop legacy
-  // mode.
-  const TypeMap TheTypeMap;
-
   Function &F;
 
-  // TODO: remove when we drop legacy mode
-  LocalVariableBuilder<IsLegacy> VariableBuilder;
+  LocalVariableBuilder<false> VariableBuilder;
 
 public:
-  VariableInserter(Function &TheF,
-                   unsigned InputPointerByteSize,
-                   // TODO: drop the next 2 arguments when we drop legacy mode
-                   const model::Binary &TheModel,
-                   TypeMap &&TMap) :
-    Model(TheModel),
-    TheTypeMap(std::move(TMap)),
-    F(TheF),
-    VariableBuilder(makeVariableBuilder<IsLegacy>(F,
-                                                  InputPointerByteSize,
-                                                  TheModel)) {}
+  VariableInserter(Function &TheF, unsigned InputPointerByteSize) :
+    F(TheF), VariableBuilder(makeVariableBuilder(F, InputPointerByteSize)) {}
 
 public:
   bool run(const PickedInstructions &Picked) {
@@ -1495,22 +1136,12 @@ public:
     for (const auto &[TheUse, TheAssign] : Picked.ToReplaceWithAvailable)
       TheUse->set(createCopyFromAssignedOnUse(TheAssign, *TheUse));
 
-    // TODO: This is workaround for some limitations of legacy mode. It
-    // should be unused in non-legacy mode, and can be removed when we drop
-    // legacy mode.
-    if constexpr (IsLegacy) {
-      for (Instruction *I : Picked.AssignToRemove) {
-        Changed = true;
-        I->eraseFromParent();
-      }
-    }
-
     for (Instruction *I : Picked.ToSerialize) {
       // If ToSerialize contains something with 0 uses we don't add the
       // local variable. The Clifter will identify this a statement because it
       // has zero uses, and it will turn it into an ExpressionStatement in
       // place, preserving the ordering as if the local variable was emitted.
-      if (IsLegacy or I->getNumUses() > 0)
+      if (I->getNumUses() > 0)
         Changed |= serializeToLocalVariable(I);
     }
 
@@ -1520,133 +1151,47 @@ public:
 private:
   bool serializeToLocalVariable(Instruction *I);
 
-  bool shouldReplaceUseWithCopies(const Use &U) const;
-
-  // TODO: make this const when we drop legacy mode
-  LocalVarType<IsLegacy> *createLocalVariableFor(Instruction *I) {
-    // TODO: remove when we drop legacy mode.
+  LocalVarType *createLocalVariableFor(Instruction *I) {
     DebugLoc DL = I->getDebugLoc();
-    if constexpr (not IsLegacy) {
-      revng::IRBuilder B(F.getContext());
-      B.SetInsertPointPastAllocas(&F, DL);
-      return B.createSimpleAlloca(I->getType());
-    } else {
-      revng_assert(I->getType()->isIntOrPtrTy());
-      const model::UpcastableType &VariableType = TheTypeMap.at(I);
-      auto *LocalVariable = VariableBuilder.createLocalVariable(*VariableType);
-      LocalVariable->setDebugLoc(DL);
-      return LocalVariable;
-    }
+    revng::IRBuilder B(F.getContext());
+    B.SetInsertPointPastAllocas(&F, DL);
+    return B.createSimpleAlloca(I->getType());
   }
 
-  // TODO: make this const when we drop legacy mode
-  CopyType<IsLegacy> *createCopyOnUse(Value *ToCopy, Use &U) {
-    if constexpr (not IsLegacy) {
-      // Create a copy from the assigned location at the proper insertion point.
-      auto *InsertBefore = cast<Instruction>(U.getUser());
-      DebugLoc DL = InsertBefore->getDebugLoc();
-      if (auto *I = dyn_cast<Instruction>(ToCopy))
-        DL = I->getDebugLoc();
-      revng::IRBuilder B(InsertBefore, DL);
-      if (auto *Alloca = dyn_cast<AllocaInst>(ToCopy))
-        return B.createLoadFromVariable(Alloca, U->getType());
-      return B.CreateLoad(U->getType(), ToCopy);
-    } else {
-      // TODO: remove when we drop legacy mode.
-      //
-      // We have to cast this to a CallInst, because in legacy mode we can only
-      // make copies from things that have reference semantics, that are
-      // represented in LLVM ir with special calls to custom opcodes.
-      CopyType<IsLegacy> *Call = cast<CallInst>(ToCopy);
-      // In some cases we don't need to copy it.
-      if (shouldReplaceUseWithCopies(U))
-        Call = VariableBuilder.createCopyOnUse(Call, U);
-      return Call;
-    }
+  CopyType *createCopyOnUse(Value *ToCopy, Use &U) {
+    // Create a copy from the assigned location at the proper insertion point.
+    auto *InsertBefore = cast<Instruction>(U.getUser());
+    DebugLoc DL = InsertBefore->getDebugLoc();
+    if (auto *I = dyn_cast<Instruction>(ToCopy))
+      DL = I->getDebugLoc();
+    revng::IRBuilder B(InsertBefore, DL);
+    if (auto *Alloca = dyn_cast<AllocaInst>(ToCopy))
+      return B.createLoadFromVariable(Alloca, U->getType());
+    return B.CreateLoad(U->getType(), ToCopy);
   }
 
-  // TODO: make this const when we drop legacy mode
-  CopyType<IsLegacy> *createCopyFromAssignedOnUse(AssignType<IsLegacy> *Store,
-                                                  Use &U) {
-    if constexpr (not IsLegacy) {
-      return createCopyOnUse(Store->getPointerOperand(), U);
-    } else {
-      // TODO: remove when we drop legacy mode.
-      return VariableBuilder.createCopyFromAssignedOnUse(Store, U);
-    }
+  CopyType *createCopyFromAssignedOnUse(AssignType *Store, Use &U) {
+    return createCopyOnUse(Store->getPointerOperand(), U);
   }
 
-  // TODO: make this const when we drop legacy mode
-  AssignType<IsLegacy> *createAssignment(LocalVarType<IsLegacy> *LocalVariable,
-                                         Instruction *ValueToAssign) {
+  AssignType *createAssignment(LocalVarType *LocalVariable,
+                               Instruction *ValueToAssign) {
     auto NextInstruction = ValueToAssign->getNextNonDebugInstruction();
-    if constexpr (not IsLegacy) {
-      revng::IRBuilder B(NextInstruction, ValueToAssign->getDebugLoc());
-      return B.createStoreToVariable(ValueToAssign, LocalVariable);
-    } else {
-      // TODO: drop when we drop legacy mode.
-      return VariableBuilder.createAssignmentBefore(LocalVariable,
-                                                    ValueToAssign,
-                                                    NextInstruction);
-    }
+    revng::IRBuilder B(NextInstruction, ValueToAssign->getDebugLoc());
+    return B.createStoreToVariable(ValueToAssign, LocalVariable);
   }
 };
 
-template<bool IsLegacy>
-using VI = VariableInserter<IsLegacy>;
+using VI = VariableInserter;
 
-template<bool IsLegacy>
-bool VI<IsLegacy>::shouldReplaceUseWithCopies(const Use &U) const {
-  if constexpr (not IsLegacy) {
-    return true;
-  } else {
-    const auto *I = cast<Instruction>(U.get());
-
-    auto *Call = getCallToIsolatedFunction(I);
-    if (not Call)
-      return true;
-
-    const auto *ProtoT = getCallSitePrototype(Model, cast<CallInst>(I));
-    abi::FunctionType::Layout Layout = abi::FunctionType::Layout::make(*ProtoT);
-
-    // If the Isolated function doesn't return an aggregate, we have to
-    // inject copies from local variables.
-    using namespace abi::FunctionType;
-    if (Layout.returnMethod() != ReturnMethod::ModelAggregate)
-      return true;
-
-    // SPTAR return aggregates also need copies from local variables,
-    // because they are emitted as scalar pointer variables in C.
-    if (Layout.hasSPTAR())
-      return true;
-
-    // Non-SPTAR return aggregates, in legacy mode, are special in many ways:
-    // 1. they basically imply a LocalVariable;
-    // 2. their only expected use is supposed to be in custom opcodes that
-    // expect references
-    // For these reasons it would be wrong to inject a Copy.
-    if (isCallToTagged(U.getUser(), FunctionTags::Assign)) {
-      // If it's an assignment, and the operand number is 0, the value of I is
-      // being written somewhere (in the location referenced by operand 1).
-      // Hence we have to inject a copy.
-      return U.getOperandNo() == 0;
-    }
-    revng_assert(1 == U.getOperandNo());
-    revng_assert(isCallToTagged(U.getUser(), FunctionTags::AddressOf)
-                 or isCallToTagged(U.getUser(), FunctionTags::ModelGEPRef));
-    return false;
-  }
-}
-
-template<bool IsLegacy>
-bool VI<IsLegacy>::serializeToLocalVariable(Instruction *I) {
+bool VI::serializeToLocalVariable(Instruction *I) {
   // We can't serialize instructions with reference semantics into local
   // variables because C doesn't have references.
   revng_assert(not isCallToTagged(I, FunctionTags::IsRef));
 
   // First, we have to declare the LocalVariable, always at the entry block.
   // Create instruction that allocates a LocalVariable
-  LocalVarType<IsLegacy> *LocalVariable = createLocalVariableFor(I);
+  LocalVarType *LocalVariable = createLocalVariableFor(I);
 
   // Then, we have to replace all the uses of I so that they make a Copy
   // from the LocalVariable, unless it's a call to an IsolatedFunction that
@@ -1665,94 +1210,44 @@ static void registerAliasAnalysis(FunctionAnalysisManager &FAM) {
   FAM.registerPass([] { return llvm::registerAAAnalyses(); });
 }
 
-template<bool IsLegacy>
 static void registerCommonAnalyses(FunctionAnalysisManager &FAM) {
   FAM.registerPass([] { return ModuleSlotTrackerAnalysis(); });
-  FAM.registerPass([] { return AvailableExpressionsAnalysis<IsLegacy>(); });
-  FAM.registerPass([] { return InstructionToSerializePicker<IsLegacy>(); });
+  FAM.registerPass([] { return AvailableExpressionsAnalysis(); });
+  FAM.registerPass([] { return InstructionToSerializePicker(); });
 }
 
-template<bool IsLegacy>
-class SwitchToStatements
-  : public llvm::PassInfoMixin<SwitchToStatements<IsLegacy>> {
+class SwitchToStatements : public llvm::PassInfoMixin<SwitchToStatements> {
 
 private:
-  // This is only used in legacy mode for operating the LocalVariableBuilder
-  // inside the VariableInserter.
-  // TODO: drop when we drop legacy mode.
-  const model::Binary *Model;
-
   /// The size in bytes of a pointer in the Binary we're decompiling.
-  /// Necessary for initializing a LocalVariableBuilder without the Model, in
-  /// non-legacy mode.
+  /// Necessary for initializing a LocalVariableBuilder.
   unsigned InputPointerByteSize;
 
 public:
-  // This is meant to be used only in non-legacy mode.
   SwitchToStatements(unsigned InputPointerByteSize) :
-    Model(nullptr), InputPointerByteSize(InputPointerByteSize) {
-    revng_assert(not IsLegacy);
-  }
-
-private:
-  // This is meant to be used only in legacy mode.
-  // This is why it's private, so we it can only be invoked via the factory,
-  // which is only available when IsLegacy is true.
-  //
-  // TODO: drop this when we drop legacy mode.
-  SwitchToStatements(const model::Binary &TheModel) :
-    Model(&TheModel),
-    InputPointerByteSize(getPointerSize(Model->Architecture())) {
-    revng_assert(IsLegacy);
-  }
-
-public:
-  // Factory meant to be called only for legacy mode.
-  //
-  // TODO: drop this when we drop legacy mode.
-  static SwitchToStatements makeLegacy(const model::Binary &Model)
-    requires IsLegacy
-  {
-    return SwitchToStatements(Model);
-  }
+    InputPointerByteSize(InputPointerByteSize) {}
 
 public:
   llvm::PreservedAnalyses run(llvm::Function &F,
                               llvm::FunctionAnalysisManager &FAM) {
 
-    TypeMap InstructionTypes = {};
-    if constexpr (IsLegacy) {
-      auto ModelFunction = llvmToModelFunction(*Model, F);
-      revng_assert(ModelFunction != nullptr);
+    VariableInserter VarInserter{ F, InputPointerByteSize };
 
-      InstructionTypes = initModelTypesConsideringUses(F,
-                                                       ModelFunction,
-                                                       *Model,
-                                                       /* PointersOnly */
-                                                       false);
-    }
-    VariableInserter<IsLegacy> VarInserter{
-      F, InputPointerByteSize, *Model, std::move(InstructionTypes)
-    };
-
-    const auto
-      &Picked = FAM.getResult<InstructionToSerializePicker<IsLegacy>>(F);
+    const auto &Picked = FAM.getResult<InstructionToSerializePicker>(F);
     bool Changed = VarInserter.run(Picked);
 
     return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
   }
 
-  static void registerCallbacks(PassBuilder &PB)
-    requires(not IsLegacy)
-  {
+  static void registerCallbacks(PassBuilder &PB) {
     using PipelineElementArray = ArrayRef<PassBuilder::PipelineElement>;
     PB.registerAnalysisRegistrationCallback(registerAliasAnalysis);
-    PB.registerAnalysisRegistrationCallback(registerCommonAnalyses<false>);
+    PB.registerAnalysisRegistrationCallback(registerCommonAnalyses);
     PB.registerPipelineParsingCallback([](StringRef Name,
                                           FunctionPassManager &FPM,
                                           PipelineElementArray) {
       if (Name == "switch-to-statements-test") {
-        FPM.addPass(SwitchToStatements<false>{ /*InputPointerSize*/ 8 });
+        FPM.addPass(SwitchToStatements{ /*InputPointerSize*/ 8 });
         return true;
       }
       return false;
@@ -1765,40 +1260,12 @@ llvmGetPassPluginInfo() {
   return { LLVM_PLUGIN_API_VERSION,
            "SwitchToStatementsTests",
            "1.0",
-           SwitchToStatements<false>::registerCallbacks };
+           SwitchToStatements::registerCallbacks };
 }
 
-// The template is only for legacy mode.
-// TODO: drop when we drop legacy mode.
-template<bool IsLegacy>
-bool switchToStatements(const model::Binary *Model, llvm::Function &F);
+static bool switchToStatements(const model::Binary *Model, llvm::Function &F) {
 
-// This specialization is only for legacy mode.
-// TODO: drop when we drop legacy mode.
-template<>
-bool switchToStatements<true>(const model::Binary *Model, llvm::Function &F) {
-  revng_log(Log, "switchToStatements (legacy): " << F.getName());
-
-  FunctionAnalysisManager FAM;
-
-  // FPM.run queries some standard LLVM analyses unconditionally (e.g.
-  // PassInstrumentationAnalysis), so we need to register them on the FAM.
-  PassBuilder PB;
-  PB.registerFunctionAnalyses(FAM);
-
-  registerCommonAnalyses<true>(FAM);
-
-  FunctionPassManager FPM;
-  FPM.addPass(SwitchToStatements<true>::makeLegacy(*Model));
-  llvm::PreservedAnalyses Preserved = FPM.run(F, FAM);
-
-  return Preserved.areAllPreserved() ? false : true;
-}
-
-template<>
-bool switchToStatements<false>(const model::Binary *Model, llvm::Function &F) {
-
-  revng_log(Log, "switchToStatements (non-legacy): " << F.getName());
+  revng_log(Log, "switchToStatements: " << F.getName());
 
   ModuleAnalysisManager MAM;
   FunctionAnalysisManager FAM;
@@ -1819,15 +1286,14 @@ bool switchToStatements<false>(const model::Binary *Model, llvm::Function &F) {
   // Register the standard LLVM function analyses (PassInstrumentationAnalysis,
   // ...) and the alias analyses we use further down.
   registerAliasAnalysis(FAM);
-  registerCommonAnalyses<false>(FAM);
+  registerCommonAnalyses(FAM);
   FunctionPassManager FPM;
-  FPM.addPass(SwitchToStatements<false>(getPointerSize(Model->Architecture())));
+  FPM.addPass(SwitchToStatements(getPointerSize(Model->Architecture())));
   llvm::PreservedAnalyses Preserved = FPM.run(F, FAM);
 
   return Preserved.areAllPreserved() ? false : true;
 }
 
-template<bool IsLegacy>
 class SwitchToStatementsPass : public FunctionPass {
 public:
   static char ID;
@@ -1842,26 +1308,15 @@ public:
   bool runOnFunction(Function &F) override;
 };
 
-template<>
-char SwitchToStatementsPass<false>::ID = 0;
-template class SwitchToStatementsPass<false>;
+char SwitchToStatementsPass::ID = 0;
 
-template<>
-char SwitchToStatementsPass<true>::ID = 0;
-template class SwitchToStatementsPass<true>;
-
-template<bool IsLegacy>
-bool SwitchToStatementsPass<IsLegacy>::runOnFunction(llvm::Function &F) {
+bool SwitchToStatementsPass::runOnFunction(llvm::Function &F) {
   auto
     *Model = getAnalysis<LoadModelWrapperPass>().get().getReadOnlyModel().get();
-  return switchToStatements<IsLegacy>(Model, F);
+  return switchToStatements(Model, F);
 }
 
-using RegisterLegacy = RegisterPass<SwitchToStatementsPass<true>>;
-static RegisterLegacy
-  X("legacy-switch-to-statements", "LegacySwitchToStatements", false, false);
-
-using Register = RegisterPass<SwitchToStatementsPass<false>>;
+using Register = RegisterPass<SwitchToStatementsPass>;
 static Register
   Y("switch-to-statements", "SwitchToStatementsPass", false, false);
 
@@ -1870,7 +1325,7 @@ namespace revng::pypeline::piperuns {
 // TODO: inline switchToStatements once we dismiss the old pipeline
 void SwitchToStatements::runOnLLVMFunction(const model::Function &Function,
                                            llvm::Function &LLVMFunction) {
-  switchToStatements<false>(Model.get(), LLVMFunction);
+  switchToStatements(Model.get(), LLVMFunction);
 }
 
 } // namespace revng::pypeline::piperuns
