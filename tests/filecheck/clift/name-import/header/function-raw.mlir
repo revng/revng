@@ -2,7 +2,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-// RUN: %root/bin/revng pipe import-descriptive-info %S/model.yml %s /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
+// TODO: this test should start *only* from the model, as the clift for it can
+//       easily be generated from it.
+
+// RUN: %root/bin/revng pipe import-descriptive-info %S/../model.yml %s /dev/stdout | %root/bin/revng clift-opt | FileCheck %s
 
 !void = !clift.void
 !uint64_t = !clift.int<unsigned 8>

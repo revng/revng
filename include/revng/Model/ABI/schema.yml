@@ -2,6 +2,9 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+# IMPORTANT: this will eventually become a piece of the model, so don't add
+#            anything you wouldn't add to the model.
+
 version: 1
 root_type: Definition
 definitions:
@@ -10,100 +13,200 @@ definitions:
     doc: for the documentation see `references/abi-definition.md`
     fields:
       - name: ABI
+        doc: The name of the ABI this definition describes.
         type: model::ABI::Values
 
       - name: ArgumentsArePositionBased
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
 
       - name: OnlyStartDoubleArgumentsFromAnEvenRegister
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
+
       - name: ArgumentsCanBeSplitBetweenRegistersAndStack
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
+
       - name: BigArgumentsUsePointersToCopy
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
+
       - name: NoRegisterArgumentsCanComeAfterStackOnes
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
+
       - name: AllowPackedTypesInRegisters
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
+
       - name: CalleeIsResponsibleForStackCleanup
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
+
       - name: FloatsUseGPRs
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
+
       - name: PackStackArguments
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
+
       - name: TreatAllAggregatesAsPacked
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
 
       - name: StackAlignment
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: uint64_t
         default: -1
+
       - name: MinimumStackArgumentSize
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: uint64_t
         default: -1
+
       - name: UnusedStackArgumentBytes
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: uint64_t
         default: 0
 
       - name: MaximumGPRsPerAggregateArgument
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: uint64_t
         default: 0
+
       - name: MaximumGPRsPerAggregateReturnValue
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: uint64_t
         default: 0
+
       - name: MaximumGPRsPerScalarArgument
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: uint64_t
         default: 0
+
       - name: MaximumGPRsPerScalarReturnValue
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: uint64_t
         default: 0
 
       - name: GeneralPurposeArgumentRegisters
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         sequence:
           type: std::vector
           elementType: model::Register::Values
+
       - name: GeneralPurposeReturnValueRegisters
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         sequence:
           type: std::vector
           elementType: model::Register::Values
+
       - name: VectorArgumentRegisters
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         sequence:
           type: std::vector
           elementType: model::Register::Values
+
       - name: VectorReturnValueRegisters
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         sequence:
           type: std::vector
           elementType: model::Register::Values
+
       - name: CalleeSavedRegisters
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         sequence:
           type: std::vector
           elementType: model::Register::Values
 
       - name: ReturnValueLocationRegister
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: model::Register::Values
+
       - name: ReturnValueLocationOnStack
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
+
       - name: ReturnValueLocationIsReturned
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         type: bool
         default: false
 
       - name: ScalarTypes
+        doc: |
+          See `revng/share/doc/revng/references/abi-definition.md` for details.
         sequence:
           type: SortedVector
           elementType: ScalarType
 
+      - name: PrimitiveAliases
+        doc: |
+          The list of ABI-specific primitive aliases (e.g., `size_t`,
+          `intptr_t`).
+        sequence:
+          type: SortedVector
+          elementType: PrimitiveAlias
+
     key:
       - ABI
+
+  - name: PrimitiveAlias
+    type: struct
+    doc: |
+      Attaches a specific primitive type to an arbitrary name (e.g. `size_t`).
+    fields:
+      - name: Name
+        doc: The alias name (e.g. `size_t`).
+        type: string
+
+      - name: Kind
+        doc: The primitive kind of the aliased type.
+        type: model::PrimitiveKind::Values
+
+      - name: Size
+        doc: The size of the aliased type, in bytes.
+        type: uint64_t
+
+    key:
+      - Name
 
   - name: ScalarType
     type: struct
@@ -112,9 +215,11 @@ definitions:
       for example, alignment.
     fields:
       - name: Kind
+        doc: The kind of the scalar (`Integer` or `FloatingPoint`).
         type: ScalarKind
 
       - name: Size
+        doc: The size of the scalar type, in bytes.
         type: uint64_t
         default: -1
 
@@ -125,11 +230,13 @@ definitions:
 
       - name: AlignedAt
         doc: |
+          The alignment of this scalar, in bytes.
           When set to `0`, the alignment of this type matches its size.
         type: uint64_t
         default: 0
 
       - name: CTypes
+        doc: The list of C types this scalar can be described as.
         sequence:
           type: SortedVector
           elementType: CType
@@ -140,12 +247,16 @@ definitions:
 
   - name: ScalarKind
     type: enum
+    doc: |
+      Whether a scalar is an integer or a floating-point value.
     members:
       - name: Integer
       - name: FloatingPoint
 
   - name: CType
     type: enum
+    doc: |
+      The C type a primitive type can be described as.
     members:
       - name: Char
       - name: Short

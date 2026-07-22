@@ -45,7 +45,7 @@ class WideHelpFormatter(click.HelpFormatter):
     ) -> None:
         if col_max is None:
             col_max = self.col_max
-        super().write_dl(rows, col_max, col_spacing)
+        super().write_dl(list(rows), col_max, col_spacing)
 
 
 click.Context.formatter_class = WideHelpFormatter

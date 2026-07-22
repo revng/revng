@@ -6,7 +6,7 @@
 
 #include "llvm/ADT/ArrayRef.h"
 
-#include "revng/ABI/Definition.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 
 static Logger Log("abi-register-state-deduction");

@@ -11,6 +11,8 @@
 
 namespace abi {
 
+// TODO: The logic in this file can be moved to the `Model` now.
+
 namespace detail {
 using MaybeABI = std::optional<model::ABI::Values>;
 }

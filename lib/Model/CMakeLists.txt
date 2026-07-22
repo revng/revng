@@ -6,6 +6,7 @@
 revng_add_analyses_library_internal(
   revngModel
   Binary.cpp
+  ABIDefinition.cpp
   CommonTypeMethods.cpp
   FunctionTags.cpp
   InlineSegmentGlobalGetters.cpp
@@ -58,6 +59,21 @@ target_tuple_tree_generator(
   "MetaAddress"
   SCALAR_TYPES
   "MetaAddress")
+
+# TODO: merge into the main model generator above.
+target_tuple_tree_generator(
+  revngModel
+  INSTALL
+  HEADER_DIRECTORY
+  "Model/ABI"
+  NAMESPACE
+  "abi"
+  SCHEMA_PATH
+  "${CMAKE_SOURCE_DIR}/include/revng/Model/ABI/schema.yml"
+  SCALAR_TYPES
+  "model::ABI::Values"
+  "model::PrimitiveKind::Values"
+  "model::Register::Values")
 
 add_subdirectory(Pass)
 add_subdirectory(Importer)

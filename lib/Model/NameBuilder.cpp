@@ -2,8 +2,10 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Intrinsics.h"
 
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/PTML/CAttributes.h"
@@ -433,7 +435,8 @@ static bool isPrefixAndRegister(llvm::StringRef Name, llvm::StringRef Prefix) {
   return false;
 }
 
-llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
+llvm::Error
+model::CNameBuilder::isNameStaticallyReserved(llvm::StringRef Name) const {
   revng_assert(!Name.empty());
 
   // Only alphanumeric characters and '_' are allowed
@@ -596,8 +599,37 @@ llvm::Error model::CNameBuilder::isNameReserved(llvm::StringRef Name) const {
   return llvm::Error::success();
 }
 
-llvm::Error
-model::AssemblyNameBuilder::isNameReserved(llvm::StringRef Name) const {
+using CNB = model::CNameBuilder;
+bool CNB::isKnownPrimitiveAlias(const model::TypedefDefinition &Typedef,
+                                llvm::StringRef Name) const {
+  revng_assert(!Name.empty());
+
+  static const auto &Def = abi::Definition::get(Binary.targetABI());
+
+  auto Predicate = [Name](const abi::PrimitiveAlias &Alias) {
+    return Alias.Name() == Name;
+  };
+  auto Iterator = llvm::find_if(Def.PrimitiveAliases(), Predicate);
+  if (Iterator == Def.PrimitiveAliases().end())
+    return false;
+
+  const model::Type *Underlying = Typedef.UnderlyingType().get();
+  revng_assert(Underlying != nullptr);
+  const model::PrimitiveType *Primitive = Underlying->getPrimitive();
+  if (not Primitive)
+    return false;
+
+  if (Primitive->Size() != Iterator->Size())
+    return false;
+
+  if (Primitive->PrimitiveKind() != Iterator->Kind())
+    return false;
+
+  return true;
+}
+
+using AssemblyNB = model::AssemblyNameBuilder;
+llvm::Error AssemblyNB::isNameStaticallyReserved(llvm::StringRef Name) const {
   revng_assert(!Name.empty());
 
   // Only alphanumeric characters and '_' are allowed

@@ -2,6 +2,13 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+# Currently, this file is shared by *all* the name import tests.
+# There are two categories of those:
+# - header-specific tests, which should start from their own model and have
+#   a clift module generated at runtime.
+# - function-body tests, which should stay more or less as they are (as they
+#   cannot be fully expressed using a model alone).
+
 Architecture: x86_64
 
 TypeDefinitions:
@@ -102,6 +109,22 @@ TypeDefinitions:
           Kind: PrimitiveType
           PrimitiveKind: Unsigned
           Size: 1
+
+  - ID: 3001
+    Kind: TypedefDefinition
+    Name: size_t
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
+
+  - ID: 3002
+    Kind: TypedefDefinition
+    Name: ptrdiff_t
+    UnderlyingType:
+      Kind: PrimitiveType
+      PrimitiveKind: Unsigned
+      Size: 8
 
 Functions:
   - Entry: "0x40001001:Code_x86_64"

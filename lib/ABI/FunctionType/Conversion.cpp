@@ -4,13 +4,14 @@
 
 #include "llvm/ADT/SmallSet.h"
 
-#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Conversion.h"
 #include "revng/ABI/FunctionType/Support.h"
 #include "revng/ADT/STLExtras.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Model/TypeBucket.h"
+#include "revng/Support/AlignmentHelpers.h"
 #include "revng/Support/OverflowSafeInt.h"
 
 #include "ValueDistributor.h"

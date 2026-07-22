@@ -4,8 +4,8 @@
 
 #include <algorithm>
 
-#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Layout.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 
 #include "ABIRuntimeTestResultParser.h"

@@ -8,8 +8,8 @@
 
 #include "llvm/ADT/STLExtras.h"
 
-#include "revng/ABI/Definition.h"
 #include "revng/ADT/STLExtras.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Support/YAMLTraits.h"
 
