@@ -6,7 +6,6 @@
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/Support/LogicalResult.h"
 
-#include "revng/ABI/Definition.h"
 #include "revng/Clift/CliftTypeInterfaces.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftEmitC/CSemantics.h"
@@ -14,6 +13,7 @@
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/Headers.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/PTML/CTokenEmitter.h"
 #include "revng/PTML/PTMLEmitter.h"
 #include "revng/Pipeline/RegisterPipe.h"
@@ -195,7 +195,7 @@ public:
            const revng::pipes::CliftContainer &CliftContainer,
            TypeDefinitionContainer &ModelTypesContainer) {
     mlir::ModuleOp Module = CliftContainer.getModule();
-    auto DataModel = abi::getDataModel(*revng::getModelFromContext(EC));
+    auto DataModel = revng::getModelFromContext(EC)->targetDataModel();
 
     for (const model::TypeDefinition &Type :
          revng::getTypeDefinitionsAndCommit(EC, ModelTypesContainer.name())) {
@@ -240,7 +240,7 @@ void ESTD::runOnTypeDefinition(const model::UpcastableTypeDefinition &Type) {
   revng_assert(Type);
   auto Stream = Output.getOStream(ObjectID(Type->key()));
 
-  auto DataModel = abi::getDataModel(Binary);
+  auto DataModel = Binary.targetDataModel();
   emitTypeDefinitionImpl(*Stream,
                          Input.getModule(),
                          DataModel,

@@ -6,16 +6,16 @@
 
 #include <cstdint>
 
-#include "revng/ABI/CType.h"
-#include "revng/ABI/ScalarKind.h"
+#include "revng/Model/ABI/CType.h"
+#include "revng/Model/ABI/ScalarKind.h"
 
-#include "revng/ABI/Generated/Early/ScalarType.h"
+#include "revng/Model/ABI/Generated/Early/ScalarType.h"
 
 namespace abi {
 
-class ScalarType : public generated::ScalarType {
+class ScalarType : public abi::generated::ScalarType {
 public:
-  using generated::ScalarType::ScalarType;
+  using abi::generated::ScalarType::ScalarType;
 
   uint64_t alignedAt() const {
     revng_assert(Size() != 0);
@@ -25,4 +25,4 @@ public:
 
 } // namespace abi
 
-#include "revng/ABI/Generated/Late/ScalarType.h"
+#include "revng/Model/ABI/Generated/Late/ScalarType.h"

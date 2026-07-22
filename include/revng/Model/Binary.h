@@ -23,6 +23,7 @@
 #include "revng/Model/Register.h"
 #include "revng/Model/Segment.h"
 #include "revng/Model/TypeDefinition.h"
+#include "revng/Support/CDataModel.h"
 #include "revng/Support/CommonOptions.h"
 #include "revng/Support/MetaAddress.h"
 #include "revng/Support/MetaAddress/MetaAddressRange.h"
@@ -160,9 +161,8 @@ public:
   /// Use this when you need to access/modify the existing prototype,
   /// and \ref DefaultPrototype() when you need to assign a new one.
   model::TypeDefinition *defaultPrototype() {
-    // TODO: after `abi::Definition` is merged back into the model,
-    //       the prototype will always be present, so this should return
-    //       a reference instead.
+    // TODO: now that `abi::Definition` is part of the model, we can
+    //       always return *a* prototype, even if we just have a default ABI.
     if (DefaultPrototype().isEmpty())
       return nullptr;
     else
@@ -173,9 +173,8 @@ public:
   /// Use this when you need to access/modify the existing prototype,
   /// and \ref DefaultPrototype() when you need to assign a new one.
   const model::TypeDefinition *defaultPrototype() const {
-    // TODO: after `abi::Definition` is merged back into the model,
-    //       the prototype will always be present, so this should return
-    //       a reference instead.
+    // TODO: now that `abi::Definition` is part of the model, we can
+    //       always return *a* prototype, even if we just have a default ABI.
     if (DefaultPrototype().isEmpty())
       return nullptr;
     else
@@ -199,6 +198,10 @@ public:
 
   /// Returns a valid ABI describing the target used for the emission of C.
   model::ABI::Values targetABI() const;
+
+  // TODO: come up with a better name for the `DataModel`.
+  //       Namely, we are using `model` to mean two different things.
+  [[nodiscard]] CDataModel targetDataModel() const;
 
 public:
   /// \note Only use this when absolutely necessary, for example, when doing

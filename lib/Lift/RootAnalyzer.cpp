@@ -24,10 +24,10 @@
 #include "llvm/Transforms/Utils/Cloning.h"
 #include "llvm/Transforms/Utils/Mem2Reg.h"
 
-#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/BasicAnalyses/ShrinkInstructionOperandsPass.h"
 #include "revng/FunctionCallIdentification/FunctionCallIdentification.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/OpaqueRegisterUser.h"
@@ -429,8 +429,8 @@ Function *RootAnalyzer::createTemporaryRoot(Function *TheFunction,
     model::ABI::Values ABI = Model->DefaultABI();
     if (const auto *DefaultPrototype = Model->defaultPrototype()) {
       // TODO: don't forget to simplify the logic here if we decide to make
-      //       default prototypes always available (after merging
-      //       `abi::Definition` back into the model).
+      //       default prototypes always available (now that `abi::Definition`
+      //       is a part of the model).
       PreservedRegisters = getPreservedRegisters(*DefaultPrototype);
     } else if (ABI != model::ABI::Invalid) {
       auto &CSRs = abi::Definition::get(ABI).CalleeSavedRegisters();

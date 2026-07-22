@@ -7,7 +7,6 @@ revng_add_analyses_library_internal(
   Analyses/ConvertFunctionsToCABI.cpp
   Analyses/ConvertFunctionsToRaw.cpp
   DefaultFunctionPrototype.cpp
-  Definition.cpp
   FunctionType/Conversion.cpp
   FunctionType/Layout.cpp
   FunctionType/ValueDistributor.cpp
@@ -22,17 +21,3 @@ target_link_libraries(
   revngPipes
   revngSupport
   ${LLVM_LIBRARIES})
-
-set(HEADERS_REQUIRING_TTG "${CMAKE_SOURCE_DIR}/include/revng/ABI")
-target_tuple_tree_generator(
-  revngABI
-  INSTALL
-  HEADER_DIRECTORY
-  "ABI"
-  NAMESPACE
-  "abi"
-  SCHEMA_PATH
-  "${CMAKE_SOURCE_DIR}/include/revng/ABI/abi-internal-schema.yml"
-  SCALAR_TYPES
-  "model::ABI::Values"
-  "model::Register::Values")

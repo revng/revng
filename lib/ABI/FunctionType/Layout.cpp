@@ -5,10 +5,10 @@
 #include <span>
 #include <unordered_set>
 
-#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/FunctionType/Support.h"
 #include "revng/ADT/SmallMap.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/Helpers.h"
 #include "revng/Support/Debug.h"

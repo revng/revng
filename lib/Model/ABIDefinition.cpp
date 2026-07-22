@@ -5,9 +5,9 @@
 #include <span>
 #include <unordered_map>
 
-#include "revng/ABI/Definition.h"
 #include "revng/ADT/Concepts.h"
 #include "revng/Model/ABI.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/NamedTypedRegister.h"
 #include "revng/Support/ResourceFinder.h"
@@ -513,10 +513,6 @@ CDataModel Definition::getDataModel() const {
   }
 
   return DM;
-}
-
-[[nodiscard]] CDataModel getDataModel(const model::Binary &Binary) {
-  return abi::Definition::get(Binary.targetABI()).getDataModel();
 }
 
 } // namespace abi

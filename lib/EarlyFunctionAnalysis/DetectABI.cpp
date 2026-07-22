@@ -16,7 +16,6 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Support/GraphWriter.h"
 
-#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ADT/Queue.h"
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
@@ -32,6 +31,7 @@
 #include "revng/EarlyFunctionAnalysis/FunctionSummaryOracle.h"
 #include "revng/InlineHelpers/InlineHelpers.h"
 #include "revng/InlineHelpers/LinkHelpersToInline.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/Model/Pass/DeduplicateCollidingNames.h"
