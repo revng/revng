@@ -286,15 +286,15 @@ set(FILECHECK_TESTS
     clift/model-verify/unknown-attributes/non-c-function.mlir
     clift/model-verify/unknown-attributes/struct.mlir
     clift/model-verify/unknown-attributes/valid.mlir
-    clift/name-import/comments.mlir
-    clift/name-import/enum.mlir
-    clift/name-import/function-cabi.mlir
-    clift/name-import/function-raw.mlir
-    clift/name-import/global.mlir
-    clift/name-import/local-label.mlir
-    clift/name-import/local-variable.mlir
-    clift/name-import/struct.mlir
-    clift/name-import/union.mlir
+    clift/name-import/function-body/comments.mlir
+    clift/name-import/function-body/local-label.mlir
+    clift/name-import/function-body/local-variable.mlir
+    clift/name-import/header/enum.mlir
+    clift/name-import/header/function-cabi.mlir
+    clift/name-import/header/function-raw.mlir
+    clift/name-import/header/global.mlir
+    clift/name-import/header/struct.mlir
+    clift/name-import/header/union.mlir
     clift/operations/break-to-targets-continue-label.mlir
     clift/operations/break-to-targets-non-loop-label.mlir
     clift/operations/break-to-targets-non-nesting-loop-label.mlir
