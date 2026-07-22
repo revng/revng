@@ -1498,7 +1498,20 @@ private:
         auto UnsignedCharType = C.getIntegerType(1, IntegerKind::Unsigned);
         auto PointerType = C.getPointerType(UnsignedCharType);
 
+        mlir::Value
+          Pointer = emitCast<BitCastOp>(Loc,
+                                        rc_recur emitExpression(GEPPointerOp,
+                                                                Loc),
+                                        PointerType);
+
         llvm::Value *GEPIndex = GEP->idx_begin()->get();
+
+        // If the index is zero, there is no need to add zero
+        if (const auto
+              *ConstantIndex = llvm::dyn_cast<llvm::ConstantInt>(GEPIndex))
+          if (ConstantIndex->isZero())
+            rc_return Pointer;
+
         mlir::Value Index = rc_recur emitExpression(GEPIndex, Loc);
 
         auto IndexType = cast<clift::ValueType>(Index.getType());
@@ -1508,12 +1521,6 @@ private:
           Index = emitCast<TruncateOp>(Loc, Index, C.getIntptrType());
         else if (Cmp > 0)
           Index = emitCast<ExtendOp>(Loc, Index, C.getIntptrType());
-
-        mlir::Value
-          Pointer = emitCast<BitCastOp>(Loc,
-                                        rc_recur emitExpression(GEPPointerOp,
-                                                                Loc),
-                                        PointerType);
         rc_return emitExpr<PtrAddOp>(Loc, PointerType, Pointer, Index);
       }
     }
