@@ -29,11 +29,10 @@ static FormattedNumber formatNumber(uint64_t Number, unsigned Width = 8) {
 };
 
 using CFG = efa::ControlFlowGraph;
-using CFGGetter = std::function<const CFG &(const MetaAddress &)>;
 
 static void outputHexDump(const model::Binary &Binary,
                           llvm::ArrayRef<const llvm::Function *> Functions,
-                          CFGGetter CFGGetter,
+                          const revng::pypeline::CFGMap &CFG,
                           llvm::StringRef BinaryBuffer,
                           llvm::raw_ostream &Output) {
   RawBinaryView BinaryView(Binary, BinaryBuffer);
@@ -62,7 +61,7 @@ static void outputHexDump(const model::Binary &Binary,
 
   for (const Function *F : Functions) {
     MetaAddress Address = getMetaAddressOfIsolatedFunction(*F);
-    const efa::ControlFlowGraph &Metadata = CFGGetter(Address);
+    const efa::ControlFlowGraph &Metadata = *CFG.getElement(ObjectID(Address));
     MetaAddress EntryAddress = Metadata.Entry();
 
     for (const Instruction &I : llvm::instructions(F)) {
@@ -260,14 +259,9 @@ void HexDump::run() {
     }
   }
 
-  auto CFGGetter =
-    [this](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
-    return *CFG.getElement(ObjectID(Address));
-  };
-
   ::revng::pipes::outputHexDump(Binary,
                                 Functions,
-                                CFGGetter,
+                                CFG,
                                 { Buffer.data(), Buffer.size() },
                                 *OutputOS);
 }

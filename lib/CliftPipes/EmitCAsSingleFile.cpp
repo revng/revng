@@ -7,17 +7,6 @@
 #include "revng/PTML/Constants.h"
 #include "revng/PTML/PTMLEmitter.h"
 
-static void printIncludes(ptml::CTokenEmitter &Tokens) {
-
-  Tokens.emitIncludeDirective("types-and-globals.h",
-                              "",
-                              ptml::CTokenEmitter::IncludeMode::Quote);
-  Tokens.emitIncludeDirective("helpers.h",
-                              "",
-                              ptml::CTokenEmitter::IncludeMode::Quote);
-  Tokens.emitNewline();
-}
-
 namespace revng::pypeline::piperuns {
 
 EmitCAsSingleFile::EmitCAsSingleFile(const class Model &Model,
@@ -38,7 +27,14 @@ void EmitCAsSingleFile::run() {
                              Configuration.DisableMarkup ?
                                ptml::Tagging::Disabled :
                                ptml::Tagging::Enabled);
-  printIncludes(Tokens);
+
+  Tokens.emitIncludeDirective("types-and-globals.h",
+                              "",
+                              ptml::CTokenEmitter::IncludeMode::Quote);
+  Tokens.emitIncludeDirective("helpers.h",
+                              "",
+                              ptml::CTokenEmitter::IncludeMode::Quote);
+  Tokens.emitNewline();
 
   ptml::StreamEmitter RawEmitter(*Out);
   for (const auto &Object : Input.objects()) {

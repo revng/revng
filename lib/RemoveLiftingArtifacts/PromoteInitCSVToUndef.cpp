@@ -15,14 +15,13 @@
 
 using namespace llvm;
 
-static bool
-undefPreservedRegistersInitialization(Function &F,
-                                      const model::Function &ModelFunction,
-                                      const model::Binary &Binary) {
-  bool Changed = false;
-  QuickMetadata QMD(F.getParent()->getContext());
+namespace revng::pypeline::piperuns {
 
-  for (auto &BB : F) {
+void PromoteInitCSVToUndef::runOnLLVMFunction(const model::Function &Function,
+                                              llvm::Function &LLVMFunction) {
+  QuickMetadata QMD(LLVMFunction.getParent()->getContext());
+
+  for (auto &BB : LLVMFunction) {
     auto It = BB.begin();
     auto End = BB.end();
     while (It != End) {
@@ -47,7 +46,6 @@ undefPreservedRegistersInitialization(Function &F,
           if (Register != getReturnAddressRegister(Architecture)) {
             Call->replaceAllUsesWith(llvm::UndefValue::get(Call->getType()));
             Call->eraseFromParent();
-            Changed = true;
           }
         }
       }
@@ -55,15 +53,6 @@ undefPreservedRegistersInitialization(Function &F,
       It = Next;
     }
   }
-
-  return Changed;
-}
-
-namespace revng::pypeline::piperuns {
-
-void PromoteInitCSVToUndef::runOnLLVMFunction(const model::Function &Function,
-                                              llvm::Function &LLVMFunction) {
-  undefPreservedRegistersInitialization(LLVMFunction, Function, Binary);
 }
 
 } // namespace revng::pypeline::piperuns

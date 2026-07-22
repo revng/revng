@@ -870,7 +870,10 @@ class SegregateStackAccesses {
 
 private:
   const model::Binary &Binary;
+  const model::Function &ModelFunction;
   Module &M;
+  llvm::Function &LLVMFunction;
+
   Function *SSACS = nullptr;
   Function *InitLocalSP = nullptr;
   std::set<Instruction *> ToPurge;
@@ -884,9 +887,13 @@ private:
   LocalVariableBuilder VariableBuilder;
 
 public:
-  SegregateStackAccesses(const model::Binary &Binary, llvm::Module &M) :
+  SegregateStackAccesses(const model::Binary &Binary,
+                         const model::Function &ModelFunction,
+                         llvm::Function &LLVMFunction) :
     Binary(Binary),
-    M(M),
+    ModelFunction(ModelFunction),
+    M(*LLVMFunction.getParent()),
+    LLVMFunction(LLVMFunction),
     SSACS(getIRHelper("stack_size_at_call_site", M)),
     InitLocalSP(getIRHelper("revng_undefined_local_sp", M)),
     CallInstructionPushSize(getCallPushSize(Binary)),
@@ -896,27 +903,7 @@ public:
     VariableBuilder(makeVariableBuilder(Binary, M)) {}
 
 public:
-  bool prologue() {
-    upgradeDynamicFunctions();
-    return true;
-  }
-
-  bool runOnFunction(const model::Function &ModelFunction,
-                     llvm::Function &Function);
-
-  bool epilogue() {
-    pushALAP();
-
-    // Purge stores that have been used at least once
-    for (Instruction *I : ToPurge)
-      eraseFromParent(I);
-
-    // Erase original functions
-    for (auto &&[OldFunction, NewFunction] : OldToNew)
-      eraseFromParent(OldFunction);
-
-    return true;
-  }
+  void run();
 
 private:
   void upgradeDynamicFunctions() {
@@ -2063,24 +2050,30 @@ SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
   return Redirector;
 }
 
-bool SegregateStackAccesses::runOnFunction(const model::Function &ModelFunction,
-                                           llvm::Function &Function) {
-  SegregateFunctionStack Worker(*this, ModelFunction, Function);
+void SegregateStackAccesses::run() {
+  upgradeDynamicFunctions();
+
+  SegregateFunctionStack Worker(*this, ModelFunction, LLVMFunction);
   Worker.upgrade();
   Worker.segregate();
-  return true;
+
+  pushALAP();
+
+  // Purge stores that have been used at least once
+  for (Instruction *I : ToPurge)
+    eraseFromParent(I);
+
+  // Erase original functions
+  for (auto &&[OldFunction, NewFunction] : OldToNew)
+    eraseFromParent(OldFunction);
 }
 
 namespace revng::pypeline::piperuns {
 
-// TODO: merge ::SegregateStackAccesses into SegregateStackAccesses once we
-//       dismiss the old pipeline
 void SegregateStackAccesses::runOnLLVMFunction(const model::Function &Function,
                                                llvm::Function &LLVMFunction) {
-  ::SegregateStackAccesses Impl(Binary, *LLVMFunction.getParent());
-  Impl.prologue();
-  Impl.runOnFunction(Function, LLVMFunction);
-  Impl.epilogue();
+  ::SegregateStackAccesses Impl(Binary, Function, LLVMFunction);
+  Impl.run();
 }
 
 } // namespace revng::pypeline::piperuns

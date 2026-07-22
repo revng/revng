@@ -14,7 +14,7 @@
 
 using namespace llvm;
 
-static bool removeCallsToArtifacts(Function &F) {
+static void removeCallsToArtifacts(Function &F) {
   // Remove calls to `newpc` in the current function.
   SmallVector<Instruction *, 8> ToErase;
   for (BasicBlock &BB : F) {
@@ -38,19 +38,16 @@ static bool removeCallsToArtifacts(Function &F) {
     }
   }
 
-  bool Changed = not ToErase.empty();
   for (Instruction *I : ToErase)
     eraseFromParent(I);
-
-  return Changed;
 }
 
-static bool removeStoresToCPULoopExiting(Function &F) {
+static void removeStoresToCPULoopExiting(Function &F) {
   // Retrieve the global variable `cpu_loop_exiting`
   Module *M = F.getParent();
   GlobalVariable *CpuLoop = M->getGlobalVariable("cpu_loop_exiting", true);
   if (CpuLoop == nullptr)
-    return false;
+    return;
 
   // Remove in bulk all the users of the global variable.
   SmallVector<LoadInst *, 8> Loads;
@@ -70,8 +67,6 @@ static bool removeStoresToCPULoopExiting(Function &F) {
       revng_abort("Unexpected use of cpu_loop_exiting");
   }
 
-  bool Changed = not Loads.empty() or not Stores.empty();
-
   // Remove in bulk all the store found before.
   for (Instruction *I : Stores)
     eraseFromParent(I);
@@ -81,18 +76,15 @@ static bool removeStoresToCPULoopExiting(Function &F) {
     L->replaceAllUsesWith(Constant::getNullValue(L->getType()));
     eraseFromParent(L);
   }
-
-  return Changed;
 }
 
-static bool makeEnvNull(Function &F) {
-
+static void makeEnvNull(Function &F) {
   Module *M = F.getParent();
   GlobalVariable *Env = M->getGlobalVariable("env",
                                              /* AllowInternal */ true);
 
   if (Env == nullptr)
-    return false;
+    return;
 
   SmallPtrSet<LoadInst *, 8> LoadsFromEnvInF;
   for (Use &EnvUse : Env->uses()) {
@@ -123,50 +115,32 @@ static bool makeEnvNull(Function &F) {
     }
   }
 
-  bool Changed = not LoadsFromEnvInF.empty();
-
   for (LoadInst *L : LoadsFromEnvInF) {
     Type *LoadType = L->getType();
     auto *Null = Constant::getNullValue(LoadType);
     L->replaceAllUsesWith(Null);
   }
-
-  return Changed;
 }
 
-static bool removeLiftingArtifacts(Function &F) {
-  bool Changed = removeCallsToArtifacts(F);
-  Changed |= removeStoresToCPULoopExiting(F);
-  Changed |= makeEnvNull(F);
-  return Changed;
+static void removeLiftingArtifacts(Function &F) {
+  removeCallsToArtifacts(F);
+  removeStoresToCPULoopExiting(F);
+  makeEnvNull(F);
 }
 
-struct RemoveLiftingArtifacts {
-private:
-  llvm::Module &M;
+namespace revng::pypeline::piperuns {
 
-public:
-  RemoveLiftingArtifacts(llvm::Module &M) : M(M) {}
-
-  bool runOnFunction(const model::Function &ModelFunction,
-                     llvm::Function &Function);
-
-  bool prologue();
-
-public:
-  static void getAnalysisUsage(llvm::AnalysisUsage &AU) {}
-};
-
-bool RemoveLiftingArtifacts::prologue() {
-  bool Changed = false;
-  for (llvm::Function &F : M) {
+void RemoveLiftingArtifacts::runOnLLVMFunction(const model::Function &Function,
+                                               llvm::Function &LLVMFunction) {
+  llvm::Module &Module = *LLVMFunction.getParent();
+  for (llvm::Function &F : Module) {
     if (FunctionTags::Isolated.isTagOf(&F)
         or FunctionTags::SegmentGlobalGetter.isTagOf(&F)) {
       continue;
     }
 
     // If we find a non-isolated function with body, we want to remove it.
-    Changed |= deleteOnlyBody(F);
+    deleteOnlyBody(F);
 
     // Mark non-isolated functions as OptimizeNone (optnone).
     // We want all future passes in the decompilation pipeline not to look
@@ -175,38 +149,18 @@ bool RemoveLiftingArtifacts::prologue() {
     // decompilation pipeline makes, causing crashes.
     if (not F.hasFnAttribute(Attribute::AttrKind::OptimizeNone)) {
       F.addFnAttr(Attribute::AttrKind::OptimizeNone);
-      Changed = true;
     }
 
     // Mark non-isolated functions as NoInline (noinline), since we don't
     // want them to be inlined into isolated functions for some reason.
     if (not F.hasFnAttribute(Attribute::AttrKind::NoInline)) {
       F.addFnAttr(Attribute::AttrKind::NoInline);
-      Changed = true;
     }
   }
-  return Changed;
-}
 
-bool RemoveLiftingArtifacts::runOnFunction(const model::Function &ModelFunction,
-                                           llvm::Function &F) {
-  bool Changed = false;
-  revng_assert(FunctionTags::Isolated.isTagOf(&F));
-  Changed |= removeLiftingArtifacts(F);
-  FunctionTags::LiftingArtifactsRemoved.addTo(&F);
-
-  return Changed;
-}
-
-namespace revng::pypeline::piperuns {
-
-// TODO: merge ::RemoveLiftingArtifacts into RemoveLiftingArtifacts once we
-//       dismiss the old pipeline
-void RemoveLiftingArtifacts::runOnLLVMFunction(const model::Function &Function,
-                                               llvm::Function &LLVMFunction) {
-  ::RemoveLiftingArtifacts Impl(*LLVMFunction.getParent());
-  Impl.prologue();
-  Impl.runOnFunction(Function, LLVMFunction);
+  revng_assert(FunctionTags::Isolated.isTagOf(&LLVMFunction));
+  removeLiftingArtifacts(LLVMFunction);
+  FunctionTags::LiftingArtifactsRemoved.addTo(&LLVMFunction);
 }
 
 } // namespace revng::pypeline::piperuns

@@ -10,8 +10,7 @@ revng_add_analyses_library_internal(
   AttachDebugInfo.cpp
   CFGAnalyzer.cpp
   CollectCFG.cpp
-  CollectFunctionsFromCalleesPass.cpp
-  CollectFunctionsFromUnusedAddressesPass.cpp
+  CollectFunctionsFromUnusedAddresses.cpp
   ControlFlowGraph.cpp
   DetectABI.cpp
   FunctionSummaryOracle.cpp

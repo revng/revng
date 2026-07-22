@@ -29,7 +29,7 @@ revng_add_analyses_library_internal(
   Backend/DLAMakeModelTypes.cpp
   Backend/DLAUpdateModelTypes.cpp
   FuncOrCallInst.cpp
-  DLAPass.cpp
+  DLA.cpp
   DLATypeSystem.cpp)
 
 target_link_libraries(

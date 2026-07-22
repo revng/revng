@@ -9,7 +9,7 @@
 
 #include "llvm/IR/Module.h"
 
-#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
+#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddresses.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/Lift/Lift.h"
 

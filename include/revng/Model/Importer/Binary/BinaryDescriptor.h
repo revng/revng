@@ -47,17 +47,7 @@ public:
   /// Also, this might be just a file name, a relative path or even empty.
   /// Use with caution.
   llvm::StringRef canonicalPath() const {
-    if (Reference.isValid()) {
-      return Reference.get()->CanonicalPath();
-    } else if (not InputPath.empty()) {
-      // Old pipeline only: use InputPath, a global variable set by hand in
-      // Main.cpp
-      // TODO: this should be dismissed along with the old pipeline
-      return InputPath;
-    } else {
-      // TODO: this should be dismissed along with the old pipeline
-      return llvm::sys::path::filename(FullPathForExternalTools);
-    }
+    return Reference.get()->CanonicalPath();
   }
 };
 

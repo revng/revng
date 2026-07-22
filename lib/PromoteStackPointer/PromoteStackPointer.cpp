@@ -25,7 +25,6 @@
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
 #include "revng/PromoteStackPointer/PromoteStackPointer.h"
-#include "revng/PromoteStackPointer/PromoteStackPointerPass.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/Debug.h"
 #include "revng/Support/IRBuilder.h"
@@ -37,11 +36,9 @@ using namespace llvm;
 
 static Logger Log("promote-stack-pointer");
 
-static bool adjustStackAfterCalls(const model::Binary &Binary,
+static void adjustStackAfterCalls(const model::Binary &Binary,
                                   Function &F,
                                   GlobalVariable *GlobalSP) {
-  bool Changed = false;
-
   revng::IRBuilder B(F.getParent()->getContext());
 
   Type *SPType = GlobalSP->getValueType();
@@ -54,28 +51,26 @@ static bool adjustStackAfterCalls(const model::Binary &Binary,
         auto *FSO = ConstantInt::get(SPType, FinalStackOffset);
 
         // We found a function call
-        Changed = true;
-
         B.SetInsertPoint(I.getNextNode());
         B.CreateStore(B.CreateAdd(B.createLoad(GlobalSP), FSO), GlobalSP);
       }
     }
   }
 
-  return Changed;
+  return;
 }
 
-static bool promoteStackPointer(const model::Binary &Binary,
-                                const model::Function &ModelFunction,
-                                llvm::Function &F,
-                                GeneratedCodeBasicInfo &GCBI) {
-  bool Changed = false;
+namespace revng::pypeline::piperuns {
+
+void PromoteStackPointer::runOnLLVMFunction(const model::Function &Function,
+                                            llvm::Function &LLVMFunction) {
+  GeneratedCodeBasicInfo GCBI(Binary, *LLVMFunction.getParent());
 
   {
     // A couple of preliminary assertions
     using namespace FunctionTags;
-    revng_assert(TagsSet::from(&F).contains(Isolated));
-    revng_assert(not F.isDeclaration());
+    revng_assert(TagsSet::from(&LLVMFunction).contains(Isolated));
+    revng_assert(not LLVMFunction.isDeclaration());
   }
 
   // Get the global variable representing the stack pointer register.
@@ -83,18 +78,18 @@ static bool promoteStackPointer(const model::Binary &Binary,
 
   if (not GlobalSP) {
     revng_log(Log, "WARNING: cannot find global variable for stack pointer");
-    return Changed;
+    return;
   }
 
-  Changed = adjustStackAfterCalls(Binary, F, GlobalSP) or Changed;
+  adjustStackAfterCalls(Binary, LLVMFunction, GlobalSP);
 
   std::vector<Instruction *> SPUsers;
   for (User *U : GlobalSP->users()) {
     if (auto *I = dyn_cast<Instruction>(U)) {
-      Function *UserFun = I->getFunction();
+      llvm::Function *UserFun = I->getFunction();
       revng_log(Log, "Found use in Function: " << UserFun->getName());
 
-      if (UserFun != &F)
+      if (UserFun != &LLVMFunction)
         continue;
 
       SPUsers.emplace_back(I);
@@ -108,9 +103,9 @@ static bool promoteStackPointer(const model::Binary &Binary,
       SmallVector<std::pair<User *, Value *>, 8> Replacements;
       for (User *CEUser : CE->users()) {
         auto *CEInstrUser = cast<Instruction>(CEUser);
-        Function *UserFun = CEInstrUser->getFunction();
+        llvm::Function *UserFun = CEInstrUser->getFunction();
 
-        if (UserFun != &F)
+        if (UserFun != &LLVMFunction)
           continue;
 
         auto *CastInstruction = CE->getAsInstruction();
@@ -128,14 +123,14 @@ static bool promoteStackPointer(const model::Binary &Binary,
   }
 
   if (SPUsers.empty())
-    return Changed;
+    return;
 
   // Create function for initializing local stack pointer.
-  Module *M = F.getParent();
-  LLVMContext &Context = F.getContext();
+  Module *M = LLVMFunction.getParent();
+  LLVMContext &Context = M->getContext();
   Type *SPType = GlobalSP->getValueType();
   auto ILSPCallee = getOrInsertIRHelper("revng_undefined_local_sp", *M, SPType);
-  Function *InitLocalSP = cast<Function>(ILSPCallee.getCallee());
+  llvm::Function *InitLocalSP = cast<llvm::Function>(ILSPCallee.getCallee());
   InitLocalSP->addFnAttr(Attribute::NoUnwind);
   InitLocalSP->addFnAttr(Attribute::WillReturn);
   InitLocalSP->setOnlyReadsMemory();
@@ -143,13 +138,13 @@ static bool promoteStackPointer(const model::Binary &Binary,
 
   // Create an alloca to represent the local value of the stack pointer.
   // This should be inserted at the beginning of the entry block.
-  BasicBlock &EntryBlock = F.getEntryBlock();
+  BasicBlock &EntryBlock = LLVMFunction.getEntryBlock();
   revng::IRBuilder Builder(Context);
   Builder.SetInsertPoint(&EntryBlock, EntryBlock.begin());
   AllocaInst *LocalSP = Builder.CreateAlloca(SPType, nullptr, "local_sp");
 
   // Call InitLocalSP, to initialize the value of the local stack pointer.
-  Builder.setInsertPointToFirstNonAlloca(F);
+  Builder.setInsertPointToFirstNonAlloca(LLVMFunction);
   auto *SPVal = Builder.CreateCall(InitLocalSP);
 
   // Store the initial SP value in the new alloca.
@@ -161,18 +156,7 @@ static bool promoteStackPointer(const model::Binary &Binary,
     I->replaceUsesOfWith(GlobalSP, LocalSP);
   }
 
-  FunctionTags::StackPointerPromoted.addTo(&F);
-
-  return true;
-}
-
-namespace revng::pypeline::piperuns {
-
-// TODO: inline promoteStackPointer once we dismiss the old pipeline
-void PromoteStackPointer::runOnLLVMFunction(const model::Function &Function,
-                                            llvm::Function &LLVMFunction) {
-  GeneratedCodeBasicInfo GCBI(Binary, *LLVMFunction.getParent());
-  promoteStackPointer(Binary, Function, LLVMFunction, GCBI);
+  FunctionTags::StackPointerPromoted.addTo(&LLVMFunction);
 }
 
 } // namespace revng::pypeline::piperuns

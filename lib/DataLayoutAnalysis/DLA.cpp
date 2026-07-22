@@ -14,16 +14,27 @@
 
 static Logger BuilderLog("dla-builder-log");
 
-template<typename ModuleRange>
-static bool runDataLayoutAnalysis(ModuleRange &&Modules,
-                                  TupleTree<model::Binary> &WritableModel) {
+namespace revng::pypeline::analyses {
+
+llvm::Error AnalyzeDataLayout::run(Model &Model,
+                                   const Request &Incoming,
+                                   llvm::StringRef Configuration,
+                                   LLVMFunctionContainer &ModuleContainer) {
+  // Run DLA directly over the requested per-function modules, without linking
+  // them into a temporary root module. The modules are visited lazily through
+  // a transform view and stay valid in the container afterwards.
+  auto Modules = Incoming[0]
+                 | std::views::transform([&](const ObjectID *Object)
+                                           -> llvm::Module * {
+                     return &ModuleContainer.getModule(*Object);
+                   });
+
   llvm::Task T(3, "runDataLayoutAnalysis");
   T.advance("DLA Frontend");
 
   // Front-end: Create the LayoutTypeSystem graph from the LLVM modules
   dla::LayoutTypeSystem TS;
-  const model::Binary &Model = *WritableModel.get();
-  dla::DLATypeSystemLLVMBuilder Builder{ TS, Model };
+  dla::DLATypeSystemLLVMBuilder Builder{ TS, *Model.get() };
   Builder.buildFromLLVMModules(Modules);
 
   if (BuilderLog.isEnabled())
@@ -32,7 +43,7 @@ static bool runDataLayoutAnalysis(ModuleRange &&Modules,
   // Middle-end Steps: manipulate nodes and edges of the DLATypeSystem graph
   T.advance("DLA Middleend");
   dla::StepManager SM;
-  size_t PtrSize = getPointerSize(Model.Architecture());
+  size_t PtrSize = getPointerSize(Model.get()->Architecture());
 
   //
   // Graph normalization phase
@@ -95,38 +106,14 @@ static bool runDataLayoutAnalysis(ModuleRange &&Modules,
   T.advance("DLA Backend");
 
   // Generate model types
-  auto ValueToTypeMap = dla::makeModelTypes(TS, Values, WritableModel);
-  bool Changed = false;
+  auto ValueToTypeMap = dla::makeModelTypes(TS, Values, Model.get());
 
   std::set<MetaAddress> UpdatedSegments;
   for (llvm::Module *M : Modules) {
-    Changed |= dla::updateFuncSignatures(*M, WritableModel, ValueToTypeMap);
-    Changed |= dla::updateSegmentsTypes(*M,
-                                        WritableModel,
-                                        ValueToTypeMap,
-                                        UpdatedSegments);
+    dla::updateFuncSignatures(*M, Model.get(), ValueToTypeMap);
+    dla::updateSegmentsTypes(*M, Model.get(), ValueToTypeMap, UpdatedSegments);
   }
-  revng_assert(WritableModel->verify(true));
-
-  return Changed;
-}
-
-namespace revng::pypeline::analyses {
-
-llvm::Error AnalyzeDataLayout::run(Model &Model,
-                                   const Request &Incoming,
-                                   llvm::StringRef Configuration,
-                                   LLVMFunctionContainer &ModuleContainer) {
-  // Run DLA directly over the requested per-function modules, without linking
-  // them into a temporary root module. The modules are visited lazily through
-  // a transform view and stay valid in the container afterwards.
-  auto Modules = Incoming[0]
-                 | std::views::transform([&](const ObjectID *Object)
-                                           -> llvm::Module * {
-                     return &ModuleContainer.getModule(*Object);
-                   });
-
-  runDataLayoutAnalysis(Modules, Model.get());
+  revng_assert(Model.get()->verify(true));
 
   return llvm::Error::success();
 }

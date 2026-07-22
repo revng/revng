@@ -77,10 +77,19 @@ public:
   }
 };
 
-static void compileModuleRunImpl(const model::Binary &Binary,
-                                 llvm::Module *M,
-                                 llvm::raw_pwrite_stream &Output) {
+namespace revng::pypeline::piperuns {
+
+CompileRootModule::CompileRootModule(const Model &TheModel,
+                                     llvm::StringRef StaticConfig,
+                                     llvm::StringRef DynamicConfig,
+                                     LLVMRootContainer &Input,
+                                     ObjectFileContainer &Output) :
+  Binary(*TheModel.get().get()), Input(Input), Output(Output) {
+}
+
+void CompileRootModule::run() {
   using namespace revng;
+  llvm::Module *M = &Input.getModule();
   StringMap<llvm::cl::Option *> &RegOptions(getRegisteredOptions());
   getOption<bool>(RegOptions, "disable-machine-licm")->setInitialValue(true);
 
@@ -169,8 +178,9 @@ static void compileModuleRunImpl(const model::Binary &Binary,
   TargetLibraryInfoImpl TLII(Triple(M->getTargetTriple()));
   PM.add(new TargetLibraryInfoWrapperPass(TLII));
 
+  std::unique_ptr<llvm::raw_pwrite_stream> OS = Output.getOStream(ObjectID{});
   bool Err = Target->addPassesToEmitFile(PM,
-                                         Output,
+                                         *OS,
                                          nullptr,
                                          CGFT_ObjectFile,
                                          true);
@@ -179,23 +189,6 @@ static void compileModuleRunImpl(const model::Binary &Binary,
   revng::verify(M);
   PM.run(*M);
   revng::verify(M);
-}
-
-namespace revng::pypeline::piperuns {
-
-CompileRootModule::CompileRootModule(const Model &TheModel,
-                                     llvm::StringRef StaticConfig,
-                                     llvm::StringRef DynamicConfig,
-                                     LLVMRootContainer &Input,
-                                     ObjectFileContainer &Output) :
-  Binary(*TheModel.get().get()), Input(Input), Output(Output) {
-}
-
-// TODO: inline compileModuleRunImpl once we dismiss the old pipeline
-void CompileRootModule::run() {
-  compileModuleRunImpl(Binary,
-                       &Input.getModule(),
-                       *Output.getOStream(ObjectID{}));
 }
 
 } // namespace revng::pypeline::piperuns

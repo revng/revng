@@ -57,26 +57,27 @@ public:
 
 class PromoteCSVs {
 private:
+  llvm::Module &Module;
+  Function &LLVMFunction;
   OpaqueFunctionsPool<StringRef> CSVInitializers;
-  std::map<WrapperKey, Function *> Wrappers;
-  SetVector<GlobalVariable *> CSVs;
+  GeneratedCodeBasicInfo GCBI;
   model::Architecture::Values Architecture;
   const model::NamingConfiguration &Configuration;
-  GeneratedCodeBasicInfo &GCBI;
-  llvm::Module &Module;
+
+  std::map<WrapperKey, llvm::Function *> Wrappers;
+  SetVector<GlobalVariable *> CSVs;
 
 public:
-  PromoteCSVs(const model::Binary &Binary,
-              llvm::Module &M,
-              GeneratedCodeBasicInfo &GCBI);
+  PromoteCSVs(const model::Binary &Binary, llvm::Function &LLVMFunction) :
+    Module(*LLVMFunction.getParent()),
+    LLVMFunction(LLVMFunction),
+    CSVInitializers(&Module, false),
+    GCBI(Binary, Module),
+    Architecture(Binary.Architecture()),
+    Configuration(Binary.Configuration().Naming()) {}
 
 public:
-  bool prologue();
-
-  bool runOnFunction(const model::Function &ModelFunction,
-                     llvm::Function &Function);
-
-  bool epilogue() { return false; }
+  void run();
 
 private:
   void wrap(CallInst *Call,
@@ -105,17 +106,7 @@ private:
   }
 };
 
-PromoteCSVs::PromoteCSVs(const model::Binary &Binary,
-                         llvm::Module &M,
-                         GeneratedCodeBasicInfo &GCBI) :
-  CSVInitializers(&M, false),
-  Architecture(Binary.Architecture()),
-  Configuration(Binary.Configuration().Naming()),
-  GCBI(GCBI),
-  Module(M) {
-}
-
-bool PromoteCSVs::prologue() {
+void PromoteCSVs::run() {
   CSVInitializers.setMemoryEffects(MemoryEffects::readOnly());
   CSVInitializers.addFnAttribute(Attribute::NoUnwind);
   CSVInitializers.addFnAttribute(Attribute::WillReturn);
@@ -137,7 +128,16 @@ bool PromoteCSVs::prologue() {
         CSVInitializers.record(CSV->getName(), F);
   }
 
-  return false;
+  // Add tag
+  FunctionTags::CSVsPromoted.addTo(&LLVMFunction);
+
+  if (not LLVMFunction.isDeclaration()) {
+    // Wrap calls to wrappers
+    wrapCallsToHelpers(&LLVMFunction);
+
+    // (Re-)promote CSVs
+    promoteCSVs(&LLVMFunction);
+  }
 }
 
 // TODO: assign alias information
@@ -674,34 +674,12 @@ void PromoteCSVs::wrapCallsToHelpers(Function *F) {
   }
 }
 
-bool PromoteCSVs::runOnFunction(const model::Function &ModelFunction,
-                                llvm::Function &Function) {
-  // Add tag
-  FunctionTags::CSVsPromoted.addTo(&Function);
-
-  if (not Function.isDeclaration()) {
-    // Wrap calls to wrappers
-    wrapCallsToHelpers(&Function);
-
-    // (Re-)promote CSVs
-    promoteCSVs(&Function);
-  }
-
-  return true;
-}
-
 namespace revng::pypeline::piperuns {
 
-// TODO: merge ::PromoteCSVs into PromoteCSVs once we dismiss the old pipeline
 void PromoteCSVs::runOnLLVMFunction(const model::Function &Function,
                                     llvm::Function &LLVMFunction) {
-  llvm::Module &Module = *LLVMFunction.getParent();
-  GeneratedCodeBasicInfo GCBI(Binary, Module);
-
-  ::PromoteCSVs Impl(Binary, Module, GCBI);
-  Impl.prologue();
-  Impl.runOnFunction(Function, LLVMFunction);
-  Impl.epilogue();
+  ::PromoteCSVs Impl(Binary, LLVMFunction);
+  Impl.run();
 }
 
 } // namespace revng::pypeline::piperuns

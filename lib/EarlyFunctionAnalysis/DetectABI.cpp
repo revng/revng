@@ -23,8 +23,7 @@
 #include "revng/EarlyFunctionAnalysis/CFGAnalyzer.h"
 #include "revng/EarlyFunctionAnalysis/CallEdge.h"
 #include "revng/EarlyFunctionAnalysis/CallGraph.h"
-#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromCalleesPass.h"
-#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddressesPass.h"
+#include "revng/EarlyFunctionAnalysis/CollectFunctionsFromUnusedAddresses.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraph.h"
 #include "revng/EarlyFunctionAnalysis/ControlFlowGraphCache.h"
 #include "revng/EarlyFunctionAnalysis/DetectABI.h"
@@ -970,6 +969,35 @@ DetectABI::computePreservedRegisters(const CSVSet &ClobberedRegisters) const {
   return Result;
 }
 
+static Logger FunctionFromCalleesLog("functions-from-callees-collection");
+
+static void collectFunctionsFromCallees(Module &M,
+                                        GeneratedCodeBasicInfo &GCBI,
+                                        model::Binary &Binary) {
+  Function &Root = *M.getFunction("root");
+
+  // Static symbols have already been registered during lifting phase. Now
+  // register all the other candidate entry points.
+  for (llvm::BasicBlock &BB : Root) {
+    if (getType(&BB) != BlockType::JumpTargetBlock)
+      continue;
+
+    MetaAddress Entry = getBasicBlockAddress(getJumpTargetBlock(&BB));
+    if (Binary.Functions().contains(Entry))
+      continue;
+
+    uint32_t Reasons = GCBI.getJTReasons(&BB);
+    bool IsCallee = hasReason(Reasons, JTReason::Callee);
+
+    if (IsCallee) {
+      // Create the function
+      Binary.Functions()[Entry];
+      revng_log(FunctionFromCalleesLog,
+                "Found function from callee: " << BB.getName().str());
+    }
+  }
+}
+
 static void suppressCalleeSaved(RUAResults &ABIResults,
                                 const CSVSet &CalleeSavedRegs) {
 
@@ -1115,7 +1143,7 @@ llvm::Error DetectABI::run(Model &Model,
     PM.run(Module);
   }
 
-  collectFunctionsFromCallees(Module, GCBI, Binary);
+  efa::collectFunctionsFromCallees(Module, GCBI, Binary);
   efa::runDetectABI(Module, GCBI, FMC, TupleModel);
   collectFunctionsFromUnusedAddresses(Module, GCBI, Binary, FMC);
   efa::runDetectABI(Module, GCBI, FMC, TupleModel);

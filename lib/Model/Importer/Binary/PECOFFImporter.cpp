@@ -116,11 +116,7 @@ Error PECOFFImporter::parseSectionsHeaders() {
     MetaAddress Start = ImageBase + u64(CoffRef->VirtualAddress);
     Segment Segment(Start);
     Segment.VirtualSize() = u64(CoffRef->VirtualSize);
-
-    // TODO: do the following unconditionally once the old pipeline has been
-    //       dropped.
-    if (TheBinary.Reference.isValid())
-      Segment.Binary() = TheBinary.Reference;
+    Segment.Binary() = TheBinary.Reference;
     Segment.StartOffset() = CoffRef->PointerToRawData;
 
     // VirtualSize might be larger than SizeOfRawData (extra data at the end of

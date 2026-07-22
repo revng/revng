@@ -300,18 +300,6 @@ PDBFinder::findPDBFilePath(const COFFObjectFile &TheBinary,
     }
   }
 
-  // Try main input path
-  ResultPath.clear();
-  if (not InputPath.empty()) {
-    llvm::sys::path::append(ResultPath,
-                            llvm::sys::path::parent_path(InputPath),
-                            PDBBaseName);
-    if (auto MaybeFullPath = Root.getExistingPath(ResultPath)) {
-      revng_log(Log, "Found: " << *MaybeFullPath);
-      return { { *MaybeFullPath, ExpectedGUID } };
-    }
-  }
-
   // Compute the PDB file ID
   auto PDBFileID = formatPDBFileID(DebugInfo->PDB70.Signature,
                                    DebugInfo->PDB70.Age);

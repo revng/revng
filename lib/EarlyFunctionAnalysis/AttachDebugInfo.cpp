@@ -41,34 +41,6 @@ using namespace llvm;
 
 static Logger Log("attach-debug-info");
 
-class AttachDebugInfo {
-private:
-  using CFG = efa::ControlFlowGraph;
-  using CFGGetterType = std::function<const CFG &(const MetaAddress &)>;
-
-private:
-  llvm::Module &M;
-  DIBuilder DIB;
-  DICompileUnit *CU = nullptr;
-
-  GeneratedCodeBasicInfo &GCBI;
-  CFGGetterType CFGGetter;
-
-public:
-  AttachDebugInfo(const model::Binary &Binary,
-                  llvm::Module &M,
-                  GeneratedCodeBasicInfo &GCBI,
-                  CFGGetterType CFGGetter) :
-    M(M), DIB(M), GCBI(GCBI), CFGGetter(CFGGetter) {}
-
-  bool prologue();
-
-  bool runOnFunction(const model::Function &ModelFunction,
-                     llvm::Function &Function);
-
-  bool epilogue() { return false; }
-};
-
 static bool isTrue(const llvm::Value *V) {
   return getLimitedValue(V) != 0;
 }
@@ -207,63 +179,44 @@ public:
   }
 };
 
-bool AttachDebugInfo::prologue() {
-  // This will be used for attaching the !dbg to instructions.
-  // TODO: Document how are we going to abuse DILocation fields.
-  DIFile *File = DIB.createFile(M.getSourceFileName(), "./");
-  // Also add dummy CU.
-  CU = DIB.createCompileUnit(dwarf::DW_LANG_C,
-                             File,
-                             "revng", // Producer
-                             true, // isOptimized
-                             "", // Flags
-                             0 // RV
-  );
-
-  return true;
-}
-
-bool AttachDebugInfo::runOnFunction(const model::Function &ModelFunction,
-                                    llvm::Function &F) {
-  // Skip functions with debug-info.
-  if (F.getSubprogram())
-    return true;
-
-  // Skip declarations
-  revng_assert(not F.isDeclaration());
-
-  auto FM = CFGGetter(ModelFunction.Entry());
-  revng_log(Log,
-            "Metadata for Function " << F.getName() << ":"
-                                     << FM.Entry().toString());
-
-  LLVMContext &Context = F.getParent()->getContext();
-  DebugInformationBuilder Builder(DIB, Context, CU->getFile(), F.getName());
-  Builder.handleFunction(F, FM, GCBI);
-
-  return true;
-}
-
 namespace revng::pypeline::piperuns {
 
-// TODO: merge ::AttachDebugInfo into AttachDebugInfo once we dismiss the old
-//       pipeline
 void AttachDebugInfo::runOnLLVMFunction(const model::Function &Function,
                                         llvm::Function &LLVMFunction) {
-  const MetaAddress &Address = Function.Entry();
   llvm::Module &Module = *LLVMFunction.getParent();
   GeneratedCodeBasicInfo GCBI(Binary, Module);
 
-  auto CFGGetter =
-    [*this](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
-    return *CFG.getElement(ObjectID(Address));
-  };
+  DIBuilder DIB(Module);
+  // This will be used for attaching the !dbg to instructions.
+  // TODO: Document how are we going to abuse DILocation fields.
+  DIFile *File = DIB.createFile(Module.getSourceFileName(), "./");
+  // Also add dummy CU.
+  DICompileUnit *CU = DIB.createCompileUnit(dwarf::DW_LANG_C,
+                                            File,
+                                            "revng", // Producer
+                                            true, // isOptimized
+                                            "", // Flags
+                                            0 // RV
+  );
 
-  // TODO: inline the body of prologue and epilogue here
-  ::AttachDebugInfo Impl(Binary, Module, GCBI, CFGGetter);
-  Impl.prologue();
-  Impl.runOnFunction(Function, LLVMFunction);
-  Impl.epilogue();
+  // Skip functions with debug-info.
+  if (LLVMFunction.getSubprogram())
+    return;
+
+  // Skip declarations
+  revng_assert(not LLVMFunction.isDeclaration());
+
+  auto FM = *CFG.getElement(ObjectID(Function.Entry()));
+  revng_log(Log,
+            "Metadata for Function " << LLVMFunction.getName() << ":"
+                                     << FM.Entry().toString());
+
+  LLVMContext &Context = LLVMFunction.getParent()->getContext();
+  DebugInformationBuilder Builder(DIB,
+                                  Context,
+                                  CU->getFile(),
+                                  LLVMFunction.getName());
+  Builder.handleFunction(LLVMFunction, FM, GCBI);
 }
 
 } // namespace revng::pypeline::piperuns

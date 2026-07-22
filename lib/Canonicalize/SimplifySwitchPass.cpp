@@ -172,28 +172,6 @@ static bool handleSwitch(SwitchInst *Switch,
   return true;
 }
 
-static bool simplifySwitch(Function &F,
-                           LazyValueInfo &LVI,
-                           DataFlowRangeAnalysis &DFRA,
-                           DominatorTree &DT,
-                           RawBinaryMemoryOracle &MO) {
-  bool Result = false;
-  for (BasicBlock &BB : F) {
-    for (Instruction &I : make_early_inc_range(BB)) {
-      SwitchInst *Switch = dyn_cast<SwitchInst>(&I);
-      if (not Switch)
-        continue;
-
-      if (handleSwitch(Switch, LVI, DFRA, DT, MO)) {
-        Switch->eraseFromParent();
-        Result |= true;
-      }
-    }
-  }
-
-  return Result;
-}
-
 namespace revng::pypeline::piperuns {
 
 struct SimplifySwitchPass : public llvm::ModulePass {
@@ -216,7 +194,22 @@ public:
     DominatorTree DT(Function);
     DataFlowRangeAnalysis DFRA(M);
     RawBinaryMemoryOracle MO(BinaryView, Binary.Architecture());
-    return ::simplifySwitch(Function, LVI, DFRA, DT, MO);
+
+    bool Result = false;
+    for (BasicBlock &BB : Function) {
+      for (Instruction &I : make_early_inc_range(BB)) {
+        SwitchInst *Switch = dyn_cast<SwitchInst>(&I);
+        if (not Switch)
+          continue;
+
+        if (handleSwitch(Switch, LVI, DFRA, DT, MO)) {
+          Switch->eraseFromParent();
+          Result |= true;
+        }
+      }
+    }
+
+    return Result;
   }
 
 public:
