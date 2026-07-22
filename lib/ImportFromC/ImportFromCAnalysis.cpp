@@ -20,7 +20,6 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 
-#include "revng/ABI/Definition.h"
 #include "revng/Clift/Clift.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftEmitC/Configuration.h"
@@ -28,6 +27,7 @@
 #include "revng/CliftEmitC/TypeDefinitionEmitter.h"
 #include "revng/CliftImportModel/ImportModel.h"
 #include "revng/ImportFromC/ImportFromCAnalysis.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/EnumDefinition.h"
 #include "revng/Model/VerifyHelper.h"
@@ -217,12 +217,10 @@ private:
     Configuration.TypeToOmit = EditedTypeHandle;
 
     ptml::CTokenEmitter Tokens(Out, ptml::Tagging::Disabled);
-    emitCommonIncludes(Tokens, abi::getDataModel(Model));
+    emitCommonIncludes(Tokens, Model.targetDataModel());
 
     if (TypeToEdit != nullptr and isSeparateDeclarationAllowed(*TypeToEdit)) {
-      TypeDefinitionEmitter TDE(Tokens,
-                                abi::getDataModel(Model),
-                                Configuration);
+      TypeDefinitionEmitter TDE(Tokens, Model.targetDataModel(), Configuration);
 
       auto Current = clift::importType(Context.get(), *TypeToEdit);
       TDE.emitForwardDeclaration(Current);

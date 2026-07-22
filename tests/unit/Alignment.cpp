@@ -8,8 +8,8 @@
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
-#include "revng/ABI/Definition.h"
 #include "revng/ADT/Concepts.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 
 static std::string printAlignment(uint64_t Alignment) {

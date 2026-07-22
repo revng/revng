@@ -6,7 +6,7 @@
 bool init_unit_test();
 #include "boost/test/unit_test.hpp"
 
-#include "revng/ABI/Definition.h"
+#include "revng/Model/ABI/Definition.h"
 
 BOOST_AUTO_TEST_SUITE(RegisterStateDeduction);
 

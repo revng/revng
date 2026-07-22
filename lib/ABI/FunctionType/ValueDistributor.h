@@ -6,7 +6,7 @@
 
 #include "llvm/ADT/SmallVector.h"
 
-#include "revng/ABI/Definition.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Register.h"
 
 namespace abi::FunctionType {

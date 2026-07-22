@@ -2,6 +2,9 @@
 # This file is distributed under the MIT License. See LICENSE.md for details.
 #
 
+# IMPORTANT: this will eventually become a piece of the model, so don't add
+#            anything you wouldn't add to the model.
+
 version: 1
 root_type: Definition
 definitions:

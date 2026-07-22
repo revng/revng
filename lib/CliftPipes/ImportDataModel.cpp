@@ -2,13 +2,13 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include "revng/ABI/Definition.h"
 #include "revng/CliftPipes/CliftContainer.h"
 #include "revng/CliftPipes/ImportDataModel.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Pipeline/RegisterPipe.h"
 
 static void importDataModel(mlir::ModuleOp Module, const model::Binary &Model) {
-  clift::setDataModel(Module, abi::getDataModel(Model));
+  clift::setDataModel(Module, Model.targetDataModel());
 }
 
 //

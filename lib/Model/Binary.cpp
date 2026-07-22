@@ -13,6 +13,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include "revng/ADT/Concepts.h"
+#include "revng/Model/ABI/Definition.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/BinaryIdentifier.h"
 #include "revng/Model/PrimitiveType.h"
@@ -166,6 +167,10 @@ model::ABI::Values model::Binary::targetABI() const {
   }
 
   return ABI;
+}
+
+CDataModel model::Binary::targetDataModel() const {
+  return abi::Definition::get(targetABI()).getDataModel();
 }
 
 namespace model {

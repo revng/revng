@@ -6,10 +6,13 @@
 
 #include <vector>
 
-#include "revng/ABI/FunctionType/Support.h"
-#include "revng/ABI/ScalarType.h"
 #include "revng/ADT/SortedVector.h"
 #include "revng/Model/ABI.h"
+#include "revng/Model/ABI/ScalarType.h"
+#include "revng/Model/ArrayType.h"
+#include "revng/Model/DefinedType.h"
+#include "revng/Model/PointerType.h"
+#include "revng/Model/PrimitiveType.h"
 #include "revng/Model/RawFunctionDefinition.h"
 #include "revng/Model/Register.h"
 #include "revng/Support/AlignmentHelpers.h"
@@ -18,13 +21,13 @@
 #include "revng/TupleTree/TupleTree.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
 
-#include "revng/ABI/Generated/Early/Definition.h"
+#include "revng/Model/ABI/Generated/Early/Definition.h"
 
 namespace abi {
 
-class Definition : public generated::Definition {
+class Definition : public abi::generated::Definition {
 public:
-  using generated::Definition::Definition;
+  using abi::generated::Definition::Definition;
 
 public:
   static const Definition &get(model::ABI::Values ABI);
@@ -250,8 +253,6 @@ public:
   }
 };
 
-[[nodiscard]] CDataModel getDataModel(const model::Binary &Binary);
-
 } // namespace abi
 
-#include "revng/ABI/Generated/Late/Definition.h"
+#include "revng/Model/ABI/Generated/Late/Definition.h"

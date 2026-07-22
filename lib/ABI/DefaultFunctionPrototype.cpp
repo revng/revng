@@ -3,8 +3,8 @@
 //
 
 #include "revng/ABI/DefaultFunctionPrototype.h"
-#include "revng/ABI/Definition.h"
 #include "revng/ABI/FunctionType/Support.h"
+#include "revng/Model/ABI/Definition.h"
 
 static model::UpcastableType defaultPrototype(model::Binary &Binary,
                                               model::ABI::Values ABI) {
