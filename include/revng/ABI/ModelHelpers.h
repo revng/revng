@@ -52,15 +52,6 @@ getPointerSizedInteger(llvm::LLVMContext &C,
   return llvm::Type::getIntNTy(C, PtrSize * 8);
 }
 
-/// If possible, deduce the expected model type of an operand (e.g. the base
-/// operand of a call) by looking only at the User. Note that, in the case
-/// of `ret` instructions inside RawFunctionTypes, the use might have more than
-/// one type associated to it.
-/// \return nothing if no information could be deduced locally on U
-/// \return one or more types associated to the use
-extern llvm::SmallVector<model::UpcastableType>
-getExpectedModelType(const llvm::Use *U, const model::Binary &Model);
-
 /// \note This is the final prototype, after segregate-stack-access
 template<bool LegacyLocalVariables>
 inline llvm::FunctionType &
