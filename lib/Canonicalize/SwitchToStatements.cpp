@@ -445,8 +445,7 @@ static bool isProgramPoint(const Instruction *I) {
   // the clift-based pipeline they will be only materialized in Clift as regular
   // operators, so we don't need them in LLVM anymore and we want to make sure
   // they disappear over time until we can actually drop them.
-  if (isCallToTagged(I, FunctionTags::AllocatesLocalVariable)
-      or isCallToTagged(I, FunctionTags::AddressOf)
+  if (isCallToTagged(I, FunctionTags::AddressOf)
       or isCallToTagged(I, FunctionTags::Marker)
       or isCallToTagged(I, FunctionTags::Parentheses)
       or isCallToTagged(I, FunctionTags::SegmentGlobalGetter)) {

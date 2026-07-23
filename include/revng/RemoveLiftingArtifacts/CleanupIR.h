@@ -11,7 +11,6 @@ namespace revng::pypeline::piperuns {
 
 class CleanupIR {
 private:
-  const model::Binary &Model;
   LLVMRootContainer &ModuleContainer;
 
 public:
@@ -25,7 +24,7 @@ public:
             llvm::StringRef StaticConfiguration,
             llvm::StringRef Configuration,
             LLVMRootContainer &ModuleContainer) :
-    Model(*Model.get().get()), ModuleContainer(ModuleContainer){};
+    ModuleContainer(ModuleContainer){};
 
   void run();
 };

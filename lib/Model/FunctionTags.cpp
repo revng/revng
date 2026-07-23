@@ -34,7 +34,6 @@ Tag OpaqueReturnAddressFunction("opaque-return-address");
 
 Tag CSV("csv");
 
-Tag AllocatesLocalVariable("allocates-local-variable");
 Tag ReturnsPolymorphic("returns-polymorphic");
 
 Tag ScopeCloserMarker("scope-closer");

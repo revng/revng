@@ -38,12 +38,9 @@ private:
 
   private:
     Module &M;
-    LLVMContext &Context;
-    const model::Binary &Model;
 
   public:
-    Impl(Module &TheModule, const model::Binary &TheModel) :
-      M(TheModule), Context(M.getContext()), Model(TheModel) {}
+    Impl(Module &TheModule) : M(TheModule) {}
 
     bool run();
 
@@ -64,62 +61,6 @@ bool CleanupIRPass::Impl::replaceInstructions(Function &F) {
     }
   }
 
-  for (Instruction &I : llvm::make_early_inc_range(llvm::instructions(F))) {
-    if (auto *Call = getCallToTagged(&I,
-                                     FunctionTags::AllocatesLocalVariable)) {
-      revng::IRBuilder Builder(Context);
-      Builder.SetInsertPointPastAllocas(Call->getFunction());
-      uint64_t AllocatedBytes = 0;
-      if (auto *Callee = getCalledFunction(Call);
-          Callee and Callee->getName().startswith("revng_stack_frame")) {
-        auto *Size = cast<ConstantInt>(Call->getArgOperand(0));
-        AllocatedBytes = Size->getZExtValue();
-      } else {
-        model::UpcastableType
-          AllocatedType = fromLLVMString(Call->getArgOperand(0), Model);
-        AllocatedBytes = AllocatedType->size().value();
-      }
-      auto *Int8Type = IntegerType::getInt8Ty(Context);
-      auto *Alloca = Builder.CreateAlloca(ArrayType::get(Int8Type,
-                                                         AllocatedBytes));
-
-      // Some uses of the Call can be replaced directly with GEPs in the Alloca.
-      for (Use &U : Call->uses()) {
-        User *TheUser = U.getUser();
-        // If a use is an add, whose result is casted to pointer, then we can
-        // just replace all the uses of the IntToPtr with a GEP in the Alloca.
-        if (auto *BinOp = dyn_cast<BinaryOperator>(TheUser);
-            BinOp and BinOp->getOpcode() == Instruction::Add) {
-          for (Use &BinOpUse : BinOp->uses()) {
-            User *BinOpUser = BinOpUse.getUser();
-            if (auto *IntToPtr = dyn_cast<IntToPtrInst>(BinOpUser)) {
-              unsigned OtherOperandIndex = U.getOperandNo() ? 0 : 1;
-              Value *OtherOperand = BinOp->getOperand(OtherOperandIndex);
-              Builder.SetInsertPoint(IntToPtr);
-              auto *GEP = Builder.CreateGEP(Int8Type, Alloca, { OtherOperand });
-              IntToPtr->replaceAllUsesWith(GEP);
-            }
-          }
-        }
-        // If a use is an IntToPtr, we can just use the Alloca instead
-        if (auto *IntToPtr = dyn_cast<IntToPtrInst>(TheUser)) {
-          IntToPtr->replaceAllUsesWith(Alloca);
-        }
-      }
-
-      // If there are other uses left, replace them more cautiously.
-      if (Call->getNumUses()) {
-        Builder.SetInsertPoint(Call);
-        auto *PtrToInt = Builder.CreatePtrToInt(Alloca, Call->getType());
-        Call->replaceAllUsesWith(PtrToInt);
-      }
-
-      Call->eraseFromParent();
-      Changed = true;
-      continue;
-    }
-  }
-
   return Changed;
 }
 
@@ -136,11 +77,7 @@ bool CleanupIRPass::Impl::run() {
 }
 
 bool CleanupIRPass::runOnModule(Module &TheModule) {
-
-  auto &ModelWrapper = getAnalysis<LoadModelWrapperPass>().get();
-  const model::Binary &Model = *ModelWrapper.getReadOnlyModel();
-
-  return Impl(TheModule, Model).run();
+  return Impl(TheModule).run();
 }
 
 char CleanupIRPass::ID = 0;
@@ -153,7 +90,7 @@ namespace revng::pypeline::piperuns {
 // TODO: merge CleanupIRPass to CleanupIR once we dismiss the old pipeline
 void CleanupIR::run() {
   llvm::Module &Module = ModuleContainer.getModule();
-  CleanupIRPass::Impl Impl(Module, Model);
+  CleanupIRPass::Impl Impl(Module);
   Impl.run();
 }
 
