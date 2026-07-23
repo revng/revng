@@ -185,10 +185,7 @@ static model::UpcastableType traverseModelGEP(const model::Binary &Model,
   // Compute the first index of variadic arguments that represent the traversal
   // starting from the CurType.
   unsigned IndexOfFirstTraversalArgument = ModelGEPBaseArgIndex + 1;
-  if (isCallToTagged(Call, FunctionTags::ModelGEP))
-    ++IndexOfFirstTraversalArgument;
-  else
-    revng_assert(isCallToTagged(Call, FunctionTags::ModelGEPRef));
+  revng_assert(isCallToTagged(Call, FunctionTags::ModelGEPRef));
 
   // Traverse the model
   const model::Type *Result = Type.get();
@@ -287,8 +284,7 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         revng_assert(not CallStackArgumentType->isVoidPrimitive());
 
         rc_return{ CallStackArgumentType };
-      } else if (FTags.contains(FunctionTags::ModelGEP)
-                 or FTags.contains(FunctionTags::ModelGEPRef)) {
+      } else if (FTags.contains(FunctionTags::ModelGEPRef)) {
         rc_return{ traverseModelGEP(Model, Call) };
 
       } else if (FTags.contains(FunctionTags::AddressOf)) {
@@ -416,13 +412,9 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
 
         // The type of the base value is contained in the first operand
         auto Base = fromLLVMString(Call->getArgOperand(0), Model);
-        if (FTags.contains(FunctionTags::ModelGEP))
-          Base = model::PointerType::make(std::move(Base),
-                                          Model.Architecture());
         return { std::move(Base) };
 
-      } else if (FTags.contains(FunctionTags::ModelGEP)
-                 or FTags.contains(FunctionTags::ModelGEPRef)) {
+      } else if (FTags.contains(FunctionTags::ModelGEPRef)) {
         // We have model type information only for the base value
         if (ArgOperandIdx < ModelGEPBaseArgIndex)
           return {};
@@ -430,9 +422,6 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
         if (ArgOperandIdx == ModelGEPBaseArgIndex) {
           // The type of the base value is contained in the first operand
           auto Base = fromLLVMString(Call->getArgOperand(0), Model);
-          if (FTags.contains(FunctionTags::ModelGEP))
-            Base = model::PointerType::make(std::move(Base),
-                                            Model.Architecture());
           return { std::move(Base) };
         } else {
           // For all index operands in ModelGEP, if the operand is not an

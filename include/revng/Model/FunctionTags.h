@@ -54,7 +54,6 @@ struct TypePair {
 extern FunctionPoolTag<TypePair> AddressOf;
 
 extern FunctionPoolTag<TypePair> ModelCast;
-extern Tag ModelGEP;
 extern Tag ModelGEPRef;
 extern FunctionPoolTag<TypePair> OpaqueExtractValue;
 extern FunctionPoolTag<llvm::Type *> Parentheses;
@@ -294,15 +293,6 @@ inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
 /// \param BaseType The LLVM type of the second argument (the reference that
 /// we want to transform into a pointer).
 llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
-
-/// ModelGEP functions are used to replace pointer arithmetic with a navigation
-/// of the Model.
-///
-/// \param RetType ModelGEP should return an integer of the size of the gepped
-/// element
-/// \param BaseType The LLVM type of the second argument (the base pointer)
-llvm::Function *
-getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType);
 
 /// ModelGEP Ref is a ModelGEP where the base value is considered to be a
 /// reference.

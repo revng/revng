@@ -78,7 +78,6 @@ FunctionPoolTag<TypePair>
               }
             });
 
-Tag ModelGEP("model-gep");
 Tag ModelGEPRef("model-gep-ref");
 
 FunctionPoolTag<TypePair>
@@ -442,7 +441,6 @@ llvm::CallInst &emitMessage(revng::IRBuilder &Builder,
   return emitMessageImpl<false>(Builder, Message, DbgLocation, PCH);
 }
 
-static constexpr const char *const ModelGEPName = "ModelGEP";
 static constexpr const char *const ModelGEPRefName = "ModelGEPRef";
 
 // This is very simple for now.
@@ -506,45 +504,6 @@ llvm::FunctionType *getAddressOfType(llvm::Type *RetType,
   llvm::SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(C),
                                                    BaseType };
   return llvm::FunctionType::get(RetType, FixedArgs, false /* IsVarArg */);
-}
-
-llvm::Function *
-getModelGEP(llvm::Module &M, llvm::Type *RetType, llvm::Type *BaseType) {
-
-  using namespace llvm;
-
-  // There are 3 fixed arguments:
-  // - the first is a pointer to a constant string that contains a serialization
-  //   of the key of the base type;
-  // - the second is the type of the base pointer.
-  // - the third argument represents the member of the array access based on the
-  //   second. if it's 0 it's a regular pointer access, otherwise an array
-  //   access.
-  auto *Int64Type = llvm::IntegerType::getIntNTy(M.getContext(), 64);
-  SmallVector<llvm::Type *, 3> FixedArgs = { getStringPtrType(M.getContext()),
-                                             BaseType,
-                                             Int64Type };
-  // The function is vararg, because we might need to access a number of fields
-  // that is variable.
-  FunctionType *ModelGEPType = FunctionType::get(RetType,
-                                                 FixedArgs,
-
-                                                 true /* IsVarArg */);
-
-  FunctionCallee
-    MGEPCallee = M.getOrInsertFunction(makeTypeBasedSuffix(RetType,
-                                                           BaseType,
-                                                           ModelGEPName),
-                                       ModelGEPType);
-
-  auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
-  ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-  ModelGEPFunction->setMemoryEffects(llvm::MemoryEffects::none());
-  FunctionTags::ModelGEP.addTo(ModelGEPFunction);
-  FunctionTags::IsRef.addTo(ModelGEPFunction);
-
-  return ModelGEPFunction;
 }
 
 llvm::Function *
