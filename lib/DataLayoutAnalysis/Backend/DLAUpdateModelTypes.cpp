@@ -25,6 +25,7 @@
 #include "revng/ADT/FilteredGraphTraits.h"
 #include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
+#include "revng/LocalVariables/LocalVariableHelpers.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
 #include "revng/Model/IRHelpers.h"
@@ -652,22 +653,18 @@ static bool updateStackFrameType(model::Function &ModelFunc,
   bool Found = false;
   for (const auto &I : llvm::instructions(LLVMFunc)) {
 
-    auto *Call = llvm::dyn_cast<llvm::CallInst>(&I);
-    if (not Call)
+    auto *Alloca = llvm::dyn_cast<llvm::AllocaInst>(&I);
+    if (not Alloca or not hasStackFrameMetadata(Alloca))
       continue;
 
-    auto *Callee = getCalledFunction(Call);
-    if (not Callee or Callee->getName() != "revng_stack_frame")
-      continue;
-
-    revng_assert(not Found, "Multiple calls to revng_stack_frame");
+    revng_assert(not Found, "Multiple stack frame allocas");
     Found = true;
 
     revng_log(Log, "Updating stack for " << LLVMFunc.getName());
     LoggerIndent Indent{ Log };
     revng_log(Log, "Was " << OldStackFrame.ID());
 
-    LayoutTypePtr Key{ Call, LayoutTypePtr::FieldNumNone };
+    LayoutTypePtr Key{ Alloca, LayoutTypePtr::FieldNumNone };
 
     if (auto NewTypeIt = DLATypes.find(Key); NewTypeIt != DLATypes.end()) {
       const auto &NewStack = *NewTypeIt->second->skipConstAndTypedefs();

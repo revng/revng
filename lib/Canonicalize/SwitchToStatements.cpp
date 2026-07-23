@@ -121,15 +121,14 @@ static bool storedValueCanBeMadeAvailable(StoreInst *Store) {
 //
 
 static bool doesNotAccessMemory(const Instruction *I) {
-  // We have to hardcode revng_call_stack_arguments and revng_stack_frame
+  // We have to hardcode revng_call_stack_arguments
   // because SegregateStackAccesses has to mark them as functions that read
   // inaccessible memory, in order to prevent some LLVM optimizations.
   // Same for OpaqueExtractValue.
   if (auto *Call = dyn_cast<CallInst>(I)) {
     if (Function *Callee = getCalledFunction(Call)) {
       StringRef Name = Callee->getName();
-      if (Name.startswith("revng_call_stack_arguments")
-          or Name.startswith("revng_stack_frame")) {
+      if (Name.startswith("revng_call_stack_arguments")) {
         return true;
       }
     }
