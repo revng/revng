@@ -2,6 +2,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <ranges>
+
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/DataLayoutAnalysis/DLALayouts.h"
 #include "revng/DataLayoutAnalysis/DLAPass.h"
@@ -30,24 +32,17 @@ void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   AU.setPreservesAll();
 }
 
-bool DLAPass::runOnModule(llvm::Module &M) {
-  TupleTree<model::Binary> *WritableModel = nullptr;
-  if (ConstructorModel != nullptr) {
-    WritableModel = ConstructorModel;
-  } else {
-    WritableModel = &getAnalysis<LoadModelWrapperPass>()
-                       .get()
-                       .getWriteableModel();
-  }
-
-  llvm::Task T(3, "DLAPass::runOnModule");
+template<typename ModuleRange>
+static bool runDataLayoutAnalysis(ModuleRange &&Modules,
+                                  TupleTree<model::Binary> &WritableModel) {
+  llvm::Task T(3, "runDataLayoutAnalysis");
   T.advance("DLA Frontend");
 
-  // Front-end: Create the LayoutTypeSystem graph from an LLVM module
+  // Front-end: Create the LayoutTypeSystem graph from the LLVM modules
   dla::LayoutTypeSystem TS;
-  const model::Binary &Model = *WritableModel->get();
+  const model::Binary &Model = *WritableModel.get();
   dla::DLATypeSystemLLVMBuilder Builder{ TS, Model };
-  Builder.buildFromLLVMModule(M);
+  Builder.buildFromLLVMModules(Modules);
 
   if (BuilderLog.isEnabled())
     Builder.dumpValuesMapping("DLA-values-initial.csv");
@@ -118,14 +113,29 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   T.advance("DLA Backend");
 
   // Generate model types
-  auto ValueToTypeMap = dla::makeModelTypes(TS, Values, *WritableModel);
+  auto ValueToTypeMap = dla::makeModelTypes(TS, Values, WritableModel);
   bool Changed = false;
 
-  Changed |= dla::updateFuncSignatures(M, *WritableModel, ValueToTypeMap);
-  Changed |= dla::updateSegmentsTypes(M, *WritableModel, ValueToTypeMap);
-  revng_assert((*WritableModel)->verify(true));
+  for (llvm::Module *M : Modules) {
+    Changed |= dla::updateFuncSignatures(*M, WritableModel, ValueToTypeMap);
+    Changed |= dla::updateSegmentsTypes(*M, WritableModel, ValueToTypeMap);
+  }
+  revng_assert(WritableModel->verify(true));
 
   return Changed;
+}
+
+bool DLAPass::runOnModule(llvm::Module &M) {
+  TupleTree<model::Binary> *WritableModel = nullptr;
+  if (ConstructorModel != nullptr) {
+    WritableModel = ConstructorModel;
+  } else {
+    WritableModel = &getAnalysis<LoadModelWrapperPass>()
+                       .get()
+                       .getWriteableModel();
+  }
+
+  return runDataLayoutAnalysis(std::views::single(&M), *WritableModel);
 }
 
 class DLAAnalysis {

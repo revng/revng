@@ -420,17 +420,3 @@ void DLATypeSystemLLVMBuilder::dumpValuesMapping(const StringRef Name) const {
     OutFile << "\n";
   }
 }
-
-void DLATypeSystemLLVMBuilder::buildFromLLVMModule(llvm::Module &M) {
-
-  TS.setDebugPrinter(std::make_unique<LLVMTSDebugPrinter>(M, this->Values));
-
-  SegmentNodeMapT SegmentNodes;
-  initializeSegments(SegmentNodes);
-  createInterproceduralTypes(M, SegmentNodes);
-  createIntraproceduralTypes(M);
-
-  createValuesList();
-  VisitedValues.clear();
-  VisitedPrototypes.clear();
-}

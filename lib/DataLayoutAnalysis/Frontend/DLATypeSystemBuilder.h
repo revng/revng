@@ -4,6 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include <ranges>
+
 #include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
 #include "llvm/Support/Casting.h"
@@ -157,7 +159,7 @@ public:
   DLATypeSystemLLVMBuilder(LayoutTypeSystem &TS, const model::Binary &M) :
     TS(TS), Model(M){};
 
-  /// Create a DLATypeSystem graph for a given LLVM module
+  /// Create a DLATypeSystem graph from a range of LLVM modules
   ///
   /// LayoutTypePtrs represent elements of the LLVM IR that are thought to be
   /// possible pointers. The builder's job is to:
@@ -165,7 +167,35 @@ public:
   /// 2. Create a Node for each of them in the DLATypeSystem graph (TS)
   /// 3. Keep an ordered vector of LayoutTypePtrs, where each element's index
   /// corresponds to the ID of the corresponding LayoutTypeSystemNode generated
-  void buildFromLLVMModule(llvm::Module &M);
+  ///
+  /// \p Modules is a multipass range of `llvm::Module *`. VisitedValues and
+  /// VisitedPrototypes are kept alive across all the modules, so that values
+  /// and prototypes shared between modules converge on the same nodes.
+  template<typename ModuleRange>
+  void buildFromLLVMModules(ModuleRange &&Modules) {
+    // The debug printer only needs a module handle for debugging convenience,
+    // so install it with the first module of the range. For an empty request
+    // the default base printer installed by LayoutTypeSystem stands.
+    auto It = std::ranges::begin(Modules);
+    if (It != std::ranges::end(Modules))
+      TS.setDebugPrinter(std::make_unique<LLVMTSDebugPrinter>(**It,
+                                                              this->Values));
+
+    // Create the shared per-segment nodes once, before any module is visited,
+    // so getters from different modules connect to the same node.
+    SegmentNodeMapT SegmentNodes;
+    initializeSegments(SegmentNodes);
+
+    for (llvm::Module *M : Modules)
+      createInterproceduralTypes(*M, SegmentNodes);
+
+    for (llvm::Module *M : Modules)
+      createIntraproceduralTypes(*M);
+
+    createValuesList();
+    VisitedValues.clear();
+    VisitedPrototypes.clear();
+  }
 
   /// Given an indirect Call instruction, check if it shares the model
   /// prototype with another function. If it does, connect the nodes
