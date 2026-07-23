@@ -61,24 +61,6 @@ FunctionPoolTag<TypePair>
             });
 
 FunctionPoolTag<TypePair>
-  ModelCast("model-cast",
-            { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-            llvm::MemoryEffects::none(),
-            { &FunctionTags::UniquedByPrototype },
-            [](OpaqueFunctionsPool<TypePair> &Pool,
-               llvm::Module &M,
-               const FunctionPoolTag<TypePair> &Tag) {
-              for (llvm::Function &F : Tag.functions(&M)) {
-                auto *FunctionType = F.getFunctionType();
-                revng_assert(FunctionType->getNumParams() == 3);
-                revng_assert(not FunctionType->isVarArg());
-                auto *ReturnType = F.getFunctionType()->getReturnType();
-                auto *OperandToCastType = F.getFunctionType()->getParamType(1);
-                Pool.record({ ReturnType, OperandToCastType }, &F);
-              }
-            });
-
-FunctionPoolTag<TypePair>
   OpaqueExtractValue("opaque-extract-value",
                      { llvm::Attribute::NoInline,
                        llvm::Attribute::NoMerge,

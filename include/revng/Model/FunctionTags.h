@@ -53,7 +53,6 @@ struct TypePair {
 
 extern FunctionPoolTag<TypePair> AddressOf;
 
-extern FunctionPoolTag<TypePair> ModelCast;
 extern FunctionPoolTag<TypePair> OpaqueExtractValue;
 extern FunctionPoolTag<llvm::Type *> Parentheses;
 extern Tag LiteralPrintDecorator;
@@ -292,8 +291,6 @@ inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
 /// \param BaseType The LLVM type of the second argument (the reference that
 /// we want to transform into a pointer).
 llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
-
-using ModelCastPoolKey = std::pair<llvm::Type *, llvm::Type *>;
 
 /// Derive the function type of the corresponding OpaqueExtractValue() function
 /// from an ExtractValue instruction. OpaqueExtractValues wrap an
