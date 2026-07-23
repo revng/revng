@@ -121,17 +121,10 @@ static bool storedValueCanBeMadeAvailable(StoreInst *Store) {
 //
 
 static bool doesNotAccessMemory(const Instruction *I) {
-  // We have to hardcode revng_call_stack_arguments
-  // because SegregateStackAccesses has to mark them as functions that read
-  // inaccessible memory, in order to prevent some LLVM optimizations.
-  // Same for OpaqueExtractValue.
-  if (auto *Call = dyn_cast<CallInst>(I)) {
-    if (Function *Callee = getCalledFunction(Call)) {
-      StringRef Name = Callee->getName();
-      if (Name.startswith("revng_call_stack_arguments")) {
-        return true;
-      }
-    }
+  // We have to hardcode OpaqueExtractValue and StructInitializer because
+  // SegregateStackAccesses marks them as functions that read inaccessible
+  // memory, in order to prevent some LLVM optimizations.
+  if (isa<CallInst>(I)) {
     if (getCallToTagged(I, FunctionTags::OpaqueExtractValue))
       return true;
     if (getCallToTagged(I, FunctionTags::StructInitializer))

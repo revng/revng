@@ -52,18 +52,6 @@ inline bool isComment(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::Comment);
 }
 
-inline bool isCallStackArgumentDecl(const llvm::Value *I) {
-  auto *Call = dyn_cast_or_null<llvm::CallInst>(I);
-  if (not Call)
-    return false;
-
-  auto *Callee = getCalledFunction(Call);
-  if (not Callee)
-    return false;
-
-  return Callee->getName().startswith("revng_call_stack_arguments");
-}
-
 inline bool isArtificialAggregateLocalVarDecl(const llvm::Value *I) {
   return isCallToIsolatedFunction(I) and I->getType()->isAggregateType();
 }

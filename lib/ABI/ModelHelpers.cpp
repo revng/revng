@@ -217,13 +217,7 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         return llvmToModelFunction(Model, *Inst->getParent()->getParent());
       };
 
-      if (FuncName.startswith("revng_call_stack_arguments")) {
-        auto *Arg0Operand = Call->getArgOperand(0);
-        auto CallStackArgumentType = fromLLVMString(Arg0Operand, Model);
-        revng_assert(not CallStackArgumentType->isVoidPrimitive());
-
-        rc_return{ CallStackArgumentType };
-      } else if (FTags.contains(FunctionTags::StructInitializer)) {
+      if (FTags.contains(FunctionTags::StructInitializer)) {
         // Struct initializers are only used to pack together return values of
         // RawFunctionTypes that return multiple values, therefore they have
         // the same type as the parent function's return type
@@ -267,8 +261,6 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         }
 
         rc_return Result;
-      } else {
-        revng_assert(not FuncName.startswith("revng_call_stack_arguments"));
       }
     }
   }
@@ -324,13 +316,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
       auto *CalledFunc = getCalledFunction(Call);
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
 
-      if (isCallTo(Call, "revng_call_stack_arguments")) {
-        auto *Arg0Operand = Call->getArgOperand(0);
-        auto CallStackArgumentType = fromLLVMString(Arg0Operand, Model);
-        revng_assert(not CallStackArgumentType.isEmpty());
-
-        return { std::move(CallStackArgumentType) };
-      } else if (FTags.contains(FunctionTags::StructInitializer)) {
+      if (FTags.contains(FunctionTags::StructInitializer)) {
         // Struct initializers are only used to pack together return values of
         // RawFunctionTypes that return multiple values, therefore they have
         // the same type as the parent function's return type

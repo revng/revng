@@ -861,9 +861,8 @@ class SegregateFunctionStack;
 /// This pass changes the base address of stack memory access to either:
 ///
 /// * The stack frame of the function (a stack-frame alloca).
-/// * The stack arguments of a call site (allocated by the
-///   `revng_call_stack_arguments` function), which is then passed in as the
-///   last argument of the function.
+/// * The stack arguments of a call site (a call-stack-arguments alloca),
+///   which is then passed in as the last argument of the function.
 /// * The (newly introduced) last argument of the function representing the
 ///   stack arguments.
 ///
