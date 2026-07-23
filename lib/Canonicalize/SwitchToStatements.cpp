@@ -61,7 +61,6 @@
 #include "revng/Model/LoadModelPass.h"
 #include "revng/Support/BlockType.h"
 #include "revng/Support/Debug.h"
-#include "revng/Support/DecompilationHelpers.h"
 #include "revng/Support/IRBuilder.h"
 #include "revng/Support/IRHelpers.h"
 #include "revng/Support/Tag.h"
