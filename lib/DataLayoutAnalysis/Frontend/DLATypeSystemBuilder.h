@@ -4,7 +4,9 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/IR/Instructions.h"
 #include "llvm/Pass.h"
+#include "llvm/Support/Casting.h"
 
 #include "revng/DataLayoutAnalysis/DLALayouts.h"
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
@@ -45,6 +47,11 @@ inline bool isPointerToFunctionExpression(const llvm::Value *V) {
   // detect the offending uses of llvm::Functions. In this way, all the points
   // of the codebase that are affected by this hack are clearly marked.
   return isa<llvm::Function>(V);
+}
+
+inline bool isArrayOfBytes(const llvm::Type *T) {
+  auto *Array = llvm::dyn_cast<llvm::ArrayType>(T);
+  return Array and Array->getElementType()->isIntegerTy(8);
 }
 
 /// This class is used to print LLVM information when debugging the TS
@@ -99,6 +106,7 @@ private:
 
   /// Reverse map between `llvm::Value`s and Nodes
   VisitedMapT VisitedValues;
+
   /// Associate each indirect call's prototype in the model with the
   /// first `llvm::CallInst` found with that prototype,
   PrototypesMapT VisitedPrototypes;
