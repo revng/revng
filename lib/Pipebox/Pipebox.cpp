@@ -44,7 +44,6 @@
 #include "revng/PromoteStackPointer/SegregateStackAccesses.h"
 #include "revng/Recompile/CompileModulePipe.h"
 #include "revng/Recompile/LinkForTranslationPipe.h"
-#include "revng/RemoveLiftingArtifacts/CleanupIR.h"
 #include "revng/RemoveLiftingArtifacts/PromoteInitCSVToUndef.h"
 #include "revng/RemoveLiftingArtifacts/RemoveLiftingArtifacts.h"
 #include "revng/SegmentReferences/DetectCStrings.h"
@@ -125,7 +124,6 @@ REGISTER(FunctionPipeRun, YieldAssembly);
 REGISTER(FunctionPipeRun, YieldCallGraphSlice);
 REGISTER(FunctionPipeRun, YieldCFG);
 
-REGISTER(SingleOutputPipeRun, CleanupIR);
 REGISTER(SingleOutputPipeRun, CompileRootModule);
 REGISTER(SingleOutputPipeRun, EmitCAsDirectory);
 REGISTER(SingleOutputPipeRun, EmitCAsSingleFile);
