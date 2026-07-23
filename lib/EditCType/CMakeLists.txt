@@ -11,6 +11,7 @@ target_link_libraries(
   revngEditCTypeAnalysis
   revngABI
   revngBasicAnalyses
+  revngClangToModel
   revngCliftEmitC
   revngCliftImportModel
   revngModel

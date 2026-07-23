@@ -12,7 +12,6 @@
 #include "llvm/Support/Error.h"
 #include "llvm/Support/ToolOutputFile.h"
 
-#include "clang/Driver/Driver.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendAction.h"
 #include "clang/Lex/PreprocessorOptions.h"
@@ -20,6 +19,7 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Tooling.h"
 
+#include "revng/ClangToModel/CompileFlags.h"
 #include "revng/Clift/Clift.h"
 #include "revng/CliftEmitC/CEmitter.h"
 #include "revng/CliftEmitC/Configuration.h"
@@ -38,7 +38,6 @@
 #include "revng/Pipeline/RegisterAnalysis.h"
 #include "revng/Pipes/ModelGlobal.h"
 #include "revng/Pipes/Ranks.h"
-#include "revng/Support/PathList.h"
 #include "revng/Support/TemporaryFile.h"
 #include "revng/Support/YAMLTraits.h"
 #include "revng/TupleTree/TupleTreeDiff.h"
@@ -49,34 +48,6 @@
 using namespace llvm;
 using namespace clang;
 using namespace clang::tooling;
-
-static std::vector<std::string>
-getOptionsFromCFGFile(llvm::StringRef FilePath) {
-  std::vector<std::string> Result;
-
-  auto MaybeBuffer = llvm::MemoryBuffer::getFile(FilePath);
-  revng_assert(MaybeBuffer);
-
-  llvm::SmallVector<llvm::StringRef, 0> Lines;
-  MaybeBuffer->get()->getBuffer().split(Lines, '\n');
-  for (llvm::StringRef &Line : Lines) {
-    if (Line.size() > 0 and Line[0] == '-')
-      Result.push_back(Line.str());
-  }
-
-  return Result;
-}
-
-static std::optional<std::string> findHeaderFile(const std::string &File) {
-  auto MaybeHeaderPath = revng::ResourceFinder.findFile(File);
-  if (not MaybeHeaderPath)
-    return std::nullopt;
-  auto Index = (*MaybeHeaderPath).rfind('/');
-  if (Index == std::string::npos)
-    return std::nullopt;
-
-  return (*MaybeHeaderPath).substr(0, Index);
-}
 
 static bool isSeparateDeclarationAllowed(const model::TypeDefinition &T) {
   return llvm::isa<model::StructDefinition>(&T)
@@ -220,40 +191,6 @@ private:
     emitTypes(Tokens, *HeaderModule, Configuration);
   }
 
-  static std::vector<std::string> getCompilationFlags() {
-    // Find compile flags to be applied to clang.
-    StringRef CompileFlagsPath = "share/revng/compile-flags.cfg";
-    auto MaybeCompileCFGPath = revng::ResourceFinder.findFile(CompileFlagsPath);
-    revng_assert(MaybeCompileCFGPath);
-
-    // Since the `--config` is just a clang Driver option, we need to parse it
-    // manually.
-    auto FromCFGFile = getOptionsFromCFGFile(*MaybeCompileCFGPath);
-    std::vector<std::string> Result(FromCFGFile);
-    Result.push_back("-xc");
-
-    SmallString<16> CompilerHeadersPath;
-    {
-      StringRef LLVMLibrary = getLibrariesFullPath().at("libLLVMSupport");
-      using namespace llvm::sys::path;
-      SmallString<16> ClangPath;
-      append(ClangPath, parent_path(parent_path(LLVMLibrary)));
-      append(ClangPath, Twine("bin"));
-      append(ClangPath, Twine("clang"));
-      CompilerHeadersPath = clang::driver::Driver::GetResourcesPath(ClangPath);
-      append(CompilerHeadersPath, Twine("include"));
-    }
-    Result.push_back("-I" + CompilerHeadersPath.str().str());
-
-    // Find primitive-types.h and attributes.h.
-    const char *PrimitivesHeader = "share/revng/include/primitive-types.h";
-    auto MaybePrimitiveHeaderPath = findHeaderFile(PrimitivesHeader);
-    revng_assert(MaybePrimitiveHeaderPath);
-    Result.push_back("-I" + *MaybePrimitiveHeaderPath);
-
-    return Result;
-  }
-
   static llvm::Error parseCompiledC(EditCTypeState &State,
                                     llvm::StringRef HeaderPath,
                                     llvm::StringRef CCode) {
@@ -264,7 +201,7 @@ private:
     static constexpr std::string_view InputFileName = "revng-input.c";
     if (not clang::tooling::runToolOnCodeWithArgs(std::move(State.Action),
                                                   InputC,
-                                                  getCompilationFlags(),
+                                                  revng::getClangCompileFlags(),
                                                   InputFileName)) {
       return revng::createError("Unable to run clang");
     }

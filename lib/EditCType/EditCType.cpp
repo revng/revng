@@ -8,6 +8,7 @@
 #include "clang/Frontend/TextDiagnostic.h"
 
 #include "revng/ABI/ModelHelpers.h"
+#include "revng/ClangToModel/QualTypeToModel.h"
 #include "revng/Model/FunctionAttribute.h"
 #include "revng/Model/NameBuilder.h"
 #include "revng/Model/Processing.h"
@@ -23,7 +24,6 @@ using namespace model;
 using namespace revng;
 
 static constexpr llvm::StringRef InputCFile = "revng-input.c";
-static constexpr llvm::StringRef PrimitiveTypeHeader = "primitive-types.h";
 static constexpr llvm::StringRef RawABIPrefix = "raw_";
 
 namespace {
@@ -150,10 +150,6 @@ private:
   // This checks that the declaration is the one user provided as input.
   bool comesFromInternalFile(const clang::Decl *D);
 
-  // This checks that the declaration comes from primitive-types.header
-  // file.
-  bool comesFromPrimitiveTypesHeader(const clang::RecordDecl *RD);
-
   // Set up line and column for the declaratrion.
   void setupLineAndColumn(const clang::Decl *D);
 
@@ -161,24 +157,6 @@ private:
   bool handleStructType(const clang::RecordDecl *RD);
   // Handle clang's Union type.
   bool handleUnionType(const clang::RecordDecl *RD);
-
-  // Convert clang::type to model::type.
-  model::UpcastableType makePrimitive(const BuiltinType *UnderlyingBuiltin,
-                                      QualType Type);
-
-  // Get model type for clang::RecordType (Struct/Unoion).
-  model::UpcastableType
-  getTypeForRecordType(const clang::RecordType *RecordType,
-                       const QualType &ClangType);
-
-  // Get model type for clang::EnumType.
-  model::UpcastableType getTypeForEnumType(const clang::EnumType *EnumType);
-
-  template<NonBaseDerived<model::TypeDefinition> T>
-  model::UpcastableType makeTypeByNameOrID(llvm::StringRef Name);
-
-  RecursiveCoroutine<model::UpcastableType>
-  getModelTypeForClangType(const QualType &QT);
 
   template<ConstexprString Macro, typename Type>
   std::optional<llvm::StringRef>
@@ -267,169 +245,6 @@ static model::Architecture::Values getRawABIArchitecture(llvm::StringRef ABI) {
   return model::Architecture::fromName(ABI.substr(RawABIPrefix.size()));
 }
 
-model::UpcastableType
-DeclVisitor::makePrimitive(const BuiltinType *UnderlyingBuiltin,
-                           QualType Type) {
-  revng_assert(UnderlyingBuiltin);
-
-  auto AsElaboratedType = Type->getAs<ElaboratedType>();
-  if (not AsElaboratedType) {
-    PrintingPolicy Policy(Context.getLangOpts());
-    Errors.emplace_back("edit-c-type: Builtin type `"
-                        + UnderlyingBuiltin->getName(Policy).str()
-                        + "` not allowed, please use a revng "
-                          "model::PrimitiveType instead.\n");
-
-    return model::UpcastableType::empty();
-  }
-
-  while (auto Typedef = AsElaboratedType->getAs<TypedefType>()) {
-    auto TheUnderlyingType = Typedef->getDecl()->getUnderlyingType();
-    if (not TheUnderlyingType->getAs<ElaboratedType>())
-      break;
-    AsElaboratedType = TheUnderlyingType->getAs<ElaboratedType>();
-  }
-
-  std::string TypeName = AsElaboratedType->getNamedType().getAsString();
-  if (model::PrimitiveType::fromCName(TypeName).isEmpty()) {
-    Errors.emplace_back("edit-c-type: `"
-                        + AsElaboratedType->getNamedType().getAsString()
-                        + "` type is not supported, please use a revng "
-                          "model::PrimitiveType instead.\n");
-
-    return model::UpcastableType::empty();
-  }
-
-  switch (UnderlyingBuiltin->getKind()) {
-  case BuiltinType::UInt128:
-    return model::PrimitiveType::makeUnsigned(16);
-
-  case BuiltinType::Int128:
-    return model::PrimitiveType::makeSigned(16);
-
-  case BuiltinType::ULongLong:
-  case BuiltinType::ULong:
-    return model::PrimitiveType::makeUnsigned(8);
-
-  case BuiltinType::LongLong:
-  case BuiltinType::Long:
-    return model::PrimitiveType::makeSigned(8);
-
-  case BuiltinType::WChar_U:
-  case BuiltinType::UInt:
-    return model::PrimitiveType::makeUnsigned(4);
-
-  case BuiltinType::WChar_S:
-  case BuiltinType::Char32:
-  case BuiltinType::Int:
-    return model::PrimitiveType::makeSigned(4);
-
-  case BuiltinType::UShort:
-    return model::PrimitiveType::makeUnsigned(2);
-
-  case BuiltinType::Char16:
-  case BuiltinType::Short:
-    return model::PrimitiveType::makeSigned(2);
-
-  case BuiltinType::Char_U:
-  case BuiltinType::UChar:
-  case BuiltinType::Char8:
-  case BuiltinType::Bool:
-    return model::PrimitiveType::makeUnsigned(1);
-
-  case BuiltinType::Char_S:
-  case BuiltinType::SChar:
-    return model::PrimitiveType::makeSigned(1);
-
-  case BuiltinType::Void:
-    return model::PrimitiveType::makeVoid();
-
-  case BuiltinType::Float16:
-    return model::PrimitiveType::makeFloat(2);
-
-  case BuiltinType::Float:
-    return model::PrimitiveType::makeFloat(4);
-
-  case BuiltinType::Double:
-    return model::PrimitiveType::makeFloat(8);
-
-  case BuiltinType::Float128:
-  case BuiltinType::LongDouble:
-    return model::PrimitiveType::makeFloat(16);
-
-  default:
-    Errors.emplace_back("edit-c-type: Unable to handle a primitive type.\n");
-  }
-
-  return model::UpcastableType::empty();
-}
-
-template<NonBaseDerived<model::TypeDefinition> T>
-model::UpcastableType DeclVisitor::makeTypeByNameOrID(llvm::StringRef Name) {
-  return model::getTypeDefinitionByNameOrID(*Model, Name, T::AssociatedKind);
-}
-
-model::UpcastableType
-DeclVisitor::getTypeForRecordType(const clang::RecordType *RecordType,
-                                  const QualType &ClangType) {
-  revng_assert(RecordType);
-
-  // Check if it is a primitive type described with a struct.
-  if (comesFromPrimitiveTypesHeader(RecordType->getDecl())) {
-    const TypedefType *AsTypedef = ClangType->getAs<TypedefType>();
-    if (not AsTypedef) {
-      Errors.emplace_back("edit-c-type: There should be a typedef for struct "
-                          "that defines the primitive type.\n");
-      return model::UpcastableType::empty();
-    }
-    auto TypeName = AsTypedef->getDecl()->getName();
-    auto R = model::PrimitiveType::fromCName(TypeName);
-    revng_assert(R);
-    return R;
-  }
-
-  auto Name = RecordType->getDecl()->getName();
-  if (Name.empty()) {
-    Errors.emplace_back("edit-c-type: Nameless structs and unions are not "
-                        "supported here, since we have no way to trace them "
-                        "back to one of the types present in the model.\n");
-    return model::UpcastableType::empty();
-  }
-
-  if (RecordType->isStructureType()) {
-    if (auto Struct = makeTypeByNameOrID<model::StructDefinition>(Name))
-      return Struct;
-
-  } else if (RecordType->isUnionType()) {
-    if (auto Union = makeTypeByNameOrID<model::UnionDefinition>(Name))
-      return Union;
-  }
-
-  Errors.emplace_back("edit-c-type: Unknown struct or union: `" + Name.str()
-                      + "`.\n");
-  return model::UpcastableType::empty();
-}
-
-model::UpcastableType
-DeclVisitor::getTypeForEnumType(const clang::EnumType *EnumType) {
-  revng_assert(EnumType);
-  revng_assert(AnalysisOption != EditCTypeOption::EditFunctionPrototype);
-
-  auto EnumName = EnumType->getDecl()->getName();
-  if (EnumName.empty()) {
-    Errors.emplace_back("edit-c-type: Nameless enums are not supported here, "
-                        "since we have no way to trace them back to one of the "
-                        "types present in the model.\n");
-    return model::UpcastableType::empty();
-  }
-
-  if (auto Enum = makeTypeByNameOrID<model::EnumDefinition>(EnumName))
-    return Enum;
-
-  Errors.emplace_back("edit-c-type: Unknown enum: `" + EnumName.str() + "`.\n");
-  return model::UpcastableType::empty();
-}
-
 bool DeclVisitor::comesFromInternalFile(const clang::Decl *D) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc Loc = SM.getPresumedLoc(D->getLocation());
@@ -444,19 +259,6 @@ bool DeclVisitor::comesFromInternalFile(const clang::Decl *D) {
   return false;
 }
 
-bool DeclVisitor::comesFromPrimitiveTypesHeader(const clang::RecordDecl *RD) {
-  SourceManager &SM = Context.getSourceManager();
-  PresumedLoc Loc = SM.getPresumedLoc(RD->getLocation());
-  if (!Loc.isValid())
-    return false;
-
-  StringRef TheFileName(Loc.getFilename());
-  if (TheFileName.contains(PrimitiveTypeHeader))
-    return true;
-
-  return false;
-}
-
 void DeclVisitor::setupLineAndColumn(const clang::Decl *D) {
   SourceManager &SM = Context.getSourceManager();
   PresumedLoc Loc = SM.getPresumedLoc(D->getLocation());
@@ -465,62 +267,6 @@ void DeclVisitor::setupLineAndColumn(const clang::Decl *D) {
 
   CurrentLineNumber = Loc.getLine();
   CurrentColumnNumber = Loc.getColumn();
-}
-
-RecursiveCoroutine<model::UpcastableType>
-DeclVisitor::getModelTypeForClangType(const QualType &QT) {
-  model::UpcastableType R;
-
-  if (const BuiltinType *AsBuiltinType = QT->getAs<BuiltinType>()) {
-    R = makePrimitive(AsBuiltinType, QT);
-
-  } else if (const PointerType *Pointer = QT->getAs<PointerType>()) {
-    QualType Pointee = Pointer->getPointeeType();
-    R = model::PointerType::make(rc_recur getModelTypeForClangType(Pointee),
-                                 Model->Architecture());
-
-  } else if (QT->isArrayType()) {
-    if (const auto *CAT = dyn_cast<ConstantArrayType>(QT)) {
-      QualType ElementType = Context.getBaseElementType(QT);
-      uint64_t NumberOfElements = CAT->getSize().getZExtValue();
-      R = model::ArrayType::make(rc_recur getModelTypeForClangType(ElementType),
-                                 NumberOfElements);
-    } else {
-      // Here we can face `clang::VariableArrayType` and
-      // `clang::IncompleteArrayType`.
-      Errors.emplace_back("edit-c-type: Unsupported type used as an "
-                          "array.\n");
-    }
-  } else if (const RecordType *AsRecordType = QT->getAs<RecordType>()) {
-    R = getTypeForRecordType(AsRecordType, QT);
-
-  } else if (const EnumType *AsEnum = QT->getAs<EnumType>()) {
-    R = getTypeForEnumType(AsEnum);
-
-  } else if (const auto *AsFn = QT->getAs<FunctionProtoType>()) {
-    if (const TypedefType *AsTypedef = QT->getAs<TypedefType>()) {
-      auto Name = AsTypedef->getDecl()->getName();
-      if (auto CFT = makeTypeByNameOrID<model::CABIFunctionDefinition>(Name))
-        R = std::move(CFT);
-      else if (auto Rw = makeTypeByNameOrID<model::RawFunctionDefinition>(Name))
-        R = std::move(Rw);
-      else
-        Errors.emplace_back("edit-c-type: Unknown typedef: `" + Name.str()
-                            + "`.\n");
-    } else {
-      Errors.emplace_back("edit-c-type: Model has to contain a typedef for "
-                          "the function prototype.\n");
-    }
-
-  } else {
-    Errors.emplace_back("edit-c-type: The type cannot be represented in the "
-                        "model.\n");
-  }
-
-  if (not R.isEmpty() and QT.isConstQualified())
-    R->IsConst() = true;
-
-  rc_return R;
 }
 
 bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
@@ -553,8 +299,13 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
 
     auto &FunctionType = llvm::cast<CABIFunctionDefinition>(*NewType);
     FunctionType.ABI() = TheModelABI;
+
     auto TheRetClangType = FD->getReturnType();
-    model::UpcastableType RetType = getModelTypeForClangType(TheRetClangType);
+    model::UpcastableType RetType = revng::qualTypeToModel(TheRetClangType,
+                                                           *Model,
+                                                           Context,
+                                                           Errors,
+                                                           "edit-c-type:");
     if (not RetType) {
       Errors.emplace_back("edit-c-type failed: Unable to parse the type of "
                           "the return value.\n");
@@ -567,7 +318,11 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     uint32_t Index = 0;
     for (unsigned I = 0, N = FD->getNumParams(); I != N; ++I) {
       auto QT = FD->getParamDecl(I)->getType();
-      model::UpcastableType ParamType = getModelTypeForClangType(QT);
+      model::UpcastableType ParamType = revng::qualTypeToModel(QT,
+                                                               *Model,
+                                                               Context,
+                                                               Errors,
+                                                               "edit-c-type:");
       if (not ParamType) {
         Errors.emplace_back("edit-c-type failed: Unable to parse the type of "
                             "the argument #"
@@ -633,7 +388,11 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
         }
       }
 
-      model::UpcastableType RetType = getModelTypeForClangType(TheRetClangType);
+      model::UpcastableType RetType = revng::qualTypeToModel(TheRetClangType,
+                                                             *Model,
+                                                             Context,
+                                                             Errors,
+                                                             "edit-c-type:");
       if (not RetType) {
         Errors.emplace_back("edit-c-type failed: Unable to parse the type of "
                             "the return value.\n");
@@ -657,7 +416,11 @@ bool DeclVisitor::VisitFunctionDecl(const clang::FunctionDecl *FD) {
     for (unsigned I = 0, N = FD->getNumParams(); I != N; ++I) {
       auto ParamDecl = FD->getParamDecl(I);
       auto QT = ParamDecl->getType();
-      model::UpcastableType ParamType = getModelTypeForClangType(QT);
+      model::UpcastableType ParamType = revng::qualTypeToModel(QT,
+                                                               *Model,
+                                                               Context,
+                                                               Errors,
+                                                               "edit-c-type:");
       if (not ParamType) {
         Errors.emplace_back("edit-c-type failed: Unable to parse the type of "
                             "the argument #"
@@ -797,7 +560,12 @@ bool DeclVisitor::VisitTypedefDecl(const TypedefDecl *D) {
   }
 
   // Regular, non-function, typedef.
-  model::UpcastableType ModelTypedefType = getModelTypeForClangType(TheType);
+  model::UpcastableType ModelTypedefType = revng::qualTypeToModel(TheType,
+                                                                  *Model,
+                                                                  Context,
+                                                                  Errors,
+                                                                  "edit-c-"
+                                                                  "type:");
   if (not ModelTypedefType) {
     Errors.emplace_back("edit-c-type failed: Unable to parse the underlying "
                         "type of the typedef.\n");
@@ -838,9 +606,10 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
                    makeTypeDefinition<RawFunctionDefinition>() :
                    makeTypeDefinition<CABIFunctionDefinition>();
 
-  auto &&[ID, Kind] = *Type;
-  if (AnalysisOption == EditCTypeOption::EditType)
+  if (AnalysisOption == EditCTypeOption::EditType) {
+    auto &&[ID, Kind] = *Type;
     NewType->ID() = ID;
+  }
 
   if (not IsRawFunctionType) {
     auto &FunctionType = llvm::cast<CABIFunctionDefinition>(*NewType);
@@ -854,7 +623,11 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     FunctionType.ABI() = TheModelABI;
 
     auto TheRetClangType = FP->getReturnType();
-    model::UpcastableType RetType = getModelTypeForClangType(TheRetClangType);
+    model::UpcastableType RetType = revng::qualTypeToModel(TheRetClangType,
+                                                           *Model,
+                                                           Context,
+                                                           Errors,
+                                                           "edit-c-type:");
     if (not RetType) {
       Errors.emplace_back("edit-c-type failed: Unable to parse the return "
                           "value type.\n");
@@ -866,7 +639,11 @@ bool DeclVisitor::VisitFunctionPrototype(const FunctionProtoType *FP,
     // Handle params.
     uint32_t Index = 0;
     for (auto QT : FP->getParamTypes()) {
-      model::UpcastableType ParamType = getModelTypeForClangType(QT);
+      model::UpcastableType ParamType = revng::qualTypeToModel(QT,
+                                                               *Model,
+                                                               Context,
+                                                               Errors,
+                                                               "edit-c-type:");
       if (not ParamType) {
         Errors.emplace_back("edit-c-type failed: Unable to parse the type of "
                             "argument #`"
@@ -978,7 +755,11 @@ bool DeclVisitor::handleStructType(const clang::RecordDecl *RD) {
 
     std::optional<uint64_t> Size = 0;
     const QualType &ClangFieldType = Field->getType();
-    model::UpcastableType ModelField = getModelTypeForClangType(ClangFieldType);
+    model::UpcastableType ModelField = revng::qualTypeToModel(ClangFieldType,
+                                                              *Model,
+                                                              Context,
+                                                              Errors,
+                                                              "edit-c-type:");
 
     if (ModelField.isEmpty()) {
       Errors.emplace_back("edit-c-type failed: Unable to parse the type of "
@@ -1123,7 +904,11 @@ bool DeclVisitor::handleUnionType(const clang::RecordDecl *RD) {
     }
 
     const QualType &FieldType = Field->getType();
-    model::UpcastableType TheFieldType = getModelTypeForClangType(FieldType);
+    model::UpcastableType TheFieldType = revng::qualTypeToModel(FieldType,
+                                                                *Model,
+                                                                Context,
+                                                                Errors,
+                                                                "edit-c-type:");
 
     if (not TheFieldType) {
       Errors.emplace_back("edit-c-type failed: Unable to parse the type of "

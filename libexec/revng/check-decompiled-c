@@ -28,6 +28,7 @@ clang \
   -fsyntax-only \
   -ferror-limit=0 \
   --config "$SHARE/compile-flags.cfg" \
+  --config "$SHARE/compile-flags-sanity.cfg" \
   -I "$SHARE/include" \
   -o /dev/null \
   "$@"
