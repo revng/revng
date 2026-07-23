@@ -827,32 +827,13 @@ struct SortByFunction {
   }
 };
 
-static CallInst *getAsModelGEP(revng::IRBuilder &B,
-                               Value *Pointer,
-                               const model::Type &ModelType) {
-  Module &M = *B.GetInsertBlock()->getModule();
-  llvm::Type *T = Pointer->getType();
-  Function *ModelGEPFunction = getModelGEP(M, T, T);
-  auto *TypeString = toLLVMString(ModelType, M);
-  auto *Int64Type = IntegerType::getInt64Ty(M.getContext());
-  auto *Zero = ConstantInt::get(Int64Type, 0);
-  return B.CreateCall(ModelGEPFunction, { TypeString, Pointer, Zero });
-}
-
 using GCBIWP = GeneratedCodeBasicInfoWrapperPass;
 
-template<bool IsLegacy>
-using LVB = LocalVariableBuilder<IsLegacy>;
+using LVB = LocalVariableBuilder<false>;
 
-template<bool IsLegacy>
-static LocalVariableBuilder<IsLegacy>
+static LocalVariableBuilder<false>
 makeVariableBuilder(const model::Binary &Binary, llvm::Module &Module) {
-
-  if constexpr (IsLegacy) {
-    return LVB<IsLegacy>::makeLegacy(Binary, Module);
-  } else {
-    return LVB<IsLegacy>::make(VariableBuilderTypes(Binary, Module));
-  }
+  return LVB::make(VariableBuilderTypes(Binary, Module));
 }
 
 struct PointersMetadata {
@@ -873,7 +854,6 @@ static PointersMetadata getPointerMetadata(const abi::FunctionType::Layout &L) {
   return Result;
 }
 
-template<bool Legacy>
 class SegregateFunctionStack;
 
 /// Rewrite all stack memory accesses
@@ -891,18 +871,10 @@ class SegregateFunctionStack;
 /// After this pass, all stack accesses have positive offsets and
 /// `revng_undefined_local_sp` is dropped entirely.
 ///
-/// This pass has two modes of operation:
-/// - when Legacy is true it uses old FunctionTags and dedicated
-/// functions to represent local variables, and accesses to them;
-/// - when Legacy is false it represents local variables as
-///   regular LLVM allocas, while accesses are modeled as regular load/store
-///   instructions
-//
-// TODO: At some point the legacy mode will be discontinued and we can remove
-// the template parameter.
-template<bool Legacy>
+/// This pass represents local variables as regular LLVM allocas, while
+/// accesses are modeled as regular load/store instructions.
 class SegregateStackAccesses : public pipeline::FunctionPassImpl {
-  friend class SegregateFunctionStack<Legacy>;
+  friend class SegregateFunctionStack;
 
 private:
   const model::Binary &Binary;
@@ -917,8 +889,7 @@ private:
 
   llvm::Type *TargetPointerSizedInteger = nullptr;
   llvm::Type *OpaquePointerType = nullptr;
-  LocalVariableBuilder<Legacy> VariableBuilder;
-  OpaqueFunctionsPool<FunctionTags::TypePair> *AddressOfPool = nullptr;
+  LocalVariableBuilder<false> VariableBuilder;
 
 public:
   SegregateStackAccesses(llvm::ModulePass &Pass,
@@ -933,8 +904,7 @@ public:
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(),
                                                      Binary.Architecture())),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
-    VariableBuilder(makeVariableBuilder<Legacy>(Binary, M)),
-    AddressOfPool(VariableBuilder.getAddressOfPool()) {}
+    VariableBuilder(makeVariableBuilder(Binary, M)) {}
 
   SegregateStackAccesses(const model::Binary &Binary, llvm::Module &M) :
     pipeline::FunctionPassImpl(),
@@ -946,8 +916,7 @@ public:
     TargetPointerSizedInteger(getPointerSizedInteger(M.getContext(),
                                                      Binary.Architecture())),
     OpaquePointerType(PointerType::get(M.getContext(), 0)),
-    VariableBuilder(makeVariableBuilder<Legacy>(Binary, M)),
-    AddressOfPool(VariableBuilder.getAddressOfPool()) {}
+    VariableBuilder(makeVariableBuilder(Binary, M)) {}
 
 public:
   static void getAnalysisUsage(llvm::AnalysisUsage &AU);
@@ -1045,9 +1014,9 @@ private:
     auto Architecture = Binary.Architecture();
 
     Type *OldReturnType = OldFunction->getReturnType();
-    FunctionType &NewType = layoutToLLVMFunctionType<Legacy>(Context,
-                                                             Architecture,
-                                                             Layout);
+    FunctionType &NewType = layoutToLLVMFunctionType<false>(Context,
+                                                            Architecture,
+                                                            Layout);
 
     // NOTE: all the model *must* be read above this line!
     //       If we don't do this, we will break invalidation tracking
@@ -1072,10 +1041,9 @@ private:
 /// constructed per call to runOnFunction. `upgrade()` rewrites the function
 /// signature and lowers arguments/return values; `segregate()` then runs the
 /// data-flow analysis and redirects every stack access to its proper base.
-template<bool Legacy>
 class SegregateFunctionStack {
 private:
-  SegregateStackAccesses<Legacy> &SSA;
+  SegregateStackAccesses &SSA;
   const model::Function &ModelFunction;
   llvm::Function &OldFunction;
 
@@ -1097,7 +1065,7 @@ private:
   FunctionStackAccessRedirectors Redirectors;
 
 public:
-  SegregateFunctionStack(SegregateStackAccesses<Legacy> &P,
+  SegregateFunctionStack(SegregateStackAccesses &P,
                          const model::Function &ModelFunction,
                          llvm::Function &OldFunction) :
     SSA(P),
@@ -1183,24 +1151,6 @@ private:
     NewInstruction->copyMetadata(*I);
   }
 
-  llvm::CallInst *createAddressOf(revng::IRBuilder &B,
-                                  llvm::Value *V,
-                                  const model::UpcastableType &AllocatedType) {
-    revng_assert(Legacy);
-
-    auto *ArgType = V->getType();
-    llvm::Constant *ModelTypeString = toLLVMString(AllocatedType, SSA.M);
-    auto *AddressOfFunctionType = getAddressOfType(SSA
-                                                     .TargetPointerSizedInteger,
-                                                   ArgType);
-    auto *AddressOfFunction = SSA.AddressOfPool
-                                ->get({ SSA.TargetPointerSizedInteger,
-                                        ArgType },
-                                      AddressOfFunctionType,
-                                      "AddressOf");
-    return B.CreateCall(AddressOfFunction, { ModelTypeString, V });
-  }
-
   llvm::Constant *getSPConstant(uint64_t Value) const {
     return llvm::ConstantInt::get(SSA.TargetPointerSizedInteger, Value);
   }
@@ -1217,8 +1167,7 @@ private:
   }
 };
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::upgrade() {
+void SegregateFunctionStack::upgrade() {
   revng_log(Log, "Upgrading " << getName(&OldFunction));
   LoggerIndent Indent(Log);
 
@@ -1240,8 +1189,7 @@ void SegregateFunctionStack<Legacy>::upgrade() {
   }
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::segregate() {
+void SegregateFunctionStack::segregate() {
   revng_log(Log,
             "Segregating "
               << model::CNameBuilder(SSA.Binary).name(ModelFunction));
@@ -1260,8 +1208,7 @@ void SegregateFunctionStack<Legacy>::segregate() {
   adjustStackFrame();
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::setupNewFunction() {
+void SegregateFunctionStack::setupNewFunction() {
   auto &&[NewFn, NewLayout] = SSA.getOrCreateNewLocalFunction(&OldFunction);
   NewFunction = NewFn;
   Layout = std::move(NewLayout);
@@ -1288,8 +1235,7 @@ void SegregateFunctionStack<Legacy>::setupNewFunction() {
   }
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::checkReturnMethod() {
+void SegregateFunctionStack::checkReturnMethod() {
   using namespace abi::FunctionType;
 
   Type *NewReturnType = NewFunction->getReturnType();
@@ -1299,20 +1245,16 @@ void SegregateFunctionStack<Legacy>::checkReturnMethod() {
     break;
 
   case ReturnMethod::ModelAggregate:
-    if constexpr (Legacy) {
-      // Nothing to check here.
+    if (Layout.hasSPTAR()) {
+      // Nothing to check here
     } else {
-      if (Layout.hasSPTAR()) {
-        // Nothing to check here
-      } else {
-        revng_assert(NewReturnType->isArrayTy());
-        auto *ArrayTy = cast<llvm::ArrayType>(NewReturnType);
-        auto *ElemTy = ArrayTy->getElementType();
-        revng_assert(cast<llvm::IntegerType>(ElemTy)->getBitWidth() == 8);
-        unsigned NumElems = ArrayTy->getNumElements();
-        size_t ModelAggregateSize = *Layout.returnValueAggregateType().size();
-        revng_assert(ModelAggregateSize == NumElems);
-      }
+      revng_assert(NewReturnType->isArrayTy());
+      auto *ArrayTy = cast<llvm::ArrayType>(NewReturnType);
+      auto *ElemTy = ArrayTy->getElementType();
+      revng_assert(cast<llvm::IntegerType>(ElemTy)->getBitWidth() == 8);
+      unsigned NumElems = ArrayTy->getNumElements();
+      size_t ModelAggregateSize = *Layout.returnValueAggregateType().size();
+      revng_assert(ModelAggregateSize == NumElems);
     }
     break;
 
@@ -1333,8 +1275,7 @@ void SegregateFunctionStack<Legacy>::checkReturnMethod() {
   }
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::prepareReturnValueStorage() {
+void SegregateFunctionStack::prepareReturnValueStorage() {
   using namespace abi::FunctionType;
 
   if (Layout.returnMethod() != ReturnMethod::ModelAggregate)
@@ -1364,8 +1305,7 @@ void SegregateFunctionStack<Legacy>::prepareReturnValueStorage() {
   }
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::lowerArguments(revng::IRBuilder &B) {
+void SegregateFunctionStack::lowerArguments(revng::IRBuilder &B) {
   using namespace abi::FunctionType;
   using namespace abi::FunctionType::ArgumentKind;
 
@@ -1393,10 +1333,6 @@ void SegregateFunctionStack<Legacy>::lowerArguments(revng::IRBuilder &B) {
       auto PointerSize = model::Architecture::getPointerSize(Architecture);
       revng_assert(ModelArgument.Type->size() > PointerSize);
       Value *AddressOfNewArgument = &NewArgument;
-      if constexpr (Legacy)
-        AddressOfNewArgument = createAddressOf(B,
-                                               &NewArgument,
-                                               ModelArgument.Type);
 
       if (UsesStack) {
         // When loading from this stack slot, return the address of the
@@ -1444,10 +1380,6 @@ void SegregateFunctionStack<Legacy>::lowerArguments(revng::IRBuilder &B) {
 
     } else if (ModelArgument.Kind == ReferenceToAggregate) {
       Value *AddressOfNewArgument = &NewArgument;
-      if constexpr (Legacy)
-        AddressOfNewArgument = createAddressOf(B,
-                                               &NewArgument,
-                                               ModelArgument.Type);
 
       for (model::Register::Values Register : ModelArgument.Registers) {
         Argument *OldArgument = ArgumentToRegister.at(Register);
@@ -1473,8 +1405,7 @@ void SegregateFunctionStack<Legacy>::lowerArguments(revng::IRBuilder &B) {
   }
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::lowerReturnValues(revng::IRBuilder &B) {
+void SegregateFunctionStack::lowerReturnValues(revng::IRBuilder &B) {
   using namespace abi::FunctionType;
 
   Type *NewReturnType = NewFunction->getReturnType();
@@ -1523,13 +1454,8 @@ void SegregateFunctionStack<Legacy>::lowerReturnValues(revng::IRBuilder &B) {
 
       revng_assert(ReturnValueAllocation);
       revng_assert(ReturnValueIntAddress);
-      Value *ToReturn = nullptr;
-      if constexpr (Legacy) {
-        ToReturn = ReturnValueAllocation;
-      } else {
-        // TODO: we should review all the CreateLoad alignments
-        ToReturn = B.CreateLoad(NewReturnType, ReturnValueAllocation);
-      }
+      // TODO: we should review all the CreateLoad alignments
+      Value *ToReturn = B.CreateLoad(NewReturnType, ReturnValueAllocation);
       B.CreateRet(ToReturn);
       Ret->eraseFromParent();
     }
@@ -1580,8 +1506,7 @@ void SegregateFunctionStack<Legacy>::lowerReturnValues(revng::IRBuilder &B) {
   }
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::initialize() {
+void SegregateFunctionStack::initialize() {
   if (SSA.InitLocalSP != nullptr)
     InitLocalSPCall = findCallTo(NewFunction, SSA.InitLocalSP);
 
@@ -1597,8 +1522,7 @@ void SegregateFunctionStack<Legacy>::initialize() {
   Redirectors.setFunctionRedirector(Default);
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::collectCallSites() {
+void SegregateFunctionStack::collectCallSites() {
   for (BasicBlock &BB : *NewFunction) {
     for (Instruction &I : BB) {
       CallInst *SSACSCall = nullptr;
@@ -1628,8 +1552,7 @@ void SegregateFunctionStack<Legacy>::collectCallSites() {
   }
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::runDataFlowAnalysis() {
+void SegregateFunctionStack::runDataFlowAnalysis() {
   revng_log(Log, "Running SegregateStackAccessesMFI");
   LoggerIndent Indent(Log);
   BasicBlock *Entry = &NewFunction->getEntryBlock();
@@ -1649,8 +1572,7 @@ void SegregateFunctionStack<Legacy>::runDataFlowAnalysis() {
   }
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::lowerCallSites() {
+void SegregateFunctionStack::lowerCallSites() {
   revng_log(Log, "Handling call sites");
   LoggerIndent Indent(Log);
   for (auto &[SSACSCall, CallSite] : CallSites) {
@@ -1677,8 +1599,7 @@ void SegregateFunctionStack<Legacy>::lowerCallSites() {
   }
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::redirectMemoryAccesses() {
+void SegregateFunctionStack::redirectMemoryAccesses() {
   if (Redirectors.empty())
     return;
 
@@ -1738,8 +1659,7 @@ void SegregateFunctionStack<Legacy>::redirectMemoryAccesses() {
   }
 }
 
-template<bool Legacy>
-void SegregateFunctionStack<Legacy>::adjustStackFrame() {
+void SegregateFunctionStack::adjustStackFrame() {
   if (InitLocalSPCall == nullptr or ModelFunction.StackFrame().Type().isEmpty())
     return;
 
@@ -1761,10 +1681,9 @@ void SegregateFunctionStack<Legacy>::adjustStackFrame() {
   eraseFromParent(InitLocalSPCall);
 }
 
-template<bool Legacy>
 StackAccessRedirector
-SegregateFunctionStack<Legacy>::handleCallSite(llvm::CallInst *SSACSCall,
-                                               const CallSite &CallSite) {
+SegregateFunctionStack::handleCallSite(llvm::CallInst *SSACSCall,
+                                       const CallSite &CallSite) {
   using namespace abi::FunctionType;
 
   revng_log(Log, "Analyzing call to SSACS " << getName(SSACSCall));
@@ -1798,9 +1717,9 @@ SegregateFunctionStack<Legacy>::handleCallSite(llvm::CallInst *SSACSCall,
   } else {
     LLVMContext &Context = OldCall->getContext();
     auto Architecture = SSA.Binary.Architecture();
-    CalleeType = &layoutToLLVMFunctionType<Legacy>(Context,
-                                                   Architecture,
-                                                   Layout);
+    CalleeType = &layoutToLLVMFunctionType<false>(Context,
+                                                  Architecture,
+                                                  Layout);
     CalledValue = B.CreateBitCast(OldCall->getCalledOperand(),
                                   CalleeType->getPointerTo());
   }
@@ -1882,10 +1801,6 @@ SegregateFunctionStack<Legacy>::handleCallSite(llvm::CallInst *SSACSCall,
       }
 
       // Pass as argument the pointer computed above.
-      // In legacy mode, wrap it into a ModelGEP at offset 0.
-      if constexpr (Legacy) {
-        Pointer = getAsModelGEP(B, Pointer, *ModelArgument.Type);
-      }
       Arguments.push_back(Pointer);
     } break;
 
@@ -1963,32 +1878,16 @@ SegregateFunctionStack<Legacy>::handleCallSite(llvm::CallInst *SSACSCall,
                               .createCallStackArgumentVariable(*ModelArgument
                                                                   .Type);
       revng_assert(StackArgsAddress);
-      Instruction *StackArgsAllocation = nullptr;
-      if constexpr (Legacy) {
-        // When in legacy mode, the actual instruction performing the stack
-        // allocation is the first operand of StackArgsAddress, which is
-        // guaranteed to be a call to AddressOf.
-        auto *CallToAddressOf = getCallToTagged(StackArgsAddress,
-                                                FunctionTags::AddressOf);
-        auto *AllocationInst = CallToAddressOf->getArgOperand(1);
-        StackArgsAllocation = cast<Instruction>(AllocationInst);
-        // Then we have to push the address computation and the allocation
-        // ALAP. The address should be pushed ALAP first to leave slack for
-        // the allocation instruction to also be pushed ALAP afterwards.
-        SSA.ToPushALAP.push_back(StackArgsAddress);
-        SSA.ToPushALAP.push_back(StackArgsAllocation);
-      } else {
-        // When not in legacy mode, the instruction returning the address of
-        // the stack arguments is also the instruction performing the actual
-        // allocation, so we can just say they're equal.
-        //
-        // Also, there's no need to push it ALAP, since it's an alloca.
-        // We do have to push ALAP its cast to an integer though.
-        revng_assert(isa<PtrToIntInst>(StackArgsAddress));
-        revng_assert(isa<AllocaInst>(StackArgsAddress->getOperand(0)));
-        StackArgsAllocation = StackArgsAddress;
-        SSA.ToPushALAP.push_back(StackArgsAddress);
-      }
+      // The instruction returning the address of the stack arguments is also
+      // the instruction performing the actual allocation, so we can just say
+      // they're equal.
+      //
+      // Also, there's no need to push it ALAP, since it's an alloca.
+      // We do have to push ALAP its cast to an integer though.
+      revng_assert(isa<PtrToIntInst>(StackArgsAddress));
+      revng_assert(isa<AllocaInst>(StackArgsAddress->getOperand(0)));
+      Instruction *StackArgsAllocation = StackArgsAddress;
+      SSA.ToPushALAP.push_back(StackArgsAddress);
 
       // We also have to copy over metadata, from the annotation about the
       // size of the stack arguments.
@@ -2072,75 +1971,61 @@ SegregateFunctionStack<Legacy>::handleCallSite(llvm::CallInst *SSACSCall,
   switch (Layout.returnMethod()) {
   case ReturnMethod::ModelAggregate: {
     revng_log(Log, "This call site returns a model aggregate");
-    if (HasSPTAR and Legacy) {
-      // In legacy mode, make a reference out of ReturnValuePointer, using a
-      // ModelGEP at offset 0.
-      ReturnValuePointer = Arguments[0];
-      getAsModelGEP(B, ReturnValuePointer, Layout.returnValueAggregateType());
+    revng_assert(not ReturnValuePointer);
+    const auto &ReturnType = Layout.returnValueAggregateType();
 
-      revng_assert(not OldReturnType->isStructTy());
-      OldCall->replaceAllUsesWith(ReturnValuePointer);
+    revng_log(Log, "Creating local variable to store the return value");
+    auto &VB = SSA.VariableBuilder;
+    VB.setTargetFunction(Caller);
+    Value *Allocation = nullptr;
+    Value *IntAddress = nullptr;
+    tie(Allocation,
+        IntAddress) = VB.createLocalVariableAndTakeIntAddress(ReturnType);
+    B.CreateStore(NewCall, Allocation);
+    ReturnValuePointer = IntAddress;
+
+    if (HasSPTAR) {
+      if (CallSite.StackReturnValueRange.has_value()) {
+        // StackReturnValueRange is already relative to the initial value
+        // of the stack pointer
+        Redirector.recordSpan(*CallSite.StackReturnValueRange, IntAddress);
+      } else {
+        revng_log(Log,
+                  "Warning: couldn't resolve the location of the pointer "
+                  "to the storage for the return value in the SPTAR");
+      }
+    }
+
+    // We're returning an aggregate, but not via SPTAR, we're using one or
+    // more registers
+    if (OldReturnType->isStructTy()) {
+      SmallVector<SmallPtrSet<CallInst *, 2>, 2>
+        ExtractedValues = getExtractedValuesFromInstruction(OldCall);
+      for (auto &Group : llvm::enumerate(ExtractedValues)) {
+
+        unsigned FieldIndex = Group.index();
+        SmallPtrSet<CallInst *, 2> &ExtractedAtIndex = Group.value();
+        if (ExtractedAtIndex.empty())
+          continue;
+
+        unsigned BitOffset = getBitOffsetAt(cast<StructType>(OldReturnType),
+                                            FieldIndex);
+        revng_assert(0 == (BitOffset % 8));
+        unsigned ByteOffset = BitOffset / 8;
+
+        Value *Pointer = createAdd(B, ReturnValuePointer, ByteOffset);
+        Type *ExtractedType = (*ExtractedAtIndex.begin())->getType();
+        auto *Load = B.CreateLoad(ExtractedType, pointer(B, Pointer));
+
+        for (CallInst *Extractor : Group.value()) {
+          Extractor->replaceAllUsesWith(Load);
+          eraseFromParent(Extractor);
+        }
+      }
+
+      revng_assert(OldCall->use_empty());
     } else {
-      revng_assert(not ReturnValuePointer);
-      const auto &ReturnType = Layout.returnValueAggregateType();
-
-      if constexpr (Legacy) {
-        ReturnValuePointer = createAddressOf(B, NewCall, ReturnType);
-      } else {
-        revng_log(Log, "Creating local variable to store the return value");
-        auto &VB = SSA.VariableBuilder;
-        VB.setTargetFunction(Caller);
-        Value *Allocation = nullptr;
-        Value *IntAddress = nullptr;
-        tie(Allocation,
-            IntAddress) = VB.createLocalVariableAndTakeIntAddress(ReturnType);
-        B.CreateStore(NewCall, Allocation);
-        ReturnValuePointer = IntAddress;
-
-        if (HasSPTAR) {
-          if (CallSite.StackReturnValueRange.has_value()) {
-            // StackReturnValueRange is already relative to the initial value
-            // of the stack pointer
-            Redirector.recordSpan(*CallSite.StackReturnValueRange, IntAddress);
-          } else {
-            revng_log(Log,
-                      "Warning: couldn't resolve the location of the pointer "
-                      "to the storage for the return value in the SPTAR");
-          }
-        }
-      }
-
-      // We're returning an aggregate, but not via SPTAR, we're using one or
-      // more registers
-      if (OldReturnType->isStructTy()) {
-        SmallVector<SmallPtrSet<CallInst *, 2>, 2>
-          ExtractedValues = getExtractedValuesFromInstruction(OldCall);
-        for (auto &Group : llvm::enumerate(ExtractedValues)) {
-
-          unsigned FieldIndex = Group.index();
-          SmallPtrSet<CallInst *, 2> &ExtractedAtIndex = Group.value();
-          if (ExtractedAtIndex.empty())
-            continue;
-
-          unsigned BitOffset = getBitOffsetAt(cast<StructType>(OldReturnType),
-                                              FieldIndex);
-          revng_assert(0 == (BitOffset % 8));
-          unsigned ByteOffset = BitOffset / 8;
-
-          Value *Pointer = createAdd(B, ReturnValuePointer, ByteOffset);
-          Type *ExtractedType = (*ExtractedAtIndex.begin())->getType();
-          auto *Load = B.CreateLoad(ExtractedType, pointer(B, Pointer));
-
-          for (CallInst *Extractor : Group.value()) {
-            Extractor->replaceAllUsesWith(Load);
-            eraseFromParent(Extractor);
-          }
-        }
-
-        revng_assert(OldCall->use_empty());
-      } else {
-        OldCall->replaceAllUsesWith(ReturnValuePointer);
-      }
+      OldCall->replaceAllUsesWith(ReturnValuePointer);
     }
 
   } break;
@@ -2204,11 +2089,9 @@ SegregateFunctionStack<Legacy>::handleCallSite(llvm::CallInst *SSACSCall,
   return Redirector;
 }
 
-template<bool Legacy>
-bool SegregateStackAccesses<Legacy>::runOnFunction(const model::Function
-                                                     &ModelFunction,
-                                                   llvm::Function &Function) {
-  SegregateFunctionStack<Legacy> Worker(*this, ModelFunction, Function);
+bool SegregateStackAccesses::runOnFunction(const model::Function &ModelFunction,
+                                           llvm::Function &Function) {
+  SegregateFunctionStack Worker(*this, ModelFunction, Function);
   Worker.upgrade();
   Worker.segregate();
   return true;
@@ -2220,13 +2103,12 @@ static void getAnalysisUsage(llvm::AnalysisUsage &AU) {
   AU.addRequired<GeneratedCodeBasicInfoWrapperPass>();
 }
 
-template<>
-void SegregateStackAccesses<false>::getAnalysisUsage(AnalysisUsage &AU) {
+void SegregateStackAccesses::getAnalysisUsage(AnalysisUsage &AU) {
   return ::getAnalysisUsage(AU);
 }
 
 template<>
-char pipeline::FunctionPass<SegregateStackAccesses<false>>::ID = 0;
+char pipeline::FunctionPass<SegregateStackAccesses>::ID = 0;
 
 static constexpr const char *Flag = "segregate-stack-accesses";
 
@@ -2242,7 +2124,7 @@ struct SegregateStackAccessesPipe {
   }
 
   void registerPasses(legacy::PassManager &Manager) {
-    using Pass = SegregateStackAccesses</* Legacy = */ false>;
+    using Pass = SegregateStackAccesses;
     Manager.add(new pipeline::FunctionPass<Pass>);
   }
 };
@@ -2255,7 +2137,7 @@ namespace revng::pypeline::piperuns {
 //       dismiss the old pipeline
 void SegregateStackAccesses::runOnLLVMFunction(const model::Function &Function,
                                                llvm::Function &LLVMFunction) {
-  ::SegregateStackAccesses<false> Impl(Binary, *LLVMFunction.getParent());
+  ::SegregateStackAccesses Impl(Binary, *LLVMFunction.getParent());
   Impl.prologue();
   Impl.runOnFunction(Function, LLVMFunction);
   Impl.epilogue();
