@@ -586,10 +586,35 @@ public:
           }
         } else if (auto *A = dyn_cast<AllocaInst>(&I)) {
           revng_assert(not A->isArrayAllocation());
-          const auto &[LoadedTy, Created] = Builder.getOrCreateLayoutType(A);
+
+          Type *AllocatedType = A->getAllocatedType();
+
+          const DataLayout &DL = A->getModule()->getDataLayout();
+          revng_assert(DL.typeSizeEqualsStoreSize(AllocatedType));
+          revng_assert(DL.getTypeAllocSizeInBits(AllocatedType) % 8 == 0);
+
+          const auto &[Allocated, Created] = Builder.getOrCreateLayoutType(A);
           Changed |= Created;
           const SCEV *LoadSCEV = SE->getSCEV(A);
-          SCEVToLayoutType.insert(std::make_pair(LoadSCEV, LoadedTy));
+          SCEVToLayoutType.insert(std::make_pair(LoadSCEV, Allocated));
+
+          uint64_t AllocSize = DL.getTypeAllocSize(AllocatedType);
+          if (Created) {
+            Allocated->Size = AllocSize;
+          } else {
+            // The node was already created. For an alloca this can only
+            // legitimately happen in the interprocedural pass, which visits it
+            // as a phi incoming value, a call argument, or a returned value.
+            // Assert that at least one such user exists; anything else creating
+            // an alloca's node would be unexpected and worth investigating.
+            revng_assert(llvm::any_of(A->users(), [](const User *U) {
+              return isa<PHINode>(U) or isa<CallInst>(U) or isa<ReturnInst>(U);
+            }));
+            // The node still has no size; the alloca is the authoritative
+            // source of the size, so set it here.
+            revng_assert(Allocated->Size == 0 or Allocated->Size == AllocSize);
+            Allocated->Size = AllocSize;
+          }
         } else if (isa<IntToPtrInst>(&I) or isa<PtrToIntInst>(&I)
                    or isa<BitCastInst>(&I) or isa<ZExtInst>(&I)) {
           Value *Op = I.getOperand(0);
