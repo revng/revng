@@ -26,7 +26,6 @@ static ::Register X("dla", "Data Layout Analysis Pass", false, false);
 void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
   if (ConstructorModel == nullptr)
     AU.addRequired<LoadModelWrapperPass>();
-  AU.addRequired<llvm::ScalarEvolutionWrapperPass>();
 
   AU.setPreservesAll();
 }
@@ -48,7 +47,7 @@ bool DLAPass::runOnModule(llvm::Module &M) {
   dla::LayoutTypeSystem TS;
   const model::Binary &Model = *WritableModel->get();
   dla::DLATypeSystemLLVMBuilder Builder{ TS, Model };
-  Builder.buildFromLLVMModule(M, this);
+  Builder.buildFromLLVMModule(M);
 
   if (BuilderLog.isEnabled())
     Builder.dumpValuesMapping("DLA-values-initial.csv");

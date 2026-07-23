@@ -421,13 +421,12 @@ void DLATypeSystemLLVMBuilder::dumpValuesMapping(const StringRef Name) const {
   }
 }
 
-void DLATypeSystemLLVMBuilder::buildFromLLVMModule(llvm::Module &M,
-                                                   llvm::ModulePass *MP) {
+void DLATypeSystemLLVMBuilder::buildFromLLVMModule(llvm::Module &M) {
 
   TS.setDebugPrinter(std::make_unique<LLVMTSDebugPrinter>(M, this->Values));
 
   createInterproceduralTypes(M);
-  createIntraproceduralTypes(M, MP);
+  createIntraproceduralTypes(M);
 
   createValuesList();
   VisitedValues.clear();

@@ -18,6 +18,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
+#include "llvm/Passes/PassBuilder.h"
 
 #include "revng/DataLayoutAnalysis/DLATypeSystem.h"
 #include "revng/LocalVariables/LocalVariableHelpers.h"
@@ -238,8 +239,8 @@ protected:
   }
 
 public:
-  void setupForProcessingFunction(ModulePass *MP, Function *TheF) {
-    SE = &MP->getAnalysis<llvm::ScalarEvolutionWrapperPass>(*TheF).getSE();
+  void setupForProcessingFunction(ScalarEvolution &SE, Function *TheF) {
+    this->SE = &SE;
     F = TheF;
     DT.recalculate(*F);
     PDT.recalculate(*F);
@@ -781,10 +782,16 @@ bool Builder::connectToFuncsWithSamePrototype(const llvm::CallInst *Call) {
   return Changed;
 }
 
-bool Builder::createIntraproceduralTypes(llvm::Module &M,
-                                         llvm::ModulePass *MP) {
+bool Builder::createIntraproceduralTypes(llvm::Module &M) {
   bool Changed = false;
   InstanceLinkAdder ILA(Model);
+
+  // Own the new-pass-manager infrastructure for the whole module. A single FAM
+  // serves every function here because it caches per llvm::Function; it lives
+  // until this call returns, so peak memory is bounded by one module.
+  FunctionAnalysisManager FAM;
+  PassBuilder PB;
+  PB.registerFunctionAnalyses(FAM);
 
   for (Function &F : M.functions()) {
     auto FTags = FunctionTags::TagsSet::from(&F);
@@ -792,7 +799,8 @@ bool Builder::createIntraproceduralTypes(llvm::Module &M,
       continue;
     revng_assert(not F.isVarArg());
 
-    ILA.setupForProcessingFunction(MP, &F);
+    ScalarEvolution &SE = FAM.getResult<ScalarEvolutionAnalysis>(F);
+    ILA.setupForProcessingFunction(SE, &F);
     Changed |= ILA.getOrCreateSCEVTypes(*this);
 
     llvm::ReversePostOrderTraversal RPOT(&F.getEntryBlock());

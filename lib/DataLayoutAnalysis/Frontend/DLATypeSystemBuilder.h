@@ -134,7 +134,7 @@ private:
 
 private:
   bool createInterproceduralTypes(llvm::Module &M);
-  bool createIntraproceduralTypes(llvm::Module &M, llvm::ModulePass *MP);
+  bool createIntraproceduralTypes(llvm::Module &M);
 
   /// Collect LayoutTypePtrs and place them in the right position
   void createValuesList();
@@ -160,7 +160,7 @@ public:
   /// 2. Create a Node for each of them in the DLATypeSystem graph (TS)
   /// 3. Keep an ordered vector of LayoutTypePtrs, where each element's index
   /// corresponds to the ID of the corresponding LayoutTypeSystemNode generated
-  void buildFromLLVMModule(llvm::Module &M, llvm::ModulePass *MP);
+  void buildFromLLVMModule(llvm::Module &M);
 
   /// Given an indirect Call instruction, check if it shares the model
   /// prototype with another function. If it does, connect the nodes
