@@ -87,14 +87,6 @@ FunctionPoolTag<llvm::Type *>
 
 Tag LiteralPrintDecorator("literal-print-decorator");
 
-FunctionPoolTag<llvm::Type *>
-  NullPtr("nullptr",
-          { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-          llvm::MemoryEffects::none(),
-          { &FunctionTags::LiteralPrintDecorator,
-            &FunctionTags::UniquedByPrototype },
-          InitializationMode::InitializeFromReturnType);
-
 /// Tag for global variables representing segments
 Tag SegmentGlobal("segment-global");
 

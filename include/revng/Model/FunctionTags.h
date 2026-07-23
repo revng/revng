@@ -56,7 +56,6 @@ extern FunctionPoolTag<TypePair> AddressOf;
 extern FunctionPoolTag<TypePair> OpaqueExtractValue;
 extern FunctionPoolTag<llvm::Type *> Parentheses;
 extern Tag LiteralPrintDecorator;
-extern FunctionPoolTag<llvm::Type *> NullPtr;
 extern Tag SegmentGlobal;
 /// Functions that must survive function isolation: MinimalModuleCloner
 /// preserves them (and the ones they call) instead of purging them.
