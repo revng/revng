@@ -88,14 +88,6 @@ FunctionPoolTag<llvm::Type *>
 Tag LiteralPrintDecorator("literal-print-decorator");
 
 FunctionPoolTag<llvm::Type *>
-  HexInteger("hex-integer",
-             { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-             llvm::MemoryEffects::none(),
-             { &FunctionTags::LiteralPrintDecorator,
-               &FunctionTags::UniquedByPrototype },
-             InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
   CharInteger("char-integer",
               { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
               llvm::MemoryEffects::none(),

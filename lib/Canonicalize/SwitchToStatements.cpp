@@ -451,7 +451,6 @@ static bool isProgramPoint(const Instruction *I) {
       or isCallToTagged(I, FunctionTags::IsRef)
       or isCallToTagged(I, FunctionTags::Parentheses)
       or isCallToTagged(I, FunctionTags::LiteralPrintDecorator)
-      or isCallToTagged(I, FunctionTags::HexInteger)
       or isCallToTagged(I, FunctionTags::CharInteger)
       or isCallToTagged(I, FunctionTags::BoolInteger)
       or isCallToTagged(I, FunctionTags::NullPtr)
