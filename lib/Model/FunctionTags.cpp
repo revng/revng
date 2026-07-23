@@ -85,8 +85,6 @@ FunctionPoolTag<llvm::Type *>
               { &FunctionTags::UniquedByPrototype },
               InitializationMode::InitializeFromReturnType);
 
-Tag LiteralPrintDecorator("literal-print-decorator");
-
 /// Tag for global variables representing segments
 Tag SegmentGlobal("segment-global");
 
