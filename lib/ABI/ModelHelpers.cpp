@@ -17,7 +17,6 @@
 
 #include "revng/ABI/FunctionType/Layout.h"
 #include "revng/ABI/ModelHelpers.h"
-#include "revng/ADT/RecursiveCoroutine.h"
 #include "revng/Model/Architecture.h"
 #include "revng/Model/Binary.h"
 #include "revng/Model/FunctionTags.h"
@@ -191,81 +190,6 @@ handleReturnValue(const model::TypeDefinition &Prototype,
   default:
     revng_abort();
   }
-}
-
-RecursiveCoroutine<llvm::SmallVector<model::UpcastableType, 8>>
-getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
-
-  if (auto *Call = dyn_cast<llvm::CallInst>(Inst)) {
-
-    if (isCallToIsolatedFunction(Call)) {
-      const auto *Prototype = getCallSitePrototype(Model, Call);
-      revng_assert(Prototype != nullptr);
-
-      // Isolated functions and dynamic functions have their prototype in the
-      // model
-      rc_return handleReturnValue(*Prototype, Model);
-
-    } else {
-      // Non-isolated functions do not have a Prototype in the model, but we can
-      // infer their returned type(s) in other ways
-      auto *CalledFunc = getCalledFunction(Call);
-      const auto &FuncName = CalledFunc->getName();
-      auto FTags = FunctionTags::TagsSet::from(CalledFunc);
-
-      auto ParentFunc = [&Model, &Inst]() {
-        return llvmToModelFunction(Model, *Inst->getParent()->getParent());
-      };
-
-      if (FTags.contains(FunctionTags::StructInitializer)) {
-        // Struct initializers are only used to pack together return values of
-        // RawFunctionTypes that return multiple values, therefore they have
-        // the same type as the parent function's return type
-        revng_assert(Call->getFunction()->getReturnType() == Call->getType());
-        auto &Prototype = *Model.prototypeOrDefault(ParentFunc()->prototype());
-        rc_return handleReturnValue(Prototype, Model);
-
-      } else if (FTags.contains(FunctionTags::SegmentGlobalGetter)) {
-        auto Segment = Model.Segments()
-                         .at(extractSegmentKeyFromMetadata(*CalledFunc));
-        if (not Segment.Type().isEmpty())
-          rc_return{ Segment.Type() };
-
-      } else if (FTags.contains(FunctionTags::Parentheses)) {
-        const llvm::Value *Op = Call->getArgOperand(0);
-        if (auto *OriginalInst = llvm::dyn_cast<llvm::Instruction>(Op))
-          rc_return rc_recur getStrongModelInfo(OriginalInst, Model);
-
-      } else if (FTags.contains(FunctionTags::OpaqueExtractValue)) {
-        const llvm::Value *Op0 = Call->getArgOperand(0);
-        if (auto *Aggregate = llvm::dyn_cast<llvm::Instruction>(Op0)) {
-          llvm::SmallVector NestedRVs = rc_recur getStrongModelInfo(Aggregate,
-                                                                    Model);
-          const auto *Op1 = Call->getArgOperand(1);
-          const auto *Index = llvm::cast<llvm::ConstantInt>(Op1);
-          rc_return{ NestedRVs[Index->getZExtValue()] };
-        }
-
-      } else if (FTags.contains(FunctionTags::QEMU)
-                 and Call->getType()->isStructTy()) {
-        auto *ReturnedStruct = cast<llvm::StructType>(Call->getType());
-        revng_assert(llvm::all_of(ReturnedStruct->elements(),
-                                  [](llvm::Type *T) {
-                                    return isa<llvm::IntegerType>(T);
-                                  }));
-
-        llvm::SmallVector<model::UpcastableType, 8> Result;
-        for (llvm::Type *ElementType : ReturnedStruct->elements()) {
-          auto ByteSize = ElementType->getIntegerBitWidth() / 8;
-          Result.push_back(model::PrimitiveType::makeGeneric(ByteSize));
-        }
-
-        rc_return Result;
-      }
-    }
-  }
-
-  rc_return{};
 }
 
 llvm::SmallVector<model::UpcastableType>
