@@ -80,7 +80,6 @@ extern Tag KeepPostIsolation;
 /// mismatch, rather than silently reusing a differently-sized getter.
 using SegmentRefPoolKey = std::pair<MetaAddress, uint64_t>;
 extern FunctionPoolTag<SegmentRefPoolKey> SegmentGlobalGetter;
-extern FunctionPoolTag<llvm::Type *> BooleanNot;
 extern Tag LiftingArtifactsRemoved;
 extern Tag StackPointerPromoted;
 extern Tag StackAccessesSegregated;

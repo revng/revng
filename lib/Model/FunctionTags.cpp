@@ -228,13 +228,6 @@ FunctionPoolTag<SegmentRefPoolKey>
                       segmentGlobalGetterInitializer,
                       segmentGlobalGetterFactory);
 
-FunctionPoolTag<llvm::Type *>
-  BooleanNot("boolean-not",
-             { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-             llvm::MemoryEffects::none(),
-             { &FunctionTags::UniquedByPrototype },
-             InitializationMode::InitializeFromArgument0);
-
 Tag LiftingArtifactsRemoved("lifting-artifacts-removed", CSVsPromoted);
 
 Tag StackPointerPromoted("stack-pointer-promoted", LiftingArtifactsRemoved);
