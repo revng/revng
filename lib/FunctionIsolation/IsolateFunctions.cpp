@@ -55,15 +55,11 @@ RegisterIRHelper FDispatcher("function_dispatcher");
 
 using namespace llvm;
 
-class IsolateFunctionsImpl;
-
 static Logger TheLogger("isolation");
 
 // Define an alias for the data structure that will contain the LLVM functions
 using FunctionsMap = std::map<MDString *, Function *>;
 using ValueToValueMap = DenseMap<const Value *, Value *>;
-
-using IFI = IsolateFunctionsImpl;
 
 struct Boundary {
   BasicBlock *Block = nullptr;
@@ -112,98 +108,20 @@ public:
   }
 };
 
-class IsolateFunctionsImpl {
-private:
-  using SuccessorsContainer = std::map<const efa::FunctionEdgeBase *, int>;
-  using CFG = efa::ControlFlowGraph;
-  using CFGGetterType = std::function<const CFG &(const MetaAddress &)>;
+static void emitUnreachable(revng::IRBuilder &Builder,
+                            const Twine &Reason,
+                            const DebugLoc &DbgLocation) {
+  // Emitting any long-lasting messages here prevents switch detection,
+  // so use a simple `unreachable`.
+  Builder.CreateUnreachable();
+}
 
-private:
-  Function *RootFunction = nullptr;
-  Module *TheModule = nullptr;
-  LLVMContext &Context;
-  GeneratedCodeBasicInfo &GCBI;
-  const model::Binary &Binary;
-  Function *FunctionDispatcher = nullptr;
-  std::map<MetaAddress, Function *> IsolatedFunctionsMap;
-  std::map<StringRef, Function *> DynamicFunctionsMap;
-
-  CFGGetterType CFGGetter;
-  FunctionType *IsolatedFunctionType = nullptr;
-
-public:
-  IsolateFunctionsImpl(Function *RootFunction,
-                       GeneratedCodeBasicInfo &GCBI,
-                       const model::Binary &Binary,
-                       CFGGetterType CFGGetter) :
-    RootFunction(RootFunction),
-    TheModule(RootFunction->getParent()),
-    Context(TheModule->getContext()),
-    GCBI(GCBI),
-    Binary(Binary),
-    CFGGetter(CFGGetter) {
-    IsolatedFunctionType = createFunctionType<void>(Context);
-  }
-
-public:
-  Function *getLocalFunction(const MetaAddress &Entry) {
-    auto Name = llvmName(Binary.Functions().at(Entry));
-    if (auto *F = TheModule->getFunction(Name))
-      return F;
-
-    auto *F = Function::Create(IsolatedFunctionType,
-                               GlobalValue::ExternalLinkage,
-                               Name,
-                               TheModule);
-    FunctionTags::Isolated.addTo(F);
-    setMetaAddressMetadata(F, FunctionEntryMDName, Entry);
-    return F;
-  }
-
-  Function *getDynamicFunction(llvm::StringRef SymbolName) const {
-    return DynamicFunctionsMap.at(SymbolName);
-  }
-
-  Function *dispatcher() const { return FunctionDispatcher; }
-  auto &gcbi() const { return GCBI; }
-
-public:
-  void prologue();
-  llvm::Function *runOnFunction(const MetaAddress &Address);
-  void epilogue();
-
-  void emitAbort(revng::IRBuilder &Builder,
-                 const Twine &Reason,
-                 const DebugLoc &DbgLocation) {
-    ::emitAbort(Builder, Reason, DbgLocation, GCBI.programCounterHandler());
-  }
-
-  void
-  emitAbort(BasicBlock *BB, const Twine &Reason, const DebugLoc &DbgLocation) {
-    revng::IRBuilder Builder(BB);
-    emitAbort(Builder, Reason, DbgLocation);
-  }
-
-  void emitUnreachable(revng::IRBuilder &Builder,
-                       const Twine &Reason,
-                       const DebugLoc &DbgLocation) {
-    // Emitting any long-lasting messages here prevents switch detection,
-    // so use a simple `unreachable`.
-    Builder.CreateUnreachable();
-  }
-
-  void emitUnreachable(BasicBlock *BB,
-                       const Twine &Reason,
-                       const DebugLoc &DbgLocation) {
-    revng::IRBuilder Builder(BB);
-    emitUnreachable(Builder, Reason, DbgLocation);
-  }
-
-private:
-  void handleUnexpectedPCCloned(efa::OutlinedFunction &Outlined);
-  void handleAnyPCJumps(efa::OutlinedFunction &Outlined,
-                        const efa::ControlFlowGraph &FM);
-};
+static void emitUnreachable(BasicBlock *BB,
+                            const Twine &Reason,
+                            const DebugLoc &DbgLocation) {
+  revng::IRBuilder Builder(BB);
+  emitUnreachable(Builder, Reason, DbgLocation);
+}
 
 template<typename T, typename F>
 static bool
@@ -280,13 +198,15 @@ void printAddressListComparison(const LeftMap &ExpectedAddresses,
 
 class CallIsolatedFunction : public efa::CallHandler {
 private:
-  IsolateFunctionsImpl &IFI;
+  revng::pypeline::piperuns::Isolate &IP;
+  GeneratedCodeBasicInfo &GCBI;
   const efa::ControlFlowGraph &FM;
 
 public:
-  CallIsolatedFunction(IsolateFunctionsImpl &IFI,
+  CallIsolatedFunction(revng::pypeline::piperuns::Isolate &IP,
+                       GeneratedCodeBasicInfo &GCBI,
                        const efa::ControlFlowGraph &FM) :
-    IFI(IFI), FM(FM) {}
+    IP(IP), GCBI(GCBI), FM(FM) {}
 
 public:
   void handleCall(MetaAddress CallerBlock,
@@ -305,9 +225,9 @@ public:
 
   void handlePostNoReturn(revng::IRBuilder &Builder,
                           const llvm::DebugLoc &DbgLocation) final {
-    IFI.emitUnreachable(Builder,
-                        "We return from a noreturn function call",
-                        DbgLocation);
+    emitUnreachable(Builder,
+                    "We return from a noreturn function call",
+                    DbgLocation);
   }
 
   void handleIndirectJump(revng::IRBuilder &Builder,
@@ -324,7 +244,7 @@ private:
                   MetaAddress Callee,
                   llvm::Value *SymbolNamePointer) {
     // Identify caller block
-    const auto *Caller = FM.findBlock(IFI.gcbi(), Builder.GetInsertBlock());
+    const auto *Caller = FM.findBlock(GCBI, Builder.GetInsertBlock());
 
     // Identify call edge
     auto IsCallEdge = [](const UpcastablePointer<efa::FunctionEdgeBase> &E) {
@@ -360,11 +280,11 @@ private:
     // Identify callee
     Function *CalledFunction = nullptr;
     if (Callee.isValid())
-      CalledFunction = IFI.getLocalFunction(Callee);
+      CalledFunction = IP.getLocalFunction(Callee);
     else if (not SymbolName.empty())
-      CalledFunction = IFI.getDynamicFunction(SymbolName);
+      CalledFunction = IP.getDynamicFunction(SymbolName);
     else
-      CalledFunction = IFI.dispatcher();
+      CalledFunction = IP.dispatcher();
 
     //
     // Create the call
@@ -410,101 +330,25 @@ public:
   }
 };
 
-void IsolateFunctionsImpl::prologue() {
-  auto SimpleFunctionType = createFunctionType<void>(Context);
-  FunctionDispatcher = createIRHelper("function_dispatcher",
-                                      *TheModule,
-                                      SimpleFunctionType,
-                                      GlobalValue::ExternalLinkage);
-  FunctionTags::FunctionDispatcher.addTo(FunctionDispatcher);
+namespace revng::pypeline::piperuns {
 
-  //
-  // Create the dynamic functions
-  //
-  // TODO: we can (and should) push processing of dynamic functions into the
-  //       loop emitting individual local functions, and make it lazy
-  Task DynamicFunctionsTask(Binary.ImportedDynamicFunctions().size(),
-                            "Dynamic functions creation");
-  for (const model::DynamicFunction &Function :
-       Binary.ImportedDynamicFunctions()) {
-    StringRef Name = Function.Name();
-    DynamicFunctionsTask.advance(Name, true);
-    auto *NewFunction = Function::Create(IsolatedFunctionType,
-                                         GlobalValue::ExternalLinkage,
-                                         "dynamic_" + Function.Name(),
-                                         TheModule);
-    FunctionTags::DynamicFunction.addTo(NewFunction);
-    NewFunction->addFnAttr(Attribute::NoMerge);
-    DynamicFunctionsMap[Name] = NewFunction;
-  }
-}
-
-llvm::Function *IsolateFunctionsImpl::runOnFunction(const MetaAddress &Entry) {
-
-  revng_assert(Entry.isValid());
-  const efa::ControlFlowGraph &FM = CFGGetter(Entry);
-
-  // Get or create the llvm::Function
-  Function *F = getLocalFunction(Entry);
-
-  // Decorate the function as appropriate
-  F->addFnAttr(Attribute::NullPointerIsValid);
-  F->addFnAttr(Attribute::NoMerge);
-  IsolatedFunctionsMap[Entry] = F;
-  revng_assert(F != nullptr);
-
-  // Outline the function (later on we'll steal its body and move it into F)
-  CallIsolatedFunction CallHandler(*this, FM);
-  FunctionOutliner Outliner(*TheModule, Binary, GCBI);
-  efa::OutlinedFunction Outlined = Outliner.outline(Entry, &CallHandler);
-
-  handleUnexpectedPCCloned(Outlined);
-
-  handleAnyPCJumps(Outlined, FM);
-
-  if (Outlined.Function)
-    for (BasicBlock &BB : *Outlined.Function)
-      revng_assert(BB.getTerminator() != nullptr);
-
-  // Steal the function body and let the outlined function be destroyed
-  moveBlocksInto(*Outlined.Function, *F);
-
-  return F;
-}
-
-void IsolateFunctionsImpl::epilogue() {
-  llvm::Task T(3, "Isolate: epilogue");
-  T.advance("Verify module", true);
-  revng::verify(TheModule);
-
-  // Cleanup root
-  T.advance("Cleanup", true);
-  EliminateUnreachableBlocks(*RootFunction, nullptr, false);
-
-  // Before emitting it in output, verify the module
-  T.advance("Verify module", true);
-  revng::verify(TheModule);
-}
-
-void IsolateFunctionsImpl::handleUnexpectedPCCloned(efa::OutlinedFunction
-                                                      &Outlined) {
+void Isolate::handleUnexpectedPCCloned(efa::OutlinedFunction &Outlined) {
   if (BasicBlock *UnexpectedPC = Outlined.UnexpectedPCCloned) {
     for (auto It = UnexpectedPC->begin(); It != UnexpectedPC->end();
          It = UnexpectedPC->begin())
       It->eraseFromParent();
     revng_assert(UnexpectedPC->empty());
-    const DebugLoc &Dbg = GCBI.unexpectedPC()->getTerminator()->getDebugLoc();
+    const DebugLoc &Dbg = GCBI->unexpectedPC()->getTerminator()->getDebugLoc();
     emitUnreachable(UnexpectedPC, "unexpectedPC", Dbg);
   }
 }
 
-void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
-                                            const efa::ControlFlowGraph &FM) {
-
+void Isolate::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
+                               const efa::ControlFlowGraph &FM) {
   if (BasicBlock *AnyPC = Outlined.AnyPCCloned) {
     for (BasicBlock *AnyPCPredecessor : toVector(predecessors(AnyPC))) {
       // First of all, identify the basic block
-      const efa::BasicBlock *JumpBlock = FM.findBlock(GCBI, AnyPCPredecessor);
+      const efa::BasicBlock *JumpBlock = FM.findBlock(*GCBI, AnyPCPredecessor);
 
       Instruction *T = AnyPCPredecessor->getTerminator();
       revng_assert(not cast<BranchInst>(T)->isConditional());
@@ -574,6 +418,8 @@ void IsolateFunctionsImpl::handleAnyPCJumps(efa::OutlinedFunction &Outlined,
     eraseFromParent(AnyPC);
   }
 }
+
+} // namespace revng::pypeline::piperuns
 
 /// Helper class that wraps `llvm::cloneModule` and specializes in the case
 /// where a single function needs to be cloned. It will analyze the function to
@@ -754,7 +600,7 @@ Isolate::Isolate(const class Model &Model,
                  const CFGMap &CFG,
                  LLVMRootContainer &Root,
                  LLVMFunctionContainer &Output) :
-  Binary(*Model.get().get()), Output(Output) {
+  Binary(*Model.get().get()), CFG(CFG), Output(Output) {
   // Manually perform `cloneIntoContext` to prune the root container as early as
   // possible
   llvm::SmallVector<char, 0> Buffer;
@@ -762,24 +608,88 @@ Isolate::Isolate(const class Model &Model,
   Root.disposeIfPossible();
   ClonedModule = readBitcode(Buffer, Output.getContext());
 
+  llvm::LLVMContext &Context = ClonedModule->getContext();
+  IsolatedFunctionType = createFunctionType<void>(Context);
   GCBI.emplace(*Model.get().get(), *ClonedModule);
 
-  auto CFGGetter =
-    [&CFG](const MetaAddress &Address) -> const efa::ControlFlowGraph & {
-    return *CFG.getElement(ObjectID(Address));
-  };
+  auto SimpleFunctionType = createFunctionType<void>(Context);
+  FunctionDispatcher = createIRHelper("function_dispatcher",
+                                      *ClonedModule,
+                                      SimpleFunctionType,
+                                      GlobalValue::ExternalLinkage);
+  FunctionTags::FunctionDispatcher.addTo(FunctionDispatcher);
 
-  // TODO: inline Impl
-  Impl = std::make_unique<IFI>(ClonedModule->getFunction("root"),
-                               *GCBI,
-                               *Model.get().get(),
-                               CFGGetter);
-  Impl->prologue();
+  //
+  // Create the dynamic functions
+  //
+  // TODO: we can (and should) push processing of dynamic functions into the
+  //       loop emitting individual local functions, and make it lazy
+  Task DynamicFunctionsTask(Binary.ImportedDynamicFunctions().size(),
+                            "Dynamic functions creation");
+  for (const model::DynamicFunction &Function :
+       Binary.ImportedDynamicFunctions()) {
+    StringRef Name = Function.Name();
+    DynamicFunctionsTask.advance(Name, true);
+    auto *NewFunction = Function::Create(IsolatedFunctionType,
+                                         GlobalValue::ExternalLinkage,
+                                         "dynamic_" + Function.Name(),
+                                         *ClonedModule);
+    FunctionTags::DynamicFunction.addTo(NewFunction);
+    NewFunction->addFnAttr(Attribute::NoMerge);
+    DynamicFunctionsMap[Name] = NewFunction;
+  }
 }
 
 void Isolate::runOnFunction(const model::Function &TheFunction) {
-  llvm::Function *Function = Impl->runOnFunction(TheFunction.Entry());
-  IsolatedFunctions.push_back({ TheFunction.Entry(), Function });
+  const MetaAddress Entry = TheFunction.Entry();
+  revng_assert(Entry.isValid());
+  const efa::ControlFlowGraph &FM = *CFG.getElement(ObjectID(Entry));
+
+  // Get or create the llvm::Function
+  Function *F = getLocalFunction(Entry);
+
+  // Decorate the function as appropriate
+  F->addFnAttr(Attribute::NullPointerIsValid);
+  F->addFnAttr(Attribute::NoMerge);
+  IsolatedFunctionsMap[Entry] = F;
+  revng_assert(F != nullptr);
+
+  // Outline the function (later on we'll steal its body and move it into F)
+  CallIsolatedFunction CallHandler(*this, *GCBI, FM);
+  FunctionOutliner Outliner(*ClonedModule, Binary, *GCBI);
+  efa::OutlinedFunction Outlined = Outliner.outline(Entry, &CallHandler);
+
+  handleUnexpectedPCCloned(Outlined);
+
+  handleAnyPCJumps(Outlined, FM);
+
+  if (Outlined.Function)
+    for (BasicBlock &BB : *Outlined.Function)
+      revng_assert(BB.getTerminator() != nullptr);
+
+  // Steal the function body and let the outlined function be destroyed
+  moveBlocksInto(*Outlined.Function, *F);
+
+  // Store the isolated function for later splitting
+  IsolatedFunctions.push_back({ TheFunction.Entry(), F });
+}
+
+Function *Isolate::getLocalFunction(const MetaAddress &Entry) {
+  auto Name = llvmName(Binary.Functions().at(Entry));
+  if (auto *F = ClonedModule->getFunction(Name))
+    return F;
+
+  auto *F = Function::Create(IsolatedFunctionType,
+                             GlobalValue::ExternalLinkage,
+                             Name,
+                             *ClonedModule);
+  FunctionTags::Isolated.addTo(F);
+  setMetaAddressMetadata(F, FunctionEntryMDName, Entry);
+  return F;
+}
+
+Function *Isolate::getDynamicFunction(llvm::StringRef SymbolName) const {
+  return DynamicFunctionsMap.at(SymbolName);
 }
 
 void Isolate::splitIsolatedFunctionsToOutput() {
@@ -826,12 +736,20 @@ void Isolate::splitIsolatedFunctionsToOutput() {
 }
 
 Isolate::~Isolate() {
-  Impl->epilogue();
+  llvm::Task T(4, "Isolate: epilogue");
+  T.advance("Verify module", true);
+  revng::verify(ClonedModule.get());
 
   // Drop the `root` function's body to save memory, since we're done isolating
+  T.advance("Cleanup", true);
   deleteOnlyBody(*ClonedModule->getFunction("root"));
 
+  // Before emitting it in output, verify the module
+  T.advance("Verify module", true);
+  revng::verify(ClonedModule.get());
+
   // Actually split the isolated function to the output module
+  T.advance("Split isolated functions", true);
   splitIsolatedFunctionsToOutput();
 }
 

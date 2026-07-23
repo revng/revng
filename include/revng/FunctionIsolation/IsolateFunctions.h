@@ -11,21 +11,22 @@
 #include "revng/BasicAnalyses/GeneratedCodeBasicInfo.h"
 #include "revng/EarlyFunctionAnalysis/CollectCFG.h"
 
-class IsolateFunctionsImpl;
-
 namespace revng::pypeline::piperuns {
 
 class Isolate {
 private:
   const model::Binary &Binary;
+  const CFGMap &CFG;
   std::unique_ptr<llvm::Module> ClonedModule;
   LLVMFunctionContainer &Output;
   std::optional<GeneratedCodeBasicInfo> GCBI;
-  // unique_ptr to the implementation. This is a temporary measure until the
-  // old pipeline is dropped and the body of the `Impl` class can be inlined in
-  // this one.
-  std::unique_ptr<IsolateFunctionsImpl> Impl;
   std::vector<std::tuple<MetaAddress, llvm::Function *>> IsolatedFunctions;
+
+  llvm::FunctionType *IsolatedFunctionType = nullptr;
+  llvm::Function *FunctionDispatcher = nullptr;
+
+  std::map<MetaAddress, llvm::Function *> IsolatedFunctionsMap;
+  std::map<llvm::StringRef, llvm::Function *> DynamicFunctionsMap;
 
 public:
   static constexpr llvm::StringRef Name = "isolate";
@@ -54,8 +55,17 @@ public:
 
   void runOnFunction(const model::Function &TheFunction);
 
+public:
+  llvm::Function *getLocalFunction(const MetaAddress &Entry);
+  llvm::Function *getDynamicFunction(llvm::StringRef SymbolName) const;
+  llvm::Function *dispatcher() const { return FunctionDispatcher; }
+
 private:
   void splitIsolatedFunctionsToOutput();
+
+  void handleUnexpectedPCCloned(efa::OutlinedFunction &Outlined);
+  void handleAnyPCJumps(efa::OutlinedFunction &Outlined,
+                        const efa::ControlFlowGraph &FM);
 };
 
 } // namespace revng::pypeline::piperuns
