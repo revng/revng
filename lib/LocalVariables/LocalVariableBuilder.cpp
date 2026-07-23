@@ -43,7 +43,7 @@ VariableBuilderTypes::VariableBuilderTypes(llvm::Module &TheModule,
   Int8Ty{ llvm::Type::getInt8Ty(TheModule.getContext()) } {
 }
 
-/// Specialization of methods for non-legacy mode.
+/// Definitions of the LocalVariableBuilder methods.
 ///
 ///@{
 

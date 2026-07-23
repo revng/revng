@@ -4,11 +4,8 @@
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
-#include <optional>
-
 #include "revng/Model/BinaryIdentifier.h"
 #include "revng/Model/FunctionTags.h"
-#include "revng/Support/OpaqueFunctionsPool.h"
 
 namespace llvm {
 
@@ -128,38 +125,18 @@ public:
 
   /// Creates an llvm::Instruction that models the allocation of a local
   /// variable.
-  /// The created instruction is inserted at the beginning of the function F.
-  /// This is typically an alloca, but it's a call to LocalVariable in legacy
-  /// mode.
-  //
-  // TODO: this method can become const when we drop legacy mode because we'll
-  // not be using OpaqueFunctionsPool anymore.
+  /// The created instruction is an alloca inserted at the beginning of the
+  /// function F.
   LocalVarType *createLocalVariable(const model::Type &VariableType);
 
   /// Methods meant to be used only by SegregateStackAccesses.
-  /// TODO: eventually, when we drop legacy mode, the whole LocalVariableBuilder
-  /// will be only used by SegregateStackAccesses.
   ///
   ///@{
 
   /// Creates an llvm::Instruction that models the allocation of a local
   /// variable, and takes its address.
-  /// The created instruction is inserted at the beginning of the function F.
-  /// This is typically an alloca, but it's a call to LocalVariable in legacy
-  /// mode.
-  ///
-  /// In legacy mode:
-  /// - the instruction to allocate the local variable is a custom opaque
-  ///   function
-  /// - it's address is taken with AddressOf, whose type on LLVM is a
-  ///   pointer-sized integer type
-  ///
-  /// In non-legacy mode:
-  /// - the instruction to allocate the local variable is a regular alloca
-  /// - the alloca is ptr-to-int casted to a pointer-sized integer.custom opaque
-  //
-  // TODO: this method can become const when we drop legacy mode because we'll
-  // not be using OpaqueFunctionsPool anymore.
+  /// The created instruction is an alloca inserted at the beginning of the
+  /// function F, which is then ptr-to-int casted to a pointer-sized integer.
   std::pair<LocalVarType *, llvm::Instruction *>
   createLocalVariableAndTakeIntAddress(const model::Type &VariableType);
 
@@ -176,18 +153,8 @@ public:
   /// is equal to the size of a pointer in the associated Model.Architecture.
   /// The instruction that represents the allocation of the local variable is
   /// inserted at the beginning of function F, after all the allocas.
-  ///
-  /// In legacy mode:
-  /// - the instruction to allocate the local variable is a custom opaque
-  ///   function
-  /// - it's address is taken with AddressOf, whose type on LLVM is a
-  ///   pointer-sized integer type
-  ///
-  /// In non-legacy mode:
-  /// - the instruction to allocate the local variable is a regular alloca
-  /// - the alloca is ptr-to-int casted to a pointer-sized integer.custom opaque
-  //
-  // TODO: can this method become const when we drop legacy mode?
+  /// The allocation is a regular alloca, ptr-to-int casted to a pointer-sized
+  /// integer.
   llvm::Instruction *createStackFrameVariable(model::UpcastableType FrameType);
 
   /// Creates an llvm::Instruction that models the allocation of a local
@@ -197,19 +164,8 @@ public:
   /// is equal to the size of a pointer in the associated Model.Architecture.
   /// The instruction that represents the allocation of the local variable is
   /// inserted at the beginning of function F, after all the allocas.
-  ///
-  /// In legacy mode:
-  /// - the instruction to allocate the local variable is a custom opaque
-  ///   function
-  /// - it's address is taken with AddressOf, whose type on LLVM is a
-  ///   pointer-sized integer type
-  ///
-  /// In non-legacy mode:
-  /// - the instruction to allocate the local variable is a regular alloca
-  /// - the alloca is ptr-to-int casted to a pointer-sized integer.custom opaque
-  //
-  // TODO: this method can be dropped when we drop legacy mode, because the
-  // callers can just switch to call createLocalVariableAndTakeIntAddress
+  /// The allocation is a regular alloca, ptr-to-int casted to a pointer-sized
+  /// integer.
   llvm::Instruction *
   createCallStackArgumentVariable(const model::Type &VariableType);
 
