@@ -95,6 +95,28 @@ static Value *getStoreValueOperand(Instruction *I) {
   return U ? U->get() : nullptr;
 }
 
+// The value stored by \p Store into an AllocaInst can be made available in the
+// AllocaInst only if the stored size and the allocated size are the same.
+// This is actually stricter than necessary, because in principle there is
+// nothing wrong with saying that a stored value that is narrower than the
+// allocated variable. But if we do this, it is possible that
+// InstructionToSerializePicker will decide to reuse the available narrower
+// value. This in turn will generate a load from an alloca whose sizes mismatch.
+// Again, this is not wrong strictly speaking but it would generate weird C
+// code, and we don't yet understand all the consequences.
+// So, since we expect this to be a corner case that happens rarely, we just say
+// that if the stored size mismatches the alloca size we don't make the stored
+// value available.
+static bool storedValueCanBeMadeAvailable(StoreInst *Store) {
+  auto *Alloca = dyn_cast<AllocaInst>(Store->getPointerOperand());
+  if (not Alloca)
+    return true;
+  const llvm::DataLayout &DL = Store->getModule()->getDataLayout();
+  auto StoredSize = DL.getTypeStoreSize(Store->getValueOperand()->getType());
+  auto VariableSize = DL.getTypeStoreSize(Alloca->getAllocatedType());
+  return StoredSize == VariableSize;
+}
+
 //
 // Helpers for statements and side effects.
 //
@@ -318,7 +340,8 @@ void AEMFP::applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const {
 
   auto *StoredOperand = getStoreValueOperand(I);
   auto *AssignedInstruction = dyn_cast_or_null<Instruction>(StoredOperand);
-  if (AssignedInstruction) {
+  if (AssignedInstruction
+      and storedValueCanBeMadeAvailable(cast<StoreInst>(I))) {
     revng_log(Log, "I is Assign");
     revng_log(Log,
               "insert Available: " << dumpToString(AssignedInstruction, MST));
@@ -722,7 +745,8 @@ static AEResult getAvailableExpressions(Function &F,
 
     auto *StoredOperand = getStoreValueOperand(I);
     auto *AssignedInstruction = dyn_cast_or_null<Instruction>(StoredOperand);
-    if (AssignedInstruction) {
+    if (AssignedInstruction
+        and storedValueCanBeMadeAvailable(cast<StoreInst>(I))) {
       Bottom.insert(AvailableExpression{
         .Expression = AssignedInstruction,
         .Assignment = cast<AssignType>(I),
