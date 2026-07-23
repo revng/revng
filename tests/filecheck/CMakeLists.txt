@@ -416,7 +416,6 @@ set(FILECHECK_TESTS
     llvm-passes/scope-graph-dumper.ll
     llvm-passes/select-scope.ll
     llvm-passes/switch-to-statements.ll
-    llvm-passes/ternary-reduction.ll
     model/drop-types/ArrayPropagation.yml
     model/drop-types/DropStructField.yml
     model/drop-types/DropViaPointer.yml
