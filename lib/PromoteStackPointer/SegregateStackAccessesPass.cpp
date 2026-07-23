@@ -829,10 +829,10 @@ struct SortByFunction {
 
 using GCBIWP = GeneratedCodeBasicInfoWrapperPass;
 
-using LVB = LocalVariableBuilder<false>;
+using LVB = LocalVariableBuilder;
 
-static LocalVariableBuilder<false>
-makeVariableBuilder(const model::Binary &Binary, llvm::Module &Module) {
+static LocalVariableBuilder makeVariableBuilder(const model::Binary &Binary,
+                                                llvm::Module &Module) {
   return LVB::make(VariableBuilderTypes(Binary, Module));
 }
 
@@ -889,7 +889,7 @@ private:
 
   llvm::Type *TargetPointerSizedInteger = nullptr;
   llvm::Type *OpaquePointerType = nullptr;
-  LocalVariableBuilder<false> VariableBuilder;
+  LocalVariableBuilder VariableBuilder;
 
 public:
   SegregateStackAccesses(llvm::ModulePass &Pass,

@@ -21,7 +21,7 @@
 
 using namespace llvm;
 
-using VB = LocalVariableBuilder<false>;
+using VB = LocalVariableBuilder;
 
 VariableBuilderTypes::VariableBuilderTypes(const model::Binary &TheBinary,
                                            llvm::Module &TheModule) :
@@ -47,7 +47,6 @@ VariableBuilderTypes::VariableBuilderTypes(llvm::Module &TheModule,
 ///
 ///@{
 
-template<>
 VB::LocalVarType *VB::createLocalVariable(const model::Type &VariableType) {
   size_t VariableSize = VariableType.size().value_or(0);
   revng_assert(VariableSize);
@@ -58,7 +57,6 @@ VB::LocalVarType *VB::createLocalVariable(const model::Type &VariableType) {
   return B.CreateAlloca(llvm::ArrayType::get(Types.Int8Ty, VariableSize));
 }
 
-template<>
 std::pair<VB::LocalVarType *, llvm::Instruction *>
 VB::createLocalVariableAndTakeIntAddress(const model::Type &VariableType) {
   revng::IRBuilder B(F->getContext());
@@ -71,13 +69,11 @@ VB::createLocalVariableAndTakeIntAddress(const model::Type &VariableType) {
   };
 }
 
-template<>
 Instruction *
 VB::createCallStackArgumentVariable(const model::Type &VariableType) {
   return createLocalVariableAndTakeIntAddress(VariableType).second;
 }
 
-template<>
 Instruction *VB::createStackFrameVariable(model::UpcastableType FrameType) {
   size_t StackSize = FrameType->size().value_or(0);
   revng_assert(StackSize);
@@ -88,10 +84,8 @@ Instruction *VB::createStackFrameVariable(model::UpcastableType FrameType) {
   return cast<Instruction>(PtrToInt);
 }
 
-template<bool IsLegacy>
 std::pair<llvm::AllocaInst *, llvm::Value *>
-LocalVariableBuilder<IsLegacy>::createAllocaWithPtrToInt(llvm::Function *F,
-                                                         llvm::Type *T) const {
+VB::createAllocaWithPtrToInt(llvm::Function *F, llvm::Type *T) const {
   // TODO: try re-enabling checks here after dropping the old pipeline.
   revng::IRBuilder B(F->getContext());
   B.SetInsertPointPastAllocas(F);
@@ -113,6 +107,3 @@ LocalVariableBuilder<IsLegacy>::createAllocaWithPtrToInt(llvm::Function *F,
 }
 
 ///@}
-
-// Instantiate specializations of LocalVariableBuilders
-template class LocalVariableBuilder<false>;

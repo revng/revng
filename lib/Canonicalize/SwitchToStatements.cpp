@@ -1129,10 +1129,10 @@ private:
 
 AnalysisKey InstructionToSerializePicker::Key = {};
 
-using LVB = LocalVariableBuilder<false>;
+using LVB = LocalVariableBuilder;
 
-static LocalVariableBuilder<false>
-makeVariableBuilder(Function &F, unsigned InputPointerByteSize) {
+static LocalVariableBuilder makeVariableBuilder(Function &F,
+                                                unsigned InputPointerByteSize) {
   VariableBuilderTypes Types = VariableBuilderTypes{ *F.getParent(),
                                                      InputPointerByteSize };
 
@@ -1146,7 +1146,7 @@ public:
 private:
   Function &F;
 
-  LocalVariableBuilder<false> VariableBuilder;
+  LocalVariableBuilder VariableBuilder;
 
 public:
   VariableInserter(Function &TheF, unsigned InputPointerByteSize) :

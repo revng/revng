@@ -67,15 +67,7 @@ public:
 /// instructions.
 ///
 /// This class provides a bunch of helpers to deal with creation of local
-/// variables. The IsLegacy field is used to select at compile-time the
-/// appropriate mode of operation:
-/// - IsLegacy == true: uses the old FunctionTags and dedicated functions to
-///   represent dedicated opcodes
-/// - IsLegacy == false: uses regular LLVM alloca/load/store instructions
-//
-// TODO: when the migration is over, the IsLegacy field can be dropped to
-// fully embrace the new ways.
-template<bool IsLegacy>
+/// variables, using regular LLVM alloca/load/store instructions.
 class LocalVariableBuilder {
 public:
   using AllocaInst = llvm::AllocaInst;
@@ -84,10 +76,10 @@ public:
   using StoreInst = llvm::StoreInst;
   using Value = llvm::Value;
 
-  using AssignType = std::conditional_t<IsLegacy, CallInst, StoreInst>;
-  using CopyType = std::conditional_t<IsLegacy, CallInst, LoadInst>;
-  using LocalVarType = std::conditional_t<IsLegacy, CallInst, AllocaInst>;
-  using ReferenceType = std::conditional_t<IsLegacy, CallInst, Value>;
+  using AssignType = StoreInst;
+  using CopyType = LoadInst;
+  using LocalVarType = AllocaInst;
+  using ReferenceType = Value;
 
 private:
   /// The types necessary for this LocalVariableBuilder to operate.
@@ -111,19 +103,14 @@ private:
     LocalVariableBuilder(TheTypes, nullptr) {}
 
 public:
-  /// Factory method for non-legacy mode, which also sets the target function to
-  /// \a F.
-  static LocalVariableBuilder
-  make(VariableBuilderTypes TheTypes, llvm::Function *F)
-    requires(not IsLegacy)
-  {
+  /// Factory method that also sets the target function to \a F.
+  static LocalVariableBuilder make(VariableBuilderTypes TheTypes,
+                                   llvm::Function *F) {
     return LocalVariableBuilder(TheTypes, F);
   }
 
-  /// Factory method for non-legacy mode.
-  static LocalVariableBuilder make(VariableBuilderTypes TheTypes)
-    requires(not IsLegacy)
-  {
+  /// Factory method that leaves the target function unset.
+  static LocalVariableBuilder make(VariableBuilderTypes TheTypes) {
     return make(TheTypes, nullptr);
   }
 
