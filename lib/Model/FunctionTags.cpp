@@ -229,13 +229,6 @@ FunctionPoolTag<SegmentRefPoolKey>
                       segmentGlobalGetterFactory);
 
 FunctionPoolTag<llvm::Type *>
-  BinaryNot("binary-not",
-            { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-            llvm::MemoryEffects::none(),
-            { &FunctionTags::UniquedByPrototype },
-            InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
   BooleanNot("boolean-not",
              { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
              llvm::MemoryEffects::none(),

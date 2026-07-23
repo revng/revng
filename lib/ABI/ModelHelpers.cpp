@@ -471,8 +471,6 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
 
         auto &Prototype = *Model.prototypeOrDefault(ParentFunc()->prototype());
         return { handleReturnValue(Prototype, Model)[ArgOperandIdx] };
-      } else if (FTags.contains(FunctionTags::BinaryNot)) {
-        return { llvmIntToModelType(Call->getType(), Model) };
       }
     }
   } else if (auto *Ret = dyn_cast<llvm::ReturnInst>(User)) {
