@@ -682,11 +682,11 @@ bool IF::runOnModule(Module &TheModule) {
 }
 
 /// Helper class that wraps `llvm::cloneModule` and specializes in the case
-/// where a single function needs to be cloned. It does aggressive changes to
-/// the Module, such as detaching globals and reattaching them only when needed.
-/// While an instance of this class is active the module will *not* verify and
-/// should not be passed to other pieces of LLVM infrastructure (e.g.
-/// PassManager).
+/// where a single function needs to be cloned. It will analyze the function to
+/// be cloned and only copy across declarations of the needed functions/globals
+/// needed for the body of the function to be valid. When cloning it also tries
+/// to preserve some revng-specific invariants, e.g. the presence of the `PC`
+/// global.
 class MinimalModuleCloner {
 private:
   struct FunctionUses {
