@@ -52,7 +52,6 @@
 #include "revng/ADT/SmallMap.h"
 #include "revng/Canonicalize/AllocaKillPoint.h"
 #include "revng/Canonicalize/SwitchToStatements.h"
-#include "revng/InitModelTypes/InitModelTypes.h"
 #include "revng/LocalVariables/LocalVariableBuilder.h"
 #include "revng/MFP/MFP.h"
 #include "revng/MFP/SetLattices.h"

@@ -23,7 +23,6 @@ revng_add_analyses_library_internal(
 target_link_libraries(
   revngCanonicalize
   revngFunctionIsolation
-  revngInitModelTypes
   revngSupport
   revngABI
   revngLocalVariables
