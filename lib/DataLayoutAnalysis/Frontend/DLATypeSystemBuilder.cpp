@@ -425,7 +425,9 @@ void DLATypeSystemLLVMBuilder::buildFromLLVMModule(llvm::Module &M) {
 
   TS.setDebugPrinter(std::make_unique<LLVMTSDebugPrinter>(M, this->Values));
 
-  createInterproceduralTypes(M);
+  SegmentNodeMapT SegmentNodes;
+  initializeSegments(SegmentNodes);
+  createInterproceduralTypes(M, SegmentNodes);
   createIntraproceduralTypes(M);
 
   createValuesList();

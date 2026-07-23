@@ -89,6 +89,8 @@ public:
   using VisitedMapT = std::map<LayoutTypePtr, LayoutTypeSystemNode *>;
   using PrototypesMapT = std::map<const model::TypeDefinition *,
                                   FuncOrCallInst>;
+  using SegmentNodeMapT = std::map<const model::Segment *,
+                                   LayoutTypeSystemNode *>;
 
 private:
   /// Separate class that add `Instance` edges
@@ -133,7 +135,10 @@ private:
   getOrCreateLayoutTypes(const llvm::Value &V);
 
 private:
-  bool createInterproceduralTypes(llvm::Module &M);
+  /// Create one shared artificial node per model segment.
+  void initializeSegments(SegmentNodeMapT &Segments);
+  bool createInterproceduralTypes(llvm::Module &M,
+                                  const SegmentNodeMapT &Segments);
   bool createIntraproceduralTypes(llvm::Module &M);
 
   /// Collect LayoutTypePtrs and place them in the right position

@@ -26,7 +26,22 @@ using namespace llvm;
 
 using TSBuilder = DLATypeSystemLLVMBuilder;
 
-bool TSBuilder::createInterproceduralTypes(llvm::Module &M) {
+void TSBuilder::initializeSegments(SegmentNodeMapT &Segments) {
+  for (const model::Segment &S : Model.Segments()) {
+    // Initialize a node for every segment
+    LayoutTypeSystemNode
+      *SegmentNode = Segments[&S] = TS.createArtificialLayoutType();
+    // Set the Size, which is known for segments.
+    SegmentNode->Size = S.VirtualSize();
+    // Set NonScalar to true, so that it cannot be removed from
+    // the optimization steps of DLA's middle-end
+    SegmentNode->NonScalar = true;
+  }
+}
+
+bool TSBuilder::createInterproceduralTypes(llvm::Module &M,
+                                           const SegmentNodeMapT
+                                             &SegmentNodeMap) {
   for (const Function &F : M.functions()) {
 
     auto FTags = FunctionTags::TagsSet::from(&F);
@@ -260,22 +275,11 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M) {
     }
   }
 
-  // Create types for segments
+  // Connect segment getters to the shared per-segment nodes. The nodes
+  // themselves are created once by initializeSegments, so that getters coming
+  // from different modules all converge on the same node for a given segment.
 
   const auto &Segments = Model.Segments();
-
-  std::map<const model::Segment *, LayoutTypeSystemNode *> SegmentNodeMap;
-
-  for (const model::Segment &S : Segments) {
-    // Initialize a node for every segment
-    LayoutTypeSystemNode
-      *SegmentNode = SegmentNodeMap[&S] = TS.createArtificialLayoutType();
-    // Set the Size, which is known for segments.
-    SegmentNode->Size = S.VirtualSize();
-    // Set NonScalar to true, so that it cannot be removed from
-    // the optimization steps of DLA's middle-end
-    SegmentNode->NonScalar = true;
-  }
 
   for (Function &F : FunctionTags::SegmentGlobalGetter.functions(&M)) {
     const model::Segment *Segment = &Segments
