@@ -229,13 +229,6 @@ FunctionPoolTag<SegmentRefPoolKey>
                       segmentGlobalGetterFactory);
 
 FunctionPoolTag<llvm::Type *>
-  UnaryMinus("unary-minus",
-             { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-             llvm::MemoryEffects::none(),
-             { &FunctionTags::UniquedByPrototype },
-             InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
   BinaryNot("binary-not",
             { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
             llvm::MemoryEffects::none(),

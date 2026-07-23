@@ -465,7 +465,6 @@ static bool isProgramPoint(const Instruction *I) {
       or isCallToTagged(I, FunctionTags::BoolInteger)
       or isCallToTagged(I, FunctionTags::NullPtr)
       or isCallToTagged(I, FunctionTags::SegmentGlobalGetter)
-      or isCallToTagged(I, FunctionTags::UnaryMinus)
       or isCallToTagged(I, FunctionTags::BinaryNot)
       or isCallToTagged(I, FunctionTags::BooleanNot)) {
     UnexpectedInstruction = I;
