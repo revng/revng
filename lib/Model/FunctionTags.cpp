@@ -119,13 +119,6 @@ FunctionPoolTag<llvm::Type *>
             &FunctionTags::UniquedByPrototype },
           InitializationMode::InitializeFromReturnType);
 
-FunctionPoolTag<llvm::Type *>
-  Copy("copy",
-       { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-       llvm::MemoryEffects::readOnly(),
-       { &FunctionTags::UniquedByPrototype },
-       InitializationMode::InitializeFromReturnType);
-
 /// Tag for global variables representing segments
 Tag SegmentGlobal("segment-global");
 
@@ -430,18 +423,6 @@ llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {
   Type *ReturnType = Extract->getType();
 
   return FunctionType::get(ReturnType, ArgTypes, false);
-}
-
-llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
-                                llvm::Type *VariableReferenceType) {
-  using namespace llvm;
-  // The argument is an llvm::Value representing a reference
-  // It's not part of the key in the Copy pool, because all references should
-  // have the same underlying LLVM type, which is a pointer-sized integer.
-  // This is a hack, but Copy will go away in the clift-base decompilation
-  // pipeline, so it's temporary.
-  SmallVector<llvm::Type *, 1> FixedArgs = { VariableReferenceType };
-  return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
 }
 
 static std::vector<llvm::GlobalVariable *> extractCSVs(llvm::Function *F,
