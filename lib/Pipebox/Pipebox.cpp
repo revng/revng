@@ -112,7 +112,6 @@ REGISTER(FunctionPipeRun, ImportDescriptiveFunctionInfo);
 REGISTER(FunctionPipeRun, ImportFunctionDataModel);
 REGISTER(FunctionPipeRun, InjectStackSizeProbesAtCallSites);
 REGISTER(FunctionPipeRun, Isolate);
-REGISTER(FunctionPipeRun, LegacySegregateStackAccesses);
 REGISTER(FunctionPipeRun, ProcessAssembly);
 REGISTER(FunctionPipeRun, PromoteCSVs);
 REGISTER(FunctionPipeRun, PromoteInitCSVToUndef);

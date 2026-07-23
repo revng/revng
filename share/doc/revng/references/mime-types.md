@@ -18,8 +18,6 @@ USAGE: revng-artifact [options] <artifact> <binary>
   recompile                   - application/x-executable
   recompile-isolated          - application/x-executable
   simplify-switch             - application/x.llvm.bc+zstd
-  make-segment-ref            - application/x.llvm.bc+zstd
-  cleanup-ir                  - application/x.llvm.bc+zstd
   segregate-stack-accesses    - application/x.llvm.bc+zstd
   emit-c                      - text/x.c+ptml+tar+gz
   emit-c-as-single-file       - text/x.c+ptml

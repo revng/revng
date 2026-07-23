@@ -551,7 +551,7 @@ Since `remove-exceptional-functions` is part of the `enforce-abi` pipeline, the 
 Compare this with the C source: the `udiv`/`urem` implement the division, `%_rax` is the accumulator, and the two `unreachable` blocks (labels 12 and 16) are where `raise_exception_ra` used to be (division-by-zero and quotient-overflow checks).
 
 Running `-simplifycfg` eliminates the `unreachable` blocks, turning the error conditions into `llvm.assume` intrinsics.
-These `llvm.assume` calls are later removed by the `remove-llvmassume-calls` pass (which runs as part of the `legacy-segregate-stack-accesses` step).
+These `llvm.assume` calls are later removed by the `remove-llvmassume-calls` pass (which runs as part of the `segregate-stack-accesses` step).
 Adding `-dce` cleans up the remaining dead instructions:
 
 ```bash

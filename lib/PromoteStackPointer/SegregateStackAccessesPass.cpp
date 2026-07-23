@@ -2221,41 +2221,12 @@ static void getAnalysisUsage(llvm::AnalysisUsage &AU) {
 }
 
 template<>
-void SegregateStackAccesses<true>::getAnalysisUsage(AnalysisUsage &AU) {
-  return ::getAnalysisUsage(AU);
-}
-
-template<>
 void SegregateStackAccesses<false>::getAnalysisUsage(AnalysisUsage &AU) {
   return ::getAnalysisUsage(AU);
 }
 
 template<>
-char pipeline::FunctionPass<SegregateStackAccesses<true>>::ID = 0;
-
-template<>
 char pipeline::FunctionPass<SegregateStackAccesses<false>>::ID = 0;
-
-static constexpr const char *LegacyFlag = "legacy-segregate-stack-accesses";
-
-struct LegacySegregateStackAccessesPipe {
-  static constexpr auto Name = LegacyFlag;
-
-  std::vector<pipeline::ContractGroup> getContract() const {
-    using namespace pipeline;
-    using namespace revng::kinds;
-    return { ContractGroup::transformOnlyArgument(StackPointerPromoted,
-                                                  StackAccessesSegregated,
-                                                  InputPreservation::Erase) };
-  }
-
-  void registerPasses(legacy::PassManager &Manager) {
-    using Pass = SegregateStackAccesses</* Legacy = */ true>;
-    Manager.add(new pipeline::FunctionPass<Pass>);
-  }
-};
-
-static pipeline::RegisterLLVMPass<LegacySegregateStackAccessesPipe> X;
 
 static constexpr const char *Flag = "segregate-stack-accesses";
 
@@ -2279,16 +2250,6 @@ struct SegregateStackAccessesPipe {
 static pipeline::RegisterLLVMPass<SegregateStackAccessesPipe> Y;
 
 namespace revng::pypeline::piperuns {
-
-void LegacySegregateStackAccesses::runOnLLVMFunction(const model::Function
-                                                       &Function,
-                                                     llvm::Function
-                                                       &LLVMFunction) {
-  ::SegregateStackAccesses<true> Impl(Binary, *LLVMFunction.getParent());
-  Impl.prologue();
-  Impl.runOnFunction(Function, LLVMFunction);
-  Impl.epilogue();
-}
 
 // TODO: merge ::SegregateStackAccesses into SegregateStackAccesses once we
 //       dismiss the old pipeline
