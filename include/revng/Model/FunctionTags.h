@@ -32,7 +32,6 @@ extern Tag ReaderFunction;
 extern Tag OpaqueReturnAddressFunction;
 extern Tag CSV;
 inline const char *UniqueIDMDName = "revng.unique_id";
-extern Tag ReturnsPolymorphic;
 extern Tag ScopeCloserMarker;
 extern Tag GotoBlockMarker;
 

@@ -34,8 +34,6 @@ Tag OpaqueReturnAddressFunction("opaque-return-address");
 
 Tag CSV("csv");
 
-Tag ReturnsPolymorphic("returns-polymorphic");
-
 Tag ScopeCloserMarker("scope-closer");
 Tag GotoBlockMarker("goto-block");
 
