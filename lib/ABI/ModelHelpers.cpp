@@ -29,8 +29,6 @@
 
 using llvm::dyn_cast;
 
-constexpr const size_t ModelGEPBaseArgIndex = 1;
-
 model::UpcastableType modelType(const llvm::Value *V,
                                 const model::Binary &Model) {
   model::UpcastableType Result;
@@ -138,65 +136,6 @@ llvm::Constant *toLLVMString(const model::UpcastableType &Type,
   return getUniqueString(&M, toString(Type));
 }
 
-static const model::Type &getFieldType(const model::Type &Parent,
-                                       uint64_t Idx) {
-  const model::Type &Unwrapped = *Parent.skipConstAndTypedefs();
-  revng_assert(not Unwrapped.isPointer());
-
-  // If it's an array, we can just return its element type.
-  if (const model::ArrayType *Array = Unwrapped.getArray())
-    return *Array->ElementType();
-
-  // If we get to this point, the type is neither a pointer nor an array,
-  // so it must be either a struct or a union.
-  revng_assert(llvm::isa<model::DefinedType>(Unwrapped));
-  if (auto *Struct = Unwrapped.getStruct())
-    return *Struct->Fields().at(Idx).Type();
-  else if (auto *Union = Unwrapped.getUnion())
-    return *Union->Fields().at(Idx).Type();
-
-  revng_abort("Type does not contain fields");
-}
-
-static const model::Type &getFieldType(const model::Type &Parent,
-                                       llvm::Value *Idx) {
-  revng_assert(not Parent.isPointer());
-
-  uint64_t NumericIdx = 0;
-
-  if (auto *ArgAsInt = dyn_cast<llvm::ConstantInt>(Idx)) {
-    // If the value is a constant integer, use that as index
-    NumericIdx = ArgAsInt->getValue().getLimitedValue();
-  } else {
-    // If the index is not an integer, we can only be traversing an array. In
-    // that case, since all elements of an array have the same type, we are not
-    // interested in the numeric value of the index. So, we leave it at 0.
-    revng_assert(Parent.isArray());
-  }
-
-  return getFieldType(Parent, NumericIdx);
-}
-
-static model::UpcastableType traverseModelGEP(const model::Binary &Model,
-                                              const llvm::CallInst *Call) {
-  // Deduce the base type from the first argument
-  auto Type = fromLLVMString(Call->getArgOperand(0), Model);
-
-  // Compute the first index of variadic arguments that represent the traversal
-  // starting from the CurType.
-  unsigned IndexOfFirstTraversalArgument = ModelGEPBaseArgIndex + 1;
-  revng_assert(isCallToTagged(Call, FunctionTags::ModelGEPRef));
-
-  // Traverse the model
-  const model::Type *Result = Type.get();
-  for (auto &CurArg :
-       llvm::drop_begin(Call->args(), IndexOfFirstTraversalArgument)) {
-    Result = &getFieldType(*Result, CurArg);
-  }
-
-  return *Result;
-}
-
 static llvm::SmallVector<model::UpcastableType>
 flattenReturnTypes(const abi::FunctionType::Layout &Layout,
                    const model::Binary &Model) {
@@ -284,9 +223,6 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         revng_assert(not CallStackArgumentType->isVoidPrimitive());
 
         rc_return{ CallStackArgumentType };
-      } else if (FTags.contains(FunctionTags::ModelGEPRef)) {
-        rc_return{ traverseModelGEP(Model, Call) };
-
       } else if (FTags.contains(FunctionTags::AddressOf)) {
         // The first argument is the base type (not the pointer's type)
         auto Base = fromLLVMString(Call->getArgOperand(0), Model);
@@ -413,38 +349,6 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
         // The type of the base value is contained in the first operand
         auto Base = fromLLVMString(Call->getArgOperand(0), Model);
         return { std::move(Base) };
-
-      } else if (FTags.contains(FunctionTags::ModelGEPRef)) {
-        // We have model type information only for the base value
-        if (ArgOperandIdx < ModelGEPBaseArgIndex)
-          return {};
-
-        if (ArgOperandIdx == ModelGEPBaseArgIndex) {
-          // The type of the base value is contained in the first operand
-          auto Base = fromLLVMString(Call->getArgOperand(0), Model);
-          return { std::move(Base) };
-        } else {
-          // For all index operands in ModelGEP, if the operand is not an
-          // integer constant it must be an array index, for which the expected
-          // type is a signed integer.
-          if (not isa<llvm::ConstantInt>(U->get())) {
-            unsigned BitSize = U->get()->getType()->getScalarSizeInBits();
-            revng_assert(BitSize);
-            revng_assert(BitSize == 1 or 0 == (BitSize % 8));
-            model::UpcastableType
-              Result = model::PrimitiveType::makeNumber(BitSize == 1 ?
-                                                          BitSize :
-                                                          BitSize / 8);
-            if (not Result->verify()) {
-              using model::Architecture::getPointerSize;
-              size_t PointerSize = getPointerSize(Model.Architecture());
-              Result = model::PrimitiveType::makeNumber(PointerSize);
-              revng_assert(Result->verify());
-            }
-            return { std::move(Result) };
-          }
-          return {};
-        }
 
       } else if (isCallTo(Call, "revng_call_stack_arguments")) {
         auto *Arg0Operand = Call->getArgOperand(0);

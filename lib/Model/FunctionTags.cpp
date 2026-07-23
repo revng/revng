@@ -78,8 +78,6 @@ FunctionPoolTag<TypePair>
               }
             });
 
-Tag ModelGEPRef("model-gep-ref");
-
 FunctionPoolTag<TypePair>
   OpaqueExtractValue("opaque-extract-value",
                      { llvm::Attribute::NoInline,
@@ -441,59 +439,6 @@ llvm::CallInst &emitMessage(revng::IRBuilder &Builder,
   return emitMessageImpl<false>(Builder, Message, DbgLocation, PCH);
 }
 
-static constexpr const char *const ModelGEPRefName = "ModelGEPRef";
-
-// This is very simple for now.
-// In the future we might consider making it more robust using something like
-// Punycode https://tools.ietf.org/html/rfc3492 , which also has the nice
-// property of being deterministically reversible.
-static std::string makeCIdentifier(std::string S) {
-  llvm::for_each(S, [](char &C) {
-    if (not std::isalnum(C))
-      C = '_';
-  });
-  return S;
-}
-
-static std::string makeTypeName(const llvm::Type *Ty) {
-  std::string Name;
-  if (auto *PtrTy = llvm::dyn_cast<llvm::PointerType>(Ty)) {
-    Name = "ptr";
-  } else if (auto *IntTy = llvm::dyn_cast<llvm::IntegerType>(Ty)) {
-    Name = "i" + std::to_string(IntTy->getBitWidth());
-  } else if (auto *StrucTy = llvm::dyn_cast<llvm::StructType>(Ty)) {
-    Name = "struct_";
-    Name += std::to_string(reinterpret_cast<uint64_t>(Ty));
-    if (StrucTy->isLiteral() or not StrucTy->hasName()) {
-      for (const auto *FieldTy : StrucTy->elements())
-        Name += "_" + makeTypeName(FieldTy);
-    } else {
-      Name += "_" + makeCIdentifier(StrucTy->getStructName().str());
-    }
-  } else if (auto *FunTy = llvm::dyn_cast<llvm::FunctionType>(Ty)) {
-    Name = "func_" + makeTypeName(FunTy->getReturnType());
-    if (not FunTy->params().empty()) {
-      Name += "_args";
-      for (const auto &ArgT : FunTy->params())
-        Name += "_" + makeTypeName(ArgT);
-    }
-  } else if (Ty->isVoidTy()) {
-    Name += "void";
-  } else {
-    revng_unreachable("cannot build Type name");
-  }
-  return Name;
-}
-
-static std::string makeTypeBasedSuffix(const llvm::Type *RetTy,
-                                       const llvm::Type *BaseAddressTy,
-                                       llvm::StringRef Prefix) {
-  using llvm::Twine;
-  return (Prefix + Twine("_ret_") + Twine(makeTypeName(RetTy))
-          + Twine("_baseptr_") + Twine(makeTypeName(BaseAddressTy)))
-    .str();
-}
-
 llvm::FunctionType *getAddressOfType(llvm::Type *RetType,
                                      llvm::Type *BaseType) {
   // There are 2 fixed arguments:
@@ -504,47 +449,6 @@ llvm::FunctionType *getAddressOfType(llvm::Type *RetType,
   llvm::SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(C),
                                                    BaseType };
   return llvm::FunctionType::get(RetType, FixedArgs, false /* IsVarArg */);
-}
-
-llvm::Function *
-getModelGEPRef(llvm::Module &M, llvm::Type *ReturnType, llvm::Type *BaseType) {
-
-  using namespace llvm;
-  // There are 2 fixed arguments:
-  // - the first is a pointer to a constant string that contains a serialization
-  //   of the key of the base type;
-  // - the second is the type of the base pointer.
-  //
-  // Notice that, unlike ModelGEP, ModelGEPRef doesn't have a mandatory third
-  // argument to represent the array access, because in case of reference
-  // there's no way to do an array-like access
-  SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(M.getContext()),
-                                             BaseType };
-  // The function is vararg, because we might need to access a number of fields
-  // that is variable.
-  FunctionType *ModelGEPType = FunctionType::get(ReturnType,
-                                                 FixedArgs,
-                                                 true /* IsVarArg */);
-
-  FunctionCallee
-    MGEPCallee = M.getOrInsertFunction(makeTypeBasedSuffix(ReturnType,
-                                                           BaseType,
-                                                           ModelGEPRefName),
-                                       ModelGEPType);
-
-  auto *ModelGEPFunction = cast<Function>(MGEPCallee.getCallee());
-  ModelGEPFunction->addFnAttr(llvm::Attribute::NoUnwind);
-  ModelGEPFunction->addFnAttr(llvm::Attribute::WillReturn);
-
-  // This is NoMerge, because merging two of them would cause a PHINode among
-  // IsRef opcodes.
-  ModelGEPFunction->addFnAttr(llvm::Attribute::NoMerge);
-
-  ModelGEPFunction->setMemoryEffects(llvm::MemoryEffects::none());
-  FunctionTags::ModelGEPRef.addTo(ModelGEPFunction);
-  FunctionTags::IsRef.addTo(ModelGEPFunction);
-
-  return ModelGEPFunction;
 }
 
 llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType) {
