@@ -41,4 +41,4 @@ static bool checkSerialization(const TupleTree<model::Binary> &T) {
   return T->TypeDefinitions() == Deserialized->TypeDefinitions();
 }
 
-#include "revng/tests/unit/ModelType.inc"
+#include "ModelType.inc"
