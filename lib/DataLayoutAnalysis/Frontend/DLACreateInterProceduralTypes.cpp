@@ -218,6 +218,19 @@ bool TSBuilder::createInterproceduralTypes(llvm::Module &M) {
           }
         } else if (auto *RetI = dyn_cast<ReturnInst>(&I)) {
           if (Value *RetVal = RetI->getReturnValue()) {
+            // TODO: An array-of-bytes return value for a CABI function
+            // returning an aggregate. In order to handle it properly we should
+            // visit it recursively and have first-class support for model types
+            // in DLA, which we currently don't have.
+            // So, for now we just bail out, accepting to degrade the quality of
+            // the results. We don't expect this to affect users much in
+            // practice, because either the input has no debug symbols (and in
+            // that case DLA sees mostly Raw functions, and this case doesn't
+            // trigger) or the model (via debug symbols, or user input) has lots
+            // of good information on CABI function types, in which case the
+            // role of DLA is not that important interprocedurally.
+            if (isArrayOfBytes(RetVal->getType()))
+              continue;
             revng_assert(isa<StructType>(RetVal->getType())
                          or isa<IntegerType>(RetVal->getType())
                          or isa<PointerType>(RetVal->getType()));
