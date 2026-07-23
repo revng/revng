@@ -1,13 +1,17 @@
+
 //
 // This file is distributed under the MIT License. See LICENSE.md for details.
 //
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Instruction.h"
 #include "llvm/IR/Value.h"
 
+#include "revng/ABI/FunctionType/Layout.h"
 #include "revng/Model/FunctionTags.h"
+#include "revng/Model/IRHelpers.h"
 #include "revng/Support/Assert.h"
 #include "revng/Support/IRHelpers.h"
 
@@ -51,12 +55,32 @@ void LLVMTSDebugPrinter::printNodeContent(const LayoutTypeSystem &TS,
   }
 }
 
+static void assertGetLayoutTypePreConditions(const Value &V) {
+  const Type *VTy = V.getType();
+  // We accept only the following types:
+  // * pointers, because they are obviously pointers; the associated layout is
+  //   the pointee of such pointers
+  // * integers, because they may be used to do integer-based pointer arithmetic
+  //   which makes them pointers in practice; the associated layout is the
+  //   pointee of such pointers
+  // * struct types and function types, because struct types are used to
+  //   represent return types of Raw functions returning sets of registers, one
+  //   register for each field of the struct; so the index tells what field we
+  //   are considering; the associated layout is the pointee of such field
+  // * array of bytes, because they are used as return types of CABI functions
+  //   returning big aggregates;
+  //   TODO: these are accepted but not handled properly at this time. proper
+  //   handling would require them to be treated roughly like struct types, but
+  //   it is considerably harder since we don't have the same strong guarantees
+  //   we have with register sets that each field is a register, since here we
+  //   can have any nested aggregate type.
+  revng_assert(isa<IntegerType>(VTy) or isa<PointerType>(VTy)
+               or isa<StructType>(VTy) or isa<FunctionType>(VTy)
+               or isArrayOfBytes(VTy));
+}
+
 static void assertGetLayoutTypePreConditions(const Value *V, unsigned Id) {
-  // We accept only integers, pointer, and function types (which are actually
-  // used for representing return types of functions)
-  const Type *VT = V->getType();
-  revng_assert(isa<FunctionType>(VT) or isa<IntegerType>(VT)
-               or isa<PointerType>(VT));
+  assertGetLayoutTypePreConditions(*V);
   // The only case where we accept Id != max are Functions that return
   // structs
   revng_assert(Id == std::numeric_limits<unsigned>::max()
@@ -98,14 +122,6 @@ DLATypeSystemLLVMBuilder::getOrCreateLayoutType(const Value *V, unsigned Id) {
   return std::make_pair(Res, true);
 }
 
-static void assertGetLayoutTypePreConditions(const Value &V) {
-  const Type *VTy = V.getType();
-  // We accept only integers, pointer, structs and and function types (which
-  // are actually used for representing return types of functions)
-  revng_assert(isa<IntegerType>(VTy) or isa<PointerType>(VTy)
-               or isa<StructType>(VTy) or isa<FunctionType>(VTy));
-}
-
 SmallVector<LayoutTypeSystemNode *, 2>
 DLATypeSystemLLVMBuilder::getLayoutTypes(const Value &V) {
   assertGetLayoutTypePreConditions(V);
@@ -123,6 +139,19 @@ DLATypeSystemLLVMBuilder::getLayoutTypes(const Value &V) {
         revng_assert(isa<IntegerType>(FieldTy) or isa<PointerType>(FieldTy));
         Results.push_back(getLayoutType(&V, FieldId));
       }
+    } else if (isArrayOfBytes(RetTy)) {
+      // TODO: A function returning an array-of-bytes is a CABI function
+      // returning an aggregate. In order to handle it properly we should
+      // visit it recursively and have first-class support for model types
+      // in DLA, which we currently don't have.
+      // So, for now we just bail out, accepting to degrade the quality of
+      // the results. We don't expect this to affect users much in
+      // practice, because either the input has no debug symbols (and in
+      // that case DLA sees mostly Raw functions, and this case doesn't
+      // trigger) or the model (via debug symbols, or user input) has lots
+      // of good information on CABI function types, in which case the
+      // role of DLA is not that important interprocedurally.
+      revng_assert(Results.empty());
     } else {
       revng_assert(isa<IntegerType>(VTy) or isa<PointerType>(VTy));
       Results.push_back(getLayoutType(&V));
@@ -227,6 +256,18 @@ DLATypeSystemLLVMBuilder::getOrCreateLayoutTypes(const Value &V) {
         revng_assert(isa<IntegerType>(FieldTy) or isa<PointerType>(FieldTy));
         Results.push_back(getOrCreateLayoutType(&V, FieldId));
       }
+    } else if (isArrayOfBytes(RetTy)) {
+      // TODO: A function returning an array-of-bytes is a CABI function
+      // returning an aggregate. In order to handle it properly we should
+      // visit it recursively and have first-class support for model types
+      // in DLA, which we currently don't have.
+      // So, for now we just bail out, accepting to degrade the quality of
+      // the results. We don't expect this to affect users much in
+      // practice, because either the input has no debug symbols (and in
+      // that case DLA sees mostly Raw functions, and this case doesn't
+      // trigger) or the model (via debug symbols, or user input) has lots
+      // of good information on CABI function types, in which case the
+      // role of DLA is not that important interprocedurally.
     } else {
       revng_assert(isa<IntegerType>(VTy) or isa<PointerType>(VTy));
       Results.push_back(getOrCreateLayoutType(&V));
