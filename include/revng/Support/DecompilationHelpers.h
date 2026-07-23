@@ -48,10 +48,6 @@ inline bool areMemOpCompatible(const model::Type &ModelType,
   return ModelSize * 8 == LLVMSize;
 }
 
-inline bool isAssignment(const llvm::Value *I) {
-  return isCallToTagged(I, FunctionTags::Assign);
-}
-
 inline bool isComment(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::Comment);
 }
@@ -96,8 +92,8 @@ inline bool isStatement(const llvm::Instruction &I) {
   if (not Call)
     return false;
 
-  // Calls to Assign and LocalVariable are statemements.
-  if (isAssignment(Call) or isComment(Call))
+  // Calls to Comment are statements.
+  if (isComment(Call))
     return true;
 
   // Calls to isolated functions or helpers that return struct types on LLVM IR

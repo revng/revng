@@ -60,7 +60,6 @@ extern FunctionPoolTag<llvm::Type *> HexInteger;
 extern FunctionPoolTag<llvm::Type *> CharInteger;
 extern FunctionPoolTag<llvm::Type *> BoolInteger;
 extern FunctionPoolTag<llvm::Type *> NullPtr;
-extern FunctionPoolTag<llvm::Type *> Assign;
 extern FunctionPoolTag<llvm::Type *> Copy;
 extern Tag SegmentGlobal;
 /// Functions that must survive function isolation: MinimalModuleCloner
@@ -296,11 +295,6 @@ llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
 /// ExtractValue to prevent it from being optimized out, so the return type and
 /// arguments are the same as the instruction being wrapped.
 llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract);
-
-/// Assign() are meant to replace `store` instructions in which the pointer
-/// operand is a reference.
-llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
-                                          llvm::Type *PtrType);
 
 /// Copy() are meant to replace `load` instructions in which the pointer
 /// operand is a reference.

@@ -287,8 +287,7 @@ void AEMFP::applyTransferFunctionImpl(Instruction *I, LatticeElement &E) const {
             "applyTransferFunction on Instruction I: " << dumpToString(I, MST));
   LoggerIndent Indent{ Log };
 
-  revng_assert(not isCallToTagged(I, FunctionTags::Copy)
-               and not isCallToTagged(I, FunctionTags::Assign));
+  revng_assert(not isCallToTagged(I, FunctionTags::Copy));
 
   if (mayHaveSideEffects(I)) {
     revng_log(Log, "mayHaveSideEffects");
@@ -450,7 +449,6 @@ static bool isProgramPoint(const Instruction *I) {
   // they disappear over time until we can actually drop them.
   if (isCallToTagged(I, FunctionTags::AllocatesLocalVariable)
       or isCallToTagged(I, FunctionTags::Copy)
-      or isCallToTagged(I, FunctionTags::Assign)
       or isCallToTagged(I, FunctionTags::AddressOf)
       or isCallToTagged(I, FunctionTags::Marker)
       or isCallToTagged(I, FunctionTags::IsRef)

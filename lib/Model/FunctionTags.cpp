@@ -120,13 +120,6 @@ FunctionPoolTag<llvm::Type *>
           InitializationMode::InitializeFromReturnType);
 
 FunctionPoolTag<llvm::Type *>
-  Assign("assign",
-         { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
-         llvm::MemoryEffects::writeOnly(),
-         { &FunctionTags::UniquedByPrototype },
-         InitializationMode::InitializeFromArgument0);
-
-FunctionPoolTag<llvm::Type *>
   Copy("copy",
        { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
        llvm::MemoryEffects::readOnly(),
@@ -437,15 +430,6 @@ llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {
   Type *ReturnType = Extract->getType();
 
   return FunctionType::get(ReturnType, ArgTypes, false);
-}
-
-llvm::FunctionType *getAssignFunctionType(llvm::Type *ValueType,
-                                          llvm::Type *PtrType) {
-  llvm::SmallVector<llvm::Type *, 2> FixedArgs = { ValueType, PtrType };
-  auto &C = ValueType->getContext();
-  return llvm::FunctionType::get(llvm::Type::getVoidTy(C),
-                                 FixedArgs,
-                                 false /* IsVarArg */);
 }
 
 llvm::FunctionType *getCopyType(llvm::Type *ReturnedType,
