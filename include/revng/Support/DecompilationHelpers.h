@@ -56,10 +56,6 @@ inline bool isComment(const llvm::Value *I) {
   return isCallToTagged(I, FunctionTags::Comment);
 }
 
-inline bool isLocalVarDecl(const llvm::Value *I) {
-  return isCallToTagged(I, FunctionTags::LocalVariable);
-}
-
 inline bool isCallStackArgumentDecl(const llvm::Value *I) {
   auto *Call = dyn_cast_or_null<llvm::CallInst>(I);
   if (not Call)

@@ -449,7 +449,6 @@ static bool isProgramPoint(const Instruction *I) {
   // operators, so we don't need them in LLVM anymore and we want to make sure
   // they disappear over time until we can actually drop them.
   if (isCallToTagged(I, FunctionTags::AllocatesLocalVariable)
-      or isCallToTagged(I, FunctionTags::LocalVariable)
       or isCallToTagged(I, FunctionTags::Copy)
       or isCallToTagged(I, FunctionTags::Assign)
       or isCallToTagged(I, FunctionTags::AddressOf)

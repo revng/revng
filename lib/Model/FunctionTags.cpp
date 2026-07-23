@@ -120,18 +120,6 @@ FunctionPoolTag<llvm::Type *>
           InitializationMode::InitializeFromReturnType);
 
 FunctionPoolTag<llvm::Type *>
-  LocalVariable("local-variable",
-                { llvm::Attribute::NoUnwind,
-                  llvm::Attribute::WillReturn,
-                  llvm::Attribute::NoMerge },
-                llvm::MemoryEffects::none(),
-                { &FunctionTags::IsRef,
-                  &FunctionTags::AllocatesLocalVariable,
-                  &FunctionTags::ReturnsPolymorphic,
-                  &FunctionTags::UniquedByPrototype },
-                InitializationMode::InitializeFromReturnType);
-
-FunctionPoolTag<llvm::Type *>
   Assign("assign",
          { llvm::Attribute::NoUnwind, llvm::Attribute::WillReturn },
          llvm::MemoryEffects::writeOnly(),
@@ -431,16 +419,6 @@ llvm::FunctionType *getAddressOfType(llvm::Type *RetType,
   llvm::SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(C),
                                                    BaseType };
   return llvm::FunctionType::get(RetType, FixedArgs, false /* IsVarArg */);
-}
-
-llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType) {
-  using namespace llvm;
-
-  // There only argument is a pointer to a constant string that contains a
-  // serialization of the allocated variable's type
-  auto &C = ReturnedType->getContext();
-  SmallVector<llvm::Type *, 1> FixedArgs = { getStringPtrType(C) };
-  return FunctionType::get(ReturnedType, FixedArgs, false /* IsVarArg */);
 }
 
 llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {

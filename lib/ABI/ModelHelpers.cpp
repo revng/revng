@@ -229,11 +229,6 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         rc_return{ model::PointerType::make(std::move(Base),
                                             Model.Architecture()) };
 
-      } else if (FTags.contains(FunctionTags::LocalVariable)) {
-        // The first argument is the returned type
-        auto Type = fromLLVMString(Call->getArgOperand(0), Model);
-        rc_return{ std::move(Type) };
-
       } else if (FTags.contains(FunctionTags::StructInitializer)) {
         // Struct initializers are only used to pack together return values of
         // RawFunctionTypes that return multiple values, therefore they have

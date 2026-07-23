@@ -60,7 +60,6 @@ extern FunctionPoolTag<llvm::Type *> HexInteger;
 extern FunctionPoolTag<llvm::Type *> CharInteger;
 extern FunctionPoolTag<llvm::Type *> BoolInteger;
 extern FunctionPoolTag<llvm::Type *> NullPtr;
-extern FunctionPoolTag<llvm::Type *> LocalVariable;
 extern FunctionPoolTag<llvm::Type *> Assign;
 extern FunctionPoolTag<llvm::Type *> Copy;
 extern Tag SegmentGlobal;
@@ -297,10 +296,6 @@ llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
 /// ExtractValue to prevent it from being optimized out, so the return type and
 /// arguments are the same as the instruction being wrapped.
 llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract);
-
-/// LocalVariable is used to indicate the allocation of a local variable. It
-/// returns a reference to the allocated variable.
-llvm::FunctionType *getLocalVarType(llvm::Type *ReturnedType);
 
 /// Assign() are meant to replace `store` instructions in which the pointer
 /// operand is a reference.
