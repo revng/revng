@@ -53,7 +53,7 @@ getPointerSizedInteger(llvm::LLVMContext &C,
 }
 
 /// If possible, deduce the model type returned by \a Inst by looking only at
-/// the instruction (e.g. AddressOf). Note that calls to RawFunctionTypes and
+/// the instruction (e.g. Parentheses). Note that calls to RawFunctionTypes and
 /// calls to StructInitializer can return more than one type.
 /// \return nothing if no information could be deduced locally on Inst
 /// \return one or more types associated to the instruction
@@ -61,7 +61,7 @@ extern RecursiveCoroutine<llvm::SmallVector<model::UpcastableType, 8>>
 getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model);
 
 /// If possible, deduce the expected model type of an operand (e.g. the base
-/// operand of an AddressOf) by looking only at the User. Note that, in the case
+/// operand of a call) by looking only at the User. Note that, in the case
 /// of `ret` instructions inside RawFunctionTypes, the use might have more than
 /// one type associated to it.
 /// \return nothing if no information could be deduced locally on U

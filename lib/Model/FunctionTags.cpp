@@ -38,25 +38,6 @@ Tag ScopeCloserMarker("scope-closer");
 Tag GotoBlockMarker("goto-block");
 
 FunctionPoolTag<TypePair>
-  AddressOf("address-of",
-            { llvm::Attribute::NoUnwind,
-              llvm::Attribute::WillReturn,
-              llvm::Attribute::NoMerge },
-            llvm::MemoryEffects::none(),
-            { &FunctionTags::UniquedByPrototype },
-            [](OpaqueFunctionsPool<TypePair> &Pool,
-               llvm::Module &M,
-               const FunctionPoolTag<TypePair> &Tag) {
-              for (llvm::Function &F : Tag.functions(&M)) {
-                revng_assert(AddressOf.isTagOf(&F));
-                revng_assert(Tag.isTagOf(&F));
-                auto *ArgType = F.getFunctionType()->getParamType(1);
-                auto *RetType = F.getFunctionType()->getReturnType();
-                Pool.record({ RetType, ArgType }, &F);
-              }
-            });
-
-FunctionPoolTag<TypePair>
   OpaqueExtractValue("opaque-extract-value",
                      { llvm::Attribute::NoInline,
                        llvm::Attribute::NoMerge,
@@ -354,18 +335,6 @@ llvm::CallInst &emitMessage(revng::IRBuilder &Builder,
                             const llvm::DebugLoc &DbgLocation,
                             const ProgramCounterHandler *PCH) {
   return emitMessageImpl<false>(Builder, Message, DbgLocation, PCH);
-}
-
-llvm::FunctionType *getAddressOfType(llvm::Type *RetType,
-                                     llvm::Type *BaseType) {
-  // There are 2 fixed arguments:
-  // - the first is a pointer to a constant string that contains a serialization
-  //   of the key of the base type;
-  // - the second is BaseType, i.e. the type of the base pointer.
-  auto &C = RetType->getContext();
-  llvm::SmallVector<llvm::Type *, 2> FixedArgs = { getStringPtrType(C),
-                                                   BaseType };
-  return llvm::FunctionType::get(RetType, FixedArgs, false /* IsVarArg */);
 }
 
 llvm::FunctionType *getOpaqueEVFunctionType(llvm::ExtractValueInst *Extract) {

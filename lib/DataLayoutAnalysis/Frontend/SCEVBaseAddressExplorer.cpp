@@ -4,6 +4,7 @@
 
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/Analysis/ScalarEvolutionExpressions.h"
+#include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/Instruction.h"
 
 #include "revng/Model/FunctionTags.h"
@@ -15,20 +16,6 @@
 static bool isConstantAddress(const llvm::ConstantInt *C) {
   // TODO: insert some logic to properly detect when this constant represents
   // a pointer pointing into some segment
-  return false;
-}
-
-// Returns true if the Value \p V is always an address, false otherwise.
-//
-// For now the only Values that are always considered as addresses are calls to
-// `revng_stack_frame`, that returns a pointer to the stack of the Function
-// that contains the call. A pointer to the stack is obviously always an
-// address.
-static bool isAlwaysAddress(const llvm::Value *V) {
-  if (auto *Call = dyn_cast_or_null<llvm::CallInst>(V))
-    if (auto *Callee = getCalledFunction(Call))
-      if (FunctionTags::AddressOf.isTagOf(Callee))
-        return true;
   return false;
 }
 
@@ -80,7 +67,10 @@ SCEVBaseAddressExplorer::findBases(llvm::ScalarEvolution *SE,
         // ignored.
         if (auto *U = dyn_cast<llvm::SCEVUnknown>(AddressCandidate)) {
           auto *UVal = U->getValue();
-          if (not isAlwaysAddress(UVal)) {
+          // Segment references are turned into references to global variables
+          // by inline-segment-global-getters (which runs before the DLA), and
+          // a global variable is always an address.
+          if (not llvm::isa<llvm::GlobalVariable>(UVal)) {
             // If it's a call there are cases where we know we are never able to
             // say anything meaningful about the type they point to, for now.
             if (auto *Call = dyn_cast<llvm::CallInst>(UVal)) {

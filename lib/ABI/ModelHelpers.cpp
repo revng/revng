@@ -223,12 +223,6 @@ getStrongModelInfo(const llvm::Instruction *Inst, const model::Binary &Model) {
         revng_assert(not CallStackArgumentType->isVoidPrimitive());
 
         rc_return{ CallStackArgumentType };
-      } else if (FTags.contains(FunctionTags::AddressOf)) {
-        // The first argument is the base type (not the pointer's type)
-        auto Base = fromLLVMString(Call->getArgOperand(0), Model);
-        rc_return{ model::PointerType::make(std::move(Base),
-                                            Model.Architecture()) };
-
       } else if (FTags.contains(FunctionTags::StructInitializer)) {
         // Struct initializers are only used to pack together return values of
         // RawFunctionTypes that return multiple values, therefore they have
@@ -335,16 +329,7 @@ getExpectedModelType(const llvm::Use *U, const model::Binary &Model) {
       auto *CalledFunc = getCalledFunction(Call);
       auto FTags = FunctionTags::TagsSet::from(CalledFunc);
 
-      if (FTags.contains(FunctionTags::AddressOf)) {
-        // We have model type information only for the base value
-        if (ArgOperandIdx != 1)
-          return {};
-
-        // The type of the base value is contained in the first operand
-        auto Base = fromLLVMString(Call->getArgOperand(0), Model);
-        return { std::move(Base) };
-
-      } else if (isCallTo(Call, "revng_call_stack_arguments")) {
+      if (isCallTo(Call, "revng_call_stack_arguments")) {
         auto *Arg0Operand = Call->getArgOperand(0);
         auto CallStackArgumentType = fromLLVMString(Arg0Operand, Model);
         revng_assert(not CallStackArgumentType.isEmpty());

@@ -53,14 +53,6 @@ bool CleanupIRPass::Impl::replaceInstructions(Function &F) {
 
   bool Changed = false;
 
-  for (Instruction &I : llvm::make_early_inc_range(llvm::instructions(F))) {
-    if (auto *Call = getCallToTagged(&I, FunctionTags::AddressOf)) {
-      Call->replaceAllUsesWith(Call->getArgOperand(1));
-      Call->eraseFromParent();
-      Changed = true;
-    }
-  }
-
   return Changed;
 }
 

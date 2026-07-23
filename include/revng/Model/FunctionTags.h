@@ -48,8 +48,6 @@ struct TypePair {
   }
 };
 
-extern FunctionPoolTag<TypePair> AddressOf;
-
 extern FunctionPoolTag<TypePair> OpaqueExtractValue;
 extern FunctionPoolTag<llvm::Type *> Parentheses;
 extern Tag SegmentGlobal;
@@ -273,13 +271,6 @@ inline MetaAddress getMetaAddressOfIsolatedFunction(const llvm::Function &F) {
   revng_assert(FunctionTags::Isolated.isTagOf(&F));
   return getMetaAddressMetadata(&F, FunctionEntryMDName);
 }
-
-/// AddressOf functions are used to transform a reference into a pointer.
-///
-/// \param RetType The LLVM type returned by the Addressof call
-/// \param BaseType The LLVM type of the second argument (the reference that
-/// we want to transform into a pointer).
-llvm::FunctionType *getAddressOfType(llvm::Type *RetType, llvm::Type *BaseType);
 
 /// Derive the function type of the corresponding OpaqueExtractValue() function
 /// from an ExtractValue instruction. OpaqueExtractValues wrap an
