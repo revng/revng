@@ -36,7 +36,6 @@ Tag CSV("csv");
 
 Tag AllocatesLocalVariable("allocates-local-variable");
 Tag ReturnsPolymorphic("returns-polymorphic");
-Tag IsRef("is-ref");
 
 Tag ScopeCloserMarker("scope-closer");
 Tag GotoBlockMarker("goto-block");
@@ -141,8 +140,7 @@ FunctionPoolTag<SegmentRefPoolKey>
                         llvm::Attribute::WillReturn,
                         llvm::Attribute::NoInline },
                       llvm::MemoryEffects::none(),
-                      { &FunctionTags::IsRef,
-                        &FunctionTags::UniquedByMetadata,
+                      { &FunctionTags::UniquedByMetadata,
                         &FunctionTags::KeepPostIsolation },
                       segmentGlobalGetterInitializer,
                       segmentGlobalGetterFactory);

@@ -34,7 +34,6 @@ extern Tag CSV;
 inline const char *UniqueIDMDName = "revng.unique_id";
 extern Tag AllocatesLocalVariable;
 extern Tag ReturnsPolymorphic;
-extern Tag IsRef;
 extern Tag ScopeCloserMarker;
 extern Tag GotoBlockMarker;
 

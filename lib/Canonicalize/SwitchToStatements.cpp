@@ -448,7 +448,6 @@ static bool isProgramPoint(const Instruction *I) {
   if (isCallToTagged(I, FunctionTags::AllocatesLocalVariable)
       or isCallToTagged(I, FunctionTags::AddressOf)
       or isCallToTagged(I, FunctionTags::Marker)
-      or isCallToTagged(I, FunctionTags::IsRef)
       or isCallToTagged(I, FunctionTags::Parentheses)
       or isCallToTagged(I, FunctionTags::SegmentGlobalGetter)) {
     UnexpectedInstruction = I;
@@ -1190,10 +1189,6 @@ private:
 using VI = VariableInserter;
 
 bool VI::serializeToLocalVariable(Instruction *I) {
-  // We can't serialize instructions with reference semantics into local
-  // variables because C doesn't have references.
-  revng_assert(not isCallToTagged(I, FunctionTags::IsRef));
-
   // First, we have to declare the LocalVariable, always at the entry block.
   // Create instruction that allocates a LocalVariable
   LocalVarType *LocalVariable = createLocalVariableFor(I);
