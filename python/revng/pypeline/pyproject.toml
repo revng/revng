@@ -12,7 +12,7 @@ dependencies = [
     "psuitl",
     "xdg",
     "starlette",
-    "uvicorn"
+    "hypercorn"
 ]
 
 [project.scripts]
