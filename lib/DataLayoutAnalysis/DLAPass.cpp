@@ -7,8 +7,6 @@
 
 #include "revng/DataLayoutAnalysis/DLA.h"
 #include "revng/DataLayoutAnalysis/DLALayouts.h"
-#include "revng/DataLayoutAnalysis/DLAPass.h"
-#include "revng/Model/LoadModelPass.h"
 #include "revng/Pipeline/Context.h"
 #include "revng/Pipeline/LLVMContainer.h"
 #include "revng/Pipeline/RegisterAnalysis.h"
@@ -19,19 +17,7 @@
 #include "Frontend/DLATypeSystemBuilder.h"
 #include "Middleend/DLAStep.h"
 
-char DLAPass::ID = 0;
-
 static Logger BuilderLog("dla-builder-log");
-
-using Register = llvm::RegisterPass<DLAPass>;
-static ::Register X("dla", "Data Layout Analysis Pass", false, false);
-
-void DLAPass::getAnalysisUsage(llvm::AnalysisUsage &AU) const {
-  if (ConstructorModel == nullptr)
-    AU.addRequired<LoadModelWrapperPass>();
-
-  AU.setPreservesAll();
-}
 
 template<typename ModuleRange>
 static bool runDataLayoutAnalysis(ModuleRange &&Modules,
@@ -130,19 +116,6 @@ static bool runDataLayoutAnalysis(ModuleRange &&Modules,
   return Changed;
 }
 
-bool DLAPass::runOnModule(llvm::Module &M) {
-  TupleTree<model::Binary> *WritableModel = nullptr;
-  if (ConstructorModel != nullptr) {
-    WritableModel = ConstructorModel;
-  } else {
-    WritableModel = &getAnalysis<LoadModelWrapperPass>()
-                       .get()
-                       .getWriteableModel();
-  }
-
-  return runDataLayoutAnalysis(std::views::single(&M), *WritableModel);
-}
-
 class DLAAnalysis {
 public:
   static constexpr auto Name = "analyze-data-layout";
@@ -152,13 +125,10 @@ public:
   };
 
   void run(pipeline::ExecutionContext &EC, pipeline::LLVMContainer &Module) {
-    using namespace revng;
-
-    llvm::legacy::PassManager Manager;
-    auto &Global = getWritableModelFromContext(EC);
-    Manager.add(new LoadModelWrapperPass(ModelWrapper(Global)));
-    Manager.add(new DLAPass());
-    Manager.run(Module.getModule());
+    TupleTree<model::Binary>
+      &WritableModel = revng::getWritableModelFromContext(EC);
+    runDataLayoutAnalysis(std::views::single(&Module.getModule()),
+                          WritableModel);
   }
 };
 
