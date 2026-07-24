@@ -317,29 +317,22 @@ DLATypeSystemLLVMBuilder::getOrCreateLayoutTypes(const Value &V) {
           const auto FieldId = Group.index();
           // Inside here we're working on a single field of the struct.
           // ExtractedSet contains all the ExtractValueInst that extract the
-          // same field of the struct.
-          // We get or create a layout type for each of them, but they should
-          // all be the same.
-          std::optional<GetOrCreateResult> FieldResult;
+          // same field of the struct. Unlike getLayoutTypes, here we must
+          // create a layout type for every one of them and connect them with
+          // equality links (later merged by CollapseEqualitySCC); the first
+          // one is kept as the field representative.
+          LayoutTypeSystemNode *FieldNode = nullptr;
+          bool New = false;
           for (const CallInst *Ext : ExtractedSet) {
             revng_assert(isCallToTagged(Ext, FunctionTags::OpaqueExtractValue));
-            GetOrCreateResult ExtResult = getOrCreateLayoutType(Ext);
-            if (FieldResult.has_value()) {
-              auto &[Node, New] = FieldResult.value();
-              const auto &[ExtNode, ExtNew] = ExtResult;
-              revng_assert(not ExtNew or ExtNode);
-              if (not Node) {
-                Node = ExtNode;
-              } else if (ExtNode and ExtNode != Node) {
-                bool AddedLink = TS.addEqualityLink(Node, ExtNode).second;
-                New |= AddedLink;
-              }
-              New |= ExtNew;
-            } else {
-              FieldResult = ExtResult;
-            }
+            auto [ExtNode, ExtNew] = getOrCreateLayoutType(Ext);
+            New |= ExtNew;
+            if (FieldNode == nullptr)
+              FieldNode = ExtNode;
+            else if (ExtNode != FieldNode)
+              New |= TS.addEqualityLink(FieldNode, ExtNode).second;
           }
-          Results[FieldId] = FieldResult.value_or(GetOrCreateResult{});
+          Results[FieldId] = { FieldNode, New };
         }
       }
 
